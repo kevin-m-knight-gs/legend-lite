@@ -47,8 +47,9 @@ for the 2026.06 and 2026.07 releases.
    new. Unbounded paths, `shortestPath` and every iterative algorithm need the database to iterate. Every backend lite
    renders has `WITH RECURSIVE` in some form, and the dialect layer already emits one (`FoldsAsRecursiveCtes`, for
    BigQuery); what Pure lacks is a spelling of a fixpoint. That is one new native with one lowering rule per dialect
-   (§6), and it touches C6.3 and C6.4 of the tenet charter, which name recursion as excluded or residue: **it needs
-   the user's ruling before anything unbounded is built.** And "all of Neo4j's graph algorithms" has to mean "every
+   (§6), and it touches C6.3 and C6.4 of the tenet charter, which name recursion as excluded or residue. **The user
+   ruled on 2026-10-15 that recursion is required** for the graph queries and the algorithms, so the native is built
+   (PR5, §6.3); what remains to agree is its shape. And "all of Neo4j's graph algorithms" has to mean "every
    deterministic one": about a third of the catalog is randomized or heuristic, and there is no answer to be right
    about (§7).
 4. **The spec and the corpus are better than IQ's.** openCypher is Apache 2.0, with a published grammar (377
@@ -66,8 +67,8 @@ for the 2026.06 and 2026.07 releases.
 6. **The version switch (the user's nit of 2026-10-15).** Neo4j selects the language version with its own prefix
    inside the query, `CYPHER 5 MATCH ...` or `CYPHER 25 MATCH ...`. The island should honour exactly that and invent
    no tag syntax: one island type, `#Cypher{...}#`, the text inside it being what Neo4j accepts, the prefix
-   included. For a read-only translator the two versions are one parser with a version flag (§2.1). The user's
-   alternative, `#Cypher5{...}#` and `#Cypher25{...}#`, is upstream-compatible to exactly the same degree (§4, C1).
+   included. For a read-only translator the two versions are one parser with a version flag (§2.1). **Decided by the
+   user, 2026-10-15:** one island, the version in the query as Neo4j spells it, Cypher 25 the default (§4, C1, C9).
 7. **The one-line rule of the line,** inherited: zero FAIL, zero BUG, zero ERROR, always. Where Neo4j's answer is not
    a function of the input (a tie `SHORTEST 1` breaks arbitrarily, a community a heuristic found), or where lite would
    have to compute a value in Java, the translator refuses by name and position.
@@ -391,6 +392,9 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
   `#Cypher5{...}#` and `#Cypher25{...}#` as sugar for the prefix are harmless and cost one more `parseDsl` arm each;
   they can be added if the user prefers the version visible in the tag. The wire shape is a `classInstance` of type
   `Cypher` with `{"cypher": <text>}`, as `IQ` carries `{"sql", "profile"}`.
+  **Decided by the user, 2026-10-15: one island type, `#Cypher{...}#`, the version in the query as Neo4j spells it;
+  no sugar types; no stereotype or tagged value for the version (the query carries it, so nothing in the model
+  needs to).**
 - **C2. The graph is the class model.** A label is a class the data space (or the query's mapping and runtime) can
   query; a node of class `Employee extends Person` carries both labels; a relationship type is an association end or
   a to-one or to-many property, by name; a node property is a property. The island therefore runs over any model
@@ -400,10 +404,14 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
   - `(p:Person)-[:firm]->(f:Firm)` reads property `firm` of `Person`; `(f)-[:employees]->(p)` the other end;
     `(p)-[:PersonFirm]-(f)` the association by name, either direction. A type that names nothing on the left label is a
     compile error naming the label's properties.
-  - An **edge class**: a class with exactly two to-one properties to entities, marked by a stereotype
-    (`<<graph.Edge>>` with its `from` and `to` ends as tagged values, spelling to be agreed), is a relationship type
-    whose properties are the class's other properties: `(a:Actor)-[r:Acting]->(m:Movie) RETURN r.role`. Without the
-    stereotype a class is a label.
+  - **A relationship with properties.** Legend associations carry none, so an edge with properties is a class in the
+    model (`Acting` with `actor`, `movie` and `role`). Two spellings reach it. **Today, with nothing new declared,**
+    the edge class is matched as a node: `(a:Actor)-[:actings]->(x:Acting)-[:movie]->(m:Movie) RETURN x.role`; the
+    model decides it, as it decides every label. **Later, only if users ask for Neo4j's own spelling**
+    `(a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN r.role`, a profile stereotype on that class in the model (not in the
+    island) would declare it an edge and name its two ends; it is a model-side convenience, orthogonal to the version
+    switch, which lives in the query. **Decided by the user, 2026-10-15: no stereotype in the first slices**; the
+    node spelling is the one the first landings support, and a stereotype is a later proposal of its own.
   - Multiple labels on one node pattern (`:Person:Employee`, `:Person&Employee`) is the most specific class of the
     set when the set is a chain of the model's inheritance, else no rows (`&`) or a union (`|`). `:!A` and `:%` and a
     label-less `(n)` over the whole model are a union of every queryable class with a common schema (id, labels,
@@ -421,8 +429,11 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
 - **C6. The recursion native and the bounded-unroll-first rule.** A bounded path or quantifier (`*1..3`, `{1,3}`,
   `{,10}`) unrolls into a union of fixed-length joins: no new native, C6.2's "rearranges shapes". Unbounded `*`, `+`,
   `shortestPath`, the `SHORTEST` selectors over unbounded patterns, and every iterative algorithm need the native of
-  §6, which the user rules on separately (it lands in the database owner's files). Until the ruling, the unbounded
-  forms are refused by name; the first three slices need none of them.
+  §6. **Decided by the user, 2026-10-15: recursion is required** ("for these graph queries and algos for sure"), so
+  the native is built, in PR5, as the world map's kind 1 (one lowering rule per dialect), and the charter's C6.3 and
+  C6.4 gain a dated note saying so. Still to agree, in PR5's design: its name and shape (§6.3), the termination guard,
+  and its owner (it lands in the database owner's files). Until PR5 the unbounded forms are refused by name; the
+  first four slices need none of them.
 - **C7. Algorithms: the three buckets of §7 and the refusal rule.** An algorithm whose answer is a function of the
   input is translated and judged; one that is deterministic but costly is bounded by a size the slice measures, as
   the IQ island bounds its Pure node count; one whose answer is not a function of the input (randomized, heuristic,
@@ -436,7 +447,8 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
   durations are refused by name until a spelling exists.
 - **C9. The spec is one pinned Neo4j release**, its Cypher 25 the default and its Cypher 5 the profile, named in the
   answers file. The first candidate is the newest Community release at the first landing (2026.07.x today).
-  Re-pinning is a landing of its own, as a Postgres bump is.
+  Re-pinning is a landing of its own, as a Postgres bump is. **Decided by the user, 2026-10-15: the newest, most used
+  feature set, Cypher 25, is the default**; a query says `CYPHER 5` to get the frozen one.
 - **C10. Placement and contention.** A new line (the eleventh, if the numbering holds), announced in `IN_FLIGHT` with
   its files. New: `core/src/main/java/com/legend/protocol/cypher/` (lexer, parser, AST, `CypherToPure`, the function
   table), `compiler/spec/CypherIslands.java`, `core/src/test/resources/cypher-parity/`, `tools/neo4j-oracle/`, the
@@ -446,8 +458,10 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
   three-valued `Tx` discipline as a pattern; extracting the shared half into one builder is a later pure move judged
   by byte-identical Pure, as the IQ line's PR1 was, and only if the duplication hurts.
 
-Open, for the user: the spelling of the edge stereotype (C3); whether `#Cypher5`/`#Cypher25` sugar is wanted (C1);
-the Neo4j release to pin (C9); whether the line starts now beside the others or waits (the Postgres study's D4).
+Decided by the user on 2026-10-15: C1 (one island, the version in the query, no sugar), C3's stereotype deferred
+(no stereotype in the first slices), C6 (recursion is required: the native is built), C9 (Cypher 25 is the default).
+Open: the Neo4j release to pin (C9); the native's name, shape, guard and owner (C6, in PR5's design); whether the
+line starts now beside the others or waits (the Postgres study's D4).
 
 ---
 
@@ -537,6 +551,24 @@ Not touched by the first slices: `lowering/`, `sql/dialect/`, `builtin/`, the le
 - `//parser-equivalence:diagnostics` on every landing that touches a parser, lexer or protocol file.
 - Java never computes a value: `labels(n)` of a known class is a spelled constant, `size([1,2,3])` is the database's.
 
+### 5.5 Bolt, for later: the wire
+
+Bolt is Neo4j's binary client protocol, the counterpart of Postgres's frontend/backend protocol. Every Neo4j driver
+(Java, Python, JavaScript, .NET, Go) and every tool built on them (Neo4j Browser, Bloom, the BI connectors, the
+LangChain and LlamaIndex graph stores) speaks it over one TCP connection, port 7687 by default: a version handshake,
+then messages (`HELLO`, `LOGON`, `RUN` with the query text and its parameters, `PULL`, `DISCARD`, `BEGIN`, `COMMIT`,
+`ROLLBACK`, `RESET`, `GOODBYE`) and records streamed back, every value encoded in PackStream (integers, floats,
+strings, lists, maps, and structures for nodes, relationships, paths and the temporal types). Other graph databases
+implement it so that Neo4j's drivers work against them (Memgraph, Amazon Neptune).
+
+A **Bolt server in lite** is the graph counterpart of the pgwire server the server program plans for SQL
+(`docs/SERVER_PROGRAM_2026_09_26.md` W3; the Postgres study's D3: hand-written, JDK only): it would let any Neo4j
+driver, and Neo4j Browser, connect to a legend-lite server as if it were a Neo4j, run the island's translation of each
+`RUN` over the Legend model, and stream the rows back as Bolt records, nodes as PackStream structures. The protocol's
+documentation is CC BY-NC-SA 4.0 (§3.2): read for behaviour, never copied, as pgwire is written from Postgres's
+manual. The cheaper first wire is Neo4j's **HTTP Query API** (`POST /db/{name}/query/v2`, JSON in and out), which lite's
+existing HTTP server can serve with no new transport. Both are after the island itself (§9, "Later").
+
 ---
 
 ## 6. Recursion: what Pure lacks, what the databases have, what the native is
@@ -607,10 +639,12 @@ its parameter bound to the CTE's name as the recursive term, the mode as `UNION`
 iteration counter column the step cannot see. The Typer types `step` once, with `T` the base's row type (the step must
 return the same columns: a compile error otherwise).
 
-What the ruling must cover: that a fixpoint native is kind 1 and not C6.4's residue; that a termination guard
-(`limit`) is required where the database has no depth limit, so that no query can loop (a refusal without one over an
-unbounded pattern, or a default the register names); which line owns it (the database owner's `sql/dialect/` and
-`lowering/` files). Until then: refused by name, and the first three slices (§9) need nothing of it.
+**The user's ruling, 2026-10-15: recursion is required**, for the graph queries and the algorithms alike. So the
+native is built, as kind 1 and not C6.4's residue (the charter gains a dated note at C6.3 and C6.4 when PR5 lands).
+What PR5's design still settles: the name and the shape above; that a termination guard (`limit`) is required where
+the database has no depth limit, so that no query can loop (a refusal without one over an unbounded pattern, or a
+default the register names); which line owns it (the database owner's `sql/dialect/` and `lowering/` files, announced
+in `IN_FLIGHT`). Until PR5: refused by name, and the first four slices (§9) need nothing of it.
 
 ---
 
@@ -729,7 +763,7 @@ of it, a GATES entry, this document's §12 (the record of landings, to be added)
 | **PR2** values | lists and maps as Variants, `UNWIND`, `collect`, `size`, `head`, `tail`, `last`, `range`, `reverse`, comprehension, `IN`, `all`/`any`/`none`/`single`; strings and numbers from Neo4j's table (lite's own cases, the TCK being thin there); `toInteger`, `toFloat`, `toString`, `toBoolean` | `expressions/list`, `quantifier`, `string`, `typeConversion`, `map`, `conditional`, `aggregation`; `lite/functions.yaml` | |
 | **PR3** the model | `OPTIONAL MATCH`, `UNION`, `EXISTS`/`COUNT`/`COLLECT` subqueries, pattern comprehensions, nodes and relationships and paths as values (C8), `labels`, `type`, `properties`, `keys`, inheritance and multi-label patterns (C3), edge classes, keys and identity (C5), dates as Pure dates | `clauses/union`, `unwind`, `expressions/graph`, `pattern`, `path`, `existentialSubqueries`, `useCases`; `lite/model.yaml` | the edge stereotype (C3) |
 | **PR4** bounded paths | `*m..n`, `{m,n}`, quantified path patterns with inline `WHERE` and group variables, named paths, bounded `shortestPath`, relationship uniqueness, `ALL SHORTEST` and `SHORTEST k GROUPS` within a bound | `clauses/match` (variable-length), `lite/paths.yaml`; the randomized check | nothing new: unrolling |
-| **PR5** recursion | the native (§6.3), its lowering and dialect arms; unbounded `*` and `+`, unbounded `shortestPath` and selectors, reachability; termination guards | `lite/recursion.yaml`; measured on every dialect lite renders (rendered; run on DuckDB, Postgres, H2, SQLite) | **the ruling**; the database owner's files |
+| **PR5** recursion | the native (§6.3), its lowering and dialect arms; unbounded `*` and `+`, unbounded `shortestPath` and selectors, reachability; termination guards | `lite/recursion.yaml`; measured on every dialect lite renders (rendered; run on DuckDB, Postgres, H2, SQLite) | the user's ruling (given 2026-10-15); the native's design agreed; the database owner's files |
 | **PR6** algorithms 1 | bucket 1: degree, triangles, LCC, WCC, BFS, SSSP distances, PageRank (both profiles), CDLP, k-core, node similarity, link prediction, modularity; the partition judge; the GDS snap through `CALL gds.*.stream` on the oracle; the Graphalytics example graphs and reference outputs | `lite/algorithms.yaml`, `graphalytics/` | PR5 |
 | **PR7** algorithms 2 | bucket 2 under size bounds; the refusals of bucket 3 by name with reasons | | |
 | **Later** | a Bolt server, hand-written from the protocol's behaviour as pgwire is planned (its documentation is CC BY-NC-SA: read, never copied), so Neo4j Browser and every Bolt driver can query a Legend model; writes after F1; Cypher over bare tables through "Make a class"; SQL/PGQ `GRAPH_TABLE` as a second input spelling, and as a render target where a warehouse has it | | the server program's resumption; F1 |
@@ -741,9 +775,10 @@ against about 650 TCK scenarios before any value, path or algorithm work starts.
 
 ## 10. Risks
 
-- **The recursion ruling.** If the user rules that a fixpoint native is C6.4's residue, the line still ships PR1 to
-  PR4 and bucket 1's set-based half (degree, triangles, LCC, similarity, link prediction), and refuses the rest by
-  name. The study is honest that the algorithms' second half waits on it.
+- **The recursion native's design.** The ruling is given (C6); the risk is now the native's shape: a step lambda the
+  Typer types once against the base's row type, two lowering shapes per dialect (§6.2), a termination guard, and the
+  size of the SQL it writes on the array-state shape. PR5 measures each on every dialect before anything unbounded
+  is accepted; the first four slices ship without it.
 - **Cypher is schema-optional; lite is not.** C4 refuses what Neo4j answers with `null`. Real-world queries over
   ad-hoc properties will meet that refusal first. The register row and the error's wording ("no class of label `A`
   declares `x`; `A` declares `y`, `z`") are the mitigation.
