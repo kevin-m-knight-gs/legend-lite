@@ -549,7 +549,7 @@ tests:
     sql: "SELECT CAST('13/4/2026' AS DATE) AS d"
     profile: iq16-tds
   - id: date_string_of_a_time_only_is_refused
-    sql: "SELECT CAST('10:11:12' AS TIMESTAMP) AS ts"
+    sql: "SELECT DATEPART(hour, CAST('10:11:12' AS TIMESTAMP)) AS h"
   - id: date_string_of_a_month_and_a_year_is_refused
     sql: "SELECT CAST('Mar 2026' AS DATE) AS d"
   - id: date_string_of_an_iso_week_is_refused
