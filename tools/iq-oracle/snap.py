@@ -690,6 +690,19 @@ def check_expect(expect, where):
         rows = json.loads(expect) if isinstance(expect, str) else None
     except ValueError:
         rows = None
+    # IQ island, 2026-10-15 (windows): a decision written in full (IqAnswers.judged): {"columns": [[name, type,
+    # scale], ...], "rows": [...]}, IQ's own column types, or {"error": "SQLCODE n, SQLSTATE s: message"}, IQ's error
+    if isinstance(rows, dict):
+        if set(rows) == {"error"} and isinstance(rows["error"], str) and rows["error"].startswith("SQLCODE "):
+            return
+        cols = rows.get("columns")
+        if set(rows) == {"columns", "rows"} and isinstance(cols, list) and all(
+                isinstance(c, list) and len(c) == 3 and isinstance(c[0], str) and isinstance(c[1], str)
+                and isinstance(c[2], int) for c in cols):
+            rows = rows["rows"]
+        else:
+            raise Bad("%s: expect as an object is {\"columns\": [[name, type, scale], ...], \"rows\": [...]} or"
+                      " {\"error\": \"SQLCODE n, SQLSTATE s: message\"}: %r" % (where, expect))
     if not isinstance(rows, list) or not all(isinstance(r, list) and all(c is None or isinstance(c, str) for c in r)
                                              for r in rows):
         raise Bad("%s: expect is one line of JSON, a list of rows of text cells or null: %r" % (where, expect))

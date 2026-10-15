@@ -102,6 +102,12 @@ public final class IqAnswers {
      *  the snapped answer's column types. */
     public static SqlParity.Answer expected(IqParity.Run run, Snap snap) {
         String expect = run.c().expect();
+        if (expect != null && own(expect)) {
+            Snap decided = judged(run, snap);
+            return decided.error() != null ? new SqlParity.Rejected("", java.util.Objects.requireNonNull(decided.error()))
+                    : new SqlParity.Rows(grid(decided.columns(), decided.types(),
+                            java.util.Objects.requireNonNull(decided.rows())));
+        }
         if (expect != null) {
             if (snap.rows() == null) {
                 throw new IllegalStateException(run.key() + ": a decided case whose snapped answer is an error has no"
@@ -113,6 +119,42 @@ public final class IqAnswers {
             return new SqlParity.Rejected("", java.util.Objects.requireNonNull(snap.error()));
         }
         return new SqlParity.Rows(grid(snap.columns(), snap.types(), java.util.Objects.requireNonNull(snap.rows())));
+    }
+
+    /** IQ island, 2026-10-15 (windows): whether a decision's {@code expect} is written with its own columns or as an
+     *  error ({@link #judged}). */
+    private static boolean own(String expect) {
+        return expect.strip().startsWith("{");
+    }
+
+    /**
+     * IQ island, 2026-10-15 (windows): the answer that judges a run whose decision is written in full -- {@code expect}
+     * a JSON object, {@code {"columns": [[name, type, scale], ...], "rows": [[cell, ...], ...]}} (IQ's own column types,
+     * where SQL Anywhere types the run otherwise or rejects it: IQ's LAG and LEAD, which SQL Anywhere 17 does not know),
+     * or {@code {"error": "SQLCODE n, SQLSTATE s: message"}} (IQ's error, where SQL Anywhere answers) -- as a snapped
+     * answer; {@code snap} itself for any other run. The answers file still holds SQL Anywhere's answer to the run, for
+     * the record.
+     */
+    public static Snap judged(IqParity.Run run, Snap snap) {
+        String expect = run.c().expect();
+        if (expect == null || !own(expect)) {
+            return snap;
+        }
+        Json.Obj o = (Json.Obj) Json.parse(expect);
+        if (o.getOr("error", null) instanceof Json.Str error) {
+            return new Snap(snap.key(), snap.profile(), snap.sqlSha(), List.of(), List.of(), null, error.value(),
+                    List.of());
+        }
+        List<String> columns = new ArrayList<>();
+        List<String> types = new ArrayList<>();
+        List<Integer> scales = new ArrayList<>();
+        for (Json.Node n : ((Json.Arr) o.get("columns")).items()) {
+            List<Json.Node> c = ((Json.Arr) n).items();
+            columns.add(((Json.Str) c.get(0)).value());
+            types.add(((Json.Str) c.get(1)).value());
+            scales.add((int) ((Json.Num) c.get(2)).longValue());
+        }
+        return new Snap(snap.key(), snap.profile(), snap.sqlSha(), columns, types, cells(o.get("rows")), null, scales);
     }
 
     private static SqlParity.Grid grid(List<String> columns, List<String> types,

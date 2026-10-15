@@ -599,6 +599,137 @@ public final class SqlToPure {
         }
     }
 
+    /** IQ island, 2026-10-15 (windows): one of a dialect's window functions as it computes it
+     *  ({@link InputDialect#window}): the columns it is computed from over its window (each an {@code extend} of the
+     *  window's {@code over()} and a column of {@code {p, w, r | ...}} and an optional reduce, as Pure's extend takes
+     *  them), the column computed from those over each row after them when the function is not one of them (named
+     *  {@link Windowing#name()}), and what is known of its type. */
+    public record WindowFunction(List<ColSpec> windows, @com.legend.base.Nullable ColSpec finish, Kind kind,
+            boolean nullable, InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+        public WindowFunction {
+            windows = List.copyOf(windows);
+        }
+    }
+
+    /** IQ island, 2026-10-15 (windows): where a dialect's window function is computed ({@link InputDialect#window}):
+     *  its window as written (a named window's clauses in place), its arguments as columns of the relation, the
+     *  window's sort keys' types, the lambdas of a window column ({@code {p, w, r | ...}}), a reduce (over a frame's
+     *  values) and a finish (over a row), fresh names, and the name of its own column. */
+    public final class Windowing {
+        private final Scope scope;
+        private final Set<String> present;
+        private final List<ColSpec> computed;
+        private final SqlAst.WindowSpec spec;
+        private final List<Tx> sortKeys;
+        /** The name the select item gives the call (null for none), and the column's name once taken. */
+        private final @com.legend.base.Nullable String want;
+        private @com.legend.base.Nullable String name;
+
+        private Windowing(Scope scope, Set<String> present, List<ColSpec> computed, SqlAst.WindowSpec spec,
+                List<Tx> sortKeys, @com.legend.base.Nullable String want) {
+            this.scope = scope;
+            this.present = present;
+            this.computed = computed;
+            this.spec = spec;
+            this.sortKeys = sortKeys;
+            this.want = want;
+        }
+
+        /** The window, its named base's clauses in place. */
+        public SqlAst.WindowSpec spec() {
+            return spec;
+        }
+
+        /** Whether {@code ref} reads an enclosing query's column (a correlated reference). */
+        public boolean enclosing(SqlAst.ColumnRef ref) {
+            Col c = scope.columnOrNull(ref);
+            return c != null && c.var() != null;
+        }
+
+        /** The window's ORDER BY keys' translations (as the keys the window sorts by: a dialect's collation key in a
+         *  string's place), in order. */
+        public List<Tx> sortKeys() {
+            return sortKeys;
+        }
+
+        /** {@code e}'s translation over a row of the relation the window is over. */
+        public Tx tx(SqlAst.Expr e) {
+            return SqlToPure.this.tx(e, scope, row);
+        }
+
+        /** {@code e} as a column of the relation the window is over (a column, a group key or an aggregate as
+         *  itself; any other expression computed first, under a fresh name): its value read from a row
+         *  ({@link #row()}), with its kind, nullability and type detail. */
+        public Tx column(SqlAst.Expr e) {
+            Col c = windowKey(e, scope, present, computed);
+            return Tx.value(property(row, c.name()), c.kind(), c.nullable(), c.detail());
+        }
+
+        /** {@code value}, a translation over a row of the relation (none of the window's columns), computed first as
+         *  a column of its own: its value read from a row. */
+        public Tx computed(Tx value) {
+            String n = SqlToPure.this.fresh(present);
+            computed.add(new ColSpec(n, lambda(row, valueOf(value)), null, null));
+            return Tx.value(property(row, n), value.kind(), value.nullable(), value.detail());
+        }
+
+        /** The name the function's own column takes: its select item's, else a fresh one. */
+        public String name() {
+            String n = name;
+            if (n == null) {
+                String w = want;
+                n = w != null && !present.contains(w) && !w.startsWith(SYNTHETIC) ? w : SqlToPure.this.fresh(present);
+                present.add(n);
+                name = n;
+            }
+            return n;
+        }
+
+        /** A name no other column of the relation has. */
+        public String fresh() {
+            name();
+            return SqlToPure.this.fresh(present);
+        }
+
+        /** {@code {p, w, r | body}}: a window column's lambda. */
+        public LambdaFunction overWindow(ValueSpecification body) {
+            return windowLambda(body);
+        }
+
+        /** {@code {y | body}}: a reduce's lambda over a frame's values ({@link #values()}). */
+        public LambdaFunction overGroup(ValueSpecification body) {
+            return lambda(group, body);
+        }
+
+        /** {@code {r | body}}: a finish's lambda over a row. */
+        public LambdaFunction overRow(ValueSpecification body) {
+            return lambda(row, body);
+        }
+
+        /** A frame's values, in a reduce. */
+        public ValueSpecification values() {
+            return new Variable(group);
+        }
+
+        /** The partition, the window (its frame) and the row, in a window column's lambda. */
+        public ValueSpecification partition() {
+            return new Variable(partition);
+        }
+
+        public ValueSpecification window() {
+            return new Variable(window);
+        }
+
+        public ValueSpecification row() {
+            return new Variable(row);
+        }
+
+        /** The relation's column {@code column} of a row, in a finish (the window's columns computed). */
+        public ValueSpecification column(String column) {
+            return property(row, column);
+        }
+    }
+
     /** A FROM item's columns as the query names them: its qualifier (an alias, a table's or function's name; none
      *  for an unaliased subquery), and its columns. */
     private record Binding(SqlAst.@com.legend.base.Nullable Ident qualifier, List<BCol> columns, boolean scalar) {
@@ -2094,22 +2225,47 @@ public final class SqlToPure {
             List<ColSpec> computed = new ArrayList<>();
             List<String> partitionKeys = new ArrayList<>();
             for (SqlAst.Expr e : spec.partitionBy()) {
-                Col key = windowKey(e, scope, present, computed);
+                Col key = windowKey(e, "PARTITION BY", scope, present, computed);
                 notJsonKey(key.kind(), "PARTITION BY", e.pos());
                 partitionKeys.add(key.name());
             }
             List<ValueSpecification> sorts = new ArrayList<>();
             List<String> sortKeys = new ArrayList<>();
+            List<Tx> sortTxs = new ArrayList<>();
             Kind sortKind = null;
             for (SqlAst.SortItem o : spec.orderBy()) {
-                Col key = windowKey(o.expr(), scope, present, computed);
+                Col key = windowKey(o.expr(), "ORDER BY", scope, present, computed);
                 notJsonKey(key.kind(), "a window's ORDER BY", o.expr().pos());
                 sortKind = sortKind == null ? key.kind() : sortKind;
                 sortKeys.add(key.name());
+                sortTxs.add(Tx.value(property(row, key.name()), key.kind(), key.nullable(), key.detail()));
                 boolean nullsFirst = o.nullsFirst() != null ? java.util.Objects.requireNonNull(o.nullsFirst())
                         : dialect.nullsFirst(o.descending());
                 sorts.add(call(o.descending() ? "descending" : "ascending", colSpec(key.name()),
                         new EnumValue(NULL_ORDER, nullsFirst ? "FIRST" : "LAST")));
+            }
+            String want = named.get(w);
+            // IQ island, 2026-10-15 (windows): a dialect's own window function (Postgres's: none), computed over the
+            // window's over() as its columns, then its finish
+            Windowing windowing = new Windowing(scope, present, computed, spec, sortTxs, want);
+            WindowFunction own = dialect.window(w.call(), windowing);
+            if (own != null) {
+                String ownName = windowing.name();
+                SqlAst.Frame f = spec.frame();
+                Bounds b = f == null ? null : frame(f, sorts.size(), sortKind);
+                if (!computed.isEmpty()) {
+                    rel = call("extend", rel, new ColSpecArray(computed));
+                }
+                for (ColSpec c : own.windows()) {
+                    present.add(c.name());
+                    rel = call("extend", rel, over(partitionKeys, sorts, b), c);
+                }
+                ColSpec finish = own.finish();
+                if (finish != null) {
+                    rel = call("extend", rel, new ColSpecArray(List.of(finish)));
+                }
+                columns.put(w, Col.of(ownName, own.kind(), own.nullable(), own.detail()));
+                continue;
             }
             SqlAst.FunctionCall call = windowCall(w.call());
             SqlAst.Frame frame = spec.frame();
@@ -2123,7 +2279,6 @@ public final class SqlToPure {
             }
             Bounds bounds = frame == null ? null : frame(exclude == null ? frame : new SqlAst.Frame(frame.unit(),
                     frame.start(), frame.end(), null, frame.pos()), sorts.size(), sortKind);
-            String want = named.get(w);
             if (frame != null && exclude != null) {
                 Excluded x = excluded(call, frame, bounds, partitionKeys, sortKeys, sorts, scope, present, computed);
                 if (!computed.isEmpty()) {
@@ -2232,7 +2387,23 @@ public final class SqlToPure {
         }
         String name = fresh(present);
         computed.add(new ColSpec(name, lambda(row, valueOf(t)), null, null));
-        return Col.of(name, t.kind(), t.nullable());
+        // IQ island, 2026-10-15 (windows): with the dialect's type detail (Postgres's: none)
+        return Col.of(name, t.kind(), t.nullable(), t.detail());
+    }
+
+    /** IQ island, 2026-10-15 (windows): a PARTITION BY or a window's ORDER BY key ({@code clause}) as a column of the
+     *  relation ({@link #windowKey(SqlAst.Expr, Scope, Set, List)}), or, where the dialect sorts or partitions by a
+     *  key of the value ({@link InputDialect#key}; Postgres's: never), that key computed first, under a fresh name. */
+    private Col windowKey(SqlAst.Expr e, String clause, Scope scope, Set<String> present, List<ColSpec> computed) {
+        Col c = windowKey(e, scope, present, computed);
+        java.util.function.UnaryOperator<ValueSpecification> key = dialect.key(clause, Tx.value(property(row,
+                c.name()), c.kind(), c.nullable(), c.detail()), e, e.pos());
+        if (key == null) {
+            return c;
+        }
+        String name = fresh(present);
+        computed.add(new ColSpec(name, lambda(row, key.apply(valueOf(tx(e, scope, row)))), null, null));
+        return Col.of(name, c.kind(), c.nullable(), c.detail());
     }
 
     /** {@code {p, w, r | body}}: a window column's lambda over the partition, the window and the row. */

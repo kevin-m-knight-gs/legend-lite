@@ -559,8 +559,33 @@ public final class IqParser {
                 throw new SqlSyntaxException("GROUP BY comes before HAVING" + IqDialect.syntaxCode(), peek().pos());
             }
         }
-        refuseClause("window", "the WINDOW clause is not supported yet");
-        return new SqlAst.Select(distinct, items, from, where, groupBy, having, List.of(), List.of(),
+        // IQ island, 2026-10-15 (windows): WINDOW name AS (spec), ... after HAVING, before ORDER BY (GRAMMAR G9)
+        List<SqlAst.NamedWindow> windows = new ArrayList<>();
+        if (peek().is("window")) {
+            take();
+            do {
+                IqLexer.Token n = peek();
+                if (!n.isName()) {
+                    throw new SqlSyntaxException("WINDOW needs a window's name, not '" + n.text() + "'"
+                            + IqDialect.syntaxCode(), n.pos());
+                }
+                take();
+                expectSyntax("as", "a named window needs AS");
+                if (!peek().isOp("(")) {
+                    throw new SqlSyntaxException("a named window's specification is in parentheses"
+                            + IqDialect.syntaxCode(), peek().pos());
+                }
+                take();
+                SqlAst.WindowSpec spec = windowSpec(n.pos());
+                expectOp(")");
+                windows.add(new SqlAst.NamedWindow(name(n), spec));
+            } while (takeOp(","));
+            if (peek().is("group") || peek().is("having") || peek().is("where")) {
+                throw new SqlSyntaxException("WINDOW comes after GROUP BY and HAVING" + IqDialect.syntaxCode(),
+                        peek().pos());
+            }
+        }
+        return new SqlAst.Select(distinct, items, from, where, groupBy, having, windows, List.of(),
                 limit == null ? null : limit.count(), limit == null ? null : limit.offset(), pos);
     }
 
@@ -1742,6 +1767,9 @@ public final class IqParser {
         if (READ_AGGREGATES.contains(lower)) {
             return aggregate(parts, first, lower);
         }
+        if (WINDOW_FUNCTIONS.contains(lower)) {
+            return windowFunction(parts, first, lower);
+        }
         if (STATISTICS.contains(lower)) {
             throw SqlSyntaxException.unsupported(name + "(...) is not supported: SQL Anywhere computes it by a formula"
                     + " that loses precision for large values, which lite's databases do not reproduce", first.pos());
@@ -1793,8 +1821,10 @@ public final class IqParser {
         }
         expectOp(")");
         if (peek().is("over") || peek().is("within")) {
-            throw SqlSyntaxException.unsupported(peek().text().toUpperCase(java.util.Locale.ROOT) + " after a call is"
-                    + " not supported yet", peek().pos());
+            // IQ island, 2026-10-15 (windows): a scalar function is no window function (SQL Anywhere's -131 after one
+            // it knows; IQ's -265 for one it does not, as NTH_VALUE, measured)
+            throw SqlSyntaxException.unsupported(peek().text().toUpperCase(java.util.Locale.ROOT) + " after a call of "
+                    + name + " is not supported (it is no window function the island reads)", peek().pos());
         }
         return new SqlAst.FunctionCall(parts, args, false, false, first.pos());
     }
@@ -1857,14 +1887,209 @@ public final class IqParser {
             }
         }
         expectOp(")");
-        if (peek().is("over") || peek().is("within")) {
+        if (peek().is("within")) {
             throw SqlSyntaxException.unsupported(peek().text().toUpperCase(java.util.Locale.ROOT) + " after a call is"
                     + " not supported yet", peek().pos());
         }
         SqlAst.FunctionCall call = new SqlAst.FunctionCall(parts, args, distinct, star, orderBy, List.of(), null,
                 first.pos());
         spans.put(call, text.substring(tokens.get(start - 1).start(), tokens.get(at - 1).end()));
+        if (peek().is("over")) {
+            // IQ island, 2026-10-15 (windows): an aggregate over a window (GRAMMAR F7, F30); a call with an ORDER BY
+            // of its own takes no OVER (F42: IQ's syntax error)
+            if (!orderBy.isEmpty()) {
+                throw new SqlSyntaxException("a call with an ORDER BY of its own takes no OVER" + IqDialect.syntaxCode(),
+                        peek().pos());
+            }
+            return window(call, start);
+        }
         return call;
+    }
+
+    // ------------------------------------------------------------------ windows (IQ island, 2026-10-15)
+
+    /** IQ's window functions that are no aggregate (the research's GRAMMAR F31-F33, the value functions F24): each is
+     *  read only with its OVER clause ({@link IqWindows} reads their meaning). */
+    static final Set<String> WINDOW_FUNCTIONS = Set.of("row_number", "rank", "dense_rank", "percent_rank",
+            "cume_dist", "ntile", "lag", "lead", "first_value", "last_value");
+
+    /**
+     * A window function's call ({@link #WINDOW_FUNCTIONS}; GRAMMAR F31-F33): {@code name([value, ...])} then its OVER
+     * clause. FIRST_VALUE's and LAST_VALUE's {@code RESPECT NULLS} inside the parentheses is their default; their
+     * {@code IGNORE NULLS} and their aggregate form ({@code FIRST_VALUE(x ORDER BY y)}, which SQL Anywhere crashes on,
+     * so it has no oracle) are refused by name. The call without OVER is refused by name.
+     */
+    private SqlAst.Expr windowFunction(List<SqlAst.Ident> parts, IqLexer.Token first, String lower) {
+        int start = at;
+        take();
+        List<SqlAst.Expr> args = new ArrayList<>();
+        if (!peek().isOp(")")) {
+            if (peek().is("distinct") || peek().is("all") || peek().isOp("*")) {
+                throw SqlSyntaxException.unsupported("'" + peek().text() + "' in a call of " + first.text()
+                        + " is not supported", peek().pos());
+            }
+            do {
+                noNamedArgument();
+                SqlAst.Expr a = expression();
+                value(a, "a function's arguments");
+                args.add(a);
+            } while (takeOp(","));
+            boolean valueFunction = lower.equals("first_value") || lower.equals("last_value");
+            if (valueFunction && peek().isWord("respect") && peek(1).isWord("nulls")) {
+                take();
+                take();
+            } else if (valueFunction && peek().isWord("ignore") && peek(1).isWord("nulls")) {
+                throw SqlSyntaxException.unsupported(first.text() + "(... IGNORE NULLS) is not supported yet",
+                        peek().pos());
+            }
+            if (peek().is("order")) {
+                throw SqlSyntaxException.unsupported(first.text() + "(x ORDER BY y), IQ's aggregate form, is not"
+                        + " supported: SQL Anywhere crashes on it, so the island has no oracle for it", peek().pos());
+            }
+        }
+        expectOp(")");
+        SqlAst.FunctionCall call = new SqlAst.FunctionCall(parts, args, false, false, first.pos());
+        if (!peek().is("over")) {
+            throw SqlSyntaxException.unsupported(first.text() + "(...) without an OVER clause is not supported (IQ's"
+                    + " window function needs one)", peek().pos());
+        }
+        return window(call, start);
+    }
+
+    /** {@code call OVER (window_spec)} or {@code call OVER name} (GRAMMAR F35), at OVER; {@code start} is the token
+     *  after the call's name (the call's text is kept as an aggregate's is). */
+    private SqlAst.Expr window(SqlAst.FunctionCall call, int start) {
+        IqLexer.Token over = take();
+        SqlAst.WindowSpec spec;
+        if (peek().isOp("(")) {
+            take();
+            spec = windowSpec(over.pos());
+            expectOp(")");
+        } else if (peek().isName()) {
+            IqLexer.Token n = take();
+            spec = new SqlAst.WindowSpec(name(n), List.of(), List.of(), null, n.pos());
+        } else {
+            throw new SqlSyntaxException("OVER needs a window: a name, or its specification in parentheses"
+                    + IqDialect.syntaxCode(), peek().pos());
+        }
+        SqlAst.Window w = new SqlAst.Window(call, spec, call.pos());
+        spans.put(w, text.substring(tokens.get(start - 1).start(), tokens.get(at - 1).end()));
+        return w;
+    }
+
+    /**
+     * {@code [name] [PARTITION BY value, ...] [ORDER BY value [ASC | DESC], ...] [frame]} (GRAMMAR F36), in this order
+     * (another is IQ's syntax error, as is NULLS FIRST or LAST). The keys are values, never conditions.
+     */
+    private SqlAst.WindowSpec windowSpec(SqlAst.Pos pos) {
+        SqlAst.Ident base = null;
+        IqLexer.Token t = peek();
+        if (t.isName() && !(t.isWord("partition") && peek(1).is("by")) && !frameUnit(t)) {
+            base = name(take());
+        }
+        List<SqlAst.Expr> partitionBy = new ArrayList<>();
+        if (peek().isWord("partition") && peek(1).is("by")) {
+            take();
+            take();
+            do {
+                SqlAst.Expr e = expression();
+                value(e, "PARTITION BY");
+                partitionBy.add(e);
+            } while (takeOp(","));
+        }
+        List<SqlAst.SortItem> orderBy = new ArrayList<>();
+        if (peek().is("order")) {
+            take();
+            expectKeyword("by");
+            do {
+                IqLexer.Token key = peek();
+                SqlAst.Expr e = expression();
+                value(e, "a window's ORDER BY");
+                boolean descending = false;
+                if (peek().is("desc")) {
+                    take();
+                    descending = true;
+                } else if (peek().is("asc")) {
+                    take();
+                }
+                if (peek().isWord("nulls")) {
+                    throw new SqlSyntaxException("IQ has no NULLS FIRST or NULLS LAST" + IqDialect.syntaxCode(),
+                            peek().pos());
+                }
+                orderBy.add(new SqlAst.SortItem(e, descending, null, key.pos()));
+            } while (takeOp(","));
+        }
+        SqlAst.Frame frame = frameUnit(peek()) ? frame() : null;
+        if (peek().is("order") || peek().isWord("partition") || frameUnit(peek()) || peek().isWord("groups")
+                || peek().isWord("exclude")) {
+            throw new SqlSyntaxException("a window's clauses are PARTITION BY, ORDER BY and a frame, in that order, once"
+                    + " each (IQ has no GROUPS or EXCLUDE)" + IqDialect.syntaxCode(), peek().pos());
+        }
+        return new SqlAst.WindowSpec(base, partitionBy, orderBy, frame, pos);
+    }
+
+    /** Whether {@code t} begins a frame: ROWS or RANGE. */
+    private static boolean frameUnit(IqLexer.Token t) {
+        return t.isWord("rows") || t.isWord("range");
+    }
+
+    /**
+     * {@code (ROWS | RANGE) (start | BETWEEN bound AND bound)} (GRAMMAR F37-F40): a start alone is UNBOUNDED PRECEDING,
+     * {@code n} PRECEDING or CURRENT ROW, ending at the current row (a start of FOLLOWING is IQ's syntax error); BETWEEN's
+     * bounds as written ({@link IqWindows} reads which IQ takes). An offset is a value, read here as written.
+     */
+    private SqlAst.Frame frame() {
+        IqLexer.Token unit = take();
+        SqlAst.FrameUnit u = unit.isWord("rows") ? SqlAst.FrameUnit.ROWS : SqlAst.FrameUnit.RANGE;
+        if (!peek().is("between")) {
+            SqlAst.FrameBound start = frameBound();
+            if (start.kind() == SqlAst.BoundKind.FOLLOWING || start.kind() == SqlAst.BoundKind.UNBOUNDED_FOLLOWING) {
+                throw new SqlSyntaxException("a frame without BETWEEN starts at or before the current row"
+                        + IqDialect.syntaxCode(), unit.pos());
+            }
+            return new SqlAst.Frame(u, start, new SqlAst.FrameBound(SqlAst.BoundKind.CURRENT_ROW, null), null,
+                    unit.pos());
+        }
+        take();
+        SqlAst.FrameBound start = frameBound();
+        expectSyntax("and", "a frame's BETWEEN needs AND");
+        SqlAst.FrameBound end = frameBound();
+        return new SqlAst.Frame(u, start, end, null, unit.pos());
+    }
+
+    /** One frame bound: UNBOUNDED (PRECEDING | FOLLOWING), CURRENT ROW, or {@code value} (PRECEDING | FOLLOWING). */
+    private SqlAst.FrameBound frameBound() {
+        IqLexer.Token t = peek();
+        if (t.is("unbounded")) {
+            take();
+            if (peek().isWord("preceding")) {
+                take();
+                return new SqlAst.FrameBound(SqlAst.BoundKind.UNBOUNDED_PRECEDING, null);
+            }
+            if (peek().isWord("following")) {
+                take();
+                return new SqlAst.FrameBound(SqlAst.BoundKind.UNBOUNDED_FOLLOWING, null);
+            }
+            throw new SqlSyntaxException("UNBOUNDED needs PRECEDING or FOLLOWING" + IqDialect.syntaxCode(),
+                    peek().pos());
+        }
+        if (t.is("current")) {
+            take();
+            expectSyntax("row", "CURRENT needs ROW");
+            return new SqlAst.FrameBound(SqlAst.BoundKind.CURRENT_ROW, null);
+        }
+        SqlAst.Expr offset = concatenation();
+        value(offset, "a frame's bound");
+        if (peek().isWord("preceding")) {
+            take();
+            return new SqlAst.FrameBound(SqlAst.BoundKind.PRECEDING, offset);
+        }
+        if (peek().isWord("following")) {
+            take();
+            return new SqlAst.FrameBound(SqlAst.BoundKind.FOLLOWING, offset);
+        }
+        throw new SqlSyntaxException("a frame's bound ends in PRECEDING or FOLLOWING" + IqDialect.syntaxCode(),
+                peek().pos());
     }
 
     // ------------------------------------------------------------------ M1d: CAST, CONVERT and the special forms

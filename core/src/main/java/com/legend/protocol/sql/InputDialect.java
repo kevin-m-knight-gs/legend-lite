@@ -267,6 +267,15 @@ public interface InputDialect {
         return null;
     }
 
+    // ------------------------------------------------------------------ windows
+
+    /** IQ island, 2026-10-15 (windows): the call {@code f} of a window function (its OVER clause read: a key of the
+     *  window that is a string is the dialect's {@link #key} for clause {@code PARTITION BY} or {@code ORDER BY}) as
+     *  the dialect computes it {@code at} its window; null for the translator's own reading (Postgres's). */
+    default SqlToPure.@com.legend.base.Nullable WindowFunction window(SqlAst.FunctionCall f, SqlToPure.Windowing at) {
+        return null;
+    }
+
     // ------------------------------------------------------------------ the dialect's own refusals
 
     /** A refusal's message, in the dialect's wording: {@link Problem} says what {@code args} are. */
