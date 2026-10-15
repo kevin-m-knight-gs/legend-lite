@@ -411,11 +411,11 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
     2026-10-15: "let's not shortcut"). Pure's `Association` has exactly two properties and nothing else
     (`model/AssociationDefinition`), so the only Legend element that can hold a relationship's own properties, keys
     and mapping is a class: `Acting` with `actor: Actor[1]`, `movie: Movie[1]` and `role`. The class says it is an
-    edge, and which ends are which, by an ordinary Pure `Profile` in a library project (`graph::Graph`, with the
+    edge, and which ends are which, by an ordinary Pure `Profile` in a library project (`graph::graph`, with the
     four stereotypes `Edge`, `from`, `to` and `type`, and no tags), which the engine and Studio compile as any
     profile and which lite reads by name exactly as it reads `<<equality.Key>>` (`compiler/element/EqualityKeys`,
-    `PlatformTypes.EQUALITY_PROFILE`): `Class <<Graph.Edge>> demo::Acting` whose ends are the stereotyped
-    properties `<<Graph.from>> actor: Actor[1]` and `<<Graph.to>> movie: Movie[1]`, declared on the class or
+    `PlatformTypes.EQUALITY_PROFILE`): `Class <<graph.Edge>> demo::Acting` whose ends are the stereotyped
+    properties `<<graph.from>> actor: Actor[1]` and `<<graph.to>> movie: Movie[1]`, declared on the class or
     injected by two associations (the decomposed association class, the idiomatic form), and whose type is a
     stereotyped derived property spelling one value of the model's `RelationshipType` enumeration: element
     references the engine checks, never strings.
@@ -497,10 +497,13 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
 Decided by the user on 2026-10-15: C1 (one island, the version in the query, no sugar), C3 (the edge class design of
 §5.6 as it stands after the day's questions: four stereotypes from a library profile, the ends on stored, inherited,
 association-injected or derived properties, the type an enumeration value, the data space as the graph, `USE` to
-select it; "awesome, really like this plan"), C6 (recursion is required: the native is built), C9 (Cypher 25 is
-the default). Open: the names (`projects/graph`, `graph::Graph`; the model's own `RelationshipType` enumeration);
-the Neo4j release to pin (C9); the native's name, shape, guard and owner (C6, in PR5's design); whether the line
-starts now beside the others or waits (the Postgres study's D4).
+select it; "awesome, really like this plan"; the class form primary, §5.7; identity layered as C5 says), C6
+(recursion is required: the native is built), C9 (Cypher 25 is the default; the spec is the newest Neo4j Community
+release at each landing: "neo4j latest release"), the names (the profile `graph::graph` with `Edge`, `from`, `to`,
+`type`, in the style of `meta::pure::profiles::equality`: "profile name you choose best"; the library project
+`projects/graph`; the model's own `RelationshipType` enumeration), and **the start: the line begins on 2026-10-15
+("let's start implementing"), announced in `IN_FLIGHT` as the eleventh line; the plan is
+`docs/CYPHER_PLAN_2026_10_15.md`.** Open: the native's name, shape, guard and owner (C6, in PR5's design).
 
 ---
 
@@ -639,7 +642,7 @@ for a relationship with properties, and where does the model say so?
 
    ```
    ###Pure
-   Profile graph::Graph
+   Profile graph::graph
    {
      stereotypes: [Edge, from, to, type];
    }
@@ -654,22 +657,22 @@ for a relationship with properties, and where does the model say so?
 
    ```
    import graph::*;
-   Class <<Graph.Edge>> demo::Acting
+   Class <<graph.Edge>> demo::Acting
    {
      role: String[1];
      since: StrictDate[0..1];
    }
-   Association demo::ActorActing { <<Graph.from>> actor: demo::Actor[1]; actings: demo::Acting[*]; }
-   Association demo::ActingMovie { <<Graph.to>>   movie: demo::Movie[1]; actings: demo::Acting[*]; }
+   Association demo::ActorActing { <<graph.from>> actor: demo::Actor[1]; actings: demo::Acting[*]; }
+   Association demo::ActingMovie { <<graph.to>>   movie: demo::Movie[1]; actings: demo::Acting[*]; }
    ```
 
    **The compact form**, the ends as the class's own properties, with no inverse navigation:
 
    ```
-   Class <<Graph.Edge>> demo::Acting
+   Class <<graph.Edge>> demo::Acting
    {
-     <<Graph.from>> actor: demo::Actor[1];
-     <<Graph.to>>   movie: demo::Movie[1];
+     <<graph.from>> actor: demo::Actor[1];
+     <<graph.to>>   movie: demo::Movie[1];
      role: String[1];
    }
    ```
@@ -687,8 +690,8 @@ for a relationship with properties, and where does the model say so?
    a relationship type needs no stereotype because the pattern names an end property (`[:firm]`, `[:employees]`),
    whose owner-to-target is the direction; an edge class's type names the class, which names no end.
 
-   The rule is one for both: the edge class has exactly one to-one class-typed property carrying `<<Graph.from>>`
-   and one carrying `<<Graph.to>>`, **wherever that property is declared**: on the class, inherited, or injected by an
+   The rule is one for both: the edge class has exactly one to-one class-typed property carrying `<<graph.from>>`
+   and one carrying `<<graph.to>>`, **wherever that property is declared**: on the class, inherited, or injected by an
    association (`ModelContext` already sees association-injected navigation uniformly as the class's properties).
    An association that touches an edge class is one of its ends, never a relationship type of its own (nor is its
    inverse `actings`); one whose edge-class-side property carries neither stereotype is an error, since an edge has
@@ -711,16 +714,16 @@ for a relationship with properties, and where does the model say so?
    ```
    Enum demo::RelationshipType { ACTED_IN, DIRECTED, KNOWS }
 
-   Class <<Graph.Edge>> demo::Acting
+   Class <<graph.Edge>> demo::Acting
    {
-     <<Graph.type>> type() { demo::RelationshipType.ACTED_IN }: demo::RelationshipType[1];
+     <<graph.type>> type() { demo::RelationshipType.ACTED_IN }: demo::RelationshipType[1];
      role: String[1];
    }
    ```
 
    The engine checks all of it: the enumeration and its value exist, the body's type is the declared return type,
    the stereotype exists in the profile. Lite reads it in phase F without typing the body (invariant 6): the derived
-   property carrying `<<Graph.type>>` must have a body that is exactly one spelled enumeration value (one
+   property carrying `<<graph.type>>` must have a body that is exactly one spelled enumeration value (one
    `EnumValue` node of the protocol), which is what the charter's C6.2 lets the compiler read ("a spelled enum's
    name"); anything else is a compile error naming the property. The relationship type's name is the value's name:
    `(a:Actor)-[r:ACTED_IN]->(m:Movie)`, and `type(r)` is the value, written as its name on the wire, which is
@@ -732,7 +735,7 @@ for a relationship with properties, and where does the model say so?
    types, an element a data space can expose, a DataCube filter can offer, and a query can compare against
    (`type(r) = RelationshipType.ACTED_IN` in Pure; `type(r) = 'ACTED_IN'` in Cypher). The same mechanism names an
    end the model does not own: an end property declared by another project's association, or inherited, cannot be
-   stereotyped there, so the edge class declares `<<Graph.from>> from() { $this.actor }: demo::Actor[1]`, a derived
+   stereotyped there, so the edge class declares `<<graph.from>> from() { $this.actor }: demo::Actor[1]`, a derived
    property whose body is exactly one navigation of `$this` to a to-one class-typed property; the engine types it,
    lite reads the spelled navigation. The rule stays one: the end is the property carrying the stereotype, stored or
    derived.
@@ -744,9 +747,9 @@ for a relationship with properties, and where does the model say so?
 
    Class demo::Acting extends graph::Edge                            // the model
    {
-     <<Graph.from>> actor: demo::Actor[1];
-     <<Graph.to>>   movie: demo::Movie[1];
-     <<Graph.type>> type() { demo::RelationshipType.ACTED_IN }: demo::RelationshipType[1];
+     <<graph.from>> actor: demo::Actor[1];
+     <<graph.to>>   movie: demo::Movie[1];
+     <<graph.type>> type() { demo::RelationshipType.ACTED_IN }: demo::RelationshipType[1];
      role: String[1];
    }
    ```
@@ -787,8 +790,8 @@ for a relationship with properties, and where does the model say so?
      under `meta::` was not verified here and need not be: a plain path avoids the question.
    - **What the engine checks, and what only lite checks.** The engine checks every reference: the profile, the
      stereotypes, the properties they sit on, their types and multiplicities. Only lite checks the *rule*: exactly
-     one `<<Graph.from>>` and one `<<Graph.to>>` property per edge class (own, inherited or association-injected),
-     each `[1]` and typed by a class, on a class that carries `<<Graph.Edge>>` (an end stereotype without the class
+     one `<<graph.from>>` and one `<<graph.to>>` property per edge class (own, inherited or association-injected),
+     each `[1]` and typed by a class, on a class that carries `<<graph.Edge>>` (an end stereotype without the class
      marker, or the marker without both ends, is an error either way); no third link on an edge; an edge class never
      used as a label. A misdeclared edge compiles in the engine and fails here, in phase F, with a positioned error
      naming the class and its properties; since only lite runs the island, that is where the rule belongs, and
@@ -801,9 +804,9 @@ for a relationship with properties, and where does the model say so?
      change nothing.
 
    The checks, each a compile error with Neo4j's and the model's words: exactly one property of the class (own,
-   inherited or association-injected) carries `<<Graph.from>>` and exactly one `<<Graph.to>>`, each of multiplicity
+   inherited or association-injected) carries `<<graph.from>>` and exactly one `<<graph.to>>`, each of multiplicity
    `[1]` (a Neo4j relationship always has both ends) and each typed by a class, which are the edge type's end node
-   types; the relationship type is the `<<Graph.type>>` derived property's spelled enumeration value, else the
+   types; the relationship type is the `<<graph.type>>` derived property's spelled enumeration value, else the
    class's simple name; an edge class is never a label (a node pattern
    `(x:Acting)` is refused: "Acting is an edge type"); a subclass of an edge class is an edge type of its own,
    inheriting the ends; every other property, inherited ones included, is the relationship's property (`r.role`,
@@ -829,7 +832,7 @@ for a relationship with properties, and where does the model say so?
    the `from(mapping, runtime)` that follows it, over every class the mapping maps. This is the SQL study's own
    choice for the Postgres wire ("database = a project or data space", its §3.3), and it keeps every projection fact
    in a Legend element that exists.
-7. **Names are the model's, and typed.** A relationship type is the edge class's `<<Graph.type>>` enumeration value
+7. **Names are the model's, and typed.** A relationship type is the edge class's `<<graph.type>>` enumeration value
    when it declares one, else the edge class's name, the association's name or the property's name; there is no
    renaming layer of strings. Pure has no type alias (the user asked, 2026-10-15): its element kinds are classes,
    associations, enumerations, profiles, functions, mappings and the runtime and tooling elements, and the one
@@ -871,7 +874,7 @@ tables' keys, the subclass by a filter, as `AssociationIntegrationTest` writes i
 
 ```
 ###Pure
-Profile graph::Graph
+Profile graph::graph
 {
   stereotypes: [Edge, from, to, type];
 }
@@ -901,30 +904,30 @@ Class demo::Movie
 Association demo::Employment { employees: Person[*]; firm: Firm[0..1]; }
 
 // ---- property edge, class form (the primary form): one element ----
-Class <<Graph.Edge>> demo::Acting
+Class <<graph.Edge>> demo::Acting
 {
-  <<Graph.from>> actor: Actor[1];
-  <<Graph.to>>   movie: Movie[1];
-  <<Graph.type>> type() { RelationshipType.ACTED_IN }: RelationshipType[1];
+  <<graph.from>> actor: Actor[1];
+  <<graph.to>>   movie: Movie[1];
+  <<graph.type>> type() { RelationshipType.ACTED_IN }: RelationshipType[1];
   role: String[1];
 }
 
 // ---- property edge, self-typed: direction is knowable only from the model ----
-Class <<Graph.Edge>> demo::Knows
+Class <<graph.Edge>> demo::Knows
 {
-  <<Graph.from>> knower: Person[1];
-  <<Graph.to>>   known: Person[1];
-  <<Graph.type>> type() { RelationshipType.KNOWS }: RelationshipType[1];
+  <<graph.from>> knower: Person[1];
+  <<graph.to>>   known: Person[1];
+  <<graph.type>> type() { RelationshipType.KNOWS }: RelationshipType[1];
   since: StrictDate[1];
 }
 
 // ---- property edge, ends through associations: when Person and Movie should navigate to it in Pure ----
-Class <<Graph.Edge>> demo::Directing
+Class <<graph.Edge>> demo::Directing
 {
-  <<Graph.type>> type() { RelationshipType.DIRECTED }: RelationshipType[1];
+  <<graph.type>> type() { RelationshipType.DIRECTED }: RelationshipType[1];
 }
-Association demo::DirectorDirecting { <<Graph.from>> director: Person[1]; directings: Directing[*]; }
-Association demo::DirectingMovie    { <<Graph.to>>   movie: Movie[1];     directings: Directing[*]; }
+Association demo::DirectorDirecting { <<graph.from>> director: Person[1]; directings: Directing[*]; }
+Association demo::DirectingMovie    { <<graph.to>>   movie: Movie[1];     directings: Directing[*]; }
 ```
 
 **The store, mapping, runtime and data space:**
@@ -1041,7 +1044,8 @@ wording that called the association form idiomatic is superseded by this section
 **Verified (2026-10-15, the user: "feel good about the Pure?").** The three code blocks above, concatenated as
 one text, were compiled by legend-lite at `74d873d` through its every-error route
 (`POST /api/lite/v1/compilation/compile`, `Compiler.compileErrors`: A to F, then every body), in this cloud
-container after `tools/cloud-distdir.sh`: **`{"errors":[]}`**. So the profile, the stereotypes on the class, on
+container after `tools/cloud-distdir.sh`: **`{"errors":[]}`** (re-run after the profile was renamed `graph::graph`:
+the same). So the profile, the stereotypes on the class, on
 stored properties, on derived properties and on association ends, the derived property's enumeration body, the
 subclass with a filter over its superclass's table, the edge classes over their bridge tables, the association
 mappings, the DuckDB connection, the runtime and the data space all parse and compile, bodies included.
@@ -1049,20 +1053,21 @@ Three negative controls, each a one-token edit of the same text:
 - `RelationshipType.NOPE` in the derived property: refused, "in function 'demo::Acting$prop$type': enumeration
   demo::RelationshipType has no value 'NOPE'". The body is typed.
 - `actor: Actorr[1]`: refused, "Unknown type: 'Actorr'". The ends are resolved.
-- `<<Graph.Edgee>>`, a stereotype the profile does not declare: **accepted, `{"errors":[]}`.** legend-lite does not
+- `<<graph.Edgee>>`, a stereotype the profile does not declare: **accepted, `{"errors":[]}`.** legend-lite does not
   check a stereotype or a profile reference against the profile today (no such check exists in `core/`, and
   `docs/LENIENCY_CATALOG.md` does not list the leniency); legend-engine refuses it ("Can't find stereotype"). Two
   consequences: the `GraphEdges` reader of PR3 validates the graph profile's references itself, so a misspelled
-  `<<Graph.from>>` is an error here as it is in the engine; and the general leniency is its own finding for the
+  `<<graph.from>>` is an error here as it is in the engine; and the general leniency is its own finding for the
   compiler line, recorded with this verification, since a model that compiles here with a misspelled stereotype
   fails in the engine.
 **Verified against the real legend-engine too (2026-10-15).** The same text, through the repository's engine
 runner (`bazel run //tools/engine-runner:testable -- example-model.pure`, legend-engine at the pinned 4.145.0 from
-`@maven_runner`, parse and compile with no testables): **parse 432 ms, compile 4,686 ms, no error, exit 0.** The
+`@maven_runner`, parse and compile with no testables): **parse 432 ms, compile 4,686 ms, no error, exit 0** (re-run
+after the profile was renamed `graph::graph`: parse 482 ms, compile 6,267 ms, no error). The
 model with its edge classes, the profile, the stereotyped properties, derived properties and association ends, the
 enumeration body, the mapping, the DuckDB connection, the runtime and the data space is engine-compatible, byte for
 byte the same text, which is the claim of §5.6. The engine's answers to the controls, each an `EngineException`
-with exit 1: `<<Graph.Edgee>>`, "Can't find stereotype 'Edgee' in profile 'Graph'"; `RelationshipType.NOPE`, "Can't
+with exit 1: `<<graph.Edgee>>`, "Can't find stereotype 'Edgee' in profile 'graph'"; `RelationshipType.NOPE`, "Can't
 find enum value 'NOPE' in enumeration 'RelationshipType'". So the engine checks the profile's stereotypes and lite
 does not: the asymmetry above, measured on both sides.
 
