@@ -89,8 +89,9 @@ CASE_KEYS = {"id", "sql", "profile", "engine", "skip", "sa_defect", "decision", 
 # database at its defaults is lite_iq's or lite_sa's; any other combination is a database of its own, made with dbinit's
 # -c, -b and -z), the login by the database's CommProtocol ('TDS' a TDS login's options, 'CmdSeq' none), set each other
 # database-level option for PUBLIC (SET OPTION PUBLIC.name = 'value') and each query-level setting for the connection,
-# after the login's (SET TEMPORARY OPTION name = 'value'). Such a case runs on a connection of its own, the options it
-# set (user's and PUBLIC's) restored after it.
+# after the login's (SET TEMPORARY OPTION name = 'value'). A case whose SQL begins with SET statements runs each on its
+# connection before the SELECT. Such a case runs on a connection of its own, the options it set (user's, PUBLIC's,
+# temporary PUBLIC's) restored after it.
 DB_SETTINGS = {"casesensitive": "CaseSensitive", "blankpadding": "BlankPadding", "collation": "Collation",
                "charset": "CharSet", "accentsensitive": "AccentSensitive"}
 # each base's database at its defaults, and the charset of each collation read
@@ -690,8 +691,71 @@ def check_expect(expect, where):
         raise Bad("%s: expect is one line of JSON, a list of rows of text cells or null: %r" % (where, expect))
 
 
+def statements(sql):
+    """IQ island, 2026-10-14 (the options framework): sql cut at its statement separators (';' outside strings,
+    delimited names and comments), each statement's text; the last one's text has no ';'."""
+    out, start, i, n = [], 0, 0, len(sql)
+    while i < n:
+        c = sql[i]
+        if c in "'\"`[":
+            close = "]" if c == "[" else c
+            j = i + 1
+            while j < n:
+                if sql[j] == close:
+                    if close in "'\"" and j + 1 < n and sql[j + 1] == close:
+                        j += 2
+                        continue
+                    break
+                j += 1
+            i = j + 1
+            continue
+        if sql.startswith("--", i) or sql.startswith("//", i):
+            j = sql.find("\n", i)
+            i = n if j < 0 else j
+            continue
+        if sql.startswith("/*", i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if sql.startswith("/*", j):
+                    depth, j = depth + 1, j + 2
+                elif sql.startswith("*/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            i = j
+            continue
+        if c == ";":
+            out.append(sql[start:i])
+            start = i + 1
+        i += 1
+    out.append(sql[start:])
+    return out
+
+
+def set_prefix(sql):
+    """The SET statements a case's SQL begins with, each without its ';', and its SELECT: ([], sql) for none."""
+    parts = statements(sql)
+    sets = []
+    while len(parts) > 1 and re.match(r"SET\b", _uncommented(parts[0]), re.I):
+        sets.append(parts.pop(0))
+    return sets, ";".join(parts)
+
+
+def _uncommented(s):
+    while True:
+        s = s.lstrip()
+        if s.startswith("--") or s.startswith("//"):
+            s = s[s.index("\n") + 1:] if "\n" in s else ""
+        elif s.startswith("/*"):
+            s = s[s.index("*/") + 2:] if "*/" in s else ""
+        else:
+            return s
+
+
 def single_select(sql):
-    """Only a single SELECT or WITH (or a parenthesised one) ever runs, and nothing with a statement separator."""
+    """Only a single SELECT or WITH (or a parenthesised one) ever runs, and nothing with a statement separator (IQ
+    island, 2026-10-14: after a run of SET statements, each ended by ';')."""
+    sql = set_prefix(sql)[1]
     s = sql
     while True:
         s = s.lstrip()
@@ -1081,15 +1145,15 @@ def answer(conn, profile, sql):
 
 
 def isolated(c):
-    """IQ island, 2026-10-14: whether a case runs on a connection of its own (it has settings)."""
-    return c.get("settings") is not None
+    """IQ island, 2026-10-14: whether a case runs on a connection of its own (it has settings or SET statements)."""
+    return c.get("settings") is not None or bool(set_prefix(c["run"])[0])
 
 
 def answer_isolated(oracle, c, profile):
-    """A case with settings, on a connection of its own to its database: the login's options, its settings (a
-    database-level option for PUBLIC, a query-level one temporarily), the case's variables, then its SELECT; the first
-    error is the answer. Every option it set is restored after (the user's and PUBLIC's by the
-    catalog's SYSOPTIONS as it was, a temporary PUBLIC one reset)."""
+    """A case with settings or SET statements, on a connection of its own to its database: the login's options, its
+    settings (a database-level option for PUBLIC, a query-level one temporarily), the case's variables, its SET
+    statements, then its SELECT; the first error is the answer. Every option it set is restored after (the user's and
+    PUBLIC's by the catalog's SYSOPTIONS as it was, a temporary PUBLIC one reset)."""
     db = database_for(profile, c["given"], c["key"])[0]
     login, options = session_options(profile, c["given"])
     f = oracle.facts[db]
@@ -1098,6 +1162,8 @@ def answer_isolated(oracle, c, profile):
     if "error" in before:
         conn.close()
         raise Bad("SYSOPTIONS: %r" % before["error"])
+    sets, select = set_prefix(c["run"])
+    temporary_public = []
     try:
         for k, v in [("request_timeout", REQUEST_TIMEOUT)] + login:
             conn.execute("SET TEMPORARY OPTION %s = '%s'" % (k, v))
@@ -1108,12 +1174,22 @@ def answer_isolated(oracle, c, profile):
                 break
         if e is None:
             e = bind_params(conn, c["bound"], profile)
-        a = {"error": e} if e is not None else answer_now(conn, c["run"])
+        if e is None:
+            for st in sets:
+                m = re.match(r"\s*SET\s+(?:EXISTING\s+)?TEMPORARY\s+OPTION\s+PUBLIC\s*\.\s*(\w+)", st, re.I)
+                if m:
+                    temporary_public.append(m.group(1))
+                e = conn.run(st)
+                if e is not None:
+                    break
+        a = {"error": e} if e is not None else answer_now(conn, select)
         if "error" in a and not oracle.alive():
             raise Lost(a["error"]["message"])
         conn.run("ROLLBACK")
         if c["bound"]:
             drop_params(conn, [p[0] for p in c["bound"]], profile)
+        for name in temporary_public:
+            conn.run("SET TEMPORARY OPTION PUBLIC.%s =" % name)
         # the restore's own names are read as names, and its catalog rows all fetched (the case may have turned quoted
         # identifiers off, or capped the rows a SELECT returns)
         conn.execute("SET TEMPORARY OPTION quoted_identifier = 'On'")
@@ -1247,8 +1323,9 @@ def meta(oracle):
                     " CaseSensitive, BlankPadding and Collation, made by dbinit -c, -b and -z, with IQ 16's PUBLIC"
                     " precision and scale on the IQ base), its login by the database's CommProtocol, set each other"
                     " database-level option for PUBLIC and each query-level setting temporarily, after the login's,"
-                    " on a connection of the case's own; every option it set is restored after it; a DATE or"
-                    " TIMESTAMP column is fetched at YYYY-MM-DD and six places",
+                    " on a connection of the case's own; a case whose SQL begins with SET statements runs each there"
+                    " before its SELECT; every option it set is restored after it; a DATE or TIMESTAMP column is"
+                    " fetched at YYYY-MM-DD and six places",
     }}
 
 

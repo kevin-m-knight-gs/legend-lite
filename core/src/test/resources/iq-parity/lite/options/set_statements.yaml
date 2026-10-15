@@ -1,0 +1,192 @@
+# IQ's SET statements before an #IQ{...}# island's SELECT (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island,
+# 2026-10-14, the options framework): a run of them, each ended by ';', then one SELECT. SET [EXISTING] [TEMPORARY]
+# OPTION [PUBLIC.]name = value at IQ's levels (TEMPORARY the connection's, plain the user's, which replaces the
+# connection's temporary value at once, PUBLIC the database's, which a temporary or user value hides), and T-SQL's forms
+# SQL Anywhere reads as options (SET ANSINULL, SET QUOTED_IDENTIFIER, SET DATEFIRST, SET DATEFORMAT, SET ROWCOUNT, ...);
+# each statement read under the settings the ones before it made. The errors are IQ's, measured on SQL Anywhere 17,
+# which runs each statement of a case on its connection in turn. The SQL in YAML double quotes.
+tests:
+
+  # ---- SET OPTION at each level
+  - id: set_temporary_option
+    sql: "SET TEMPORARY OPTION date_order = 'DMY'; SELECT CAST('01/02/03' AS DATE) AS d"
+    profile: iq16-default, sqla17-default, iq16-tds
+  - id: set_option_for_the_user
+    sql: "SET OPTION date_order = 'DMY'; SELECT CAST('01/02/03' AS DATE) AS d"
+    profile: iq16-default, iq16-tds
+  - id: set_option_public
+    sql: "SET OPTION PUBLIC.date_order = 'DMY'; SELECT CAST('01/02/03' AS DATE) AS d"
+    profile: iq16-default, sqla17-default
+  - id: set_option_public_under_a_tds_login_is_hidden
+    sql: "SET OPTION PUBLIC.date_order = 'DMY'; SELECT CAST('01/02/03' AS DATE) AS d"
+    profile: iq16-tds, sqla17-tds
+  - id: set_temporary_option_public
+    sql: "SET TEMPORARY OPTION PUBLIC.date_order = 'DMY'; SELECT CAST('01/02/03' AS DATE) AS d"
+  - id: set_temporary_option_public_under_a_tds_login_is_hidden
+    sql: "SET TEMPORARY OPTION PUBLIC.date_order = 'DMY'; SELECT CAST('01/02/03' AS DATE) AS d"
+    profile: iq16-tds
+  - id: set_existing_temporary_option
+    sql: "SET EXISTING TEMPORARY OPTION date_order = 'MDY'; SELECT CAST('01/02/03' AS DATE) AS d"
+  - id: two_set_statements_then_the_select
+    sql: "SET TEMPORARY OPTION date_order = 'DMY'; SET TEMPORARY OPTION nearest_century = 30; SELECT CAST('01/02/29' AS DATE) AS d, CAST('01/02/30' AS DATE) AS e"
+    profile: iq16-default, sqla17-default
+  - id: the_last_set_wins
+    sql: "SET TEMPORARY OPTION date_order = 'DMY'; SET TEMPORARY OPTION date_order = 'MDY'; SELECT CAST('01/02/03' AS DATE) AS d"
+  - id: a_reset_to_the_users_value
+    sql: "SET OPTION date_order = 'DMY'; SET TEMPORARY OPTION date_order = 'MDY'; SET TEMPORARY OPTION date_order =; SELECT CAST('01/02/03' AS DATE) AS d"
+  - id: a_users_reset_drops_the_tds_logins_value
+    sql: "SET OPTION date_order =; SELECT CAST('01/02/03' AS DATE) AS d"
+    profile: iq16-tds
+  - id: a_reset_by_null
+    sql: "SET TEMPORARY OPTION ansinull = NULL; SELECT COUNT(*) AS n FROM t WHERE vc = NULL"
+    profile: iq16-tds, sqla17-tds
+  - id: names_and_values_in_iqs_spellings
+    sql: "SET TEMPORARY OPTION \"DATE_ORDER\" = dmy; SET TEMPORARY OPTION [nearest_century] = 6e1; SELECT CAST('01/02/59' AS DATE) AS d"
+  - id: a_comment_and_line_breaks_between_statements
+    sql: "-- the options\nSET TEMPORARY OPTION date_order = 'DMY';\n/* then */ SELECT CAST('01/02/03' AS DATE) AS d"
+
+  # ---- the settings given for the query, then the SET statements over them
+  - id: set_temporary_over_the_querys_settings
+    sql: "SET TEMPORARY OPTION date_order = 'YMD'; SELECT CAST('01/02/03' AS DATE) AS d"
+    settings: "query.date_order='DMY'"
+    profile: iq16-default, iq16-tds
+  - id: set_for_the_user_over_the_querys_settings
+    sql: "SET OPTION date_order = 'MDY'; SELECT CAST('01/02/03' AS DATE) AS d"
+    settings: "query.date_order='DMY'"
+  - id: public_under_the_querys_settings_is_hidden
+    sql: "SET OPTION PUBLIC.date_order = 'MDY'; SELECT CAST('01/02/03' AS DATE) AS d"
+    settings: "query.date_order='DMY'"
+
+  # ---- an option that changes how the SELECT is read
+  - id: quoted_identifier_off_then_a_string
+    sql: "SET TEMPORARY OPTION quoted_identifier = 'Off'; SELECT \"vc\" AS s FROM t WHERE id = 1"
+    profile: iq16-default, sqla17-default
+  - id: escape_character_off_then_a_backslash
+    sql: "SET TEMPORARY OPTION escape_character = 'Off'; SELECT LENGTH('a\\nb') AS n"
+    profile: iq16-default, sqla17-default
+  - id: escape_character_on_after_a_tds_login
+    sql: "SET TEMPORARY OPTION escape_character = 'On'; SELECT LENGTH('a\\nb') AS n"
+    profile: iq16-tds, sqla17-tds
+
+  # ---- T-SQL's forms
+  - id: tsql_set_ansinull_off
+    sql: "SET ANSINULL OFF; SELECT COUNT(*) AS n FROM t WHERE vc = NULL"
+    profile: iq16-default, sqla17-default
+  - id: tsql_set_ansi_nulls_on_after_a_tds_login
+    sql: "SET ANSI_NULLS ON; SELECT COUNT(*) AS n FROM t WHERE vc = NULL"
+    profile: iq16-tds, sqla17-tds
+  - id: tsql_set_quoted_identifier_off
+    sql: "SET QUOTED_IDENTIFIER OFF; SELECT \"x\" AS s"
+    profile: iq16-default, sqla17-default
+  - id: tsql_set_quoted_identifier_on_after_a_tds_login
+    sql: "SET QUOTED_IDENTIFIER ON; SELECT \"vc\" FROM t WHERE id = 1"
+    profile: iq16-tds
+  - id: tsql_set_dateformat
+    sql: "SET DATEFORMAT dmy; SELECT CAST('01/02/03' AS DATE) AS d"
+    profile: iq16-default, sqla17-default
+  - id: tsql_set_datefirst
+    sql: "SET DATEFIRST 1; SELECT DATEPART(dw, '2026-10-11') AS sunday, DATEPART(dw, '2026-10-12') AS monday"
+    profile: iq16-default, sqla17-default
+  - id: tsql_set_rowcount_0
+    sql: "SET ROWCOUNT 0; SELECT id FROM t ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: tsql_set_rowcount_is_not_supported_yet
+    sql: "SET ROWCOUNT 2; SELECT id FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: tsql_statements_of_no_effect
+    sql: "SET NOCOUNT ON; SET CHAINED OFF; SET TEXTSIZE 100; SET TRANSACTION ISOLATION LEVEL 1; SELECT id FROM t WHERE id < 3 ORDER BY id"
+    profile: iq16-default, sqla17-default
+
+  # ---- IQ's errors (SQL Anywhere 17's codes)
+  - id: an_unknown_temporary_option_is_203
+    sql: "SET TEMPORARY OPTION nope = 1; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: an_unknown_users_option_is_200
+    sql: "SET OPTION nope = 1; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: an_unknown_public_option_is_a_new_one
+    sql: "SET OPTION PUBLIC.nope = 1; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: a_database_property_set_temporarily_is_203
+    sql: "SET TEMPORARY OPTION CaseSensitive = 'Off'; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: a_database_property_set_for_the_user_is_200
+    sql: "SET OPTION BlankPadding = 'Off'; SELECT 1 AS x"
+  - id: a_database_property_set_for_public_changes_nothing
+    sql: "SET OPTION PUBLIC.CaseSensitive = 'Off'; SELECT id FROM t WHERE vc = 'hello' ORDER BY id"
+  - id: commprotocol_set_temporarily_is_203
+    sql: "SET TEMPORARY OPTION CommProtocol = 'TDS'; SELECT 1 AS x"
+  - id: a_public_only_option_set_temporarily_is_203
+    sql: "SET TEMPORARY OPTION precision = 40; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: a_public_only_option_set_for_the_user_is_202
+    sql: "SET OPTION scale = 10; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: a_value_of_no_option_is_201
+    sql: "SET TEMPORARY OPTION date_order = 'YDM'; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: on_or_off_only_is_201
+    sql: "SET TEMPORARY OPTION ansinull = 'false'; SELECT 1 AS x"
+  - id: a_number_out_of_range_is_201
+    sql: "SET TEMPORARY OPTION first_day_of_week = 8; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: a_signed_value_is_a_syntax_error
+    sql: "SET TEMPORARY OPTION nearest_century = -1; SELECT 1 AS x"
+  - id: two_values_are_a_syntax_error
+    sql: "SET TEMPORARY OPTION date_order = 'DMY' 'x'; SELECT 1 AS x"
+  - id: an_iq_only_option_under_sql_anywhere_is_203
+    sql: "SET TEMPORARY OPTION row_count = 5; SELECT 1 AS x"
+    profile: sqla17-default
+  - id: tsql_datefirst_0_is_201
+    sql: "SET DATEFIRST 0; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: tsql_dateformat_ydm_is_201
+    sql: "SET DATEFORMAT ydm; SELECT 1 AS x"
+  - id: tsql_ansinull_quoted_is_a_syntax_error
+    sql: "SET ANSINULL 'OFF'; SELECT 1 AS x"
+  - id: tsql_rowcount_negative_is_a_syntax_error
+    sql: "SET ROWCOUNT -1; SELECT 1 AS x"
+  - id: tsql_escape_character_is_a_syntax_error
+    sql: "SET ESCAPE_CHARACTER OFF; SELECT 1 AS x"
+  - id: tsql_language_is_611
+    sql: "SET LANGUAGE us_english; SELECT 1 AS x"
+  - id: an_option_with_no_effect_is_accepted
+    sql: "SET TEMPORARY OPTION blocking = 'Off'; SET TEMPORARY OPTION isolation_level = 1; SELECT id FROM t WHERE id < 3 ORDER BY id"
+    profile: iq16-default, sqla17-default
+
+  # ---- each option of lite/options set by a SET statement
+  - id: ansi_substring_off_by_set
+    sql: "SET TEMPORARY OPTION ansi_substring = 'Off'; SELECT SUBSTRING('mnopqrst', -3) AS a"
+    profile: iq16-default, sqla17-default
+  - id: ansinull_off_by_set_temporary
+    sql: "SET TEMPORARY OPTION ansinull = 'Off'; SELECT id FROM t WHERE vc = NULL ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: ansinull_on_by_set_after_a_tds_login
+    sql: "SET TEMPORARY OPTION ansinull = 'On'; SELECT id FROM t WHERE vc = NULL ORDER BY id"
+    profile: iq16-tds, sqla17-tds
+  - id: date_order_dmy_by_set_dateformat
+    sql: "SET DATEFORMAT dmy; SELECT CAST('03/04/05' AS DATE) AS d"
+    profile: iq16-default, sqla17-tds
+  - id: date_order_mdy_by_set_option
+    sql: "SET TEMPORARY OPTION date_order = 'MDY'; SELECT CAST('03/04/05' AS DATE) AS d"
+    profile: iq16-default, sqla17-default
+  - id: divide_by_zero_error_off_by_set
+    sql: "SET TEMPORARY OPTION divide_by_zero_error = 'Off'; SELECT 1/0 AS q"
+    profile: iq16-default, sqla17-default
+  - id: first_day_of_week_by_set_datefirst
+    sql: "SET DATEFIRST 3; SELECT DATEPART(dw, '2026-10-14') AS we, DATEPART(dw, '2026-10-11') AS su"
+    profile: iq16-default, sqla17-default
+  - id: first_day_of_week_by_set_option
+    sql: "SET TEMPORARY OPTION first_day_of_week = 5; SELECT DATEPART(dw, '2026-10-16') AS fr"
+    profile: sqla17-default
+  - id: formats_timestamp_six_places_by_set
+    sql: "SET TEMPORARY OPTION timestamp_format = 'YYYY-MM-DD HH:NN:SS.SSSSSS'; SELECT CAST(ts AS VARCHAR(30)) AS s FROM t WHERE id = 1"
+    profile: iq16-default, iq16-tds
+  - id: nearest_century_century_by_set
+    sql: "SET TEMPORARY OPTION nearest_century = 10; SELECT CAST('09/01/02' AS DATE) AS a, CAST('10/01/02' AS DATE) AS b"
+    profile: iq16-default, sqla17-default
+  - id: precision_precision_by_set_public
+    sql: "SET OPTION PUBLIC.precision = 40; SET OPTION PUBLIC.scale = 10; SELECT 1.0/3 AS q"
+    profile: iq16-default, sqla17-default
+  - id: refused_string_rtruncation_off_by_tsql
+    sql: "SET STRING_RTRUNCATION OFF; SELECT CAST('abcdef' AS VARCHAR(3)) AS s"

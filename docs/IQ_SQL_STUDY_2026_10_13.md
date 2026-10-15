@@ -1901,8 +1901,9 @@ as presets of it. The settings themselves will come from Pure: tagged values of 
 exact names, on a Database element (the database's level) and on the enclosing function (the query's); that plumbing
 touches the model and the compiler and lands separately. **No header**: no Legend syntax is added (the user's ruling,
 2026-10-14: no Legend parser feature that upstream lacks), so an island still opens `#IQ{` or `#IQ:<preset>{`, and
-nothing between `#IQ` and its brace sets anything. Every case answers what SQL Anywhere 17 answers, is refused by name,
-or is an error both raise: `lite/options/*.yaml`.
+nothing between `#IQ` and its brace sets anything. Inside the island, IQ's own SET statements may come before the SELECT
+(below): that is IQ's syntax, read by the island's IQ reader, not the Legend parser's. Every case answers what SQL
+Anywhere 17 answers, is refused by name, or is an error both raise: `lite/options/*.yaml`.
 The measurements behind it (each name, level, value and error below on SQL Anywhere 17, in an IQ-like and a default
 database) are kept with the private research.
 
@@ -1922,7 +1923,7 @@ protocol, and each Tier 1 to 3 option of the research's (and `tsql_variables`, w
 Anywhere's default; an IQ-only one is absent from SQL Anywhere 17), TDS and ODBC login values, and status (built,
 some values built, provisional with its decision, not built yet, pinned, ignored); and, by name only, the 318 Tier 4
 options (IQ's documentation's, SQL Anywhere 17's, both), which change no SELECT. `IqSettings` is the vector, with IQ's
-levels. `IqProfile` is the five presets: a base and a client (one at the database's defaults, IQ's ODBC driver, a TDS
+levels; `IqSetPrefix` reads the SET statements before a SELECT. `IqProfile` is the five presets: a base and a client (one at the database's defaults, IQ's ODBC driver, a TDS
 login). A first commit made the translator read the vector with no other change (every ledger row, answer, syntax
 verdict and the Postgres island's Pure identical).
 
@@ -1942,6 +1943,40 @@ query's level -- with IQ's errors, as SQL Anywhere 17 raises them:
   number with a fraction -201 under SQL Anywhere 17 and refused by name under IQ 16 (IQ is documented to cut it: the
   research's D-Q2); an option with no effect on a SELECT (Tier 4) is accepted and ignored, its value unchecked; a
   setting given twice at one level is refused by name.
+
+**IQ's SET statements before the SELECT**, so that an IQ script's SET lines read as written, and for the wire protocol
+to come (a client sends them before its query): a run of them, each ended by `;`, then exactly one SELECT, after the
+settings given. They are IQ's syntax, inside the island's SQL, read by the island's IQ reader (`IqSetPrefix`, through
+`IqLexer`, when `IqDialect` parses the SQL), never by the Legend parser. Each is read under the settings the ones before
+it made (a `quoted_identifier` or `escape_character` a statement sets changes how the next is lexed), the SELECT under
+the last. The SELECT is the island's text with the statements blanked, line breaks kept, so every position is the
+island's own. An option has IQ's four levels here, measured: the connection's temporary value, the user's, a temporary
+PUBLIC one and PUBLIC's, the first of them set being the value (a user's value, `SET OPTION x`, replaces the
+connection's temporary one at once, the login's included; a PUBLIC value is hidden by either). Read:
+
+- `SET [EXISTING] [TEMPORARY] OPTION [PUBLIC.]name = [value]`: the name plain, `"quoted"` or `[bracketed]`; the value a
+  word (`On`, `DMY`), a number (`6e1`, `60.0` and the string `'060'` are 60), a string, `NULL` or none (a reset).
+  Measured errors: a sign or a parenthesis before the value, or a second value, -131; a name of no option -203 when set
+  temporarily (also `TEMPORARY ... PUBLIC.`), -200 for the user, and for PUBLIC IQ's own new option, which no SELECT
+  reads -- so are a database property and `CommProtocol`, no options of IQ's; a PUBLIC-only option (`precision`,
+  `scale`, `reserved_keywords`, ...) set temporarily -203, for the user -202; a value the option does not take -201
+  (On/Off only, never 1 or 'yes'; an integer's range). A reset of a temporary value falls back to the user's or
+  PUBLIC's; of the user's, to PUBLIC's (the login's temporary value is gone too). Refused by name: a reset of a PUBLIC
+  value (SQL Anywhere then reads its server's own default, no base's), an owner other than `PUBLIC`, a variable as the
+  value.
+- T-SQL's forms SQL Anywhere 17 reads as options: `SET ANSINULL ON|OFF` (and `ANSI_NULLS`), `SET QUOTED_IDENTIFIER
+  ON|OFF`, `SET STRING_RTRUNCATION ON|OFF`, `SET DATEFIRST n` (`first_day_of_week`; outside 1-7 -201), `SET DATEFORMAT
+  ymd|mdy|dmy` (`date_order`; another word -201), `SET ROWCOUNT n` (`row_count`; n an integer literal up to
+  2147483647), each as the connection's temporary value; and the ones of no effect on a SELECT, accepted: `SET
+  CHAINED`, `ANSI_PERMISSIONS`, `SELF_RECURSION`, `PREFETCH`, `NOCOUNT`, `ARITHABORT`, `ARITHIGNORE` (`ON|OFF`), `SET
+  TEXTSIZE n`, `SET TRANSACTION ISOLATION LEVEL ...`, `SET STATISTICS IO ON`, `SET SHOWPLAN ON`. A form SQL Anywhere 17
+  does not read (`SET CLOSE_ON_ENDTRANS`, `SET ESCAPE_CHARACTER`, `SET DATE_ORDER`, SQL Server's `SET XACT_ABORT` and
+  the like) is -131, `SET LANGUAGE` -611; another SET (a variable's), a SET without its `;`, and SET statements with no
+  SELECT after them are refused by name.
+
+`lite/options/set_statements.yaml` runs each form, each level, the errors, and each option of `lite/options` set by a
+statement; a statement over the settings given (`query.date_order='DMY'`, then `SET TEMPORARY OPTION date_order`)
+follows IQ's levels too.
 
 What the settings need that is not built is refused by name when the SELECT is read (`IqSettings.check`, for the
 settings it is read under):
@@ -1993,15 +2028,17 @@ holds is now refused by name (no committed case compared one: every earlier run 
 sources), then run the translation; its answer is stamped with them (`sqlSha`'s one more part).
 `tools/iq-oracle/snap.py` runs such a case on a connection of its own: the database its properties need (made with
 `dbinit`'s `-c`, `-b` and `-z`, IQ 16's PUBLIC precision and scale on the IQ base; eleven beyond the two), the login
-`CommProtocol` gives, each other database-level option for PUBLIC and each query-level setting temporarily; then every
-option the case set is restored from the catalog's `SYSOPTIONS`. The case files may now sit in `lite/`'s subdirectories.
+`CommProtocol` gives, each other database-level option for PUBLIC and each query-level setting temporarily, then the
+case's SET statements, each in turn; then every option the case set is restored from the catalog's `SYSOPTIONS` (a
+temporary PUBLIC value reset). A case whose SQL begins with SET statements runs so too. The case files may now sit in `lite/`'s subdirectories.
 
 **Moved runs.** None: every earlier run is as it was on both lanes, and every earlier answer and syntax verdict.
 
-**Evidence:** both lanes identical, 3,824 runs: PASS 2,480, REFUSED 878, BOTH_ERROR 462, SKIP 4; FAIL, BUG, ERROR 0
-(was 3,455: PASS 2,184, REFUSED 835, BOTH_ERROR 432, SKIP 4). `lite/options/` alone, 276 cases, 369 runs: PASS 296,
-REFUSED 43, BOTH_ERROR 30. The answers: 369 new; every earlier answer identical; the answers file's meta line lists the
-new databases and how settings are applied. The Postgres island's Pure is byte-identical and both `sql-parity` ledgers
+**Evidence:** both lanes identical, 3,925 runs: PASS 2,552, REFUSED 880, BOTH_ERROR 489, SKIP 4; FAIL, BUG, ERROR 0
+(was 3,455: PASS 2,184, REFUSED 835, BOTH_ERROR 432, SKIP 4). `lite/options/` alone, 339 cases, 470 runs: PASS 368,
+REFUSED 45, BOTH_ERROR 57, of which the SET statements' 63 cases, 101 runs: PASS 72, REFUSED 2, BOTH_ERROR 27 (without
+them, 3,824 runs: PASS 2,480, REFUSED 878, BOTH_ERROR 462). The answers: 470 new; every earlier answer identical; the
+answers file's meta line lists the new databases and how settings and SET statements are applied. The Postgres island's Pure is byte-identical and both `sql-parity` ledgers
 unchanged.
 
 **Not in this part.** The Pure plumbing (the platform Profile and the tagged values on a Database and a function, read

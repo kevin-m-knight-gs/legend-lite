@@ -200,6 +200,9 @@ public final class IqDialect implements InputDialect {
      *  (its GROUP BY and HAVING with their aliases' expressions in place), made once, so that the comparisons
      *  {@link #twoValuedPlaces} placed in a HAVING are the ones translated. */
     private final Map<SqlAst.Select, SqlAst.Select> grouped;
+    /** IQ island, 2026-10-14 (the options framework): each statement {@link #parse} read after SET statements, by
+     *  identity, with the dialect of the settings they made, which translates it ({@link #reading}). */
+    private final Map<SqlAst.Statement, IqDialect> prefixed = new IdentityHashMap<>();
 
     private IqDialect(IqSettings settings, @com.legend.base.Nullable Engine engine, Set<SqlAst.Expr> caseConditions,
             @com.legend.base.Nullable Set<String> referenced, Set<SqlAst.Expr> limited, Set<SqlAst.SelectExpr> shown,
@@ -320,7 +323,17 @@ public final class IqDialect implements InputDialect {
      *  limit anywhere but on the statement's own SELECT. */
     @Override
     public SqlAst.Statement parse(String sql) {
-        // IQ island, 2026-10-14 (the options framework): what the settings would need that is not built is refused
+        // IQ island, 2026-10-14 (the options framework): IQ's SET statements before the SELECT, each read under the
+        // settings the ones before it made; the SELECT is read, and translated, under the last ones (by the dialect of
+        // those settings, which reading() hands the statement to)
+        IqSetPrefix.Prefix prefix = IqSetPrefix.read(sql, settings);
+        if (prefix != null) {
+            IqDialect under = engine == null ? of(prefix.settings()) : of(prefix.settings(), engine);
+            SqlAst.Statement statement = under.parse(prefix.select());
+            prefixed.put(statement, under);
+            return statement;
+        }
+        // what the settings would need that is not built is refused
         settings.check();
         IqParser.Parsed read = IqParser.parsed(sql, settings);
         SqlAst.Statement statement = read.statement();
@@ -1030,6 +1043,10 @@ public final class IqDialect implements InputDialect {
      *  here ({@link #subqueryPlaces}). */
     @Override
     public InputDialect reading(SqlAst.Statement statement) {
+        IqDialect under = prefixed.get(statement);
+        if (under != null) {
+            return under.reading(statement);
+        }
         Set<SqlAst.Expr> inCase = Collections.newSetFromMap(new IdentityHashMap<>());
         Set<SqlAst.Expr> limitedHere = Collections.newSetFromMap(new IdentityHashMap<>());
         Set<SqlAst.SelectExpr> shownHere = Collections.newSetFromMap(new IdentityHashMap<>());

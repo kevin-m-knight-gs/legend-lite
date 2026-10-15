@@ -205,20 +205,18 @@ public final class IqParity {
             }
         }
 
-        /** The run's SELECT ({@code sql}, its text) as the island reads it, and the settings it is read under. */
-        public Read select(String sql) {
-            return new Read(settings(), sql);
+        /** The run's SELECT as the island reads it: its text with the SET statements before it blanked, and the
+         *  settings they make; {@link SqlSyntaxException} or {@code SqlTranslationException} when they are not read. */
+        public com.legend.protocol.sql.iq.IqSetPrefix.Prefix select(String sql) {
+            com.legend.protocol.sql.iq.IqSetPrefix.Prefix p = com.legend.protocol.sql.iq.IqSetPrefix.read(sql,
+                    settings());
+            return p != null ? p : new com.legend.protocol.sql.iq.IqSetPrefix.Prefix(settings(), sql);
         }
 
         /** The run as SqlParity's ratchet keeps one: its file and an id that holds the profile. */
         SqlParity.Case asSqlParityCase() {
             return new SqlParity.Case(c.file(), c.id() + "@" + profile.spelling(), c.sql(), c.skip());
         }
-    }
-
-    /** IQ island, 2026-10-14 (the options framework): a run's SELECT as the island reads it -- its text -- and the
-     *  settings it is read under. */
-    public record Read(com.legend.protocol.sql.iq.IqSettings settings, String select) {
     }
 
     /** Every case of the case files under {@code liteDir}, in file order (files by path). */
@@ -515,7 +513,7 @@ public final class IqParity {
             return null;
         }
         SqlAst.Statement statement;
-        Read select;
+        com.legend.protocol.sql.iq.IqSetPrefix.Prefix select;
         try {
             select = run.select(rewrite(run.c().sql(), tables, run.settings()));
             statement = IqParser.parse(select.select(), select.settings());
@@ -546,7 +544,7 @@ public final class IqParity {
         }
         String sql = rewrite(c.sql(), names, run.settings());
         SqlAst.Statement statement;
-        Read select;
+        com.legend.protocol.sql.iq.IqSetPrefix.Prefix select;
         try {
             select = run.select(sql);
             statement = IqParser.parse(select.select(), select.settings());
@@ -580,7 +578,7 @@ public final class IqParity {
         }
         SqlAst.Statement statement;
         try {
-            Read select = run.select(run.c().sql());
+            com.legend.protocol.sql.iq.IqSetPrefix.Prefix select = run.select(run.c().sql());
             statement = IqParser.parse(select.select(), select.settings());
         } catch (SqlSyntaxException | com.legend.protocol.sql.SqlTranslationException e) {
             return null;
@@ -1011,7 +1009,7 @@ public final class IqParity {
         List<SqlAst.SortItem> orderBy;
         SqlAst.Statement st;
         try {
-            Read select = run.select(run.c().sql());
+            com.legend.protocol.sql.iq.IqSetPrefix.Prefix select = run.select(run.c().sql());
             st = IqParser.parse(select.select(), select.settings());
             // IQ island, 2026-10-14 (M1b): a set operation's ORDER BY is its own
             orderBy = st instanceof SqlAst.Select s ? s.orderBy() : st instanceof SqlAst.SetOperation o ? o.orderBy()

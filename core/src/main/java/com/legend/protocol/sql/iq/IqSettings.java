@@ -20,12 +20,15 @@ import java.util.Map;
  * builds a connection's -- the engine base's defaults (IQ 16's or SQL Anywhere 17's), then the database's level (its
  * creation properties, its PUBLIC options), then the client's login (a TDS login's {@code sp_tsql_environment}, IQ's
  * ODBC driver's date and time formats), then the query's level ({@link #resolve}, the one entry point for the settings
- * given). Every rule of the translator that depends on a setting reads it here, never a profile's name.
+ * given), then the SET statements before the island's SELECT ({@link IqSetPrefix}, {@link #set}). Every rule of the
+ * translator that depends on a setting reads it here, never a profile's name.
  *
  * <p>A setting's value is IQ's spelling of it, as {@code CONNECTION_PROPERTY} and {@code DB_PROPERTY} read it back:
- * {@code On} and {@code Off}, an integer's digits, {@code YMD}, a format as written. An option's value is the
- * connection's temporary one (a login's overrides, the query's level) where it has one, else the database's PUBLIC
- * value, as in IQ (measured on SQL Anywhere 17: a temporary value hides the PUBLIC one).
+ * {@code On} and {@code Off}, an integer's digits, {@code YMD}, a format as written. An option has IQ's levels, measured
+ * on SQL Anywhere 17: the database's PUBLIC value, a temporary PUBLIC value ({@code SET TEMPORARY OPTION PUBLIC.x}),
+ * the user's ({@code SET OPTION x}, which also replaces the connection's temporary value), the connection's temporary
+ * one (a login's overrides, the query's level, {@code SET TEMPORARY OPTION x}); the first of temporary, user, temporary
+ * PUBLIC and PUBLIC that is set is the value (a temporary value hides the PUBLIC one).
  */
 public final class IqSettings {
 
@@ -37,22 +40,59 @@ public final class IqSettings {
      *  date and time formats), or a TDS login (Open Client, jConnect: {@code CommProtocol} {@code TDS}). */
     public enum Client { DEFAULT, ODBC, TDS }
 
+    /** Where a SET statement sets an option (IQ island, 2026-10-14, the SET statements before a SELECT). */
+    public enum Scope {
+        /** {@code SET TEMPORARY OPTION x}: the connection's. */
+        TEMPORARY,
+        /** {@code SET OPTION x}: the user's, which IQ applies to the connection at once over its temporary value. */
+        USER,
+        /** {@code SET OPTION PUBLIC.x}: the database's. */
+        PUBLIC,
+        /** {@code SET TEMPORARY OPTION PUBLIC.x}: the database's until the server stops. */
+        PUBLIC_TEMPORARY
+    }
+
+    /** A SET statement's value as written: a word (an identifier, {@code ON}, {@code OFF}), a number, a string,
+     *  {@code NULL}, or none ({@code SET OPTION x =}). */
+    public record Value(Form form, String text) {
+
+        /** What a value is written as. */
+        public enum Form { WORD, NUMBER, STRING, NULL, NONE }
+
+        /** As IQ's syntax writes it. */
+        public String written() {
+            return switch (form) {
+                case STRING -> quoted(text);
+                case NULL -> "NULL";
+                case NONE -> "";
+                case WORD, NUMBER -> text;
+            };
+        }
+    }
+
     private final String preset;
     private final Base base;
     private final Client client;
     /** The database's level: its creation properties and PUBLIC values, by setting. */
     private final Map<IqOption, String> database;
-    /** The connection's temporary values (a login's overrides, the query's level). */
+    /** The PUBLIC values set temporarily ({@code SET TEMPORARY OPTION PUBLIC.x}). */
+    private final Map<IqOption, String> publicTemporary;
+    /** The user's values ({@code SET OPTION x}). */
+    private final Map<IqOption, String> user;
+    /** The connection's temporary values (a login's overrides, the query's level, {@code SET TEMPORARY OPTION x}). */
     private final Map<IqOption, String> temporary;
     /** The settings made beyond the preset, as {@code name=value}, in order: how the vector is named in messages. */
     private final List<String> changes;
 
     private IqSettings(String preset, Base base, Client client, Map<IqOption, String> database,
-            Map<IqOption, String> temporary, List<String> changes) {
+            Map<IqOption, String> publicTemporary, Map<IqOption, String> user, Map<IqOption, String> temporary,
+            List<String> changes) {
         this.preset = preset;
         this.base = base;
         this.client = client;
         this.database = Collections.unmodifiableMap(database);
+        this.publicTemporary = Collections.unmodifiableMap(publicTemporary);
+        this.user = Collections.unmodifiableMap(user);
         this.temporary = Collections.unmodifiableMap(temporary);
         this.changes = List.copyOf(changes);
     }
@@ -60,7 +100,8 @@ public final class IqSettings {
     /** The settings of a connection by {@code client} to a database at {@code base}'s defaults, named {@code spelling}
      *  (a profile's name): the login's overrides are the connection's temporary values. */
     static IqSettings preset(String spelling, Base base, Client client) {
-        return new IqSettings(spelling, base, client, new LinkedHashMap<>(), login(base, client), List.of());
+        return new IqSettings(spelling, base, client, new LinkedHashMap<>(), new LinkedHashMap<>(),
+                new LinkedHashMap<>(), login(base, client), List.of());
     }
 
     private static Map<IqOption, String> login(Base base, Client client) {
@@ -74,16 +115,23 @@ public final class IqSettings {
         return temporary;
     }
 
-    private IqSettings with(Client c, Map<IqOption, String> db, Map<IqOption, String> t, String change) {
+    private IqSettings with(Client c, Map<IqOption, String> db, Map<IqOption, String> pt, Map<IqOption, String> u,
+            Map<IqOption, String> t, String change) {
         List<String> all = new ArrayList<>(changes);
         all.add(change);
-        return new IqSettings(preset, base, c, db, t, all);
+        return new IqSettings(preset, base, c, db, pt, u, t, all);
     }
 
-    /** The value of {@code option}: the connection's temporary one, else the database's, else the base's default; null
-     *  where the base has no such setting. */
+    /** The value of {@code option}: the connection's temporary one, else the user's, else the temporary PUBLIC one, else
+     *  the database's, else the base's default; null where the base has no such setting. */
     public @com.legend.base.Nullable String value(IqOption option) {
         String v = temporary.get(option);
+        if (v == null) {
+            v = user.get(option);
+        }
+        if (v == null) {
+            v = publicTemporary.get(option);
+        }
         if (v == null) {
             v = database.get(option);
         }
@@ -156,7 +204,8 @@ public final class IqSettings {
                     throw SqlTranslationException.unsupported("CommProtocol 'TDS' with the profile " + s.preset
                             + " is not supported: IQ's ODBC driver connects by CmdSeq", SETTINGS);
                 }
-                s = s.with(c, new LinkedHashMap<>(s.database), login(s.base, c), change(st));
+                s = s.with(c, new LinkedHashMap<>(s.database), new LinkedHashMap<>(s.publicTemporary),
+                        new LinkedHashMap<>(s.user), login(s.base, c), change(st));
             }
         }
         for (Setting st : settings) {
@@ -170,7 +219,7 @@ public final class IqSettings {
                     s = s.note(change(st));
                     continue;
                 }
-                throw database ? noSetting(st.name()) : noTemporaryOption(st.name());
+                throw database ? noSetting(st.name()) : noOption(st.name(), true, SETTINGS);
             }
             if (!(database ? o.level() == IqOption.Level.DATABASE || o.settable(s.base) : o.settable(s.base))) {
                 throw database ? noSetting(st.name())
@@ -178,7 +227,7 @@ public final class IqSettings {
                         ? SqlTranslationException.invalid("'" + st.name() + "' is set at the database's level, not a"
                                 + " query's: IQ sets no temporary option of that name" + IqDialect.code(-203, "42W45"),
                                 SETTINGS)
-                        : noTemporaryOption(st.name());
+                        : noOption(st.name(), true, SETTINGS);
             }
             if (!database && o.level() == IqOption.Level.PUBLIC_ONLY) {
                 throw SqlTranslationException.invalid("the option '" + st.name() + "' is set for PUBLIC only, at the"
@@ -192,7 +241,8 @@ public final class IqSettings {
             } else {
                 t.put(o, v);
             }
-            s = s.with(s.client, db, t, change(st));
+            s = s.with(s.client, db, new LinkedHashMap<>(s.publicTemporary), new LinkedHashMap<>(s.user), t,
+                    change(st));
         }
         return s.collation();
     }
@@ -234,7 +284,7 @@ public final class IqSettings {
         } else {
             return this;
         }
-        return new IqSettings(preset, base, client, db, temporary, changes);
+        return new IqSettings(preset, base, client, db, publicTemporary, user, temporary, changes);
     }
 
     private static @com.legend.base.Nullable String charsetOf(String collation) {
@@ -242,15 +292,96 @@ public final class IqSettings {
                 : collation.equalsIgnoreCase("UTF8BIN") ? "UTF-8" : null;
     }
 
-    /** These settings, a setting that changes nothing a SELECT reads noted (an option of no effect). */
-    IqSettings note(String change) {
-        return with(client, new LinkedHashMap<>(database), new LinkedHashMap<>(temporary), change);
+    // ------------------------------------------------------------------ SET statements
+
+    /**
+     * These settings after {@code SET [TEMPORARY] OPTION [PUBLIC.]name = value} ({@code scope} which), IQ's rules as
+     * measured on SQL Anywhere 17: a name of no option is IQ's error -203 when set temporarily, -200 for the user, and
+     * for PUBLIC IQ's own new option, which no SELECT reads (so are a database property and {@code CommProtocol}: no
+     * option of theirs); a PUBLIC-only option set temporarily is -203, for the user -202; an option with no effect on a
+     * SELECT is accepted and ignored; a value the option does not take is -201. No value (or NULL) resets the level's
+     * value: a temporary one to the user's or PUBLIC's, the user's (and the temporary one) to PUBLIC's; a reset of a
+     * PUBLIC value (to the server's own default, which is no base's) is refused by name. {@code pos} places the error.
+     */
+    public IqSettings set(Scope scope, String name, Value value, SqlAst.Pos pos) {
+        IqOption o = IqOption.named(name);
+        if (o == null || !o.settable(base)) {
+            if (o == null && IqOption.ignored(name, base)) {
+                return note(scope, name, value);
+            }
+            if (scope == Scope.PUBLIC) {
+                // IQ makes it a new option of the database's, which nothing of a SELECT's reads
+                return note(scope, name, value);
+            }
+            throw noOption(name, scope == Scope.TEMPORARY || scope == Scope.PUBLIC_TEMPORARY, pos);
+        }
+        if (o.level() == IqOption.Level.PUBLIC_ONLY && scope != Scope.PUBLIC) {
+            throw scope == Scope.USER ? SqlTranslationException.invalid("the option '" + name + "' is set for PUBLIC"
+                    + " only: SET OPTION PUBLIC." + name + IqDialect.code(-202, "42W43"), pos)
+                    : SqlTranslationException.invalid("the option '" + name + "' is set for PUBLIC only, never"
+                    + " temporarily" + IqDialect.code(-203, "42W45"), pos);
+        }
+        Map<IqOption, String> db = new LinkedHashMap<>(database);
+        Map<IqOption, String> pt = new LinkedHashMap<>(publicTemporary);
+        Map<IqOption, String> u = new LinkedHashMap<>(user);
+        Map<IqOption, String> t = new LinkedHashMap<>(temporary);
+        String change = (scope == Scope.PUBLIC || scope == Scope.PUBLIC_TEMPORARY ? "PUBLIC." : "")
+                + o.spelling() + "=" + value.written();
+        if (value.form() == Value.Form.NULL || value.form() == Value.Form.NONE) {
+            switch (scope) {
+                case TEMPORARY -> t.remove(o);
+                case USER -> {
+                    u.remove(o);
+                    t.remove(o);
+                }
+                case PUBLIC_TEMPORARY -> pt.remove(o);
+                case PUBLIC -> throw SqlTranslationException.unsupported("resetting the PUBLIC value of the option '"
+                        + name + "' is not supported: IQ then reads the server's own default, which is not read here",
+                        pos);
+            }
+            return with(client, db, pt, u, t, change);
+        }
+        String v = read(o, value, pos);
+        switch (scope) {
+            case TEMPORARY -> t.put(o, v);
+            case USER -> {
+                u.put(o, v);
+                t.remove(o);
+            }
+            case PUBLIC_TEMPORARY -> pt.put(o, v);
+            case PUBLIC -> db.put(o, v);
+        }
+        return with(client, db, pt, u, t, change);
     }
 
-    /** IQ's error -203 for a name of no option set temporarily. */
-    private static SqlTranslationException noTemporaryOption(String name) {
-        return SqlTranslationException.invalid("IQ sets no temporary option '" + name + "': it has no option of that"
-                + " name" + IqDialect.code(-203, "42W45"), SETTINGS);
+    /** These settings after a T-SQL {@code SET} statement that sets {@code option} to {@code value} (IQ's spelling,
+     *  checked by the caller) as the connection's temporary value; {@code change} as written. */
+    IqSettings setTemporary(IqOption option, String value, String change) {
+        Map<IqOption, String> t = new LinkedHashMap<>(temporary);
+        t.put(option, value);
+        return with(client, new LinkedHashMap<>(database), new LinkedHashMap<>(publicTemporary),
+                new LinkedHashMap<>(user), t, change);
+    }
+
+    /** These settings, a setting or a statement that changes nothing a SELECT reads noted (an option of no effect, a
+     *  T-SQL statement of none). */
+    IqSettings note(String change) {
+        return with(client, new LinkedHashMap<>(database), new LinkedHashMap<>(publicTemporary),
+                new LinkedHashMap<>(user), new LinkedHashMap<>(temporary), change);
+    }
+
+    private IqSettings note(Scope scope, String name, Value value) {
+        return note((scope == Scope.PUBLIC || scope == Scope.PUBLIC_TEMPORARY ? "PUBLIC." : "") + name + "="
+                + value.written());
+    }
+
+    /** IQ's error for a name of no option set {@code temporarily} (-203) or otherwise (-200). */
+    private static SqlTranslationException noOption(String name, boolean temporarily, SqlAst.Pos pos) {
+        return temporarily
+                ? SqlTranslationException.invalid("IQ sets no temporary option '" + name + "': it has no option of"
+                        + " that name" + IqDialect.code(-203, "42W45"), pos)
+                : SqlTranslationException.invalid("there is no option '" + name + "'" + IqDialect.code(-200, "42W16"),
+                        pos);
     }
 
     /** IQ's error -201: {@code value} is no setting of {@code option}. */
@@ -260,41 +391,64 @@ public final class IqSettings {
     }
 
     /**
-     * {@code text} (a tagged value's) as {@code option} takes it (IQ's spelling of it), as IQ reads it, measured on SQL
-     * Anywhere 17: {@code On} or {@code Off} in any case; {@code YMD}, {@code MDY} or {@code DMY} in any case; an
-     * integer in its range written as digits ({@code '060'} is 60); any text. Else IQ's error -201 -- but for digits
-     * with a point under IQ 16, which IQ is documented to cut ({@code '60.8'} as 60) where SQL Anywhere raises -201:
-     * whole ({@code '60.0'}) it is that integer, with a fraction refused by name (the research's provisional D-Q2).
+     * {@code text} (a tagged value's) as {@code option} takes it (IQ's spelling of it): read as IQ reads a string
+     * ({@link #read(IqOption, Value, SqlAst.Pos)}) -- {@code '060'} is 60, {@code '60.8'} is -201 under SQL Anywhere
+     * 17 and refused by name under IQ 16 (D-Q2).
      */
     String read(IqOption option, String text, SqlAst.Pos pos) {
+        return read(option, new Value(Value.Form.STRING, text), pos);
+    }
+
+    /**
+     * {@code value} as {@code option} takes it (IQ's spelling of it), as IQ reads it, measured on SQL Anywhere 17:
+     * {@code On} or {@code Off} in any case, quoted or not; {@code YMD}, {@code MDY} or {@code DMY} in any case; an
+     * integer in its range written as a number whose value is whole ({@code 60}, {@code 6e1}, {@code 60.0}) or as a
+     * string of digits ({@code '060'}); any text. Else IQ's error -201 -- but for a number, or a string of digits with
+     * a point, with a fraction under IQ 16, which IQ is documented to cut ({@code 60.8} as 60) where SQL Anywhere
+     * raises -201: refused by name (the research's provisional D-Q2); whole ({@code '60.0'}) it is that integer.
+     */
+    String read(IqOption option, Value value, SqlAst.Pos pos) {
+        String text = value.text();
         IqOption.Kind kind = option.kind();
         if (kind == IqOption.Kind.ON_OFF) {
-            if (text.equalsIgnoreCase("on") || text.equalsIgnoreCase("off")) {
+            if (value.form() != Value.Form.NUMBER && (text.equalsIgnoreCase("on") || text.equalsIgnoreCase("off"))) {
                 return text.equalsIgnoreCase("on") ? "On" : "Off";
             }
-            throw invalidSetting(option.spelling(), quoted(text), pos);
+            throw invalidSetting(option.spelling(), value.written(), pos);
         }
         if (kind == IqOption.Kind.DATE_ORDER) {
             String upper = IqLexer.lower(text).toUpperCase(java.util.Locale.ROOT);
-            if (upper.equals("YMD") || upper.equals("MDY") || upper.equals("DMY")) {
+            if (value.form() != Value.Form.NUMBER && (upper.equals("YMD") || upper.equals("MDY")
+                    || upper.equals("DMY"))) {
                 return upper;
             }
-            throw invalidSetting(option.spelling(), quoted(text), pos);
+            throw invalidSetting(option.spelling(), value.written(), pos);
         }
         if (kind.isInteger()) {
-            if (!(!text.isEmpty() && digits(text) || decimal(text) && base == Base.IQ16)) {
-                throw invalidSetting(option.spelling(), quoted(text), pos);
+            BigDecimal n = null;
+            if (value.form() == Value.Form.NUMBER) {
+                n = new BigDecimal(text);
+            } else if (value.form() == Value.Form.STRING && !text.isEmpty() && digits(text)) {
+                n = new BigDecimal(text);
+            } else if (value.form() == Value.Form.STRING && decimal(text) && base == Base.IQ16) {
+                n = new BigDecimal(text);
             }
-            BigDecimal n = new BigDecimal(text);
+            if (n == null) {
+                throw invalidSetting(option.spelling(), value.written(), pos);
+            }
             if (n.signum() != 0 && n.stripTrailingZeros().scale() > 0) {
-                throw SqlTranslationException.unsupported("the option " + option.spelling() + " = " + quoted(text)
-                        + " is not supported: IQ is documented to cut a number's fraction there, SQL Anywhere refuses"
-                        + " it (the research's provisional D-Q2, not yet verified)", pos);
+                if (base == Base.IQ16) {
+                    throw SqlTranslationException.unsupported("the option " + option.spelling() + " = "
+                            + value.written() + " is not supported: IQ is documented to cut a number's fraction"
+                            + " there, SQL Anywhere refuses it (the research's provisional D-Q2, not yet verified)",
+                            pos);
+                }
+                throw invalidSetting(option.spelling(), value.written(), pos);
             }
             BigInteger whole = n.toBigInteger();
             if (whole.compareTo(BigInteger.valueOf(kind.min())) < 0
                     || whole.compareTo(BigInteger.valueOf(kind.max())) > 0) {
-                throw invalidSetting(option.spelling(), quoted(text), pos);
+                throw invalidSetting(option.spelling(), value.written(), pos);
             }
             return whole.toString();
         }
@@ -302,7 +456,7 @@ public final class IqSettings {
             if (text.equalsIgnoreCase("TDS") || text.equalsIgnoreCase("CmdSeq")) {
                 return text.equalsIgnoreCase("TDS") ? "TDS" : "CmdSeq";
             }
-            throw SqlTranslationException.unsupported("CommProtocol " + quoted(text) + " is not supported: a"
+            throw SqlTranslationException.unsupported("CommProtocol " + value.written() + " is not supported: a"
                     + " connection here is 'CmdSeq' or 'TDS'", pos);
         }
         if (option == IqOption.COLLATION || option == IqOption.CHAR_SET) {

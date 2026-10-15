@@ -81,8 +81,9 @@ A run takes about ten seconds; most of that is SQL Anywhere starting its TCP lis
    - The profile's options are set as temporary options, and each one is read back to confirm it took.
    - `request_timeout` is 15 seconds.
    - Only the case's SQL runs. It must be a single `SELECT` or `WITH` (or start with a parenthesis) and must contain
-     no `;` anywhere. Each case is followed by a `ROLLBACK`.
-   - A case with `settings` runs on a connection of its own instead ([Settings](#settings)).
+     no `;` anywhere but after each of the `SET` statements it may begin with. Each case is followed by a `ROLLBACK`.
+   - A case with `settings`, or whose SQL begins with `SET` statements, runs on a connection of its own instead
+     ([Settings](#settings)).
 5. **Recovers from a crash.** When the connection is lost (SQLCODE -101, -308, -85, -100, -832 or -1068, or the
    server process exits), the tool rebuilds the server and databases and retries the case once. A second loss is
    reported as a CRASH.
@@ -110,7 +111,7 @@ settings by IQ's own names, each given at a level, as Pure's tagged values will 
 Database element's: a database property, an option's PUBLIC value, the clients' `CommProtocol`) and
 `query.<name>=<value>` (the enclosing function's: the connection's temporary value), separated by commas, a value quoted
 (`''` a quote in it) or bare. The Java harness gives them to `IqSettings.resolve` and translates the case's SQL under
-the result. This tool runs such a case on a connection of its own:
+the result. This tool runs such a case, and a case whose SQL begins with `SET` statements, on a connection of its own:
 
 1. **The database** comes from the database properties given for the database, over the profile's base:
    `CaseSensitive`, `BlankPadding` (`On`/`Off`), `Collation` (`ISO_BINENG` or `UTF8BIN`) or `CharSet`
@@ -124,11 +125,12 @@ the result. This tool runs such a case on a connection of its own:
 3. **Every other setting**: a database-level option `SET OPTION PUBLIC.name = 'value'`, a query-level one (a database
    property's too, which is then SQL Anywhere's error) `SET TEMPORARY OPTION name = 'value'`, after the login's. The
    first error is the case's answer.
-4. **The case's variables**, then **its `SELECT`**. The first error is the answer.
+4. **The case's variables**, then **its `SET` statements**, each run on the connection in turn (the case's SQL cut at
+   its statement separators), then its `SELECT`. The first error is the answer.
 5. **The answer's DATE and TIMESTAMP columns** are fetched again at `YYYY-MM-DD` and six places wherever the
    connection's own `date_format` or `timestamp_format`, read from it, shows them otherwise.
 6. **Every option the case set is restored**: the catalog's `SYSOPTIONS` (the user's and PUBLIC's values, and any
-   option a `SET OPTION PUBLIC.x` made) as it was before the case.
+   option a `SET OPTION PUBLIC.x` made) as it was before the case, a temporary PUBLIC value reset.
 
 The `sqlSha` of a case with settings has them as one more part, `settings=<text>`, after its params'.
 
