@@ -80,3 +80,86 @@ tests:
   - id: a_date_concatenated
     sql: "SELECT id, 'on ' || dt AS a FROM t ORDER BY id"
     profile: iq17-default
+
+  # ---- CONVERT(VARCHAR(n), d, style) of dates and timestamps under IQ's engine (measured on IQ 17.1)
+  - id: convert_style_1
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 1) AS a, CONVERT(VARCHAR(40), ts, 1) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_101
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 101) AS a, CONVERT(VARCHAR(40), ts, 101) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_2
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 2) AS a, CONVERT(VARCHAR(40), ts, 2) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_102
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 102) AS a, CONVERT(VARCHAR(40), ts, 102) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_3
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 3) AS a, CONVERT(VARCHAR(40), ts, 3) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_103
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 103) AS a, CONVERT(VARCHAR(40), ts, 103) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_4
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 4) AS a, CONVERT(VARCHAR(40), ts, 4) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_104
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 104) AS a, CONVERT(VARCHAR(40), ts, 104) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_5
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 5) AS a, CONVERT(VARCHAR(40), ts, 5) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_105
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 105) AS a, CONVERT(VARCHAR(40), ts, 105) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_10
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 10) AS a, CONVERT(VARCHAR(40), ts, 10) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_110
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 110) AS a, CONVERT(VARCHAR(40), ts, 110) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_11
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 11) AS a, CONVERT(VARCHAR(40), ts, 11) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_111
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 111) AS a, CONVERT(VARCHAR(40), ts, 111) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_12
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 12) AS a, CONVERT(VARCHAR(40), ts, 12) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_112
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 112) AS a, CONVERT(VARCHAR(40), ts, 112) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_20
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 20) AS a, CONVERT(VARCHAR(40), ts, 20) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_120
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 120) AS a, CONVERT(VARCHAR(40), ts, 120) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_21
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 21) AS a, CONVERT(VARCHAR(40), ts, 21) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_121
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 121) AS a, CONVERT(VARCHAR(40), ts, 121) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_108
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 108) AS a, CONVERT(VARCHAR(40), ts, 108) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_0
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 0) AS a, CONVERT(VARCHAR(40), ts, 0) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_100
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 100) AS a, CONVERT(VARCHAR(40), ts, 100) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_106
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 106) AS a, CONVERT(VARCHAR(40), ts, 106) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_107
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 107) AS a, CONVERT(VARCHAR(40), ts, 107) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_into_a_too_short_string_is_refused
+    sql: "SELECT CONVERT(VARCHAR(5), dt, 101) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: convert_style_iq_rejects_is_refused
+    sql: "SELECT CONVERT(VARCHAR(30), dt, 23) AS a FROM t WHERE id = 1"
+    profile: iq17-default

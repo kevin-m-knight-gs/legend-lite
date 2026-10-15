@@ -2196,6 +2196,9 @@ public final class IqParser {
         return new SqlAst.Cast(operand, type, t.pos());
     }
 
+    /** The name of the call a CONVERT with a style is read as (IQ island, 2026-10-15): no name a query can write. */
+    static final String CONVERT_STYLE = "convert style";
+
     /** {@code CONVERT(data_type, expression [, style])} (GRAMMAR F15): without a style, a {@code Cast} whose type name
      *  begins with {@link #CONVERT}; a style is refused by name, after the call reads. */
     private SqlAst.Expr convertCall() {
@@ -2217,8 +2220,21 @@ public final class IqParser {
             SqlAst.Expr style = expression();
             value(style, "CONVERT's style");
             expectOp(")");
-            throw SqlSyntaxException.unsupported("CONVERT with a style is not supported yet: IQ's style formats are a"
-                    + " later slice's", style.pos());
+            String target = IqLexer.lower(type.name());
+            if (!(style instanceof SqlAst.IntegerLit n) || !target.equals("varchar") && !target.equals("char")) {
+                throw SqlSyntaxException.unsupported("CONVERT with a style is supported only to CHAR or VARCHAR with"
+                        + " an integer constant style yet", style.pos());
+            }
+            if (n.value().bitLength() > 31 || !IqFunctions.STYLES.contains(n.value().intValue())) {
+                throw SqlSyntaxException.unsupported("CONVERT style " + n.value() + " is not supported: the island"
+                        + " reads IQ's date styles 0-5, 10-12, 20, 21, 100-108, 110-112, 120 and 121", style.pos());
+            }
+            // IQ island, 2026-10-15: a date's text by an IQ style ({@link IqFunctions}'s CONVERT_STYLE, measured on
+            // IQ 17.1): the operand, the style and the target's length (-1 for none)
+            int length = type.modifiers().isEmpty() ? -1 : type.modifiers().get(0);
+            return new SqlAst.FunctionCall(List.of(new SqlAst.Ident(CONVERT_STYLE, false, t.pos())), List.of(operand,
+                    style, new SqlAst.IntegerLit(java.math.BigInteger.valueOf(length), t.pos())), false, false,
+                    t.pos());
         }
         expectOp(")");
         IqFunctions.constantCast(operand, type, "CONVERT", settings);

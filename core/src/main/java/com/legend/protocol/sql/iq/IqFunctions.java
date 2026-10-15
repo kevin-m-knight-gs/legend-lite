@@ -98,7 +98,7 @@ final class IqFunctions {
         CURRENT_TIMESTAMP(0, 0, "current timestamp"), YEAR(1, 1), MONTH(1, 1), DAY(1, 1), HOUR(1, 1),
         MINUTE(1, 1), SECOND(1, 1), QUARTER(1, 1), DOW(1, 1), DATE(1, 1), DATEPART(2, 2), DATENAME(2, 2),
         DATEADD(3, 3), DATEDIFF(3, 3), ISNUMERIC(1, 1), YEARS(1, 2), MONTHS(1, 2), WEEKS(1, 2), DAYS(1, 2),
-        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2);
+        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE);
 
         final int min;
         final int max;
@@ -304,7 +304,130 @@ final class IqFunctions {
             case DATEDIFF -> dateDiff(name, f, args);
             case ISNUMERIC -> isNumeric(f, args);
             case YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES, SECONDS -> dateUnit(fn, name, f, args);
+            case CONVERT_STYLE -> convertStyle(f, args);
         };
+    }
+
+    /** The months' abbreviations IQ's engine writes in CONVERT's styles (lower case, measured on IQ 17.1). */
+    private static final List<String> MONTHS_SHORT = List.of("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug",
+            "sep", "oct", "nov", "dec");
+
+    /**
+     * {@code CONVERT(VARCHAR(n), d, style)} of a DATE or a TIMESTAMP under IQ's engine (IQ island, 2026-10-15; each
+     * style measured on IQ 17.1): 1 mm/dd/yy (101 mm/dd/yyyy), 2 yy.mm.dd (102), 3 dd/mm/yy (103), 4 dd.mm.yy (104),
+     * 5 dd-mm-yy (105), 10 mm-dd-yy (110), 11 yy/mm/dd (111), 12 yymmdd (112); 20 and 120 yyyy-mm-dd and a timestamp's
+     * hh:nn:ss, 21 and 121 its hh:nn:ss.sss; 108 a timestamp's hh:nn:ss (a date's yyyy-mm-dd); 0 and 100 mon dd yyyy
+     * and a timestamp's hh:nnAM (the hour of twelve), 106 dd mon yyyy, 107 mon dd, yyyy -- the month's abbreviation in
+     * lower case. A date shows no time in any style. Refused by name: another style, another operand, a target too
+     * short for the text, SQL Anywhere's front end (whose styles differ: its month names are capitalized).
+     */
+    /** The styles {@link #convertStyle} reads; {@link IqParser} refuses another by name (IQ raises -1009145 for some,
+     *  "CONVERT format style ... is invalid", and writes others the island does not read). */
+    static final java.util.Set<Integer> STYLES = java.util.Set.of(0, 1, 2, 3, 4, 5, 10, 11, 12, 20, 21, 100, 101, 102,
+            103, 104, 105, 106, 107, 108, 110, 111, 112, 120, 121);
+
+    private Tx convertStyle(SqlAst.FunctionCall f, List<Tx> args) {
+        if (engine != IqDialect.Engine.IQ) {
+            throw SqlTranslationException.unsupported("CONVERT with a style is supported under IQ's engine only yet:"
+                    + " SQL Anywhere's front end writes its styles otherwise", f.pos());
+        }
+        Tx x = args.get(0);
+        if (x.kind() == Kind.NULL) {
+            return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, new IqType("VARCHAR"));
+        }
+        if (x.kind() != Kind.DATE && x.kind() != Kind.DATETIME) {
+            throw SqlTranslationException.unsupported("CONVERT with a style of " + kindName(x.kind()) + " is not"
+                    + " supported yet: only a date's or a timestamp's text is read", f.pos());
+        }
+        boolean ts = x.kind() == Kind.DATETIME;
+        int style = ((SqlAst.IntegerLit) f.args().get(1)).value().intValue();
+        int length = ((SqlAst.IntegerLit) f.args().get(2)).value().intValue();
+        List<Object> spec = switch (style) {
+            case 1 -> List.of("MM", "/", "DD", "/", "YY");
+            case 101 -> List.of("MM", "/", "DD", "/", "YYYY");
+            case 2 -> List.of("YY", ".", "MM", ".", "DD");
+            case 102 -> List.of("YYYY", ".", "MM", ".", "DD");
+            case 3 -> List.of("DD", "/", "MM", "/", "YY");
+            case 103 -> List.of("DD", "/", "MM", "/", "YYYY");
+            case 4 -> List.of("DD", ".", "MM", ".", "YY");
+            case 104 -> List.of("DD", ".", "MM", ".", "YYYY");
+            case 5 -> List.of("DD", "-", "MM", "-", "YY");
+            case 105 -> List.of("DD", "-", "MM", "-", "YYYY");
+            case 10 -> List.of("MM", "-", "DD", "-", "YY");
+            case 110 -> List.of("MM", "-", "DD", "-", "YYYY");
+            case 11 -> List.of("YY", "/", "MM", "/", "DD");
+            case 111 -> List.of("YYYY", "/", "MM", "/", "DD");
+            case 12 -> List.of("YY", "MM", "DD");
+            case 112 -> List.of("YYYY", "MM", "DD");
+            case 20, 120 -> ts ? List.of("YYYY", "-", "MM", "-", "DD", " ", "HH", ":", "NN", ":", "SS")
+                    : List.of("YYYY", "-", "MM", "-", "DD");
+            case 21, 121 -> ts ? List.of("YYYY", "-", "MM", "-", "DD", " ", "HH", ":", "NN", ":", "SS", ".", "SSS")
+                    : List.of("YYYY", "-", "MM", "-", "DD");
+            case 108 -> ts ? List.of("HH", ":", "NN", ":", "SS") : List.of("YYYY", "-", "MM", "-", "DD");
+            case 0, 100 -> ts ? List.of("MON", " ", "DD", " ", "YYYY", " ", "H12", ":", "NN", "AMPM")
+                    : List.of("MON", " ", "DD", " ", "YYYY");
+            case 106 -> List.of("DD", " ", "MON", " ", "YYYY");
+            case 107 -> List.of("MON", " ", "DD", ", ", "YYYY");
+            default -> throw SqlTranslationException.unsupported("CONVERT style " + style + " is not supported yet",
+                    f.args().get(1).pos());
+        };
+        int width = 0;
+        for (Object o : spec) {
+            String piece = (String) o;
+            width += switch (piece) {
+                case "YYYY" -> 4;
+                case "YY", "MM", "DD", "HH", "NN", "SS", "H12", "AMPM" -> 2;
+                case "SSS", "MON" -> 3;
+                default -> piece.length();
+            };
+        }
+        if (length >= 0 && length < width) {
+            throw SqlTranslationException.unsupported("CONVERT style " + style + " to a string of " + length + " is"
+                    + " not supported yet: its text has " + width + " characters", f.pos());
+        }
+        Tx r = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
+            ValueSpecification d = v.get(0);
+            List<ValueSpecification> parts = new ArrayList<>();
+            for (Object o : spec) {
+                String piece = (String) o;
+                parts.add(switch (piece) {
+                    case "YYYY" -> lpad(SqlToPure.call("year", d), 4);
+                    case "YY" -> lpad(SqlToPure.call("rem", SqlToPure.call("year", d), integer(100)), 2);
+                    case "MM" -> lpad(SqlToPure.call("monthNumber", d), 2);
+                    case "DD" -> lpad(SqlToPure.call("dayOfMonth", d), 2);
+                    case "HH" -> lpad(SqlToPure.call("hour", d), 2);
+                    case "NN" -> lpad(SqlToPure.call("minute", d), 2);
+                    case "SS" -> lpad(SqlToPure.call("second", d), 2);
+                    case "SSS" -> lpad(SqlToPure.call("floor", SqlToPure.call("divide", SqlToPure.call("mod",
+                            AppliedFunction.infixRun("plus", List.of(SqlToPure.call("mod", epochMicros(d, false),
+                                    integer(1_000_000L)), integer(1_000_000L))), integer(1_000_000L)),
+                            integer(1000L))), 3);
+                    case "H12" -> lpad(ifThen(SqlToPure.call("equal", SqlToPure.call("rem", SqlToPure.call("hour",
+                            d), integer(12)), integer(0)), integer(12), SqlToPure.call("rem", SqlToPure.call("hour",
+                            d), integer(12))), 2);
+                    case "AMPM" -> ifThen(lt(SqlToPure.call("hour", d), integer(12)), new CString("AM"),
+                            new CString("PM"));
+                    case "MON" -> monthShort(SqlToPure.call("monthNumber", d));
+                    default -> new CString(piece);
+                });
+            }
+            return AppliedFunction.infixRun("plus", parts);
+        });
+        return Tx.value(r.vs(), Kind.STRING, r.nullable(), new IqType("VARCHAR(" + width + ")"));
+    }
+
+    /** {@code n}'s digits, zeros before them to {@code width}. */
+    private static ValueSpecification lpad(ValueSpecification n, int width) {
+        return SqlToPure.call("lpad", SqlToPure.call("toString", n), integer(width), new CString("0"));
+    }
+
+    /** The month numbered {@code m}'s abbreviation, as IQ's engine's styles write it. */
+    private static ValueSpecification monthShort(ValueSpecification m) {
+        ValueSpecification out = new CString(MONTHS_SHORT.get(11));
+        for (int i = 10; i >= 0; i--) {
+            out = ifThen(SqlToPure.call("equal", m, integer(i + 1)), new CString(MONTHS_SHORT.get(i)), out);
+        }
+        return out;
     }
 
     /**

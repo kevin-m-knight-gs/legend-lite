@@ -107,8 +107,11 @@
 # FLOOR, CONVERT of dates, LIKE over CHAR(n) and computed patterns with ESCAPE, ISNUMERIC and YEARS/MONTHS/WEEKS/DAYS/HOURS/
 # MINUTES/SECONDS): accept PARSED 2,907 -> 2,934 (REFUSED 2,041 -> 2,014); reject REJECTED 956 -> 962 (REFUSED 829 ->
 # 823: those functions' argument counts, IQ's -154). Reject-parsed and accept-rejected unchanged.
-accept	parsed	2934
-accept	refused	2014
+# IQ island, 2026-10-15 (landing 4, CONVERT with a style under IQ's engine, measured on the live IQ 17.1: a date's or a
+# timestamp's text by styles 0-5, 10-12, 20, 21, 100-108, 110-112, 120 and 121; another style refused by name): accept
+# PARSED 2,934 -> 2,974 (REFUSED 2,014 -> 1,974). Reject-parsed and accept-rejected unchanged.
+accept	parsed	2974
+accept	refused	1974
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1

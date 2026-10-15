@@ -1007,8 +1007,11 @@ tests:
   - id: convert_date_to_text_in_sql_anywhere_is_refused
     sql: "SELECT CONVERT(VARCHAR(30), CAST('2026-03-04' AS DATE)) AS a"
     engine: sa
-  - id: convert_with_a_style_is_refused
+  - id: convert_with_a_style
     sql: "SELECT CONVERT(VARCHAR(30), dt, 112) AS a FROM t WHERE id = 1"
+  - id: convert_with_a_style_on_the_front_end_is_refused
+    sql: "SELECT CONVERT(VARCHAR(30), DATE('2026-03-04'), 106) AS a"
+    engine: sa
   - id: convert_with_a_default_style
     sql: "SELECT CONVERT(VARCHAR(30), 1, DEFAULT) AS a"
     engine: sa

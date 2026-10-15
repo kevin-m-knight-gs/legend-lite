@@ -109,9 +109,10 @@ class IqFunctionsTest {
             assertFalse(e.unsupported(), sql);
             assertTrue(e.reason().contains("SQLCODE -131"), sql + ": " + e.reason());
         }
-        // a style, a domain, TIMESTAMP WITH TIME ZONE, a type of no value read (REAL, TIME, TINYINT, unsigned, binary),
-        // a constant IQ cannot convert: refused by name
-        for (String sql : List.of("SELECT CONVERT(VARCHAR(10), dt, 112) AS x", "SELECT CAST(1 AS my_domain) AS x",
+        // a style the island does not read, a domain, TIMESTAMP WITH TIME ZONE, a type of no value read (REAL, TIME,
+        // TINYINT, unsigned, binary), a constant IQ cannot convert: refused by name
+        for (String sql : List.of("SELECT CONVERT(VARCHAR(10), dt, 23) AS x", "SELECT CONVERT(INT, dt, 112) AS x",
+                "SELECT CONVERT(VARCHAR(10), dt, 99999999999) AS x", "SELECT CAST(1 AS my_domain) AS x",
                 "SELECT CAST(ts AS TIMESTAMP WITH TIME ZONE) AS x", "SELECT CURRENT TIME AS x",
                 "SELECT CAST(id AS FLOAT(24)) AS x", "SELECT CAST(id AS FLOAT(0)) AS x", "SELECT CAST(id AS TIME) AS x",
                 "SELECT CAST(id AS TINYINT) AS x", "SELECT CAST(id AS INT UNSIGNED) AS x",
