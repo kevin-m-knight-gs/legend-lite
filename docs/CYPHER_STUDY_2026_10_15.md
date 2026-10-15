@@ -470,11 +470,13 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
   three-valued `Tx` discipline as a pattern; extracting the shared half into one builder is a later pure move judged
   by byte-identical Pure, as the IQ line's PR1 was, and only if the duplication hurts.
 
-Decided by the user on 2026-10-15: C1 (one island, the version in the query, no sugar), C6 (recursion is required:
-the native is built), C9 (Cypher 25 is the default). Proposed, for the user's confirmation: C3's edge class design
-(§5.6: the stereotype on the class, the data space as the graph, `USE` to select it). Open: the Neo4j release to pin
-(C9); the native's name, shape, guard and owner (C6, in PR5's design); whether the line starts now beside the others
-or waits (the Postgres study's D4).
+Decided by the user on 2026-10-15: C1 (one island, the version in the query, no sugar), C3 (the edge class design of
+§5.6 as it stands after the day's questions: four stereotypes from a library profile, the ends on stored, inherited,
+association-injected or derived properties, the type an enumeration value, the data space as the graph, `USE` to
+select it; "awesome, really like this plan"), C6 (recursion is required: the native is built), C9 (Cypher 25 is
+the default). Open: the names (`projects/graph`, `graph::Graph`; the model's own `RelationshipType` enumeration);
+the Neo4j release to pin (C9); the native's name, shape, guard and owner (C6, in PR5's design); whether the line
+starts now beside the others or waits (the Postgres study's D4).
 
 ---
 
