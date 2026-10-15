@@ -216,3 +216,31 @@ tests:
   - id: number_in_a_case_is_iqs_error
     sql: "SELECT id, CASE WHEN NUMBER(*) > 3 THEN 'late' ELSE 'early' END AS c FROM t ORDER BY id"
     profile: iq17-default
+
+  # ---- REGEXP_SUBSTR (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): the first match from the start on, of
+  # a pattern of single-character atoms with greedy quantifiers (IQ matches leftmost-longest, so alternation and groups
+  # are refused; IQ's classes are Unicode's, so the backslash and POSIX classes are refused)
+  - id: regexp_substr
+    sql: "SELECT id, REGEXP_SUBSTR(vc, '[a-z]+') AS a, REGEXP_SUBSTR(vc, 'l{2,}') AS b, REGEXP_SUBSTR(vc, '^[A-Za-z]{2}') AS c, REGEXP_SUBSTR(vc, '[a-z]$') AS d, REGEXP_SUBSTR(vc, 'e.') AS e, REGEXP_SUBSTR(vc, '[^aeiou]+') AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: regexp_substr_from_a_start
+    sql: "SELECT id, REGEXP_SUBSTR(vc, '[a-z]+', 3) AS a, REGEXP_SUBSTR(vc, '[a-z]+', 0) AS b, REGEXP_SUBSTR(vc, '[a-z]+', -1) AS c, REGEXP_SUBSTR(vc, '.', -5) AS d, REGEXP_SUBSTR(vc, '[a-z]*', 6) AS e, REGEXP_SUBSTR(vc, '^p', 3) AS f, REGEXP_SUBSTR(vc, '[a-z]+', sm) AS g FROM t ORDER BY id"
+    profile: iq17-default
+  - id: regexp_substr_empty_and_null
+    sql: "SELECT id, REGEXP_SUBSTR(vc, 'x*') AS a, REGEXP_SUBSTR(vc, 'q') AS b, REGEXP_SUBSTR(vc, NULL) AS c, REGEXP_SUBSTR(vc, '.', 1, 0) AS d, REGEXP_SUBSTR(vc, '[é]+') AS e, REGEXP_SUBSTR(vc, 'l', 1, 1) AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: regexp_substr_of_an_integer_and_line_breaks
+    sql: "SELECT id, REGEXP_SUBSTR(it, '[0-9]{3}') AS a, REGEXP_SUBSTR('a' || CHAR(10) || 'b', 'a.b') AS b, REGEXP_SUBSTR('ab' || CHAR(10), 'b$') AS c, REGEXP_SUBSTR('a.b', '\\\\.') AS d FROM t WHERE id IN (1, 7) ORDER BY id"
+    profile: iq17-default
+  - id: regexp_substr_with_alternation_is_refused
+    sql: "SELECT REGEXP_SUBSTR(vc, 'l|ll') AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: regexp_substr_with_a_word_class_is_refused
+    sql: "SELECT REGEXP_SUBSTR(vc, '\\\\w+') AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: regexp_substr_of_a_second_occurrence_is_refused
+    sql: "SELECT REGEXP_SUBSTR('a1b22c333', '[0-9]+', 1, 3) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: regexp_substr_with_a_lazy_quantifier_is_iqs_error
+    sql: "SELECT REGEXP_SUBSTR(vc, 'l+?') AS a FROM t WHERE id = 1"
+    profile: iq17-default

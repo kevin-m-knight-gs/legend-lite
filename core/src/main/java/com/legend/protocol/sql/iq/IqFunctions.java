@@ -101,7 +101,8 @@ final class IqFunctions {
         DATEADD(3, 3), DATEDIFF(3, 3), ISNUMERIC(1, 1), YEARS(1, 2), MONTHS(1, 2), WEEKS(1, 2), DAYS(1, 2),
         HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE), STR(1, 3),
         EXTRACT(2, 2, IqParser.EXTRACT), DATEFORMAT(2, 2), DAYNAME(1, 1), MONTHNAME(1, 1), DATETIME(1, 1), YMD(3, 3),
-        GREATER(2, 2), LESSER(2, 2), ARGN(2, Integer.MAX_VALUE), REVERSE(1, 1), INSERTSTR(3, 3), BYTE_LENGTH(1, 1);
+        GREATER(2, 2), LESSER(2, 2), ARGN(2, Integer.MAX_VALUE), REVERSE(1, 1), INSERTSTR(3, 3), BYTE_LENGTH(1, 1),
+        REGEXP_SUBSTR(2, 5);
 
         final int min;
         final int max;
@@ -345,6 +346,7 @@ final class IqFunctions {
             case REVERSE -> reverse(name, f, args);
             case INSERTSTR -> insertstr(name, f, args);
             case BYTE_LENGTH -> byteLength(name, f, args);
+            case REGEXP_SUBSTR -> regexpSubstr(name, f, args);
             case PI -> Tx.value(SqlToPure.call("pi"), Kind.FLOAT, false, new IqType("DOUBLE"));
             case GETDATE, NOW, CURRENT_TIMESTAMP -> Tx.value(SqlToPure.call("now"), Kind.DATETIME, false,
                     new IqType("TIMESTAMP"));
@@ -2368,6 +2370,145 @@ final class IqFunctions {
                             inside));
         });
         return Tx.value(r.vs(), Kind.STRING, true, r.detail());
+    }
+
+    /**
+     * {@code REGEXP_SUBSTR(s, pattern [, start [, occurrence]])} (IQ island, 2026-10-15, checklist 1.10, measured on IQ
+     * 17.1): the first match of the pattern in s from the start-th character on (0 reads as 1; a negative start counts
+     * from the end, -1 the last character), NULL where it has none, where the start is past either end (even for a
+     * pattern that matches nothing), or where an argument is NULL; an occurrence of 0 is NULL. A pattern's {@code ^}
+     * anchors at the start, its {@code .} and a negated class match a line break, its {@code $} the very end.
+     * <p>
+     * Read only where every database means what IQ means, refused by name otherwise: a constant pattern of
+     * single-character atoms -- a character, an escaped metacharacter, {@code .}, a bracket class of characters and
+     * ranges -- each with a greedy quantifier or none, {@code ^} first and {@code $} last ({@link #simplePattern});
+     * alternation and groups (IQ matches leftmost-longest, DuckDB's RE2 leftmost-first), the backslash classes and the
+     * POSIX classes (IQ's are Unicode's, RE2's ASCII's) and a lazy quantifier (IQ's -1135) are refused. An occurrence
+     * past 1 is refused too: IQ counts the next from one character past the last match's start ('a1b22c333''s third
+     * [0-9]+ is '2'). A CHAR(n)'s match is a CHAR(n), unpadded, as IQ types it; an integer is its digits.
+     */
+    private Tx regexpSubstr(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx s = text(args.get(0), f.args().get(0), name);
+        if (!settings.caseSensitive()) {
+            throw SqlTranslationException.unsupported(name + " in a case-insensitive database is not supported yet",
+                    f.pos());
+        }
+        if (args.get(1).kind() == Kind.NULL) {
+            return nullString();
+        }
+        if (!(f.args().get(1) instanceof SqlAst.StringLit lit)) {
+            throw SqlTranslationException.unsupported(name + " with a pattern that is no constant is not supported yet",
+                    f.args().get(1).pos());
+        }
+        String pattern = simplePattern(lit.value(), name, lit.pos());
+        if (args.size() > 4) {
+            throw SqlTranslationException.unsupported(name + " with an escape character is not supported yet",
+                    f.args().get(4).pos());
+        }
+        if (args.size() > 3) {
+            SqlAst.Expr occurrence = f.args().get(3);
+            if (args.get(3).kind() == Kind.NULL || occurrence instanceof SqlAst.IntegerLit z && z.value().signum() == 0) {
+                return nullString();
+            }
+            if (!(occurrence instanceof SqlAst.IntegerLit one && one.value().equals(BigInteger.ONE))) {
+                throw SqlTranslationException.unsupported(name + " of an occurrence other than 1 is not supported: IQ"
+                        + " counts the next from one character past the last match's start", occurrence.pos());
+            }
+        }
+        Tx start = args.size() > 2 ? count(args.get(2), f.args().get(2), name)
+                : Tx.value(integer(1), Kind.INTEGER, false, IqType.integer("INTEGER", BigInteger.ONE, BigInteger.ONE,
+                        false));
+        if (start.kind() == Kind.NULL || s.kind() == Kind.NULL) {
+            return nullString();
+        }
+        // of s's type (a CHAR(n)'s match unpadded, as IQ answers it)
+        Tx r = strict(Kind.STRING, s.detail() instanceof IqType t && (t.family().equals("VARCHAR")
+                || t.family().equals("CHAR")) ? t : varchar(), List.of(s, start), v -> {
+                    ValueSpecification str = v.get(0);
+                    ValueSpecification p = v.get(1);
+                    ValueSpecification length = SqlToPure.call("length", str);
+                    // the start as a position from 1: a negative one from the end
+                    ValueSpecification from = ifThen(SqlToPure.call("greaterThan", p, integer(0)), p, ifThen(
+                            SqlToPure.call("equal", p, integer(0)), integer(1), AppliedFunction.infixRun("plus",
+                                    List.of(length, p, integer(1)))));
+                    ValueSpecification match = SqlToPure.call("first", SqlToPure.call("regexpExtract",
+                            SqlToPure.call("substring", str, from), new CString("(?s)" + pattern),
+                            new com.legend.protocol.spec.CBoolean(false)));
+                    return ifThen(SqlToPure.call("or", lt(from, integer(1)), SqlToPure.call("greaterThan", from,
+                            length)), SqlToPure.empty(), match);
+                });
+        return Tx.value(r.vs(), Kind.STRING, true, r.detail());
+    }
+
+    /** The REGEXP_SUBSTR pattern {@code p} as RE2, Postgres and Java read it alike, for the subset {@link #regexpSubstr}
+     *  reads: the pattern itself; refused by name otherwise. */
+    static String simplePattern(String p, String name, SqlAst.Pos pos) {
+        String meta = ".[]()*+?{}|^$\\";
+        int i = 0;
+        int n = p.length();
+        while (i < n) {
+            char c = p.charAt(i);
+            if (c == '^' && i == 0 || c == '$' && i == n - 1) {
+                i++;
+                continue;
+            }
+            // an atom
+            if (c == '\\') {
+                if (i + 1 >= n || meta.indexOf(p.charAt(i + 1)) < 0 && p.charAt(i + 1) != '-' && p.charAt(i + 1) != '/') {
+                    throw refusedPattern(name, pos, "a backslash class or escape (IQ's classes are Unicode's)");
+                }
+                i += 2;
+            } else if (c == '[') {
+                int j = i + 1;
+                if (j < n && p.charAt(j) == '^') {
+                    j++;
+                }
+                if (j >= n || p.charAt(j) == ']') {
+                    throw refusedPattern(name, pos, "an empty class or one that starts with ']'");
+                }
+                while (j < n && p.charAt(j) != ']') {
+                    char k = p.charAt(j);
+                    if (k == '[' || k == '\\') {
+                        throw refusedPattern(name, pos, "a POSIX class or an escape in a bracket class");
+                    }
+                    j++;
+                }
+                if (j >= n) {
+                    throw refusedPattern(name, pos, "a class without its ']' (IQ's error -1135)");
+                }
+                i = j + 1;
+            } else if (meta.indexOf(c) >= 0 && c != '.') {
+                throw refusedPattern(name, pos, "'" + c + "' (alternation, a group, a quantifier with nothing before"
+                        + " it, or an anchor inside: IQ matches leftmost-longest, DuckDB leftmost-first)");
+            } else {
+                i++;
+            }
+            // its quantifier, greedy
+            if (i < n && (p.charAt(i) == '*' || p.charAt(i) == '+' || p.charAt(i) == '?')) {
+                i++;
+            } else if (i < n && p.charAt(i) == '{') {
+                int j = i + 1;
+                boolean comma = false;
+                boolean digits = false;
+                while (j < n && (Character.isDigit(p.charAt(j)) && p.charAt(j) < 128 || p.charAt(j) == ',' && !comma)) {
+                    comma |= p.charAt(j) == ',';
+                    digits |= p.charAt(j) != ',';
+                    j++;
+                }
+                if (j >= n || p.charAt(j) != '}' || !digits) {
+                    throw refusedPattern(name, pos, "a brace that is no quantifier");
+                }
+                i = j + 1;
+            }
+            if (i < n && (p.charAt(i) == '?' || p.charAt(i) == '+' || p.charAt(i) == '*' || p.charAt(i) == '{')) {
+                throw refusedPattern(name, pos, "a lazy, possessive or doubled quantifier (IQ's error -1135)");
+            }
+        }
+        return p;
+    }
+
+    private static SqlTranslationException refusedPattern(String name, SqlAst.Pos pos, String what) {
+        return SqlTranslationException.unsupported(name + " with " + what + " in its pattern is not supported", pos);
     }
 
     /** {@code BYTE_LENGTH(s)} (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): s's length in bytes -- in a
