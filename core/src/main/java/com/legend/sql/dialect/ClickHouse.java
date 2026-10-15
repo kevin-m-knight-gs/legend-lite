@@ -93,7 +93,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
     /** The engine's H2 text is refused here: ClickHouse has no translation of it (decision D2: raw text runs on the
      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         throw new DialectCapability("the engine's H2 text reached ClickHouse, which has no translation of it");
     }
 
@@ -2734,10 +2734,25 @@ public final class ClickHouse extends AnsiSqlRenderer {
     /** ClickHouse DDL: {@code BIT} is a UInt64 there (measured), so a Pure Boolean column is a {@code Bool}. */
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
-        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p && p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.BIT) {
-            return "Bool";
-        }
-        return super.ddlType(t);
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT -> "SMALLINT";
+                case TINYINT -> "TINYINT";
+                case INTEGER -> "INTEGER";
+                case FLOAT -> "FLOAT";
+                case DOUBLE -> "DOUBLE";
+                case REAL -> "REAL";
+                case BIT -> "Bool";
+                case TIMESTAMP -> "TIMESTAMP";
+                case DATE -> "DATE";
+                case JSON -> "JSON";
+                case VARCHAR -> "VARCHAR";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
+            };
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
     }
 
     // ==================================================================

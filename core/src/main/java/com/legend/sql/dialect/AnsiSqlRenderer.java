@@ -1066,10 +1066,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** {@inheritDoc} The engine's H2 text is the one translated language: its connection declares
-     *  {@link RawSqlBoundary#ENGINE_H2}. */
+     *  {@link RawSqlBoundary#ENGINE_TEXT}. */
     @Override
     public final String raw(String statement, @com.legend.base.Nullable String writtenFor) {
-        return RawSqlBoundary.ENGINE_H2.equals(writtenFor) ? fromEngineH2(statement) : statement;
+        return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor) ? fromEngineText(statement) : statement;
     }
 
     /** A lowering-internal pseudo-aggregate ({@link SqlAgg.Fn#marker}) reached a renderer: the lowering's bug. */
@@ -1564,11 +1564,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return declaredQuoted ? delimited(name) : physicalName(name);
     }
 
-    /** A store column's declared type, spelled for this target (the H2
-     *  base; a dialect overrides the few it spells otherwise). */
-    protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
-        return DdlSpelling.h2Type(t);
-    }
+    /** A store column's declared type as this database spells it in DDL: every dialect's whole table (2026-10-15, the
+     *  dialect program's owner guard: until then H2's spelling was the base, and each dialect overrode a few). */
+    protected abstract String ddlType(com.legend.sql.SqlDdl.ColumnType t);
 
     /** A column identifier in DDL: the dialect's ONE identifier rule
      *  ({@link #ident}); a declared-quoted name is delimited by this dialect's quote character, its case kept (a

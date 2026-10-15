@@ -190,11 +190,28 @@ public final class Postgres extends AnsiSqlRenderer {
         return "ROLLBACK";
     }
 
-    /** The engine's H2 text in DuckDB's flavor, its types Postgres's (DOUBLE PRECISION, no TINYINT). */
+    /** {@inheritDoc} Written beside this dialect ({@code PostgresHostOperations}). */
     @Override
-    public String fromEngineH2(String statement) {
-        return RawSqlBoundary.h2ToPostgres(statement);
+    public HostOperations hostOperations() {
+        return PostgresHostOperations.INSTANCE;
     }
+
+    /** The engine's H2 text in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
+     *  docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: the 8-byte double is DOUBLE PRECISION, and SMALLINT is the smallest
+     *  integer, there is no TINYINT) and a bare column name in lower case, as Postgres folds a bare name and spells a
+     *  store's ({@link #physicalName}, decision D8). */
+    @Override
+    public String fromEngineText(String statement) {
+        return RawSqlBoundary.translated(statement,
+                types -> ENGINE_TINYINT.matcher(ENGINE_DOUBLE.matcher(types).replaceAll("DOUBLE PRECISION"))
+                        .replaceAll("SMALLINT"),
+                bare -> bare.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    private static final java.util.regex.Pattern ENGINE_DOUBLE =
+            java.util.regex.Pattern.compile("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)");
+
+    private static final java.util.regex.Pattern ENGINE_TINYINT = java.util.regex.Pattern.compile("(?i)\\bTINYINT\\b");
 
     /** No native PIVOT: static pivots are emulated by the carrier pass; a dynamic
      * pivot needs a key-discovery round trip the browser planner cannot make. */
@@ -2238,16 +2255,22 @@ public final class Postgres extends AnsiSqlRenderer {
     /** Postgres has no TINYINT, BIT or bare DOUBLE; FLOAT is DOUBLE PRECISION as on H2. */
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
-        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p) {
-            return switch (p.kind()) {
-                case TINYINT -> "SMALLINT";
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT, TINYINT -> "SMALLINT";
+                case INTEGER -> "INTEGER";
                 case FLOAT, DOUBLE -> "DOUBLE PRECISION";
+                case REAL -> "REAL";
                 case BIT -> "BOOLEAN";
+                case TIMESTAMP -> "TIMESTAMP";
+                case DATE -> "DATE";
                 case JSON -> "JSONB";
-                case BIGINT, SMALLINT, INTEGER, REAL, TIMESTAMP, DATE, VARCHAR, OTHER, DISTINCT,
-                     ARRAY, OBJECT -> super.ddlType(t);
+                case VARCHAR -> "VARCHAR";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
             };
-        }
-        return super.ddlType(t);
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
     }
 }

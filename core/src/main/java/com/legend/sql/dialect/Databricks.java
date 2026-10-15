@@ -43,7 +43,7 @@ public final class Databricks extends AnsiSqlRenderer {
     /** The engine's H2 text is refused here: Databricks has no translation of it (decision D2: raw text runs on the
      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         throw new DialectCapability("the engine's H2 text reached Databricks, which has no translation of it");
     }
 
@@ -795,15 +795,25 @@ public final class Databricks extends AnsiSqlRenderer {
      *  BOOLEAN for BIT (Spark has no BIT). */
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
-        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p) {
-            return switch (p.kind()) {
-                case VARCHAR -> "STRING";
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT -> "SMALLINT";
+                case TINYINT -> "TINYINT";
+                case INTEGER -> "INTEGER";
+                case FLOAT -> "FLOAT";
+                case DOUBLE -> "DOUBLE";
+                case REAL -> "REAL";
                 case BIT -> "BOOLEAN";
-                case BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, TIMESTAMP, DATE, JSON, OTHER, DISTINCT,
-                     ARRAY, OBJECT -> super.ddlType(t);
+                case TIMESTAMP -> "TIMESTAMP";
+                case DATE -> "DATE";
+                case JSON -> "JSON";
+                case VARCHAR -> "STRING";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
             };
-        }
-        return super.ddlType(t);
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
     }
 
     /** {@code s} split on the LITERAL text {@code d}: Spark's split takes a regex, so the delimiter is quoted. */

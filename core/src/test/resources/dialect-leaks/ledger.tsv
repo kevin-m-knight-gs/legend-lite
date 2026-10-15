@@ -4,6 +4,7 @@
 # docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, Phase 0. At the program's end every pin is zero.
 # 2026-10-13: measured on main fca0aef, the program's start.
 # 2026-10-14, the PR #39 audit's finding 6: the product pattern counts H2 and DB2 as an identifier's word (isH2, LocalH2, ENGINE_H2, h2Mode, isDb2), as it counted isPostgres; each such line was always there, uncounted, and is pinned as measured (DialectLeakRatchetTest.H2_OR_DB2).
+# 2026-10-15, the user's decisions D9 and D11 (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md §6): the model language's vocabulary (lexer, parser, protocol, model) and the SQL input languages (PostgresDialect, PostgresDateTime, protocol/sql/iq) are owners (DatabaseOwners), held to their own databases by DialectOwnerExclusivityTest; their 40 rows (368 lines) left this ledger.
 core/src/main/java/com/legend/AssertVerdicts.java	product-name	4
 core/src/main/java/com/legend/BodyCompiler.java	product-name	1
 core/src/main/java/com/legend/EngineText.java	database-type	1
@@ -23,7 +24,7 @@ core/src/main/java/com/legend/StatementExecutor.java	product-name	31
 core/src/main/java/com/legend/builtin/DynaFn.java	product-name	175
 core/src/main/java/com/legend/compiler/NameResolver.java	product-name	1
 core/src/main/java/com/legend/compiler/element/RelationalTypeInference.java	product-name	6
-# 2026-10-14, the merge of neema2/legend-lite#37 (#IQ{...}#, the tenth line) into this branch at 1a36a71: the SQL front end's input dialects (InputDialect, PostgresDialect, SqlToPure, SqlIslands) and the iq-parity tests name the language of the SQL text a user writes (Postgres, SAP IQ / SQL Anywhere), not a database the platform executes on; pinned as measured. Whether protocol/sql/'s input dialects are owners is the user's question (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, Phase 1, 'after #37').
+# 2026-10-14, the merge of neema2/legend-lite#37 (#IQ{...}#, the tenth line) into this branch at 1a36a71: the SQL front end's input dialects (InputDialect, PostgresDialect, SqlToPure, SqlIslands) and the iq-parity tests name the language of the SQL text a user writes (Postgres, SAP IQ / SQL Anywhere), not a database the platform executes on; pinned as measured. Whether protocol/sql/'s input dialects are owners was the user's question (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, Phase 1, 'after #37'): decided 2026-10-15, D11, they are, and the translator they share is not.
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/main/java/com/legend/compiler/element/type/PlatformTypes.java	product-name	5
 core/src/main/java/com/legend/compiler/spec/SqlIslands.java	product-name	2
@@ -42,55 +43,11 @@ core/src/main/java/com/legend/exec/SqlTypeCensus.java	product-name	10
 core/src/main/java/com/legend/executionplan/PlanJson.java	database-type	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/main/java/com/legend/executionplan/PlanJson.java	product-name	27
-core/src/main/java/com/legend/lexer/Lexer.java	product-name	1
-core/src/main/java/com/legend/lexer/TokenType.java	product-name	1
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/main/java/com/legend/lowering/AsorRef.java	product-name	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/model/AuthenticationSpec.java	product-name	4
-core/src/main/java/com/legend/model/ConnectionDefinition.java	product-name	22
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/model/ConnectionSpecification.java	product-name	13
-core/src/main/java/com/legend/model/FromProtocol.java	database-type	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/model/FromProtocol.java	product-name	27
-core/src/main/java/com/legend/model/MappingFromProtocol.java	product-name	1
-core/src/main/java/com/legend/model/ModelFromProtocol.java	product-name	5
-core/src/main/java/com/legend/model/PackageableElement.java	product-name	1
-core/src/main/java/com/legend/model/SnowflakeActivatorDefinition.java	product-name	2
-core/src/main/java/com/legend/parser/MappingProtocolParser.java	product-name	6
-core/src/main/java/com/legend/parser/SectionGrammarRegistry.java	product-name	2
-core/src/main/java/com/legend/parser/TokenStreamCursor.java	product-name	1
-core/src/main/java/com/legend/parser/section/ConnectionSectionGrammar.java	product-name	52
-core/src/main/java/com/legend/parser/section/ElasticsearchSectionGrammar.java	product-name	15
-core/src/main/java/com/legend/parser/section/MongoDBSectionGrammar.java	product-name	9
-core/src/main/java/com/legend/protocol/AuthSpecEmitter.java	product-name	1
-core/src/main/java/com/legend/protocol/AuthenticationComposer.java	product-name	2
-core/src/main/java/com/legend/protocol/ClassMappingReader.java	product-name	3
-core/src/main/java/com/legend/protocol/ConnectionComposer.java	product-name	4
-core/src/main/java/com/legend/protocol/ConnectionEmitters.java	product-name	18
-core/src/main/java/com/legend/protocol/ConnectionReader.java	product-name	15
-core/src/main/java/com/legend/protocol/DatasourceReader.java	product-name	16
-core/src/main/java/com/legend/protocol/ElasticsearchComposer.java	product-name	15
-core/src/main/java/com/legend/protocol/ElementFamilies.java	product-name	5
-core/src/main/java/com/legend/protocol/FunctionActivatorComposer.java	product-name	4
-core/src/main/java/com/legend/protocol/MappingComposer.java	product-name	2
-core/src/main/java/com/legend/protocol/MappingEmitter.java	product-name	4
-core/src/main/java/com/legend/protocol/ModelComposer.java	product-name	2
-core/src/main/java/com/legend/protocol/ModelReader.java	product-name	2
-core/src/main/java/com/legend/protocol/MongoComposer.java	product-name	8
-core/src/main/java/com/legend/protocol/Protocol.java	product-name	46
-core/src/main/java/com/legend/protocol/ProtocolEmitter.java	product-name	9
-core/src/main/java/com/legend/protocol/RelationalConnectionComposer.java	product-name	18
-core/src/main/java/com/legend/protocol/ServiceReader.java	product-name	2
-core/src/main/java/com/legend/protocol/TailEmitter.java	product-name	6
-core/src/main/java/com/legend/protocol/TailReader.java	product-name	13
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 # 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
 core/src/main/java/com/legend/protocol/sql/InputDialect.java	product-name	6
-core/src/main/java/com/legend/protocol/sql/PostgresDateTime.java	product-name	2
-# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
-core/src/main/java/com/legend/protocol/sql/PostgresDialect.java	product-name	7
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 # 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
 core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	47

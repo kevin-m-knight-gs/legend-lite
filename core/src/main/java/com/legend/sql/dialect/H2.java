@@ -235,9 +235,34 @@ public class H2 extends AnsiSqlRenderer {
         return part;
     }
 
+    /** A store column's declared type as H2 spells it in DDL (until 2026-10-15 the base renderer's, which every
+     *  dialect overrode a few of: the dialect program's owner guard). */
+    @Override
+    protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT -> "SMALLINT";
+                case TINYINT -> "TINYINT";
+                case INTEGER -> "INTEGER";
+                case FLOAT -> "FLOAT";
+                case DOUBLE -> "DOUBLE";
+                case REAL -> "REAL";
+                case BIT -> "BIT";
+                case TIMESTAMP -> "TIMESTAMP";
+                case DATE -> "DATE";
+                case JSON -> "JSON";
+                case VARCHAR -> "VARCHAR";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
+            };
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
+    }
+
     /** The engine's H2 text is H2's own. */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         return statement;
     }
 

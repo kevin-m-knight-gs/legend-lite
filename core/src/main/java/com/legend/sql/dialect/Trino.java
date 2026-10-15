@@ -72,7 +72,7 @@ public final class Trino extends AnsiSqlRenderer {
     /** The engine's H2 text is refused here: Trino has no translation of it (decision D2: raw text runs on the
      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         throw new DialectCapability("the engine's H2 text reached Trino, which has no translation of it");
     }
 
@@ -1788,16 +1788,24 @@ public final class Trino extends AnsiSqlRenderer {
 
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
-        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p) {
-            return switch (p.kind()) {
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT -> "SMALLINT";
+                case TINYINT -> "TINYINT";
+                case INTEGER -> "INTEGER";
+                case FLOAT, DOUBLE -> "DOUBLE";
+                case REAL -> "REAL";
                 case BIT -> "BOOLEAN";
                 case TIMESTAMP -> "TIMESTAMP(6)";
-                case FLOAT, DOUBLE -> "DOUBLE";
-                case VARCHAR, BIGINT, SMALLINT, TINYINT, INTEGER, REAL, DATE, JSON, OTHER, DISTINCT, ARRAY, OBJECT ->
-                        super.ddlType(t);
+                case DATE -> "DATE";
+                case JSON -> "JSON";
+                case VARCHAR -> "VARCHAR";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
             };
-        }
-        return super.ddlType(t);
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
     }
 
     // ==================================================================

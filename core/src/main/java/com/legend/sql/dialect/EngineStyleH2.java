@@ -1504,7 +1504,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     /** The engine's H2 text is this text's own language. */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         return statement;
     }
 

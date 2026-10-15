@@ -62,12 +62,17 @@ class RawSqlLedgerTest {
             // (exec.SetupRunner calls it); same file name, one site
             // 2026-10-13 (the dialect program's Phase 1c, decision D2): CsvSeed.adaptRaw and the RawSqlAdapt pass are
             // gone. Raw text is translated only when its connection declares the engine's H2, and only through the
-            // dialect that runs it (SqlDialect.raw -> fromEngineH2): DuckDB's is the one h2ToDuckDb call (Postgres's
+            // dialect that runs it (SqlDialect.raw -> fromEngineText): DuckDB's is the one h2ToDuckDb call (Postgres's
             // flavor is RawSqlBoundary.h2ToPostgres, inside the boundary)
-            "DuckDb.java", 1);
+            // 2026-10-15 (the dialect program's owner guard, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md D9-D11):
+            // the boundary named DuckDB and Postgres to branch on them (h2ToDuckDb, h2ToPostgres). It is one
+            // translation now, RawSqlBoundary.translated, and each dialect passes what is its own (its column types,
+            // its folding of a bare name): DuckDB's call and Postgres's, the same two translations as before
+            "DuckDb.java", 1,
+            "Postgres.java", 1);
 
     private static final Pattern SITE =
-            Pattern.compile("RawSqlBoundary(\\.|::)h2ToDuckDb");
+            Pattern.compile("RawSqlBoundary(\\.|::)translated");
 
     @Test
     void rawSqlTranslationCallersAreLedgered() throws IOException {

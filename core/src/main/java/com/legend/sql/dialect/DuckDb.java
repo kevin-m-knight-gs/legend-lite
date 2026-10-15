@@ -52,11 +52,17 @@ public final class DuckDb extends AnsiSqlRenderer {
         return strftimeText(fl);
     }
 
+    /** {@inheritDoc} Written beside this dialect ({@code DuckDbHostOperations}). */
+    @Override
+    public HostOperations hostOperations() {
+        return DuckDbHostOperations.INSTANCE;
+    }
+
     /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
      *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
     @Override
-    public String fromEngineH2(String statement) {
-        return RawSqlBoundary.h2ToDuckDb(statement);
+    public String fromEngineText(String statement) {
+        return RawSqlBoundary.translated(statement, types -> types, bare -> bare);
     }
 
     /** DuckDB's aggregates, each by its name in the shared {@code name(args)} form (the dialect program's Phase 1,
@@ -317,15 +323,24 @@ public final class DuckDb extends AnsiSqlRenderer {
      *  lexicon quotes the words DuckDB reserves — default, else, do ...). */
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
-        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p) {
-            if (p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.FLOAT) {
-                return "DOUBLE";
-            }
-            if (p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.BIT) {
-                return "BOOLEAN";
-            }
-        }
-        return super.ddlType(t);
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT -> "SMALLINT";
+                case TINYINT -> "TINYINT";
+                case INTEGER -> "INTEGER";
+                case FLOAT, DOUBLE -> "DOUBLE";
+                case REAL -> "REAL";
+                case BIT -> "BOOLEAN";
+                case TIMESTAMP -> "TIMESTAMP";
+                case DATE -> "DATE";
+                case JSON -> "JSON";
+                case VARCHAR -> "VARCHAR";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
+            };
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
     }
 
     @Override
@@ -839,14 +854,6 @@ public final class DuckDb extends AnsiSqlRenderer {
                         || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
                 && c.type() instanceof com.legend.sql.TypeFact.Typed t
                 && t.type() == com.legend.sql.SqlType.Scalar.JSON;
-    }
-
-    /** The same fact of an OUTPUT column: born at the store, typed JSON (SEMISTRUCTURED as stored) -- what a
-     *  star delivers without a reference to read it through ({@link VariantEgress}). */
-    static boolean storedVariant(com.legend.sql.OutputCol o) {
-        return (o.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
-                        || o.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
-                && o.type() == com.legend.sql.SqlType.Scalar.JSON;
     }
 
     /** The operand of a navigation: a stored Variant column as it is. */
