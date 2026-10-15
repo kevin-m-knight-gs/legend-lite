@@ -55,3 +55,62 @@ tests:
   - id: hours_added_to_a_date
     sql: "SELECT id, HOURS(dt, 25) AS a FROM t ORDER BY id"
     profile: iq17-default
+  # IQ island, 2026-10-15: STR under IQ's engine (IqFunctions.str, measured on IQ 17.1): cut toward zero, its places
+  # fewer where the whole part leaves no room, zero left-justified without a sign, too long NULL
+  - id: str_of_integers
+    sql: "SELECT id, STR(id) AS a, STR(sm) AS b, STR(sm, 6) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: str_of_a_numeric_cut_toward_zero
+    sql: "SELECT id, STR(nm) AS a, STR(nm, 14, 3) AS b, STR(nm, 12, 1) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: str_too_long_is_null
+    sql: "SELECT id, STR(nm, 4) AS a, STR(id * 123456, 3) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: str_places_fewer_to_fit
+    sql: "SELECT STR(id * 123.456, 5, 2) AS a, STR(id * 123.456, 4, 2) AS b, STR(id, 5, 5) AS c, STR(id, 6, 5) AS d, STR(id * -10.5, 4, 2) AS e FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_cuts_halves
+    sql: "SELECT STR(id * 2.5) AS a, STR(id * -2.5) AS b, STR(id * 3.5) AS c, STR(id * 99.995, 6, 2) AS d, STR(id * 0.125, 10, 2) AS e FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_zero_is_left_justified
+    sql: "SELECT STR(id * 0.5) AS a, STR(id * -0.5) AS b, STR(id * -0.001, 10, 2) AS c, STR(id * 0.05, 10, 1) AS d, STR(id - 1) AS e, STR(id * 0.5, 10, 2) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_below_one_in_a_tight_length
+    sql: "SELECT STR(id * 0.5, 3, 2) AS a, STR(id * -0.5, 4, 2) AS b, STR(id * 0.05, 4, 2) AS c, STR(id * -0.05, 4, 2) AS d, STR(id * -0.05, 5, 2) AS e FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_in_one_or_two_characters
+    sql: "SELECT STR(id * -0.5, 2, 0) AS a, STR(id * -0.5, 1, 0) AS b, STR(id * -1.5, 2, 0) AS c, STR(id * -9.5, 1, 0) AS d, STR(id * 0.001, 3, 2) AS e, STR(id * -5, 1) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_null_and_empty_arguments
+    sql: "SELECT STR(id, NULL) AS a, STR(id, 5, NULL) AS b, STR(NULL, 5) AS c, STR(id, 0) AS d, STR(id, -3) AS e, STR(id, 5, -1) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_of_constants_under_iq_engine
+    sql: "SELECT id, STR(2.5) AS a, STR(123456, 3) AS b, STR(-0.5) AS c, STR(0.125, 10, 2) AS d FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_of_a_bigint
+    sql: "SELECT id, w, STR(w, 25) AS a, STR(w, 22, 2) AS b, STR(w, 5) AS c FROM g ORDER BY id"
+    profile: iq17-default
+  - id: str_of_a_quotient
+    sql: "SELECT id, STR(100.0 * id / 3, 10, 4) AS a, STR(100.0 * id / 7, 5, 1) + '%' AS pct FROM t ORDER BY id"
+    profile: iq17-default
+  - id: str_on_the_front_end_is_refused
+    sql: "SELECT STR(2.5) AS a"
+    profile: iq16-default, iq17-default
+  - id: str_of_a_double_is_refused
+    sql: "SELECT STR(CAST(id AS DOUBLE) / 3, 10, 5) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_of_a_string_is_refused
+    sql: "SELECT STR(vc) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_longer_than_255_is_refused
+    sql: "SELECT STR(id, 300) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_with_more_decimals_than_its_length_is_refused
+    sql: "SELECT STR(id * 12.5, 10, 20) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_of_zero_cut_to_its_length
+    sql: "SELECT STR(id * 0.05, 2, 1) AS a, STR(id * 0.001, 2, 2) AS b, STR(id * 0.001, 1, 1) AS c, STR(id * 0.001, 3, 3) AS d, STR(id - 1, 2, 2) AS e, STR(id * -0.001, 4, 3) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_below_one_too_long_is_null
+    sql: "SELECT STR(id * 0.05, 3, 2) AS a, STR(id * 0.001, 4, 3) AS b, STR(id * 0.009, 4, 2) AS c, STR(id * -0.05, 3, 2) AS d, STR(id * 0.5, 2, 2) AS e FROM t WHERE id = 1"
+    profile: iq17-default

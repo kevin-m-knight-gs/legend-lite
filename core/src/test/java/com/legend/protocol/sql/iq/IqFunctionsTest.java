@@ -280,6 +280,22 @@ class IqFunctionsTest {
     }
 
     @Test
+    void strIsReadUnderTheIqEngineOnly() {
+        // IQ island, 2026-10-15 (measured on IQ 17.1): cut toward zero, right-justified, a zero's text constant
+        String str = pure("SELECT STR(nm, 6, 1) AS s FROM " + T);
+        assertTrue(str.contains("lpad(") && str.contains(", 6, ' ')"), str);
+        assertTrue(str.contains("'0.0   '"), str);
+        assertFalse(str.contains("round"), str);
+        // SQL Anywhere's front end rounds a DOUBLE's binary value; a DOUBLE's own binary value is cut: refused by name
+        assertTrue(refusal("SELECT STR(nm) AS s FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).getMessage()
+                .contains("IQ's engine only"));
+        assertTrue(refusal("SELECT STR(d) AS s FROM " + T).getMessage().contains("DOUBLE"));
+        // a length over 255 and more decimals than the length are IQ's errors
+        assertTrue(refusal("SELECT STR(id, 256) AS s FROM " + T).getMessage().contains("-1001005"));
+        assertTrue(refusal("SELECT STR(id, 4, 5) AS s FROM " + T).getMessage().contains("-1009145"));
+    }
+
+    @Test
     void roundOfAColumnChecksItsPrecisionAndOfAConstantNot() {
         String column = pure("SELECT ROUND(nm, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings());
         assertTrue(column.contains("cast(@Decimal)->toOne()"), column);

@@ -98,7 +98,7 @@ final class IqFunctions {
         CURRENT_TIMESTAMP(0, 0, "current timestamp"), YEAR(1, 1), MONTH(1, 1), DAY(1, 1), HOUR(1, 1),
         MINUTE(1, 1), SECOND(1, 1), QUARTER(1, 1), DOW(1, 1), DATE(1, 1), DATEPART(2, 2), DATENAME(2, 2),
         DATEADD(3, 3), DATEDIFF(3, 3), ISNUMERIC(1, 1), YEARS(1, 2), MONTHS(1, 2), WEEKS(1, 2), DAYS(1, 2),
-        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE);
+        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE), STR(1, 3);
 
         final int min;
         final int max;
@@ -305,7 +305,212 @@ final class IqFunctions {
             case ISNUMERIC -> isNumeric(f, args);
             case YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES, SECONDS -> dateUnit(fn, name, f, args);
             case CONVERT_STYLE -> convertStyle(f, args);
+            case STR -> str(f, args);
         };
+    }
+
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1): {@code STR(x [, length [, decimals]])} under IQ's engine -- x's text
+     * right-justified in a VARCHAR(length), 10 and 0 by default, cut toward zero (IQ's engine does not round: 2.5 is
+     * 2, 99.995 to 2 places 99.99). It shows max(0, min(decimals, length - 1 - w)) places, w the whole part's digits
+     * (none below 1) and a minus sign's place: 123.456 in 4 to 2 places is ' 123', 0.5 in 3 to 2 places '0.50', too
+     * long. A value that shows as zero is '0', the point and its places' zeros cut to the length, no sign,
+     * left-justified ('0.00  ', and '0.' in 2); other text longer than the length is NULL (no asterisks). A length of 0 is a NULL VARCHAR(1), one below 0 or NULL a NULL
+     * VARCHAR(255); decimals below 0 or NULL give NULL. Refused by name: SQL Anywhere's front end (it rounds a
+     * DOUBLE's binary value half to even and writes asterisks), a DOUBLE (IQ's engine cuts its binary value: 0.3 to 2
+     * places is 0.29), a string, a length or decimals that is no integer constant, a length over 255 or decimals over
+     * the length (IQ's errors -1001005 and -1009145), a NUMERIC of more than 18 digits before its point.
+     */
+    private Tx str(SqlAst.FunctionCall f, List<Tx> args) {
+        if (engine != IqDialect.Engine.IQ) {
+            throw SqlTranslationException.unsupported("STR is supported under IQ's engine only yet: SQL Anywhere's front"
+                    + " end rounds a DOUBLE's binary value half to even and writes asterisks where its text does not"
+                    + " fit", f.pos());
+        }
+        int length = 10;
+        if (args.size() > 1) {
+            if (args.get(1).kind() == Kind.NULL) {
+                return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, new IqType("VARCHAR(255)"));
+            }
+            BigInteger n = signedInteger(f.args().get(1));
+            if (n == null) {
+                throw SqlTranslationException.unsupported("STR with a length other than an integer constant is not"
+                        + " supported yet", f.args().get(1).pos());
+            }
+            if (n.compareTo(BigInteger.valueOf(255)) > 0) {
+                throw SqlTranslationException.unsupported("STR with a length over 255 is IQ's error -1001005 (a string"
+                        + " length error), refused before translating", f.args().get(1).pos());
+            }
+            if (n.signum() <= 0) {
+                return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true,
+                        new IqType(n.signum() == 0 ? "VARCHAR(1)" : "VARCHAR(255)"));
+            }
+            length = n.intValue();
+        }
+        IqType type = new IqType("VARCHAR(" + length + ")");
+        int places = 0;
+        if (args.size() > 2) {
+            BigInteger n = signedInteger(f.args().get(2));
+            if (args.get(2).kind() == Kind.NULL || n != null && n.signum() < 0) {
+                return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, type);
+            }
+            if (n == null) {
+                throw SqlTranslationException.unsupported("STR with decimals other than an integer constant is not"
+                        + " supported yet", f.args().get(2).pos());
+            }
+            if (n.compareTo(BigInteger.valueOf(length)) > 0) {
+                throw SqlTranslationException.unsupported("STR with more decimals than its length is IQ's error"
+                        + " -1009145, refused before translating", f.args().get(2).pos());
+            }
+            places = n.intValue();
+        }
+        Tx x = args.get(0);
+        SqlAst.Expr e = f.args().get(0);
+        if (x.kind() == Kind.NULL) {
+            return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, type);
+        }
+        if (x.kind() == Kind.FLOAT) {
+            throw SqlTranslationException.unsupported("STR of a DOUBLE is not supported yet: IQ's engine cuts its binary"
+                    + " value (0.3 to 2 places is 0.29)", f.pos());
+        }
+        Digits digits;
+        if (decimal(x)) {
+            int[] ps = scaleOf(x, e, "STR");
+            int whole = ps[0] - ps[1];
+            int m = Math.min(places, ps[1]);
+            if (whole > 18 || m > 18 || m + ps[1] > 38) {
+                throw SqlTranslationException.unsupported("STR of a NUMERIC(" + ps[0] + "," + ps[1] + ") to " + places
+                        + " places is not supported yet: its whole part may exceed 18 digits", f.pos());
+            }
+            digits = new Digits(whole, ps[1], false);
+        } else if (x.kind() == Kind.INTEGER) {
+            IqType t = integerType(x, e, "STR");
+            int whole = Math.max(t.lo().abs().toString().length(), t.hi().abs().toString().length());
+            digits = new Digits(whole, 0, true);
+        } else {
+            throw SqlTranslationException.unsupported("STR of " + kindName(x.kind()) + " is not supported yet", f.pos());
+        }
+        int d = places;
+        int width = length;
+        Tx r = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
+            ValueSpecification value = v.get(0);
+            ValueSpecification result = null;
+            for (int k = 0; k <= d; k++) {
+                ValueSpecification branch = strBranch(value, digits, k, width);
+                if (k == 0 || result == null) {
+                    result = branch;
+                    continue;
+                }
+                // k places where w <= length - 1 - k (the tests run from the most places down)
+                ValueSpecification test = digits.wAtMost(value, width - 1 - k);
+                result = test instanceof com.legend.protocol.spec.CBoolean c ? c.value() ? branch : result
+                        : ifThen(test, branch, result);
+            }
+            return java.util.Objects.requireNonNull(result);
+        });
+        return Tx.value(r.vs(), Kind.STRING, true, type);
+    }
+
+    /** STR's number: its whole part's most digits, its scale, and whether it is an integer ({@code ofInteger}: never
+     *  ABS of one, which overflows at its type's least on DuckDB -- ABS of a SMALLINT -32768). */
+    private record Digits(int whole, int scale, boolean ofInteger) {
+
+        /** {@code |x|} of a NUMERIC. */
+        ValueSpecification magnitude(ValueSpecification x) {
+            return SqlToPure.call("abs", x);
+        }
+
+        /** Whether {@code |x| < 10^c}: x's whole part has at most c digits (none below 1). */
+        ValueSpecification below(ValueSpecification x, int c) {
+            if (c < 0) {
+                return new com.legend.protocol.spec.CBoolean(false, null);
+            }
+            if (c >= whole) {
+                return new com.legend.protocol.spec.CBoolean(true, null);
+            }
+            if (ofInteger) {
+                long bound = BigInteger.TEN.pow(c).longValueExact();
+                return SqlToPure.call("and", SqlToPure.call("greaterThan", x, integer(-bound)), lt(x, integer(bound)));
+            }
+            return lt(magnitude(x), integer(BigInteger.TEN.pow(c).longValueExact()));
+        }
+
+        /** Whether w <= c: a minus sign's place and the whole part's digits. */
+        ValueSpecification wAtMost(ValueSpecification x, int c) {
+            ValueSpecification negative = below(x, c - 1);
+            ValueSpecification positive = below(x, c);
+            if (negative instanceof com.legend.protocol.spec.CBoolean a
+                    && positive instanceof com.legend.protocol.spec.CBoolean b && a.value() == b.value()) {
+                return a;
+            }
+            return ifThen(lt(x, integer(0)), negative, positive);
+        }
+
+        /** Whether x shows as zero to {@code k} places: |x| < 10^-k. */
+        ValueSpecification zero(ValueSpecification x, int k) {
+            if (ofInteger) {
+                return SqlToPure.call("equal", x, integer(0));
+            }
+            int m = Math.min(k, scale);
+            return lt(magnitude(x), m == 0 ? integer(1) : new CDecimal(pow10(-m)));
+        }
+
+        /** The whole part's digits, without a sign. */
+        ValueSpecification wholeText(ValueSpecification x) {
+            if (!ofInteger) {
+                return SqlToPure.call("toString", SqlToPure.call("floor", magnitude(x)));
+            }
+            ValueSpecification text = SqlToPure.call("toString", x);
+            return ifThen(lt(x, integer(0)), SqlToPure.call("substring", text, integer(2), integer(25)), text);
+        }
+
+        /** The first {@code k} places' digits, cut toward zero. */
+        ValueSpecification placesText(ValueSpecification x, int k) {
+            int m = ofInteger ? 0 : Math.min(k, scale);
+            String zeros = "0".repeat(k - m);
+            if (m == 0) {
+                return new CString(zeros);
+            }
+            ValueSpecification a = magnitude(x);
+            ValueSpecification fraction = AppliedFunction.infixRun("minus", List.of(a, SqlToPure.call("toDecimal",
+                    SqlToPure.call("floor", a))));
+            ValueSpecification digits = SqlToPure.call("lpad", SqlToPure.call("toString", SqlToPure.call("floor",
+                    times(fraction, new CDecimal(pow10(m))))), integer(m), new CString("0"));
+            return zeros.isEmpty() ? digits : AppliedFunction.infixRun("plus", List.of(digits, new CString(zeros)));
+        }
+    }
+
+    /** STR's text of {@code x} to {@code k} places in {@code length} characters (see {@link #str}). */
+    private static ValueSpecification strBranch(ValueSpecification x, Digits digits, int k, int length) {
+        // a value that shows as zero: '0', the point and k zeros, cut to the length (measured: 0.001 in 2 to 2 places
+        // is '0.'), left-justified
+        String zeroText = "0" + (k > 0 ? "." + "0".repeat(k) : "");
+        zeroText = zeroText.substring(0, Math.min(zeroText.length(), length));
+        ValueSpecification none = SqlToPure.nullOf(Kind.STRING).vs();
+        ValueSpecification zero = new CString(zeroText + " ".repeat(length - zeroText.length()));
+        List<ValueSpecification> parts = new ArrayList<>();
+        parts.add(ifThen(lt(x, integer(0)), new CString("-"), new CString("")));
+        parts.add(digits.wholeText(x));
+        if (k > 0) {
+            parts.add(new CString("."));
+            parts.add(digits.placesText(x, k));
+        }
+        ValueSpecification text = SqlToPure.call("lpad", AppliedFunction.infixRun("plus", parts), integer(length),
+                new CString(" "));
+        // too long: with places, only a value below 1 (its '0' has no place in w); without, a whole part too wide
+        ValueSpecification tooLong;
+        if (k > 0) {
+            ValueSpecification belowOne = digits.below(x, 0);
+            tooLong = k + 2 > length ? belowOne : k + 3 > length ? SqlToPure.call("and", belowOne, lt(x, integer(0)))
+                    : null;
+        } else {
+            ValueSpecification fits = digits.wAtMost(x, length);
+            tooLong = fits instanceof com.legend.protocol.spec.CBoolean c ? c.value() ? null
+                    : new com.legend.protocol.spec.CBoolean(true, null) : SqlToPure.call("not", fits);
+        }
+        ValueSpecification shown = tooLong == null ? text
+                : tooLong instanceof com.legend.protocol.spec.CBoolean ? none : ifThen(tooLong, none, text);
+        return ifThen(digits.zero(x, k), zero, shown);
     }
 
     /** The months' abbreviations IQ's engine writes in CONVERT's styles (lower case, measured on IQ 17.1). */

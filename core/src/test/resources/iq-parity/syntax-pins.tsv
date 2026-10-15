@@ -110,16 +110,19 @@
 # IQ island, 2026-10-15 (landing 4, CONVERT with a style under IQ's engine, measured on the live IQ 17.1: a date's or a
 # timestamp's text by styles 0-5, 10-12, 20, 21, 100-108, 110-112, 120 and 121; another style refused by name): accept
 # PARSED 2,934 -> 2,974 (REFUSED 2,014 -> 1,974). Reject-parsed and accept-rejected unchanged.
-accept	parsed	2974
-accept	refused	1974
+# IQ island, 2026-10-15 (landing 4, STR under IQ's engine, measured on the live IQ 17.1): accept PARSED 2,974 -> 2,986
+# (REFUSED 1,974 -> 1,962); reject REJECTED 962 -> 963 (REFUSED 823 -> 822: STR's argument count, IQ's -154).
+# Reject-parsed and accept-rejected unchanged.
+accept	parsed	2986
+accept	refused	1962
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	65
 flag	refused	69
 reject	parsed	24
-reject	refused	823
-reject	rejected	962
+reject	refused	822
+reject	rejected	963
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609
