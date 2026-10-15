@@ -406,6 +406,8 @@ public final class IqDialect implements InputDialect {
         IqAliases.Read aliased = IqAliases.resolve(statement, spans, settings,
                 (engine != null ? engine : engineOf(statement, settings)) == Engine.SA);
         statement = aliased.statement();
+        // IQ island, 2026-10-15 (checklist 1.10, measured on IQ 17.1): NUMBER(*) as ROW_NUMBER over the ORDER BY
+        statement = numbered(statement);
         outerReads.addAll(aliased.outerReads());
         aliasesRead.putAll(aliased.aliasesRead());
         innerNames.putAll(aliased.innerNames());
@@ -2665,6 +2667,128 @@ public final class IqDialect implements InputDialect {
             }
         }
         return all;
+    }
+
+    // ------------------------------------------------------------------ NUMBER(*)
+
+    /** Whether {@code e} is a call of {@code NUMBER(*)}. */
+    private static boolean isNumber(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && f.star() && f.args().isEmpty() && f.name().size() == 1
+                && IqLexer.lower(f.name().get(0).text()).equals("number");
+    }
+
+    /** Whether {@code e} holds a call of {@code NUMBER(*)}, outside its subqueries. */
+    private static boolean hasNumber(SqlAst.Expr e) {
+        return isNumber(e) || children(e).stream().anyMatch(IqDialect::hasNumber);
+    }
+
+    /** IQ's error for NUMBER(*) where IQ's engine does not number. */
+    private static SqlTranslationException misplacedNumber(SqlAst.Pos pos, String where) {
+        return SqlTranslationException.unsupported("NUMBER(*) " + where + " is IQ's error -864 (an illegal usage of the"
+                + " NUMBER(*) function), refused before translating", pos);
+    }
+
+    /**
+     * IQ island, 2026-10-15 (checklist 1.10, measured on IQ 17.1): {@code NUMBER(*)} numbers the rows of the result in
+     * its order, from 1, before TOP and START AT keep theirs (TOP 3 START AT 2 shows 2, 3, 4): the statement read with
+     * each call in its select list as {@code ROW_NUMBER() OVER (ORDER BY ...)} of the statement's ORDER BY keys, a
+     * position or an alias as its item's expression (an UNSIGNED BIGINT, as IQ types it). Refused by name, as IQ raises
+     * -864: one in WHERE, GROUP BY, HAVING or ORDER BY (an ORDER BY of its own item too), in a query with DISTINCT, in a
+     * subquery, a derived table or a set operation's branch; as IQ raises -1001030, one inside a CASE or an IF; as not
+     * read, one in an item without an alias (its name), and an ORDER BY position past a {@code *}.
+     */
+    private static SqlAst.Statement numbered(SqlAst.Statement statement) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s)) {
+                continue;
+            }
+            boolean shown = s == statement;
+            for (SqlAst.SelectItem item : s.items()) {
+                if (item instanceof SqlAst.SelectExpr x && hasNumber(x.expr()) && !shown) {
+                    throw misplacedNumber(x.expr().pos(), "in a subquery, a derived table or a set operation's branch");
+                }
+            }
+            for (SqlAst.Expr e : expressions(s)) {
+                boolean item = s.items().stream().anyMatch(i -> i instanceof SqlAst.SelectExpr x && x.expr() == e);
+                if (!item && hasNumber(e)) {
+                    throw misplacedNumber(e.pos(), "in WHERE, GROUP BY, HAVING, ORDER BY or a join's ON");
+                }
+            }
+        }
+        if (!(statement instanceof SqlAst.Select s) || s.items().stream().noneMatch(i -> i instanceof SqlAst.SelectExpr x
+                && hasNumber(x.expr()))) {
+            return statement;
+        }
+        if (s.distinct()) {
+            throw misplacedNumber(s.pos(), "in a query with DISTINCT");
+        }
+        // the window's order: the statement's ORDER BY, each position and alias read as its item's expression
+        List<SqlAst.SortItem> order = new ArrayList<>();
+        for (SqlAst.SortItem key : s.orderBy()) {
+            SqlAst.Expr k = key.expr();
+            SqlAst.SelectExpr target = null;
+            if (k instanceof SqlAst.IntegerLit position) {
+                if (s.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns)) {
+                    throw SqlTranslationException.unsupported("NUMBER(*) with an ORDER BY position beside a * is not"
+                            + " supported", k.pos());
+                }
+                int at = position.value().intValueExact() - 1;
+                target = at >= 0 && at < s.items().size() && s.items().get(at) instanceof SqlAst.SelectExpr x ? x
+                        : null;
+            } else if (k instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
+                for (SqlAst.SelectItem i : s.items()) {
+                    if (i instanceof SqlAst.SelectExpr x && x.alias() != null && IqLexer.lower(java.util.Objects
+                            .requireNonNull(x.alias()).text()).equals(IqLexer.lower(ref.parts().get(0).text()))) {
+                        target = x;
+                    }
+                }
+            }
+            SqlAst.Expr by = target != null ? target.expr() : k;
+            if (hasNumber(by)) {
+                throw misplacedNumber(k.pos(), "in ORDER BY");
+            }
+            order.add(new SqlAst.SortItem(by, key.descending(), key.nullsFirst(), key.pos()));
+        }
+        List<SqlAst.SelectItem> items = new ArrayList<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x && hasNumber(x.expr())) {
+                if (x.alias() == null) {
+                    throw SqlTranslationException.unsupported("NUMBER(*) in an item without an alias is not supported:"
+                            + " name it with AS", x.expr().pos());
+                }
+                items.add(new SqlAst.SelectExpr(numbers(x.expr(), order), x.alias(), x.pos(), x.text()));
+            } else {
+                items.add(item);
+            }
+        }
+        return new SqlAst.Select(s.distinct(), items, s.from(), s.where(), s.groupBy(), s.having(), s.windows(),
+                s.orderBy(), s.limit(), s.offset(), s.pos());
+    }
+
+    /** {@code e} with each NUMBER(*) as {@code ROW_NUMBER() OVER (ORDER BY order)}: inside arithmetic, a function's
+     *  arguments and a CAST; inside a CASE or an IF IQ's -1001030, anywhere else not read (both refused). */
+    private static SqlAst.Expr numbers(SqlAst.Expr e, List<SqlAst.SortItem> order) {
+        if (isNumber(e)) {
+            SqlAst.FunctionCall rowNumber = new SqlAst.FunctionCall(List.of(new SqlAst.Ident("row_number", false,
+                    e.pos())), List.of(), false, false, List.of(), List.of(), null, e.pos());
+            return new SqlAst.Window(rowNumber, new SqlAst.WindowSpec(null, List.of(), order, null, e.pos()), e.pos());
+        }
+        if (!hasNumber(e)) {
+            return e;
+        }
+        return switch (e) {
+            case SqlAst.Binary b -> new SqlAst.Binary(b.op(), numbers(b.left(), order), numbers(b.right(), order),
+                    b.pos());
+            case SqlAst.Unary u -> new SqlAst.Unary(u.op(), numbers(u.operand(), order), u.pos());
+            case SqlAst.Cast c -> new SqlAst.Cast(numbers(c.operand(), order), c.type(), c.pos());
+            case SqlAst.FunctionCall f when f.orderBy().isEmpty() && f.filter() == null -> new SqlAst.FunctionCall(
+                    f.name(), f.args().stream().map(a -> numbers(a, order)).toList(), f.distinct(), f.star(),
+                    f.orderBy(), f.withinGroup(), f.filter(), f.pos());
+            case SqlAst.Case c -> throw SqlTranslationException.unsupported("NUMBER(*) inside a CASE or an IF is IQ's"
+                    + " error -1001030 (a CASE of a non-deterministic function), refused before translating", c.pos());
+            default -> throw SqlTranslationException.unsupported("NUMBER(*) inside " + e.getClass().getSimpleName()
+                    + " is not supported", e.pos());
+        };
     }
 
     /** The first T-SQL outer join predicate ({@code *=}, {@code =*}) in {@code e}, outside its subqueries; null for none. */

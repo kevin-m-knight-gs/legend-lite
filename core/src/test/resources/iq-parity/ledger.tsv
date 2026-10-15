@@ -803,6 +803,16 @@ lite/iq_engine_functions/insertstr_bounds_and_kinds@iq17-default	PASS	PASS
 lite/iq_engine_functions/byte_length@iq17-default	PASS	PASS
 lite/iq_engine_functions/byte_length_of_integer_columns@iq17-default	PASS	PASS
 lite/iq_engine_functions/byte_length_of_a_date_is_refused@iq17-default	REFUSED	REFUSED
+lite/iq_engine_functions/number_in_the_order_by_order@iq17-default	PASS	PASS
+lite/iq_engine_functions/number_by_position_alias_and_expression@iq17-default	PASS	PASS
+lite/iq_engine_functions/number_before_top_and_start_at@iq17-default	PASS	PASS
+lite/iq_engine_functions/number_of_groups@iq17-default	PASS	PASS
+lite/iq_engine_functions/number_beside_row_number@iq17-default	PASS	PASS
+lite/iq_engine_functions/number_in_where_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_functions/number_in_order_by_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_functions/number_with_distinct_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_functions/number_in_a_derived_table_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_functions/number_in_a_case_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/iq_engine_numerics/numeric_plus_and_minus@iq17-default	PASS	PASS
 lite/iq_engine_numerics/numeric_times@iq17-default	PASS	PASS
 lite/iq_engine_numerics/numeric_divided_by_a_constant@iq17-default	PASS	PASS

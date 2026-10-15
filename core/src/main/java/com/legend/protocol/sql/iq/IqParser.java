@@ -1848,6 +1848,11 @@ public final class IqParser {
         boolean empty = peek().isOp("*") && peek(1).isOp(")") && STAR_CALLS.contains(IqLexer.lower(name));
         if (empty) {
             take();
+        } else if (parts.size() == 1 && IqLexer.lower(name).equals("number") && peek().isOp("*") && peek(1).isOp(")")) {
+            // IQ island, 2026-10-15 (checklist 1.10): NUMBER(*), the result's row numbers (IqDialect.numbered)
+            take();
+            take();
+            return new SqlAst.FunctionCall(parts, List.of(), false, true, List.of(), List.of(), null, first.pos());
         } else if (peek().is("distinct") || peek().is("all") || peek().isOp("*")) {
             throw SqlSyntaxException.unsupported("'" + peek().text() + "' in a call (an aggregate's form) is not"
                     + " supported yet", peek().pos());
