@@ -30,3 +30,28 @@ tests:
   - id: ceiling_of_a_numeric_in_where
     sql: "SELECT id FROM t WHERE CEILING(nm) > 100 ORDER BY id"
     profile: iq17-default
+
+  # ---- ISNUMERIC (1 where the string reads as a number, else 0, NULL too)
+  - id: isnumeric_of_spellings
+    sql: "SELECT x, ISNUMERIC(x) AS n FROM (SELECT '12' AS x UNION ALL SELECT '1.5' UNION ALL SELECT 'abc' UNION ALL SELECT ' 7 ' UNION ALL SELECT '-3e2' UNION ALL SELECT '' UNION ALL SELECT '1,000' UNION ALL SELECT '$5' UNION ALL SELECT '.' UNION ALL SELECT '+.5') d ORDER BY 1"
+    profile: iq16-default
+    engine: sa
+  - id: isnumeric_of_a_column
+    sql: "SELECT id, ISNUMERIC(vc) AS n FROM t ORDER BY id"
+
+  # ---- YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES, SECONDS of two arguments: DATEDIFF or DATEADD
+  - id: days_between_and_after
+    sql: "SELECT id, DAYS(CAST('2026-01-01' AS DATE), dt) AS a, DAYS(dt, 3) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: months_and_years
+    sql: "SELECT id, MONTHS(dt, 1) AS a, MONTHS(CAST('2026-01-31' AS DATE), dt) AS b, YEARS(CAST('2025-12-31' AS DATE), dt) AS c, YEARS(dt, 1) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: weeks_between
+    sql: "SELECT id, WEEKS(CAST('2026-03-01' AS DATE), dt) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: hours_minutes_and_seconds
+    sql: "SELECT id, HOURS(ts, 2) AS a, HOURS(CAST('2026-03-04 04:30:30' AS TIMESTAMP), ts) AS b, MINUTES(CAST('2026-03-04 05:05:59' AS TIMESTAMP), ts) AS c, SECONDS(CAST('2026-03-04 05:06:06.5' AS TIMESTAMP), ts) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: hours_added_to_a_date
+    sql: "SELECT id, HOURS(dt, 25) AS a FROM t ORDER BY id"
+    profile: iq17-default

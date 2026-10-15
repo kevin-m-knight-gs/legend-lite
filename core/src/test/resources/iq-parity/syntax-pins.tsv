@@ -102,16 +102,21 @@
 # aggregates over a window, with the errors IQ raises before running (-131, -154, -947 to -950, -964, -1331, -134):
 # accept PARSED 2,717 -> 2,907 (REFUSED 2,231 -> 2,041), flag PARSED 50 -> 65 (REFUSED 84 -> 69), reject REJECTED
 # 839 -> 956 (REFUSED 946 -> 829). Reject-parsed and accept-rejected unchanged.
-accept	parsed	2907
-accept	refused	2041
+# IQ island, 2026-10-15 (landing 4, the IQ engine's rules measured on the live IQ 17.1: subquery positions, TOP and LIST
+# without ORDER BY, MIN/MAX/UNION/DISTINCT/GROUP BY over strings, NUMERIC arithmetic, DATEADD/DATEDIFF, ROUND, CEILING,
+# FLOOR, CONVERT of dates, LIKE over CHAR(n) and computed patterns with ESCAPE, ISNUMERIC and YEARS/MONTHS/WEEKS/DAYS/HOURS/
+# MINUTES/SECONDS): accept PARSED 2,907 -> 2,934 (REFUSED 2,041 -> 2,014); reject REJECTED 956 -> 962 (REFUSED 829 ->
+# 823: those functions' argument counts, IQ's -154). Reject-parsed and accept-rejected unchanged.
+accept	parsed	2934
+accept	refused	2014
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	65
 flag	refused	69
 reject	parsed	24
-reject	refused	829
-reject	rejected	956
+reject	refused	823
+reject	rejected	962
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609

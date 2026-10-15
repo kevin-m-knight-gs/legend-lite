@@ -97,7 +97,8 @@ final class IqFunctions {
         GETDATE(0, 0), NOW(0, 0), TODAY(0, 0), CURRENT_DATE(0, 0, "current date"),
         CURRENT_TIMESTAMP(0, 0, "current timestamp"), YEAR(1, 1), MONTH(1, 1), DAY(1, 1), HOUR(1, 1),
         MINUTE(1, 1), SECOND(1, 1), QUARTER(1, 1), DOW(1, 1), DATE(1, 1), DATEPART(2, 2), DATENAME(2, 2),
-        DATEADD(3, 3), DATEDIFF(3, 3);
+        DATEADD(3, 3), DATEDIFF(3, 3), ISNUMERIC(1, 1), YEARS(1, 2), MONTHS(1, 2), WEEKS(1, 2), DAYS(1, 2),
+        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2);
 
         final int min;
         final int max;
@@ -301,7 +302,67 @@ final class IqFunctions {
             case DATEPART, DATENAME -> datePartCall(fn == Fn.DATENAME, name, f, args);
             case DATEADD -> dateAdd(name, f, args);
             case DATEDIFF -> dateDiff(name, f, args);
+            case ISNUMERIC -> isNumeric(f, args);
+            case YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES, SECONDS -> dateUnit(fn, name, f, args);
         };
+    }
+
+    /**
+     * {@code YEARS(a, b)}, {@code MONTHS}, {@code WEEKS}, {@code DAYS}, {@code HOURS}, {@code MINUTES},
+     * {@code SECONDS} of two arguments (IQ island, 2026-10-15; measured on IQ 17.1): with a date or a timestamp
+     * second, {@code DATEDIFF(part, a, b)}; with an integer, {@code DATEADD(part, b, a)} -- each as that function is
+     * read ({@link #dateDiff}, {@link #dateAdd}). The forms of one argument (DAYS(d), a day number) are refused.
+     */
+    private Tx dateUnit(Fn fn, String name, SqlAst.FunctionCall f, List<Tx> args) {
+        String part = switch (fn) {
+            case YEARS -> "year";
+            case MONTHS -> "month";
+            case WEEKS -> "week";
+            case DAYS -> "day";
+            case HOURS -> "hour";
+            case MINUTES -> "minute";
+            case SECONDS -> "second";
+            default -> throw new IllegalStateException("no date unit " + fn);
+        };
+        if (args.size() == 1) {
+            throw SqlTranslationException.unsupported(name + " of one argument (the " + part + "s from IQ's own epoch)"
+                    + " is not supported yet", f.pos());
+        }
+        SqlAst.StringLit unit = new SqlAst.StringLit(part, f.pos());
+        Tx partTx = Tx.value(new CString(part), Kind.STRING, false, new IqType("VARCHAR(" + part.length() + ")"));
+        Tx second = args.get(1);
+        if (second.kind() == Kind.DATE || second.kind() == Kind.DATETIME) {
+            SqlAst.FunctionCall diff = new SqlAst.FunctionCall(f.name(), List.of(unit, f.args().get(0),
+                    f.args().get(1)), false, false, f.pos());
+            return dateDiff(name, diff, List.of(partTx, args.get(0), args.get(1)));
+        }
+        if (second.kind() == Kind.INTEGER || second.kind() == Kind.NULL) {
+            SqlAst.FunctionCall add = new SqlAst.FunctionCall(f.name(), List.of(unit, f.args().get(1),
+                    f.args().get(0)), false, false, f.pos());
+            return dateAdd(name, add, List.of(partTx, args.get(1), args.get(0)));
+        }
+        throw SqlTranslationException.unsupported(name + " of a " + kindName(second.kind()) + " second argument is not"
+                + " supported yet: IQ converts it by its own rules", f.args().get(1).pos());
+    }
+
+    /**
+     * {@code ISNUMERIC(s)} (IQ island, 2026-10-15; measured on IQ 17.1): 1 where s reads as a number -- blanks
+     * around it, an optional sign, digits with an optional point (at least one digit), an optional exponent
+     * ({@code ' 7 '}, {@code '+.5'}, {@code '-3e2'}) -- else 0 ({@code ''}, {@code '.'}, {@code '1,000'},
+     * {@code '$5'}, and NULL), an INTEGER.
+     */
+    private Tx isNumeric(SqlAst.FunctionCall f, List<Tx> args) {
+        IqType type = IqType.integer("INTEGER", BigInteger.ZERO, BigInteger.ONE, false);
+        if (args.get(0).kind() == Kind.NULL) {
+            return Tx.value(integer(0), Kind.INTEGER, false, type);
+        }
+        Tx s = text(args.get(0), f.args().get(0), "ISNUMERIC");
+        ValueSpecification v = SqlToPure.valueOf(s);
+        ValueSpecification matched = SqlToPure.call("matches", s.nullable() ? SqlToPure.call("toOne", v) : v,
+                new CString("^ *[+-]?([0-9]+[.]?[0-9]*|[.][0-9]+)([eE][+-]?[0-9]+)? *$"));
+        ValueSpecification one = ifThen(matched, integer(1), integer(0));
+        ValueSpecification value = s.nullable() ? ifThen(SqlToPure.call("isEmpty", v), integer(0), one) : one;
+        return Tx.value(value, Kind.INTEGER, false, type);
     }
 
     // ------------------------------------------------------------------ strings
