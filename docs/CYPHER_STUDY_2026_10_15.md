@@ -1684,3 +1684,90 @@ which Pure types, and what the lanes can judge).
   `[3.4, 3]`): S62, one TCK case decided per lane (`decisions.tsv`); DuckDB's JSON keeps `3.0`.
 
 PR2 kept S60 (the NaN comparisons: no `isNaN` native) and S61 (64-bit overflow) as they are, the register says why.
+
+### 12.6 The temporal slice (PR2c), 2026-10-16: dates and local date-times
+
+The user's direction after PR2: "let's do temporal — Pure supports every combination of date and time and date
+time". What Pure (as lite declares and lowers it) carries: StrictDate (the database's DATE), DateTime (TIMESTAMP, to
+the microsecond: `date(y, m, d[, h, mi, s])`, `adjust` by any `DurationUnit` down to MICROSECONDS, `dateDiff`, the
+field natives `year`, `monthNumber`, `dayOfMonth`, `dayOfWeekNumber` (Monday 1), `weekOfYear` (ISO), `quarterNumber`,
+`dayOfYear`, `hour`, `minute`, `second`, the first-of natives, `datePart`, `parseDate`, `toString`; every one
+verified on DuckDB before the design). What it does not: a time of day (`StrictTime` is declared, no SQL type
+carries it), a zone (a DateTime is one instant, GMT-normalized; Cypher's `datetime` keeps its offset or zone and
+prints it), a duration (no type). So the slice reads Cypher's `date` as StrictDate and `localdatetime` as DateTime,
+and refuses `datetime`, `time`, `localtime` and `duration` by name, each with its reason.
+
+#### 12.6.1 What the translator reads
+
+- **Constructors** `date(x)`, `localdatetime(x)`: from a map of components — the calendar form `date(y, m, d)`
+  (month and day default to 1), the week form (the Monday of ISO week 1 is the Monday of the week of January 4th:
+  `adjust(date(y, 1, 4), 1 - dayOfWeekNumber(...), DAYS)`, then `(week - 1) * 7 + (dayOfWeek - 1)` days on), the
+  quarter and ordinal forms (`adjust` from the quarter's or year's first day), the time part `hour`, `minute`,
+  `second` as whole numbers and `millisecond`, `microsecond`, `nanosecond` (a multiple of 1000) as `adjust` steps —
+  lite's `date(...)` with a fractional second lowers to a TEXT carrier (§12.6.4), so the fraction is added, not
+  written; from an ISO text, a literal in the calendar form as Pure's date literal (`%1984-10-11`,
+  `%1984-10-11T12:31:14.645`; other forms — compact, week, ordinal, a zone — refused by name; a text of the row is
+  the database's `parseDate`); from another temporal value or one under `date:` / `datetime:` with fields written
+  over it (`localdatetime({date: d, day: 28, hour: 10})`; a written-over date-time keeps its fraction through
+  `dateDiff(firstMillisecondOfSecond(dt), dt, MICROSECONDS)`). A `time:` or `timezone:` component is refused by
+  name. The database validates the ranges (month 13 is DuckDB's "Invalid month" and Neo4j's error: BOTH_ERROR).
+- **Fields** `d.year`, `quarter`, `month`, `week`, `weekYear` (the year of the ISO week's Thursday), `day`,
+  `ordinalDay`, `weekDay`, `dayOfQuarter` (`dateDiff` from the quarter's first day), and of a date-time `hour`,
+  `minute`, `second`; the sub-second fields refused by name (microseconds are the database's, Neo4j's are nanoseconds).
+- **Comparison** of dates and of date-times, the database's; `toString` of a date (`'1984-10-11'`, the database's
+  spelling agrees with Neo4j's); `toString` of a date-time refused by name (Neo4j spells it as Java does, with the
+  seconds and fraction left out when zero; the database spells its own).
+- **Truncation** `date.truncate(unit, d[, fields])`, `localdatetime.truncate(...)`: millennium, century and decade
+  by the year's remainder (`date(y - y % 1000, 1, 1)`), year, quarter, month, week and day by the first-of natives,
+  weekYear by the Monday of week 1 of the week-year, hour, minute and second by the first-of natives; the fields
+  written over the start (`{day: 2}`, `{month: 3, hour: 5}`; `dayOfWeek`, `dayOfQuarter`, `ordinalDay` as days on
+  from the unit's start); a `timezone` field or a sub-second unit refused by name; a written `null` in place of the
+  value is Neo4j's own error (the TCK's "Invalid call signature for Truncate").
+- **Stored dates:** the inferred models (`CypherGraph`) type a property holding `Date('...')` as StrictDate (DATE)
+  and `DateTime('...')` without an offset as DateTime (TIMESTAMP), the seed binding their texts; a time, a zoned
+  date-time or a duration stays "a kind the model does not hold".
+- **The judge** reads a date cell (lite's own date literal values, or the driver's) as Neo4j's Python driver spells
+  one in the answers: `Date('yyyy-MM-dd')`, `DateTime('yyyy-MM-ddTHH:mm:ss.nnnnnnnnn')` with nine fraction digits
+  always.
+- **The clock** (`date()`, `date.realtime()`, `localdatetime.statement()` ...): refused as a value of the call, not
+  of the data.
+
+#### 12.6.2 The ledger
+
+Both lanes, identical:
+
+| | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| before (PR2 + boolean ordering) | 3,943 | 1,044 | 0 | 0 | 0 | 1,898 | 671 | 330 |
+| the temporal slice | 3,959 | 1,168 | 0 | 0 | 0 | 1,800 | 673 | 318 |
+
+Of the TCK's temporal features (1,004 cases): 111 PASS, 843 REFUSED by name (the zoned, time-of-day
+and duration values, the sub-microsecond precisions, the non-ISO texts), 0 BOTH_ERROR, 50 SKIP
+(stored times, zoned date-times and durations). SKIP fell from 330 to 318 and BOTH_ERROR rose by two: the graphs
+holding dates and local date-times are inferred now (`CypherGraph`). 16 lite cases in `lite/temporal.yaml`, each
+judged by Neo4j.
+
+#### 12.6.3 What the first runs found, each fixed with its case
+
+A date built by `adjust` (the week, quarter and ordinal forms, the week-year's Monday) came back as a timestamp
+(DuckDB's date plus an interval is a timestamp): `datePart` takes the day back. The arithmetic of integers is a
+Number to Pure, which `date` and `adjust` refuse: a cast to Integer. A `dayOfWeek` field over a week truncation
+(the TCK's Temporal9 [1] #43). Neo4j 2026.09.0 raises an internal error (50N42, "Unexpected error") on
+`date({year: null})`; the island answers null, and the case is not pinned.
+
+#### 12.6.4 Found in other lines' code (IN_FLIGHT, the database owner's)
+
+lite's `date(y, m, d, h, mi, s)` with a fractional second (a Number that is not a literal) lowers to the
+kind-faithful TEXT carrier (`strftime(make_timestamp(...))` concatenated), which a comparison or a field read then
+sees as a VARCHAR ("Cannot compare values of type TIMESTAMP and type VARCHAR"; `date_part('hour', VARCHAR)`), where
+the same date with whole seconds, and a date-time literal with a fraction, are TIMESTAMPs. The translator writes
+whole seconds and adds the fraction with `adjust(..., MILLISECONDS | MICROSECONDS)`.
+
+#### 12.6.5 Left to a next slice, by name
+
+Zoned date-times (`datetime`: an offset or a named zone kept with the value and printed; the database's
+TIMESTAMPTZ could carry the instant, the zone is the question); times of day (`time`, `localtime`: `StrictTime` is
+declared, a SQL TIME type is the lowering's leg); durations (`duration`, `duration.between/inMonths/inDays/inSeconds`,
+temporal arithmetic: a months-days-seconds-nanoseconds value with its own normalization and `P...` spelling, no Pure
+type); nanosecond precision (the databases keep microseconds); `toString` of a date-time; the sub-second fields;
+compact and week-form texts.

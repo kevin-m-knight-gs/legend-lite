@@ -388,6 +388,43 @@ public final class CypherValues {
         if (cell instanceof String s) {
             return new Str(s);
         }
+        // a date or a date-time (lite's own literal values, or the driver's): as Neo4j's Python driver spells them
+        // in the answers, Date('yyyy-MM-dd') and DateTime('yyyy-MM-ddTHH:mm:ss.nnnnnnnnn'), the nanoseconds always
+        // nine digits
+        switch (cell) {
+            case com.legend.values.PureDateLiteral.StrictDate d -> {
+                return new Opaque("Date('" + date(d.year(), d.month(), d.day()) + "')");
+            }
+            case com.legend.values.PureDateLiteral.DateWithHour d -> {
+                return new Opaque(dateTime(d.year(), d.month(), d.day(), d.hour(), 0, 0, ""));
+            }
+            case com.legend.values.PureDateLiteral.DateWithMinute d -> {
+                return new Opaque(dateTime(d.year(), d.month(), d.day(), d.hour(), d.minute(), 0, ""));
+            }
+            case com.legend.values.PureDateLiteral.DateWithSecond d -> {
+                return new Opaque(dateTime(d.year(), d.month(), d.day(), d.hour(), d.minute(), d.second(), ""));
+            }
+            case com.legend.values.PureDateLiteral.DateWithSubsecond d -> {
+                return new Opaque(dateTime(d.year(), d.month(), d.day(), d.hour(), d.minute(), d.second(),
+                        d.subsecond()));
+            }
+            case java.sql.Date d -> {
+                java.time.LocalDate l = d.toLocalDate();
+                return new Opaque("Date('" + date(l.getYear(), l.getMonthValue(), l.getDayOfMonth()) + "')");
+            }
+            case java.time.LocalDate l -> {
+                return new Opaque("Date('" + date(l.getYear(), l.getMonthValue(), l.getDayOfMonth()) + "')");
+            }
+            case java.sql.Timestamp ts -> {
+                return ofCell(ts.toLocalDateTime());
+            }
+            case java.time.LocalDateTime l -> {
+                return new Opaque(dateTime(l.getYear(), l.getMonthValue(), l.getDayOfMonth(), l.getHour(),
+                        l.getMinute(), l.getSecond(), String.format(java.util.Locale.ROOT, "%09d", l.getNano())));
+            }
+            default -> {
+            }
+        }
         // a list or map, as the Variant lite returns (C8): DuckDB's JsonNode, Postgres's json/jsonb PGobject
         String cls = cell.getClass().getName();
         if (cls.equals("org.duckdb.JsonNode")) {
@@ -405,6 +442,16 @@ public final class CypherValues {
             }
         }
         return new Opaque(cell.getClass().getSimpleName() + "(" + new Str(cell.toString()) + ")");
+    }
+
+    private static String date(int year, int month, int day) {
+        return String.format(java.util.Locale.ROOT, "%04d-%02d-%02d", year, month, day);
+    }
+
+    private static String dateTime(int year, int month, int day, int hour, int minute, int second, String fraction) {
+        String nanos = (fraction + "000000000").substring(0, 9);
+        return "DateTime('" + date(year, month, day) + String.format(java.util.Locale.ROOT, "T%02d:%02d:%02d.", hour, minute, second) + nanos
+                + "')";
     }
 
     /** A JSON value as a Cypher value: a number with no fraction an integer, else a float. */

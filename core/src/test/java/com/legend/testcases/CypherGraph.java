@@ -307,11 +307,24 @@ public final class CypherGraph {
             case CypherValues.Flt f -> "Float";
             case CypherValues.Str s -> "String";
             case CypherValues.Bool b -> "Boolean";
+            case CypherValues.Opaque o when o.text().startsWith("Date('") -> "StrictDate";
+            case CypherValues.Opaque o when LOCAL_DATE_TIME.matcher(o.text()).matches() -> {
+                String fraction = LOCAL_DATE_TIME.matcher(o.text()).replaceAll("$2");
+                if (fraction.length() > 6 && !fraction.substring(6).matches("0+")) {
+                    throw new Unsupported("harness: the property " + key + " holds a date-time of sub-microsecond"
+                            + " precision (" + valueText + ")");
+                }
+                yield "DateTime";
+            }
             default -> throw new Unsupported("harness: the property " + key + " holds a " + v.getClass()
                     .getSimpleName().toLowerCase(Locale.ROOT) + " (" + valueText + "), a kind the model does not"
-                    + " hold yet (PR2)");
+                    + " hold yet (a time, a zoned date-time, a duration)");
         };
     }
+
+    /** A local date-time as the oracle spells it: no zone offset after the time. */
+    private static final java.util.regex.Pattern LOCAL_DATE_TIME = java.util.regex.Pattern.compile(
+            "DateTime\\('(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})\\.(\\d{1,9})'\\)");
 
     private static Object cell(String text) {
         CypherValues.Value v = CypherValues.parse(text);
@@ -320,6 +333,16 @@ public final class CypherGraph {
             case CypherValues.Flt f -> f.value();
             case CypherValues.Str s -> s.value();
             case CypherValues.Bool b -> b.value();
+            // a date or date-time: the text the seed binds (java.sql.Date.valueOf, Timestamp.valueOf)
+            case CypherValues.Opaque o when o.text().startsWith("Date('") -> o.text().substring(6,
+                    o.text().length() - 2);
+            case CypherValues.Opaque o when LOCAL_DATE_TIME.matcher(o.text()).matches() -> {
+                java.util.regex.Matcher m = LOCAL_DATE_TIME.matcher(o.text());
+                m.matches();
+                String fraction = m.group(2);
+                yield m.group(1).replace('T', ' ') + "." + (fraction.length() > 6 ? fraction.substring(0, 6)
+                        : fraction);
+            }
             default -> throw new IllegalStateException("a cell of a kind the inference refused: " + text);
         };
     }
@@ -330,6 +353,8 @@ public final class CypherGraph {
             case "Float" -> "DOUBLE PRECISION";
             case "String" -> "VARCHAR(4000)";
             case "Boolean" -> "BOOLEAN";
+            case "StrictDate" -> "DATE";
+            case "DateTime" -> "TIMESTAMP";
             default -> throw new IllegalStateException(pureType);
         };
     }
@@ -340,6 +365,8 @@ public final class CypherGraph {
             case "Float" -> "DOUBLE";
             case "String" -> "VARCHAR(4000)";
             case "Boolean" -> "BIT";
+            case "StrictDate" -> "DATE";
+            case "DateTime" -> "TIMESTAMP";
             default -> throw new IllegalStateException(pureType);
         };
     }

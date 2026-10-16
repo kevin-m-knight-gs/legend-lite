@@ -9850,6 +9850,32 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the fourth landing — the temporal slice: dates and local date-times over Pure's StrictDate and DateTime (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after PR2; the record is the study's §12.6 (`docs/CYPHER_STUDY_2026_10_15.md`).
+
+1. **What lands.** Cypher's `date` as Pure's StrictDate and `localdatetime` as Pure's DateTime (the database's
+   DATE and TIMESTAMP, to the microsecond), every value the database's: constructors from component maps (the
+   calendar, week, quarter and ordinal forms, the time part with milliseconds and microseconds as `adjust` steps)
+   and from ISO texts (Pure's date literals), selection from other temporal values with fields written over, the
+   fields (`year` to `dayOfQuarter`, `hour`, `minute`, `second`), comparison, `toString` of a date, truncation to
+   every unit from millennium to second with fields written over the start, dates stored in the inferred graphs
+   (`CypherGraph` types `Date('...')` and a local `DateTime('...')`), and the judge reading a date cell as Neo4j's
+   driver spells one. Refused by name, each with its reason: zoned date-times, times of day, durations, nanosecond
+   precision, non-ISO texts, `toString` of a date-time, the clock functions.
+2. **The ledger,** identical on both lanes: 3,959 cases; PASS 1,168 (from 1,044); FAIL 0; BUG 0; ERROR 0;
+   REFUSED 1,800; BOTH_ERROR 673; SKIP 318. Of the TCK's 1,004 temporal cases, 111 PASS. 17 lite
+   cases in `lite/temporal.yaml`, each judged by Neo4j 2026.09.0 (one Neo4j internal error, on `date({year: null})`,
+   observed and not pinned).
+3. **Judges, on the final tree:** `//core:cypher_parity_test`, `//core:cypher_parity_postgres_test` (as the
+   container's unprivileged user), `//core:core_tests_protocol`, `//core:guardrails`: all green. No guard pin moved.
+   The full local gate: as the earlier landings', the branch's CI run is the landing's full judge.
+4. **Found in other lines' code** (IN_FLIGHT, the database owner's): lite's `date(y, m, d, h, mi, s)` with a
+   fractional second that is not a literal lowers to the text carrier, which a comparison or a field read sees as a
+   VARCHAR.
+5. **Next.** The full CI run on the branch, then the merge; the rest of temporal by name (§12.6.5), the join form,
+   `collect`.
+
 ## 2026-10-15 — `#Cypher{...}#`: the third landing — PR2, the values slice: lists, maps, the quantifiers, `UNWIND`, `WITH` first, the function table (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the review of PR1; the record is the study's §12.5

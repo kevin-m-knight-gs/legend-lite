@@ -1,0 +1,40 @@
+# The #Cypher{...}# island's temporal cases (docs/CYPHER_STUDY_2026_10_15.md §12.6): a date is Pure's StrictDate, a
+# localdatetime Pure's DateTime (the database's DATE and TIMESTAMP, to the microsecond); zoned date-times, times of
+# day and durations are refused by name. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/temporal/*' snaps them), keyed lite/temporal/<id>.
+tests:
+  - id: date_from_components
+    cypher: "RETURN date({year: 1984, month: 10, day: 11}) AS a, date({year: 1984, month: 10}) AS b, date({year: 1984}) AS c, date({year: 1984, week: 10, dayOfWeek: 3}) AS d, date({year: 1816, week: 1}) AS e, date({year: 1816, week: 52}) AS f, date({year: 1984, quarter: 3, dayOfQuarter: 45}) AS g, date({year: 1984, ordinalDay: 202}) AS h, date({year: 2015, week: 53}) AS i"
+  - id: date_from_text
+    cypher: "RETURN date('1984-10-11') AS a, date('2015-07-21') < date('2015-07-22') AS b, date('1984-10-11') = date({year: 1984, month: 10, day: 11}) AS c"
+  - id: localdatetime_from_components
+    cypher: "RETURN localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14}) AS a, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS b, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, microsecond: 645876}) AS c, localdatetime({year: 1984, week: 10, dayOfWeek: 3, hour: 12, minute: 31, second: 14, millisecond: 645}) AS d, localdatetime({year: 1912}) AS e, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645000, millisecond: 1}) AS f"
+  - id: localdatetime_from_text
+    cypher: "RETURN localdatetime('2015-07-21T21:40:32.142') AS a, localdatetime('2015-07-21T21:40:32') AS b, localdatetime('2015-07-21T21:40') AS c, localdatetime('2015-07-21T21:40:32.142000') AS d"
+  - id: temporal_selection
+    cypher: "WITH date({year: 1984, month: 10, day: 11}) AS d, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS dt RETURN date(d) AS a, date({date: d}) AS b, date(dt) AS c, date({date: dt, day: 28}) AS e, localdatetime({date: d, hour: 10, minute: 10, second: 10}) AS f, localdatetime({date: d, day: 28, hour: 10, minute: 10, second: 10}) AS g, localdatetime(dt) AS h, localdatetime({datetime: dt}) AS i, localdatetime({datetime: dt, year: 2000, minute: 5}) AS j, date({date: d, year: 1990, month: 2}) AS k"
+  - id: temporal_fields
+    cypher: "WITH date({year: 1984, month: 10, day: 11}) AS d, localdatetime({year: 1984, month: 11, day: 11, hour: 12, minute: 31, second: 14}) AS dt, date({year: 1984, month: 1, day: 1}) AS ny RETURN d.year, d.quarter, d.month, d.week, d.weekYear, d.day, d.ordinalDay, d.weekDay, d.dayOfQuarter, dt.year, dt.quarter, dt.month, dt.week, dt.weekYear, dt.day, dt.ordinalDay, dt.weekDay, dt.dayOfQuarter, dt.hour, dt.minute, dt.second, ny.year, ny.weekYear, ny.week, ny.weekDay"
+  - id: temporal_comparison_and_text
+    cypher: "WITH date({year: 1980, month: 12, day: 24}) AS x, date({year: 1984, month: 10, day: 11}) AS d, localdatetime({year: 1980, month: 12, day: 11, hour: 12, minute: 31, second: 14}) AS lx, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS ld RETURN x > d, x < d, x >= d, x <= d, x = d, d = d, lx > ld, lx < ld, ld = ld, toString(d) AS t, date(toString(d)) = d AS back"
+  - id: date_truncate
+    cypher: "WITH date({year: 2017, month: 10, day: 11}) AS d, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS dt RETURN date.truncate('millennium', d) AS a, date.truncate('millennium', d, {day: 2}) AS b, date.truncate('century', d) AS c, date.truncate('decade', d) AS e, date.truncate('year', d) AS f, date.truncate('weekYear', d) AS g, date.truncate('weekYear', d, {day: 5}) AS h, date.truncate('quarter', d) AS i, date.truncate('month', d) AS j, date.truncate('month', d, {day: 2}) AS k, date.truncate('week', d) AS l, date.truncate('week', d, {day: 2}) AS m, date.truncate('day', d) AS n, date.truncate('day', dt) AS o, date.truncate('year', dt, {month: 2}) AS p, date.truncate('weekYear', date({year: 2017, month: 1, day: 1})) AS q"
+  - id: localdatetime_truncate
+    cypher: "WITH localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS dt, date({year: 2017, month: 10, day: 11}) AS d RETURN localdatetime.truncate('millennium', dt) AS a, localdatetime.truncate('year', dt, {month: 3}) AS b, localdatetime.truncate('month', dt, {day: 2, hour: 5}) AS c, localdatetime.truncate('week', dt) AS e, localdatetime.truncate('day', dt, {hour: 10, minute: 20}) AS f, localdatetime.truncate('hour', dt) AS g, localdatetime.truncate('hour', dt, {minute: 7}) AS h, localdatetime.truncate('minute', dt) AS i, localdatetime.truncate('second', dt) AS j, localdatetime.truncate('day', d) AS k, localdatetime.truncate('month', d, {day: 2}) AS l"
+  - id: temporal_null_propagation
+    cypher: "RETURN date(null) AS a, localdatetime(null) AS b, date({year: 1984, month: 1, day: 1}).year + 1 AS e"
+  - id: truncate_of_a_written_null_is_neo4js_error
+    cypher: "RETURN date.truncate('year', null) AS d"
+  - id: stored_dates
+    graph: |
+      CREATE (:Val {name: 'a', d: date('1984-10-11'), dt: localdatetime('1984-10-11T12:31:14.645')}),
+             (:Val {name: 'b', d: date('2015-06-24'), dt: localdatetime('2016-07-21T21:45:22.142')})
+    cypher: "MATCH (v:Val) RETURN v.name AS name, v.d AS d, v.d.year AS y, v.dt AS dt, v.dt.month AS m, v.d < date('2000-01-01') AS early, date.truncate('month', v.dt) AS t ORDER BY name"
+  - id: temporal_refused_by_name
+    cypher: "RETURN datetime({year: 1984, month: 10, day: 11}) AS a"
+  - id: duration_refused_by_name
+    cypher: "RETURN duration({days: 14, hours: 16}) AS a"
+  - id: localtime_refused_by_name
+    cypher: "RETURN localtime({hour: 12, minute: 31}) AS a"
+  - id: temporal_errors_are_cyphers
+    cypher: "RETURN date({year: 1984, month: 13, day: 1}) AS a"

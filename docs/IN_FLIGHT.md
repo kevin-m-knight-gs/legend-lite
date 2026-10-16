@@ -1705,6 +1705,15 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   answers an exact numeric where Neo4j and DuckDB answer a float (the TCK's Literals5 [5], [11], [25], [26]). The Cypher
   translator refuses a float literal beyond 1e15 or below 1e-15 by name until the dialect spells a float
   (`CypherToPure`, the `FloatLit` arm; `docs/CYPHER_STUDY_2026_10_15.md` §12.2).
+- **Landed on the branch, 2026-10-16 (the temporal slice, the study's §12.6):** `protocol/cypher/CypherToPure` (the
+  temporal section: `date` and `localdatetime` over StrictDate and DateTime, the fields, truncation; the rest refused
+  by name), `testcases/CypherValues` (a date cell as the driver spells one), `testcases/CypherGraph` (stored dates
+  and local date-times typed and seeded), `lite/temporal.yaml` (16 Neo4j-judged cases), the answers, the ledger.
+- **Found by this line in other lines' code, 2026-10-16 (the database owner's):** lite's `date(y, m, d, h, mi, s)`
+  with a fractional second that is not a literal lowers to the kind-faithful text carrier
+  (`strftime(make_timestamp(...))` concatenated), so a comparison or `date_part` over it fails ("Cannot compare values
+  of type TIMESTAMP and type VARCHAR"); a date-time literal with a fraction and `adjust(..., MILLISECONDS)` are
+  TIMESTAMPs. The Cypher translator writes whole seconds and adds the fraction by `adjust`.
 - **Announced to the database owner, 2026-10-16 (for `collect`, the Cypher island's PR2b):** a collection-valued
   relation aggregate — `->aggregate(~[xs: x|$x.a : y|$y])` with the reduce returning `T[*]` (the database's
   `array_agg` / `list`), which the typer refuses today ("multiplicity [*] is not compatible with result [0..1]"), or

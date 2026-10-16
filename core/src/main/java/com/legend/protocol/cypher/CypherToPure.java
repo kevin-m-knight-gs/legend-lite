@@ -1851,6 +1851,10 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Invalid use of aggregating function " + c.name() + "(...) in this context",
                     c.pos());
         }
+        TemporalFamily family = TEMPORAL_FAMILIES.get(fn.contains(".") ? fn.substring(0, fn.indexOf('.')) : fn);
+        if (family != null) {
+            return temporalCall(c, fn, family, scope);
+        }
         Function f = FUNCTIONS_BY_NAME.get(fn);
         if (f == null) {
             // refused by name before its arguments are read: the refusal names the function, not an argument
@@ -2100,8 +2104,10 @@ public final class CypherToPure {
         return switch (t.kind()) {
             case NULL -> scalar(SqlToPure.nullOf(Kind.STRING));
             case STRING -> scalar(t);
-            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, BOOLEAN -> scalar(SqlToPure.strict(Kind.STRING,
-                    List.of(t), x -> call("toString", x.get(0))));
+            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, BOOLEAN, DATE -> scalar(SqlToPure.strict(
+                    Kind.STRING, List.of(t), x -> call("toString", x.get(0))));
+            case DATETIME -> throw CypherErrors.unsupported("toString of a DateTime (Neo4j spells it as Java does,"
+                    + " the database its own way) is not supported yet", c.pos());
             default -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind()) + " is not supported"
                     + " yet", c.pos());
         };
@@ -2477,6 +2483,8 @@ public final class CypherToPure {
                 yield v == null ? nullValue() : v;
             }
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            case Scalar s when s.tx().kind() == Kind.DATE || s.tx().kind() == Kind.DATETIME ->
+                    scalar(temporalField(s.tx(), name, pos));
             case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("a property of a value"
                     + " the database holds as a Variant is not supported yet", pos);
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point,"
@@ -2880,6 +2888,608 @@ public final class CypherToPure {
         Set<String> out = new HashSet<>(bound);
         out.add(name);
         return out;
+    }
+
+    // ------------------------------------------------------------------ temporal values
+
+    /**
+     * Cypher's temporal values (docs/CYPHER_STUDY_2026_10_15.md §12.6): a {@code date} is Pure's StrictDate and a
+     * {@code localdatetime} Pure's DateTime (the database's DATE and TIMESTAMP, to the microsecond); a zoned
+     * {@code datetime}, a {@code time} or {@code localtime} (no Pure type carries a time of day or a zone) and a
+     * {@code duration} (no Pure type) are refused by name. The database computes every value: a date from its
+     * components is Pure's {@code date(y, m, d[, h, mi, s])}, a week, quarter or ordinal date is spelled with
+     * {@code adjust} from the year's first days, a field is the native that reads it, a truncation the native that
+     * gives the first day or the components recomposed.
+     */
+    private enum TemporalFamily {
+        DATE("date"), LOCALDATETIME("localdatetime"), DATETIME("datetime"), TIME("time"), LOCALTIME("localtime"),
+        DURATION("duration");
+
+        final String cypher;
+
+        TemporalFamily(String cypher) {
+            this.cypher = cypher;
+        }
+    }
+
+    /** What a temporal family's namespace names: the constructor, {@code truncate}, the clock reads. */
+    private enum TemporalMember {
+        CONSTRUCT(""), TRUNCATE("truncate"), REALTIME("realtime"), STATEMENT("statement"), TRANSACTION("transaction");
+
+        final String cypher;
+
+        TemporalMember(String cypher) {
+            this.cypher = cypher;
+        }
+    }
+
+    /** A component of a temporal value's map, by its Cypher key in lower case (the keys are case-insensitive). */
+    private enum Component {
+        YEAR("year"), MONTH("month"), DAY("day"), WEEK("week"), DAY_OF_WEEK("dayofweek"), QUARTER("quarter"),
+        DAY_OF_QUARTER("dayofquarter"), ORDINAL_DAY("ordinalday"), HOUR("hour"), MINUTE("minute"), SECOND("second"),
+        MILLISECOND("millisecond"), MICROSECOND("microsecond"), NANOSECOND("nanosecond"), DATE("date"),
+        DATETIME("datetime"), TIME("time"), TIMEZONE("timezone");
+
+        final String cypher;
+
+        Component(String cypher) {
+            this.cypher = cypher;
+        }
+
+        boolean time() {
+            return this == HOUR || this == MINUTE || this == SECOND || this == MILLISECOND || this == MICROSECOND
+                    || this == NANOSECOND;
+        }
+    }
+
+    /** A field of a temporal value ({@code d.weekYear}), by its Cypher name (case-sensitive, as properties are). */
+    private enum TemporalField {
+        YEAR("year"), QUARTER("quarter"), MONTH("month"), WEEK("week"), WEEK_YEAR("weekYear"), DAY("day"),
+        ORDINAL_DAY("ordinalDay"), WEEK_DAY("weekDay"), DAY_OF_QUARTER("dayOfQuarter"), HOUR("hour"), MINUTE("minute"),
+        SECOND("second"), MILLISECOND("millisecond"), MICROSECOND("microsecond"), NANOSECOND("nanosecond");
+
+        final String cypher;
+
+        TemporalField(String cypher) {
+            this.cypher = cypher;
+        }
+    }
+
+    /** A truncation unit, by its Cypher name in lower case. */
+    private enum TruncateUnit {
+        MILLENNIUM("millennium"), CENTURY("century"), DECADE("decade"), YEAR("year"), WEEK_YEAR("weekyear"),
+        QUARTER("quarter"), MONTH("month"), WEEK("week"), DAY("day"), HOUR("hour"), MINUTE("minute"), SECOND("second"),
+        MILLISECOND("millisecond"), MICROSECOND("microsecond");
+
+        final String cypher;
+
+        TruncateUnit(String cypher) {
+            this.cypher = cypher;
+        }
+
+        boolean time() {
+            return this == HOUR || this == MINUTE || this == SECOND || this == MILLISECOND || this == MICROSECOND;
+        }
+    }
+
+    private static <E extends Enum<E>> Map<String, E> byName(E[] values, java.util.function.Function<E, String> name) {
+        Map<String, E> out = new LinkedHashMap<>();
+        for (E e : values) {
+            out.put(name.apply(e), e);
+        }
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
+    private static final Map<String, TemporalFamily> TEMPORAL_FAMILIES = byName(TemporalFamily.values(),
+            f -> f.cypher);
+    private static final Map<String, TemporalMember> TEMPORAL_MEMBERS = byName(TemporalMember.values(),
+            m -> m.cypher);
+    private static final Map<String, Component> COMPONENTS = byName(Component.values(), c -> c.cypher);
+    private static final Map<String, TemporalField> TEMPORAL_FIELDS = byName(TemporalField.values(), f -> f.cypher);
+    private static final Map<String, TruncateUnit> TRUNCATE_UNITS = byName(TruncateUnit.values(), u -> u.cypher);
+
+    private static final String DURATION_UNIT = "meta::pure::functions::date::DurationUnit";
+
+    private static ValueSpecification days() {
+        return new EnumValue(DURATION_UNIT, "DAYS");
+    }
+
+    /** A value read as an Integer: Pure types the arithmetic of integers as Number, and {@code date}, {@code adjust}
+     *  take Integers. */
+    private static ValueSpecification integer(ValueSpecification v) {
+        return v instanceof CInteger ? v : call("cast", v, SqlToPure.typeArg("Integer"));
+    }
+
+    /** A date the database built by adjusting another: DuckDB's date plus an interval is a timestamp, so the
+     *  day is taken back (Pure's datePart). */
+    private static ValueSpecification day(ValueSpecification adjusted) {
+        return call("datePart", adjusted);
+    }
+
+    private Val temporalCall(CypherAst.Call c, String fn, TemporalFamily family, Scope scope) {
+        String suffix = fn.contains(".") ? fn.substring(fn.indexOf('.') + 1) : "";
+        switch (family) {
+            case DATETIME, TIME, LOCALTIME -> throw CypherErrors.unsupported("the function " + c.name()
+                    + "(...) (a zoned date-time, or a time of day: no Pure type carries it) is not supported yet",
+                    c.pos());
+            case DURATION -> throw CypherErrors.unsupported("the function " + c.name() + "(...) (a duration: no"
+                    + " Pure type carries it) is not supported yet", c.pos());
+            case DATE, LOCALDATETIME -> {
+            }
+        }
+        boolean withTime = family == TemporalFamily.LOCALDATETIME;
+        TemporalMember member = TEMPORAL_MEMBERS.get(suffix);
+        if (member == null) {
+            throw CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos());
+        }
+        return switch (member) {
+            case CONSTRUCT -> temporalFrom(c, withTime, scope);
+            case TRUNCATE -> truncate(c, withTime, scope);
+            case REALTIME, STATEMENT, TRANSACTION -> throw CypherErrors.unsupported("the function " + c.name()
+                    + "() (the current date or time: a value of the call, not of the data) is not supported yet",
+                    c.pos());
+        };
+    }
+
+    /** {@code date(x)}, {@code localdatetime(x)}: from a map of components, an ISO text, or another temporal value. */
+    private Val temporalFrom(CypherAst.Call c, boolean withTime, Scope scope) {
+        if (c.args().isEmpty()) {
+            throw CypherErrors.unsupported("the function " + c.name() + "() (the current date or time: a value of the"
+                    + " call, not of the data) is not supported yet", c.pos());
+        }
+        if (c.args().size() > 1) {
+            throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
+        }
+        Val a = val(c.args().get(0), scope);
+        Kind result = withTime ? Kind.DATETIME : Kind.DATE;
+        return switch (a) {
+            case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            case Scalar s when s.tx().kind() == Kind.STRING -> temporalFromText(c, s, withTime);
+            case Scalar s when s.tx().kind() == Kind.DATE -> {
+                if (withTime) {
+                    throw CypherErrors.invalid("Cannot construct a LocalDateTime from a Date without a time", c.pos());
+                }
+                yield a;
+            }
+            case Scalar s when s.tx().kind() == Kind.DATETIME -> withTime ? a
+                    : scalar(SqlToPure.strict(Kind.DATE, List.of(s.tx()), x -> call("datePart", x.get(0))));
+            case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, String, Date, LocalDateTime or"
+                    + " DateTime but was " + cypherType(s.tx().kind()), c.pos());
+            case MapVal m -> temporalFromComponents(c, m, withTime, result);
+            default -> throw CypherErrors.invalid("Type mismatch: expected Map, String, Date, LocalDateTime or"
+                    + " DateTime but was List<T>", c.pos());
+        };
+    }
+
+    /** A temporal value from a text: a literal in the ISO calendar form is Pure's date literal; any other literal
+     *  form (compact, week, ordinal, a zone) is refused by name; a text of the row is the database's parse. */
+    private Val temporalFromText(CypherAst.Call c, Scalar s, boolean withTime) {
+        Tx t = s.tx();
+        if (!s.literal()) {
+            return scalar(SqlToPure.strict(withTime ? Kind.DATETIME : Kind.DATE, List.of(t), x -> withTime
+                    ? call("parseDate", x.get(0)) : call("datePart", call("parseDate", x.get(0)))));
+        }
+        String text = (String) java.util.Objects.requireNonNull(s.constant());
+        com.legend.values.PureDateLiteral lit = isoLiteral(text, withTime);
+        if (lit == null) {
+            throw CypherErrors.unsupported("a temporal text in a form other than the ISO calendar form (" + text
+                    + ") is not supported yet", c.pos());
+        }
+        if (lit instanceof com.legend.values.PureDateLiteral.DateWithSubsecond sub && sub.subsecond().length() > 6) {
+            throw CypherErrors.unsupported("a temporal value of sub-microsecond precision (" + text
+                    + ") is not supported yet (the database keeps microseconds)", c.pos());
+        }
+        return scalar(Tx.value(new com.legend.protocol.spec.CDate(lit), withTime ? Kind.DATETIME : Kind.DATE, false));
+    }
+
+    /** The ISO calendar form read character by character: {@code yyyy-mm-dd}, and with a time
+     *  {@code Thh:mm[:ss[.f{1,9}]]}; null when the text is not of that form. A fraction's trailing zeros past the
+     *  sixth digit are dropped (the database keeps microseconds); other digits there make it longer than six, which
+     *  the caller refuses. */
+    private static com.legend.values.@com.legend.base.Nullable PureDateLiteral isoLiteral(String text,
+            boolean withTime) {
+        int n = text.length();
+        if (n < 10 || !digits(text, 0, 4) || text.charAt(4) != '-' || !digits(text, 5, 2) || text.charAt(7) != '-'
+                || !digits(text, 8, 2)) {
+            return null;
+        }
+        int y = Integer.parseInt(text.substring(0, 4));
+        int mo = Integer.parseInt(text.substring(5, 7));
+        int d = Integer.parseInt(text.substring(8, 10));
+        if (!withTime) {
+            return n == 10 ? new com.legend.values.PureDateLiteral.StrictDate(y, mo, d) : null;
+        }
+        if (n < 16 || text.charAt(10) != 'T' || !digits(text, 11, 2) || text.charAt(13) != ':'
+                || !digits(text, 14, 2)) {
+            return null;
+        }
+        int h = Integer.parseInt(text.substring(11, 13));
+        int mi = Integer.parseInt(text.substring(14, 16));
+        if (n == 16) {
+            return new com.legend.values.PureDateLiteral.DateWithMinute(y, mo, d, h, mi);
+        }
+        if (n < 19 || text.charAt(16) != ':' || !digits(text, 17, 2)) {
+            return null;
+        }
+        int sec = Integer.parseInt(text.substring(17, 19));
+        if (n == 19) {
+            return new com.legend.values.PureDateLiteral.DateWithSecond(y, mo, d, h, mi, sec);
+        }
+        if (text.charAt(19) != '.' || n > 29 || !digits(text, 20, n - 20)) {
+            return null;
+        }
+        String fraction = text.substring(20);
+        int keep = fraction.length();
+        while (keep > 6 && fraction.charAt(keep - 1) == '0') {
+            keep--;
+        }
+        return new com.legend.values.PureDateLiteral.DateWithSubsecond(y, mo, d, h, mi, sec,
+                fraction.substring(0, keep));
+    }
+
+    private static boolean digits(String text, int from, int count) {
+        if (count < 1 || from + count > text.length()) {
+            return false;
+        }
+        for (int i = from; i < from + count; i++) {
+            if (text.charAt(i) < '0' || text.charAt(i) > '9') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** A temporal value from its components: the calendar, week, quarter or ordinal form, or another temporal
+     *  value under {@code date} or {@code datetime} with fields written over it. */
+    private Val temporalFromComponents(CypherAst.Call c, MapVal m, boolean withTime, Kind result) {
+        Map<Component, Tx> parts = new LinkedHashMap<>();
+        Tx base = null;
+        boolean baseHasTime = false;
+        for (Map.Entry<String, Val> e : m.entries().entrySet()) {
+            String key = e.getKey();
+            Component k = COMPONENTS.get(key.toLowerCase(Locale.ROOT));
+            if (k == null) {
+                throw CypherErrors.invalid("No such field: " + key, c.pos());
+            }
+            if (!(e.getValue() instanceof Scalar s)) {
+                throw CypherErrors.invalid("Type mismatch: the component " + key + " must be a scalar", c.pos());
+            }
+            Tx t = s.tx();
+            if (t.kind() == Kind.NULL) {
+                // (Neo4j 2026.09.0 raises an internal error here, 50N42; the island answers null)
+                return nullValue();
+            }
+            switch (k) {
+                case DATE -> {
+                    if (t.kind() != Kind.DATE && t.kind() != Kind.DATETIME) {
+                        throw CypherErrors.invalid("Type mismatch: date must be a Date but was "
+                                + cypherType(t.kind()), c.pos());
+                    }
+                    base = t.kind() == Kind.DATE ? t : Tx.value(call("datePart", SqlToPure.valueOf(t)), Kind.DATE,
+                            t.nullable());
+                }
+                case DATETIME -> {
+                    if (t.kind() != Kind.DATETIME) {
+                        throw CypherErrors.invalid("Type mismatch: datetime must be a DateTime but was "
+                                + cypherType(t.kind()), c.pos());
+                    }
+                    base = t;
+                    baseHasTime = true;
+                }
+                case TIME -> throw CypherErrors.unsupported("a time of day as a component (no Pure type carries"
+                        + " one) is not supported yet", c.pos());
+                case TIMEZONE -> throw CypherErrors.unsupported("a time zone (a zoned date-time: no Pure type"
+                        + " carries one) is not supported yet", c.pos());
+                default -> {
+                    if (t.kind() != Kind.INTEGER) {
+                        throw CypherErrors.invalid("Type mismatch: " + key + " must be an Integer but was "
+                                + cypherType(t.kind()), c.pos());
+                    }
+                    parts.put(k, t);
+                }
+            }
+        }
+        boolean anyTime = parts.keySet().stream().anyMatch(Component::time);
+        if (!withTime && anyTime) {
+            throw CypherErrors.invalid("Cannot assign a time component to a Date", c.pos());
+        }
+        if (withTime && parts.containsKey(Component.NANOSECOND)) {
+            Long ns = parts.get(Component.NANOSECOND).vs() instanceof CInteger n
+                    ? Long.valueOf(n.value().longValue()) : null;
+            if (ns == null || ns % 1000 != 0) {
+                throw CypherErrors.unsupported("a nanosecond component (the database keeps microseconds) is not"
+                        + " supported yet", c.pos());
+            }
+        }
+        // the date: the components the database reads, in order
+        List<Tx> inputs = new ArrayList<>(parts.values());
+        if (base != null) {
+            inputs.add(0, base);
+        }
+        boolean hasBase = base != null;
+        boolean hasBaseTime = baseHasTime;
+        Set<Component> keys = parts.keySet();
+        if (hasBaseTime && keys.isEmpty()) {
+            return scalar(java.util.Objects.requireNonNull(base));
+        }
+        return scalar(SqlToPure.strict(result, inputs, v -> {
+            Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
+            int i = hasBase ? 1 : 0;
+            for (Component k : keys) {
+                p.put(k, v.get(i++));
+            }
+            ValueSpecification date = dateOf(c, hasBase ? v.get(0) : null, p);
+            if (!withTime) {
+                return date;
+            }
+            ValueSpecification baseTime = hasBaseTime ? v.get(0) : null;
+            ValueSpecification h = p.containsKey(Component.HOUR) ? p.get(Component.HOUR) : baseTime != null
+                    ? call("hour", baseTime) : new CInteger(0L);
+            ValueSpecification mi = p.containsKey(Component.MINUTE) ? p.get(Component.MINUTE) : baseTime != null
+                    ? call("minute", baseTime) : new CInteger(0L);
+            ValueSpecification s = p.containsKey(Component.SECOND) ? p.get(Component.SECOND) : baseTime != null
+                    ? call("second", baseTime) : new CInteger(0L);
+            // the seconds whole (a fractional second makes lite's date(...) a text carrier, 2026-10-16), the
+            // fraction added as milliseconds and microseconds (a date-time's own, when a date-time is written over)
+            ValueSpecification dt = call("date", call("year", date), call("monthNumber", date), call("dayOfMonth", date),
+                    integer(h), integer(mi), integer(s));
+            if (baseTime != null && !p.containsKey(Component.MILLISECOND) && !p.containsKey(Component.MICROSECOND)
+                    && !p.containsKey(Component.NANOSECOND)) {
+                // the fraction is the sub-second fields': kept through a written-over second (the TCK's Temporal3 [7])
+                dt = call("adjust", dt, call("dateDiff", call("firstMillisecondOfSecond", baseTime), baseTime,
+                        new EnumValue(DURATION_UNIT, "MICROSECONDS")), new EnumValue(DURATION_UNIT, "MICROSECONDS"));
+            }
+            if (p.containsKey(Component.MILLISECOND)) {
+                dt = call("adjust", dt, integer(p.get(Component.MILLISECOND)), new EnumValue(DURATION_UNIT,
+                        "MILLISECONDS"));
+            }
+            if (p.containsKey(Component.MICROSECOND)) {
+                dt = call("adjust", dt, integer(p.get(Component.MICROSECOND)), new EnumValue(DURATION_UNIT,
+                        "MICROSECONDS"));
+            }
+            if (p.containsKey(Component.NANOSECOND)) {
+                dt = call("adjust", dt, integer(call("divide", p.get(Component.NANOSECOND), new CInteger(1000L))),
+                        new EnumValue(DURATION_UNIT, "MICROSECONDS"));
+            }
+            return dt;
+        }));
+    }
+
+    /** The date (Pure's StrictDate) the components spell: over a base date, its fields written over; else the
+     *  calendar form {@code date(y, m, d)}, the week form (the Monday of ISO week 1 is the Monday of the week of
+     *  January 4th), the quarter form, the ordinal form. */
+    private ValueSpecification dateOf(CypherAst.Call c, @com.legend.base.Nullable ValueSpecification base,
+            Map<Component, ValueSpecification> p) {
+        ValueSpecification one = new CInteger(1L);
+        boolean week = p.containsKey(Component.WEEK) || p.containsKey(Component.DAY_OF_WEEK);
+        boolean quarter = p.containsKey(Component.QUARTER) || p.containsKey(Component.DAY_OF_QUARTER);
+        boolean ordinal = p.containsKey(Component.ORDINAL_DAY);
+        boolean calendar = p.containsKey(Component.MONTH) || p.containsKey(Component.DAY);
+        if ((week ? 1 : 0) + (quarter ? 1 : 0) + (ordinal ? 1 : 0) + (calendar ? 1 : 0) > 1) {
+            throw CypherErrors.invalid("Cannot mix the calendar, week, quarter and ordinal date forms", c.pos());
+        }
+        if (base != null) {
+            if (week || quarter || ordinal) {
+                throw CypherErrors.unsupported("a week, quarter or ordinal field over a date component is not"
+                        + " supported yet", c.pos());
+            }
+            if (!calendar && !p.containsKey(Component.YEAR)) {
+                return base;
+            }
+            return call("date", integer(p.getOrDefault(Component.YEAR, call("year", base))),
+                    integer(p.getOrDefault(Component.MONTH, call("monthNumber", base))),
+                    integer(p.getOrDefault(Component.DAY, call("dayOfMonth", base))));
+        }
+        ValueSpecification year = p.get(Component.YEAR);
+        if (year == null) {
+            throw CypherErrors.invalid("year must be specified", c.pos());
+        }
+        year = integer(year);
+        if (week) {
+            // the Monday of week 1, then (week - 1) weeks and (dayOfWeek - 1) days on
+            ValueSpecification jan4 = call("date", year, one, new CInteger(4L));
+            ValueSpecification monday = call("adjust", jan4, integer(AppliedFunction.infixRun("minus", List.of(one,
+                    call("dayOfWeekNumber", jan4)))), days());
+            ValueSpecification on = AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("times",
+                    List.of(AppliedFunction.infixRun("minus", List.of(p.getOrDefault(Component.WEEK, one), one)),
+                            new CInteger(7L))), AppliedFunction.infixRun("minus", List.of(p.getOrDefault(
+                                    Component.DAY_OF_WEEK, one), one))));
+            return day(call("adjust", monday, integer(on), days()));
+        }
+        if (quarter) {
+            ValueSpecification firstMonth = AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("times",
+                    List.of(AppliedFunction.infixRun("minus", List.of(p.getOrDefault(Component.QUARTER, one), one)),
+                            new CInteger(3L))), one));
+            return day(call("adjust", call("date", year, integer(firstMonth), one), integer(AppliedFunction.infixRun(
+                    "minus", List.of(p.getOrDefault(Component.DAY_OF_QUARTER, one), one))), days()));
+        }
+        if (ordinal) {
+            return day(call("adjust", call("date", year, one, one), integer(AppliedFunction.infixRun("minus",
+                    List.of(p.get(Component.ORDINAL_DAY), one))), days()));
+        }
+        return call("date", year, integer(p.getOrDefault(Component.MONTH, one)), integer(p.getOrDefault(Component.DAY,
+                one)));
+    }
+
+    /** {@code d.year}, {@code d.quarter}, {@code d.month}, {@code d.week}, {@code d.weekYear}, {@code d.day},
+     *  {@code d.ordinalDay}, {@code d.weekDay}, {@code d.dayOfQuarter}; of a date-time also {@code hour},
+     *  {@code minute}, {@code second}; the sub-second fields are refused (microseconds are the database's). */
+    private static Tx temporalField(Tx t, String name, Pos pos) {
+        TemporalField field = TEMPORAL_FIELDS.get(name);
+        if (field == null) {
+            throw CypherErrors.invalid("No such field: " + name, pos);
+        }
+        boolean dateTime = t.kind() == Kind.DATETIME;
+        return switch (field) {
+            case YEAR -> field(t, x -> call("year", x));
+            case QUARTER -> field(t, x -> call("quarterNumber", x));
+            case MONTH -> field(t, x -> call("monthNumber", x));
+            case WEEK -> field(t, x -> call("weekOfYear", x));
+            case WEEK_YEAR -> field(t, x -> call("year", thursdayOf(x)));
+            case DAY -> field(t, x -> call("dayOfMonth", x));
+            case ORDINAL_DAY -> field(t, x -> call("dayOfYear", x));
+            case WEEK_DAY -> field(t, x -> call("dayOfWeekNumber", x));
+            case DAY_OF_QUARTER -> field(t, x -> integer(AppliedFunction.infixRun("plus", List.of(call("dateDiff",
+                    call("firstDayOfQuarter", x), x, days()), new CInteger(1L)))));
+            case HOUR, MINUTE, SECOND -> {
+                if (!dateTime) {
+                    throw CypherErrors.invalid("No such field: " + name + " (a Date has no time)", pos);
+                }
+                String fn = field == TemporalField.HOUR ? "hour" : field == TemporalField.MINUTE ? "minute"
+                        : "second";
+                yield field(t, x -> call(fn, x));
+            }
+            case MILLISECOND, MICROSECOND, NANOSECOND -> throw CypherErrors.unsupported("the field " + name
+                    + " of a date-time is not supported yet", pos);
+        };
+    }
+
+    private static Tx field(Tx t, java.util.function.Function<ValueSpecification, ValueSpecification> read) {
+        return SqlToPure.strict(Kind.INTEGER, List.of(t), x -> read.apply(x.get(0)));
+    }
+
+    /** The Thursday of a date's ISO week (whose year is the week-year). */
+    private static ValueSpecification thursdayOf(ValueSpecification d) {
+        return call("adjust", d, integer(AppliedFunction.infixRun("minus", List.of(new CInteger(4L),
+                call("dayOfWeekNumber", d)))), days());
+    }
+
+    /** {@code date.truncate(unit, d[, fields])}, {@code localdatetime.truncate(...)}: the value at the start of
+     *  its unit, the fields written over it; the unit must be spelled. */
+    private Val truncate(CypherAst.Call c, boolean withTime, Scope scope) {
+        if (c.args().size() < 2 || c.args().size() > 3) {
+            throw CypherErrors.invalid((c.args().size() < 2 ? "Insufficient" : "Too many") + " parameters for"
+                    + " function '" + c.name() + "'", c.pos());
+        }
+        Val unitVal = val(c.args().get(0), scope);
+        if (!(unitVal instanceof Scalar us) || !us.literal() || !(us.constant() instanceof String unitText)) {
+            throw CypherErrors.unsupported("a truncation unit that is not a spelled text is not supported yet",
+                    c.pos());
+        }
+        TruncateUnit unit = TRUNCATE_UNITS.get(unitText.toLowerCase(Locale.ROOT));
+        if (unit == null) {
+            throw CypherErrors.invalid("Unsupported unit: " + unitText, c.pos());
+        }
+        if (unit == TruncateUnit.MILLISECOND || unit == TruncateUnit.MICROSECOND) {
+            throw CypherErrors.unsupported("truncating to the " + unitText + " is not supported yet", c.pos());
+        }
+        if (!withTime && unit.time()) {
+            throw CypherErrors.invalid("Cannot truncate a Date to the " + unitText, c.pos());
+        }
+        Val source = val(c.args().get(1), scope);
+        if (isNull(source)) {
+            // Neo4j's: a null written in place of the value is not a signature it has
+            throw CypherErrors.invalid("Invalid call signature for Truncate: Provided input was [String(\"" + unitText
+                    + "\"), NO_VALUE, NO_VALUE]", c.pos());
+        }
+        if (!(source instanceof Scalar ss) || ss.tx().kind() != Kind.DATE && ss.tx().kind() != Kind.DATETIME) {
+            throw CypherErrors.invalid("Type mismatch: expected Date or LocalDateTime but was " + (source
+                    instanceof Scalar s ? cypherType(s.tx().kind()) : "a list or map"), c.args().get(1).pos());
+        }
+        Tx t = ss.tx();
+        if (unit.time() && t.kind() != Kind.DATETIME) {
+            throw CypherErrors.invalid("Cannot truncate a Date to the " + unitText, c.args().get(1).pos());
+        }
+        Map<Component, Tx> over = new LinkedHashMap<>();
+        if (c.args().size() == 3) {
+            Val fields = val(c.args().get(2), scope);
+            if (!(fields instanceof MapVal fm)) {
+                throw CypherErrors.invalid("Type mismatch: expected Map but was a value", c.args().get(2).pos());
+            }
+            for (Map.Entry<String, Val> e : fm.entries().entrySet()) {
+                Component k = COMPONENTS.get(e.getKey().toLowerCase(Locale.ROOT));
+                if (k == null) {
+                    throw CypherErrors.invalid("No such field: " + e.getKey(), c.pos());
+                }
+                if (k == Component.TIMEZONE) {
+                    throw CypherErrors.unsupported("a time zone (a zoned date-time: no Pure type carries one) is not"
+                            + " supported yet", c.pos());
+                }
+                if (k == Component.MILLISECOND || k == Component.MICROSECOND || k == Component.NANOSECOND) {
+                    throw CypherErrors.unsupported("the field " + e.getKey() + " over a truncation is not"
+                            + " supported yet", c.pos());
+                }
+                boolean positional = k == Component.DAY_OF_WEEK && unit == TruncateUnit.WEEK
+                        || k == Component.DAY_OF_QUARTER && unit == TruncateUnit.QUARTER
+                        || k == Component.ORDINAL_DAY && unit == TruncateUnit.YEAR;
+                if (k != Component.YEAR && k != Component.MONTH && k != Component.DAY && !k.time() && !positional) {
+                    throw CypherErrors.invalid("No such field: " + e.getKey(), c.pos());
+                }
+                if (!(e.getValue() instanceof Scalar s) || s.tx().kind() != Kind.INTEGER) {
+                    throw CypherErrors.invalid("Type mismatch: the field " + e.getKey() + " must be an Integer",
+                            c.pos());
+                }
+                if (!withTime && k.time()) {
+                    throw CypherErrors.invalid("Cannot assign a time component to a Date", c.pos());
+                }
+                over.put(k, s.tx());
+            }
+        }
+        List<Tx> inputs = new ArrayList<>();
+        inputs.add(t);
+        inputs.addAll(over.values());
+        Set<Component> keys = over.keySet();
+        Kind result = withTime ? Kind.DATETIME : Kind.DATE;
+        return scalar(SqlToPure.strict(result, inputs, v -> {
+            ValueSpecification x = v.get(0);
+            Map<Component, ValueSpecification> o = new java.util.EnumMap<>(Component.class);
+            int i = 1;
+            for (Component k : keys) {
+                o.put(k, v.get(i++));
+            }
+            ValueSpecification start = truncated(unit, x);
+            // a day of the week, quarter or year written over the unit's start: that many days on
+            for (Component positional : List.of(Component.DAY_OF_WEEK, Component.DAY_OF_QUARTER,
+                    Component.ORDINAL_DAY)) {
+                if (o.containsKey(positional)) {
+                    start = day(call("adjust", start, integer(AppliedFunction.infixRun("minus", List.of(
+                            o.get(positional), new CInteger(1L)))), days()));
+                }
+            }
+            if (o.isEmpty() && !withTime) {
+                return call("datePart", start);
+            }
+            ValueSpecification y = integer(o.getOrDefault(Component.YEAR, call("year", start)));
+            ValueSpecification mo = integer(o.getOrDefault(Component.MONTH, call("monthNumber", start)));
+            ValueSpecification d = integer(o.getOrDefault(Component.DAY, call("dayOfMonth", start)));
+            if (!withTime) {
+                return call("date", y, mo, d);
+            }
+            ValueSpecification zero = new CInteger(0L);
+            ValueSpecification h = integer(o.getOrDefault(Component.HOUR, unit.time() ? call("hour", start) : zero));
+            ValueSpecification mi = integer(o.getOrDefault(Component.MINUTE, unit == TruncateUnit.MINUTE
+                    || unit == TruncateUnit.SECOND ? call("minute", start) : zero));
+            ValueSpecification s = integer(o.getOrDefault(Component.SECOND, unit == TruncateUnit.SECOND
+                    ? call("second", start) : zero));
+            return call("date", y, mo, d, h, mi, s);
+        }));
+    }
+
+    /** The start of a value's unit, as the database computes it. */
+    private static ValueSpecification truncated(TruncateUnit unit, ValueSpecification x) {
+        ValueSpecification one = new CInteger(1L);
+        return switch (unit) {
+            case MILLENNIUM, CENTURY, DECADE -> {
+                long n = unit == TruncateUnit.MILLENNIUM ? 1000 : unit == TruncateUnit.CENTURY ? 100 : 10;
+                ValueSpecification year = call("year", x);
+                yield call("date", integer(AppliedFunction.infixRun("minus", List.of(year, call("rem", year,
+                        new CInteger(n))))), one, one);
+            }
+            case YEAR -> call("firstDayOfYear", x);
+            case WEEK_YEAR -> {
+                ValueSpecification jan4 = call("date", call("year", thursdayOf(x)), one, new CInteger(4L));
+                yield day(call("adjust", jan4, integer(AppliedFunction.infixRun("minus", List.of(one,
+                        call("dayOfWeekNumber", jan4)))), days()));
+            }
+            case QUARTER -> call("firstDayOfQuarter", x);
+            case MONTH -> call("firstDayOfMonth", x);
+            case WEEK -> call("firstDayOfWeek", x);
+            case DAY -> call("datePart", x);
+            case HOUR -> call("firstMinuteOfHour", x);
+            case MINUTE -> call("firstSecondOfMinute", x);
+            case SECOND -> call("firstMillisecondOfSecond", x);
+            case MILLISECOND, MICROSECOND -> throw new IllegalStateException("refused before: " + unit);
+        };
     }
 
     // ------------------------------------------------------------------ UNWIND

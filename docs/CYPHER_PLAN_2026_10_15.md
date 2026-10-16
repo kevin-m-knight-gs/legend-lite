@@ -72,8 +72,10 @@ and the showcase. The independent review of PR1 (§12.4): 17 findings, every one
 190 PASS, 0 FAIL, 0 BUG, 0 ERROR. PR2 landed on the branch (§12.5): lists and maps of known shape, the quantifiers,
 comprehensions, indexing and slicing, `IN` over lists, `WITH` first, `UNWIND`, lists and maps as returned values, the
 function table, 29 more lite cases (boolean ordering followed on 2026-10-16): 3,943 cases, 1,044 PASS, 0 FAIL,
-0 BUG, 0 ERROR, 1,898 REFUSED by name, identical on both lanes. Next: the full CI run on the branch, the merge; then PR2b (§12.5.4: `collect`, the
-temporal values) or the join form (316 fan-out cases), the user's call.
+0 BUG, 0 ERROR, 1,898 REFUSED by name, identical on both lanes. The temporal slice landed on the branch (§12.6, 2026-10-16): dates and local date-times over Pure's StrictDate and
+DateTime, 3,959 cases, 1,168 PASS, 0 FAIL, 0 BUG, 0 ERROR; zoned date-times, times of day and durations refused by
+name (§12.6.5). Next: the full CI run on the branch, the merge; then the join form (316 fan-out cases), `collect`
+(the database owner's aggregate), or the rest of temporal, the user's call.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle
