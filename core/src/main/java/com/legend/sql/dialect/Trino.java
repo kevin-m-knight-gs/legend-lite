@@ -72,7 +72,7 @@ public final class Trino extends AnsiSqlRenderer {
     /** The engine's H2 text is refused here: Trino has no translation of it (decision D2: raw text runs on the
      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         throw new DialectCapability("the engine's H2 text reached Trino, which has no translation of it");
     }
 
@@ -1040,12 +1040,14 @@ public final class Trino extends AnsiSqlRenderer {
     /** The {@code DATE_TRUNC} arm of {@link #call}. */
     private SqlWriter dateTrunc(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        String part = literal(a.get(0), "DATE_TRUNC");
+        com.legend.sql.DatePart part = part(a.get(0));
         boolean toDate = switch (part) {
-            case "month", "year", "week", "quarter" -> true;
-            default -> false;
+            case MONTH, YEAR, WEEK, QUARTER -> true;
+            case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND -> false;
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc to " + part
+                    + " has no Trino spelling");
         };
-        writer.append(toDate ? "CAST(date_trunc(" : "date_trunc(").append(stringLit(part)).append(", ")
+        writer.append(toDate ? "CAST(date_trunc(" : "date_trunc(").append(stringLit(intervalUnit(part))).append(", ")
                 .expr(a.get(1), 0).append(")");
         return toDate ? writer.append(" AS DATE)") : writer;
     }
@@ -1064,9 +1066,9 @@ public final class Trino extends AnsiSqlRenderer {
     /** The {@code ADD_INTERVAL}, {@code ADD_INTERVAL_TEMPORAL} arm of {@link #call}. */
     private SqlWriter addInterval(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        String unitFn = literal(a.get(0), c.fn().name());
-        String unit = intervalUnit(unitFn);
-        if (EPOCH_ADDED_UNITS.contains(unitFn)) {
+        com.legend.sql.DatePart part = part(a.get(0));
+        String unit = intervalUnit(part);
+        if (part == com.legend.sql.DatePart.MICROSECOND) {
             return writer.piece(fromMicros(w -> w.piece(micros(v -> v.expr(a.get(2), 0))).append(" + ")
                     .expr(a.get(1), 6)));
         }
@@ -1236,13 +1238,6 @@ public final class Trino extends AnsiSqlRenderer {
         return new DialectCapability(fn + " reached Trino: " + why);
     }
 
-    private static String literal(SqlExpr e, String what) {
-        if (e instanceof SqlExpr.StringLit s) {
-            return s.value();
-        }
-        throw new DialectCapability(what + " with a non-literal part reached Trino");
-    }
-
     /** A regexp extraction's group: the named one, else 0. */
     private static SqlWriter.Piece group(List<SqlExpr> a) {
         return a.size() > 2 ? w -> w.expr(a.get(2), 0) : w -> w.append("0");
@@ -1278,64 +1273,71 @@ public final class Trino extends AnsiSqlRenderer {
 
     // ---- temporal helpers
 
-    /** DuckDB's date_part names → Trino's functions; a Pure integer (seconds truncated). Trino's day_of_week is
-     *  Monday 1 .. Sunday 7 (ISO); DuckDB's dow is Sunday 0. */
+    /** A date part as Trino's function of it; a Pure integer (seconds truncated). Trino's day_of_week is Monday 1 ..
+     *  Sunday 7 (ISO). */
     private SqlWriter.Piece extract(List<SqlExpr> a) {
-        String part = literal(a.get(0), "EXTRACT");
+        com.legend.sql.DatePart part = part(a.get(0));
         String fn = switch (part) {
-            case "year", "quarter", "month", "week", "day", "hour", "minute", "second" -> part;
-            case "doy" -> "day_of_year";
-            case "dow", "isodow" -> "day_of_week";
-            default -> throw new DialectCapability("date part '" + part + "' has no probed Trino spelling");
+            case YEAR -> "year";
+            case QUARTER -> "quarter";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case DAY_OF_YEAR -> "day_of_year";
+            case ISO_DAY_OF_WEEK -> "day_of_week";
+            case MILLISECOND, MICROSECOND -> throw new DialectCapability("date part " + part
+                    + " has no probed Trino spelling");
         };
-        if ("dow".equals(part)) {
-            return w -> w.append("CAST(mod(day_of_week(").expr(a.get(1), 0).append("), 7) AS BIGINT)");
-        }
         return w -> w.append("CAST(" + fn + "(").expr(a.get(1), 0).append(") AS BIGINT)");
     }
 
-    /** DuckDB's interval-function name ({@code to_days}) → a date_add unit. */
-    private static String intervalUnit(String unitFn) {
-        String unit = INTERVAL_UNITS.get(unitFn);
-        if (unit == null) {
-            throw new DialectCapability("interval unit '" + unitFn + "' has no Trino spelling");
-        }
-        return unit;
+    /** A unit as Trino's date_add and date_trunc name it (date_add has no microsecond: measured "'microsecond' is not
+     *  a valid TIMESTAMP field", so that one is added through the epoch's microseconds). */
+    private static String intervalUnit(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case YEAR -> "year";
+            case QUARTER -> "quarter";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case MILLISECOND -> "millisecond";
+            case MICROSECOND -> "microsecond";
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit " + unit
+                    + " has no Trino spelling");
+        };
     }
-
-    /** The units date_add has none of (measured: "'microsecond' is not a valid TIMESTAMP field"): added through the
-     *  epoch's microseconds. */
-    private static final java.util.Set<String> EPOCH_ADDED_UNITS = java.util.Set.of("to_microseconds");
-
-    private static final java.util.Map<String, String> INTERVAL_UNITS = java.util.Map.of(
-            "to_years", "year", "to_months", "month", "to_weeks", "week", "to_days", "day",
-            "to_hours", "hour", "to_minutes", "minute", "to_seconds", "second",
-            "to_milliseconds", "millisecond", "to_microseconds", "microsecond");
 
     /** DuckDB's date_diff counts BOUNDARIES crossed (Trino's date_diff counts whole units): year, quarter and month
      *  by the calendar, day by dates, the sub-day parts by the floored epoch in their unit. */
     private SqlWriter.Piece dateDiff(List<SqlExpr> a) {
-        String part = literal(a.get(0), "DATE_DIFF");
+        com.legend.sql.DatePart part = part(a.get(0));
         SqlWriter.Piece from = w -> w.expr(a.get(1), 0);
         SqlWriter.Piece to = w -> w.expr(a.get(2), 0);
         SqlWriter.Piece y = w -> w.append("(year(").piece(to).append(") - year(").piece(from).append("))");
         SqlWriter.Piece body = switch (part) {
-            case "year" -> y;
-            case "quarter" -> w -> w.piece(y).append(" * 4 + (quarter(").piece(to).append(") - quarter(").piece(from)
+            case YEAR -> y;
+            case QUARTER -> w -> w.piece(y).append(" * 4 + (quarter(").piece(to).append(") - quarter(").piece(from)
                     .append("))");
-            case "month" -> w -> w.piece(y).append(" * 12 + (month(").piece(to).append(") - month(").piece(from)
+            case MONTH -> w -> w.piece(y).append(" * 12 + (month(").piece(to).append(") - month(").piece(from)
                     .append("))");
-            case "week" -> w -> w.append("floor(CAST(date_diff('day', DATE '1969-12-29', CAST(").piece(to)
+            case WEEK -> w -> w.append("floor(CAST(date_diff('day', DATE '1969-12-29', CAST(").piece(to)
                     .append(" AS DATE)) AS DOUBLE) / 7) - floor(CAST(date_diff('day', DATE '1969-12-29', CAST(")
                     .piece(from).append(" AS DATE)) AS DOUBLE) / 7)");
-            case "day" -> w -> w.append("date_diff('day', CAST(").piece(from).append(" AS DATE), CAST(").piece(to)
+            case DAY -> w -> w.append("date_diff('day', CAST(").piece(from).append(" AS DATE), CAST(").piece(to)
                     .append(" AS DATE))");
-            case "hour" -> epochBoundaries(from, to, 3600000000L);
-            case "minute" -> epochBoundaries(from, to, 60000000L);
-            case "second" -> epochBoundaries(from, to, 1000000L);
-            case "millisecond" -> epochBoundaries(from, to, 1000L);
-            case "microsecond" -> w -> w.append("(").piece(micros(to)).append(" - ").piece(micros(from)).append(")");
-            default -> throw new DialectCapability("date_diff part '" + part + "' has no probed Trino spelling");
+            case HOUR -> epochBoundaries(from, to, 3600000000L);
+            case MINUTE -> epochBoundaries(from, to, 60000000L);
+            case SECOND -> epochBoundaries(from, to, 1000000L);
+            case MILLISECOND -> epochBoundaries(from, to, 1000L);
+            case MICROSECOND -> w -> w.append("(").piece(micros(to)).append(" - ").piece(micros(from)).append(")");
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part " + part
+                    + " has no probed Trino spelling");
         };
         return w -> w.append("CAST(").piece(body).append(" AS BIGINT)");
     }
@@ -1363,18 +1365,18 @@ public final class Trino extends AnsiSqlRenderer {
     /** DuckDB's time_bucket: fixed units binned from 1970-01-01 (weeks from the Monday 1969-12-29) in microseconds,
      *  floored; months and years by the month index since 1970-01, floored to the bucket's size in months. */
     private SqlWriter.Piece timeBucket(List<SqlExpr> a) {
-        String unit = literal(a.get(0), "TIME_BUCKET");
-        Long micros = BUCKET_MICROS.get(unit);
+        com.legend.sql.DatePart unit = part(a.get(0));
+        Long micros = bucketMicros(unit);
         SqlWriter.Piece t = w -> w.append("CAST(").expr(a.get(2), 0).append(" AS TIMESTAMP(6))");
         SqlWriter.Piece n = w -> w.append("CAST(").expr(a.get(1), 0).append(" AS BIGINT)");
         if (micros != null) {
-            long origin = "to_weeks".equals(unit) ? -3L * 86400000000L : 0L;
+            long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400000000L : 0L;
             return w -> w.piece(fromMicros(v -> v.append("CAST(floor(CAST(").piece(micros(t)).append(" - (" + origin
                     + ") AS DOUBLE) / (").piece(n).append(" * " + micros + ")) AS BIGINT) * ").piece(n)
                     .append(" * " + micros + " + (" + origin + ")")));
         }
-        Integer months = "to_months".equals(unit) ? Integer.valueOf(1) : "to_years".equals(unit) ? Integer.valueOf(12)
-                : null;
+        Integer months = unit == com.legend.sql.DatePart.MONTH ? Integer.valueOf(1)
+                : unit == com.legend.sql.DatePart.YEAR ? Integer.valueOf(12) : null;
         if (months == null) {
             throw new DialectCapability("a " + unit + " time bucket has no Trino spelling");
         }
@@ -1384,9 +1386,19 @@ public final class Trino extends AnsiSqlRenderer {
                 .piece(size).append(" AS BIGINT), DATE '1970-01-01') AS TIMESTAMP(6))");
     }
 
-    private static final java.util.Map<String, Long> BUCKET_MICROS = java.util.Map.of(
-            "to_weeks", 7L * 86400000000L, "to_days", 86400000000L, "to_hours", 3600000000L,
-            "to_minutes", 60000000L, "to_seconds", 1000000L, "to_milliseconds", 1000L, "to_microseconds", 1L);
+    /** A fixed-length bucket's length in microseconds; null for a calendar one. */
+    private static @com.legend.base.Nullable Long bucketMicros(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case WEEK -> 7L * 86400000000L;
+            case DAY -> 86400000000L;
+            case HOUR -> 3600000000L;
+            case MINUTE -> 60000000L;
+            case SECOND -> 1000000L;
+            case MILLISECOND -> 1000L;
+            case MICROSECOND -> 1L;
+            case YEAR, QUARTER, MONTH, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+        };
+    }
 
     // ==================================================================
     // Hooks of the base
@@ -1788,16 +1800,24 @@ public final class Trino extends AnsiSqlRenderer {
 
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
-        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p) {
-            return switch (p.kind()) {
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT -> "SMALLINT";
+                case TINYINT -> "TINYINT";
+                case INTEGER -> "INTEGER";
+                case FLOAT, DOUBLE -> "DOUBLE";
+                case REAL -> "REAL";
                 case BIT -> "BOOLEAN";
                 case TIMESTAMP -> "TIMESTAMP(6)";
-                case FLOAT, DOUBLE -> "DOUBLE";
-                case VARCHAR, BIGINT, SMALLINT, TINYINT, INTEGER, REAL, DATE, JSON, OTHER, DISTINCT, ARRAY, OBJECT ->
-                        super.ddlType(t);
+                case DATE -> "DATE";
+                case JSON -> "JSON";
+                case VARCHAR -> "VARCHAR";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
             };
-        }
-        return super.ddlType(t);
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
     }
 
     // ==================================================================
@@ -1813,5 +1833,40 @@ public final class Trino extends AnsiSqlRenderer {
             return com.legend.sql.Json.parse(s);
         }
         return jdbcValue;
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (its emulation). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are Trino's). */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        throw new DialectCapability("typeof reached Trino: its type names are Trino's");
+    }
+
+    /** {@inheritDoc} A statement's ROW column is delivered as its JSON text (the driver's own Row class is read
+     *  through no interface; {@link #rowsAsJson}), decoded to the struct's map (2026-10-12). */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        return label instanceof SqlType.Struct && wire.equals("JSON");
+    }
+
+    /** {@inheritDoc} Measured 2026-10-12: a date 12,345,678,912 days on opens with no columns, its error on the first
+     *  read; a statement that succeeds always reports its columns. */
+    @Override
+    public boolean opensFailedResultsWithoutColumns() {
+        return true;
     }
 }

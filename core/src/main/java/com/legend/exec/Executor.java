@@ -322,8 +322,8 @@ public final class Executor {
             // reads below supply the value evidence and the finally
             // settles them (D1 — metadata alone cannot split a real
             // integer wire from an all-NULL column).
-            SqlTypeCensus.probeWire(plan, rs,
-                    dialect.getClass().getSimpleName());
+            SqlTypeCensus.probeWire(plan, rs, new SqlTypeCensus.WireReading(dialect.getClass().getSimpleName(),
+                    dialect::wireTypeName, dialect::deliversOwn, dialect.opensFailedResultsWithoutColumns()));
             try {
                 return runShape(shape, rs, plan, rootType, dialect,
                         anyRoot, variantRoot, rider);
@@ -755,18 +755,16 @@ public final class Executor {
             }
             return m;
         }
-        // the JSON carrier (H2 and any list-less backend, §2b): an
-        // Array-typed cell arriving as JSON TEXT parses back to the
-        // element list — the declared type drives the decode, never the
-        // value's runtime class alone
+        // the JSON carrier (a list-less backend, §2b): an Array-typed cell
+        // arriving as JSON TEXT parses back to the element list — the
+        // declared type drives the decode, never the value's runtime class
+        // alone; a driver that hands that text back in its own carrier
+        // (H2's byte[]) is read to the text by its dialect (the dialect
+        // program's Phase 4, 2026-10-15)
         if (type instanceof com.legend.sql.SqlType.Array
-                && (v instanceof byte[] || v instanceof String)) {
-            String text = v instanceof byte[] b
-                    ? new String(b, java.nio.charset.StandardCharsets.UTF_8)
-                    : (String) v;
-            if (text.startsWith("[")) {
-                return Json.parse(text);
-            }
+                && (v instanceof byte[] ? dialect.normalize(v, type) : v) instanceof String text
+                && text.startsWith("[")) {
+            return Json.parse(text);
         }
         // a map carried as its entries, a list of (key, value) structs (BigQuery's, which has no MAP type: a
         // repeated key_value record), decodes as that list, each entry by the struct arm, then to the map in entry
@@ -876,7 +874,7 @@ public final class Executor {
         // the value decode reads the data columns only (the wrap frame's
         // appended canon columns: CanonRider, the one home)
         int n = rs.getMetaData().getColumnCount() - (rider == null ? 0 : rider.canonColumns());
-        List<Column> columns = resolveColumns(rs, plan, schema, n);
+        List<Column> columns = resolveColumns(rs, plan, schema, n, dialect);
         List<Row> rows = new ArrayList<>();
         while (rs.next()) {
             rows.addAll(shapeRow(rs, n, plan, dialect, schema, columns));
@@ -901,7 +899,7 @@ public final class Executor {
     }
 
     private static List<Column> resolveColumns(ResultSet rs, SqlQuery plan,
-            Type.RelationType schema, int n) throws SQLException {
+            Type.RelationType schema, int n, com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         List<Column> columns = new ArrayList<>();
         if (schema.isLateBound()) {
             // SINGLE-QUERY RULE (P3-2): an UNDEMANDED raw grid skipped
@@ -942,8 +940,11 @@ public final class Executor {
                 // .presentPivotName — the physical SQL column stays bare)
                 String name = Type.RelationType.presentPivotName(
                         rs.getMetaData().getColumnName(i));
-                String sqlType = rs.getMetaData().getColumnTypeName(i);
-                columns.add(new Column(name, pivotColumnType(schema, name, sqlType)));
+                // the driver's type name read by the dialect (the dialect program's Phase 4: until 2026-10-15 a
+                // database whose driver names a type its own way, Postgres's int8, had no Pure type here)
+                String driverType = rs.getMetaData().getColumnTypeName(i);
+                columns.add(new Column(name, pivotColumnType(schema, name, driverType,
+                        dialect.typingWireName(driverType))));
             }
         } else {
             throw new IllegalStateException("result has " + n + " columns but the typed"
@@ -1032,13 +1033,21 @@ public final class Executor {
      * aggregate template's type. A suffixed name that matches NO template while
      * templates are present is a naming-contract bug — loud, never guessed.
      */
-    private static Type pivotColumnType(Type.RelationType schema, String name, String sqlType) {
+    private static Type pivotColumnType(Type.RelationType schema, String name,
+            @com.legend.base.Nullable String driverType, @com.legend.base.Nullable String wireType) {
         // the ONE matching rule lives on Type.RelationType (the
         // deferred-TDS resolver shares it); the SQL-type decode is THIS
         // caller's fallback — schemas rebuilt downstream of the pivot,
         // where the templates no longer ride
         Type t = schema.pivotColumnType(name);
-        return t != null ? t : pureOfSqlType(sqlType);
+        if (t != null) {
+            return t;
+        }
+        if (wireType == null) {
+            throw new IllegalStateException("no Pure type for the pivot-generated column '" + name
+                    + "': its driver names the column's type " + driverType + ", which does not say it alone");
+        }
+        return pureOfSqlType(wireType);
     }
 
     /** The Pure primitive a DYNAMIC (pivot-generated) SQL column carries.

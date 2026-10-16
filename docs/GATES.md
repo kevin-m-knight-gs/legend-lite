@@ -9816,3 +9816,44 @@ it two to three times slower than it runs alone (the seventh line's diagnosis, P
 42 tests' JVMs, no I/O cost), a margin of the lane that predates this landing, which the seventh line is fixing and the
 Bazel program reviews (the Phase 8 brief's "sharding; third order" item); the reading, with five runs' class times:
 `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`.
+
+## 2026-10-15 — The dialect program's owner guard, Phase 2 (the IR says what, never how) and Phase 4 (reading results back is the dialect's) (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, fresh from main 8501ccb (#39), main (#41) merged in at 5c2f463. The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (decisions D9 to D11; "Done, 2026-10-15" under Phases 2 and 4;
+the audit's findings under Phase 4).
+- **What it holds:**
+  - the owner guard, 1e1f55d: `DatabaseOwners` and `DialectOwnerExclusivityTest` (each owner names only its own
+    database; the vocabulary and the SQL input languages are owners, D9 and D11);
+  - Phase 2, 0dc0ee1: typed date parts, JSON kinds and type names in the IR, join keywords spelled by the dialect;
+  - Phase 4, b6cc917: the type census names no database; each dialect reads its driver's type names
+    (`wireTypeName`), its carrier conventions (`deliversOwn`) and Trino's empty failed result;
+  - the audit's fixes, 299295f and 4196471: typing has its own reading (`typingWireName`; Snowflake's `NUMBER`
+    types nothing, as before Phase 4), `EngineStyleH2` reads H2's `byte[]` list text again, the PCT probe refuses
+    an untyped column instead of falling back to the driver's name, and the owner guard's holes a, b and c are
+    closed (each with a test; b proven by a planted `instanceof Postgres`).
+- **SQL proof, every PCT lane, both channels, in five sibling containers** (`-Dlegend.diagnostics=dump-sql`
+  digests, `docs/dialect-leak-census-2026-10-12/sqldiff/`):
+  - Phase 2 against main 8501ccb: every database's digests identical (DuckDB, SQLite, MariaDB, MySQL, ClickHouse,
+    Postgres: 60 of 60; Trino and H2: 12 of 12; Snowflake, Databricks, BigQuery: 10 of 10 each). Channel B's
+    measured lines identical. `//spec:corpus_duckdb` and `//spec:corpus_h2`: 12 of 12, no roster or register moved.
+  - Phase 4 against Phase 2: digests identical on every lane measured; no test changed outcome, and no pinned
+    expected failure started passing. The census lines (`[pct-census]`: own traffic, cumulative, every class and
+    witness line) are byte-identical, diffed per target: 1b's 60 targets (251 lines), Snowflake, Databricks and
+    BigQuery (all five suites each). So Phase 4's driver-name reading moved no census counter.
+  - The audit's typing fix on Snowflake (299295f): 10 of 10, digests and channel B unchanged, no outcome changed
+    against b6cc917, census lines identical across 0dc0ee1, b6cc917 and 299295f. 4196471 changes only the message of
+    the refused-column path, which no Snowflake test reaches (Decimal at b6cc917, refused at 299295f, no outcome
+    differed).
+  - Trino, H2 and the corpus on b6cc917 and 299295f (which stands for 4196471 there: its one change is a path only
+    Snowflake reaches): 12 of 12 lanes and 12 of 12 corpus targets on each, digests identical to 0dc0ee1, channel B
+    identical, no roster or register moved. The corpus judge logs, diffed test for test with every failure's message
+    (host H2 361, host DuckDB 108, database H2 354, database DuckDB 108 failures on both), do not differ: restoring
+    `EngineStyleH2`'s `byte[]` reading changed no outcome, and Phase 4 had taken none away.
+- **SQLite's `NUMERIC`** (its driver's name for a column whose first value is NULL) typed Decimal before Phase 4 and
+  types nothing now: no SQLite test moved, so the refusal stands.
+- **`//gates:local` on d9d2e19** (the branch head; 4196471's code), in a root cloud container (the recipe above,
+  items 1 to 4): 362 of 362 on the first run. The root-only pair passed as root, the browser guard with the proxy
+  cleared, and `classpath_test` was skipped. Also green on 9d8b5f0, before the audit's fixes: 362 of 362.
+- **Found on the way:** `sqlrun.sh`'s summary missed two channel B lines (MariaDB and MySQL unclassified), whose
+  logs grep took for binary; d9d2e19 reads them with `-a` (both clean: pass=91, wireBug=0).

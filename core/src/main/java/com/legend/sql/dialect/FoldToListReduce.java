@@ -110,6 +110,9 @@ final class FoldToListReduce extends SqlRewriter {
             case SqlExpr.DateLit v -> v;
             case SqlExpr.TimestampLit v -> v;
             case SqlExpr.FormatLit v -> v;
+            case SqlExpr.DatePartLit v -> v;
+            case SqlExpr.JsonKindLit v -> v;
+            case SqlExpr.TypeNameLit v -> v;
             // KNOWN HOLE (audit of Blockers 1+2): a correlated subquery
             // inside a fold body could reference the element — these two
             // arms do not rewrite it (pre-existing; the fold recognizer

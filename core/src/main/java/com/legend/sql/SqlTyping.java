@@ -65,10 +65,10 @@ public final class SqlTyping {
      * cannot prove presence — true, the safe side (TypeFact doc: false
      * is a proof claim). Non-value ride-alongs contribute nothing:
      * lambdas (bodies speak through the per-function rules), format
-     * literals; an ArrayLit/StructLit is a DEFINITE composite value
+     * literals, date parts; an ArrayLit/StructLit is a DEFINITE composite value
      * even when its element type is unknowable (the empty []). */
     static boolean mayBeNull(SqlExpr e) {
-        if (e instanceof SqlExpr.Lambda || e instanceof SqlExpr.FormatLit
+        if (e instanceof SqlExpr.Lambda || e instanceof SqlExpr.FormatLit || e instanceof SqlExpr.DatePartLit
                 || e instanceof SqlExpr.ArrayLit
                 || e instanceof SqlExpr.StructLit) {
             return false;

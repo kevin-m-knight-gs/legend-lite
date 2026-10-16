@@ -21,7 +21,7 @@ for t in "$@"; do
   f=$TL/$n/test.log
   [ -f "$f" ] || { echo "== $n: NO LOG" >> "$logs/$name.summary"; continue; }
   python3 -I "$here/extract.py" "$f" "$out/$n.sql" > /dev/null && gzip -f "$out/$n.sql"
-  { echo "== $n"; grep -E "tests successful|tests failed|measured:" "$f" | cut -c1-200; } >> "$logs/$name.summary"
+  { echo "== $n"; grep -aE "tests successful|tests failed|measured:" "$f" | cut -c1-200; } >> "$logs/$name.summary"
 done
 chmod -R u+w "$TL" 2>/dev/null; rm -rf "$TL"
 grep -E "PASSED|FAILED|TIMEOUT|NO STATUS|exit=" "$logs/$name.bazel.log" | sed 's/  */ /g' > "$logs/$name.status"
