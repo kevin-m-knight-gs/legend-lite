@@ -1,0 +1,212 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.integration;
+
+import com.legend.server.QueryService;
+import com.legend.testcases.IqParity;
+import com.legend.testcases.SqlParity;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
+
+/**
+ * The {@code #IQ{...}#} island over real-world SQL corpora (IQ island, 2026-10-15, the corpus lane's first phase):
+ * coverage. Each query of each suite under {@code -Diq.corpus.root} (a directory of suites, each a {@code schema.yaml}
+ * of the parity harness's subset and a {@code queries.jsonl} of {@code {"id", "sql", ...}}) is read as an island under
+ * {@code -Diq.corpus.profile} (default {@code iq17-default}) and run over the suite's tables, empty, on DuckDB; each is
+ * ANSWERED, REFUSED (by name), IQ_ERROR (the island says IQ raises an error: its syntax error, an error code it
+ * names), DB_ERROR (the database's own error), CRASH (any other exception) or TIMEOUT. The report -- each status
+ * counted, and each status's messages normalized and ranked by how many queries share them -- is written to
+ * {@code -Diq.corpus.report} (run with {@code --strategy=TestRunner=local}). The corpora are not this repository's
+ * (their licences and size): the lane runs only where the property names them, as the reference checkouts are read.
+ */
+class IqCorpusTest {
+
+    private enum Status { ANSWERED, REFUSED, IQ_ERROR, DB_ERROR, CRASH, TIMEOUT }
+
+    private record Query(String id, String sql) {
+    }
+
+    private record Result(String id, Status status, String message) {
+    }
+
+    @Test
+    void coverage() throws Exception {
+        String root = System.getProperty("iq.corpus.root");
+        Assumptions.assumeTrue(root != null, "no -Diq.corpus.root: the corpus lane runs only where it names corpora");
+        String report = System.getProperty("iq.corpus.report");
+        String profile = System.getProperty("iq.corpus.profile", "iq17-default");
+        String only = System.getProperty("iq.corpus.suites");
+        long budget = Long.parseLong(System.getProperty("iq.corpus.timeout.ms", "20000"));
+        List<Path> suites;
+        try (var dirs = Files.list(Path.of(root))) {
+            suites = dirs.filter(d -> Files.exists(d.resolve("queries.jsonl"))).sorted().toList();
+        }
+        StringBuilder summary = new StringBuilder("# The #IQ{...}# island over real-world SQL: coverage (profile "
+                + profile + ")\n\n");
+        ExecutorService pool = Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r, "iq-corpus");
+            t.setDaemon(true);
+            return t;
+        });
+        for (Path suite : suites) {
+            String name = suite.getFileName().toString();
+            if (only != null && !Set.of(only.split(",")).contains(name)) {
+                continue;
+            }
+            List<SqlParity.Table> tables = IqParity.schema(suite.resolve("schema.yaml"));
+            Set<String> names = IqParity.tableNames(tables);
+            String model = IqParity.model(tables, "type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;");
+            List<Query> queries = read(suite.resolve("queries.jsonl"));
+            List<Result> results = new ArrayList<>();
+            try (Connection duckdb = DriverManager.getConnection("jdbc:duckdb:")) {
+                IqParity.seed(duckdb, tables, false);
+                QueryService service = new QueryService();
+                for (Query q : queries) {
+                    IqParity.Case c = new IqParity.Case("corpus/" + name, q.id(), q.sql(), List.of(profile), null,
+                            null, null, null, null, null, null, null);
+                    String island = IqParity.island(IqParity.runs(List.of(c)).get(0), names);
+                    Future<Status> run = pool.submit(() -> {
+                        service.execute(model, island, IqParity.RUNTIME, duckdb);
+                        return Status.ANSWERED;
+                    });
+                    Result r;
+                    try {
+                        run.get(budget, TimeUnit.MILLISECONDS);
+                        r = new Result(q.id(), Status.ANSWERED, "");
+                    } catch (TimeoutException e) {
+                        run.cancel(true);
+                        r = new Result(q.id(), Status.TIMEOUT, "over " + budget + " ms");
+                    } catch (java.util.concurrent.ExecutionException e) {
+                        Throwable t = e.getCause() == null ? e : e.getCause();
+                        r = new Result(q.id(), classify(t), oneLine(t));
+                    }
+                    results.add(r);
+                }
+            }
+            summary.append(section(name, results));
+            if (report != null) {
+                Path dir = Path.of(report);
+                Files.createDirectories(dir);
+                StringBuilder lines = new StringBuilder();
+                for (Result r : results) {
+                    lines.append(r.id()).append('\t').append(r.status()).append('\t').append(r.message().replace('\t',
+                            ' ')).append('\n');
+                }
+                Files.writeString(dir.resolve(name + ".tsv"), lines, StandardCharsets.UTF_8);
+            }
+        }
+        pool.shutdownNow();
+        if (report != null) {
+            Files.writeString(Path.of(report).resolve("coverage.md"), summary, StandardCharsets.UTF_8);
+        }
+        System.out.println(summary);
+    }
+
+    /** Each line of a {@code queries.jsonl}: its id and its SQL (the lane's own reading of the two string fields). */
+    private static List<Query> read(Path file) throws IOException {
+        List<Query> out = new ArrayList<>();
+        for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+            if (line.isBlank()) {
+                continue;
+            }
+            com.legend.json.Json.Obj o = (com.legend.json.Json.Obj) com.legend.json.Json.parse(line);
+            out.add(new Query(((com.legend.json.Json.Str) o.get("id")).value(),
+                    ((com.legend.json.Json.Str) o.get("sql")).value()));
+        }
+        return out;
+    }
+
+    /** The parity harness's classes of an island's exception ({@code IqParity.judged}); a refusal that names IQ's own
+     *  error ("... is IQ's error -1001030 under its engine ..., refused before translating") is IQ_ERROR. */
+    private static Status classify(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t.getMessage() != null && t.getMessage().contains("refused before translating")
+                    && t.getMessage().contains("is IQ's error -")) {
+                return Status.IQ_ERROR;
+            }
+            if (t instanceof com.legend.error.NotImplementedException) {
+                return Status.REFUSED;
+            }
+            if (t instanceof com.legend.protocol.sql.SqlTranslationException s) {
+                return s.kind() == com.legend.protocol.sql.SqlTranslationException.Kind.UNSUPPORTED ? Status.REFUSED
+                        : Status.IQ_ERROR;
+            }
+            if (t instanceof com.legend.error.IslandSyntaxException) {
+                return Status.IQ_ERROR;
+            }
+            if (t.getClass().getSimpleName().equals("TypeInferenceException") && t.getMessage() != null
+                    && t.getMessage().startsWith("#IQ")) {
+                return Status.IQ_ERROR;
+            }
+            if (t instanceof com.legend.error.DataError) {
+                return t.getMessage() != null && t.getMessage().contains(
+                        com.legend.protocol.sql.iq.IqDialect.REFUSED_AT_RUN_TIME) ? Status.REFUSED : Status.DB_ERROR;
+            }
+        }
+        return Status.CRASH;
+    }
+
+    private static String oneLine(Throwable t) {
+        String m = t.getClass().getSimpleName() + ": " + t.getMessage();
+        return m.replaceAll("\\s+", " ").strip();
+    }
+
+    private static final Pattern PLACE = Pattern.compile("#IQ(:[\\w-]+)?\\{\\.\\.\\.\\}# at line \\d+, column \\d+: ");
+    private static final Pattern QUOTED = Pattern.compile("'[^']*'|\"[^\"]*\"|`[^`]*`");
+    private static final Pattern NUMBER = Pattern.compile("\\b\\d+\\b");
+
+    /** A message as its kind: its place, quoted names and values, and numbers written alike. */
+    static String kind(String message) {
+        String m = PLACE.matcher(message).replaceAll("");
+        m = QUOTED.matcher(m).replaceAll("'…'");
+        m = NUMBER.matcher(m).replaceAll("N");
+        return m.length() > 220 ? m.substring(0, 220) + "…" : m;
+    }
+
+    private static String section(String name, List<Result> results) {
+        Map<Status, Integer> counts = new TreeMap<>();
+        Map<Status, Map<String, List<String>>> kinds = new TreeMap<>();
+        for (Result r : results) {
+            counts.merge(r.status(), 1, Integer::sum);
+            if (r.status() != Status.ANSWERED) {
+                kinds.computeIfAbsent(r.status(), s -> new LinkedHashMap<>()).computeIfAbsent(kind(r.message()),
+                        k -> new ArrayList<>()).add(r.id());
+            }
+        }
+        int total = results.size();
+        StringBuilder b = new StringBuilder("## " + name + " (" + total + " queries)\n\n| status | queries | share |\n"
+                + "|---|---|---|\n");
+        for (Map.Entry<Status, Integer> e : counts.entrySet()) {
+            b.append("| ").append(e.getKey()).append(" | ").append(e.getValue()).append(" | ").append(String.format(
+                    Locale.ROOT, "%.1f%%", 100.0 * e.getValue() / Math.max(1, total))).append(" |\n");
+        }
+        for (Map.Entry<Status, Map<String, List<String>>> e : kinds.entrySet()) {
+            b.append("\n### ").append(e.getKey()).append(", by message\n\n| queries | message | e.g. |\n|---|---|---|\n");
+            e.getValue().entrySet().stream().sorted(Comparator.comparing((Map.Entry<String, List<String>> k) -> -k
+                    .getValue().size())).limit(60).forEach(k -> b.append("| ").append(k.getValue().size()).append(" | ")
+                    .append(k.getKey().replace("|", "\\|")).append(" | ").append(k.getValue().get(0)).append(" |\n"));
+        }
+        return b.append('\n').toString();
+    }
+}

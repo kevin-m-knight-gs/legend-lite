@@ -357,10 +357,10 @@ public final class IqParity {
     public static String model(List<SqlParity.Table> tables, String connection) {
         StringBuilder m = new StringBuilder("###Relational\nDatabase " + DATABASE + "\n(\n");
         for (SqlParity.Table t : tables) {
-            m.append("    Table ").append(t.name()).append("\n    (\n");
+            m.append("    Table ").append(quoted(t.name())).append("\n    (\n");
             for (int i = 0; i < t.columns().size(); i++) {
                 SqlParity.Column c = t.columns().get(i);
-                m.append("        ").append(c.name()).append(' ').append(relationalType(c.type()))
+                m.append("        ").append(quoted(c.name())).append(' ').append(relationalType(c.type()))
                         .append(i + 1 < t.columns().size() ? ",\n" : "\n");
             }
             m.append("    )\n");
@@ -370,6 +370,22 @@ public final class IqParity {
                 .append(DATABASE).append(": [ environment: e2e::Conn ] ];\n}\n");
         return m.toString();
     }
+
+    /** A table's or a column's name as the model and the DDL write it: as it is when it is a plain identifier, else in
+     *  double quotes (IQ island, 2026-10-15, the corpus lane: Tableau's "Number of Records"). */
+    static String quoted(String name) {
+        return name.matches("[A-Za-z_][A-Za-z0-9_]*") && !RESERVED.contains(name.toLowerCase(Locale.ROOT)) ? name
+                : "\"" + name.replace("\"", "\"\"") + "\"";
+    }
+
+    /** The words the lanes' databases reserve, which a name the corpora use must be quoted as. */
+    private static final Set<String> RESERVED = Set.of("all", "and", "any", "as", "asc", "between", "both", "by", "case",
+            "cast", "check", "column", "constraint", "create", "cross", "current_date", "current_time", "default",
+            "desc", "distinct", "do", "else", "end", "except", "false", "fetch", "for", "foreign", "from", "full",
+            "grant", "group", "having", "in", "inner", "intersect", "into", "is", "join", "leading", "left", "like",
+            "limit", "natural", "not", "null", "offset", "on", "only", "or", "order", "outer", "primary", "references",
+            "right", "select", "table", "then", "to", "trailing", "true", "union", "unique", "user", "using", "when",
+            "where", "window", "with");
 
     /** An IQ type of the schema as the relational store spells it (the store type the island reads). */
     static String relationalType(String iqType) {
@@ -409,20 +425,22 @@ public final class IqParity {
     /** Creates and fills the schema's tables: each value bound by its column's type, a quoted value read by it. */
     public static void seed(Connection c, List<SqlParity.Table> tables, boolean postgres) throws SQLException {
         for (SqlParity.Table t : tables) {
-            StringBuilder ddl = new StringBuilder("CREATE TABLE " + t.name() + " (");
+            StringBuilder ddl = new StringBuilder("CREATE TABLE " + quoted(t.name()) + " (");
             for (int i = 0; i < t.columns().size(); i++) {
                 SqlParity.Column col = t.columns().get(i);
-                ddl.append(i > 0 ? ", " : "").append(col.name()).append(' ').append(databaseType(col.type(), postgres));
+                ddl.append(i > 0 ? ", " : "").append(quoted(col.name())).append(' ').append(databaseType(col.type(),
+                        postgres));
             }
             try (Statement s = c.createStatement()) {
-                s.execute("DROP TABLE IF EXISTS " + t.name());
+                s.execute("DROP TABLE IF EXISTS " + quoted(t.name()));
                 s.execute(ddl.append(')').toString());
             }
             if (t.rows().isEmpty()) {
                 continue;
             }
             String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
-            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + t.name() + " VALUES (" + marks + ")")) {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + quoted(t.name()) + " VALUES (" + marks
+                    + ")")) {
                 for (List<Object> row : t.rows()) {
                     for (int i = 0; i < row.size(); i++) {
                         bind(ps, i + 1, row.get(i), relationalType(t.columns().get(i).type()));

@@ -70,7 +70,11 @@ class IqLexerTest {
         assertTrue(assertThrows(SqlSyntaxException.class, () -> lex("1e")).unsupported());
         assertTrue(assertThrows(SqlSyntaxException.class, () -> lex("0x1F")).unsupported());
         assertTrue(assertThrows(SqlSyntaxException.class, () -> lex("$5")).unsupported());
-        assertTrue(assertThrows(SqlSyntaxException.class, () -> lex("N'x'")).unsupported());
+        // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): N right before the quote is a national string,
+        // n'x' and N 'x' a name and a string
+        assertEquals("STRING:x", kinds("N'x'"));
+        assertEquals("WORD:n STRING:x", kinds("n'x'"));
+        assertEquals("WORD:N STRING:x", kinds("N 'x'"));
     }
 
     @Test

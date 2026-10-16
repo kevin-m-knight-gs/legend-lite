@@ -1304,9 +1304,12 @@ public final class IqDialect implements InputDialect {
             if (s != statement) {
                 if (chosen == Engine.IQ) {
                     SqlAst.Expr at = s.limit() != null ? s.limit() : s.offset();
+                    // IQ island, 2026-10-15 (the corpus lane: 243 of SQLStorm's and SEDE's queries; measured on IQ
+                    // 17.1, where the research's D-R1 held that IQ may ignore it): its error, in a derived table, a
+                    // common table expression, and a subquery in WHERE, IN, a join's ON or the select list alike
                     throw SqlTranslationException.unsupported("TOP, FIRST or START AT in a subquery or a derived table"
-                            + " is not supported under IQ's engine, which restricts it (the research's D-R1: IQ may"
-                            + " ignore it there)", java.util.Objects.requireNonNull(at).pos());
+                            + " is IQ's error -1001030 under its engine (TOP/FIRST/LIMIT in a subquery or a view is not"
+                            + " supported), refused before translating", java.util.Objects.requireNonNull(at).pos());
                 }
                 for (SqlAst.SelectItem item : s.items()) {
                     if (item instanceof SqlAst.SelectExpr x) {
@@ -2496,7 +2499,13 @@ public final class IqDialect implements InputDialect {
             for (SqlAst.SelectItem item : s.items()) {
                 if (item instanceof SqlAst.SelectExpr x) {
                     if (inDerived.contains(s)) {
-                        noSubquery(x.expr(), "a derived table's select list");
+                        // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): IQ's engine reads a scalar
+                        // subquery there only where the outer query shows the column as it is -- read in its WHERE or
+                        // GROUP BY, beside a join, or in a grouped derived query it is IQ's -1001030 or -1005004
+                        refuseSubquery(x.expr(), "a subquery in the select list of a derived table or a common"
+                                + " table expression is not supported yet: IQ's engine reads one there only where the"
+                                + " outer query shows its column as it is (read in a WHERE or a GROUP BY, beside a join,"
+                                + " or in a grouped query, it is IQ's -1001030 or -1005004)");
                     } else if (top.contains(s)) {
                         shownSubqueries(x.expr());
                     } else {
@@ -2517,6 +2526,12 @@ public final class IqDialect implements InputDialect {
                 List<SqlAst.Join> joins = new ArrayList<>();
                 joins(f, joins);
                 for (SqlAst.Join j : joins) {
+                    if (j.on() != null && j.type() != SqlAst.JoinType.INNER) {
+                        // IQ island, 2026-10-15 (the corpus lane: 124 of SQLStorm's queries, which DuckDB cannot plan
+                        // either; measured on IQ 17.1): an outer join's ON compares with no scalar subquery (an
+                        // EXISTS there is read)
+                        outerJoinScalars(java.util.Objects.requireNonNull(j.on()));
+                    }
                     if (j.on() != null) {
                         // IQ island, 2026-10-15 (measured on IQ 17.1): an ON takes them as a WHERE does
                         predicates(java.util.Objects.requireNonNull(j.on()));
@@ -2592,18 +2607,19 @@ public final class IqDialect implements InputDialect {
      * ANY, ALL), which IQ reads only inside a conditional there.
      */
     private static void shownSubqueries(SqlAst.Expr e) {
-        String outside = "the select list, but outside a conditional expression (CASE, IF, COALESCE, ISNULL, IFNULL,"
-                + " NULLIF, ARGN) and an aggregate";
+        String outside = "a subquery inside a conditional expression (CASE, IF, COALESCE, ISNULL, IFNULL, NULLIF, ARGN)"
+                + " or an aggregate is IQ's error -1001030 under its engine (measured on IQ 17.1), refused before"
+                + " translating";
         switch (e) {
             case SqlAst.ScalarSubquery q -> noSetOperation(q.query(), q.pos());
-            case SqlAst.Case c -> noSubquery(c, outside);
-            case SqlAst.Exists x -> noSubquery(x, outside);
-            case SqlAst.InSubquery in -> noSubquery(in, outside);
-            case SqlAst.Quantified q -> noSubquery(q, outside);
+            case SqlAst.Case c -> refuseSubquery(c, outside);
+            case SqlAst.Exists x -> refuseSubquery(x, outside);
+            case SqlAst.InSubquery in -> refuseSubquery(in, outside);
+            case SqlAst.Quantified q -> refuseSubquery(q, outside);
             case SqlAst.FunctionCall f when CONDITIONALS.contains(IqLexer.lower(f.name().get(f.name().size() - 1)
                     .text())) || IqAggregates.isAggregate(IqLexer.lower(f.name().get(f.name().size() - 1).text())) ->
-                    noSubquery(f, outside);
-            case SqlAst.Window w -> noSubquery(w, outside);
+                    refuseSubquery(f, outside);
+            case SqlAst.Window w -> refuseSubquery(w, outside);
             default -> {
                 for (SqlAst.Expr child : children(e)) {
                     shownSubqueries(child);
@@ -2613,12 +2629,29 @@ public final class IqDialect implements InputDialect {
     }
 
     private static void noSubquery(SqlAst.Expr e, String place) {
-        if (subqueryOf(e) != null) {
-            throw SqlTranslationException.unsupported("a subquery here is not supported under IQ's engine, which"
-                    + " restricts it (the research's flag list): IQ takes one in " + place, e.pos());
+        refuseSubquery(e, "a subquery here is not supported under IQ's engine, which restricts it (the research's flag"
+                + " list): IQ takes one in " + place);
+    }
+
+    /** A scalar subquery in an outer join's ON: IQ's error -1001047 (measured on IQ 17.1). */
+    private static void outerJoinScalars(SqlAst.Expr e) {
+        if (e instanceof SqlAst.ScalarSubquery) {
+            throw SqlTranslationException.unsupported("a scalar subquery in an outer join's ON is IQ's error -1001047"
+                    + " under its engine (subqueries are not supported in outer join ON clauses), refused before"
+                    + " translating", e.pos());
         }
         for (SqlAst.Expr child : children(e)) {
-            noSubquery(child, place);
+            outerJoinScalars(child);
+        }
+    }
+
+    /** The first subquery in {@code e}, refused with {@code refusal}. */
+    private static void refuseSubquery(SqlAst.Expr e, String refusal) {
+        if (subqueryOf(e) != null) {
+            throw SqlTranslationException.unsupported(refusal, e.pos());
+        }
+        for (SqlAst.Expr child : children(e)) {
+            refuseSubquery(child, refusal);
         }
     }
 
@@ -3444,6 +3477,25 @@ public final class IqDialect implements InputDialect {
         return t.kind() == Kind.DECIMAL || t.kind() == Kind.NUMBER;
     }
 
+    /** A DATE as the TIMESTAMP of its midnight, as IQ converts one beside a TIMESTAMP (measured on IQ 17.1). */
+    private static Tx atMidnight(Tx date) {
+        return Tx.value(SqlToPure.strict(Kind.DATETIME, List.of(date), x -> IqFunctions.midnight(x.get(0))).vs(),
+                Kind.DATETIME, date.nullable(), IqFunctions.dated("TIMESTAMP", IqFunctions.latestYear(date)));
+    }
+
+    /** IQ island, 2026-10-15: a COUNT's integer (the island's UNSIGNED BIGINT: IQ's 20-digit integer of a COUNT, or of
+     *  one beside a signed integer) as the BIGINT lite computes it in, of the range known of it: a whole number of rows,
+     *  0 to a BIGINT's largest, where nothing narrower is known. */
+    static IqType countRange(IqType type) {
+        return IqType.integer("BIGINT", type.low() != null ? type.lo() : BigInteger.ZERO, type.high() != null
+                ? type.hi() : IqType.BIGINT_MAX, true, type.loose());
+    }
+
+    /** Whether {@code t} is a number of a kind the island reads: an integer, a NUMERIC or a DOUBLE. */
+    private static boolean number(Tx t) {
+        return t.kind() == Kind.INTEGER || t.kind() == Kind.FLOAT || decimal(t);
+    }
+
     /** IQ's NUMERIC type of precision {@code p} and scale {@code s}. */
     private static IqType numeric(int p, int s) {
         return new IqType("NUMERIC(" + p + "," + s + ")");
@@ -3469,6 +3521,11 @@ public final class IqDialect implements InputDialect {
                     return new int[] {Math.max(1, literal.abs().toString().length()), 0};
                 }
                 return new int[] {f.equals("BIGINT") ? 20 : 10, 0};
+            }
+            if (type.spelling().equals("UNSIGNED BIGINT")) {
+                // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): a COUNT enters as a NUMERIC(20,0)
+                // (COUNT(*) * 1.5 a NUMERIC(22,1), COUNT(id) + 0.25 a NUMERIC(23,2))
+                return new int[] {20, 0};
             }
             if (t.kind() == Kind.INTEGER) {
                 throw SqlTranslationException.unsupported(operator + " of a " + type.spelling() + " and a NUMERIC is"
@@ -3672,11 +3729,25 @@ public final class IqDialect implements InputDialect {
         int s = Math.max(6, lt[1] + rt[0] - rt[1] + 1);
         int whole1 = lt[0] - lt[1];
         int whole2 = rt[0] - rt[1];
-        if (!IqFunctions.truncatedDivisionFits(lt[1], whole1, rt[1], whole2, s)) {
+        // IQ island, 2026-10-15 (the corpus lane: COUNT(id) * 100.0 / COUNT(*), IQ's NUMERIC(44,21), in 168 of the
+        // corpora's queries): where the type's steps need more than lite's 38 digits, the quotient is computed for a
+        // dividend of the most digits they hold, and a row whose dividend has more is refused there, at run time
+        int held = whole1;
+        // not by a divisor that is a decimal of scale 0: it may be one of IQ's whole NUMERICs, which IQ divides whole
+        // (SUM(v) * 100 / SUM(SUM(v)) OVER () is its BIGINT 23, where lite's window SUM is a decimal)
+        boolean guardable = !(decimal(r) && rt[1] == 0);
+        while (held > 0 && !IqFunctions.truncatedDivisionFits(lt[1], held, rt[1], whole2, s)) {
+            held = guardable ? held - 1 : 0;
+        }
+        if (held == 0) {
             throw SqlTranslationException.unsupported("this / of a NUMERIC(" + lt[0] + "," + lt[1] + ") and a NUMERIC("
                     + rt[0] + "," + rt[1] + ") is a NUMERIC of scale " + s + ", a step of which needs more than the 38"
                     + " digits lite's decimals hold", b.pos());
         }
+        int dividendDigits = held;
+        String past = held < whole1 ? REFUSED_AT_RUN_TIME + "a / whose dividend has more than " + held + " digits"
+                + " before its point is not supported: its NUMERIC(" + (whole1 + rt[1] + s + 1) + "," + s + ") needs"
+                + " more than the 38 digits lite's decimals hold" : null;
         BigDecimal divisor = numberLiteral(b.right());
         boolean nullOnZero = !settings.divideByZeroError() && (divisor == null || divisor.signum() == 0)
                 && zeroGuarded(b, "/");
@@ -3691,7 +3762,11 @@ public final class IqDialect implements InputDialect {
             if (divisor != null && divisor.signum() == 0) {
                 return raiseDecimal();
             }
-            ValueSpecification value = IqFunctions.truncatedDivision(x, lt[1], whole1, y, rt[1], s);
+            ValueSpecification value = IqFunctions.truncatedDivision(x, lt[1], dividendDigits, y, rt[1], s);
+            if (past != null) {
+                value = IqFunctions.refusedPast(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", x),
+                        new CDecimal(BigDecimal.TEN.pow(dividendDigits))), past, value, raiseDecimal());
+            }
             return divisor != null ? value : ifThen(SqlToPure.call("equal", new CInteger(0L), y), nullOnZero
                     ? SqlToPure.nullOf(Kind.DECIMAL).vs() : raiseDecimal(), value);
         });
@@ -3778,6 +3853,23 @@ public final class IqDialect implements InputDialect {
         List<SqlAst.ColumnRef> refs = new ArrayList<>();
         columnRefs(e, refs);
         return !refs.isEmpty();
+    }
+
+    /** Whether {@code e} reads the rows -- a column, an aggregate, a window function, a subquery -- so that no
+     *  database folds it as a constant (IQ island, 2026-10-15, the corpus lane: CAST(COUNT(*) AS DOUBLE) / 3). */
+    private static boolean readsRows(SqlAst.Expr e) {
+        if (readsColumn(e) || subqueryOf(e) != null) {
+            return true;
+        }
+        java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>(List.of(e));
+        while (!todo.isEmpty()) {
+            SqlAst.Expr x = todo.pop();
+            if (x instanceof SqlAst.Window || x instanceof SqlAst.FunctionCall f && IqAggregates.named(f)) {
+                return true;
+            }
+            children(x).forEach(todo::push);
+        }
+        return false;
     }
 
     /** Whether {@code e} is arithmetic of integer constants alone, which SQL Anywhere folds before typing it. */
@@ -3922,7 +4014,7 @@ public final class IqDialect implements InputDialect {
                 || rc != null && rc.signum() == 0)
                 : op == SqlAst.BinaryOp.DIVIDE && !(rc != null && rc.abs().compareTo(one) <= 0
                 || lc != null && lc.signum() == 0);
-        if (guarded && !readsColumn(b)) {
+        if (guarded && !readsRows(b)) {
             // Postgres folds an expression of no column, every branch of the guard with it
             throw SqlTranslationException.unsupported("this " + operator + " of DOUBLEs that read no column may"
                     + " underflow to 0, which IQ answers and Postgres raises as an error (it folds the expression"
@@ -3931,7 +4023,7 @@ public final class IqDialect implements InputDialect {
         // a guard is computed only where both operands read a column: Postgres folds an operand of no column in every
         // branch of it, where a scaled constant could overflow; with one such operand the product is as before (an
         // underflow there is recorded, not guarded)
-        boolean guard = guarded && readsColumn(b.left()) && readsColumn(b.right());
+        boolean guard = guarded && readsRows(b.left()) && readsRows(b.right());
         // IQ island, 2026-10-15 (the census's scale suite): under IQ's engine a value beyond the largest DOUBLE is NULL,
         // tested once where a chain of + - * ends (an infinity or a NaN within it stays one to the end, where abs(v)
         // exceeds the largest on DuckDB and Postgres alike); its operands' NULL guards merge where they cannot raise,
@@ -4035,7 +4127,10 @@ public final class IqDialect implements InputDialect {
             // 2026-10-15, measured on IQ 17.1: dbl + nm is a DOUBLE)
             return false;
         }
-        if (t.kind() == Kind.INTEGER && t.detail() instanceof IqType type && type.isInteger()) {
+        if (t.kind() == Kind.INTEGER && t.detail() instanceof IqType type && (type.isInteger()
+                || engine == Engine.IQ && type.spelling().equals("UNSIGNED BIGINT"))) {
+            // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): a COUNT's integer too (CAST(SUM(id) AS
+            // DOUBLE) / COUNT(*) is the DOUBLE 4.0)
             return false;
         }
         throw SqlTranslationException.unsupported(operator + " of a DOUBLE and " + kindName(t.kind()) + " is not"
@@ -4361,8 +4456,9 @@ public final class IqDialect implements InputDialect {
             }
             if (engine == Engine.IQ && type.spelling().equals("UNSIGNED BIGINT")) {
                 // IQ island, 2026-10-15 (D-N3, measured on IQ 17.1): a COUNT under IQ's engine, a whole number of
-                // rows, widens as any integer does there (COUNT(*) + 1 is the NUMERIC(20,0) 8 over seven rows)
-                return IqType.integer("BIGINT", BigInteger.ZERO, IqType.BIGINT_MAX, true);
+                // rows, widens as any integer does there (COUNT(*) + 1 is the NUMERIC(20,0) 8 over seven rows); one
+                // beside a signed integer keeps the range the island knows of it (iqNumericUnify)
+                return countRange(type);
             }
             if (type.family().equals("NUMERIC") || type.family().equals("DECIMAL")) {
                 throw numericRefused(operator, e.pos());
@@ -4434,6 +4530,12 @@ public final class IqDialect implements InputDialect {
                         + " is not supported yet", pos);
             }
             return compared(op, left ? converted : l, left ? r : converted, pos);
+        }
+        if (lk == Kind.DATE && rk == Kind.DATETIME || lk == Kind.DATETIME && rk == Kind.DATE) {
+            // IQ island, 2026-10-15 (the corpus lane: ts >= CAST(... AS DATE) in 227 of SQLStorm's and SEDE's
+            // queries; measured on IQ 17.1, its front end's and its engine's alike): a DATE compared with a TIMESTAMP
+            // is the TIMESTAMP of its midnight (2000-02-29 00:00:00 = DATE 2000-02-29; BETWEEN and IN too)
+            return compared(op, lk == Kind.DATE ? atMidnight(l) : l, rk == Kind.DATE ? atMidnight(r) : r, pos);
         }
         boolean comparable = lk.numeric() && rk.numeric() && lk != Kind.NUMBER && rk != Kind.NUMBER
                 || lk == Kind.DATE && rk == Kind.DATE || lk == Kind.DATETIME && rk == Kind.DATETIME;
@@ -4670,6 +4772,13 @@ public final class IqDialect implements InputDialect {
     /** The last year whose timestamps keep their hours and minutes in SQL Anywhere 17 (measured, review 4's M2: from
      *  7911-01-01 on they are dropped, by a constant's reading and by DATEADD's arithmetic alike). */
     static final int LAST_TIMED_YEAR = 7910;
+
+    /** IQ island, 2026-10-15 (the corpus lane: DATEADD(YEAR, -1, GETDATE()) in 225 of SQLStorm's queries, refused as
+     *  a timestamp that may pass {@link #LAST_TIMED_YEAR}): the latest year a reading of the clock (GETDATE, NOW,
+     *  CURRENT TIMESTAMP, TODAY, CURRENT DATE) may be in -- a bound on when this code runs, not a value it computes;
+     *  the database reads the clock. (Measured on IQ 17.1, the same day: its front end drops a timestamp's hours and
+     *  minutes from 7911-01-01 on, as SQL Anywhere 17's does; its engine keeps them, its client fetch does not.) */
+    static final int CLOCK_LATEST_YEAR = 3000;
 
     // ------------------------------------------------------------------ predicates
 
@@ -5421,9 +5530,7 @@ public final class IqDialect implements InputDialect {
                     || v.kind() == Kind.NULL)) {
                 List<Tx> timestamps = new ArrayList<>();
                 for (Tx v : values) {
-                    timestamps.add(v.kind() != Kind.DATE ? v : Tx.value(SqlToPure.strict(Kind.DATETIME, List.of(v),
-                            x -> IqFunctions.midnight(x.get(0))).vs(), Kind.DATETIME, v.nullable(),
-                            IqFunctions.dated("TIMESTAMP", IqFunctions.latestYear(v))));
+                    timestamps.add(v.kind() != Kind.DATE ? v : atMidnight(v));
                 }
                 return unify(what, exprs, timestamps, pos);
             }
@@ -5545,6 +5652,7 @@ public final class IqDialect implements InputDialect {
         boolean numeric = false;
         boolean doubles = false;
         boolean integers = false;
+        boolean counts = false;
         for (Tx v : values) {
             if (v.kind() == Kind.NULL) {
                 continue;
@@ -5555,12 +5663,48 @@ public final class IqDialect implements InputDialect {
                 doubles = true;
             } else if (v.kind() == Kind.INTEGER && v.detail() instanceof IqType t && t.isInteger()) {
                 integers = true;
+            } else if (v.kind() == Kind.INTEGER && v.detail() instanceof IqType t && t.spelling().equals(
+                    "UNSIGNED BIGINT")) {
+                counts = true;
             } else {
                 return null;
             }
         }
+        // IQ island, 2026-10-15 (the corpus lane: COALESCE(COUNT(...), 0) in 1,100 of SQLStorm's queries; measured on
+        // IQ 17.1): COUNT's UNSIGNED BIGINT (a ranking's too) beside UNSIGNED BIGINTs alone is one; beside a signed
+        // integer IQ shows a NUMERIC(20,0) (COALESCE(COUNT(*), 0), CASE ... THEN COUNT(*) ELSE 0 END) that computes as
+        // an integer does (its / divides whole: COALESCE(COUNT(*), 0) / 2 is 3, 10 / NULLIF(COUNT(*), 0) is 1, where
+        // CAST(7 AS NUMERIC(20,0)) / 2 is 3.50), so lite reads it as one, of 64 bits, as D-N3 reads a COUNT; beside a
+        // NUMERIC a NUMERIC of its 20 digits (COALESCE(COUNT(*), 0.5) a NUMERIC(21,1)), beside a DOUBLE a DOUBLE
+        if (counts && !numeric && !doubles) {
+            IqType type = new IqType("UNSIGNED BIGINT");
+            if (integers) {
+                // IQ's integer of 20 digits (a NUMERIC(20,0) it divides whole: COUNT(id) * 1.0 / NULLIF(COUNT(*), 0)
+                // is a NUMERIC(42,21), as by COUNT(*) itself), so the island's UNSIGNED BIGINT, of the range it knows
+                BigInteger lo = BigInteger.ZERO;
+                BigInteger hi = IqType.BIGINT_MAX;
+                boolean loose = false;
+                for (Tx v : values) {
+                    if (v.detail() instanceof IqType t && t.isInteger()) {
+                        lo = lo.min(t.lo());
+                        hi = hi.max(t.hi());
+                        loose |= t.wider();
+                    } else if (v.detail() instanceof IqType t && t.low() != null) {
+                        lo = lo.min(t.lo());
+                        hi = hi.max(t.hi());
+                    }
+                }
+                type = IqType.integer("UNSIGNED BIGINT", lo, hi, true, loose);
+            }
+            List<Tx> unified = new ArrayList<>();
+            for (Tx v : values) {
+                unified.add(v.kind() == Kind.NULL ? Tx.value(SqlToPure.nullOf(Kind.INTEGER).vs(), Kind.INTEGER, true,
+                        type) : v);
+            }
+            return new SqlToPure.Common(unified, Kind.INTEGER, type);
+        }
         // IQ island, 2026-10-15 (measured on IQ 17.1): an integer beside a DOUBLE is a DOUBLE too
-        if (!numeric && !(doubles && integers)) {
+        if (!numeric && !(doubles && (integers || counts))) {
             return null;
         }
         if (doubles) {
@@ -5575,6 +5719,9 @@ public final class IqDialect implements InputDialect {
         }
         int whole = 0;
         int scale = 0;
+        // IQ island, 2026-10-15 (the corpus lane: COALESCE(AVG(n), 0) of COUNTs, IQ's NUMERIC(51,16)): what lite holds
+        // of each value -- at most 38 digits at its own scale, whatever IQ's precision -- converted to the common scale
+        int held = 0;
         for (int i = 0; i < values.size(); i++) {
             Tx v = values.get(i);
             if (v.kind() == Kind.NULL) {
@@ -5583,8 +5730,9 @@ public final class IqDialect implements InputDialect {
             int[] ps = iqNumericType(v, exprs.get(i));
             whole = Math.max(whole, ps[0] - ps[1]);
             scale = Math.max(scale, ps[1]);
+            held = Math.max(held, Math.min(ps[0] - ps[1], 38 - ps[1]));
         }
-        if (whole + scale > 38) {
+        if (held + scale > 38) {
             throw SqlTranslationException.unsupported(what + " of these numbers is a NUMERIC(" + (whole + scale) + ","
                     + scale + "), more than the 38 digits lite's decimals hold", pos);
         }
@@ -5740,6 +5888,22 @@ public final class IqDialect implements InputDialect {
         if (a.kind() == Kind.STRING && at.family().equals("CHAR")) {
             throw SqlTranslationException.unsupported("NULLIF of a CHAR is not supported yet: IQ reads the second"
                     + " argument as the CHAR, which may cut it", f.pos());
+        }
+        boolean signedIntegers = a.kind() == Kind.INTEGER && at.isInteger() && b.kind() == Kind.INTEGER
+                && b.detail() instanceof IqType bt && bt.isInteger();
+        if (engine == Engine.IQ && number(a) && number(b) && !signedIntegers) {
+            // IQ island, 2026-10-15 (the corpus lane: NULLIF(x, 0) under a quotient in BIRD's and SQLStorm's queries;
+            // the research's D-N1, measured on IQ 17.1): of numbers one of which is a NUMERIC, a DOUBLE or a COUNT, the
+            // type COALESCE gives the two (NULLIF(id, 1.5) a NUMERIC(11,1), NULLIF(nm, 0) nm's NUMERIC(10,2),
+            // NULLIF(nm, dbl) a DOUBLE, NULLIF(COUNT(*), 0) a NUMERIC(20,0)): NULL where the two are equal in it,
+            // else the first as it
+            SqlToPure.Common common = iqNumericUnify("NULLIF", f.args(), List.of(a, b), f.pos());
+            if (common != null) {
+                Tx first = common.values().get(0);
+                Tx equal = comparison(SqlAst.BinaryOp.EQ, first, common.values().get(1), false, false, null, f.pos());
+                return Tx.value(ifThen(equal.vs(), SqlToPure.nullOf(common.kind()).vs(), SqlToPure.valueOf(first)),
+                        common.kind(), true, common.detail());
+            }
         }
         if (a.kind() == Kind.INTEGER) {
             IqType bt = integerOperand(b, f.args().get(1), "NULLIF");

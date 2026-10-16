@@ -812,7 +812,10 @@ class IqToPureTest {
                 "SELECT SUM((SELECT 1 FROM DUMMY)) AS x FROM " + T,
                 "SELECT id FROM " + T + " ORDER BY (SELECT 1 FROM DUMMY)",
                 "SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY UNION SELECT 2 FROM DUMMY)"}) {
-            assertTrue(refusal(sql).getMessage().contains("IQ's engine"), sql);
+            // IQ island, 2026-10-15 (measured on IQ 17.1): one inside a conditional expression or an aggregate names
+            // IQ's error, -1001030
+            String m = refusal(sql).getMessage();
+            assertTrue(m.contains("IQ's engine") || m.contains("IQ's error -1001030 under its engine"), sql);
             pure(sql, IqProfile.SQLA17_DEFAULT.settings());
         }
         // IQ island, 2026-10-15 (measured on IQ 17.1): it takes more than the research's flag list held -- a scalar

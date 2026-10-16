@@ -170,7 +170,11 @@ public final class IqLexer {
             throw SqlSyntaxException.unsupported("money literals ($5) are not supported yet", pos);
         }
         if (c == 'N' && peek(1) == '\'') {
-            throw SqlSyntaxException.unsupported("national-character strings (N'...') are not supported yet", pos);
+            // IQ island, 2026-10-15 (the corpus lane: 120 of SEDE's queries; measured on IQ 17.1): a national string,
+            // N right before the quote (n'...' and N '...' are not one), is a string of the database's own charset,
+            // UTF-8 (IQ's engine types N'abc' a VARCHAR(3), its value 'abc')
+            advance(1);
+            return new Token(Kind.STRING, string(pos), pos, start, at);
         }
         if (isIdentifierStart(c)) {
             while (at < text.length() && isIdentifierPart(text.charAt(at))) {

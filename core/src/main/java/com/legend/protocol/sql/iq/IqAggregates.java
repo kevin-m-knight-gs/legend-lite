@@ -589,14 +589,34 @@ final class IqAggregates {
                 SqlAst.Expr l = inline(q.left(), aliases);
                 yield l == q.left() ? q : new SqlAst.Quantified(q.op(), q.all(), l, q.query(), q.pos());
             }
+            case SqlAst.Cast c -> {
+                SqlAst.Expr o = inline(c.operand(), aliases);
+                yield o == c.operand() ? c : new SqlAst.Cast(o, c.type(), c.pos());
+            }
             default -> {
-                if (!IqDialect.children(e).isEmpty()) {
+                // IQ island, 2026-10-15 (the corpus lane: GROUP BY CAST(creationdate AS DATE) in 95 of SEDE's and
+                // SQLStorm's queries): an expression that reads no alias is itself
+                if (readsAlias(e, aliases)) {
                     throw SqlTranslationException.unsupported("a select-list alias read inside this expression is not"
                             + " supported yet", e.pos());
                 }
                 yield e;
             }
         };
+    }
+
+    /** Whether {@code e} reads one of {@code aliases} by a bare name (not inside a subquery). */
+    private static boolean readsAlias(SqlAst.Expr e, Map<String, SqlAst.Expr> aliases) {
+        if (e instanceof SqlAst.ColumnRef r && r.parts().size() == 1 && aliases.containsKey(IqLexer.lower(
+                r.parts().get(0).text()))) {
+            return true;
+        }
+        for (SqlAst.Expr child : IqDialect.children(e)) {
+            if (readsAlias(child, aliases)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether a GROUP BY item is a constant: no column, no aggregate (no subquery: refused there). */
@@ -946,6 +966,9 @@ final class IqAggregates {
                             .append(x.pos().column());
                     case SqlAst.Quantified x -> b.append(x.op()).append(x.all()).append('@').append(x.pos().line())
                             .append(':').append(x.pos().column());
+                    // IQ island, 2026-10-15 (the corpus lane: SELECT CAST(ts AS DATE) ... GROUP BY CAST(ts AS DATE)): a
+                    // CAST by its type and sizes
+                    case SqlAst.Cast x -> b.append(IqLexer.lower(x.type().name())).append(x.type().modifiers());
                     default -> b.append('@').append(e.pos().line()).append(':').append(e.pos().column());
                 }
                 for (SqlAst.Expr operand : IqDialect.children(e)) {
@@ -1326,6 +1349,12 @@ final class IqAggregates {
             return checkedSum(at, x, values, "sum", Kind.INTEGER, IqType.integer(bigint ? "BIGINT" : "INTEGER", min,
                     max, true), new CInteger(0L), SqlToPure.integer(max), SqlToPure.integer(min));
         }
+        if (kind == Kind.INTEGER && type != null && engine == IqDialect.Engine.IQ && type.spelling().equals(
+                "UNSIGNED BIGINT")) {
+            // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): a SUM of COUNTs (a derived table's) is a
+            // NUMERIC(35,0), read as iqIntegerSum reads an INTEGER's: a whole number of 64 bits
+            return iqIntegerSum(at, x, values, "BIGINT");
+        }
         if ((kind == Kind.DECIMAL || kind == Kind.INTEGER) && type != null && type.family().equals("NUMERIC")) {
             if (engine == IqDialect.Engine.IQ) {
                 return iqNumericSum(f, at, x, type, values, settings);
@@ -1450,13 +1479,16 @@ final class IqAggregates {
         int sumWhole;
         String spelling;
         boolean numeric = type != null && type.family().equals("NUMERIC");
+        boolean counts = type != null && type.spelling().equals("UNSIGNED BIGINT");
         if (x.kind() == Kind.INTEGER && type != null && (type.isInteger() || type.family().equals("TINYINT")
-                || type.family().equals("BIT"))) {
+                || type.family().equals("BIT") || counts)) {
             scale = 16;
             sumScale = 0;
             // a sum of BIGINTs is a whole number the databases add in 38 digits: 22 before the 16 places
             sumWhole = 22;
-            spelling = "NUMERIC(36,16)";
+            // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): an AVG of COUNTs is a NUMERIC(51,16), of a
+            // COUNT beside a signed integer (COALESCE(n, 0), a range known) a NUMERIC(45,16)
+            spelling = !counts ? "NUMERIC(36,16)" : type.low() == null ? "NUMERIC(51,16)" : "NUMERIC(45,16)";
         } else if (type != null && numeric && (x.kind() == Kind.DECIMAL || x.kind() == Kind.INTEGER)) {
             int[] ps = numeric(type);
             if (ps[0] + 22 > 38 || ps[0] + 22 > settings.precision()) {

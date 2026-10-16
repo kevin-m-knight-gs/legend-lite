@@ -1,0 +1,149 @@
+# The real-world corpus lane's first gaps (IQ island, 2026-10-15; IqCorpusTest over SEDE, SQLStorm, Public BI and
+# BIRD, measured on the live IQ 17.1): COUNT's UNSIGNED BIGINT beside other numbers (COALESCE, ISNULL, CASE, NULLIF,
+# CAST, NUMERIC arithmetic, SUM and AVG of counts), NULLIF of numbers by COALESCE's type, a DATE compared with a
+# TIMESTAMP at its midnight, a reading of the clock moved by DATEADD; and IQ's own
+# errors the corpora meet (TOP in a subquery, a subquery inside a conditional expression). Judged by the live IQ. Every
+# case is deterministic.
+tests:
+
+  # ---- COUNT's UNSIGNED BIGINT beside other numbers
+  - id: coalesce_of_a_count_and_an_integer
+    sql: "SELECT COALESCE(COUNT(*), 0) AS a, ISNULL(COUNT(id), 0) AS b, COALESCE(COUNT(*), MAX(sm)) AS c FROM t"
+    profile: iq17-default
+  - id: coalesce_of_counts_alone
+    sql: "SELECT COALESCE(COUNT(*), COUNT(id)) AS a, CASE WHEN COUNT(*) > 2 THEN COUNT(*) END AS b FROM t"
+    profile: iq17-default
+  - id: coalesce_of_a_count_and_a_numeric_or_a_double
+    sql: "SELECT COALESCE(COUNT(*), 0.5) AS a, COALESCE(COUNT(*), MAX(dbl)) AS b FROM t"
+    profile: iq17-default
+  - id: case_of_a_count_and_zero
+    sql: "SELECT sm, CASE WHEN COUNT(*) > 0 THEN COUNT(*) ELSE 0 END AS n FROM t GROUP BY sm ORDER BY sm"
+    profile: iq17-default
+  - id: a_left_joined_count_defaulted
+    sql: "SELECT t.id, COALESCE(x.n, 0) AS n FROM t LEFT JOIN (SELECT t_id, COUNT(*) AS n FROM u GROUP BY t_id) x ON x.t_id = t.id ORDER BY t.id"
+    profile: iq17-default
+  - id: a_ranking_defaulted
+    sql: "SELECT id, COALESCE(ROW_NUMBER() OVER (ORDER BY id), 0) AS r FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_count_in_numeric_arithmetic
+    sql: "SELECT COUNT(*) * 1.5 AS a, COUNT(id) + 0.25 AS b, COUNT(id) - 100.25 AS c, COUNT(id) * MAX(nm) AS d, COUNT(*) * 100.0 / 3 AS e, COUNT(id) / 3.0 AS f FROM t"
+    profile: iq17-default
+  - id: a_count_cast
+    sql: "SELECT CAST(COUNT(*) AS INT) AS a, CAST(COUNT(*) AS BIGINT) AS b, CAST(COUNT(*) AS DECIMAL(10,2)) AS c, CAST(COUNT(*) AS VARCHAR(10)) AS d, CAST(COUNT(*) AS CHAR(3)) || '|' AS e, CAST(COUNT(*) AS DOUBLE) / 3 AS f FROM t"
+    profile: iq17-default
+  - id: a_count_written_into_text
+    sql: "SELECT 'n=' + CAST(COUNT(*) AS VARCHAR(10)) AS a FROM t"
+    profile: iq17-default
+  # IQ shows the NUMERIC(20,0) of a COUNT beside an integer, but computes it as an integer: its / divides whole
+  - id: a_defaulted_count_divides_whole
+    sql: "SELECT COALESCE(COUNT(*), 0) / 2 AS a, (CASE WHEN COUNT(*) > 0 THEN COUNT(*) ELSE 0 END) / 2 AS b, 10 / COALESCE(COUNT(*), 0) AS c, COALESCE(COUNT(*), 0) % 4 AS d, COALESCE(COUNT(*), -5) - 100 AS e FROM t"
+    profile: iq17-default
+  - id: a_defaulted_count_in_numeric_arithmetic
+    sql: "SELECT COALESCE(COUNT(*), 0) / 2.0 AS a, COALESCE(COUNT(*), 0) * 1.5 AS b, ROUND(COALESCE(COUNT(*), 0) * 100.0 / 3, 2) AS c, CAST(COALESCE(COUNT(*), 0) AS VARCHAR(5)) AS d FROM t"
+    profile: iq17-default
+  - id: sum_and_avg_of_counts
+    sql: "SELECT SUM(n) AS s, AVG(n) AS a, MAX(n) AS m FROM (SELECT sm, COUNT(*) AS n FROM t GROUP BY sm) x"
+    profile: iq17-default
+
+  # ---- NULLIF of numbers: COALESCE's type, NULL where the two are equal in it
+  - id: nullif_of_a_numeric
+    sql: "SELECT id, NULLIF(nm, 0.01) AS a, NULLIF(nm, 0) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: nullif_of_an_integer_and_a_numeric
+    sql: "SELECT id, NULLIF(id, 1.0) AS a, NULLIF(id, 1.5) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: nullif_of_a_numeric_and_a_double
+    sql: "SELECT id, NULLIF(nm, dbl) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_quotient_by_a_count_not_zero
+    sql: "SELECT 10 / NULLIF(COUNT(*), 0) AS a FROM t"
+    profile: iq17-default
+  # IQ's NUMERIC(42,21): refused by name, past lite's 38 digits
+  - id: a_ratio_of_counts
+    sql: "SELECT COUNT(id) * 1.0 / NULLIF(COUNT(*), 0) AS b FROM t"
+    profile: iq17-default
+
+  # ---- a DATE compared with a TIMESTAMP: the TIMESTAMP of its midnight
+  - id: timestamp_against_date_columns
+    sql: "SELECT id FROM t WHERE ts >= dt ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_equal_to_a_date
+    sql: "SELECT id FROM t WHERE ts = dt OR dt > ts ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_against_a_date_constant
+    sql: "SELECT id FROM t WHERE ts >= CAST('2026-03-04' AS DATE) ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_between_dates
+    sql: "SELECT id FROM t WHERE ts BETWEEN CAST('2000-01-01' AS DATE) AND CAST('2026-03-04' AS DATE) ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_in_dates
+    sql: "SELECT id FROM t WHERE ts IN (CAST('2000-02-29' AS DATE), CAST('1900-01-01' AS DATE)) ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_against_a_moved_date
+    sql: "SELECT id FROM t WHERE ts >= CAST(DATEADD(DAY, -30, '2026-04-01') AS DATE) ORDER BY id"
+    profile: iq17-default
+
+  # ---- the clock moved by DATEADD (a statement's trailing separator is IqParserTest's: the oracle sends no ';')
+  - id: the_clock_moved_back
+    sql: "SELECT COUNT(*) AS n FROM t WHERE ts >= DATEADD(YEAR, -200, GETDATE())"
+    profile: iq17-default
+  - id: the_clock_moved_forward
+    sql: "SELECT COUNT(*) AS n FROM t WHERE ts < DATEADD(DAY, 30, NOW())"
+    profile: iq17-default
+
+  # ---- IQ's own errors the corpora meet
+  - id: top_in_a_derived_table_is_iqs_error
+    sql: "SELECT * FROM (SELECT TOP 2 id FROM t ORDER BY id DESC) d ORDER BY id"
+    profile: iq17-default
+  - id: top_in_a_where_subquery_is_iqs_error
+    sql: "SELECT id FROM t WHERE id = (SELECT TOP 1 t_id FROM u ORDER BY id DESC)"
+    profile: iq17-default
+  - id: top_in_a_cte_is_iqs_error
+    sql: "WITH c AS (SELECT TOP 3 id FROM t ORDER BY id DESC) SELECT id FROM c ORDER BY id"
+    profile: iq17-default
+  - id: a_subquery_inside_coalesce_is_iqs_error
+    sql: "SELECT id, COALESCE((SELECT COUNT(*) FROM u WHERE u.t_id = t.id), 0) AS n FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_plain_subquery_in_the_select_list
+    sql: "SELECT id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t ORDER BY id"
+    profile: iq17-default
+
+  # ---- a quotient or a ROUND whose IQ type needs more than lite's 38 digits: computed where the value fits
+  - id: a_percentage_of_counts
+    sql: "SELECT COUNT(id) * 100.0 / COUNT(*) AS a, ROUND(COUNT(id) * 100.0 / COUNT(*), 2) AS b FROM t"
+    profile: iq17-default
+  - id: a_percentage_per_group
+    sql: "SELECT sm, ROUND(SUM(CASE WHEN id > 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS pct FROM t GROUP BY sm ORDER BY sm"
+    profile: iq17-default
+
+  # ---- national strings, national casts
+  - id: a_national_string
+    sql: "SELECT id, N'é' || vc AS a, LENGTH(N'é') AS b FROM t WHERE vc < N'i' ORDER BY id"
+    profile: iq17-default
+  - id: a_cast_to_nvarchar_is_iqs_error
+    sql: "SELECT CAST(vc AS NVARCHAR(10)) AS a FROM t"
+    profile: iq17-default
+
+  # ---- a GROUP BY expression that reads no select-list alias
+  - id: grouped_by_a_cast_beside_aliases
+    sql: "SELECT CAST(ts AS DATE) AS day, COUNT(id) AS n FROM t GROUP BY CAST(ts AS DATE) ORDER BY 1"
+    profile: iq17-default
+
+  # ---- more of IQ's errors the corpora meet
+  - id: a_subquery_in_an_outer_joins_on_is_iqs_error
+    sql: "SELECT t.id, x.label FROM t LEFT JOIN u x ON t.id = (SELECT MAX(y.t_id) FROM u y WHERE y.id = x.id)"
+    profile: iq17-default
+  - id: datediff_from_zero_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts > DATEADD(dd, DATEDIFF(dd, 0, GETDATE()), 0)"
+    profile: iq17-default
+
+  # ---- a COUNT beside a DOUBLE, AVG over a COUNT's integer, COALESCE of a wide AVG
+  - id: a_double_by_a_count
+    sql: "SELECT CAST(SUM(id) AS DOUBLE) / COUNT(*) AS a, CAST(COUNT(sm) AS DOUBLE) * 100 / NULLIF(COUNT(*), 0) AS b FROM t"
+    profile: iq17-default
+  - id: avg_of_a_defaulted_count
+    sql: "SELECT AVG(c) AS a, COALESCE(AVG(n), 0) AS b FROM (SELECT t.id, COALESCE(x.n, 0) AS c, x.n AS n FROM t LEFT JOIN (SELECT t_id, COUNT(*) AS n FROM u GROUP BY t_id) x ON x.t_id = t.id) d"
+    profile: iq17-default
+  - id: window_avg_of_a_defaulted_count
+    sql: "SELECT id, AVG(c) OVER () AS a, AVG(n) OVER () AS b FROM (SELECT t.id, COALESCE(x.n, 0) AS c, x.n AS n FROM t LEFT JOIN (SELECT t_id, COUNT(*) AS n FROM u GROUP BY t_id) x ON x.t_id = t.id) d ORDER BY id"
+    profile: iq17-default

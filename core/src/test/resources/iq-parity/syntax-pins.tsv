@@ -132,13 +132,17 @@
 # (REFUSED 1,901 -> 1,880); reject REJECTED 974 -> 995 (REFUSED 811 -> 789). One reject case parses, pinned by hand
 # (the update refuses it): c13_olap-302, PERCENTILE_CONT of a string, which IQ rejects by its value's type, unknown
 # to the reader; the translation refuses it (a percentile of a value that is no number), so no answer is wrong.
-accept	parsed	3068
-accept	refused	1880
+# IQ island, 2026-10-15 (the real-world corpus lane, measured on the live IQ 17.1: a national string N'...' read as a
+# string of the database's charset, NCHAR and NVARCHAR read as CAST targets for CAST to say IQ's -1001030, a statement's
+# trailing separator read): accept PARSED 3,068 -> 3,095 (REFUSED 1,880 -> 1,853); flag PARSED 67 -> 69 (REFUSED
+# 67 -> 65). Reject and accept-rejected unchanged.
+accept	parsed	3095
+accept	refused	1853
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
-flag	parsed	67
-flag	refused	67
+flag	parsed	69
+flag	refused	65
 reject	parsed	25
 reject	refused	789
 reject	rejected	995

@@ -54,7 +54,7 @@ Status words:
 | 2.15 | COUNT(DISTINCT) and DISTINCT, by the collation | done |
 | 2.16 | Statistical and list aggregates: STDDEV and VARIANCE (sample, population), MEDIAN, PERCENTILE_CONT/DISC, LIST's order (GROUP_CONCAT) | done, the rest refused by name. Done (2026-10-15, measured on IQ 17.1): PERCENTILE_CONT and PERCENTILE_DISC (WITHIN GROUP; IQ's errors for them raised before translating), MEDIAN of a NUMERIC (its type, the midpoint cut toward zero: D-F20) and of a DOUBLE. Refused by name: STDDEV and VARIANCE (IQ's engine computes them by a lossy formula of its own: VARIANCE of 1000000.1, .2, .3 is 0.0100 there, 0.01 exactly), PERCENTILE_DISC of a BIGINT, a NUMERIC of more than 15 digits, a string or a date, MEDIAN of a BIGINT (IQ's midpoint wraps). LIST ordered by another column, IQ's NULL first ascending and last descending; two keys, and two LISTs of one query ordered differently (D-A1: IQ may order both alike), refused. |
 | 2.16b | Subtotals: ROLLUP, CUBE, GROUPING SETS, GROUPING() (BI tools' totals) | open |
-| 2.16c | CROSS APPLY, OUTER APPLY, LATERAL | open |
+| 2.16c | CROSS APPLY, OUTER APPLY, LATERAL | open. Measured (2026-10-15, the corpus lane): LATERAL is IQ's -1001030, OUTER APPLY of a TOP subquery -1001030 (TOP in a subquery), one correlated CROSS APPLY of an aggregate IQ's internal error -1006000; the rest unmeasured |
 | 2.17 | Session and metadata statements (31% of BI statements) | out: the island reads one SELECT and refuses IQ's catalog by name (standing rule) |
 | 2.18 | DML and CTAS | out: the island is the read path |
 
@@ -70,3 +70,52 @@ Status words:
 | UNION ALL | a chain of 127; over 1,000 inputs as the extreme | done to 500. Over 1,000 inputs, DuckDB's parser depth. |
 | IN lists | 1 to 10,000+, with NULL and NOT IN | done (20,000) |
 | Measure sums | 10 to 50 terms | done for integers and DOUBLEs (100 terms). Open: NUMERIC(18,2) past ~20 terms, where IQ's typing outgrows lite's 38 digits. |
+
+## The real-world corpus lane (2026-10-15)
+
+The census ranks features; the corpus lane measures the island against real queries. `IqCorpusTest`
+(`//core:iq_corpus_test`, manual) reads every query of each suite under `-Diq.corpus.root` as an island over the suite's
+tables (empty, on DuckDB) and ranks what it refuses. The corpora stay private (licences, size): SEDE (11,708 Stack
+Exchange Data Explorer queries, T-SQL), SQLStorm v1.0's SQL Server set (18,251), the Public BI benchmark (646 Tableau
+queries), BIRD Mini-Dev (500). A query is ANSWERED, REFUSED (by name), IQ_ERROR (the island says IQ raises an error,
+its syntax error or an error it names), DB_ERROR or CRASH.
+
+| Suite | Answered before | Answered now | IQ's own error now |
+|---|---|---|---|
+| SEDE | 40.6% | 55.0% | 10.9% |
+| SQLStorm | 21.7% | 30.3% | 10.0% |
+| Public BI | 93.0% | 94.1% | 1.9% |
+| BIRD | 58.2% | 59.8% | 16.2% |
+
+Measured on the live IQ 17.1 and built (parity cases: `lite/corpus_gaps.yaml`):
+- a statement's trailing separator (1,691 of SEDE's queries);
+- COUNT's UNSIGNED BIGINT beside other numbers. With a signed integer IQ shows a NUMERIC(20,0) that it computes as a whole number (its `/` divides whole); with a NUMERIC, a NUMERIC of its 20 digits; with a DOUBLE, a DOUBLE. This covers COALESCE, ISNULL, CASE, NULLIF, CAST, SUM and AVG of counts, and NUMERIC and DOUBLE arithmetic (about 1,300 queries);
+- NULLIF of numbers, by COALESCE's type;
+- a DATE compared with a TIMESTAMP, at its midnight (227);
+- a reading of the clock moved by DATEADD (225);
+- ROUND of a NUMERIC past 18 digits;
+- a quotient or a ROUND whose IQ type passes 38 digits (`COUNT(id) * 100.0 / COUNT(*)`, IQ's NUMERIC(44,21)): computed where the value fits, refused at run time where it does not;
+- national strings (`N'...'`);
+- GROUP BY expressions that read no select-list alias.
+
+Measured to be IQ's own errors, raised or named by the island:
+- `OFFSET ... FETCH`, `LIMIT`, `INTERVAL` and `FILTER` are -131;
+- `STRING_AGG`, `CONCAT`, `EOMONTH`, `FORMAT` and `STRING_SPLIT` are -265, though a user function could hold the name, so these stay refused by name;
+- the T-SQL date parts `yyyy`, `d`, `m`, `ww`, `n`, `s` and `q`, and `x.Comment`, `x.Date`, `x.Key`, `x.Order`, `x.User` (reserved words after a dot), are -131;
+- under IQ's engine:
+  - TOP in any subquery, derived table or common table expression is -1001030 (the research's D-R1 had held that IQ may ignore it);
+  - a subquery inside a conditional expression is -1001030;
+  - a scalar subquery in an outer join's ON is -1001047;
+  - an integer where DATEADD or DATEDIFF reads a date is -1001011;
+  - CAST to NVARCHAR or NCHAR is -1001030.
+
+Open, ranked by the corpora:
+- REAL and FLOAT, IQ's single precision (430): REAL beside a non-REAL is a DOUBLE, REAL with REAL a REAL;
+- ROUND of a DOUBLE: IQ rounds its decimal digits;
+- CAST to DECIMAL without a precision, IQ's NUMERIC(126,38) (70);
+- a subquery in a derived table's select list, which IQ's engine reads only where the outer query shows its column as it is (192);
+- LIKE's `[set]` classes, which IQ reads (32);
+- the outer join ON shapes DuckDB cannot plan (46);
+- CROSS APPLY (676), which this round measured only as IQ's internal error on one correlated shape (2.16c).
+
+Phase 2 is still to come: data loaded into IQ and the lane's databases, and the answers judged.

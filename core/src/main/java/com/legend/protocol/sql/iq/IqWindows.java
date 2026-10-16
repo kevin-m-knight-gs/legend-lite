@@ -915,7 +915,11 @@ final class IqWindows {
                 case "SMALLINT" -> 35;
                 case "INTEGER" -> 27;
                 case "BIGINT", "BIT", "TINYINT" -> 36;
-                default -> throw new IllegalStateException("an integer family the window's AVG reads: " + family);
+                // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): of COUNTs a NUMERIC(51,16), of a COUNT
+                // beside a signed integer (COALESCE(n, 0), a range known) a NUMERIC(45,16)
+                case "UNSIGNED BIGINT" -> type == null || type.low() == null ? 51 : 45;
+                default -> throw SqlTranslationException.unsupported(what + " of a " + family + " over a window is not"
+                        + " supported yet", f.pos());
             };
             return average(f, at, dec, 0, 20, 16, precision);
         }

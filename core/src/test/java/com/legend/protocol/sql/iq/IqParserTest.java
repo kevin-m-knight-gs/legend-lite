@@ -146,7 +146,9 @@ class IqParserTest {
                 // IQ island, 2026-10-15: WITH reads now (each CTE inlined as a derived table); RECURSIVE does not
                 {"WITH RECURSIVE q AS (SELECT 1) SELECT * FROM q", "RECURSIVE"},
                 {"SELECT id INTO x FROM t", "INTO"},
-                {"SELECT id FROM t;", "separator"},
+                // IQ island, 2026-10-15 (the corpus lane): a trailing separator reads now (below); a second statement
+                // does not
+                {"SELECT id FROM t; SELECT 1", "separator"},
                 {"SELECT TOP 10 PERCENT id FROM t", "PERCENT"},
                 {"SELECT TOP @n id FROM t", "variable"},
                 {"SELECT @v = id FROM t", "assignment"},
@@ -161,6 +163,15 @@ class IqParserTest {
             assertTrue(e.unsupported(), r[0] + ": " + e.reason());
             assertTrue(e.reason().contains(r[1]), r[0] + ": " + e.reason());
         }
+    }
+
+    /** IQ island, 2026-10-15 (the corpus lane: 1,691 of SEDE's queries end so; measured on IQ 17.1): a statement's
+     *  one trailing separator is read, blanks and a comment after it too. */
+    @Test
+    void aStatementsTrailingSeparatorIsRead() {
+        assertEquals(1, select("SELECT id FROM t ORDER BY id;").orderBy().size());
+        assertEquals(1, select("SELECT id FROM t ORDER BY id ;  -- done\n").orderBy().size());
+        assertTrue(error("SELECT id FROM t;;").unsupported());
     }
 
     // ------------------------------------------------------------------ M1a: predicates

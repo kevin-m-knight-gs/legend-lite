@@ -200,7 +200,13 @@ public final class IqParser {
     public record Written(SqlAst.Expr expr, Map<SqlAst.Expr, Integer> parens, Set<SqlAst.Expr> simpleCases,
             Set<SqlAst.Expr> ifs, boolean commented, boolean brokenLines, Map<SqlAst.Expr, String> partWords,
             Map<SqlAst.Expr, List<SqlAst.When>> droppedWhens, Map<SqlAst.Expr, SqlAst.Expr> droppedElse,
-            Map<SqlAst.Pos, int[]> lines, List<IqLexer.Token> tokens) {
+            Map<SqlAst.Pos, int[]> lines, List<IqLexer.Token> tokens, Set<SqlAst.Pos> nationals) {
+
+        /** IQ island, 2026-10-15: whether the string at {@code pos} was written as a national one ({@code N'...'}),
+         *  which an unaliased column's name keeps. */
+        public boolean nationalAt(SqlAst.Pos pos) {
+            return nationals.contains(pos);
+        }
 
         /** The parentheses written around {@code e}. */
         public int parensOf(SqlAst.Expr e) {
@@ -234,9 +240,13 @@ public final class IqParser {
         // IQ island, 2026-10-14 (the third landing): each token's lines, counted as SQL Anywhere counts them (measured:
         // a carriage return alone breaks a line too)
         Map<SqlAst.Pos, int[]> lines = new java.util.HashMap<>();
+        Set<SqlAst.Pos> nationals = new java.util.HashSet<>();
         int line = 1;
         int scanned = 0;
         for (IqLexer.Token t : tokens) {
+            if (t.kind() == IqLexer.Kind.STRING && text.charAt(t.start()) == 'N') {
+                nationals.add(t.pos());
+            }
             if (t.kind() == IqLexer.Kind.EOF) {
                 break;
             }
@@ -247,7 +257,7 @@ public final class IqParser {
             lines.put(t.pos(), new int[] {first, line});
         }
         return new Written(e, p.parens, p.simpleCases, p.ifs, commented, brokenLines, p.partWords, p.droppedWhens,
-                p.droppedElse, lines, tokens);
+                p.droppedElse, lines, tokens, nationals);
     }
 
     /** The line breaks in {@code text} from {@code from} to {@code to}: a line feed, a carriage return, and the two
@@ -276,9 +286,14 @@ public final class IqParser {
         if (peek().isWord("limit") || peek().isWord("offset")) {
             throw SqlSyntaxException.unsupported(peek().text() + " is not supported yet", peek().pos());
         }
+        // IQ island, 2026-10-15 (the corpus lane: 1,691 of SEDE's 11,708 queries end so; measured on IQ 17.1): a
+        // statement's one trailing separator is read, as IQ reads it; a second statement after it is refused
+        if (peek().isOp(";") && peek(1).kind() == IqLexer.Kind.EOF) {
+            take();
+        }
         if (peek().isOp(";")) {
-            throw SqlSyntaxException.unsupported("a statement separator (;) is not read in an #IQ{...}# island",
-                    peek().pos());
+            throw SqlSyntaxException.unsupported("a second statement, after a separator (;), is not read in an"
+                    + " #IQ{...}# island", peek().pos());
         }
         return query;
     }
@@ -2454,6 +2469,10 @@ public final class IqParser {
                 if (length.size() > 1 && (w.equals("nchar") || w.equals("nvarchar"))) {
                     throw new SqlSyntaxException("a national character type takes no length unit"
                             + IqDialect.syntaxCode(), pos);
+                }
+                if (w.equals("nchar") || w.equals("nvarchar")) {
+                    // IQ island, 2026-10-15 (the corpus lane): read, for CAST to say what IQ does with it
+                    return new SqlAst.TypeName(w.toUpperCase(java.util.Locale.ROOT), length, pos);
                 }
                 throw notRead(w.toUpperCase(java.util.Locale.ROOT), pos);
             }

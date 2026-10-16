@@ -349,8 +349,9 @@ final class IqFunctions {
             case REGEXP_SUBSTR -> regexpSubstr(name, f, args);
             case PI -> Tx.value(SqlToPure.call("pi"), Kind.FLOAT, false, new IqType("DOUBLE"));
             case GETDATE, NOW, CURRENT_TIMESTAMP -> Tx.value(SqlToPure.call("now"), Kind.DATETIME, false,
-                    new IqType("TIMESTAMP"));
-            case TODAY, CURRENT_DATE -> Tx.value(SqlToPure.call("today"), Kind.DATE, false, new IqType("DATE"));
+                    dated("TIMESTAMP", IqDialect.CLOCK_LATEST_YEAR));
+            case TODAY, CURRENT_DATE -> Tx.value(SqlToPure.call("today"), Kind.DATE, false, dated("DATE",
+                    IqDialect.CLOCK_LATEST_YEAR));
             case YEAR, MONTH, DAY, HOUR, MINUTE, SECOND, QUARTER, DOW -> datePartOf(Part.of(fn.spelling), name, f,
                     args.get(0), f.args().get(0), true, "Sunday");
             case DATE -> dateOf(name, f, args.get(0), f.args().get(0));
@@ -1917,10 +1918,19 @@ final class IqFunctions {
             // no place to drop: the value itself, at its scale
             return strict(Kind.DECIMAL, type, List.of(x), v -> whole ? SqlToPure.call("toDecimal", v.get(0)) : v.get(0));
         }
-        if (digits + n > 18) {
+        // IQ island, 2026-10-15 (the corpus lane: ROUND(COUNT(*) * 100.0 / n, 2), a NUMERIC(30,6) to 2 places): past
+        // the 18 digits places() computes in, a NUMERIC is rounded or cut by placesExact, in 38
+        boolean exact = digits + n > 18;
+        // a value of more digits than placesExact holds (a wide quotient's: ROUND(COUNT(id) * 100.0 / COUNT(*), 2) of
+        // IQ's NUMERIC(44,21)) is rounded where it fits, refused at run time where it does not
+        int heldDigits = Math.min(digits, 37 - s);
+        if (exact && (whole || heldDigits < 1)) {
             throw SqlTranslationException.unsupported(name + " of a NUMERIC(" + p + "," + s + ") to " + n + " places is"
                     + " not supported yet: its scaled value may exceed 18 digits", f.pos());
         }
+        String past = exact && heldDigits < digits ? IqDialect.REFUSED_AT_RUN_TIME + name + " of a value of more than "
+                + heldDigits + " digits before its point is not supported: its NUMERIC(" + p + "," + s + ") needs more"
+                + " than the 38 digits lite's decimals hold" : null;
         // a constant (no column in it) SQL Anywhere folds and types a digit wider (measured): no check; nor under IQ's
         // engine, whose NUMERIC(p+1,s) holds every rounded value
         boolean check = round && readsColumn(e) && !whole && !iqRound;
@@ -1929,7 +1939,11 @@ final class IqFunctions {
         }
         return strict(Kind.DECIMAL, type, List.of(x), v -> {
             ValueSpecification value = whole ? SqlToPure.call("toDecimal", v.get(0)) : v.get(0);
-            ValueSpecification r = places(value, n, round);
+            ValueSpecification r = exact ? placesExact(atScale(value, s), s, n, round) : places(value, n, round);
+            if (past != null) {
+                r = refusedPast(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", value), new CDecimal(pow10(
+                        heldDigits))), past, r, raise("Decimal"));
+            }
             if (s > Math.max(n, 0)) {
                 r = atScale(r, s);
             }
@@ -1996,6 +2010,32 @@ final class IqFunctions {
                 : ifThen(positive, SqlToPure.call("floor", scaled), SqlToPure.call("ceiling", scaled));
         ValueSpecification back = SqlToPure.call("toDecimal", whole);
         return n == 0 ? back : AppliedFunction.infixRun("times", List.of(back, new CDecimal(pow10(-n))));
+    }
+
+    /**
+     * {@code x}, a decimal of scale {@code s}, rounded half away from zero ({@code round}) or cut toward zero to
+     * {@code n < s} places, at scale {@code s}, exactly in 38 digits (IQ island, 2026-10-15): x and half a unit of the
+     * n-th place, less the remainder of that by the unit -- Pure's {@code rem} of two decimals of one scale, exact in both
+     * databases ({@link #remainder}), with the dividend's sign, so toward zero.
+     */
+    static ValueSpecification placesExact(ValueSpecification x, int s, int n, boolean round) {
+        BigDecimal unit = pow10(-n);
+        ValueSpecification y = x;
+        if (round) {
+            CDecimal half = new CDecimal(unit.divide(BigDecimal.valueOf(2)).setScale(s));
+            y = ifThen(SqlToPure.call("greaterThanEqual", x, integer(0)), AppliedFunction.infixRun("plus", List.of(x,
+                    half)), AppliedFunction.infixRun("minus", List.of(x, half)));
+        }
+        return AppliedFunction.infixRun("minus", List.of(y, SqlToPure.call("rem", y, new CDecimal(unit.setScale(s)))));
+    }
+
+    /** {@code value}, but the island's refusal {@code message} raised where {@code test} holds (IQ island,
+     *  2026-10-15): Pure's {@code fail} is a Boolean, so it guards the choice of {@code value} over {@code never} (a
+     *  value of its type that raises, never reached), which keeps the result of {@code value}'s type. */
+    static ValueSpecification refusedPast(ValueSpecification test, String message, ValueSpecification value,
+            ValueSpecification never) {
+        return ifThen(ifThen(test, SqlToPure.call("fail", new CString(message)), new com.legend.protocol.spec.CBoolean(
+                true)), value, never);
     }
 
     /** 10 to the {@code k}, written with no exponent: 100 for 2, 0.01 for -2. */
@@ -2553,6 +2593,21 @@ final class IqFunctions {
         }
         if (x.kind() == Kind.DATE || x.kind() == Kind.DATETIME) {
             return x;
+        }
+        if (x.kind() == Kind.INTEGER && (name.equals("DATEADD") || name.equals("DATEDIFF"))) {
+            // IQ island, 2026-10-15 (the corpus lane: T-SQL's DATEADD(dd, DATEDIFF(dd, 0, GETDATE()), 0) in 374 of
+            // SEDE's and SQLStorm's queries; measured on IQ 17.1): under IQ's engine an integer there is its error
+            // -1001011 whenever the statement runs (no row need reach it); in its front end the integer 0 is -157
+            if (engine == IqDialect.Engine.IQ) {
+                throw SqlTranslationException.unsupported(name + " of an integer where a date is read is IQ's error"
+                        + " -1001011 under its engine (an argument must be a DATE or a TIMESTAMP), refused before"
+                        + " translating", e.pos());
+            }
+            BigInteger zero = signedInteger(e);
+            if (zero != null && zero.signum() == 0) {
+                throw SqlTranslationException.invalid("cannot convert 0 to a date" + IqDialect.code(-157, "53018"),
+                        e.pos());
+            }
         }
         if (x.kind() == Kind.STRING && e instanceof SqlAst.StringLit s) {
             String[] parts = isoParts(s.value(), e);
@@ -3142,6 +3197,23 @@ final class IqFunctions {
         String what = convert ? "CONVERT" : "CAST";
         List<Integer> sizes = c.type().modifiers();
         Tx x = at.tx(c.operand());
+        if (engine == IqDialect.Engine.IQ && x.kind() == Kind.INTEGER && x.detail() instanceof IqType t
+                && t.spelling().equals("UNSIGNED BIGINT")) {
+            // IQ island, 2026-10-15 (the corpus lane: CAST(COUNT(*) AS ...) in SQLStorm's and BIRD's queries; measured
+            // on IQ 17.1): a COUNT converts as the whole number of rows it is (to INTEGER 7, to DECIMAL(10,2) 7.00, to
+            // VARCHAR(10) '7', to CHAR(3) '7  ')
+            x = new Tx(x.vs(), x.kind(), x.nullable(), x.whenFalse(), IqDialect.countRange(t), x.guard(), x.body());
+        }
+        if (target.equals("NCHAR") || target.equals("NVARCHAR")) {
+            // IQ island, 2026-10-15 (the corpus lane: CAST(... AS NVARCHAR(n)) in 136 of SEDE's and SQLStorm's queries;
+            // measured on IQ 17.1): IQ's engine converts to no national type
+            if (engine == IqDialect.Engine.IQ) {
+                throw SqlTranslationException.unsupported(what + " to " + target + " is IQ's error -1001030 under its"
+                        + " engine (a cast to a national type is not supported), refused before translating", c.pos());
+            }
+            throw SqlTranslationException.unsupported(what + " to " + target + " in SQL Anywhere's front end is not"
+                    + " supported yet", c.pos());
+        }
         if (engine == IqDialect.Engine.IQ && target.equals("LONG VARCHAR") && readsColumn(c.operand())) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): IQ's engine converts no column's value to LONG VARCHAR
             // (or TEXT): its -1001006, of a string, a number and a timestamp alike

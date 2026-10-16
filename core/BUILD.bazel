@@ -787,6 +787,27 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# the #IQ{...}# island over real-world SQL corpora (IQ island, 2026-10-15): coverage, run only where
+# -Diq.corpus.root names the corpora (their licences and size keep them out of this repository); manual, not a gate:
+#   bazel test //core:iq_corpus_test --strategy=TestRunner=local --test_output=all \
+#     --jvmopt=-Diq.corpus.root=<corpora> --jvmopt=-Diq.corpus.report=<report dir>
+junit_test(
+    name = "iq_corpus_test",
+    memory_mb = 4096,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/IqCorpusTest.java"],
+    select = ["--select-class=com.legend.integration.IqCorpusTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_cases",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 junit_test(
     name = "iq_parity_postgres_test",
     memory_mb = 768,

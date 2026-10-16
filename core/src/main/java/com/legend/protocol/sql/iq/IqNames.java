@@ -279,7 +279,7 @@ final class IqNames {
             case SqlAst.ColumnRef ref -> columns.rendering(ref, inAggregate);
             case SqlAst.IntegerLit n -> n.value().toString();
             case SqlAst.NumericLit n -> numeric(n.value());
-            case SqlAst.StringLit s -> quoted(s.value());
+            case SqlAst.StringLit s -> (written.nationalAt(s.pos()) ? "N" : "") + quoted(s.value());
             case SqlAst.NullLit n -> "null";
             case SqlAst.Unary u -> unary(u);
             case SqlAst.Binary b -> binary(b);
