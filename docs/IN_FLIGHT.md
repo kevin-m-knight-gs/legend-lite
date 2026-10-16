@@ -1926,6 +1926,24 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `lowering/InstanceEquality` (the minted `__id` from a mapping's primary key) on the product lane, which Cypher's
   identity over keyless classes needs (the study's C5). **For PR5:** the recursion native, `meta::legend::lite::recurse`,
   in the database owner's files, after its design is agreed (the study's §6.3).
+- **Announced, 2026-10-16 (the Cypher island's PR3, step 1: the edge class, the study's §5.6):** four edits outside the
+  island. `AssociationDefinition.AssociationEndDefinition` gains the end's stereotypes (the parser read them, the
+  record dropped them; `FromProtocol` and `NameResolver.resolveAssocEnd` carry them). `NameResolver.resolveDerivedProperty`
+  kept a rebuilt derived property's stereotypes, tagged values and span (it rebuilt with the five-argument constructor
+  and dropped them, so a `<<graph.type>>` whose body names an enumeration lost its marker). Phase F runs
+  `compiler/element/GraphEdges` (`ModelIntegrity.check`: the property-graph profile's rule over the edge classes, an
+  error under the class's name). The library project `projects/graph` (one profile) joins `PROJECT_DEPS` at layer 0,
+  and the projects-wide compile test is `//projects:every_project_test` (its old name, `graph_test`, is the new
+  project's own).
+- **Found by this line in the resolver, 2026-10-16 (the edge class leg):** the resolver's nested navigation does not
+  read an association end past a second association step on two shapes: a to-one chain of three association ends
+  rooted at the first node, `MATCH (a:A)-[:T]->(b:B)-[:U]->(c:C)-[:V]->(d:D) RETURN d.name` over the harness's
+  model (`$a.T.U.V.name`: "property 'V' of nested navigation 'T.U' is not mapped in mapping 'g::Map'"; the same
+  pattern with `T` to-many passes), and a hop after a hop over an edge class, `(a:Actor)-[:ACTED_IN]->(m:Movie)-[:MADE_BY]->(s:Studio)`
+  (`$a.ACTED_IN_out.to.MADE_BY.name`: "property 'MADE_BY' of nested navigation 'ACTED_IN_out.to' is not mapped";
+  the edge's `to` end is `[1]`, the association form's ends `[0..1]`, which may be the difference). The island
+  refuses the edge shape by name (`CypherToPure.reachedThroughEdge`); the to-one chain no TCK case spells. The
+  resolver line's (`AssociationJoins.collectTargetTails`, `Substitution.rewriteMultiHop`).
 - **Found by this line in other lines' code, 2026-10-15:** lite does not check a stereotype or profile reference
   against its profile (`<<graph.Edgee>>`, undeclared, compiles with zero errors; legend-engine refuses it: "Can't
   find stereotype 'Edgee' in profile 'graph'"), and `docs/LENIENCY_CATALOG.md` does not list the leniency. The

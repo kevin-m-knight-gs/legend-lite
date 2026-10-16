@@ -48,7 +48,17 @@ class CypherToPureTest {
                     "legalName", prop("legalName", "String", 1, 1),
                     "hq", prop("hq", "demo::City", 0, 1),
                     "employees", prop("employees", "demo::Person", 0, -1)),
-            "demo::City", Map.of("name", prop("name", "String", 1, 1)));
+            "demo::City", Map.of("name", prop("name", "String", 1, 1)),
+            // the edge classes (the study's §5.6): Acting's ends actor and firm, its properties role and since;
+            // Directing's ends director and firm (never nodes: the models' classes() leave them out)
+            "demo::Acting", Map.of(
+                    "actor", prop("actor", "demo::Person", 1, 1),
+                    "firm", prop("firm", "demo::Firm", 1, 1),
+                    "role", prop("role", "String", 1, 1),
+                    "since", prop("since", "Integer", 0, 1)),
+            "demo::Directing", Map.of(
+                    "director", prop("director", "demo::Person", 1, 1),
+                    "firm", prop("firm", "demo::Firm", 1, 1)));
 
     private static final CypherToPure.Model MODEL = new CypherToPure.Model() {
         @Override
@@ -84,7 +94,9 @@ class CypherToPureTest {
 
         @Override
         public List<String> classes() {
-            return CLASSES.keySet().stream().sorted().toList();
+            // (an edge class is never a node)
+            return CLASSES.keySet().stream().filter(c -> !c.equals("demo::Acting") && !c.equals("demo::Directing"))
+                    .sorted().toList();
         }
 
         @Override
@@ -109,7 +121,72 @@ class CypherToPureTest {
                 prop("hq", "demo::City", 0, 1).reportTo(sink);
             }
         }
+
+        @Override
+        public void edges(CypherToPure.EdgeSink sink) {
+        }
     };
+
+    /** The model with its edge class (the study's §5.6): Acting, of type ACTED_IN from Person to Firm in the
+     *  association form (each end's inverse on the node class holds many edges), its properties role and since;
+     *  Directing, the compact form (its ends its own properties, no inverse), of its simple name's type. */
+    private static final CypherToPure.Model EDGES = new CypherToPure.Model() {
+        @Override
+        public List<String> classesOf(String label) {
+            return MODEL.classesOf(label);
+        }
+
+        @Override
+        public void property(String classPath, String name, CypherToPure.PropertySink sink) {
+            MODEL.property(classPath, name, sink);
+        }
+
+        @Override
+        public void inverse(String classPath, String property, CypherToPure.PropertySink sink) {
+            MODEL.inverse(classPath, property, sink);
+        }
+
+        @Override
+        public boolean isSubclass(String classPath, String superPath) {
+            return MODEL.isSubclass(classPath, superPath);
+        }
+
+        @Override
+        public List<String> classes() {
+            return MODEL.classes();
+        }
+
+        @Override
+        public void properties(String classPath, CypherToPure.PropertySink sink) {
+            MODEL.properties(classPath, sink);
+        }
+
+        @Override
+        public String labelOf(String classPath) {
+            return MODEL.labelOf(classPath);
+        }
+
+        @Override
+        public void ends(String classPath, CypherToPure.PropertySink sink) {
+            MODEL.ends(classPath, sink);
+        }
+
+        @Override
+        public void edges(CypherToPure.EdgeSink sink) {
+            sink.edge("demo::Acting", "ACTED_IN", "actor", "demo::Person", "actings", true, "firm", "demo::Firm",
+                    "cast", true);
+            sink.edge("demo::Directing", "Directing", "director", "demo::Person", null, false, "firm", "demo::Firm",
+                    null, false);
+        }
+    };
+
+    private static String edges(String cypher) {
+        return PureComposer.valueSpecification(CypherToPure.translate(cypher, EDGES), PureComposer.Style.STANDARD);
+    }
+
+    private static SqlTranslationException edgeRefusal(String cypher) {
+        return assertThrows(SqlTranslationException.class, () -> edges(cypher));
+    }
 
     private static String pure(String cypher) {
         ValueSpecification vs = CypherToPure.translate(cypher, MODEL);
@@ -829,5 +906,66 @@ class CypherToPureTest {
         invalid("MATCH (p:Person) RETURN p.age + count(*)", "implicit grouping expressions (p in p.age + count(*))");
         unsupported("RETURN 1e308 AS x", "a float literal beyond 1e15");
         unsupported("RETURN 1e-20 AS x", "a float literal beyond 1e15");
+    }
+
+    // ------------------------------------------------------------------ edge classes (the study's §5.6)
+
+    @Test
+    void anEdgeHopNavigatesTheInverseEndThenTheFarEnd() {
+        String pure = edges("MATCH (p:Person)-[r:ACTED_IN]->(f:Firm) RETURN r.role AS role, f.legalName AS firm");
+        assertTrue(pure.contains("$p.actings.role"), pure);
+        assertTrue(pure.contains("$p.actings.firm.legalName"), pure);
+        assertTrue(pure.contains("$p.actings.firm->isNotEmpty()"), pure);
+    }
+
+    @Test
+    void anIncomingEdgeHopNavigatesTheToEndsInverse() {
+        String pure = edges("MATCH (f:Firm)<-[r:ACTED_IN]-(p:Person) RETURN r.role AS role, p.name AS name");
+        assertTrue(pure.contains("$f.cast.role"), pure);
+        assertTrue(pure.contains("$f.cast.actor.name"), pure);
+    }
+
+    @Test
+    void anEdgeAsAValueCarriesItsTypeAndProperties() {
+        String pure = edges("MATCH (p:Person)-[r:ACTED_IN]->(:Firm) RETURN r, type(r) AS t, properties(r) AS ps,"
+                + " keys(r) AS ks");
+        // (the graph fans out: the relationship is carried as its type's and its properties' columns, and its
+        // value is rebuilt from them)
+        assertTrue(pure.contains("'{\"@type\":' + ('\"' + $r._cypher_6->toOne()"), pure);
+        assertTrue(pure.contains(",\"role\":"), pure);
+        assertTrue(pure.contains(",\"since\":"), pure);
+        assertTrue(pure.contains("'ACTED_IN'"), pure);
+    }
+
+    @Test
+    void anEdgesPropertyMapFiltersTheEdgeInstance() {
+        String pure = edges("MATCH (p:Person)-[:ACTED_IN {role: 'Neo'}]->(f:Firm) RETURN f.legalName AS firm");
+        assertTrue(pure.contains("'Neo'"), pure);
+        assertTrue(pure.contains("$p.actings.role"), pure);
+    }
+
+    @Test
+    void anUntypedHopReadsTheEdgeWays() {
+        String pure = edges("MATCH (p:Person)-->(x) RETURN labels(x) AS l");
+        // the plain end firm and the edge ACTED_IN (through actings): two arms
+        assertTrue(pure.contains("$p.firm"), pure);
+        assertTrue(pure.contains("$p.actings.firm"), pure);
+    }
+
+    @Test
+    void edgeRefusalsAreNamed() {
+        SqlTranslationException label = edgeRefusal("MATCH (a:Acting) RETURN a");
+        assertEquals(SqlTranslationException.Kind.INVALID, label.kind(), label.getMessage());
+        assertTrue(label.getMessage().contains("names the edge class demo::Acting"), label.getMessage());
+        SqlTranslationException compact = edgeRefusal("MATCH (p:Person)-[r:Directing]->(f:Firm) RETURN r");
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, compact.kind(), compact.getMessage());
+        assertTrue(compact.getMessage().contains("holds its from end director as its own property"),
+                compact.getMessage());
+        SqlTranslationException past = edgeRefusal("MATCH (p:Person)-[:ACTED_IN]->(f:Firm)-[:hq]->(c:City) RETURN c");
+        assertTrue(past.getMessage().contains("a hop from f, a node reached through an edge class"), past.getMessage());
+        SqlTranslationException wrongWay = edgeRefusal("MATCH (f:Firm)-[r:ACTED_IN]->(p:Person) RETURN r");
+        assertEquals(SqlTranslationException.Kind.INVALID, wrongWay.kind(), wrongWay.getMessage());
+        assertTrue(wrongWay.getMessage().contains("which no pattern from demo::Firm reads outgoing"),
+                wrongWay.getMessage());
     }
 }

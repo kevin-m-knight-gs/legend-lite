@@ -22,10 +22,15 @@ import java.util.regex.Pattern;
  * The model a dumped graph implies, and its tables (docs/CYPHER_STUDY_2026_10_15.md §8.2): a class per label, a
  * property per key typed by its values, a relationship type as an association between the two classes it joins
  * (its ends named by the type, {@code T} on the start class and {@code T_in} on the end class), realized as a
- * foreign key on the to-one side or a junction table, every node a row of its class's table. The lanes seed the
- * tables from the dump and never interpret a {@code CREATE}. What the inference cannot model yet is said by name
- * ({@link Unsupported}), and the case is SKIP in the ledger with that reason: a node with several labels and a
- * relationship type between several class pairs wait for PR3's inheritance, a list or temporal property for PR2.
+ * foreign key on the to-one side or a junction table, every node a row of its class's table. A relationship type
+ * whose relationships carry properties is an edge class (the study's §5.6, the association form): a class
+ * {@code E_T} marked {@code <<graph::graph.Edge>>} with the properties, its type spelled by a
+ * {@code <<graph::graph.type>>} derived property as a value of the enumeration {@code RelationshipType}, its ends
+ * two associations ({@code <<graph::graph.from>> from} with the start class's {@code T_out}, {@code <<graph::graph.to>>
+ * to} with the end class's {@code T_in}), over a bridge table {@code r_t} (one row per relationship, its id the
+ * key). The lanes seed the tables from the dump and never interpret a {@code CREATE}. What the inference cannot
+ * model yet is said by name ({@link Unsupported}), and the case is SKIP in the ledger with that reason: a node with
+ * several labels and a relationship type between several class pairs wait for PR3's inheritance.
  */
 public final class CypherGraph {
 
@@ -100,11 +105,33 @@ public final class CypherGraph {
         Cls src;
         Cls dst;
         final List<CypherAnswers.GraphRel> rels = new ArrayList<>();
+        /** The relationships' properties, typed by their values: an edge class when any. */
+        final Map<String, String> propertyTypes = new TreeMap<>();
 
         RelType(String name) {
             this.name = name;
         }
+
+        boolean edge() {
+            return !propertyTypes.isEmpty();
+        }
+
+        /** The edge class, its enumeration value, its bridge table, its associations and joins: all named apart
+         *  from the classes and the other types (a label may be spelled like a relationship type). */
+        String edgeClass() {
+            return "g::E_" + name;
+        }
+
+        String table() {
+            return "r_" + name.toLowerCase(Locale.ROOT);
+        }
     }
+
+    /** The enumeration of the edge classes' relationship types (the study's §5.6: a typed constant). */
+    private static final String RELATIONSHIP_TYPE = "g::RelationshipType";
+
+    /** The property-graph profile, as projects/graph/model.pure declares it (inlined: the model is one text). */
+    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Edge, from, to, type];\n}\n";
 
     public static Inferred infer(CypherAnswers.Graph g) throws Unsupported {
         Map<String, Cls> classes = new TreeMap<>();
@@ -172,22 +199,112 @@ public final class CypherGraph {
                         + " PR3's inheritance");
             }
             t.rels.add(r);
+            for (Map.Entry<String, String> p : r.props().entrySet()) {
+                if (!IDENTIFIER.matcher(p.getKey()).matches()) {
+                    throw new Unsupported("harness: the property " + p.getKey() + " is not a Pure identifier");
+                }
+                if (p.getKey().equals("from") || p.getKey().equals("to") || p.getKey().equals("type")) {
+                    throw new Unsupported("harness: the relationship property " + p.getKey() + " is named as the"
+                            + " edge class's end or type");
+                }
+                String type = typeOf(p.getValue(), p.getKey());
+                String before = t.propertyTypes.putIfAbsent(p.getKey(), type);
+                if (before != null && !before.equals(type)) {
+                    throw new Unsupported("harness: the property " + r.type() + "." + p.getKey() + " is typed two"
+                            + " ways (" + before + ", " + type + ")");
+                }
+            }
         }
-        // the associations: one per type, realized by a foreign key on the to-one side, else a junction table
+        for (RelType t : types.values()) {
+            Set<String> lower = new HashSet<>();
+            for (String p : t.propertyTypes.keySet()) {
+                if (!lower.add(p.toLowerCase(Locale.ROOT))) {
+                    throw new Unsupported("harness: two properties of " + t.name + " differ only in case (" + p + ")");
+                }
+            }
+            if (t.edge() && classes.containsKey("E_" + t.name)) {
+                throw new Unsupported("harness: the label E_" + t.name + " is the edge class of " + t.name);
+            }
+        }
+        // the associations: one per type, realized by a foreign key on the to-one side, else a junction table; a
+        // type with properties an edge class over a bridge table
         StringBuilder associations = new StringBuilder();
         StringBuilder joins = new StringBuilder();
         StringBuilder associationMappings = new StringBuilder();
+        StringBuilder edgeClasses = new StringBuilder();
+        StringBuilder edgeMappings = new StringBuilder();
         List<SqlParity.Table> junctions = new ArrayList<>();
+        List<String> edgeTypes = new ArrayList<>();
         for (RelType t : types.values()) {
             Cls src = java.util.Objects.requireNonNull(t.src);
             Cls dst = java.util.Objects.requireNonNull(t.dst);
             String in = t.name + "_in";
+            String outEnd = t.name + "_out";
             for (Cls c : List.of(src, dst)) {
-                if (c.propertyTypes.containsKey(t.name) || c.propertyTypes.containsKey(in) || c.ends.stream()
-                        .anyMatch(e -> e.startsWith(t.name + ":") || e.startsWith(in + ":"))) {
+                if (c.propertyTypes.containsKey(t.name) || c.propertyTypes.containsKey(in)
+                        || c.propertyTypes.containsKey(outEnd) || c.ends.stream().anyMatch(e -> e.startsWith(t.name
+                        + ":") || e.startsWith(in + ":") || e.startsWith(outEnd + ":"))) {
                     throw new Unsupported("harness: the relationship type " + t.name + " collides with a property or"
                             + " another type's end on " + c.name);
                 }
+            }
+            if (t.edge()) {
+                edgeTypes.add(t.name);
+                String edge = t.edgeClass();
+                edgeClasses.append("Class <<graph::graph.Edge>> ").append(edge).append("\n{\n")
+                        .append("    <<graph::graph.type>> type() { ").append(RELATIONSHIP_TYPE).append('.')
+                        .append(t.name).append(" }: ").append(RELATIONSHIP_TYPE).append("[1];\n");
+                List<SqlParity.Column> columns = new ArrayList<>();
+                columns.add(new SqlParity.Column("id", "BIGINT"));
+                columns.add(new SqlParity.Column("src_id", "BIGINT"));
+                columns.add(new SqlParity.Column("dst_id", "BIGINT"));
+                List<String> propertyMappings = new ArrayList<>();
+                for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
+                    String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
+                    edgeClasses.append("    ").append(p.getKey()).append(": ").append(p.getValue()).append("[0..1];\n");
+                    columns.add(new SqlParity.Column(column, sqlType(p.getValue())));
+                    propertyMappings.add("        " + p.getKey() + ": [g::DB] " + t.table() + "." + column);
+                }
+                edgeClasses.append("}\n");
+                List<List<Object>> rows = new ArrayList<>();
+                for (CypherAnswers.GraphRel r : t.rels) {
+                    List<Object> row = new ArrayList<>();
+                    row.add((long) r.id());
+                    row.add((long) r.start());
+                    row.add((long) r.end());
+                    for (String key : t.propertyTypes.keySet()) {
+                        String text = r.props().get(key);
+                        row.add(text == null ? null : cell(text));
+                    }
+                    rows.add(row);
+                }
+                junctions.add(new SqlParity.Table(t.table(), columns, rows));
+                edgeMappings.append("    ").append(edge).append(": Relational\n    {\n        ~mainTable [g::DB] ")
+                        .append(t.table()).append('\n').append(String.join(",\n", propertyMappings))
+                        .append(propertyMappings.isEmpty() ? "" : "\n").append("    }\n");
+                // the two ends: the edge's from (the start class's T_out) and to (the end class's T_in), each an
+                // association over its own join (a self-typed edge's two joins are two)
+                String fromJoin = t.name + "_from";
+                String toJoin = t.name + "_to";
+                joins.append("    Join ").append(fromJoin).append('(').append(t.table()).append(".src_id = ")
+                        .append(src.table).append(".id)\n");
+                joins.append("    Join ").append(toJoin).append('(').append(t.table()).append(".dst_id = ")
+                        .append(dst.table).append(".id)\n");
+                src.ends.add(outEnd + ": " + edge + "[*];");
+                dst.ends.add(in + ": " + edge + "[*];");
+                associations.append("Association ").append(edge).append("_from\n{\n    <<graph::graph.from>> from: g::")
+                        .append(src.name).append("[1];\n    ").append(outEnd).append(": ").append(edge)
+                        .append("[*];\n}\n");
+                associations.append("Association ").append(edge).append("_to\n{\n    <<graph::graph.to>> to: g::")
+                        .append(dst.name).append("[1];\n    ").append(in).append(": ").append(edge)
+                        .append("[*];\n}\n");
+                associationMappings.append("    ").append(edge).append("_from: Relational { AssociationMapping ( from:"
+                        + " [g::DB]@").append(fromJoin).append(", ").append(outEnd).append(": [g::DB]@")
+                        .append(fromJoin).append(" ) }\n");
+                associationMappings.append("    ").append(edge).append("_to: Relational { AssociationMapping ( to:"
+                        + " [g::DB]@").append(toJoin).append(", ").append(in).append(": [g::DB]@").append(toJoin)
+                        .append(" ) }\n");
+                continue;
             }
             Map<Integer, Integer> out = new HashMap<>();
             Map<Integer, Integer> inDegree = new HashMap<>();
@@ -333,11 +450,28 @@ public final class CypherGraph {
             tables.add(new SqlParity.Table(c.table, columns, rows));
         }
         for (SqlParity.Table j : junctions) {
-            tablesDdl.append("    Table ").append(j.name()).append(" (src_id BIGINT, dst_id BIGINT)\n");
+            if (j.columns().size() == 2) {
+                tablesDdl.append("    Table ").append(j.name()).append(" (src_id BIGINT, dst_id BIGINT)\n");
+            } else {
+                // a bridge table: its id the relationship's identity, its ends, its properties
+                StringBuilder ddl = new StringBuilder("    Table " + j.name()
+                        + " (id BIGINT PRIMARY KEY, src_id BIGINT, dst_id BIGINT");
+                RelType t = types.values().stream().filter(x -> x.table().equals(j.name())).findFirst().orElseThrow();
+                for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
+                    ddl.append(", p_").append(p.getKey().toLowerCase(Locale.ROOT)).append(' ')
+                            .append(relationalType(p.getValue()));
+                }
+                tablesDdl.append(ddl).append(")\n");
+            }
             tables.add(j);
         }
+        if (!edgeTypes.isEmpty()) {
+            pure.append(GRAPH_PROFILE).append("Enum ").append(RELATIONSHIP_TYPE).append("\n{\n    ")
+                    .append(String.join(", ", edgeTypes)).append("\n}\n").append(edgeClasses);
+        }
         String model = pure + associations.toString() + "###Relational\nDatabase " + DATABASE + "\n(\n" + tablesDdl
-                + joins + ")\n###Mapping\nMapping " + MAPPING + "\n(\n" + mapping + associationMappings + ")\n";
+                + joins + ")\n###Mapping\nMapping " + MAPPING + "\n(\n" + mapping + edgeMappings
+                + associationMappings + ")\n";
         return new Inferred(model, tables, graphKey(g));
     }
 

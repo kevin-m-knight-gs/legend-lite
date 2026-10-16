@@ -431,6 +431,12 @@ public final class PlatformTypes {
     public static final String EQUALITY_PROFILE = "meta::pure::profiles::equality";
     public static final String TEMPORAL_PROFILE = "meta::pure::profiles::temporal";
     public static final String PCT_PROFILE = "meta::pure::test::pct::PCT";
+    /** The property-graph profile (the library project {@code projects/graph}, docs/CYPHER_STUDY_2026_10_15.md
+     * §5.6): a class carrying {@code <<graph.Edge>>} is a relationship type with properties, its two ends the
+     * to-one class-typed properties carrying {@code <<graph.from>>} and {@code <<graph.to>>}, its type the
+     * enumeration value a derived property carrying {@code <<graph.type>>} spells. Read in phase F by
+     * {@code GraphEdges}, the way {@link #EQUALITY_PROFILE} is read for {@code <<equality.Key>>}. */
+    public static final String GRAPH_PROFILE = "graph::graph";
 
     /** Whether a stereotype's RESOLVED profile name is {@code profileFqn}.
      * The resolver qualifies a bare profile name through the file's

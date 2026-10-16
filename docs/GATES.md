@@ -9850,6 +9850,35 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the thirty-seventh landing — the edge class, a relationship type with properties (PR3, step 1; the twelfth line)
+
+Branch `claude/keen-noether-v5mis0`, after PR #48 merged; the record is the study's §12.38 and the design its §5.6
+(`docs/CYPHER_STUDY_2026_10_15.md`). The library project `projects/graph` (one profile), `PlatformTypes.GRAPH_PROFILE`,
+the phase-F reader `compiler/element/GraphEdges` (run by `ModelIntegrity`), the association end's stereotypes on the
+model record, the resolver keeping a rebuilt derived property's annotations, the island's model adapter
+(`CypherIslands`), the translator, and the harness (`CypherGraph`, `CypherParity`).
+
+1. **What lands.** A class carrying `<<graph.Edge>>` with one `<<graph.from>>` and one `<<graph.to>>` end (own,
+   inherited or association-injected, each `[1]` and class-typed) and a `<<graph.type>>` enumeration value is a
+   relationship type with properties; phase F refuses a misdeclared one under the class's name. A pattern over it
+   navigates the start node's inverse end to the edge instance and the edge's far end on; `r.prop`, `r` as a value,
+   `properties(r)`, `keys(r)`, a property map on the relationship, a relationship carried through `WITH`, a path's
+   relationship and a pattern comprehension's hop read the edge instance. The harness declares the association form
+   for every relationship type whose relationships carry properties, over a bridge table, and its SKIP for those
+   cases is gone.
+2. **The ledger.** DuckDB: 4363 cases; PASS 2671 (from 2,649); FAIL 0; BUG 0; ERROR 0; REFUSED 683; BOTH_ERROR 711;
+   SKIP 298 (from 348: the relationship-property skips lifted). Postgres: PASS 2321 (from 2,299); FAIL 0; BUG 0;
+   ERROR 0; REFUSED 1033; BOTH_ERROR 711; SKIP 298. 18 lite cases in `lite/edges.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check`: 0 problems over 4280 cases).
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler` (the reader's `GraphEdgesTest`),
+   `//core:guardrails`, `//core:core_tests_integration`, `//projects:graph_test` and `//projects:every_project_test`
+   (the projects-wide compile, renamed apart from the new project's own test) green.
+4. **Refused by name, recorded.** An edge class as a label; the compact form read from the node side (no inverse end
+   to navigate); an undirected pattern over a self-typed edge; a type naming both an edge class and a property; an
+   end's name used as a type; a hop from a node reached through an edge class (the resolver's nested navigation
+   reads no association end past the edge's end: refused by the translator, the finding reported to the resolver
+   line in `docs/IN_FLIGHT.md`).
+
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-sixth landing — a stored list as a Variant, a parenthesized label predicate, a first-clause OPTIONAL MATCH over no way (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, on PR #48; the record is the study's §12.37

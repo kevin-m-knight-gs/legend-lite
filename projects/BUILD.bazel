@@ -22,6 +22,8 @@ PROJECT_DEPS = {
     "core-tenor": [],
     "core-types": [],
     "core-units": [],
+    # the property-graph profile (docs/CYPHER_STUDY_2026_10_15.md §5.6): one Profile, no dependencies
+    "graph": [],
     # layer 1
     "cash-core": ["core-account", "core-types"],
     "client-core": ["core-geo", "core-party"],
@@ -87,9 +89,10 @@ QUARANTINE = {
 ) for project, deps in PROJECT_DEPS.items()]
 
 # every project at once: the collisions between projects (a table, set id or filter declared twice) show only here.
-# A quarantined project joins it when its row comes out.
+# A quarantined project joins it when its row comes out. (Named apart from the graph project's own `graph_test`,
+# 2026-10-16: the property-graph profile project is `graph`.)
 legend_graph_test(
-    name = "graph_test",
+    name = "every_project_test",
     libraries = [":" + project for project in PROJECT_DEPS if project not in QUARANTINE],
 )
 
@@ -117,7 +120,7 @@ test_suite(
     name = "tests",
     tests = [":%s_test" % p for p in PROJECT_DEPS] + [
         ":contract_test",
-        ":graph_test",
+        ":every_project_test",
     ],
 )
 

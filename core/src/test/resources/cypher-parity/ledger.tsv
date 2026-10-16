@@ -141,9 +141,9 @@ tck/clauses/delete/Delete1/[7] Failing when deleting connected nodes	BOTH_ERROR	
 tck/clauses/delete/Delete1/[8] Failing when deleting a label	BOTH_ERROR	BOTH_ERROR
 tck/clauses/delete/Delete2/[1] Delete relationships	REFUSED	REFUSED
 tck/clauses/delete/Delete2/[2] Delete optionally matched relationship	REFUSED	REFUSED
-tck/clauses/delete/Delete2/[3] Delete relationship with bidirectional matching	SKIP	SKIP
+tck/clauses/delete/Delete2/[3] Delete relationship with bidirectional matching	REFUSED	REFUSED
 tck/clauses/delete/Delete2/[4] Ignore null when deleting relationship	REFUSED	REFUSED
-tck/clauses/delete/Delete2/[5] Failing when deleting a relationship type	SKIP	SKIP
+tck/clauses/delete/Delete2/[5] Failing when deleting a relationship type	BOTH_ERROR	BOTH_ERROR
 tck/clauses/delete/Delete3/[1] Detach deleting paths	SKIP	SKIP
 tck/clauses/delete/Delete3/[2] Delete on null path	REFUSED	REFUSED
 tck/clauses/delete/Delete4/[1] Undirected expand followed by delete and count	REFUSED	REFUSED
@@ -165,22 +165,22 @@ tck/clauses/delete/Delete6/[4] Skipping zero results and limiting to all results
 tck/clauses/delete/Delete6/[5] Filtering after deleting nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/delete/Delete6/[6] Aggregating in `RETURN` after deleting nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/delete/Delete6/[7] Aggregating in `WITH` after deleting nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[8] Limiting to zero results after deleting relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/delete/Delete6/[9] Skipping all results after deleting relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/delete/Delete6/[10] Skipping and limiting to a few results after deleting relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/delete/Delete6/[11] Skipping zero result and limiting to all results after deleting relationships does not affect the result set nor the side effects	SKIP	SKIP
-tck/clauses/delete/Delete6/[12] Filtering after deleting relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/delete/Delete6/[13] Aggregating in `RETURN` after deleting relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/delete/Delete6/[14] Aggregating in `WITH` after deleting relationships affects the result set but not the side effects	SKIP	SKIP
+tck/clauses/delete/Delete6/[8] Limiting to zero results after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/delete/Delete6/[9] Skipping all results after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/delete/Delete6/[10] Skipping and limiting to a few results after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/delete/Delete6/[11] Skipping zero result and limiting to all results after deleting relationships does not affect the result set nor the side effects	REFUSED	REFUSED
+tck/clauses/delete/Delete6/[12] Filtering after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/delete/Delete6/[13] Aggregating in `RETURN` after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/delete/Delete6/[14] Aggregating in `WITH` after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[1] Filter node with node label predicate on multi variables with multiple bindings	SKIP	SKIP
 tck/clauses/match-where/MatchWhere1/[2] Filter node with node label predicate on multi variables without any bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[3] Filter node with property predicate on a single variable with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[4] Filter start node of relationship with property predicate on multi variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[5] Filter end node of relationship with property predicate on multi variables with multiple bindings	PASS	PASS
-tck/clauses/match-where/MatchWhere1/[6] Filter node with a parameter in a property predicate on multi variables with one binding	SKIP	SKIP
+tck/clauses/match-where/MatchWhere1/[6] Filter node with a parameter in a property predicate on multi variables with one binding	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[7] Filter relationship with relationship type predicate on multi variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[8] Filter relationship with property predicate on multi variables with multiple bindings	SKIP	SKIP
-tck/clauses/match-where/MatchWhere1/[9] Filter relationship with a parameter in a property predicate on multi variables with one binding	SKIP	SKIP
+tck/clauses/match-where/MatchWhere1/[9] Filter relationship with a parameter in a property predicate on multi variables with one binding	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[10] Filter node with disjunctive property predicate on single variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[11] Filter relationship with disjunctive relationship type predicate on multi variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[12] Filter path with path length predicate on multi variables with one binding	PASS	PASS
@@ -382,7 +382,7 @@ tck/clauses/match/Match3/[1] Get neighbours	PASS	PASS
 tck/clauses/match/Match3/[2] Directed match of a simple relationship	PASS	PASS
 tck/clauses/match/Match3/[3] Undirected match on simple relationship graph	PASS	PASS
 tck/clauses/match/Match3/[4] Get two related nodes	SKIP	SKIP
-tck/clauses/match/Match3/[5] Return two subgraphs with bound undirected relationship	SKIP	SKIP
+tck/clauses/match/Match3/[5] Return two subgraphs with bound undirected relationship	PASS	PASS
 tck/clauses/match/Match3/[6] Matching a relationship pattern using a label predicate	SKIP	SKIP
 tck/clauses/match/Match3/[7] Matching nodes with many labels	SKIP	SKIP
 tck/clauses/match/Match3/[8] Matching using relationship predicate with multiples of the same type	PASS	PASS
@@ -577,7 +577,7 @@ tck/clauses/match/Match7/[30] Satisfies the open world assumption, single relati
 tck/clauses/match/Match7/[31] Satisfies the open world assumption, relationships between different nodes	REFUSED	REFUSED
 tck/clauses/match/Match8/[1] Pattern independent of bound variables results in cross product	PASS	PASS
 tck/clauses/match/Match8/[2] Counting rows after MATCH, MERGE, OPTIONAL MATCH	REFUSED	REFUSED
-tck/clauses/match/Match8/[3] Matching and disregarding output, then matching again	SKIP	SKIP
+tck/clauses/match/Match8/[3] Matching and disregarding output, then matching again	REFUSED	REFUSED
 tck/clauses/match/Match9/[1] Variable length relationship variables are lists of relationships	REFUSED	REFUSED
 tck/clauses/match/Match9/[2] Return relationships by collecting them as a list - directed, one way	SKIP	SKIP
 tck/clauses/match/Match9/[3] Return relationships by collecting them as a list - undirected, starting from two extremes	SKIP	SKIP
@@ -621,23 +621,23 @@ tck/clauses/merge/Merge5/[1] Creating a relationship	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[2] Matching a relationship	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[3] Matching two relationships	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[4] Using bound variables from other updating clause	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[5] Filtering relationships	SKIP	SKIP
-tck/clauses/merge/Merge5/[6] Creating relationship when all matches filtered out	SKIP	SKIP
+tck/clauses/merge/Merge5/[5] Filtering relationships	REFUSED	REFUSED
+tck/clauses/merge/Merge5/[6] Creating relationship when all matches filtered out	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[7] Matching incoming relationship	SKIP	SKIP
 tck/clauses/merge/Merge5/[8] Creating relationship with property	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[9] Creating relationship using merged nodes	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[10] Merge should bind a path	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[11] Use outgoing direction when unspecified	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[12] Match outgoing relationship when direction unspecified	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[13] Match both incoming and outgoing relationships when direction unspecified	SKIP	SKIP
+tck/clauses/merge/Merge5/[13] Match both incoming and outgoing relationships when direction unspecified	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[14] Using list properties via variable	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[15] Matching using list property	SKIP	SKIP
+tck/clauses/merge/Merge5/[15] Matching using list property	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[16] Aliasing of existing nodes 1	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[17] Aliasing of existing nodes 2	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[18] Double aliasing of existing nodes 1	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[19] Double aliasing of existing nodes 2	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[20] Do not match on deleted entities	SKIP	SKIP
-tck/clauses/merge/Merge5/[21] Do not match on deleted relationships	SKIP	SKIP
+tck/clauses/merge/Merge5/[21] Do not match on deleted relationships	REFUSED	REFUSED
 tck/clauses/merge/Merge5/[22] Fail when imposing new predicates on a variable that is already bound	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge5/[23] Fail when merging relationship without type	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge5/[24] Fail when merging relationship without type, no colon	BOTH_ERROR	BOTH_ERROR
@@ -664,8 +664,8 @@ tck/clauses/merge/Merge9/[3] Mixing MERGE with CREATE	REFUSED	REFUSED
 tck/clauses/merge/Merge9/[4] MERGE after WITH with predicate and WITH with aggregation	REFUSED	REFUSED
 tck/clauses/remove/Remove1/[1] Remove a single node property	REFUSED	REFUSED
 tck/clauses/remove/Remove1/[2] Remove multiple node properties	REFUSED	REFUSED
-tck/clauses/remove/Remove1/[3] Remove a single relationship property	SKIP	SKIP
-tck/clauses/remove/Remove1/[4] Remove multiple relationship properties	SKIP	SKIP
+tck/clauses/remove/Remove1/[3] Remove a single relationship property	REFUSED	REFUSED
+tck/clauses/remove/Remove1/[4] Remove multiple relationship properties	REFUSED	REFUSED
 tck/clauses/remove/Remove1/[5] Ignore null when removing property from a node	REFUSED	REFUSED
 tck/clauses/remove/Remove1/[6] Ignore null when removing property from a relationship	REFUSED	REFUSED
 tck/clauses/remove/Remove1/[7] Remove a missing node property	REFUSED	REFUSED
@@ -688,13 +688,13 @@ tck/clauses/remove/Remove3/[11] Skipping zero result and limiting to all results
 tck/clauses/remove/Remove3/[12] Filtering after removing a label from nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/remove/Remove3/[13] Aggregating in `RETURN` after removing a label from nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/remove/Remove3/[14] Aggregating in `WITH` after removing a label from nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[15] Limiting to zero results after removing a property from relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/remove/Remove3/[16] Skipping all results after removing a property from relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/remove/Remove3/[17] Skipping and limiting to a few results after removing a property from relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/remove/Remove3/[18] Skipping zero result and limiting to all results after removing a property from relationships does not affect the result set nor the side effects	SKIP	SKIP
-tck/clauses/remove/Remove3/[19] Filtering after removing a property from relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/remove/Remove3/[20] Aggregating in `RETURN` after removing a property from relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/remove/Remove3/[21] Aggregating in `WITH` after removing a property from relationships affects the result set but not the side effects	SKIP	SKIP
+tck/clauses/remove/Remove3/[15] Limiting to zero results after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/remove/Remove3/[16] Skipping all results after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/remove/Remove3/[17] Skipping and limiting to a few results after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/remove/Remove3/[18] Skipping zero result and limiting to all results after removing a property from relationships does not affect the result set nor the side effects	REFUSED	REFUSED
+tck/clauses/remove/Remove3/[19] Filtering after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/remove/Remove3/[20] Aggregating in `RETURN` after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/remove/Remove3/[21] Aggregating in `WITH` after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy1/[1] ORDER BY should order booleans in the expected order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy1/[2] ORDER BY DESC should order booleans in the expected order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy1/[3] ORDER BY should order strings in the expected order	PASS	PASS
@@ -766,8 +766,8 @@ tck/clauses/return/Return1/[2] Fail when returning an undefined variable	BOTH_ER
 tck/clauses/return/Return2/[1] Arithmetic expressions should propagate null values	PASS	PASS
 tck/clauses/return/Return2/[2] Returning a node property value	PASS	PASS
 tck/clauses/return/Return2/[3] Missing node property should become null	REFUSED	REFUSED
-tck/clauses/return/Return2/[4] Returning a relationship property value	SKIP	SKIP
-tck/clauses/return/Return2/[5] Missing relationship property should become null	SKIP	SKIP
+tck/clauses/return/Return2/[4] Returning a relationship property value	REFUSED	REFUSED
+tck/clauses/return/Return2/[5] Missing relationship property should become null	REFUSED	REFUSED
 tck/clauses/return/Return2/[6] Adding a property and a literal in projection	PASS	PASS
 tck/clauses/return/Return2/[7] Adding list properties in projection	REFUSED	REFUSED
 tck/clauses/return/Return2/[8] Returning label predicate expression	PASS	PASS
@@ -779,7 +779,7 @@ tck/clauses/return/Return2/[13] Projecting a map of nodes and relationships	PASS
 tck/clauses/return/Return2/[14] Do not fail when returning type of deleted relationships	REFUSED	REFUSED
 tck/clauses/return/Return2/[15] Fail when returning properties of deleted nodes	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return2/[16] Fail when returning labels of deleted nodes	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return/Return2/[17] Fail when returning properties of deleted relationships	SKIP	SKIP
+tck/clauses/return/Return2/[17] Fail when returning properties of deleted relationships	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return2/[18] Fail on projecting a non-existent function	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return3/[1] Returning multiple expressions	REFUSED	REFUSED
 tck/clauses/return/Return3/[2] Returning multiple node property values	PASS	PASS
@@ -794,7 +794,7 @@ tck/clauses/return/Return4/[7] Keeping used expression 4	PASS	PASS
 tck/clauses/return/Return4/[8] Support column renaming for aggregations	PASS	PASS
 tck/clauses/return/Return4/[9] Handle subexpression in aggregation also occurring as standalone expression with nested aggregation in a literal map	REFUSED	REFUSED
 tck/clauses/return/Return4/[10] Fail when returning multiple columns with same name	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return/Return4/[11] Reusing variable names in RETURN	SKIP	SKIP
+tck/clauses/return/Return4/[11] Reusing variable names in RETURN	REFUSED	REFUSED
 tck/clauses/return/Return5/[1] DISTINCT inside aggregation should work with lists in maps	REFUSED	REFUSED
 tck/clauses/return/Return5/[2] DISTINCT on nullable values	PASS	PASS
 tck/clauses/return/Return5/[3] DISTINCT inside aggregation should work with nested lists in maps	REFUSED	REFUSED
@@ -815,7 +815,7 @@ tck/clauses/return/Return6/[12] Counting matches per group	REFUSED	REFUSED
 tck/clauses/return/Return6/[13] Returning the minimum length of paths	REFUSED	REFUSED
 tck/clauses/return/Return6/[14] Aggregates in aggregates	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[15] Using `rand()` in aggregations	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return/Return6/[16] Aggregation on complex expressions	SKIP	SKIP
+tck/clauses/return/Return6/[16] Aggregation on complex expressions	REFUSED	REFUSED
 tck/clauses/return/Return6/[17] Handle constants and parameters inside an expression which contains an aggregation expression	PASS	PASS
 tck/clauses/return/Return6/[18] Handle returned variables inside an expression which contains an aggregation expression	REFUSED	REFUSED
 tck/clauses/return/Return6/[19] Handle returned property accesses inside an expression which contains an aggregation expression	REFUSED	REFUSED
@@ -837,7 +837,7 @@ tck/clauses/set/Set1/[10] Failing when setting a list of maps as a property	BOTH
 tck/clauses/set/Set1/[11] Set multiple node properties	REFUSED	REFUSED
 tck/clauses/set/Set2/[1] Setting a node property to null removes the existing property	REFUSED	REFUSED
 tck/clauses/set/Set2/[2] Setting a node property to null removes the existing property, but not before SET	REFUSED	REFUSED
-tck/clauses/set/Set2/[3] Setting a relationship property to null removes the existing property	SKIP	SKIP
+tck/clauses/set/Set2/[3] Setting a relationship property to null removes the existing property	REFUSED	REFUSED
 tck/clauses/set/Set3/[1] Add a single label to a node with no label	REFUSED	REFUSED
 tck/clauses/set/Set3/[2] Adding multiple labels to a node with no label	REFUSED	REFUSED
 tck/clauses/set/Set3/[3] Add a single label to a node with an existing label	REFUSED	REFUSED
@@ -870,13 +870,13 @@ tck/clauses/set/Set6/[11] Skipping zero result and limiting to all results after
 tck/clauses/set/Set6/[12] Filtering after adding a label on nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/set/Set6/[13] Aggregating in `RETURN` after adding a label on nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/set/Set6/[14] Aggregating in `WITH` after adding a label on nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[15] Limiting to zero results after setting a property on relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/set/Set6/[16] Skipping all results after setting a property on relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/set/Set6/[17] Skipping and limiting to a few results after setting a property on relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/set/Set6/[18] Skipping zero result and limiting to all results after setting a property on relationships does not affect the result set nor the side effects	SKIP	SKIP
-tck/clauses/set/Set6/[19] Filtering after setting a property on relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/set/Set6/[20] Aggregating in `RETURN` after setting a property on relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/set/Set6/[21] Aggregating in `WITH` after setting a property on relationships affects the result set but not the side effects	SKIP	SKIP
+tck/clauses/set/Set6/[15] Limiting to zero results after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/set/Set6/[16] Skipping all results after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/set/Set6/[17] Skipping and limiting to a few results after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/set/Set6/[18] Skipping zero result and limiting to all results after setting a property on relationships does not affect the result set nor the side effects	REFUSED	REFUSED
+tck/clauses/set/Set6/[19] Filtering after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/set/Set6/[20] Aggregating in `RETURN` after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/set/Set6/[21] Aggregating in `WITH` after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/union/Union1/[1] Two elements, both unique, distinct	PASS	PASS
 tck/clauses/union/Union1/[2] Three elements, two unique, distinct	PASS	PASS
 tck/clauses/union/Union1/[3] Two single-column inputs, one with duplicates, distinct	PASS	PASS
@@ -1196,11 +1196,11 @@ tck/clauses/with-orderBy/WithOrderBy4/[18]  Handle projected property accesses i
 tck/clauses/with-orderBy/WithOrderBy4/[19] Fail if not projected variables are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy4/[20] Fail if more complex expressions, even if projected, are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-skip-limit/WithSkipLimit1/[1] Handle dependencies across WITH with SKIP	SKIP	SKIP
-tck/clauses/with-skip-limit/WithSkipLimit1/[2] Ordering and skipping on aggregate	SKIP	SKIP
+tck/clauses/with-skip-limit/WithSkipLimit1/[2] Ordering and skipping on aggregate	REFUSED	REFUSED
 tck/clauses/with-skip-limit/WithSkipLimit2/[1] ORDER BY and LIMIT can be used	REFUSED	REFUSED
 tck/clauses/with-skip-limit/WithSkipLimit2/[2] Handle dependencies across WITH with LIMIT	SKIP	SKIP
 tck/clauses/with-skip-limit/WithSkipLimit2/[3] Connected components succeeding WITH with LIMIT	REFUSED	REFUSED
-tck/clauses/with-skip-limit/WithSkipLimit2/[4] Ordering and limiting on aggregate	SKIP	SKIP
+tck/clauses/with-skip-limit/WithSkipLimit2/[4] Ordering and limiting on aggregate	REFUSED	REFUSED
 tck/clauses/with-skip-limit/WithSkipLimit3/[1] Get rows in the middle	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit3/[2] Get rows in the middle by param	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit3/[3] Limiting amount of rows when there are fewer left than the LIMIT argument	PASS	PASS
@@ -1237,7 +1237,7 @@ tck/clauses/with/With4/[2] Aliasing expression to new variable name	REFUSED	REFU
 tck/clauses/with/With4/[3] Aliasing expression to existing variable name	PASS	PASS
 tck/clauses/with/With4/[4] Fail when forwarding multiple aliases with the same name	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With4/[5] Fail when not aliasing expressions in WITH	BOTH_ERROR	BOTH_ERROR
-tck/clauses/with/With4/[6] Reusing variable names in WITH	SKIP	SKIP
+tck/clauses/with/With4/[6] Reusing variable names in WITH	REFUSED	REFUSED
 tck/clauses/with/With4/[7] Multiple aliasing and backreferencing	REFUSED	REFUSED
 tck/clauses/with/With5/[1] DISTINCT on an expression	PASS	PASS
 tck/clauses/with/With5/[2] Handling DISTINCT with lists in maps	REFUSED	REFUSED
@@ -1565,10 +1565,10 @@ tck/expressions/graph/Graph6/[1] Statically access a property of a non-null node
 tck/expressions/graph/Graph6/[2] Statically access a property of a optional non-null node	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[3] Statically access a property of a null node	PASS	PASS
 tck/expressions/graph/Graph6/[4] Statically access a property of a node resulting from an expression	REFUSED	REFUSED
-tck/expressions/graph/Graph6/[5] Statically access a property of a non-null relationship	SKIP	SKIP
-tck/expressions/graph/Graph6/[6] Statically access a property of a optional non-null relationship	SKIP	SKIP
+tck/expressions/graph/Graph6/[5] Statically access a property of a non-null relationship	REFUSED	REFUSED
+tck/expressions/graph/Graph6/[6] Statically access a property of a optional non-null relationship	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[7] Statically access a property of a null relationship	PASS	PASS
-tck/expressions/graph/Graph6/[8] Statically access a property of a relationship resulting from an expression	SKIP	SKIP
+tck/expressions/graph/Graph6/[8] Statically access a property of a relationship resulting from an expression	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-graph element #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-graph element #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-graph element #3	BOTH_ERROR	BOTH_ERROR
@@ -1582,12 +1582,12 @@ tck/expressions/graph/Graph8/[1] Using `keys()` on a single node, non-empty resu
 tck/expressions/graph/Graph8/[2] Using `keys()` on multiple nodes, non-empty result	PASS	PASS
 tck/expressions/graph/Graph8/[3] Using `keys()` on a single node, empty result	PASS	PASS
 tck/expressions/graph/Graph8/[4] Using `keys()` on an optionally matched node	PASS	PASS
-tck/expressions/graph/Graph8/[5] Using `keys()` on a relationship, non-empty result	SKIP	SKIP
+tck/expressions/graph/Graph8/[5] Using `keys()` on a relationship, non-empty result	REFUSED	REFUSED
 tck/expressions/graph/Graph8/[6] Using `keys()` on a relationship, empty result	PASS	PASS
 tck/expressions/graph/Graph8/[7] Using `keys()` on an optionally matched relationship	PASS	PASS
 tck/expressions/graph/Graph8/[8] Using `keys()` and `IN` to check property existence	PASS	PASS
 tck/expressions/graph/Graph9/[1] `properties()` on a node	PASS	PASS
-tck/expressions/graph/Graph9/[2] `properties()` on a relationship	SKIP	SKIP
+tck/expressions/graph/Graph9/[2] `properties()` on a relationship	REFUSED	REFUSED
 tck/expressions/graph/Graph9/[3] `properties()` on null	PASS	PASS
 tck/expressions/graph/Graph9/[4] `properties()` on a map	PASS	PASS
 tck/expressions/graph/Graph9/[5] `properties()` failing on an integer literal	BOTH_ERROR	BOTH_ERROR
@@ -2053,7 +2053,7 @@ tck/expressions/pattern/Pattern2/[1] Return a pattern comprehension	SKIP	SKIP
 tck/expressions/pattern/Pattern2/[2] Return a pattern comprehension with label predicate	SKIP	SKIP
 tck/expressions/pattern/Pattern2/[3] Return a pattern comprehension with bound nodes	REFUSED	REFUSED
 tck/expressions/pattern/Pattern2/[4] Introduce a new node variable in pattern comprehension	PASS	PASS
-tck/expressions/pattern/Pattern2/[5] Introduce a new relationship variable in pattern comprehension	SKIP	SKIP
+tck/expressions/pattern/Pattern2/[5] Introduce a new relationship variable in pattern comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[6] Aggregate on a pattern comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[7] Use a pattern comprehension inside a list comprehension	SKIP	SKIP
 tck/expressions/pattern/Pattern2/[8] Use a pattern comprehension in WITH	SKIP	SKIP
@@ -3970,6 +3970,24 @@ lite/continue/two_untyped_hops_from_a_bound_node	PASS	PASS
 lite/continue/untyped_hop_after_a_projecting_with_refused	REFUSED	REFUSED
 lite/continue/untyped_hop_between_two_bound_nodes_refused	REFUSED	REFUSED
 lite/continue/untyped_hop_from_a_node_no_way_leaves	PASS	PASS
+lite/edges/a_relationship_property	PASS	PASS
+lite/edges/a_relationship_as_a_value	PASS	PASS
+lite/edges/properties_and_keys_of_a_relationship	PASS	PASS
+lite/edges/type_of_an_edge_relationship	PASS	PASS
+lite/edges/an_incoming_edge	PASS	PASS
+lite/edges/an_undirected_edge_from_its_from_side	PASS	PASS
+lite/edges/a_property_map_on_an_edge	PASS	PASS
+lite/edges/a_where_over_an_edge_property	PASS	PASS
+lite/edges/an_edge_carried_through_with	PASS	PASS
+lite/edges/an_optional_edge	PASS	PASS
+lite/edges/an_untyped_hop_over_an_edge_and_an_association	PASS	PASS
+lite/edges/a_path_over_an_edge	PASS	PASS
+lite/edges/a_pattern_comprehension_over_an_edge	PASS	PASS
+lite/edges/a_self_typed_edge	PASS	PASS
+lite/edges/an_edge_then_an_association	REFUSED	REFUSED
+lite/edges/a_labelless_pattern_over_an_edge	PASS	PASS
+lite/edges/an_aggregate_over_an_edge_property	PASS	PASS
+lite/edges/a_missing_property_on_some_relationships	PASS	PASS
 lite/empty/empty_match_count	PASS	PASS
 lite/empty/empty_match_rows	PASS	PASS
 lite/empty/empty_match_property	PASS	PASS
@@ -4142,7 +4160,7 @@ lite/rels/count_of_relationships	PASS	PASS
 lite/rels/relationship_in_a_list	PASS	PASS
 lite/rels/distinct_relationship_refused_by_name	REFUSED	REFUSED
 lite/rels/relationship_property_refused_by_name	REFUSED	REFUSED
-lite/rels/edge_property_skipped_by_the_harness	SKIP	SKIP
+lite/rels/edge_property_skipped_by_the_harness	PASS	PASS
 lite/shapes/list_of_one_row_value	PASS	PASS
 lite/shapes/list_with_a_null_element	PASS	PASS
 lite/shapes/list_of_mixed_kinds	PASS	PASS

@@ -2924,3 +2924,59 @@ collision a cycle (it names the variable); `[(n:Foo)]` parsed as a pattern compr
 predicate's lookahead, in a list too). The review found the indexing, the fresh-column naming, the flag threading,
 the resolver's condition (a pure relaxation; `isVariant` admits the `meta::json` family too, consistently) and the
 harness's JSON spelling correct.
+
+### 12.38 The edge class: a relationship type with properties, 2026-10-16 (PR3, step 1; the design is §5.6)
+
+- **The model.** The library project `projects/graph` declares the one profile, `graph::graph`
+  (`stereotypes: [Edge, from, to, type]`, no tag), as `core_types::CtGovernance` is declared for every project that
+  depends on it; `PlatformTypes.GRAPH_PROFILE` names it, as `EQUALITY_PROFILE` names the equality profile. A class
+  carrying `<<graph.Edge>>` (itself or a superclass) is a relationship type with properties; its two ends are the
+  properties carrying `<<graph.from>>` and `<<graph.to>>`, each `[1]` and typed by a class, declared on the class, inherited,
+  or injected by an association (whose other end is the node class's navigation to the edge); its type is the
+  enumeration value the derived property carrying `<<graph.type>>` spells, else the class's simple name; every other
+  stored property is the relationship's. `compiler/element/GraphEdges` reads it in phase F (`ModelIntegrity`), as
+  `EqualityKeys` reads `<<equality.Key>>`, with an error under the class's name for a misdeclared edge: an end
+  stereotype without the marker, the marker without both ends, an end that is not `[1]` or not a class, two ends of one
+  kind, a type whose body is not one spelled enumeration value, a to-many property holding a class, the profile not
+  declared or not of that shape. Two small changes outside the island (announced in `IN_FLIGHT`): the association
+  end's stereotypes, which the parser read and the model record dropped, now ride on
+  `AssociationDefinition.AssociationEndDefinition`; and `NameResolver.resolveDerivedProperty` kept a rebuilt derived
+  property's annotations (it rebuilt with the five-argument constructor, so a `<<graph.type>>` whose body named an
+  enumeration lost its marker on resolution).
+- **The island.** The model adapter reports the edge classes (`CypherToPure.Model.edges()`), leaves them out of the
+  classes a label-less pattern reads, and reports no end holding an edge class (an edge is reached by its type, never
+  by an end's name). A relationship type naming an edge class resolves, from a node of its from class, to a hop of two
+  steps: the node's inverse of the from end (to-many: the graph fans out, one row per relationship) to the edge
+  instance, then the edge's to end to the node after; incoming, the inverse of the to end then the from end; undirected,
+  whichever the node's class allows. The far node's label picks among the edge classes of one type (a type joining
+  several class pairs, §5.6's union) and must otherwise be the far end's class or a superclass. The relationship is
+  bound to the edge instance with the edge class as its class: `r.prop` navigates there as a node's property does,
+  `r` as a value is `{"@type": T, props}` built as a node's JSON is, `properties(r)` and `keys(r)` read the edge's
+  properties, a property map on the relationship pattern filters the edge instance, a relationship carried through
+  `WITH` carries its type's column and its properties' columns, and a path's relationship prints its properties. An
+  untyped hop reads the edge ways beside the association ends; a pattern comprehension's hop over an edge is rooted
+  at the edge instance. Refused by name: an edge class as a label ("a relationship type, not a node label"); the
+  compact form read from the node side (an end that is the edge's own property has no inverse for the node to
+  navigate; the association form gives it one); an undirected pattern over a self-typed edge (a loop); a type naming
+  both an edge class and a property; an end's name used as a type; a hop from a node reached through an edge class
+  (the resolver's nested navigation reads no association end past the edge's end, `$a.ACTED_IN_out.to.MADE_BY`:
+  a finding for the resolver line, `IN_FLIGHT`, with a plain three-hop to-one chain that fails the same way).
+- **The harness.** A relationship type whose relationships carry properties is declared as an edge class in the
+  association form: `Class <<graph::graph.Edge>> g::E_T` with the properties and
+  `<<graph::graph.type>> type() { g::RelationshipType.T }: g::RelationshipType[1]`, the ends
+  `Association g::E_T_from { <<graph::graph.from>> from: g::Src[1]; T_out: g::E_T[*]; }` and
+  `Association g::E_T_to { <<graph::graph.to>> to: g::Dst[1]; T_in: g::E_T[*]; }`, over a bridge table `r_t (id PRIMARY
+  KEY, src_id, dst_id, p_...)` with one row per relationship and a join per end; the profile inlined. The SKIP for "a
+  relationship holding a property, named by the query" is gone (50 TCK cases, most of them writes). A type without
+  properties stays an association, byte for byte as before (the showcase's pins hold).
+
+#### 12.38.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4363 | 2671 (from 2,649) | 0 | 0 | 0 | 683 | 711 | 298 |
+| Postgres | 4363 | 2321 (from 2,299) | 0 | 0 | 0 | 1033 | 711 | 298 |
+
+18 lite cases in `lite/edges.yaml`, each judged by Neo4j (one of them the hop past an edge, refused by name). The SKIP
+count fell from 348: the 50 cases the harness skipped for a relationship property run now (most of them writes,
+refused by name; the read-only ones pass).

@@ -4,6 +4,7 @@
 package com.legend.compiler.spec;
 
 import com.legend.compiler.NameResolver;
+import com.legend.compiler.element.GraphEdges;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.Property;
 import com.legend.compiler.element.type.Multiplicity;
@@ -183,6 +184,8 @@ public final class CypherIslands {
             java.util.Set<String> seen = new java.util.HashSet<>();
             java.util.Deque<String> todo = new java.util.ArrayDeque<>(List.of(classPath));
             Ends ends = model.derived(Ends.class, Ends::of);
+            // (an end holding an edge class is one of the edge's: the edge is reached by its type, the study's §5.6)
+            GraphEdges edges = model.derived(GraphEdges.class, GraphEdges::of);
             while (!todo.isEmpty()) {
                 String path = todo.poll();
                 com.legend.compiler.element.TypedClass tc = model.findClass(path).orElse(null);
@@ -190,19 +193,21 @@ public final class CypherIslands {
                     continue;
                 }
                 for (Property p : tc.properties()) {
-                    if (p instanceof Property.Stored s && s.type() instanceof Type.ClassType && seen.add(s.name())) {
+                    if (p instanceof Property.Stored s && s.type() instanceof Type.ClassType c
+                            && edges.edgeAt(c.fqn()) == null && seen.add(s.name())) {
                         report(sink, s.name(), s.type(), s.multiplicity());
                     }
                 }
                 for (AssociationDefinition.AssociationEndDefinition end : ends.byOwner().getOrDefault(path,
                         List.of())) {
+                    String target = end.targetClass() instanceof com.legend.protocol.TypeExpression.NameRef nr
+                            ? nr.name() : "";
                     if (!(end.multiplicity() instanceof com.legend.protocol.Multiplicity.Concrete m)
-                            || !seen.add(end.propertyName())) {
+                            || edges.edgeAt(target) != null || !seen.add(end.propertyName())) {
                         continue;
                     }
                     Integer upper = m.upperBound();
-                    sink.property(end.propertyName(), end.targetClass() instanceof com.legend.protocol.TypeExpression
-                            .NameRef nr ? nr.name() : "", true, false, m.lowerBound(), upper == null ? -1 : upper);
+                    sink.property(end.propertyName(), target, true, false, m.lowerBound(), upper == null ? -1 : upper);
                 }
                 todo.addAll(tc.superClassFqns());
             }
@@ -222,13 +227,24 @@ public final class CypherIslands {
         @Override
         public List<String> classes() {
             // the model's own classes: the platform's declarations (the resolver's type universe and the system
-            // metamodel's elements, by their declared names) are never nodes
+            // metamodel's elements, by their declared names) are never nodes, nor is an edge class (a relationship
+            // type, the study's §5.6)
             List<String> out = new ArrayList<>();
             model.derived(Labels.class, Labels::of).bySimpleName().values().forEach(out::addAll);
+            GraphEdges edges = model.derived(GraphEdges.class, GraphEdges::of);
             out.removeIf(c -> com.legend.compiler.NameResolver.platformFqns().contains(c)
-                    || com.legend.builtin.SystemMetamodel.elementFqns().contains(c));
+                    || com.legend.builtin.SystemMetamodel.elementFqns().contains(c) || edges.edgeAt(c) != null);
             java.util.Collections.sort(out);
             return List.copyOf(out);
+        }
+
+        @Override
+        public void edges(CypherToPure.EdgeSink sink) {
+            for (GraphEdges.Edge e : model.derived(GraphEdges.class, GraphEdges::of).edges()) {
+                sink.edge(e.classFqn(), e.type(), e.from().property(), e.from().classFqn(), e.from().inverse(),
+                        e.from().inverseMany(), e.to().property(), e.to().classFqn(), e.to().inverse(),
+                        e.to().inverseMany());
+            }
         }
 
         private static void report(CypherToPure.PropertySink sink, String name, Type type,
