@@ -2359,6 +2359,14 @@ public final class CypherToPure {
             }
             case CypherAst.Paren p -> List.of(p.inner());
             case CypherAst.Quantifier q -> List.of(q.list(), q.where());
+            case CypherAst.PatternComprehension pc -> {
+                List<Expr> all = new ArrayList<>();
+                if (pc.where() != null) {
+                    all.add(pc.where());
+                }
+                all.add(pc.map());
+                yield all;
+            }
             case CypherAst.ListComprehension lc -> {
                 List<Expr> all = new ArrayList<>();
                 all.add(lc.list());
@@ -2590,6 +2598,89 @@ public final class CypherToPure {
         @Override
         public @com.legend.base.Nullable PathSpec path(CypherAst.Var v) {
             return g.paths().get(v.name());
+        }
+
+        /** A scope over another graph (a pattern comprehension's hop, rooted at the navigated instance). */
+        GraphScope sub(Graph other) {
+            return new GraphScope(other);
+        }
+
+        /** This scope under {@code hop}'s (a pattern comprehension's to-many way): a variable the hop's graph
+         *  binds reads there, {@code pathVar} names the path the hop makes ({@code path}: its start this graph's
+         *  node, its end and relationship the hop's), any other reads here (a lambda over the navigation closes
+         *  over the row). */
+        Scope overlay(GraphScope hop, @com.legend.base.Nullable String pathVar,
+                @com.legend.base.Nullable PathSpec path) {
+            GraphScope outer = this;
+            return new Scope() {
+                private boolean hops(String name) {
+                    return hop.g.bindings().containsKey(name);
+                }
+
+                private boolean isPath(String name) {
+                    return pathVar != null && pathVar.equals(name);
+                }
+
+                @Override
+                public String row() {
+                    return hop.row();
+                }
+
+                @Override
+                public Val variable(CypherAst.Var v) {
+                    if (isPath(v.name())) {
+                        return scalar(pathJson(java.util.Objects.requireNonNull(path), v.pos()));
+                    }
+                    return hops(v.name()) ? hop.variable(v) : outer.variable(v);
+                }
+
+                @Override
+                public @com.legend.base.Nullable NodeParts nodeParts(CypherAst.Var v) {
+                    return hops(v.name()) ? hop.nodeParts(v) : isPath(v.name()) ? null : outer.nodeParts(v);
+                }
+
+                @Override
+                public boolean isAbsentNode(CypherAst.Var v) {
+                    return !hops(v.name()) && !isPath(v.name()) && outer.isAbsentNode(v);
+                }
+
+                @Override
+                public @com.legend.base.Nullable Tx relType(CypherAst.Var v) {
+                    return hops(v.name()) ? hop.relType(v) : isPath(v.name()) ? null : outer.relType(v);
+                }
+
+                @Override
+                public @com.legend.base.Nullable PathSpec path(CypherAst.Var v) {
+                    return isPath(v.name()) ? path : hops(v.name()) ? null : outer.path(v);
+                }
+
+                @Override
+                public Val property(CypherAst.Prop p) {
+                    if (p.target() instanceof CypherAst.Var v && !isPath(v.name())) {
+                        return hops(v.name()) ? hop.property(p) : outer.property(p);
+                    }
+                    return member(val(p.target(), this), p.name(), p.pos());
+                }
+
+                @Override
+                public boolean isPatternVariable(String name) {
+                    return hops(name) || !isPath(name) && outer.isPatternVariable(name);
+                }
+
+                /** The path's JSON (§12.27's shape): its start node read here, its end node and relationship
+                 *  read in the hop's graph. */
+                private Tx pathJson(PathSpec p, Pos pos) {
+                    Binding start = java.util.Objects.requireNonNull(outer.g.bindings().get(p.nodes().get(0)));
+                    Binding end = java.util.Objects.requireNonNull(hop.g.bindings().get(p.nodes().get(1)));
+                    String rel = p.rels().get(0);
+                    Binding r = java.util.Objects.requireNonNull(hop.g.bindings().get(rel));
+                    ValueSpecification text = plus(new CString("{\"@path\":["), nodeJsonText(outer.parts(start,
+                            pos), pos), new CString("," + relJsonText(java.util.Objects.requireNonNull(r.type()))
+                            + ","), nodeJsonText(hop.parts(end, pos), pos), new CString("],\"@dirs\":["
+                            + Boolean.TRUE.equals(hop.g.forward().get(rel)) + "]}"));
+                    return new Tx(call("fromJson", text), Kind.JSON, false, null, new PathValue(), null, null);
+                }
+            };
         }
 
         /** A path as a value (the study's §12.27): the JSON the judge reads as a path, its nodes and relationships
@@ -3273,6 +3364,7 @@ public final class CypherToPure {
             case CypherAst.Case c -> scalar(caseExpr(c, scope));
             case CypherAst.Quantifier q -> scalar(quantifier(q, scope));
             case CypherAst.ListComprehension lc -> comprehension(lc, scope);
+            case CypherAst.PatternComprehension pc -> patternComprehension(pc, scope);
             case CypherAst.Index ix -> index(ix, scope);
             case CypherAst.Slice sl -> slice(sl, scope);
         };
@@ -3752,6 +3844,10 @@ public final class CypherToPure {
             if (parts != null) {
                 return scalar(fn.equals("labels") ? nodeLabels(parts) : nodeProperties(parts, c.pos()));
             }
+        }
+        if (fn.equals("size") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.PatternComprehension pc) {
+            // the matches of the hop, counted by the database (the study's §12.31)
+            return patternSize(pc, scope);
         }
         if ((fn.equals("length") || fn.equals("nodes") || fn.equals("relationships")) && c.args().size() == 1
                 && c.args().get(0) instanceof CypherAst.Var v && scope.path(v) != null) {
@@ -4800,6 +4896,309 @@ public final class CypherToPure {
                 new CInteger(2L)), call("and", call("equal", holds, new CInteger(0L)), noUnknown)), true);
     }
 
+    /** One way a pattern comprehension's hop reads: the relationship's type (an association end's name), the
+     *  direction, the class it reaches, and the hop that navigates it from the start node. */
+    private record Way(String type, Hop hop) {
+    }
+
+    /**
+     * A pattern comprehension (the study's §12.31): one hop from a bound node of the graph in hand, each way the
+     * model reads it (a typed hop, or every association end for an untyped one, in the directions asked) a
+     * navigation from that node, the WHERE a filter over it, the expression mapped over it in a scope where the
+     * hop's node is the navigated instance; the list of the values: a collection the database computes when the
+     * expression is a scalar that is never null and the hop has one way (sized, UNWIND-able), else its JSON text
+     * (the values joined, §12.25). A named path inside is the path the hop makes.
+     */
+    private Val patternComprehension(CypherAst.PatternComprehension pc, Scope scope) {
+        Hopped h = hopped(pc, scope);
+        List<ValueSpecification> pieces = new ArrayList<>();
+        Coll one = null;
+        String pathVar = pc.pattern().variable();
+        for (Way way : h.ways()) {
+            if (!way.hop().many()) {
+                // a to-one way: the hop's one instance read through its path, as a MATCH reads a to-one hop; its
+                // value's text where it is there (and the WHERE holds), nothing where not
+                Scope inner = h.innerOne(way, pathVar);
+                ValueSpecification present = call("isNotEmpty", h.navigation(way));
+                if (pc.where() != null) {
+                    present = call("and", present, condition(pc.where(), inner, "WHERE"));
+                }
+                ValueSpecification text = plus(new CString(","), jsonTextOf(val(pc.map(), inner), pc.pos()));
+                pieces.add(call("if", present, thunk(text), thunk(new CString(""))));
+                continue;
+            }
+            String var = freshName(new HashSet<>(h.outer().g.bindings().keySet()));
+            Scope inner = h.inner(way, var, pathVar);
+            ValueSpecification coll = h.navigation(way);
+            if (pc.where() != null) {
+                coll = call("filter", coll, lambda(var, condition(pc.where(), inner, "WHERE")));
+            }
+            Val v = val(pc.map(), inner);
+            // each value's JSON text led by a comma, the way's values joined (no match, no text)
+            ValueSpecification piece = plus(new CString(","), jsonTextOf(v, pc.pos()));
+            if (reads(piece, h.outer().g.row())) {
+                // (the lowering computes a mapped value over the navigated instances alone)
+                throw CypherErrors.unsupported("a pattern comprehension whose expression reads a node outside its"
+                        + " pattern (a node of the graph, or the path's start) over a relationship holding many is"
+                        + " not supported yet", pc.pos());
+            }
+            if (h.ways().size() == 1 && v instanceof Scalar s && s.tx().kind() != Kind.JSON
+                    && s.tx().kind() != Kind.NULL && !s.tx().nullable()) {
+                one = new Coll(call("map", coll, lambda(var, SqlToPure.valueOf(s.tx()))), s.tx().kind(), false);
+            }
+            pieces.add(call("joinStrings", call("map", coll, lambda(var, piece)), new CString("")));
+        }
+        if (one != null) {
+            return one;
+        }
+        if (pieces.isEmpty()) {
+            // no way the model reads the hop: no match, the empty list
+            return scalar(Tx.value(call("fromJson", new CString("[]")), Kind.JSON, false));
+        }
+        ValueSpecification text = pieces.get(0);
+        for (int i = 1; i < pieces.size(); i++) {
+            text = plus(text, pieces.get(i));
+        }
+        text = plus(new CString("["), call("substring", text, new CInteger(2L)), new CString("]"));
+        return scalar(Tx.value(call("fromJson", text), Kind.JSON, false));
+    }
+
+    /** {@code size([(a)-[:T]->() | ...])}: the matches of the hop, counted by the database (each way's navigation
+     *  sized, the WHERE a filter over it; a to-one way one or none); the expression is not read. */
+    private Val patternSize(CypherAst.PatternComprehension pc, Scope scope) {
+        Hopped h = hopped(pc, scope);
+        ValueSpecification total = null;
+        for (Way way : h.ways()) {
+            ValueSpecification size;
+            if (!way.hop().many()) {
+                ValueSpecification present = call("isNotEmpty", h.navigation(way));
+                if (pc.where() != null) {
+                    present = call("and", present, condition(pc.where(), h.innerOne(way, null), "WHERE"));
+                }
+                size = call("if", present, thunk(new CInteger(1L)), thunk(new CInteger(0L)));
+            } else {
+                ValueSpecification coll = h.navigation(way);
+                if (pc.where() != null) {
+                    String var = freshName(new HashSet<>(h.outer().g.bindings().keySet()));
+                    coll = call("filter", coll, lambda(var, condition(pc.where(), h.inner(way, var, null),
+                            "WHERE")));
+                }
+                size = call("size", coll);
+            }
+            total = total == null ? size : plus(total, size);
+        }
+        return scalar(Tx.value(total == null ? new CInteger(0L) : total, Kind.INTEGER, false));
+    }
+
+    /** A pattern comprehension's hop, resolved: the graph's scope it starts from, the start node's variable and
+     *  binding, the ways the model reads the hop, the end and relationship variables. */
+    private record Hopped(GraphScope outer, String startVar, Binding from, List<Way> ways,
+            @com.legend.base.Nullable String endVar, @com.legend.base.Nullable String relVar,
+            java.util.function.Function<Set<String>, String> fresh) {
+        /** The navigation one way makes from the start node. */
+        ValueSpecification navigation(Way way) {
+            List<String> path = new ArrayList<>(from.path());
+            path.add(way.hop().property());
+            return navigate(outer.g.row(), path);
+        }
+
+        private String endName(Set<String> taken) {
+            return endVar != null ? endVar : fresh.apply(taken);
+        }
+
+        private String relName(Set<String> taken) {
+            return relVar != null ? relVar : fresh.apply(taken);
+        }
+
+        /** The scope of the expression over one to-many way: the hop's node the navigated instance ({@code var}),
+         *  the relationship its type, a named path the path the hop makes (its start the graph's node, its end and
+         *  relationship the hop's); every other variable the graph's. */
+        Scope inner(Way way, String var, @com.legend.base.Nullable String pathVar) {
+            Graph sub = new Graph(way.hop().target(), var, new LinkedHashMap<>(), new ArrayList<>(), List.of());
+            Set<String> taken = new HashSet<>(outer.g.bindings().keySet());
+            taken.add(var);
+            String end = endName(taken);
+            taken.add(end);
+            String rel = relName(taken);
+            sub.bindings().put(end, new Binding(true, way.hop().target(), List.of(), false));
+            sub.bindings().put(rel, Binding.relationship(List.of(), false, false, way.type(), false));
+            sub.forward().put(rel, way.hop().forward());
+            PathSpec path = pathVar == null ? null : new PathSpec(List.of(startVar, end), List.of(rel));
+            return outer.overlay(outer.sub(sub), pathVar, path);
+        }
+
+        /** The scope of the expression over one to-one way: the graph's, with the hop's node bound at the end of
+         *  the navigation (as a MATCH binds a to-one hop), the relationship beside it, a named path recorded. */
+        Scope innerOne(Way way, @com.legend.base.Nullable String pathVar) {
+            Graph g = outer.g;
+            Graph ext = new Graph(g.rootClass(), g.row(), new LinkedHashMap<>(g.bindings()), g.conditions(),
+                    g.candidates(), g.fanning(), g.deferredConstraints(), g.deferredWhere(), g.variableClasses(),
+                    new LinkedHashMap<>(g.paths()), new LinkedHashMap<>(g.forward()));
+            Set<String> taken = new HashSet<>(g.bindings().keySet());
+            taken.addAll(g.paths().keySet());
+            String end = endName(taken);
+            taken.add(end);
+            String rel = relName(taken);
+            List<String> path = new ArrayList<>(from.path());
+            path.add(way.hop().property());
+            ext.bindings().put(end, new Binding(true, way.hop().target(), List.copyOf(path), false));
+            ext.bindings().put(rel, Binding.relationship(List.copyOf(path), false, false, way.type(), false));
+            ext.forward().put(rel, way.hop().forward());
+            if (pathVar != null) {
+                ext.paths().put(pathVar, new PathSpec(List.of(startVar, end), List.of(rel)));
+            }
+            return outer.sub(ext);
+        }
+    }
+
+    private Hopped hopped(CypherAst.PatternComprehension pc, Scope scope) {
+        if (!(scope instanceof GraphScope gs)) {
+            throw CypherErrors.unsupported("a pattern comprehension over rows (after a WITH, or a pattern read as"
+                    + " rows) is not supported yet", pc.pos());
+        }
+        PathPattern p = pc.pattern();
+        List<PatternElement> elements = p.elements();
+        if (elements.size() != 3) {
+            throw CypherErrors.unsupported("a pattern comprehension over more than one hop is not supported yet",
+                    p.pos());
+        }
+        NodePattern start = (NodePattern) elements.get(0);
+        RelPattern rel = (RelPattern) elements.get(1);
+        NodePattern end = (NodePattern) elements.get(2);
+        if (rel.lengthRange() != null) {
+            throw CypherErrors.unsupported("a variable-length relationship (*) is not supported yet", rel.pos());
+        }
+        if (!start.properties().isEmpty() || !end.properties().isEmpty() || !rel.properties().isEmpty()) {
+            throw CypherErrors.unsupported("a property map in a pattern comprehension is not supported yet",
+                    p.pos());
+        }
+        Binding from = start.variable() == null ? null : gs.g.bindings().get(start.variable());
+        if (from == null || !from.node()) {
+            throw CypherErrors.unsupported("a pattern comprehension whose pattern does not start at a bound node is"
+                    + " not supported yet", start.pos());
+        }
+        if (from.absent() || from.maybeAbsent()) {
+            throw CypherErrors.unsupported("a pattern comprehension from a node an OPTIONAL MATCH may not find is not"
+                    + " supported yet", start.pos());
+        }
+        if (end.variable() != null && (gs.g.bindings().containsKey(end.variable())
+                || gs.g.paths().containsKey(end.variable()))) {
+            throw CypherErrors.unsupported("a pattern comprehension whose two ends are both bound (compared by"
+                    + " identity) is not supported yet", end.pos());
+        }
+        if (rel.variable() != null && gs.g.bindings().containsKey(rel.variable())) {
+            throw CypherErrors.unsupported("a relationship bound twice (" + rel.variable() + ", compared by identity)"
+                    + " is not supported yet", rel.pos());
+        }
+        String cls = java.util.Objects.requireNonNull(from.classPath());
+        String label = labelClass(end);
+        // the ways: (type, direction, the class reached), as an untyped pattern's arms are decided (§12.17)
+        List<Object[]> candidates = new ArrayList<>();
+        if (!rel.types().isEmpty()) {
+            for (String type : rel.types()) {
+                if (rel.direction() != CypherAst.Direction.IN) {
+                    Property forward = property(cls, type);
+                    if (forward != null && forward.classTyped()) {
+                        candidates.add(new Object[] {type, CypherAst.Direction.OUT, forward.type()});
+                    }
+                }
+                if (rel.direction() != CypherAst.Direction.OUT) {
+                    for (String other : model.classes()) {
+                        Property back = property(other, type);
+                        if (back != null && back.classTyped() && model.isSubclass(cls, back.type())) {
+                            candidates.add(new Object[] {type, CypherAst.Direction.IN, other});
+                        }
+                    }
+                }
+            }
+        } else {
+            if (rel.direction() != CypherAst.Direction.IN) {
+                for (Property e : ends(cls)) {
+                    candidates.add(new Object[] {e.name(), CypherAst.Direction.OUT, e.type()});
+                }
+            }
+            if (rel.direction() != CypherAst.Direction.OUT) {
+                for (String other : model.classes()) {
+                    for (Property e : ends(other)) {
+                        if (model.isSubclass(cls, e.type())) {
+                            candidates.add(new Object[] {e.name(), CypherAst.Direction.IN, other});
+                        }
+                    }
+                }
+            }
+        }
+        List<Way> ways = new ArrayList<>();
+        for (Object[] way : candidates) {
+            String reached = (String) way[2];
+            if (label != null && !label.equals(reached) && !model.isSubclass(reached, label)) {
+                continue;
+            }
+            if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {
+                throw CypherErrors.unsupported("an undirected relationship over a self-association (" + way[0]
+                        + " of " + cls + "; a loop matches once in Neo4j, which needs identity) is not supported"
+                        + " yet", rel.pos());
+            }
+            RelPattern typed = new RelPattern(rel.variable(), List.of((String) way[0]),
+                    (CypherAst.Direction) way[1], Map.of(), null, rel.pos());
+            NodePattern labelled = new NodePattern(end.variable(), List.of(reached), Map.of(), end.pos());
+            Hop hop = hop(cls, typed, labelled, false, true);
+            if (hop != null) {
+                ways.add(new Way((String) way[0], hop));
+            }
+        }
+        return new Hopped(gs, java.util.Objects.requireNonNull(start.variable()), from, ways, end.variable(),
+                rel.variable(), this::freshName);
+    }
+
+    /** Whether {@code vs} reads the variable {@code name}. */
+    private static boolean reads(ValueSpecification vs, String name) {
+        if (vs instanceof Variable v) {
+            return v.name().equals(name);
+        }
+        for (ValueSpecification c : vs.children()) {
+            if (reads(c, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A pattern as written: {@code p = (a:L {k: v})-[r:T|U]->(b)}. */
+    private static String text(PathPattern p) {
+        StringBuilder sb = new StringBuilder();
+        if (p.variable() != null) {
+            sb.append(p.variable()).append(" = ");
+        }
+        for (PatternElement e : p.elements()) {
+            if (e instanceof NodePattern n) {
+                sb.append("(").append(n.variable() == null ? "" : n.variable());
+                n.labels().forEach(l -> sb.append(":").append(l));
+                if (!n.properties().isEmpty()) {
+                    List<String> entries = new ArrayList<>();
+                    n.properties().forEach((k, v) -> entries.add(k + ": " + text(v)));
+                    sb.append(n.variable() == null && n.labels().isEmpty() ? "" : " ").append("{")
+                            .append(String.join(", ", entries)).append("}");
+                }
+                sb.append(")");
+            } else {
+                RelPattern r = (RelPattern) e;
+                sb.append(r.direction() == CypherAst.Direction.IN ? "<-" : "-");
+                if (r.variable() != null || !r.types().isEmpty() || r.lengthRange() != null) {
+                    sb.append("[").append(r.variable() == null ? "" : r.variable());
+                    if (!r.types().isEmpty()) {
+                        sb.append(":").append(String.join("|", r.types()));
+                    }
+                    if (r.lengthRange() != null) {
+                        sb.append("*").append(r.lengthRange().lower()).append("..").append(r.lengthRange().upper());
+                    }
+                    sb.append("]");
+                }
+                sb.append(r.direction() == CypherAst.Direction.OUT ? "->" : "-");
+            }
+        }
+        return sb.toString();
+    }
+
     /**
      * {@code [x IN list WHERE predicate | expression]}. Without a WHERE, a known list's elements are each mapped
      * and the list stays known; with one, the database filters (and maps) a collection of one kind.
@@ -4916,6 +5315,7 @@ public final class CypherToPure {
             case CypherAst.Var v -> !bound.contains(v.name());
             case CypherAst.Quantifier q -> readsRow(q.list(), bound) || readsRow(q.where(), with(bound,
                     q.variable()));
+            case CypherAst.PatternComprehension pc -> true;
             case CypherAst.ListComprehension lc -> readsRow(lc.list(), bound)
                     || lc.where() != null && readsRow(lc.where(), with(bound, lc.variable()))
                     || lc.map() != null && readsRow(lc.map(), with(bound, lc.variable()));
@@ -7927,6 +8327,8 @@ public final class CypherToPure {
             case CypherAst.Paren p -> "(" + text(p.inner()) + ")";
             case CypherAst.Quantifier q -> q.name() + "(" + q.variable() + " IN " + text(q.list()) + " WHERE "
                     + text(q.where()) + ")";
+            case CypherAst.PatternComprehension pc -> "[" + text(pc.pattern())
+                    + (pc.where() == null ? "" : " WHERE " + text(pc.where())) + " | " + text(pc.map()) + "]";
             case CypherAst.ListComprehension lc -> "[" + lc.variable() + " IN " + text(lc.list())
                     + (lc.where() == null ? "" : " WHERE " + text(lc.where()))
                     + (lc.map() == null ? "" : " | " + text(lc.map())) + "]";

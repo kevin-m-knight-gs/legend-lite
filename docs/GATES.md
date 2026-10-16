@@ -9850,6 +9850,22 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the twenty-ninth landing — pattern comprehensions as navigations from a bound node (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the small-buckets leg; the record is the study's §12.31
+(`docs/CYPHER_STUDY_2026_10_15.md`). The parser and the translator only.
+
+1. **What lands.** `[(a)-[:T]->(b) WHERE p | e]` as a navigation from the bound node (each way the model reads the
+   hop a navigation, the WHERE a filter, the expression mapped; a collection when it is one never-null scalar over
+   one way, else JSON text), `size([...])` as the matches counted, a named path inside as the hop's path; over
+   rows, more than one hop, two bound ends, an outer node read over an end holding many refused by name.
+2. **The ledger.** DuckDB: 4274 cases; PASS 2555 (from 2,532); FAIL 0; BUG 0; ERROR 0; REFUSED 643;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2205 (from 2,182); FAIL 0; BUG 0; ERROR 0; REFUSED 993;
+   BOTH_ERROR 708; SKIP 368. 21 lite cases in `lite/patterns.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the twenty-eighth landing — the percentile aggregates, a map indexed by a value of the row (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the OPTIONAL MATCH WHERE leg; the record is the study's §12.30

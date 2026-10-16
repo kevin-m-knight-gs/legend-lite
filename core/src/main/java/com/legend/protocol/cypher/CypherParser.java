@@ -659,6 +659,15 @@ public final class CypherParser {
         }
     }
 
+    /** Whether a node pattern closes at {@code k} and a relationship pattern follows ({@code )-[}, {@code )-(},
+     *  {@code )--}, {@code )-->}, {@code )<-}): what tells a pattern inside brackets from a parenthesized
+     *  expression ({@code [(a) - 1]}). */
+    private boolean relationshipAt(int k) {
+        return peek(k).is(Type.RPAREN) && (peek(k + 1).is(Type.ARROW_LEFT) || peek(k + 1).is(Type.MINUS)
+                && (peek(k + 2).is(Type.LBRACKET) || peek(k + 2).is(Type.LPAREN) || peek(k + 2).is(Type.MINUS)
+                || peek(k + 2).is(Type.ARROW_RIGHT)));
+    }
+
     private Expr atom() {
         Token t = peek();
         Pos pos = t.pos();
@@ -681,9 +690,8 @@ public final class CypherParser {
             }
             case LPAREN -> {
                 advance();
-                if (peek().is(Type.RPAREN) || (peek().is(Type.IDENT) && (peek(1).is(Type.COLON)
-                        || peek(1).is(Type.LBRACE) || (peek(1).is(Type.RPAREN) && (peek(2).is(Type.MINUS)
-                        || peek(2).is(Type.ARROW_LEFT)))))) {
+                if (peek().is(Type.RPAREN) || peek().is(Type.IDENT) && (peek(1).is(Type.COLON)
+                        || peek(1).is(Type.LBRACE) || relationshipAt(1))) {
                     throw CypherErrors.unsupported("a pattern inside an expression (a pattern predicate or"
                             + " comprehension) is not supported yet", pos);
                 }
@@ -693,6 +701,18 @@ public final class CypherParser {
             }
             case LBRACKET -> {
                 advance();
+                if (peek().is(Type.LPAREN) && (peek(1).is(Type.COLON) || peek(1).is(Type.LBRACE)
+                        || relationshipAt(1) || peek(1).is(Type.IDENT) && (peek(2).is(Type.COLON)
+                        || peek(2).is(Type.LBRACE) || relationshipAt(2)))
+                        || peek().is(Type.IDENT) && peek(1).is(Type.EQ) && peek(2).is(Type.LPAREN)) {
+                    // [p = (a)-[:T]->(b) WHERE predicate | expression]: a pattern comprehension
+                    PathPattern pattern = pathPattern();
+                    Expr where = matchWord("WHERE") ? expression() : null;
+                    expect(Type.PIPE, "'|'");
+                    Expr map = expression();
+                    expect(Type.RBRACKET, "']'");
+                    return new CypherAst.PatternComprehension(pattern, where, map, pos);
+                }
                 if (peek().is(Type.IDENT) && !peek().backticked() && peek(1).isWord("IN")
                         && !RESERVED.contains(peek().text().toUpperCase(java.util.Locale.ROOT))
                         || peek().is(Type.IDENT) && peek().backticked() && peek(1).isWord("IN")) {

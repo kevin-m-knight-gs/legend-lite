@@ -1,0 +1,89 @@
+# The #Cypher{...}# island's pattern-comprehension cases (docs/CYPHER_STUDY_2026_10_15.md §12.31): one hop from a
+# bound node of the graph in hand, each way the model reads it a navigation from that node, the WHERE a filter,
+# the expression mapped over it; size(...) the matches counted. Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/patterns/*'), keyed lite/patterns/<id>.
+tests:
+  - id: size_of_a_typed_hop
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2}), (a)-[:U]->(:C {w: 1}), (:A {name: 'b'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, size([(a)-[:T]->() | 1]) AS n ORDER BY name"
+  - id: size_of_an_untyped_hop
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2}), (a)-[:U]->(:C {w: 1}), (:A {name: 'b'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, size([(a)-->() | 1]) AS n ORDER BY name"
+  - id: size_of_two_types
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2}), (a)-[:U]->(:C {w: 1}), (a)-[:V]->(:C {w: 2}), (:A {name: 'b'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, size([(a)-[:T|U]->() | 1]) AS n ORDER BY name"
+  - id: size_of_an_undirected_hop
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (:C {w: 1})-[:U]->(a), (:C {w: 2})-[:U]->(a), (:A {name: 'b'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, size([(a)--() | 1]) AS n, size([(a)<--() | 1]) AS m ORDER BY name"
+  - id: size_with_a_where_and_a_label
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2}), (a)-[:U]->(:C {v: 3}), (:A {name: 'b'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, size([(a)-[:T]->(b) WHERE b.v > 1 | 1]) AS n, size([(a)-->(:C) | 1]) AS c, size([(a)-->(b) WHERE b.v > 1 | 1]) AS m ORDER BY name"
+  - id: size_tests_existence
+    graph: |
+      CREATE (a:X {num: 42}), (:X {num: 43}), (a)-[:T]->()
+    cypher: "MATCH (n:X) RETURN n, n.num AS num, size([(n)--() | 1]) > 0 AS b ORDER BY num"
+  - id: size_in_a_where_and_a_with
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2}), (b:A {name: 'b'}), (b)-[:T]->(:B {v: 3}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) WHERE size([(a)-[:T]->() | 1]) > 0 WITH a.name AS name, size([(a)-[:T]->() | 1]) AS n RETURN name, n ORDER BY name"
+  - id: values_of_a_hop
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (b:A {name: 'b'}), (b)-[:T]->(:B {v: 2}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, [(a)-[:T]->(b) | b.v] AS vs, [(a)-[:T]->(b) | b.v * 10] AS tens ORDER BY name"
+  - id: values_of_a_hop_filtered
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2}), (b:A {name: 'b'}), (b)-[:T]->(:B {v: 3}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, [(a)-[:T]->(b) WHERE b.v > 1 | b.v] AS vs ORDER BY name"
+  - id: a_missing_property_is_null_in_the_list
+    graph: |
+      CREATE (a {k: 1}), (b {k: 2, name: 'val'}), (c {k: 3}), (a)-[:T]->(b), (b)-[:T]->(c)
+    cypher: "MATCH (n) RETURN n.k AS k, [(n)-[:T]->(b) | b.name] AS list, size([(n)-[:T]->() | 1]) AS n ORDER BY k"
+  - id: nodes_of_a_hop
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (b:A {name: 'b'}), (b)-[:T]->(:B {v: 2}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, [(a)-[:T]->(b) | b] AS bs ORDER BY name"
+  - id: the_relationship_of_a_hop
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (b:A {name: 'b'}), (b)-[:U]->(:C {w: 2}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, [(a)-[r:T]->() | type(r)] AS ts, [(a)-[r]->() | r] AS rs ORDER BY name"
+  - id: a_path_of_a_hop
+    graph: |
+      CREATE (a:A {k: 1}), (b:B {k: 2}), (c:C {k: 3}), (a)-[:T]->(b), (b)-[:U]->(c)
+    cypher: "MATCH (n) RETURN n.k AS k, [p = (n)-->() | p] AS list, [p = (n)-->() | length(p)] AS lengths ORDER BY k"
+  - id: a_path_of_a_hop_with_a_label
+    graph: |
+      CREATE (a:A), (b:B), (c:C), (d:D), (a)-[:T]->(b), (a)-[:U]->(c), (a)-[:V]->(d)
+    cypher: "MATCH (n:A) RETURN [p = (n)-->(:B) | p] AS list, [p = (n)-->(:C) | nodes(p)] AS ns, [p = (n)-->(:D) | relationships(p)] AS rs"
+  - id: a_path_of_a_hop_backwards
+    graph: |
+      CREATE (b:B {v: 1}), (b)-[:T]->(:A {name: 'a'}), (b)-[:T]->(:A {name: 'b'}), (:A {name: 'c'})
+    cypher: "MATCH (n:A) RETURN n.name AS name, [p = (n)<-[:T]-(x) | p] AS list, [p = (n)<-[:T]-(x) | length(p)] AS lengths, [(n)<-[:T]-(x) | x.v + 1] AS vs ORDER BY name"
+  - id: a_path_over_a_relationship_holding_many_refused
+    graph: |
+      CREATE (a:A {name: 'a'}), (:B)-[:T]->(a), (:B)-[:T]->(a), (:A {name: 'c'})
+    cypher: "MATCH (n:A) RETURN n.name AS name, [p = (n)<-[:T]-(x) | p] AS list ORDER BY name"
+  - id: an_outer_node_in_the_expression_refused
+    graph: |
+      CREATE (a:A {k: 1}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 1}), (:A {k: 2})
+    cypher: "MATCH (n:A) RETURN n.k AS k, [(n)-[:T]->(x) | n.k + x.v] AS list ORDER BY k"
+  - id: count_of_a_comprehension
+    graph: |
+      CREATE (a:A), (:A), (:A), (a)-[:HAS]->()
+    cypher: "MATCH (n:A) RETURN count([p = (n)-[:HAS]->() | p]) AS c"
+  - id: a_comprehension_over_rows_refused
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1})
+    cypher: "MATCH (a:A) WITH a.name AS name, a AS node RETURN name, [(node)-[:T]->() | 1] AS l"
+  - id: a_comprehension_with_both_ends_bound_refused
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1})
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN a.name AS name, [(a)-[:T]->(b) | 1] AS l"
+  - id: a_comprehension_over_two_hops_refused
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1})-[:U]->(:C {w: 1})
+    cypher: "MATCH (a:A) RETURN a.name AS name, [(a)-[:T]->()-[:U]->(c) | c.w] AS l"

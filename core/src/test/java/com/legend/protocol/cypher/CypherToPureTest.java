@@ -411,6 +411,33 @@ class CypherToPureTest {
     }
 
     @Test
+    void aPatternComprehensionIsANavigationFromTheBoundNode() {
+        // the study's §12.31: size counts the hop's matches; a scalar map over one typed way is a collection the
+        // database computes; an untyped hop reads every association end, each way's values joined as JSON text
+        assertEquals("demo::Firm.all()->project(~[n:f|$f.legalName, c:f|$f.employees->size()])",
+                pure("MATCH (f:Firm) RETURN f.legalName AS n, size([(f)-[:employees]->() | 1]) AS c"));
+        assertEquals("demo::Firm.all()->project(~[names:f|$f.employees->filter(_cypher_1|$_cypher_1.age->isNotEmpty() && ($_cypher_1.age->toOne() > 30))->map(_cypher_1|$_cypher_1.name)->toVariant()])",
+                pure("MATCH (f:Firm) RETURN [(f)-[:employees]->(e) WHERE e.age > 30 | e.name] AS names"));
+        // a to-one way (firm) is read through its path under a presence guard, never a map the database folds
+        assertEquals("demo::Person.all()->project(~[l:p|fromJson('[' + if($p.firm->isNotEmpty(), |',' + ('\"' + $p.firm.legalName->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'), |'')->substring(2) + ']')])",
+                pure("MATCH (p:Person) RETURN [(p)-->(x) | x.legalName] AS l"));
+        assertEquals("demo::Firm.all()->project(~[c:f|if($f.hq->isNotEmpty(), |1, |0) + $f.employees->size()])",
+                pure("MATCH (f:Firm) RETURN size([(f)--() | 1]) AS c"));
+        unsupported("MATCH (f:Firm) WITH f.legalName AS n RETURN [(f)-[:employees]->() | 1] AS l",
+                "a pattern comprehension over rows");
+        unsupported("MATCH (f:Firm)-[:employees]->(p:Person) RETURN [(f)-[:employees]->(p) | 1] AS l",
+                "whose two ends are both bound");
+        unsupported("MATCH (f:Firm) RETURN [(f)-[:employees]->()-[:firm]->() | 1] AS l",
+                "over more than one hop");
+        unsupported("MATCH (f:Firm) RETURN [(f)-[:employees*1..2]->() | 1] AS l", "variable-length");
+        // the lowering maps the navigated instances alone: over a relationship holding many, the expression (or
+        // the path, whose start is the graph's node) may not read a node outside the pattern
+        unsupported("MATCH (f:Firm) RETURN [(f)-[:employees]->(e) | f.legalName + e.name] AS l",
+                "reads a node outside its pattern");
+        unsupported("MATCH (f:Firm) RETURN [p = (f)-[:employees]->(e) | p] AS l", "reads a node outside its pattern");
+    }
+
+    @Test
     void anOptionalMatchsWhereGuardsWhatThePatternBound() {
         // the study's §12.29: the optional node absent where its hop finds none or the WHERE does not hold; its
         // property null there, its value null there

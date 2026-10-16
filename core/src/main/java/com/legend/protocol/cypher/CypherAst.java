@@ -97,7 +97,8 @@ public final class CypherAst {
     // ------------------------------------------------------------------ expressions
 
     public sealed interface Expr permits IntLit, FloatLit, StringLit, BoolLit, NullLit, Var, Prop, Param, ListLit,
-            MapLit, Unary, Binary, Call, CountStar, Case, Paren, Quantifier, ListComprehension, Index, Slice {
+            MapLit, Unary, Binary, Call, CountStar, Case, Paren, Quantifier, ListComprehension, PatternComprehension,
+            Index, Slice {
         Pos pos();
     }
 
@@ -174,6 +175,12 @@ public final class CypherAst {
     /** {@code [x IN list WHERE predicate | expression]}: the WHERE and the projection each optional. */
     public record ListComprehension(String variable, Expr list, @com.legend.base.Nullable Expr where,
             @com.legend.base.Nullable Expr map, Pos pos) implements Expr {
+    }
+
+    /** {@code [p = (a)-[:T]->(b) WHERE predicate | expression]}: a pattern comprehension, the list of
+     *  {@code expression} over every match of the pattern from the bound nodes it names. */
+    public record PatternComprehension(PathPattern pattern, @com.legend.base.Nullable Expr where, Expr map, Pos pos)
+            implements Expr {
     }
 
     /** {@code target[index]}: a list's element or a map's entry. */

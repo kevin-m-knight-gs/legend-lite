@@ -1773,10 +1773,10 @@ tck/expressions/list/List6/[6] Fail for `size()` on pattern predicates #5	BOTH_E
 tck/expressions/list/List6/[6] Fail for `size()` on pattern predicates #6	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List6/[6] Fail for `size()` on pattern predicates #7	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List6/[6] Fail for `size()` on pattern predicates #8	BOTH_ERROR	BOTH_ERROR
-tck/expressions/list/List6/[7] Using size of pattern comprehension to test existence	REFUSED	REFUSED
-tck/expressions/list/List6/[8] Get node degree via size of pattern comprehension	REFUSED	REFUSED
-tck/expressions/list/List6/[9] Get node degree via size of pattern comprehension that specifies a relationship type	REFUSED	REFUSED
-tck/expressions/list/List6/[10] Get node degree via size of pattern comprehension that specifies multiple relationship types	REFUSED	REFUSED
+tck/expressions/list/List6/[7] Using size of pattern comprehension to test existence	PASS	PASS
+tck/expressions/list/List6/[8] Get node degree via size of pattern comprehension	PASS	PASS
+tck/expressions/list/List6/[9] Get node degree via size of pattern comprehension that specifies a relationship type	PASS	PASS
+tck/expressions/list/List6/[10] Get node degree via size of pattern comprehension that specifies multiple relationship types	PASS	PASS
 tck/expressions/list/List9/[1] Returning nested expressions based on list property	REFUSED	REFUSED
 tck/expressions/literals/Literals1/[1] Return a boolean true lower case	PASS	PASS
 tck/expressions/literals/Literals1/[2] Return a boolean true upper case	PASS	PASS
@@ -2052,13 +2052,13 @@ tck/expressions/pattern/Pattern1/[24] Fail on using pattern in right-hand side o
 tck/expressions/pattern/Pattern2/[1] Return a pattern comprehension	SKIP	SKIP
 tck/expressions/pattern/Pattern2/[2] Return a pattern comprehension with label predicate	SKIP	SKIP
 tck/expressions/pattern/Pattern2/[3] Return a pattern comprehension with bound nodes	REFUSED	REFUSED
-tck/expressions/pattern/Pattern2/[4] Introduce a new node variable in pattern comprehension	REFUSED	REFUSED
+tck/expressions/pattern/Pattern2/[4] Introduce a new node variable in pattern comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[5] Introduce a new relationship variable in pattern comprehension	SKIP	SKIP
-tck/expressions/pattern/Pattern2/[6] Aggregate on a pattern comprehension	REFUSED	REFUSED
+tck/expressions/pattern/Pattern2/[6] Aggregate on a pattern comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[7] Use a pattern comprehension inside a list comprehension	SKIP	SKIP
 tck/expressions/pattern/Pattern2/[8] Use a pattern comprehension in WITH	SKIP	SKIP
 tck/expressions/pattern/Pattern2/[9] Use a variable-length pattern comprehension in WITH	REFUSED	REFUSED
-tck/expressions/pattern/Pattern2/[10] Use a pattern comprehension in RETURN	REFUSED	REFUSED
+tck/expressions/pattern/Pattern2/[10] Use a pattern comprehension in RETURN	PASS	PASS
 tck/expressions/pattern/Pattern2/[11] Use a pattern comprehension and ORDER BY	REFUSED	REFUSED
 tck/expressions/precedence/Precedence1/[1] Exclusive disjunction takes precedence over inclusive disjunction	PASS	PASS
 tck/expressions/precedence/Precedence1/[2] Conjunction disjunction takes precedence over exclusive disjunction	PASS	PASS
@@ -4047,6 +4047,27 @@ lite/paths/two_hop_path	PASS	PASS
 lite/paths/path_length_in_a_where	PASS	PASS
 lite/paths/return_star_with_a_path	PASS	PASS
 lite/paths/fanning_path	PASS	PASS
+lite/patterns/size_of_a_typed_hop	PASS	PASS
+lite/patterns/size_of_an_untyped_hop	PASS	PASS
+lite/patterns/size_of_two_types	PASS	PASS
+lite/patterns/size_of_an_undirected_hop	PASS	PASS
+lite/patterns/size_with_a_where_and_a_label	PASS	PASS
+lite/patterns/size_tests_existence	PASS	PASS
+lite/patterns/size_in_a_where_and_a_with	PASS	PASS
+lite/patterns/values_of_a_hop	PASS	PASS
+lite/patterns/values_of_a_hop_filtered	PASS	PASS
+lite/patterns/a_missing_property_is_null_in_the_list	PASS	PASS
+lite/patterns/nodes_of_a_hop	PASS	PASS
+lite/patterns/the_relationship_of_a_hop	PASS	PASS
+lite/patterns/a_path_of_a_hop	PASS	PASS
+lite/patterns/a_path_of_a_hop_with_a_label	PASS	PASS
+lite/patterns/a_path_of_a_hop_backwards	PASS	PASS
+lite/patterns/a_path_over_a_relationship_holding_many_refused	REFUSED	REFUSED
+lite/patterns/an_outer_node_in_the_expression_refused	REFUSED	REFUSED
+lite/patterns/count_of_a_comprehension	PASS	PASS
+lite/patterns/a_comprehension_over_rows_refused	REFUSED	REFUSED
+lite/patterns/a_comprehension_with_both_ends_bound_refused	REFUSED	REFUSED
+lite/patterns/a_comprehension_over_two_hops_refused	REFUSED	REFUSED
 lite/rels/relationship_as_a_value	PASS	PASS
 lite/rels/type_of_a_relationship	PASS	PASS
 lite/rels/untyped_relationship_as_a_value	PASS	PASS

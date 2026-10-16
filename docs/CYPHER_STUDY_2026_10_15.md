@@ -2732,3 +2732,38 @@ from an optional node) pass; [4] (untyped, label-less) and [5] (a relationship b
 
 7 lite cases in `lite/small.yaml`, each judged by Neo4j (one a refusal by name).
 
+### 12.31 Pattern comprehensions, 2026-10-16: one hop from a bound node as a navigation
+
+- **`[(a)-[:T]->(b) WHERE p | e]`** is a navigation from the bound node `a` of the graph in hand: each way the
+  model reads the hop (the typed association end; every end of `a`'s class for an untyped `-->`; the inverses for
+  `<--`; both for `--`; the ways a label on the end node admits) is one navigation of `a`'s path, the expression
+  read in a scope where the hop's node is the navigated instance (its properties, a node value, `labels`,
+  `keys`), the relationship its type (`type(r)`, `r` as a value), and a named path (`[p = (a)-->() | p]`) the
+  path the hop makes (§12.27's JSON, the direction stored; `length`, `nodes`, `relationships` of it). A way over
+  an end holding many is a `filter` (the WHERE) and a `map` (the expression) over the navigation; a way over an
+  end holding one (the harness types a relationship used once as `[0..1]`) reads its instance through the path,
+  as a MATCH reads a to-one hop, under a presence guard (the navigation not empty, the WHERE holding). The list
+  is a collection the database computes when the expression is a scalar that is never null and the hop has one
+  way holding many (sized, UNWIND-able, `IN`-able); otherwise its JSON text (§12.25's shape: each value's text
+  led by a comma, joined, the first comma cut): the ways' texts concatenated. No way (a class with no such end)
+  is the empty list.
+- **`size([(a)-[:T]->() | e])`** is the hop's matches counted by the database: each way's navigation `size`d (the
+  WHERE a filter; a to-one way one or none), the sizes summed; the expression is not read. `count([...])` counts
+  rows, as Neo4j does.
+- **The refusals by name:** a comprehension over rows (after a WITH that carried the node, or a pattern read as
+  rows); a pattern of more than one hop; two bound ends (identity); a start node an OPTIONAL MATCH may not find;
+  a property map on a node or relationship of the pattern; a variable-length relationship; an undirected hop over
+  a self-association (§12.17's loop); over an end holding many, an expression that reads a node outside the
+  pattern (`a.name + b.name`, or the path, whose start is `a`): the lowering maps the navigated instances alone
+  (`CorrelatedSubselects`: an outer-correlated mapper body is a separate demand feed, not built), so the text
+  would read the outer row inside the map.
+
+#### 12.31.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4274 | 2555 (from 2,532) | 0 | 0 | 0 | 643 | 708 | 368 |
+| Postgres | 4274 | 2205 (from 2,182) | 0 | 0 | 0 | 993 | 708 | 368 |
+
+21 lite cases in `lite/patterns.yaml`, each judged by Neo4j (five refusals by name).
+

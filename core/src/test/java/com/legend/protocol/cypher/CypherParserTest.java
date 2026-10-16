@@ -72,6 +72,9 @@ class CypherParserTest {
             case CypherAst.ListComprehension lc -> "[" + lc.variable() + " IN " + tree(lc.list())
                     + (lc.where() == null ? "" : " WHERE " + tree(lc.where()))
                     + (lc.map() == null ? "" : " | " + tree(lc.map())) + "]";
+            case CypherAst.PatternComprehension pc -> "[pattern" + (pc.pattern().variable() == null ? ""
+                    : " " + pc.pattern().variable()) + ":" + pc.pattern().elements().size()
+                    + (pc.where() == null ? "" : " WHERE " + tree(pc.where())) + " | " + tree(pc.map()) + "]";
             case CypherAst.Index ix -> tree(ix.target()) + "[" + tree(ix.index()) + "]";
             case CypherAst.Slice sl -> tree(sl.target()) + "[" + (sl.from() == null ? "" : tree(sl.from())) + ".."
                     + (sl.to() == null ? "" : tree(sl.to())) + "]";
@@ -322,6 +325,13 @@ class CypherParserTest {
     void expressionFormsNotReadYetAreRefusedByName() {
         assertEquals("[x IN [1,2] | TIMES(x,2)]", tree(expr("[x IN [1,2] | x * 2]")));
         assertEquals("[x IN [1,2] WHERE GT(x,1)]", tree(expr("[x IN [1,2] WHERE x > 1]")));
+        // a pattern comprehension: a pattern from a node, a named path, an untyped or an undirected hop; a
+        // parenthesized expression in a list is not one
+        assertEquals("[pattern p:3 WHERE GT(b.x,1) | p]", tree(expr("[p = (a)-[:T]->(b) WHERE b.x > 1 | p]")));
+        assertEquals("[pattern:3 | 1]", tree(expr("[(a)-->() | 1]")));
+        assertEquals("[pattern:3 | b.name]", tree(expr("[(a)--(b) | b.name]")));
+        assertEquals("[pattern:3 | r]", tree(expr("[(a)<-[r:T]-() | r]")));
+        assertEquals("[MINUS((a),1),2]", tree(expr("[(a) - 1, 2]")));
         assertEquals("a[0]", tree(expr("a[0]")));
         assertEquals("a[1..]", tree(expr("a[1..]")));
         assertEquals("a[..2]", tree(expr("a[..2]")));
