@@ -144,16 +144,20 @@
 # table's WITH (NOLOCK) and WITH (READUNCOMMITTED) read and dropped, a hint after a derived table or a FROM function IQ's
 # -131): accept PARSED 3,105 -> 3,120 (REFUSED 1,843 -> 1,828); reject REJECTED 1,001 -> 1,003 (REFUSED 783 -> 781).
 # Reject-parsed and accept-rejected unchanged.
-accept	parsed	3120
-accept	refused	1828
+# IQ island, 2026-10-16 (checklist 2.16b, measured on IQ 17.1: GROUP BY ROLLUP, CUBE, WITH ROLLUP, WITH CUBE and ( ) read as
+# a UNION of their groupings; PERCENTILE_CONT and _DISC beside CUBE IQ's -1001030): accept PARSED 3,120 -> 3,150 (REFUSED
+# 1,828 -> 1,798); flag PARSED 69 -> 80 (REFUSED 65 -> 54); reject REJECTED 1,003 -> 1,009 (REFUSED 781 -> 775).
+# Reject-parsed and accept-rejected unchanged.
+accept	parsed	3150
+accept	refused	1798
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
-flag	parsed	69
-flag	refused	65
+flag	parsed	80
+flag	refused	54
 reject	parsed	25
-reject	refused	781
-reject	rejected	1003
+reject	refused	775
+reject	rejected	1009
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609

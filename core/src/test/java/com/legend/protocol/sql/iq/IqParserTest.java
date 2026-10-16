@@ -116,15 +116,27 @@ class IqParserTest {
     }
 
     @Test
+    void scratchRollupProbe() {
+        for (String sql : List.of("SELECT YEAR(d) AS Yr, QUARTER(d) AS Qtr, COUNT(*) Orders FROM (SELECT CAST('2000-01-01' AS DATE) AS d, 1 AS b UNION ALL SELECT CAST('2000-04-01' AS DATE), 2) t GROUP BY ROLLUP(Yr, Qtr) ORDER BY Yr, Qtr")) {
+            try {
+                IqDialect.of(IqProfile.IQ16_DEFAULT.settings()).parse(sql);
+                System.out.println("SCRATCH parsed");
+            } catch (RuntimeException e) {
+                System.out.println("SCRATCH " + e);
+            }
+        }
+    }
+
+    @Test
     void formsNotReadYetAreRefusedByName() {
         String[][] refused = {
                 // IQ island, 2026-10-14 (M1b): comma joins, JOIN ... ON and UNION are read now (below)
                 // IQ island, 2026-10-14 (M1c): GROUP BY, HAVING and COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST are read
                 // now (below); ROLLUP, CUBE, the statistics and the other aggregates are not
-                {"SELECT id FROM t GROUP BY ROLLUP(id)", "ROLLUP"},
-                {"SELECT id FROM t GROUP BY id WITH CUBE", "CUBE"},
+                // IQ island, 2026-10-15 (checklist 2.16b): ROLLUP, CUBE and ( ) read now (IqDialect.rolledUp); GROUPING
+                // SETS and a key beside ROLLUP are IQ's -1001030
                 {"SELECT id FROM t GROUP BY GROUPING SETS ((id))", "GROUPING SETS"},
-                {"SELECT id FROM t GROUP BY ()", "empty grouping"},
+                {"SELECT id FROM t GROUP BY id, ROLLUP(id)", "-1001030"},
                 {"SELECT id FROM t GROUP BY (id, vc)", "composite"},
                 {"SELECT stddev(id) FROM t", "loses precision"},
                 {"SELECT corr(id, id) FROM t", "aggregate"},

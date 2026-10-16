@@ -1,0 +1,84 @@
+# ROLLUP, CUBE, WITH ROLLUP, WITH CUBE and GROUP BY ( ) under IQ's engine (IQ island, 2026-10-15, checklist 2.16b,
+# measured on the live IQ 17.1): ROLLUP(k1, ..., kn) groups by each prefix of its keys and by nothing (the grand total,
+# one row even over no rows), CUBE by each subset; a key a grouping does not group by is NULL there, and GROUPING(k) 1
+# (0 where it groups by k). GROUPING SETS and a key beside ROLLUP or CUBE are IQ's -1001030. Judged by the live IQ;
+# every case's ORDER BY is total (GROUPING tells a NULL key's group from a total).
+tests:
+  - id: rollup_of_two_keys
+    sql: "SELECT k, j, SUM(v) AS s, COUNT(*) AS c, GROUPING(k) AS gk, GROUPING(j) AS gj FROM g GROUP BY ROLLUP(k, j) ORDER BY k, j, gk, gj"
+    profile: iq17-default
+  - id: cube_of_two_keys
+    sql: "SELECT k, j, COUNT(*) AS c, GROUPING(k) AS gk, GROUPING(j) AS gj FROM g GROUP BY CUBE(k, j) ORDER BY gk, gj, k, j"
+    profile: iq17-default
+  - id: with_rollup
+    sql: "SELECT k, SUM(w) AS s, GROUPING(k) AS g FROM g GROUP BY k WITH ROLLUP ORDER BY g, k"
+    profile: iq17-default
+  - id: with_cube
+    sql: "SELECT k, b, COUNT(*) AS c, GROUPING(k) AS gk, GROUPING(b) AS gb FROM g GROUP BY k, b WITH CUBE ORDER BY gk, gb, k, b"
+    profile: iq17-default
+  - id: grouping_by_nothing
+    sql: "SELECT SUM(v) AS s, COUNT(*) AS c FROM g GROUP BY ()"
+    profile: iq17-default
+  - id: rollup_over_no_rows
+    sql: "SELECT k, COUNT(*) AS c, SUM(v) AS s FROM g WHERE id > 100 GROUP BY ROLLUP(k)"
+    profile: iq17-default
+  - id: rollup_without_aggregates
+    sql: "SELECT k, GROUPING(k) AS g FROM g GROUP BY ROLLUP(k) ORDER BY g, k"
+    profile: iq17-default
+  - id: rollup_of_an_expression
+    sql: "SELECT k + 1 AS k1, COUNT(*) AS c, GROUPING(k + 1) AS g FROM g GROUP BY ROLLUP(k + 1) ORDER BY g, k1"
+    profile: iq17-default
+  - id: rollup_with_having
+    sql: "SELECT k, SUM(v) AS s, GROUPING(k) AS g FROM g GROUP BY ROLLUP(k) HAVING COUNT(*) > 2 ORDER BY g, k"
+    profile: iq17-default
+  - id: rollup_with_top
+    sql: "SELECT TOP 2 k, COUNT(*) AS c, GROUPING(k) AS gk FROM g GROUP BY ROLLUP(k) ORDER BY c DESC, gk, k"
+    profile: iq17-default
+  - id: rollup_with_distinct
+    sql: "SELECT DISTINCT k FROM g GROUP BY ROLLUP(k) ORDER BY k"
+    profile: iq17-default
+  - id: rollup_of_a_key_in_an_expression
+    sql: "SELECT k, k * 10 AS k10, COUNT(*) AS c, GROUPING(k) AS g FROM g GROUP BY ROLLUP(k) ORDER BY g, k"
+    profile: iq17-default
+  - id: grouping_sets_are_iqs_error
+    sql: "SELECT k, j, SUM(v) AS s FROM g GROUP BY GROUPING SETS ((k), (j), ()) ORDER BY k, j"
+    profile: iq17-default
+  - id: a_key_beside_rollup_is_iqs_error
+    sql: "SELECT k, j, SUM(v) AS s FROM g GROUP BY k, ROLLUP(j) ORDER BY k, j"
+    profile: iq17-default
+  - id: grouping_of_no_key_is_iqs_error
+    sql: "SELECT k, GROUPING(j) AS g FROM g GROUP BY ROLLUP(k)"
+    profile: iq17-default
+  # IQ island, 2026-10-16 (measured on IQ 17.1): a key that is a select-list alias is its item, before a column of its
+  # name; PERCENTILE_CONT or _DISC beside ROLLUP answered, beside CUBE IQ's -1001030; MEDIAN and LIST beside either
+  # -1001030; a key in an expression NULL of its type; BI tools' label for a total
+  - id: rollup_of_aliases
+    sql: "SELECT YEAR(dt) AS yr, MONTH(dt) AS mo, COUNT(*) AS c, GROUPING(yr) AS gy, GROUPING(mo) AS gm FROM t GROUP BY ROLLUP(yr, mo) ORDER BY gy, gm, yr, mo"
+    profile: iq17-default
+  - id: cube_of_an_alias_of_an_expression
+    sql: "SELECT sm + 1 AS s1, COUNT(*) AS c, GROUPING(s1) AS g FROM t GROUP BY CUBE(s1) ORDER BY g, s1"
+    profile: iq17-default
+  - id: rollup_of_an_alias_before_a_column
+    sql: "SELECT id AS sm, COUNT(*) AS c, GROUPING(sm) AS g FROM t GROUP BY ROLLUP(sm) ORDER BY g, sm"
+    profile: iq17-default
+  - id: rollup_beside_a_percentile
+    sql: "SELECT bt, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY id) AS p, GROUPING(bt) AS g FROM t GROUP BY ROLLUP(bt) ORDER BY g, bt"
+    profile: iq17-default
+  - id: cube_beside_a_percentile_is_iqs_error
+    sql: "SELECT bt, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY id) AS p FROM t GROUP BY CUBE(bt)"
+    profile: iq17-default
+  - id: rollup_beside_median_is_iqs_error
+    sql: "SELECT bt, MEDIAN(id) AS m FROM t GROUP BY ROLLUP(bt)"
+    profile: iq17-default
+  - id: rollup_beside_list_is_iqs_error
+    sql: "SELECT bt, LIST(id ORDER BY id) AS l FROM t GROUP BY ROLLUP(bt)"
+    profile: iq17-default
+  - id: rollup_labelled_total
+    sql: "SELECT CASE WHEN GROUPING(vc) = 1 THEN 'Total' ELSE vc END AS label, COUNT(*) AS c, SUM(it) AS s, GROUPING(vc) AS g FROM t GROUP BY ROLLUP(vc) ORDER BY g, label"
+    profile: iq17-default
+  - id: rollup_ordered_by_a_grouping_not_selected_is_refused
+    sql: "SELECT vc, COUNT(*) AS c FROM t GROUP BY ROLLUP(vc) ORDER BY GROUPING(vc), vc"
+    profile: iq17-default
+  - id: rollup_of_a_key_in_arithmetic_and_a_function
+    sql: "SELECT bt, sm, sm * 2 AS d, ABS(sm) AS a, COALESCE(sm, -1) AS c, COUNT(*) AS n, GROUPING(bt) AS gb, GROUPING(sm) AS gs FROM t GROUP BY ROLLUP(bt, sm) ORDER BY gb, gs, bt, sm"
+    profile: iq17-default

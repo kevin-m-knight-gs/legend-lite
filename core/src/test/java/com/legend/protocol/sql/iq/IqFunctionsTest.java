@@ -269,9 +269,12 @@ class IqFunctionsTest {
     // ------------------------------------------------------------------ numbers and the engine split
 
     @Test
-    void absKeepsTheArgumentsTypeUnderTheIqEngine() {
-        // D-F5: the smallest SMALLINT's absolute value is IQ's -158 under the IQ engine
-        assertTrue(pure("SELECT ABS(sm) AS a FROM " + T).contains("> 32767"));
+    void absTakesTheSmallestTypeThatHoldsItUnderTheIqEngine() {
+        // IQ island, 2026-10-16 (measured on IQ 17.1, replacing the research's D-F5): the smallest SMALLINT's absolute
+        // value is an INTEGER's, a BIGINT's a NUMERIC(20,0)'s, under the IQ engine as in the front end
+        String iq = pure("SELECT ABS(sm) AS a, ABS(bg) AS b FROM " + T);
+        assertFalse(iq.contains("32767"), iq);
+        assertTrue(iq.contains("toDecimal()->abs()"), iq);
         // SQL Anywhere's front end: an unsigned SMALLINT, a BIGINT's NUMERIC(20,0)
         String sa = pure("SELECT ABS(sm) AS a, ABS(bg) AS b FROM " + T, IqProfile.SQLA17_DEFAULT.settings());
         assertFalse(sa.contains("32767"), sa);

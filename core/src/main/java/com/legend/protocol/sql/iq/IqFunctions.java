@@ -50,7 +50,7 @@ import java.util.function.Function;
  *       front end only: D-F3); {@code ASCII}, {@code CHAR}; {@code STRING} (a NULL is '', all NULL is NULL). An integer
  *       argument is read as its digits; any other value IQ would write as text by its own format is refused.</li>
  *   <li><b>Numbers.</b> {@code ABS} (SQL Anywhere's unsigned and NUMERIC(20,0) results; under the IQ engine the
- *       argument's type, its smallest value IQ's error -158: D-F5); {@code SIGN}; {@code CEILING}, {@code CEIL} and
+ *       smallest type that holds it, measured on IQ 17.1, where the research's D-F5 raised -158); {@code SIGN}; {@code CEILING}, {@code CEIL} and
  *       {@code FLOOR} (a DOUBLE, in SQL Anywhere's front end: D-F2); {@code ROUND} (half away from zero, in SQL
  *       Anywhere's front end: D-F1) and {@code TRUNCNUM} of integers and NUMERICs, keeping the scale; {@code MOD} and
  *       {@code REMAINDER} as {@code %}; {@code SQRT}, {@code EXP}, {@code LN}, {@code LOG} (natural), {@code LOG10}
@@ -1723,9 +1723,10 @@ final class IqFunctions {
     /**
      * {@code ABS(x)}: in SQL Anywhere's front end, a SMALLINT's an unsigned SMALLINT and an INTEGER's an unsigned
      * INTEGER (no overflow at the smallest value), a BIGINT's a NUMERIC(20,0), a NUMERIC's and a DOUBLE's their own
-     * type, a BIT itself (measured); under the IQ engine an integer's is its own type, so the type's smallest value is
-     * IQ's error -158 (the research's D-F5, the manual's: never a wrong value, only an error). A string (IQ's NUMERIC
-     * conversion) is refused.
+     * type, a BIT itself (measured). Under the IQ engine (IQ island, 2026-10-16, measured on IQ 17.1, replacing the
+     * research's D-F5, which raised IQ's -158 at a type's smallest value): an integer's own type where its absolute
+     * value fits it (ABS(-5) a SMALLINT, an unsigned type's always), else the next wider one -- a SMALLINT column's an
+     * INTEGER, an INTEGER's a BIGINT, a BIGINT's a NUMERIC(20,0). A string (IQ's NUMERIC conversion) is refused.
      */
     private Tx abs(SqlAst.FunctionCall f, List<Tx> args) {
         Tx x = args.get(0);
@@ -1745,6 +1746,10 @@ final class IqFunctions {
             return strict(Kind.DECIMAL, type, List.of(x), v -> SqlToPure.call("abs", integer
                     ? SqlToPure.call("toDecimal", v.get(0)) : v.get(0)));
         }
+        if (x.detail() instanceof IqType u && u.family().equals("UNSIGNED BIGINT")) {
+            // IQ island, 2026-10-16 (measured on IQ 17.1): a COUNT's, itself
+            return x;
+        }
         IqType t = integerType(x, e, "ABS");
         BigInteger top = t.lo().abs().max(t.hi().abs());
         BigInteger bottom = t.lo().signum() <= 0 && t.hi().signum() >= 0 ? BigInteger.ZERO
@@ -1753,21 +1758,20 @@ final class IqFunctions {
             return x;
         }
         if (engine == IqDialect.Engine.IQ) {
-            boolean overflows = top.compareTo(t.max()) > 0;
-            if (overflows) {
-                raisesHere(f, "-158 (the absolute value of " + t.family() + "'s smallest value)");
+            String family = t.family();
+            if (top.compareTo(t.max()) > 0) {
+                // the next wider type holds it: a BIGINT's a NUMERIC(20,0), computed as a decimal
+                if (family.equals("BIGINT")) {
+                    return strict(Kind.DECIMAL, new IqType("NUMERIC(20,0)"), List.of(x), v -> SqlToPure.call("abs",
+                            SqlToPure.call("toDecimal", v.get(0))));
+                }
+                family = family.equals("SMALLINT") ? "INTEGER" : "BIGINT";
             }
-            // a BIGINT's overflow is the database's own error, but over a value it may compute wider (IQ island,
-            // 2026-10-14, review 5's B1: a host variable's)
-            boolean checked = !t.family().equals("BIGINT") || t.wider();
             boolean widen = !t.wide() && !t.exact();
-            Tx r = SqlToPure.strict(Kind.INTEGER, List.of(x), v -> {
-                ValueSpecification a = SqlToPure.call("abs", widen ? SqlToPure.call("floor", v.get(0)) : v.get(0));
-                return overflows && checked ? ifThen(SqlToPure.call("greaterThan", a, SqlToPure.integer(t.max())),
-                        raise("Integer"), a) : a;
-            });
-            return Tx.value(r.vs(), Kind.INTEGER, r.nullable(), IqType.integer(t.family(), bottom, top.min(t.max()),
-                    widen || t.wide(), t.wider()));
+            Tx r = SqlToPure.strict(Kind.INTEGER, List.of(x), v -> SqlToPure.call("abs", widen
+                    ? SqlToPure.call("floor", v.get(0)) : v.get(0)));
+            return Tx.value(r.vs(), Kind.INTEGER, r.nullable(), IqType.integer(family, bottom, top, widen || t.wide(),
+                    t.wider()));
         }
         if (t.family().equals("BIGINT")) {
             return strict(Kind.DECIMAL, new IqType("NUMERIC(20,0)"), List.of(x), v -> SqlToPure.call("abs",

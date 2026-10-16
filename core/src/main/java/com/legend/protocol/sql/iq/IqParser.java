@@ -661,12 +661,42 @@ public final class IqParser {
      */
     private List<SqlAst.Expr> groupBy() {
         List<SqlAst.Expr> keys = new ArrayList<>();
+        IqLexer.Token head = peek();
+        // IQ island, 2026-10-15 (checklist 2.16b, measured on IQ 17.1): GROUP BY ROLLUP(...), CUBE(...) and ( ) alone,
+        // read as a call of their name (IqDialect.rolledUp makes the query a UNION of its groupings)
+        if ((head.is("rollup") || head.is("cube")) && peek(1).isOp("(") || head.isOp("(") && peek(1).isOp(")")) {
+            boolean empty = head.isOp("(");
+            take();
+            List<SqlAst.Expr> args = new ArrayList<>();
+            if (!empty) {
+                take();
+                do {
+                    if (peek().isOp("(") && composite(at)) {
+                        throw new SqlSyntaxException("a composite item in ROLLUP or CUBE" + IqDialect.syntaxCode(),
+                                peek().pos());
+                    }
+                    int first = at;
+                    SqlAst.Expr key = expression();
+                    value(key, "GROUP BY");
+                    spans.put(key, text.substring(tokens.get(first).start(), tokens.get(at - 1).end()));
+                    args.add(key);
+                } while (takeOp(","));
+            }
+            expectOp(")");
+            if (peek().isOp(",")) {
+                throw SqlSyntaxException.unsupported("a GROUP BY item beside ROLLUP, CUBE or ( ) is IQ's error -1001030"
+                        + " under its engine (not supported there)", peek().pos());
+            }
+            keys.add(new SqlAst.FunctionCall(List.of(new SqlAst.Ident(empty ? "rollup" : IqLexer.lower(head.text()),
+                    false, head.pos())), args, false, false, List.of(), List.of(), null, head.pos()));
+            return keys;
+        }
         do {
             IqLexer.Token t = peek();
             if (t.is("rollup") || t.is("cube") || t.isWord("grouping") && peek(1).isWord("sets")) {
                 throw SqlSyntaxException.unsupported(t.text().toUpperCase(java.util.Locale.ROOT) + (t.isWord("grouping")
-                        ? " SETS" : "(...)") + " is not supported yet: IQ's engine restricts it, and SQL Anywhere"
-                        + " answers some of it wrongly", t.pos());
+                        ? " SETS is IQ's error -1001030 under its engine (not supported there)" : "(...) beside another"
+                        + " GROUP BY item is IQ's error -1001030 under its engine (not supported there)"), t.pos());
             }
             if (t.is("all") || t.kind() == IqLexer.Kind.EOF || t.isOp(",")) {
                 throw new SqlSyntaxException("GROUP BY needs an expression here, not '" + t.text() + "'"
@@ -693,9 +723,11 @@ public final class IqParser {
             keys.add(key);
         } while (takeOp(","));
         if (peek().is("with") && (peek(1).is("rollup") || peek(1).is("cube"))) {
-            throw SqlSyntaxException.unsupported("WITH " + peek(1).text().toUpperCase(java.util.Locale.ROOT) + " is not"
-                    + " supported yet: IQ's engine restricts it, and SQL Anywhere answers some of it wrongly",
-                    peek().pos());
+            // IQ island, 2026-10-15 (checklist 2.16b, measured on IQ 17.1): GROUP BY a, b WITH ROLLUP is ROLLUP(a, b)
+            take();
+            IqLexer.Token how = take();
+            return List.of(new SqlAst.FunctionCall(List.of(new SqlAst.Ident(IqLexer.lower(how.text()), false,
+                    how.pos())), keys, false, false, List.of(), List.of(), null, how.pos()));
         }
         return keys;
     }
@@ -1895,7 +1927,8 @@ public final class IqParser {
             throw SqlSyntaxException.unsupported(name + "(...) is not supported: SQL Anywhere computes it by a formula"
                     + " that loses precision for large values, which lite's databases do not reproduce", first.pos());
         }
-        if (AGGREGATES.contains(lower)) {
+        // IQ island, 2026-10-15 (checklist 2.16b): GROUPING(x) is read as a call, IqDialect.rolledUp's to read
+        if (AGGREGATES.contains(lower) && !lower.equals("grouping")) {
             throw SqlSyntaxException.unsupported("the aggregate or OLAP function " + name + "(...) is not supported"
                     + " yet", first.pos());
         }

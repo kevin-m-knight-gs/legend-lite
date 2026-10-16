@@ -406,6 +406,8 @@ public final class IqDialect implements InputDialect {
         IqAliases.Read aliased = IqAliases.resolve(statement, spans, settings,
                 (engine != null ? engine : engineOf(statement, settings)) == Engine.SA);
         statement = aliased.statement();
+        // IQ island, 2026-10-15 (checklist 2.16b, measured on IQ 17.1): ROLLUP and CUBE as a UNION of their groupings
+        statement = rolledUp(statement, engine != null ? engine : engineOf(statement, settings));
         // IQ island, 2026-10-15 (checklist 1.10, measured on IQ 17.1): NUMBER(*) as ROW_NUMBER over the ORDER BY
         statement = numbered(statement);
         outerReads.addAll(aliased.outerReads());
@@ -1369,6 +1371,17 @@ public final class IqDialect implements InputDialect {
                 for (SqlAst.Expr e : expressions(s)) {
                     existsQueries(e, inExists);
                 }
+            }
+        }
+        if (statement instanceof SqlAst.SetOperation o && (o.limit() != null || o.offset() != null)) {
+            // IQ island, 2026-10-16 (checklist 2.16b): a ROLLUP's or a CUBE's union of groupings holds the statement's
+            // TOP ({@link #rolledUp}); IQ's own syntax puts no row limit on a set operation
+            boolean[] flags = {o.orderBy().isEmpty(), o.limit() != null};
+            if (o.limit() != null) {
+                limits.put(java.util.Objects.requireNonNull(o.limit()), flags);
+            }
+            if (o.offset() != null) {
+                limits.put(java.util.Objects.requireNonNull(o.offset()), flags);
             }
         }
         for (SqlAst.Statement q : queries(statement)) {
@@ -2930,6 +2943,281 @@ public final class IqDialect implements InputDialect {
             }
         }
         return all;
+    }
+
+    // ------------------------------------------------------------------ ROLLUP and CUBE
+
+    /** {@code s}'s GROUP BY ROLLUP(...) or CUBE(...) (a GROUP BY ( ) is ROLLUP()), as {@link IqParser} reads it; null for
+     *  none. */
+    private static SqlAst.@com.legend.base.Nullable FunctionCall rollup(SqlAst.Select s) {
+        return s.groupBy().size() == 1 && s.groupBy().get(0) instanceof SqlAst.FunctionCall f && f.name().size() == 1
+                && !f.star() && (IqLexer.lower(f.name().get(0).text()).equals("rollup") || IqLexer.lower(f.name().get(0)
+                .text()).equals("cube")) ? f : null;
+    }
+
+    /** Whether {@code e} is a call of GROUPING. */
+    private static boolean isGrouping(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && f.name().size() == 1 && IqLexer.lower(f.name().get(0).text())
+                .equals("grouping");
+    }
+
+    /**
+     * IQ island, 2026-10-15 (checklist 2.16b, measured on IQ 17.1): {@code GROUP BY ROLLUP(k1, ..., kn)} -- or {@code k1,
+     * ..., kn WITH ROLLUP} -- groups by k1..kn, by k1..kn-1, ..., and by nothing, the grand total (one row even over no
+     * rows); {@code CUBE} by every subset of the keys; {@code GROUP BY ( )} by nothing. The statement is read as the
+     * UNION ALL of one SELECT a grouping (a UNION under DISTINCT), each with the keys it does not group by NULL outside
+     * its aggregates and GROUPING(k) 0 or 1, its ORDER BY and row limit the whole's (the ORDER BY by position: IQ's
+     * engine orders a set operation by none of its names). A grouping by nothing with no aggregate keeps its one row by
+     * {@code HAVING COUNT(*) >= 0}. Refused by name, as IQ raises: GROUPING of no key (-149); as not read: a ROLLUP or a
+     * CUBE in a subquery, a derived table or a set operation's branch, a CUBE of more than 6 keys, SELECT *, a window
+     * function beside it, an ORDER BY key that is none of the items, and a key rolled up inside an expression the
+     * rewrite does not walk.
+     */
+    private static SqlAst.Statement rolledUp(SqlAst.Statement statement, Engine engine) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q != statement && q instanceof SqlAst.Select s && rollup(s) != null) {
+                throw SqlTranslationException.unsupported("ROLLUP or CUBE in a subquery, a derived table or a set"
+                        + " operation's branch is not supported yet", s.groupBy().get(0).pos());
+            }
+        }
+        if (!(statement instanceof SqlAst.Select s) || rollup(s) == null) {
+            return statement;
+        }
+        SqlAst.FunctionCall g = java.util.Objects.requireNonNull(rollup(s));
+        boolean cube = IqLexer.lower(g.name().get(0).text()).equals("cube");
+        // IQ island, 2026-10-16 (measured on IQ 17.1): a key that is a select-list alias is its item's expression (an
+        // alias before a column of its name: ROLLUP(sm) over id AS sm groups by id)
+        List<SqlAst.Expr> written = g.args();
+        List<SqlAst.Expr> keys = new ArrayList<>();
+        for (SqlAst.Expr k : written) {
+            keys.add(aliasedItem(s, k));
+        }
+        int n = keys.size();
+        aggregatesBesideRollup(s, cube, engine);
+        if (cube && n > 6) {
+            throw SqlTranslationException.unsupported("CUBE of more than 6 keys is not supported yet", g.pos());
+        }
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.AllColumns a) {
+                throw SqlTranslationException.unsupported("a select list of * with ROLLUP or CUBE is not supported yet", a.pos());
+            }
+            if (item instanceof SqlAst.SelectExpr x && hasWindowCall(x.expr())) {
+                throw SqlTranslationException.unsupported("a window function beside ROLLUP or CUBE is not supported"
+                        + " yet", x.expr().pos());
+            }
+        }
+        // the whole's ORDER BY, by position
+        List<SqlAst.SortItem> order = new ArrayList<>();
+        for (SqlAst.SortItem o : s.orderBy()) {
+            order.add(new SqlAst.SortItem(new SqlAst.IntegerLit(BigInteger.valueOf(itemPosition(s, o.expr())),
+                    o.expr().pos()), o.descending(), o.nullsFirst(), o.pos()));
+        }
+        // the groupings: ROLLUP's prefixes, longest first; CUBE's subsets
+        List<List<Integer>> groupings = new ArrayList<>();
+        if (cube) {
+            for (int mask = (1 << n) - 1; mask >= 0; mask--) {
+                List<Integer> set = new ArrayList<>();
+                for (int i = 0; i < n; i++) {
+                    if ((mask & (1 << i)) != 0) {
+                        set.add(i);
+                    }
+                }
+                groupings.add(set);
+            }
+        } else {
+            for (int size = n; size >= 0; size--) {
+                List<Integer> set = new ArrayList<>();
+                for (int i = 0; i < size; i++) {
+                    set.add(i);
+                }
+                groupings.add(set);
+            }
+        }
+        boolean aggregated = false;
+        for (SqlAst.Expr e : expressions(s)) {
+            aggregated |= hasAggregate(e);
+        }
+        SqlAst.Statement union = null;
+        for (List<Integer> set : groupings) {
+            SqlAst.Select branch = grouping(s, keys, written, set, aggregated);
+            union = union == null ? branch : new SqlAst.SetOperation(SqlAst.SetOp.UNION, !s.distinct(), union, branch,
+                    List.of(), null, null, s.pos());
+        }
+        if (union instanceof SqlAst.SetOperation o) {
+            return new SqlAst.SetOperation(o.op(), o.all(), o.left(), o.right(), order, s.limit(), s.offset(), s.pos());
+        }
+        SqlAst.Select only = (SqlAst.Select) java.util.Objects.requireNonNull(union);
+        return new SqlAst.Select(s.distinct(), only.items(), only.from(), only.where(), only.groupBy(), only.having(),
+                only.windows(), s.orderBy(), s.limit(), s.offset(), s.pos());
+    }
+
+    /** Whether {@code e} holds a window function's call, outside its subqueries. */
+    private static boolean hasWindowCall(SqlAst.Expr e) {
+        return e instanceof SqlAst.Window || children(e).stream().anyMatch(IqDialect::hasWindowCall);
+    }
+
+    /** Whether {@code e} holds an aggregate the island reads (GROUPING aside), outside its subqueries. */
+    private static boolean hasAggregate(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && IqAggregates.named(f) || children(e).stream().anyMatch(
+                IqDialect::hasAggregate);
+    }
+
+    /** The position (from 1) of the select item ORDER BY key {@code k} names: a position, an alias, or an item's
+     *  expression written alike; refused otherwise. */
+    private static int itemPosition(SqlAst.Select s, SqlAst.Expr k) {
+        if (k instanceof SqlAst.IntegerLit p) {
+            return p.value().intValueExact();
+        }
+        for (int i = 0; i < s.items().size(); i++) {
+            if (s.items().get(i) instanceof SqlAst.SelectExpr x && (x.alias() != null && k instanceof SqlAst.ColumnRef r
+                    && r.parts().size() == 1 && IqLexer.lower(r.parts().get(0).text()).equals(IqLexer.lower(
+                            java.util.Objects.requireNonNull(x.alias()).text())) || IqAggregates.same(x.expr(), k))) {
+                return i + 1;
+            }
+        }
+        throw SqlTranslationException.unsupported("an ORDER BY key that is none of the select items is not supported"
+                + " with ROLLUP or CUBE yet", k.pos());
+    }
+
+    /** The select item {@code k} names when it is an alias of {@code s}'s select list (its expression), else {@code k}. */
+    private static SqlAst.Expr aliasedItem(SqlAst.Select s, SqlAst.Expr k) {
+        if (k instanceof SqlAst.ColumnRef r && r.parts().size() == 1) {
+            for (SqlAst.SelectItem item : s.items()) {
+                if (item instanceof SqlAst.SelectExpr x && x.alias() != null && IqLexer.lower(java.util.Objects
+                        .requireNonNull(x.alias()).text()).equals(IqLexer.lower(r.parts().get(0).text()))) {
+                    return x.expr();
+                }
+            }
+        }
+        return k;
+    }
+
+    /**
+     * IQ island, 2026-10-16 (measured on IQ 17.1): the aggregates IQ's engine refuses beside ROLLUP or CUBE, its error
+     * -1001030 -- PERCENTILE_CONT and PERCENTILE_DISC beside CUBE (SQL Anywhere's syntax error too; beside ROLLUP IQ
+     * answers), MEDIAN and LIST beside either. Outside IQ's engine MEDIAN and LIST are refused by name (not measured).
+     */
+    private static void aggregatesBesideRollup(SqlAst.Select s, boolean cube, Engine engine) {
+        for (SqlAst.Expr e : expressions(s)) {
+            java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>();
+            todo.push(e);
+            while (!todo.isEmpty()) {
+                SqlAst.Expr x = todo.pop();
+                if (x instanceof SqlAst.FunctionCall f && f.name().size() == 1) {
+                    String fn = IqLexer.lower(f.name().get(0).text());
+                    if (cube && !f.withinGroup().isEmpty()) {
+                        throw SqlTranslationException.invalid(f.name().get(0).text() + " beside GROUP BY CUBE is not"
+                                + " supported" + code(-1001030, "QFA2A"), f.pos());
+                    }
+                    if (fn.equals("median") || fn.equals("list")) {
+                        String what = f.name().get(0).text() + " beside ROLLUP or CUBE";
+                        if (engine == Engine.IQ) {
+                            throw SqlTranslationException.invalid(what + " is not supported" + code(-1001030, "QFA2A"),
+                                    f.pos());
+                        }
+                        throw SqlTranslationException.unsupported(what + " is not supported yet", f.pos());
+                    }
+                }
+                children(x).forEach(todo::push);
+            }
+        }
+    }
+
+    /** One grouping's SELECT ({@link #rolledUp}): {@code s} grouped by the keys of {@code set}, the others NULL
+     *  ({@code written}: the keys as written, for GROUPING of an alias). */
+    private static SqlAst.Select grouping(SqlAst.Select s, List<SqlAst.Expr> keys, List<SqlAst.Expr> written,
+            List<Integer> set, boolean aggregated) {
+        List<SqlAst.SelectItem> items = new ArrayList<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            SqlAst.SelectExpr x = (SqlAst.SelectExpr) item;
+            // a whole item that is a key not grouped by is NULL (the union types it by the other groupings)
+            SqlAst.Expr e = rolledKey(x.expr(), keys, set) ? new SqlAst.NullLit(x.expr().pos())
+                    : rolled(x.expr(), keys, written, set);
+            items.add(new SqlAst.SelectExpr(e, x.alias(), x.pos(), x.text()));
+        }
+        SqlAst.Expr having = s.having() == null ? null : rolled(java.util.Objects.requireNonNull(s.having()), keys,
+                written, set);
+        if (set.isEmpty() && !aggregated) {
+            // a grouping by nothing is one row
+            SqlAst.Expr one = new SqlAst.Binary(SqlAst.BinaryOp.GE, new SqlAst.FunctionCall(List.of(new SqlAst.Ident(
+                    "COUNT", false, s.pos())), List.of(), false, true, List.of(), List.of(), null, s.pos()),
+                    new SqlAst.IntegerLit(BigInteger.ZERO, s.pos()), s.pos());
+            having = having == null ? one : new SqlAst.Binary(SqlAst.BinaryOp.AND, having, one, s.pos());
+        }
+        List<SqlAst.Expr> groupBy = new ArrayList<>();
+        set.forEach(i -> groupBy.add(keys.get(i)));
+        return new SqlAst.Select(false, items, s.from(), s.where(), groupBy, having, s.windows(), List.of(), null,
+                null, s.pos());
+    }
+
+    /** Whether {@code e} is a key {@code set} does not group by. */
+    private static boolean rolledKey(SqlAst.Expr e, List<SqlAst.Expr> keys, List<Integer> set) {
+        for (int i = 0; i < keys.size(); i++) {
+            if (!set.contains(i) && IqAggregates.same(e, keys.get(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code e} in a grouping by the keys of {@code set} ({@link #rolledUp}): a key not grouped a NULL of its type
+     *  (IQ island, 2026-10-16: {@code MIN(NULLIF(k, k))}, an aggregate a grouping may read), GROUPING(k) 0 where k is
+     *  grouped and 1 where not (k as written or as its alias's item); an aggregate as it is. */
+    private static SqlAst.Expr rolled(SqlAst.Expr e, List<SqlAst.Expr> keys, List<SqlAst.Expr> written,
+            List<Integer> set) {
+        if (isGrouping(e)) {
+            SqlAst.FunctionCall f = (SqlAst.FunctionCall) e;
+            for (int i = 0; i < keys.size() && f.args().size() == 1; i++) {
+                if (IqAggregates.same(f.args().get(0), keys.get(i)) || IqAggregates.same(f.args().get(0),
+                        written.get(i))) {
+                    return new SqlAst.IntegerLit(set.contains(i) ? BigInteger.ZERO : BigInteger.ONE, f.pos());
+                }
+            }
+            throw SqlTranslationException.invalid("GROUPING reads a value that is no key of the ROLLUP or the CUBE"
+                    + code(-149, "53003"), f.pos());
+        }
+        if (rolledKey(e, keys, set)) {
+            SqlAst.Pos at = e.pos();
+            SqlAst.Expr none = new SqlAst.FunctionCall(List.of(new SqlAst.Ident("NULLIF", false, at)), List.of(e, e),
+                    false, false, List.of(), List.of(), null, at);
+            return new SqlAst.FunctionCall(List.of(new SqlAst.Ident("MIN", false, at)), List.of(none), false, false,
+                    List.of(), List.of(), null, at);
+        }
+        if (e instanceof SqlAst.FunctionCall f && IqAggregates.named(f) || !rolls(e, keys, set)) {
+            return e;
+        }
+        return switch (e) {
+            case SqlAst.Binary b -> new SqlAst.Binary(b.op(), rolled(b.left(), keys, written, set), rolled(b.right(), keys, written, set),
+                    b.pos());
+            case SqlAst.Unary u -> new SqlAst.Unary(u.op(), rolled(u.operand(), keys, written, set), u.pos());
+            case SqlAst.Cast c -> new SqlAst.Cast(rolled(c.operand(), keys, written, set), c.type(), c.pos());
+            case SqlAst.IsNull i -> new SqlAst.IsNull(rolled(i.operand(), keys, written, set), i.negated(), i.pos());
+            case SqlAst.FunctionCall f when f.orderBy().isEmpty() && f.filter() == null && f.withinGroup().isEmpty() ->
+                    new SqlAst.FunctionCall(f.name(), f.args().stream().map(a -> rolled(a, keys, written, set)).toList(),
+                            f.distinct(), f.star(), f.orderBy(), f.withinGroup(), f.filter(), f.pos());
+            case SqlAst.Case c -> new SqlAst.Case(c.operand() == null ? null : rolled(java.util.Objects.requireNonNull(
+                    c.operand()), keys, written, set), c.whens().stream().map(w -> new SqlAst.When(rolled(w.condition(), keys,
+                    written, set), rolled(w.result(), keys, written, set))).toList(), c.otherwise() == null ? null : rolled(
+                    java.util.Objects.requireNonNull(c.otherwise()), keys, written, set), c.pos());
+            default -> throw SqlTranslationException.unsupported("a key of ROLLUP or CUBE inside "
+                    + e.getClass().getSimpleName() + " is not supported yet", e.pos());
+        };
+    }
+
+    /** Whether {@code e} reads a key {@code set} does not group by, or GROUPING, outside its aggregates. */
+    private static boolean rolls(SqlAst.Expr e, List<SqlAst.Expr> keys, List<Integer> set) {
+        if (isGrouping(e)) {
+            return true;
+        }
+        for (int i = 0; i < keys.size(); i++) {
+            if (!set.contains(i) && IqAggregates.same(e, keys.get(i))) {
+                return true;
+            }
+        }
+        if (e instanceof SqlAst.FunctionCall f && IqAggregates.named(f)) {
+            return false;
+        }
+        return children(e).stream().anyMatch(c -> rolls(c, keys, set));
     }
 
     // ------------------------------------------------------------------ NUMBER(*)

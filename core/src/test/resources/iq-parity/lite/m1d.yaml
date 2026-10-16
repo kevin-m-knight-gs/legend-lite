@@ -1,7 +1,7 @@
 # M1d for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.6): IQ's string, number and date functions and
 # CAST and CONVERT, as far as each is exact with Pure's natives (IqFunctions), the rest refused by name. Each is
 # judged by SQL Anywhere 17's answer in iq-answers.jsonl unless it names a decision (D-S1: a CHAR(n) value padded
-# under the IQ engine; D-F5: ABS of an integer keeps its type under the IQ engine; D-F9: the IQ engine raises outside
+# under the IQ engine; D-F5 (replaced by IQ 17.1's measured ABS, 2026-10-16); D-F9: the IQ engine raises outside
 # a function's domain), whose expect is the decided rows (SQL Anywhere's rows, padded where D-S1 pads). A case without
 # FROM, or over sa_rowgenerator, runs in SQL Anywhere's front end (engine: sa); one over tables in the IQ engine,
 # unless its profile is a sqla17 one. tools/iq-oracle's README.md has the keys.
@@ -442,10 +442,15 @@ tests:
   - id: abs_of_columns_in_sql_anywhere
     sql: "SELECT id, ABS(sm) AS a, ABS(it) AS b, ABS(bg) AS c, ABS(nm) AS d, ABS(dbl) AS e, ABS(bt) AS f FROM t ORDER BY id"
     profile: sqla17-default
+  # IQ island, 2026-10-16 (measured on IQ 17.1, replacing the research's D-F5, which raised -158 at a type's smallest
+  # value): under IQ's engine ABS takes the smallest type that holds it -- a SMALLINT column's an INTEGER, an INTEGER's
+  # a BIGINT, a BIGINT's a NUMERIC(20,0); judged by the live IQ
   - id: abs_of_columns_under_the_iq_engine
-    sql: "SELECT id, ABS(sm) AS a, ABS(it) AS b, ABS(bg) AS c FROM t WHERE id <> 2 ORDER BY id"
-    decision: D-F5
-    expect: '[["1","32767","2147483647","9223372036854775807"],["3","0","0","0"],["4","1","1","1"],["5",null,null,null],["6","100","100","100"],["7","1","7","7"]]'
+    sql: "SELECT id, ABS(sm) AS a, ABS(it) AS b, ABS(bg) AS c, ABS(sm + 1) AS d, ABS(bt) AS e FROM t ORDER BY id"
+    profile: iq17-default
+  - id: abs_of_aggregates_under_the_iq_engine
+    sql: "SELECT bt, ABS(MIN(sm)) AS a, ABS(MIN(it)) AS b, ABS(SUM(sm)) AS c, ABS(COUNT(*)) AS d FROM t GROUP BY bt ORDER BY bt"
+    profile: iq17-default
   - id: abs_of_a_numeric_and_a_double
     sql: "SELECT id, ABS(nm) AS a, ABS(dbl) AS b FROM t ORDER BY id"
   - id: abs_of_a_string_is_refused

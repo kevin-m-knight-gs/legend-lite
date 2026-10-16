@@ -1099,11 +1099,28 @@ public final class IqParity {
             }
         }
         if (!s.groupBy().isEmpty()) {
+            // IQ island, 2026-10-16 (checklist 2.16b): a ROLLUP's or a CUBE's keys are its arguments, and a group of a
+            // NULL key ties with a subtotal unless the ORDER BY reads a GROUPING for each of them
+            List<SqlAst.Expr> groupKeys = new ArrayList<>();
+            int rolled = 0;
             for (SqlAst.Expr g : s.groupBy()) {
+                if (g instanceof SqlAst.FunctionCall f && f.name().size() == 1 && Set.of("rollup", "cube").contains(
+                        f.name().get(0).text().toLowerCase(Locale.ROOT))) {
+                    groupKeys.addAll(f.args());
+                    rolled += f.args().size();
+                } else {
+                    groupKeys.add(g);
+                }
+            }
+            for (SqlAst.Expr g : groupKeys) {
                 String k = resolve(g, s, sources, true);
                 if (k == null || !keys.contains(k)) {
                     return at + " orders a grouped query by fewer than its GROUP BY keys";
                 }
+            }
+            if (groupingsOrdered(s) < rolled) {
+                return at + " orders a ROLLUP or a CUBE by fewer GROUPINGs than its keys (a NULL key's group ties with"
+                        + " a subtotal)";
             }
             return null;
         }
@@ -1150,6 +1167,29 @@ public final class IqParity {
             }
         }
         return null;
+    }
+
+    /** How many of {@code s}'s ORDER BY keys are a GROUPING call (written there, or an item's by its alias or its
+     *  position). */
+    private static int groupingsOrdered(SqlAst.Select s) {
+        int n = 0;
+        for (SqlAst.SortItem o : s.orderBy()) {
+            SqlAst.Expr e = o.expr();
+            for (int i = 0; i < s.items().size(); i++) {
+                if (s.items().get(i) instanceof SqlAst.SelectExpr x && (e instanceof SqlAst.IntegerLit p
+                        && p.value().intValue() == i + 1 || x.alias() != null && e instanceof SqlAst.ColumnRef r
+                        && r.parts().size() == 1 && r.parts().get(0).text().equalsIgnoreCase(
+                        java.util.Objects.requireNonNull(x.alias()).text()))) {
+                    e = x.expr();
+                    break;
+                }
+            }
+            if (e instanceof SqlAst.FunctionCall f && f.name().size() == 1
+                    && f.name().get(0).text().equalsIgnoreCase("grouping")) {
+                n++;
+            }
+        }
+        return n;
     }
 
     /** Marks {@code unique}'s source ordered where it is a unique column of a source not yet ordered, and

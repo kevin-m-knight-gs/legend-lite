@@ -432,11 +432,11 @@ tests:
     sql: "SELECT t.id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t ORDER BY 1"
   - id: grouped_union
     sql: "SELECT k FROM g WHERE k < 3 GROUP BY k UNION ALL SELECT COUNT(*) FROM g ORDER BY 1"
-  - id: group_by_rollup_is_refused
+  - id: group_by_rollup
     sql: "SELECT k, COUNT(*) FROM g GROUP BY ROLLUP(k)"
-  - id: group_by_cube_is_refused
+  - id: group_by_cube
     sql: "SELECT k, COUNT(*) FROM g GROUP BY CUBE(k)"
-  - id: group_by_with_rollup_is_refused
+  - id: group_by_with_rollup
     sql: "SELECT k FROM g GROUP BY k WITH ROLLUP"
   - id: group_by_grouping_sets_is_refused
     sql: "SELECT k FROM g GROUP BY GROUPING SETS ((k), ())"
