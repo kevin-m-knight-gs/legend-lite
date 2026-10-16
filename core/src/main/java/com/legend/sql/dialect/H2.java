@@ -163,6 +163,45 @@ public class H2 extends AnsiSqlRenderer {
         return aliasIdent(name);
     }
 
+    /** {@inheritDoc} H2 keeps the SQL standard's {@code information_schema}: the corpus's catalog-grid tests prove
+     *  it, the primary keys' {@code key_column_usage} and {@code table_constraints} pair included (H2 2.1.214, probed
+     *  2026-09-05: ordinal positions, quoted names). */
+    @Override
+    protected SqlWriter catalog(SqlWriter writer, com.legend.sql.SqlSource.Catalog c) {
+        return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
+    }
+
+    /** H2's catalog names a column's type by its own name ({@code CHARACTER VARYING}, {@code DOUBLE PRECISION}) and
+     *  keeps the declared one beside it: its JDBC driver reads the code by the declared name where there is one
+     *  (a FLOAT is FLOAT, a DECIMAL DECIMAL, though both are stored as another) and reports a DECIMAL by that name.
+     *  Measured 2026-10-16 against {@code DatabaseMetaData.getColumns} on H2 2.1.214 (CatalogGridTest). */
+    private static final InformationSchemaCatalog.Types CATALOG_GRID_TYPES = new InformationSchemaCatalog.Types(
+            "CASE WHEN declared_data_type = 'DECIMAL' THEN 'DECIMAL' ELSE data_type END",
+            "COALESCE(declared_data_type, data_type)", gridTypeCodes());
+
+    private static java.util.SequencedMap<String, InformationSchemaCatalog.TypeCode> gridTypeCodes() {
+        java.util.SequencedMap<String, InformationSchemaCatalog.TypeCode> m = new java.util.LinkedHashMap<>();
+        m.put("INTEGER", InformationSchemaCatalog.TypeCode.INTEGER);
+        m.put("CHARACTER VARYING", InformationSchemaCatalog.TypeCode.VARCHAR);
+        m.put("BIGINT", InformationSchemaCatalog.TypeCode.BIGINT);
+        m.put("SMALLINT", InformationSchemaCatalog.TypeCode.SMALLINT);
+        m.put("TINYINT", InformationSchemaCatalog.TypeCode.TINYINT);
+        m.put("DOUBLE PRECISION", InformationSchemaCatalog.TypeCode.DOUBLE);
+        m.put("FLOAT", InformationSchemaCatalog.TypeCode.FLOAT);
+        m.put("REAL", InformationSchemaCatalog.TypeCode.REAL);
+        m.put("DECIMAL", InformationSchemaCatalog.TypeCode.DECIMAL);
+        m.put("NUMERIC", InformationSchemaCatalog.TypeCode.NUMERIC);
+        m.put("DATE", InformationSchemaCatalog.TypeCode.DATE);
+        m.put("TIMESTAMP", InformationSchemaCatalog.TypeCode.TIMESTAMP);
+        m.put("BOOLEAN", InformationSchemaCatalog.TypeCode.BOOLEAN);
+        m.put("CHARACTER", InformationSchemaCatalog.TypeCode.CHAR);
+        m.put("TIME", InformationSchemaCatalog.TypeCode.TIME);
+        m.put("TIMESTAMP WITH TIME ZONE", InformationSchemaCatalog.TypeCode.TIMESTAMP_WITH_TIMEZONE);
+        m.put("BINARY VARYING", InformationSchemaCatalog.TypeCode.VARBINARY);
+        m.put("BINARY", InformationSchemaCatalog.TypeCode.BINARY);
+        return m;
+    }
+
     /** Aliases and every DERIVED label quote UNCONDITIONALLY — the
      * engine's own convention (as "root", as "legalName"): on the
      * case-sensitive session a bare invented name would uppercase in

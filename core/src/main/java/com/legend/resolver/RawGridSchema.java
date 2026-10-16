@@ -74,8 +74,8 @@ public final class RawGridSchema {
      * to the trusted-Any column at the oracle — an upgrade, never a
      * new wall). */
     public interface SchemaOracle {
-        /** The columns of {@code sql}, written for the database {@code writtenFor} (null: the session's own). */
-        List<Type.Column> columnsOf(String sql, @com.legend.base.Nullable String writtenFor);
+        /** The columns of {@code sql}, written for the database {@code writtenFor} (decision D2). */
+        List<Type.Column> columnsOf(String sql, String writtenFor);
     }
 
     /** The tree with every late-bound raw grid stamped and its
@@ -156,7 +156,7 @@ public final class RawGridSchema {
                 && Type.relationSchema(raw.info().type())
                         instanceof Type.RelationType rt
                 && rt.isLateBound()) {
-            return new TypedRawSqlRelation(raw.sql(), raw.authored(), raw.database(),
+            return new TypedRawSqlRelation(raw.sql(), raw.database(),
                     new ExprType(Type.relation(new Type.RelationType(
                                     oracle.columnsOf(raw.sql(), raw.writtenFor()), List.of())),
                             raw.info().multiplicity()));
@@ -287,8 +287,8 @@ public final class RawGridSchema {
         }
     }
 
-    /** The STAMPED schema behind an expression: a stamped raw grid
-     * (directly, or under the {@code .rows} marker), or a bound lambda
+    /** The STAMPED schema behind an expression: a stamped raw grid or a
+     * catalog grid (directly, or under the {@code .rows} marker), or a bound lambda
      * row variable. Null = not a stamped-grid read. */
     private static Type.@com.legend.base.Nullable RelationType stampedSchemaOf(
             TypedSpec source, Map<String, Type.RelationType> binders) {
@@ -301,6 +301,12 @@ public final class RawGridSchema {
                 && Type.relationSchema(r.info().type())
                         instanceof Type.RelationType rt
                 && !rt.isLateBound()) {
+            return rt;
+        }
+        // a catalog grid: its schema is declared
+        if (s instanceof com.legend.compiler.spec.typed.TypedCatalogGrid g
+                && Type.relationSchema(g.info().type())
+                        instanceof Type.RelationType rt) {
             return rt;
         }
         if (s instanceof TypedVariable v) {

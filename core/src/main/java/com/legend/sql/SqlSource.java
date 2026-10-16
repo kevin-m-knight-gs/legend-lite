@@ -143,10 +143,34 @@ public sealed interface SqlSource {
      * never platform-composed SQL — the SQL-text ratchet's distinction.
      * {@code writtenFor} is the database its connection declares (that
      * type's name): the dialect translates the engine's H2 text and runs
-     * any other as written (decision D2); null for the platform's own
-     * text (a catalog grid's), written in the session's language. */
-    record RawSql(String sql, String alias, List<OutputCol> outputs,
-            @com.legend.base.Nullable String writtenFor) implements SqlSource {
+     * any other as written (decision D2). The platform writes no text
+     * here (the dialect program's Phase 3, 2026-10-16: a catalog grid,
+     * the one platform text it carried, is a {@link Catalog}). */
+    record RawSql(String sql, String alias, List<OutputCol> outputs, String writtenFor) implements SqlSource {
+        public RawSql {
+            java.util.Objects.requireNonNull(writtenFor, "raw SQL carries the database its text is written for");
+        }
+    }
+
+    /** A catalog grid of the session's own database (the {@code fetchDb*MetaData} natives): its schemas, tables,
+     * columns or primary keys, each kind filtered by a JDBC {@code LIKE} pattern (null matches every name), in the
+     * columns JDBC's {@code DatabaseMetaData} fixes for the grid, named by {@code outputs} in order. Where a database
+     * keeps its catalog and how it is read is the dialect's (the dialect program's Phase 3, 2026-10-16: until then
+     * the compiler wrote {@code information_schema} text into a {@link RawSql}). A schema grid takes no table
+     * pattern, and only the column grid takes a column pattern. */
+    record Catalog(Grid grid, @com.legend.base.Nullable String schemaPattern,
+            @com.legend.base.Nullable String tablePattern, @com.legend.base.Nullable String columnPattern,
+            String alias, List<OutputCol> outputs) implements SqlSource {
+
+        public Catalog {
+            if (grid == Grid.SCHEMAS && tablePattern != null || grid != Grid.COLUMNS && columnPattern != null) {
+                throw new IllegalArgumentException("the " + grid + " catalog grid takes no such pattern");
+            }
+            outputs = List.copyOf(outputs);
+        }
+
+        /** The four grids. */
+        public enum Grid { SCHEMAS, TABLES, COLUMNS, PRIMARY_KEYS }
     }
 
     /** {@code on} is KIND-COUPLED, enforced at construction: the CROSS

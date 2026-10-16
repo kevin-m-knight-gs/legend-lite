@@ -29,7 +29,7 @@ public final class GridProbe {
     }
 
     /** The grid's projection NAMES for the authored SQL. */
-    public static List<String> probeNames(String sql, @com.legend.base.Nullable String writtenFor, Connection conn,
+    public static List<String> probeNames(String sql, String writtenFor, Connection conn,
             com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         List<String> names = new ArrayList<>();
         for (String[] c : probeColumns(sql, writtenFor, conn, dialect)) {
@@ -44,7 +44,7 @@ public final class GridProbe {
      * otherwise — an upgrade over the old names-only stamp, never a
      * new wall. */
     public static List<com.legend.compiler.element.type.Type.Column>
-            probeTypedColumns(String sql, @com.legend.base.Nullable String writtenFor, Connection conn,
+            probeTypedColumns(String sql, String writtenFor, Connection conn,
             com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         List<com.legend.compiler.element.type.Type.Column> cols =
                 new ArrayList<>();
@@ -64,8 +64,8 @@ public final class GridProbe {
 
     /** The grid's projection (name, SQL type name) pairs — the SAME
      * LIMIT-0 metadata read, types included; the text written for the
-     * database {@code writtenFor} (decision D2; null: the session's own). */
-    public static List<String[]> probeColumns(String sql, @com.legend.base.Nullable String writtenFor,
+     * database {@code writtenFor} (decision D2). */
+    public static List<String[]> probeColumns(String sql, String writtenFor,
             Connection conn, com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         SqlSelect probe = SqlSelect.starOf(
                 new SqlSource.RawSql(sql, "_p", List.of(), writtenFor))

@@ -149,9 +149,10 @@ public final class BodyCompiler {
         return seg.last;
     }
 
-    /** Whether the tree reads a late-bound raw grid anywhere. */
+    /** Whether the tree reads a raw grid or a catalog grid anywhere. */
     private static boolean containsRawGrid(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation
+                || n instanceof com.legend.compiler.spec.typed.TypedCatalogGrid) {
             return true;
         }
         for (TypedSpec c : n.children()) {

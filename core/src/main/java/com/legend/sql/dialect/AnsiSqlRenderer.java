@@ -366,6 +366,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // this session's language (raw: the engine's H2 text translated, any other as written)
             case SqlSource.RawSql r -> writer.append("(").append(raw(r.sql(), r.writtenFor()))
                     .append(") AS ").append(aliasIdent(r.alias()));
+            // a catalog grid of the session's database: where it keeps its catalog is the dialect's
+            case SqlSource.Catalog c -> catalog(writer.append("("), c).append(") AS ").append(aliasIdent(c.alias()));
             case SqlSource.SourceUrl u -> {
                 writer.append("(");
                 nl(writer, depth + 1).append(sourceUrl(u.url()));
@@ -1100,6 +1102,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     @Override
     public final String raw(String statement, @com.legend.base.Nullable String writtenFor) {
         return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor) ? fromEngineText(statement) : statement;
+    }
+
+    /** A catalog grid's query ({@link SqlSource.Catalog}): where this database keeps its catalog and how it is read,
+     *  its columns named by the source's outputs. A dialect whose database is proven to answer it writes it; any other
+     *  refuses it (the dialect program's Phase 3, 2026-10-16). */
+    protected SqlWriter catalog(SqlWriter writer, SqlSource.Catalog c) {
+        throw new DialectCapability("a " + c.grid() + " catalog grid (fetchDb*MetaData) reached a dialect without a"
+                + " catalog reading");
     }
 
     /** A lowering-internal pseudo-aggregate ({@link SqlAgg.Fn#marker}) reached a renderer: the lowering's bug. */

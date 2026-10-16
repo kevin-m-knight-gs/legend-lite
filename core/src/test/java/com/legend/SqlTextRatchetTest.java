@@ -96,7 +96,9 @@ class SqlTextRatchetTest {
         // key_column_usage + table_constraints) — the model-fact VALUES
         // splice it replaces died with the Java fact-walk; catalog text
         // is the registered class this file exists for
-        REGISTER.put("compiler/spec/CatalogGrids.java", 10);
+        // 10 -> 0, row deleted (2026-10-16, the dialect program's Phase 3): a catalog grid is a typed node and an IR
+        // source (TypedCatalogGrid, SqlSource.Catalog); each dialect whose database is proven reads its own catalog
+        // (DuckDb and H2, through sql/dialect/InformationSchemaCatalog), every other refuses it
         // 3 -> 4 (metamodel-store leg 2026-08-28): metamodelSeed's
         // registry-extent INSERT joins the one DDL owner — system
         // setup text beside the create/drop it already renders

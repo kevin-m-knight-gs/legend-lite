@@ -9857,3 +9857,19 @@ the audit's findings under Phase 4).
   cleared, and `classpath_test` was skipped. Also green on 9d8b5f0, before the audit's fixes: 362 of 362.
 - **Found on the way:** `sqlrun.sh`'s summary missed two channel B lines (MariaDB and MySQL unclassified), whose
   logs grep took for binary; d9d2e19 reads them with `-a` (both clean: pass=91, wireBug=0).
+
+## 2026-10-16 — The dialect program's Phase 3: SQL composed outside the dialect (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 3). In progress; this entry grows with the phase.
+- **The catalog grids are the dialect's** (the `fetchDb*MetaData` natives): a `TypedCatalogGrid` and a
+  `SqlSource.Catalog`. DuckDB and H2 read `information_schema` through `sql/dialect/InformationSchemaCatalog`, and
+  every other dialect refuses a grid. The schema, table and key grids are the text the compiler wrote (goldens run
+  from the deleted code, `CatalogGridTest`). The column grid's types are now each database's own, measured against
+  its JDBC driver's `DatabaseMetaData.getColumns`, which is legend-pure's native. H2's catalog names a VARCHAR
+  `CHARACTER VARYING`, which the old DuckDB-named table typed OTHER.
+  - `h2-fail-roster.txt` −1: `testFetchDbColumnsMetaData` passes on the host judge (its `SQL_TYPE_NAME` holds
+    `VARCHAR`).
+  - `h2-database-lost-register.txt` +1, the same test: database mode fails it as it fails 61 other rows of that
+    register (`DialectCapability: variant navigation reached a dialect without JSON support`, its
+    `.rows.value(...)` read). It was not in the register before because the host judge failed it first.
