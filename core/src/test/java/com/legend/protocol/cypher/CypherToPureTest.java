@@ -121,8 +121,19 @@ class CypherToPureTest {
                 "Unit is too large to be used for truncation");
         invalid("RETURN localtime(date('1984-10-11')) AS t", "Cannot get the time of: 1984-10-11");
         invalid("RETURN localtime('25:00') AS t", "Text cannot be parsed to a LocalTime: \"25:00\"");
-        // refused by name: a zone, the Variant's text spelling of a time
-        unsupported("RETURN time('12:00+01:00') AS t", "a zoned time of day");
+        // a zoned time of day is its instant on the epoch day, the offset beside: the wall time at the epoch day,
+        // less the offset (the adjust steps the database computes); a field reads the wall time back
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[t:r|%1970-01-01->meta::legend::lite::atTime(%12:00:00)"
+                        + "->adjust(-1, meta::pure::functions::date::DurationUnit.HOURS),"
+                        + " h:r|%1970-01-01->meta::legend::lite::atTime(%12:00:00)"
+                        + "->adjust(-1, meta::pure::functions::date::DurationUnit.HOURS)"
+                        + "->adjust(1, meta::pure::functions::date::DurationUnit.HOURS)->hour()])->select(~[t, h])",
+                pure("RETURN time('12:00+01:00') AS t, time('12:00+01:00').hour AS h"));
+        invalid("RETURN time('25:00+01:00') AS t", "Text cannot be parsed to a Time: \"25:00+01:00\"");
+        invalid("RETURN time('12:00[Europe/Stockholm]') AS t", "Using a named time zone e.g. [UTC] is not valid");
+        // refused by name: a named zone for a time (its offset is the clock's), the Variant's text spelling of a time
+        unsupported("RETURN time({hour: 12, timezone: 'Europe/Stockholm'}) AS t", "a named zone for a time of day");
+        unsupported("RETURN time({timezone: '+01:00'}) AS t", "the current time in a zone");
         unsupported("RETURN [localtime('12:31'), localtime('13:00')] AS l", "a list or map holding a LocalTime");
     }
 

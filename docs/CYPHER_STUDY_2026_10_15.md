@@ -2050,3 +2050,71 @@ owner's aggregate); named paths, 40; a label naming no class (C4), 39; `rand()`,
 `toString` of a duration, 12; fractional durations, 9; a field over a fine truncation; the `offset` field of a
 named zone (the database would format the offset it reads); signed years.
 
+### 12.11 The zoned time-of-day leg, 2026-10-16: `time` as its instant on the epoch day, the offset beside
+
+The last of the temporal values: Cypher's `time` (Neo4j's OffsetTime, a wall time and an offset), the ledger's
+largest temporal refusal after the nanosecond (165 cases: `time(...)` 117, `time.truncate` 48). The translator
+and the judge only; no file of the database owner's, no native.
+
+#### 12.11.1 The model
+
+§12.8's, carried down: a zoned time of day is **its instant on the epoch day** — Pure's DateTime
+`1970-01-01T11:31:14.645876` for `12:31:14.645876+01:00`, the day before or after when the offset crosses
+midnight — with the offset beside it as a fact of the translation (`Kind.ZONED_TIME`, the `Zone` on the
+translation's detail). Why the instant on a day and not the time of day in UTC: Neo4j orders and compares
+`time` values as Java's OffsetTime does, by the instant of the wall time less the offset on one day, so
+`00:30+01:00` (23:30 the day before) is before `23:30Z`; a time of day in UTC would fold the two together. The
+wall time is the instant shifted by the offset (`adjust` steps the database computes, as §12.8's), and
+`timeOf` takes the time of day back when one is read as a local time. The fields read the wall time; the zone
+fields are the offset's spelling (`timezone`, `offset`) or the database's distance between the instant and its
+wall time (`offsetMinutes`, `offsetSeconds`); `epochSeconds` is Neo4j's "Epoch not supported.".
+
+**The judge.** Neo4j's driver spells one `Time('12:31:14.645876000+01:00')`; lite's cell is the instant,
+`DateTime('1970-01-01T11:31:14.645876000')`. They are the same value when they name one instant on the epoch
+day (`CypherValues.sameEpochTime`, `docs/SEMANTICS_REGISTER.md` S68). Two differences the register keeps: Neo4j's
+`=` between two zoned times is true only when they name one instant and one offset (`time('12:00+01:00') =
+time('11:00Z')` is false; lite's instant says true: the lite case `time_comparison` is decided, S66 extended);
+and the oracle's Python driver prints a zoned time's second-precision offset to the minute without moving the
+wall time (`+02:05:59` as `+02:05`: an instant 59 seconds off — a zoned date-time's it prints with the wall time
+moved, the instant kept), so the TCK's own expected text judges those three cases (S69, `decisions.tsv`).
+
+#### 12.11.2 What lands
+
+`time('21:40:32.142+0100')` in every time form of §12.10 with `Z` or an offset after it (none: UTC; a region's
+name in brackets is Neo4j's error "Using a named time zone e.g. [UTC] is not valid for a time without a date");
+`time({hour, minute, second, millisecond, microsecond, nanosecond, timezone})` (an offset with seconds too; a
+region's name is refused by name: Neo4j takes its offset at the current date, a value of the call); `time(x)` of a
+local time or date-time (UTC), of a zoned date-time (its wall time, its offset; a named zone's refused by name),
+of another `time`; the selections of the TCK's Temporal3 [3] — `{time: t}`, `{time: t, timezone: z}` (a zoned
+base converts: the instant kept, the offset changed; a local base keeps its wall time), fields written over a base
+(applied to the wall time in the base's zone, then converted to the written zone); a zoned time into the other
+constructors — `localtime(t)` and `{time: t}` the wall time, `localdatetime({date, time: t})` the wall time on
+the date, `datetime({year, month, day, time: t})` the wall time on the date in the time's offset, converted when
+a `timezone` is written; the fields; `=`, `<>` and the orderings by the instant; `ORDER BY`; `time.truncate` to
+the day, hour, minute, second, millisecond and microsecond, of a time, a local time (UTC), a local or zoned
+date-time, fields written over it, a `timezone` written over it replacing the source's (Neo4j's: no conversion);
+`localtime.truncate` of a zoned time; `time ± duration` (the wall time moved by the seconds, wrapping within the
+day, the offset kept); `duration.between` and its three siblings over a zoned time and a zoned time (the instants),
+a local time (read in the zoned one's offset), a date or local date-time (read in the time's offset, the time on
+its date), a zoned date-time (the time on its wall date in the time's own offset, then the instants) — the
+TCK's Temporal10 rows, each; null propagation. Neo4j's errors as it spells them ("Cannot get the time of:
+1984-10-11", "Cannot construct time from: NO_VALUE", "hour must be specified", "Unsupported field: Year",
+"Epoch not supported.", "Unit is too large to be used for truncation").
+
+Refused by name: a named zone in a component or of a date-time read as a time (the clock's offset), the current
+time (`time()`, `time({timezone: z})`), `toString`, a time of a list, a text of the row, a stored time (S64).
+
+#### 12.11.3 The ledger
+
+Both lanes, identical:
+
+| | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| before (the temporal remainder) | 4,036 | 1,577 | 0 | 0 | 0 | 1,443 | 698 | 318 |
+| the zoned time-of-day leg | 4,062 | 1,678 | 0 | 0 | 0 | 1,357 | 709 | 318 |
+
+Of the TCK's temporal features (1,004 cases): 566 PASS, 388 REFUSED by name, 50 SKIP. 119 lite
+cases in `lite/temporal.yaml`, each judged by Neo4j. What stays refused in temporal: the nanosecond (282, the
+database keeps microseconds; Temporal9's truncation rows carry one), the clock functions, `toString` of the new
+values, fractional durations, a stored time.
+

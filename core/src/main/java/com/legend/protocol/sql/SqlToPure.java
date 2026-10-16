@@ -266,6 +266,9 @@ public final class SqlToPure {
         /** A zoned date-time (Cypher's {@code datetime}): carried as its instant, Pure's DateTime; its zone, when the
          *  translator knows it, rides the translation's detail. */
         ZONED,
+        /** A zoned time of day (Cypher's {@code time}): carried as its instant on the epoch day, Pure's DateTime (the
+         *  day before or after when the offset crosses midnight); its offset rides the translation's detail. */
+        ZONED_TIME,
         /** A duration (Cypher's): an instance of the model's Duration class (months, days, seconds, nanoseconds),
          *  carried as the database's struct. */
         DURATION, JSON, NULL, OTHER;
@@ -3846,7 +3849,7 @@ public final class SqlToPure {
             case DATE -> "StrictDate";
             case DATETIME -> "DateTime";
             case TIME -> "StrictTime";
-            case ZONED -> "DateTime";
+            case ZONED, ZONED_TIME -> "DateTime";
             case JSON -> VARIANT;
             case BOOLEAN, OTHER, DURATION -> null;
         };
@@ -4285,6 +4288,7 @@ public final class SqlToPure {
             case DATETIME -> "timestamp without time zone";
             case TIME -> "time without time zone";
             case ZONED -> "timestamp with time zone";
+            case ZONED_TIME -> "time with time zone";
             case DURATION -> "interval";
             case JSON -> "jsonb";
             case NULL -> "unknown";

@@ -569,6 +569,38 @@ public final class CypherValues {
         return x != null && y != null && x.equals(y) && zonedText(a) != zonedText(b);
     }
 
+    /** A zoned time of day of Neo4j's ({@code Time('12:31:14.645876000+01:00')}) against lite's, which keeps its
+     *  instant on the epoch day and no zone ({@code DateTime('1970-01-01T11:31:14.645876000')}): equal when they
+     *  name one instant (docs/SEMANTICS_REGISTER.md S68). Only a pair of one zoned time and one local date-time
+     *  text compares so. */
+    static boolean sameEpochTime(String a, String b) {
+        String zonedTime = zonedTimeText(a) ? a : zonedTimeText(b) ? b : null;
+        if (zonedTime == null) {
+            return false;
+        }
+        String local = zonedTimeText(a) ? b : a;
+        if (!local.startsWith("DateTime('") || !local.endsWith("')") || zonedText(local)) {
+            return false;
+        }
+        try {
+            java.time.Instant x = java.time.OffsetTime.parse(zonedTime.substring(6, zonedTime.length() - 2))
+                    .atDate(java.time.LocalDate.EPOCH).toInstant();
+            java.time.Instant y = java.time.LocalDateTime.parse(local.substring(10, local.length() - 2))
+                    .toInstant(java.time.ZoneOffset.UTC);
+            return x.equals(y);
+        } catch (java.time.format.DateTimeParseException e) {
+            return false;
+        }
+    }
+
+    private static boolean zonedTimeText(String text) {
+        if (!text.startsWith("Time('") || !text.endsWith("')")) {
+            return false;
+        }
+        String body = text.substring(6, text.length() - 2);
+        return body.indexOf('+') > 0 || body.indexOf('-') > 0 || body.endsWith("Z");
+    }
+
     private static boolean zonedText(String text) {
         if (!text.startsWith("DateTime('") || !text.endsWith("')")) {
             return false;
@@ -643,7 +675,7 @@ public final class CypherValues {
             return x.value().equals(y.value());
         }
         if (a instanceof Opaque x && b instanceof Opaque y) {
-            return x.text().equals(y.text()) || sameInstant(x.text(), y.text());
+            return x.text().equals(y.text()) || sameInstant(x.text(), y.text()) || sameEpochTime(x.text(), y.text());
         }
         if (a instanceof Opaque x && b instanceof Mp y || a instanceof Mp x2 && b instanceof Opaque y2) {
             Opaque o = a instanceof Opaque x3 ? x3 : (Opaque) b;

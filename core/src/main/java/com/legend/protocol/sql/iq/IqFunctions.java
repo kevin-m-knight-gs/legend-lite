@@ -2385,7 +2385,7 @@ final class IqFunctions {
             case BOOLEAN -> "a condition";
             case STRING -> "a string";
             case DATE -> "a date";
-            case DATETIME, ZONED -> "a timestamp";
+            case DATETIME, ZONED, ZONED_TIME -> "a timestamp";
             case TIME -> "a time";
             case DURATION -> "a duration";
             case NULL -> "NULL";

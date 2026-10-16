@@ -9850,6 +9850,24 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the ninth landing — the zoned time-of-day leg: `time` as its instant on the epoch day, the offset beside (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the temporal remainder; the record is the study's §12.11
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator and the judge; no file of the database owner's, no native.
+
+1. **What lands.** `Kind.ZONED_TIME`: a zoned time of day carried as its instant on the epoch day (Pure's DateTime),
+   the offset beside, as §12.8 carries a zoned date-time; `time` from texts, components, local and zoned values;
+   the selections and conversions; a zoned time into the other constructors; the fields; comparison and ordering
+   by the instant; `time.truncate`; `time ± duration`; `duration.between` and its siblings over every pairing the
+   TCK's Temporal10 spells. The judge's rule (`docs/SEMANTICS_REGISTER.md` S68), the equality decision (S66,
+   extended) and the driver's offset rounding (S69, three decided cases). Refused by name: a named zone for a
+   time (the clock's offset), the current time, `toString`, a time of a list.
+2. **The ledger,** identical on both lanes: 4,062 cases; PASS 1,678 (from 1,577); FAIL 0; BUG 0; ERROR 0;
+   REFUSED 1,357; BOTH_ERROR 709; SKIP 318. Of the TCK's 1,004 temporal cases, 566 PASS. 119 lite
+   cases in `lite/temporal.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the eighth landing — the temporal remainder: the text forms, fields over a base, fine truncation, the mixed `between`, a named zone in a text (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the duration leg; the record is the study's §12.10
