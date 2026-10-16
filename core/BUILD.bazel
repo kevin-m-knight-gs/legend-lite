@@ -394,6 +394,9 @@ legend_java_library(
             "src/test/java/com/legend/server/IqParityPostgresTest.java",
             # the corpus lane is :iq_corpus_test's alone (manual): it fails without -Diq.corpus.root (2026-10-16)
             "src/test/java/com/legend/integration/IqCorpusTest.java",
+            # the #Cypher{...}# island's parity lanes are :cypher_parity_test's and :cypher_parity_postgres_test's
+            "src/test/java/com/legend/integration/CypherParityTest.java",
+            "src/test/java/com/legend/server/CypherParityPostgresTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's
             "src/test/java/com/legend/testcases/*.java",
@@ -415,6 +418,9 @@ legend_java_library(
             # the #IQ{...}# island's cases, schema, snapped answers and ledger: :iq_parity_test's and
             # :iq_parity_postgres_test's data, read as files
             "src/test/resources/iq-parity/**",
+            # the #Cypher{...}# island's cases, the TCK, the snapped answers and the ledger: :cypher_parity_test's and
+            # :cypher_parity_postgres_test's data, read as files
+            "src/test/resources/cypher-parity/**",
             "src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe",
             # the toy section grammar's binding is :toy_grammar's, so no other core test loads it (P3-04)
             "src/test/resources/META-INF/services/com.legend.spi.SectionGrammar",
@@ -821,6 +827,101 @@ junit_test(
     ],
     jvm_flags = _IQ_PARITY_FLAGS + ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
     select = ["--select-class=com.legend.server.IqParityPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE CYPHER PARITY LANES (docs/CYPHER_STUDY_2026_10_15.md §8.4; the eleventh line, 2026-10-15): the openCypher TCK
+# (cypher-parity/tck, Apache 2.0) and lite's own cases (cypher-parity/lite), each as a #Cypher{...}# island over the
+# model its graph implies, judged against Neo4j Community's snapped answers (tools/neo4j-oracle; Neo4j itself is GPLv3
+# and never on a classpath), on DuckDB and on the embedded Postgres; the ledger pins each case's status per lane
+_CYPHER_PARITY_DATA = glob(
+    [
+        "src/test/resources/cypher-parity/tck/**",
+        "src/test/resources/cypher-parity/lite/*.yaml",
+        "src/test/resources/cypher-parity/graphs/*.cypher",
+    ],
+    # the TCK's README is prose, never an input (//tools/guards:markdown_inputs_test): the features and the LICENSE are
+    exclude = ["src/test/resources/cypher-parity/tck/**/*.md"],
+) + [
+    "src/test/resources/cypher-parity/neo4j-answers.jsonl",
+    "src/test/resources/cypher-parity/ledger.tsv",
+    "src/test/resources/cypher-parity/decisions.tsv",
+]
+
+_CYPHER_PARITY_FLAGS = [
+    # the TCK's directory: the directory of its LICENSE
+    "-Dcypher.parity.tck=$(rlocationpath src/test/resources/cypher-parity/tck/LICENSE)",
+    "-Dcypher.parity.answers=$(rlocationpath src/test/resources/cypher-parity/neo4j-answers.jsonl)",
+    "-Dcypher.parity.ledger=$(rlocationpath src/test/resources/cypher-parity/ledger.tsv)",
+    "-Dcypher.parity.decisions=$(rlocationpath src/test/resources/cypher-parity/decisions.tsv)",
+    # the case files: the directory of this file
+    "-Dcypher.parity.lite=$(rlocationpath src/test/resources/cypher-parity/lite/basics.yaml)",
+]
+
+# the showcase's SQL (docs/CYPHER_SHOWCASE.md): lite/basics.yaml's showcase_main, showcase_easy and showcase_hard
+# planned for Snowflake (rendered only) and DuckDB, pinned byte for byte by CypherParityTest; -Dcypher.showcase.update=<core/src/test/resources/cypher-parity/
+# showcase in the workspace> rewrites them
+_CYPHER_SHOWCASE_DATA = [
+    "src/test/resources/cypher-parity/showcase/" + f
+    for f in [
+        "duckdb.sql",
+        "snowflake.sql",
+        "model.pure",
+        "pure.txt",
+        # the easy and the hard examples beside the main one (docs/CYPHER_SHOWCASE.md §17)
+        "easy/duckdb.sql",
+        "easy/snowflake.sql",
+        "easy/model.pure",
+        "easy/pure.txt",
+        "hard/duckdb.sql",
+        "hard/snowflake.sql",
+        "hard/model.pure",
+        "hard/pure.txt",
+    ]
+]
+
+junit_test(
+    name = "cypher_parity_test",
+    memory_mb = 1024,
+    # 3,900 cases, each a model compiled and a query run: measured below medium's 300 s only on a fast machine
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/CypherParityTest.java"],
+    data = _CYPHER_PARITY_DATA + _CYPHER_SHOWCASE_DATA,
+    jvm_flags = _CYPHER_PARITY_FLAGS + [
+        # the showcase's files: the directory of this file
+        "-Dcypher.parity.showcase=$(rlocationpath src/test/resources/cypher-parity/showcase/snowflake.sql)",
+    ],
+    select = ["--select-class=com.legend.integration.CypherParityTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "cypher_parity_postgres_test",
+    memory_mb = 1024,
+    # 3,900 cases, each a model compiled and a query run: measured below medium's 300 s only on a fast machine
+    size = "large",
+    srcs = ["src/test/java/com/legend/server/CypherParityPostgresTest.java"],
+    data = _CYPHER_PARITY_DATA + [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = _CYPHER_PARITY_FLAGS + ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.server.CypherParityPostgresTest"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [

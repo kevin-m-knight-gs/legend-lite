@@ -464,8 +464,7 @@ public final class Render {
                     // templates (filter/select over the pivot) — the
                     // probe's SQL type decodes, the PctTdsWrap pattern
                     return t != null ? t
-                            : sqlTypeToPure.apply(String.valueOf(
-                                    p.typeNames().get(name)));
+                            : sqlTypeToPure.apply(p.typeName(name));
                 });
             }
         }.rewrite(plan);

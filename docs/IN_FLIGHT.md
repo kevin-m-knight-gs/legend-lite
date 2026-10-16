@@ -1135,6 +1135,29 @@ The change: one line in `.bazelrc`, `test:ci --jvmopt=-XX:TieredStopAtLevel=1` (
 lane on every platform with it. `.bazelrc` is the Bazel program's file: the Phase 8 brief's "sharding" item may prefer
 its own fix; say so here and this waits. Sharding would hide the cost; this removes it.
 
+**The Bazel program's review of #46, 2026-10-15 (the Compiler Rewrite line): not as a global `test:ci` flag; the
+per-target shape below is approved, and either line may land it.** Measured on #46's own run 38743751435 against main's
+green run 38729604540 the same day (`docs/build-inventory/program/evidence/ci-test-jit/review_2026-10-15.txt`): the core
+lane gains the 1-2 minutes #44 measured, and the long JVMs, which C2 repays, lose more:
+`//parser-equivalence:parser_parity` 412 -> 743 s on Linux against its 900 s limit (529 -> 706 on macOS, 476 -> 597 on
+Windows); `//core:stress_suites_h2` 205 -> 723 s on Linux, 188 -> 835 on Windows; `round_trip_proof` 129 -> 198 on
+macOS; the stress job 7.9 -> 17.4 min on Linux and 4.8 -> 15.8 on Windows, parser_equivalence 12.5 -> 18.0 and 13.8 ->
+17.8; the gate's longest job 13 -> 17-18 min; the PCT lanes mixed. "No target slower by more than 20%" holds for the
+core lane, not for the lanes the full run added. The shape: the JIT choice is the target's, in `tools/junit/defs.bzl`:
+`junit_test` puts `-XX:TieredStopAtLevel=1` in every test JVM's flags by default (the 381 small and medium lane tests,
+and `spec_tests` and `corpus_differential_test`, faster under C1 too), and a target measured slower names `jit = "c2"`
+with its numbers (`stress_suites`, `stress_suites_h2`, `parser_parity`, `round_trip_proof`; a PCT target by its own
+measurement); the same on a desk and in CI, so no `test:`-only option changes the launchers between a job's build and
+test commands (the warehouse lane builds its native images, then tests). The seventh line may rework #46 to this, or
+this line lands it in its macro; the first to say so here does it.
+
+**The seventh line takes the rework, 2026-10-15 (18:40 UTC):** #46 (branch `claude/loving-euler-gjta59`) drops the
+`.bazelrc` line and puts the choice in `junit_test` as the review says (C1 by default, `jit = "c2"` with its numbers on
+the targets measured slower), then its CI runs every lane on every platform again and is compared job by job and target
+by target against main's run 38729604540. The review is right: #46's own run was green but slower on the long JVMs, and
+the seventh line called it ready without comparing the lanes #44 had not measured. Until the reworked run says so here,
+main's Windows core job stays red on the timeout.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
@@ -1367,6 +1390,56 @@ pause for the user's review after Phase 1.
      `SqlDialect.java`, `exec/Sessions.java`, `server/`. Reviews: the Compiler Rewrite line, Plan Gen (the `snap`
      question, the table model's answer), the Studio line, an audit.
 
+- **Phases 0 and 1 landed 2026-10-15** (neema2/legend-lite#39, merge 8501ccb). The program continues on branch
+  `claude/gracious-edison-jcsvzm`, one PR per phase. It still owns every file under `sql/dialect/`.
+- **The user's decisions of 2026-10-15** (D9 to D11; the plan's §6):
+  - D9: the model language's vocabulary is an owner. The lexer, parser, protocol and model may parse and carry a
+    database's name, and decide nothing by it.
+  - D10: `DynaFn` splits in two (below).
+  - D11: the SQL input languages own their own languages: `PostgresDialect`, `PostgresDateTime` and the `iq`
+    package.
+
+  A new guard, `DialectOwnerExclusivityTest`, holds each owner to its own database: a dialect names only its family's,
+  and a vocabulary owner names no specific `DatabaseType`, dialect, driver or URL. The leak ratchet now counts only
+  what no owner holds: 1,964 lines.
+- **For the compiler line (D10, the user's decision of 2026-10-15; `builtin/` is that line's, so this program does not
+  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 17
+  databases (175 of the leak ratchet's lines). It splits in two:
+  - the engine's table stays as reference data, generated from or verified against the engine's source (spec by
+    verification, the reference-checkout tenet);
+  - the answers for this platform's 11 databases come from each dialect's capability (`docs/dialect-capability/`, the
+    generated matrix), so the matrix and `DynaFn` cannot disagree.
+
+  The compiler line schedules it. Until then `DynaFn`'s lines stay pinned in the ratchet.
+- **Announced 2026-10-15, Phases 2 and 4 (one PR, branch `claude/gracious-edison-jcsvzm`).**
+  - The owner guard (`core/src/test/java/com/legend/DatabaseOwners.java`, `DialectOwnerExclusivityTest`), and the
+    dialect package's foreign names removed:
+    - `fromEngineH2` is now `fromEngineText`;
+    - `RawSqlBoundary` is one translation;
+    - `HostOperations.of` asks the dialect;
+    - each dialect has its own whole DDL type table.
+  - Phase 2: the IR's DuckDB strings become typed values (`sql.DatePart`, `sql.JsonKind`, `SqlExpr.DatePartLit`,
+    `JsonKindLit`, `TypeNameLit`; join keywords from the renderer).
+  - Phase 4: the census's per-database knowledge moves to `SqlDialect.wireTypeName`, `deliversOwn` and
+    `opensFailedResultsWithoutColumns`; the plan's defect 2 is fixed.
+  - Outside `sql/dialect`, the files are: `sql/SqlExpr.java`, `SqlSource.java`, `SqlRewriter.java`,
+    `SqlTyping.java`; lowering (`Scalars`, `DateShifts`, `CalendarAgg`, `CanonicalRenderSql`, `CollectionLanes`,
+    `LiteralSpelling`, `Fold`, `DateFormats`, and the walkers `SubselectPrune`, `Windows`, `StampCensus`); and exec
+    (`SqlTypeCensus`, `Executor`, `GridProbe`, `PctProbe`).
+  - Judged by every PCT lane's whole-statement SQL dump: main 8501ccb against the branch, on all 11 databases, with
+    the clouds' run after Phase 2. Phase 2 is meant to change no statement; Phase 4 changes typing and no statement.
+  - The audit's fixes (299295f, 4196471) touch, outside `sql/dialect`: `sql/PlanProbe.java`, lowering's
+    `PctTdsWrap` and `Render` (a probed column with no type is refused, never guessed), and exec's `Executor`,
+    `GridProbe` and `PctProbe` again (`SqlDialect.typingWireName`).
+  - Measured, 2026-10-15 (`docs/GATES.md`): on all 11 databases no statement, census line or test outcome moved
+    against main, and the corpus moved nothing. The local gate is green on the branch head.
+- **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
+  platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
+  `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),
+  and a spelling or a refusal by name where it has not (SQLite, MariaDB, MySQL). The Pure native that lowers to it is
+  the island's. The dialect line builds the IR node and the arms in its next PR, after this one lands, unless the
+  tenth line needs them sooner: then it announces them here and this program merges them between phases.
+
 ## A tenth line, 2026-10-13: SAP IQ SQL in Pure, the `#IQ{...}#` island (the user's ask, rule 5)
 
 The user asked for the `#SQL{...}#` island's counterpart for SAP IQ / SQL Anywhere. A query written for SAP IQ 16.2
@@ -1465,7 +1538,7 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     settings).
   - **Build:** `core/BUILD.bazel`, the IQ case glob reads `lite/**/*.yaml`.
   - **The tenth line's own test harness and docs:** `testcases/IqParity.java`, `IqAnswers.java`, the two Iq parity
-    tests, the study's §9.16–§9.17, `SEMANTICS_REGISTER.md` S51 and S57.
+    tests, the study's §9.16–§9.17, `SEMANTICS_REGISTER.md` S51 and S72 (S57 when it was written).
 - **Next (landing 4): conformance to real SAP IQ 17.1.** The user now has a real IQ (a HANA Cloud data lake), reached
   locally through a session the user opens. Plan:
   - It becomes the oracle for the IQ profiles; CI still judges from the committed answers.
@@ -1666,8 +1739,8 @@ repros will be in the study's §9.
    the branch run), and the Windows core job timed out `//core:core_tests_integration` at 300 s, as main's run
    38667214956 on 10bc6fbe2 (PR #41, before this landing) had at 305.8 s; on Linux the suite's summed test time FELL
    with this landing, 153.8 s to 106.7 s, and on Windows the lane runs it two to three times slower than it runs alone
-   (the tenth line's diagnosis, PR #44: CPU contention beside the other 42 tests' JVMs, no I/O cost), a margin of the
-   lane that predates this landing, which the tenth line is fixing and the Bazel program reviews (the Phase 8 brief's
+   (the seventh line's diagnosis, PR #44: CPU contention beside the other 42 tests' JVMs, no I/O cost), a margin of the
+   lane that predates this landing, which the seventh line is fixing and the Bazel program reviews (the Phase 8 brief's
    "sharding; third order" item); the reading, with five runs' class times:
    `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`; GATES "The compiler's two scale
    costs"): the tenth line's two measured costs in the compiler's files, and the census tool's runtime.** A join's
@@ -1677,3 +1750,237 @@ repros will be in the study's §9.
    15 levels ran out of memory before). `tools/census/RenderCensus.java` lowers with the storeless runtime on DuckDB.
    `ScaleCostsTest` pins the work. Judges in GATES: the six corpus passes 0 of 23 result files differ; the render census
    58,794 entries, 22 differ.
+
+## An eleventh line, 2026-10-15: Cypher in Pure, the `#Cypher{...}#` island (the user's ask, rule 5)
+
+The user asked for the `#SQL{...}#` and `#IQ{...}#` islands' counterpart for Neo4j's Cypher, and further: the graph
+algorithms Neo4j runs, translated to SQL where feasible. A Cypher query, written exactly as Neo4j accepts it, becomes
+an ordinary Relation expression over the class model (labels are classes, relationship types are associations,
+properties and edge classes), typed once, run on any backend, returning Neo4j's answer.
+- **Branch:** `claude/keen-noether-v5mis0`.
+- **Study and plan:** `docs/CYPHER_STUDY_2026_10_15.md` (the research, the decisions C1 to C10, the design, the
+  worked example compiled by lite and by legend-engine 4.145.0) and `docs/CYPHER_PLAN_2026_10_15.md` (the one-page
+  plan and the slices). Both on the branch, landing with PR1.
+- **Spec:** the newest Neo4j Community release at each landing, its Cypher 25 the default and `CYPHER 5` the frozen
+  profile, selected by Neo4j's own prefix inside the query. **Oracle:** that Neo4j, run locally only (GPLv3: never on
+  a classpath, never in CI), snapped through the Apache 2.0 Python driver; CI judges the committed answers, as
+  `iq-parity` does. **Corpus:** the openCypher TCK (Apache 2.0), as test input.
+- **Owned for the line's length:**
+  - `core/src/main/java/com/legend/protocol/cypher/` (the reader, the AST, the translator, the function table)
+  - `core/src/main/java/com/legend/compiler/spec/CypherIslands.java` (the seam)
+  - `core/src/test/resources/cypher-parity/`, `tools/neo4j-oracle/`, `projects/graph/` (PR3)
+  - the tests `testcases/Cypher*`, `integration/Cypher*`, `server/Cypher*` and `protocol/cypher/*Test`
+- **The time-of-day leg, 2026-10-16 (the user's "do it all here"): the first Cypher landing in the database owner's
+  files, announced here as landed** — `sql/SqlType.java` (`Scalar.TIME`), `sql/SqlExpr.java` (`TimeLit`),
+  `sql/SqlFn.java` (`DATE_AT_TIME`), `sql/SqlTyping.java`, `sql/SqlRewriter.java`, every dialect under `sql/dialect/`
+  (the type's name, the literal, the date-at-time call), `lowering/PureSql.java` (StrictTime → TIME),
+  `lowering/Lowerer.java`, `lowering/MatchFold.java`, `lowering/Scalars.java` (the two natives' rules),
+  `lowering/CastPolicy.java`, the literal switches (`NullSemantics`, `StampCensus`, `SubselectPrune`, `Windows`),
+  `compiler/element/type/Type.java` (`kindOfSqlType`), `exec/Executor.java` (TIME cells), `exec/WireTypes.java`,
+  `exec/SqlTypeCensus.java`, `values/PureTimeLiteral.java` (`fromLocalTime`), `builtin/Pure.java` (the two lite
+  natives and their overload groups, as the generator writes them), `NativeCatalogGovernanceTest` (17 → 19, dated).
+  The record: the study's §12.7; GATES "the fifth landing".
+- **The zoned date-time leg, 2026-10-16, announced here as landed** — `protocol/sql/SqlToPure.java` (`Kind.ZONED`),
+  `protocol/cypher/CypherToPure.java` (the zone beside the value), `builtin/Pure.java` (`instantIn`, `localIn`),
+  `lowering/Scalars.java` (their rules: the `convertTimeZone` pair), `NativeCatalogGovernanceTest` (19 → 21, dated),
+  the judge (`testcases/CypherValues.java`, the instant rule). The record: the study's §12.8; GATES "the sixth
+  landing".
+- **The duration leg, 2026-10-16, announced here as landed** — the translator only (`protocol/sql/SqlToPure.java`
+  `Kind.DURATION`, `protocol/cypher/CypherToPure.java`) and the harness (`testcases/CypherValues.java`,
+  `CypherGraph.java`): no file of the database owner's. The record: the study's §12.9; GATES "the seventh landing".
+- **The temporal remainder leg, 2026-10-16, announced here as landed** — the translator only
+  (`protocol/cypher/CypherToPure.java`: the text reader, the fields over a base, the fine truncation, the mixed
+  `between`, a named zone's check as the database's raise) and `lite/temporal.yaml`'s cases: no file of the
+  database owner's, no guard pin moved. The record: the study's §12.10; GATES "the eighth landing".
+- **The zoned time-of-day leg, 2026-10-16, announced here as landed** — the translator (`protocol/sql/SqlToPure.java`
+  `Kind.ZONED_TIME`, `protocol/cypher/CypherToPure.java`, the two IQ kind-name arms) and the harness
+  (`testcases/CypherValues.java`, the epoch-day rule; `decisions.tsv`): no file of the database owner's, no guard
+  pin moved. The record: the study's §12.11; GATES "the ninth landing"; the register's S68 and S69.
+- **The nanosecond leg, 2026-10-16 (the user's "let's do it"): the database owner's files, announced here as
+  landed** — `sql/SqlFn.java` (`EPOCH_NS`, `FROM_EPOCH_NS`), `sql/SqlTyping.java`, `lowering/DateShifts.java` and
+  `lowering/Scalars.java` (the `NANOSECONDS` unit of `adjust` and `dateDiff`), `sql/dialect/DuckDb.java` (the two
+  arms) and every other dialect (a `DialectCapability` arm by name; the delegating groups); the translator
+  (`protocol/cypher/CypherToPure.java`, the precision beside the value); the harness (`testcases/CypherParity.java`:
+  a dialect's refusal is REFUSED; `testcases/CypherValues.java`: the epoch-day local time). No guard pin moved. The
+  record: the study's §12.12; GATES "the tenth landing"; the register's S70 and S71.
+- **The label-less node leg, 2026-10-16, announced here as landed** — the translator
+  (`protocol/cypher/CypherToPure.java`: the `Arms` state, `Model.classes()`), the seam
+  (`compiler/spec/CypherIslands.java`: the model's classes) and `lite/labelless.yaml`: no file of the database
+  owner's, no guard pin moved. The record: the study's §12.13; GATES "the eleventh landing".
+- **The nodes-as-values leg, 2026-10-16, announced here as landed** — the translator (a node's JSON built by the
+  database; a node through WITH as its columns), the seam's model (`properties`, `labelOf`), the judge
+  (`testcases/CypherValues`: an object with `@labels` is a node; `CypherGraph.ownLabels`) and `lite/nodes.yaml`:
+  no file of the database owner's, no guard pin moved. The record: the study's §12.14; GATES "the twelfth landing".
+- **The parameters leg, 2026-10-16, announced here as landed** — the harness (`testcases/CypherParity`: a case's
+  parameters bound into the island's text; `CypherGraph.ownLabels` for a `labels()` list), the translator
+  (`labels(n)`, `properties(n)` from a node's parts) and `lite/params.yaml`: no file of the database owner's, no
+  guard pin moved. The record: the study's §12.15; GATES "the thirteenth landing".
+- **The join form's first stage, 2026-10-16, announced here as landed** — the translator (a fanning root, the
+  graph materialized to rows at the end of the MATCH, deferred far-end conditions) and `lite/joins.yaml`: no file
+  of the database owner's, no guard pin moved. The record: the study's §12.16; GATES "the fourteenth landing".
+- **The join form's second stage, 2026-10-16, announced here as landed** — the translator (untyped relationships
+  as arms), the seam (`compiler/spec/CypherIslands.Ends`, `Model.ends`), the context
+  (`compiler/element/ModelContext.findAssociation`, delegated by `PureModelContext` to the builder's own) and
+  `lite/joins.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.17; GATES
+  "the fifteenth landing".
+- **The OPTIONAL MATCH leg, 2026-10-16, announced here as landed** — the translator (optional hops, absent nodes,
+  presence-aware node values) and `lite/optional.yaml`: no file of the database owner's, no guard pin moved. The
+  record: the study's §12.18; GATES "the sixteenth landing".
+- **The relationships-as-values leg, 2026-10-16, announced here as landed** — the translator (a relationship's
+  type as its value, `type(r)`, the type column of a carried relationship), the judge (`testcases/CypherValues`:
+  a `@type` object is a relationship), the harness (`testcases/CypherParity`: the edge-property skip) and
+  `lite/rels.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.19; GATES
+  "the seventeenth landing".
+- **The UNION and empty-model leg, 2026-10-16, announced here as landed** — the translator (UNION of parts, a
+  MATCH over no class), the parser (`UNION ALL` its own keyword), `lite/union.yaml` and `lite/empty.yaml`: no file
+  of the database owner's, no guard pin moved. The record: the study's §12.20; GATES "the eighteenth landing".
+- **The temporal remainder's second leg, 2026-10-16, announced here as landed** — the translator (fractional
+  durations, `toString(duration)`, a date inside a node's JSON), the judge (`testcases/CypherValues`: a temporal
+  text inside a node read as its value) and `lite/temporal.yaml`: no file of the database owner's, no guard pin
+  moved. The record: the study's §12.21; GATES "the nineteenth landing".
+- **The temporal `toString` leg, 2026-10-16, announced here as landed** — the translator (`temporalText`,
+  `parsedWithNanos`) and `lite/temporal.yaml`: no file of the database owner's, no guard pin moved. The record: the
+  study's §12.22; GATES "the twentieth landing".
+- **The odds-and-ends leg, 2026-10-16, announced here as landed** — the translator, `lite/odds.yaml`, and the
+  Postgres dialect's cast of a text literal (typed text first, so a `CASE` guard holds; `PostgresDialectTest`): no
+  guard pin moved. The record: the study's §12.23; GATES "the twenty-first landing".
+- **The aggregates-in-expressions leg, 2026-10-16, announced here as landed** — the translator and
+  `lite/aggregates.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.24; GATES
+  "the twenty-second landing".
+- **The shapes leg, 2026-10-16, announced here as landed** — the translator and `lite/shapes.yaml`: lists and maps
+  of values of the row as JSON text the database builds; no file of the database owner's, no guard pin moved. The
+  record: the study's §12.25; GATES "the twenty-third landing".
+- **The keys leg, 2026-10-16, announced here as landed** — the translator and `lite/keys.yaml`: no file of the
+  database owner's, no guard pin moved. The record: the study's §12.26; GATES "the twenty-fourth landing".
+- **The named-path leg, 2026-10-16, announced here as landed** — the translator, the judge (`CypherValues.Path`
+  structured) and `lite/paths.yaml`: no file of the database owner's, no guard pin moved. The record: the study's
+  §12.27; GATES "the twenty-fifth landing".
+- **The cartesian leg, 2026-10-16, announced here as landed** — the translator and `lite/cartesian.yaml`: no file
+  of the database owner's, no guard pin moved. The record: the study's §12.28; GATES "the twenty-sixth landing".
+- **The OPTIONAL MATCH WHERE leg, 2026-10-16, announced here as landed** — the translator and
+  `lite/optional_where.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.29;
+  GATES "the twenty-seventh landing".
+- **The small-buckets leg, 2026-10-16, announced here as landed** — the translator and `lite/small.yaml`: no file
+  of the database owner's, no guard pin moved. The record: the study's §12.30; GATES "the twenty-eighth landing".
+- **The pattern-comprehension leg, 2026-10-16, announced here as landed** — the parser, the translator and
+  `lite/patterns.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.31; GATES
+  "the twenty-ninth landing".
+- **The continuation leg, 2026-10-16, announced here as landed** — the translator and `lite/continue.yaml`: no
+  file of the database owner's, no guard pin moved. The record: the study's §12.32; GATES "the thirtieth landing".
+- **The products leg, 2026-10-16, announced here as landed** — the translator, `lite/products.yaml` and
+  `lite/comprehensions.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.33;
+  GATES "the thirty-first landing".
+- **The list-ordering leg, 2026-10-16, announced here as landed** — the translator and `lite/ordering.yaml`: no
+  file of the database owner's, no guard pin moved. The record: the study's §12.34; GATES "the thirty-second
+  landing".
+- **The labels leg, 2026-10-16, announced here as landed** — the parser, the translator and `lite/labels.yaml`: no
+  file of the database owner's, no guard pin moved. The record: the study's §12.35; GATES "the thirty-third
+  landing".
+- **The showcase's easy and hard examples, 2026-10-16, announced here as landed** — `docs/CYPHER_SHOWCASE.md` §17 to
+  §20, `lite/basics.yaml` (`showcase_easy`, `showcase_hard`), the pins under `cypher-parity/showcase/easy/` and
+  `hard/`, `CypherParityTest` checking the three: no translator code, no file of the database owner's, no guard pin
+  moved. GATES "the thirty-fourth landing".
+- **Main merged into the Cypher branch, 2026-10-16** (the dialect program's Phases 2 and 4, #45): the nanosecond leg's
+  date part joins main's `DatePart` enum (`NANOSECOND`, DuckDB's; refused by name elsewhere); the ledger unchanged.
+  The local gate on the merge, in the cloud container: 174 of 184 pass; the six Postgres targets fail as root and
+  pass unprivileged; three guards the branch's own legs had moved (the TCK README as a test input, the catalog's
+  NOT_UPSTREAM pin, the own-corpus ratchet) fixed, each with its dated reason (GATES, "the local gate after the
+  merge"). The branch is at its natural cut for the first PR to main: every leg since is by design or outside the
+  island's lane (GATES, "main merged in").
+- **PR #48 opened 2026-10-16** (neema2/legend-lite#48, the island to main); its first CI run's two failures were this
+  branch's and are fixed (c428b45: the TCK's null features hidden by `.gitignore`'s `null`, a fixture closed on an
+  escaped quote). **Thirty-fifth landing, 2026-10-16, on the PR's branch:** a hop from an absent node and a pattern no
+  way of the model reads answer no row or absent values (the study's §12.36); DuckDB PASS 2636, Postgres PASS 2286.
+  **Thirty-sixth landing, 2026-10-16:** a stored list property as a Variant over a SEMISTRUCTURED column, `(n:Foo)` as a
+  label predicate, a first-clause OPTIONAL MATCH over no way as one null row (§12.37; one lowering exemption:
+  `resolver/Substitution.java` reads a Variant-typed property whole); DuckDB PASS 2648, Postgres PASS 2298.
+  The post-merge diff's fresh-eyes review: five findings fixed (the study's §12.37.2); DuckDB PASS 2649, Postgres
+  PASS 2299. PR #48's CI on 3c8f71e: one failure, `windows / datacube`'s interval-timing test, not this branch's
+  (nothing under `datacube/` changes), said on the PR, the job re-run once.
+- **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
+  CI run on it.
+  - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`
+    and `NameResolver` stay untouched): `protocol/spec/SqlIsland.java` gains the language `Cypher`;
+    `parser/SpecParser.java` gains the `Cypher` arm (the LEGEND_ENGINE surface keeps its refusal);
+    `protocol/SpecIslandReader.java` and `protocol/ProtocolEmitter.java` read and write a `classInstance` of type
+    `Cypher` whose value is `{"cypher": <text>}`; `compiler/spec/SqlIslands.java` dispatches the language to
+    `CypherIslands`.
+  - **Build:** `core/BUILD.bazel` (the `cypher-parity` resources and the test targets) and `gates/BUILD.bazel`
+    (the lanes in `//gates:core`), when the harness lands.
+  - **Guards:** dated entries only, if needed: `CodeShapeGuardrailTest` (the reader's cursor fields),
+    `PlatformNamesGuardrailTest` (keyword arms); the own-corpus census (`OwnDialectCensusTest`,
+    `OwnCorpusConformanceTest`, `FixtureAdjudicationTest`, `corpus-manifest.tsv`) for the island as a declared lite
+    extension (LITE-DESIGN-cypher-island, `docs/OWN_CORPUS_DECISIONS.md` §15).
+  - **Docs:** `docs/OWN_CORPUS_DECISIONS.md`, `docs/SEMANTICS_REGISTER.md`, `docs/GATES.md`.
+- **Landed on the branch, 2026-10-15 (PR1a, the study's §12.1):** the island, the reader, the translator over
+  fixed-length patterns, the seam, 67 tests. Of the announced cross-area edits, made: `SqlIsland` (the language
+  `Cypher`), `SpecParser` (the arm), `SpecIslandReader` and `ProtocolEmitter` (the wire), `SqlIslands` (the
+  dispatch), `CodeShapeGuardrailTest` (the cursors, dated), `IdentityGuardrailTest` (NAME_CUTTING 107 to 108, the
+  label index, dated), `dialect-leaks/ledger.tsv` (the DuckDB test's rows, dated). Not needed yet: the build and gate files (the harness is
+  PR1b), `PlatformNamesGuardrailTest` (the reader keeps its keywords in sets), the own-corpus census (no test embeds
+  the island in a model). The register's rows S57 to S59.
+- **Landed on the branch, 2026-10-15 (PR1b, the study's §12.2):** `tools/neo4j-oracle/` (its build test in the checks
+  lane), `core/src/test/resources/cypher-parity/` (the TCK, Apache 2.0; lite's cases; the answers; the ledger; the
+  decisions; the showcase's pins), `testcases/Cypher*` (the reader, the answers, the inferred models, the values, the
+  judge), `integration/CypherParityTest`, `server/CypherParityPostgresTest`, the two lanes in `//gates:core`
+  (`core/BUILD.bazel`, `gates/BUILD.bazel`), `docs/CYPHER_SHOWCASE.md`, the register's S60, the dialect-leak ledger's
+  rows for the two lane tests (dated). `compiler/spec/CypherIslands` is public for the showcase dump (the Pure a person
+  reads). The parser and translator fixes the first run named are in the study's §12.2. Next: the independent review
+  of PR1, then the merge.
+- **Landed on the branch, 2026-10-15 (PR2, the study's §12.5):** the values slice — `protocol/cypher/` (the AST's
+  `Quantifier`, `ListComprehension`, `Index`, `Slice`, `Unwind`; the parser; the translator's value model, scopes,
+  `UNWIND`, the function table), `lite/values.yaml` (29 Neo4j-judged cases; boolean ordering followed on 2026-10-16), the answers, the ledger (both lanes),
+  `testcases/CypherValues` (a list or map cell read as a value), `testcases/CypherParity` (the cells as returned; a
+  per-case outcome file beside the census). No guard pin moved; no file of another line touched. Next: the merge.
+- **Found by this line in other lines' code, 2026-10-15 (PR2; the database owner's unless said):** (a) lite's
+  `toVariant` of a Pure collection LITERAL of one element writes the scalar (`toVariant([$x])` is `30`), of mixed
+  kinds the elements' spellings (`toVariant([1, 'a', true])` is `["1","'a'","true"]`), of a one-element nested
+  literal the element; of a computed `[*]` collection an array always (the study's §12.5.5); (b) lite's `round` of a
+  Float lowers to DuckDB's half-to-even `round` (`round(2.5)` is 2) — whether Pure's `round` is half up or half even is
+  the lowering's to state; (c) the typer types a `flatten`ed column `[0..1]` whatever the collection's elements
+  (the typer's; harmless); (d) lite's Postgres lowering of `rem` inside an array lambda (`filter`/`map` over a
+  collection) types the divide-by-zero guard as text ("CASE types bigint and character varying cannot be matched"),
+  and `cast([], @Boolean)` renders a bare `NULL` (two in a row make a `CASE` text to Postgres); (e) lite's Postgres
+  lowering writes `toVariant(newMap([pair(...)]))` as a list of `{key, value}` pairs where DuckDB's writes the object;
+  (f) Postgres's jsonb spells a whole float as an integer inside a returned list (S62, decided per lane; moot since
+  the shapes leg, 2026-10-16: a shape of row values is JSON text the translator spells, the float with its `.0`, and
+  the row is retired). The Cypher translator
+  works around each (a JSON constant for literal shapes, refusals by name for the rest; `floor(x + 0.5)`; the column
+  read as one that may be null; `%` and integer `/` refused inside a database-computed lambda; a null element falling
+  through to the one `ELSE`; a map of row values refused by name).
+- **Found by the independent review of PR1 in other lines' code, 2026-10-15** (the study's §12.4): (a) the execute
+  path's render refuses a sort key that is not an output column (`lowering/Render.java`, "render over an ordered
+  relation whose sort key is not an output column") where `generatePlan` renders it, for `#SQL{...}#` and plain Pure
+  alike (`Person.all()->project(~[name, k])->sort(~k)->select(~[name])`); the Cypher translator refuses such an
+  `ORDER BY` by name unless a `SKIP` or `LIMIT` follows (the database owner's); (b) lite's DuckDB dialect leaves an
+  integer literal untyped, so DuckDB types `2147483647 + 1` as INT32 and raises "Overflow in addition of INT32" where
+  Pure's Integer is 64-bit (the database owner's); (c) the server's JSON writer cannot write Infinity (`json/Json.java`;
+  `RETURN 1.0 / 0.0`) (the server line's).
+- **Found by this line in other lines' code, 2026-10-15 (the database owner's):** lite's Postgres dialect spells a
+  Float literal in plain digits (`1e308` as a 309-digit numeral), which Postgres types numeric, so `RETURN 1e308`
+  answers an exact numeric where Neo4j and DuckDB answer a float (the TCK's Literals5 [5], [11], [25], [26]). The Cypher
+  translator refuses a float literal beyond 1e15 or below 1e-15 by name until the dialect spells a float
+  (`CypherToPure`, the `FloatLit` arm; `docs/CYPHER_STUDY_2026_10_15.md` §12.2).
+- **Landed on the branch, 2026-10-16 (the temporal slice, the study's §12.6):** `protocol/cypher/CypherToPure` (the
+  temporal section: `date` and `localdatetime` over StrictDate and DateTime, the fields, truncation; the rest refused
+  by name), `testcases/CypherValues` (a date cell as the driver spells one), `testcases/CypherGraph` (stored dates
+  and local date-times typed and seeded), `lite/temporal.yaml` (16 Neo4j-judged cases), the answers, the ledger.
+- **Found by this line in other lines' code, 2026-10-16 (the database owner's):** lite's `date(y, m, d, h, mi, s)`
+  with a fractional second that is not a literal lowers to the kind-faithful text carrier
+  (`strftime(make_timestamp(...))` concatenated), so a comparison or `date_part` over it fails ("Cannot compare values
+  of type TIMESTAMP and type VARCHAR"); a date-time literal with a fraction and `adjust(..., MILLISECONDS)` are
+  TIMESTAMPs. The Cypher translator writes whole seconds and adds the fraction by `adjust`.
+- **Announced to the database owner, 2026-10-16 (for `collect`, the Cypher island's PR2b):** a collection-valued
+  relation aggregate — `->aggregate(~[xs: x|$x.a : y|$y])` with the reduce returning `T[*]` (the database's
+  `array_agg` / `list`), which the typer refuses today ("multiplicity [*] is not compatible with result [0..1]"), or
+  `toVariant` registered as an aggregate lowering. Cypher's `collect(x)` (30 TCK cases, plus Precedence1's 15 over
+  the collected list) waits on it; the translator refuses it by name.
+- **Not touched by PR1 to PR4:** `lowering/`, `sql/dialect/`, `builtin/`, `Typer.java`, `NameResolver.java`,
+  `SqlToPure.java`, `InputDialect.java`. **Announced to the database owner for PR3:** the identity half of
+  `lowering/InstanceEquality` (the minted `__id` from a mapping's primary key) on the product lane, which Cypher's
+  identity over keyless classes needs (the study's C5). **For PR5:** the recursion native, `meta::legend::lite::recurse`,
+  in the database owner's files, after its design is agreed (the study's §6.3).
+- **Found by this line in other lines' code, 2026-10-15:** lite does not check a stereotype or profile reference
+  against its profile (`<<graph.Edgee>>`, undeclared, compiles with zero errors; legend-engine refuses it: "Can't
+  find stereotype 'Edgee' in profile 'graph'"), and `docs/LENIENCY_CATALOG.md` does not list the leniency. The
+  compiler line's; this line validates the graph profile's own references in its reader (PR3).

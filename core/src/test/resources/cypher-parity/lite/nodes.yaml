@@ -1,0 +1,62 @@
+# The #Cypher{...}# island's nodes-as-values cases (docs/CYPHER_STUDY_2026_10_15.md §12.14): a node returned is its
+# label and its properties (those holding a value), built as JSON text by the database and read as a Variant; a
+# node through WITH is carried as its columns, so the clauses after read its properties typed. Each case is judged
+# by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/nodes/*'), keyed
+# lite/nodes/<id>.
+tests:
+  - id: node_of_one_class
+    graph: |
+      CREATE (:A {num: 9, name: 'a', bool: true}), (:A {num: 5}), (:B {num: 1})
+    cypher: "MATCH (n:A) RETURN n"
+  - id: nodes_of_every_class
+    graph: |
+      CREATE (:A {num: 9, name: 'a'}), (:B {name: 'b'}), ({name: 'c'})
+    cypher: "MATCH (n) RETURN n"
+  - id: node_with_order_and_limit
+    graph: |
+      CREATE (:A {num: 9, bool: true}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false}), (:D {num: -41, bool: true})
+    cypher: "MATCH (n) WITH n ORDER BY n.bool, n.num LIMIT 3 RETURN n"
+  - id: node_carried_then_its_property
+    graph: |
+      CREATE (:A {num: 9, bool: true}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false}), (:D {num: -41, bool: true})
+    cypher: "MATCH (n) WITH n ORDER BY n.num DESC LIMIT 2 RETURN n.num AS num, n"
+  - id: node_carried_twice
+    graph: |
+      CREATE (:A {bool: true, num: 1}), (:B {bool: false, num: 2}), (:C {bool: false, num: 3}), (:D {bool: true, num: 4}), (:E {bool: false, num: 5})
+    cypher: "MATCH (a) WITH a, a.bool AS bool WITH a, bool ORDER BY bool, a.num DESC LIMIT 3 RETURN a, bool"
+  - id: node_beside_values_with_where
+    graph: |
+      CREATE (:A {num: 9, name: 'a'}), (:A {num: 5, name: 'b'}), (:A {num: 1})
+    cypher: "MATCH (n:A) WITH n, n.num AS num WHERE num > 4 RETURN n, num ORDER BY num"
+  - id: return_star_over_a_pattern
+    graph: |
+      CREATE (:A {num: 9}), (:A {num: 5})
+    cypher: "MATCH (n:A) RETURN *"
+  - id: node_with_a_float_and_quotes
+    graph: |
+      CREATE (:A {x: 1.0, y: 2.5, s: 'say "hi" \\ bye'})
+    cypher: "MATCH (n:A) RETURN n"
+  - id: count_of_nodes
+    graph: |
+      CREATE (:A {num: 9}), (:B {num: 5}), (:C)
+    cypher: "MATCH (n) RETURN count(n) AS c"
+  - id: node_with_skip_and_limit
+    graph: |
+      CREATE (:A {num: 1}), (:A {num: 2}), (:A {num: 3}), (:A {num: 4})
+    cypher: "MATCH (n:A) WITH n ORDER BY n.num SKIP 1 LIMIT 2 RETURN n"
+  - id: distinct_over_nodes_refused_by_name
+    graph: |
+      CREATE (:A {num: 9}), (:A {num: 9})
+    cypher: "MATCH (n:A) RETURN DISTINCT n"
+  - id: order_by_a_node_refused_by_name
+    graph: |
+      CREATE (:A {num: 9}), (:A {num: 5})
+    cypher: "MATCH (n:A) RETURN n ORDER BY n"
+  - id: node_as_a_grouping_key_refused_by_name
+    graph: |
+      CREATE (:A {num: 9}), (:A {num: 5})
+    cypher: "MATCH (n:A) RETURN n, count(*) AS c"
+  - id: relationship_as_a_value_refused_by_name
+    graph: |
+      CREATE (:A {num: 1})-[:T]->(:B {num: 2})
+    cypher: "MATCH (:A)-[r:T]->(:B) RETURN r"

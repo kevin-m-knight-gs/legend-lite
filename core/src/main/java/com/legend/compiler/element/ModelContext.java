@@ -127,6 +127,10 @@ public interface ModelContext extends StoreLookups {
     Optional<com.legend.model.AssociationDefinition.AssociationEndDefinition>
             findAssociationEnd(String ownerClassFqn, String propName);
 
+    /** The association at {@code fqn}, if any (its ends in declaration order: the Cypher seam reads the first as
+     *  the relationship's forward direction, docs/CYPHER_STUDY_2026_10_15.md §12.17). */
+    Optional<com.legend.model.AssociationDefinition> findAssociation(String fqn);
+
     /**
      * The runtime for {@code fqn}, if present &mdash; supplies the active
      * mapping when a class query names a runtime (explicitly via

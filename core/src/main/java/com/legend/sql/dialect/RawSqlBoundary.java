@@ -5,6 +5,7 @@ package com.legend.sql.dialect;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,8 +16,8 @@ import java.util.regex.Pattern;
  * declare.
  *
  * <p>Which text crosses is decided by the database its connection DECLARES (decision D2, the dialect program's Phase
- * 1c; {@link SqlDialect#raw}): only text written for {@link #ENGINE_H2}, and only through the dialect that runs it
- * ({@link DuckDb#fromEngineH2}, {@link Postgres#fromEngineH2}; H2 runs it as written, the others refuse it). Text
+ * 1c; {@link SqlDialect#raw}): only text written for {@link #ENGINE_TEXT}, and only through the dialect that runs it
+ * ({@link DuckDb#fromEngineText}, {@link Postgres#fromEngineText}; H2 runs it as written, the others refuse it). Text
  * written for any other database runs as written, and SQL a dialect rendered never passes through here. Java-generated
  * engine text (Ddl's H2 spelling) still crosses when a body sends it through {@code executeInDb} on an H2 connection.
  * RawSqlLedgerTest pins the caller set shrink-only.
@@ -98,7 +99,7 @@ public final class RawSqlBoundary {
     // Hoisted out of String.replaceAll/matches call sites, which recompile
     // the pattern on EVERY invocation. Measured hot: a JFR profile of the
     // corpus sweep put Pattern.compile at 149 execution samples, 93 of them
-    // under h2ToDuckDb and 75 under quoteCreateColumns — this boundary runs
+    // under translated and 75 under quoteCreateColumns — this boundary runs
     // per seeded statement, per test, across 2,019 corpus tests. Semantics
     // are unchanged: String.replaceAll(re, r) IS
     // Pattern.compile(re).matcher(s).replaceAll(r).
@@ -151,23 +152,13 @@ public final class RawSqlBoundary {
 
     /** The declared database whose text is legend-engine's H2 (the engine's test database): the one language raw
      *  text is translated from (decision D2, {@link SqlDialect#raw}). */
-    public static final String ENGINE_H2 = "H2";
+    public static final String ENGINE_TEXT = "H2";
 
-    /** One statement of the engine's H2 text for DuckDB ({@link DuckDb#fromEngineH2}). */
-    public static String h2ToDuckDb(String sql) {
-        return h2ToDuckDb0(sql, Target.DUCKDB);
-    }
-
-    /** One statement of the engine's H2 text for Postgres ({@link Postgres#fromEngineH2}): DuckDB's flavor, its column
-     *  types Postgres's (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20). */
-    public static String h2ToPostgres(String sql) {
-        return h2ToDuckDb0(sql, Target.POSTGRES);
-    }
-
-    /** Who the engine's H2 text is translated for: DuckDB's grammar, its column TYPES spelled for the target. */
-    private enum Target { DUCKDB, POSTGRES }
-
-    private static String h2ToDuckDb0(String sql, Target target) {
+    /** One statement of the engine's H2 text in the flavor DuckDB and Postgres share (the dialect program's owner guard,
+     *  2026-10-15: what differs between them is theirs, passed in): {@code columnTypes} spells a column definition's
+     *  type part, after FLOAT, BIT and CLOB are read as H2 means them ({@link DuckDb#fromEngineText} as they are,
+     *  {@link Postgres#fromEngineText} its own); {@code bareName} is a bare column name as the target folds it. */
+    public static String translated(String sql, UnaryOperator<String> columnTypes, UnaryOperator<String> bareName) {
         String out = CURRENT_TS.matcher(sql).replaceAll("CURRENT_TIMESTAMP");
         out = H2_VERSION_FN.matcher(out).replaceAll("'" + H2_DIALECT_VERSION + "'");
         out = COUNT_STAR_ITEM.matcher(out)
@@ -183,7 +174,7 @@ public final class RawSqlBoundary {
         out = CREATE_SCHEMA.matcher(out).replaceAll("Create schema if not exists $1");
         Matcher cm = CREATE_HEAD.matcher(out);
         if (cm.find()) {
-            return quoteCreateColumns(out, cm.end(), target);
+            return quoteCreateColumns(out, cm.end(), columnTypes, bareName);
         }
         Matcher m = INSERT_COLS.matcher(out);
         if (!m.find()) {
@@ -195,7 +186,7 @@ public final class RawSqlBoundary {
                 cols.append(", ");
             }
             String name = c.strip();
-            cols.append(name.startsWith("\"") ? name : "\"" + folded(name, target) + "\"");
+            cols.append(name.startsWith("\"") ? name : "\"" + bareName.apply(name) + "\"");
         }
         return m.group(1) + cols + m.group(3) + out.substring(m.end(3));
     }
@@ -208,7 +199,8 @@ public final class RawSqlBoundary {
      * whole-statement replace once renamed a column literally named
      * "float" (relationalSetUp testTable).
      */
-    private static String quoteCreateColumns(String sql, int bodyStart, Target target) {
+    private static String quoteCreateColumns(String sql, int bodyStart, UnaryOperator<String> columnTypes,
+            UnaryOperator<String> bareName) {
         int depth = 1;
         int end = bodyStart;
         while (end < sql.length() && depth > 0) {
@@ -253,14 +245,14 @@ public final class RawSqlBoundary {
                 // TYPE PART still needs the H2->DuckDB kind mapping
                 int endq = col.indexOf('"', 1);
                 out.append(col, 0, endq + 1)
-                        .append(mapColumnTypes(col.substring(endq + 1), target));
+                        .append(mapColumnTypes(col.substring(endq + 1), columnTypes));
             } else if (NON_COLUMN_HEAD.matcher(head).matches()) {
                 out.append(col);
             } else {
                 // H2 semantics on the TYPE PART only: FLOAT is an 8-byte
                 // double; BIT is a boolean (DuckDB's BIT is a bitstring)
-                out.append('\"').append(folded(head, target)).append('\"')
-                        .append(mapColumnTypes(col.substring(sp), target));
+                out.append('\"').append(bareName.apply(head)).append('\"')
+                        .append(mapColumnTypes(col.substring(sp), columnTypes));
             }
         }
         return sql.substring(0, bodyStart) + out + sql.substring(end - 1);
@@ -272,29 +264,10 @@ public final class RawSqlBoundary {
      * are compiled once rather than per column per statement per test — this
      * ran on the corpus seed path 2,019 times over.
      */
-    private static String mapColumnTypes(String typePart, Target target) {
+    private static String mapColumnTypes(String typePart, UnaryOperator<String> columnTypes) {
         String t = FLOAT_KIND.matcher(typePart).replaceAll("DOUBLE");
         t = BIT_KIND.matcher(t).replaceAll("BOOLEAN");
         t = CLOB_KIND.matcher(t).replaceAll("TEXT");
-        return switch (target) {
-            case DUCKDB -> t;
-            // Postgres names the 8-byte double DOUBLE PRECISION, and has no TINYINT (SMALLINT is its smallest)
-            case POSTGRES -> TINYINT_KIND.matcher(DOUBLE_KIND.matcher(t).replaceAll("DOUBLE PRECISION"))
-                    .replaceAll("SMALLINT");
-        };
+        return columnTypes.apply(t);
     }
-
-    /** A bare H2 name, quoted for the target: as written where names match case-insensitively (DuckDB); in lower case
-     *  for Postgres, which folds a bare name so and spells a store's bare names so ({@link Postgres#physicalName},
-     *  decision D8). */
-    private static String folded(String bare, Target target) {
-        return switch (target) {
-            case DUCKDB -> bare;
-            case POSTGRES -> bare.toLowerCase(java.util.Locale.ROOT);
-        };
-    }
-
-    private static final Pattern DOUBLE_KIND = Pattern.compile("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)");
-
-    private static final Pattern TINYINT_KIND = Pattern.compile("(?i)\\bTINYINT\\b");
 }

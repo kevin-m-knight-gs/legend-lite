@@ -193,7 +193,11 @@ final class Windows {
             case SqlExpr.NullLit ignored -> e;
             case SqlExpr.DateLit ignored -> e;
             case SqlExpr.TimestampLit ignored -> e;
+            case SqlExpr.TimeLit ignored -> e;
             case SqlExpr.FormatLit ignored -> e;
+            case SqlExpr.DatePartLit ignored -> e;
+            case SqlExpr.JsonKindLit ignored -> e;
+            case SqlExpr.TypeNameLit ignored -> e;
         };
     }
 

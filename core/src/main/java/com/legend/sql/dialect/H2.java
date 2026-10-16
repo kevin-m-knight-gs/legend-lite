@@ -44,6 +44,7 @@ public class H2 extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
             case JSON -> "JSON";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -235,9 +236,34 @@ public class H2 extends AnsiSqlRenderer {
         return part;
     }
 
+    /** A store column's declared type as H2 spells it in DDL (until 2026-10-15 the base renderer's, which every
+     *  dialect overrode a few of: the dialect program's owner guard). */
+    @Override
+    protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT -> "SMALLINT";
+                case TINYINT -> "TINYINT";
+                case INTEGER -> "INTEGER";
+                case FLOAT -> "FLOAT";
+                case DOUBLE -> "DOUBLE";
+                case REAL -> "REAL";
+                case BIT -> "BIT";
+                case TIMESTAMP -> "TIMESTAMP";
+                case DATE -> "DATE";
+                case JSON -> "JSON";
+                case VARCHAR -> "VARCHAR";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
+            };
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
+    }
+
     /** The engine's H2 text is H2's own. */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         return statement;
     }
 
@@ -345,12 +371,11 @@ public class H2 extends AnsiSqlRenderer {
             // 2.1.214 for DAY/MONTH/MICROSECOND, negative amounts, and
             // CAST-around composition.
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("dateadd(")
-                    .append(dateUnit(((SqlExpr.StringLit) a.get(0)).value())).append(", ").expr(a.get(1), 0)
+                    .append(dateUnit(part(a.get(0)))).append(", ").expr(a.get(1), 0)
                     .append(", ").expr(a.get(2), 0).append(")");
             // H2 has no date_part — the SQL-standard extract(UNIT FROM x)
             // form (probed 2.1.214: HOUR over TIMESTAMP and TIME)
-            case EXTRACT -> writer.append("extract(")
-                    .append(((SqlExpr.StringLit) a.get(0)).value().toUpperCase(java.util.Locale.ROOT))
+            case EXTRACT -> writer.append("extract(").append(datePart(part(a.get(0))))
                     .append(" FROM ").expr(a.get(1), 0).append(")");
             // H2 has no starts_with — LEFT/CHAR_LENGTH equality (probed,
             // incl. '%' in the prefix: no LIKE-escaping hazard)
@@ -380,6 +405,8 @@ public class H2 extends AnsiSqlRenderer {
             // EXTRACT(EPOCH FROM ts) (seconds with the subsecond fraction;
             // probed 2.1.214: 1417706543.123) and its millisecond scaling.
             case EPOCH_SECONDS -> writer.append("EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(")");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: H2 keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(") * 1000 AS BIGINT)");
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
@@ -416,7 +443,8 @@ public class H2 extends AnsiSqlRenderer {
             case TODAY -> writer.append("current_date");
             case NOW -> writer.append("now()");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
-            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args());
+            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(),
+                    stringLit(datePart(part(a.get(0))).toLowerCase(java.util.Locale.ROOT)));
             case CURRENT_USER_FN -> writer.append("current_user");
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
@@ -493,6 +521,9 @@ public class H2 extends AnsiSqlRenderer {
             case SHA256 -> writer.function("sha256", c.args());
             case MAKE_DATE -> writer.function("make_date", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
+            // H2 adds a date and a time to a timestamp (its datetime arithmetic; designed, not measured here)
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
+                    .expr(a.get(1), 6));
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
             case DAYNAME -> writer.function("dayname", c.args());
             case MONTHNAME -> writer.function("monthname", c.args());
@@ -563,11 +594,28 @@ public class H2 extends AnsiSqlRenderer {
      * date_diff('unit', a, b). */
     private SqlWriter dateDiffArm(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        if (a.get(0) instanceof SqlExpr.StringLit du) {
-            return writer.append("DATEDIFF(").append(du.value().toUpperCase(java.util.Locale.ROOT)).append(", ")
-                    .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
-        }
-        return writer.function("date_diff", c.args());
+        return writer.append("DATEDIFF(").append(datePart(part(a.get(0)))).append(", ")
+                .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
+    }
+
+    /** A date part as H2's {@code extract} and {@code DATEDIFF} name it (and, in lower case, its {@code date_trunc}). */
+    private static String datePart(com.legend.sql.DatePart p) {
+        return switch (p) {
+            case YEAR -> "YEAR";
+            case QUARTER -> "QUARTER";
+            case MONTH -> "MONTH";
+            case WEEK -> "WEEK";
+            case DAY -> "DAY";
+            case HOUR -> "HOUR";
+            case MINUTE -> "MINUTE";
+            case SECOND -> "SECOND";
+            case MILLISECOND -> "MILLISECOND";
+            case MICROSECOND -> "MICROSECOND";
+            case NANOSECOND -> throw new DialectCapability("a nanosecond part has no measured H2 spelling (the"
+                    + " Cypher island's nanosecond leg is DuckDB's)");
+            case DAY_OF_YEAR -> "DOY";
+            case ISO_DAY_OF_WEEK -> "ISODOW";
+        };
     }
 
     /** split_part (R5c): H2 has no token pick — the probed EXACT spelling (empty tokens KEPT, missing token -> '',
@@ -650,24 +698,23 @@ public class H2 extends AnsiSqlRenderer {
                 + (u.endsWith("S") ? u.substring(0, u.length() - 1) : u);
     }
 
-    /** DurationUnit interval-fn name -> H2 dateadd unit keyword (the
+    /** A DurationUnit's part -> H2 dateadd unit keyword (the
      * engine's extensionDefaults mapToDBUnitType; duplicated from the
      * QUARANTINED EngineStyleH2 deliberately — semantic unit data, not
      * golden formatting). */
-    private static String dateUnit(String unitFn) {
-        return switch (unitFn) {
-            case "to_years" -> "YEAR";
-            case "to_months" -> "MONTH";
-            case "to_weeks" -> "WEEK";
-            case "to_days" -> "DAY";
-            case "to_hours" -> "HOUR";
-            case "to_minutes" -> "MINUTE";
-            case "to_seconds" -> "SECOND";
-            case "to_milliseconds" -> "MILLISECOND";
-            case "to_microseconds" -> "MICROSECOND";
-            default -> throw new DialectCapability(
-                    "interval unit '" + unitFn
-                    + "' reached a dialect without a dateadd unit");
+    private static String dateUnit(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case YEAR -> "YEAR";
+            case MONTH -> "MONTH";
+            case WEEK -> "WEEK";
+            case DAY -> "DAY";
+            case HOUR -> "HOUR";
+            case MINUTE -> "MINUTE";
+            case SECOND -> "SECOND";
+            case MILLISECOND -> "MILLISECOND";
+            case MICROSECOND -> "MICROSECOND";
+            case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability(
+                    "interval unit '" + unit + "' reached a dialect without a dateadd unit");
         };
     }
 
@@ -1009,8 +1056,10 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
             com.legend.sql.@com.legend.base.Nullable SqlType type) {
+        // a JSON-carried list's text too (the list-less carrier, §2b): until 2026-10-15 the executor decoded H2's
+        // byte[] there itself
         if (jdbcValue instanceof byte[] b
-                && type == com.legend.sql.SqlType.Scalar.JSON) {
+                && (type == com.legend.sql.SqlType.Scalar.JSON || type instanceof com.legend.sql.SqlType.Array)) {
             return new String(b, java.nio.charset.StandardCharsets.UTF_8);
         }
         // LEGACY-mode H2 hands DOUBLE aggregates back as BigDecimal
@@ -1045,5 +1094,29 @@ public class H2 extends AnsiSqlRenderer {
         cls.append("]+");
         return writer.append("REGEXP_SUBSTR(").expr(a.get(0), 0).append(", ").append(stringLit(cls.toString()))
                 .append(", 1, ").expr(a.get(2), 0).append(")");
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (its json_type, run on DuckDB's names). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} A DATE is {@code DATE}; no other type's name is compared. */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        if (type == com.legend.sql.SqlType.Scalar.DATE) {
+            return "DATE";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached H2");
     }
 }

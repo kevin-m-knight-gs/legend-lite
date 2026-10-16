@@ -652,8 +652,23 @@ class CarrierDifferentialTest {
         }
 
         @Override
-        public String fromEngineH2(String statement) {
-            return duck.fromEngineH2(statement);
+        public String fromEngineText(String statement) {
+            return duck.fromEngineText(statement);
+        }
+
+        @Override
+        protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
+            return duck.ddlType(t);
+        }
+
+        @Override
+        protected String jsonKindName(com.legend.sql.JsonKind kind) {
+            return duck.jsonKindName(kind);
+        }
+
+        @Override
+        protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+            return duck.typeofName(type);
         }
 
         @Override

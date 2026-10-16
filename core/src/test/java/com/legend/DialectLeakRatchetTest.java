@@ -31,8 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>{@code jdbc-url}: a {@code jdbc:} URL written inline;</li>
  *   <li>{@code product-call}: {@code getDatabaseProductName}, a decision by what the driver says it is.</li>
  * </ul>
- * The owners are not counted: the dialect package and its tests, the DuckDB-only sources, and
- * {@code com.legend.database.Databases}, which maps a declared type to its dialect. Every other file's count is
+ * The owners are not counted ({@link DatabaseOwners}): the dialect package and its tests, the DuckDB-only sources,
+ * {@code com.legend.database.Databases}, which maps a declared type to its dialect, and since 2026-10-15 (the user's
+ * decisions D9 and D11) the model language's vocabulary (the lexer, the parser, the protocol, the model) and the SQL
+ * input languages; {@link DialectOwnerExclusivityTest} holds each to its own database. Every other file's count is
  * pinned in {@code core/src/test/resources/dialect-leaks/ledger.tsv}, shrink-only: a count above its pin fails, and a
  * count below it prints the pin to lower (the run writes the whole table to its outputs, {@code dialect-leaks.tsv}).
  * When the program ends every pin is zero and this becomes a ban.
@@ -45,16 +47,6 @@ class DialectLeakRatchetTest {
     /** The Java sources the census target declares (core, and the modules that test it). */
     private static final List<String> ROOTS = List.of("core/src", "pct/src", "spec/src", "parser-equivalence/src",
             "warehouse/src/test/java");
-
-    /** Where a database is decided by design, so a name there is no leak. */
-    private static final List<String> OWNERS = List.of(
-            "core/src/main/java/com/legend/sql/dialect/",
-            "core/src/test/java/com/legend/sql/dialect/",
-            "core/src/main/duckdb/",
-            "core/src/main/java/com/legend/database/Databases.java",
-            // the guards that name every database to count them
-            "core/src/test/java/com/legend/DialectBoundaryTest.java",
-            "core/src/test/java/com/legend/DialectLeakRatchetTest.java");
 
     private static final String DIALECTS = "AnsiSqlRenderer|DuckDb|H2Modern|H2|Postgres|Snowflake|Databricks|BigQuery"
             + "|SQLite|MariaDb|MySql|Trino|ClickHouse|EngineStyleH2|EngineStyleDB2|EngineStyleComposite";
@@ -71,7 +63,7 @@ class DialectLeakRatchetTest {
             + "|athena|spanner|hive\\b|memsql|singlestore|mongo|elastic";
 
     /** The kinds counted in code, each by the census's own pattern (scanner/scan.py). */
-    private static final Map<String, Pattern> IN_CODE = Map.of(
+    static final Map<String, Pattern> IN_CODE = Map.of(
             "database-type", Pattern.compile("\\bDatabaseType\\s*\\.\\s*\\w+"),
             "dialect-class", Pattern.compile("\\b(new\\s+|instanceof\\s+|\\(\\s*)(?:com\\.legend\\.sql\\.dialect\\.)?("
                     + DIALECTS + ")\\b(\\s*\\(|\\s+\\w|\\s*\\)|\\.class)|\\bcom\\.legend\\.sql\\.dialect\\.(" + DIALECTS
@@ -82,7 +74,7 @@ class DialectLeakRatchetTest {
             "product-name", Pattern.compile("(?i)\\b\\w*(" + PRODUCTS + ")\\w*"),
             "product-call", Pattern.compile("\\bgetDatabaseProductName\\b"));
 
-    private static final Pattern JDBC_URL = Pattern.compile("jdbc:\\w+");
+    static final Pattern JDBC_URL = Pattern.compile("jdbc:\\w+");
 
     /** The product pattern counts H2 and DB2 as an identifier's word, as it counts {@code isPostgres}, and not as a
      *  word's letters (the PR #39 audit's planted identifiers, 2026-10-14). */
@@ -103,10 +95,14 @@ class DialectLeakRatchetTest {
         TreeMap<String, Integer> counts = new TreeMap<>();
         for (Path f : SourceFiles.under(ROOTS.get(0), ROOTS.subList(1, ROOTS.size()).toArray(String[]::new))) {
             String rel = SourceFiles.path(f);
-            if (!rel.endsWith(".java") || OWNERS.stream().anyMatch(rel::startsWith)) {
+            if (!rel.endsWith(".java")) {
                 continue;
             }
-            Lines lines = lex(Files.readString(f));
+            String src = Files.readString(f);
+            if (DatabaseOwners.of(rel, src) != null) {
+                continue;
+            }
+            Lines lines = lex(src);
             for (var kind : IN_CODE.entrySet()) {
                 int n = (int) lines.code().stream().filter(l -> kind.getValue().matcher(l).find()).count();
                 if (n > 0) {

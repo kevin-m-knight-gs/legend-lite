@@ -80,6 +80,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
             case JSON -> "JSONB";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -190,11 +191,28 @@ public final class Postgres extends AnsiSqlRenderer {
         return "ROLLBACK";
     }
 
-    /** The engine's H2 text in DuckDB's flavor, its types Postgres's (DOUBLE PRECISION, no TINYINT). */
+    /** {@inheritDoc} Written beside this dialect ({@code PostgresHostOperations}). */
     @Override
-    public String fromEngineH2(String statement) {
-        return RawSqlBoundary.h2ToPostgres(statement);
+    public HostOperations hostOperations() {
+        return PostgresHostOperations.INSTANCE;
     }
+
+    /** The engine's H2 text in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
+     *  docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: the 8-byte double is DOUBLE PRECISION, and SMALLINT is the smallest
+     *  integer, there is no TINYINT) and a bare column name in lower case, as Postgres folds a bare name and spells a
+     *  store's ({@link #physicalName}, decision D8). */
+    @Override
+    public String fromEngineText(String statement) {
+        return RawSqlBoundary.translated(statement,
+                types -> ENGINE_TINYINT.matcher(ENGINE_DOUBLE.matcher(types).replaceAll("DOUBLE PRECISION"))
+                        .replaceAll("SMALLINT"),
+                bare -> bare.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    private static final java.util.regex.Pattern ENGINE_DOUBLE =
+            java.util.regex.Pattern.compile("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)");
+
+    private static final java.util.regex.Pattern ENGINE_TINYINT = java.util.regex.Pattern.compile("(?i)\\bTINYINT\\b");
 
     /** No native PIVOT: static pivots are emulated by the carrier pass; a dynamic
      * pivot needs a key-discovery round trip the browser planner cannot make. */
@@ -655,9 +673,9 @@ public final class Postgres extends AnsiSqlRenderer {
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PARSE_INT -> castAs(writer, typedText(c.args().get(0)), "BIGINT");
             // parseDate(text): the ISO text as a timestamp
-            case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
+            case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
@@ -709,6 +727,9 @@ public final class Postgres extends AnsiSqlRenderer {
             case TAN -> writer.function("tan", c.args());
             case TANH -> writer.function("tanh", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
+            // a date plus a time of day is the timestamp at it
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
+                    .expr(a.get(1), 6));
             case TRIM -> writer.function("trim", c.args());
             case UPPER -> writer.function("upper", c.args());
             // a Float, as DuckDB's answers; each of these has a numeric overload on Postgres, which a
@@ -785,7 +806,7 @@ public final class Postgres extends AnsiSqlRenderer {
             // unit and any BIGINT amount (make_interval takes INTEGER)
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
                     .append(" + ").expr(a.get(1), 6).append(" * INTERVAL '1 ")
-                    .append(intervalUnit(literal(a.get(0), c.fn().name()))).append("'"));
+                    .append(intervalUnit(part(a.get(0)))).append("'"));
             case DATE_DIFF -> writer.piece(dateDiff(a));
             // the origins are the base's (weeks align to the Monday 1969-12-29, everything else to
             // 1970); date_bin bins fixed-length intervals, so months and years count whole calendar
@@ -795,6 +816,8 @@ public final class Postgres extends AnsiSqlRenderer {
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("CAST(extract(epoch FROM ").expr(a.get(0), 0)
                     .append(") AS DOUBLE PRECISION)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Postgres keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(trunc(extract(epoch FROM ").expr(a.get(0), 0)
                     .append(") * 1000) AS BIGINT)");
             // epoch arithmetic on a naive timestamp: no session zone involved
@@ -943,7 +966,7 @@ public final class Postgres extends AnsiSqlRenderer {
     /** DuckDB's time_bucket on Postgres: date_bin for fixed-length units, the month index for calendar ones. */
     private SqlWriter timeBucket(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        String unit = intervalUnit(literal(a.get(0), "TIME_BUCKET"));
+        String unit = intervalUnit(part(a.get(0)));
         String origin = BUCKET_ORIGINS.get(unit);
         if (origin != null) {
             return writer.append("date_bin(").expr(a.get(1), 6).append(" * INTERVAL '1 ").append(unit)
@@ -1362,7 +1385,23 @@ public final class Postgres extends AnsiSqlRenderer {
             super.variantAwareCast(writer, c);
             return writer.append(", '^(-?[0-9]+)$', '\\1.0')");
         }
+        if (c.value() instanceof SqlExpr.StringLit && c.target() != SqlType.Scalar.VARCHAR
+                && c.target() != SqlType.Scalar.TEMPORAL_TEXT && c.target() != SqlType.Scalar.DECIMAL_TEXT) {
+            return super.variantAwareCast(writer, new SqlExpr.Cast(typedText(c.value()), c.target()));
+        }
         return super.variantAwareCast(writer, c);
+    }
+
+    /**
+     * A text literal under a cast, spelled as a text first: Postgres reads a bare literal under a cast as a
+     * constant of the cast's type WHEN IT PARSES the statement, before any CASE around it is weighed, so
+     * {@code CASE WHEN 'x' ~ '[0-9]+' THEN CAST('x' AS BIGINT) END} is the parse's error, not NULL (measured
+     * 2026-10-16 on Postgres 16, the Cypher island's toInteger of a text, docs/CYPHER_STUDY_2026_10_15.md §12.23).
+     * A typed text's cast is the planner's, which drops a CASE arm whose test is false before it folds the arm.
+     * Any other value is itself.
+     */
+    private static SqlExpr typedText(SqlExpr x) {
+        return x instanceof SqlExpr.StringLit ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR) : x;
     }
 
     /** A value to a list of scalars: a Variant array's elements read as the element type, in order (a
@@ -1470,7 +1509,7 @@ public final class Postgres extends AnsiSqlRenderer {
     /** The {@code EXTRACT} arm of {@link #call}. */
     private SqlWriter extractArm(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        String part = literal(a.get(0), "EXTRACT");
+        String part = datePart(part(a.get(0)));
         if (!List.of("year", "quarter", "month", "week", "day", "doy", "dow",
                 "isodow", "hour", "minute", "second").contains(part)) {
             throw new DialectCapability("date part '" + part
@@ -1721,13 +1760,6 @@ public final class Postgres extends AnsiSqlRenderer {
                 && t.type() == SqlType.Scalar.DOUBLE;
     }
 
-    private static String literal(SqlExpr e, String what) {
-        if (e instanceof SqlExpr.StringLit s) {
-            return s.value();
-        }
-        throw new DialectCapability(what + " with a non-literal part reached Postgres");
-    }
-
     /** A temporal operand as a NAIVE timestamp: a DATE implicitly casts to
      * timestamptz in Postgres' function resolution (date_trunc, to_char, date_bin),
      * which the session zone would then shift; a declared TIMESTAMPTZ stays one. */
@@ -1742,7 +1774,7 @@ public final class Postgres extends AnsiSqlRenderer {
     /** The base's contract: Date-grained parts (year/quarter/month/week) deliver a
      * DATE, finer parts a TIMESTAMP (DuckDb casts 'day' back to one). */
     private SqlWriter.Piece dateTrunc(List<SqlExpr> a) {
-        String part = literal(a.get(0), "DATE_TRUNC");
+        String part = datePart(part(a.get(0)));
         SqlWriter.Piece trunc = w -> w.append("date_trunc(").append(stringLit(part)).append(", ").piece(naive(a.get(1)))
                 .append(")");
         if (DATE_GRAINED.contains(part)) {
@@ -1764,7 +1796,7 @@ public final class Postgres extends AnsiSqlRenderer {
      * against DuckDB 1.5: day over timestamps (23:00 → 01:00 is 1), month
      * (01-31 → 02-01 is 1), year backwards (-1), quarter. */
     private SqlWriter.Piece dateDiff(List<SqlExpr> a) {
-        String part = literal(a.get(0), "DATE_DIFF");
+        String part = datePart(part(a.get(0)));
         SqlWriter.Piece from = w -> w.expr(a.get(1), 0);
         SqlWriter.Piece to = w -> w.expr(a.get(2), 0);
         SqlWriter.Piece y = w -> w.append("(extract(year FROM ").piece(to).append(") - extract(year FROM ").piece(from)
@@ -1804,19 +1836,42 @@ public final class Postgres extends AnsiSqlRenderer {
                 .piece(from).append(")" + scale + ")");
     }
 
-    /** DuckDB's interval-function name ({@code to_days}) → a Postgres interval unit. */
-    private static String intervalUnit(String unitFn) {
-        String unit = INTERVAL_UNITS.get(unitFn);
-        if (unit == null) {
-            throw new DialectCapability("interval unit '" + unitFn + "' has no Postgres spelling");
-        }
-        return unit;
+    /** A date part as Postgres names it: {@code extract}'s field, {@code date_trunc}'s unit. */
+    private static String datePart(com.legend.sql.DatePart p) {
+        return switch (p) {
+            case YEAR -> "year";
+            case QUARTER -> "quarter";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case MILLISECOND -> "millisecond";
+            case MICROSECOND -> "microsecond";
+            case NANOSECOND -> throw new DialectCapability("a nanosecond part: Postgres keeps microseconds (the"
+                    + " Cypher island's nanosecond leg is DuckDB's)");
+            case DAY_OF_YEAR -> "doy";
+            case ISO_DAY_OF_WEEK -> "isodow";
+        };
     }
 
-    private static final java.util.Map<String, String> INTERVAL_UNITS = java.util.Map.of(
-            "to_years", "year", "to_months", "month", "to_weeks", "week", "to_days", "day",
-            "to_hours", "hour", "to_minutes", "minute", "to_seconds", "second",
-            "to_milliseconds", "millisecond", "to_microseconds", "microsecond");
+    /** An interval's unit as Postgres names it ({@code INTERVAL '1 day'}). */
+    private static String intervalUnit(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case YEAR -> "year";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case MILLISECOND -> "millisecond";
+            case MICROSECOND -> "microsecond";
+            case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit '" + unit
+                    + "' has no Postgres spelling");
+        };
+    }
 
     /** The calendar units date_bin cannot bin, by their length in months. */
     private static final java.util.Map<String, Integer> CALENDAR_UNITS = java.util.Map.of("month", 1, "year", 12);
@@ -2238,16 +2293,50 @@ public final class Postgres extends AnsiSqlRenderer {
     /** Postgres has no TINYINT, BIT or bare DOUBLE; FLOAT is DOUBLE PRECISION as on H2. */
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
-        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p) {
-            return switch (p.kind()) {
-                case TINYINT -> "SMALLINT";
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT, TINYINT -> "SMALLINT";
+                case INTEGER -> "INTEGER";
                 case FLOAT, DOUBLE -> "DOUBLE PRECISION";
+                case REAL -> "REAL";
                 case BIT -> "BOOLEAN";
+                case TIMESTAMP -> "TIMESTAMP";
+                case DATE -> "DATE";
                 case JSON -> "JSONB";
-                case BIGINT, SMALLINT, INTEGER, REAL, TIMESTAMP, DATE, VARCHAR, OTHER, DISTINCT,
-                     ARRAY, OBJECT -> super.ddlType(t);
+                case VARCHAR -> "VARCHAR";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
             };
-        }
-        return super.ddlType(t);
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (a CASE over jsonb_typeof). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are Postgres's). */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        throw new DialectCapability("typeof reached Postgres: its type names are Postgres's");
+    }
+
+    /** {@inheritDoc} A map is carried as its entries, a jsonb[] of {"key", "value"} (2026-10-12): an ARRAY at the
+     *  wire. */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        return label instanceof SqlType.Map && wire.equals("ARRAY");
     }
 }

@@ -222,7 +222,15 @@ final class SubselectPrune {
             }
             case SqlExpr.TimestampLit v -> {
             }
+            case SqlExpr.TimeLit v -> {
+            }
             case SqlExpr.FormatLit v -> {
+            }
+            case SqlExpr.DatePartLit v -> {
+            }
+            case SqlExpr.JsonKindLit v -> {
+            }
+            case SqlExpr.TypeNameLit v -> {
             }
             case SqlExpr.OrderedListAgg o -> {
                 collectExpr(o.value(), r);

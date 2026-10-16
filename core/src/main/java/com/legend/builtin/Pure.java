@@ -412,6 +412,17 @@ public final class Pure {
          *  stamps this on milestoning window-condition dates so
          *  EngineStyleH2 can render the channel it is quoting. */
         public static final String ADJUST_TEMPORAL = PKG + "adjustTemporal";
+        /** A time of day in SQL (2026-10-16, the Cypher island's time-of-day leg): {@code timeOf(dateTime)} is the
+         *  date-time's time of day, {@code atTime(date, time)} the date-time at that time of that day. Emitted by
+         *  the Cypher translator only (its {@code localtime} values); neither has an upstream counterpart,
+         *  legend-engine refuses StrictTime in SQL. */
+        public static final String TIME_OF = PKG + "timeOf";
+        public static final String AT_TIME = PKG + "atTime";
+        /** A named zone, read by the database (2026-10-16, the Cypher island's zoned date-time leg):
+         *  {@code instantIn(local, zone)} the instant a wall time names in the zone, {@code localIn(instant, zone)}
+         *  the wall time of an instant in it. Emitted by the Cypher translator only. */
+        public static final String INSTANT_IN = PKG + "instantIn";
+        public static final String LOCAL_IN = PKG + "localIn";
         /** The #TDS literal's desugar target (SpecParser spells this
          *  FQN literally — the parser stays free of this class). */
         public static final String TDS = PKG + "tds";
@@ -535,7 +546,7 @@ public final class Pure {
                     Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
-                    Lite.TUPLE, Lite.INLINE_VIEW)
+                    Lite.TUPLE, Lite.INLINE_VIEW, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN, Lite.LOCAL_IN)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -946,6 +957,20 @@ public final class Pure {
     public static final NativeFunctionDefinition DISTINCT__RELATION_1 = signature("native function meta::pure::functions::relation::distinct<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition DISTINCT__RELATION_1__COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::distinct<X,T>(rel:meta::pure::metamodel::relation::Relation<T>[1], columns:meta::pure::metamodel::relation::ColSpecArray<X⊆T>[1]):meta::pure::metamodel::relation::Relation<X>[1];");
     public static final NativeFunctionDefinition IS_NUMERIC__STRING_0_1 = signature("native function meta::legend::lite::isNumeric(str:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::Boolean[0..1];");
+    /** A time of day (StrictTime) in SQL — lite's own: legend-pure declares the type and only prints it, legend-engine's
+     *  relational lowering refuses it. {@code timeOf} reads a date-time's time of day (a CAST to TIME; its parameter
+     *  the abstract Date, as every date native's: an {@code adjust} answers a Date); {@code atTime} is the date-time
+     *  at a time of a date (the database's date plus time). The Cypher island's time-of-day leg,
+     *  2026-10-16 (docs/CYPHER_STUDY_2026_10_15.md §12.7). */
+    public static final NativeFunctionDefinition TIME_OF__DATE_1 = signature("native function meta::legend::lite::timeOf(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictTime[1];");
+    public static final NativeFunctionDefinition AT_TIME__DATE_1__STRICT_TIME_1 = signature("native function meta::legend::lite::atTime(d:meta::pure::metamodel::type::Date[1], t:meta::pure::metamodel::type::StrictTime[1]):meta::pure::metamodel::type::DateTime[1];");
+    /** A named time zone, read by the database (the Cypher island's zoned date-time leg, 2026-10-16,
+     *  docs/CYPHER_STUDY_2026_10_15.md §12.8): {@code instantIn} is the instant a wall time names in a zone,
+     *  {@code localIn} the wall time of an instant in a zone — each two of the database's zone conversions (the
+     *  convertTimeZone lowering's pair), a Pure DateTime in and out. Upstream knows zones only at formatting and on
+     *  the connection; a spelled offset needs neither (the translator spells it as adjust steps). */
+    public static final NativeFunctionDefinition INSTANT_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::instantIn(local:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
+    public static final NativeFunctionDefinition LOCAL_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::localIn(instant:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::convertTimeZoneFormat(d:meta::pure::metamodel::type::DateTime[0..1], tz:meta::pure::metamodel::type::String[1], fmt:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[0..1];");
 
     /** Relational FORMAT dynafunctions (convertDate('MMMyyyy') et al) — lite natives. */
@@ -2344,6 +2369,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX = com.legend.model.FunctionId.ofAll(AS_OF_JOIN_WITH_PREFIX__RELATION_1__RELATION_1__FUNCTION_1__FUNCTION_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASOR_DECODE_PK_MAP = com.legend.model.FunctionId.ofAll(ASOR_DECODE_PK_MAP__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASOR_PK_VALUE = com.legend.model.FunctionId.ofAll(ASOR_PK_VALUE__STRING_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AT_TIME = com.legend.model.FunctionId.ofAll(AT_TIME__DATE_1__STRICT_TIME_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CAST_AS_DECLARED = com.legend.model.FunctionId.ofAll(CAST_AS_DECLARED__ANY_01__T_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1);
@@ -2354,6 +2380,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_COMPUTED_KEYS = com.legend.model.FunctionId.ofAll(GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_OVER_INSTANCES = com.legend.model.FunctionId.ofAll(GROUP_BY_OVER_INSTANCES__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_OVER_INSTANCES__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_INLINE_VIEW = com.legend.model.FunctionId.ofAll(INLINE_VIEW__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_INSTANT_IN = com.legend.model.FunctionId.ofAll(INSTANT_IN__DATE_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_DISTINCT_FROM = com.legend.model.FunctionId.ofAll(IS_DISTINCT_FROM__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_NUMERIC = com.legend.model.FunctionId.ofAll(IS_NUMERIC__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_JOIN_SLOT = com.legend.model.FunctionId.ofAll(JOIN_SLOT__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1);
@@ -2363,6 +2390,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LEGACY_NAVIGATE = com.legend.model.FunctionId.ofAll(LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__RELATION_1__FUNCTION_1, LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__RELATION_1__FUNCTION_1__FUNCTION_1, LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LESS_THAN = com.legend.model.FunctionId.ofAll(LESS_THAN_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LESS_THAN_EQUAL = com.legend.model.FunctionId.ofAll(LESS_THAN_EQUAL_ANY__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LOCAL_IN = com.legend.model.FunctionId.ofAll(LOCAL_IN__DATE_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NAVIGATE = com.legend.model.FunctionId.ofAll(NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1, NAVIGATE__C_MANY__FUNC_COL_SPEC_1__FUNCTION_1, NAVIGATE__T_MANY__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NOT_EQUAL_ANSI = com.legend.model.FunctionId.ofAll(NOT_EQUAL_ANSI__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_OTHERWISE = com.legend.model.FunctionId.ofAll(OTHERWISE__T_1__T_0_1);
@@ -2370,6 +2398,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TRUST_ONE = com.legend.model.FunctionId.ofAll(TRUST_ONE__T_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TUPLE = com.legend.model.FunctionId.ofAll(TUPLE__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);

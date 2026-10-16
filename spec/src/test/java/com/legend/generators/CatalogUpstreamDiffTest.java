@@ -195,10 +195,12 @@ class CatalogUpstreamDiffTest {
                 "upstream files our parser cannot read GREW: " + unreadable);
     }
 
-    /** Measured 2026-09-24 at legend-engine 4.145.0 / legend-pure 5.99.0. NOT_UPSTREAM 43 to 44 on 2026-10-16 (the
-     *  user's decision, the SQL islands' inline views): {@code meta::legend::lite::inlineView}, a lite-internal
-     *  desugar native (NativeCatalogGovernanceTest's INTERNAL_DESUGAR 16 to 17, docs/LITE_INVENTION_CENSUS.md). */
-    private static final int NOT_UPSTREAM_MAX = 44;
+    /** Measured 2026-09-24 at legend-engine 4.145.0 / legend-pure 5.99.0 (43); 47 on 2026-10-16: the Cypher island's
+     *  four meta::legend::lite natives (timeOf, atTime, instantIn, localIn -- the time-of-day and the zoned date-time
+     *  legs, docs/CYPHER_STUDY_2026_10_15.md), declared by Pure.Lite: ours alone by design, never upstream's. 48 on
+     *  2026-10-16 (the user's decision, the SQL islands' inline views): meta::legend::lite::inlineView, a lite-internal
+     *  desugar native (NativeCatalogGovernanceTest's INTERNAL_DESUGAR, docs/LITE_INVENTION_CENSUS.md). */
+    private static final int NOT_UPSTREAM_MAX = 48;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

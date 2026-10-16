@@ -1,0 +1,50 @@
+# The #Cypher{...}# island's aggregate-expression cases (docs/CYPHER_STUDY_2026_10_15.md §12.24): an expression
+# around aggregates computed after the grouping, an ORDER BY re-spelling an aggregating item, a sum and an average
+# of a null column, labels/type/properties of null and properties of a map, a text and a number not ordering. Each
+# case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/aggregates/*'), keyed lite/aggregates/<id>.
+tests:
+  - id: count_star_in_an_expression
+    graph: |
+      CREATE (:A), (:A), (:A)
+    cypher: "MATCH (a:A) RETURN count(*) * 10 AS c, count(*) > 2 AS many"
+  - id: count_of_a_node_divided
+    graph: |
+      CREATE (:A), (:A), (:A)
+    cypher: "MATCH (a:A) RETURN count(a) / 2 AS half, 1 - count(a) AS neg"
+  - id: count_compared_over_no_graph
+    cypher: "MATCH (a) RETURN count(a) > 0 AS any, count(*) = 0 AS none"
+  - id: two_aggregates_in_one_expression
+    graph: |
+      CREATE (:P {age: 30}), (:P {age: 50}), (:P {age: 10})
+    cypher: "MATCH (p:P) RETURN sum(p.age) / count(p) AS mean, max(p.age) - min(p.age) AS spread"
+  - id: parameter_around_an_average
+    graph: |
+      CREATE (:P {age: 30}), (:P {age: 50})
+    cypher: "MATCH (p:P) RETURN $age + avg(p.age) - 1000 AS v"
+    params: "{age: 38}"
+  - id: expression_around_aggregates_with_a_key
+    graph: |
+      CREATE (:P {name: 'a', age: 30}), (:P {name: 'b', age: 50}), (:P {name: 'a', age: 10})
+    cypher: "MATCH (p:P) RETURN p.name AS name, sum(p.age) * 2 AS twice ORDER BY name"
+  - id: expression_around_aggregates_through_with
+    graph: |
+      CREATE (:P {age: 30}), (:P {age: 50})
+    cypher: "MATCH (p:P) WITH count(*) + 1 AS n RETURN n * 2 AS m"
+  - id: order_by_an_expression_of_an_aggregate_item
+    graph: |
+      CREATE (:P {name: 'a', age: 30}), (:P {name: 'b', age: 50}), (:P {name: 'a', age: 10})
+    cypher: "MATCH (p:P) RETURN p.name AS name, sum(p.age) AS total ORDER BY sum(p.age) * -1"
+  - id: average_of_nothing_ordered_by_an_expression
+    cypher: "MATCH (person) RETURN avg(person.age) AS avgAge, sum(person.age) AS total ORDER BY $age + avg(person.age) - 1000"
+    params: "{age: 38}"
+  - id: order_by_an_aggregate_of_a_dropped_variable
+    graph: |
+      CREATE (:P {name: 'a', age: 30})
+    cypher: "MATCH (p:P) WITH p.name AS name, min(p.age) AS min ORDER BY sum(p.age) RETURN name"
+  - id: graph_functions_of_null
+    cypher: "RETURN labels(null) AS l, type(null) AS t, properties(null) AS p"
+  - id: properties_of_a_map
+    cypher: "RETURN properties({name: 'Popeye', level: 9001}) AS m"
+  - id: a_text_and_a_number_do_not_order
+    cypher: "RETURN '1' < 1 AS a, 1 <= '1' AS b, 'a' > 2.5 AS c, 1.0 >= 'x' AS d, '1' = 1 AS e"

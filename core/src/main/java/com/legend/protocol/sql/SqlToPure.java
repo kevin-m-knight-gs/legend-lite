@@ -270,7 +270,16 @@ public final class SqlToPure {
      * not know a column's width. Dividing it by an integer is refused.
      */
     public enum Kind {
-        INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, JSON, NULL, OTHER;
+        INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, TIME,
+        /** A zoned date-time (Cypher's {@code datetime}): carried as its instant, Pure's DateTime; its zone, when the
+         *  translator knows it, rides the translation's detail. */
+        ZONED,
+        /** A zoned time of day (Cypher's {@code time}): carried as its instant on the epoch day, Pure's DateTime (the
+         *  day before or after when the offset crosses midnight); its offset rides the translation's detail. */
+        ZONED_TIME,
+        /** A duration (Cypher's): an instance of the model's Duration class (months, days, seconds, nanoseconds),
+         *  carried as the database's struct. */
+        DURATION, JSON, NULL, OTHER;
 
         public boolean numeric() {
             return this == INTEGER || this == WHOLE || this == FLOAT || this == DECIMAL || this == NUMBER
@@ -4532,8 +4541,10 @@ public final class SqlToPure {
             case STRING, NULL -> "String";
             case DATE -> "StrictDate";
             case DATETIME -> "DateTime";
+            case TIME -> "StrictTime";
+            case ZONED, ZONED_TIME -> "DateTime";
             case JSON -> VARIANT;
-            case BOOLEAN, OTHER -> null;
+            case BOOLEAN, OTHER, DURATION -> null;
         };
         if (type == null) {
             return Tx.value(empty(), kind, true);
@@ -4968,6 +4979,10 @@ public final class SqlToPure {
             case BOOLEAN -> "boolean";
             case DATE -> "date";
             case DATETIME -> "timestamp without time zone";
+            case TIME -> "time without time zone";
+            case ZONED -> "timestamp with time zone";
+            case ZONED_TIME -> "time with time zone";
+            case DURATION -> "interval";
             case JSON -> "jsonb";
             case NULL -> "unknown";
             case OTHER -> "an enumeration";

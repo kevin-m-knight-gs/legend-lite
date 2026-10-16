@@ -4,6 +4,7 @@
 package com.legend.sql.dialect;
 
 import com.legend.sql.DateFmt;
+import com.legend.sql.DatePart;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -177,7 +178,7 @@ public class MariaDb extends AnsiSqlRenderer {
     /** The engine's H2 text is refused here: MariaDB has no translation of it (decision D2: raw text runs on the
      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         throw new DialectCapability("the engine's H2 text reached MariaDB, which has no translation of it");
     }
 
@@ -192,6 +193,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "CHAR";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case TIME -> "TIME(6)";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -1075,6 +1077,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DOUBLE -> "DOUBLE";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case TIME -> "TIME(6)";
             case JSON -> "JSON";
             case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin";
         };
@@ -1106,6 +1109,7 @@ public class MariaDb extends AnsiSqlRenderer {
                 case DOUBLE -> "DOUBLE";
                 case DATE -> "DATE";
                 case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+                case TIME -> "TIME(6)";
                 case BOOLEAN, JSON, VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "CHAR";
             };
             return w -> w.append("CAST(").piece(text).append(" AS " + type + ")");
@@ -1647,6 +1651,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case TIMESTAMPTZ -> from == SqlType.Scalar.VARCHAR ? utcOf(value)
                     : w -> w.append("CAST(").piece(value).append(" AS DATETIME(6))");
             case JSON -> w -> w.append("JSON_EXTRACT(JSON_ARRAY(").piece(value).append("), '$[0]')");
+            case TIME -> w -> w.append("CAST(").piece(value).append(" AS TIME(6))");
             case TEMPORAL_TEXT, DECIMAL_TEXT -> value;
         };
     }
@@ -1900,7 +1905,11 @@ public class MariaDb extends AnsiSqlRenderer {
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC date-time: UTC's wall time is the instant's, either way
             case TIMEZONE -> timezone(writer, c, parentPrec);
+            // TIMESTAMP(date, time): the date-time at that time of that day
+            case DATE_AT_TIME -> writer.function("TIMESTAMP", c.args());
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: MariaDB keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" DIV 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (")
                     .expr(a.get(0), 0).append(") * 1000000 MICROSECOND)");
@@ -2032,6 +2041,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DOUBLE -> "DOUBLE";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case TIME -> "TIME(6)";
             case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT, JSON -> "CHAR";
         };
     }
@@ -2613,29 +2623,11 @@ public class MariaDb extends AnsiSqlRenderer {
         return w -> w.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (").piece(us).append(") MICROSECOND)");
     }
 
-    /** DuckDB's date_part names (the lowering's part literal), read once: a name outside them is a wall. */
-    private enum Part {
-        YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, DOY, DOW, ISODOW;
-
-        static Part of(String name, String what, String product) {
-            for (Part p : values()) {
-                if (p.name().toLowerCase(Locale.ROOT).equals(name)) {
-                    return p;
-                }
-            }
-            throw new DialectCapability(what + " '" + name + "' has no measured " + product + " spelling");
-        }
-    }
-
-    private Part part(SqlExpr literal, String what) {
-        return Part.of(literal(literal, what), what, product());
-    }
-
-    /** DuckDB's date_part names; a Pure integer. dow is Sunday 0, isodow Monday 1 to Sunday 7, week the ISO week. */
+    /** A date part of a date, a Pure integer: the ISO day of the week Monday 1 to Sunday 7, the week the ISO week. */
     private SqlWriter.Piece extract(List<SqlExpr> a) {
-        Part part = part(a.get(0), "an EXTRACT part");
+        DatePart part = part(a.get(0));
         SqlExpr t = a.get(1);
-        if (part == Part.YEAR) {
+        if (part == DatePart.YEAR) {
             return yearOf(t);
         }
         String fn = switch (part) {
@@ -2646,9 +2638,9 @@ public class MariaDb extends AnsiSqlRenderer {
             case HOUR -> "HOUR(";
             case MINUTE -> "MINUTE(";
             case SECOND -> "SECOND(";
-            case DOY -> "DAYOFYEAR(";
+            case DAY_OF_YEAR -> "DAYOFYEAR(";
             case MICROSECOND -> "MICROSECOND(";
-            case WEEK, MILLISECOND, DOW, ISODOW -> null;
+            case WEEK, MILLISECOND, NANOSECOND, ISO_DAY_OF_WEEK -> null;
         };
         if (fn != null) {
             return w -> w.append(fn).expr(t, 0).append(")");
@@ -2656,9 +2648,10 @@ public class MariaDb extends AnsiSqlRenderer {
         return switch (part) {
             case WEEK -> w -> w.append("WEEK(").expr(t, 0).append(", 3)");
             case MILLISECOND -> w -> w.append("(MICROSECOND(").expr(t, 0).append(") DIV 1000)");
-            case DOW -> w -> w.append("(DAYOFWEEK(").expr(t, 0).append(") - 1)");
-            case ISODOW -> w -> w.append("(WEEKDAY(").expr(t, 0).append(") + 1)");
-            case YEAR, QUARTER, MONTH, DAY, HOUR, MINUTE, SECOND, DOY, MICROSECOND ->
+            case ISO_DAY_OF_WEEK -> w -> w.append("(WEEKDAY(").expr(t, 0).append(") + 1)");
+            case NANOSECOND -> throw new DialectCapability("date part 'nanosecond' has no measured " + product()
+                    + " spelling");
+            case YEAR, QUARTER, MONTH, DAY, HOUR, MINUTE, SECOND, DAY_OF_YEAR, MICROSECOND ->
                     throw new IllegalStateException("named: " + part);
         };
     }
@@ -2671,7 +2664,7 @@ public class MariaDb extends AnsiSqlRenderer {
     /** The base's contract: year/quarter/month/week deliver a DATE, finer parts a date-time; DuckDB's week starts on
      *  Monday. */
     private SqlWriter.Piece dateTrunc(List<SqlExpr> a) {
-        Part part = part(a.get(0), "a DATE_TRUNC part");
+        DatePart part = part(a.get(0));
         SqlExpr t = a.get(1);
         return switch (part) {
             case YEAR -> w -> w.append("MAKEDATE(YEAR(").expr(t, 0).append("), 1)");
@@ -2688,7 +2681,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append(", '%Y-%m-%d %H:%i:%s') AS DATETIME(6))");
             case MILLISECOND -> w -> w.append("(CAST(").expr(t, 0).append(" AS DATETIME(6)) - INTERVAL MOD(MICROSECOND(")
                     .expr(t, 0).append("), 1000) MICROSECOND)");
-            case MICROSECOND, DOY, DOW, ISODOW -> throw new DialectCapability("date_trunc part '"
+            case MICROSECOND, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured " + product() + " spelling");
         };
     }
@@ -2696,20 +2689,21 @@ public class MariaDb extends AnsiSqlRenderer {
     /** A date plus an interval (MariaDB's month arithmetic clamps a month past its end, as DuckDB's: 2020-01-31 + 1
      *  month is 2020-02-29, measured); a date plus whole days is a date. Milliseconds and finer are microseconds. */
     private SqlWriter.Piece addInterval(List<SqlExpr> a, SqlExpr.Call c) {
-        String unit = literal(a.get(0), c.fn().name());
+        DatePart unit = part(a.get(0));
         SqlExpr n = a.get(1);
         SqlExpr t = a.get(2);
         String[] u = switch (unit) {
-            case "to_years" -> new String[] {"YEAR", "1"};
-            case "to_months" -> new String[] {"MONTH", "1"};
-            case "to_weeks" -> new String[] {"WEEK", "1"};
-            case "to_days" -> new String[] {"DAY", "1"};
-            case "to_hours" -> new String[] {"HOUR", "1"};
-            case "to_minutes" -> new String[] {"MINUTE", "1"};
-            case "to_seconds" -> new String[] {"SECOND", "1"};
-            case "to_milliseconds" -> new String[] {"MICROSECOND", "1000"};
-            case "to_microseconds" -> new String[] {"MICROSECOND", "1"};
-            default -> throw new DialectCapability("interval unit '" + unit + "' has no " + product() + " spelling");
+            case YEAR -> new String[] {"YEAR", "1"};
+            case MONTH -> new String[] {"MONTH", "1"};
+            case WEEK -> new String[] {"WEEK", "1"};
+            case DAY -> new String[] {"DAY", "1"};
+            case HOUR -> new String[] {"HOUR", "1"};
+            case MINUTE -> new String[] {"MINUTE", "1"};
+            case SECOND -> new String[] {"SECOND", "1"};
+            case MILLISECOND -> new String[] {"MICROSECOND", "1000"};
+            case MICROSECOND -> new String[] {"MICROSECOND", "1"};
+            case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit " + unit
+                    + " has no " + product() + " spelling");
         };
         return w -> w.append("(").expr(t, 6).append(" + INTERVAL (").expr(n, 0).append(")" + ("1".equals(u[1]) ? ""
                 : " * " + u[1]) + " " + u[0] + ")");
@@ -2718,7 +2712,7 @@ public class MariaDb extends AnsiSqlRenderer {
     /** DuckDB's date_diff counts BOUNDARIES crossed (23:59:59 to 00:00 is a day, 01-31 to 02-01 a month); its week is
      *  whole days over 7, truncated. */
     private SqlWriter.Piece dateDiff(List<SqlExpr> a) {
-        Part part = part(a.get(0), "a DATE_DIFF part");
+        DatePart part = part(a.get(0));
         SqlExpr from = a.get(1);
         SqlExpr to = a.get(2);
         return switch (part) {
@@ -2734,7 +2728,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case SECOND -> boundaries(from, to, 1000000L);
             case MILLISECOND -> boundaries(from, to, 1000L);
             case MICROSECOND -> boundaries(from, to, 1L);
-            case DOY, DOW, ISODOW -> throw new DialectCapability("date_diff part '"
+            case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured " + product() + " spelling");
         };
     }
@@ -2748,18 +2742,18 @@ public class MariaDb extends AnsiSqlRenderer {
     /** DuckDB's time_bucket with the base's origins (1970-01-01; weeks the Monday 1969-12-29): fixed units binned in
      *  microseconds, floored; months and years by the month index since 1970-01, floored to the bucket's size. */
     private SqlWriter.Piece timeBucket(List<SqlExpr> a) {
-        String unit = literal(a.get(0), "a TIME_BUCKET unit");
+        DatePart unit = part(a.get(0));
         SqlExpr n = a.get(1);
         SqlExpr t = a.get(2);
-        Long micros = INTERVAL_MICROS.get(unit);
+        Long micros = intervalMicros(unit);
         if (micros != null) {
-            long origin = "to_weeks".equals(unit) ? -3L * 86400000000L : 0L;
+            long origin = unit == DatePart.WEEK ? -3L * 86400000000L : 0L;
             SqlWriter.Piece size = w -> w.append("(").expr(n, 6).append(" * " + micros + ")");
             SqlWriter.Piece m = w -> w.append("(").piece(micros(t)).append(" - (" + origin + "))");
             return fromMicros(w -> w.append("(FLOOR(").piece(m).append(" / ").piece(size).append(") * ").piece(size)
                     .append(" + (" + origin + "))"));
         }
-        int months = "to_months".equals(unit) ? 1 : "to_years".equals(unit) ? 12 : 0;
+        int months = unit == DatePart.MONTH ? 1 : unit == DatePart.YEAR ? 12 : 0;
         if (months == 0) {
             throw new DialectCapability("a " + unit + " time bucket has no " + product() + " spelling");
         }
@@ -2770,9 +2764,19 @@ public class MariaDb extends AnsiSqlRenderer {
                 .append(") * ").piece(size).append(") MONTH AS DATETIME(6))");
     }
 
-    private static final Map<String, Long> INTERVAL_MICROS = Map.of(
-            "to_weeks", 7L * 86400000000L, "to_days", 86400000000L, "to_hours", 3600000000L,
-            "to_minutes", 60000000L, "to_seconds", 1000000L, "to_milliseconds", 1000L, "to_microseconds", 1L);
+    /** A fixed-length unit's length in microseconds; null for a calendar one. */
+    private static @com.legend.base.Nullable Long intervalMicros(DatePart unit) {
+        return switch (unit) {
+            case WEEK -> 7L * 86400000000L;
+            case DAY -> 86400000000L;
+            case HOUR -> 3600000000L;
+            case MINUTE -> 60000000L;
+            case SECOND -> 1000000L;
+            case MILLISECOND -> 1000L;
+            case MICROSECOND -> 1L;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+        };
+    }
 
     private SqlWriter makeTimestamp(SqlWriter writer, List<SqlExpr> a, SqlExpr.Call c) {
         if (a.size() != 6) {
@@ -3378,5 +3382,55 @@ public class MariaDb extends AnsiSqlRenderer {
                     ? "LONGBLOB" : "VARCHAR(" + z.size() + ")";
             case com.legend.sql.SqlDdl.ColumnType.Scaled s -> "DECIMAL(" + s.precision() + "," + s.scale() + ")";
         };
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (a CASE over JSON_TYPE). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are DuckDB's). */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        throw new DialectCapability("typeof reached MariaDB: its type names are DuckDB's");
+    }
+
+    /** {@inheritDoc} Its text types and a UUID are text, its DATETIME the naive date-time (2026-10-11). */
+    @Override
+    public String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
+        return WireNames.fold(driverTypeName == null ? null : switch (driverTypeName) {
+            case "LONGTEXT", "MEDIUMTEXT", "TEXT", "TINYTEXT", "CHAR", "UUID" -> "VARCHAR";
+            case "DATETIME" -> "TIMESTAMP";
+            default -> driverTypeName;
+        });
+    }
+
+    /** {@inheritDoc} Its own types, the platform's by design (2026-10-11): a comparison and a boolean are integers; a
+     *  list, a struct, a map and a Variant are JSON text (a JSON function's type is JSON, a column's text); an integer
+     *  sum or a big integer is a DECIMAL of scale 0 (SUM of BIGINT, measured), or an unsigned BIGINT (a bit
+     *  operation's); a NULL literal's column claims no type. */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        boolean integral = label == SqlType.Scalar.BIGINT || label == SqlType.Scalar.INTEGER
+                || label == SqlType.Scalar.HUGEINT;
+        boolean composite = label instanceof SqlType.Array || label instanceof SqlType.Struct
+                || label instanceof SqlType.Map || label == SqlType.Scalar.JSON;
+        return wire.equals("NULL")
+                || label == SqlType.Scalar.BOOLEAN && (wire.equals("INTEGER") || wire.equals("BIGINT")
+                        || wire.equals("TINYINT"))
+                || integral && (wire.startsWith("DECIMAL(") && wire.endsWith(",0)") || wire.equals("BIGINT UNSIGNED"))
+                || label instanceof SqlType.Decimal d && wire.startsWith("DECIMAL(")
+                        && wire.endsWith("," + d.scale() + ")")
+                || composite && (wire.equals("JSON") || wire.equals("VARCHAR"));
     }
 }

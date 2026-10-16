@@ -1,0 +1,46 @@
+# The #Cypher{...}# island's cases for lists and maps of values of the row (docs/CYPHER_STUDY_2026_10_15.md §12.25):
+# a shape holding values of the row is its JSON text built by the database (each scalar spelled by its kind, an
+# empty one null, a nested shape's text within, a node's or a computed collection's canonical text), read as a
+# Variant. Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/shapes/*'), keyed lite/shapes/<id>.
+tests:
+  - id: list_of_one_row_value
+    graph: |
+      CREATE (:P {age: 1}), (:P {age: 2})
+    cypher: "MATCH (p:P) RETURN p.age AS age, [p.age] AS l ORDER BY age"
+  - id: list_with_a_null_element
+    graph: |
+      CREATE (:P {age: 1, name: 'a'}), (:P {age: 2})
+    cypher: "MATCH (p:P) RETURN p.age AS age, [p.age, p.name] AS l ORDER BY age"
+  - id: list_of_mixed_kinds
+    graph: |
+      CREATE (:P {age: 1, name: 'a'}), (:P {age: 2, name: 'b"c'})
+    cypher: "MATCH (p:P) RETURN p.age AS age, [p.age, p.name, p.age > 1, 2.5, null] AS l ORDER BY age"
+  - id: map_of_row_values
+    graph: |
+      CREATE (:P {age: 1, name: 'a'}), (:P {age: 2})
+    cypher: "MATCH (p:P) RETURN p.age AS age, {age: p.age, name: p.name, adult: p.age > 1} AS m ORDER BY age"
+  - id: nested_shapes_of_row_values
+    graph: |
+      CREATE (:P {age: 1, name: 'a'}), (:P {age: 2})
+    cypher: "MATCH (p:P) RETURN p.age AS age, [{age: p.age}, [p.name, 1]] AS v ORDER BY age"
+  - id: comprehension_to_integer_over_mixed_literals
+    cypher: "WITH [2, 2.9, '1.7', 'foo'] AS things RETURN [n IN things | toInteger(n)] AS ints, [n IN things | toFloat(n)] AS floats"
+  - id: list_with_a_node
+    graph: |
+      CREATE (:P {age: 1, name: 'a'}), (:P {age: 2})
+    cypher: "MATCH (p:P) RETURN p.age AS age, [p, p.age] AS l ORDER BY age"
+  - id: list_with_a_computed_collection
+    graph: |
+      CREATE (:P {age: 1}), (:P {age: 3})
+    cypher: "MATCH (p:P) RETURN p.age AS age, [range(1, coalesce(p.age, 0)), p.age] AS l ORDER BY age"
+  - id: list_appending_a_boolean
+    cypher: "RETURN [1] + (2 IN [3]) + 4 AS c, [1, 'x'] + [true] AS d"
+  - id: list_with_a_date
+    graph: |
+      CREATE (:P {age: 1, born: date('2020-01-02')}), (:P {age: 2})
+    cypher: "MATCH (p:P) RETURN p.age AS age, [p.born, p.age] AS l, {born: p.born} AS m ORDER BY age"
+  - id: map_through_with_then_returned
+    graph: |
+      CREATE (:P {age: 1, name: 'a'}), (:P {age: 2})
+    cypher: "MATCH (p:P) WITH p.age AS age, p.name AS name RETURN age, {age: age, name: name} AS m ORDER BY age"

@@ -113,7 +113,7 @@ public final class SQLite extends AnsiSqlRenderer {
     /** The engine's H2 text is refused here: SQLite has no translation of it (decision D2: raw text runs on the
      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
     }
 
@@ -124,7 +124,7 @@ public final class SQLite extends AnsiSqlRenderer {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT -> "INTEGER";
             case DOUBLE -> "REAL";
-            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
+            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -658,6 +658,12 @@ public final class SQLite extends AnsiSqlRenderer {
     @Override
     protected String timestampLit(String iso) {
         return "'" + iso.replace('T', ' ') + "'";
+    }
+
+    /** A time of day is its text. */
+    @Override
+    protected String timeLit(String iso) {
+        return "'" + iso + "'";
     }
 
     /** A Float literal is a REAL; the infinities are REALs past the range ({@code 9e999}, measured: Infinity); NaN has
@@ -1268,6 +1274,10 @@ public final class SQLite extends AnsiSqlRenderer {
                             .append(" FROM (SELECT ").piece(padded(dateTimeText(value))).append(" AS t) AS __u)")
                     : value;
             case JSON -> w -> w.append("json_quote(").piece(value).append(")");
+            // a time of day is its text: a date-time text's from its twelfth character, a date's midnight
+            case TIME -> from == SqlType.Scalar.TIMESTAMP || from == SqlType.Scalar.TIMESTAMPTZ
+                    ? w -> w.append("substr(").piece(value).append(", 12)")
+                    : from == SqlType.Scalar.DATE ? w -> w.append("'00:00:00'") : value;
             case TEMPORAL_TEXT, DECIMAL_TEXT -> value;
         };
     }
@@ -1562,7 +1572,12 @@ public final class SQLite extends AnsiSqlRenderer {
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC text: UTC's wall time is the instant's, either way
             case TIMEZONE -> timezone(writer, c, parentPrec);
+            // a date's text, a space, a time's text: the date-time text SQLite's date functions read
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 3).append(" || ' ' || ")
+                    .expr(a.get(1), 3));
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000.0)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: SQLite keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("datetime(").expr(a.get(0), 0).append(", 'unixepoch')");
             case FROM_EPOCH_MS -> writer.append("strftime('%Y-%m-%d %H:%M:%f', ").expr(a.get(0), 6)
@@ -2297,24 +2312,9 @@ public final class SQLite extends AnsiSqlRenderer {
                 .append(" = 0 THEN '' ELSE '.' || rtrim(printf('%06d', ").piece(frac).append("), '0') END)");
     }
 
-    /** DuckDB's date_part names (the lowering's part literal), read once: a name outside them is a wall. */
-    private enum Part {
-        YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, DOY, DOW, ISODOW;
-
-        static Part of(SqlExpr literal, String what) {
-            String name = literal(literal, what);
-            for (Part p : values()) {
-                if (p.name().toLowerCase(Locale.ROOT).equals(name)) {
-                    return p;
-                }
-            }
-            throw new DialectCapability(what + " '" + name + "' has no measured SQLite spelling");
-        }
-    }
-
-    /** DuckDB's date_part names; a Pure integer. dow is Sunday 0, isodow Monday 1 to Sunday 7, week the ISO week. */
+    /** A date part of a date, a Pure integer: the ISO day of the week Monday 1 to Sunday 7, the week the ISO week. */
     private static SqlWriter.Piece extract(List<SqlExpr> a) {
-        Part part = Part.of(a.get(0), "an EXTRACT part");
+        com.legend.sql.DatePart part = part(a.get(0));
         String code = switch (part) {
             case YEAR -> "%Y";
             case MONTH -> "%m";
@@ -2323,11 +2323,10 @@ public final class SQLite extends AnsiSqlRenderer {
             case MINUTE -> "%M";
             case SECOND -> "%S";
             case WEEK -> "%V";
-            case DOY -> "%j";
-            case DOW -> "%w";
-            case ISODOW -> "%u";
+            case DAY_OF_YEAR -> "%j";
+            case ISO_DAY_OF_WEEK -> "%u";
             case QUARTER -> null;
-            case MILLISECOND, MICROSECOND -> throw new DialectCapability("date part '"
+            case MILLISECOND, MICROSECOND, NANOSECOND -> throw new DialectCapability("date part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured SQLite spelling");
         };
         if (code == null) {
@@ -2339,7 +2338,7 @@ public final class SQLite extends AnsiSqlRenderer {
     /** The base's contract: year/quarter/month/week deliver a DATE, finer parts a date-time; DuckDB's week starts on
      *  Monday ({@code date(x, '-6 days', 'weekday 1')}: the Monday on or before x). */
     private static SqlWriter.Piece dateTrunc(List<SqlExpr> a) {
-        Part part = Part.of(a.get(0), "a DATE_TRUNC part");
+        com.legend.sql.DatePart part = part(a.get(0));
         SqlExpr t = a.get(1);
         return switch (part) {
             case YEAR -> w -> w.append("strftime('%Y-01-01', ").expr(t, 0).append(")");
@@ -2352,7 +2351,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case MINUTE -> w -> w.append("strftime('%Y-%m-%d %H:%M:00', ").expr(t, 0).append(")");
             case SECOND -> w -> w.append("strftime('%Y-%m-%d %H:%M:%S', ").expr(t, 0).append(")");
             case MILLISECOND -> w -> w.append("strftime('%Y-%m-%d %H:%M:%f', ").expr(t, 0).append(")");
-            case MICROSECOND, DOY, DOW, ISODOW -> throw new DialectCapability("date_trunc part '"
+            case MICROSECOND, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured SQLite spelling");
         };
     }
@@ -2361,15 +2360,16 @@ public final class SQLite extends AnsiSqlRenderer {
      *  clamped ({@code 'floor'}, SQLite 3.46: 2020-01-31 + 1 month is 2020-02-29, as DuckDB's); a date plus days is a
      *  date; anything finer in microseconds. A date-time keeps its fraction's digits through whole units. */
     private SqlWriter.Piece addInterval(List<SqlExpr> a, SqlExpr.Call c) {
-        String unit = literal(a.get(0), c.fn().name());
+        com.legend.sql.DatePart unit = part(a.get(0));
         SqlExpr n = a.get(1);
         SqlExpr t = a.get(2);
         boolean date = typeOf(c) == SqlType.Scalar.DATE || typeOf(t) == SqlType.Scalar.DATE
                 && typeOf(c) != SqlType.Scalar.TIMESTAMP;
         String months = switch (unit) {
-            case "to_years" -> "years";
-            case "to_months" -> "months";
-            default -> null;
+            case YEAR -> "years";
+            case MONTH -> "months";
+            case QUARTER, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, DAY_OF_YEAR,
+                    ISO_DAY_OF_WEEK -> null;
         };
         if (months != null) {
             SqlWriter.Piece modifier = w -> w.append("printf('%+d " + months + "', ").expr(n, 0).append(")");
@@ -2379,9 +2379,9 @@ public final class SQLite extends AnsiSqlRenderer {
             return w -> w.append("(datetime(substr(").expr(t, 0).append(", 1, 19), ").piece(modifier)
                     .append(", 'floor') || substr(").expr(t, 0).append(", 20))");
         }
-        Long micros = INTERVAL_MICROS.get(unit);
+        Long micros = intervalMicros(unit);
         if (micros == null) {
-            throw new DialectCapability("interval unit '" + unit + "' has no SQLite spelling");
+            throw new DialectCapability("interval unit " + unit + " has no SQLite spelling");
         }
         if (date && micros % 86400000000L == 0) {
             long days = micros / 86400000000L;
@@ -2391,14 +2391,24 @@ public final class SQLite extends AnsiSqlRenderer {
         return fromMicros(w -> w.append("(").piece(micros(t)).append(" + ").expr(n, 6).append(" * " + micros + ")"));
     }
 
-    private static final Map<String, Long> INTERVAL_MICROS = Map.of(
-            "to_weeks", 7L * 86400000000L, "to_days", 86400000000L, "to_hours", 3600000000L,
-            "to_minutes", 60000000L, "to_seconds", 1000000L, "to_milliseconds", 1000L, "to_microseconds", 1L);
+    /** A fixed-length unit's length in microseconds; null for a calendar one. */
+    private static @com.legend.base.Nullable Long intervalMicros(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case WEEK -> 7L * 86400000000L;
+            case DAY -> 86400000000L;
+            case HOUR -> 3600000000L;
+            case MINUTE -> 60000000L;
+            case SECOND -> 1000000L;
+            case MILLISECOND -> 1000L;
+            case MICROSECOND -> 1L;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+        };
+    }
 
     /** DuckDB's date_diff counts BOUNDARIES crossed (23:59:59 to 00:00 is a day, 01-31 to 02-01 a month); its week is
      *  whole days over 7, truncated. */
     private static SqlWriter.Piece dateDiff(List<SqlExpr> a) {
-        Part part = Part.of(a.get(0), "a DATE_DIFF part");
+        com.legend.sql.DatePart part = part(a.get(0));
         SqlExpr from = a.get(1);
         SqlExpr to = a.get(2);
         return switch (part) {
@@ -2419,7 +2429,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case SECOND -> boundaries(from, to, 1000000L);
             case MILLISECOND -> boundaries(from, to, 1000L);
             case MICROSECOND -> boundaries(from, to, 1L);
-            case DOY, DOW, ISODOW -> throw new DialectCapability("date_diff part '"
+            case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured SQLite spelling");
         };
     }
@@ -2443,19 +2453,19 @@ public final class SQLite extends AnsiSqlRenderer {
     /** DuckDB's time_bucket with the base's origins (1970-01-01; weeks the Monday 1969-12-29): fixed units binned in
      *  microseconds, floored; months and years by the month index since 1970-01, floored to the bucket's size. */
     private static SqlWriter.Piece timeBucket(List<SqlExpr> a) {
-        String unit = literal(a.get(0), "a TIME_BUCKET unit");
+        com.legend.sql.DatePart unit = part(a.get(0));
         SqlExpr n = a.get(1);
         SqlExpr t = a.get(2);
-        Long micros = INTERVAL_MICROS.get(unit);
+        Long micros = intervalMicros(unit);
         if (micros != null) {
-            long origin = "to_weeks".equals(unit) ? -3L * 86400000000L : 0L;
+            long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400000000L : 0L;
             SqlWriter.Piece size = w -> w.append("(").expr(n, 6).append(" * " + micros + ")");
             SqlWriter.Piece m = w -> w.append("(").piece(micros(t)).append(" - (" + origin + "))");
             SqlWriter.Piece floored = w -> w.append("((").piece(m).append(" - (((").piece(m).append(") % ").piece(size)
                     .append(" + ").piece(size).append(") % ").piece(size).append(")) + (" + origin + "))");
             return fromMicros(floored);
         }
-        int months = "to_months".equals(unit) ? 1 : "to_years".equals(unit) ? 12 : 0;
+        int months = unit == com.legend.sql.DatePart.MONTH ? 1 : unit == com.legend.sql.DatePart.YEAR ? 12 : 0;
         if (months == 0) {
             throw new DialectCapability("a " + unit + " time bucket has no SQLite spelling");
         }
@@ -3077,6 +3087,54 @@ public final class SQLite extends AnsiSqlRenderer {
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> z.kind().toUpperCase(Locale.ROOT).contains("BINARY")
                     ? "BLOB" : "TEXT";
             case com.legend.sql.SqlDdl.ColumnType.Scaled s -> "REAL";
+        };
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (a CASE over json_type). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are SQLite's storage classes). */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        throw new DialectCapability("typeof reached SQLite: its type names are SQLite's storage classes");
+    }
+
+    /** {@inheritDoc} Its FLOAT is a REAL value, and NUMERIC its name for a NULL value (measured: no storage class). */
+    @Override
+    public String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
+        return WireNames.fold(driverTypeName == null ? null : switch (driverTypeName) {
+            case "FLOAT" -> "DOUBLE";
+            case "NUMERIC" -> "NULL";
+            default -> driverTypeName;
+        });
+    }
+
+    /** {@inheritDoc} Its own types, the platform's by design (2026-10-11): a VALUE has a storage class, a column none,
+     *  and the driver names a column by its first value's (INTEGER, FLOAT, TEXT, and NUMERIC for a NULL, measured). A
+     *  boolean is an INTEGER (1 or 0); a date, a date-time, a list, a struct, a map and a Variant are their text, and a
+     *  root decimal its text at its scale; a NULL first value claims no type. */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        return switch (wire) {
+            case "NULL" -> true;
+            case "INTEGER" -> label == SqlType.Scalar.BOOLEAN || label == SqlType.Scalar.HUGEINT;
+            case "VARCHAR" -> label == SqlType.Scalar.DATE || label == SqlType.Scalar.TIMESTAMP
+                    || label == SqlType.Scalar.TIMESTAMPTZ || label == SqlType.Scalar.JSON
+                    || label instanceof SqlType.Array || label instanceof SqlType.Struct || label instanceof SqlType.Map
+                    || label instanceof SqlType.Decimal;
+            default -> false;
         };
     }
 }
