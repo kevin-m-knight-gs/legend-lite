@@ -119,3 +119,19 @@ tests:
     graph: |
       CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'})
     cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(x) RETURN a.name AS a, x.name AS x ORDER BY a"
+  - id: an_undirected_typed_pattern_from_a_labelless_start_is_refused
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'})
+    cypher: "MATCH (x)-[r:T]-(y) RETURN x.name AS x, y.name AS y ORDER BY x"
+  - id: an_edge_in_one_arm_and_an_association_in_another
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:K]->(:B {name: 'b1'}), (a)-[:L {w: 1}]->(:C {name: 'c1'})
+    cypher: "MATCH (a:A)-[r]->(x) RETURN type(r) AS type, x.name AS x ORDER BY type"
+  - id: an_optional_edge_from_labelless_arms
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:L {w: 1}]->(:C {name: 'c1'}), (:B {name: 'b1'})
+    cypher: "MATCH (n) OPTIONAL MATCH (n)-[r:L]->(m) RETURN n.name AS name, r AS rel, m.name AS m ORDER BY name"
+  - id: an_unnamed_property_map_over_a_type_of_several_pairs
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T {v: 2}]->(:C {name: 'c1'})
+    cypher: "MATCH (x)-[:T {w: 1}]->(b) RETURN x.name AS x, b.name AS b"

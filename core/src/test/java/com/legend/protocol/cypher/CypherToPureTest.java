@@ -945,11 +945,39 @@ class CypherToPureTest {
     }
 
     @Test
-    void anUntypedHopReadsTheEdgeWays() {
-        String pure = edges("MATCH (p:Person)-->(x) RETURN labels(x) AS l");
-        // the plain end firm and the edge ACTED_IN (through actings): two arms
-        assertTrue(pure.contains("$p.firm"), pure);
-        assertTrue(pure.contains("$p.actings.firm"), pure);
+    void anUntypedHopRefusesAnEdgeEndWithoutAnInverse() {
+        // (the review's second finding: an edge the node cannot navigate to is refused wherever it is a way, never
+        // skipped; Directing's from end is its own property)
+        SqlTranslationException e = edgeRefusal("MATCH (p:Person)-->(x) RETURN labels(x) AS l");
+        assertTrue(e.getMessage().contains("holds its from end director with no inverse end"), e.getMessage());
+        SqlTranslationException pred = edgeRefusal("MATCH (p:Person) WHERE (p)-->() RETURN p.name");
+        assertTrue(pred.getMessage().contains("holds its from end director with no inverse end"), pred.getMessage());
+    }
+
+    @Test
+    void aPatternPredicateBindsNoNewVariableAndStandsWhereABooleanIsTested() {
+        SqlTranslationException fresh = refusal("MATCH (p:Person) WHERE (p)-[r:firm]->(f) RETURN p.name");
+        assertEquals(SqlTranslationException.Kind.INVALID, fresh.kind(), fresh.getMessage());
+        assertTrue(fresh.getMessage().contains("PatternExpressions are not allowed to introduce new variables: 'r'"),
+                fresh.getMessage());
+        SqlTranslationException value = refusal("MATCH (p:Person) WHERE toString((p)-[:firm]->()) = 'true' RETURN p.name");
+        assertTrue(value.getMessage().contains("A pattern expression should only be used"), value.getMessage());
+        // (a quantifier's predicate is a boolean context too: the pattern is allowed there and refused by name only
+        // because the quantifier's scope is not the graph's, never as Neo4j's rejection)
+        SqlTranslationException quantified = refusal("MATCH (p:Person) RETURN any(x IN [1] WHERE (p)-[:firm]->()) AS a");
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, quantified.kind(), quantified.getMessage());
+        assertTrue(quantified.getMessage().contains("over rows"), quantified.getMessage());
+        String negated = pure("MATCH (p:Person) WHERE NOT ((p)-[:firm]->() OR p.age > 1) RETURN p.name");
+        assertTrue(negated.contains("$p.firm->isNotEmpty()"), negated);
+    }
+
+    @Test
+    void aLabelledStartInAPredicateIsTheBoundNodesClassOrNothing() {
+        // (the review's third finding: the start node's label is read)
+        String nothing = pure("MATCH (p:Person) WHERE (p:Firm)-[:firm]->() RETURN p.name");
+        assertTrue(nothing.contains("filter(p|false)"), nothing);
+        String same = pure("MATCH (p:Person) WHERE (p:Person)-[:firm]->() RETURN p.name");
+        assertTrue(same.contains("$p.firm->isNotEmpty()"), same);
     }
 
     @Test

@@ -109,7 +109,7 @@ public final class CypherAst {
 
     /** {@code EXISTS { MATCH pattern WHERE where RETURN ... }}, or {@code EXISTS { pattern }}: true where the pattern
      *  has a match (the items returned do not matter; the subquery's one pattern, one optional WHERE). */
-    public record ExistsSubquery(PathPattern pattern, @com.legend.base.Nullable Expr where, Pos pos)
+    public record ExistsSubquery(PathPattern pattern, @com.legend.base.Nullable Expr where, List<Expr> items, Pos pos)
             implements Expr {
     }
 

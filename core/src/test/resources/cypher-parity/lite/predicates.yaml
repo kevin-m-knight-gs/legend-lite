@@ -52,3 +52,31 @@ tests:
     graph: |
       CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'})
     cypher: "MATCH (a:A), (b:B) WHERE (a)-[:T]->(b) RETURN a.name AS a, b.name AS b"
+  - id: a_pattern_predicate_with_a_labelled_start
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:C {name: 'c1'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (n) WHERE (n:A)-[:T]->() RETURN n.name AS name"
+  - id: a_pattern_predicate_introducing_a_variable_is_refused
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'})
+    cypher: "MATCH (a:A) WHERE (a)-[r:T]->(b) RETURN a.name AS name"
+  - id: a_pattern_predicate_inside_a_function_is_refused
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'})
+    cypher: "MATCH (a:A) WHERE toString((a)-[:T]->()) = 'true' RETURN a.name AS name"
+  - id: a_pattern_predicate_in_a_quantifier
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, any(x IN [1, 2] WHERE (a)-[:T]->()) AS has ORDER BY name"
+  - id: arithmetic_over_parenthesized_values
+    graph: |
+      CREATE (:A {x: 5, y: 2})
+    cypher: "MATCH (a:A) RETURN (a.x) - (a.y) AS d, (a.x)-(a.y) AS e"
+  - id: an_exists_subquery_returning_star
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) WHERE EXISTS { MATCH (a)-[:T]->(b) RETURN * } RETURN a.name AS name"
+  - id: an_exists_subquery_returning_an_undefined_variable_is_refused
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'})
+    cypher: "MATCH (a:A) WHERE EXISTS { MATCH (a)-[:T]->(b) RETURN nope } RETURN a.name AS name"

@@ -46,6 +46,16 @@ class CypherParserTest {
         assertEquals("(n)", tree(expr("(n)")));
         assertEquals("EXISTS{pattern:3 WHERE EQ(b.x,1)}", tree(expr("EXISTS { MATCH (n)-[:T]->(b) WHERE b.x = 1 RETURN b }")));
         assertEquals("EXISTS{pattern:3}", tree(expr("exists { (n)-->() }")));
+        assertEquals("EXISTS{pattern:3}", tree(expr("EXISTS { MATCH (n)-->(m) RETURN * }")));
+        assertEquals("EXISTS{pattern:3}", tree(expr("EXISTS { MATCH (n)-->(m) RETURN DISTINCT m AS x, n }")));
+        // (the review's tenth finding: a labelled or empty start node, a map start, and arithmetic over
+        // parenthesized values, which is no relationship)
+        assertEquals("(pattern:3)", tree(expr("(:A)-[:K]->(a)")));
+        assertEquals("(pattern:3)", tree(expr("()-->(a)")));
+        assertEquals("(pattern:3)", tree(expr("({k: 1})-->(a)")));
+        assertEquals("MINUS((a),(b))", tree(expr("(a) - (b)")));
+        assertEquals("MINUS(({k:1}),(b))", tree(expr("({k: 1}) - (b)")));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("MATCH (n) WHERE EXISTS { OPTIONAL MATCH (n)-->() } RETURN n").kind());
     }
 
     private static Expr expr(String text) {

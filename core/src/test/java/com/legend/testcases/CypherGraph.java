@@ -239,6 +239,16 @@ public final class CypherGraph {
                 t.pair = numbered.merge(t.name, 1, Integer::sum);
             }
         }
+        // the names the model makes up, apart from the graph's own: a label spelled like one of its elements, or two
+        // of its tables spelled alike (a type named T_1 beside a type T joining two pairs), is refused by name
+        Set<String> madeElements = new HashSet<>();
+        Set<String> madeTables = new HashSet<>();
+        for (Cls c : classes.values()) {
+            madeTables.add(c.table);
+        }
+        if (classes.containsKey("RelationshipType") || classes.containsKey("Duration")) {
+            throw new Unsupported("harness: the label RelationshipType or Duration is a class the model makes up");
+        }
         for (RelType t : types.values()) {
             Set<String> lower = new HashSet<>();
             for (String p : t.propertyTypes.keySet()) {
@@ -246,8 +256,19 @@ public final class CypherGraph {
                     throw new Unsupported("harness: two properties of " + t.name + " differ only in case (" + p + ")");
                 }
             }
-            if (t.edge() && classes.containsKey("E_" + t.stem())) {
-                throw new Unsupported("harness: the label E_" + t.stem() + " is the edge class of " + t.name);
+            List<String> elements = t.edge()
+                    ? List.of("E_" + t.stem(), "E_" + t.stem() + "_from", "E_" + t.stem() + "_to")
+                    : List.of("R_" + t.name);
+            for (String n : elements) {
+                if (classes.containsKey(n) || !madeElements.add(n)) {
+                    throw new Unsupported("harness: the element " + n + ", made up for the relationship type " + t.name
+                            + ", is a label's or another type's");
+                }
+            }
+            String table = t.edge() ? t.table() : "r_" + t.name.toLowerCase(Locale.ROOT);
+            if (!madeTables.add(table)) {
+                throw new Unsupported("harness: the table " + table + ", made up for the relationship type " + t.name
+                        + ", is another's");
             }
         }
         // the associations: one per type, realized by a foreign key on the to-one side, else a junction table; a

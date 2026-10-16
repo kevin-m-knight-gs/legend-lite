@@ -821,6 +821,7 @@ public final class CypherToPure {
             }
             order.add(java.util.Objects.requireNonNull(n.variable()));
         }
+        nameRelationshipsWithMaps(elements, taken);
         NodePattern root = (NodePattern) elements.get(0);
         String rootLabel = labelClass(root);
         List<String> rootClasses = rootLabel != null ? List.of(rootLabel) : new ArrayList<>(model.classes());
@@ -956,6 +957,7 @@ public final class CypherToPure {
             }
             order.add(java.util.Objects.requireNonNull(n.variable()));
         }
+        nameRelationshipsWithMaps(ordered, taken);
         List<Graph> graphs = new ArrayList<>();
         for (Graph base : bases) {
             Binding from = base.bindings().get(startVar);
@@ -1010,6 +1012,18 @@ public final class CypherToPure {
         return materializeArms(graphs, order, m.pos());
     }
 
+    /** A relationship pattern with a property map and no variable is named before the arms are read (as the nodes
+     *  are), so the columns its edge instance is carried as agree across the arms. */
+    private void nameRelationshipsWithMaps(List<PatternElement> elements, Set<String> taken) {
+        for (int i = 1; i < elements.size(); i += 2) {
+            RelPattern r = (RelPattern) elements.get(i);
+            if (r.variable() == null && !r.properties().isEmpty()) {
+                elements.set(i, new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(),
+                        r.lengthRange(), r.pos()));
+            }
+        }
+    }
+
     /** The arms from {@code at} on: the hop before {@code at} typed each way the model allows from {@code cls}, the
      *  node at {@code at} labelled with the class that way reaches (its own label must agree), and on. */
     private void assign(List<PatternElement> elements, int at, String cls, List<PatternElement> head,
@@ -1040,7 +1054,7 @@ public final class CypherToPure {
                         }
                     }
                 }
-                ways.addAll(edgeWays(cls, type, rel.direction()));
+                ways.addAll(edgeWays(cls, type, rel.direction(), rel.pos()));
             }
         } else {
             if (rel.direction() != CypherAst.Direction.IN) {
@@ -1057,11 +1071,12 @@ public final class CypherToPure {
                     }
                 }
             }
-            ways.addAll(edgeWays(cls, null, rel.direction()));
+            ways.addAll(edgeWays(cls, null, rel.direction(), rel.pos()));
         }
         for (Object[] way : ways) {
             String reached = (String) way[2];
             if (label != null && !label.equals(reached) && !model.isSubclass(reached, label)) {
+                refuseNarrowing(label, reached, (String) way[0], node.pos());
                 continue;
             }
             if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {
@@ -1077,6 +1092,16 @@ public final class CypherToPure {
         }
     }
 
+    /** A far label that is a subclass of the class a way reaches would narrow the way's instances, which the
+     *  translator does not read yet: refused by name (a label of another class leaves the way out, as a label
+     *  the way cannot reach). */
+    private void refuseNarrowing(String label, String reached, String way, Pos pos) {
+        if (model.isSubclass(label, reached)) {
+            throw CypherErrors.unsupported("the label " + label + " is a subclass of " + reached + ", which " + way
+                    + " reaches: a label narrowing a relationship's end is not supported yet", pos);
+        }
+    }
+
     /** The class's relationships read forward, as the model reports them. */
     private List<Property> ends(String classPath) {
         List<Property> out = new ArrayList<>();
@@ -1089,18 +1114,23 @@ public final class CypherToPure {
      *  §5.6), as (type, direction, the class reached): outgoing through its from end when the class is the edge's
      *  from class, incoming through its to end when its to class, as {@code direction} allows; an end the node
      *  class has no inverse of (the edge's own property) is no way from the node. */
-    private List<Object[]> edgeWays(String cls, @com.legend.base.Nullable String type, CypherAst.Direction direction) {
+    private List<Object[]> edgeWays(String cls, @com.legend.base.Nullable String type, CypherAst.Direction direction,
+            Pos pos) {
         List<Object[]> ways = new ArrayList<>();
         for (Edge e : edges()) {
             if (type != null && !e.type().equals(type)) {
                 continue;
             }
-            if (direction != CypherAst.Direction.IN && e.from().inverse() != null
-                    && model.isSubclass(cls, e.from().classPath())) {
+            if (direction != CypherAst.Direction.IN && model.isSubclass(cls, e.from().classPath())) {
+                if (e.from().inverse() == null) {
+                    throw noInverse(e, e.from(), true, cls, pos);
+                }
                 ways.add(new Object[] {e.type(), CypherAst.Direction.OUT, e.to().classPath()});
             }
-            if (direction != CypherAst.Direction.OUT && e.to().inverse() != null
-                    && model.isSubclass(cls, e.to().classPath())) {
+            if (direction != CypherAst.Direction.OUT && model.isSubclass(cls, e.to().classPath())) {
+                if (e.to().inverse() == null) {
+                    throw noInverse(e, e.to(), false, cls, pos);
+                }
                 ways.add(new Object[] {e.type(), CypherAst.Direction.IN, e.from().classPath()});
             }
         }
@@ -1317,7 +1347,7 @@ public final class CypherToPure {
         Property backward = rel.direction() == CypherAst.Direction.OUT || toClass == null ? null
                 : property(toClass, type);
         boolean known = forward != null && forward.classTyped() || backward != null && backward.classTyped()
-                || !edgeWays(from, type, rel.direction()).isEmpty();
+                || !edgeWays(from, type, rel.direction(), rel.pos()).isEmpty();
         if (!known) {
             if (rel.direction() != CypherAst.Direction.OUT && toClass == null) {
                 throw CypherErrors.unsupported("an incoming relationship to a label-less node in an OPTIONAL MATCH is"
@@ -1778,9 +1808,11 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a relationship pattern without a type ([] or -->) from a label-less node"
                     + " is not supported yet", rel.pos());
         }
-        if (rel.direction() == CypherAst.Direction.IN) {
-            throw CypherErrors.unsupported("an incoming relationship from a label-less node (<-[:" + rel.types().get(0)
-                    + "]-) is not supported yet", rel.pos());
+        if (rel.direction() != CypherAst.Direction.OUT) {
+            throw CypherErrors.unsupported("an " + (rel.direction() == CypherAst.Direction.IN ? "incoming"
+                    : "undirected") + " relationship from a label-less node (" + (rel.direction()
+                    == CypherAst.Direction.IN ? "<-[:" + rel.types().get(0) + "]-" : "-[:" + rel.types().get(0) + "]-")
+                    + ") is not supported yet", rel.pos());
         }
         String type = rel.types().get(0);
         List<String> declaring = new ArrayList<>();
@@ -1858,8 +1890,9 @@ public final class CypherToPure {
             String cls = java.util.Objects.requireNonNull(current.classPath());
             Hop hop = java.util.Objects.requireNonNull(hop(cls, rel, next, true, g.fanning()));
             String nextVar = next.variable();
-            if (g.fanning() && nextVar == null) {
-                // every node of a fanning graph is carried by name when the graph is materialized
+            if ((g.fanning() || hop.edge() != null) && nextVar == null) {
+                // every node of a fanning graph is carried by name when the graph is materialized; a node reached
+                // through an edge is named so a hop from it is refused by name
                 nextVar = freshName(new HashSet<>(g.bindings().keySet()));
                 next = new NodePattern(nextVar, next.labels(), next.properties(), next.pos());
             }
@@ -1990,14 +2023,15 @@ public final class CypherToPure {
             if (forward != null || backward != null) {
                 throw CypherErrors.invalid("the relationship type " + type + " names both an edge class ("
                         + edges.get(0).classPath() + ") and a property of " + (forward != null ? from : toClass)
-                        + ": a relationship type is one or the other", rel.pos());
+                        + ": a relationship type is one or the other (the graph is the model)", rel.pos());
             }
             return edgeHop(from, type, edges, rel, toClass, to, refuse, allowMany);
         }
         if (forward != null && isEdge(forward.type()) || backward != null && isEdge(backward.type())) {
             throw CypherErrors.invalid("the relationship type " + type + " names an end holding the edge class "
                     + (forward != null ? forward.type() : java.util.Objects.requireNonNull(backward).type())
-                    + ": an edge is reached by its type, never by an end's name (the study's §5.6)", rel.pos());
+                    + ": an edge is reached by its type, never by an end's name (the study's §5.6; the graph is the"
+                    + " model)", rel.pos());
         }
         if (forward == null && backward == null) {
             throw CypherErrors.invalid("the relationship type " + type + " names no property or association end of "
@@ -2090,14 +2124,11 @@ public final class CypherToPure {
                 continue;
             }
             if (near.inverse() == null) {
-                throw CypherErrors.unsupported("the edge class " + e.classPath() + " holds its " + (out ? "from" : "to")
-                        + " end " + near.property() + " with no inverse end on " + near.classPath() + " reaching it"
-                        + " (the end is its own property, or declared for a superclass): a pattern over it from the "
-                        + from + " side is not supported yet (an association declared for the edge class gives the"
-                        + " node its navigation)", rel.pos());
+                throw noInverse(e, near, out, from, rel.pos());
             }
-            ways.add(new Hop(near.inverse(), far.classPath(), false, near.inverseMany(), out, e.classPath(),
-                    far.property()));
+            // (a to-one inverse may hold no edge: the hop is optional, so a row with none is no match)
+            ways.add(new Hop(near.inverse(), far.classPath(), !near.inverseMany(), near.inverseMany(), out,
+                    e.classPath(), far.property()));
         }
         if (ways.isEmpty()) {
             if (!narrowed.isEmpty()) {
@@ -2109,7 +2140,7 @@ public final class CypherToPure {
                     + edges.get(0).classPath() + " from " + edges.get(0).from().classPath() + " to "
                     + edges.get(0).to().classPath() + ", which no pattern from " + from + " reads"
                     + (rel.direction() == CypherAst.Direction.OUT ? " outgoing" : rel.direction()
-                    == CypherAst.Direction.IN ? " incoming" : ""), rel.pos());
+                    == CypherAst.Direction.IN ? " incoming" : "") + " (the graph is the model)", rel.pos());
         }
         if (ways.size() > 1) {
             throw CypherErrors.unsupported("the relationship type " + type + " names " + ways.size() + " edge classes"
@@ -2125,6 +2156,17 @@ public final class CypherToPure {
             return null;
         }
         return hop;
+    }
+
+    /** An edge whose end the node class cannot navigate to (the end is the edge's own property, or an association
+     *  end declared for a superclass of the edge): refused by name wherever the edge is a way. */
+    private static com.legend.protocol.sql.SqlTranslationException noInverse(Edge e, End near, boolean out,
+            String from, Pos pos) {
+        return CypherErrors.unsupported("the edge class " + e.classPath() + " holds its " + (out ? "from" : "to")
+                + " end " + near.property() + " with no inverse end on " + near.classPath() + " reaching it"
+                + " (the end is its own property, or declared for a superclass): a pattern over it from the "
+                + from + " side is not supported yet (an association declared for the edge class gives the"
+                + " node its navigation)", pos);
     }
 
     /** The class a node pattern's labels name: one label's class (PR1 reads one label); null for a label-less node. */
@@ -2148,7 +2190,8 @@ public final class CypherToPure {
         }
         if (isEdge(classes.get(0))) {
             throw CypherErrors.invalid("the label " + label + " names the edge class " + classes.get(0) + " (a"
-                    + " relationship type, not a node label): a pattern reaches it by its type", n.pos());
+                    + " relationship type, not a node label; the graph is the model): a pattern reaches it by its"
+                    + " type", n.pos());
         }
         return classes.get(0);
     }
@@ -3178,6 +3221,10 @@ public final class CypherToPure {
 
         /** Whether {@code name} is a node or relationship variable of a pattern. */
         boolean isPatternVariable(String name);
+
+        /** Whether {@code name} is bound at all: a pattern's variable, a path, a projected column, a value bound
+         *  around an expression. */
+        boolean binds(String name);
     }
 
     private final class GraphScope implements Scope {
@@ -3318,6 +3365,11 @@ public final class CypherToPure {
                 @Override
                 public boolean isPatternVariable(String name) {
                     return hops(name) || !isPath(name) && outer.isPatternVariable(name);
+                }
+
+                @Override
+                public boolean binds(String name) {
+                    return hops(name) || isPath(name) || outer.binds(name);
                 }
 
                 /** The path's JSON (§12.27's shape): its start node read here, its end node and relationship
@@ -3534,11 +3586,13 @@ public final class CypherToPure {
             specs.add(new ColSpec(column, lambda(g.row(), type), null, null));
             columns.add(new Col(column, Kind.STRING, nullable));
             Map<String, NodeProp> props = new LinkedHashMap<>();
-            if (b.classPath() != null && !b.absent()) {
-                List<String> classes = !acrossArms.isEmpty() ? acrossArms : List.of(b.classPath());
+            if (!acrossArms.isEmpty() || b.classPath() != null && !b.absent()) {
+                List<String> classes = !acrossArms.isEmpty() ? acrossArms
+                        : List.of(java.util.Objects.requireNonNull(b.classPath()));
+                String edge = b.absent() ? null : b.classPath();
                 for (Map.Entry<String, Kind> k : unionKinds(classes, pos).entrySet()) {
                     String col = freshName(names);
-                    Tx t = CypherToPure.this.property(b.classPath(), k.getKey()) != null
+                    Tx t = edge != null && CypherToPure.this.property(edge, k.getKey()) != null
                             ? propertyOf(b, k.getKey(), pos) : SqlToPure.nullOf(k.getValue());
                     boolean nullableHere = classes.size() > 1 || t.nullable() || nullable;
                     specs.add(new ColSpec(col, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
@@ -3593,6 +3647,11 @@ public final class CypherToPure {
         @Override
         public boolean isPatternVariable(String name) {
             return g.bindings().containsKey(name);
+        }
+
+        @Override
+        public boolean binds(String name) {
+            return g.bindings().containsKey(name) || g.paths().containsKey(name);
         }
 
         /** A bound node's property: the class's, navigated from the root instance (C4: a property the class does not
@@ -3713,6 +3772,11 @@ public final class CypherToPure {
         public boolean isPatternVariable(String name) {
             return !projected.containsKey(name) && inner.isPatternVariable(name);
         }
+
+        @Override
+        public boolean binds(String name) {
+            return projected.containsKey(name) || inner.binds(name);
+        }
     }
 
     /** The scope of a WHERE or an ORDER BY after a grouping or a DISTINCT: the projected columns, and an expression
@@ -3771,6 +3835,11 @@ public final class CypherToPure {
         @Override
         public boolean isPatternVariable(String name) {
             return false;
+        }
+
+        @Override
+        public boolean binds(String name) {
+            return inner.binds(name);
         }
     }
 
@@ -3951,6 +4020,11 @@ public final class CypherToPure {
                 // lacks); of one an OPTIONAL MATCH never found, null too
                 NodeProp np = rel.props().get(p.name());
                 if (np == null) {
+                    if (!rel.props().isEmpty()) {
+                        throw CypherErrors.invalid("the relationship " + v.name() + " has no property " + p.name()
+                                + " (the graph is the model: a property its edge class does not declare is an error,"
+                                + " not null)", p.pos());
+                    }
                     return nullValue();
                 }
                 return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
@@ -3966,6 +4040,11 @@ public final class CypherToPure {
         @Override
         public boolean isPatternVariable(String name) {
             return false;
+        }
+
+        @Override
+        public boolean binds(String name) {
+            return column(name) != null;
         }
     }
 
@@ -4003,6 +4082,11 @@ public final class CypherToPure {
         @Override
         public boolean isPatternVariable(String n) {
             return !n.equals(name) && inner.isPatternVariable(n);
+        }
+
+        @Override
+        public boolean binds(String n) {
+            return n.equals(name) || inner.binds(n);
         }
     }
 
@@ -4053,22 +4137,33 @@ public final class CypherToPure {
 
     /** A condition: the rows where {@code e} is true (null and false alike are not). */
     private ValueSpecification condition(Expr e, Scope scope, String clause) {
-        inCondition.push(Boolean.TRUE);
-        Tx t;
-        try {
-            t = tx(e, scope);
-        } finally {
-            inCondition.pop();
-        }
+        markBooleanContext(e);
+        Tx t = tx(e, scope);
         if (t.kind() != Kind.BOOLEAN && t.kind() != Kind.NULL) {
             throw CypherErrors.invalid("Type mismatch: expected Boolean but was " + cypherType(t.kind()), e.pos());
         }
         return SqlToPure.truth(t, clause, e.pos()).vs();
     }
 
-    /** The conditions being read (a WHERE, a CASE's test, a comprehension's filter): where a pattern may stand as a
-     *  predicate. Outside one (a RETURN item), Neo4j refuses a pattern expression, and so does the island. */
-    private final java.util.ArrayDeque<Boolean> inCondition = new java.util.ArrayDeque<>();
+    /** The pattern predicates standing where a boolean is tested (a WHERE, a CASE's test, a quantifier's or
+     *  comprehension's predicate, and the operands of NOT, AND, OR and XOR under one): Neo4j allows a pattern
+     *  expression there and nowhere else (inside a function's argument, a comparison, a RETURN item), and so does
+     *  the island. Decided by the expression's structure, each node by identity. */
+    private final Set<Expr> booleanPatterns = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    private void markBooleanContext(Expr e) {
+        switch (e) {
+            case CypherAst.PatternPredicate pp -> booleanPatterns.add(pp);
+            case CypherAst.Paren p -> markBooleanContext(p.inner());
+            case CypherAst.Unary u when u.op() == CypherAst.UnaryOp.NOT -> markBooleanContext(u.operand());
+            case CypherAst.Binary b when b.op() == BinaryOp.AND || b.op() == BinaryOp.OR || b.op() == BinaryOp.XOR -> {
+                markBooleanContext(b.left());
+                markBooleanContext(b.right());
+            }
+            default -> {
+            }
+        }
+    }
 
     /** An expression's value over a scope: a scalar, or a list or map of known shape. */
     private Val val(Expr e, Scope scope) {
@@ -4113,15 +4208,28 @@ public final class CypherToPure {
             case CypherAst.PatternComprehension pc -> patternComprehension(pc, scope);
             case CypherAst.LabelPredicate lp -> scalar(labelPredicate(lp, scope));
             case CypherAst.PatternPredicate pp -> {
-                if (inCondition.isEmpty()) {
+                if (!booleanPatterns.contains(pp)) {
                     // (Neo4j's rule, its words: a pattern expression stands where a boolean is tested)
                     throw CypherErrors.invalid("A pattern expression should only be used in order to test the"
                             + " existence of a pattern. It should therefore only be used in contexts that evaluate to"
                             + " a boolean, e.g. inside the function exists() or in a WHERE-clause.", pp.pos());
                 }
-                yield scalar(patternExists(pp.pattern(), null, pp.pos(), scope));
+                // (Neo4j's rule, its words: a pattern expression binds no new variable; an EXISTS subquery may)
+                for (PatternElement el : pp.pattern().elements()) {
+                    String v = el instanceof NodePattern n ? n.variable() : ((RelPattern) el).variable();
+                    if (v != null && !scope.binds(v)) {
+                        throw CypherErrors.invalid("PatternExpressions are not allowed to introduce new variables: '"
+                                + v + "'.", pp.pos());
+                    }
+                }
+                if (pp.pattern().variable() != null && !scope.binds(pp.pattern().variable())) {
+                    throw CypherErrors.invalid("PatternExpressions are not allowed to introduce new variables: '"
+                            + pp.pattern().variable() + "'.", pp.pos());
+                }
+                yield scalar(patternExists(pp.pattern(), null, List.of(), pp.pos(), scope));
             }
-            case CypherAst.ExistsSubquery ex -> scalar(patternExists(ex.pattern(), ex.where(), ex.pos(), scope));
+            case CypherAst.ExistsSubquery ex -> scalar(patternExists(ex.pattern(), ex.where(), ex.items(), ex.pos(),
+                    scope));
             case CypherAst.Index ix -> index(ix, scope);
             case CypherAst.Slice sl -> slice(sl, scope);
         };
@@ -4315,6 +4423,7 @@ public final class CypherToPure {
 
     /** A boolean operand: a condition, or null (Cypher's unknown). */
     private Tx booleanOperand(Expr e, Scope scope) {
+        markBooleanContext(e);
         Tx t = tx(e, scope);
         if (t.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
@@ -5870,7 +5979,8 @@ public final class CypherToPure {
      *  over the hop's node), the ways or-ed; no way, false. Built over the pattern comprehension's hop resolution,
      *  which refuses by name what it does not read (a hop from no bound node, both ends bound, a property map,
      *  more than one hop, a pattern over rows). */
-    private Tx patternExists(PathPattern pattern, @com.legend.base.Nullable Expr where, Pos pos, Scope scope) {
+    private Tx patternExists(PathPattern pattern, @com.legend.base.Nullable Expr where, List<Expr> items, Pos pos,
+            Scope scope) {
         CypherAst.PatternComprehension pc = new CypherAst.PatternComprehension(pattern, where,
                 new CypherAst.BoolLit(true, pos), pos);
         Hopped h = hopped(pc, scope);
@@ -5878,15 +5988,25 @@ public final class CypherToPure {
         for (Way way : h.ways()) {
             ValueSpecification found;
             if (!way.hop().many()) {
+                Scope inner = h.innerOne(way, null);
                 found = call("isNotEmpty", h.navigation(way));
                 if (where != null) {
-                    found = call("and", found, condition(where, h.innerOne(way, null), "WHERE"));
+                    found = call("and", found, condition(where, inner, "WHERE"));
+                }
+                // (an EXISTS subquery's RETURN items are read for their static errors, a variable not defined
+                // among them; a row's existence is what counts)
+                for (Expr item : items) {
+                    val(item, inner);
                 }
             } else {
                 ValueSpecification coll = h.navigation(way);
+                String var = freshName(new HashSet<>(h.outer().g.bindings().keySet()));
+                Scope inner = h.inner(way, var, null);
                 if (where != null) {
-                    String var = freshName(new HashSet<>(h.outer().g.bindings().keySet()));
-                    coll = call("filter", coll, lambda(var, condition(where, h.inner(way, var, null), "WHERE")));
+                    coll = call("filter", coll, lambda(var, condition(where, inner, "WHERE")));
+                }
+                for (Expr item : items) {
+                    val(item, inner);
                 }
                 found = call("isNotEmpty", coll);
             }
@@ -6004,6 +6124,17 @@ public final class CypherToPure {
         }
         refuseHopPastEdge(start.variable(), rel.pos());
         String cls = java.util.Objects.requireNonNull(from.classPath());
+        String startLabel = labelClass(start);
+        if (startLabel != null && !model.isSubclass(cls, startLabel)) {
+            if (model.isSubclass(startLabel, cls)) {
+                throw CypherErrors.unsupported("the label " + startLabel + " on " + start.variable() + " (a subclass of"
+                        + " its class " + cls + ") in a pattern comprehension or predicate is not supported yet",
+                        start.pos());
+            }
+            // a label the bound node's class does not carry: the pattern matches nothing
+            return new Hopped(gs, java.util.Objects.requireNonNull(start.variable()), from, List.of(),
+                    end.variable(), rel.variable(), this::freshName);
+        }
         String label = labelClass(end);
         // the ways: (type, direction, the class reached), as an untyped pattern's arms are decided (§12.17)
         List<Object[]> candidates = new ArrayList<>();
@@ -6023,7 +6154,7 @@ public final class CypherToPure {
                         }
                     }
                 }
-                candidates.addAll(edgeWays(cls, type, rel.direction()));
+                candidates.addAll(edgeWays(cls, type, rel.direction(), rel.pos()));
             }
         } else {
             if (rel.direction() != CypherAst.Direction.IN) {
@@ -6040,12 +6171,13 @@ public final class CypherToPure {
                     }
                 }
             }
-            candidates.addAll(edgeWays(cls, null, rel.direction()));
+            candidates.addAll(edgeWays(cls, null, rel.direction(), rel.pos()));
         }
         List<Way> ways = new ArrayList<>();
         for (Object[] way : candidates) {
             String reached = (String) way[2];
             if (label != null && !label.equals(reached) && !model.isSubclass(reached, label)) {
+                refuseNarrowing(label, reached, (String) way[0], end.pos());
                 continue;
             }
             if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {
@@ -6060,6 +6192,9 @@ public final class CypherToPure {
             if (hop != null) {
                 ways.add(new Way((String) way[0], hop));
             }
+        }
+        if (end.variable() != null && ways.stream().anyMatch(w -> w.hop().edge() != null)) {
+            reachedThroughEdge.add(end.variable());
         }
         return new Hopped(gs, java.util.Objects.requireNonNull(start.variable()), from, ways, end.variable(),
                 rel.variable(), this::freshName);
