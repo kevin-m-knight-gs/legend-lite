@@ -1717,6 +1717,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
 - **The odds-and-ends leg, 2026-10-16, announced here as landed** — the translator, `lite/odds.yaml`, and the
   Postgres dialect's cast of a text literal (typed text first, so a `CASE` guard holds; `PostgresDialectTest`): no
   guard pin moved. The record: the study's §12.23; GATES "the twenty-first landing".
+- **The aggregates-in-expressions leg, 2026-10-16, announced here as landed** — the translator and
+  `lite/aggregates.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.24; GATES
+  "the twenty-second landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

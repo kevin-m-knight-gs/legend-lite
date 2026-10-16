@@ -2531,3 +2531,44 @@ Four small refusals with a clear reading, 25 TCK cases between them:
 
 6 lite cases in `lite/odds.yaml`, each judged by Neo4j.
 
+### 12.24 Aggregates in expressions, 2026-10-16: an expression around aggregates, an ORDER BY aggregate, a null column aggregated, and three small readings
+
+- **An item that is an expression around aggregates** (`count(*) * 10`, `count(n) / 60 / 60`,
+  `$age + avg(person.age) - 1000`, `count(a) > 0`) is Cypher's implicit grouping with the aggregates computed
+  first: each aggregate inside is a hidden output of the grouping (by its spelling, so one spelled twice is
+  computed once), finished as an item's aggregate is (a sum of nothing 0), and the expression is `extend`ed over
+  the finished aggregates and the keys after the grouping, under the item's name; the items alone are selected.
+  Its other parts are constants and parameters: a value of the row among them (`p.age + count(*)`) is Neo4j's
+  implicit grouping key, an error.
+- **An ORDER BY over aggregates after a grouping** re-spells the items' aggregates (`ORDER BY $age + avg(x) - 1000`
+  with `avg(x) AS avgAge` an item) through the keyed scope, as it re-spells a key's expression; an aggregate it
+  asks for beyond the items (`WITH a.num2 % 3 AS mod, min(sum) AS min ORDER BY sum(sum)`) is a hidden aggregate
+  of the grouping over the scope before the projection, kept beside the items until the sort and dropped after
+  it. Neo4j 2026.09 answers these (measured by the oracle: the sort's aggregate of a variable the WITH dropped is
+  computed, not refused); the TCK's expected `UndefinedVariable` (WithOrderBy4 [13], [14]) is older, and the
+  oracle's answer is the judge.
+- **A sum or an average of a null column** (a property no node of an empty graph holds, which the empty model
+  reads as null, Cypher's `avg(person.age)` over `MATCH (person)` of nothing): no value to add, so each row
+  contributes 0 to the sum (0 over no row too, the finish) and the average is null, the finish a typed null and
+  its column a null the query named (read as null wherever it is read: a read through `toOne` of a provably
+  empty value is the lowering's raise, which Postgres types as text); the grouping still collapses the rows as
+  Cypher's does. Not an aggregate over a typed null: the lowering folds
+  `cast([], @Integer)` to a bare `NULL`, and Postgres cannot type `SUM(NULL)` ("function sum(unknown) is not
+  unique"), measured on the lane. The aggregate's finish is now one operator over the raw result's read (a sum's
+  0 of nothing, an average's null), where it was a flag.
+- **`labels(null)`, `type(null)` and `properties(null)`** are null; `properties(map)` is the map.
+- **A text and a number do not order**: `'1' < 1` is null (Neo4j's), as a boolean and another value already were;
+  their equality stays false.
+- **The harness, one line:** Neo4j names an unaliased item by its text, a parameter as written
+  (`$age + avg(person.age) - 1000`); the lane binds the parameters into the query's text (§12.15), so the island
+  names it by the bound text. The judge reads Neo4j's column names through the same binding.
+
+#### 12.24.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4202 | 2435 (from 2,407) | 0 | 0 | 0 | 691 | 708 | 368 |
+| Postgres | 4202 | 2085 (from 2,057) | 0 | 0 | 0 | 1041 | 708 | 368 |
+
+13 lite cases in `lite/aggregates.yaml`, each judged by Neo4j.
+

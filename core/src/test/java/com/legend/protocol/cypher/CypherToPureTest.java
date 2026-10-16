@@ -395,6 +395,24 @@ class CypherToPureTest {
     }
 
     @Test
+    void anExpressionAroundAggregatesIsComputedAfterTheGrouping() {
+        // the study's §12.24: each aggregate a hidden column of the grouping, the expression extended over the
+        // finished aggregates (a count of nothing is 0), the items alone selected; an ORDER BY aggregate beyond the
+        // items a hidden aggregate of the grouping too, read by the sort and dropped after it
+        assertEquals("demo::Person.all()->project(~[_cypher_2:p|1, _cypher_4:p|1])->aggregate(~[_cypher_1:x|$x._cypher_2:y|$y->count(), _cypher_3:x|$x._cypher_4:y|$y->count()])->extend(~[c:r|$r._cypher_1 * 10, neg:r|1 - $r._cypher_3])->select(~[c, neg])",
+                pure("MATCH (p:Person) RETURN count(*) * 10 AS c, 1 - count(p) AS neg"));
+        // a sum of nothing is 0: the raw sum finished first, the expression over the finished one
+        assertEquals("demo::Person.all()->project(~[name:p|$p.name, _cypher_2:p|$p.age])->groupBy(~[name], ~[_cypher_3:x|$x._cypher_2:y|$y->sum()])->extend(~[_cypher_1:r|if($r._cypher_3->isEmpty(), |0, |$r._cypher_3->toOne())])->extend(~[twice:r|$r._cypher_1 * 2])->select(~[name, twice])->sort([~name->ascending(meta::pure::functions::relation::NullOrder.LAST)])",
+                pure("MATCH (p:Person) RETURN p.name AS name, sum(p.age) * 2 AS twice ORDER BY name"));
+        // the sort's aggregate beyond the items: hidden, kept past the grouping's select, dropped after the sort
+        assertEquals("demo::Person.all()->project(~[name:p|$p.name, _cypher_1:p|$p.age, _cypher_3:p|$p.age])->groupBy(~[name], ~[min:x|$x._cypher_1:y|$y->min(), _cypher_5:x|$x._cypher_3:y|$y->sum()])->extend(~[_cypher_2:r|if($r._cypher_5->isEmpty(), |0, |$r._cypher_5->toOne())])->select(~[name, min, _cypher_2])->extend(~[_cypher_4:r|$r._cypher_2])->sort([~_cypher_4->ascending(meta::pure::functions::relation::NullOrder.LAST)])->select(~[name, min])->select(~[name])",
+                pure("MATCH (p:Person) WITH p.name AS name, min(p.age) AS min ORDER BY sum(p.age) RETURN name"));
+        // the sort re-spelling an item's aggregate reads its column
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|$p.age])->aggregate(~[a:x|$x._cypher_1:y|$y->average()])->select(~[a])->extend(~[_cypher_2:r|if($r.a->isEmpty(), |[], |1 + $r.a->toOne())])->sort([~_cypher_2->ascending(meta::pure::functions::relation::NullOrder.LAST)])->select(~[a])",
+                pure("MATCH (p:Person) RETURN avg(p.age) AS a ORDER BY 1 + avg(p.age)"));
+    }
+
+    @Test
     void aRelationshipIsItsType() {
         // the study's §12.19: a relationship as a value is its type's JSON (the model holds no relationship
         // property); type(r) its type; carried through WITH as its type's column
@@ -609,7 +627,7 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person) RETURN p ORDER BY p", "ORDER BY a node (p");
         unsupported("MATCH (p:Person) RETURN p, count(*) AS c", "a node among the grouping keys (p");
         unsupported("MATCH (p:Person:Firm) RETURN p.name", "several labels");
-        unsupported("MATCH (p:Person) RETURN p.age + count(*)", "an expression around an aggregate");
+        invalid("MATCH (p:Person) RETURN p.age + count(*)", "implicit grouping expressions (p in p.age + count(*))");
         unsupported("RETURN 1e308 AS x", "a float literal beyond 1e15");
         unsupported("RETURN 1e-20 AS x", "a float literal beyond 1e15");
     }

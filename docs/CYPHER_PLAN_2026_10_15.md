@@ -105,6 +105,7 @@ PASS 2,003, 0 FAIL, 0 BUG, 0 ERROR on both. Then the temporal remainder's second
 `toString(duration)`, a date inside a node; DuckDB PASS 2,377, Postgres PASS 2,029, 0 FAIL, 0 BUG, 0 ERROR on
 both. Then `toString` of date-times and times (§12.22); DuckDB PASS 2,385, Postgres PASS 2,035, 0 FAIL, 0 BUG,
 0 ERROR on both. Then the odds and ends (§12.23); DuckDB PASS 2407, Postgres PASS 2057, 0 FAIL, 0 BUG, 0 ERROR
+on both. Then aggregates in expressions (§12.24); DuckDB PASS 2435, Postgres PASS 2085, 0 FAIL, 0 BUG, 0 ERROR
 on both. Then the full CI run on the branch, the merge; an OPTIONAL MATCH's WHERE, an edge class, named zones, and
 `collect` (the database owner's aggregate) wait.
 

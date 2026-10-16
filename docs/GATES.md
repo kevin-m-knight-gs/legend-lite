@@ -9850,6 +9850,22 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the twenty-second landing — aggregates in expressions: an expression around aggregates, an ORDER BY aggregate, a null column aggregated (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the odds-and-ends leg; the record is the study's §12.24
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only.
+
+1. **What lands.** An item that is an expression around aggregates, computed after the grouping over hidden
+   aggregates; an ORDER BY re-spelling the items' aggregates, or asking for one beyond them (a hidden aggregate of
+   the grouping, Neo4j 2026.09's reading); a sum (0) and an average (null) of a null column; `labels`, `type` and
+   `properties` of null, `properties` of a map; a text and a number not ordering (null).
+2. **The ledger.** DuckDB: 4202 cases; PASS 2435 (from 2,407); FAIL 0; BUG 0; ERROR 0; REFUSED 691;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2085 (from 2,057); FAIL 0; BUG 0; ERROR 0; REFUSED 1041;
+   BOTH_ERROR 708; SKIP 368. 13 lite cases in `lite/aggregates.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the twenty-first landing — odds and ends: the duration round trip, numbers from texts, UNWIND after a MATCH, a list indexed by the row (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the temporal `toString` leg; the record is the study's §12.23

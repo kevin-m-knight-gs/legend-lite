@@ -397,7 +397,11 @@ public final class CypherParity {
             return new SqlParity.Outcome(SqlParity.Status.BUG, "Neo4j rejects it (" + a.error().code() + ": "
                     + a.error().message() + ") and legend-lite answered " + actual.rows().size() + " rows");
         }
-        List<String> columns = java.util.Objects.requireNonNull(a.columns());
+        // Neo4j names an unaliased item by its text, a parameter as written ($age); the lane binds the parameters
+        // into the query's text (Case.island), so the island names it by the bound text: Neo4j's names read
+        // through the same binding
+        List<String> columns = java.util.Objects.requireNonNull(a.columns()).stream()
+                .map(name -> Case.bindParameters(name, c.paramsText())).toList();
         if (!columns.equals(actual.columns())) {
             return new SqlParity.Outcome(SqlParity.Status.FAIL, "columns: Neo4j " + columns + ", lite "
                     + actual.columns());
