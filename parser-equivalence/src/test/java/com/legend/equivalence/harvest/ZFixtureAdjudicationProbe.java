@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /** PROBE: pre-ingestion adjudication of the harvested engine fixtures —
- *  oracle verdict x lite verdict per fixture, byte parity where both
+ *  referee verdict x lite verdict per fixture, byte parity where both
  *  accept. Diagnostic, run on demand (Bazel workplan P3-17):
  *  {@code bazel run //parser-equivalence:z_fixture_adjudication_probe -- --out DIR [--fixtures FILE]}; the
  *  fixtures default to the committed snapshot (a fresh harvest is //parser-equivalence:gen_fixtures's output),
@@ -40,7 +40,7 @@ final class ZFixtureAdjudicationProbe {
     }
 
     private static void adjudicate(Path dump, Path outDir) throws Exception {
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         ObjectMapper mapper = org.finos.legend.engine.shared.core
                 .ObjectMapperFactory
                 .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
@@ -52,7 +52,7 @@ final class ZFixtureAdjudicationProbe {
         java.util.List<String> refuseSamples = new java.util.ArrayList<>();
         // the committed snapshot (a fresh harvest is //parser-equivalence:gen_fixtures's output; no test leaves one in
         // its outputs for another to read -- Bazel workplan P2-16, G-01).
-        // NOTE: honest verdicts need the PRODUCTION oracle (run on the
+        // NOTE: honest verdicts need the PRODUCTION referee (run on the
         // ordinary test classpath, never :harvest_lib — the tests-jars alter it)
         for (String line : Files.readAllLines(dump)) {
             if (line.isBlank() || line.startsWith("#")) {
@@ -63,7 +63,7 @@ final class ZFixtureAdjudicationProbe {
             String expectedJson;
             try {
                 expectedJson = mapper.writeValueAsString(
-                        oracle.parseModel(src));
+                        referee.parseModel(src));
             } catch (Throwable t) {
                 boolean liteAccepts;
                 try {

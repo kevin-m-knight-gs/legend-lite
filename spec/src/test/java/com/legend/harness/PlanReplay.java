@@ -3,7 +3,7 @@
 
 package com.legend.harness;
 
-import com.legend.exec.SqlReplayOracle;
+import com.legend.exec.SqlReplayReferee;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
  * exactly as the engine's plan executor runs them. An {@code
  * Allocation} binds its name to its value — a {@code Constant}'s
  * literal values, or a {@code Relational} node's rows fetched on the
- * oracle — and the later nodes' {@code ${...}} holes fill from the
+ * referee — and the later nodes' {@code ${...}} holes fill from the
  * bindings: a name, a {@code name.column} read of a bound row, the
  * freemarker {@code ?replace} builtin, or one of the engine's own
  * template helper functions (relationalMappingExecution.pure:
@@ -46,12 +46,12 @@ final class PlanReplay {
             Pattern.DOTALL);
 
     /** The final SQL of {@code plan} with every hole filled; {@code run}
-     * fetches an Allocation's Relational value on the oracle. */
-    /** {@code materialize(name, sql, labels)}: the oracle keeps the
+     * fetches an Allocation's Relational value on the referee. */
+    /** {@code materialize(name, sql, labels)}: the referee keeps the
      * allocation's rows as a table and returns the relation read that
      * stands in for the placeholder. */
     static String finalSql(String plan, Map<String, List<String>> params,
-            Function<String, SqlReplayOracle.OracleRows> run,
+            Function<String, SqlReplayReferee.RefereeRows> run,
             Materializer materialize) {
         if (plan.contains("sql=select") || plan.contains("Sequence(type=")) {
             // planToStringWithoutFormatting strips the SQL's own spaces
@@ -63,7 +63,7 @@ final class PlanReplay {
         Map<String, List<String>> bindings = new LinkedHashMap<>(params);
         Map<String, Map<String, String>> rowBindings = new LinkedHashMap<>();
         // a MULTI-column allocation used as a relation (the cross-store
-        // TDS join's `from (${tdsVar_0}) as …`): the ORACLE keeps its rows
+        // TDS join's `from (${tdsVar_0}) as …`): the REFEREE keeps its rows
         // as a table named by the allocation — the values never leave the
         // database (batch 112; the engine realizes the rows in Java and its
         // template re-spells them, with the placeholder's column names
@@ -96,7 +96,7 @@ final class PlanReplay {
                 String sql = fill(m.group(7).strip(),
                         new Scope(bindings, rowBindings, relations));
                 if (pending != null) {
-                    SqlReplayOracle.OracleRows rows = run.apply(sql);
+                    SqlReplayReferee.RefereeRows rows = run.apply(sql);
                     Map<String, String> row = new LinkedHashMap<>();
                     List<String> scalars = new ArrayList<>();
                     for (List<Object> r : rows.rows()) {
@@ -129,8 +129,8 @@ final class PlanReplay {
 
     /** The raw spelling of a fetched cell — the template supplies its own
      * quoting, so the value is bare (a temporal cell prints in the
-     * driver's own 'yyyy-MM-dd[ HH:mm:ss.f]' form, which the oracle's H2
-     * reads back; no JDBC type is named here — the oracle owns JDBC). */
+     * driver's own 'yyyy-MM-dd[ HH:mm:ss.f]' form, which the referee's H2
+     * reads back; no JDBC type is named here — the referee owns JDBC). */
     private static String spell(Object v) {
         return v == null ? "null" : String.valueOf(v);
     }

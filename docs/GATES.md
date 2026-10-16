@@ -10640,3 +10640,97 @@ the audit's findings under Phase 4).
   cleared, and `classpath_test` was skipped. Also green on 9d8b5f0, before the audit's fixes: 362 of 362.
 - **Found on the way:** `sqlrun.sh`'s summary missed two channel B lines (MariaDB and MySQL unclassified), whose
   logs grep took for binary; d9d2e19 reads them with `-a` (both clean: pass=91, wireBug=0).
+
+## 2026-10-16 — The dialect program's Phase 3: SQL composed outside the dialect (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 3). In progress; this entry grows with the phase.
+- **The catalog grids are the dialect's** (the `fetchDb*MetaData` natives): a `TypedCatalogGrid` and a
+  `SqlSource.Catalog`. DuckDB and H2 read `information_schema` through `sql/dialect/InformationSchemaCatalog`, and
+  every other dialect refuses a grid. The schema, table and key grids are the text the compiler wrote (goldens run
+  from the deleted code, `CatalogGridTest`). The column grid's types are now each database's own, measured against
+  its JDBC driver's `DatabaseMetaData.getColumns`, which is legend-pure's native. H2's catalog names a VARCHAR
+  `CHARACTER VARYING`, which the old DuckDB-named table typed OTHER.
+  - `h2-fail-roster.txt` −1: `testFetchDbColumnsMetaData` passes on the host judge (its `SQL_TYPE_NAME` holds
+    `VARCHAR`).
+  - `h2-database-lost-register.txt` +1, the same test: database mode fails it as it fails 61 other rows of that
+    register (`DialectCapability: variant navigation reached a dialect without JSON support`, its
+    `.rows.value(...)` read). It was not in the register before because the host judge failed it first.
+- **The test-data generator's statements are IR its session's dialect writes** (`TestDataGenerator`): the fetches
+  (selects over the store tables, quoted as declared, and the parent's temp table), their temp tables
+  (`SqlDml.CreateTempTableAs`), their read-backs, the CSV envelope and the seed read. Until now it wrote one text it
+  hoped both H2 and DuckDB would read. Its trail is the dialect's one-line form (`SqlDialect.renderInline`), since
+  the engine's tests compare it with the newlines removed. The CSV compare, which had no caller, is deleted, and with
+  it the `EXCEPT` diff and the `duckType` table.
+  - H2's dialect spelled `md5`/`sha1`/`sha256`, which H2 lacks. They are now its `RAWTOHEX(HASH(...))`, and
+    `DigestTest` asks H2 and DuckDB for Java's digests.
+  - The CSV envelope found a text column by exact case, so H2 (which upper-cases a temp's columns) hashed nothing.
+    It compares without case now. `h2-fail-roster.txt` −1: `testUnionToUnionMultipleLevelsWithStringHashing` passes
+    on both H2 judges.
+  - With H2's digests spelled, `testJoinWithExtendWithDigestOnColumnsOnBothQueries` no longer falls back outside
+    its body, and both H2 judges reach and fail its assert #1 alike: `h2-database-outside-body-register.txt` −1 and
+    `h2-database-untriaged-register.txt` −1, that test's entries.
+- **The plan text's SQL is its dialect's** (`PlanText`, `PlanAllocations`): the engine-text dialect
+  (`EngineTextDialect`) writes each node's select and its temp-table select. A relational node's connection line names
+  the runtime's connection, not a fixed H2; the generator's plan names the engine's test connection, the constant its
+  caller passes. The test-data generator's plan (`planText`) is IR that dialect writes too
+  (`EngineTextDialect.renderAsAliased`: the aliases as built, so a child fetch's parent is `(${parent}) as "root"`).
+  A differential run of the old hand-written text against the new one, over every generator plan the corpus prints,
+  found no differing byte. The hand-written text is deleted.
+- **PARK-16 is closed** (docs/PARKED_WORK_LEDGER.md): `ReservedNamesGenerationTest` generates over a default-schema
+  table `order` and a table in schema `select` on every database with an in-memory instance (DuckDB, H2, SQLite).
+  It names none of them; the leak ratchet's type pattern no longer counts `DatabaseType.values()`, which
+  enumerates every database and names none (`.class` and `valueOf` still count).
+- **Names the leak ratchet read as a database** (no behaviour change). The product pattern counts `oracle` as the
+  Oracle database, so the test oracle is named the referee in code and comments (`SqlReplayReferee`,
+  `ReplayReferee`, `RefereePins`, `Databases.REPLAY_REFEREE`, and every `oracle` identifier in 103 files; the Oracle
+  database's own names are kept). Three locals the H2/DB2 pattern read as a database are named for what they hold.
+  The ledger is lowered as measured: 31 rows reach zero, `SqlTextVerdicts` 63 → 4, `StatementExecutor` 27 → 7.
+- **The browser planner compiles again** (`//wasm:planner`, which no local core target builds): the catalog grid's
+  type codes had used `Collections.unmodifiableSequencedMap`, which TeaVM's class library lacks; they are a
+  read-only copy of an ordered map now.
+- **The local gate's generated files** (`//gates:local`, 2026-10-16): the capability matrix regenerated (H2's and
+  H2Modern's `MD5`, `SHA1`, `SHA256` move from spelled to emulated, the digest arms above); parser-equivalence's
+  `own_corpus.matched` 2847 → 2851, from the inline models in this branch's new and changed tests, the only
+  snippet sources it touches (`CatalogGridTest`, `DigestTest`, `SchemaDdlTextTest`, `TranslateTest`,
+  `ReservedNamesGenerationTest`, and `ReservedNames` split into its store and its connection): four more snippets on
+  which lite's parse and the engine's agree; `tools/deps/core-layers.txt` gains testdatagen → sql.
+- **The independent audit of the branch** (an agent that wrote none of it, 2026-10-16), and what it changed:
+  - *Blocking*: `//gates:local` was red on three generated files, the entry above.
+  - A connection whose type the body computes is no longer guessed. Since the second piece (f938b88), its reading
+    returned nothing and the walk went on: a sibling connection's literal type could be printed, or the default
+    `TestDatabaseConnection(type = "H2")`. The commit said it refused; it did not. The first connection instance
+    found now answers (`ExecutionContext.PlanConnection`), and the plan text refuses one without a literal type
+    (`PlanConnection.planText`). The default for a runtime with no connection instance read at all stays the
+    engine's test runtime's (`EngineText.ENGINE_TEST_DATABASE`, the reader gap W2.1).
+  - The engine-text dialect's interface is quarantined like its classes
+    (`ArchitectureTest.engineTextDialectIsQuarantinedToTheRootLayerAndThePlanPrinter`): it is a `SqlDialect`, so the
+    rule on the concrete classes let an execution path hold one through it. The root layer and the generator's plan
+    printer may.
+  - A seed row's date and timestamp cells double their quotes, as every non-numeric cell did before the rows were
+    IR (`EngineSeedRowTest`). A number is written by its value (`007` as `7`), as the javadoc now says.
+  - `CREATE TEMPORARY TABLE ... AS` is refused by the base renderer, as every spelling is a dialect's (D1): H2,
+    DuckDB and SQLite, the generator's sessions, spell it. SQLite writes its query as a root, as its own render does
+    (`TempTableAsTest`). Until now every dialect inherited the standard spelling.
+  - The ratchet's type pattern counts `DatabaseType.class` again (`Enum.valueOf(DatabaseType.class, "H2")` picks
+    one database); `ReservedNamesGenerationTest` enumerates with `values()`, and a type whose opener fails fails the
+    test instead of leaving it.
+  - Tests where the new code had none (`EngineSeedRowTest`'s inline model, two databases, raises
+    parser-equivalence's `own_corpus.matched` 2851 → 2853; 3ed31ee's message also names `TempTableAsTest`, which
+    has no Pure model): `EngineSeedRowTest` (each cell kind, the refusals, a table of an included database), `TempTableAsTest` (the three spellings run, every other dialect's refusal, `renderInline` on one line
+    with a literal's newline kept), `DigestTest` (a NULL's digest).
+  - Smaller: a comment the rename made name `_type:"referee"` (the Oracle datasource's protocol type is
+    `"oracle"`) restored; the catalog grid's output names quoted by the dialect's quote character, not a literal `"`;
+    `carryingTestData`'s javadoc says the specification is H2's `LocalH2`, which only carries the rows when a runtime
+    overlay opens its own session.
+  - Recorded, not changed (the measurement round, Trino/H2/corpus session): with H2's digests spelled, two corpus
+    tests that failed on `Function "MD5" not found` now reach their asserts and fail on the digest's value:
+    `tds::tests::extensions::testExtendDigest_Relational` and `tds::tdsJoin::alloy::
+    testJoinWithExtendWithDigestOnColumnsOnBothQueries`, on both H2 judges. The engine's own H2 2.1.214 spells md5
+    as we now do (`rawtohex(hash('MD5', %s))`, `h2Extension2_1_214.pure`), and `md5('')` agrees, so the difference
+    is the text `extendWithDigestOnColumns` hashes (how its columns are joined and cast), not the function; that
+    is the corpus's next layer, not this program's. One message-only change: `graphFetch::milestoning::
+    testMilestonedProperty` fails as before, its printed SQL-text list now holding a subselect's whole text.
+  - Recorded, not changed: Postgres refuses a catalog grid. The compiler's old text excluded `pg_catalog`, but no
+    test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
+    measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.

@@ -34,7 +34,7 @@ import java.util.function.UnaryOperator;
  *                       the engine runs them when it establishes the
  *                       connection, before the query
  * @param csvSetups      {@code testDataSetupCsv} blocks with the store they seed
- * @param connectionName the connection's plan-text spelling, null when the
+ * @param connectionName the connection instance's plan-text reading ({@link PlanConnection}), null when the
  *                       runtime carries no connection instance
  * @param quoteIdentifiers the connection's quoteIdentifiers flag
  * @param timeZone       the connection's timeZone, null when absent
@@ -58,7 +58,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                                Map<String, String> jsonSources,
                                List<String> sqlSetups,
                                List<CsvSetup> csvSetups,
-                               @com.legend.base.Nullable String connectionName,
+                               @com.legend.base.Nullable PlanConnection connectionName,
                                boolean quoteIdentifiers,
                                @com.legend.base.Nullable String timeZone,
                                @com.legend.base.Nullable String databaseType,
@@ -115,6 +115,23 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                 : new ExecutionContext(mapping, runtime, chainMappings, jsonSources, sqlSetups,
                         csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
                         connectionInstance, storeFqn, driverTablePk, cols, postProcessors, features);
+    }
+
+    /** A connection instance as the plan text names it ({@code DatabaseConnection(type = "DB2")}): its class's
+     *  simple name, and its DatabaseType's name, or null when the body computes the type: unknown here, never
+     *  assumed (invariant 4); the plan text refuses it. */
+    public record PlanConnection(String className, @com.legend.base.Nullable String type) {
+
+        /** The plan text's line for it: the instance's own type, never an assumed one; one its body computes is
+         *  refused (until the PR audit of 2026-10-16 the walk went on to a sibling, or printed the engine's test
+         *  database's). */
+        public String planText() {
+            if (type == null) {
+                throw new com.legend.error.NotImplementedException("the plan's " + className
+                        + " takes a database type its body computes: the plan text reads only a literal one");
+            }
+            return className + "(type = \"" + type + "\")";
+        }
     }
 
     /** No binding at all (a from() the resolver scopes from its outer context). */

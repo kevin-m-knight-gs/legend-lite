@@ -27,7 +27,7 @@ import java.util.Set;
  * prints in order under its {@code ###} header with its imports; without one (entity JSON from an SDLC carries
  * none) the elements group by kind in upstream's fixed order. An element kind lite cannot print yet is REFUSED,
  * naming its {@code _type}: never skipped, never printed approximately. Byte parity with upstream's composer is
- * pinned by the parser-equivalence oracle ({@code ModelComposerParityTest}) over the reference corpus.
+ * pinned by the parser-equivalence referee ({@code ModelComposerParityTest}) over the reference corpus.
  */
 public final class ModelComposer {
 

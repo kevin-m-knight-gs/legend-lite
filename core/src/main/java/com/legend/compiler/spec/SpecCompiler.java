@@ -68,7 +68,7 @@ public final class SpecCompiler {
     }
 
     /** The model this compiler compiles against (the literal unroll's
-     * class-hierarchy oracle). */
+     * class-hierarchy referee). */
     public ModelContext ctx() {
         return ctx;
     }

@@ -9,7 +9,7 @@ import com.legend.ExecuteOptions;
 import com.legend.ProgramFacts;
 import com.legend.compiler.element.ModelContext;
 import com.legend.exec.AssertListener;
-import com.legend.exec.SqlReplayOracle;
+import com.legend.exec.SqlReplayReferee;
 import com.legend.model.ImportScope;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
@@ -434,7 +434,7 @@ public final class PureTestRunner implements AutoCloseable {
         observer.privateWorkspace(!shared);
         Connection conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
         ExecuteOptions options = observer.options(t, shared).withJudgeMode(judgeMode);
-        SqlReplayOracle oracle = observer.oracle(t);
+        SqlReplayReferee referee = observer.referee(t);
         try {
             // a setup that fails FAILS every test depending on it: the engine's
             // suite scores each BeforePackage function as a test case of its own,
@@ -445,7 +445,7 @@ public final class PureTestRunner implements AutoCloseable {
                 return new Result(t.fqn(), Status.FAIL, List.of(),
                         "setup failed: " + String.join("; ", setupFailures));
             }
-            return judge(t, resolved, facts, conn, options, oracle);
+            return judge(t, resolved, facts, conn, options, referee);
         } finally {
             observer.privateWorkspace(false);
             observer.bodyFinished(t, shared, options);
@@ -460,7 +460,7 @@ public final class PureTestRunner implements AutoCloseable {
     }
 
     private Result judge(PureTests.TestCase t, ValueSpecification resolved, ProgramFacts facts,
-            Connection conn, ExecuteOptions options, @com.legend.base.Nullable SqlReplayOracle oracle)
+            Connection conn, ExecuteOptions options, @com.legend.base.Nullable SqlReplayReferee referee)
             throws SQLException {
         boolean effectful = facts.effects();
         List<Verdict> verdicts = new ArrayList<>();
@@ -521,7 +521,7 @@ public final class PureTestRunner implements AutoCloseable {
                                         shared, options);
                             }
                         },
-                        oracle, options);
+                        referee, options);
             } catch (RuntimeException e) {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();

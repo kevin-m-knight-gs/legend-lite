@@ -52,13 +52,13 @@ import java.util.Map;
  *
  * <p><strong>Staged compilation (Invariant 7):</strong> this pass is
  * COMPILER work — it mints and rewrites typed nodes — so it lives in
- * the resolver, parameterized by the {@link SchemaOracle}: the
+ * the resolver, parameterized by the {@link SchemaReferee}: the
  * runtime-discovered column roster is an INPUT to a compiler phase run
- * at a later stage. The executor's oracle is
+ * at a later stage. The executor's referee is
  * {@code exec.GridProbe#probeNames}; the compiler never holds a
  * connection. F1.3 funnels the JDBC surface to the exec layer at
  * BYTECODE level — even the driver's exception type may not appear
- * here — so the oracle is UNCHECKED and the executor's implementation
+ * here — so the referee is UNCHECKED and the executor's implementation
  * wraps its checked failure (the {@code Frames.inlineExecute} idiom).
  */
 public final class RawGridSchema {
@@ -71,11 +71,11 @@ public final class RawGridSchema {
      * schema, never values). TYPED since §4bZ-U's follow-on: the probe
      * carries the database's own column types, so a stamped grid's
      * cells read typed instead of Any (an unmapped SQL type falls back
-     * to the trusted-Any column at the oracle — an upgrade, never a
+     * to the trusted-Any column at the referee — an upgrade, never a
      * new wall). */
-    public interface SchemaOracle {
-        /** The columns of {@code sql}, written for the database {@code writtenFor} (null: the session's own). */
-        List<Type.Column> columnsOf(String sql, @com.legend.base.Nullable String writtenFor);
+    public interface SchemaReferee {
+        /** The columns of {@code sql}, written for the database {@code writtenFor} (decision D2). */
+        List<Type.Column> columnsOf(String sql, String writtenFor);
     }
 
     /** The tree with every late-bound raw grid stamped and its
@@ -91,7 +91,7 @@ public final class RawGridSchema {
      * {@code schema.isLateBound()}). Two queries only when the second
      * is genuinely needed. */
     public static List<TypedSpec> stamp(List<TypedSpec> body,
-            SchemaOracle oracle) {
+            SchemaReferee referee) {
         if (!demandsSchema(body)) {
             return body;
         }
@@ -99,7 +99,7 @@ public final class RawGridSchema {
         boolean changed = false;
         Map<String, Type.RelationType> binders = new HashMap<>();
         for (TypedSpec n : body) {
-            TypedSpec s = resolve(n, oracle, binders);
+            TypedSpec s = resolve(n, referee, binders);
             changed |= s != n;
             out.add(s);
         }
@@ -149,27 +149,27 @@ public final class RawGridSchema {
         return false;
     }
 
-    private static TypedSpec resolve(TypedSpec n, SchemaOracle oracle,
+    private static TypedSpec resolve(TypedSpec n, SchemaReferee referee,
             Map<String, Type.RelationType> binders) {
         // STAMP the grid leaf
         if (n instanceof TypedRawSqlRelation raw
                 && Type.relationSchema(raw.info().type())
                         instanceof Type.RelationType rt
                 && rt.isLateBound()) {
-            return new TypedRawSqlRelation(raw.sql(), raw.authored(), raw.database(),
+            return new TypedRawSqlRelation(raw.sql(), raw.database(),
                     new ExprType(Type.relation(new Type.RelationType(
-                                    oracle.columnsOf(raw.sql(), raw.writtenFor()), List.of())),
+                                    referee.columnsOf(raw.sql(), raw.writtenFor()), List.of())),
                             raw.info().multiplicity()));
         }
         // BINDER SCOPE: a lambda over a (recursively stamped) grid binds
         // its row variable to the stamped schema for the body walk
         // (enter through the body — the shadow-stop discipline)
-        TypedSpec scoped = resolveLambdaOwner(n, oracle, binders);
+        TypedSpec scoped = resolveLambdaOwner(n, referee, binders);
         if (scoped != null) {
             return scoped;
         }
         // generic recursion, children first
-        n = recurse(n, oracle, binders);
+        n = recurse(n, referee, binders);
         // RESOLVE the late-bound reads against known schema
         if (n instanceof TypedPropertyAccess pa) {
             Type.RelationType schema = stampedSchemaOf(pa.source(), binders);
@@ -229,7 +229,7 @@ public final class RawGridSchema {
      * bind the row binder to its schema, walk the lambda body under the
      * binding (restored after). Null = not such a node. */
     private static @com.legend.base.Nullable TypedSpec resolveLambdaOwner(
-            TypedSpec n, SchemaOracle oracle,
+            TypedSpec n, SchemaReferee referee,
             Map<String, Type.RelationType> binders) {
         TypedSpec src;
         TypedLambda lam;
@@ -245,7 +245,7 @@ public final class RawGridSchema {
         } else {
             return null;
         }
-        TypedSpec src2 = resolve(src, oracle, binders);
+        TypedSpec src2 = resolve(src, referee, binders);
         Type.RelationType schema = stampedSchemaOf(src2, binders);
         if (schema == null || lam.parameters().isEmpty()) {
             if (src2 == src) {
@@ -259,7 +259,7 @@ public final class RawGridSchema {
             List<TypedSpec> body2 = new ArrayList<>(lam.body().size());
             boolean changed = false;
             for (TypedSpec st : lam.body()) {
-                TypedSpec r = resolve(st, oracle, binders);
+                TypedSpec r = resolve(st, referee, binders);
                 changed |= r != st;
                 body2.add(r);
             }
@@ -287,8 +287,8 @@ public final class RawGridSchema {
         }
     }
 
-    /** The STAMPED schema behind an expression: a stamped raw grid
-     * (directly, or under the {@code .rows} marker), or a bound lambda
+    /** The STAMPED schema behind an expression: a stamped raw grid or a
+     * catalog grid (directly, or under the {@code .rows} marker), or a bound lambda
      * row variable. Null = not a stamped-grid read. */
     private static Type.@com.legend.base.Nullable RelationType stampedSchemaOf(
             TypedSpec source, Map<String, Type.RelationType> binders) {
@@ -303,13 +303,19 @@ public final class RawGridSchema {
                 && !rt.isLateBound()) {
             return rt;
         }
+        // a catalog grid: its schema is declared
+        if (s instanceof com.legend.compiler.spec.typed.TypedCatalogGrid g
+                && Type.relationSchema(g.info().type())
+                        instanceof Type.RelationType rt) {
+            return rt;
+        }
         if (s instanceof TypedVariable v) {
             return binders.get(v.name());
         }
         return null;
     }
 
-    private static TypedSpec recurse(TypedSpec n, SchemaOracle oracle,
+    private static TypedSpec recurse(TypedSpec n, SchemaReferee referee,
             Map<String, Type.RelationType> binders) {
         // SHADOWING (audit T1.1): a lambda's parameters hide any
         // same-named outer grid binder for its whole subtree — a nested
@@ -336,7 +342,7 @@ public final class RawGridSchema {
         List<TypedSpec> out = new ArrayList<>(kids.size());
         boolean changed = false;
         for (TypedSpec k : kids) {
-            TypedSpec s = resolve(k, oracle, binders);
+            TypedSpec s = resolve(k, referee, binders);
             changed |= s != k;
             out.add(s);
         }

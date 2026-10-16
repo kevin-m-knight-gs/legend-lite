@@ -1405,6 +1405,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case RTRIM -> writer.function("RTRIM", c.args());
             case TRIM -> writer.function("TRIM", c.args());
             case REPLACE -> writer.function("REPLACE", c.args());
+            case TRANSLATE -> writer.function("TRANSLATE", c.args());
             case STARTS_WITH -> writer.function("STARTS_WITH", c.args());
             case ENDS_WITH -> writer.function("ENDS_WITH", c.args());
             case STRPOS -> writer.function("STRPOS", c.args());

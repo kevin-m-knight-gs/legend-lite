@@ -13,7 +13,8 @@ import java.util.List;
  * by the dialect. So is a column: {@code columns} holds their text, {@code quotedColumns} the ones the store declared
  * quoted ({@code "Amt"}), and the dialect spells each as its queries reference it ({@code SqlDialect.storedName}).
  */
-public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTable, SqlDml.DeleteAll {
+public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTable, SqlDml.DeleteAll,
+        SqlDml.CreateTempTableAs {
 
     /** {@code INSERT INTO [schema.]table [(columns)] VALUES (row), ...};
      *  {@code columns} empty: every column in declared order. */
@@ -38,5 +39,10 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
 
     /** {@code DELETE FROM [schema.]table}: every row. */
     record DeleteAll(@com.legend.base.Nullable String schema, String table, NameQuoting quoting) implements SqlDml {
+    }
+
+    /** {@code CREATE TEMPORARY TABLE table AS query}: a table of the session's own, holding a query's rows, its
+     *  columns the query's (the test-data generator's fetches, 2026-10-16). The name is one the platform makes: bare. */
+    record CreateTempTableAs(String table, SqlQuery query) implements SqlDml {
     }
 }

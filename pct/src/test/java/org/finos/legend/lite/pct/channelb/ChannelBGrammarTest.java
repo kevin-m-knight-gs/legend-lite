@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * scope — the same runner over {@code platform/pure/grammar}): the
  * PCT.test functions channel A's GrammarFunctions suite runs, executed
  * by OUR platform alone, diffed against channel A's ledger and the
- * engine's relational-DuckDB manifest (the frontier oracle).
+ * engine's relational-DuckDB manifest (the frontier referee).
  */
 class ChannelBGrammarTest {
 

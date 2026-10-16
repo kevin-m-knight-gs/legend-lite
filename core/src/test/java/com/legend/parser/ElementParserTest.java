@@ -2955,7 +2955,7 @@ final class ElementParserTest {
 
     @Test
     void enumerationMappingAcceptsAndIgnoresLeadingStar() {
-        // OUR OVER-STRICTNESS, overturned by the engine oracle. The star is
+        // OUR OVER-STRICTNESS, overturned by the engine referee. The star is
         // part of the shared mappingElement rule —
         // `mappingElement: (STAR)? qualifiedName ... COLON parserName ...`
         // (MappingParserGrammar.g4:59) — so it is grammatical on ANY mapping

@@ -74,14 +74,31 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return write(query).statement();
     }
 
+    /** {@inheritDoc} This dialect's own {@link #render}, in the single-line mode {@link #inline} writes a subquery
+     *  in. */
+    @Override
+    public final String renderInline(SqlQuery query) {
+        boolean previous = inlineMode;
+        inlineMode = true;
+        try {
+            return render(query);
+        } finally {
+            inlineMode = previous;
+        }
+    }
+
     /** The query after this dialect's passes, written. */
     private SqlWriter write(SqlQuery query) {
+        return query(newWriter(), passed(query), 0);
+    }
+
+    /** The query after this dialect's passes. */
+    private SqlQuery passed(SqlQuery query) {
         SqlQuery q = query;
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             q = pass.rewriteRoot(q);
         }
-        SqlWriter writer = newWriter();
-        return query(writer, q, 0);
+        return q;
     }
 
     /**
@@ -366,6 +383,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // this session's language (raw: the engine's H2 text translated, any other as written)
             case SqlSource.RawSql r -> writer.append("(").append(raw(r.sql(), r.writtenFor()))
                     .append(") AS ").append(aliasIdent(r.alias()));
+            // a catalog grid of the session's database: where it keeps its catalog is the dialect's
+            case SqlSource.Catalog c -> catalog(writer.append("("), c).append(") AS ").append(aliasIdent(c.alias()));
             case SqlSource.SourceUrl u -> {
                 writer.append("(");
                 nl(writer, depth + 1).append(sourceUrl(u.url()));
@@ -1114,6 +1133,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor) ? fromEngineText(statement) : statement;
     }
 
+    /** A catalog grid's query ({@link SqlSource.Catalog}): where this database keeps its catalog and how it is read,
+     *  its columns named by the source's outputs. A dialect whose database is proven to answer it writes it; any other
+     *  refuses it (the dialect program's Phase 3, 2026-10-16). */
+    protected SqlWriter catalog(SqlWriter writer, SqlSource.Catalog c) {
+        throw new DialectCapability("a " + c.grid() + " catalog grid (fetchDb*MetaData) reached a dialect without a"
+                + " catalog reading");
+    }
+
     /** A lowering-internal pseudo-aggregate ({@link SqlAgg.Fn#marker}) reached a renderer: the lowering's bug. */
     protected static IllegalStateException loweringMarker(SqlAgg.Reducer r) {
         return new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
@@ -1586,7 +1613,30 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da ->
                     "DELETE FROM " + ddlQualified(da.schema(), da.table(), da.quoting()) + ";";
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct);
         };
+    }
+
+    /** A temporary table holding a query's rows (the test-data generator's): refused unless the dialect's database is
+     *  measured to run {@link #createTemporaryTableAs}, as every spelling is its dialect's (D1). Until the PR audit of
+     *  2026-10-16 every dialect inherited the standard spelling. */
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        throw new DialectCapability("a temporary table from a query (CREATE TEMPORARY TABLE ... AS) on "
+                + getClass().getSimpleName() + ": no spelling measured on its database (the test-data generator's"
+                + " sessions are H2, DuckDB and SQLite)");
+    }
+
+    /** The standard {@code CREATE TEMPORARY TABLE t AS <query>}, for a dialect whose database runs it: the query
+     *  written as this dialect writes a query, its passes applied. A query with plan parameters is refused: the
+     *  statement is text. */
+    protected final String createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        RenderedStatement create = query(newWriter().append("CREATE TEMPORARY TABLE ").append(ident(ct.table()))
+                .append(" AS "), passed(ct.query()), 0).append(";").statement();
+        if (!create.binds().isEmpty()) {
+            throw new DialectCapability("plan parameters " + create.binds() + " in a temporary table's query:"
+                    + " a DML statement is text");
+        }
+        return create.sql();
     }
 
     /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every

@@ -1,6 +1,6 @@
 """oracle_pins: the upstream release's pins as a KEY=VALUE file, from release.MODULE.bazel (Bazel workplan P2-10).
 
-The tests and generators read the release they are held to (parser-equivalence's OraclePins, the fixture snapshot's
+The tests and generators read the release they are held to (parser-equivalence's RefereePins, the fixture snapshot's
 header check) from this file; release.MODULE.bazel is the one place it is written, and //tools:oracle-pins.env puts
 it in this repository's namespace.
 """

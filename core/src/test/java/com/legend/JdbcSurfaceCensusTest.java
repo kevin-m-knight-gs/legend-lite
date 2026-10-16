@@ -154,10 +154,10 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/WireTypes.java",
             // SQLTEXT charter §2: the replay-oracle SPI — a pure
             // interface (AssertListener precedent) whose SIGNATURE
-            // names java.sql types (SQLException, the OracleRows cell
+            // names java.sql types (SQLException, the RefereeRows cell
             // shape); it opens no connection and executes nothing —
             // the harness implementation does, on the testing side
-            "core/src/main/java/com/legend/exec/SqlReplayOracle.java",
+            "core/src/main/java/com/legend/exec/SqlReplayReferee.java",
             // the product's test runner (batch 7a, 2026-09-11): opens one
             // session per package through the caller's connection factory and
             // HANDS the connection to the executor; the observer seam passes

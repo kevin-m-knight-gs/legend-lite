@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * THE MIRROR CORPUS (deep audit): the same Java-literal extractor that
  * harvests Pure from the ENGINE'S tests, run over OUR OWN test sources —
  * every Pure snippet legend-lite's core/spec/pct tests embed goes to
- * the REAL engine oracle. A refusal must classify exactly like a corpus
+ * the REAL engine referee. A refusal must classify exactly like a corpus
  * leniency row (the dialect constructs our tests deliberately exercise);
  * an UNCLASSIFIED refusal means our own test surface bakes in grammar
  * that is neither engine nor named pure-dialect — a lite-only invention,
@@ -35,7 +35,7 @@ class OwnCorpusConformanceTest {
      * SECTIONS-NORMALIZATION RATCHET: no test snippet declares a non-Pure
      * element (Database/Mapping/Runtime/Connection/Service/...) without its
      * {@code ###Section} header. The check is TOTAL (every extracted
-     * snippet, oracle not consulted) and mechanical: a non-empty
+     * snippet, referee not consulted) and mechanical: a non-empty
      * {@link Sectionize} plan IS the violation — the engine binds element
      * kinds to sections, so a headerless one is a lite-only convenience
      * the strict flip would have to refuse. Normalized 2026-08-11 by
@@ -162,7 +162,7 @@ class OwnCorpusConformanceTest {
 
     @Test
     void ourOwnTestPureIsRealLegend() throws Exception {
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         List<Corpus.Source> ours = ownSnippets();
         Map<String, Integer> byClass = new TreeMap<>();
         List<String> unclassified = new ArrayList<>();
@@ -172,7 +172,7 @@ class OwnCorpusConformanceTest {
         for (Corpus.Source src : ours) {
             Throwable refusal;
             try {
-                oracle.parseModel(src.text());
+                referee.parseModel(src.text());
                 accepted++;
                 continue;
             } catch (Throwable t) {

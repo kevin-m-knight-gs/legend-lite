@@ -33,11 +33,11 @@ class ComparatorSelfTest {
     void membershipProofRejectsARealDelta() throws Exception {
         ObjectMapper mapper = ObjectMapperFactory
                 .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         String a = mapper.writeValueAsString(
-                oracle.parseModel("Class a::A{}\n"));
+                referee.parseModel("Class a::A{}\n"));
         String b = mapper.writeValueAsString(
-                oracle.parseModel("Class a::B{}\n"));
+                referee.parseModel("Class a::B{}\n"));
         // the engine's round-trip of its own bytes IS its own fixed point
         assertTrue(Comparators.engineSerializeOnlyDelta(mapper, a,
                         mapper.writeValueAsString(mapper.readTree(a)

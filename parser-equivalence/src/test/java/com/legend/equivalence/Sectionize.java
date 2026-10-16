@@ -42,7 +42,7 @@ final class Sectionize {
             case com.legend.model.PersistenceDefinition p -> "Persistence";
             case com.legend.model.PersistenceContextDefinition p ->
                     "Persistence";
-            case com.legend.model.SnowflakeActivatorDefinition s ->
+            case com.legend.model.FunctionActivatorDefinition s ->
                     "Snowflake";
             default -> "Pure";
         };

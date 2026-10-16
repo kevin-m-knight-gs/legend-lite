@@ -356,7 +356,7 @@ public class MinimalCorpusTest {
         com.legend.harness.H2Verify.VERDICT_ROSTER.forEach((k, v) ->
                 kinds.merge(k.substring(0, k.indexOf(' ')), v.sum(), Long::sum));
         kinds.forEach((k, v) -> System.out.println("[corpus2] referee " + k + "=" + v));
-        new java.util.TreeMap<>(com.legend.harness.ReplayOracle.OUTCOMES).forEach((k, v) ->
+        new java.util.TreeMap<>(com.legend.harness.ReplayReferee.OUTCOMES).forEach((k, v) ->
                 System.out.println("[corpus2] referee-outcome " + k + "=" + v.sum()));
         new java.util.TreeMap<>(com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS).forEach((k, v) ->
                 System.out.println("[corpus2] referee-declined " + v.sum() + "x " + k));
@@ -781,7 +781,7 @@ public class MinimalCorpusTest {
     // platform implements #4900's semantics (IS NOT DISTINCT FROM); the
     // tag's goldens for executionPlanTest.pure's 15 optional-parameter
     // tests carry the PRE-#4900 `optionalVarPlaceHolderOperationSelector`
-    // template, which the plan-text oracle DECLINES (unbound template
+    // template, which the plan-text referee DECLINES (unbound template
     // argument) — 14 land here, all 15 are on the fail rosters with this
     // reason. Shrinks back at the 4.145.0 bump (contains #4900).
     // oracle-declined 36 -> 22 (DuckDB) / 42 -> 28 (H2), rows-underivable 29 -> 28 /
@@ -1012,7 +1012,7 @@ public class MinimalCorpusTest {
                 + " " + kind + " of " + ran.size() + (only.isEmpty() ? "" : " (scoped)")
                 // USER DECISION 2026-09-08: the H2 lane is KEPT as a
                 // PORTABILITY check — its golden runs on the same connection
-                // as our query, so it is not an independent oracle; the
+                // as our query, so it is not an independent referee; the
                 // DuckDB lane with the H2 mirror is
                 + (MinimalCorpus.H2_BACKEND ? " oracle=same-session" : " oracle=h2-mirror"));
     }

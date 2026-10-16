@@ -715,6 +715,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case RADIANS -> writer.function("radians", c.args());
             case REPEAT_STR -> writer.function("repeat", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> writer.function("translate", c.args());
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case RIGHT -> writer.function("right", c.args());
             case RTRIM -> writer.function("rtrim", c.args());

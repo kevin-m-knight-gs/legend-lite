@@ -152,6 +152,7 @@ public final class ScanColumns {
             case SqlSource.Cte c -> out.add(c.alias());
             case SqlSource.VarSetPlaceholder vp -> out.add(vp.alias());
             case SqlSource.RawSql raw -> out.add(raw.alias());
+            case SqlSource.Catalog c -> out.add(c.alias());
             case SqlSource.Subselect s -> out.add(s.alias());
             case SqlSource.Pivot p -> rootSpine(p.source(), out);
             case SqlSource.Values v -> out.add(v.alias());
@@ -224,6 +225,8 @@ public final class ScanColumns {
             case SqlSource.Values v -> env.put(v.alias(),
                     (col, ctx, o) -> { });
             case SqlSource.RawSql raw -> env.put(raw.alias(),
+                    (col, ctx, o) -> { });
+            case SqlSource.Catalog c -> env.put(c.alias(),
                     (col, ctx, o) -> { });
             case SqlSource.VarSetPlaceholder vp -> env.put(vp.alias(),
                     (col, ctx, o) -> { });

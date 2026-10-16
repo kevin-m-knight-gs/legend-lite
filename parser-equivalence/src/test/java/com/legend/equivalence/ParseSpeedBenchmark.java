@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * Parse-speed measurement: the legend-engine reference parser vs core's
  * {@code PmcdParser.parseDocument} over the SAME corpus (every source the
- * oracle accepts). ON-DEMAND only, and never an action (a timing is the
+ * referee accepts). ON-DEMAND only, and never an action (a timing is the
  * machine's, not the inputs'; Bazel workplan P3-17):
  *
  * <pre>
@@ -34,13 +34,13 @@ public final class ParseSpeedBenchmark {
             throw new IllegalStateException("no corpus on disk: set -Dlegend.engine.root / -Dlegend.pure.root");
         }
 
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
 
         // ---- select the common set: sources BOTH parsers accept ----
         List<Corpus.Source> common = new ArrayList<>();
         for (Corpus.Source src : sources) {
             try {
-                oracle.parseModel(src.text());
+                referee.parseModel(src.text());
                 com.legend.parser.PmcdParser.parseDocument(src.text());
                 common.add(src);
             } catch (Throwable t) {
@@ -52,7 +52,7 @@ public final class ParseSpeedBenchmark {
         // ---- warmup pass #2, per parser ----
         for (Corpus.Source src : common) {
             try {
-                oracle.parseModel(src.text());
+                referee.parseModel(src.text());
             } catch (Throwable ignored) { }
         }
         for (Corpus.Source src : common) {
@@ -70,17 +70,17 @@ public final class ParseSpeedBenchmark {
         record Timing(String id, long nanos) { }
         int reps = 3;
         long blackhole = 0;
-        List<Timing> oracleTimes = new ArrayList<>(common.size());
-        long oracleTotal = 0;
+        List<Timing> refereeTimes = new ArrayList<>(common.size());
+        long refereeTotal = 0;
         for (Corpus.Source src : common) {
             long best = Long.MAX_VALUE;
             for (int r = 0; r < reps; r++) {
                 long t0 = System.nanoTime();
-                blackhole += oracle.parseModel(src.text()).getElements().size();
+                blackhole += referee.parseModel(src.text()).getElements().size();
                 best = Math.min(best, System.nanoTime() - t0);
             }
-            oracleTotal += best;
-            oracleTimes.add(new Timing(src.id(), best));
+            refereeTotal += best;
+            refereeTimes.add(new Timing(src.id(), best));
         }
         List<Timing> coreTimes = new ArrayList<>(common.size());
         long coreTotal = 0;
@@ -102,17 +102,17 @@ public final class ParseSpeedBenchmark {
         System.out.printf("common corpus       : %,d sources, %,d KB%n",
                 common.size(), totalBytes / 1024);
         System.out.printf("oracle total        : %,d ms  (%,.1f us/source, %,.1f MB/s)%n",
-                oracleTotal / 1_000_000, oracleTotal / 1000.0 / common.size(),
-                totalBytes * 1000.0 / oracleTotal);
+                refereeTotal / 1_000_000, refereeTotal / 1000.0 / common.size(),
+                totalBytes * 1000.0 / refereeTotal);
         System.out.printf("core   total        : %,d ms  (%,.1f us/source, %,.1f MB/s)%n",
                 coreTotal / 1_000_000, coreTotal / 1000.0 / common.size(),
                 totalBytes * 1000.0 / coreTotal);
         System.out.printf("ratio (oracle/core) : %.2fx%n",
-                (double) oracleTotal / coreTotal);
-        oracleTimes.sort(Comparator.comparingLong(Timing::nanos).reversed());
+                (double) refereeTotal / coreTotal);
+        refereeTimes.sort(Comparator.comparingLong(Timing::nanos).reversed());
         coreTimes.sort(Comparator.comparingLong(Timing::nanos).reversed());
         System.out.println("slowest 5, oracle:");
-        oracleTimes.stream().limit(5).forEach(t -> System.out.printf(
+        refereeTimes.stream().limit(5).forEach(t -> System.out.printf(
                 "  %,8d us  %s%n", t.nanos() / 1000, t.id()));
         System.out.println("slowest 5, core:");
         coreTimes.stream().limit(5).forEach(t -> System.out.printf(

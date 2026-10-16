@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The {@code #IQ{...}#} island's parity cases on Postgres 16 ({@link IqParity}): each case under each of its profiles
  * as an island over the schema's tables in the embedded Postgres, judged against SQL Anywhere 17's snapped answer (or
  * the case's provisional decision), and held to the ledger's {@code postgres} column. Unlike sql-parity's Postgres
- * lane it has no drift step: its oracle is SQL Anywhere, which only {@code tools/iq-oracle} reaches (locally); the
+ * lane it has no drift step: its referee is SQL Anywhere, which only {@code tools/iq-oracle} reaches (locally); the
  * answers file is checked against the cases (UNSNAPPED, STALE, GONE) instead.
  *
  * <p>Its own target ({@code //core:iq_parity_postgres_test}), as {@code SqlParityPostgresTest}: it needs the embedded

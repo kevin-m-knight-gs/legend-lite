@@ -1652,6 +1652,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case STRPOS -> writer.append("toInt64(positionUTF8(").list(a).append("))");
             case REVERSE_STRING -> writer.append("reverseUTF8(").expr(a.get(0), 0).append(")");
             case REPLACE -> writer.append("replaceAll(").list(a).append(")");
+            // translate maps ASCII only; translateUTF8 maps any character (both delete past to's end, measured on
+            // 25.8, and both take from and to as constants, refusing a column itself)
+            case TRANSLATE -> writer.function("translateUTF8", c.args());
             case LEVENSHTEIN -> writer.append("toInt64(editDistanceUTF8(").list(a).append("))");
             case REPEAT_STR -> writer.append("repeat(").expr(a.get(0), 0).append(", toUInt64(greatest(").expr(a.get(1), 0)
                     .append(", 0)))");

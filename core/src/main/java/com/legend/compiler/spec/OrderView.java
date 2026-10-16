@@ -130,7 +130,9 @@ public enum OrderView {
                 || s instanceof com.legend.compiler.spec.typed
                         .TypedTableReference
                 || s instanceof com.legend.compiler.spec.typed
-                        .TypedRawSqlRelation) {
+                        .TypedRawSqlRelation
+                || s instanceof com.legend.compiler.spec.typed
+                        .TypedCatalogGrid) {
             return OrderView.INCIDENTAL;
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {

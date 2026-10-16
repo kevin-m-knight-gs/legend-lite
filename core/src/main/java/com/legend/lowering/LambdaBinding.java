@@ -45,7 +45,7 @@ final class LambdaBinding {
      * function's ONE list's element, so comparator BODIES lower
      * element-stamped (dispatch is frozen at construction — witness
      * the NonStandardFunction toString comparators). ROSTER = the
-     * exhaustive same-element (T,T)->_ signature sweep of both oracle
+     * exhaustive same-element (T,T)->_ signature sweep of both referee
      * trees (2026-08-25): removeDuplicates, sort, and contains — the
      * audit's found regression. contains' convention is
      * eval($value, $x) — needle FIRST — and its param-0 element

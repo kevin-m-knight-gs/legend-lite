@@ -40,7 +40,8 @@ final class PlanAllocations {
             com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
             java.util.Map<String, String> paramSpells,
-            boolean quote, @com.legend.base.Nullable String timeZone, com.legend.model.ConnectionDefinition.DatabaseType dbType) {
+            boolean quote, @com.legend.base.Nullable String timeZone, com.legend.model.ConnectionDefinition.DatabaseType dbType,
+            @com.legend.base.Nullable String connName) {
         String literal = switch (let.value()) {
             case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
             case com.legend.compiler.spec.typed.TypedCInteger ci ->
@@ -78,9 +79,9 @@ final class PlanAllocations {
                             req.toString(),
                             com.legend.plan.PurePrint.source(let.value())));
         }
+        var renderer = EngineText.enginePlanText(dbType, quote, timeZone);
         StatementExecutor.EngineSql es = StatementExecutor.engineSql(java.util.List.of(let.value()),
-                mappingFqn, specs, env,
-                EngineText.enginePlanText(dbType, quote, timeZone), params,
+                mappingFqn, specs, env, renderer, params,
                 java.util.function.UnaryOperator.identity());
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
@@ -90,7 +91,8 @@ final class PlanAllocations {
             // the Allocation's own type block is the impls form
             String inner = com.legend.plan.PlanText.single(env.ctx(),
                     rootClass, mappingFqn, es.plan(), es.sql(),
-                    java.util.List.of(let.value()));
+                    java.util.List.of(let.value()), connName, java.util.List.of(), es.plan(), false,
+                    renderer::selectList);
             return com.legend.plan.PlanText.allocation(let.name(),
                     com.legend.plan.PlanText.typeBlock(env.ctx(), rootClass,
                             impl, es.plan(), java.util.List.of(let.value())),
@@ -110,11 +112,10 @@ final class PlanAllocations {
                 sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
                 sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
                 sel.offset(), sel.outputs());
-        var renderer = EngineText.enginePlanText(dbType, quote, timeZone);
         String bareSql = renderer.render(bareSel);
         String inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
                 impl[2], sel, typeName, size, bareSql,
-                renderer::renderedAlias);
+                renderer::renderedAlias, connName);
         return com.legend.plan.PlanText.allocation(let.name(),
                 com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
                 inner);

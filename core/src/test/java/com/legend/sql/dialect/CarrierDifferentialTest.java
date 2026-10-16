@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE DIFFERENTIAL ORACLE (CARRIER_REDESIGN.md tenet #2): every
+ * THE DIFFERENTIAL REFEREE (CARRIER_REDESIGN.md tenet #2): every
  * semantic collection node executes on DuckDB through BOTH strategies —
  * the native rule and the portable rule — and the rows must be EQUAL.
  * A strategy pair that can diverge is a bug this gate catches before

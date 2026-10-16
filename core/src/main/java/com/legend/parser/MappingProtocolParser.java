@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * PROTOCOL-path {@code ###Mapping} parse (section-parity leg 4), built
- * family-by-family against ZMappingProbe's oracle shapes. Families without
+ * family-by-family against ZMappingProbe's referee shapes. Families without
  * probed wire shapes REFUSE loudly — the harness turns each refusal into a
  * named WALL row on the worklist.
  */
@@ -1821,7 +1821,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     // joinSequence` — a JOIN target only. m2 additionally
                     // allows a plain column pointer ([id]: [db]T.col);
                     // that form is pure-dialect. Messages are the
-                    // oracle's own (probe ZOtherwiseSpellingProbe).
+                    // referee's own (probe ZOtherwiseSpellingProbe).
                     int look = pos;
                     boolean hasDb = tokens.type(look) == TokenType.BRACKET_OPEN;
                     if (hasDb) {

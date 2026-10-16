@@ -121,6 +121,7 @@ Database types planned with it: H2.
 | `REPLACE` | spelled | `replace` |  | 313 |
 | `SPLIT` | spelled | `string_split` |  | 2 |
 | `SPLIT_PART` | emulated | `splitPartArm` |  | 19 |
+| `TRANSLATE` | emulated | `translate` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | spelled | `ascii` |  | 10 |
@@ -132,9 +133,9 @@ Database types planned with it: H2.
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
 | `FORMAT` | emulated | `formatArm` |  | 42 |
 | `HASH` | refused | `signed 64-bit hashCode reached a dialect without a spelling` | `via AnsiSqlRenderer.hashSigned` | 5 |
-| `MD5` | spelled | `md5` |  | 1 |
-| `SHA1` | spelled | `sha1` |  | 1 |
-| `SHA256` | spelled | `sha256` |  | 1 |
+| `MD5` | emulated | `digest: MD5` |  | 1 |
+| `SHA1` | emulated | `digest: SHA-1` |  | 1 |
+| `SHA256` | emulated | `digest: SHA-256` |  | 1 |
 | `EXTRACT` | emulated | `datePart, part: extract(… FROM …)` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | spelled | `now` |  | 0 |
@@ -306,6 +307,7 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `REPLACE` | spelled | `replace` | `as H2` | — |
 | `SPLIT` | spelled | `string_split` | `as H2` | — |
 | `SPLIT_PART` | emulated | `splitPartArm` | `as H2` | — |
+| `TRANSLATE` | emulated | `translate` | `as H2` | — |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` | `as H2` | — |
 | `REVERSE_STRING` | spelled | `reverse` | `as H2` | — |
 | `ASCII_CODE` | spelled | `ascii` | `as H2` | — |
@@ -317,9 +319,9 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as H2` | — |
 | `FORMAT` | emulated | `formatArm` | `as H2` | — |
 | `HASH` | refused | `signed 64-bit hashCode reached a dialect without a spelling` | `as H2, via AnsiSqlRenderer.hashSigned` | — |
-| `MD5` | spelled | `md5` | `as H2` | — |
-| `SHA1` | spelled | `sha1` | `as H2` | — |
-| `SHA256` | spelled | `sha256` | `as H2` | — |
+| `MD5` | emulated | `digest: MD5` | `as H2` | — |
+| `SHA1` | emulated | `digest: SHA-1` | `as H2` | — |
+| `SHA256` | emulated | `digest: SHA-256` | `as H2` | — |
 | `EXTRACT` | emulated | `datePart, part: extract(… FROM …)` | `as H2` | — |
 | `TODAY` | spelled | `current_date` | `as H2` | — |
 | `NOW` | spelled | `now` | `as H2` | — |
@@ -491,6 +493,7 @@ Database types planned with it: Postgres.
 | `REPLACE` | spelled | `replace` |  | 313 |
 | `SPLIT` | emulated | `(CASE WHEN … = '' THEN ARRAY[''] ELSE string_to_array(…, …) END)` |  | 2 |
 | `SPLIT_PART` | spelled | `split_part` |  | 19 |
+| `TRANSLATE` | spelled | `translate` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | spelled | `ascii` |  | 10 |
@@ -676,6 +679,7 @@ Database types planned with it: Snowflake.
 | `REPLACE` | spelled | `replace` |  | 313 |
 | `SPLIT` | emulated | `split` |  | 2 |
 | `SPLIT_PART` | spelled | `split_part` |  | 19 |
+| `TRANSLATE` | spelled | `translate` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | spelled | `ascii` |  | 10 |
@@ -861,6 +865,7 @@ Database types planned with it: Trino.
 | `REPLACE` | spelled | `replace` |  | 313 |
 | `SPLIT` | spelled | `split` |  | 2 |
 | `SPLIT_PART` | emulated | `coalesce(split_part(…), '')` |  | 19 |
+| `TRANSLATE` | spelled | `translate` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | emulated | `(CASE WHEN length(…) = 0 THEN 0 ELSE codepoint(CAST(substr(…, 1, 1) AS VARCHA...` |  | 10 |
@@ -1046,6 +1051,7 @@ Database types planned with it: BigQuery.
 | `REPLACE` | spelled | `REPLACE` |  | 313 |
 | `SPLIT` | spelled | `SPLIT` |  | 2 |
 | `SPLIT_PART` | emulated | `splitPart` |  | 19 |
+| `TRANSLATE` | spelled | `TRANSLATE` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `REVERSE` |  | 2 |
 | `ASCII_CODE` | spelled | `ASCII` |  | 10 |
@@ -1231,6 +1237,7 @@ Database types planned with it: Databricks.
 | `REPLACE` | spelled | `replace` |  | 313 |
 | `SPLIT` | emulated | `split` |  | 2 |
 | `SPLIT_PART` | spelled | `split_part` |  | 19 |
+| `TRANSLATE` | spelled | `translate` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | spelled | `ascii` |  | 10 |
@@ -1416,6 +1423,7 @@ Database types planned with it: DuckDB.
 | `REPLACE` | spelled | `replace` |  | 313 |
 | `SPLIT` | spelled | `string_split` |  | 2 |
 | `SPLIT_PART` | spelled | `split_part` |  | 19 |
+| `TRANSLATE` | spelled | `translate` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | spelled | `ascii` |  | 10 |
@@ -1601,6 +1609,7 @@ Database types planned with it: ClickHouse.
 | `REPLACE` | spelled | `replaceAll` |  | 313 |
 | `SPLIT` | emulated | `if(isNull(…), [], splitByString(…, ifNull(…, '')))` |  | 2 |
 | `SPLIT_PART` | emulated | `if(isNull(…), NULL, coalesce(arrayElement(splitByString(…, ifNull(…, '')), …)...` |  | 19 |
+| `TRANSLATE` | spelled | `translateUTF8` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverseUTF8` |  | 2 |
 | `ASCII_CODE` | emulated | `toInt64(ascii(…))` |  | 10 |
@@ -1786,6 +1795,7 @@ Database types planned with it: SQLite.
 | `REPLACE` | spelled | `replace` |  | 313 |
 | `SPLIT` | emulated | `split` |  | 2 |
 | `SPLIT_PART` | emulated | `split: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(json_extract(…, CAS...` |  | 19 |
+| `TRANSLATE` | refused | `SQLite has no translate function reached SQLite:` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | emulated | `(CASE WHEN … IS NULL THEN NULL ELSE coalesce(unicode(…), 0) END)` |  | 10 |
@@ -1971,6 +1981,7 @@ Database types planned with it: MariaDB.
 | `REPLACE` | spelled | `replace` |  | 293 |
 | `SPLIT` | emulated | `split` |  | 2 |
 | `SPLIT_PART` | emulated | `valueAt, split, indexPath: (CASE WHEN … IS NULL OR … IS NULL THEN NULL WHEN … = 0 THEN '' ELSE coalesce(...` |  | 19 |
+| `TRANSLATE` | refused | `has no translate function reached :` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | emulated | `(CASE WHEN … IS NULL THEN NULL WHEN CHAR_LENGTH(…) = 0 THEN 0 ELSE CAST(CONV(...` |  | 10 |
@@ -2156,6 +2167,7 @@ Database types planned with it: MySQL.
 | `REPLACE` | spelled | `replace` | `as MariaDb` | 293 |
 | `SPLIT` | emulated | `split` | `as MariaDb` | 2 |
 | `SPLIT_PART` | emulated | `valueAt, split, indexPath: (CASE WHEN … IS NULL OR … IS NULL THEN NULL WHEN … = 0 THEN '' ELSE coalesce(...` | `as MariaDb` | 19 |
+| `TRANSLATE` | refused | `has no translate function reached :` | `as MariaDb` | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` | `as MariaDb` | 9 |
 | `REVERSE_STRING` | spelled | `reverse` | `as MariaDb` | 2 |
 | `ASCII_CODE` | emulated | `(CASE WHEN … IS NULL THEN NULL WHEN CHAR_LENGTH(…) = 0 THEN 0 ELSE CAST(CONV(...` | `as MariaDb` | 10 |
@@ -2341,6 +2353,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `REPLACE` | spelled | `replace` |  | — |
 | `SPLIT` | spelled | `string_split` |  | — |
 | `SPLIT_PART` | spelled | `legend_h2_extension_split_part` |  | — |
+| `TRANSLATE` | refused | `translate reached the engine text: legend-engine has no translate dynaFunction to spell` |  | — |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | — |
 | `REVERSE_STRING` | spelled | `legend_h2_extension_reverse_string` |  | — |
 | `ASCII_CODE` | spelled | `ascii` |  | — |
@@ -2526,6 +2539,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `REPLACE` | spelled | `replace` | `as EngineStyleH2` | — |
 | `SPLIT` | spelled | `string_split` | `as EngineStyleH2` | — |
 | `SPLIT_PART` | spelled | `legend_h2_extension_split_part` | `as EngineStyleH2` | — |
+| `TRANSLATE` | refused | `translate reached the engine text: legend-engine has no translate dynaFunction to spell` | `as EngineStyleH2` | — |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` | `as EngineStyleH2` | — |
 | `REVERSE_STRING` | spelled | `reverse` |  | — |
 | `ASCII_CODE` | spelled | `ascii` | `as EngineStyleH2` | — |
@@ -2711,6 +2725,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `REPLACE` | spelled | `replace` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `SPLIT` | spelled | `string_split` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `SPLIT_PART` | spelled | `legend_h2_extension_split_part` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `TRANSLATE` | refused | `translate reached the engine text: legend-engine has no translate dynaFunction to spell` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `REVERSE_STRING` | spelled | `reverse` | `as EngineStyleDB2` | — |
 | `ASCII_CODE` | spelled | `ascii` | `as EngineStyleDB2, as EngineStyleH2` | — |

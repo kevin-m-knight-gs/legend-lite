@@ -37,7 +37,7 @@ public final class FixtureRecorder {
                 // (upstream boundary batch 2): the reader (Corpus.engineFixtures)
                 // asserts it against the pin on every read
                 Files.writeString(OUT, com.legend.equivalence.Corpus.FIXTURE_HEADER_PREFIX
-                        + com.legend.equivalence.OraclePins.engineRelease() + "\n",
+                        + com.legend.equivalence.RefereePins.engineRelease() + "\n",
                         StandardOpenOption.CREATE);
             }
             var node = JSON.createObjectNode();

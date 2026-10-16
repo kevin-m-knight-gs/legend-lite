@@ -164,6 +164,57 @@ public class H2 extends AnsiSqlRenderer {
         return aliasIdent(name);
     }
 
+    /** {@code RAWTOHEX(HASH('<algorithm>', x))}: a string's digest in lower-case hex. */
+    private static SqlWriter digest(SqlWriter writer, String algorithm, List<SqlExpr> a) {
+        return writer.append("RAWTOHEX(HASH('").append(algorithm).append("', ").expr(a.get(0), 0).append("))");
+    }
+
+    /** {@inheritDoc} H2 keeps the SQL standard's {@code information_schema}: the corpus's catalog-grid tests prove
+     *  it, the primary keys' {@code key_column_usage} and {@code table_constraints} pair included (H2 2.1.214, probed
+     *  2026-09-05: ordinal positions, quoted names). */
+    @Override
+    protected SqlWriter catalog(SqlWriter writer, com.legend.sql.SqlSource.Catalog c) {
+        return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
+    }
+
+    /** {@inheritDoc} H2 runs the standard spelling: the test-data generator's sessions prove it (the corpus's
+     *  generator tests, ReservedNamesGenerationTest). */
+    @Override
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        return createTemporaryTableAs(ct);
+    }
+
+    /** H2's catalog names a column's type by its own name ({@code CHARACTER VARYING}, {@code DOUBLE PRECISION}) and
+     *  keeps the declared one beside it: its JDBC driver reads the code by the declared name where there is one
+     *  (a FLOAT is FLOAT, a DECIMAL DECIMAL, though both are stored as another) and reports a DECIMAL by that name.
+     *  Measured 2026-10-16 against {@code DatabaseMetaData.getColumns} on H2 2.1.214 (CatalogGridTest). */
+    private static final InformationSchemaCatalog.Types CATALOG_GRID_TYPES = new InformationSchemaCatalog.Types(
+            "CASE WHEN declared_data_type = 'DECIMAL' THEN 'DECIMAL' ELSE data_type END",
+            "COALESCE(declared_data_type, data_type)", gridTypeCodes());
+
+    private static java.util.Map<String, InformationSchemaCatalog.TypeCode> gridTypeCodes() {
+        java.util.Map<String, InformationSchemaCatalog.TypeCode> m = new java.util.LinkedHashMap<>();
+        m.put("INTEGER", InformationSchemaCatalog.TypeCode.INTEGER);
+        m.put("CHARACTER VARYING", InformationSchemaCatalog.TypeCode.VARCHAR);
+        m.put("BIGINT", InformationSchemaCatalog.TypeCode.BIGINT);
+        m.put("SMALLINT", InformationSchemaCatalog.TypeCode.SMALLINT);
+        m.put("TINYINT", InformationSchemaCatalog.TypeCode.TINYINT);
+        m.put("DOUBLE PRECISION", InformationSchemaCatalog.TypeCode.DOUBLE);
+        m.put("FLOAT", InformationSchemaCatalog.TypeCode.FLOAT);
+        m.put("REAL", InformationSchemaCatalog.TypeCode.REAL);
+        m.put("DECIMAL", InformationSchemaCatalog.TypeCode.DECIMAL);
+        m.put("NUMERIC", InformationSchemaCatalog.TypeCode.NUMERIC);
+        m.put("DATE", InformationSchemaCatalog.TypeCode.DATE);
+        m.put("TIMESTAMP", InformationSchemaCatalog.TypeCode.TIMESTAMP);
+        m.put("BOOLEAN", InformationSchemaCatalog.TypeCode.BOOLEAN);
+        m.put("CHARACTER", InformationSchemaCatalog.TypeCode.CHAR);
+        m.put("TIME", InformationSchemaCatalog.TypeCode.TIME);
+        m.put("TIMESTAMP WITH TIME ZONE", InformationSchemaCatalog.TypeCode.TIMESTAMP_WITH_TIMEZONE);
+        m.put("BINARY VARYING", InformationSchemaCatalog.TypeCode.VARBINARY);
+        m.put("BINARY", InformationSchemaCatalog.TypeCode.BINARY);
+        return m;
+    }
+
     /** Aliases and every DERIVED label quote UNCONDITIONALLY — the
      * engine's own convention (as "root", as "legalName"): on the
      * case-sensitive session a bare invented name would uppercase in
@@ -511,14 +562,18 @@ public class H2 extends AnsiSqlRenderer {
             case LTRIM -> writer.function("ltrim", c.args());
             case RTRIM -> writer.function("rtrim", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> translate(writer, c.args());
             case SPLIT -> writer.function("string_split", c.args());
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case ASCII_CODE -> writer.function("ascii", c.args());
             case CHR -> writer.function("chr", c.args());
             case LEVENSHTEIN -> writer.function("levenshtein", c.args());
-            case MD5 -> writer.function("md5", c.args());
-            case SHA1 -> writer.function("sha1", c.args());
-            case SHA256 -> writer.function("sha256", c.args());
+            // H2 has no md5/sha1/sha256: its HASH digests, RAWTOHEX spells the digest in lower-case hex (2026-10-16,
+            // the dialect program's Phase 3: the test-data generator's string hashing reached H2's sha256 and H2
+            // refused it; DigestTest asks H2 and DuckDB for the same digests)
+            case MD5 -> digest(writer, "MD5", c.args());
+            case SHA1 -> digest(writer, "SHA-1", c.args());
+            case SHA256 -> digest(writer, "SHA-256", c.args());
             case MAKE_DATE -> writer.function("make_date", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
             // H2 adds a date and a time to a timestamp (its datetime arithmetic; designed, not measured here)
@@ -1048,6 +1103,20 @@ public class H2 extends AnsiSqlRenderer {
             };
             default -> false;
         };
+    }
+
+    /** translate, where H2's means the same: its TRANSLATE keeps a character of {@code from} past {@code to}'s end
+     *  ({@code translate('abcabc', 'abc', 'x')} is {@code xbcxbc} on 2.4.240, measured 2026-10-15), where the function
+     *  removes it ({@code xx}). So it is spelled only when {@code to}, a literal, is at least as long as {@code from}, a
+     *  literal, and refused otherwise: H2's own answer would be a different one. */
+    private static SqlWriter translate(SqlWriter writer, java.util.List<SqlExpr> a) {
+        if (a.get(1) instanceof SqlExpr.StringLit from && a.get(2) instanceof SqlExpr.StringLit to
+                && to.value().codePointCount(0, to.value().length())
+                        >= from.value().codePointCount(0, from.value().length())) {
+            return writer.function("translate", a);
+        }
+        throw new DialectCapability("TRANSLATE reached H2 with a to shorter than its from, or either not a literal:"
+                + " H2's TRANSLATE keeps the characters translate removes");
     }
 
     /** H2 hands JSON values back as {@code byte[]} (UTF-8 text) — the

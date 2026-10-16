@@ -933,7 +933,7 @@ public final class PersistenceSectionGrammar
                     String kind = c.parseIdentifier();
                     if (!"Default".equals(kind) && !"AwsGlue".equals(kind)) {
                         // extension dispatch (IPersistenceParserExtension
-                        // .process over the ServiceLoader set): the oracle
+                        // .process over the ServiceLoader set): the referee
                         // registers Default + the cloud extension's
                         // AwsGlue (gate-8 corpus carries its tests)
                         throw c.error("Unsupported persistence platform"

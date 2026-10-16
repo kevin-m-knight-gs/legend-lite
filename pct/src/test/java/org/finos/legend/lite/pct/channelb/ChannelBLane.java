@@ -146,13 +146,13 @@ final class ChannelBLane {
         assertEquals(PctRatchets.measured("channel_b." + suite.toLowerCase(java.util.Locale.ROOT) + ".discovered"),
                 out.size(), suite + " discovery moved -- an upstream move or a discovery-rule change");
         Path ledger = com.legend.testing.Runfile.property("pct.suite." + suite);
-        @com.legend.base.Nullable Path oracle = System.getProperty("pct.oracle." + suite) == null
+        @com.legend.base.Nullable Path referee = System.getProperty("pct.oracle." + suite) == null
                 ? null
                 : com.legend.testing.Runfile.property("pct.oracle." + suite);
         System.out.println("[" + tagged + "] channel A ledger " + ledger.getFileName() + ", engine manifest "
-                + (oracle == null ? "none for this database" : oracle.getParent().getFileName() + "/"
-                        + oracle.getFileName()));
-        ChannelBDiff.Counts c = ChannelBDiff.report(tagged, out, ledger, oracle);
+                + (referee == null ? "none for this database" : referee.getParent().getFileName() + "/"
+                        + referee.getFileName()));
+        ChannelBDiff.Counts c = ChannelBDiff.report(tagged, out, ledger, referee);
         System.out.println("[" + tagged + "] measured: pass=" + c.pass() + " wireBug=" + c.wireBug()
                 + " trueWireBug=" + c.trueWireBug() + " bFixesA=" + c.bFixesA());
         Pins pins = PINS.getOrDefault(lane, Map.of()).get(suite);

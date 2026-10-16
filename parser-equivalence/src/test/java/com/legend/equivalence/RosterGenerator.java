@@ -104,7 +104,7 @@ public final class RosterGenerator {
         System.out.println("@@ FULL roster: " + tagToClass.size() + " tags");
 
         // ---- coverage: engine corpus + OUR OWN corpus ----
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         ObjectMapper mapper = ObjectMapperFactory
                 .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
         Pattern tag = Pattern.compile("\"_type\"\\s*:\\s*\"([^\"]+)\"");
@@ -120,7 +120,7 @@ public final class RosterGenerator {
             String json;
             try {
                 json = mapper.writeValueAsString(
-                        oracle.parseModel(src.text()));
+                        referee.parseModel(src.text()));
                 accepted++;
             } catch (Throwable t) {
                 continue;

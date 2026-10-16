@@ -24,7 +24,7 @@ import java.util.Set;
  *
  * <p><b>Tables (O2).</b> An IQ owner is a schema of the model's Databases, matched as IQ matches names (ASCII
  * case-insensitively); a table declared outside any schema is the island's user's, {@code DBA} (the user IQ's and SQL
- * Anywhere's databases are created with, the oracle's): {@code DBA.t} (and an unqualified {@code t}, and T-SQL's
+ * Anywhere's databases are created with, the referee's): {@code DBA.t} (and an unqualified {@code t}, and T-SQL's
  * {@code db..t}) reads {@code tb('pkg::Db.t')}, {@code sales.orders} reads {@code tb('pkg::Db.sales.orders')}. A
  * database's and a server's qualifiers are read and ignored, as IQ ignores them ({@code srv.db.owner.t}). The model is
  * the island's catalog:

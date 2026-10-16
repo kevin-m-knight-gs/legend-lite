@@ -10,7 +10,7 @@ import java.util.List;
  * The profiles an {@code #IQ{...}#} island is written for (docs/IQ_SQL_STUDY_2026_10_13.md §4, I1 and I2): a closed set
  * of presets of the settings vector ({@link IqSettings}), {@code #IQ:<profile>{...}#} naming one, {@code iq16-default}
  * when none is named. A preset is an engine base and a client: the base's database at its defaults, and the options a
- * client of that kind has after connecting (the research's OPTIONS §9; the values the oracle's profiles set,
+ * client of that kind has after connecting (the research's OPTIONS §9; the values the referee's profiles set,
  * tools/iq-oracle/README.md, "Profiles").
  *
  * <p>The {@code iq16-*} presets are an IQ database (case-sensitive, blank-padded, ISO-8859-1 with a binary collation);
