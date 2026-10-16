@@ -601,11 +601,12 @@ class IqParserTest {
         }
         sql.append(" SELECT id FROM c20");
         assertTrue(error(sql.toString()).getMessage().contains("name each fewer times"));
-        // a chain of single links reads each once
+        // a chain of single links reads each once: 50 links, linear (a doubling read would never end); 200 overflowed
+        // the Windows CI's stack, where the test JVM runs on C1, whose frames are larger (2026-10-16, PR #43's run)
         StringBuilder chain = new StringBuilder("WITH c0 AS (SELECT id FROM t)");
-        for (int i = 1; i <= 200; i++) {
+        for (int i = 1; i <= 50; i++) {
             chain.append(", c").append(i).append(" AS (SELECT id FROM c").append(i - 1).append(")");
         }
-        select(chain.append(" SELECT id FROM c200").toString());
+        select(chain.append(" SELECT id FROM c50").toString());
     }
 }
