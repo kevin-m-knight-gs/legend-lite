@@ -815,11 +815,15 @@ junit_test(
 # (cypher-parity/tck, Apache 2.0) and lite's own cases (cypher-parity/lite), each as a #Cypher{...}# island over the
 # model its graph implies, judged against Neo4j Community's snapped answers (tools/neo4j-oracle; Neo4j itself is GPLv3
 # and never on a classpath), on DuckDB and on the embedded Postgres; the ledger pins each case's status per lane
-_CYPHER_PARITY_DATA = glob([
-    "src/test/resources/cypher-parity/tck/**",
-    "src/test/resources/cypher-parity/lite/*.yaml",
-    "src/test/resources/cypher-parity/graphs/*.cypher",
-]) + [
+_CYPHER_PARITY_DATA = glob(
+    [
+        "src/test/resources/cypher-parity/tck/**",
+        "src/test/resources/cypher-parity/lite/*.yaml",
+        "src/test/resources/cypher-parity/graphs/*.cypher",
+    ],
+    # the TCK's README is prose, never an input (//tools/guards:markdown_inputs_test): the features and the LICENSE are
+    exclude = ["src/test/resources/cypher-parity/tck/**/*.md"],
+) + [
     "src/test/resources/cypher-parity/neo4j-answers.jsonl",
     "src/test/resources/cypher-parity/ledger.tsv",
     "src/test/resources/cypher-parity/decisions.tsv",

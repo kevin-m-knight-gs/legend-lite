@@ -64,7 +64,15 @@ when it starts. An environment's setup script could also run `tools/cloud-distdi
 - **The disk allowance.** The output base (about 8 GB) and the repository cache (about 20 GB) take most of it, and
   "No space left on device" then appears mid-build, often while copying inputs into a sandbox. When no build runs,
   `rm -rf "$(bazel info output_base)"/sandbox/*` and stale scratch output free a few GB. `df` reports the
-  allowance, not the machine: "Avail" near zero means it is spent.
+  allowance, not the machine: "Avail" near zero means it is spent. The two big levers (2026-10-16, a `//gates:local`
+  run that met the limit three times): Bazel 9's repository-contents cache (`~/.cache/bazel/_bazel_root/cache/repo_contents_cache`,
+  about 16 GB: every fetched repository's extracted files, kept beside the output base's own copy) and the project's
+  action disk cache (`--disk_cache`, `.bazelrc`; about 3 GB and growing). `common --repo_contents_cache=` in
+  `~/.bazelrc` turns the first off for the container, `--disk_cache=` on a command turns the second off for that run;
+  neither changes a result. The LLVM toolchain (`@@toolchains_llvm++llvm+llvm_toolchain_llvm`, 11 GB extracted, 1.9 GB
+  as its tarball in the repository cache) is the one fetched repository the core tests need: delete its extraction
+  only with its tarball kept, and re-fetch it with `bazel fetch --force --repo=@@toolchains_llvm++llvm+llvm_toolchain_llvm`
+  (a plain fetch after an `rm` of the extraction keeps the stale marker and fails at analysis).
 - **Root.** The container runs as root, and the embedded Postgres (`initdb`) refuses root:
   `tools/postgres/as_unprivileged.sh` runs a Postgres test as an unprivileged user (its header says how).
 - **The browser tests** (`//datacube:verify_smoke_test`, `//query:verify_test`, `//site:verify_test`) time out in the

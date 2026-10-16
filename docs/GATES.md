@@ -9850,6 +9850,31 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the local gate after the merge — three guards the branch had moved, each with its reason (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, on the merge commit bee4fe2 and the fix after it. No translator code changed.
+
+1. **The run.** `bazel test --lockfile_mode=error //gates:local` on bee4fe2, in the cloud container (the recipe in
+   `docs/CLOUD_SESSIONS.md`: Maven's jars seeded by `tools/cloud-maven-distdir.sh`, the repository-contents cache and
+   the action disk cache dropped for the disk allowance, the LLVM toolchain re-fetched): 174 of 184 pass, 1 skipped
+   (`//tools/guards:classpath_test`, arm64-only), 9 fail.
+2. **The nine.** Six are the Postgres targets as root (`initdb` refuses root): `//core:iq_parity_postgres_test`,
+   `sql_parity_postgres_test`, `sql_island_postgres_test`, `host_operations_postgres_test`, `postgres_arm_test` and
+   `cypher_parity_postgres_test`, all green under `tools/postgres/as_unprivileged.sh` (the five in one run, the
+   Cypher lane in the merge entry below). The other three are guards the branch's own legs had moved, none by the
+   merge, each fixed with its reason:
+   - `//tools/guards:markdown_inputs_test`: the TCK's `README.md` was an input of the Cypher parity tests (the glob
+     over the TCK tree); `core/BUILD.bazel` excludes `tck/**/*.md`, the features and the LICENSE stay.
+   - `//spec:spec_tests` (`CatalogUpstreamDiffTest`): NOT_UPSTREAM 43 → 47, the island's four `meta::legend::lite`
+     natives (`timeOf`, `atTime`, `instantIn`, `localIn`: the time-of-day and the zoned date-time legs), declared by
+     `Pure.Lite` and never upstream's; the pin moves with its dated justification.
+   - `//parser-equivalence:update_ratchets_test`: `own_corpus.matched` 2855 → 2856, the duration leg's
+     `Class g::Duration` in the harness's inferred graph model (`CypherGraph`), one more element the oracle matches;
+     regenerated with `bazel run //parser-equivalence:update_ratchets`.
+3. **After the fixes.** The three guards re-run green; the DuckDB lane in update mode after the BUILD change
+   unchanged (4320 cases: PASS 2612, REFUSED 631, BOTH_ERROR 709, SKIP 368; 0 FAIL, 0 BUG, 0 ERROR); the five
+   Postgres targets green unprivileged. The full CI run on the branch is the user's, with the PR.
+
 ## 2026-10-16 — `#Cypher{...}#`: main merged in (the dialect program's Phases 2 and 4), ahead of the first PR (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, `origin/main` at 4fb892f (#45) merged in. Six conflicts: `SqlExpr`'s permits
@@ -9860,7 +9885,7 @@ dialect-capability pages (regenerated from the merged code).
 
 1. **The ledger after the merge.** Unchanged: DuckDB PASS 2612, REFUSED 631, BOTH_ERROR 709, SKIP 368; Postgres
    PASS 2262, REFUSED 981, BOTH_ERROR 709, SKIP 368; 0 FAIL, 0 BUG, 0 ERROR on both; the oracle's check clean.
-2. **The runs.** The local gate, `bazel test --lockfile_mode=error //gates:local`, is running at this commit; its first two attempts stopped on the container, not on a test (Maven downloads the proxy refuses, seeded by `tools/cloud-maven-distdir.sh`; then the disk allowance, Bazel's repository-contents cache dropped); its result is the next entry's. Both lanes in update mode, the oracle's check.
+2. **The runs.** The local gate, `bazel test --lockfile_mode=error //gates:local`, is running at this commit; its first two attempts stopped on the container, not on a test (Maven downloads the proxy refuses, seeded by `tools/cloud-maven-distdir.sh`; then the disk allowance, Bazel's repository-contents cache dropped); its result is the entry above ("the local gate after the merge"). Both lanes in update mode, the oracle's check.
 
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-fourth landing — the showcase's easy and hard examples, pinned (the eleventh line)
 

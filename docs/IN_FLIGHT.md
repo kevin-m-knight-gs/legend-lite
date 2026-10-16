@@ -1828,8 +1828,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   moved. GATES "the thirty-fourth landing".
 - **Main merged into the Cypher branch, 2026-10-16** (the dialect program's Phases 2 and 4, #45): the nanosecond leg's
   date part joins main's `DatePart` enum (`NANOSECOND`, DuckDB's; refused by name elsewhere); the ledger unchanged.
-  The branch is at its natural cut for the first PR to main: every leg since is by design or outside the island's
-  lane (GATES, "main merged in").
+  The local gate on the merge, in the cloud container: 174 of 184 pass; the six Postgres targets fail as root and
+  pass unprivileged; three guards the branch's own legs had moved (the TCK README as a test input, the catalog's
+  NOT_UPSTREAM pin, the own-corpus ratchet) fixed, each with its dated reason (GATES, "the local gate after the
+  merge"). The branch is at its natural cut for the first PR to main: every leg since is by design or outside the
+  island's lane (GATES, "main merged in").
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`
