@@ -2601,10 +2601,120 @@ public final class IqDialect implements InputDialect {
         }
     }
 
+    /**
+     * IQ island, 2026-10-16 (the corpus lane: 182 queries; measured on IQ 17.1 over 40 shapes): whether IQ's engine
+     * reads the scalar subqueries of {@code ds}, a derived table's (or a common table expression's) SELECT, as its outer
+     * query {@code outer} reads them -- as if each were written where its column is read. A column of {@code d} read
+     * qualified ({@code d.c}, any of its columns) is IQ's -1005004; a column holding a subquery read in WHERE, GROUP BY
+     * or HAVING, or inside a conditional expression or an aggregate, is its -1001030 (each refused here, naming it). Read in the select
+     * list (in arithmetic and functions too), ORDER BY, DISTINCT, TOP and a set operation's branch, IQ answers. Not read
+     * here, so refused by name (false): an outer query that is no statement's own SELECT, that joins {@code d} to
+     * another item, or that reads such a column in a window; an item of a subquery without a name.
+     */
+    private static boolean derivedSubqueriesRead(SqlAst.Select ds, SqlAst.Select outer, SqlAst.SubqueryFrom d,
+            Set<SqlAst.Select> top) {
+        Set<String> held = new java.util.HashSet<>();
+        for (int i = 0; i < ds.items().size(); i++) {
+            if (!(ds.items().get(i) instanceof SqlAst.SelectExpr x) || !holdsSubquery(x.expr())) {
+                continue;
+            }
+            SqlAst.Ident name = i < d.columnAliases().size() ? d.columnAliases().get(i) : x.alias() != null
+                    ? x.alias() : x.expr() instanceof SqlAst.ColumnRef r ? r.parts().get(r.parts().size() - 1) : null;
+            if (name == null) {
+                return false;
+            }
+            held.add(IqLexer.lower(name.text()));
+        }
+        if (held.isEmpty() || !top.contains(outer) || outer.from().size() != 1 || !(outer.from().get(0) == d)) {
+            return held.isEmpty();
+        }
+        String alias = d.alias() == null ? null : IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text());
+        for (SqlAst.Expr e : expressions(outer)) {
+            List<SqlAst.ColumnRef> refs = new ArrayList<>();
+            columnRefs(e, refs);
+            for (SqlAst.ColumnRef r : refs) {
+                if (r.parts().size() >= 2 && IqLexer.lower(r.parts().get(r.parts().size() - 2).text()).equals(alias)) {
+                    throw SqlTranslationException.unsupported("a column of a derived table whose select list holds a"
+                            + " subquery, read qualified, is IQ's error -1005004 under its engine (subqueries are"
+                            + " allowed only as arguments to comparisons, IN and EXISTS), refused before translating",
+                            r.pos());
+                }
+            }
+        }
+        List<SqlAst.Expr> conditions = new ArrayList<>(outer.groupBy());
+        if (outer.where() != null) {
+            conditions.add(java.util.Objects.requireNonNull(outer.where()));
+        }
+        if (outer.having() != null) {
+            conditions.add(java.util.Objects.requireNonNull(outer.having()));
+        }
+        for (SqlAst.Expr e : conditions) {
+            List<SqlAst.ColumnRef> refs = new ArrayList<>();
+            columnRefs(e, refs);
+            for (SqlAst.ColumnRef r : refs) {
+                if (held.contains(IqLexer.lower(r.parts().get(0).text()))) {
+                    throw SqlTranslationException.unsupported("a column of a derived table that holds a subquery, read"
+                            + " in a WHERE, a GROUP BY or a HAVING, is IQ's error -1001030 under its engine (a reference"
+                            + " containing a scalar value subquery outside of a top level SELECT list or ORDER BY),"
+                            + " refused before translating", r.pos());
+                }
+            }
+        }
+        List<SqlAst.Expr> shown = new ArrayList<>();
+        outer.items().forEach(i -> {
+            if (i instanceof SqlAst.SelectExpr x) {
+                shown.add(x.expr());
+            }
+        });
+        outer.orderBy().forEach(o -> shown.add(o.expr()));
+        for (SqlAst.Expr e : shown) {
+            String where = heldInside(e, held, false);
+            if (where != null) {
+                if (where.equals("window")) {
+                    return false;
+                }
+                throw SqlTranslationException.unsupported("a column of a derived table that holds a subquery, read"
+                        + " inside " + where + ", is IQ's error -1001030 under its engine (a scalar value subquery "
+                        + (where.equals("an aggregate") ? "outside of a top level SELECT list"
+                        : "inside a conditional expression") + "), refused before translating", e.pos());
+            }
+        }
+        return true;
+    }
+
+    /** Where in {@code e} a column of {@code held} is read inside a conditional expression, an aggregate or a window:
+     *  "a conditional expression", "an aggregate", "window", or null for nowhere. */
+    private static @com.legend.base.Nullable String heldInside(SqlAst.Expr e, Set<String> held, boolean within) {
+        if (within && e instanceof SqlAst.ColumnRef r && r.parts().size() == 1
+                && held.contains(IqLexer.lower(r.parts().get(0).text()))) {
+            return "";
+        }
+        String place = null;
+        if (e instanceof SqlAst.Case) {
+            place = "a conditional expression";
+        } else if (e instanceof SqlAst.Window) {
+            place = "window";
+        } else if (e instanceof SqlAst.FunctionCall f) {
+            String fn = IqLexer.lower(f.name().get(f.name().size() - 1).text());
+            place = CONDITIONALS.contains(fn) ? "a conditional expression" : IqAggregates.isAggregate(fn)
+                    ? "an aggregate" : null;
+        }
+        for (SqlAst.Expr child : children(e)) {
+            String found = heldInside(child, held, within || place != null);
+            if (found != null) {
+                // a column found inside: the innermost place holding it names it
+                return found.isEmpty() && place != null ? place : found;
+            }
+        }
+        return null;
+    }
+
     private static void subqueryPlaces(SqlAst.Statement statement) {
         Set<SqlAst.Select> top = Collections.newSetFromMap(new IdentityHashMap<>());
         topBranches(statement, top);
         Set<SqlAst.Select> inDerived = Collections.newSetFromMap(new IdentityHashMap<>());
+        // a derived table's own SELECT, read as its outer query reads it ({@link #derivedSubqueriesRead})
+        Set<SqlAst.Select> readable = Collections.newSetFromMap(new IdentityHashMap<>());
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
                 for (SqlAst.FromItem f : s.from()) {
@@ -2615,6 +2725,9 @@ public final class IqDialect implements InputDialect {
                                     inDerived.add(ds);
                                 }
                             });
+                            if (d.query() instanceof SqlAst.Select ds && derivedSubqueriesRead(ds, s, d, top)) {
+                                readable.add(ds);
+                            }
                         }
                     }
                 }
@@ -2626,7 +2739,10 @@ public final class IqDialect implements InputDialect {
             }
             for (SqlAst.SelectItem item : s.items()) {
                 if (item instanceof SqlAst.SelectExpr x) {
-                    if (inDerived.contains(s)) {
+                    if (readable.contains(s)) {
+                        // IQ island, 2026-10-16 (measured on IQ 17.1): as the outer query's own select list's
+                        shownSubqueries(x.expr());
+                    } else if (inDerived.contains(s)) {
                         // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): IQ's engine reads a scalar
                         // subquery there only where the outer query shows the column as it is -- read in its WHERE or
                         // GROUP BY, beside a join, or in a grouped derived query it is IQ's -1001030 or -1005004

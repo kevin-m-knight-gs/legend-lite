@@ -585,3 +585,41 @@ tests:
   - id: filter_as_an_alias
     sql: "SELECT COUNT(id) filter FROM t"
     profile: iq17-default
+
+  # ---- found by the lane's coverage (182 queries): a derived table's select-list subquery, read as IQ's engine reads it
+  - id: a_derived_tables_subquery_read_unqualified
+    sql: "SELECT id, c FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_read_by_star
+    sql: "SELECT * FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_in_arithmetic_and_functions
+    sql: "SELECT id, c + 1 AS c1, ABS(c) AS a, CAST(c AS VARCHAR(5)) AS v FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_ordered_and_distinct
+    sql: "SELECT DISTINCT c FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY c"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_beside_a_filter_of_another_column
+    sql: "SELECT id, c FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d WHERE sm > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_other_columns_grouped
+    sql: "SELECT sm, MAX(id) AS m FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d GROUP BY sm ORDER BY sm"
+    profile: iq17-default
+  - id: a_ctes_subquery_read_unqualified
+    sql: "WITH d AS (SELECT id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) SELECT id, c FROM d ORDER BY c, id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_read_qualified_is_iqs_error
+    sql: "SELECT d.id, d.c FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY d.id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_in_where_is_iqs_error
+    sql: "SELECT id, c FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d WHERE c > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_grouped_is_iqs_error
+    sql: "SELECT c, COUNT(*) AS n FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d GROUP BY c ORDER BY c"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_in_a_case_is_iqs_error
+    sql: "SELECT id, CASE WHEN c > 0 THEN 'y' ELSE 'n' END AS h FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_in_an_aggregate_is_iqs_error
+    sql: "SELECT SUM(c) AS s FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d"
+    profile: iq17-default
