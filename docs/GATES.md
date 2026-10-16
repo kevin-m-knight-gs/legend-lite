@@ -9932,8 +9932,8 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
   - The ratchet's type pattern counts `DatabaseType.class` again (`Enum.valueOf(DatabaseType.class, "H2")` picks
     one database); `ReservedNamesGenerationTest` enumerates with `values()`, and a type whose opener fails fails the
     test instead of leaving it.
-  - Tests where the new code had none: `EngineSeedRowTest` (each cell kind, the refusals, a table of an included
-    database), `TempTableAsTest` (the three spellings run, every other dialect's refusal, `renderInline` on one line
+  - Tests where the new code had none (their inline models raise parser-equivalence's `own_corpus.matched`
+    2851 → 2853): `EngineSeedRowTest` (each cell kind, the refusals, a table of an included database), `TempTableAsTest` (the three spellings run, every other dialect's refusal, `renderInline` on one line
     with a literal's newline kept), `DigestTest` (a NULL's digest).
   - Smaller: a comment the rename made name `_type:"referee"` (the Oracle datasource's protocol type is
     `"oracle"`) restored; the catalog grid's output names quoted by the dialect's quote character, not a literal `"`;
