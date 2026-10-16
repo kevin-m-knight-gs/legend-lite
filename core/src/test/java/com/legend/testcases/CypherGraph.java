@@ -64,6 +64,19 @@ public final class CypherGraph {
                 && s.value().equals(UNLABELLED)) {
             return new CypherValues.Lst(List.of());
         }
+        // a node inside a list, a map or a path (the study's §12.25, §12.27) is read the same way
+        if (v instanceof CypherValues.Lst l) {
+            return new CypherValues.Lst(l.items().stream().map(CypherGraph::ownLabels).toList());
+        }
+        if (v instanceof CypherValues.Mp m) {
+            Map<String, CypherValues.Value> entries = new TreeMap<>();
+            m.entries().forEach((k, x) -> entries.put(k, ownLabels(x)));
+            return new CypherValues.Mp(entries);
+        }
+        if (v instanceof CypherValues.Path p) {
+            return new CypherValues.Path(p.nodes().stream().map(CypherGraph::ownLabels).toList(), p.rels(),
+                    p.forward());
+        }
         return v;
     }
 

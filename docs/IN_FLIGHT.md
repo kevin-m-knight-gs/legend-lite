@@ -1725,6 +1725,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   record: the study's §12.25; GATES "the twenty-third landing".
 - **The keys leg, 2026-10-16, announced here as landed** — the translator and `lite/keys.yaml`: no file of the
   database owner's, no guard pin moved. The record: the study's §12.26; GATES "the twenty-fourth landing".
+- **The named-path leg, 2026-10-16, announced here as landed** — the translator, the judge (`CypherValues.Path`
+  structured) and `lite/paths.yaml`: no file of the database owner's, no guard pin moved. The record: the study's
+  §12.27; GATES "the twenty-fifth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

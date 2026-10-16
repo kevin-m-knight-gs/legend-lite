@@ -58,7 +58,10 @@ public final class CypherValues {
     }
 
     /** {@code <(a)-[:T]->(b)>}: its text, compared as written (nodes and paths are not values lite returns yet). */
-    public record Path(String text) implements Value {
+    /** A path: its nodes and its relationships in traversal order, and each relationship's direction as traversed
+     *  (forward: the node before it to the node after); Neo4j's {@code <(:A)-[:T]->(:B)>}, lite's
+     *  {@code {"@path":[node, rel, node, ...], "@dirs":[true, ...]}} (the study's §12.27). */
+    public record Path(List<Value> nodes, List<Value> rels, List<Boolean> forward) implements Value {
     }
 
     /** A value of a kind the grammar has no spelling for (a temporal, a point), as the oracle tags it. */
@@ -337,27 +340,35 @@ public final class CypherValues {
             return new Rel(type, props);
         }
 
+        /** {@code <(node)-[rel]->(node)<-[rel]-(node)>}: a node, then arrows each with its relationship. */
         private Value path() {
-            int start = i;
-            int depth = 0;
-            while (i < s.length()) {
-                char c = s.charAt(i);
-                if (c == '\'') {
-                    string();
-                    continue;
+            expect('<');
+            List<Value> nodes = new ArrayList<>();
+            List<Value> rels = new ArrayList<>();
+            List<Boolean> forward = new ArrayList<>();
+            ws();
+            nodes.add(node());
+            ws();
+            while (peek() != '>') {
+                boolean back = peek() == '<';
+                if (back) {
+                    i++;
                 }
-                if (c == '<') {
-                    depth++;
-                } else if (c == '>') {
-                    depth--;
-                    if (depth == 0) {
-                        i++;
-                        break;
-                    }
+                expect('-');
+                ws();
+                rels.add(rel());
+                ws();
+                expect('-');
+                if (!back) {
+                    expect('>');
                 }
-                i++;
+                forward.add(!back);
+                ws();
+                nodes.add(node());
+                ws();
             }
-            return new Path(s.substring(start, i).replaceAll("\\s+", " "));
+            expect('>');
+            return new Path(nodes, rels, forward);
         }
     }
 
@@ -680,6 +691,20 @@ public final class CypherValues {
                 yield new Lst(items);
             }
             case com.legend.json.Json.Obj o -> {
+                if (o.fields().get("@path") instanceof com.legend.json.Json.Arr steps) {
+                    // a path as lite returns it (the study's §12.27): nodes and relationships alternating, each
+                    // relationship's traversed direction beside them
+                    List<Value> nodes = new ArrayList<>();
+                    List<Value> rels = new ArrayList<>();
+                    for (int k = 0; k < steps.items().size(); k++) {
+                        (k % 2 == 0 ? nodes : rels).add(ofJson(steps.items().get(k)));
+                    }
+                    List<Boolean> forward = new ArrayList<>();
+                    for (com.legend.json.Json.Node d : ((com.legend.json.Json.Arr) o.fields().get("@dirs")).items()) {
+                        forward.add(((com.legend.json.Json.Bool) d).value());
+                    }
+                    yield new Path(nodes, rels, forward);
+                }
                 if (o.fields().get("@type") instanceof com.legend.json.Json.Str type) {
                     // a relationship as lite returns it (the study's §12.19): its type, its properties beside it
                     Map<String, Value> props = new TreeMap<>();
@@ -765,6 +790,22 @@ public final class CypherValues {
         }
         if (a instanceof Rel x && b instanceof Rel y) {
             return x.type().equals(y.type()) && sameMap(x.props(), y.props(), bagLists);
+        }
+        if (a instanceof Path x && b instanceof Path y) {
+            if (x.nodes().size() != y.nodes().size() || !x.forward().equals(y.forward())) {
+                return false;
+            }
+            for (int k = 0; k < x.nodes().size(); k++) {
+                if (!equal(x.nodes().get(k), y.nodes().get(k), bagLists)) {
+                    return false;
+                }
+            }
+            for (int k = 0; k < x.rels().size(); k++) {
+                if (!equal(x.rels().get(k), y.rels().get(k), bagLists)) {
+                    return false;
+                }
+            }
+            return true;
         }
         return a.equals(b);
     }
@@ -884,7 +925,14 @@ public final class CypherValues {
             case Node n -> "(" + String.join("", n.labels().stream().map(l -> ":" + l).toList())
                     + (n.props().isEmpty() ? "" : " " + mapText(n.props())) + ")";
             case Rel r -> "[:" + r.type() + (r.props().isEmpty() ? "" : " " + mapText(r.props())) + "]";
-            case Path p -> p.text();
+            case Path p -> {
+                StringBuilder sb = new StringBuilder("<").append(text(p.nodes().get(0)));
+                for (int k = 0; k < p.rels().size(); k++) {
+                    sb.append(p.forward().get(k) ? "-" : "<-").append(text(p.rels().get(k)))
+                            .append(p.forward().get(k) ? "->" : "-").append(text(p.nodes().get(k + 1)));
+                }
+                yield sb.append(">").toString();
+            }
             case Opaque o -> o.text();
         };
     }

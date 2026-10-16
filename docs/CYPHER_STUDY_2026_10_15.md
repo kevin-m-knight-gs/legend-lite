@@ -2628,3 +2628,36 @@ pass.
 
 8 lite cases in `lite/keys.yaml`, each judged by Neo4j.
 
+### 12.27 Named paths, 2026-10-16: `p = (a)-[:T]->(b)` as a value, `length`, `nodes`, `relationships`
+
+A named path over a fixed-length pattern is a value: its nodes and its relationships in the pattern's written order,
+each as the value its variable is (§12.14, §12.19), and each relationship's **stored direction** relative to that
+order (forward when the node before it holds the node after: the hop read the property's own end rather than its
+inverse; a pattern read backward from its root flips it). The JSON the judge reads, built as text by the database:
+`{"@path":[node, rel, node, ...], "@dirs":[true, ...]}`; the judge (`CypherValues.Path`, structured now: nodes,
+relationships, directions) reads Neo4j's `<(:A)-[:T]->(:B)>` into the same shape, an arrow's direction from its
+spelling, and compares them structurally (`text()` rebuilds Neo4j's spelling for a report). So a path written
+against the stored direction (`p = (b:B)<-[:T]-(a:A)`) and an undirected one (`(b:B)-[:T]-(a:A)`) print as Neo4j
+prints them, `<(:B)<-[:T]-(:A)>`.
+
+- Every node and relationship of a named path is bound (an unnamed one under a synthetic name, as a label-less
+  pattern's are), the path recorded on the graph (`Graph.paths`) under its name; a relationship's direction on
+  the graph (`Graph.forward`) as the hop resolves it. Over a typed pattern, an untyped one (each arm records the
+  path over its own typed rewrite), and a label-less node alone (`p = (n)`: a zero-length path per arm).
+- `length(p)` is spelled from the pattern (its hops); `nodes(p)` and `relationships(p)` are lists of the values
+  (§12.25's text route; `[]` for a zero-length path's relationships).
+- Through a WITH the path passes under its name with the nodes and relationships it reads (a graph carried) or, when
+  the graph is read as rows (a fanning pattern, the arms), as its JSON column; `RETURN *` lists it (and no
+  synthetic name). After that it is a Variant: `length`, `nodes` and `relationships` of it are refused by name.
+- Refused by name: a path over an OPTIONAL MATCH or a node it may not find, a variable-length pattern, a path over a
+  model with no class, path equality and ordering (`p1 = p2`: Neo4j compares by identity, direction aside).
+
+#### 12.27.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4233 | 2499 (from 2,476) | 0 | 0 | 0 | 658 | 708 | 368 |
+| Postgres | 4233 | 2149 (from 2,126) | 0 | 0 | 0 | 1008 | 708 | 368 |
+
+12 lite cases in `lite/paths.yaml`, each judged by Neo4j.
+

@@ -183,8 +183,8 @@ tck/clauses/match-where/MatchWhere1/[8] Filter relationship with property predic
 tck/clauses/match-where/MatchWhere1/[9] Filter relationship with a parameter in a property predicate on multi variables with one binding	SKIP	SKIP
 tck/clauses/match-where/MatchWhere1/[10] Filter node with disjunctive property predicate on single variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[11] Filter relationship with disjunctive relationship type predicate on multi variables with multiple bindings	PASS	PASS
-tck/clauses/match-where/MatchWhere1/[12] Filter path with path length predicate on multi variables with one binding	REFUSED	REFUSED
-tck/clauses/match-where/MatchWhere1/[13] Filter path with false path length predicate on multi variables with one binding	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere1/[12] Filter path with path length predicate on multi variables with one binding	PASS	PASS
+tck/clauses/match-where/MatchWhere1/[13] Filter path with false path length predicate on multi variables with one binding	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[14] Fail when filtering path with property predicate	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match-where/MatchWhere1/[15] Fail on aggregation in WHERE	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match-where/MatchWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	SKIP	SKIP
@@ -447,13 +447,13 @@ tck/clauses/match/Match5/[26] Handling mixed relationship patterns and direction
 tck/clauses/match/Match5/[27] Handling mixed relationship patterns and directions 2	REFUSED	REFUSED
 tck/clauses/match/Match5/[28] Handling mixed relationship patterns 1	REFUSED	REFUSED
 tck/clauses/match/Match5/[29] Handling mixed relationship patterns 2	REFUSED	REFUSED
-tck/clauses/match/Match6/[1] Zero-length named path	REFUSED	REFUSED
-tck/clauses/match/Match6/[2] Return a simple path	REFUSED	REFUSED
+tck/clauses/match/Match6/[1] Zero-length named path	PASS	PASS
+tck/clauses/match/Match6/[2] Return a simple path	PASS	PASS
 tck/clauses/match/Match6/[3] Return a three node path	SKIP	SKIP
-tck/clauses/match/Match6/[4] Respecting direction when matching non-existent path	REFUSED	REFUSED
-tck/clauses/match/Match6/[5] Path query should return results in written order	REFUSED	REFUSED
-tck/clauses/match/Match6/[6] Handling direction of named paths	REFUSED	REFUSED
-tck/clauses/match/Match6/[7] Respecting direction when matching existing path	REFUSED	REFUSED
+tck/clauses/match/Match6/[4] Respecting direction when matching non-existent path	PASS	PASS
+tck/clauses/match/Match6/[5] Path query should return results in written order	PASS	PASS
+tck/clauses/match/Match6/[6] Handling direction of named paths	PASS	PASS
+tck/clauses/match/Match6/[7] Respecting direction when matching existing path	PASS	PASS
 tck/clauses/match/Match6/[8] Respecting direction when matching non-existent path with multiple directions	REFUSED	REFUSED
 tck/clauses/match/Match6/[9] Longer path query should return results in written order	REFUSED	REFUSED
 tck/clauses/match/Match6/[10] Named path with alternating directed/undirected relationships	SKIP	SKIP
@@ -464,7 +464,7 @@ tck/clauses/match/Match6/[14] Named path with undirected fixed variable length p
 tck/clauses/match/Match6/[15] Variable-length named path	REFUSED	REFUSED
 tck/clauses/match/Match6/[16] Return a var length path	SKIP	SKIP
 tck/clauses/match/Match6/[17] Return a named var length path of length zero	REFUSED	REFUSED
-tck/clauses/match/Match6/[18] Undirected named path	REFUSED	REFUSED
+tck/clauses/match/Match6/[18] Undirected named path	PASS	PASS
 tck/clauses/match/Match6/[19] Variable length relationship without lower bound	REFUSED	REFUSED
 tck/clauses/match/Match6/[20] Variable length relationship without bounds	REFUSED	REFUSED
 tck/clauses/match/Match6/[21] Fail when a node has the same variable in a preceding MATCH #1	BOTH_ERROR	BOTH_ERROR
@@ -821,7 +821,7 @@ tck/clauses/return/Return6/[18] Handle returned variables inside an expression w
 tck/clauses/return/Return6/[19] Handle returned property accesses inside an expression which contains an aggregation expression	REFUSED	REFUSED
 tck/clauses/return/Return6/[20] Fail if not returned variables are used inside an expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[21] Fail if more complex expressions, even if returned, are used inside expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return/Return7/[1] Return all variables	REFUSED	REFUSED
+tck/clauses/return/Return7/[1] Return all variables	PASS	PASS
 tck/clauses/return/Return7/[2] Fail when using RETURN * without variables in scope	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return8/[1] Return aggregation after With filtering	PASS	PASS
 tck/clauses/set/Set1/[1] Set a property	REFUSED	REFUSED
@@ -1226,7 +1226,7 @@ tck/clauses/with-where/WithWhere7/[3] WHERE sees both, variable bound before but
 tck/clauses/with/With1/[1] Forwarind a node variable 1	REFUSED	REFUSED
 tck/clauses/with/With1/[2] Forwarind a node variable 2	REFUSED	REFUSED
 tck/clauses/with/With1/[3] Forwarding a relationship variable	REFUSED	REFUSED
-tck/clauses/with/With1/[4] Forwarding a path variable	REFUSED	REFUSED
+tck/clauses/with/With1/[4] Forwarding a path variable	PASS	PASS
 tck/clauses/with/With1/[5] Forwarding null	REFUSED	REFUSED
 tck/clauses/with/With1/[6] Forwarding a node variable possibly null	SKIP	SKIP
 tck/clauses/with/With2/[1] Forwarding a property to express a join	SKIP	SKIP
@@ -4022,6 +4022,18 @@ lite/params/map_parameter_member	PASS	PASS
 lite/params/labels_of_a_node	PASS	PASS
 lite/params/properties_of_a_node	PASS	PASS
 lite/params/properties_of_a_carried_node	PASS	PASS
+lite/paths/simple_path	PASS	PASS
+lite/paths/path_written_against_the_stored_direction	PASS	PASS
+lite/paths/undirected_path_prints_the_stored_direction	PASS	PASS
+lite/paths/path_length_nodes_relationships	PASS	PASS
+lite/paths/zero_length_path	PASS	PASS
+lite/paths/label_less_zero_length_paths	PASS	PASS
+lite/paths/path_through_a_with	PASS	PASS
+lite/paths/untyped_named_path	PASS	PASS
+lite/paths/two_hop_path	PASS	PASS
+lite/paths/path_length_in_a_where	PASS	PASS
+lite/paths/return_star_with_a_path	PASS	PASS
+lite/paths/fanning_path	PASS	PASS
 lite/rels/relationship_as_a_value	PASS	PASS
 lite/rels/type_of_a_relationship	PASS	PASS
 lite/rels/untyped_relationship_as_a_value	PASS	PASS

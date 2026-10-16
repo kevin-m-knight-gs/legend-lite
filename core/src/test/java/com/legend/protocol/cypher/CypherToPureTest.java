@@ -395,6 +395,22 @@ class CypherToPureTest {
     }
 
     @Test
+    void aNamedPathIsItsNodesAndRelationshipsWithTheirStoredDirections() {
+        // the study's §12.27: the path's JSON (nodes and relationships alternating, each relationship's stored
+        // direction beside them) built as text by the database; length(p) spelled from the pattern, nodes(p) and
+        // relationships(p) lists of the values; a path written against the stored direction prints it backward
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[pa:p|fromJson(((('{\"@path\":[' + (('{\"@labels\":' + '[\"Person\"]') + ((if(if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":' + if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[]))->toOne()->toString()) + if($p.age->isEmpty(), |'', |',\"age\":' + $p.age->toOne()->toString())) + (',\"name\":' + ('\"' + $p.name->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + '}')) + ',{\"@type\":\"firm\"},') + (('{\"@labels\":' + '[\"Firm\"]') + if($p.firm.legalName->isEmpty(), |'', |',\"legalName\":' + ('\"' + $p.firm.legalName->toOne()->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"')) + '}')) + '],\"@dirs\":[true]}')])",
+                pure("MATCH pa = (p:Person)-[:firm]->(f:Firm) RETURN pa"));
+        // the nodes in the written order (the root is the Person, the pattern starts at the Firm)
+        assertEquals("demo::Person.all()->filter(q|$q.firm->isNotEmpty())->project(~[len:q|1, ns:q|fromJson((('[' + fromJson(('{\"@labels\":' + '[\"Firm\"]') + if($q.firm.legalName->isEmpty(), |'', |',\"legalName\":' + ('\"' + $q.firm.legalName->toOne()->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"')) + '}')->toString()) + (',' + fromJson(('{\"@labels\":' + '[\"Person\"]') + ((if(if($q.active->isNotEmpty() && $q.active->toOne(), |true, |if($q.active->isNotEmpty() && !$q.active->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":' + if($q.active->isNotEmpty() && $q.active->toOne(), |true, |if($q.active->isNotEmpty() && !$q.active->toOne(), |false, |[]))->toOne()->toString()) + if($q.age->isEmpty(), |'', |',\"age\":' + $q.age->toOne()->toString())) + (',\"name\":' + ('\"' + $q.name->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + '}')->toString())) + ']'), rs:q|fromJson(('[' + fromJson('{\"@type\":\"firm\"}')->toString()) + ']')])",
+                pure("MATCH pa = (f:Firm)<-[:firm]-(q:Person) RETURN length(pa) AS len, nodes(pa) AS ns,"
+                        + " relationships(pa) AS rs"));
+        assertEquals("demo::Person.all()->project(~[pa:q|fromJson(('{\"@path\":[' + (('{\"@labels\":' + '[\"Person\"]') + ((if(if($q.active->isNotEmpty() && $q.active->toOne(), |true, |if($q.active->isNotEmpty() && !$q.active->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":' + if($q.active->isNotEmpty() && $q.active->toOne(), |true, |if($q.active->isNotEmpty() && !$q.active->toOne(), |false, |[]))->toOne()->toString()) + if($q.age->isEmpty(), |'', |',\"age\":' + $q.age->toOne()->toString())) + (',\"name\":' + ('\"' + $q.name->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + '}')) + '],\"@dirs\":[]}')])",
+                pure("MATCH pa = (q:Person) RETURN pa"));
+        invalid("MATCH p = (p:Person)-[:firm]->(f:Firm) RETURN p", "Variable `p` already declared");
+    }
+
+    @Test
     void keysOfANodeAreTheNamesOfItsPropertiesThatHoldAValue() {
         // the study's §12.26: the names' JSON array text (each where its value is present), read back as strings;
         // a relationship holds none; RETURN p ORDER BY p.name with a LIMIT reads the pattern's property

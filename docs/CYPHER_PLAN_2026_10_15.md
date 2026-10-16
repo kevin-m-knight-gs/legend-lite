@@ -108,8 +108,9 @@ both. Then `toString` of date-times and times (§12.22); DuckDB PASS 2,385, Post
 on both. Then aggregates in expressions (§12.24); DuckDB PASS 2435, Postgres PASS 2085, 0 FAIL, 0 BUG, 0 ERROR
 on both. Then lists and maps of values of the row as JSON text (§12.25); DuckDB PASS 2456, Postgres PASS 2106,
 0 FAIL, 0 BUG, 0 ERROR on both. Then `keys()` and a returned node's property as a sort key (§12.26); DuckDB PASS
-2476, Postgres PASS 2126, 0 FAIL, 0 BUG, 0 ERROR on both. Then the full CI run on the branch, the merge; an
-OPTIONAL MATCH's WHERE, an edge class, named zones, and `collect` (the database owner's aggregate) wait.
+2476, Postgres PASS 2126, 0 FAIL, 0 BUG, 0 ERROR on both. Then named paths as values (§12.27); DuckDB PASS 2499,
+Postgres PASS 2149, 0 FAIL, 0 BUG, 0 ERROR on both. Then the full CI run on the branch, the merge; an OPTIONAL
+MATCH's WHERE, an edge class, named zones, and `collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle
