@@ -31,9 +31,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CypherParityTest {
 
-    /** The showcase's query (docs/CYPHER_SHOWCASE.md): {@code lite/basics.yaml}'s {@code showcase_main}, judged by
-     *  Neo4j above like every case; its SQL for two connections pinned below. */
-    private static final String SHOWCASE = "lite/basics/showcase_main";
+    /** The showcase's queries (docs/CYPHER_SHOWCASE.md): {@code lite/basics.yaml}'s {@code showcase_main} (pinned at
+     *  the showcase directory's root), {@code showcase_easy} and {@code showcase_hard} (each in its own directory),
+     *  judged by Neo4j above like every case; the model, the Pure and the SQL for two connections pinned below. */
+    private static final String[][] SHOWCASES = {
+        {"lite/basics/showcase_main", ""},
+        {"lite/basics/showcase_easy", "easy"},
+        {"lite/basics/showcase_hard", "hard"},
+    };
 
     /** The connections the showcase's SQL is pinned for, each a file of {@code cypher-parity/showcase/}: Snowflake's
      *  is rendered only (planning never connects), DuckDB's is the SQL the lane runs. */
@@ -54,50 +59,55 @@ class CypherParityTest {
     void theShowcasePlansItsPinnedSql() throws Exception {
         List<CypherParity.Case> cases = CypherParity.cases(Runfile.property("cypher.parity.tck").getParent(),
                 Runfile.property("cypher.parity.lite").getParent());
-        CypherParity.Case main = cases.stream().filter(c -> c.key().equals(SHOWCASE)).findFirst()
-                .orElseThrow(() -> new AssertionError("no case " + SHOWCASE));
         CypherAnswers.File answers = CypherAnswers.read(Runfile.property("cypher.parity.answers"));
-        CypherAnswers.Answer answer = answers.answers().get(SHOWCASE);
-        if (answer == null || answer.graph() == null) {
-            throw new AssertionError("no snapped answer with a graph for " + SHOWCASE);
-        }
-        CypherGraph.Inferred inferred = CypherGraph.infer(answer.graph());
         java.nio.file.Path pinned = Runfile.property("cypher.parity.showcase").getParent();
         String update = System.getProperty("cypher.showcase.update");
         List<String> problems = new ArrayList<>();
-        // the model the graph implies and the Pure the island desugars to, pinned beside the SQL (the doc's §4, §5)
-        java.util.Map<String, String> texts = new java.util.LinkedHashMap<>();
-        texts.put("model.pure", inferred.model());
-        com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(CypherGraph.model(inferred,
-                SHOWCASE_LANES[1][1]));
-        texts.put("pure.txt", com.legend.protocol.PureComposer.valueSpecification(
-                com.legend.compiler.spec.CypherIslands.translate(new com.legend.protocol.spec.SqlIsland(main.query(),
-                        null, com.legend.protocol.spec.SqlIsland.CYPHER, null), ctx),
-                com.legend.protocol.PureComposer.Style.STANDARD) + "\n");
-        for (String[] lane : SHOWCASE_LANES) {
-            texts.put(lane[0] + ".sql", com.legend.Compiler.query(com.legend.Compiler.compileModel(CypherGraph.model(
-                    inferred, lane[1])), main.island()).plan(CypherGraph.RUNTIME).sql() + "\n");
-        }
-        for (java.util.Map.Entry<String, String> e : texts.entrySet()) {
-            String sql = e.getValue();
-            String file = e.getKey();
-            if (update != null) {
-                java.nio.file.Files.writeString(Path.of(update).resolve(file), sql,
-                        java.nio.charset.StandardCharsets.UTF_8);
-                continue;
+        for (String[] showcase : SHOWCASES) {
+            String key = showcase[0];
+            CypherParity.Case main = cases.stream().filter(c -> c.key().equals(key)).findFirst()
+                    .orElseThrow(() -> new AssertionError("no case " + key));
+            CypherAnswers.Answer answer = answers.answers().get(key);
+            if (answer == null || answer.graph() == null) {
+                throw new AssertionError("no snapped answer with a graph for " + key);
             }
-            String expected = java.nio.file.Files.readString(pinned.resolve(file),
-                    java.nio.charset.StandardCharsets.UTF_8);
-            if (!expected.equals(sql)) {
-                List<String> was = expected.lines().toList();
-                List<String> now = sql.lines().toList();
-                int line = 0;
-                while (line < Math.min(was.size(), now.size()) && was.get(line).equals(now.get(line))) {
-                    line++;
+            CypherGraph.Inferred inferred = CypherGraph.infer(answer.graph());
+            // the model the graph implies and the Pure the island desugars to, pinned beside the SQL (the doc's
+            // §6 to §9)
+            java.util.Map<String, String> texts = new java.util.LinkedHashMap<>();
+            texts.put("model.pure", inferred.model());
+            com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(CypherGraph.model(
+                    inferred, SHOWCASE_LANES[1][1]));
+            texts.put("pure.txt", com.legend.protocol.PureComposer.valueSpecification(
+                    com.legend.compiler.spec.CypherIslands.translate(new com.legend.protocol.spec.SqlIsland(
+                            main.query(), null, com.legend.protocol.spec.SqlIsland.CYPHER, null), ctx),
+                    com.legend.protocol.PureComposer.Style.STANDARD) + "\n");
+            for (String[] lane : SHOWCASE_LANES) {
+                texts.put(lane[0] + ".sql", com.legend.Compiler.query(com.legend.Compiler.compileModel(
+                        CypherGraph.model(inferred, lane[1])), main.island()).plan(CypherGraph.RUNTIME).sql()
+                        + "\n");
+            }
+            for (java.util.Map.Entry<String, String> e : texts.entrySet()) {
+                String sql = e.getValue();
+                String file = showcase[1].isEmpty() ? e.getKey() : showcase[1] + "/" + e.getKey();
+                if (update != null) {
+                    java.nio.file.Files.writeString(Path.of(update).resolve(file), sql,
+                            java.nio.charset.StandardCharsets.UTF_8);
+                    continue;
                 }
-                problems.add(file + " differs from line " + (line + 1) + ":\n  pinned: "
-                        + (line < was.size() ? was.get(line) : "<end>") + "\n  now:    "
-                        + (line < now.size() ? now.get(line) : "<end>"));
+                String expected = java.nio.file.Files.readString(pinned.resolve(file),
+                        java.nio.charset.StandardCharsets.UTF_8);
+                if (!expected.equals(sql)) {
+                    List<String> was = expected.lines().toList();
+                    List<String> now = sql.lines().toList();
+                    int line = 0;
+                    while (line < Math.min(was.size(), now.size()) && was.get(line).equals(now.get(line))) {
+                        line++;
+                    }
+                    problems.add(file + " differs from line " + (line + 1) + ":\n  pinned: "
+                            + (line < was.size() ? was.get(line) : "<end>") + "\n  now:    "
+                            + (line < now.size() ? now.get(line) : "<end>"));
+                }
             }
         }
         assertTrue(problems.isEmpty(), "the showcase's SQL moved (if on purpose, rewrite it with"

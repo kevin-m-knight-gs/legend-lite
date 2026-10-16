@@ -835,14 +835,26 @@ _CYPHER_PARITY_FLAGS = [
     "-Dcypher.parity.lite=$(rlocationpath src/test/resources/cypher-parity/lite/basics.yaml)",
 ]
 
-# the showcase's SQL (docs/CYPHER_SHOWCASE.md): lite/basics.yaml's showcase_main planned for Snowflake (rendered only)
-# and DuckDB, pinned byte for byte by CypherParityTest; -Dcypher.showcase.update=<core/src/test/resources/cypher-parity/
+# the showcase's SQL (docs/CYPHER_SHOWCASE.md): lite/basics.yaml's showcase_main, showcase_easy and showcase_hard
+# planned for Snowflake (rendered only) and DuckDB, pinned byte for byte by CypherParityTest; -Dcypher.showcase.update=<core/src/test/resources/cypher-parity/
 # showcase in the workspace> rewrites them
 _CYPHER_SHOWCASE_DATA = [
-    "src/test/resources/cypher-parity/showcase/duckdb.sql",
-    "src/test/resources/cypher-parity/showcase/snowflake.sql",
-    "src/test/resources/cypher-parity/showcase/model.pure",
-    "src/test/resources/cypher-parity/showcase/pure.txt",
+    "src/test/resources/cypher-parity/showcase/" + f
+    for f in [
+        "duckdb.sql",
+        "snowflake.sql",
+        "model.pure",
+        "pure.txt",
+        # the easy and the hard examples beside the main one (docs/CYPHER_SHOWCASE.md §17)
+        "easy/duckdb.sql",
+        "easy/snowflake.sql",
+        "easy/model.pure",
+        "easy/pure.txt",
+        "hard/duckdb.sql",
+        "hard/snowflake.sql",
+        "hard/model.pure",
+        "hard/pure.txt",
+    ]
 ]
 
 junit_test(

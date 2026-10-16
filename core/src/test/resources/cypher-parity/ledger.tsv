@@ -3927,6 +3927,8 @@ lite/basics/review_end_as_a_name	PASS	PASS
 lite/basics/review_parenthesised_variable	PASS	PASS
 lite/basics/review_relationship_uniqueness_refused	REFUSED	REFUSED
 lite/basics/review_leading_zero_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/basics/showcase_easy	PASS	PASS
+lite/basics/showcase_hard	PASS	PASS
 lite/basics/showcase_main	PASS	PASS
 lite/cartesian/two_classes_joined_on_a_property	PASS	PASS
 lite/cartesian/counts_over_every_pair	PASS	PASS

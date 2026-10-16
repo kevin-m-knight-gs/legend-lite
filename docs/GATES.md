@@ -9850,6 +9850,24 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the thirty-fourth landing — the showcase's easy and hard examples, pinned (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the labels leg; the record is `docs/CYPHER_SHOWCASE.md` §17 to §20. No
+translator code changed.
+
+1. **What lands.** Two more worked examples beside the showcase's medium one, over the same graph: an easy query
+   (`lite/basics.yaml`'s `showcase_easy`) and a hard one (`showcase_hard`: OPTIONAL MATCH, `WITH` keeping the graph,
+   two pattern comprehensions, a three-valued boolean, a `CASE` over an absent node), each judged by Neo4j and each
+   with its model, Pure, DuckDB SQL and Snowflake SQL pinned under `cypher-parity/showcase/easy/` and `hard/`
+   (`CypherParityTest.theShowcasePlansItsPinnedSql` now checks the three); one Neo4j-judged case for each leg since the
+   showcase's §16; the TCK ledger by status and by area.
+2. **The ledger.** DuckDB: 4320 cases; PASS 2612 (from 2,610: the two showcase cases); FAIL 0; BUG 0; ERROR 0;
+   REFUSED 631; BOTH_ERROR 709; SKIP 368. Postgres: PASS 2262 (from 2,260); FAIL 0; BUG 0; ERROR 0; REFUSED 981;
+   BOTH_ERROR 709; SKIP 368. The TCK alone on DuckDB: 3880 cases, PASS 2256, BOTH_ERROR 666, REFUSED 591, SKIP 367.
+3. **The runs.** The two lanes in update mode, the DuckDB lane again with the pins checked, the oracle's check,
+   `//core:guardrails`, `//core:core_tests_protocol`, `//core:core_tests_integration`. The full CI run on the branch is
+   the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-third landing — label predicates, relationships of several types (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the list-ordering leg; the record is the study's §12.35

@@ -107,6 +107,25 @@ tests:
   - id: review_leading_zero_is_an_error
     graph: legend
     cypher: "RETURN 017 AS n"
+  - id: showcase_easy
+    graph: legend
+    cypher: |
+      MATCH (p:Person)
+      WHERE p.age > 28
+      RETURN p.name AS name, p.age AS age, coalesce(p.active, false) AS active
+      ORDER BY age DESC
+  - id: showcase_hard
+    graph: legend
+    cypher: |
+      MATCH (f:Firm)
+      OPTIONAL MATCH (f)-[:HQ]->(c:City)
+      WITH f, c
+      RETURN f.legalName AS firm, c.name AS city, c IS NULL AS noHq,
+             size([(f)<-[:WORKS_AT]-(p) | p]) AS headcount,
+             [(f)<-[:WORKS_AT]-(p) WHERE p.age > 35 | p.name] AS seniors,
+             f.founded IS NOT NULL AND f.founded < 2000 AS old,
+             CASE WHEN c IS NULL THEN 'no hq' ELSE 'in ' + c.name END AS where
+      ORDER BY firm
   - id: showcase_main
     graph: legend
     cypher: |

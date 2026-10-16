@@ -1749,6 +1749,10 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
 - **The labels leg, 2026-10-16, announced here as landed** — the parser, the translator and `lite/labels.yaml`: no
   file of the database owner's, no guard pin moved. The record: the study's §12.35; GATES "the thirty-third
   landing".
+- **The showcase's easy and hard examples, 2026-10-16, announced here as landed** — `docs/CYPHER_SHOWCASE.md` §17 to
+  §20, `lite/basics.yaml` (`showcase_easy`, `showcase_hard`), the pins under `cypher-parity/showcase/easy/` and
+  `hard/`, `CypherParityTest` checking the three: no translator code, no file of the database owner's, no guard pin
+  moved. GATES "the thirty-fourth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`
