@@ -331,6 +331,15 @@ class OnThePage(unittest.TestCase):
         page.grids[0].create_class('Trade', project='Desk book')
         self.assertTrue(page.model['project'].startswith('datacube:desk-book'), page.model)
 
+    def test_a_column_role_the_writer_does_not_know_is_refused_in_its_words(self):
+        # Python keeps no list of the roles: the writer judges them (CreateClass asOf). The project made before it stays
+        # the page's (a project made stays the caller's when a later step fails); no class is written or kept
+        page = _page(self)
+        with self.assertRaisesRegex(ll.LegendError, r"the column 'desk' is asked to be 'primary': a property, a key or omit"):
+            page.grids[0].create_class('Trade', columns={'desk': 'primary'})
+        self.assertEqual(page.model['tables'], {})
+        self.assertNotIn('Class ', '\n'.join(self.files(page.model).values()))
+
     def test_an_association_before_any_class_is_refused_in_words(self):
         with self.assertRaisesRegex(ValueError, 'make them first'):
             _page(self).create_association(('a::A', 'x'), ('b::B', 'y'))

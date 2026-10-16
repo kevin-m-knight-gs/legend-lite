@@ -26,7 +26,7 @@ export function layoutNew(): string {
 }
 
 /** A new tile's place, as DataCube places one (bands.ts add): beside `near` while its band has room, else a band of
- *  its own below it; with no `near` (null), a band at the bottom. */
+ *  its own below it; with no `near` (null), a band at the bottom; on a board with no band, the whole board. */
 export function layoutAdd(layout: string, tile: string, near: string | null): string {
   return written(add(read(layout), tile, near ?? undefined));
 }

@@ -496,7 +496,7 @@ function fitting(snapshot: CubeSnapshot, notes: string[]): Measure[] {
   for (const m of snapshot.measures) {
     const type = typeOf.get(m.column);
     const problem = (type === undefined ? null : measureOfferProblem(m, type))
-      ?? measureNameProblem({ ...snapshot, measures: [...kept, m] }, m);
+      ?? measureNameProblem({ ...snapshot, measures: [...kept, m] }, kept.length);
     if (problem === null) kept.push(m);
     else notes.push(`left out measure ${m.name}: ${problem}`);
   }

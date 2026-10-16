@@ -1253,12 +1253,12 @@ class Page:
 
     def _reopened(self, c: dict[str, Any], stacklevel: int) -> bool:
         """The page's cube ``c`` as DataCube opens it over its frame as the compiler types it now (``_frame_cube``:
-        cube-document.ts rebuilt -- a new column hidden; a gone one, and a measure whose name is not its own, left out;
-        the open groups dropped when the grouping changed), taken when it is not the cube held -- the frame's columns
-        moved, or DataCube left a part out -- each note warned once, in DataCube's words. So the page holds the cube every
-        headless call opens, and no later call sends a part DataCube leaves out (a measure of a page saved before the
-        naming rule, refused beside a new one). Whether it was taken. Asked when a page is loaded (``load``: its frames
-        served) and when a frame is served again (``_update``)."""
+        cube-document.ts rebuilt -- a new column hidden; a gone one, a measure whose name is not its own, and one its
+        column's type no longer takes, left out; the open groups dropped when the grouping changed), taken when it is
+        not the cube held -- the frame's columns moved, or DataCube left a part out -- each note warned once, in
+        DataCube's words. So the page holds the cube every headless call opens, and no later call sends a part DataCube
+        leaves out (a measure of a page saved before the naming rule, refused beside a new one). Whether it was taken.
+        Asked when a page is loaded (``load``: its frames served) and when a frame is served again (``_update``)."""
         frame = c['cube']['source']['name']
         cube, notes, changed = self._frame_cube(frame, len(self._doc['cubes']), c['cube'])
         # the frame's columns as they were, nothing left out: the cube stands as it is (opened again, the same)

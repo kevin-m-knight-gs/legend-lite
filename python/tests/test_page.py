@@ -591,6 +591,10 @@ class Document(Paged):
             grid.measure('region', 'count')
         with self.assertRaisesRegex(ValueError, "'desk' is already a column"):
             grid.measure('pnl', 'sum', name='desk')
+        # the measure the grid has, added again: a second measure of one name, refused by the rule (the round's second
+        # audit: the grid's own measure matched twice was judged once, and passed)
+        with self.assertRaisesRegex(ValueError, r"'notional' is already a column: the measure sum\(notional\)"):
+            grid.measure('notional', 'sum')
         # a count reads none of its column's values but is placed by its column: one the grid does not have is refused,
         # never left out; a name's text is trimmed, so ' w_pnl ' and 'w_pnl' are one name
         with self.assertRaisesRegex(ValueError, 'the measure n names "nope", not a column of the grid'):
@@ -625,6 +629,9 @@ class Document(Paged):
         self.assertEqual(detailed._query['sorts'], [{'column': 'notional', 'direction': 'desc'}])
         page = ll.Page('Sorted')
         grid = page.grid(trades(), name='sorted_trades', columns=['desk'], measures={'notional': 'sum'})
+        # pivoted, the same: a spread measure's name is no column's, but two measures of one name are refused
+        with self.assertRaisesRegex(ValueError, r"'notional' is already a measure's name: the measure sum\(notional\)"):
+            grid.measure('notional', 'sum')
         # pivoted on desk, the query shows no pnl header: a sort on it would be left out without a word
         with self.assertRaisesRegex(ValueError, 'the sort names "pnl", which the grid does not show'):
             grid.sort('pnl')

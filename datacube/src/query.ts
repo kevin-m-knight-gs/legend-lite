@@ -415,8 +415,8 @@ export function duplicateLambda(relation: ValueSpecification, column: string): L
 function levelRelation(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: PivotFacts, ordered = true): Relation {
   // each measure named a column of its own, grouped or pivoted, or the level writes two columns of one name: a
   // grouped level its measures beside the keys, a pivot its kept-out measures beside them (calc.ts measureNameProblem)
-  for (const m of snapshot.measures) {
-    const problem = measureNameProblem(snapshot, m);
+  for (let at = 0; at < snapshot.measures.length; at++) {
+    const problem = measureNameProblem(snapshot, at);
     if (problem !== null) throw new CubeRefusal(problem);
   }
   let rel = from(snapshot.source.query);

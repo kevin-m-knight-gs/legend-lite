@@ -173,6 +173,18 @@ class Names(unittest.TestCase):
         with self.assertRaises(ValueError), frames.reading_file('false'):
             pass
 
+    def test_a_name_pure_takes_and_sql_reserves_reads_its_rows_in_either_mode(self):
+        # `order` is a Pure identifier (ModelChanges.isIdentifier) and a SQL keyword: the frame's table or view is
+        # quoted wherever a query reads it, Live and Snapped alike
+        for mode in ('live', 'snapped'):
+            with self.subTest(mode=mode):
+                frames = ll.Frames()
+                table = frames.register('order', trades(), mode=mode)
+                self.assertEqual(table.accessor, '#>{order::DB.order}#')
+                self.assertEqual(table.execute("->filter(x|$x.desk == 'EQ')->select(~[id])").to_pylist(),
+                                 [{'id': 2}, {'id': 5}])
+                frames.close()
+
 
 class Session(unittest.TestCase):
     def test_the_session_answers_in_utc_on_any_machine(self):

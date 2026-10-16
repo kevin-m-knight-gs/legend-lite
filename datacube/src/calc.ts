@@ -29,8 +29,8 @@
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { CALC_FACTS } from './generated/offer-facts.ts';
 import { ROOT_COLUMN } from './grid/columns.ts';
-import { groupedMeasures, pivotLabel, spreadMeasures, type PivotColumn } from './query.ts';
-import { LEAF_COUNT_COLUMN, rowColumns, type CubeSnapshot, type Measure } from './snapshot.ts';
+import { groupedMeasures, pivotLabel, type PivotColumn } from './query.ts';
+import { LEAF_COUNT_COLUMN, excludedFromPivot, rowColumns, type CubeSnapshot } from './snapshot.ts';
 
 /** Which extend stage an expression belongs to. */
 export type CalcStage = 'row' | 'group';
@@ -262,18 +262,25 @@ export function takenNames(snapshot: CubeSnapshot, pivot: readonly PivotColumn[]
 const SEPARATOR_TAKEN = `'${PIVOT_SEPARATOR}' is how a pivot spells its generated columns, so a name cannot contain it`;
 
 /**
- * Why a measure's name is no name of its own, or null: its own column's, when that column is no grouping key (the
+ * Why the cube's measure `at` (its place in `snapshot.measures`) has no name of its own, or null: its own column's,
+ * when that column is no grouping key (the
  * column's aggregate, as the level query writes it), or a name nothing else of the cube has (takenNames: the measures
  * before it, so of two of one name the later is the one refused) -- a measure named after another column, or after a
  * key, would write a second column of that name. Pivoted, a measure spread under each pivot value writes no column of
  * its own name (query.ts pivotColumns: `<value>__|__<name>`), so it clashes with no column -- only with another
  * measure's name; one kept out of the pivot is written beside the keys, by the column rule (found by the round's
- * audit, 2026-10-16: the rule had refused a spread measure's name, which no column of the level writes).
+ * audit, 2026-10-16: the rule had refused a spread measure's name, which no column of the level writes). Judged by
+ * place, never by the measure object: a cube holding one object twice is two measures of one name (the round's second
+ * audit, 2026-10-16).
  */
-export function measureNameProblem(snapshot: CubeSnapshot, m: Measure): string | null {
+export function measureNameProblem(snapshot: CubeSnapshot, at: number): string | null {
+  const m = snapshot.measures[at];
+  if (m === undefined) throw new Error(`the cube has no measure ${at}: it has ${snapshot.measures.length}`);
   if (m.name.includes(PIVOT_SEPARATOR)) return SEPARATOR_TAKEN;
-  const before = snapshot.measures.slice(0, Math.max(0, snapshot.measures.indexOf(m)));
-  if (snapshot.pivotOn.length > 0 && spreadMeasures(snapshot).includes(m)) {
+  const before = snapshot.measures.slice(0, at);
+  // pivoted, a measure whose column is not kept out of the pivot is spread under each pivot value (query.ts
+  // spreadMeasures)
+  if (snapshot.pivotOn.length > 0 && !excludedFromPivot(snapshot).has(m.column)) {
     return before.some((b) => b.name === m.name)
       ? `'${m.name}' is already a measure's name: the measure ${m.fn}(${m.column}) takes a name of its own`
       : null;

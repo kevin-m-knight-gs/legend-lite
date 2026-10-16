@@ -25,7 +25,7 @@ export function takesAggregate(fn: AggregateFn, type: string): boolean {
 
 /**
  * Why a column of this type does not take the measure, or null: a measure is one of its column's aggregates
- * (takesAggregate), or a count, which reads none of its column's values (query.ts groupedMeasures: `x|1`) and so is
+ * (takesAggregate), or a count, which reads none of its column's values (query.ts aggregateSpec: `x|1`) and so is
  * taken by any. The one rule a measure is offered by: a grid's query set from Python (headless/grid.ts gridQuery), and
  * a saved cube reopened over a source that retyped a column (cube-document.ts openCube). The screen's Aggregation
  * offers a column's own aggregate (panel-column.ts aggregatesFor: takesAggregate alone), never a count of a column of
