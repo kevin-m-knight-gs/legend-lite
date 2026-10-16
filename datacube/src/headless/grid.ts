@@ -19,9 +19,11 @@ import { draftCandidate, draftColumn, draftStage, newDraft } from '../column-dra
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, type CubeState } from '../cube-state.ts';
 import {
-  cubeToJson, frameSource, normalFilter, openCube, readCube, rebuilt, writeCube, type OpenedCube,
+  cubeToJson, frameSource, openCube, readCube, rebuilt, writeCube, type OpenedCube,
 } from '../cube-document.ts';
-import { OPERATORS, isCompatible } from '../filter-operators.ts';
+import {
+  OPERATORS, isCompatible, newCondition, newGroup, toFilterNode, type DraftCondition, type DraftNode,
+} from '../filter-operators.ts';
 import { STALE } from '../epoch.ts';
 import { columnFormats, heatmapColour, heatmapSetting, measureHeatmaps, renderExport, type ExportKind } from '../export-render.ts';
 import { FormatterCache } from '../format.ts';
@@ -35,7 +37,7 @@ import { sampleOf } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, isJsonValue, isRelativeDate, rowColumns, type ColumnKind, type ColumnSpec, type CubeSnapshot,
-  type FilterNode, type FilterValue,
+  type FilterValue,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
@@ -219,26 +221,37 @@ const isValue = (v: unknown): v is FilterValue => typeof v === 'string' || typeo
 
 const VALUES = 'text, a number, a boolean, a date as its text, {"relative": "today" | "now"} or {"json": text}';
 
+/** What each operand is, in DataCube's words: what a condition missing it is told. */
+const OPERAND_TOLD: Readonly<Record<'single' | 'list' | 'column', (op: string) => string>> = {
+  single: (op) => `'${op}' takes one value`,
+  list: (op) => `'${op}' takes a list of values, one at least, in their order`,
+  column: (op) => `'${op}' compares to another column of the grid's`,
+};
+
 /**
- * `given` as the filter editor's tree (snapshot.ts FilterNode), each condition's operand where its operator's takes one
- * (filter-operators.ts: none, one value, a list in its order, another column), its operator one a column of its type is
- * offered (offers.ts), over the grid's columns (`types`) -- or why not, in the editor's own terms.
+ * `given` as the filter editor's draft tree (filter-operators.ts DraftNode): each condition's operand where its
+ * operator's takes one (none, one value, a list in its order, another column) -- a value carried on the editor's
+ * `stored` path, exactly, as a reopened filter's is -- its operator one a column of its type is offered (offers.ts),
+ * over the grid's columns (`types`); a negation a negated group of one, so it keeps its shape -- or why not, in the
+ * editor's own terms. An empty group is no filter at the top (`nested` false: the editor's normal form, `filter([])`)
+ * and refused inside one, where the editor's conversion would leave it out: an API call has no half-written row.
  */
-function filterFrom(given: GivenFilter, types: ReadonlyMap<string, string | undefined>): FilterNode | string {
+function draftFrom(given: GivenFilter, types: ReadonlyMap<string, string | undefined>, nested = false): DraftNode | string {
   switch (given.kind) {
     case 'and':
     case 'or': {
-      const children: FilterNode[] = [];
+      if (nested && given.children.length === 0) return `an '${given.kind}' needs one condition at least`;
+      const children: DraftNode[] = [];
       for (const child of given.children) {
-        const made = filterFrom(child, types);
+        const made = draftFrom(child, types, true);
         if (typeof made === 'string') return made;
         children.push(made);
       }
-      return { kind: given.kind, children };
+      return { ...newGroup(children), join: given.kind };
     }
     case 'not': {
-      const child = filterFrom(given.child, types);
-      return typeof child === 'string' ? child : { kind: 'not', child };
+      const child = draftFrom(given.child, types, true);
+      return typeof child === 'string' ? child : { ...newGroup([child]), not: true };
     }
     case 'condition':
       return conditionFrom(given, types);
@@ -247,7 +260,7 @@ function filterFrom(given: GivenFilter, types: ReadonlyMap<string, string | unde
 
 function conditionFrom(
   given: Extract<GivenFilter, { kind: 'condition' }>, types: ReadonlyMap<string, string | undefined>,
-): FilterNode | string {
+): DraftCondition | string {
   const { column, operator } = given;
   if (typeof column !== 'string' || !types.has(column)) {
     const names = [...types.keys()].sort().join(', ');
@@ -264,42 +277,54 @@ function conditionFrom(
   }
   const has = 'operand' in given;
   const operand = given.operand;
+  // the editor's new row on the column, its operator chosen and its operand filled as the editor holds one
+  const draft = (filled: Partial<DraftCondition>): DraftCondition => ({ ...newCondition(column), operator: op, ...filled });
+  let made: DraftCondition;
   switch (meta.operand) {
     case 'none':
-      return has ? `'${op}' takes no value` : { kind: 'condition', column, operator: op };
+      if (has) return `'${op}' takes no value`;
+      made = draft({});
+      break;
     case 'column':
       if (!has || typeof operand !== 'string' || !types.has(operand)) {
-        return `'${op}' compares to another column: ${JSON.stringify(operand ?? null)} is not one of the grid's`;
+        return `${OPERAND_TOLD.column(op)}: ${JSON.stringify(operand ?? null)} is not one of them`;
       }
-      return { kind: 'condition', column, operator: op, rightColumn: operand };
+      made = draft({ rightColumn: operand });
+      break;
     case 'list':
-      if (!has || !Array.isArray(operand) || operand.length === 0) {
-        return `'${op}' takes a list of values, one at least, in their order`;
-      }
+      if (!has || !Array.isArray(operand) || operand.length === 0) return OPERAND_TOLD.list(op);
       if (!operand.every(isValue)) return `'${op}' takes ${VALUES} in its list`;
-      return { kind: 'condition', column, operator: op, value: operand };
+      made = draft({ stored: { column, text: '', value: operand } });
+      break;
     case 'single':
-      if (!has) return `'${op}' takes one value`;
+      if (!has) return OPERAND_TOLD.single(op);
       if (Array.isArray(operand)) return `'${op}' takes one value, not several (several are for "in")`;
       if (!isValue(operand)) return `'${op}' takes ${VALUES}`;
-      return { kind: 'condition', column, operator: op, value: operand };
+      made = draft({ stored: { column, text: '', value: operand } });
+      break;
   }
+  // an API call has no half-written row to drop: a condition the editor would leave out is refused, never dropped
+  if (toFilterNode(made, (c) => types.get(c)) === null) {
+    return meta.operand === 'none' ? `'${op}' on ${column} makes no condition` : OPERAND_TOLD[meta.operand](op);
+  }
+  return made;
 }
 
 /**
  * A FILTER SET as DataCube's filter editor sets one (ui/filter-editor.ts): `given` (JSON, GivenFilter) built into the
- * editor's tree by its operators' own operands and offers (filterFrom), in its normal form (cube-document.ts
- * normalFilter: a group of one is that one), and the cube with it compiled as a refresh would send it -- so Python
- * checks no filter by rules of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 6). JSON: `{filter}` (null: no
- * filter at all) or `{problems}`, why it was refused.
+ * editor's draft tree by its operators' own operands and offers (draftFrom), converted as the editor converts its tree
+ * (filter-operators.ts toFilterNode: its normal form, a group of one that one, an empty group none), and the cube with
+ * it compiled as a refresh would send it -- so Python checks no filter by rules of its own
+ * (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 6). JSON: `{filter}` (null: no filter at all) or `{problems}`, why it
+ * was refused.
  */
 export async function gridFilter(spec: GridSpec, given: string): Promise<string> {
   return using(spec, async ({ planner, state }) => {
     const typed = await typedColumns(planner, state.snapshot);
     const types = new Map(rowColumns(typed).map((c) => [c.name, c.type] as const));
-    const made = filterFrom(JSON.parse(given) as GivenFilter, types);
+    const made = draftFrom(JSON.parse(given) as GivenFilter, types);
     if (typeof made === 'string') return JSON.stringify({ problems: [made] });
-    const filter = normalFilter(made);
+    const filter = toFilterNode(made, (c) => types.get(c)) ?? undefined;
     const { filter: _was, ...rest } = typed;
     const snapshot: CubeSnapshot = filter === undefined ? rest : { ...rest, filter };
     const outcome = await compiled(planner, { snapshot, tree: state.tree });

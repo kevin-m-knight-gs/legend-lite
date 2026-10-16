@@ -541,6 +541,11 @@ class Document(Paged):
             grid.filter(('desk', 'equal', ['FX']))
         with self.assertRaisesRegex(ValueError, 'one at least'):
             grid.filter(('desk', 'in', []))
+        # an empty group is no filter only at the top (filter([]), below); inside a filter it is refused, never dropped
+        with self.assertRaisesRegex(ValueError, "an 'and' needs one condition at least"):
+            grid.filter(('or', [('desk', 'equal', 'FX'), ('and', [])]))
+        with self.assertRaisesRegex(ValueError, "an 'or' needs one condition at least"):
+            grid.filter(('not', ('or', [])))
         with self.assertRaisesRegex(ValueError, "'contains' is not offered on notional, a Float column"):
             grid.filter(('notional', 'contains', '1'))
         with self.assertRaisesRegex(ValueError, 'no overload'):
