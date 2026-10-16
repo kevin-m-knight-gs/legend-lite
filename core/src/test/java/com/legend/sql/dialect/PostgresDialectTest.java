@@ -117,11 +117,12 @@ class PostgresDialectTest {
         // (measured 2026-10-16 on Postgres 16: the Cypher island's toInteger of a text)
         assertEquals("""
                 SELECT CASE WHEN ('x' ~ '(?p)^(?:^[0-9]+$)$') THEN CAST(CAST('x' AS VARCHAR) AS BIGINT) ELSE NULL END AS "n"
-                FROM trades AS "t0\"""",
-                plan("->project(~[n: r|if('x'->matches('^[0-9]+$'), |parseInteger('x'), |[])])"));
+                FROM trades AS "t0"\
+                """, plan("->project(~[n: r|if('x'->matches('^[0-9]+$'), |parseInteger('x'), |[])])"));
         assertEquals("""
                 SELECT CAST(CAST('1.5' AS VARCHAR) AS DOUBLE PRECISION) AS "f"
-                FROM trades AS "t0\"""", plan("->project(~[f: r|parseFloat('1.5')])"));
+                FROM trades AS "t0"\
+                """, plan("->project(~[f: r|parseFloat('1.5')])"));
         // to a text it is the literal's own type: the one cast stays
         assertTrue(plan("->project(~[s: r|7->toString()])").contains("CAST(7 AS VARCHAR)"));
     }

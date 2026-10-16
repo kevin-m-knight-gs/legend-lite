@@ -10,9 +10,9 @@ Thumbs.db
 # Logs
 *.log
 
-# DuckDB artifacts
-null
-null.wal
+# DuckDB artifacts (at the root only: `null` alone also hid the TCK's features/expressions/null/ directory from git, 2026-10-16)
+/null
+/null.wal
 runs/
 core/javac.*.args
 
