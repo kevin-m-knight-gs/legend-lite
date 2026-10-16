@@ -165,6 +165,12 @@ final class IqNames {
         if (e instanceof SqlAst.FunctionCall x && extract(x)) {
             e = x.args().get(1);
         }
+        // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): an item that is a CAST, or a CONVERT without a
+        // style, is named as its operand would be (CAST(t.ts AS DATE) is ts, CAST(sm + 1 AS INT) t.sm+1, CAST(SUM(sm)
+        // AS DOUBLE) SUM(t.sm), CAST(1 AS INT) 1, CAST(NULL AS INT) null)
+        while (e instanceof SqlAst.Cast c) {
+            e = c.operand();
+        }
         String name;
         if (e instanceof SqlAst.ColumnRef ref) {
             name = ref.parts().get(ref.parts().size() - 1).text();
@@ -292,9 +298,79 @@ final class IqNames {
             case SqlAst.Case c -> written.ifs().contains(c) ? ifExpression(c) : caseExpression(c);
             case SqlAst.FunctionCall f -> call(f);
             case SqlAst.Window w -> window(w);
+            case SqlAst.Cast c -> cast(c);
             default -> null;
         };
     }
+
+    /**
+     * IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): a CAST inside an item, {@code cast(x as type)}, a
+     * style-less CONVERT {@code convert(type,x)}, the operand rendered as any is and the type as written, in lower case,
+     * with no space around its parentheses and commas ({@code numeric(10,2)}, {@code varchar(10 char)}, {@code
+     * float(30)}, {@code money}) -- but INT is {@code integer}, DOUBLE PRECISION {@code double} and FLOAT without a
+     * precision {@code real}. A type not measured (TIMESTAMP, DATETIME, LONG VARCHAR, ...) is not read.
+     */
+    private @com.legend.base.Nullable String cast(SqlAst.Cast c) {
+        boolean convert = c.type().name().startsWith(IqParser.CONVERT);
+        String type = writtenType(c.type(), convert);
+        String operand = render(c.operand());
+        if (type == null || operand == null) {
+            return null;
+        }
+        return convert ? "convert(" + type + "," + operand + ")" : "cast(" + operand + " as " + type + ")";
+    }
+
+    /** The type names a CAST's name was measured with (the first word, lower case). */
+    private static final java.util.Set<String> CAST_TYPES = java.util.Set.of("int", "integer", "bigint", "smallint",
+            "numeric", "decimal", "double", "real", "float", "char", "varchar", "date", "bit", "money");
+
+    /** A CAST's or a CONVERT's type as IQ names it ({@link #cast}), from its written tokens; null when not read. */
+    private @com.legend.base.Nullable String writtenType(SqlAst.TypeName type, boolean convert) {
+        List<IqLexer.Token> tokens = written.tokens();
+        int i = 0;
+        while (i < tokens.size() && !tokens.get(i).pos().equals(type.pos())) {
+            i++;
+        }
+        StringBuilder b = new StringBuilder();
+        int depth = 0;
+        IqLexer.Token before = null;
+        for (; i < tokens.size(); i++) {
+            IqLexer.Token t = tokens.get(i);
+            if (t.kind() == IqLexer.Kind.EOF || depth == 0 && (t.isOp(")") || convert && t.isOp(","))) {
+                break;
+            }
+            if (t.isOp("(")) {
+                depth++;
+            } else if (t.isOp(")")) {
+                depth--;
+            }
+            boolean word = t.kind() == IqLexer.Kind.WORD || t.kind() == IqLexer.Kind.KEYWORD
+                    || t.kind() == IqLexer.Kind.NUMBER;
+            boolean wordBefore = before != null && (before.kind() == IqLexer.Kind.WORD
+                    || before.kind() == IqLexer.Kind.KEYWORD || before.kind() == IqLexer.Kind.NUMBER);
+            if (word && wordBefore) {
+                b.append(' ');
+            }
+            if (!word && !t.isOp("(") && !t.isOp(")") && !t.isOp(",")) {
+                return null;
+            }
+            b.append(IqLexer.lower(t.text()));
+            before = t;
+        }
+        String text = b.toString();
+        int end = text.indexOf('(');
+        String head = end < 0 ? text : text.substring(0, end);
+        int space = head.indexOf(' ');
+        String first = space < 0 ? head : head.substring(0, space);
+        if (text.isEmpty() || !CAST_TYPES.contains(first)) {
+            return null;
+        }
+        return CAST_SPELLINGS.getOrDefault(text, text);
+    }
+
+    /** The type spellings IQ names otherwise than as written (measured on IQ 17.1). */
+    private static final java.util.Map<String, String> CAST_SPELLINGS = java.util.Map.of("int", "integer",
+            "double precision", "double", "float", "real");
 
     /**
      * IQ island, 2026-10-15 (measured on IQ 17.1): a window function's call, then {@code  over name} for a named window

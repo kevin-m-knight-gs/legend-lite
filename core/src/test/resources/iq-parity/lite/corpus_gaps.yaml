@@ -205,3 +205,17 @@ tests:
   - id: a_bare_comment_column_is_iqs_error
     sql: "SELECT id, Comment FROM t"
     profile: iq17-default
+
+  # ---- the names IQ gives unaliased CASTs: a whole item named as its operand, a CAST inside one written out
+  - id: unaliased_casts_named_as_their_operands
+    sql: "SELECT id, CAST(ts AS DATE), CAST(sm + 1 AS INT) FROM t ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_casts_inside_items
+    sql: "SELECT id, 'x' || CAST(id AS VARCHAR(10)), CONVERT(VARCHAR(10), sm) || '', MONTH(CAST(ts AS DATE)) FROM t ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_casts_of_aggregates
+    sql: "SELECT CAST(SUM(sm) AS DOUBLE) / NULLIF(COUNT(id), 0), AVG(CAST(sm AS DECIMAL(10,2))), CAST(COUNT(*) AS FLOAT) FROM t"
+    profile: iq17-default
+  - id: unaliased_cast_type_spellings
+    sql: "SELECT id, CAST(sm AS INT) || '', CAST(sm AS NUMERIC(10,2)) || '', CAST(sm AS DOUBLE PRECISION) * 2, CAST(sm AS FLOAT) * 2, CAST(sm AS CHAR(8)) || '', CAST(sm AS VARCHAR) || '' FROM t WHERE id < 5 ORDER BY id"
+    profile: iq17-default
