@@ -10705,6 +10705,11 @@ change is intended.
     lines and the 25 channel B lines are identical. MariaDB's and MySQL's ten targets were diffed log for log, with
     run times, heap figures, UUIDs and byte-array identity hashes normalized, and are line-for-line identical: every
     raise read back through `MariaDbConnector` gives the same outcome as through `Sessions`.
+  - Trino, H2 and the corpus (12 lanes): all pass on both commits, and every digest and channel B line is identical.
+    The corpus's 12 targets pass on both. Its roster and register files are byte-identical, so every
+    `update_rcorpus_*` target was a cache hit. The judge logs' failures agree test by test once trace IDs are
+    stripped: host H2 359, host DuckDB 108, database H2 353, database DuckDB 108. So H2's sessions behave the same
+    under `H2Connector.SETTINGS`.
   - Found on the way, not this branch's: main's baseline moved between 0d0e5e1 (Phase 3's last measured commit) and
     59b547a, in 8 of those 60 lanes. The moves are #48's (the Cypher island), and every test still passes:
     - Postgres casts a string literal to VARCHAR before parsing it: ec902e07, "numbers from texts".
