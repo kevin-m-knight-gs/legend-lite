@@ -64,7 +64,7 @@ class SectionParseSentinelTest {
      *       We do not support that section — we cannot see it, and we would
      *       accept arbitrary nonsense inside it just as happily. This bucket
      *       is the audit's "reject unknown sections loudly", and it is also
-     *       partly an artifact of which grammar jars the oracle loads.</li>
+     *       partly an artifact of which grammar jars the referee loads.</li>
      *   <li>{@code UNJUSTIFIED-unclassified} — everything else. Unexamined
      *       leniency is not credited.</li>
      * </ul>
@@ -186,7 +186,7 @@ class SectionParseSentinelTest {
                                     .replaceAll("\\s+", " "));
                 }
             } catch (Throwable t) {
-                // THE ORACLE (implementation audit §3.4): a failure only counts
+                // THE REFEREE (implementation audit §3.4): a failure only counts
                 // as a drop-in DEFECT when the reference parser ACCEPTS the
                 // file — a file the reference also rejects is a legal refusal,
                 // not a gap. Without this split the ratchet cannot tell a
@@ -310,7 +310,7 @@ class SectionParseSentinelTest {
      * means a pull moved the grammar under us.
      */
     private static final int MIN_BEHAVIOUR_MATCHED = 2093;   // ratcheted to measured 2026-08-14 (deep audit #2 §2e)
-    // 932 -> 793 is the ORACLE getting honest, not the parser getting worse.
+    // 932 -> 793 is the REFEREE getting honest, not the parser getting worse.
     // With three grammar jars the reference could not read ###Service /
     // ###Persistence / ###DataSpace either, so 139 files where we fail scored
     // as "both refuse" — MATCHED. Loading all 33 grammars moved them to their
@@ -326,7 +326,7 @@ class SectionParseSentinelTest {
     //     strings (testSuite_1 'Happy path') and parameterised asserts use
     //     grammar the then-ORACLE (5.88.1, later 5.92.0) refused while the
     //     then-checkout (5.92.1-SNAPSHOT, 4.137.0+36) accepted (its own
-    //     build compiled these fixtures). Since 2026-09-10 the oracle jars
+    //     build compiled these fixtures). Since 2026-09-10 the referee jars
     //     and the checkout are ONE release (release.MODULE.bazel's pins), so a
     //     remaining row here is a lite bug, not skew; the corpus decides
     //     (the xStore rule), and this ratchets back DOWN as rows match.
@@ -355,9 +355,9 @@ class SectionParseSentinelTest {
     // (historical) 55 -> 57, and that increment was NAMED rather than absorbed. Teaching the
     // runner parser `~primaryKey: [COL]` in a Relation class mapping made three
     // of legend-engine's OWN relation-emit-models parse — and the pinned 4.133.0
-    // oracle refuses them, because the corpus is 4.137.0-36 and the syntax is
-    // newer than the jar. We read what a current engine reads; the old oracle
-    // cannot. It resolves when the oracle is version-matched (audit fix #6), not
+    // referee refuses them, because the corpus is 4.137.0-36 and the syntax is
+    // newer than the jar. We read what a current engine reads; the old referee
+    // cannot. It resolves when the referee is version-matched (audit fix #6), not
     // by changing the parser:
     //   relation-emit-models/relation-embedded/mapping/embeddedMapping.pure
     //   relation-emit-models/relation-enumeration/mapping/enumMapping.pure
@@ -369,9 +369,9 @@ class SectionParseSentinelTest {
     private static final int MAX_UNJUSTIFIED_LENIENCY = 0;    // 127 -> 39 -> 51 -> 52 -> 5 -> 0 (claims-ledger adjudication 2026-08-13)
     // +2 is the same version-skew trio above: unexamined is not the same as
     // innocent, so they stay in the unjustified column until a version-matched
-    // oracle can adjudicate them.
+    // referee can adjudicate them.
     // 39 -> 51 (2026-08-09): the ###Service-claim rows (see MAX_LENIENT
     // above) land here because the classifier has no reliable message
-    // signal for oracle version skew; they sit in the unjustified column
-    // until the oracle is version-matched.
+    // signal for referee version skew; they sit in the unjustified column
+    // until the referee is version-matched.
 }

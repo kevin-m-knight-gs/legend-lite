@@ -7,7 +7,7 @@ import com.legend.model.ParsedModel;
 
 /**
  * THE THREE SURFACES, each named ONCE for the whole parity harness —
- * this module's job is comparing the levels against the oracle, and
+ * this module's job is comparing the levels against the referee, and
  * these are the levels it compares.
  */
 public final class Surfaces {

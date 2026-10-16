@@ -37,7 +37,7 @@ class HarnessDisciplineTest {
      *  (the old runner's five sites — makeString split-multiset order
      *  policy, TDS-text unordered compare, graph-triples canon — died
      *  with it in batch 115);
-     *  H2Verify 2 — the replay oracle's order-insensitive row multiset
+     *  H2Verify 2 — the replay referee's order-insensitive row multiset
      *  (two-sided BY DESIGN, counted by F2.4);
      *  JsonAssertCanon 1 — audit A7 RESOLVED by F6.5 (2026-08-17): the
      *  site re-creates the TEST'S OWN canonicalization idiom
@@ -71,7 +71,7 @@ class HarnessDisciplineTest {
             // frame compare (goldenGraphCompare) sorts BOTH sides for
             // the same order-insensitive row-multiset verdict the
             // tabular pair implements — two-sided by design, the §4AB
-            // label-mapped twin of the positional oracle
+            // label-mapped twin of the positional referee
             // 4 -> 7 (TDG 49er replay): tdgSqlReplay's TWO-SIDED
             // multiset compare (both row lists sort under the shared
             // canon) + rawRows' column-NAME normalization — comparison

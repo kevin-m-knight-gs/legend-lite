@@ -65,7 +65,8 @@ public final class BodyCompiler {
             // TDG lane S1: the checker's census CARRIER folds to instance literals
             // before the statement is planned (orchestration owns testdatagen)
             TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(
-                    stmts.get(i), seg.env().ctx(), seg.env().connection(), letPrefix, StatementExecutor.ENGINE_TEXT,
+                    stmts.get(i), seg.env().ctx(), seg.env().connection(), seg.env().dialect(), letPrefix,
+                    StatementExecutor.ENGINE_TEXT,
                     StatementExecutor.viewSqlRenderer(specs, seg.env()));
             StatementExecutor.establishContexts(stmt, seg.env());
             boolean last = i == stmts.size() - 1;
@@ -105,7 +106,7 @@ public final class BodyCompiler {
                 if (containsRawGrid(let.value())) {
                     TypedSpec stampedLet = com.legend.resolver.RawGridSchema.stamp(
                             stmts.subList(i, stmts.size()),
-                            StatementExecutor.gridOracle(seg.env().connection(), seg.env())).get(0);
+                            StatementExecutor.gridReferee(seg.env().connection(), seg.env())).get(0);
                     if (stampedLet instanceof TypedLet sl) {
                         let = sl;
                         rhs = let.value();
@@ -149,9 +150,10 @@ public final class BodyCompiler {
         return seg.last;
     }
 
-    /** Whether the tree reads a late-bound raw grid anywhere. */
+    /** Whether the tree reads a raw grid or a catalog grid anywhere. */
     private static boolean containsRawGrid(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation
+                || n instanceof com.legend.compiler.spec.typed.TypedCatalogGrid) {
             return true;
         }
         for (TypedSpec c : n.children()) {

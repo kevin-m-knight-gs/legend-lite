@@ -2260,7 +2260,7 @@ public final class ProtocolEmitter {
                 // BARE @(a:Integer) — no spelled name: the engine emits the
                 // relationType AS the rawType, with no packageableType wrapper
                 // and no typeArguments, the span over the whole `@(...)`
-                // (probed 2026-09-10 against the 4.138.2 oracle: columns
+                // (probed 2026-09-10 against the 4.138.2 referee: columns
                 // exactly as in the named form, default multiplicity 0..1)
                 String spelled = rs.spelledName();
                 boolean bare = spelled == null;

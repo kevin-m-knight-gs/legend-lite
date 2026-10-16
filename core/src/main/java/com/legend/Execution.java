@@ -304,16 +304,16 @@ public final class Execution {
     }
 
     /** Registration overload (SQLTEXT charter §2): the harness supplies
-     * its {@link com.legend.exec.SqlReplayOracle} beside the listener;
+     * its {@link com.legend.exec.SqlReplayReferee} beside the listener;
      * the env carries both. Production never calls this arity. */
     public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle) {
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee) {
         return executeResolved(resolved, ctx, runtimeFqn, connection, assertListener,
-                replayOracle, ExecuteOptions.NONE);
+                replayReferee, ExecuteOptions.NONE);
     }
 
     public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
@@ -321,10 +321,10 @@ public final class Execution {
             @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options) {
         return StatementExecutor.execute(resolved, ctx,
                 runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection,
-                assertListener, replayOracle, options);
+                assertListener, replayReferee, options);
     }
 }

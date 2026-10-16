@@ -80,9 +80,9 @@ public final class IqParity {
 
     /** IQ island, 2026-10-14 (M1e): a variable a case binds ({@code params}: {@code name = value; ...}), for its host
      *  variables ({@code @name}, {@code :name}): its name, its Pure type, its value as a Pure literal (a {@code let}
-     *  before the island), and the SQL Anywhere variable the oracle holds it in (tools/iq-oracle/snap.py reads the same
+     *  before the island), and the SQL Anywhere variable the referee holds it in (tools/iq-oracle/snap.py reads the same
      *  spelling): its type and its value as SQL Anywhere's constant, null for a NULL. IQ island, 2026-10-14 (review 5's
-     *  M5): the oracle binds a real variable of that type on the case's connection (it wrote the constant into the SQL
+     *  M5): the referee binds a real variable of that type on the case's connection (it wrote the constant into the SQL
      *  before, which SQL Anywhere reads otherwise in measured places); {@code null:<type>} is a NULL, a Pure empty value
      *  of that type. */
     public record Param(String name, String type, String pure, String saType, @com.legend.base.Nullable String saValue) {

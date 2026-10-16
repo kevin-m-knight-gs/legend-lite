@@ -22,13 +22,13 @@ import org.junit.jupiter.api.Test;
  * THE OWN-CORPUS BYTE PARITY (upstream boundary batch 6, workstream F): every
  * Pure snippet our own tests embed (core / spec / pct, the same extraction the
  * mirror corpus uses) goes through the SAME positional byte comparison the
- * upstream corpus gets — the oracle's element JSON against ours, element by
+ * upstream corpus gets — the referee's element JSON against ours, element by
  * element ({@link ParserEquivalence#compare}). Until this test the own corpus
- * reached the oracle for ACCEPTANCE only ({@link OwnCorpusConformanceTest});
+ * reached the referee for ACCEPTANCE only ({@link OwnCorpusConformanceTest});
  * the wire shape of what our tests write was pinned by 17 hand-copied JSON
  * strings in core, captured at engine 4.133.0 and re-derived by nothing.
  *
- * <p>The verdicts: every source the oracle accepts and we parse must MATCH;
+ * <p>The verdicts: every source the referee accepts and we parse must MATCH;
  * a DIFF is a row in {@code docs/own-corpus-protocol-diffs.tsv} with a reason
  * (shrink-only: a row that no longer diffs is stale and fails); PARSE_FAIL
  * and REFERENCE_REJECTED are counted, never silent (the mirror corpus
@@ -52,7 +52,7 @@ class OwnCorpusParityTest {
 
     @Test
     @DisplayName("every own-corpus snippet the oracle accepts emits the oracle's bytes, element by element")
-    void ownSnippetsMatchTheOracleByteForByte() throws Exception {
+    void ownSnippetsMatchTheRefereeByteForByte() throws Exception {
         OwnCorpusLedgerDraft.Diffs pass = OwnCorpusLedgerDraft.diffs();
         Map<String, Integer> kinds = pass.kinds();
         Map<String, String> diffs = pass.diffs();

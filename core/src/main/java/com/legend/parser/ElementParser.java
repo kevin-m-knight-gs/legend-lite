@@ -2596,7 +2596,7 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.EQUAL);
         if (peek() == TokenType.DOC_STRING) {
             if (dialect.refusesPlatformDialect() && text().indexOf('\n') < 0) {
-                // single-line ''' — the oracle's lexer splits it into
+                // single-line ''' — the referee's lexer splits it into
                 // adjacent strings and refuses (probed live 2026-08-12)
                 throw error("Unexpected token '" + text() + "'");
             }

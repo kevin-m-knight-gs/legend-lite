@@ -37,6 +37,8 @@
 # 2026-10-13 (the one-platform program's B5, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md): `saved_queries` (queries/: the
 # saved queries' rules over a records interface, base and json only, so the page's module and Python's native library
 # answer with the server's rules); server_lib reaches it.
+# 2026-10-16, the dialect program's Phase 3 (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): testdatagen reaches `sql`
+# (its fetches, temp tables, read-backs and plan are SqlQuery/SqlDml IR its session's or the engine-text dialect writes).
 spi	
 cache	base
 values	base
@@ -62,7 +64,7 @@ resolver	base builtin compiler compiler_element_type error lowering model plan p
 setup	base cache compiler execution_plan model protocol sql sql_dialect
 exec	base cache compiler compiler_element_type database diagnostics error execution_plan lowering model plan platform setup sql sql_dialect values
 probe	base builtin lowering model platform
-testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql_dialect values
+testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql sql_dialect values
 execution_plan	base json model sql
 planner	base builtin cache compiler compiler_element_type database error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 pure_v1	base compiler compiler_element_type error json parser plan planner protocol sql_dialect

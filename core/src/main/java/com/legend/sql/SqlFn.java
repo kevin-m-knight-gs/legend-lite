@@ -55,6 +55,10 @@ public enum SqlFn {
     // Strings (SUBSTRING/STRPOS are 1-based SQL; frontends shift at lowering)
     SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
     LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, SPLIT, SPLIT_PART,
+    /** translate(str, from, to): each character of {@code from} in {@code str} becomes the character at its
+     *  position in {@code to}, or is removed past {@code to}'s end. One pass, so a mapping never chains. The SQL
+     *  islands' ASCII-only case folding (the tenth line's ask, answered 2026-10-15). */
+    TRANSLATE,
     /** Pure's splitPart(str, token, 1-based part): split DROPPING empty tokens,
      *  indexed; NULL past the end (batch 139). Semantic — each dialect spells it. */
     PURE_SPLIT_PART,

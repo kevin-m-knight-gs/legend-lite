@@ -10,30 +10,28 @@ import java.util.List;
 /**
  * An AUTHORED-SQL relation source (One-Platform Plan Phase 1c,
  * user-ratified design): the ordered, materialized rows of one raw
- * statement — {@code executeInDb(sql, ...).rows} and the fetchDb
- * catalog grids. The {@code TypedTds} family's sibling: a relation
+ * statement — {@code executeInDb(sql, ...).rows} (a catalog grid is a
+ * {@link TypedCatalogGrid}). The {@code TypedTds} family's sibling: a relation
  * SOURCE whose columns are LATE-BOUND (the dynamic-pivot precedent —
  * nothing is known statically, so {@link #info()} carries an
  * empty-column {@code RelationType}; by-NAME reads carry their own
  * column names, and schema-shaped reads pin at the probe).
  *
  * <p>The carried {@code sql} is USER/CORPUS-AUTHORED text (the
- * {@code executeInDb} argument, or the registered catalog SQL) — never
- * platform-composed; the RawSql quarantine's contract rides from here
+ * {@code executeInDb} argument) — never platform-composed (the dialect
+ * program's Phase 3, 2026-10-16: the catalog grids' text, the one
+ * platform text it carried, is the dialect's now); the RawSql quarantine's contract rides from here
  * to {@code SqlSource.RawSql}. Backend adaptation of the authored text
  * is the DIALECT's own (decision D2: the engine's H2 text translated,
  * any other run as written), never this node's business.
  *
  * @param sql      the authored statement text (single statement, no
  *                 trailing {@code ;})
- * @param authored whether the text is authored for a connection (an
- *                 {@code executeInDb} argument), not the platform's own
- *                 (a catalog grid's, written in the session's language)
  * @param database the database that connection declares (that type's
  *                 name, read at typing); null when it could not be read
  * @param info     an empty-column relation type — columns are late-bound
  */
-public record TypedRawSqlRelation(String sql, boolean authored, @com.legend.base.Nullable String database,
+public record TypedRawSqlRelation(String sql, @com.legend.base.Nullable String database,
         ExprType info) implements TypedSpec {
 
     @Override
@@ -47,11 +45,10 @@ public record TypedRawSqlRelation(String sql, boolean authored, @com.legend.base
         return this;
     }
 
-    /** The database the text is written for, as its connection declares it (decision D2; that type's name); null for
-     *  the platform's own text. Authored text whose connection could not be read is refused when it runs: the
-     *  language of its text is unknown. */
-    public @com.legend.base.Nullable String writtenFor() {
-        if (authored && database == null) {
+    /** The database the text is written for, as its connection declares it (decision D2; that type's name). Text
+     *  whose connection could not be read is refused when it runs: the language of its text is unknown. */
+    public String writtenFor() {
+        if (database == null) {
             throw ExecutionContext.unknownLanguage("raw SQL");
         }
         return database;
@@ -75,6 +72,6 @@ public record TypedRawSqlRelation(String sql, boolean authored, @com.legend.base
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedRawSqlRelation(sql, authored, database, info);
+        return new TypedRawSqlRelation(sql, database, info);
     }
 }

@@ -26,8 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * lite's printer ({@link PureComposer}, served as {@code pure/v1/grammar/jsonToGrammar/lambda})
  * against UPSTREAM'S printer, byte for byte, in both styles (docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md,
- * T4a). The oracle is upstream's own composer on the same JSON: every lambda of every source the
- * reference corpus's oracle accepts (a function body, a derived property, a mapping transform, a
+ * T4a). The referee is upstream's own composer on the same JSON: every lambda of every source the
+ * reference corpus's referee accepts (a function body, a derived property, a mapping transform, a
  * service query, a constraint ...), plus every text in upstream's own lambda round-trip tests.
  * Where upstream prints, lite must print the same bytes; where lite refuses, it names the node.
  */
@@ -64,14 +64,14 @@ class ComposerParityTest {
     @Test
     void litePrintsEveryLambdaAsUpstreamDoes() throws Exception {
         ObjectMapper mapper = ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
 
         List<Json.Obj> lambdas = new ArrayList<>();
         int sources = 0;
         for (Corpus.Source src : Corpus.all()) {
             String json;
             try {
-                json = mapper.writeValueAsString(oracle.parseModel(src.text()));
+                json = mapper.writeValueAsString(referee.parseModel(src.text()));
             } catch (Throwable t) {
                 continue;
             }
@@ -119,7 +119,7 @@ class ComposerParityTest {
                     matched++;
                 } else if (actual.equals(EXACT_DECIMAL.get(expected))) {
                     deliberate.add(expected);
-                } else if (keepsBracesUpstreamDrops(oracle, wire, expected, actual)) {
+                } else if (keepsBracesUpstreamDrops(referee, wire, expected, actual)) {
                     bracesKept++;
                 } else if (diffs.size() < 40) {
                     diffs.add(style + "\n  upstream: " + expected + "\n  lite:     " + actual
@@ -147,7 +147,7 @@ class ComposerParityTest {
      * else; upstream's own parser reads the two prints differently or cannot read upstream's, and reads lite's with
      * the statement boundaries of the lambda printed (ModelComposerParityTest.statementShapes). Counted, not compared.
      */
-    private static boolean keepsBracesUpstreamDrops(PureGrammarParser oracle, String wire, String expected,
+    private static boolean keepsBracesUpstreamDrops(PureGrammarParser referee, String wire, String expected,
             String actual) {
         if (!ModelComposerParityTest.onlyBracesAdded(expected, actual)) {
             return false;
@@ -155,13 +155,13 @@ class ComposerParityTest {
         ObjectMapper mapper = ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
         String liteReads;
         try {
-            liteReads = mapper.writeValueAsString(oracle.parseLambda(actual, "", 0, 0, false));
+            liteReads = mapper.writeValueAsString(referee.parseLambda(actual, "", 0, 0, false));
         } catch (RuntimeException | java.io.IOException e) {
             return false;
         }
         String upstreamReads;
         try {
-            upstreamReads = mapper.writeValueAsString(oracle.parseLambda(expected, "", 0, 0, false));
+            upstreamReads = mapper.writeValueAsString(referee.parseLambda(expected, "", 0, 0, false));
         } catch (RuntimeException | java.io.IOException e) {
             upstreamReads = null;   // upstream's print does not parse
         }

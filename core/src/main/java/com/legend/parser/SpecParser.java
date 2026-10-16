@@ -950,7 +950,7 @@ public final class SpecParser implements TokenStreamCursor {
         try {
             // Component-range validation by dialect (D6b): LEGEND_ENGINE
             // defers like the engine's parser (%2024-02-30 parses there —
-            // oracle byte-parity; THEIR compiler validates downstream);
+            // referee byte-parity; THEIR compiler validates downstream);
             // LEGEND_PLATFORM and LEGEND_LITE validate at parse — the
             // product surface must not ship a date the database later
             // refuses with an unattributed conversion error.
@@ -2506,7 +2506,7 @@ public final class SpecParser implements TokenStreamCursor {
         // @(x:String, …) — a bare relation-shape annotation (addColumns.pure);
         // the same shape @Relation<(…)> spells with its name. EVERY dialect:
         // the engine's own grammar accepts it (probed 2026-09-10 against the
-        // 4.138.2 oracle — bare, `->cast(@(a:Integer))`, and
+        // 4.138.2 referee — bare, `->cast(@(a:Integer))`, and
         // `@(name:Varchar(200))->genericType()` all ACCEPT; the engine's
         // core_external_query_sql/server/tests/testSchema.pure carries the
         // last form). The earlier "engine refuses bare @(…)" note on
@@ -3027,7 +3027,7 @@ public final class SpecParser implements TokenStreamCursor {
         // NO dialect gate: #TDS is REAL — legend-pure ships the TDS DSL
         // (platform_dsl_tds) and the ENGINE's xts-tds extension parses
         // the accessor forms (the 2026-08-14 gate attempt refused six
-        // oracle-ACCEPTED corpus sources; the invention audit's "engine
+        // referee-ACCEPTED corpus sources; the invention audit's "engine
         // refuses #TDS" held only for a bare parser without extensions)
         // NOT platform-gated: the ENGINE's xt-tds extension parses #TDS
         // accessors (6 oracle-accepted TestTDSAccessor/TestTDSCompiler

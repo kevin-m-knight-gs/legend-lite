@@ -25,15 +25,19 @@ public final class ReservedNames {
     private ReservedNames() {
     }
 
-    /** A default-schema table {@code order} and a table in a schema {@code select}; the connection's type left open. */
+    /** A default-schema table {@code order} and a table in a schema {@code select}. */
+    public static final String STORE = """
+            ###Relational
+            Database s::DB
+            (
+              Table order ( ID INTEGER PRIMARY KEY, NAME VARCHAR(10) )
+              Schema select ( Table T ( ID INTEGER PRIMARY KEY ) )
+            )
+            """;
+
+    /** {@link #STORE} with a connection to it and a runtime; the connection's type left open. */
     public static String model(String connection) {
-        return """
-                ###Relational
-                Database s::DB
-                (
-                  Table order ( ID INTEGER PRIMARY KEY, NAME VARCHAR(10) )
-                  Schema select ( Table T ( ID INTEGER PRIMARY KEY ) )
-                )
+        return STORE + """
                 ###Connection
                 RelationalDatabaseConnection s::Conn { store: s::DB; %s }
                 ###Runtime

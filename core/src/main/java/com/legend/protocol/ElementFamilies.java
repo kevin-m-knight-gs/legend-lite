@@ -16,7 +16,7 @@ import java.util.function.BiFunction;
  * extension claims, and, for a model with no section index, under their fixed headers after every
  * extension's. Each extension claims its own section and, with no section index, prints its elements as a
  * "free section" of its own -- in the order upstream loads its composer extensions. That order is the
- * reference engine's ({@code ServiceLoader} over its class path, as the parity oracle runs it), recorded
+ * reference engine's ({@code ServiceLoader} over its class path, as the parity referee runs it), recorded
  * here as {@link #EXTENSIONS}' order. Kinds are named by their wire {@code _type} ({@link #typeOf}).
  */
 final class ElementFamilies {

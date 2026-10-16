@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * CHANNEL B over the Relation suite (One-Platform Plan Phase 4): the
  * multi-root runner over legend-engine's {@code core_functions_relation} tree (which
  * imports the legend-pure platform), diffed against channel A's ledger
- * and the engine's relational-DuckDB manifest (the frontier oracle).
+ * and the engine's relational-DuckDB manifest (the frontier referee).
  */
 class ChannelBRelationTest {
 

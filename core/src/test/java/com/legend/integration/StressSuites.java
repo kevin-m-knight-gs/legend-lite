@@ -14,7 +14,7 @@ import java.util.TreeMap;
 /**
  * THE STRESS CORPUS, EXECUTED, once: every {@code stress::} service's test suites run through
  * {@link ServiceTestRunner} — seed data provisioned from the corpus's own {@code ###Data} element, the query executed
- * through the platform, the answer judged against the oracle's {@code EqualToJson} expectation. The gates
+ * through the platform, the answer judged against the referee's {@code EqualToJson} expectation. The gates
  * ({@link StressServiceSuitesTest} on DuckDB, {@link StressServiceSuitesH2Test} on H2) and the measuring tool
  * ({@code bazel run //core:stress_tool}, {@link StressTool}) each run it with their own {@link Config} (Bazel workplan
  * P3-12: the knobs left the test).

@@ -58,7 +58,7 @@ class RejectionParityTest {
         List<String> misses = new ArrayList<>();
         List<String> lineDiverges = new ArrayList<>();
         for (Pin p : pins) {
-            // THE LIVE ORACLE (implementation audit §3.5): the scraped literal
+            // THE LIVE REFEREE (implementation audit §3.5): the scraped literal
             // only SELECTS the input — the position we hold ourselves to is the
             // engine's ACTUAL thrown position, because the extractor pairs
             // runs by adjacency and 17 of 43 scraped positions cannot exist in

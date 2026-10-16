@@ -162,7 +162,7 @@ public final class VerdictQueries {
                 // a COLLECTION parameter (batch 66): two fixed referee
                 // elements — the plan's template operations
                 // (collectionSize, renderCollection) evaluate over them
-                // at the oracle; our side runs the same two
+                // at the referee; our side runs the same two
                 boolean str = pt == Type.Primitive.STRING;
                 List<TypedSpec> elems = str
                         ? List.of(new com.legend.compiler.spec.typed.TypedCString(

@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * on a class mapping, an anonymous {@code EnumerationMapping:}, or a bare
  * column under {@code ~mainTable}, so all three of those leniencies lived
  * for months PINNED BY OUR OWN TESTS with no sweep able to see them. The
- * only oracle that can is the reference parser reading our fixtures.
+ * only referee that can is the reference parser reading our fixtures.
  *
  * <p><b>The report splits by assertThrows context, because the two halves
  * mean opposite things:</b>
@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ul>
  *
  * <p><b>Two things this cannot settle, and does not pretend to.</b> Until
- * 2026-09-10 the oracle jars (5.88.1, then 5.92.0) sat against a
+ * 2026-09-10 the referee jars (5.88.1, then 5.92.0) sat against a
  * non-release checkout (5.92.1-SNAPSHOT / 4.137.0+36), so some apparent
  * leniency was version skew — a form the newer grammar added. The jars and
  * the checkout are now ONE release (release.MODULE.bazel's pins), so that

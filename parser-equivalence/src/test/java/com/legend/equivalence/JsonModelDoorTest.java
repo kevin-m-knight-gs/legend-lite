@@ -24,7 +24,7 @@ import java.util.TreeMap;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * LEG 8'S ORACLE (docs/PROTOCOL_PROGRAM_2026_10_05.md §4): a model given as JSON reaches the compiler exactly as its
+ * LEG 8'S REFEREE (docs/PROTOCOL_PROGRAM_2026_10_05.md §4): a model given as JSON reaches the compiler exactly as its
  * text does. With one parser (step 1), the text and the JSON differ only by the JSON hop, so for every text of the
  * round trip's inputs -- legend-engine's test collection, lite's projects, the showcase projects (as
  * {@link RoundTripProofTest} reads them) -- two things are checked:

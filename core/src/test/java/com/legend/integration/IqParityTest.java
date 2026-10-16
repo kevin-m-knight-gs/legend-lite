@@ -151,7 +151,7 @@ class IqParityTest {
     }
 
     @Test
-    void theIslandsProfilesAreTheOraclesProfiles() throws Exception {
+    void theIslandsProfilesAreTheRefereesProfiles() throws Exception {
         String first = Files.readAllLines(Runfile.property("iq.parity.answers")).get(0);
         com.legend.json.Json.Obj meta = (com.legend.json.Json.Obj) ((com.legend.json.Json.Obj)
                 com.legend.json.Json.parse(first)).get("meta");
@@ -329,7 +329,7 @@ class IqParityTest {
     }
 
     /** IQ island, 2026-10-14 (M1e): a case's params are its host variables' values -- each a let before the island,
-     *  each a SQL Anywhere variable of its type for the oracle (tools/iq-oracle/snap.py reads the same spelling; review
+     *  each a SQL Anywhere variable of its type for the referee (tools/iq-oracle/snap.py reads the same spelling; review
      *  5's M5: a real variable, no longer a constant written into the SQL), {@code null:<type>} a NULL -- and part of its
      *  answer's sqlSha, so editing them makes the answer STALE; an owner-qualified name is left as written. */
     @Test

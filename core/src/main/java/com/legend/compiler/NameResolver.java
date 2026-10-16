@@ -470,7 +470,7 @@ public final class NameResolver {
             }
             // activator fields carry function-pointer signatures and raw
             // ownership blocks — nothing safely resolvable by name
-            case com.legend.model.SnowflakeActivatorDefinition sa -> sa;
+            case com.legend.model.FunctionActivatorDefinition fa -> fa;
             // generic keyed elements carry field values as written
             case com.legend.model.GenericSectionElementDefinition ge -> ge;
             // The canonical (binding-table) MappingDefinition is produced

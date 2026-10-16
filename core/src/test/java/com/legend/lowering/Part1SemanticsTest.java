@@ -65,7 +65,7 @@ class Part1SemanticsTest {
                     String.valueOf(scalar("{|[]->map(v|$v)}", conn)));
             // VALUE-LANE toOne over an empty RAISES (user ruling
             // 2026-08-26: "if not relational, follow the type system
-            // literally" — the interpreted lane is the oracle for
+            // literally" — the interpreted lane is the referee for
             // store-free expressions; row-lane reads keep the
             // adjudicated relational flow)
             Exception to = assertThrows(Exception.class,

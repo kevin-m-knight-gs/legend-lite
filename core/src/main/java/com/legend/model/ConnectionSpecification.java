@@ -18,6 +18,37 @@ public sealed interface ConnectionSpecification
                 ConnectionSpecification.Databricks,
                 ConnectionSpecification.BigQuery {
 
+    /** The Pure class of the datasource specification that carries a connection's test data ({@link #testData}) where a
+     *  Pure body builds the connection ({@code ^RelationalDatabaseConnection(datasourceSpecification = ^...)}):
+     *  {@link LocalH2}'s. */
+    String TEST_DATA_SPECIFICATION_CLASS =
+            "meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification";
+
+    /** Whether {@code nameOrFqn} (as a Pure body spells a class: bare or in full) is {@link
+     *  #TEST_DATA_SPECIFICATION_CLASS}. */
+    static boolean isTestDataSpecificationClass(String nameOrFqn) {
+        return TEST_DATA_SPECIFICATION_CLASS.equals(nameOrFqn) || "LocalH2DatasourceSpecification".equals(nameOrFqn);
+    }
+
+    /** The test data the specification carries for its connection's database (the engine's {@code testDataSetupCsv}
+     *  and {@code testDataSetupSqls}), or null for a specification that carries none: only {@link LocalH2} does. */
+    default @com.legend.base.Nullable TestData testData() {
+        return null;
+    }
+
+    /** A specification's test data: CSV blocks to seed, and SQL statements written in the database its connection
+     *  declares; either may be absent. */
+    record TestData(@com.legend.base.Nullable String csv, java.util.@com.legend.base.Nullable List<String> sqls) {
+    }
+
+    /** A specification that carries {@code csv} as its connection's test data (a service test's runtime): the
+     *  vocabulary's one such, {@link LocalH2}'s. A connection opened through {@code exec.Sessions} with it opens on
+     *  H2 only; a runtime overlay that pairs it with another type opens its own session, as ServiceTestRunner does,
+     *  and the specification only carries the rows. */
+    static ConnectionSpecification carryingTestData(String csv) {
+        return new LocalH2(null, csv, null);
+    }
+
     /**
      * In-memory database connection (DuckDB / SQLite / H2). No configuration.
      * Pure: {@code specification: InMemory {};}.
@@ -44,6 +75,11 @@ public sealed interface ConnectionSpecification
             implements ConnectionSpecification {
         public LocalH2(@com.legend.base.Nullable String url) {
             this(url, null, null);
+        }
+
+        @Override
+        public TestData testData() {
+            return new TestData(testDataSetupCsv, testDataSetupSqls);
         }
     }
 

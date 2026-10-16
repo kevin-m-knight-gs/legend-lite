@@ -372,45 +372,13 @@ changes all three.
 
 ---
 
-## PARK-16 — the test-data generator's hand-built SQL spells a table or schema name raw
+## PARK-16 — CLOSED 2026-10-16: the test-data generator's statements name tables as the session's dialect does
 
-**Parked** 2026-10-08 by the user, to keep the execution plan line on its path ("make plans the only way to run"), with
-the instruction to "record the ddl fix so that we actually do it (either now or later)". Found by the Studio line's
-landing audit; confirmed in the code the same day. **Restated** 2026-10-09: the product half is FIXED (below); the user
-chose "product now, generator later" for the rest.
-
-**Fixed 2026-10-09 (with E, `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §10).** The statements that create, drop, fill
-and empty a table (`AnsiSqlRenderer.render(SqlDdl)` and `render(SqlDml)`), and `CREATE`/`DROP SCHEMA`, spelled schema
-and table names RAW, where queries spell them through `physicalName` (a reserved word or a name that is not plain is
-quoted): a default-schema table `order` got `Drop table if exists order;`, refused by DuckDB and H2, on the server and in
-the Studio tab (`CsvSeed.sqls`). Now one rule for the dialects that execute: DDL and DML spell each name through
-`physicalName`, as queries do, and as legend-engine's own H2 DDL does (`translateCreateTableStatementForH2` spells the
-table through `tableToString`, its query spelling); Postgres's two overrides are gone. (The legacy engine-text printer's
-lexicon has no reserved words, so its setup text spells such a name bare, as before.) `ReservedNamesSeedTest` seeds a default-schema table `order` and a table in
-a schema `select` and answers a query over each on DuckDB and H2, `PostgresArmTest` on Postgres; the render census shows
-nothing else changing.
-
-**What remains.** The test-data generator's hand-built SQL (`TestDataGenerator.qualify`, `select ... from
-<schema.table>`) spells the names raw, outside the dialects: it runs on whatever test database it is handed, with no
-dialect, so a reserved table name breaks a test-data generation over it.
-
-**The fix (agreed).** The generator's names spell through the session's dialect's `physicalName`: the dialect is threaded
-from the test-body executor (`StatementExecutor`, `BodyCompiler`, `SqlTextVerdicts`) through
-`TestDataGenerationNatives` to the generator.
-
-**Not in scope (reviewed 2026-10-08, the audit of E-1).** `StatementExecutor.ddlStatementString` also writes a schema
-name raw (`Drop schema if exists <s> cascade;`, `Create Schema if not exists <s>;`): that is the Pure natives
-`dropSchemaStatement`/`createSchemaStatement` returning legend-engine's own text as a value (`toDDL.pure`), parity by
-design, not a statement lite spells for a database.
-
-**Acceptance (what closes this row).** A test-data generation over a default-schema table named `order`, and over a
-table in a schema named `select`, runs on DuckDB and H2.
-
-**When.** In phase 3 of the execution plan program (the runner for Pure test bodies), when that executor code moves out
-of `exec`; sooner if a user meets it. Cost of leaving it parked: test-data generation over a reserved or unusual table
-name fails loudly (a SQL syntax error); no product path is affected.
-
-**Anchor.** The raw spelling `|| "default".equals(schema) ? table : schema + "." + table;` in `TestDataGenerator.java`.
+**Closed** by the dialect program's Phase 3 (`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`). Every statement the
+test-data generator runs is IR its session's dialect writes (the dialect threaded from `BodyCompiler` and
+`SqlTextVerdicts` through `TestDataGenerationNatives`, the agreed fix), so a table or schema is named as that
+session's queries name it. The acceptance, `ReservedNamesGenerationTest`: a generation over a default-schema table
+`order` and over a table in a schema `select`, on DuckDB and H2. (The product half closed 2026-10-09, with E.)
 
 ---
 

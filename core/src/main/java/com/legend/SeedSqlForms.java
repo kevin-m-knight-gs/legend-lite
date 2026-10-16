@@ -39,12 +39,12 @@ final class SeedSqlForms {
             String dbFqn2 = gen.args().get(1)
                     instanceof com.legend.compiler.spec.typed.TypedPackageableRef p2
                     ? p2.fullPath() : null;
-            var db2 = dbFqn2 == null ? null
+            var seedDb = dbFqn2 == null ? null
                     : env.ctx().findDatabase(dbFqn2).orElse(null);
-            if (db2 != null) {
+            if (seedDb != null) {
                 return new ExecutionResult.Collection(new java.util.ArrayList<>(
                         com.legend.setup.Ddl.setUpDataSqlsTextFromRecords(
-                                records, db2,
+                                records, seedDb,
                                 f -> env.ctx().findDatabase(f), StatementExecutor.ENGINE_TEXT)),
                         com.legend.compiler.element.type.Type.Primitive.STRING);
             }

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** THE COVERAGE CENSUS: the live oracle ENUMERATES its own grammar
+/** THE COVERAGE CENSUS: the live referee ENUMERATES its own grammar
  *  surface (ServiceLoader extensions) — every section, connection
  *  flavor and embedded-data type it registers must be either parsed by
  *  our registry or NAMED in docs/parser-surface-exclusions.tsv
