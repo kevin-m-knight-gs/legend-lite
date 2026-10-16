@@ -1840,6 +1840,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   **Thirty-sixth landing, 2026-10-16:** a stored list property as a Variant over a SEMISTRUCTURED column, `(n:Foo)` as a
   label predicate, a first-clause OPTIONAL MATCH over no way as one null row (§12.37; one lowering exemption:
   `resolver/Substitution.java` reads a Variant-typed property whole); DuckDB PASS 2648, Postgres PASS 2298.
+  The post-merge diff's fresh-eyes review: five findings fixed (the study's §12.37.2); DuckDB PASS 2649, Postgres
+  PASS 2299. PR #48's CI on 3c8f71e: one failure, `windows / datacube`'s interval-timing test, not this branch's
+  (nothing under `datacube/` changes), said on the PR, the job re-run once.
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

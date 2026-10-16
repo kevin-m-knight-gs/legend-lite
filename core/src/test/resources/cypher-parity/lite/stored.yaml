@@ -28,3 +28,7 @@ tests:
     graph: |
       CREATE ({list1: [1, 2, 3], list2: [4, 5]})
     cypher: "MATCH (a) RETURN a.list2 + a.list1 AS foo"
+  - id: stored_list_ordered_with_a_limit_refused
+    graph: |
+      CREATE (:A {list: [2, -2]}), (:B {list: [1, 2]})
+    cypher: "MATCH (a) RETURN a ORDER BY a.list LIMIT 1"

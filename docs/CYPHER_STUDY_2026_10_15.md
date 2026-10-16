@@ -2913,3 +2913,14 @@ Neo4j.
 | Postgres | 4343 | 2298 (from 2,286) | 0 | 0 | 0 | 988 | 709 | 348 |
 
 6 lite cases in `lite/stored.yaml`, 2 more in `lite/absent.yaml`, 1 in `lite/labels.yaml`, each judged by Neo4j.
+
+#### 12.37.2 The review of the post-merge diff, 2026-10-16
+
+A fresh-eyes review of the absent-hop and stored-list legs and the resolver's condition (five findings, each
+verified in the code): a stored list reached the sort through a carried node's property under SKIP or LIMIT and
+through a key computed after a grouping (both refuse by name now); the no-row paths read a node's property map but
+not a relationship's (both read now, for their static errors); the collision refusal from an absent node named every
+collision a cycle (it names the variable); `[(n:Foo)]` parsed as a pattern comprehension (the parenthesized
+predicate's lookahead, in a list too). The review found the indexing, the fresh-column naming, the flag threading,
+the resolver's condition (a pure relaxation; `isVariant` admits the `meta::json` family too, consistently) and the
+harness's JSON spelling correct.

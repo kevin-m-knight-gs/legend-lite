@@ -4036,6 +4036,7 @@ lite/labels/a_relationship_of_several_types_from_a_labelless_node	PASS	PASS
 lite/labels/a_type_spelled_twice_is_one_type	PASS	PASS
 lite/labels/comparing_nodes_refused	REFUSED	REFUSED
 lite/labels/label_predicate_in_parentheses	PASS	PASS
+lite/labels/label_predicate_in_a_list	PASS	PASS
 lite/nodes/node_of_one_class	PASS	PASS
 lite/nodes/nodes_of_every_class	PASS	PASS
 lite/nodes/node_with_order_and_limit	PASS	PASS
@@ -4166,6 +4167,7 @@ lite/stored/stored_list_in_a_map_under_distinct	REFUSED	REFUSED
 lite/stored/stored_list_as_a_grouping_key	PASS	PASS
 lite/stored/stored_list_ordered_by_refused	REFUSED	REFUSED
 lite/stored/stored_lists_concatenated	REFUSED	REFUSED
+lite/stored/stored_list_ordered_with_a_limit_refused	REFUSED	REFUSED
 lite/temporal/date_from_components	PASS	PASS
 lite/temporal/date_from_text	PASS	PASS
 lite/temporal/localdatetime_from_components	PASS	PASS

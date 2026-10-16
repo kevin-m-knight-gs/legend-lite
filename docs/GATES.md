@@ -9867,7 +9867,13 @@ read whole is the column's value, not graph output).
    FAIL 0; BUG 0; ERROR 0; REFUSED 988; BOTH_ERROR 709; SKIP 348. 9 lite cases, each judged by Neo4j
    (`tools/neo4j-oracle/snap.sh --check` clean).
 3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
-   `//core:core_tests_integration`. CI runs on the PR.
+   `//core:core_tests_integration`, and for the resolver's condition `core_tests_resolver`, `core_tests_lowering`,
+   `core_tests_sql`, `core_tests_root`. CI runs on the PR.
+4. **The review** (the study's §12.37.2, the commit after). A fresh-eyes review of the post-merge diff: five findings,
+   each verified and fixed (a stored list ordered through a carried node's property under LIMIT or a key after a
+   grouping, now refused; a relationship pattern's property map read on the no-row paths; the collision refusal
+   naming its variable; `[(n:Foo)]` as a list of a predicate; a harness comment). Two more lite cases, judged by
+   Neo4j; DuckDB PASS 2649, Postgres PASS 2299, 0 FAIL, 0 BUG, 0 ERROR; the oracle's check clean.
 
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-fifth landing — a hop from an absent node, a pattern no way reads (the eleventh line)
 

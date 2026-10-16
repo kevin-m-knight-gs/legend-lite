@@ -159,6 +159,11 @@ class CypherParserTest {
         OtherClause create = (OtherClause) parse("CREATE (n:Person {name: 'a'})-[:KNOWS]->(m)").clauses().get(0);
         assertEquals("CREATE", create.keyword());
         assertEquals("CREATE (n:Person {name: 'a'})-[:KNOWS]->(m)", create.text());
+        // (n:Foo) alone is a label predicate, in parentheses and inside a list literal (a pattern comprehension
+        // starts only where a property map or a relationship follows the labels)
+        assertTrue(expr("[(n:Foo)]") instanceof CypherAst.ListLit l && l.elements().size() == 1
+                && l.elements().get(0) instanceof CypherAst.Paren p && p.inner() instanceof CypherAst.LabelPredicate);
+        assertTrue(expr("[(n:Foo)-[:T]->(m) | m]") instanceof CypherAst.PatternComprehension);
         OtherClause detach = (OtherClause) parse("MATCH (n) DETACH DELETE n").clauses().get(1);
         assertEquals("DETACH DELETE", detach.keyword());
         OtherClause call = (OtherClause) parse("CALL db.labels() YIELD label RETURN label").clauses().get(0);

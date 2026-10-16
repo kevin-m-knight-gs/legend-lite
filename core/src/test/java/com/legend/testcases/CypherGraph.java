@@ -357,7 +357,7 @@ public final class CypherGraph {
             case CypherValues.Bool b -> "Boolean";
             case CypherValues.Opaque o when o.text().startsWith("Date('") -> "StrictDate";
             // a list property (Neo4j's, of primitives): a Variant over a SEMISTRUCTURED column, seeded as its JSON
-            // (the study's §12.37); a temporal inside it stays unsupported with the temporal's own reason
+            // (the study's §12.37); a temporal, a node or a map inside it stays unsupported, the kind named
             case CypherValues.Lst l -> {
                 jsonOf(l, key, valueText);
                 yield VARIANT;

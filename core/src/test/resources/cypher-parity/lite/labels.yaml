@@ -52,3 +52,7 @@ tests:
     graph: |
       CREATE ({name: 'plain'}), (:Foo {name: 'foo'})
     cypher: "MATCH (n) RETURN n.name AS name, (n:Foo) AS isFoo ORDER BY name"
+  - id: label_predicate_in_a_list
+    graph: |
+      CREATE ({name: 'plain'}), (:Foo {name: 'foo'})
+    cypher: "MATCH (n) RETURN n.name AS name, [(n:Foo), NOT (n:Foo)] AS l ORDER BY name"

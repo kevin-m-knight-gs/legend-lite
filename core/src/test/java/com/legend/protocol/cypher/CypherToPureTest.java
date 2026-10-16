@@ -505,7 +505,7 @@ class CypherToPureTest {
         invalid("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x, 1 AS one MATCH (x)-->(b) WHERE q.x = 1"
                 + " RETURN b", "not defined");
         unsupported("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x, 1 AS one MATCH (x)-->(x) RETURN x",
-                "two ends are both bound already");
+                "binding x again");
     }
 
     @Test

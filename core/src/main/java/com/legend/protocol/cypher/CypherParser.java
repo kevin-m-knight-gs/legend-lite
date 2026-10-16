@@ -668,10 +668,10 @@ public final class CypherParser {
     /** Whether a node pattern closes at {@code k} and a relationship pattern follows ({@code )-[}, {@code )-(},
      *  {@code )--}, {@code )-->}, {@code )<-}): what tells a pattern inside brackets from a parenthesized
      *  expression ({@code [(a) - 1]}). */
-    /** At {@code (n:A:B ...}: whether the labelled node starts a pattern -- a property map, or a relationship after
-     *  its `)` -- rather than a parenthesized label predicate, {@code (n:Foo)} (Return2 [8]). */
-    private boolean labelledNodeStartsPattern() {
-        int k = 1;
+    /** At {@code n:A:B ...} with its first colon {@code k} tokens ahead: whether the labelled node starts a pattern
+     *  -- a property map, or a relationship after its `)` -- rather than a parenthesized label predicate,
+     *  {@code (n:Foo)} (Return2 [8]), in a list too. */
+    private boolean labelledNodeStartsPattern(int k) {
         while (peek(k).is(Type.COLON) && peek(k + 1).is(Type.IDENT)) {
             k += 2;
         }
@@ -707,7 +707,7 @@ public final class CypherParser {
             case LPAREN -> {
                 advance();
                 if (peek().is(Type.RPAREN) || peek().is(Type.IDENT) && (peek(1).is(Type.COLON)
-                        && labelledNodeStartsPattern() || peek(1).is(Type.LBRACE) || relationshipAt(1))) {
+                        && labelledNodeStartsPattern(1) || peek(1).is(Type.LBRACE) || relationshipAt(1))) {
                     throw CypherErrors.unsupported("a pattern inside an expression (a pattern predicate or"
                             + " comprehension) is not supported yet", pos);
                 }
@@ -719,7 +719,7 @@ public final class CypherParser {
                 advance();
                 if (peek().is(Type.LPAREN) && (peek(1).is(Type.COLON) || peek(1).is(Type.LBRACE)
                         || relationshipAt(1) || peek(1).is(Type.IDENT) && (peek(2).is(Type.COLON)
-                        || peek(2).is(Type.LBRACE) || relationshipAt(2)))
+                        && labelledNodeStartsPattern(2) || peek(2).is(Type.LBRACE) || relationshipAt(2)))
                         || peek().is(Type.IDENT) && peek(1).is(Type.EQ) && peek(2).is(Type.LPAREN)) {
                     // [p = (a)-[:T]->(b) WHERE predicate | expression]: a pattern comprehension
                     PathPattern pattern = pathPattern();

@@ -1387,9 +1387,9 @@ public final class CypherToPure {
                 continue;
             }
             if (names.contains(var)) {
-                throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared"
-                        + " by identity) is not supported yet", e instanceof NodePattern n ? n.pos()
-                        : ((RelPattern) e).pos());
+                throw CypherErrors.unsupported("a pattern from an absent node binding " + var + " again (bound already:"
+                        + " a cycle compared by identity, or a variable of another kind) is not supported yet",
+                        e instanceof NodePattern n ? n.pos() : ((RelPattern) e).pos());
             }
             names.add(var);
             if (e instanceof NodePattern) {
@@ -1415,10 +1415,9 @@ public final class CypherToPure {
      *  (a variable not defined, a property no class declares): the rows they would filter are none. */
     private void readStatically(List<PatternElement> elements, @com.legend.base.Nullable Expr where, Scope scope) {
         for (PatternElement e : elements) {
-            if (e instanceof NodePattern n) {
-                for (Expr value : n.properties().values()) {
-                    tx(value, scope);
-                }
+            Map<String, Expr> properties = e instanceof NodePattern n ? n.properties() : ((RelPattern) e).properties();
+            for (Expr value : properties.values()) {
+                tx(value, scope);
             }
         }
         if (where != null) {
@@ -2168,6 +2167,10 @@ public final class CypherToPure {
                 }
                 SortItem o = ap.afterGrouping().get(k++);
                 Tx t = tx(o.expr(), after);
+                if (t.kind() == Kind.JSON) {
+                    throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant"
+                            + " is not supported yet", o.pos());
+                }
                 computed.add(new ColSpec(sk.column(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
             }
             vs = call("extend", vs, new ColSpecArray(computed));
@@ -2302,6 +2305,11 @@ public final class CypherToPure {
                 if (np == null) {
                     throw CypherErrors.invalid("the node " + pv.name() + " has no property " + pr.name() + " (the"
                             + " graph is the model: a property no class declares is an error, not null)", o.pos());
+                }
+                if (np.kind() == Kind.JSON) {
+                    // (a stored list: Neo4j orders a list by its elements, which the Variant's text does not)
+                    throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant ("
+                            + pv.name() + "." + pr.name() + ") is not supported yet", o.pos());
                 }
                 sortKeys.add(new SortKey(np.column(), o.descending(), false));
                 continue;
