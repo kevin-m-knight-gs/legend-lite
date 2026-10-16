@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -469,9 +470,36 @@ class CypherToPureTest {
                 "a MATCH after a WITH that projected its variables");
         unsupported("MATCH (f:Firm)-[:employees]->(p:Person) MATCH (f)-->(p) RETURN p.name",
                 "two ends are both bound already");
-        unsupported("MATCH (f:Firm) MATCH (f)-->(x:Person) RETURN x.name AS n",
-                "the model declares no relationship for (no rows)");
+        // no way of the model leaves Firm to a Person (the study's §12.36): the rows in hand limited to none, x
+        // an absent node (its labels column null)
+        assertEquals("demo::Firm.all()->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName])->limit(0)->extend(~[_cypher_3:r|[]->cast(@String)])->extend(~[n:r|[]])->select(~[n])",
+                pure("MATCH (f:Firm) MATCH (f)-->(x:Person) RETURN x.name AS n"));
         unsupported("MATCH (f:Firm) MATCH q = (f)-->(x) RETURN q", "a named path over an untyped relationship");
+    }
+
+    @Test
+    void aHopFromAnAbsentNodeFindsNothing() {
+        // the study's §12.36: x, a node the OPTIONAL MATCH never finds (no `nothing` end leaves Person), carried
+        // through a WITH as null everywhere: a MATCH from it reads no row (the rows in hand limited to none), b
+        // absent; an OPTIONAL MATCH keeps every row, b and r absent (type(r) null)
+        String none = pure("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x, 1 AS one MATCH (x)-->(b)"
+                + " RETURN b");
+        assertTrue(none.contains("->limit(0)"), none);
+        String kept = pure("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x, 1 AS one OPTIONAL MATCH"
+                + " (x)-[r]->(b) RETURN b, r, type(r) AS t");
+        assertFalse(kept.contains("->limit(0)"), kept);
+        // the graph kept by the WITH (x a bare item): the same
+        assertTrue(pure("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x MATCH (x)-->(b) RETURN b")
+                .contains("->limit(0)"));
+        // a null the WITH named: the path null, nodes(p) and length(p) of it null
+        String path = pure("WITH null AS a OPTIONAL MATCH p = (a)-[r]->() RETURN nodes(p) AS n, length(p) AS l");
+        assertTrue(path.contains("n:r|[]->cast(@meta::pure::metamodel::variant::Variant)")
+                && path.contains("l:r|[]->cast(@Integer)"), path);
+        // the WHERE is still read: a variable it names must exist
+        invalid("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x, 1 AS one MATCH (x)-->(b) WHERE q.x = 1"
+                + " RETURN b", "not defined");
+        unsupported("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x, 1 AS one MATCH (x)-->(x) RETURN x",
+                "two ends are both bound already");
     }
 
     @Test

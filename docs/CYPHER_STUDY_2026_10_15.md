@@ -2857,3 +2857,30 @@ Neo4j.
 
 11 lite cases in `lite/labels.yaml`, each judged by Neo4j (one a refusal by name, one Neo4j's own error).
 
+### 12.36 A hop from an absent node, a pattern no way of the model reads, 2026-10-16
+
+- **`OPTIONAL MATCH (a) WITH a MATCH (a)-->(b)`, `WITH null AS a OPTIONAL MATCH p = (a)-[r]->()`:** a hop from a node
+  the rows in hand carry as null everywhere (a node an OPTIONAL MATCH never found, carried through a WITH; a null the
+  WITH named) finds nothing. A MATCH reads no row: the rows in hand limited to none (`->limit(0)`); an OPTIONAL MATCH
+  keeps every row, the pattern's other variables absent -- each node an absent node (one null labels column serves
+  them all), each relationship an absent relationship (a null type column: `type(r)` null, `properties(r)` null),
+  the path, when named, null (`nodes(p)`, `relationships(p)`, `length(p)` null, as of a null). The pattern is read
+  from whichever end is the absent node. The property maps and the WHERE are still read, for their static errors
+  (a variable not defined); the rows they would filter are none. The graph a WITH kept (`WITH a` alone) answers the
+  same, materialized first.
+- **`MATCH ()-[r]->()` over a model declaring no relationship, `MATCH (b:B) WITH b MATCH (b)-->(x)` from a class no
+  way leaves:** no row, as Neo4j answers, every variable of the pattern absent (the bound node's rows limited to
+  none; a first pattern over no row at all). `count(r)`, `count(*)` over it are 0; `nodes(p)` of its path null.
+- **`properties(r)` of a relationship:** the empty map (the harness's model holds no relationship property); of one
+  an OPTIONAL MATCH never found, null.
+- A variable-length hop stays refused by name before any of this: a zero-length hop (`[*0..]`) is a row in Neo4j,
+  not "no way". A pattern whose far end is bound already stays the identity refusal.
+
+#### 12.36.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4334 | 2636 (from 2,612) | 0 | 0 | 0 | 621 | 709 | 368 |
+| Postgres | 4334 | 2286 (from 2,262) | 0 | 0 | 0 | 971 | 709 | 368 |
+
+14 lite cases in `lite/absent.yaml`, each judged by Neo4j (one a refusal by name: a cycle from an absent node).

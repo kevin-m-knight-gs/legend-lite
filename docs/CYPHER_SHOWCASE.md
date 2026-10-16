@@ -908,8 +908,19 @@ MATCH (n) RETURN n.name AS name, n:A AS isA, n:B AS isB, n:A:B AS both ORDER BY 
 | 'b' | false | true | false |
 | 'c' | false | false | false |
 
+**§12.36, a hop from an absent node** (`lite/absent/optional_match_from_an_absent_node_with_a_where`): over an empty
+graph.
 
-## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.35)
+```
+OPTIONAL MATCH (a) WITH a OPTIONAL MATCH (a)-[r:T]->(b) WHERE b.name = 'x' RETURN b, r, type(r) AS t, properties(r) AS pr
+```
+
+| b | r | t | pr |
+|---|---|---|---|
+| null | null | null | null |
+
+
+## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.36)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
@@ -919,9 +930,9 @@ several class pairs, a relationship property, a `CALL`). No case is `FAIL`, `BUG
 
 | status | cases |
 |---|---|
-| PASS | 2256 |
+| PASS | 2266 |
 | BOTH_ERROR | 666 |
-| REFUSED | 591 |
+| REFUSED | 581 |
 | SKIP | 367 |
 
 | area | cases | PASS | BOTH_ERROR | REFUSED | SKIP |
@@ -929,17 +940,17 @@ several class pairs, a relationship property, a `CALL`). No case is `FAIL`, `BUG
 | clauses/call | 52 | 0 | 2 | 0 | 50 |
 | clauses/create | 78 | 0 | 15 | 54 | 9 |
 | clauses/delete | 41 | 0 | 4 | 27 | 10 |
-| clauses/match | 381 | 23 | 238 | 77 | 43 |
-| clauses/match-where | 34 | 12 | 2 | 7 | 13 |
+| clauses/match | 381 | 26 | 238 | 74 | 43 |
+| clauses/match-where | 34 | 13 | 2 | 6 | 13 |
 | clauses/merge | 75 | 0 | 13 | 47 | 15 |
 | clauses/remove | 33 | 0 | 0 | 22 | 11 |
-| clauses/return | 63 | 22 | 10 | 17 | 14 |
+| clauses/return | 63 | 24 | 10 | 15 | 14 |
 | clauses/return-orderby | 35 | 16 | 3 | 15 | 1 |
 | clauses/return-skip-limit | 31 | 11 | 16 | 3 | 1 |
 | clauses/set | 53 | 0 | 2 | 43 | 8 |
 | clauses/union | 12 | 7 | 4 | 1 | 0 |
 | clauses/unwind | 14 | 8 | 0 | 5 | 1 |
-| clauses/with | 29 | 8 | 4 | 12 | 5 |
+| clauses/with | 29 | 9 | 4 | 11 | 5 |
 | clauses/with-orderBy | 292 | 154 | 67 | 20 | 51 |
 | clauses/with-skip-limit | 9 | 3 | 0 | 2 | 4 |
 | clauses/with-where | 19 | 6 | 0 | 7 | 6 |
@@ -948,13 +959,13 @@ several class pairs, a relationship property, a `CALL`). No case is `FAIL`, `BUG
 | expressions/comparison | 72 | 58 | 1 | 10 | 3 |
 | expressions/conditional | 13 | 13 | 0 | 0 | 0 |
 | expressions/existentialSubqueries | 10 | 0 | 1 | 0 | 9 |
-| expressions/graph | 61 | 15 | 15 | 15 | 16 |
+| expressions/graph | 61 | 16 | 15 | 14 | 16 |
 | expressions/list | 185 | 117 | 59 | 6 | 3 |
 | expressions/literals | 131 | 100 | 25 | 6 | 0 |
 | expressions/map | 44 | 35 | 9 | 0 | 0 |
 | expressions/mathematical | 6 | 5 | 1 | 0 | 0 |
 | expressions/null | 44 | 40 | 0 | 4 | 0 |
-| expressions/path | 7 | 0 | 2 | 3 | 2 |
+| expressions/path | 7 | 2 | 2 | 1 | 2 |
 | expressions/pattern | 50 | 3 | 19 | 3 | 25 |
 | expressions/precedence | 104 | 60 | 0 | 44 | 0 |
 | expressions/quantifier | 604 | 512 | 12 | 72 | 8 |
@@ -965,9 +976,9 @@ several class pairs, a relationship property, a `CALL`). No case is `FAIL`, `BUG
 | useCases/triadicSelection | 19 | 1 | 0 | 9 | 9 |
 
 The refusals, by what they name (the larger buckets): the write clauses `CREATE`, `SET`, `MERGE`, `REMOVE`, `DELETE`
-(208, out of the island's scope); `collect` (46, the database owner's aggregate, waiting); `rand()` and the clock
+(208, out of the island's scope); `collect` (45, the database owner's aggregate, waiting); `rand()` and the clock
 functions (50, never reproducible); `UNWIND` over lists of lists, maps or mixed types (64, Variant rows); a label or a
-property the model does not declare (48, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns that need
+property the model does not declare (52, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns that need
 node identity, which the values do not carry (a `MATCH` or `OPTIONAL MATCH` after rows, both ends bound, an undirected
-self-association, nodes among grouping keys or under `DISTINCT`, nodes compared: 81); variable-length relationships
-(12); the rest is small buckets of one to nine, each named in the ledger.
+self-association, nodes among grouping keys or under `DISTINCT`, nodes compared: 72); variable-length relationships
+(13); the rest (77) is small buckets of one to nine, each named in the ledger.

@@ -1833,6 +1833,10 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   NOT_UPSTREAM pin, the own-corpus ratchet) fixed, each with its dated reason (GATES, "the local gate after the
   merge"). The branch is at its natural cut for the first PR to main: every leg since is by design or outside the
   island's lane (GATES, "main merged in").
+- **PR #48 opened 2026-10-16** (neema2/legend-lite#48, the island to main); its first CI run's two failures were this
+  branch's and are fixed (c428b45: the TCK's null features hidden by `.gitignore`'s `null`, a fixture closed on an
+  escaped quote). **Thirty-fifth landing, 2026-10-16, on the PR's branch:** a hop from an absent node and a pattern no
+  way of the model reads answer no row or absent values (the study's §12.36); DuckDB PASS 2636, Postgres PASS 2286.
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

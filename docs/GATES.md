@@ -9850,6 +9850,24 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the thirty-fifth landing — a hop from an absent node, a pattern no way reads (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the first PR (#48) opened; the record is the study's §12.36
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only.
+
+1. **What lands.** A hop from a node the rows carry as null everywhere (a node an OPTIONAL MATCH never found,
+   carried through a WITH; a null the WITH named) finds nothing: a MATCH no row (the rows limited to none), an
+   OPTIONAL MATCH every row with the pattern's variables absent (nodes, relationships, a named path); a pattern no
+   relationship of the model reads (a first pattern over a model declaring none, a hop from a class no way leaves)
+   no row, its variables absent; `nodes`, `relationships`, `length` of null and of such a path null; `properties(r)`
+   of a relationship the empty map, of an absent one null. Variable-length hops stay refused before any of it.
+2. **The ledger.** DuckDB: 4334 cases; PASS 2636 (from 2,612); FAIL 0; BUG 0; ERROR 0; REFUSED 621;
+   BOTH_ERROR 709; SKIP 368. Postgres: PASS 2286 (from 2,262); FAIL 0; BUG 0; ERROR 0; REFUSED 971;
+   BOTH_ERROR 709; SKIP 368. 14 lite cases in `lite/absent.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean); `lite/continue/untyped_hop_from_a_node_no_way_leaves` passes now.
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. CI runs on the PR.
+
 ## 2026-10-16 — `#Cypher{...}#`: the local gate after the merge — three guards the branch had moved, each with its reason (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, on the merge commit bee4fe2 and the fix after it. No translator code changed.

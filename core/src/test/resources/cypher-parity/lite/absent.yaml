@@ -1,0 +1,47 @@
+# The #Cypher{...}# island's absent-hop cases (docs/CYPHER_STUDY_2026_10_15.md §12.36): a hop from a node carried as
+# null everywhere (a node an OPTIONAL MATCH never found, a null a WITH named) finds nothing -- a MATCH no row, an
+# OPTIONAL MATCH every row with the pattern's variables absent; a pattern no relationship of the model reads (a
+# first pattern over a model declaring none, a hop from a class no way leaves) no row, its variables absent. Each
+# case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/absent/*'), keyed lite/absent/<id>.
+tests:
+  - id: match_from_an_absent_node_after_a_with
+    cypher: "OPTIONAL MATCH (a) WITH a MATCH (a)-->(b) RETURN b"
+  - id: match_from_an_absent_node_return_star
+    cypher: "OPTIONAL MATCH (a:Start) WITH a MATCH (a)-[r]->(b) RETURN *"
+  - id: match_to_an_absent_node_reversed
+    cypher: "OPTIONAL MATCH (a) WITH a MATCH (x)-->(a) RETURN x, a"
+  - id: optional_match_from_an_absent_node
+    cypher: "OPTIONAL MATCH (a) WITH a OPTIONAL MATCH (a)-->(b) RETURN b, a IS NULL AS noa, b IS NULL AS nob"
+  - id: optional_match_from_an_absent_node_with_a_where
+    cypher: "OPTIONAL MATCH (a) WITH a OPTIONAL MATCH (a)-[r:T]->(b) WHERE b.name = 'x' RETURN b, r, type(r) AS t, properties(r) AS pr"
+  - id: properties_of_an_absent_relationship
+    cypher: "OPTIONAL MATCH (n:DoesNotExist) OPTIONAL MATCH (n)-[r:NOT_THERE]->() RETURN properties(n) AS pn, properties(r) AS pr, properties(null) AS pnull"
+  - id: a_path_from_a_null
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "WITH null AS a OPTIONAL MATCH p = (a)-[r]->() RETURN p, r, nodes(p) AS ns, relationships(p) AS rs, length(p) AS l, nodes(null) AS nn, length(null) AS ln"
+  - id: a_match_from_a_null_is_no_row
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "WITH null AS a MATCH (a)-->(b) RETURN b.name AS n"
+  - id: a_first_pattern_no_relationship_reads
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH p = (n)-->(b) RETURN n, b, p, nodes(p) AS ns"
+  - id: a_relationship_over_a_model_declaring_none
+    cypher: "MATCH ()-[r]->() RETURN r, type(r) AS t"
+  - id: counts_over_a_pattern_no_relationship_reads
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (n)-[r]->(b) RETURN count(r) AS cr, count(*) AS c, count(n) AS cn"
+  - id: a_long_pattern_no_relationship_reads_with_a_where
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "MATCH (a)<--()<--(b)-->()-->(c) WHERE a:A AND b.name <> 'q' RETURN c, c.name AS cn"
+  - id: a_hop_from_a_class_no_way_leaves_return_star
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (b:B) WITH b MATCH (b)-[r]->(x) WHERE x.name <> 'z' RETURN *"
+  - id: a_cycle_from_an_absent_node_refused
+    cypher: "OPTIONAL MATCH (a) WITH a MATCH (a)-->(a) RETURN a"

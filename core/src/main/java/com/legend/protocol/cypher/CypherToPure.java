@@ -638,7 +638,11 @@ public final class CypherToPure {
         if (m.optional()) {
             return optionalMatch(m, state);
         }
-        if (state instanceof Rows) {
+        if (state instanceof Rows rows) {
+            Rows hop = absentHop(m, rows);
+            if (hop != null) {
+                return hop;
+            }
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
         }
@@ -748,8 +752,15 @@ public final class CypherToPure {
             assign(elements, 2, cls, head, arms);
         }
         if (arms.isEmpty()) {
-            throw CypherErrors.unsupported("an untyped relationship pattern the model declares no relationship for"
-                    + " (no rows) is not supported yet", p.pos());
+            for (PatternElement e : elements) {
+                if (e instanceof RelPattern r && r.lengthRange() != null) {
+                    // (a zero-length hop is a row in Neo4j: not "no way")
+                    throw CypherErrors.unsupported("a variable-length relationship (*) is not supported yet",
+                            r.pos());
+                }
+            }
+            // no relationship of the model reads the pattern (the study's §12.36): no row, its variables absent
+            return noWay(elements, p.variable(), m.where(), null, p.pos());
         }
         // every variable's classes across the arms: what its carried columns are the union of
         Map<String, List<String>> variableClasses = new LinkedHashMap<>();
@@ -799,7 +810,11 @@ public final class CypherToPure {
      *  may find many: one row per node reached), the WHERE read over the rows, the arms materialized and
      *  concatenated; over a label-less pattern's arms, each arm's ways. A class no way leaves reads no row. */
     private State untypedArmsFrom(CypherAst.Match m, State state) {
-        if (state instanceof Rows) {
+        if (state instanceof Rows rows) {
+            Rows hop = absentHop(m, rows);
+            if (hop != null) {
+                return hop;
+            }
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
         }
@@ -865,6 +880,13 @@ public final class CypherToPure {
                 throw CypherErrors.invalid("Type mismatch: " + startVar + " defined with conflicting type",
                         start.pos());
             }
+            if (from.absent() && bases.size() == 1) {
+                // a node the OPTIONAL MATCH never found, the graph kept by a WITH: the hop finds nothing (§12.36)
+                Rows hop = absentHop(m, materialize(base, m.pos(), List.of()));
+                if (hop != null) {
+                    return hop;
+                }
+            }
             if (from.absent() || from.maybeAbsent()) {
                 throw CypherErrors.unsupported("a MATCH from a node an OPTIONAL MATCH may not find (" + startVar
                         + ") is not supported yet", start.pos());
@@ -890,8 +912,16 @@ public final class CypherToPure {
             }
         }
         if (graphs.isEmpty()) {
-            throw CypherErrors.unsupported("an untyped relationship pattern the model declares no relationship for"
-                    + " (no rows) is not supported yet", p.pos());
+            for (PatternElement e : ordered) {
+                if (e instanceof RelPattern r && r.lengthRange() != null) {
+                    throw CypherErrors.unsupported("a variable-length relationship (*) is not supported yet",
+                            r.pos());
+                }
+            }
+            // no way of the model leaves the bound node's class (the study's §12.36): the rows in hand limited to
+            // none, the pattern's other variables absent
+            return noWay(ordered, null, m.where(), materializeArms(bases, new ArrayList<>(any.bindings().keySet()),
+                    m.pos()), p.pos());
         }
         return materializeArms(graphs, order, m.pos());
     }
@@ -991,7 +1021,11 @@ public final class CypherToPure {
             }
             return match(new CypherAst.Match(false, m.patterns(), m.where(), m.pos()), null);
         }
-        if (state instanceof Rows) {
+        if (state instanceof Rows rows) {
+            Rows hop = absentHop(m, rows);
+            if (hop != null) {
+                return hop;
+            }
             throw CypherErrors.unsupported("OPTIONAL MATCH after a WITH that projected its variables, or after a"
                     + " pattern read as rows, is not supported yet", m.pos());
         }
@@ -1245,6 +1279,135 @@ public final class CypherToPure {
         List<Col> columns = new ArrayList<>(rows.columns());
         columns.add(new Col(variable, Kind.JSON, false, null, new NodeShape(labels, Map.of(), true)));
         return new Rows(rows.vs(), columns);
+    }
+
+    // ------------------------------------------------- a hop from an absent node, a pattern no way reads (§12.36)
+
+    /** {@code OPTIONAL MATCH (a) WITH a MATCH (a)-->(b)}, {@code WITH null AS a OPTIONAL MATCH p = (a)-[r]->()}: a
+     *  hop from a node {@code rows} carries as null everywhere (a node an OPTIONAL MATCH never found, a null a WITH
+     *  named) finds nothing (the study's §12.36). A MATCH reads no row: the rows in hand limited to none; an OPTIONAL
+     *  MATCH keeps every row, the pattern's other variables absent ({@link #absentPattern}). The property maps and
+     *  the WHERE are still read: Neo4j's static errors are the query's, not the data's. Null when the pattern (one,
+     *  with a hop) starts at no such node; its last node such a node, the pattern is read from that end. */
+    private @com.legend.base.Nullable Rows absentHop(CypherAst.Match m, Rows rows) {
+        if (m.patterns().size() != 1 || m.patterns().get(0).elements().size() < 3) {
+            return null;
+        }
+        PathPattern p = m.patterns().get(0);
+        List<PatternElement> elements = p.elements();
+        List<PatternElement> ordered;
+        if (absentIn(rows, ((NodePattern) elements.get(0)).variable())) {
+            ordered = elements;
+        } else if (absentIn(rows, ((NodePattern) elements.get(elements.size() - 1)).variable())) {
+            ordered = new ArrayList<>(elements);
+            java.util.Collections.reverse(ordered);
+        } else {
+            return null;
+        }
+        for (PatternElement e : elements) {
+            if (e instanceof RelPattern r && r.lengthRange() != null) {
+                throw CypherErrors.unsupported("a variable-length relationship (*) is not supported yet", r.pos());
+            }
+        }
+        Rows out = absentPattern(rows, ordered, 1, p.variable(), p.pos());
+        readStatically(elements, m.where(), new RowScope(out));
+        if (m.optional()) {
+            return out;
+        }
+        return new Rows(call("limit", out.vs(), new CInteger(0L)), out.columns());
+    }
+
+    /** Whether {@code rows} carries {@code variable} as a value null everywhere: an absent node, or a null the
+     *  query named. */
+    private static boolean absentIn(Rows rows, @com.legend.base.Nullable String variable) {
+        if (variable == null) {
+            return false;
+        }
+        for (Col c : rows.columns()) {
+            if (c.name().equals(variable)) {
+                return c.detail() instanceof NodeShape shape && shape.absent() || c.kind() == Kind.NULL;
+            }
+        }
+        return false;
+    }
+
+    /** A pattern no relationship of the model reads ({@code MATCH ()-[r]->()} over a model declaring none; a hop
+     *  from a class no way leaves): no row, as Neo4j answers, every variable of the pattern absent -- over
+     *  {@code from} (the rows in hand, limited to none; its first element bound there) or, {@code from} null, over
+     *  no row at all; the property maps and the WHERE read for their static errors. */
+    private Rows noWay(List<PatternElement> elements, @com.legend.base.Nullable String pathVar,
+            @com.legend.base.Nullable Expr where, @com.legend.base.Nullable Rows from, Pos pos) {
+        Rows rows;
+        int start;
+        if (from == null) {
+            String column = SYNTHETIC + "row";
+            rows = new Rows(noRows(column), List.of(new Col(column, Kind.STRING, true)));
+            start = 0;
+        } else {
+            rows = new Rows(call("limit", from.vs(), new CInteger(0L)), from.columns());
+            start = 1;
+        }
+        Rows out = absentPattern(rows, elements, start, pathVar, pos);
+        readStatically(elements, where, new RowScope(out));
+        return out;
+    }
+
+    /** {@code rows} with every variable of {@code elements} from {@code start} on as a value null everywhere -- a
+     *  node an absent node (one null labels column serves them all), a relationship an absent relationship (a null
+     *  type column), the path {@code pathVar} (when named) a null path: what a hop that finds nothing binds. */
+    private Rows absentPattern(Rows rows, List<PatternElement> elements, int start,
+            @com.legend.base.Nullable String pathVar, Pos pos) {
+        Set<String> names = new HashSet<>();
+        rows.columns().forEach(c -> names.add(c.name()));
+        List<ColSpec> nulls = new ArrayList<>();
+        List<Col> columns = new ArrayList<>(rows.columns());
+        String labels = freshName(names);
+        nulls.add(new ColSpec(labels, lambda("r", SqlToPure.nullOf(Kind.STRING).vs()), null, null));
+        columns.add(new Col(labels, Kind.STRING, true));
+        for (int i = start; i < elements.size(); i++) {
+            PatternElement e = elements.get(i);
+            String var = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (var == null) {
+                continue;
+            }
+            if (names.contains(var)) {
+                throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared"
+                        + " by identity) is not supported yet", e instanceof NodePattern n ? n.pos()
+                        : ((RelPattern) e).pos());
+            }
+            names.add(var);
+            if (e instanceof NodePattern) {
+                columns.add(new Col(var, Kind.JSON, false, null, new NodeShape(labels, Map.of(), true)));
+            } else {
+                String type = freshName(names);
+                nulls.add(new ColSpec(type, lambda("r", SqlToPure.nullOf(Kind.STRING).vs()), null, null));
+                columns.add(new Col(type, Kind.STRING, true));
+                columns.add(new Col(var, Kind.JSON, true, null, new RelShape(type)));
+            }
+        }
+        if (pathVar != null) {
+            if (names.contains(pathVar)) {
+                throw CypherErrors.invalid("Variable `" + pathVar + "` already declared", pos);
+            }
+            nulls.add(new ColSpec(pathVar, lambda("r", SqlToPure.nullOf(Kind.JSON).vs()), null, null));
+            columns.add(new Col(pathVar, Kind.JSON, true, null, new AbsentPath()));
+        }
+        return new Rows(call("extend", rows.vs(), new ColSpecArray(nulls)), columns);
+    }
+
+    /** The property maps of {@code elements} and {@code where}, read over {@code scope} for their static errors
+     *  (a variable not defined, a property no class declares): the rows they would filter are none. */
+    private void readStatically(List<PatternElement> elements, @com.legend.base.Nullable Expr where, Scope scope) {
+        for (PatternElement e : elements) {
+            if (e instanceof NodePattern n) {
+                for (Expr value : n.properties().values()) {
+                    tx(value, scope);
+                }
+            }
+        }
+        if (where != null) {
+            condition(where, scope, "WHERE");
+        }
     }
 
     /** {@code MATCH (n)}, {@code MATCH (n {p: v}) WHERE ...}: a node of any class of the model (the study's §12.13),
@@ -3987,6 +4150,17 @@ public final class CypherToPure {
             if (parts != null) {
                 return scalar(fn.equals("labels") ? nodeLabels(parts) : nodeProperties(parts, c.pos()));
             }
+            Tx type = scope.relType(v);
+            if (type != null && fn.equals("properties")) {
+                // of a relationship: the empty map (the harness's model holds no relationship property); of one an
+                // OPTIONAL MATCH never found, null
+                ValueSpecification empty = call("fromJson", new CString("{}"));
+                if (!type.nullable()) {
+                    return scalar(Tx.value(empty, Kind.JSON, false));
+                }
+                return scalar(Tx.value(call("if", call("isEmpty", type.vs()), thunk(SqlToPure.nullOf(Kind.JSON).vs()),
+                        thunk(empty)), Kind.JSON, true));
+            }
         }
         if (fn.equals("size") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.PatternComprehension pc) {
             // the matches of the hop, counted by the database (the study's §12.31)
@@ -4006,6 +4180,14 @@ public final class CypherToPure {
                 out.add(scope.variable(new CypherAst.Var(name, c.pos())));
             }
             return new ListVal(out);
+        }
+        if ((fn.equals("length") || fn.equals("nodes") || fn.equals("relationships")) && c.args().size() == 1
+                && (c.args().get(0) instanceof CypherAst.Var || c.args().get(0) instanceof CypherAst.NullLit)) {
+            // of a null, null; of a path a hop from an absent node never found (the study's §12.36), null
+            Val a = val(c.args().get(0), scope);
+            if (a instanceof Scalar s && (s.tx().kind() == Kind.NULL || s.tx().detail() instanceof AbsentPath)) {
+                return scalar(SqlToPure.nullOf(fn.equals("length") ? Kind.INTEGER : Kind.JSON));
+            }
         }
         if (fn.equals("keys") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.Var v) {
             // of a node: the names of its properties that hold a value, a collection the database builds (the
@@ -5815,6 +5997,11 @@ public final class CypherToPure {
     /** A path as a value, the study's §12.27 (its JSON holds its nodes, its relationships and their stored
      *  directions). */
     private record PathValue() implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** The mark of a path a hop from an absent node never found (the study's §12.36): a null column, what
+     *  {@code nodes}, {@code relationships} and {@code length} read as null. */
+    private record AbsentPath() implements com.legend.protocol.sql.InputDialect.TypeDetail {
     }
 
     private record NodeValue() implements com.legend.protocol.sql.InputDialect.TypeDetail {
