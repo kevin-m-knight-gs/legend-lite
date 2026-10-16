@@ -947,7 +947,7 @@ ORDER BY title
 | 'Speed' | {role: 'Jack'} | 1 | false |
 | 'The Matrix' | {role: 'Neo', year: 1999} | 2 | true |
 
-## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.39)
+## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.40)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
@@ -958,9 +958,9 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 
 | status | cases |
 |---|---|
-| PASS | 2290 |
+| PASS | 2303 |
 | BOTH_ERROR | 670 |
-| REFUSED | 739 |
+| REFUSED | 726 |
 | SKIP | 181 |
 | total | 3880 |
 
@@ -987,7 +987,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | expressions/boolean | 150 | 32 | 118 | 0 | 0 |
 | expressions/comparison | 72 | 59 | 1 | 10 | 2 |
 | expressions/conditional | 13 | 13 | 0 | 0 | 0 |
-| expressions/existentialSubqueries | 10 | 0 | 1 | 9 | 0 |
+| expressions/existentialSubqueries | 10 | 4 | 1 | 5 | 0 |
 | expressions/graph | 61 | 17 | 15 | 18 | 11 |
 | expressions/list | 185 | 117 | 59 | 9 | 0 |
 | expressions/literals | 131 | 100 | 25 | 6 | 0 |
@@ -995,7 +995,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | expressions/mathematical | 6 | 5 | 1 | 0 | 0 |
 | expressions/null | 44 | 40 | 0 | 4 | 0 |
 | expressions/path | 7 | 2 | 2 | 3 | 0 |
-| expressions/pattern | 50 | 6 | 19 | 25 | 0 |
+| expressions/pattern | 50 | 15 | 19 | 16 | 0 |
 | expressions/precedence | 104 | 60 | 0 | 44 | 0 |
 | expressions/quantifier | 604 | 512 | 12 | 80 | 0 |
 | expressions/string | 32 | 29 | 0 | 3 | 0 |
@@ -1008,9 +1008,10 @@ The refusals, by what they name (the larger buckets): the write clauses `CREATE`
 and `DETACH DELETE` (241, out of the island's scope); `collect` and `count` as a clause (53, the database owner's
 aggregate, waiting); the functions the table lacks, `rand()` and the clock functions among them (50, never
 reproducible); `UNWIND` over lists of lists, maps or mixed types (64, Variant rows); a label, a property or a
-relationship type the model does not declare (53, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns
+relationship type the model does not declare (54, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns
 that need node identity, which the values do not carry (a `MATCH` or `OPTIONAL MATCH` after rows, both ends bound, an
 undirected self-association, nodes among grouping keys or under `DISTINCT`, nodes compared: 81); variable-length
-relationships (32); a pattern inside an expression and `EXISTS { ... }` (31); a list or map of row values carried
-through `WITH` (10); a stored list indexed, ordered or spelled as text (16, the Variant's text); an untyped
-relationship in an OPTIONAL MATCH (7); the rest (101) is small buckets of one to eight, each named in the ledger.
+relationships (36); a pattern predicate or comprehension over rows, from no bound node or over more than one hop, and
+`COUNT { }` (15); a list or map of row values carried through `WITH` (10); a stored list indexed, ordered or spelled
+as text (16, the Variant's text); an untyped relationship in an OPTIONAL MATCH (7); the rest (99) is small buckets of
+one to eight, each named in the ledger.

@@ -3011,3 +3011,30 @@ The SKIP count fell from 298 to 181: the 117 cases the harness skipped for a typ
 them passing, 2 erroring on both sides as the TCK expects, the other 101 refused by name (variable-length
 relationships, patterns inside expressions, an OPTIONAL MATCH after rows, identity); 5 more passes come from cases
 whose graphs mix a multi-pair type with what they read.
+
+### 12.40 A pattern as a predicate, and `EXISTS { ... }`, 2026-10-16
+
+- **`WHERE (n)-[:T]->()`, `WHERE NOT (n)<-[]-(:B)`, `WHERE (n)-[:T|U]->() AND n.x = 1`:** a pattern inside an
+  expression is a predicate, true where the hop from its bound node finds a match. The parser reads it as a
+  `PatternPredicate` (a pattern starting after the parenthesis, rather than the refusal it was); the translator
+  spells it over the pattern comprehension's hop resolution (§12.31): each way the model reads the hop, the
+  navigation's non-emptiness (a to-one way `isNotEmpty`, a to-many way the collection's), the ways or-ed, no way
+  false; a condition with its false case, so `NOT`, `AND` and `OR` around it read both. Neo4j allows a pattern
+  expression only where a boolean is tested, and so does the island: outside a condition (a RETURN item) it is
+  refused with Neo4j's words, and both error.
+- **`WHERE EXISTS { MATCH (n)-[:T]->(b) WHERE b.x = 1 RETURN b }`, `WHERE exists { (n)-->() }`:** an existential
+  subquery over one pattern, an optional WHERE (a filter over the hop's node, as the comprehension's is) and an
+  optional RETURN (its items unread: a row's existence is what counts), spelled the same way. A subquery with
+  several patterns or further clauses, and `COUNT { }` and `COLLECT { }`, stay refused by name.
+- **Refused by name**, as the comprehension machinery refuses: a pattern over rows (a WHERE read over a fanning
+  graph's materialized rows, or after a WITH), both ends bound (`MATCH (a), (b) WHERE (a)-[:T]->(b)`: identity),
+  a property map in the pattern, more than one hop, a variable-length hop.
+
+#### 12.40.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4381 | 2712 (from 2,690) | 0 | 0 | 0 | 774 | 714 | 181 |
+| Postgres | 4381 | 2362 (from 2,340) | 0 | 0 | 0 | 1124 | 714 | 181 |
+
+12 lite cases in `lite/predicates.yaml`, each judged by Neo4j (one erroring on both sides, two refused by name).

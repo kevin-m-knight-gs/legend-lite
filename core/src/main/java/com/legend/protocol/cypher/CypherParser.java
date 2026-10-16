@@ -705,12 +705,12 @@ public final class CypherParser {
                 return new CypherAst.Param(t.text(), pos);
             }
             case LPAREN -> {
-                advance();
-                if (peek().is(Type.RPAREN) || peek().is(Type.IDENT) && (peek(1).is(Type.COLON)
-                        && labelledNodeStartsPattern(1) || peek(1).is(Type.LBRACE) || relationshipAt(1))) {
-                    throw CypherErrors.unsupported("a pattern inside an expression (a pattern predicate or"
-                            + " comprehension) is not supported yet", pos);
+                if (peek(1).is(Type.RPAREN) || peek(1).is(Type.IDENT) && (peek(2).is(Type.COLON)
+                        && labelledNodeStartsPattern(2) || peek(2).is(Type.LBRACE) || relationshipAt(2))) {
+                    // a pattern as a predicate: (n)-[:T]->(), (n)<-[]-(), ()-->(n)
+                    return new CypherAst.PatternPredicate(pathPattern(), pos);
                 }
+                advance();
                 Expr inner = expression();
                 expect(Type.RPAREN, "')'");
                 return new CypherAst.Paren(inner, pos);
@@ -834,7 +834,32 @@ public final class CypherParser {
                 advance();
                 return caseExpression(pos);
             }
-            if ((t.isWord("EXISTS") || t.isWord("COUNT") || t.isWord("COLLECT")) && peek(1).is(Type.LBRACE)) {
+            if (t.isWord("EXISTS") && peek(1).is(Type.LBRACE)) {
+                // EXISTS { [MATCH] pattern [WHERE predicate] [RETURN items] }: one pattern, the items unread (a
+                // row's existence is what counts)
+                advance();
+                advance();
+                matchWord("MATCH");
+                PathPattern pattern = pathPattern();
+                if (peek().is(Type.COMMA)) {
+                    throw CypherErrors.unsupported("an EXISTS subquery over several patterns is not supported yet",
+                            pos);
+                }
+                Expr where = matchWord("WHERE") ? expression() : null;
+                if (matchWord("RETURN")) {
+                    expression();
+                    while (match(Type.COMMA)) {
+                        expression();
+                    }
+                }
+                if (!peek().is(Type.RBRACE)) {
+                    throw CypherErrors.unsupported("an EXISTS subquery with more than one pattern, a WHERE and a RETURN"
+                            + " (a " + peek().text() + " clause) is not supported yet", pos);
+                }
+                advance();
+                return new CypherAst.ExistsSubquery(pattern, where, pos);
+            }
+            if ((t.isWord("COUNT") || t.isWord("COLLECT")) && peek(1).is(Type.LBRACE)) {
                 throw CypherErrors.unsupported(t.text().toUpperCase(java.util.Locale.ROOT)
                         + " { ... } subqueries are not supported yet", pos);
             }

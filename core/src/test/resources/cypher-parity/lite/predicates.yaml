@@ -1,0 +1,54 @@
+# The #Cypher{...}# island's pattern-predicate cases (docs/CYPHER_STUDY_2026_10_15.md §12.40): a pattern inside an
+# expression ((n)-[:T]->(), (n)<-[]-()) is true where the hop from its bound node finds a match, each way the model
+# reads the hop as the navigation's non-emptiness; EXISTS { [MATCH] pattern [WHERE ...] [RETURN ...] } likewise, its
+# WHERE a filter over the hop's node. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/predicates/*'), keyed lite/predicates/<id>.
+tests:
+  - id: a_pattern_predicate_in_a_where
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'}), (:A {name: 'a3'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (a:A) WHERE (a)-[:T]->() RETURN a.name AS name ORDER BY name"
+  - id: a_negated_pattern_predicate
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'}), (:A {name: 'a3'})-[:U]->(:C {name: 'c1'})
+    cypher: "MATCH (a:A) WHERE NOT (a)-[:T]->(:B) RETURN a.name AS name ORDER BY name"
+  - id: a_pattern_predicate_over_a_labelless_node
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:C {name: 'c1'})
+    cypher: "MATCH (n) WHERE (n)-->() RETURN n.name AS name ORDER BY name"
+  - id: an_incoming_pattern_predicate
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:B {name: 'b2'}), (:C {name: 'c1'})
+    cypher: "MATCH (n) WHERE (n)<-[]-() RETURN n.name AS name ORDER BY name"
+  - id: a_pattern_predicate_as_a_value_is_refused
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) RETURN a.name AS name, (a)-[:T]->() AS has ORDER BY name"
+  - id: an_exists_subquery_with_a_where
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (a:A) WHERE exists { MATCH (a)-[:T]->(b) WHERE b.name = 'b1' RETURN b } RETURN a.name AS name"
+  - id: an_exists_subquery_over_a_pattern
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'})
+    cypher: "MATCH (a:A) WHERE EXISTS { (a)-[:T]->(:C) } RETURN a.name AS name"
+  - id: a_pattern_predicate_of_several_types
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:U]->(:C {name: 'c1'}), (:A {name: 'a3'})
+    cypher: "MATCH (a:A) WHERE (a)-[:T|U]->() RETURN a.name AS name ORDER BY name"
+  - id: a_pattern_predicate_with_a_conjunct
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (a:A) WHERE (a)-[:T]->() AND a.name = 'a1' RETURN a.name AS name"
+  - id: a_pattern_predicate_over_a_to_one_hop
+    graph: |
+      CREATE (:P {name: 'p1'})-[:AT]->(:F {name: 'f1'}), (:P {name: 'p2'})
+    cypher: "MATCH (p:P) WHERE (p)-[:AT]->(:F) RETURN p.name AS name"
+  - id: a_pattern_predicate_from_a_fanned_node
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(:B {name: 'b1'})-[:U]->(:C {name: 'c1'}), (a)-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (a:A)-[:T]->(b) WHERE (b)-[:U]->() RETURN a.name AS a, b.name AS b"
+  - id: a_pattern_predicate_with_both_ends_bound
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'})
+    cypher: "MATCH (a:A), (b:B) WHERE (a)-[:T]->(b) RETURN a.name AS a, b.name AS b"

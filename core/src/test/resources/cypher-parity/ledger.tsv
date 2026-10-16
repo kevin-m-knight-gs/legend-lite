@@ -1522,11 +1522,11 @@ tck/expressions/conditional/Conditional2/[1] Simple cases over integers #9	PASS	
 tck/expressions/conditional/Conditional2/[1] Simple cases over integers #10	PASS	PASS
 tck/expressions/conditional/Conditional2/[1] Simple cases over integers #11	PASS	PASS
 tck/expressions/conditional/Conditional2/[1] Simple cases over integers #12	PASS	PASS
-tck/expressions/existentialSubqueries/ExistentialSubquery1/[1] Simple subquery without WHERE clause	REFUSED	REFUSED
+tck/expressions/existentialSubqueries/ExistentialSubquery1/[1] Simple subquery without WHERE clause	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery1/[2] Simple subquery with WHERE clause	REFUSED	REFUSED
-tck/expressions/existentialSubqueries/ExistentialSubquery1/[3] Simple subquery without WHERE clause, not existing pattern	REFUSED	REFUSED
-tck/expressions/existentialSubqueries/ExistentialSubquery1/[4] Simple subquery with WHERE clause, not existing pattern	REFUSED	REFUSED
-tck/expressions/existentialSubqueries/ExistentialSubquery2/[1] Full existential subquery	REFUSED	REFUSED
+tck/expressions/existentialSubqueries/ExistentialSubquery1/[3] Simple subquery without WHERE clause, not existing pattern	PASS	PASS
+tck/expressions/existentialSubqueries/ExistentialSubquery1/[4] Simple subquery with WHERE clause, not existing pattern	PASS	PASS
+tck/expressions/existentialSubqueries/ExistentialSubquery2/[1] Full existential subquery	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery2/[2] Full existential subquery with aggregation	REFUSED	REFUSED
 tck/expressions/existentialSubqueries/ExistentialSubquery2/[3] Full existential subquery with update clause should fail	BOTH_ERROR	BOTH_ERROR
 tck/expressions/existentialSubqueries/ExistentialSubquery3/[1] Nested simple existential subquery	REFUSED	REFUSED
@@ -2010,12 +2010,12 @@ tck/expressions/path/Path2/[3] `relationships()` on null path	PASS	PASS
 tck/expressions/path/Path3/[1] Return a var length path of length zero	REFUSED	REFUSED
 tck/expressions/path/Path3/[2] Failing when using `length()` on a node	BOTH_ERROR	BOTH_ERROR
 tck/expressions/path/Path3/[3] Failing when using `length()` on a relationship	BOTH_ERROR	BOTH_ERROR
-tck/expressions/pattern/Pattern1/[1] Matching on any single outgoing directed connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[2] Matching on a single undirected connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[3] Matching on any single incoming directed connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[4] Matching on a specific type of single outgoing directed connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[5] Matching on a specific type of single undirected connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[6] Matching on a specific type of single incoming directed connection	REFUSED	REFUSED
+tck/expressions/pattern/Pattern1/[1] Matching on any single outgoing directed connection	PASS	PASS
+tck/expressions/pattern/Pattern1/[2] Matching on a single undirected connection	PASS	PASS
+tck/expressions/pattern/Pattern1/[3] Matching on any single incoming directed connection	PASS	PASS
+tck/expressions/pattern/Pattern1/[4] Matching on a specific type of single outgoing directed connection	PASS	PASS
+tck/expressions/pattern/Pattern1/[5] Matching on a specific type of single undirected connection	PASS	PASS
+tck/expressions/pattern/Pattern1/[6] Matching on a specific type of single incoming directed connection	PASS	PASS
 tck/expressions/pattern/Pattern1/[7] Matching on a specific type of a variable length outgoing directed connection	REFUSED	REFUSED
 tck/expressions/pattern/Pattern1/[8] Matching on a specific type of variable length undirected connection	REFUSED	REFUSED
 tck/expressions/pattern/Pattern1/[9] Matching on a specific type of variable length incoming directed connection	REFUSED	REFUSED
@@ -2043,9 +2043,9 @@ tck/expressions/pattern/Pattern1/[15] Matching two nodes on a specific type of s
 tck/expressions/pattern/Pattern1/[16] Matching two nodes on a specific type of a variable length outgoing directed connection	REFUSED	REFUSED
 tck/expressions/pattern/Pattern1/[17] Matching two nodes on a specific type of variable length undirected connection	REFUSED	REFUSED
 tck/expressions/pattern/Pattern1/[18] Matching two nodes on a specific type of undirected connection with length 2	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[19] Using a negated existential pattern predicate	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[20] Using two existential pattern predicates in a conjunction	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[21] Using two existential pattern predicates in a disjunction	REFUSED	REFUSED
+tck/expressions/pattern/Pattern1/[19] Using a negated existential pattern predicate	PASS	PASS
+tck/expressions/pattern/Pattern1/[20] Using two existential pattern predicates in a conjunction	PASS	PASS
+tck/expressions/pattern/Pattern1/[21] Using two existential pattern predicates in a disjunction	PASS	PASS
 tck/expressions/pattern/Pattern1/[22] Fail on using pattern in RETURN projection	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[23] Fail on using pattern in WITH projection	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[24] Fail on using pattern in right-hand side of SET	BOTH_ERROR	BOTH_ERROR
@@ -4146,6 +4146,18 @@ lite/patterns/count_of_a_comprehension	PASS	PASS
 lite/patterns/a_comprehension_over_rows_refused	REFUSED	REFUSED
 lite/patterns/a_comprehension_with_both_ends_bound_refused	REFUSED	REFUSED
 lite/patterns/a_comprehension_over_two_hops_refused	REFUSED	REFUSED
+lite/predicates/a_pattern_predicate_in_a_where	PASS	PASS
+lite/predicates/a_negated_pattern_predicate	PASS	PASS
+lite/predicates/a_pattern_predicate_over_a_labelless_node	PASS	PASS
+lite/predicates/an_incoming_pattern_predicate	PASS	PASS
+lite/predicates/a_pattern_predicate_as_a_value_is_refused	BOTH_ERROR	BOTH_ERROR
+lite/predicates/an_exists_subquery_with_a_where	PASS	PASS
+lite/predicates/an_exists_subquery_over_a_pattern	PASS	PASS
+lite/predicates/a_pattern_predicate_of_several_types	PASS	PASS
+lite/predicates/a_pattern_predicate_with_a_conjunct	PASS	PASS
+lite/predicates/a_pattern_predicate_over_a_to_one_hop	PASS	PASS
+lite/predicates/a_pattern_predicate_from_a_fanned_node	REFUSED	REFUSED
+lite/predicates/a_pattern_predicate_with_both_ends_bound	REFUSED	REFUSED
 lite/products/two_labelless_nodes	PASS	PASS
 lite/products/labelless_nodes_of_several_classes	PASS	PASS
 lite/products/a_labelless_node_beside_a_labelled_one	PASS	PASS

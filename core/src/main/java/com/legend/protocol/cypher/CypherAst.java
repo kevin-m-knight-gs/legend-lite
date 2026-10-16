@@ -98,8 +98,19 @@ public final class CypherAst {
 
     public sealed interface Expr permits IntLit, FloatLit, StringLit, BoolLit, NullLit, Var, Prop, Param, ListLit,
             MapLit, Unary, Binary, Call, CountStar, Case, Paren, Quantifier, ListComprehension, PatternComprehension,
-            LabelPredicate, Index, Slice {
+            LabelPredicate, Index, Slice, PatternPredicate, ExistsSubquery {
         Pos pos();
+    }
+
+    /** A pattern as a predicate ({@code WHERE (n)-[:T]->()}, {@code RETURN (n)-->() AS has}): true where the
+     *  pattern matches from its bound node (docs/CYPHER_STUDY_2026_10_15.md §12.40). */
+    public record PatternPredicate(PathPattern pattern, Pos pos) implements Expr {
+    }
+
+    /** {@code EXISTS { MATCH pattern WHERE where RETURN ... }}, or {@code EXISTS { pattern }}: true where the pattern
+     *  has a match (the items returned do not matter; the subquery's one pattern, one optional WHERE). */
+    public record ExistsSubquery(PathPattern pattern, @com.legend.base.Nullable Expr where, Pos pos)
+            implements Expr {
     }
 
     public record IntLit(long value, String text, Pos pos) implements Expr {

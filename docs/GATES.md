@@ -9850,6 +9850,21 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the thirty-ninth landing — a pattern as a predicate, `EXISTS { ... }`
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.40. The parser (two expression nodes) and the
+translator (the hop's existence over the pattern comprehension's resolution, gated to conditions as Neo4j gates it).
+
+1. **What lands.** `WHERE (n)-[:T]->()`, `NOT (n)<-[]-(:B)`, `(n)-[:T|U]->() AND ...`, and `EXISTS { [MATCH] pattern
+   [WHERE ...] [RETURN ...] }` over one hop from a bound node; a pattern expression outside a condition errors with
+   Neo4j's words.
+2. **The ledger.** DuckDB: 4381 cases; PASS 2712 (from 2,690); FAIL 0; BUG 0; ERROR 0; REFUSED 774; BOTH_ERROR 714;
+   SKIP 181. Postgres: PASS 2362 (from 2,340); FAIL 0; BUG 0; ERROR 0; REFUSED 1124; BOTH_ERROR 714; SKIP 181. 12 lite
+   cases in `lite/predicates.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green.
+4. **Refused by name, recorded.** A pattern predicate over rows, with both ends bound, with a property map, over
+   more than one hop; an EXISTS subquery with several patterns or further clauses; `COUNT { }`, `COLLECT { }`.
+
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-eighth landing — a relationship type joining several class pairs (PR3, step 2)
 
 Branch `claude/keen-noether-v5mis0`; the record is the study's §12.39. The harness (`CypherGraph`: one edge class

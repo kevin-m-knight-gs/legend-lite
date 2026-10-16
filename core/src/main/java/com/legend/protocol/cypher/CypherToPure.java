@@ -2973,6 +2973,8 @@ public final class CypherToPure {
                 all.add(pc.map());
                 yield all;
             }
+            case CypherAst.PatternPredicate pp -> List.of();
+            case CypherAst.ExistsSubquery ex -> ex.where() == null ? List.of() : List.of(ex.where());
             case CypherAst.ListComprehension lc -> {
                 List<Expr> all = new ArrayList<>();
                 all.add(lc.list());
@@ -4050,12 +4052,22 @@ public final class CypherToPure {
 
     /** A condition: the rows where {@code e} is true (null and false alike are not). */
     private ValueSpecification condition(Expr e, Scope scope, String clause) {
-        Tx t = tx(e, scope);
+        inCondition.push(Boolean.TRUE);
+        Tx t;
+        try {
+            t = tx(e, scope);
+        } finally {
+            inCondition.pop();
+        }
         if (t.kind() != Kind.BOOLEAN && t.kind() != Kind.NULL) {
             throw CypherErrors.invalid("Type mismatch: expected Boolean but was " + cypherType(t.kind()), e.pos());
         }
         return SqlToPure.truth(t, clause, e.pos()).vs();
     }
+
+    /** The conditions being read (a WHERE, a CASE's test, a comprehension's filter): where a pattern may stand as a
+     *  predicate. Outside one (a RETURN item), Neo4j refuses a pattern expression, and so does the island. */
+    private final java.util.ArrayDeque<Boolean> inCondition = new java.util.ArrayDeque<>();
 
     /** An expression's value over a scope: a scalar, or a list or map of known shape. */
     private Val val(Expr e, Scope scope) {
@@ -4099,6 +4111,16 @@ public final class CypherToPure {
             case CypherAst.ListComprehension lc -> comprehension(lc, scope);
             case CypherAst.PatternComprehension pc -> patternComprehension(pc, scope);
             case CypherAst.LabelPredicate lp -> scalar(labelPredicate(lp, scope));
+            case CypherAst.PatternPredicate pp -> {
+                if (inCondition.isEmpty()) {
+                    // (Neo4j's rule, its words: a pattern expression stands where a boolean is tested)
+                    throw CypherErrors.invalid("A pattern expression should only be used in order to test the"
+                            + " existence of a pattern. It should therefore only be used in contexts that evaluate to"
+                            + " a boolean, e.g. inside the function exists() or in a WHERE-clause.", pp.pos());
+                }
+                yield scalar(patternExists(pp.pattern(), null, pp.pos(), scope));
+            }
+            case CypherAst.ExistsSubquery ex -> scalar(patternExists(ex.pattern(), ex.where(), ex.pos(), scope));
             case CypherAst.Index ix -> index(ix, scope);
             case CypherAst.Slice sl -> slice(sl, scope);
         };
@@ -5842,6 +5864,38 @@ public final class CypherToPure {
         return scalar(Tx.value(total == null ? new CInteger(0L) : total, Kind.INTEGER, false));
     }
 
+    /** A pattern as a predicate, or an EXISTS subquery (the study's §12.40): whether the hop from the bound node
+     *  finds a match, each way the model reads it (§12.31) as the navigation's non-emptiness (filtered by the WHERE
+     *  over the hop's node), the ways or-ed; no way, false. Built over the pattern comprehension's hop resolution,
+     *  which refuses by name what it does not read (a hop from no bound node, both ends bound, a property map,
+     *  more than one hop, a pattern over rows). */
+    private Tx patternExists(PathPattern pattern, @com.legend.base.Nullable Expr where, Pos pos, Scope scope) {
+        CypherAst.PatternComprehension pc = new CypherAst.PatternComprehension(pattern, where,
+                new CypherAst.BoolLit(true, pos), pos);
+        Hopped h = hopped(pc, scope);
+        ValueSpecification any = null;
+        for (Way way : h.ways()) {
+            ValueSpecification found;
+            if (!way.hop().many()) {
+                found = call("isNotEmpty", h.navigation(way));
+                if (where != null) {
+                    found = call("and", found, condition(where, h.innerOne(way, null), "WHERE"));
+                }
+            } else {
+                ValueSpecification coll = h.navigation(way);
+                if (where != null) {
+                    String var = freshName(new HashSet<>(h.outer().g.bindings().keySet()));
+                    coll = call("filter", coll, lambda(var, condition(where, h.inner(way, var, null), "WHERE")));
+                }
+                found = call("isNotEmpty", coll);
+            }
+            any = any == null ? found : call("or", any, found);
+        }
+        // (a condition, with its false case: a NOT, an AND or an OR around it reads both)
+        ValueSpecification test = any == null ? new CBoolean(false) : any;
+        return Tx.condition(test, any == null ? new CBoolean(true) : call("not", test), false);
+    }
+
     /** A pattern comprehension's hop, resolved: the graph's scope it starts from, the start node's variable and
      *  binding, the ways the model reads the hop, the end and relationship variables. */
     private record Hopped(GraphScope outer, String startVar, Binding from, List<Way> ways,
@@ -6173,6 +6227,8 @@ public final class CypherToPure {
             case CypherAst.Quantifier q -> readsRow(q.list(), bound) || readsRow(q.where(), with(bound,
                     q.variable()));
             case CypherAst.PatternComprehension pc -> true;
+            case CypherAst.PatternPredicate pp -> true;
+            case CypherAst.ExistsSubquery ex -> true;
             case CypherAst.LabelPredicate lp -> readsRow(lp.target(), bound);
             case CypherAst.ListComprehension lc -> readsRow(lc.list(), bound)
                     || lc.where() != null && readsRow(lc.where(), with(bound, lc.variable()))
@@ -9194,6 +9250,9 @@ public final class CypherToPure {
             case CypherAst.LabelPredicate lp -> text(lp.target()) + ":" + String.join(":", lp.labels());
             case CypherAst.PatternComprehension pc -> "[" + text(pc.pattern())
                     + (pc.where() == null ? "" : " WHERE " + text(pc.where())) + " | " + text(pc.map()) + "]";
+            case CypherAst.PatternPredicate pp -> text(pp.pattern());
+            case CypherAst.ExistsSubquery ex -> "EXISTS { " + text(ex.pattern())
+                    + (ex.where() == null ? "" : " WHERE " + text(ex.where())) + " }";
             case CypherAst.ListComprehension lc -> "[" + lc.variable() + " IN " + text(lc.list())
                     + (lc.where() == null ? "" : " WHERE " + text(lc.where()))
                     + (lc.map() == null ? "" : " | " + text(lc.map())) + "]";
