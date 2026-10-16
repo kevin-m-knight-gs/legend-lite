@@ -1814,8 +1814,13 @@ public final class Lowerer {
             // the silent self-correlation resolved an outer row's read
             // against a same-named INNER column (the two regressions in
             // this method's doc-comment). A genuine miss takes the
-            // designed UnfoldableRef route (isolate-or-loud).
-            throw new UnfoldableRef(name == null ? "<whole variable>" : name, true);
+            // designed UnfoldableRef route (isolate-or-loud). It is an
+            // enclosing row's only where an enclosing scope is (2026-10-16,
+            // the relational corpus: with none, a plan's open variable --
+            // let name = 'ok'; ...filter(f|$f.legalName == $name) -- escaped
+            // predicateOrThrow as the signal, past the plan's IllegalState
+            // fallback that binds it as a parameter)
+            throw new UnfoldableRef(name == null ? "<whole variable>" : name, !outers.isEmpty());
         };
     }
 
@@ -1939,7 +1944,7 @@ public final class Lowerer {
         SqlSelect base = Fold.projectionFolds(src)
                 && (src.from() instanceof SqlSource.Subselect
                         || src.projections().isEmpty())
-                ? src : Sorts.isolateOrdered(this, src);
+                ? src : isolate(src);
         Type.RelationType outSchema = Type.requireRelationSchema(r.info().type());
         // Each output column reverse-maps to the source column it renames.
         Function<String, String> sourceOf = out -> {
@@ -2517,9 +2522,14 @@ public final class Lowerer {
     }
 
     /** A CASE whose ELSE is a CASE, as one CASE of both's WHENs: {@code CASE WHEN a THEN x ELSE CASE WHEN b THEN y
-     *  ELSE z END END} is {@code CASE WHEN a THEN x WHEN b THEN y ELSE z END} in every SQL (2026-10-15). */
+     *  ELSE z END END} is {@code CASE WHEN a THEN x WHEN b THEN y ELSE z END} in every SQL (2026-10-15). Not where the
+     *  ELSE is an enum's decode the CASE around it is no part of (2026-10-16, the relational corpus's
+     *  tdsWithEnumReturn: {@code if(c, |$p.e, |$p.e)} over an enum, flattened, read as no decode of one column, so its
+     *  plan's column type went unspelled): the decode keeps its own CASE. */
     private static SqlExpr flatCase(SqlExpr e) {
-        if (e instanceof SqlExpr.Case c && c.otherwise() instanceof SqlExpr.Case inner) {
+        if (e instanceof SqlExpr.Case c && c.otherwise() instanceof SqlExpr.Case inner
+                && (com.legend.sql.DecodeShapes.flattenDecode(inner).isEmpty()
+                        || com.legend.sql.DecodeShapes.flattenDecode(e).isPresent())) {
             List<SqlExpr.Case.When> whens = new ArrayList<>(c.whens().size() + inner.whens().size());
             whens.addAll(c.whens());
             whens.addAll(inner.whens());

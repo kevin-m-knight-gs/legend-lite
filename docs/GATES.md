@@ -9817,6 +9817,27 @@ it two to three times slower than it runs alone (the seventh line's diagnosis, P
 Bazel program reviews (the Phase 8 brief's "sharding; third order" item); the reading, with five runs' class times:
 `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`.
 
+## 2026-10-16 — `#IQ{...}#`: the fourth landing's relational corpus, run locally before its one CI run
+
+The fourth landing (with the third, one PR) changes plans every island and plain Pure share, so `//spec:corpus_duckdb`
+and `//spec:corpus_h2` ran locally before the push. They found two of its regressions, both fixed: eight
+`meta::pure::executionPlan::tests` (a plan's open variable in a filter, `let name = 'ok'; ...filter(f|$f.legalName ==
+$name)`) failed on both lanes since the correlated-window fix (1e461f809: an enclosing row's miss, with no enclosing
+scope, escaped as `UnfoldableRef` past the plan's `IllegalStateException` fallback), and `tdsWithEnumReturn` (the
+if-chain flattening merged an enum's decode into the CASE around it, so the plan printer read no decode of one
+column). Both fail rosters are main's again.
+
+The ord registers (`rcorpus/duckdb-ord-register.txt`, `rcorpus/h2-ord-register.txt`) lose
+`meta::relational::tests::query::sort::testSortByLambdaWithIfElseValue` on both lanes: its ordered compare holds
+strictly now, so it no longer rides the multiset verdict. One lenient row fewer, no verdict lost.
+
+The cause, measured against main ac946cf85 with every referee outcome named: the landing's one CASE of an if-chain's
+WHENs (725c712cf) writes the engine's own flat ORDER BY CASE (`case when ... then 0 when ... then 10 ... else 30 end`),
+byte-equal to the golden for testSortByLambdaWithIfElseValue and testSortByLambda_QueryWithParameters_Plan, so the
+text decides both and the referee is not appealed to. The strength floors move with it (MinimalCorpusTest, dated):
+DuckDB differential 1011 -> 1009 (LITERAL 1411 -> 1413), H2 946 -> 944 (LITERAL 1228 -> 1230); every assert's
+verdict identical on both lanes.
+
 ## 2026-10-15 — `#IQ{...}#`: the third landing — the M1 gaps, IQ's options by IQ's own names, IQ's SET statements (the tenth line)
 
 Announced in `docs/IN_FLIGHT.md` (a231c07ec, the cross-area edits listed). Branch `claude/iq-island-3`, 8 commits over

@@ -1605,10 +1605,14 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     - `lowering/`: an extend after a limit isolates only where the isolation keeps the select's names apart without
       regard to case (DuckDB binds a subselect's `ID` beside `id` to the first, even quoted) and its whole order
       (`Fold.namesApartWithoutCase`, `Sorts.keepsOrder`); elsewhere it folds, as before the landing.
-      `Sorts.isolateOrdered` carries an ORDER BY whole or not at all (a part of an order is another order: a rename's
-      frame re-sorted by its second key) by the names the select shows its keys under; `rename` isolates through it.
-      An enclosing row's miss is a flag on `UnfoldableRef`, not a count (`CodeShapeGuardrailTest` loses its
-      `Lowerer.enclosingMisses` entry).
+      `Sorts.isolateOrdered` carries an ORDER BY whole or not at all (a part of an order is another order) by the
+      names the select shows its keys under. An enclosing row's miss is a flag on `UnfoldableRef`, not a count
+      (`CodeShapeGuardrailTest` loses its `Lowerer.enclosingMisses` entry), and only where an enclosing scope is: with
+      none (a plan's open variable, `let name = 'ok'; ...filter(f|$f.legalName == $name)`) it stays the loud
+      `IllegalStateException` the plan's fallback catches -- the relational corpus's 8 executionPlan tests the
+      2026-10-15 correlated-window fix (1e461f809) had broken on both lanes, found by running `//spec:corpus_duckdb`
+      and `//spec:corpus_h2` locally. `flatCase` keeps an enum's decode its own CASE where the CASE around it is no
+      part of it (`tdsWithEnumReturn`'s plan column type).
     - `protocol/sql/SqlToPure.java`: every set of names a relation's columns take compares without regard to case
       (`taken()`: joins renamed apart, renames, set operations, APPLY's computed columns); the island's own result is
       an inline view too (a Pure filter after it folded under its windows). `InputDialect.ordersNothing`: IQ's ORDER
@@ -1624,7 +1628,10 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
       name for a spelling not read and for a time after 7910; every name of `NO_SUCH_FUNCTION` measured (-265).
     - Recorded, not fixed: ROLLUP with TOP computes its items before the limit (the union's), so it may raise where
       IQ answers; an APPLY's query reading the left side by an unqualified name its own FROM lacks may bind an
-      enclosing query's column (the parser knows no columns).
+      enclosing query's column (the parser knows no columns); `rename`'s frame carries no ORDER BY (the subselect's
+      order rides alone, as before the landing: carried, the relational corpus's ordered compare of
+      testRenameColumnsAfterGroupBy moved), so on a database that does not keep a subselect's order a later LIMIT
+      may keep other rows.
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):

@@ -208,6 +208,8 @@ measured on IQ 17.1 and SQL Anywhere 17 where IQ decides (`lite/corpus_gaps.yaml
   group raises where IQ answers;
 - an APPLY's query that reads the left side by an unqualified name its own FROM lacks may bind an enclosing query's
   column, where IQ's engine raises -1001030;
+- a rename's frame (the SQL islands' last step where an output is named apart from its column) carries no ORDER BY:
+  the subselect's order rides alone, which DuckDB and Postgres keep, other databases need not;
 - the listed iq17 divergences (`iq17-divergences.tsv`) answer where IQ answers otherwise or raises; refusing them by
   name under the iq17 profiles is the cheaper honest form (the review's finding 3), not done here.
 
