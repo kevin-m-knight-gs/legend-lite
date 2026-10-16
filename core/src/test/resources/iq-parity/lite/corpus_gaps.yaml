@@ -298,3 +298,23 @@ tests:
   - id: top_ordered_by_a_raising_item_is_iqs_error
     sql: "SELECT TOP 2 id, 10 / (id - 3) AS q FROM t ORDER BY q, id"
     profile: iq17-default
+
+  # ---- found by the lane's judged runs (sede-18206): a subquery over a CTE correlated to the CTE read again outside
+  - id: a_running_total_over_a_cte_read_twice
+    sql: "WITH f AS (SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t) SELECT q.id, (SELECT COUNT(*) FROM f WHERE f.rn <= q.rn) AS c FROM f q ORDER BY q.id"
+    profile: iq17-default
+  - id: a_running_total_over_a_derived_table_read_twice
+    sql: "SELECT q.id, (SELECT COUNT(*) FROM (SELECT id AS rn FROM t) f WHERE f.rn <= q.id) AS c FROM t q ORDER BY q.id"
+    profile: iq17-default
+  - id: a_running_total_over_two_derived_tables_of_one_column_name
+    sql: "SELECT q.rn, (SELECT COUNT(*) FROM (SELECT id AS rn FROM t) f WHERE f.rn <= q.rn) AS c FROM (SELECT id AS rn FROM t) q ORDER BY q.rn"
+    profile: iq17-default
+  - id: a_correlated_count_over_one_table_twice
+    sql: "SELECT q.id, (SELECT COUNT(*) FROM t f WHERE f.id <= q.id) AS c FROM t q ORDER BY q.id"
+    profile: iq17-default
+  - id: a_running_total_over_two_windowed_derived_tables
+    sql: "SELECT q.id, (SELECT COUNT(*) FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t) f WHERE f.rn <= q.rn) AS c FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t) q ORDER BY q.id"
+    profile: iq17-default
+  - id: a_running_total_over_a_cte_of_no_window
+    sql: "WITH f AS (SELECT id AS rn FROM t) SELECT q.rn, (SELECT COUNT(*) FROM f WHERE f.rn <= q.rn) AS c FROM f q ORDER BY q.rn"
+    profile: iq17-default

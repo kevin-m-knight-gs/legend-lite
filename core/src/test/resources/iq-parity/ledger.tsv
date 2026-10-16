@@ -575,6 +575,12 @@ lite/corpus_gaps/top_of_groups_computes_the_kept_groups@iq17-default	REFUSED	REF
 lite/corpus_gaps/top_with_a_window_kept_rows@iq17-default	REFUSED	REFUSED
 lite/corpus_gaps/top_with_a_double_quotient@iq17-default	REFUSED	REFUSED
 lite/corpus_gaps/top_ordered_by_a_raising_item_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_running_total_over_a_cte_read_twice@iq17-default	PASS	PASS
+lite/corpus_gaps/a_running_total_over_a_derived_table_read_twice@iq17-default	PASS	PASS
+lite/corpus_gaps/a_running_total_over_two_derived_tables_of_one_column_name@iq17-default	PASS	PASS
+lite/corpus_gaps/a_correlated_count_over_one_table_twice@iq17-default	PASS	PASS
+lite/corpus_gaps/a_running_total_over_two_windowed_derived_tables@iq17-default	PASS	PASS
+lite/corpus_gaps/a_running_total_over_a_cte_of_no_window@iq17-default	PASS	PASS
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

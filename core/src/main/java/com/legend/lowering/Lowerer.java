@@ -186,6 +186,10 @@ public final class Lowerer {
      *  would fail the INNER pass, whose isolation cannot change an outer row's expression. */
     private int correlatedReads;
 
+    /** Reads of an enclosing row that no enclosing scope resolved ({@link #scopedResolver}): counted so that a
+     *  predicate's miss after its own isolation is told apart as the enclosing boundary's ({@link #predicateOrThrow}). */
+    private int enclosingMisses;
+
     /** The connection's time zone DateTime literals spell in (engine
      * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
     private @com.legend.base.Nullable String dbTimeZone;
@@ -1649,8 +1653,13 @@ public final class Lowerer {
      * unfoldable ref can never become foldable — LOUD, never a dropped
      * predicate (the ONE retry contract, shared by filter and whereLambda). */
     private SqlExpr predicateOrThrow(SqlSelect isolated, TypedLambda lambda, String op) {
+        int missesBefore = enclosingMisses;
         return switch (tryPredicate(isolated, lambda)) {
             case Resolution.Resolved r -> r.expr();
+            // IQ island, 2026-10-15 (the corpus lane): a miss of an ENCLOSING row's read (its column computed over its
+            // row set, a window's, which no scope may write in place) is the enclosing boundary's to cure: it isolates
+            // its select, the column becomes a plain one, and the correlated read resolves
+            case Resolution.Unfoldable u when enclosingMisses > missesBefore -> throw new UnfoldableRef(u.column());
             case Resolution.Unfoldable u -> throw new IllegalStateException(
                     op + " predicate references column '" + u.column()
                             + "', unresolvable even after isolation [param="
@@ -1684,7 +1693,16 @@ public final class Lowerer {
     /** Resolve refs via projections, noting whether any substituted a window call. */
     private @com.legend.base.Nullable WindowPredicate tryWindowPredicate(SqlSelect select, TypedLambda lambda) {
         var saw = new AtomicBoolean();
+        String own = lambda.parameters().isEmpty() ? null : lambda.parameters().get(0);
         return switch (attempt(() -> scalar(LambdaBinding.last(lambda), (v, name) -> {
+            if (v != null && own != null && !v.equals(own)) {
+                // IQ island, 2026-10-15 (the corpus lane's judged runs: sede-18206): only the lambda's own row reads
+                // this select's projections; an enclosing row's read here (a correlated subquery's filter, $r.rn
+                // beside the own row's window column $r1.rn) was resolved against this select by name -- the inner
+                // window in the outer row's place, ROW_NUMBER() <= ROW_NUMBER(), every row counted. A miss: the
+                // caller isolates and resolves it as the enclosing row's
+                throw new UnfoldableRef(name == null ? "<whole variable>" : name);
+            }
             SqlExpr resolved = projectionExprOrThrow(select, name);
             if (resolved instanceof SqlExpr.WindowCall) {
                 saw.set(true);
@@ -1786,6 +1804,7 @@ public final class Lowerer {
             // against a same-named INNER column (the two regressions in
             // this method's doc-comment). A genuine miss takes the
             // designed UnfoldableRef route (isolate-or-loud).
+            enclosingMisses++;
             throw new UnfoldableRef(name == null ? "<whole variable>" : name);
         };
     }

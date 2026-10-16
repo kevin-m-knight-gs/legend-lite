@@ -58,6 +58,11 @@ class IqCorpusTest {
         String profile = System.getProperty("iq.corpus.profile", "iq17-default");
         String only = System.getProperty("iq.corpus.suites");
         long budget = Long.parseLong(System.getProperty("iq.corpus.timeout.ms", "20000"));
+        // IQ island, 2026-10-15 (the lane's second phase): the live IQ's answers to the queries over the suite's rows
+        // (tools/iq-oracle's answers-file shape), each run judged by the parity harness's own comparison
+        String answersFile = System.getProperty("iq.corpus.answers");
+        Map<String, com.legend.testcases.IqAnswers.Snap> answers = answersFile == null ? null
+                : com.legend.testcases.IqAnswers.read(Path.of(answersFile));
         List<Path> suites;
         try (var dirs = Files.list(Path.of(root))) {
             suites = dirs.filter(d -> Files.exists(d.resolve("queries.jsonl"))).sorted().toList();
@@ -79,13 +84,49 @@ class IqCorpusTest {
             String model = IqParity.model(tables, "type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;");
             List<Query> queries = read(suite.resolve("queries.jsonl"));
             List<Result> results = new ArrayList<>();
+            List<String[]> verdicts = new ArrayList<>();
             try (Connection duckdb = DriverManager.getConnection("jdbc:duckdb:")) {
                 IqParity.seed(duckdb, tables, false);
                 QueryService service = new QueryService();
                 for (Query q : queries) {
                     IqParity.Case c = new IqParity.Case("corpus/" + name, q.id(), q.sql(), List.of(profile), null,
                             null, null, null, null, null, null, null);
-                    String island = IqParity.island(IqParity.runs(List.of(c)).get(0), names);
+                    IqParity.Run parityRun = IqParity.runs(List.of(c)).get(0);
+                    String island = IqParity.island(parityRun, names);
+                    if (System.getProperty("iq.corpus.debug") != null) {
+                        // the query's plan's SQL, for reading a judged run's difference
+                        try {
+                            System.out.println("DEBUG " + q.id() + "\n" + com.legend.Compiler.query(
+                                    com.legend.Compiler.compileModel(model), island).plan(IqParity.RUNTIME).sql());
+                        } catch (RuntimeException e) {
+                            System.out.println("DEBUG " + q.id() + " (no plan): " + oneLine(e));
+                        }
+                    }
+                    if (answers != null) {
+                        com.legend.testcases.IqAnswers.Snap snap = answers.get(parityRun.key());
+                        if (snap == null) {
+                            continue;
+                        }
+                        Future<SqlParity.Outcome> judged = pool.submit(() -> IqParity.outcome(parityRun, snap,
+                                tables, names, is -> service.execute(model, is, IqParity.RUNTIME, duckdb)));
+                        String verdict;
+                        String detail;
+                        try {
+                            SqlParity.Outcome o = judged.get(budget, TimeUnit.MILLISECONDS);
+                            verdict = o.status().name();
+                            detail = o.detail().replaceAll("\\s+", " ").strip();
+                        } catch (TimeoutException e) {
+                            judged.cancel(true);
+                            verdict = "TIMEOUT";
+                            detail = "over " + budget + " ms";
+                        } catch (java.util.concurrent.ExecutionException e) {
+                            Throwable t = e.getCause() == null ? e : e.getCause();
+                            verdict = "CRASH";
+                            detail = oneLine(t);
+                        }
+                        verdicts.add(new String[] {q.id(), verdict, detail});
+                        continue;
+                    }
                     Future<Status> run = pool.submit(() -> {
                         service.execute(model, island, IqParity.RUNTIME, duckdb);
                         return Status.ANSWERED;
@@ -103,6 +144,19 @@ class IqCorpusTest {
                     }
                     results.add(r);
                 }
+            }
+            if (answers != null) {
+                summary.append(judgedSection(name, verdicts));
+                if (report != null) {
+                    StringBuilder lines = new StringBuilder();
+                    for (String[] v : verdicts) {
+                        lines.append(v[0]).append('\t').append(v[1]).append('\t').append(v[2].replace('\t', ' '))
+                                .append('\n');
+                    }
+                    Files.createDirectories(Path.of(report));
+                    Files.writeString(Path.of(report).resolve(name + ".judged.tsv"), lines, StandardCharsets.UTF_8);
+                }
+                continue;
             }
             summary.append(section(name, results));
             if (report != null) {
@@ -182,6 +236,32 @@ class IqCorpusTest {
         m = QUOTED.matcher(m).replaceAll("'…'");
         m = NUMBER.matcher(m).replaceAll("N");
         return m.length() > 220 ? m.substring(0, 220) + "…" : m;
+    }
+
+    /** The judged runs of a suite: each verdict counted, and its details' kinds ranked ({@link #kind}). */
+    private static String judgedSection(String name, List<String[]> verdicts) {
+        Map<String, Integer> counts = new TreeMap<>();
+        Map<String, Map<String, List<String>>> kinds = new TreeMap<>();
+        for (String[] v : verdicts) {
+            counts.merge(v[1], 1, Integer::sum);
+            if (!v[1].equals("PASS")) {
+                kinds.computeIfAbsent(v[1], k -> new LinkedHashMap<>()).computeIfAbsent(kind(v[2]), k -> new ArrayList<>())
+                        .add(v[0]);
+            }
+        }
+        StringBuilder b = new StringBuilder("## " + name + " judged by the live IQ (" + verdicts.size() + " runs)\n\n"
+                + "| verdict | runs | share |\n|---|---|---|\n");
+        for (Map.Entry<String, Integer> e : counts.entrySet()) {
+            b.append("| ").append(e.getKey()).append(" | ").append(e.getValue()).append(" | ").append(String.format(
+                    Locale.ROOT, "%.1f%%", 100.0 * e.getValue() / Math.max(1, verdicts.size()))).append(" |\n");
+        }
+        for (Map.Entry<String, Map<String, List<String>>> e : kinds.entrySet()) {
+            b.append("\n### ").append(e.getKey()).append(", by detail\n\n| runs | detail | e.g. |\n|---|---|---|\n");
+            e.getValue().entrySet().stream().sorted(Comparator.comparing((Map.Entry<String, List<String>> k) -> -k
+                    .getValue().size())).limit(80).forEach(k -> b.append("| ").append(k.getValue().size()).append(" | ")
+                    .append(k.getKey().replace("|", "\\|")).append(" | ").append(k.getValue().get(0)).append(" |\n"));
+        }
+        return b.append('\n').toString();
     }
 
     private static String section(String name, List<Result> results) {

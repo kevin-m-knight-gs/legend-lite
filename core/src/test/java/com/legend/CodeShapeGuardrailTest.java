@@ -66,6 +66,10 @@ class CodeShapeGuardrailTest {
             // reads in flight on an enclosing row's behalf (2026-10-15): the depth the resolvers consult so a
             // correlated read spends no pass's fold budget; raised and lowered around the read
             "Lowerer.correlatedReads",
+            // enclosing-row misses counted (2026-10-15, the IQ island's corpus lane: sede-18206's wrong answer, a
+            // correlated read of an enclosing window column): read before and after one predicate's resolution so
+            // its miss after isolation is told apart as the enclosing boundary's; only ever counted up
+            "Lowerer.enclosingMisses",
             // a LAZY value (2026-09-23): an execute() call's activity rows
             // carry a second render of its chain, computed on the first
             // read and kept — set once, never reassigned after
