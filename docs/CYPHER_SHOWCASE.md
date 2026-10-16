@@ -303,3 +303,31 @@ MATCH (p:Person) WITH p.name AS name UNWIND [1, 2] AS k RETURN name, k ORDER BY 
 
 Ten rows, `'Alice' 1`, `'Alice' 2`, ... `'Eve' 2`, identical to Neo4j's on both lanes. What PR2 refuses by name, and
 what the census says comes next (the temporal values, the join form, `collect`), is the study's §12.5.3 and §12.5.4.
+
+## 13. What the temporal slice brings: dates and local date-times (2026-10-16)
+
+Cypher's `date` is Pure's StrictDate and `localdatetime` Pure's DateTime (the study's §12.6); a zoned
+`datetime`, a `time` and a `duration` are refused by name until a Pure type carries them. One of its 16 Neo4j-judged
+cases (`lite/temporal.yaml`, `stored_dates`; `ledger.tsv`: PASS on both lanes), over a graph whose nodes hold a date
+and a local date-time:
+
+```
+CREATE (:Val {name: 'a', d: date('1984-10-11'), dt: localdatetime('1984-10-11T12:31:14.645')}),
+       (:Val {name: 'b', d: date('2015-06-24'), dt: localdatetime('2016-07-21T21:45:22.142')})
+```
+
+```
+MATCH (v:Val)
+RETURN v.name AS name, v.d AS d, v.d.year AS y, v.dt AS dt, v.dt.month AS m,
+       v.d < date('2000-01-01') AS early, date.truncate('month', v.dt) AS t
+ORDER BY name
+```
+
+| name | d | y | dt | m | early | t |
+|---|---|---|---|---|---|---|
+| 'a' | 1984-10-11 | 1984 | 1984-10-11T12:31:14.645 | 10 | true | 1984-10-01 |
+| 'b' | 2015-06-24 | 2015 | 2016-07-21T21:45:22.142 | 7 | false | 2016-07-01 |
+
+The inferred model types `d` as StrictDate (a DATE column) and `dt` as DateTime (a TIMESTAMP); the island reads
+`v.d.year` as Pure's `year`, the comparison as the database's, the truncation as `firstDayOfMonth`, and the judge
+reads each date cell as Neo4j's driver spells one. What the slice refuses by name is the study's §12.6.5.
