@@ -1067,6 +1067,17 @@ class IqToPureTest {
     }
 
     @Test
+    void aColumnNamedByAReservedWordIsNamedInDoubleQuotes() {
+        // IQ island, 2026-10-16 (measured on IQ 17.1; BIRD's judged bird-1039): t."date", t."order"; t.value bare
+        List<Col> reserved = List.of(new Col("id", "Integer", false, "INTEGER"),
+                new Col("date", "StrictDate", true, "DATE"), new Col("value", "Integer", true, "INTEGER"));
+        String pure = pure("SELECT COUNT(q.\"date\"), q.value + 1 FROM " + T + " q GROUP BY q.value",
+                IqProfile.IQ16_DEFAULT.settings(), reserved);
+        assertTrue(pure.contains("'COUNT(q.\"date\")'"), pure);
+        assertTrue(pure.contains("'q.value+1'"), pure);
+    }
+
+    @Test
     void anUnaliasedWindowIsNamedAsIqNamesIt() {
         // IQ island, 2026-10-15 (measured on IQ 17.1 and SQL Anywhere 17): the call, then over(...) in lower case
         assertTrue(pure("SELECT SUM(sm) OVER (PARTITION BY id ORDER BY sm DESC ROWS 2 PRECEDING) FROM " + T)

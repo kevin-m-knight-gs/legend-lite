@@ -185,6 +185,14 @@ IQ's errors raised by name, measured: a window function in a condition's subquer
 and a subquery as BETWEEN's operand (-1001030); an alias of a select-list subquery read in WHERE, GROUP BY or HAVING
 (-1001030); a subquery inside a condition's expression, now naming IQ's -1001030.
 
+BIRD's answers judged too (2026-10-16). BIRD's 11 databases were sampled consistently by their foreign keys: parents
+first, a child keeping the rows that reach kept parents, then filled to 600 rows a table (32,206 rows; the scratchpad's
+`bird_sample.py`). They were loaded into the live IQ as `ll_b_*` and judged as the dba.stackexchange sample is:
+- 342 PASS and 132 BOTH_ERROR: 474 of 500, 94.8%;
+- 21 refused by name;
+- 4 FAIL: 3 ties, and 1 name, fixed: a column named by a reserved word shows in double quotes, t."date";
+- 1 ERROR: FALSE, a keyword in IQ 17.1 (the listed true-keyword divergence).
+
 Decisions for the user:
 - a window boundary the SQL islands can mark. A derived table's windows would form a non-mergeable view, as ClassSources
   stamps a class extent's (`TypedExtendWindow.extentBoundary`). That would answer the refused shapes above. The

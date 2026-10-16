@@ -3756,10 +3756,14 @@ public final class IqDialect implements InputDialect {
             if (ref.parts().size() == 1 && read.contains(IqLexer.lower(ref.parts().get(0).text()))) {
                 return aliasName(ref.parts().get(0).text());
             }
+            // IQ island, 2026-10-16 (measured on IQ 17.1): a column named by a reserved word shows in double quotes
+            // (t."date", t."order"; t.value, t.name bare)
+            String column = ref.parts().get(ref.parts().size() - 1).text();
+            String shown = IqLexer.reserved(column) ? "\"" + column + "\"" : column;
             if (ref.parts().size() == 3) {
                 // IQ island, 2026-10-14 (the third landing, measured): owner.table.column shows as written (the
                 // reader bound it to its table's column, IqAliases)
-                return String.join(".", ref.parts().stream().map(SqlAst.Ident::text).toList());
+                return ref.parts().get(0).text() + "." + ref.parts().get(1).text() + "." + shown;
             }
             SqlAst.Ident table = tables.table(ref);
             if (table == null || derived.contains(IqLexer.lower(table.text())) && !(inAggregate
@@ -3767,9 +3771,9 @@ public final class IqDialect implements InputDialect {
                 return null;
             }
             if (ref.parts().size() == 1) {
-                return table.text() + "." + ref.parts().get(0).text();
+                return table.text() + "." + shown;
             }
-            return String.join(".", ref.parts().stream().map(SqlAst.Ident::text).toList());
+            return ref.parts().get(0).text() + "." + shown;
         };
         // IQ island, 2026-10-14 (M1c): in a grouped query, a GROUP BY item's and an aggregate's parts as IQ reads them
         String key = e instanceof SqlAst.ColumnRef ref ? naming.keyName(ref.parts().get(ref.parts().size() - 1))
