@@ -304,7 +304,7 @@ final class SqlTextVerdicts {
      * H2-1.4.200 residue with no reference database on our stack
      * (inventory row 17). Rows judge; text vs the upgraded golden is
      * the census. Null = not the simple shape. */
-    static @com.legend.base.Nullable ExecutionResult tryArmH2Compat(
+    static @com.legend.base.Nullable ExecutionResult tryArmDualGolden(
             com.legend.compiler.spec.typed.TypedUserCall root,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
@@ -339,7 +339,7 @@ final class SqlTextVerdicts {
                 if (goldenN == null || oursN == null) {
                     return null;
                 }
-                return h2CompatVerdict(goldenN, oursN, resultArg, readK,
+                return dualGoldenVerdict(goldenN, oursN, resultArg, readK,
                         letPrefix, specs, env, hook);
             }
             if (read == null) {
@@ -386,13 +386,13 @@ final class SqlTextVerdicts {
                             ? "golden side" : "actual side")
                             + " did not evaluate to a string");
         }
-        return h2CompatVerdict(golden, ours, resultArg, readK, letPrefix,
+        return dualGoldenVerdict(golden, ours, resultArg, readK, letPrefix,
                 specs, env, hook);
     }
 
     /** The H2Compatible verdict tail: rows leg + verdict for golden(k)
      * over the frame behind {@code resultArg}. */
-    private static @com.legend.base.Nullable ExecutionResult h2CompatVerdict(
+    private static @com.legend.base.Nullable ExecutionResult dualGoldenVerdict(
             String golden, String ours, TypedSpec resultArg, int readK,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,

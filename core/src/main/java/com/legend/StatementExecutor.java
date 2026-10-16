@@ -90,7 +90,7 @@ final class StatementExecutor {
     /** The raw-SQL ledger append (Phase 2b): the caller's recorder, when it
      * handed one through the options; the executor never keeps one. */
     /** The replay ledger records DDL in its referee database's spelling on EVERY session. */
-    private static final com.legend.sql.dialect.SqlDialect H2_DDL =
+    private static final com.legend.sql.dialect.SqlDialect REFEREE_DDL =
             com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_REFEREE);
 
     /** The engine's golden DDL TEXT renderer (root layer only — invariant 4d): the text of the database
@@ -1112,8 +1112,7 @@ final class StatementExecutor {
         if (ni.properties().get("datasourceSpecification")
                 instanceof com.legend.compiler.spec.typed
                         .TypedNewInstance ds
-                && com.legend.compiler.element.type.PlatformTypes
-                        .LOCAL_H2_DATASOURCE_SPECIFICATION.equals(ds.classFqn())) {
+                && com.legend.model.ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS.equals(ds.classFqn())) {
             String specCsv = ds.properties().get("testDataSetupCsv")
                     instanceof com.legend.compiler.spec.typed
                             .TypedCString sc2
@@ -2956,7 +2955,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env) {
         com.legend.sql.SqlDdl schema = new com.legend.sql.SqlDdl.CreateSchema(
                 evalStringArg(body, sc.args().get(0), env), false);
-        sendEffect(env, env.dialect().render(schema), H2_DDL.render(schema),
+        sendEffect(env, env.dialect().render(schema), REFEREE_DDL.render(schema),
                 com.legend.exec.StatementOrigin.RAW, true);
         return new ExecutionResult.Scalar(true, sc.info().type());
     }
@@ -3000,12 +2999,12 @@ final class StatementExecutor {
         // tables nobody created because this recording was gated on the
         // DuckDB session (17 `ADDRESSTABLE not found` declines)
         sendEffect(env, env.dialect().render(Ddl.dropDeclaredTable(def, schema)),
-                H2_DDL.render(Ddl.dropDeclaredTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
+                REFEREE_DDL.render(Ddl.dropDeclaredTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
         // engine parity (batch 71 experiment): the native's DDL carries the
         // declared key and nullability, exactly like the engine's
         // dropAndCreateTableInDb (applyConstraints defaults true)
         sendEffect(env, env.dialect().render(Ddl.createTable(def, schema)),
-                H2_DDL.render(Ddl.createTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
+                REFEREE_DDL.render(Ddl.createTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
         // (the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY constraints;
         // a record-only ALTER ledger carried them for a metadata replay that
         // no longer exists — deleted with the meta ledger, batch 137)
@@ -3046,7 +3045,7 @@ final class StatementExecutor {
                     com.legend.compiler.element.StoreCompiler.declaredType(datatypeLiteral(type)), false, false));
         }
         var ct = new com.legend.sql.SqlDdl.CreateTable(null, table, com.legend.sql.NameQuoting.BARE, cols, true);
-        sendEffect(env, env.dialect().render(ct), H2_DDL.render(ct), com.legend.exec.StatementOrigin.RAW, true);
+        sendEffect(env, env.dialect().render(ct), REFEREE_DDL.render(ct), com.legend.exec.StatementOrigin.RAW, true);
         return new ExecutionResult.Scalar(null, call.info().type());
     }
 
@@ -3056,7 +3055,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         String table = evalStringArg(body, call.args().get(0), env);
         com.legend.sql.SqlDdl.DropTable dt = Ddl.dropTable(null, table);
-        sendEffect(env, env.dialect().render(dt), H2_DDL.render(dt), com.legend.exec.StatementOrigin.RAW, true);
+        sendEffect(env, env.dialect().render(dt), REFEREE_DDL.render(dt), com.legend.exec.StatementOrigin.RAW, true);
         return new ExecutionResult.Scalar(null, call.info().type());
     }
 

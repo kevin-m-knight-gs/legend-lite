@@ -250,9 +250,9 @@ final class AssertVerdicts {
             }
         }
         // §8.3d — the dual-golden sibling (same root-arm discipline)
-        if (com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_H2_COMPATIBLE.equals(fqn)
+        if (com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)
                 && bare instanceof TypedUserCall hroot) {
-            ExecutionResult hv = SqlTextVerdicts.tryArmH2Compat(hroot,
+            ExecutionResult hv = SqlTextVerdicts.tryArmDualGolden(hroot,
                     letPrefix, specs, env, hook);
             if (hv != null) {
                 return hv;

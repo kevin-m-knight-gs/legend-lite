@@ -667,7 +667,7 @@ final class ContextReading {
         if (n instanceof TypedNewInstance ni) {
             String db = ni.properties().get("element")
                     instanceof TypedPackageableRef el ? el.fullPath() : dbRef;
-            if (PlatformTypes.LOCAL_H2_DATASOURCE_SPECIFICATION.equals(ni.classFqn())) {
+            if (com.legend.model.ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS.equals(ni.classFqn())) {
                 String s = foldLiteral(ni.properties().get("testDataSetupSqls"));
                 if (s != null) {
                     out.add(s);
@@ -725,7 +725,7 @@ final class ContextReading {
                 String db = el != null && el.value()
                         instanceof com.legend.protocol.spec.PackageableElementPtr ptr
                         ? ptr.fullPath() : dbRef;
-                if (PlatformTypes.isLocalH2DatasourceSpecification(ni.className())) {
+                if (com.legend.model.ConnectionSpecification.isTestDataSpecificationClass(ni.className())) {
                     var ke = ni.first("testDataSetupSqls");
                     String s = ke == null ? null : foldRawLiteral(ke.value(), lets);
                     if (s != null) {
