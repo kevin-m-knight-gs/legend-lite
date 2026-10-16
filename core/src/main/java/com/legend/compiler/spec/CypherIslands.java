@@ -129,6 +129,37 @@ public final class CypherIslands {
         }
 
         @Override
+        public void properties(String classPath, CypherToPure.PropertySink sink) {
+            // the class's own stored properties, then its superclasses' (an association end is injected, not
+            // declared on the class)
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            java.util.Deque<String> todo = new java.util.ArrayDeque<>(List.of(classPath));
+            while (!todo.isEmpty()) {
+                com.legend.compiler.element.TypedClass tc = model.findClass(todo.poll()).orElse(null);
+                if (tc == null) {
+                    continue;
+                }
+                for (Property p : tc.properties()) {
+                    if (p instanceof Property.Stored s && seen.add(s.name())) {
+                        report(sink, s.name(), s.type(), s.multiplicity());
+                    }
+                }
+                todo.addAll(tc.superClassFqns());
+            }
+        }
+
+        @Override
+        public String labelOf(String classPath) {
+            for (Map.Entry<String, List<String>> e : model.derived(Labels.class, Labels::of).bySimpleName()
+                    .entrySet()) {
+                if (e.getValue().contains(classPath)) {
+                    return e.getKey();
+                }
+            }
+            throw new IllegalArgumentException("no class of the model at " + classPath);
+        }
+
+        @Override
         public List<String> classes() {
             // the model's own classes: the platform's declarations (the resolver's type universe and the system
             // metamodel's elements, by their declared names) are never nodes

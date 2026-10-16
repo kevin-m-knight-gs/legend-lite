@@ -9850,6 +9850,23 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the twelfth landing — nodes as values: a node returned as its label and properties, a node through WITH carried as its columns (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the label-less node leg; the record is the study's §12.14
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator, the seam's model (`properties`, `labelOf`) and the judge.
+
+1. **What lands.** A node returned is the JSON the judge reads as a node (its label, its properties that hold a
+   value), built as text by the database and read as a Variant; a node through a projecting WITH is carried as its
+   label and property columns (typed, so ORDER BY and the clauses after read them), the node a virtual column;
+   RETURN * over a pattern. Refused by name: DISTINCT over, ORDER BY, grouping by a node (identity); a relationship
+   as a value; a node holding a temporal property; a node that may be absent.
+2. **The ledger.** DuckDB: 4,108 cases; PASS 2,244 (from 2,098); FAIL 0; BUG 0; ERROR 0; REFUSED 837;
+   BOTH_ERROR 709; SKIP 318. Postgres: PASS 1,896 (from 1,750); FAIL 0; BUG 0; ERROR 0; REFUSED 1,185;
+   BOTH_ERROR 709; SKIP 318. 14 lite cases in `lite/nodes.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the eleventh landing — the label-less node leg: `MATCH (n)` over every class, the arms concatenated (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the nanosecond leg; the record is the study's §12.13

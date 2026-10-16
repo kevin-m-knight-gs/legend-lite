@@ -85,6 +85,19 @@ class CypherToPureTest {
         public List<String> classes() {
             return CLASSES.keySet().stream().sorted().toList();
         }
+
+        @Override
+        public void properties(String classPath, CypherToPure.PropertySink sink) {
+            Map<String, Prop> props = CLASSES.get(classPath);
+            if (props != null) {
+                props.keySet().stream().sorted().forEach(n -> props.get(n).reportTo(sink));
+            }
+        }
+
+        @Override
+        public String labelOf(String classPath) {
+            return classPath.substring(classPath.lastIndexOf("::") + 2);
+        }
     };
 
     private static String pure(String cypher) {
@@ -160,7 +173,6 @@ class CypherToPureTest {
         String r = pure("MATCH (n) RETURN n.age AS age");
         assertTrue(r.contains("[]->cast(@Integer)"), "a class without the property reads null: " + r);
         // refused by name: a node as a value, a second MATCH after a label-less one, a property declared nowhere
-        unsupported("MATCH (n) RETURN n", "a node as a value");
         unsupported("MATCH (n) MATCH (p:Person) RETURN p.name", "a MATCH after a label-less pattern");
         invalid("MATCH (n) RETURN n.nope AS x", "the graph is the model");
     }
@@ -343,6 +355,40 @@ class CypherToPureTest {
                         + "->extend(~[twice:r|if($r.age->isEmpty(), |[], |$r.age->toOne() * 2)])"
                         + "->select(~[name, twice])",
                 pure("MATCH (p:Person) WITH p.name AS name, p.age AS age WHERE age > 1 RETURN name, age * 2 AS twice"));
+    }
+
+    @Test
+    void aNodeReturnedIsItsLabelAndItsProperties() {
+        // C8 (the study's §12.14): a node as a value is the JSON the judge reads as a node, built as text by the
+        // database -- its label, then each property that holds a value (Neo4j stores no null)
+        assertEquals("demo::Person.all()->project(~[p:p|fromJson((((('{\"@labels\":' + '[\"Person\"]')"
+                        + " + if(if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty()"
+                        + " && !$p.active->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":'"
+                        + " + if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty()"
+                        + " && !$p.active->toOne(), |false, |[]))->toOne()->toString()))"
+                        + " + if($p.age->isEmpty(), |'', |',\"age\":' + $p.age->toOne()->toString()))"
+                        + " + (',\"name\":' + ('\"' + $p.name->replace('\\\\', '\\\\\\\\')"
+                        + "->replace('\"', '\\\\\"') + '\"'))) + '}')])",
+                pure("MATCH (p:Person) RETURN p"));
+    }
+
+    @Test
+    void aNodeThroughWithIsCarriedAsItsColumns() {
+        // the node's label and properties as columns of the WITH, so ORDER BY p.age sorts a typed column and the
+        // RETURN reads p.name as one; the node's own name is a virtual column
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty()"
+                        + " && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false,"
+                        + " |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name])"
+                        + "->sort([~_cypher_3->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)"
+                        + "->extend(~['p.name':r|$r._cypher_4, p:r|fromJson((((('{\"@labels\":' + $r._cypher_1)"
+                        + " + if(if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true,"
+                        + " |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->isEmpty(), |'',"
+                        + " |',\"active\":' + if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true,"
+                        + " |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->toOne()"
+                        + "->toString())) + if($r._cypher_3->isEmpty(), |'', |',\"age\":' + $r._cypher_3->toOne()"
+                        + "->toString())) + (',\"name\":' + ('\"' + $r._cypher_4->replace('\\\\', '\\\\\\\\')"
+                        + "->replace('\"', '\\\\\"') + '\"'))) + '}')])->select(~['p.name', p])",
+                pure("MATCH (p:Person) WITH p ORDER BY p.age LIMIT 1 RETURN p.name, p"));
     }
 
     @Test
@@ -529,11 +575,9 @@ class CypherToPureTest {
 
     @Test
     void whatPr1DoesNotReadIsRefusedByName() {
-        unsupported("MATCH (p:Person) RETURN p", "a node as a value (p) is not supported yet");
         unsupported("MATCH (p:Person)-[r:firm]->(f) RETURN r", "a relationship as a value (r)");
         unsupported("MATCH (p:Person) RETURN p.firm", "a node as a value is not supported yet");
         unsupported("MATCH (p:Person) RETURN p.tags", "holds many values (a list)");
-        unsupported("MATCH (p:Person) RETURN *", "RETURN *");
         unsupported("MATCH (p:Person)-[:firm]->(f:Firm)-[:employees]->(q:Person) RETURN q.name", "fans out");
         unsupported("MATCH (f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm) RETURN g.legalName", "fans out");
         unsupported("MATCH (p:Person), (f:Firm) RETURN p.name", "cartesian product");
@@ -553,7 +597,9 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person) RETURN [p.age] AS l", "a list of one value of the row");
         invalid("MATCH (p:Person) RETURN all(x IN p.name WHERE x > 1)", "expected List<T> but was String");
         unsupported("USE demo::Space MATCH (p:Person) RETURN p.name", "USE");
-        unsupported("MATCH (p:Person) WITH p ORDER BY p.age LIMIT 1 RETURN p.name", "a node as a value (p)");
+        unsupported("MATCH (p:Person) RETURN DISTINCT p", "RETURN DISTINCT over a node (p");
+        unsupported("MATCH (p:Person) RETURN p ORDER BY p", "ORDER BY a node (p");
+        unsupported("MATCH (p:Person) RETURN p, count(*) AS c", "a node among the grouping keys (p");
         unsupported("MATCH (p:Person:Firm) RETURN p.name", "several labels");
         unsupported("MATCH (p:Person) RETURN p.age + count(*)", "an expression around an aggregate");
         unsupported("RETURN 1e308 AS x", "a float literal beyond 1e15");

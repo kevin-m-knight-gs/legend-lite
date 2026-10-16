@@ -673,6 +673,20 @@ public final class CypherValues {
                 yield new Lst(items);
             }
             case com.legend.json.Json.Obj o -> {
+                if (o.fields().get("@labels") instanceof com.legend.json.Json.Arr labels) {
+                    // a node as lite returns it (C8, the study's §12.14): its labels, its properties beside them
+                    TreeSet<String> ls = new TreeSet<>();
+                    for (com.legend.json.Json.Node l : labels.items()) {
+                        ls.add(((com.legend.json.Json.Str) l).value());
+                    }
+                    Map<String, Value> props = new TreeMap<>();
+                    o.fields().forEach((k, v) -> {
+                        if (!k.equals("@labels")) {
+                            props.put(k, ofJson(v));
+                        }
+                    });
+                    yield new Node(ls, props);
+                }
                 Map<String, Value> entries = new TreeMap<>();
                 o.fields().forEach((k, v) -> entries.put(k, ofJson(v)));
                 yield new Mp(entries);

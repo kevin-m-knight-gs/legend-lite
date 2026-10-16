@@ -372,7 +372,7 @@ public final class CypherParity {
         for (var row : result.rows()) {
             List<CypherValues.Value> cells = new ArrayList<>();
             for (Object cell : row.values()) {
-                cells.add(CypherValues.ofCell(cell));
+                cells.add(CypherGraph.ownLabels(CypherValues.ofCell(cell)));
             }
             got.add(cells);
         }

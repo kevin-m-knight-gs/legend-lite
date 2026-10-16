@@ -246,8 +246,9 @@ class CypherIslandIntegrationTest {
     @Test
     void whatIsNotReadYetIsRefusedByName() {
         com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> run("MATCH (p:Person) RETURN p"));
-        assertEquals("#Cypher{...}# at line 1, column 33: a node as a value (p) is not supported yet", e.getMessage());
+                () -> run("MATCH (p:Person)-[r:firm]->(f:Firm) RETURN r"));
+        assertEquals("#Cypher{...}# at line 1, column 52: a relationship as a value (r) is not supported yet",
+                e.getMessage());
         com.legend.error.NotImplementedException create = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> run("CREATE (p:Person {name: 'x'})"));
         assertTrue(create.getMessage().contains("CREATE is not supported yet"), create.getMessage());

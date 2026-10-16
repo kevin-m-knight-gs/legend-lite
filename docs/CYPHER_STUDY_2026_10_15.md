@@ -2214,3 +2214,39 @@ and WithOrderBy2 [23], which the arms reached first).
 
 18 lite cases in `lite/labelless.yaml`, each judged by Neo4j.
 
+### 12.14 The nodes-as-values leg, 2026-10-16: a node returned, a node carried through WITH
+
+C8 (§5) — a node as a value — was the ledger's largest refusal after the arms (168 TCK cases, most of them
+`MATCH (a) WITH a ORDER BY a.num LIMIT 4 RETURN a`). Two forms, neither of which makes Java compute a value:
+
+- **A node returned** (or used as a value) is the JSON the judge reads as a node:
+  `{"@labels":["A"],"num":9,"bool":true}` — the class's label (`Model.labelOf`) and each stored property of the
+  class (`Model.properties`: its own and inherited; an association end is navigation, not a property) that holds a
+  value, Neo4j storing no null. The database builds it as text (`'{"@labels":' + labels + if(isEmpty(num), '',
+  ',"num":' + toString(num)) + ... + '}'`) and `fromJson` reads it as a Variant: an integer or boolean by its
+  `toString`, a float with its `.0` when the database's text drops it (Postgres), a string in quotes with its
+  quotes and backslashes escaped. The judge (`CypherValues.ofJson`) reads an object with `@labels` as a `Node`;
+  the harness maps its class of the unlabelled nodes (`Unlabelled`, a convention of its own) to no label.
+- **A node through a projecting WITH** (`WITH a ORDER BY a.num LIMIT 4`, `WITH a, a.x AS x`) is carried as its
+  columns — the labels' JSON text in one, each property of its class in its own (`_cypher_k`, synthetic), the node
+  itself a *virtual* column (`Col.virtual`: no column of the relation bears its name; `NodeShape` holds the
+  mapping) — so the clauses after read `a.num` as the typed column it is, an `ORDER BY a.num` sorts that column
+  (no hidden copy), a second `WITH a` carries the same columns on, and `RETURN a` builds the JSON from them. Over
+  a label-less root the carried properties are the union over the candidate classes (null where a class lacks one,
+  the same fresh names in every arm, so the arms' columns agree). `RETURN *` over a pattern expands to its
+  variables.
+
+Refused by name: `DISTINCT` over a node, `ORDER BY` a node, a node among the grouping keys (Neo4j tells nodes apart
+and orders them by identity, which the JSON does not carry — the harness's `id` column is no property of the
+model); a relationship as a value; a node holding a temporal property, as a value (the Variant spells it as
+text); a node that may be absent.
+
+#### 12.14.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4,108 | 2,244 (from 2,098) | 0 | 0 | 0 | 837 | 709 | 318 |
+| Postgres | 4,108 | 1,896 (from 1,750) | 0 | 0 | 0 | 1,185 | 709 | 318 |
+
+14 lite cases in `lite/nodes.yaml`, each judged by Neo4j.
+

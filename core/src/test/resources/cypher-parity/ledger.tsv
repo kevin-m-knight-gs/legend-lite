@@ -174,14 +174,14 @@ tck/clauses/delete/Delete6/[13] Aggregating in `RETURN` after deleting relations
 tck/clauses/delete/Delete6/[14] Aggregating in `WITH` after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[1] Filter node with node label predicate on multi variables with multiple bindings	SKIP	SKIP
 tck/clauses/match-where/MatchWhere1/[2] Filter node with node label predicate on multi variables without any bindings	REFUSED	REFUSED
-tck/clauses/match-where/MatchWhere1/[3] Filter node with property predicate on a single variable with multiple bindings	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere1/[3] Filter node with property predicate on a single variable with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[4] Filter start node of relationship with property predicate on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[5] Filter end node of relationship with property predicate on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[6] Filter node with a parameter in a property predicate on multi variables with one binding	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[7] Filter relationship with relationship type predicate on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[8] Filter relationship with property predicate on multi variables with multiple bindings	SKIP	SKIP
 tck/clauses/match-where/MatchWhere1/[9] Filter relationship with a parameter in a property predicate on multi variables with one binding	REFUSED	REFUSED
-tck/clauses/match-where/MatchWhere1/[10] Filter node with disjunctive property predicate on single variables with multiple bindings	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere1/[10] Filter node with disjunctive property predicate on single variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[11] Filter relationship with disjunctive relationship type predicate on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[12] Filter path with path length predicate on multi variables with one binding	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[13] Filter path with false path length predicate on multi variables with one binding	REFUSED	REFUSED
@@ -207,9 +207,9 @@ tck/clauses/match-where/MatchWhere6/[6] Join nodes on non-equality of properties
 tck/clauses/match-where/MatchWhere6/[7] Join nodes on non-equality of properties – OPTIONAL MATCH on two relationships and WHERE	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere6/[8] Join nodes on non-equality of properties – Two OPTIONAL MATCH clauses and WHERE	REFUSED	REFUSED
 tck/clauses/match/Match1/[1] Match non-existent nodes returns empty	REFUSED	REFUSED
-tck/clauses/match/Match1/[2] Matching all nodes	REFUSED	REFUSED
+tck/clauses/match/Match1/[2] Matching all nodes	PASS	PASS
 tck/clauses/match/Match1/[3] Matching nodes using multiple labels	SKIP	SKIP
-tck/clauses/match/Match1/[4] Simple node inline property predicate	REFUSED	REFUSED
+tck/clauses/match/Match1/[4] Simple node inline property predicate	PASS	PASS
 tck/clauses/match/Match1/[5] Use multiple MATCH clauses to do a Cartesian product	REFUSED	REFUSED
 tck/clauses/match/Match1/[6] Fail when using parameter as node predicate in MATCH	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match1/[7] Fail when a relationship has the same variable in a preceding MATCH #1	BOTH_ERROR	BOTH_ERROR
@@ -743,7 +743,7 @@ tck/clauses/return-skip-limit/ReturnSkipLimit1/[10] Fail when using non-constant
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[11] Fail when using negative value in SKIP	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[1] Limit to two hits	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[2] Limit to two hits with explicit order	REFUSED	REFUSED
-tck/clauses/return-skip-limit/ReturnSkipLimit2/[3] LIMIT 0 should return an empty result	REFUSED	REFUSED
+tck/clauses/return-skip-limit/ReturnSkipLimit2/[3] LIMIT 0 should return an empty result	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[4] Handle ORDER BY with LIMIT 1	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[5] ORDER BY with LIMIT 0 should not generate errors	REFUSED	REFUSED
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[6] LIMIT with an expression that does not depend on variables	REFUSED	REFUSED
@@ -785,7 +785,7 @@ tck/clauses/return/Return3/[1] Returning multiple expressions	REFUSED	REFUSED
 tck/clauses/return/Return3/[2] Returning multiple node property values	SKIP	SKIP
 tck/clauses/return/Return3/[3] Projecting nodes and relationships	REFUSED	REFUSED
 tck/clauses/return/Return4/[1] Honour the column name for RETURN items	PASS	PASS
-tck/clauses/return/Return4/[2] Support column renaming	REFUSED	REFUSED
+tck/clauses/return/Return4/[2] Support column renaming	PASS	PASS
 tck/clauses/return/Return4/[3] Aliasing expressions	PASS	PASS
 tck/clauses/return/Return4/[4] Keeping used expression 1	PASS	PASS
 tck/clauses/return/Return4/[5] Keeping used expression 2	REFUSED	REFUSED
@@ -925,26 +925,26 @@ tck/clauses/with-orderBy/WithOrderBy1/[19] Sort date times in ascending order	RE
 tck/clauses/with-orderBy/WithOrderBy1/[20] Sort date times in descending order	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[21] Sort distinct types in ascending order	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[22] Sort distinct types in descending order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[23] Sort by a boolean variable projected from a node property in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[23] Sort by a boolean variable projected from a node property in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[23] Sort by a boolean variable projected from a node property in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[24] Sort by a boolean variable projected from a node property in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[24] Sort by a boolean variable projected from a node property in descending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[25] Sort by an integer variable projected from a node property in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[25] Sort by an integer variable projected from a node property in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[25] Sort by an integer variable projected from a node property in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[26] Sort by an integer variable projected from a node property in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[26] Sort by an integer variable projected from a node property in descending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[27] Sort by a float variable projected from a node property in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[27] Sort by a float variable projected from a node property in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[27] Sort by a float variable projected from a node property in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[28] Sort by a float variable projected from a node property in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[28] Sort by a float variable projected from a node property in descending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[29] Sort by a string variable projected from a node property in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[29] Sort by a string variable projected from a node property in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[29] Sort by a string variable projected from a node property in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[30] Sort by a string variable projected from a node property in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[30] Sort by a string variable projected from a node property in descending order #2	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[23] Sort by a boolean variable projected from a node property in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[23] Sort by a boolean variable projected from a node property in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[23] Sort by a boolean variable projected from a node property in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[24] Sort by a boolean variable projected from a node property in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[24] Sort by a boolean variable projected from a node property in descending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[25] Sort by an integer variable projected from a node property in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[25] Sort by an integer variable projected from a node property in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[25] Sort by an integer variable projected from a node property in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[26] Sort by an integer variable projected from a node property in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[26] Sort by an integer variable projected from a node property in descending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[27] Sort by a float variable projected from a node property in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[27] Sort by a float variable projected from a node property in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[27] Sort by a float variable projected from a node property in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[28] Sort by a float variable projected from a node property in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[28] Sort by a float variable projected from a node property in descending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[29] Sort by a string variable projected from a node property in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[29] Sort by a string variable projected from a node property in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[29] Sort by a string variable projected from a node property in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[30] Sort by a string variable projected from a node property in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[30] Sort by a string variable projected from a node property in descending order #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected from a node property in ascending order #1	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected from a node property in ascending order #2	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected from a node property in ascending order #3	SKIP	SKIP
@@ -999,26 +999,26 @@ tck/clauses/with-orderBy/WithOrderBy1/[46] Fail on sorting by an undefined varia
 tck/clauses/with-orderBy/WithOrderBy1/[46] Fail on sorting by an undefined variable #Example: <exampleName> #8	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy1/[46] Fail on sorting by an undefined variable #Example: <exampleName> #9	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy1/[46] Fail on sorting by an undefined variable #Example: <exampleName> #10	BOTH_ERROR	BOTH_ERROR
-tck/clauses/with-orderBy/WithOrderBy2/[1] Sort by a boolean expression in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[1] Sort by a boolean expression in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[1] Sort by a boolean expression in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[2] Sort by a boolean expression in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[2] Sort by a boolean expression in descending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[3] Sort by an integer expression in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[3] Sort by an integer expression in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[3] Sort by an integer expression in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[4] Sort by an integer expression in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[4] Sort by an integer expression in descending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[5] Sort by a float expression in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[5] Sort by a float expression in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[5] Sort by a float expression in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[6] Sort by a float expression in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[6] Sort by a float expression in descending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[7] Sort by a string expression in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[7] Sort by a string expression in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[7] Sort by a string expression in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[8] Sort by a string expression in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[8] Sort by a string expression in descending order #2	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[1] Sort by a boolean expression in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[1] Sort by a boolean expression in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[1] Sort by a boolean expression in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[2] Sort by a boolean expression in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[2] Sort by a boolean expression in descending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[3] Sort by an integer expression in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[3] Sort by an integer expression in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[3] Sort by an integer expression in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[4] Sort by an integer expression in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[4] Sort by an integer expression in descending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[5] Sort by a float expression in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[5] Sort by a float expression in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[5] Sort by a float expression in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[6] Sort by a float expression in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[6] Sort by a float expression in descending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[7] Sort by a string expression in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[7] Sort by a string expression in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[7] Sort by a string expression in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[8] Sort by a string expression in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[8] Sort by a string expression in descending order #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending order #1	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending order #2	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending order #3	SKIP	SKIP
@@ -1082,59 +1082,59 @@ tck/clauses/with-orderBy/WithOrderBy2/[25] Fail on sorting by an aggregation #22
 tck/clauses/with-orderBy/WithOrderBy2/[25] Fail on sorting by an aggregation #23	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy2/[25] Fail on sorting by an aggregation #24	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy2/[25] Fail on sorting by an aggregation #25	BOTH_ERROR	BOTH_ERROR
-tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #4	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #5	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #6	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #7	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #8	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #9	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #4	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #5	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #6	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #4	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #5	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #6	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[4] Sort by two expressions, both in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[4] Sort by two expressions, both in descending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[4] Sort by two expressions, both in descending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[4] Sort by two expressions, both in descending order #4	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[5] An expression without explicit sort direction is sorted in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[5] An expression without explicit sort direction is sorted in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[5] An expression without explicit sort direction is sorted in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[5] An expression without explicit sort direction is sorted in ascending order #4	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #4	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #5	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #6	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #7	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #8	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #9	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #10	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #11	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #12	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #13	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #14	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #15	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #16	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #17	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #18	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #19	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #20	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #21	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #22	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #23	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #24	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #4	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #5	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #6	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #7	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #8	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[1] Sort by two expressions, both in ascending order #9	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #4	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #5	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[2] Sort by two expressions, first in ascending order, second in descending order #6	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #4	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #5	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[3] Sort by two expressions, first in descending order, second in ascending order #6	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[4] Sort by two expressions, both in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[4] Sort by two expressions, both in descending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[4] Sort by two expressions, both in descending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[4] Sort by two expressions, both in descending order #4	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[5] An expression without explicit sort direction is sorted in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[5] An expression without explicit sort direction is sorted in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[5] An expression without explicit sort direction is sorted in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[5] An expression without explicit sort direction is sorted in ascending order #4	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #4	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #5	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #6	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #7	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #8	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #9	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #10	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #11	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #12	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #13	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #14	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #15	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #16	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #17	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #18	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #19	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #20	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #21	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #22	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #23	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy3/[6] An constant expression does not influence the order determined by other expression before and after the constant expression #24	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy3/[7] The order direction cannot be overwritten #1	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy3/[7] The order direction cannot be overwritten #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy3/[7] The order direction cannot be overwritten #3	PASS	PASS
@@ -1175,14 +1175,14 @@ tck/clauses/with-orderBy/WithOrderBy3/[8] Fail on sorting by any number of undef
 tck/clauses/with-orderBy/WithOrderBy3/[8] Fail on sorting by any number of undefined variables in any position #Example: <exampleName> #28	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy3/[8] Fail on sorting by any number of undefined variables in any position #Example: <exampleName> #29	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy3/[8] Fail on sorting by any number of undefined variables in any position #Example: <exampleName> #30	BOTH_ERROR	BOTH_ERROR
-tck/clauses/with-orderBy/WithOrderBy4/[1] Sort by a projected expression	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy4/[2] Sort by an alias of a projected expression	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy4/[3] Sort by two projected expressions with order priority being different than projection order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy4/[4] Sort by one projected expression and one alias of a projected expression with order priority being different than projection order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy4/[5] Sort by one alias of a projected expression and one projected expression with order priority being different than projection order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy4/[6] Sort by aliases of two projected expressions with order priority being different than projection order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy4/[7] Sort by an alias of a projected expression where the alias shadows an existing variable	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy4/[8] Sort by non-projected existing variable	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy4/[1] Sort by a projected expression	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy4/[2] Sort by an alias of a projected expression	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy4/[3] Sort by two projected expressions with order priority being different than projection order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy4/[4] Sort by one projected expression and one alias of a projected expression with order priority being different than projection order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy4/[5] Sort by one alias of a projected expression and one projected expression with order priority being different than projection order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy4/[6] Sort by aliases of two projected expressions with order priority being different than projection order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy4/[7] Sort by an alias of a projected expression where the alias shadows an existing variable	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy4/[8] Sort by non-projected existing variable	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[9] Sort by an alias of a projected expression containing the variable shadowed by the alias	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[10] Sort by a non-projected expression containing an alias of a projected expression containing the variable shadowed by the alias	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[11] Sort by an aggregate projection	PASS	PASS
@@ -1201,10 +1201,10 @@ tck/clauses/with-skip-limit/WithSkipLimit2/[1] ORDER BY and LIMIT can be used	RE
 tck/clauses/with-skip-limit/WithSkipLimit2/[2] Handle dependencies across WITH with LIMIT	SKIP	SKIP
 tck/clauses/with-skip-limit/WithSkipLimit2/[3] Connected components succeeding WITH with LIMIT	REFUSED	REFUSED
 tck/clauses/with-skip-limit/WithSkipLimit2/[4] Ordering and limiting on aggregate	REFUSED	REFUSED
-tck/clauses/with-skip-limit/WithSkipLimit3/[1] Get rows in the middle	REFUSED	REFUSED
+tck/clauses/with-skip-limit/WithSkipLimit3/[1] Get rows in the middle	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit3/[2] Get rows in the middle by param	REFUSED	REFUSED
 tck/clauses/with-skip-limit/WithSkipLimit3/[3] Limiting amount of rows when there are fewer left than the LIMIT argument	PASS	PASS
-tck/clauses/with-where/WithWhere1/[1] Filter node with property predicate on a single variable with multiple bindings	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere1/[1] Filter node with property predicate on a single variable with multiple bindings	PASS	PASS
 tck/clauses/with-where/WithWhere1/[2] Filter node with property predicate on a single variable with multiple distinct bindings	PASS	PASS
 tck/clauses/with-where/WithWhere1/[3] Filter for an unbound relationship variable	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere1/[4] Filter for an unbound node variable	REFUSED	REFUSED
@@ -1379,7 +1379,7 @@ tck/expressions/boolean/Boolean3/[8] Fail on exclusive disjunction of at least o
 tck/expressions/boolean/Boolean3/[8] Fail on exclusive disjunction of at least one non-booleans #23	BOTH_ERROR	BOTH_ERROR
 tck/expressions/boolean/Boolean4/[1] Logical negation of truth values	PASS	PASS
 tck/expressions/boolean/Boolean4/[2] Double logical negation of truth values	PASS	PASS
-tck/expressions/boolean/Boolean4/[3] NOT and false	REFUSED	REFUSED
+tck/expressions/boolean/Boolean4/[3] NOT and false	PASS	PASS
 tck/expressions/boolean/Boolean4/[4] Fail when using NOT on a non-boolean literal #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/boolean/Boolean4/[4] Fail when using NOT on a non-boolean literal #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/boolean/Boolean4/[4] Fail when using NOT on a non-boolean literal #3	BOTH_ERROR	BOTH_ERROR
@@ -1975,7 +1975,7 @@ tck/expressions/null/Null1/[5] IS NULL on a map #9	PASS	PASS
 tck/expressions/null/Null1/[5] IS NULL on a map #10	PASS	PASS
 tck/expressions/null/Null1/[5] IS NULL on a map #11	PASS	PASS
 tck/expressions/null/Null1/[5] IS NULL on a map #12	PASS	PASS
-tck/expressions/null/Null1/[6] IS NULL is case insensitive	REFUSED	REFUSED
+tck/expressions/null/Null1/[6] IS NULL is case insensitive	PASS	PASS
 tck/expressions/null/Null2/[1] Property not null check on non-null node	REFUSED	REFUSED
 tck/expressions/null/Null2/[2] Property not null check on optional non-null node	REFUSED	REFUSED
 tck/expressions/null/Null2/[3] Property not null check on null node	REFUSED	REFUSED
@@ -1992,7 +1992,7 @@ tck/expressions/null/Null2/[5] IS NOT NULL on a map #9	PASS	PASS
 tck/expressions/null/Null2/[5] IS NOT NULL on a map #10	PASS	PASS
 tck/expressions/null/Null2/[5] IS NOT NULL on a map #11	PASS	PASS
 tck/expressions/null/Null2/[5] IS NOT NULL on a map #12	PASS	PASS
-tck/expressions/null/Null2/[6] IS NOT NULL is case insensitive	REFUSED	REFUSED
+tck/expressions/null/Null2/[6] IS NOT NULL is case insensitive	PASS	PASS
 tck/expressions/null/Null3/[1] The inverse of a null is a null	PASS	PASS
 tck/expressions/null/Null3/[2] It is unknown - i.e. null - if a null is equal to a null	PASS	PASS
 tck/expressions/null/Null3/[3] It is unknown - i.e. null - if a null is not equal to a null	PASS	PASS
@@ -2769,37 +2769,37 @@ tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal wheth
 tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #4	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #5	REFUSED	REFUSED
 tck/expressions/string/String1/[1] `substring()` with default second argument	PASS	PASS
-tck/expressions/string/String10/[1] Finding exact matches with non-proper substring	REFUSED	REFUSED
-tck/expressions/string/String10/[2] Finding substring of string	REFUSED	REFUSED
-tck/expressions/string/String10/[3] Finding the empty substring	REFUSED	REFUSED
+tck/expressions/string/String10/[1] Finding exact matches with non-proper substring	PASS	PASS
+tck/expressions/string/String10/[2] Finding substring of string	PASS	PASS
+tck/expressions/string/String10/[3] Finding the empty substring	PASS	PASS
 tck/expressions/string/String10/[4] Finding strings containing whitespace	PASS	PASS
 tck/expressions/string/String10/[5] Finding strings containing newline	PASS	PASS
-tck/expressions/string/String10/[6] No string contains null	REFUSED	REFUSED
-tck/expressions/string/String10/[7] No string does not contain null	REFUSED	REFUSED
+tck/expressions/string/String10/[6] No string contains null	PASS	PASS
+tck/expressions/string/String10/[7] No string does not contain null	PASS	PASS
 tck/expressions/string/String10/[8] Handling non-string operands for CONTAINS	REFUSED	REFUSED
-tck/expressions/string/String10/[9] NOT with CONTAINS	REFUSED	REFUSED
-tck/expressions/string/String11/[1] Combining prefix and suffix search	REFUSED	REFUSED
-tck/expressions/string/String11/[2] Combining prefix, suffix, and substring search	REFUSED	REFUSED
+tck/expressions/string/String10/[9] NOT with CONTAINS	PASS	PASS
+tck/expressions/string/String11/[1] Combining prefix and suffix search	PASS	PASS
+tck/expressions/string/String11/[2] Combining prefix, suffix, and substring search	PASS	PASS
 tck/expressions/string/String3/[1] `reverse()`	PASS	PASS
 tck/expressions/string/String4/[1] `split()`	PASS	PASS
-tck/expressions/string/String8/[1] Finding exact matches with non-proper prefix	REFUSED	REFUSED
-tck/expressions/string/String8/[2] Finding beginning of string	REFUSED	REFUSED
-tck/expressions/string/String8/[3] Finding the empty prefix	REFUSED	REFUSED
+tck/expressions/string/String8/[1] Finding exact matches with non-proper prefix	PASS	PASS
+tck/expressions/string/String8/[2] Finding beginning of string	PASS	PASS
+tck/expressions/string/String8/[3] Finding the empty prefix	PASS	PASS
 tck/expressions/string/String8/[4] Finding strings starting with whitespace	PASS	PASS
 tck/expressions/string/String8/[5] Finding strings starting with newline	PASS	PASS
-tck/expressions/string/String8/[6] No string starts with null	REFUSED	REFUSED
-tck/expressions/string/String8/[7] No string does not start with null	REFUSED	REFUSED
+tck/expressions/string/String8/[6] No string starts with null	PASS	PASS
+tck/expressions/string/String8/[7] No string does not start with null	PASS	PASS
 tck/expressions/string/String8/[8] Handling non-string operands for STARTS WITH	REFUSED	REFUSED
-tck/expressions/string/String8/[9] NOT with STARTS WITH	REFUSED	REFUSED
-tck/expressions/string/String9/[1] Finding exact matches with non-proper suffix	REFUSED	REFUSED
-tck/expressions/string/String9/[2] Finding end of string	REFUSED	REFUSED
-tck/expressions/string/String9/[3] Finding the empty suffix	REFUSED	REFUSED
+tck/expressions/string/String8/[9] NOT with STARTS WITH	PASS	PASS
+tck/expressions/string/String9/[1] Finding exact matches with non-proper suffix	PASS	PASS
+tck/expressions/string/String9/[2] Finding end of string	PASS	PASS
+tck/expressions/string/String9/[3] Finding the empty suffix	PASS	PASS
 tck/expressions/string/String9/[4] Finding strings ending with whitespace	PASS	PASS
 tck/expressions/string/String9/[5] Finding strings ending with newline	PASS	PASS
-tck/expressions/string/String9/[6] No string ends with null	REFUSED	REFUSED
-tck/expressions/string/String9/[7] No string does not end with null	REFUSED	REFUSED
+tck/expressions/string/String9/[6] No string ends with null	PASS	PASS
+tck/expressions/string/String9/[7] No string does not end with null	PASS	PASS
 tck/expressions/string/String9/[8] Handling non-string operands for ENDS WITH	REFUSED	REFUSED
-tck/expressions/string/String9/[9] NOT with ENDS WITH	REFUSED	REFUSED
+tck/expressions/string/String9/[9] NOT with ENDS WITH	PASS	PASS
 tck/expressions/temporal/Temporal1/[1] Should construct week date #1	PASS	PASS
 tck/expressions/temporal/Temporal1/[1] Should construct week date #2	PASS	PASS
 tck/expressions/temporal/Temporal1/[1] Should construct week date #3	PASS	PASS
@@ -3902,7 +3902,7 @@ lite/basics/boolean_logic_three_valued	PASS	PASS
 lite/basics/comparison_chain	PASS	PASS
 lite/basics/cypher_5_prefix	PASS	PASS
 lite/basics/version_named_outside	PASS	PASS
-lite/basics/refused_node_as_value	REFUSED	REFUSED
+lite/basics/refused_node_as_value	PASS	PASS
 lite/basics/refused_unwind	PASS	PASS
 lite/basics/error_unknown_property_is_null_in_neo4j	REFUSED	REFUSED
 lite/basics/error_unknown_function	BOTH_ERROR	BOTH_ERROR
@@ -3919,20 +3919,34 @@ lite/labelless/count_of_every_node	PASS	PASS
 lite/labelless/properties_across_classes	PASS	PASS
 lite/labelless/where_across_classes	PASS	PASS
 lite/labelless/property_map_across_classes	PASS	PASS
-lite/labelless/with_order_limit_over_the_whole	REFUSED	REFUSED
+lite/labelless/with_order_limit_over_the_whole	PASS	PASS
 lite/labelless/aggregates_over_the_whole	PASS	PASS
 lite/labelless/grouped_over_the_whole	PASS	PASS
 lite/labelless/distinct_over_the_whole	PASS	PASS
 lite/labelless/with_where_then_return	PASS	PASS
 lite/labelless/projected_with_then_return	PASS	PASS
-lite/labelless/expression_order_without_item	REFUSED	REFUSED
+lite/labelless/expression_order_without_item	PASS	PASS
 lite/labelless/property_declared_nowhere_is_refused_by_name	REFUSED	REFUSED
-lite/labelless/node_as_a_value_refused_by_name	REFUSED	REFUSED
+lite/labelless/node_as_a_value_refused_by_name	PASS	PASS
 lite/labelless/second_match_refused_by_name	REFUSED	REFUSED
 lite/labelless/property_typed_differently_refused_by_name	REFUSED	REFUSED
 lite/labelless/one_class_only	PASS	PASS
 lite/labelless/with_where_re_spells_a_distinct_key	PASS	PASS
 lite/labelless/order_by_over_a_grouping_key_expression	PASS	PASS
+lite/nodes/node_of_one_class	PASS	PASS
+lite/nodes/nodes_of_every_class	PASS	PASS
+lite/nodes/node_with_order_and_limit	PASS	PASS
+lite/nodes/node_carried_then_its_property	PASS	PASS
+lite/nodes/node_carried_twice	PASS	PASS
+lite/nodes/node_beside_values_with_where	PASS	PASS
+lite/nodes/return_star_over_a_pattern	PASS	PASS
+lite/nodes/node_with_a_float_and_quotes	PASS	PASS
+lite/nodes/count_of_nodes	PASS	PASS
+lite/nodes/node_with_skip_and_limit	PASS	PASS
+lite/nodes/distinct_over_nodes_refused_by_name	REFUSED	REFUSED
+lite/nodes/order_by_a_node_refused_by_name	REFUSED	REFUSED
+lite/nodes/node_as_a_grouping_key_refused_by_name	REFUSED	REFUSED
+lite/nodes/relationship_as_a_value_refused_by_name	REFUSED	REFUSED
 lite/temporal/date_from_components	PASS	PASS
 lite/temporal/date_from_text	PASS	PASS
 lite/temporal/localdatetime_from_components	PASS	PASS

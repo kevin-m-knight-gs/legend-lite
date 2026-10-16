@@ -84,6 +84,14 @@ public final class CypherToPure {
 
         /** Every class of the model, by its full path, in a fixed order: what a label-less node reads. */
         List<String> classes();
+
+        /** Reports every stored property of the class at {@code classPath} (its own and its superclasses', in
+         *  declaration order; an association end is injected, not declared, and is not among them) to {@code sink}:
+         *  what a node as a value carries. */
+        void properties(String classPath, PropertySink sink);
+
+        /** The label of the class at {@code classPath}: the simple name a pattern names it by. */
+        String labelOf(String classPath);
     }
 
     /** Where the model reports a property: its name, its type's name (a primitive's simple name, a class's or an
@@ -107,6 +115,90 @@ public final class CypherToPure {
     }
 
     /** The model's property {@code name} of the class at {@code classPath}; null when it has none. */
+    /** The class's stored properties, as the model reports them. */
+    private List<Property> properties(String classPath) {
+        List<Property> out = new ArrayList<>();
+        model.properties(classPath, (n, type, classTyped, enumTyped, lower, upper) ->
+                out.add(new Property(n, type, classTyped, enumTyped, lower, upper)));
+        return out;
+    }
+
+    /** A node carried through a projection as its columns (the study's §12.14): the column specs that compute them
+     *  over the row before the projection, the columns they are after it, and the shape the node's own (virtual)
+     *  column carries. */
+    private record NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns) {
+    }
+
+    /** The node {@code v} names in {@code scope}, to carry through a projection as its columns: a pattern's node,
+     *  or a node already carried; null when {@code v} names no node. */
+    private @com.legend.base.Nullable NodeCarry carriedNode(CypherAst.Var v, Scope scope, Set<String> names) {
+        if (scope instanceof GraphScope gs) {
+            Binding b = gs.g.bindings().get(v.name());
+            if (b == null || !b.node()) {
+                return null;
+            }
+            return gs.carry(b, v.pos(), names);
+        }
+        if (scope instanceof RowScope rs) {
+            Col c = rs.column(v.name());
+            if (c == null || !(c.detail() instanceof NodeShape shape)) {
+                return null;
+            }
+            // carried again: the same columns, kept under their names
+            List<ColSpec> specs = new ArrayList<>();
+            List<Col> columns = new ArrayList<>();
+            specs.add(new ColSpec(shape.labels(), lambda("r", new AppliedProperty(new Variable("r"), shape.labels())),
+                    null, null));
+            columns.add(new Col(shape.labels(), Kind.STRING, false));
+            for (NodeProp p : shape.props().values()) {
+                specs.add(new ColSpec(p.column(), lambda("r", new AppliedProperty(new Variable("r"), p.column())),
+                        null, null));
+                columns.add(new Col(p.column(), p.kind(), p.nullable()));
+            }
+            return new NodeCarry(shape, specs, columns);
+        }
+        return null;
+    }
+
+    /** A node as a value (C8, the study's §12.14): the JSON the judge reads as a node,
+     *  {@code {"@labels":[...],"<property>":<value>,...}}, each property present when it holds a value (Neo4j stores
+     *  no null), built as text by the database and read as a Variant. {@code labels} is the labels array's JSON
+     *  text; each property's value is spelled by its kind. */
+    private static Tx nodeJson(ValueSpecification labels, List<Map.Entry<String, Tx>> props, Pos pos) {
+        ValueSpecification text = plus(new CString("{\"@labels\":"), labels);
+        for (Map.Entry<String, Tx> p : props) {
+            Tx t = p.getValue();
+            if (t.kind() == Kind.NULL) {
+                continue;
+            }
+            ValueSpecification v = SqlToPure.valueOf(t);
+            ValueSpecification key = new CString("," + com.legend.json.Json.toCompact(p.getKey()) + ":");
+            ValueSpecification piece = t.nullable()
+                    ? call("if", call("isEmpty", v), thunk(new CString("")),
+                            thunk(plus(key, jsonText(call("toOne", v), t.kind(), p.getKey(), pos))))
+                    : plus(key, jsonText(v, t.kind(), p.getKey(), pos));
+            text = plus(text, piece);
+        }
+        return new Tx(call("fromJson", plus(text, new CString("}"))), Kind.JSON, false, null, new NodeValue(), null,
+                null);
+    }
+
+    /** A property value's JSON text, as the database spells it: a number's or a boolean's spelling (a whole float
+     *  with its {@code .0}, which Postgres's text drops), a string in quotes with its quotes and backslashes
+     *  escaped. */
+    private static ValueSpecification jsonText(ValueSpecification v, Kind kind, String name, Pos pos) {
+        return switch (kind) {
+            case INTEGER, WHOLE, BOOLEAN -> call("toString", v);
+            case FLOAT, INEXACT, DECIMAL, NUMBER -> call("if", call("or", call("contains", call("toString", v),
+                    new CString(".")), call("contains", call("toString", v), new CString("e"))),
+                    thunk(call("toString", v)), thunk(plus(call("toString", v), new CString(".0"))));
+            case STRING -> plus(new CString("\""), call("replace", call("replace", v, new CString("\\"),
+                    new CString("\\\\")), new CString("\""), new CString("\\\"")), new CString("\""));
+            default -> throw CypherErrors.unsupported("a node holding a " + cypherType(kind) + " property (" + name
+                    + "), as a value, is not supported yet (the Variant spells it as text)", pos);
+        };
+    }
+
     private @com.legend.base.Nullable Property property(String classPath, String name) {
         Property[] found = new Property[1];
         model.property(classPath, name, (n, type, classTyped, enumTyped, lower, upper) ->
@@ -240,6 +332,11 @@ public final class CypherToPure {
 
         Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable Val carried) {
             this(name, kind, nullable, carried, null);
+        }
+
+        /** Whether no column of the relation bears this name: a carried shape, or a node carried as its columns. */
+        boolean virtual() {
+            return carried != null || detail instanceof NodeShape;
         }
     }
 
@@ -755,14 +852,17 @@ public final class CypherToPure {
                 expanded.add(item);
                 continue;
             }
-            if (!(state instanceof Rows rows)) {
-                throw CypherErrors.unsupported("RETURN * (a node as a value) is not supported yet", item.pos());
-            }
             List<String> columnNames = new ArrayList<>();
-            for (Col c : rows.columns()) {
-                if (!c.name().startsWith(SYNTHETIC)) {
-                    columnNames.add(c.name());
+            if (state instanceof Rows rows) {
+                for (Col c : rows.columns()) {
+                    if (!c.name().startsWith(SYNTHETIC)) {
+                        columnNames.add(c.name());
+                    }
                 }
+            } else {
+                // over a pattern: its variables, the nodes as values (the study's §12.14)
+                Graph g = state instanceof Arms a ? a.arms().get(0) : (Graph) state;
+                columnNames.addAll(g.bindings().keySet());
             }
             java.util.Collections.sort(columnNames);
             for (String name : columnNames) {
@@ -852,7 +952,7 @@ public final class CypherToPure {
             vs = call("sort", vs, new PureCollection(sortInfos));
         }
         if (!hidden.isEmpty()) {
-            vs = call("select", vs, new ColSpecArray(columns.stream().filter(c -> c.carried() == null)
+            vs = call("select", vs, new ColSpecArray(columns.stream().filter(c -> !c.virtual())
                     .map(c -> new ColSpec(c.name(), null, null, null)).toList()));
         }
         if (skip != null) {
@@ -890,6 +990,7 @@ public final class CypherToPure {
         Scope scope = state instanceof Graph g ? new GraphScope(g) : new RowScope((Rows) state);
         List<Output> outputs = new ArrayList<>();
         Set<String> names = new HashSet<>();
+        Map<String, NodeCarry> nodes = new LinkedHashMap<>();
         boolean grouped = false;
         for (Item item : items) {
             Expr e = item.expr();
@@ -899,6 +1000,13 @@ public final class CypherToPure {
             String name = item.alias() != null ? item.alias() : item.text();
             if (!names.add(name)) {
                 throw CypherErrors.invalid("Multiple result columns with the same name are not supported", item.pos());
+            }
+            NodeCarry node = !returning && e instanceof CypherAst.Var v ? carriedNode(v, scope, names) : null;
+            if (node != null) {
+                // a node through WITH: carried as its columns; its JSON only when returned or used as a value
+                nodes.put(name, node);
+                outputs.add(new Output(name, null, null));
+                continue;
             }
             if (isAggregate(e)) {
                 grouped = true;
@@ -936,6 +1044,17 @@ public final class CypherToPure {
                 carried.put(out.name(), v);
             }
         }
+        for (Output out : outputs) {
+            boolean node = nodes.containsKey(out.name()) || isNode(scalars.get(out.name()));
+            if (node && grouped) {
+                throw CypherErrors.unsupported("a node among the grouping keys (" + out.name() + "; Neo4j groups"
+                        + " nodes by identity) is not supported yet", pos);
+            }
+            if (node && distinct) {
+                throw CypherErrors.unsupported((returning ? "RETURN" : "WITH") + " DISTINCT over a node ("
+                        + out.name() + "; Neo4j tells nodes apart by identity) is not supported yet", pos);
+            }
+        }
         // the sort keys: an item (by its alias or its text), else an expression over the projected aliases first
         // (an alias shadows the variable it was computed from: the TCK's WithOrderBy4) and the scope before the
         // projection
@@ -954,6 +1073,21 @@ public final class CypherToPure {
             String key = outputNamed(items, o.expr(), outputs);
             if (key != null && carried.containsKey(key)) {
                 throw CypherErrors.unsupported("ORDER BY a list or map (" + key + ") is not supported yet", o.pos());
+            }
+            if (key != null && (nodes.containsKey(key) || isNode(scalars.get(key)))) {
+                throw CypherErrors.unsupported("ORDER BY a node (" + key + "; Neo4j orders nodes by identity) is not"
+                        + " supported yet", o.pos());
+            }
+            if (key == null && (skip != null || limit != null) && o.expr() instanceof CypherAst.Prop pr
+                    && pr.target() instanceof CypherAst.Var pv && nodes.containsKey(pv.name())) {
+                // a carried node's property: its own column is the key (the node is carried under its name)
+                NodeProp np = nodes.get(pv.name()).shape().props().get(pr.name());
+                if (np == null) {
+                    throw CypherErrors.invalid("the node " + pv.name() + " has no property " + pr.name() + " (the"
+                            + " graph is the model: a property no class declares is an error, not null)", o.pos());
+                }
+                sortKeys.add(new SortKey(np.column(), o.descending(), false));
+                continue;
             }
             if (key == null) {
                 if (grouped && containsAggregate(o.expr())) {
@@ -995,6 +1129,14 @@ public final class CypherToPure {
                 Val shape = carried.get(out.name());
                 if (shape != null) {
                     columns.add(new Col(out.name(), Kind.JSON, false, shape));
+                    continue;
+                }
+                NodeCarry node = nodes.get(out.name());
+                if (node != null) {
+                    // the node's columns, then the node itself under its name (a virtual column)
+                    specs.addAll(node.specs());
+                    columns.addAll(node.columns());
+                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.shape()));
                     continue;
                 }
                 Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
@@ -1067,7 +1209,7 @@ public final class CypherToPure {
      *  new column takes an old one's name), then the new columns alone, in order, under their names. */
     private ValueSpecification reproject(Rows rows, List<ColSpec> specs) {
         Set<String> existing = new HashSet<>();
-        rows.columns().stream().filter(c -> c.carried() == null).forEach(c -> existing.add(c.name()));
+        rows.columns().stream().filter(c -> !c.virtual()).forEach(c -> existing.add(c.name()));
         List<ColSpec> computed = new ArrayList<>();
         List<ColSpec> selected = new ArrayList<>();
         List<String[]> renames = new ArrayList<>();
@@ -1325,8 +1467,75 @@ public final class CypherToPure {
             if (b == null) {
                 throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
             }
-            throw CypherErrors.unsupported("a " + (b.node() ? "node" : "relationship") + " as a value (" + v.name()
-                    + ") is not supported yet", v.pos());
+            if (!b.node()) {
+                throw CypherErrors.unsupported("a relationship as a value (" + v.name() + ") is not supported yet",
+                        v.pos());
+            }
+            return scalar(nodeOf(b, v.pos()));
+        }
+
+        /** A bound node as a value: its class's label and its properties, navigated from the root instance. */
+        Tx nodeOf(Binding b, Pos pos) {
+            String cls = java.util.Objects.requireNonNull(b.classPath());
+            if (b.optional()) {
+                throw CypherErrors.unsupported("a node that may be absent, as a value, is not supported yet", pos);
+            }
+            List<Map.Entry<String, Tx>> props = new ArrayList<>();
+            for (Property p : properties(cls)) {
+                if (!p.classTyped() && !p.enumTyped() && !p.many()) {
+                    props.add(Map.entry(p.name(), propertyOf(b, p.name(), pos)));
+                }
+            }
+            return nodeJson(new CString(labelsJson(cls)), props, pos);
+        }
+
+        /** A bound node carried through a projection: its labels' text and its properties as columns -- of every
+         *  class a label-less root may be (the arms' columns agree: null where a class lacks the property, the
+         *  same fresh names in every arm). */
+        NodeCarry carry(Binding b, Pos pos, Set<String> names) {
+            String cls = java.util.Objects.requireNonNull(b.classPath());
+            if (b.optional()) {
+                throw CypherErrors.unsupported("a node that may be absent, carried through WITH, is not supported"
+                        + " yet", pos);
+            }
+            List<String> classes = b.path().isEmpty() && g.candidates().size() > 1 ? g.candidates() : List.of(cls);
+            // the properties of every class, in first-declaration order, each of one kind across the classes
+            Map<String, Kind> kinds = new LinkedHashMap<>();
+            for (String c : classes) {
+                for (Property p : properties(c)) {
+                    if (p.classTyped() || p.enumTyped() || p.many()) {
+                        continue;
+                    }
+                    Kind kind = kindOf(p.type(), p.name(), pos);
+                    Kind before = kinds.putIfAbsent(p.name(), kind);
+                    if (before != null && before != kind) {
+                        throw CypherErrors.unsupported("the property " + p.name() + " typed differently across the"
+                                + " classes a label-less node reads (" + cypherType(before) + " and "
+                                + cypherType(kind) + ") is not supported yet", pos);
+                    }
+                }
+            }
+            List<ColSpec> specs = new ArrayList<>();
+            List<Col> columns = new ArrayList<>();
+            String labels = freshName(names);
+            specs.add(new ColSpec(labels, lambda(g.row(), new CString(labelsJson(cls))), null, null));
+            columns.add(new Col(labels, Kind.STRING, false));
+            Map<String, NodeProp> props = new LinkedHashMap<>();
+            for (Map.Entry<String, Kind> k : kinds.entrySet()) {
+                String column = freshName(names);
+                Tx t = CypherToPure.this.property(cls, k.getKey()) != null ? propertyOf(b, k.getKey(), pos)
+                        : SqlToPure.nullOf(k.getValue());
+                boolean nullable = classes.size() > 1 || t.nullable();
+                specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
+                columns.add(new Col(column, k.getValue(), nullable));
+                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable));
+            }
+            return new NodeCarry(new NodeShape(labels, props), specs, columns);
+        }
+
+        /** The labels array's JSON text of a class: its label. */
+        private String labelsJson(String cls) {
+            return "[" + com.legend.json.Json.toCompact(model.labelOf(cls)) + "]";
         }
 
         @Override
@@ -1475,12 +1684,17 @@ public final class CypherToPure {
 
         /** Whether the rows have a column of this name. */
         boolean has(String name) {
+            return column(name) != null;
+        }
+
+        /** The column of this name; null when none. */
+        @com.legend.base.Nullable Col column(String name) {
             for (Col c : rows.columns()) {
                 if (c.name().equals(name)) {
-                    return true;
+                    return c;
                 }
             }
-            return false;
+            return null;
         }
 
         RowScope(Rows rows) {
@@ -1498,6 +1712,17 @@ public final class CypherToPure {
                 if (c.name().equals(v.name())) {
                     if (c.carried() != null) {
                         return c.carried();
+                    }
+                    if (c.detail() instanceof NodeShape shape) {
+                        // a carried node as a value: its JSON from its columns
+                        List<Map.Entry<String, Tx>> props = new ArrayList<>();
+                        for (Map.Entry<String, NodeProp> p : shape.props().entrySet()) {
+                            NodeProp np = p.getValue();
+                            props.add(Map.entry(p.getKey(), columnLike(new AppliedProperty(new Variable(row()),
+                                    np.column()), np.kind(), np.nullable())));
+                        }
+                        return scalar(nodeJson(new AppliedProperty(new Variable(row()), shape.labels()), props,
+                                v.pos()));
                     }
                     if (c.kind() == Kind.NULL) {
                         // a null the query named: null wherever it is read
@@ -1528,6 +1753,16 @@ public final class CypherToPure {
             }
             if (found.carried() != null) {
                 return member(found.carried(), p.name(), p.pos());
+            }
+            if (found.detail() instanceof NodeShape shape) {
+                // a carried node's property: its column (C4: a property no class declares is an error, not null)
+                NodeProp np = shape.props().get(p.name());
+                if (np == null) {
+                    throw CypherErrors.invalid("the node " + v.name() + " has no property " + p.name() + " (the"
+                            + " graph is the model: a property no class declares is an error, not null)", p.pos());
+                }
+                return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
+                        np.nullable()));
             }
             if (found.kind() == Kind.JSON) {
                 throw CypherErrors.unsupported("a property of a projected value (a node or map carried through WITH)"
@@ -3417,6 +3652,29 @@ public final class CypherToPure {
      *  epoch, which DuckDB keeps and a microsecond engine refuses by name). */
     private record Carried(@com.legend.base.Nullable Zone zone, boolean nanos)
             implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** A node carried through a projection as columns (the study's §12.14): its labels' JSON text in one column
+     *  and each property of its class (of every class a label-less node may be, null where a class lacks it) in its
+     *  own, so the clauses after read {@code n.prop} as a typed column; the node is a Variant ({@link #nodeJson})
+     *  only when returned or used as a value. The node's own column is virtual: none of the relation bears its
+     *  name. */
+    private record NodeShape(String labels, Map<String, NodeProp> props)
+            implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** One property of a carried node: its column, its kind, whether it may be null. */
+    private record NodeProp(String column, Kind kind, boolean nullable) {
+    }
+
+    /** The mark of a node's JSON value ({@link #nodeJson}): what DISTINCT, ORDER BY and a grouping refuse by name
+     *  (Neo4j tells nodes apart by identity, which the JSON does not carry). */
+    private record NodeValue() implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** Whether a value is a node's JSON, or a column holding one. */
+    private static boolean isNode(@com.legend.base.Nullable Tx t) {
+        return t != null && t.detail() instanceof NodeValue;
     }
 
     private static @com.legend.base.Nullable Zone zoneOf(Tx t) {

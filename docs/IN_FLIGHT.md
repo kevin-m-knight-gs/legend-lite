@@ -1680,6 +1680,10 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (`protocol/cypher/CypherToPure.java`: the `Arms` state, `Model.classes()`), the seam
   (`compiler/spec/CypherIslands.java`: the model's classes) and `lite/labelless.yaml`: no file of the database
   owner's, no guard pin moved. The record: the study's §12.13; GATES "the eleventh landing".
+- **The nodes-as-values leg, 2026-10-16, announced here as landed** — the translator (a node's JSON built by the
+  database; a node through WITH as its columns), the seam's model (`properties`, `labelOf`), the judge
+  (`testcases/CypherValues`: an object with `@labels` is a node; `CypherGraph.ownLabels`) and `lite/nodes.yaml`:
+  no file of the database owner's, no guard pin moved. The record: the study's §12.14; GATES "the twelfth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`
