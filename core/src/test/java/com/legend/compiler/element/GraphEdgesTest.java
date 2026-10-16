@@ -66,6 +66,132 @@ class GraphEdgesTest {
     }
 
     @Test
+    void theIslandsViewAgreesWithPhaseFOnAToManyPrimitiveProperty() {
+        // (the review's first finding: the context's class lookup reaches the native catalog, where String is a
+        // class; the island's view must read the model's classes as phase F does)
+        ModelContext ctx = Compiler.compileModel(PROFILE + NODES + """
+                Class <<graph::graph.Edge>> demo::Acting
+                {
+                  <<graph::graph.from>> actor: demo::Actor[1];
+                  <<graph::graph.to>> movie: demo::Movie[1];
+                  roles: String[*];
+                  kinds: demo::RelationshipType[*];
+                }
+                """);
+        assertEquals(1, GraphEdges.of(ctx).edges().size());
+    }
+
+    @Test
+    void anEndTypedByAPrimitiveOrAnEnumerationIsRefused() {
+        String primitive = refused(PROFILE + NODES + """
+                Class <<graph::graph.Edge>> demo::E { <<graph::graph.from>> actor: String[1]; <<graph::graph.to>> movie: demo::Movie[1]; }
+                """);
+        assertTrue(primitive.contains("actor, which is not typed by a class of the model"), primitive);
+        String enumeration = refused(PROFILE + NODES + """
+                Class <<graph::graph.Edge>> demo::E { <<graph::graph.from>> actor: demo::Actor[1]; <<graph::graph.to>> movie: demo::RelationshipType[1]; }
+                """);
+        assertTrue(enumeration.contains("movie, which is not typed by a class of the model"), enumeration);
+        String edge = refused(PROFILE + NODES + """
+                Class <<graph::graph.Edge>> demo::E { <<graph::graph.from>> actor: demo::Actor[1]; <<graph::graph.to>> movie: demo::Movie[1]; }
+                Class <<graph::graph.Edge>> demo::F { <<graph::graph.from>> e: demo::E[1]; <<graph::graph.to>> movie: demo::Movie[1]; }
+                """);
+        assertTrue(edge.contains("e, which holds the edge class demo::E"), edge);
+    }
+
+    @Test
+    void anInheritedAssociationEndHasNoInverseForTheSubclass() {
+        ModelContext ctx = Compiler.compileModel(PROFILE + NODES + """
+                Class <<graph::graph.Edge>> demo::L { role: String[1]; }
+                Class demo::Sub extends demo::L { credit: String[0..1]; }
+                Association demo::ActorL { <<graph::graph.from>> actor: demo::Actor[1]; links: demo::L[*]; }
+                Association demo::LMovie { <<graph::graph.to>> movie: demo::Movie[1]; linked: demo::L[*]; }
+                """);
+        GraphEdges edges = GraphEdges.of(ctx);
+        GraphEdges.Edge l = java.util.Objects.requireNonNull(edges.edgeAt("demo::L"));
+        GraphEdges.Edge sub = java.util.Objects.requireNonNull(edges.edgeAt("demo::Sub"));
+        assertEquals("links", l.from().inverse());
+        // (the inverse `links` reaches every L, not only the Subs: none of Sub's)
+        assertNull(sub.from().inverse());
+        assertNull(sub.to().inverse());
+        assertEquals("actor", sub.from().property());
+    }
+
+    @Test
+    void anEndWithoutTheMarkerIsRefusedWhateverTheClassOrder() {
+        // (the review's fourth finding: the association scan must not depend on a marked class sorting first)
+        for (String other : List.of("demo::AAA", "demo::ZZZ")) {
+            String message = refused(PROFILE + NODES + """
+                    Class demo::Acting { role: String[1]; }
+                    Association demo::ActorActing { <<graph::graph.from>> actor: demo::Actor[1]; actings: demo::Acting[*]; }
+                    Association demo::ActingMovie { <<graph::graph.to>> movie: demo::Movie[1]; cast: demo::Acting[*]; }
+                    """ + "Class <<graph::graph.Edge>> " + other + " { <<graph::graph.from>> a: demo::Actor[1];"
+                    + " <<graph::graph.to>> m: demo::Movie[1]; }\n");
+            assertTrue(message.contains("demo::Acting carries <<graph::graph.from>> on actor"), message);
+        }
+    }
+
+    @Test
+    void aThirdLinkOnAnEdgeIsRefused() {
+        String message = refused(PROFILE + NODES + """
+                Class <<graph::graph.Edge>> demo::Acting
+                {
+                  <<graph::graph.from>> actor: demo::Actor[1];
+                  <<graph::graph.to>> movie: demo::Movie[1];
+                }
+                Association demo::Third { producer: demo::Actor[1]; produced: demo::Acting[*]; }
+                """);
+        assertTrue(message.contains("demo::Acting is linked by demo::Third's end producer, carrying neither"), message);
+    }
+
+    @Test
+    void aTypeMarkerWithoutTheEdgeMarkerIsRefused() {
+        String message = refused(PROFILE + NODES + """
+                Class demo::Plain { <<graph::graph.type>> type() { demo::RelationshipType.ACTED_IN }: demo::RelationshipType[1]; }
+                """);
+        assertTrue(message.contains("demo::Plain carries <<graph::graph.type>> on type but not"), message);
+    }
+
+    @Test
+    void twoInheritedTypesThatDisagreeAreRefused() {
+        String message = refused(PROFILE + NODES + """
+                Class <<graph::graph.Edge>> demo::L
+                {
+                  <<graph::graph.from>> a: demo::Actor[1];
+                  <<graph::graph.to>> m: demo::Movie[1];
+                  <<graph::graph.type>> type() { demo::RelationshipType.ACTED_IN }: demo::RelationshipType[1];
+                }
+                Class demo::R { <<graph::graph.type>> kind() { demo::RelationshipType.DIRECTED }: demo::RelationshipType[1]; }
+                Class demo::Both extends demo::L, demo::R {}
+                """);
+        assertTrue(message.contains("inherits two relationship types") || message.contains("demo::R carries"),
+                message);
+    }
+
+    @Test
+    void aDerivedEndIsRefusedByName() {
+        String message = refused(PROFILE + NODES + """
+                Class <<graph::graph.Edge>> demo::Acting
+                {
+                  <<graph::graph.from>> from() { $this.actor }: demo::Actor[1];
+                  <<graph::graph.to>> movie: demo::Movie[1];
+                  actor: demo::Actor[1];
+                }
+                """);
+        assertTrue(message.contains("a derived end"), message);
+    }
+
+    @Test
+    void anInheritedFaultNamesTheDeclaringClass() {
+        String message = refused(PROFILE + NODES + """
+                Class demo::Z { <<graph::graph.from>> x: demo::Actor[1]; }
+                Class <<graph::graph.Edge>> demo::A extends demo::Z { <<graph::graph.to>> m: demo::Movie[1]; x: demo::Actor[0..1]; }
+                """);
+        // (A redeclares x without the marker, so A has no from end: A's fault; Z's own end without the marker is
+        // Z's fault, reported first under Z's name)
+        assertTrue(message.contains("demo::Z carries <<graph::graph.from>> on x but not"), message);
+    }
+
+    @Test
     void aSubclassInheritsTheMarkerTheEndsAndTheType() {
         ModelContext ctx = Compiler.compileModel(PROFILE + NODES + """
                 Class <<graph::graph.Edge>> demo::Link

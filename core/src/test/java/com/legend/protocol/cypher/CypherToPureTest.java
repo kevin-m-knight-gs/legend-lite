@@ -959,7 +959,7 @@ class CypherToPureTest {
         assertTrue(label.getMessage().contains("names the edge class demo::Acting"), label.getMessage());
         SqlTranslationException compact = edgeRefusal("MATCH (p:Person)-[r:Directing]->(f:Firm) RETURN r");
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, compact.kind(), compact.getMessage());
-        assertTrue(compact.getMessage().contains("holds its from end director as its own property"),
+        assertTrue(compact.getMessage().contains("holds its from end director with no inverse end on demo::Person"),
                 compact.getMessage());
         SqlTranslationException past = edgeRefusal("MATCH (p:Person)-[:ACTED_IN]->(f:Firm)-[:hq]->(c:City) RETURN c");
         assertTrue(past.getMessage().contains("a hop from f, a node reached through an edge class"), past.getMessage());

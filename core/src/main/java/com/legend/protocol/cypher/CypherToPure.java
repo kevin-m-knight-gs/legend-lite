@@ -2091,9 +2091,10 @@ public final class CypherToPure {
             }
             if (near.inverse() == null) {
                 throw CypherErrors.unsupported("the edge class " + e.classPath() + " holds its " + (out ? "from" : "to")
-                        + " end " + near.property() + " as its own property, with no inverse end on " + near.classPath()
-                        + ": a pattern over it from the " + from + " side is not supported yet (the association form"
-                        + " gives the node its navigation)", rel.pos());
+                        + " end " + near.property() + " with no inverse end on " + near.classPath() + " reaching it"
+                        + " (the end is its own property, or declared for a superclass): a pattern over it from the "
+                        + from + " side is not supported yet (an association declared for the edge class gives the"
+                        + " node its navigation)", rel.pos());
             }
             ways.add(new Hop(near.inverse(), far.classPath(), false, near.inverseMany(), out, e.classPath(),
                     far.property()));

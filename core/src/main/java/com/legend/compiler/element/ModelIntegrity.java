@@ -75,9 +75,12 @@ final class ModelIntegrity {
             classifier.classify(a.property2().targetClass(), List.of());
         }, wallSink));
         // the property-graph profile's rule over the edge classes (docs/CYPHER_STUDY_2026_10_15.md §5.6): a
-        // misdeclared edge is this class's error, under its name
-        withElement(com.legend.compiler.element.type.PlatformTypes.GRAPH_PROFILE,
-                () -> GraphEdges.read(GraphEdges.sourceOf(model)), wallSink);
+        // misdeclared edge is its class's error, one wall per class (the error names the class declaring the
+        // fault, which an inherited one may be: its own wall then)
+        GraphEdges.Source graphSource = GraphEdges.sourceOf(model);
+        GraphEdges.Index graphIndex = GraphEdges.Index.of(graphSource);
+        model.classes().filter(fresh).filter(cd -> !cd.isNative()).forEach(cd -> withElement(cd.qualifiedName(),
+                () -> GraphEdges.readOne(graphSource, graphIndex, cd), wallSink));
         model.enums().filter(fresh).forEach(ed -> withElement(ed.qualifiedName(),
                 () -> checkEnum(ed), wallSink));
         model.databases().filter(fresh).forEach(db -> withElement(db.qualifiedName(),
