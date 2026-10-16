@@ -872,8 +872,10 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   again; the column editor's and the filter editor's cores shared with headless (`datacube/src/ui/column-editor.ts`,
   `ui/filter-editor.ts`, `filter-operators.ts`, a new DOM-free module); one default aggregate for a measure
   (`datacube/src/query.ts`, its three copies); the cap rule in DataCube (`datacube/src/app/datacube-app.ts`,
-  `page-document.ts`); Python's planner kinds and snap limit generated from DataCube's sources (a generator, its diff
-  test, `python/BUILD.bazel`); shared corpora for the protocol JSON writer and the name rule. More files: their tests,
+  `page-document.ts`); the page-on-Python tunnel (`planner.json`) retired for legend-engine's own routes and the host's
+  compute (`/plan.json`; `engine-client/src/legend/planner-protocol.ts` back to main's), the snap limit Python's own;
+  one name rule (`page-document.ts givenName`, `layout/band-board.ts`, `page/page-app.ts`, `page/cube-page.ts`). (The
+  generator and the two corpora first planned here were dropped with the user, 2026-10-15.) More files: their tests,
   `docs/PARKED_WORK_LEDGER.md`, `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`, `test_upstream.py` and its lane (the BUILD
   edits to the Compiler Rewrite line). Still not touched: `engine.py`'s snap, frames and project-data paths,
   `_headless._query` (but the `arrow_text` fold back), `warehouse.py`, the planner kinds that answer SQL -- the SQL

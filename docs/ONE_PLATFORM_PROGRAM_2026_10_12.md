@@ -281,6 +281,11 @@ Python libraries are twins, the same in every column.
   - the SDLC is one with lite's text routes (the page's, the model home, sdlc-server). **A real legend-sdlc is owed:**
     it answers neither `…/pure` nor `…/pureChanges`, its project ids are its own, and it may answer a stale save 500;
     reading `…/revisions/{r}/entities` and saving with `entityChanges` waits on the Studio line's leg 8 (the JSON hop);
+    **decided 2026-10-15 (the user):** the two orchestrations, model-changes (TypeScript) and model.py (Python), become
+    one Java operation in the SDLC module, "edit a project" -- approved on the condition that it works with a real
+    legend-sdlc too (its entities read and `entityChanges` saved, a project found by its coordinates, a stale save
+    answered as legend-sdlc answers it), with lite's text routes kept on lite's own SDLC; the Studio / SDLC line's PR,
+    after neema2/legend-lite#47, done when the same cases pass on lite's SDLC and a real legend-sdlc's file backend;
   - a workspace whose making is refused is read again (lite answers 500 "Branch already exists" once it has commits),
     the refusal said only when it is still not there; a save that changes nothing (the SDLC's 204) keeps the revision
     read, sdlc-client's `performPureChanges` and `performChanges` answering `Revision | undefined`;

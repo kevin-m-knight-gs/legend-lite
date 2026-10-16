@@ -66,16 +66,23 @@ the DataCube + Python line before CI (the BUILD edits by the Compiler Rewrite li
 
 What is left, and why:
 
-- **Item 1's name rules** (a blank page name or tile title): wait on the user's answer -- Python to raise, or to keep
-  the old name as the screen does.
+- **Item 1's name rules -- done** (2026-10-15, the user: "blank, one rule please"): `page-document.ts givenName`, a page's
+  name and a tile's title not blank, a sheet's blank none of its own; the screen's renames, the reader and Python
+  (headless `nameGiven`) ask it.
 - **Item 8's rest** (`engine.py _warehouse_snap`'s preflight and receipt): left to the DataCube + Python line's plan for
   SQL handling, which replaces both snap recipes, the tab's and Python's, with one plan both hosts run.
 - **Item 9 is gone, not done** (2026-10-15): `upstream.py`, the copy it named, was removed with the remote planner (the
   user: a host plans in process, `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md` §1.1), and with it the `BIT`-as-`TinyInt`
   label it left in Python's rows and the server-plane difference items 5 and 6 had (PARK-30, closed by the removal).
-- **Smaller, none checked mechanically:** `model.py` ↔ `model-changes/src` (five replayed cases), `warehouse.py` ↔
-  `warehouse.ts` (the SQL API corpus), `_json.protocol` ↔ pure-protocol `toJson` (key order, float spelling),
-  `frames._NAME` ↔ `model-names.ts isPureName`, `_next` ids ↔ `cube-page.ts`.
+- **The smaller ones, each looked at again (2026-10-15):**
+  - `model.py` ↔ `model-changes/src`, the model-writing orchestration (held by five recorded cases, replayed by both):
+    to become one Java operation in the SDLC module, "edit a project", that works with a real legend-sdlc too (the
+    user approved it on that condition; the Studio / SDLC line's own PR, recorded in the program doc's B4). Its one
+    Python helper, `_json.protocol` (a request's JSON written byte for byte as `toJson` writes it), goes with it.
+  - `warehouse.py` ↔ `warehouse.ts`: held by the SQL API corpus; the DataCube + Python line's plan for SQL handling.
+  - `frames._NAME` is Pure's own identifier rule, which Python needs as the writer of its frames' model: no copy of
+    DataCube's. Its one inconsistency is fixed (a file's table name read lowercased, so `True` was refused).
+  - `_next` ids (page.py) are no copy of `cube-page.ts`'s: Python never reuses an id a handle once had.
 
 ## A finding for DataCube (its line designs the fix)
 
