@@ -44,26 +44,6 @@ from . import _json
 from ._types import is_boolean, is_decimal, is_float, is_integer
 from .frames import LIVE, SNAPPED
 
-# DataCube's own vocabularies, as its sources spell them (datacube/src/snapshot.ts, chart-spec.ts): a name outside
-# them is refused here, at the line that names it. datacube/test/python-vocabulary.test.ts reads each against
-# DataCube's source.
-MARKS = frozenset({'bar', 'line', 'area', 'scatter', 'pie', 'heatmap', 'treemap', 'kpi',
-                   # batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3)
-                   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'radar',
-                   'parallel', 'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix'})
-# the chart spec's version 2 slots (chart-spec.ts, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.1): a measure's own mark
-# and axis, what it is shown as, a date's grain, a layer's kind and statistic
-CHART_VERSION = 2
-MEASURE_MARKS = frozenset({'bar', 'line', 'area'})
-AXES = frozenset({'left', 'right'})
-SHOW_AS = frozenset({'runningTotal', 'percentOfTotal', 'difference', 'percentChange', 'movingAverage', 'rank'})
-GRAINS = frozenset({'day', 'week', 'month', 'quarter', 'year'})
-LAYERS = frozenset({'line', 'stat', 'band', 'threshold', 'extremes'})
-STATS = frozenset({'average', 'min', 'max'})
-
-PAGE_KIND = 'datacube.page'
-# 4: the page's model, where its classes are (DataCube's Create a Class…); a page of Python's has none yet
-PAGE_VERSION = 4
 _KEEP: Any = object()
 
 
@@ -453,7 +433,7 @@ class Grid(Tile):
               bins: Mapping[str, float] | None = None, tooltip: Sequence[Any] | None = None,
               layers: Sequence[Mapping[str, Any]] | None = None, label: Any = None, size: Any = None,
               facet: Mapping[str, str] | None = None) -> Chart:
-        """A chart of this grid, beside it: ``mark`` (one of MARKS), its category ``x``, what it plots ``y`` --
+        """A chart of this grid, beside it: ``mark`` (a mark DataCube draws), its category ``x``, what it plots ``y`` --
         ``[(column, aggregate), ...]``, the measure DataCube's own new chart would plot unless given -- and a ``split``
         (one series per value), each DataCube's own new chart's unless given (None: none); ``frozen`` keeps its own
         grouping rather than following the grid's (and stays when the grid is removed, as in DataCube) -- unless told, a
@@ -461,18 +441,19 @@ class Grid(Tile):
         and one told none of them follows the grid (told them and ``frozen=False``, one the grid would replace is
         refused); ``options``: the chart's Options, in its spec's own keys (one left out is its default).
 
-        The spec's version 2 slots, each in its own keys: a measure of ``y`` may be a dict -- ``column``, ``fn`` (an
-        aggregate, or ``'value'``: a group-level column of the grid, plotted as it is), its own ``mark`` (MEASURE_MARKS),
-        ``axis`` (AXES) and ``showAs`` (``{'kind': one of SHOW_AS}``); ``grain`` takes a date across to its period
-        (GRAINS); ``bins`` a number across to its bins (``{'width': w}`` or ``{'count': n}``); ``label`` a measure
-        written on each mark instead of its own value; ``tooltip`` further measures a hover lists; ``layers`` reference
-        lines, bands, thresholds and pinned extremes (each a dict, its ``kind`` one of LAYERS); ``size`` a scatter's
-        third column, each point sized by it (a bubble); ``facet`` small multiples of bars, lines or areas, a chart per
-        value of ``{'column': ...}`` and/or ``{'row': ...}``.
+        The spec's slots, each in its own keys: a measure of ``y`` may be a dict -- ``column``, ``fn`` (an aggregate, or
+        ``'value'``: a group-level column of the grid, plotted as it is), its own ``mark``, ``axis`` and ``showAs``
+        (``{'kind': ...}``); ``grain`` takes a date across to its period; ``bins`` a number across to its bins
+        (``{'width': w}`` or ``{'count': n}``); ``label`` a measure written on each mark instead of its own value;
+        ``tooltip`` further measures a hover lists; ``layers`` reference lines, bands, thresholds and pinned extremes
+        (each a dict, its ``kind`` saying which); ``size`` a scatter's third column, each point sized by it (a bubble);
+        ``facet`` small multiples of bars, lines or areas, a chart per value of ``{'column': ...}`` and/or
+        ``{'row': ...}``. Every word is DataCube's (datacube/src/chart-spec.ts): one it does not know -- a mark, an
+        axis, a show-as, a grain, a layer's kind or statistic -- is refused by its reader, naming the words it takes.
 
         DataCube makes the chart -- its own new chart, changed as its options form changes one (a date across runs in time
-        order) -- and judges it as it will draw it, by its own rules run in V8 (the datacube extra): what it would refuse
-        to draw is refused here, in its words, and nothing is kept."""
+        order) -- and judges it as it will draw it, by its own rules run in V8 (the datacube extra; the bundle's
+        gridChart): what it would refuse to draw is refused here, in its words, and nothing is kept."""
         given = {**_given(mark, x, y, split, frozen), **({'options': _carried(options)} if options is not None else {}),
                  **_slots(grain, bins, tooltip, layers, label, size, facet)}
         # made as DataCube makes a new chart (what is not given is its own default), and judged as it will draw it: what
@@ -502,10 +483,11 @@ class Grid(Tile):
 
 
 def _given(mark: str, x: Any, y: Sequence[Any] | None, split: Any, frozen: bool | None) -> dict[str, Any]:
-    """What a chart was told, in its spec's own keys (chart-spec.ts, version 2): DataCube makes the chart of it and judges
-    it (_made), so nothing here is a rule of the chart's -- only Python's arguments turned into the spec's keys (an x or
-    a split told None is null: none; frozen told False is null: the chart taken live)."""
-    return {'version': CHART_VERSION, 'mark': mark, **({'x': x} if x is not _KEEP else {}),
+    """What a chart was told, in its spec's own keys (chart-spec.ts): DataCube makes the chart of it and judges it
+    (_made), so nothing here is a rule of the chart's -- only Python's arguments turned into the spec's keys (an x or a
+    split told None is null: none; frozen told False is null: the chart taken live). Its version is DataCube's: the
+    chart it starts from (its own new chart, or the one edited) carries it."""
+    return {'mark': mark, **({'x': x} if x is not _KEEP else {}),
             **({'y': _measures(y)} if y is not None else {}),
             **({'split': split} if split is not _KEEP else {}),
             **({'frozen': True if frozen else None} if frozen is not None else {})}
@@ -784,14 +766,18 @@ class Page:
         if name is None:
             raise ValueError('a page has a name')
         self._session = _current()
-        name = _given_name(self._session, 'page', name, "a page's name")
-        # the page: its one copy
-        self._doc: dict[str, Any] = {'kind': PAGE_KIND, 'version': PAGE_VERSION, 'name': name, 'cubes': [], 'views': [],
-                                     'sheets': [{'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}}]}
+        if not isinstance(name, str):
+            raise ValueError(f"a page's name is a name, not {name!r}")
+        # the page: its one copy, started as DataCube starts a page (headless pageNew: its name by DataCube's rule, no
+        # grid yet, its one sheet an empty board)
+        said = json.loads(self._session.headless().call('pageNew', name))
+        if 'problems' in said:
+            raise ValueError("a page's name: " + '; '.join(said['problems']))
+        self._doc: dict[str, Any] = _plain(_json.loads(said['page']))
         # each handle given, by its kind and id: the same object each time it is asked for
         self._handles: dict[tuple[type[Any], str], Any] = {}
         # every id the page has held: none is given out again, so no handle meets a new tile under its old one's id
-        self._ids: set[str] = {'sheet-1'}
+        self._ids: set[str] = _ids(self._doc)
         # where it is shown (datacube.show_page): told each time it changes
         self._shown: list[Any] = []
         self._quiet = 0

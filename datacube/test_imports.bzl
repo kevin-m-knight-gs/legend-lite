@@ -2230,7 +2230,6 @@ TEST_IMPORTS = {
         "src/ui/window.ts",
         "src/upload.ts",
     ],
-    "python-vocabulary": [],
     "query": [
         "src/calc.ts",
         "src/cube.ts",

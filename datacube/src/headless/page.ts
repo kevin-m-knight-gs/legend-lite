@@ -4,7 +4,9 @@
 // (readPage), written as DataCube writes it (pageToJson) -- so Python checks and writes no page by rules of its own.
 
 import { CubeDocumentError } from '../cube-document.ts';
-import { PageDocumentError, PageNoCubeError, pageToJson, readPage } from '../page-document.ts';
+import {
+  PageDocumentError, PageNoCubeError, pageToJson, readPage, startingViews, writePageOf,
+} from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
 
 /**
@@ -19,6 +21,19 @@ export function pageRead(text: string): string {
     // a page with no cube said as one (PageNoCubeError), so Python adds what makes one rather than guessing it
     return JSON.stringify({ problems: [e.message], ...(e instanceof PageNoCubeError ? { noCube: true } : {}) });
   }
+}
+
+/**
+ * A NEW PAGE, as DataCube starts one (page-document.ts startingViews, written by writePageOf): named `name` by DataCube's
+ * one rule (givenName), no cube yet, its one sheet an empty board -- so Python writes no page skeleton of its own. JSON:
+ * `{page}`, its text as DataCube writes it, or `{problems}`, why the name was refused, in DataCube's words. A page with
+ * no cube is not one DataCube opens (readPage's PageNoCubeError): Python's first grid makes it one.
+ */
+export function pageNew(name: string): string {
+  const given = givenName('page', name);
+  if ('refused' in given) return JSON.stringify({ problems: [given.refused] });
+  if (given.name === undefined) throw new Error("a page's name is never left to what it shows");
+  return JSON.stringify({ page: pageToJson(writePageOf({ name: given.name, cubes: [], views: startingViews() })) });
 }
 
 const PARTS: readonly NamedPart[] = ['page', 'tile', 'sheet'];

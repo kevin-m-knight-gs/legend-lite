@@ -4,9 +4,11 @@
 decides -- what it draws, how it reads and writes a page, its defaults, its names -- is written once, in DataCube's
 code, and Python asks it: through the headless bundle (`datacube/src/headless/entry.ts`, run in V8 by
 `python/legend_lite/_headless.py`), or from a generated artifact. Python turns its own arguments into DataCube's keys
-and nothing more. A pure vocabulary list Python repeats is allowed only where `datacube/test/python-vocabulary.test.ts`
-holds it equal to DataCube's; logic is never repeated, and a table of shared cases is a test of the asking, never the
-glue between two copies.
+and nothing more. Logic is never repeated, and a table of shared cases is a test of the asking, never the glue
+between two copies. Nor is a vocabulary list: the last ones Python repeated (its chart words, the chart's and the
+page's versions and kind, held equal by `datacube/test/python-vocabulary.test.ts`) went on 2026-10-16 with the test --
+DataCube's reader refuses a word it does not know, naming the words it takes, and a new page is DataCube's own
+(headless `pageNew`).
 
 **What makes it possible: one package, two things** (the user, same day). `pip install legend-lite` is the compiler,
 on Python's standard library alone. `pip install 'legend-lite[datacube]'` is DataCube with everything it needs --

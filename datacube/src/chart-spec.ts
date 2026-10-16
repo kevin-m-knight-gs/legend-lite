@@ -257,7 +257,8 @@ export interface ChartOptions {
 }
 
 // The words a saved spec may use, each list exhaustive by construction (a Record over its union): a page's reader
-// refuses a word it does not know, and Python's ll.Page writes these words and no others (python-vocabulary.test.ts).
+// refuses a word it does not know -- Python's ll.Page too, which keeps no list of them and asks this reader
+// (headless gridChart).
 const AGGREGATE_WORDS: Readonly<Record<string, true>> = Object.fromEntries([...AGGREGATE_FNS, 'value'].map((a) => [a, true]));
 const MEASURE_MARK_WORDS: Readonly<Record<MeasureMark, true>> = { bar: true, line: true, area: true };
 const AXIS_WORDS: Readonly<Record<MeasureAxis, true>> = { left: true, right: true };

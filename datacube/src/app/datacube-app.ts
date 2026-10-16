@@ -24,8 +24,8 @@ import {
   pageDefinitionText,
   pageToJson,
   readSaved,
-  oneSheet,
-  PAGE_VERSION,
+  startingViews,
+  writePageOf,
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
@@ -648,13 +648,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const handleKeys = (pageId: string | undefined, grid: string): string[] => (pageId === undefined ? [] : [`${pageId}#${grid}`, pageId]);
 
     /** A cube saved alone, before pages: a page of its one grid, the whole board. */
-    const pageOf = (cube: CubeDocument): PageDocument => ({
-      kind: 'datacube.page',
-      version: PAGE_VERSION,
-      name: cube.name,
-      cubes: [{ id: 'cube', cube }],
-      views: [{ id: 'grid', kind: 'grid', cube: 'cube' }],
-      sheets: oneSheet({ kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] }),
+    const pageOf = (cube: CubeDocument): PageDocument => writePageOf({
+      name: cube.name, cubes: [{ id: 'cube', cube }], views: startingViews({ id: 'grid', cube: 'cube' }),
     });
 
     /**

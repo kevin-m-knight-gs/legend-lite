@@ -4,7 +4,6 @@
 # pyarrow, pinned in //tools/python.
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")
-load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_python//python:packaging.bzl", "py_package", "py_wheel")
@@ -92,17 +91,6 @@ py_library(
         "@pypi//mini_racer",
         "@pypi//pyarrow",
     ],
-)
-
-# DataCube's vocabularies as Python copies them -- page.py's (its aggregates, sort directions, charts, the page's
-# version) -- read by DataCube's own test against DataCube's sources (//datacube:python_vocabulary_test)
-# (rules_js takes another package's source file only from the output tree, copied in its own package)
-copy_to_bin(
-    name = "vocabulary_sources",
-    srcs = [
-        "legend_lite/page.py",
-    ],
-    visibility = ["//datacube:__pkg__"],
 )
 
 _PLATFORMS = compatible_with(COMPILER_LIBRARY_PLATFORMS)

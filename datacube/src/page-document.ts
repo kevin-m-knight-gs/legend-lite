@@ -87,6 +87,19 @@ export interface PageViews {
 /** A page of one sheet, laid out as `layout`. */
 export const oneSheet = (layout: PageLayout): readonly PageSheet[] => [{ id: FIRST_SHEET, layout }];
 
+/**
+ * THE VIEWS A PAGE STARTS WITH, on its one sheet, the whole board: a grid's (`grid`: its view's id and its cube's), or
+ * none -- the empty board a grid is added to. The one writer of a starting page: a cube app's page of its grid alone
+ * (app.ts pageViews), a cube saved before pages opened as a page (app/datacube-app.ts), and Python's new page (headless
+ * page.ts pageNew).
+ */
+export function startingViews(grid?: { readonly id: string; readonly cube: string }): PageViews {
+  return {
+    views: grid ? [{ id: grid.id, kind: 'grid', cube: grid.cube }] : [],
+    sheets: oneSheet({ kind: 'bands', fit: true, bands: grid ? [{ height: 1, node: { tile: grid.id } }] : [] }),
+  };
+}
+
 export interface PageDocument extends PageViews {
   readonly kind: typeof PAGE_KIND;
   readonly version: number;

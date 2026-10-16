@@ -72,7 +72,7 @@ import {
 } from './export-render.ts';
 import { cubeScopeOf, newCubeScope } from './ui/scope.ts';
 import type { CubePage, ChartSource, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
-import { PAGE_CUBE, oneSheet, pageToJson, writePage, type ChartView, type PageDocument, type PageViews } from './page-document.ts';
+import { PAGE_CUBE, pageToJson, startingViews, writePage, type ChartView, type PageDocument, type PageViews } from './page-document.ts';
 import { FormatterCache, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
@@ -2647,12 +2647,7 @@ export class CubeApp {
    */
   pageViews(): PageViews {
     const page = this.#page?.page;
-    if (!page || page.charts === 0) {
-      return {
-        views: [{ id: 'grid', kind: 'grid', cube: PAGE_CUBE }],
-        sheets: oneSheet({ kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] }),
-      };
-    }
+    if (!page || page.charts === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
     return page.views();
   }
 

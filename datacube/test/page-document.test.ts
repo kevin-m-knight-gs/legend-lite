@@ -18,6 +18,7 @@ import {
   pageToJson,
   readPage,
   readSaved,
+  startingViews,
   writePage,
   type PageLayout,
   type PageViews,
@@ -328,6 +329,16 @@ describe('a saved page', () => {
     // a version 1 page's grid that is wrong is still refused by name
     assert.throws(() => readPage(JSON.stringify({ ...v1, layout: { ...v1.layout, tiles: [{ id: 'grid', x: -1, y: 0, w: 1, h: 1 }] } })),
       /not an id and a place/);
+  });
+});
+
+describe('a page as it starts (startingViews: the cube app, a cube saved before pages, Python\'s new page)', () => {
+  it('is its grid on the whole board, or an empty board a grid is added to', () => {
+    assert.deepEqual(startingViews({ id: 'grid', cube: 'cube' }), {
+      views: [{ id: 'grid', kind: 'grid', cube: 'cube' }],
+      sheets: [{ id: FIRST_SHEET, layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] } }],
+    });
+    assert.deepEqual(startingViews(), { views: [], sheets: [{ id: FIRST_SHEET, layout: { kind: 'bands', fit: true, bands: [] } }] });
   });
 });
 
