@@ -4049,87 +4049,108 @@ final class IqFunctions {
                 c.pos());
     }
 
-    /** A four-digit year, then the month and the day of one or two digits, each after - / or . (IqDateTime#read's
-     *  spellings, the same in every profile): groups 1 to 3. */
-    private static final String YMD = "([0-9]{4})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})";
-
     /**
      * IQ island, 2026-10-15 (measured on IQ 17.1; the census's Tier 0 string-to-date conversion -- BI data keeps dates
      * as text): a string that is not a constant read as a date or a timestamp where the database computes it, in the
      * spellings {@link IqDateTime#read} reads first in every profile -- {@code yyyy-m-d} (- / or . at each place),
      * {@code yyyymmdd}, then after spaces or a {@code T} a time {@code h:n[:s[.f]]} (six places of the fraction, more
      * cut) -- with blanks around it. Its parts are read as integers and built into the date and time, so a month or a
-     * day that does not exist is the database's error, as it is IQ's -157. Any other spelling (a month's name, a
-     * two-digit year, a date in the profile's DATE_ORDER, a year and a month alone) is raised as an error where it is
-     * computed, though IQ reads some of them: never an answer IQ would not give.
+     * day that does not exist is the database's error, as it is IQ's -157. Any other spelling (a two-digit year, a date
+     * in the profile's DATE_ORDER, a year and a month alone) is raised as an error where it is computed, though IQ
+     * reads some of them: never an answer IQ would not give.
      * <p>
      * IQ island, 2026-10-16 (the corpus lane's sede-36359, measured on IQ 17.1): under IQ's engine a time alone,
      * {@code h:n[:s[.f]]} (an ISO {@code T} before it read too), is that time on 1900-01-01 -- as a DATE, 1900-01-01;
      * SQL Anywhere's front end reads it on the current date, so there it stays raised. A time out of range (an hour past
      * 23, a minute or a second past 59) is IQ's error -1001006 for a DATE as for a TIMESTAMP: raised.
+     * <p>
+     * IQ island, 2026-10-16 (the corpus lane's sede-153489 and sede-485366, measured on IQ 17.1; the spellings
+     * {@link IqDateTime#read} reads of a constant): blanks around the date's separators ({@code STR(y) + '-' + STR(m)}
+     * pads each number); a month's English name, or a start of it of three letters or more, in any case -- {@code
+     * 07 Nov 2009}, {@code 7-November-2009}, {@code Nov 7, 2009}, {@code Nov 7 2009} (CONVERT's styles 100, 106 and 107
+     * written back) -- with a time after it; and a time's {@code AM} or {@code PM} (12 AM midnight, 12 PM noon, a PM
+     * hour past 12 kept). Another name ({@code Nox}) is raised, as IQ raises -1001006.
      */
     private Tx stringDate(Tx x, boolean toDate, IqType type) {
         Kind kind = toDate ? Kind.DATE : Kind.DATETIME;
-        String date = "^ *" + YMD + " *$";
-        String compact = "^ *([0-9]{4})([0-9]{2})([0-9]{2}) *$";
-        String clock = "([0-9]{1,2}):([0-9]{1,2})(:([0-9]{1,2})([.]([0-9]{0,6})[0-9]*)?)? *$";
-        String timed = "^ *" + YMD + "[ T]+" + clock;
-        String alone = "^ *T?" + clock;
-        boolean timeAlone = engine == IqDialect.Engine.IQ;
+        List<String[]> steps = canonicalSteps(engine == IqDialect.Engine.IQ);
         Tx r = SqlToPure.strict(kind, List.of(x), v -> {
-            ValueSpecification str = v.get(0);
-            java.util.function.BiFunction<String, Integer, ValueSpecification> part = (pattern, group) ->
-                    SqlToPure.call("parseInteger", SqlToPure.call("regexpReplace", str, new CString(pattern),
-                            new CString("\\" + group), new com.legend.protocol.spec.CBoolean(false)));
-            ValueSpecification dated = SqlToPure.call("date", part.apply(date, 1), part.apply(date, 2),
-                    part.apply(date, 3));
-            ValueSpecification squeezed = SqlToPure.call("date", part.apply(compact, 1), part.apply(compact, 2),
-                    part.apply(compact, 3));
-            ValueSpecification day = SqlToPure.call("date", part.apply(timed, 1), part.apply(timed, 2),
-                    part.apply(timed, 3));
-            ValueSpecification whole = toDate ? typed(dated, "StrictDate") : timestamp(dated, true);
-            ValueSpecification packed = toDate ? typed(squeezed, "StrictDate") : timestamp(squeezed, true);
-            ValueSpecification otherwise = raise(toDate ? "StrictDate" : "DateTime");
-            if (timeAlone) {
-                otherwise = ifThen(SqlToPure.call("matches", str, new CString(alone)), clockOn(str, alone, 0,
-                        SqlToPure.call("date", integer(1900), integer(1), integer(1)), toDate), otherwise);
+            // each step reads the last once: the string's Pure grows with the steps, not with their groups
+            ValueSpecification text = SqlToPure.call("toLower", v.get(0));
+            for (String[] step : steps) {
+                text = SqlToPure.call("regexpReplace", text, new CString(step[0]), new CString(step[1]),
+                        new com.legend.protocol.spec.CBoolean(false));
             }
-            return ifThen(SqlToPure.call("matches", str, new CString(date)), whole, ifThen(SqlToPure.call("matches",
-                    str, new CString(compact)), packed, ifThen(SqlToPure.call("matches", str, new CString(timed)),
-                    clockOn(str, timed, 3, day, toDate), otherwise)));
+            ValueSpecification at = SqlToPure.call("parseDate", text);
+            ValueSpecification value = toDate ? typed(SqlToPure.call("datePart", at), "StrictDate")
+                    : typed(at, "DateTime");
+            return ifThen(SqlToPure.call("matches", text, new CString(CANONICAL)), value,
+                    raise(toDate ? "StrictDate" : "DateTime"));
         });
         return Tx.value(r.vs(), kind, r.nullable(), type);
     }
 
+    /** A year of 1 to 9999, four digits. */
+    private static final String YEAR = "(?:[1-9][0-9]{3}|0[1-9][0-9]{2}|00[1-9][0-9]|000[1-9])";
+
+    /** The one spelling {@link #stringDate}'s steps leave of every date they read: {@code yyyy-mm-dd}, then a time
+     *  {@code hh:nn:ss} of hours below 24, minutes and seconds below 60, and up to six places of a fraction. */
+    private static final String CANONICAL = "^" + YEAR + "-[0-9]{2}-[0-9]{2}( ([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"
+            + "([.][0-9]{1,6})?)?$";
+
+    /** The English months' names, January first. */
+    private static final List<String> MONTH_NAMES = List.of("january", "february", "march", "april", "may", "june",
+            "july", "august", "september", "october", "november", "december");
+
     /**
-     * The time {@code str} spells by {@code pattern}'s groups after its first {@code before} (hour, minute, then the
-     * second and the fraction, each optional: a missing one is 0) on {@code day}: exact to the microsecond, no seconds
-     * as a double. A time out of range is raised (IQ's -157 or -1001006); as a DATE, the day itself.
+     * {@link #stringDate}'s steps, each a regular expression and its replacement (its first match only), over the
+     * string in lower case: what they leave of each spelling read is {@link #CANONICAL}, and of any other something
+     * else. {@code timeAlone}: a time alone is read on 1900-01-01 (IQ's engine).
      */
-    private static ValueSpecification clockOn(ValueSpecification str, String pattern, int before, ValueSpecification day,
-            boolean toDate) {
-        java.util.function.IntFunction<ValueSpecification> group = g -> SqlToPure.call("regexpReplace", str,
-                new CString(pattern), new CString("\\" + (before + g)), new com.legend.protocol.spec.CBoolean(false));
-        // a missing second or fraction is 0 (its group empty: a 0 written before it)
-        ValueSpecification seconds = SqlToPure.call("parseInteger", AppliedFunction.infixRun("plus",
-                List.of(new CString("0"), group.apply(4))));
-        ValueSpecification micros = SqlToPure.call("parseInteger", SqlToPure.call("rpad",
-                AppliedFunction.infixRun("plus", List.of(new CString("0"), group.apply(6))), integer(7),
-                new CString("0")));
-        ValueSpecification hour = SqlToPure.call("parseInteger", group.apply(1));
-        ValueSpecification minute = SqlToPure.call("parseInteger", group.apply(2));
-        ValueSpecification valid = SqlToPure.call("and", SqlToPure.call("and", lt(hour, integer(24)),
-                lt(minute, integer(60))), lt(seconds, integer(60)));
-        if (toDate) {
-            return ifThen(valid, typed(day, "StrictDate"), raise("StrictDate"));
+    private static List<String[]> canonicalSteps(boolean timeAlone) {
+        String sep = " *[-/.] *";
+        String ymd = "^([0-9]{4})" + sep + "([0-9]{1,2})" + sep + "([0-9]{1,2})";
+        List<String[]> steps = new ArrayList<>();
+        steps.add(new String[] {"^ +", ""});
+        steps.add(new String[] {" +$", ""});
+        // yyyy-m-d, its separators - / or . with blanks around them, then spaces or a T before a time
+        steps.add(new String[] {ymd + "[ t]+([0-9])", "\\1-\\2-\\3 \\4"});
+        steps.add(new String[] {ymd + "$", "\\1-\\2-\\3"});
+        steps.add(new String[] {"^([0-9]{4})([0-9]{2})([0-9]{2})$", "\\1-\\2-\\3"});
+        // a month's name, or a start of it of three letters or more: m and its number
+        for (int m = 1; m <= MONTH_NAMES.size(); m++) {
+            String full = MONTH_NAMES.get(m - 1);
+            StringBuilder name = new StringBuilder(full.substring(0, 3));
+            for (int i = 3; i < full.length(); i++) {
+                name.append("(?:").append(full.charAt(i));
+            }
+            name.append(")?".repeat(full.length() - 3));
+            steps.add(new String[] {"(^|[^a-z])" + name + "([^a-z]|$)", "\\1m" + (m < 10 ? "0" : "") + m + "\\2"});
         }
-        ValueSpecification at = timestamp(day, true);
-        for (Object[] step : new Object[][] {{hour, "HOURS"}, {minute, "MINUTES"}, {seconds, "SECONDS"},
-                {micros, "MICROSECONDS"}}) {
-            at = SqlToPure.call("adjust", at, (ValueSpecification) step[0], new EnumValue(DURATION_UNIT,
-                    (String) step[1]));
+        // d mon yyyy (spaces or - between), mon d[,] yyyy: then a time after spaces
+        steps.add(new String[] {"^([0-9]{1,2})[ -]+m([0-9]{2})[ -]+([0-9]{4})( +|$)", "\\3-\\2-\\1 "});
+        steps.add(new String[] {"^m([0-9]{2}) +([0-9]{1,2}),? +([0-9]{4})( +|$)", "\\3-\\1-\\2 "});
+        if (timeAlone) {
+            steps.add(new String[] {"^t?([0-9]{1,2}:)", "1900-01-01 \\1"});
         }
-        return ifThen(valid, typed(at, "DateTime"), raise("DateTime"));
+        steps.add(new String[] {" +$", ""});
+        // AM and PM: 12 AM is midnight, 12 PM noon, a PM hour past 12 kept; any other is left (and not read)
+        String rest = "(:[0-9:.]*) *";
+        steps.add(new String[] {" 12" + rest + "am$", " 00\\1"});
+        steps.add(new String[] {" (0?[0-9]|1[01])" + rest + "am$", " \\1\\2"});
+        steps.add(new String[] {" (1[2-9]|2[0-3])" + rest + "pm$", " \\1\\2"});
+        for (int h = 1; h <= 11; h++) {
+            steps.add(new String[] {" 0?" + h + rest + "pm$", " " + (h + 12) + "\\1"});
+        }
+        // the fraction cut to six places; zeros written before a one-digit part; the seconds when none
+        steps.add(new String[] {"([.][0-9]{6})[0-9]+$", "\\1"});
+        steps.add(new String[] {"^([0-9]{4})-([0-9])-", "\\1-0\\2-"});
+        steps.add(new String[] {"^([0-9]{4}-[0-9]{2})-([0-9])( |$)", "\\1-0\\2\\3"});
+        steps.add(new String[] {" ([0-9]):", " 0\\1:"});
+        steps.add(new String[] {":([0-9])(:|[.]|$)", ":0\\1\\2"});
+        steps.add(new String[] {":([0-9])(:|[.]|$)", ":0\\1\\2"});
+        steps.add(new String[] {"^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2})$", "\\1:00"});
+        return List.copyOf(steps);
     }
 
     /** A constant's date and time as IQ reads it ({@link IqDateTime#read}: a year below 100 refused by name; IQ

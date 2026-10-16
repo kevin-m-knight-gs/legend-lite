@@ -646,6 +646,10 @@ lite/corpus_gaps/a_filter_of_a_joined_derived_rank@iq17-default	REFUSED	REFUSED
 lite/corpus_gaps/a_join_and_a_rank_filter_of_a_grouped_derived_rank@iq17-default	PASS	PASS
 lite/corpus_gaps/a_join_of_a_grouped_derived_rank@iq17-default	PASS	PASS
 lite/corpus_gaps/a_join_and_a_filter_of_a_grouped_derived_rank@iq17-default	PASS	PASS
+lite/corpus_gaps/a_date_of_padded_numbers@iq17-default	PASS	PASS
+lite/corpus_gaps/dates_written_back_from_convert_styles@iq17-default	PASS	PASS
+lite/corpus_gaps/dates_of_month_names@iq17-default	PASS	PASS
+lite/corpus_gaps/a_date_of_no_months_name_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS
@@ -890,7 +894,7 @@ lite/iq_engine_dates/string_date_drops_its_time@iq17-default	PASS	PASS
 lite/iq_engine_dates/convert_string_to_date@iq17-default	PASS	PASS
 lite/iq_engine_dates/string_date_that_does_not_exist_is_an_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/iq_engine_dates/string_date_of_a_text_column_is_an_error@iq17-default	BOTH_ERROR	BOTH_ERROR
-lite/iq_engine_dates/string_date_by_a_month_name@iq17-default	ERROR	ERROR
+lite/iq_engine_dates/string_date_by_a_month_name@iq17-default	PASS	PASS
 lite/iq_engine_dates/dateformat_numbers@iq16-default	PASS	PASS
 lite/iq_engine_dates/dateformat_numbers@iq17-default	PASS	PASS
 lite/iq_engine_dates/dateformat_names@iq16-default	PASS	PASS

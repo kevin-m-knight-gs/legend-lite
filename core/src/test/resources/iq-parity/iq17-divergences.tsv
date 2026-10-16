@@ -26,7 +26,6 @@ cause	having-alias	a GROUP BY expression read by its alias in HAVING is IQ's -14
 cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING; (IQ island, 2026-10-16) a filter of the null-supplying side of a LEFT JOIN inside a windowed derived table, applied below its window functions (a RANK or a COUNT(*) OVER () of the filtered rows)
 cause	pg-distinct-qualify	a DISTINCT over a WHERE that reads a derived table's window column: computed after the window (QUALIFY), which the Postgres dialect cannot render under DISTINCT (a hidden column would change what is distinct); the DuckDB lane answers
 cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, which the island answers; Postgres raises its own float8 overflow before the island's test can read the infinity
-cause	string-date-spellings	a string read as a date where the database computes it: the island reads the year-first spellings every profile reads (IqFunctions.stringDate) and raises on another, which IQ reads by its own rules (a month's name, a two-digit year)
 
 # IQ island, landing 4 (WP1), 2026-10-14: the first snap of the iq17-* runs from the live IQ (161 runs)
 run	lite/m0/bigint_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
@@ -80,9 +79,6 @@ run	lite/windows/window_of_an_alias@iq17-default	D-N3	duckdb,postgres
 # IQ island, 2026-10-15 (landing 4: the census's scale suite, DOUBLE arithmetic linear in size): IQ's engine answers a
 # DOUBLE overflow NULL (measured on IQ 17.1), which the DuckDB lane now answers; Postgres raises on float8 overflow.
 run	lite/m1a/double_overflow@iq17-default	pg-double-overflow	postgres
-# IQ island, 2026-10-15 (landing 4: CAST of a string that is not a constant to a date, measured on IQ 17.1): a month's
-# name IQ reads, the island raises on.
-run	lite/iq_engine_dates/string_date_by_a_month_name@iq17-default	string-date-spellings	duckdb,postgres
 # IQ island, 2026-10-16 (the corpus lane's windowed derived tables, measured on IQ 17.1): a DISTINCT over a WHERE that
 # reads a derived table's window column, which the Postgres dialect cannot render (QUALIFY under DISTINCT).
 run	lite/corpus_gaps/a_distinct_of_a_filter_of_a_derived_tables_rank@iq17-default	pg-distinct-qualify	postgres

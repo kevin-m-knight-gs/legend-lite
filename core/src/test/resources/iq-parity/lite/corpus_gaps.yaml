@@ -532,3 +532,18 @@ tests:
   - id: a_join_and_a_filter_of_a_grouped_derived_rank
     sql: "SELECT d.t_id, d.r FROM (SELECT t_id, COUNT(*) AS c, RANK() OVER (ORDER BY t_id DESC) AS r FROM u GROUP BY t_id) d JOIN t ON t.id = d.t_id WHERE d.c > 1 ORDER BY d.t_id"
     profile: iq17-default
+
+  # ---- found by the lane's judged runs (sede-153489, sede-485366): computed date strings IQ reads -- blanks around the
+  # separators, a month's name (CONVERT's styles written back), AM and PM
+  - id: a_date_of_padded_numbers
+    sql: "SELECT id, CAST(STR(2000 + id) + '-' + STR(id) + '-' + STR(id + 10) AS DATE) AS a, CAST(STR(2000 + id) + ' / ' + STR(id) + ' / ' + STR(id + 10) AS DATETIME) AS b FROM t WHERE id IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: dates_written_back_from_convert_styles
+    sql: "SELECT id, CAST(CONVERT(VARCHAR(16), dt, 106) AS DATE) AS a, CONVERT(DATETIME, CONVERT(VARCHAR(16), ts, 106)) AS b, CAST(CONVERT(VARCHAR(16), dt, 107) AS DATE) AS c, CAST(CONVERT(VARCHAR(30), ts, 100) AS DATETIME) AS d FROM t WHERE id IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: dates_of_month_names
+    sql: "SELECT id, CAST(CAST(id AS VARCHAR(2)) + ' ' + (CASE id WHEN 1 THEN 'Jan' WHEN 2 THEN 'february' WHEN 3 THEN 'MAR' WHEN 4 THEN 'Sept' WHEN 6 THEN 'Decem' ELSE 'may' END) + ' 2009' AS DATE) AS a, CAST((CASE id WHEN 1 THEN 'Oct' ELSE 'june' END) + ' ' + CAST(id AS VARCHAR(2)) + ', 2010 ' + CAST(id AS VARCHAR(2)) + ':05 pm' AS DATETIME) AS b, CAST(CAST(id + 20 AS VARCHAR(2)) + '-Aug-2011 12:30AM' AS DATETIME) AS c FROM t WHERE id IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: a_date_of_no_months_name_is_iqs_error
+    sql: "SELECT CAST(CAST(id AS VARCHAR(2)) + ' Nox 2009' AS DATE) AS a FROM t WHERE id IS NOT NULL"
+    profile: iq17-default
