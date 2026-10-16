@@ -1738,6 +1738,8 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
 - **The pattern-comprehension leg, 2026-10-16, announced here as landed** — the parser, the translator and
   `lite/patterns.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.31; GATES
   "the twenty-ninth landing".
+- **The continuation leg, 2026-10-16, announced here as landed** — the translator and `lite/continue.yaml`: no
+  file of the database owner's, no guard pin moved. The record: the study's §12.32; GATES "the thirtieth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

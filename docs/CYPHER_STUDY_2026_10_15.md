@@ -2767,3 +2767,27 @@ from an optional node) pass; [4] (untyped, label-less) and [5] (a relationship b
 
 21 lite cases in `lite/patterns.yaml`, each judged by Neo4j (five refusals by name).
 
+### 12.32 An untyped relationship from a bound node, 2026-10-16: the continuation of a graph
+
+- **`MATCH (a:A) WITH a MATCH (a)-->(b)`, `MATCH (a:A) MATCH (x)-[r]-(a)`:** an untyped relationship pattern from a
+  node the graph in hand binds (a WITH of bare variables keeps the graph, §12.5; a MATCH before it) is one arm per
+  way the model reads the hop from that node's class, as §12.17 decides a first pattern's arms (every end leaving
+  the class forward, every end of another class reaching it backward, both undirected, a label on the far node
+  picking among them, the next hops on from the class each way reaches): each arm the graph extended by the typed
+  pattern (from the bound end: the pattern reversed when its last node is the bound one), the WHERE read against
+  the arm, the arms materialized to rows (every node as the union of its classes' columns, a relationship as its
+  type) and concatenated. Over a label-less pattern's arms (§12.13), each arm's ways. A class no way leaves reads
+  no row; no way from any arm is refused by name (no rows).
+- **Refused by name:** two ends bound (identity), a pattern through a bound node, a pattern sharing no variable
+  with the graph (a cartesian product over the ways), a start an OPTIONAL MATCH may not find, a named path over
+  the hop, a MATCH of several patterns with an untyped one, after rows (a WITH that projected).
+
+#### 12.32.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4287 | 2566 (from 2,555) | 0 | 0 | 0 | 645 | 708 | 368 |
+| Postgres | 4287 | 2216 (from 2,205) | 0 | 0 | 0 | 995 | 708 | 368 |
+
+13 lite cases in `lite/continue.yaml`, each judged by Neo4j (three refusals by name).
+

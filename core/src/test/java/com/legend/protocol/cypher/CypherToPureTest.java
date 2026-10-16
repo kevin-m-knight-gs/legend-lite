@@ -411,6 +411,24 @@ class CypherToPureTest {
     }
 
     @Test
+    void anUntypedHopFromABoundNodeIsOneArmPerWayTheModelReadsIt() {
+        // the study's §12.32: after a WITH that carried the node (the graph kept), or a MATCH before; the arms
+        // materialized to rows and concatenated (one way here: Person.firm)
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|'[\"Firm\"]', _cypher_6:p|$p.firm.legalName])->extend(~[n:r|$r._cypher_4, l:r|$r._cypher_6])->select(~[n, l])",
+                pure("MATCH (p:Person) WITH p MATCH (p)-->(x) RETURN p.name AS n, x.legalName AS l"));
+        // the relationship's type is the way's (hq, the one end leaving Firm)
+        assertEquals("demo::Firm.all()->filter(f|$f.hq->isNotEmpty())->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName, _cypher_3:f|'[\"City\"]', _cypher_4:f|$f.hq.name, _cypher_5:f|'hq'])->extend(~[l:r|$r._cypher_2, t:r|$r._cypher_5])->select(~[l, t])",
+                pure("MATCH (f:Firm) MATCH (f)-[r]->(x) RETURN f.legalName AS l, type(r) AS t"));
+        unsupported("MATCH (f:Firm) WITH f.legalName AS l, f MATCH (f)-->(x) RETURN l",
+                "a MATCH after a WITH that projected its variables");
+        unsupported("MATCH (f:Firm)-[:employees]->(p:Person) MATCH (f)-->(p) RETURN p.name",
+                "two ends are both bound already");
+        unsupported("MATCH (f:Firm) MATCH (f)-->(x:Person) RETURN x.name AS n",
+                "the model declares no relationship for (no rows)");
+        unsupported("MATCH (f:Firm) MATCH q = (f)-->(x) RETURN q", "a named path over an untyped relationship");
+    }
+
+    @Test
     void aPatternComprehensionIsANavigationFromTheBoundNode() {
         // the study's §12.31: size counts the hop's matches; a scalar map over one typed way is a collection the
         // database computes; an untyped hop reads every association end, each way's values joined as JSON text

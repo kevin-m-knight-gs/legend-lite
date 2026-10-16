@@ -642,10 +642,6 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
         }
-        if (state instanceof Arms) {
-            throw CypherErrors.unsupported("a MATCH after a label-less pattern (every class of the model) is not"
-                    + " supported yet", m.pos());
-        }
         if (state == null && m.patterns().size() == 1 && m.patterns().get(0).elements().size() == 1
                 && ((NodePattern) m.patterns().get(0).elements().get(0)).labels().isEmpty()) {
             // a label-less node alone: a node of any class of the model, one arm per class
@@ -654,6 +650,10 @@ public final class CypherToPure {
         if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
                 && r.types().isEmpty()))) {
             return untypedArms(m, state);
+        }
+        if (state instanceof Arms) {
+            throw CypherErrors.unsupported("a MATCH after a label-less pattern (every class of the model) is not"
+                    + " supported yet", m.pos());
         }
         Graph g = state instanceof Graph existing ? existing : null;
         typesInThisMatch.clear();
@@ -694,8 +694,7 @@ public final class CypherToPure {
      *  arm) and the arms concatenated. */
     private State untypedArms(CypherAst.Match m, @com.legend.base.Nullable State state) {
         if (state != null) {
-            throw CypherErrors.unsupported("an untyped relationship pattern after a bound pattern is not supported"
-                    + " yet", m.pos());
+            return untypedArmsFrom(m, state);
         }
         if (m.patterns().size() != 1) {
             throw CypherErrors.unsupported("an untyped relationship in a MATCH of several patterns is not supported"
@@ -775,6 +774,110 @@ public final class CypherToPure {
                 }
             }
             graphs.add(g);
+        }
+        return materializeArms(graphs, order, m.pos());
+    }
+
+    /** {@code MATCH (a:A) WITH a MATCH (a)-->(b)}, {@code MATCH (a:A) MATCH (x)-[r]-(a)}: an untyped relationship
+     *  from a node the graph in hand binds (the study's §12.32): one arm per way the model reads the hop from that
+     *  node's class (as §12.17 decides a first pattern's arms, from the bound end, the pattern reversed when its
+     *  last node is the bound one), each arm the graph extended by the typed pattern as a fanning graph (a hop
+     *  may find many: one row per node reached), the WHERE read over the rows, the arms materialized and
+     *  concatenated; over a label-less pattern's arms, each arm's ways. A class no way leaves reads no row. */
+    private State untypedArmsFrom(CypherAst.Match m, State state) {
+        if (state instanceof Rows) {
+            throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
+                    m.pos());
+        }
+        if (m.patterns().size() != 1) {
+            throw CypherErrors.unsupported("an untyped relationship in a MATCH of several patterns is not supported"
+                    + " yet", m.pos());
+        }
+        PathPattern p = m.patterns().get(0);
+        if (p.variable() != null) {
+            throw CypherErrors.unsupported("a named path over an untyped relationship from a bound node is not"
+                    + " supported yet", p.pos());
+        }
+        List<Graph> bases = state instanceof Graph g ? List.of(g) : ((Arms) state).arms();
+        List<PatternElement> elements = p.elements();
+        NodePattern first = (NodePattern) elements.get(0);
+        NodePattern last = (NodePattern) elements.get(elements.size() - 1);
+        Graph any = bases.get(0);
+        boolean firstBound = first.variable() != null && any.bindings().containsKey(first.variable());
+        boolean lastBound = last.variable() != null && any.bindings().containsKey(last.variable());
+        if (firstBound && lastBound) {
+            throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared by"
+                    + " identity) is not supported yet", p.pos());
+        }
+        if (!firstBound && !lastBound) {
+            throw CypherErrors.unsupported("an untyped relationship pattern sharing no variable with the pattern"
+                    + " before it (a cartesian product) is not supported yet", p.pos());
+        }
+        for (PatternElement e : elements) {
+            if (e instanceof NodePattern n && n != first && n != last && n.variable() != null
+                    && any.bindings().containsKey(n.variable())) {
+                throw CypherErrors.unsupported("a pattern through a node bound already (" + n.variable()
+                        + ", compared by identity) is not supported yet", n.pos());
+            }
+        }
+        // the pattern from the bound node on (reversed when the bound node is its last)
+        List<PatternElement> ordered = new ArrayList<>(firstBound ? elements : reversed(elements));
+        NodePattern start = (NodePattern) ordered.get(0);
+        String startVar = java.util.Objects.requireNonNull(start.variable());
+        List<String> order = new ArrayList<>();
+        for (String name : any.bindings().keySet()) {
+            if (java.util.Objects.requireNonNull(any.bindings().get(name)).node()) {
+                order.add(name);
+            }
+        }
+        Set<String> taken = new HashSet<>(any.bindings().keySet());
+        for (PatternElement e : ordered) {
+            if (e instanceof NodePattern n && n.variable() != null) {
+                taken.add(n.variable());
+            }
+        }
+        for (int i = 2; i < ordered.size(); i += 2) {
+            NodePattern n = (NodePattern) ordered.get(i);
+            if (n.variable() == null) {
+                n = new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos());
+                ordered.set(i, n);
+            }
+            order.add(java.util.Objects.requireNonNull(n.variable()));
+        }
+        List<Graph> graphs = new ArrayList<>();
+        for (Graph base : bases) {
+            Binding from = base.bindings().get(startVar);
+            if (from == null || !from.node()) {
+                throw CypherErrors.invalid("Type mismatch: " + startVar + " defined with conflicting type",
+                        start.pos());
+            }
+            if (from.absent() || from.maybeAbsent()) {
+                throw CypherErrors.unsupported("a MATCH from a node an OPTIONAL MATCH may not find (" + startVar
+                        + ") is not supported yet", start.pos());
+            }
+            String cls = java.util.Objects.requireNonNull(from.classPath());
+            List<PatternElement> head = new ArrayList<>();
+            head.add(new NodePattern(startVar, List.of(cls), start.properties(), start.pos()));
+            List<List<PatternElement>> arms = new ArrayList<>();
+            assign(ordered, 2, cls, head, arms);
+            for (List<PatternElement> arm : arms) {
+                typesInThisMatch.clear();
+                // (a fanning graph: the hop may find many, one row per node reached when the arms materialize)
+                Graph copy = new Graph(base.rootClass(), base.row(), new LinkedHashMap<>(base.bindings()),
+                        new ArrayList<>(base.conditions()), base.candidates(), true,
+                        new ArrayList<>(base.deferredConstraints()), new ArrayList<>(base.deferredWhere()),
+                        base.variableClasses(), new LinkedHashMap<>(base.paths()),
+                        new LinkedHashMap<>(base.forward()));
+                Graph g = pattern(new PathPattern(null, arm, p.pos()), copy);
+                if (m.where() != null) {
+                    g.deferredWhere().add(m.where());
+                }
+                graphs.add(g);
+            }
+        }
+        if (graphs.isEmpty()) {
+            throw CypherErrors.unsupported("an untyped relationship pattern the model declares no relationship for"
+                    + " (no rows) is not supported yet", p.pos());
         }
         return materializeArms(graphs, order, m.pos());
     }

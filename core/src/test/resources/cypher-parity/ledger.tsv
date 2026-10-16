@@ -1223,7 +1223,7 @@ tck/clauses/with-where/WithWhere6/[1] Filter a single aggregate	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere7/[1] WHERE sees a variable bound before but not after WITH	PASS	PASS
 tck/clauses/with-where/WithWhere7/[2] WHERE sees a variable bound after but not before WITH	PASS	PASS
 tck/clauses/with-where/WithWhere7/[3] WHERE sees both, variable bound before but not after WITH and variable bound after but not before WITH	PASS	PASS
-tck/clauses/with/With1/[1] Forwarind a node variable 1	REFUSED	REFUSED
+tck/clauses/with/With1/[1] Forwarind a node variable 1	PASS	PASS
 tck/clauses/with/With1/[2] Forwarind a node variable 2	REFUSED	REFUSED
 tck/clauses/with/With1/[3] Forwarding a relationship variable	REFUSED	REFUSED
 tck/clauses/with/With1/[4] Forwarding a path variable	PASS	PASS
@@ -3935,6 +3935,19 @@ lite/cartesian/a_match_after_a_match	PASS	PASS
 lite/cartesian/a_hop_beside_a_lone_node	PASS	PASS
 lite/cartesian/a_map_around_an_aggregate_over_pairs	PASS	PASS
 lite/cartesian/a_path_beside_a_lone_node	PASS	PASS
+lite/continue/untyped_hop_after_a_with	PASS	PASS
+lite/continue/untyped_hop_in_a_second_match	PASS	PASS
+lite/continue/untyped_hop_backwards_to_a_bound_node	PASS	PASS
+lite/continue/untyped_undirected_hop_from_a_bound_node	PASS	PASS
+lite/continue/a_label_on_the_far_node_picks_the_ways	PASS	PASS
+lite/continue/untyped_hop_with_a_where_and_return_star	PASS	PASS
+lite/continue/untyped_hop_after_an_optional_match	PASS	PASS
+lite/continue/untyped_hop_after_a_labelless_match	PASS	PASS
+lite/continue/untyped_hop_that_fans_out	PASS	PASS
+lite/continue/two_untyped_hops_from_a_bound_node	PASS	PASS
+lite/continue/untyped_hop_after_a_projecting_with_refused	REFUSED	REFUSED
+lite/continue/untyped_hop_between_two_bound_nodes_refused	REFUSED	REFUSED
+lite/continue/untyped_hop_from_a_node_no_way_leaves	REFUSED	REFUSED
 lite/empty/empty_match_count	PASS	PASS
 lite/empty/empty_match_rows	PASS	PASS
 lite/empty/empty_match_property	PASS	PASS

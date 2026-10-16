@@ -114,7 +114,8 @@ Postgres PASS 2159, 0 FAIL, 0 BUG, 0 ERROR on both. Then an OPTIONAL MATCH's WHE
 DuckDB PASS 2518, Postgres PASS 2168, 0 FAIL, 0 BUG, 0 ERROR on both. Then the percentile aggregates and a map
 indexed by a value of the row (§12.30); DuckDB PASS 2532, Postgres PASS 2182, 0 FAIL, 0 BUG, 0 ERROR on both.
 Then pattern comprehensions as navigations from a bound node (§12.31); DuckDB PASS 2555, Postgres PASS 2205,
-0 FAIL, 0 BUG, 0 ERROR on both. Then the full CI run on the branch, the merge; an edge class, named zones, and `collect` (the database owner's
+0 FAIL, 0 BUG, 0 ERROR on both. Then an untyped relationship from a bound node (§12.32); DuckDB PASS 2566,
+Postgres PASS 2216, 0 FAIL, 0 BUG, 0 ERROR on both. Then the full CI run on the branch, the merge; an edge class, named zones, and `collect` (the database owner's
 aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
