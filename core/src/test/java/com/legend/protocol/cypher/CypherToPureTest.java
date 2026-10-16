@@ -395,6 +395,18 @@ class CypherToPureTest {
     }
 
     @Test
+    void keysOfANodeAreTheNamesOfItsPropertiesThatHoldAValue() {
+        // the study's §12.26: the names' JSON array text (each where its value is present), read back as strings;
+        // a relationship holds none; RETURN p ORDER BY p.name with a LIMIT reads the pattern's property
+        assertEquals("demo::Person.all()->project(~[n:p|fromJson('[' + substring((if(if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\"') + if($p.age->isEmpty(), |'', |',\"age\"')) + ',\"name\"', 2) + ']')->toMany(@String)->size(), a:p|'age'->in(fromJson('[' + substring((if(if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\"') + if($p.age->isEmpty(), |'', |',\"age\"')) + ',\"name\"', 2) + ']')->toMany(@String))])",
+                pure("MATCH (p:Person) RETURN size(keys(p)) AS n, 'age' IN keys(p) AS a"));
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[n:p|fromJson('[]')->toMany(@String)->size()])",
+                pure("MATCH (p:Person)-[r:firm]->(f:Firm) RETURN size(keys(r)) AS n"));
+        assertEquals("demo::Person.all()->project(~[p:p|fromJson(('{\"@labels\":' + '[\"Person\"]') + ((if(if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":' + if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[]))->toOne()->toString()) + if($p.age->isEmpty(), |'', |',\"age\":' + $p.age->toOne()->toString())) + (',\"name\":' + ('\"' + $p.name->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + '}'), _cypher_1:p|$p.name])->sort([~_cypher_1->ascending(meta::pure::functions::relation::NullOrder.LAST)])->select(~[p])->limit(1)",
+                pure("MATCH (p:Person) RETURN p ORDER BY p.name LIMIT 1"));
+    }
+
+    @Test
     void aShapeOfRowValuesIsItsJsonTextBuiltByTheDatabase() {
         // the study's §12.25: each element spelled by its kind (null for an empty one, a string escaped, a whole
         // float with its .0), a map's entries under their keys, a nested shape within; read as a Variant

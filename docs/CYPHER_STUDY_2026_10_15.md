@@ -2604,3 +2604,27 @@ the row and its decision (`cypher-parity/decisions.tsv`) are removed, the case j
 passing case now (renamed `returned_map_over_rows`), and its two list cases with a null and with strings of the row
 pass.
 
+### 12.26 `keys()` of a node or relationship, and a returned node's property as a sort key, 2026-10-16
+
+- **`keys(n)` of a pattern node** is the names of its properties that hold a value (Neo4j stores no null), a
+  collection the database builds: the names' JSON array text (each as `,"name"` where its value is present, the
+  first comma dropped, as `properties(n)` builds its text), read back as the strings it holds (`toMany(@String)`),
+  so it is UNWIND-able (a lateral), IN-able and sized as any collection the database computes. Not a Pure collection
+  literal of optional names (the Typer takes no `[0..1]` element) and not a concatenation of them (its lowering
+  spells an untyped empty list on Postgres: "a list literal of Unknown[]"). `keys(r)` of a relationship holds none
+  (the model holds no relationship property); of a node an OPTIONAL MATCH never finds, null; of a node or
+  relationship it may not find, refused by name (a collection is never null).
+- **`RETURN n ORDER BY n.name SKIP 2`**: the projected scope reads a property of an item that is the pattern's own
+  node (its value a node, its name the pattern variable's) from the pattern, where it read the returned Variant and
+  refused ("a property of a value the database holds as a Variant"); with a SKIP or LIMIT the sort key is a hidden
+  column (without one the lowering's limit of §12.5 holds).
+
+#### 12.26.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4221 | 2476 (from 2,456) | 0 | 0 | 0 | 669 | 708 | 368 |
+| Postgres | 4221 | 2126 (from 2,106) | 0 | 0 | 0 | 1019 | 708 | 368 |
+
+8 lite cases in `lite/keys.yaml`, each judged by Neo4j.
+

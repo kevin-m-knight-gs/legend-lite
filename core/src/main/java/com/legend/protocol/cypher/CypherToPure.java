@@ -223,6 +223,38 @@ public final class CypherToPure {
         return Tx.value(present(parts, call("fromJson", text)), Kind.JSON, parts.presence() != null);
     }
 
+    /** {@code keys(n)}: the names of the node's properties that hold a value (Neo4j stores no null), a collection
+     *  the database builds: the names' JSON array text (each as {@code ,"name"} where its value is present, the
+     *  first comma dropped), read back as the strings it holds ({@code toMany}: a collection literal takes no
+     *  optional element, and a concatenation of optional names spells an untyped empty list on Postgres). */
+    private static Coll nodeKeys(NodeParts parts) {
+        ValueSpecification pieces = null;
+        for (Map.Entry<String, Tx> p : parts.props()) {
+            Tx t = p.getValue();
+            if (t.kind() == Kind.NULL) {
+                continue;
+            }
+            CString name = new CString("," + com.legend.json.Json.toCompact(p.getKey()));
+            // (the value as one that may be empty: a boolean's condition form is never empty itself)
+            ValueSpecification piece = t.nullable()
+                    ? call("if", call("isEmpty", SqlToPure.valueOf(t)), thunk(new CString("")), thunk(name)) : name;
+            pieces = pieces == null ? piece : plus(pieces, piece);
+        }
+        if (pieces == null) {
+            return noKeys();
+        }
+        ValueSpecification text = plus(new CString("["), call("substring", pieces, new CInteger(2L)),
+                new CString("]"));
+        return new Coll(call("toMany", call("fromJson", text), SqlToPure.typeArg("String")), Kind.STRING, false);
+    }
+
+    /** No key: the empty JSON array read as strings, as a node's keys are (a typed empty collection,
+     *  {@code []->cast(@String)}, folds to a list of no element type, which Postgres cannot size). */
+    private static Coll noKeys() {
+        return new Coll(call("toMany", call("fromJson", new CString("[]")), SqlToPure.typeArg("String")),
+                Kind.STRING, true);
+    }
+
     /** The JSON text of a node's properties, each as {@code ,"name":value} when it holds a value (Neo4j stores no
      *  null); empty when it holds none. */
     private static ValueSpecification propertyPieces(NodeParts parts, Pos pos) {
@@ -2623,7 +2655,13 @@ public final class CypherToPure {
         @Override
         public Val property(CypherAst.Prop p) {
             if (p.target() instanceof CypherAst.Var v && projected.containsKey(v.name())) {
-                return member(projected.get(v.name()), p.name(), p.pos());
+                Val value = projected.get(v.name());
+                // the item is the pattern's own node (RETURN n ORDER BY n.name): its property is the pattern's
+                if (value instanceof Scalar s && s.tx().detail() instanceof NodeValue
+                        && inner.isPatternVariable(v.name())) {
+                    return inner.property(p);
+                }
+                return member(value, p.name(), p.pos());
             }
             return inner.property(p);
         }
@@ -3456,6 +3494,29 @@ public final class CypherToPure {
             NodeParts parts = scope.nodeParts(v);
             if (parts != null) {
                 return scalar(fn.equals("labels") ? nodeLabels(parts) : nodeProperties(parts, c.pos()));
+            }
+        }
+        if (fn.equals("keys") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.Var v) {
+            // of a node: the names of its properties that hold a value, a collection the database builds (the
+            // study's §12.26); of a relationship, none (the model holds no relationship property)
+            if (scope.isAbsentNode(v)) {
+                return nullValue();
+            }
+            NodeParts parts = scope.nodeParts(v);
+            if (parts != null) {
+                if (parts.presence() != null) {
+                    throw CypherErrors.unsupported("keys of a node an OPTIONAL MATCH may not find is not supported"
+                            + " yet", c.pos());
+                }
+                return nodeKeys(parts);
+            }
+            Tx type = scope.relType(v);
+            if (type != null) {
+                if (type.nullable()) {
+                    throw CypherErrors.unsupported("keys of a relationship an OPTIONAL MATCH may not find is not"
+                            + " supported yet", c.pos());
+                }
+                return noKeys();
             }
         }
         if ((fn.equals("type") || fn.equals("labels") || fn.equals("properties")) && c.args().size() == 1

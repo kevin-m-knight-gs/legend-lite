@@ -730,8 +730,8 @@ tck/clauses/return-orderby/ReturnOrderBy6/[2] Handle returned aliases inside an 
 tck/clauses/return-orderby/ReturnOrderBy6/[3] Handle returned property accesses inside an order by item which contains an aggregation expression	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy6/[4] Fail if not returned variables are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-orderby/ReturnOrderBy6/[5] Fail if more complex expressions, even if returned, are used inside an order by item which contains an aggregation expression	REFUSED	REFUSED
-tck/clauses/return-skip-limit/ReturnSkipLimit1/[1] Start the result from the second row	REFUSED	REFUSED
-tck/clauses/return-skip-limit/ReturnSkipLimit1/[2] Start the result from the second row by param	REFUSED	REFUSED
+tck/clauses/return-skip-limit/ReturnSkipLimit1/[1] Start the result from the second row	PASS	PASS
+tck/clauses/return-skip-limit/ReturnSkipLimit1/[2] Start the result from the second row by param	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[3] SKIP with an expression that does not depend on variables	REFUSED	REFUSED
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[4] Accept skip zero	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[5] SKIP with an expression that depends on variables should fail	BOTH_ERROR	BOTH_ERROR
@@ -742,7 +742,7 @@ tck/clauses/return-skip-limit/ReturnSkipLimit1/[9] Floating point SKIP should fa
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[10] Fail when using non-constants in SKIP	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[11] Fail when using negative value in SKIP	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[1] Limit to two hits	PASS	PASS
-tck/clauses/return-skip-limit/ReturnSkipLimit2/[2] Limit to two hits with explicit order	REFUSED	REFUSED
+tck/clauses/return-skip-limit/ReturnSkipLimit2/[2] Limit to two hits with explicit order	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[3] LIMIT 0 should return an empty result	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[4] Handle ORDER BY with LIMIT 1	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[5] ORDER BY with LIMIT 0 should not generate errors	REFUSED	REFUSED
@@ -758,8 +758,8 @@ tck/clauses/return-skip-limit/ReturnSkipLimit2/[14] Floating point parameter for
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[15] Floating point parameter for LIMIT with ORDER BY should fail	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[16] Fail when using floating point in LIMIT 1	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[17] Fail when using floating point in LIMIT 2	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return-skip-limit/ReturnSkipLimit3/[1] Get rows in the middle	REFUSED	REFUSED
-tck/clauses/return-skip-limit/ReturnSkipLimit3/[2] Get rows in the middle by param	REFUSED	REFUSED
+tck/clauses/return-skip-limit/ReturnSkipLimit3/[1] Get rows in the middle	PASS	PASS
+tck/clauses/return-skip-limit/ReturnSkipLimit3/[2] Get rows in the middle by param	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit3/[3] Limiting amount of rows when there are fewer left than the LIMIT argument	PASS	PASS
 tck/clauses/return/Return1/[1] Returning a list property	SKIP	SKIP
 tck/clauses/return/Return1/[2] Fail when returning an undefined variable	BOTH_ERROR	BOTH_ERROR
@@ -1578,14 +1578,14 @@ tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-g
 tck/expressions/graph/Graph7/[1] Execute n['name'] in read queries	REFUSED	REFUSED
 tck/expressions/graph/Graph7/[2] Execute n['name'] in update queries	REFUSED	REFUSED
 tck/expressions/graph/Graph7/[3] Use dynamic property lookup based on parameters when there is lhs type information	REFUSED	REFUSED
-tck/expressions/graph/Graph8/[1] Using `keys()` on a single node, non-empty result	REFUSED	REFUSED
-tck/expressions/graph/Graph8/[2] Using `keys()` on multiple nodes, non-empty result	REFUSED	REFUSED
-tck/expressions/graph/Graph8/[3] Using `keys()` on a single node, empty result	REFUSED	REFUSED
-tck/expressions/graph/Graph8/[4] Using `keys()` on an optionally matched node	REFUSED	REFUSED
+tck/expressions/graph/Graph8/[1] Using `keys()` on a single node, non-empty result	PASS	PASS
+tck/expressions/graph/Graph8/[2] Using `keys()` on multiple nodes, non-empty result	PASS	PASS
+tck/expressions/graph/Graph8/[3] Using `keys()` on a single node, empty result	PASS	PASS
+tck/expressions/graph/Graph8/[4] Using `keys()` on an optionally matched node	PASS	PASS
 tck/expressions/graph/Graph8/[5] Using `keys()` on a relationship, non-empty result	SKIP	SKIP
-tck/expressions/graph/Graph8/[6] Using `keys()` on a relationship, empty result	REFUSED	REFUSED
-tck/expressions/graph/Graph8/[7] Using `keys()` on an optionally matched relationship	REFUSED	REFUSED
-tck/expressions/graph/Graph8/[8] Using `keys()` and `IN` to check property existence	REFUSED	REFUSED
+tck/expressions/graph/Graph8/[6] Using `keys()` on a relationship, empty result	PASS	PASS
+tck/expressions/graph/Graph8/[7] Using `keys()` on an optionally matched relationship	PASS	PASS
+tck/expressions/graph/Graph8/[8] Using `keys()` and `IN` to check property existence	PASS	PASS
 tck/expressions/graph/Graph9/[1] `properties()` on a node	PASS	PASS
 tck/expressions/graph/Graph9/[2] `properties()` on a relationship	SKIP	SKIP
 tck/expressions/graph/Graph9/[3] `properties()` on null	REFUSED	REFUSED
@@ -3956,6 +3956,14 @@ lite/joins/untyped_with_where_and_return_of_nodes	PASS	PASS
 lite/joins/self_association_read_backward	PASS	PASS
 lite/joins/self_association_then_another_backward	PASS	PASS
 lite/joins/typed_then_untyped_two_hops	PASS	PASS
+lite/keys/keys_of_a_node_sized_and_tested	PASS	PASS
+lite/keys/unwind_keys_of_nodes	PASS	PASS
+lite/keys/keys_in_a_where	PASS	PASS
+lite/keys/keys_of_a_relationship	PASS	PASS
+lite/keys/unwind_keys_of_a_relationship	PASS	PASS
+lite/keys/keys_of_an_absent_node	PASS	PASS
+lite/keys/order_by_a_returned_nodes_property	PASS	PASS
+lite/keys/order_by_a_returned_nodes_property_descending	PASS	PASS
 lite/labelless/count_of_every_node	PASS	PASS
 lite/labelless/properties_across_classes	PASS	PASS
 lite/labelless/where_across_classes	PASS	PASS
