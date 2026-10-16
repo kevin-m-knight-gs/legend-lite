@@ -11,7 +11,8 @@ import java.util.List;
 public sealed interface SqlExpr
         permits SqlExpr.Column, SqlExpr.Star, SqlExpr.StarExcept, SqlExpr.StringLit, SqlExpr.IntLit,
                 SqlExpr.FloatLit, SqlExpr.DecimalLit, SqlExpr.BoolLit, SqlExpr.NullLit,
-                SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.TimeLit, SqlExpr.FormatLit, SqlExpr.ArrayLit,
+                SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.TimeLit, SqlExpr.FormatLit, SqlExpr.DatePartLit,
+                SqlExpr.JsonKindLit, SqlExpr.TypeNameLit, SqlExpr.ArrayLit,
                 SqlExpr.OrderedListAgg, SqlExpr.JsonArray,
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
@@ -67,6 +68,9 @@ public sealed interface SqlExpr
             case TimestampLit ignored -> List.of();
             case TimeLit ignored -> List.of();
             case FormatLit ignored -> List.of();
+            case DatePartLit ignored -> List.of();
+            case JsonKindLit ignored -> List.of();
+            case TypeNameLit ignored -> List.of();
             case PlanParam ignored -> List.of();
             case TempTableInSplice ignored -> List.of();
             case Group g -> List.of(g.inner());
@@ -161,6 +165,9 @@ public sealed interface SqlExpr
             case TimestampLit ignored -> this;
             case TimeLit ignored -> this;
             case FormatLit ignored -> this;
+            case DatePartLit ignored -> this;
+            case JsonKindLit ignored -> this;
+            case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
             case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
@@ -630,6 +637,45 @@ public sealed interface SqlExpr
 
         public FormatLit(List<DateFmt> parts) {
             this(parts, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /** A date or time part ({@link DatePart}), the first argument of a date call: a ride-along the call's dialect
+     *  spells, not a value (until 2026-10-15 a string in DuckDB's spelling). */
+    record DatePartLit(DatePart part, TypeFact type)
+            implements SqlExpr {
+        public DatePartLit {
+            type = SqlTyping.UNKNOWN;   // a part ride-along, not a value
+        }
+
+        public DatePartLit(DatePart part) {
+            this(part, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /** The name of a JSON kind ({@link JsonKind}) as its dialect's {@link SqlFn#JSON_TYPE} answers it: a string
+     *  value, spelled by the dialect (until 2026-10-15 a string in DuckDB's spelling, {@code 'OBJECT'}). */
+    record JsonKindLit(JsonKind kind, TypeFact type)
+            implements SqlExpr {
+        public JsonKindLit {
+            type = SqlTyping.T_VARCHAR;
+        }
+
+        public JsonKindLit(JsonKind kind) {
+            this(kind, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /** The name of a type as its dialect's {@link SqlFn#TYPEOF} answers it: a string value, spelled by the dialect
+     *  (until 2026-10-15 a string in DuckDB's spelling, {@code 'DATE'}). */
+    record TypeNameLit(SqlType.Scalar scalar, TypeFact type)
+            implements SqlExpr {
+        public TypeNameLit {
+            type = SqlTyping.T_VARCHAR;
+        }
+
+        public TypeNameLit(SqlType.Scalar scalar) {
+            this(scalar, SqlTyping.UNKNOWN);
         }
     }
 

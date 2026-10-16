@@ -4,6 +4,7 @@
 package com.legend.sql.dialect;
 
 import com.legend.sql.DateFmt;
+import com.legend.sql.DatePart;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -99,7 +100,7 @@ public final class BigQuery extends AnsiSqlRenderer {
     /** The engine's H2 text is refused here: BigQuery has no translation of it (decision D2: raw text runs on the
      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         throw new DialectCapability("the engine's H2 text reached BigQuery, which has no translation of it");
     }
 
@@ -1437,8 +1438,10 @@ public final class BigQuery extends AnsiSqlRenderer {
             // shortest decimal, as DuckDB rounds 2.675 to 2.68, measured)
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
             // a Float, as DuckDB's answers: each has a NUMERIC overload here that a BIGNUMERIC literal would pick
-            case SQRT, EXP, LN, LOG10 -> writer.append(c.fn().name() + "(CAST(").expr(a.get(0), 0)
-                    .append(" AS FLOAT64))");
+            case SQRT -> writer.append("SQRT(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");
+            case EXP -> writer.append("EXP(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");
+            case LN -> writer.append("LN(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");
+            case LOG10 -> writer.append("LOG10(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");
             case POW -> writer.append("POW(CAST(").expr(a.get(0), 0).append(" AS FLOAT64), CAST(").expr(a.get(1), 0)
                     .append(" AS FLOAT64))");
             case PI -> writer.append("ACOS(-1)");
@@ -1472,8 +1475,9 @@ public final class BigQuery extends AnsiSqlRenderer {
             case ENCODE_BASE64 -> writer.append("TO_BASE64(CAST(").piece(asText(a.get(0))).append(" AS BYTES))");
             // invalid UTF-8 raises, as DuckDB's decode does
             case DECODE_BASE64 -> writer.append("CAST(FROM_BASE64(").expr(a.get(0), 0).append(") AS STRING)");
-            case MD5, SHA1, SHA256 -> writer.append("TO_HEX(" + c.fn().name() + "(").piece(asText(a.get(0)))
-                    .append("))");
+            case MD5 -> writer.append("TO_HEX(MD5(").piece(asText(a.get(0))).append("))");
+            case SHA1 -> writer.append("TO_HEX(SHA1(").piece(asText(a.get(0))).append("))");
+            case SHA256 -> writer.append("TO_HEX(SHA256(").piece(asText(a.get(0))).append("))");
             case GUID -> writer.append("GENERATE_UUID()");
             // printf-like as DuckDB's: %d takes an INT64, %s a STRING on both (measured)
             case FORMAT -> format(writer, a);
@@ -1495,7 +1499,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             // a month past the month's end clamps (2020-01-31 + 1 month is 2020-02-29, measured); a date plus an
             // interval is a DATETIME here, a TIMESTAMP on DuckDB
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("(").expr(a.get(2), 5).append(" + INTERVAL CAST(")
-                    .expr(a.get(1), 0).append(" AS INT64) ").append(intervalUnit(literal(a.get(0), c.fn().name())))
+                    .expr(a.get(1), 0).append(" AS INT64) ").append(intervalUnit(part(a.get(0))))
                     .append(")");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
@@ -2177,34 +2181,34 @@ public final class BigQuery extends AnsiSqlRenderer {
         return w -> w.append("DATETIME(").piece(ts).append(")");
     }
 
-    /** DuckDB's date_part names; a Pure integer (seconds truncated). DAYOFWEEK is Sunday 1 here, DuckDB's dow Sunday
-     *  0, its isodow Monday 1 to Sunday 7; DuckDB's week is the ISO week (measured). */
+    /** A date part of a date, a Pure integer (seconds truncated). DAYOFWEEK is Sunday 1 here; the ISO day of the week
+     *  is Monday 1 to Sunday 7, and the week the ISO week (measured). */
     private static SqlWriter.Piece extract(List<SqlExpr> a) {
-        String part = literal(a.get(0), "an EXTRACT part");
+        DatePart part = part(a.get(0));
         SqlWriter.Piece t = w -> w.append("CAST(").expr(a.get(1), 0).append(" AS DATETIME)");
         return switch (part) {
-            case "year", "quarter", "month", "day", "hour", "minute", "second" -> w -> w.append("EXTRACT("
-                    + part.toUpperCase(Locale.ROOT) + " FROM ").piece(t).append(")");
-            case "week" -> w -> w.append("EXTRACT(ISOWEEK FROM ").piece(t).append(")");
-            case "doy" -> w -> w.append("EXTRACT(DAYOFYEAR FROM ").piece(t).append(")");
-            case "dow" -> w -> w.append("(EXTRACT(DAYOFWEEK FROM ").piece(t).append(") - 1)");
-            case "isodow" -> w -> w.append("(MOD(EXTRACT(DAYOFWEEK FROM ").piece(t).append(") + 5, 7) + 1)");
-            default -> throw new DialectCapability("date part '" + part + "' has no measured BigQuery spelling");
+            case YEAR, QUARTER, MONTH, DAY, HOUR, MINUTE, SECOND -> w -> w.append("EXTRACT(" + unit(part) + " FROM ")
+                    .piece(t).append(")");
+            case WEEK -> w -> w.append("EXTRACT(ISOWEEK FROM ").piece(t).append(")");
+            case DAY_OF_YEAR -> w -> w.append("EXTRACT(DAYOFYEAR FROM ").piece(t).append(")");
+            case ISO_DAY_OF_WEEK -> w -> w.append("(MOD(EXTRACT(DAYOFWEEK FROM ").piece(t).append(") + 5, 7) + 1)");
+            case MILLISECOND, MICROSECOND, NANOSECOND -> throw new DialectCapability("date part " + part
+                    + " has no measured BigQuery spelling");
         };
     }
 
     /** The base's contract: year/quarter/month/week deliver a DATE, finer parts a DATETIME; DuckDB's week starts on
      *  Monday (BigQuery's WEEK on Sunday, measured). */
     private static SqlWriter.Piece dateTrunc(List<SqlExpr> a) {
-        String part = literal(a.get(0), "a DATE_TRUNC part");
+        DatePart part = part(a.get(0));
         return switch (part) {
-            case "year", "quarter", "month", "week" -> w -> w.append("DATE_TRUNC(CAST(").expr(a.get(1), 0)
-                    .append(" AS DATE), " + ("week".equals(part) ? "WEEK(MONDAY)" : part.toUpperCase(Locale.ROOT))
-                            + ")");
-            case "day", "hour", "minute", "second", "millisecond", "microsecond" -> w -> w
+            case YEAR, QUARTER, MONTH, WEEK -> w -> w.append("DATE_TRUNC(CAST(").expr(a.get(1), 0)
+                    .append(" AS DATE), " + (part == DatePart.WEEK ? "WEEK(MONDAY)" : unit(part)) + ")");
+            case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND -> w -> w
                     .append("DATETIME_TRUNC(CAST(").expr(a.get(1), 0)
-                    .append(" AS DATETIME), " + part.toUpperCase(Locale.ROOT) + ")");
-            default -> throw new DialectCapability("date_trunc part '" + part + "' has no measured BigQuery spelling");
+                    .append(" AS DATETIME), " + unit(part) + ")");
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, NANOSECOND -> throw new DialectCapability("date_trunc part " + part
+                    + " has no measured BigQuery spelling");
         };
     }
 
@@ -2212,31 +2216,44 @@ public final class BigQuery extends AnsiSqlRenderer {
      *  02-01 a month, an epoch-straddling half millisecond -1, measured); DuckDB's week is whole days over 7,
      *  truncated (Saturday to Monday is 0, -7 days -1, measured). */
     private static SqlWriter.Piece dateDiff(List<SqlExpr> a) {
-        String part = literal(a.get(0), "a DATE_DIFF part");
+        DatePart part = part(a.get(0));
         SqlWriter.Piece from = w -> w.expr(a.get(1), 0);
         SqlWriter.Piece to = w -> w.expr(a.get(2), 0);
         return switch (part) {
-            case "year", "quarter", "month", "day", "hour", "minute", "second", "millisecond", "microsecond" ->
+            case YEAR, QUARTER, MONTH, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND ->
                     w -> w.append("DATETIME_DIFF(CAST(").piece(to).append(" AS DATETIME), CAST(").piece(from)
-                            .append(" AS DATETIME), " + part.toUpperCase(Locale.ROOT) + ")");
-            case "week" -> w -> w.append("DIV(DATE_DIFF(CAST(").piece(to).append(" AS DATE), CAST(").piece(from)
+                            .append(" AS DATETIME), " + unit(part) + ")");
+            case WEEK -> w -> w.append("DIV(DATE_DIFF(CAST(").piece(to).append(" AS DATE), CAST(").piece(from)
                     .append(" AS DATE), DAY), 7)");
-            default -> throw new DialectCapability("date_diff part '" + part + "' has no measured BigQuery spelling");
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, NANOSECOND -> throw new DialectCapability("date_diff part " + part
+                    + " has no measured BigQuery spelling");
         };
     }
 
-    private static String intervalUnit(String unitFn) {
-        String unit = INTERVAL_UNITS.get(unitFn);
-        if (unit == null) {
-            throw new DialectCapability("interval unit '" + unitFn + "' has no BigQuery spelling");
-        }
-        return unit;
+    /** A unit as BigQuery's EXTRACT, DATE_TRUNC, DATETIME_DIFF and INTERVAL name it. */
+    private static String unit(DatePart part) {
+        return switch (part) {
+            case YEAR -> "YEAR";
+            case QUARTER -> "QUARTER";
+            case MONTH -> "MONTH";
+            case WEEK -> "WEEK";
+            case DAY -> "DAY";
+            case HOUR -> "HOUR";
+            case MINUTE -> "MINUTE";
+            case SECOND -> "SECOND";
+            case MILLISECOND -> "MILLISECOND";
+            case MICROSECOND -> "MICROSECOND";
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, NANOSECOND -> throw new DialectCapability("a " + part
+                    + " unit has no BigQuery spelling");
+        };
     }
 
-    private static final Map<String, String> INTERVAL_UNITS = Map.of(
-            "to_years", "YEAR", "to_months", "MONTH", "to_weeks", "WEEK", "to_days", "DAY",
-            "to_hours", "HOUR", "to_minutes", "MINUTE", "to_seconds", "SECOND",
-            "to_milliseconds", "MILLISECOND", "to_microseconds", "MICROSECOND");
+    private static String intervalUnit(DatePart part) {
+        if (part == DatePart.QUARTER) {
+            throw new DialectCapability("interval unit " + part + " has no BigQuery spelling");
+        }
+        return unit(part);
+    }
 
     /** {@code a} floor-divided by a positive {@code b}, in INT64 (DIV truncates toward zero). */
     private static SqlWriter.Piece floorDiv(SqlWriter.Piece a, SqlWriter.Piece b) {
@@ -2248,18 +2265,18 @@ public final class BigQuery extends AnsiSqlRenderer {
      *  microseconds, floored; months and years by the month index since 1970-01, floored to the bucket's size in
      *  months (before 1970 too, measured on DuckDB). A DATETIME. */
     private static SqlWriter.Piece timeBucket(List<SqlExpr> a) {
-        String unit = literal(a.get(0), "a TIME_BUCKET unit");
+        DatePart unit = part(a.get(0));
         SqlWriter.Piece t = w -> w.append("CAST(").expr(a.get(2), 0).append(" AS DATETIME)");
         SqlWriter.Piece n = w -> w.append("CAST(").expr(a.get(1), 0).append(" AS INT64)");
-        Long micros = BUCKET_MICROS.get(unit);
+        Long micros = bucketMicros(unit);
         if (micros != null) {
-            long origin = "to_weeks".equals(unit) ? -3L * 86400000000L : 0L;
+            long origin = unit == DatePart.WEEK ? -3L * 86400000000L : 0L;
             SqlWriter.Piece m = w -> w.append("(UNIX_MICROS(TIMESTAMP(").piece(t).append(")) - (" + origin + "))");
             SqlWriter.Piece size = w -> w.append("(").piece(n).append(" * " + micros + ")");
             return w -> w.append("DATETIME(TIMESTAMP_MICROS(").piece(floorDiv(m, size)).append(" * ").piece(size)
                     .append(" + (" + origin + ")))");
         }
-        int months = "to_months".equals(unit) ? 1 : "to_years".equals(unit) ? 12 : 0;
+        int months = unit == DatePart.MONTH ? 1 : unit == DatePart.YEAR ? 12 : 0;
         if (months == 0) {
             throw new DialectCapability("a " + unit + " time bucket has no BigQuery spelling");
         }
@@ -2270,9 +2287,19 @@ public final class BigQuery extends AnsiSqlRenderer {
                 .piece(size).append(" MONTH) AS DATETIME)");
     }
 
-    private static final Map<String, Long> BUCKET_MICROS = Map.of(
-            "to_weeks", 7L * 86400000000L, "to_days", 86400000000L, "to_hours", 3600000000L,
-            "to_minutes", 60000000L, "to_seconds", 1000000L, "to_milliseconds", 1000L, "to_microseconds", 1L);
+    /** A fixed-length bucket's length in microseconds; null for a calendar one. */
+    private static @com.legend.base.Nullable Long bucketMicros(DatePart unit) {
+        return switch (unit) {
+            case WEEK -> 7L * 86400000000L;
+            case DAY -> 86400000000L;
+            case HOUR -> 3600000000L;
+            case MINUTE -> 60000000L;
+            case SECOND -> 1000000L;
+            case MILLISECOND -> 1000L;
+            case MICROSECOND -> 1L;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+        };
+    }
 
     // ==================================================================
     // Date format codes (FORMAT_DATETIME / PARSE_DATETIME)
@@ -2882,5 +2909,54 @@ public final class BigQuery extends AnsiSqlRenderer {
                     ? "NUMERIC(" + s.precision() + ", " + s.scale() + ")"
                     : "BIGNUMERIC(" + s.precision() + ", " + s.scale() + ")";
         };
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (a CASE over JSON_TYPE). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are BigQuery's). */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        throw new DialectCapability("typeof reached BigQuery: its type names are BigQuery's");
+    }
+
+    /** {@inheritDoc} INT64, FLOAT64 and DATETIME (the naive date-time; its TIMESTAMP, an instant, folds with every
+     *  TIMESTAMP spelling) are its own names (2026-10-11). */
+    @Override
+    public String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
+        return WireNames.fold(driverTypeName == null ? null : switch (driverTypeName) {
+            case "INT64" -> "BIGINT";
+            case "FLOAT64" -> "DOUBLE";
+            case "DATETIME" -> "TIMESTAMP";
+            default -> driverTypeName;
+        });
+    }
+
+    /** {@inheritDoc} Its exact decimal carrier (2026-10-11): every decimal is a BIGNUMERIC (a parameterized type cannot
+     *  be cast to; its 38 digits each side hold every DECIMAL(p,s) and HUGEINT value), and a Float-declared column may
+     *  arrive as it (the numeric charter's Rule 2, as a DECIMAL does). A map is carried as its entries, a list of
+     *  (key, value) structs: an ARRAY at the wire, BigQuery having no map type. */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        if (label instanceof SqlType.Map && wire.equals("ARRAY")) {
+            return true;
+        }
+        if (!wire.equals("BIGNUMERIC")) {
+            return false;
+        }
+        return label == SqlType.Scalar.HUGEINT || label == SqlType.Scalar.DOUBLE
+                || label instanceof SqlType.Decimal d && d.scale() <= 38 && d.precision() - d.scale() <= 38;
     }
 }

@@ -39,16 +39,10 @@ public interface HostOperations {
      */
     List<String> statements(HostOperation operation);
 
-    /** The host operations of {@code dialect}'s database: DuckDB's, Postgres's count (a warehouse's catalog), or each
-     *  refused, naming the database. */
+    /** The host operations of {@code dialect}'s database, as its dialect answers ({@link SqlDialect#hostOperations}:
+     *  DuckDB's, Postgres's count, a warehouse's catalog), or each refused, naming the database. */
     static HostOperations of(SqlDialect dialect) {
-        if (dialect instanceof DuckDb) {
-            return DuckDbHostOperations.INSTANCE;
-        }
-        if (dialect instanceof Postgres) {
-            return PostgresHostOperations.INSTANCE;
-        }
-        return new Refused(dialect.getClass().getSimpleName());
+        return dialect.hostOperations();
     }
 
     /** {@code operation} refused on {@code database}: not written for it. */

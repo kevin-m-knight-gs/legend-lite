@@ -135,19 +135,21 @@ Database types planned with it: H2.
 | `MD5` | spelled | `md5` |  | 1 |
 | `SHA1` | spelled | `sha1` |  | 1 |
 | `SHA256` | spelled | `sha256` |  | 1 |
-| `EXTRACT` | emulated | `extract(… FROM …)` |  | 24 |
+| `EXTRACT` | emulated | `datePart, part: extract(… FROM …)` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | spelled | `now` |  | 0 |
 | `DATE_TRUNC_DAY` | emulated | `castAs: DATE` |  | 4 |
 | `MAKE_DATE` | spelled | `make_date` |  | 2 |
 | `MAKE_TIMESTAMP` | refused | `a date-time constructor reached H2, which has no make_timestamp()` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTruncDateGrained` |  | 0 |
-| `ADD_INTERVAL` | emulated | `dateUnit: dateadd(…, …, …)` |  | 93 |
+| `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiffArm` |  | 53 |
 | `TIME_BUCKET` | refused | `a time bucket reached H2, which has no time_bucket()` |  | 109 |
 | `TIMEZONE` | spelled | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `dateUnit: dateadd(…, …, …)` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `dateUnit, part: dateadd(…, …, …)` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `EXTRACT(EPOCH FROM …)` |  | 0 |
 | `EPOCH_MS` | emulated | `CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)` |  | 24 |
 | `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` |  | 0 |
@@ -318,19 +320,21 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `MD5` | spelled | `md5` | `as H2` | — |
 | `SHA1` | spelled | `sha1` | `as H2` | — |
 | `SHA256` | spelled | `sha256` | `as H2` | — |
-| `EXTRACT` | emulated | `extract(… FROM …)` | `as H2` | — |
+| `EXTRACT` | emulated | `datePart, part: extract(… FROM …)` | `as H2` | — |
 | `TODAY` | spelled | `current_date` | `as H2` | — |
 | `NOW` | spelled | `now` | `as H2` | — |
 | `DATE_TRUNC_DAY` | emulated | `castAs: DATE` | `as H2` | — |
 | `MAKE_DATE` | spelled | `make_date` | `as H2` | — |
 | `MAKE_TIMESTAMP` | refused | `a date-time constructor reached H2, which has no make_timestamp()` | `as H2` | — |
 | `DATE_TRUNC` | emulated | `dateTruncDateGrained` | `as H2` | — |
-| `ADD_INTERVAL` | emulated | `dateUnit: dateadd(…, …, …)` | `as H2` | — |
+| `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` | `as H2` | — |
 | `DATE_DIFF` | emulated | `dateDiffArm` | `as H2` | — |
 | `TIME_BUCKET` | refused | `a time bucket reached H2, which has no time_bucket()` | `as H2` | — |
 | `TIMEZONE` | spelled | `timezone` | `as H2` | — |
 | `DATE_AT_TIME` | spelled | `an operator (+)` | `as H2` | — |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `dateUnit: dateadd(…, …, …)` | `as H2` | — |
+| `EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as H2` | — |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as H2` | — |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `dateUnit, part: dateadd(…, …, …)` | `as H2` | — |
 | `EPOCH_SECONDS` | emulated | `EXTRACT(EPOCH FROM …)` | `as H2` | — |
 | `EPOCH_MS` | emulated | `CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)` | `as H2` | — |
 | `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` | `as H2` | — |
@@ -508,12 +512,14 @@ Database types planned with it: Postgres.
 | `MAKE_DATE` | emulated | `make_date(, CAST(… AS INTEGER))` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTrunc` |  | 0 |
-| `ADD_INTERVAL` | emulated | `intervalUnit, literal: … + … * INTERVAL '1 …'` |  | 93 |
+| `ADD_INTERVAL` | emulated | `intervalUnit, part: … + … * INTERVAL '1 …'` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | spelled | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalUnit, literal: … + … * INTERVAL '1 …'` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalUnit, part: … + … * INTERVAL '1 …'` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `CAST(extract(epoch FROM …) AS DOUBLE PRECISION)` |  | 0 |
 | `EPOCH_MS` | emulated | `CAST(trunc(extract(epoch FROM …) * 1000) AS BIGINT)` |  | 24 |
 | `FROM_EPOCH_SECONDS` | emulated | `…TIMESTAMP '1970-01-01 00:00:00' + … * INTERVAL '1 second'` |  | 0 |
@@ -691,12 +697,14 @@ Database types planned with it: Snowflake.
 | `MAKE_DATE` | spelled | `date_from_parts` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTrunc` |  | 0 |
-| `ADD_INTERVAL` | emulated | `intervalUnit, literal: CAST(DATEADD(…, …, …) AS TIMESTAMP_NTZ)` |  | 93 |
+| `ADD_INTERVAL` | emulated | `intervalUnit, part: CAST(DATEADD(…, …, …) AS TIMESTAMP_NTZ)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | emulated | `by its operands: CONVERT_TIMEZONE('UTC', …, CAST(… AS TIMESTAMP_NTZ)) / CAST(CONVERT_TIMEZONE(…, 'UTC', CAST(… AS TIMESTAMP_NTZ)) AS TIMESTAMP_LTZ)` |  | 6 |
 | `DATE_AT_TIME` | spelled | `TIMESTAMP_NTZ_FROM_PARTS` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalUnit, literal: CAST(DATEADD(…, …, …) AS TIMESTAMP_NTZ)` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch: Snowflake keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Snowflake keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalUnit, part: CAST(DATEADD(…, …, …) AS TIMESTAMP_NTZ)` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `naive: (CAST(DATE_PART(EPOCH_MICROSECOND, …) AS DOUBLE) / 1000000)` |  | 0 |
 | `EPOCH_MS` | emulated | `naive: CAST(TRUNC(DATE_PART(EPOCH_MICROSECOND, …) / 1000) AS BIGINT)` |  | 24 |
 | `FROM_EPOCH_SECONDS` | emulated | `TO_TIMESTAMP_NTZ(CAST(ROUND(… * 1000000) AS BIGINT), 6)` |  | 0 |
@@ -879,6 +887,8 @@ Database types planned with it: Trino.
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | emulated | `timezone` |  | 6 |
 | `DATE_AT_TIME` | emulated | `CAST(CAST(… AS VARCHAR) \|\| ' ' \|\| CAST(… AS VARCHAR) AS TIMESTAMP(6))` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `to_unixtime(with_timezone(…, 'UTC'))` |  | 0 |
 | `EPOCH_MS` | emulated | `CAST(truncate(to_unixtime(with_timezone(…, 'UTC')) * 1000) AS BIGINT)` |  | 24 |
@@ -982,11 +992,11 @@ Database types planned with it: BigQuery.
 | `UNNEST` | refused | `an unnest in a select list reached BigQuery, which has no set-returning projection (an explode is placed in FROM by the carrier strategies)` | `via BigQuery.unnestProjection` | 83 |
 | `LIST_FLATTEN` | refused | `a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")` |  | 0 |
 | `JSON_MERGE_PATCH` | refused | `BigQuery has no JSON merge patch reached BigQuery:` |  | 0 |
-| `SQRT` | emulated | `(CAST(… AS FLOAT64))` |  | 4 |
+| `SQRT` | emulated | `SQRT(CAST(… AS FLOAT64))` |  | 4 |
 | `CBRT` | spelled | `CBRT` |  | 3 |
-| `EXP` | emulated | `(CAST(… AS FLOAT64))` |  | 4 |
-| `LN` | emulated | `(CAST(… AS FLOAT64))` |  | 3 |
-| `LOG10` | emulated | `(CAST(… AS FLOAT64))` |  | 2 |
+| `EXP` | emulated | `EXP(CAST(… AS FLOAT64))` |  | 4 |
+| `LN` | emulated | `LN(CAST(… AS FLOAT64))` |  | 3 |
+| `LOG10` | emulated | `LOG10(CAST(… AS FLOAT64))` |  | 2 |
 | `POW` | emulated | `POW(CAST(… AS FLOAT64), CAST(… AS FLOAT64))` |  | 9 |
 | `PI` | emulated | `ACOS(-1)` |  | 1 |
 | `SIN` | spelled | `SIN` |  | 3 |
@@ -1047,9 +1057,9 @@ Database types planned with it: BigQuery.
 | `GUID` | spelled | `GENERATE_UUID` |  | 2 |
 | `FORMAT` | emulated | `format` |  | 42 |
 | `HASH` | emulated | `hashSigned` |  | 5 |
-| `MD5` | emulated | `asText: TO_HEX((…))` |  | 1 |
-| `SHA1` | emulated | `asText: TO_HEX((…))` |  | 1 |
-| `SHA256` | emulated | `asText: TO_HEX((…))` |  | 1 |
+| `MD5` | emulated | `asText: TO_HEX(MD5(…))` |  | 1 |
+| `SHA1` | emulated | `asText: TO_HEX(SHA1(…))` |  | 1 |
+| `SHA256` | emulated | `asText: TO_HEX(SHA256(…))` |  | 1 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | spelled | `CURRENT_DATE` |  | 0 |
 | `NOW` | emulated | `typeOf: CURRENT_TIMESTAMP()CURRENT_DATETIME()` |  | 0 |
@@ -1057,12 +1067,14 @@ Database types planned with it: BigQuery.
 | `MAKE_DATE` | emulated | `DATE(, CAST(… AS INT64))` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTrunc` |  | 0 |
-| `ADD_INTERVAL` | emulated | `intervalUnit, literal: (… + INTERVAL CAST(… AS INT64) …)` |  | 93 |
+| `ADD_INTERVAL` | emulated | `intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | emulated | `by its operands: DATETIME(…, …) / TIMESTAMP(CAST(… AS DATETIME), …)` |  | 6 |
 | `DATE_AT_TIME` | spelled | `DATETIME` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalUnit, literal: (… + INTERVAL CAST(… AS INT64) …)` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `instant: (CAST(UNIX_MICROS(…) AS FLOAT64) / 1000000)` |  | 0 |
 | `EPOCH_MS` | emulated | `instant: DIV(UNIX_MICROS(…), 1000)` |  | 24 |
 | `FROM_EPOCH_SECONDS` | emulated | `naiveUnlessZoned: …TIMESTAMP_MICROS(CAST(… * 1000000 AS INT64))` |  | 0 |
@@ -1240,12 +1252,14 @@ Database types planned with it: Databricks.
 | `MAKE_DATE` | spelled | `make_date` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTruncDateGrained` |  | 0 |
-| `ADD_INTERVAL` | emulated | `intervalUnit, literal: timestampadd(…, …, …)` |  | 93 |
+| `ADD_INTERVAL` | emulated | `intervalUnit, part: timestampadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | spelled | `from_utc_timestamp` |  | 6 |
 | `DATE_AT_TIME` | refused | `a time of day: Databricks has no TIME type` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalUnit, literal: timestampadd(…, …, …)` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalUnit, part: timestampadd(…, …, …)` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `(CAST(unix_micros(…) AS DOUBLE) / 1000000)` |  | 0 |
 | `EPOCH_MS` | emulated | `(unix_micros(…) div 1000)` |  | 24 |
 | `FROM_EPOCH_SECONDS` | spelled | `timestamp_seconds` |  | 0 |
@@ -1416,19 +1430,21 @@ Database types planned with it: DuckDB.
 | `MD5` | spelled | `md5` |  | 1 |
 | `SHA1` | spelled | `sha1` |  | 1 |
 | `SHA256` | spelled | `sha256` |  | 1 |
-| `EXTRACT` | spelled | `date_part` |  | 24 |
+| `EXTRACT` | emulated | `stringLit, datePart, part: date_part(…, …)` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | emulated | `CAST(now() AS TIMESTAMP)` |  | 0 |
 | `DATE_TRUNC_DAY` | emulated | `castAs: DATE` |  | 4 |
 | `MAKE_DATE` | spelled | `make_date` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTruncArm` |  | 0 |
-| `ADD_INTERVAL` | emulated | `… + …(…)` |  | 93 |
-| `DATE_DIFF` | spelled | `date_diff` |  | 53 |
+| `ADD_INTERVAL` | emulated | `intervalFunction, part: … + …(…)` |  | 93 |
+| `DATE_DIFF` | emulated | `stringLit, datePart, part: date_diff(…, …)` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | spelled | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `… + …(…)` |  | 0 |
+| `EPOCH_NS` | spelled | `epoch_ns` |  | 0 |
+| `FROM_EPOCH_NS` | spelled | `make_timestamp_ns` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalFunction, part: … + …(…)` |  | 0 |
 | `EPOCH_SECONDS` | spelled | `epoch` |  | 0 |
 | `EPOCH_MS` | spelled | `epoch_ms` |  | 24 |
 | `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` |  | 0 |
@@ -1611,6 +1627,8 @@ Database types planned with it: ClickHouse.
 | `TIME_BUCKET` | emulated | `timeBucket` | `via ClickHouse.temporal` | 109 |
 | `TIMEZONE` | emulated | `addSeconds(toDateTime64(…, 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(...` | `via ClickHouse.temporal` | 6 |
 | `DATE_AT_TIME` | refused | `a time of day: ClickHouse's Time type is experimental` | `via ClickHouse.temporal` | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `via ClickHouse.temporal` | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `via ClickHouse.temporal` | 0 |
 | `ADD_INTERVAL_TEMPORAL` | emulated | `composed in a block` | `via ClickHouse.temporal` | 0 |
 | `EPOCH_SECONDS` | emulated | `(toFloat64(toUnixTimestamp64Micro(toDateTime64(…, 6, 'UTC'))) / 1000000)` | `via ClickHouse.temporal` | 0 |
 | `EPOCH_MS` | emulated | `toUnixTimestamp64Milli(toDateTime64(…, 6, 'UTC'))` | `via ClickHouse.temporal` | 24 |
@@ -1794,6 +1812,8 @@ Database types planned with it: SQLite.
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | emulated | `timezone` |  | 6 |
 | `DATE_AT_TIME` | emulated | `… \|\| ' ' \|\| …` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `micros: (… / 1000000.0)` |  | 0 |
 | `EPOCH_MS` | emulated | `micros: (… / 1000)` |  | 24 |
@@ -1977,6 +1997,8 @@ Database types planned with it: MariaDB.
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | emulated | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `TIMESTAMP` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `micros: (… / 1000000)` |  | 0 |
 | `EPOCH_MS` | emulated | `micros: (… DIV 1000)` |  | 24 |
@@ -2160,6 +2182,8 @@ Database types planned with it: MySQL.
 | `TIME_BUCKET` | emulated | `timeBucket` | `as MariaDb` | 109 |
 | `TIMEZONE` | emulated | `timezone` | `as MariaDb` | 6 |
 | `DATE_AT_TIME` | spelled | `TIMESTAMP` | `as MariaDb` | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as MariaDb` | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as MariaDb` | 0 |
 | `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` | `as MariaDb` | 0 |
 | `EPOCH_SECONDS` | emulated | `micros: (… / 1000000)` | `as MariaDb` | 0 |
 | `EPOCH_MS` | emulated | `micros: (… DIV 1000)` | `as MariaDb` | 24 |
@@ -2338,12 +2362,14 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `MAKE_DATE` | spelled | `make_date` |  | — |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | — |
 | `DATE_TRUNC` | emulated | `dateTrunc` |  | — |
-| `ADD_INTERVAL` | emulated | `dbUnitOf: dateadd(…, …, …)` |  | — |
-| `DATE_DIFF` | emulated | `by its operands: datediff(, …, …) / …date_diff` |  | — |
+| `ADD_INTERVAL` | emulated | `dbUnitOf, part: dateadd(…, …, …)` |  | — |
+| `DATE_DIFF` | emulated | `enginePart, part: datediff(…, …, …)` |  | — |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | — |
 | `TIMEZONE` | spelled | `timezone` |  | — |
 | `DATE_AT_TIME` | refused | `a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one` |  | — |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `dbUnitOf: dateadd(…, …, …)` |  | — |
+| `EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | — |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | — |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `dbUnitOf, part: dateadd(…, …, …)` |  | — |
 | `EPOCH_SECONDS` | spelled | `epoch` |  | — |
 | `EPOCH_MS` | spelled | `epoch_ms` |  | — |
 | `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` |  | — |
@@ -2522,11 +2548,13 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` | `as EngineStyleH2` | — |
 | `DATE_TRUNC` | emulated | `dateTrunc` |  | — |
 | `ADD_INTERVAL` | emulated | `addInterval` |  | — |
-| `DATE_DIFF` | emulated | `by its operands: datediff(, …, …) / …date_diff` | `as EngineStyleH2` | — |
+| `DATE_DIFF` | emulated | `enginePart, part: datediff(…, …, …)` | `as EngineStyleH2` | — |
 | `TIME_BUCKET` | emulated | `timeBucket` | `as EngineStyleH2` | — |
 | `TIMEZONE` | spelled | `timezone` | `as EngineStyleH2` | — |
 | `DATE_AT_TIME` | refused | `a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one` | `as EngineStyleH2` | — |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `dbUnitOf: dateadd(…, …, …)` | `as EngineStyleH2` | — |
+| `EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as EngineStyleH2` | — |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as EngineStyleH2` | — |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `dbUnitOf, part: dateadd(…, …, …)` | `as EngineStyleH2` | — |
 | `EPOCH_SECONDS` | spelled | `epoch` | `as EngineStyleH2` | — |
 | `EPOCH_MS` | spelled | `epoch_ms` | `as EngineStyleH2` | — |
 | `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` | `as EngineStyleH2` | — |
@@ -2705,11 +2733,13 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DATE_TRUNC` | emulated | `dateTrunc` | `as EngineStyleDB2` | — |
 | `ADD_INTERVAL` | emulated | `addInterval` | `as EngineStyleDB2` | — |
-| `DATE_DIFF` | emulated | `by its operands: datediff(, …, …) / …date_diff` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `DATE_DIFF` | emulated | `enginePart, part: datediff(…, …, …)` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `TIME_BUCKET` | emulated | `timeBucket` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `TIMEZONE` | spelled | `timezone` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DATE_AT_TIME` | refused | `a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `dbUnitOf: dateadd(…, …, …)` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `dbUnitOf, part: dateadd(…, …, …)` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `EPOCH_SECONDS` | spelled | `epoch` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `EPOCH_MS` | spelled | `epoch_ms` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` | `as EngineStyleDB2, as EngineStyleH2` | — |

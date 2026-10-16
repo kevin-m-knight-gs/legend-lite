@@ -931,11 +931,11 @@ public final class CanonicalRenderSql {
                 // CASE by its JSON arm and PARSES the text arms as JSON
                 // (a quoted 'ROOT' string canon raised Malformed JSON —
                 // selfJoin::testSelfJoinPropertyMapping, bucket 9)
-                new SqlExpr.Case.When(eqText(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), "OBJECT"),
+                new SqlExpr.Case.When(isKind(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), com.legend.sql.JsonKind.OBJECT),
                         new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.COALESCE, canon, identity),
                                 SqlType.Scalar.VARCHAR))),
                 objectOnly ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                        eqText(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), "NULL"),
+                        isKind(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), com.legend.sql.JsonKind.NULL),
                         new SqlExpr.StringLit("'TDSNull'"))),
                         new SqlExpr.StringLit(TREE_MARKER))
                         : anyJsonCanon(v));
@@ -988,17 +988,19 @@ public final class CanonicalRenderSql {
                 // the variant carrier (rows.get(col)); the expected side's
                 // ^TDSNull() rewrites to the STRING sentinel, spelled quoted —
                 // the same equivalence the host judge applies
-                new SqlExpr.Case.When(eqText(jt, "NULL"),
+                new SqlExpr.Case.When(isKind(jt, com.legend.sql.JsonKind.NULL),
                         new SqlExpr.StringLit("'TDSNull'")),
-                new SqlExpr.Case.When(eqText(jt, "VARCHAR"), strLit),
+                new SqlExpr.Case.When(isKind(jt, com.legend.sql.JsonKind.STRING), strLit),
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR,
-                        eqText(jt, "BIGINT"), eqText(jt, "UBIGINT")), txt),
-                new SqlExpr.Case.When(eqText(jt, "DOUBLE"), floatLit),
-                new SqlExpr.Case.When(eqText(jt, "BOOLEAN"), txt)),
+                        isKind(jt, com.legend.sql.JsonKind.INTEGER),
+                        isKind(jt, com.legend.sql.JsonKind.UNSIGNED_INTEGER)), txt),
+                new SqlExpr.Case.When(isKind(jt, com.legend.sql.JsonKind.FLOAT), floatLit),
+                new SqlExpr.Case.When(isKind(jt, com.legend.sql.JsonKind.BOOLEAN), txt)),
                 new SqlExpr.StringLit(TREE_MARKER));
     }
 
-    private static SqlExpr eqText(SqlExpr e, String s) {
-        return SqlExpr.Call.of(SqlFn.EQUAL, e, new SqlExpr.StringLit(s));
+    /** {@code jsonType} (a JSON_TYPE call) answers {@code kind}: the kind is typed, its name the dialect's. */
+    private static SqlExpr isKind(SqlExpr jsonType, com.legend.sql.JsonKind kind) {
+        return SqlExpr.Call.of(SqlFn.EQUAL, jsonType, new SqlExpr.JsonKindLit(kind));
     }
 }

@@ -1378,7 +1378,7 @@ final class Fold {
             arms.add(new SqlExpr.Case.When(
                     SqlExpr.Call.of(SqlFn.EQUAL,
                             SqlExpr.Call.of(SqlFn.TYPEOF, e),
-                            new SqlExpr.StringLit("DATE")),
+                            new SqlExpr.TypeNameLit(com.legend.sql.SqlType.Scalar.DATE)),
                     SqlExpr.Call.of(SqlFn.STRFTIME, e,
                             new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE))));
         }

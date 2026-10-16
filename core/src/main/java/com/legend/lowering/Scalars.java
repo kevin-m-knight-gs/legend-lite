@@ -19,6 +19,7 @@ import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.error.NotImplementedException;
+import com.legend.sql.DatePart;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -560,11 +561,12 @@ final class Scalars {
         }
         // ---- Date family (H-audit registrations bucket) ----
         // Numeric extractions ride EXTRACT with a part literal.
-        for (var e : Map.of(Pure.AT_DATE_DAY_OF_YEAR, "doy", Pure.AT_DATE_WEEK_OF_YEAR, "week",
-                Pure.AT_DATE_DAY_OF_WEEK_NUMBER, "isodow", Pure.AT_DATE_QUARTER_NUMBER, "quarter").entrySet()) {
+        for (var e : Map.of(Pure.AT_DATE_DAY_OF_YEAR, DatePart.DAY_OF_YEAR, Pure.AT_DATE_WEEK_OF_YEAR, DatePart.WEEK,
+                Pure.AT_DATE_DAY_OF_WEEK_NUMBER, DatePart.ISO_DAY_OF_WEEK,
+                Pure.AT_DATE_QUARTER_NUMBER, DatePart.QUARTER).entrySet()) {
             for (com.legend.model.FunctionId f : e.getKey()) {
                 RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
-                        new SqlExpr.StringLit(e.getValue()),
+                        new SqlExpr.DatePartLit(e.getValue()),
                         dateArg(n.args().get(0), args.get(0)))));
             }
         }
@@ -597,7 +599,7 @@ final class Scalars {
         // bare integer — the corpus reads it as a Number.
         for (com.legend.model.FunctionId f : Pure.AT_DATE_QUARTER) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
-                    new SqlExpr.StringLit("quarter"),
+                    new SqlExpr.DatePartLit(DatePart.QUARTER),
                     dateArg(n.args().get(0), args.get(0)))));
         }
         // Truncations moved to DateShifts (the 3500-line split
@@ -675,7 +677,7 @@ final class Scalars {
                     }
                 }
                 SqlExpr bucketed = new SqlExpr.Call(SqlFn.TIME_BUCKET, List.of(
-                        new SqlExpr.StringLit(DateShifts.intervalFn(enumName(n.args().get(2)))),
+                        new SqlExpr.DatePartLit(DateShifts.durationPart(enumName(n.args().get(2)))),
                         args.get(1), dateArg(n.args().get(0), args.get(0))));
                 if (strict) {
                     return new SqlExpr.Cast(bucketed, SqlType.Scalar.DATE);
@@ -711,15 +713,15 @@ final class Scalars {
         // epoch seconds.)
         for (com.legend.model.FunctionId f : Pure.AT_DATE_TO_EPOCH_VALUE) {
             RULES.put(f, (n, args) -> dateDiffExpr(
-                    n.args().size() > 1 ? diffPart(n.args().get(1)) : "second",
+                    n.args().size() > 1 ? diffPart(n.args().get(1)) : DatePart.SECOND,
                     new SqlExpr.TimestampLit("1970-01-01 00:00:00"),
                     dateArg(n.args().get(0), args.get(0))));
         }
         // fromEpochValue(n, unit) = epoch + n unit-intervals.
         for (com.legend.model.FunctionId f : Pure.AT_DATE_FROM_EPOCH_VALUE) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
-                    new SqlExpr.StringLit(n.args().size() > 1
-                            ? DateShifts.intervalFn(enumName(n.args().get(1))) : "to_seconds"),
+                    new SqlExpr.DatePartLit(n.args().size() > 1
+                            ? DateShifts.durationPart(enumName(n.args().get(1))) : DatePart.SECOND),
                     args.get(0),
                     new SqlExpr.TimestampLit("1970-01-01 00:00:00"))));
         }
@@ -1166,22 +1168,23 @@ final class Scalars {
 
         // Temporal EXTRACT parts: one SqlFn entry, part-name literal first.
         for (var e : Map.of(
-                Pure.AT_DATE_YEAR, "year", Pure.AT_DATE_MONTH_NUMBER, "month", Pure.AT_DATE_DAY_OF_MONTH, "day",
-                Pure.AT_DATE_HOUR, "hour", Pure.AT_DATE_MINUTE, "minute", Pure.AT_DATE_SECOND, "second").entrySet()) {
+                Pure.AT_DATE_YEAR, DatePart.YEAR, Pure.AT_DATE_MONTH_NUMBER, DatePart.MONTH,
+                Pure.AT_DATE_DAY_OF_MONTH, DatePart.DAY, Pure.AT_DATE_HOUR, DatePart.HOUR,
+                Pure.AT_DATE_MINUTE, DatePart.MINUTE, Pure.AT_DATE_SECOND, DatePart.SECOND).entrySet()) {
             // a PARTIAL date lacking the component RAISES real pure's
             // message ('Cannot get day of month for 2017') — statically
             // decidable from the precision; the message composes in SQL
             PureDateLiteral.Precision needed = switch (e.getValue()) {
-                case "month" -> PureDateLiteral.Precision.MONTH;
-                case "day" -> PureDateLiteral.Precision.DAY;
-                case "hour" -> PureDateLiteral.Precision.HOUR;
-                case "minute" -> PureDateLiteral.Precision.MINUTE;
-                case "second" -> PureDateLiteral.Precision.SECOND;
+                case MONTH -> PureDateLiteral.Precision.MONTH;
+                case DAY -> PureDateLiteral.Precision.DAY;
+                case HOUR -> PureDateLiteral.Precision.HOUR;
+                case MINUTE -> PureDateLiteral.Precision.MINUTE;
+                case SECOND -> PureDateLiteral.Precision.SECOND;
                 default -> PureDateLiteral.Precision.YEAR;
             };
             String label = switch (e.getValue()) {
-                case "day" -> "day of month";
-                default -> e.getValue();
+                case DAY -> "day of month";
+                default -> e.getValue().name().toLowerCase(java.util.Locale.ROOT);
             };
             for (com.legend.model.FunctionId f : e.getKey()) {
                 RULES.put(f, (n, args) -> {
@@ -1198,7 +1201,7 @@ final class Scalars {
                     // split_part read, in SQL (date_part can't bind VARCHAR).
                     Integer pp = partialPrecision(n.args().get(0));
                     if (pp != null) {
-                        int field = e.getValue().equals("year") ? 1 : 2;
+                        int field = e.getValue() == DatePart.YEAR ? 1 : 2;
                         return new SqlExpr.Cast(
                                 SqlExpr.Call.of(SqlFn.SPLIT_PART, args.get(0),
                                         new SqlExpr.StringLit("-"),
@@ -1206,7 +1209,7 @@ final class Scalars {
                                 SqlType.Scalar.BIGINT);
                     }
                     List<SqlExpr> withPart = new ArrayList<>();
-                    withPart.add(new SqlExpr.StringLit(e.getValue()));
+                    withPart.add(new SqlExpr.DatePartLit(e.getValue()));
                     withPart.addAll(args);
                     return new SqlExpr.Call(SqlFn.EXTRACT, withPart);
                 });
@@ -2676,7 +2679,7 @@ final class Scalars {
                     new SqlExpr.Case.When(
                     SqlExpr.Call.of(SqlFn.EQUAL,
                             SqlExpr.Call.of(SqlFn.JSON_TYPE, x),
-                            new SqlExpr.StringLit("ARRAY")),
+                            new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.ARRAY)),
                     cat(new SqlExpr.StringLit("["),
                             joinList(new SqlExpr.Cast(x, new SqlType.Array(
                                     PureSql.type(Type.Primitive.STRING)))),
@@ -2979,20 +2982,19 @@ final class Scalars {
         throw new IllegalStateException(
                 "no TDS cell rendering for Pure type " + type.typeName());
     }
-    /** The DuckDB interval-constructor for a DurationUnit enum literal. */
-        /** The date_diff part name for a DurationUnit enum literal. */
-    private static String diffPart(TypedSpec unit) {
+    /** The date_diff part for a DurationUnit enum literal. */
+    private static DatePart diffPart(TypedSpec unit) {
         return switch (enumName(unit)) {
-            case "YEARS" -> "year";
-            case "MONTHS" -> "month";
-            case "WEEKS" -> "week";
-            case "DAYS" -> "day";
-            case "HOURS" -> "hour";
-            case "MINUTES" -> "minute";
-            case "SECONDS" -> "second";
-            case "MILLISECONDS" -> "millisecond";
-            case "MICROSECONDS" -> "microsecond";
-            case "NANOSECONDS" -> "nanosecond";
+            case "YEARS" -> DatePart.YEAR;
+            case "MONTHS" -> DatePart.MONTH;
+            case "WEEKS" -> DatePart.WEEK;
+            case "DAYS" -> DatePart.DAY;
+            case "HOURS" -> DatePart.HOUR;
+            case "MINUTES" -> DatePart.MINUTE;
+            case "SECONDS" -> DatePart.SECOND;
+            case "MILLISECONDS" -> DatePart.MILLISECOND;
+            case "MICROSECONDS" -> DatePart.MICROSECOND;
+            case "NANOSECONDS" -> DatePart.NANOSECOND;
             default -> throw new IllegalStateException(
                     "unknown DurationUnit for dateDiff: " + enumName(unit));
         };
@@ -3021,9 +3023,9 @@ final class Scalars {
      * backward (not the negation); HOURS/MINUTES/SECONDS are truncated
      * ELAPSED time (SQL date_diff counts crossings); calendar parts
      * match SQL date_diff. */
-    private static SqlExpr dateDiffExpr(String part, SqlExpr d1, SqlExpr d2) {
+    private static SqlExpr dateDiffExpr(DatePart part, SqlExpr d1, SqlExpr d2) {
         switch (part) {
-            case "week" -> {
+            case WEEK -> {
                 SqlExpr forward = SqlExpr.Call.of(SqlFn.MINUS,
                         sundayIndex(d2), sundayIndex(d1));
                 SqlExpr backward = SqlExpr.Call.of(SqlFn.MINUS,
@@ -3031,20 +3033,20 @@ final class Scalars {
                 return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                         SqlExpr.Call.of(SqlFn.LESS_EQUAL,
                                 new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(
-                                        new SqlExpr.StringLit("day"), d2, d1)),
+                                        new SqlExpr.DatePartLit(DatePart.DAY), d2, d1)),
                                 new SqlExpr.IntLit(0)),
                         forward)), backward);
             }
-            case "hour" -> {
+            case HOUR -> {
                 return elapsed(d1, d2, 3_600_000L);
             }
-            case "minute" -> {
+            case MINUTE -> {
                 return elapsed(d1, d2, 60_000L);
             }
-            case "second" -> {
+            case SECOND -> {
                 return elapsed(d1, d2, 1_000L);
             }
-            case "nanosecond" -> {
+            case NANOSECOND -> {
                 // no engine counts nanoseconds in date_diff: the epoch counts' difference, exact where the engine
                 // keeps nanoseconds (the Cypher island's nanosecond leg, 2026-10-16)
                 return SqlExpr.Call.of(SqlFn.MINUS,
@@ -3053,7 +3055,7 @@ final class Scalars {
             }
             default -> {
                 return new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(
-                        new SqlExpr.StringLit(part), d1, d2));
+                        new SqlExpr.DatePartLit(part), d1, d2));
             }
         }
     }
@@ -3075,14 +3077,14 @@ final class Scalars {
     private static SqlExpr sundayIndex(SqlExpr d) {
         return SqlExpr.Call.of(SqlFn.INT_DIVIDE,
                 new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(
-                        new SqlExpr.StringLit("day"),
+                        new SqlExpr.DatePartLit(DatePart.DAY),
                         new SqlExpr.DateLit("0001-01-07"), d)),
                 new SqlExpr.IntLit(7));
     }
 
     private static SqlExpr backOneDay(SqlExpr d) {
         return new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
-                new SqlExpr.StringLit("to_days"),
+                new SqlExpr.DatePartLit(DatePart.DAY),
                 new SqlExpr.IntLit(-1), d));
     }
 
@@ -3312,7 +3314,7 @@ final class Scalars {
             return shifted;
         }
         SqlExpr off = SqlExpr.Call.of(SqlFn.DATE_DIFF,
-                new SqlExpr.StringLit("minute"), arg, wall);
+                new SqlExpr.DatePartLit(DatePart.MINUTE), arg, wall);
         SqlExpr absOff = SqlExpr.Call.of(SqlFn.ABS, off);
         SqlExpr hh = SqlExpr.Call.of(SqlFn.LPAD,
                 str(SqlExpr.Call.of(SqlFn.INT_DIVIDE, absOff, new SqlExpr.IntLit(60))),

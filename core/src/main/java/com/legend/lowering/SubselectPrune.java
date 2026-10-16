@@ -226,6 +226,12 @@ final class SubselectPrune {
             }
             case SqlExpr.FormatLit v -> {
             }
+            case SqlExpr.DatePartLit v -> {
+            }
+            case SqlExpr.JsonKindLit v -> {
+            }
+            case SqlExpr.TypeNameLit v -> {
+            }
             case SqlExpr.OrderedListAgg o -> {
                 collectExpr(o.value(), r);
                 collectExpr(o.orderBy(), r);

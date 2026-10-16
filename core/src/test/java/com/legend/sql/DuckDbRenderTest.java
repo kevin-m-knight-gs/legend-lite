@@ -274,7 +274,17 @@ class DuckDbRenderTest {
                             : SqlExpr.Call.of(SqlFn.GREATER_EQUAL, col("ID"),
                                     new SqlExpr.Column("t1", "ID")));
             String sql = duck.render(SqlSelect.starOf(j));
-            org.junit.jupiter.api.Assertions.assertTrue(sql.contains(k.sql),
+            String keyword = switch (k) {
+                case INNER -> "JOIN";
+                case LEFT -> "LEFT OUTER JOIN";
+                case RIGHT -> "RIGHT OUTER JOIN";
+                case FULL -> "FULL OUTER JOIN";
+                case CROSS -> "CROSS JOIN";
+                case CROSS_LATERAL -> "CROSS JOIN LATERAL";
+                case ASOF_LEFT -> "ASOF LEFT JOIN";
+                case LEFT_LATERAL -> "LEFT JOIN LATERAL";
+            };
+            org.junit.jupiter.api.Assertions.assertTrue(sql.contains(keyword),
                     () -> k + " must render as its spelling; got: " + sql);
         }
     }
@@ -368,7 +378,7 @@ class DuckDbRenderTest {
                 "ucFirst in a function argument needs no wrap: " + ucInConcat);
         String addI = renderExpr(new SqlExpr.Call(com.legend.sql.SqlFn.LESS,
                 List.of(new SqlExpr.Call(com.legend.sql.SqlFn.ADD_INTERVAL,
-                        List.of(new SqlExpr.StringLit("to_days"),
+                        List.of(new SqlExpr.DatePartLit(com.legend.sql.DatePart.DAY),
                                 new SqlExpr.IntLit(3), col("D"))),
                         col("D2"))));
         org.junit.jupiter.api.Assertions.assertTrue(

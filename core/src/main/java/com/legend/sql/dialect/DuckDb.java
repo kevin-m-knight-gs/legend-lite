@@ -53,11 +53,17 @@ public final class DuckDb extends AnsiSqlRenderer {
         return strftimeText(fl);
     }
 
+    /** {@inheritDoc} Written beside this dialect ({@code DuckDbHostOperations}). */
+    @Override
+    public HostOperations hostOperations() {
+        return DuckDbHostOperations.INSTANCE;
+    }
+
     /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
      *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
     @Override
-    public String fromEngineH2(String statement) {
-        return RawSqlBoundary.h2ToDuckDb(statement);
+    public String fromEngineText(String statement) {
+        return RawSqlBoundary.translated(statement, types -> types, bare -> bare);
     }
 
     /** DuckDB's aggregates, each by its name in the shared {@code name(args)} form (the dialect program's Phase 1,
@@ -318,15 +324,24 @@ public final class DuckDb extends AnsiSqlRenderer {
      *  lexicon quotes the words DuckDB reserves — default, else, do ...). */
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
-        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p) {
-            if (p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.FLOAT) {
-                return "DOUBLE";
-            }
-            if (p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.BIT) {
-                return "BOOLEAN";
-            }
-        }
-        return super.ddlType(t);
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT -> "SMALLINT";
+                case TINYINT -> "TINYINT";
+                case INTEGER -> "INTEGER";
+                case FLOAT, DOUBLE -> "DOUBLE";
+                case REAL -> "REAL";
+                case BIT -> "BOOLEAN";
+                case TIMESTAMP -> "TIMESTAMP";
+                case DATE -> "DATE";
+                case JSON -> "JSON";
+                case VARCHAR -> "VARCHAR";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
+            };
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
     }
 
     @Override
@@ -361,7 +376,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
             // as a string literal and renders bare: d + to_years(n).
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
-                    .append(" + ").append(((SqlExpr.StringLit) a.get(0)).value()).append("(").expr(a.get(1), 0)
+                    .append(" + ").append(DuckDbSpellings.intervalFunction(part(a.get(0)))).append("(").expr(a.get(1), 0)
                     .append(")"));
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
@@ -479,9 +494,11 @@ public final class DuckDb extends AnsiSqlRenderer {
             case MD5 -> writer.function("md5", c.args());
             case SHA1 -> writer.function("sha1", c.args());
             case SHA256 -> writer.function("sha256", c.args());
-            case EXTRACT -> writer.function("date_part", c.args());
+            case EXTRACT -> writer.append("date_part(").append(stringLit(DuckDbSpellings.datePart(part(a.get(0)))))
+                    .append(", ").list(a.subList(1, a.size())).append(")");
             case MAKE_DATE -> writer.function("make_date", c.args());
-            case DATE_DIFF -> writer.function("date_diff", c.args());
+            case DATE_DIFF -> writer.append("date_diff(").append(stringLit(DuckDbSpellings.datePart(part(a.get(0)))))
+                    .append(", ").list(a.subList(1, a.size())).append(")");
             case TIMEZONE -> writer.function("timezone", c.args());
             // a date plus a time of day is the timestamp at it (measured, 1.4.4)
             case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
@@ -527,12 +544,13 @@ public final class DuckDb extends AnsiSqlRenderer {
      *  semantic fact is pure's firstHourOfDay(Date):DateTime — the engine's H2 keeps the TIMESTAMP, so this backend
      *  casts back to it. The coarser parts are the Date-typed heads (firstDayOf*) and stay as they are. */
     private SqlWriter dateTruncArm(SqlWriter writer, SqlExpr.Call c) {
-        if (c.args().get(0) instanceof SqlExpr.StringLit part && part.value().equals("day")) {
+        String spelled = stringLit(DuckDbSpellings.datePart(part(c.args().get(0))));
+        if (part(c.args().get(0)) == com.legend.sql.DatePart.DAY) {
             writer.append("CAST(");
-            dateTruncDateGrained(writer, c.args());
+            dateTruncDateGrained(writer, c.args(), spelled);
             return writer.append(" AS TIMESTAMP)");
         }
-        return dateTruncDateGrained(writer, c.args());
+        return dateTruncDateGrained(writer, c.args(), spelled);
     }
 
     @Override
@@ -854,14 +872,6 @@ public final class DuckDb extends AnsiSqlRenderer {
                 && t.type() == com.legend.sql.SqlType.Scalar.JSON;
     }
 
-    /** The same fact of an OUTPUT column: born at the store, typed JSON (SEMISTRUCTURED as stored) -- what a
-     *  star delivers without a reference to read it through ({@link VariantEgress}). */
-    static boolean storedVariant(com.legend.sql.OutputCol o) {
-        return (o.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
-                        || o.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
-                && o.type() == com.legend.sql.SqlType.Scalar.JSON;
-    }
-
     /** The operand of a navigation: a stored Variant column as it is. */
     private SqlWriter navigated(SqlWriter writer, SqlExpr e) {
         return storedVariant(e) ? writer.append(super.columnRef((SqlExpr.Column) e)) : writer.expr(e, 7);
@@ -947,5 +957,29 @@ public final class DuckDb extends AnsiSqlRenderer {
                                 SqlExpr.Column.param("x", parts),
                                 new SqlExpr.StringLit(""))));
         return writer.expr(SqlExpr.Call.of(SqlFn.LIST_GET, nonEmpty, a.get(2)), 0);
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (its own json_type). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} A DATE is {@code DATE}; no other type's name is compared. */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        if (type == com.legend.sql.SqlType.Scalar.DATE) {
+            return "DATE";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached DuckDB");
     }
 }

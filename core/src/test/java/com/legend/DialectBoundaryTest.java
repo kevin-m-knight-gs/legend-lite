@@ -113,6 +113,19 @@ class DialectBoundaryTest {
     /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
      *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */
     // SystemDatabase.java 3 -> 0 (2026-10-04, C3b): it opens by the declared type through Sessions
+    // (SqlTypeCensus.java 10 -> 0, 2026-10-15, the dialect program's Phase 4: each database's wire names and
+    // carriers are its dialect's, SqlDialect.wireTypeName and deliversOwn; the census names none. Its history:)
+    // 0 -> 2 (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12): the wire census (a diagnostic, deciding no
+    // SQL) reads SQLite's own type names by the label the executor gives it, the dialect class's simple name, as
+    // it reads Snowflake's and BigQuery's (names this pattern does not list); exec may not reference the
+    // dialect classes themselves (the planning-references ledger). 2 -> 3 (2026-10-13, PR #34's independent
+    // review): a map delivered as its entries (an ARRAY) is accepted on BigQuery and Postgres only, the two with
+    // no map type; it had been widened to every database, so DuckDB's census could no longer catch a map
+    // shipped as an ARRAY. Moves into the dialect with the plan's P4 (the dialect reads its own wire names)
+    // 3 -> 10 (2026-10-13, the dialect program's Phase 0): not new lines -- the census names every database now,
+    // and the wire census reads Trino's, Snowflake's, ClickHouse's and BigQuery's names too; all of it moves
+    // into each dialect with Phase 4
+    // (it was "SqlTypeCensus.java", 10)
     private static final Map<String, Integer> DATABASE_NAME_DECISIONS = Map.of(
             // the grammar: a specification keyword parses per database, as upstream's (3 -> 2, 2026-10-11,
             // docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13: the lite database types are a set, no longer SQLite by name)
@@ -121,18 +134,7 @@ class DialectBoundaryTest {
             // Athena, Aurora, Oracle, Spanner, Databricks, BigQuery), as upstream's grammar does
             "ConnectionSectionGrammar.java", 12,
             // 0 -> 1 (2026-10-13, Phase 0, the same widening): the PMCD reader's connection kinds by their protocol names
-            "PmcdParser.java", 1,
-            // 0 -> 2 (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12): the wire census (a diagnostic, deciding no
-            // SQL) reads SQLite's own type names by the label the executor gives it, the dialect class's simple name, as
-            // it reads Snowflake's and BigQuery's (names this pattern does not list); exec may not reference the
-            // dialect classes themselves (the planning-references ledger). 2 -> 3 (2026-10-13, PR #34's independent
-            // review): a map delivered as its entries (an ARRAY) is accepted on BigQuery and Postgres only, the two with
-            // no map type; it had been widened to every database, so DuckDB's census could no longer catch a map
-            // shipped as an ARRAY. Moves into the dialect with the plan's P4 (the dialect reads its own wire names)
-            // 3 -> 10 (2026-10-13, the dialect program's Phase 0): not new lines -- the census names every database now,
-            // and the wire census reads Trino's, Snowflake's, ClickHouse's and BigQuery's names too; all of it moves
-            // into each dialect with Phase 4
-            "SqlTypeCensus.java", 10);
+            "PmcdParser.java", 1);
 
     /** Lines CONSTRUCTING a dialect outside the dialect package, by file: the one owner per side picks it
      *  (C3, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md; the guard at zero, 2026-10-04). */

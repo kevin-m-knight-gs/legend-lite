@@ -43,7 +43,7 @@ public final class Databricks extends AnsiSqlRenderer {
     /** The engine's H2 text is refused here: Databricks has no translation of it (decision D2: raw text runs on the
      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
     @Override
-    public String fromEngineH2(String statement) {
+    public String fromEngineText(String statement) {
         throw new DialectCapability("the engine's H2 text reached Databricks, which has no translation of it");
     }
 
@@ -797,15 +797,25 @@ public final class Databricks extends AnsiSqlRenderer {
      *  BOOLEAN for BIT (Spark has no BIT). */
     @Override
     protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
-        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p) {
-            return switch (p.kind()) {
-                case VARCHAR -> "STRING";
+        return switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
+                case BIGINT -> "BIGINT";
+                case SMALLINT -> "SMALLINT";
+                case TINYINT -> "TINYINT";
+                case INTEGER -> "INTEGER";
+                case FLOAT -> "FLOAT";
+                case DOUBLE -> "DOUBLE";
+                case REAL -> "REAL";
                 case BIT -> "BOOLEAN";
-                case BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, TIMESTAMP, DATE, JSON, OTHER, DISTINCT,
-                     ARRAY, OBJECT -> super.ddlType(t);
+                case TIMESTAMP -> "TIMESTAMP";
+                case DATE -> "DATE";
+                case JSON -> "JSON";
+                case VARCHAR -> "STRING";
+                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
             };
-        }
-        return super.ddlType(t);
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
+            case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
+        };
     }
 
     /** {@code s} split on the LITERAL text {@code d}: Spark's split takes a regex, so the delimiter is quoted. */
@@ -982,7 +992,7 @@ public final class Databricks extends AnsiSqlRenderer {
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
-            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args());
+            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1093,7 +1103,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case EXTRACT -> writer.piece(extract(a));
             case MAKE_TIMESTAMP -> makeTimestamp(writer, c);
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("timestampadd(")
-                    .append(intervalUnit(literal(a.get(0), c.fn().name()))).append(", ").expr(a.get(1), 0)
+                    .append(intervalUnit(part(a.get(0)))).append(", ").expr(a.get(1), 0)
                     .append(", ").expr(a.get(2), 0).append(")");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
@@ -1264,13 +1274,6 @@ public final class Databricks extends AnsiSqlRenderer {
         return new DialectCapability(fn + " reached Databricks: " + why);
     }
 
-    private static String literal(SqlExpr e, String what) {
-        if (e instanceof SqlExpr.StringLit s) {
-            return s.value();
-        }
-        throw new DialectCapability(what + " with a non-literal part reached Databricks");
-    }
-
     /** A regexp extraction's group: the named one, else 0. */
     private static SqlWriter.Piece group(List<SqlExpr> a) {
         return a.size() > 2 ? w -> w.append("CAST(").expr(a.get(2), 0).append(" AS INT)") : w -> w.append("0");
@@ -1306,59 +1309,84 @@ public final class Databricks extends AnsiSqlRenderer {
 
     // ---- temporal helpers
 
-    /** DuckDB's date_part names → Spark's extract fields; a Pure integer (seconds truncated). Spark's DOW is
-     *  Sunday 1; DuckDB's is Sunday 0. */
+    /** A date part as Spark's extract field; a Pure integer (seconds truncated). */
     private SqlWriter.Piece extract(List<SqlExpr> a) {
-        String part = literal(a.get(0), "EXTRACT");
+        com.legend.sql.DatePart part = part(a.get(0));
         String field = switch (part) {
-            case "year", "quarter", "month", "week", "day", "hour", "minute", "second" -> part.toUpperCase(
-                    java.util.Locale.ROOT);
-            case "doy" -> "DOY";
-            case "dow" -> "DOW";
-            case "isodow" -> "DOW_ISO";
-            default -> throw new DialectCapability("date part '" + part + "' has no probed Databricks spelling");
+            case YEAR -> "YEAR";
+            case QUARTER -> "QUARTER";
+            case MONTH -> "MONTH";
+            case WEEK -> "WEEK";
+            case DAY -> "DAY";
+            case HOUR -> "HOUR";
+            case MINUTE -> "MINUTE";
+            case SECOND -> "SECOND";
+            case DAY_OF_YEAR -> "DOY";
+            case ISO_DAY_OF_WEEK -> "DOW_ISO";
+            case MILLISECOND, MICROSECOND, NANOSECOND -> throw new DialectCapability("date part " + part
+                    + " has no probed Databricks spelling");
         };
-        String minus = "dow".equals(part) ? " - 1" : "";
-        return w -> w.append("CAST(floor(extract(" + field + " FROM ").expr(a.get(1), 0).append("))" + minus
-                + " AS BIGINT)");
+        return w -> w.append("CAST(floor(extract(" + field + " FROM ").expr(a.get(1), 0).append(")) AS BIGINT)");
     }
 
-    /** DuckDB's interval-function name ({@code to_days}) → a timestampadd unit. */
-    private static String intervalUnit(String unitFn) {
-        String unit = INTERVAL_UNITS.get(unitFn);
-        if (unit == null) {
-            throw new DialectCapability("interval unit '" + unitFn + "' has no Databricks spelling");
-        }
-        return unit;
+    /** A unit as timestampadd names it. */
+    private static String intervalUnit(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case YEAR -> "YEAR";
+            case MONTH -> "MONTH";
+            case WEEK -> "WEEK";
+            case DAY -> "DAY";
+            case HOUR -> "HOUR";
+            case MINUTE -> "MINUTE";
+            case SECOND -> "SECOND";
+            case MILLISECOND -> "MILLISECOND";
+            case MICROSECOND -> "MICROSECOND";
+            case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit " + unit
+                    + " has no Databricks spelling");
+        };
     }
 
-    private static final java.util.Map<String, String> INTERVAL_UNITS = java.util.Map.of(
-            "to_years", "YEAR", "to_months", "MONTH", "to_weeks", "WEEK", "to_days", "DAY",
-            "to_hours", "HOUR", "to_minutes", "MINUTE", "to_seconds", "SECOND",
-            "to_milliseconds", "MILLISECOND", "to_microseconds", "MICROSECOND");
+    /** A unit as date_trunc names it. */
+    private static String truncUnit(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case YEAR -> "year";
+            case QUARTER -> "quarter";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case MILLISECOND -> "millisecond";
+            case MICROSECOND -> "microsecond";
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, NANOSECOND -> throw new DialectCapability("date_trunc to " + unit
+                    + " has no Databricks spelling");
+        };
+    }
 
     /** DuckDB's date_diff counts BOUNDARIES crossed (timestampdiff counts whole units, measured): year, quarter and
      *  month by the calendar, day by dates, the sub-day parts by the floored epoch in their unit. */
     private SqlWriter.Piece dateDiff(List<SqlExpr> a) {
-        String part = literal(a.get(0), "DATE_DIFF");
+        com.legend.sql.DatePart part = part(a.get(0));
         SqlWriter.Piece from = w -> w.expr(a.get(1), 0);
         SqlWriter.Piece to = w -> w.expr(a.get(2), 0);
         SqlWriter.Piece y = w -> w.append("(year(").piece(to).append(") - year(").piece(from).append("))");
         SqlWriter.Piece body = switch (part) {
-            case "year" -> y;
-            case "quarter" -> w -> w.piece(y).append(" * 4 + (quarter(").piece(to).append(") - quarter(").piece(from)
+            case YEAR -> y;
+            case QUARTER -> w -> w.piece(y).append(" * 4 + (quarter(").piece(to).append(") - quarter(").piece(from)
                     .append("))");
-            case "month" -> w -> w.piece(y).append(" * 12 + (month(").piece(to).append(") - month(").piece(from)
+            case MONTH -> w -> w.piece(y).append(" * 12 + (month(").piece(to).append(") - month(").piece(from)
                     .append("))");
-            case "day" -> w -> w.append("datediff(CAST(").piece(to).append(" AS DATE), CAST(").piece(from)
+            case DAY -> w -> w.append("datediff(CAST(").piece(to).append(" AS DATE), CAST(").piece(from)
                     .append(" AS DATE))");
-            case "hour" -> epochBoundaries(from, to, 3600000000L);
-            case "minute" -> epochBoundaries(from, to, 60000000L);
-            case "second" -> epochBoundaries(from, to, 1000000L);
-            case "millisecond" -> epochBoundaries(from, to, 1000L);
-            case "microsecond" -> w -> w.append("(unix_micros(CAST(").piece(to).append(" AS TIMESTAMP)) - unix_micros(CAST(")
+            case HOUR -> epochBoundaries(from, to, 3600000000L);
+            case MINUTE -> epochBoundaries(from, to, 60000000L);
+            case SECOND -> epochBoundaries(from, to, 1000000L);
+            case MILLISECOND -> epochBoundaries(from, to, 1000L);
+            case MICROSECOND -> w -> w.append("(unix_micros(CAST(").piece(to).append(" AS TIMESTAMP)) - unix_micros(CAST(")
                     .piece(from).append(" AS TIMESTAMP)))");
-            default -> throw new DialectCapability("date_diff part '" + part + "' has no probed Databricks spelling");
+            case WEEK, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part " + part
+                    + " has no probed Databricks spelling");
         };
         return w -> w.append("CAST(").piece(body).append(" AS BIGINT)");
     }
@@ -1372,18 +1400,18 @@ public final class Databricks extends AnsiSqlRenderer {
     /** DuckDB's time_bucket: fixed units binned from 1970-01-01 (weeks from the Monday 1969-12-29) in microseconds,
      *  floored; months and years by the month index since 1970-01, floored to the bucket's size in months. */
     private SqlWriter.Piece timeBucket(List<SqlExpr> a) {
-        String unit = literal(a.get(0), "TIME_BUCKET");
-        Long micros = BUCKET_MICROS.get(unit);
+        com.legend.sql.DatePart unit = part(a.get(0));
+        Long micros = bucketMicros(unit);
         SqlWriter.Piece t = w -> w.append("CAST(").expr(a.get(2), 0).append(" AS TIMESTAMP)");
         SqlWriter.Piece n = w -> w.append("CAST(").expr(a.get(1), 0).append(" AS BIGINT)");
         if (micros != null) {
-            long origin = "to_weeks".equals(unit) ? -3L * 86400000000L : 0L;
+            long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400000000L : 0L;
             return w -> w.append("timestamp_micros(CAST(floor((unix_micros(").piece(t).append(") - (" + origin
                     + ")) / (").piece(n).append(" * " + micros + ")) AS BIGINT) * ").piece(n).append(" * " + micros
                     + " + (" + origin + "))");
         }
-        Integer months = "to_months".equals(unit) ? Integer.valueOf(1) : "to_years".equals(unit) ? Integer.valueOf(12)
-                : null;
+        Integer months = unit == com.legend.sql.DatePart.MONTH ? Integer.valueOf(1)
+                : unit == com.legend.sql.DatePart.YEAR ? Integer.valueOf(12) : null;
         if (months == null) {
             throw new DialectCapability("a " + unit + " time bucket has no Databricks spelling");
         }
@@ -1393,9 +1421,19 @@ public final class Databricks extends AnsiSqlRenderer {
                 .append(" AS INT)) AS TIMESTAMP)");
     }
 
-    private static final java.util.Map<String, Long> BUCKET_MICROS = java.util.Map.of(
-            "to_weeks", 7L * 86400000000L, "to_days", 86400000000L, "to_hours", 3600000000L,
-            "to_minutes", 60000000L, "to_seconds", 1000000L, "to_milliseconds", 1000L, "to_microseconds", 1L);
+    /** A fixed-length bucket's length in microseconds; null for a calendar one. */
+    private static @com.legend.base.Nullable Long bucketMicros(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case WEEK -> 7L * 86400000000L;
+            case DAY -> 86400000000L;
+            case HOUR -> 3600000000L;
+            case MINUTE -> 60000000L;
+            case SECOND -> 1000000L;
+            case MILLISECOND -> 1000L;
+            case MICROSECOND -> 1L;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+        };
+    }
 
     // ==================================================================
     // Hooks of the base
@@ -1729,5 +1767,26 @@ public final class Databricks extends AnsiSqlRenderer {
             return com.legend.sql.Json.parse(s);
         }
         return jdbcValue;
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (its emulation). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are Spark's). */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        throw new DialectCapability("typeof reached Databricks: its type names are Spark's");
     }
 }

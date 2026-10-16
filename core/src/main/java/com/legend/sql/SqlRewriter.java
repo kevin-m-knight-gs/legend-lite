@@ -174,6 +174,9 @@ public abstract class SqlRewriter {
             case SqlExpr.TimestampLit l -> l;
             case SqlExpr.TimeLit l -> l;
             case SqlExpr.FormatLit l -> l;
+            case SqlExpr.DatePartLit l -> l;
+            case SqlExpr.JsonKindLit l -> l;
+            case SqlExpr.TypeNameLit l -> l;
             case SqlExpr.PlanParam p -> p;
             case SqlExpr.Group g -> {
                 SqlExpr i = rewriteExpr(g.inner());

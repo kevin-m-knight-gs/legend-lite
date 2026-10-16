@@ -5,6 +5,7 @@ package com.legend.lowering;
 
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCDate;
+import com.legend.sql.DatePart;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlType;
@@ -52,7 +53,7 @@ final class DateShifts {
         SqlExpr diff = new SqlExpr.Call(SqlFn.MINUS, List.of(
                 new SqlExpr.IntLit(t),
                 new SqlExpr.Call(SqlFn.EXTRACT, List.of(
-                        new SqlExpr.StringLit("isodow"), anchor))));
+                        new SqlExpr.DatePartLit(DatePart.ISO_DAY_OF_WEEK), anchor))));
         SqlExpr cond = new SqlExpr.Call(
                 strict ? SqlFn.GREATER_EQUAL : SqlFn.GREATER,
                 List.of(diff, new SqlExpr.IntLit(0)));
@@ -60,19 +61,20 @@ final class DateShifts {
                 new SqlExpr.Call(SqlFn.MINUS,
                         List.of(diff, new SqlExpr.IntLit(7))))), diff);
         return new SqlExpr.Call(SqlFn.ADD_INTERVAL_TEMPORAL, List.of(
-                new SqlExpr.StringLit("to_days"), shifted, anchor));
+                new SqlExpr.DatePartLit(DatePart.DAY), shifted, anchor));
     }
-static String intervalFn(String unitName) {
+/** The part a DurationUnit enum literal names, for interval arithmetic and buckets. */
+    static DatePart durationPart(String unitName) {
         return switch (unitName) {
-            case "YEARS" -> "to_years";
-            case "MONTHS" -> "to_months";
-            case "WEEKS" -> "to_weeks";
-            case "DAYS" -> "to_days";
-            case "HOURS" -> "to_hours";
-            case "MINUTES" -> "to_minutes";
-            case "SECONDS" -> "to_seconds";
-            case "MILLISECONDS" -> "to_milliseconds";
-            case "MICROSECONDS" -> "to_microseconds";
+            case "YEARS" -> DatePart.YEAR;
+            case "MONTHS" -> DatePart.MONTH;
+            case "WEEKS" -> DatePart.WEEK;
+            case "DAYS" -> DatePart.DAY;
+            case "HOURS" -> DatePart.HOUR;
+            case "MINUTES" -> DatePart.MINUTE;
+            case "SECONDS" -> DatePart.SECOND;
+            case "MILLISECONDS" -> DatePart.MILLISECOND;
+            case "MICROSECONDS" -> DatePart.MICROSECOND;
             default -> throw new IllegalStateException(
                     "unknown DurationUnit for interval arithmetic: " + unitName);
         };
@@ -118,16 +120,16 @@ static String intervalFn(String unitName) {
         // truncate TODAY() (real pure composes today()->firstDayOf*,
         // dateExtension.pure — same by emission).
         for (var e : java.util.Map.ofEntries(
-                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_MONTH, "month"), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_YEAR, "year"),
-                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_WEEK, "week"), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_QUARTER, "quarter"),
-                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_HOUR_OF_DAY, "day"), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_MINUTE_OF_HOUR, "hour"),
-                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_SECOND_OF_MINUTE, "minute"), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_MILLISECOND_OF_SECOND, "second"),
-                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_THIS_YEAR, "year"), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_THIS_QUARTER, "quarter"),
-                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_THIS_MONTH, "month")).entrySet()) {
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_MONTH, DatePart.MONTH), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_YEAR, DatePart.YEAR),
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_WEEK, DatePart.WEEK), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_QUARTER, DatePart.QUARTER),
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_HOUR_OF_DAY, DatePart.DAY), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_MINUTE_OF_HOUR, DatePart.HOUR),
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_SECOND_OF_MINUTE, DatePart.MINUTE), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_MILLISECOND_OF_SECOND, DatePart.SECOND),
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_THIS_YEAR, DatePart.YEAR), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_THIS_QUARTER, DatePart.QUARTER),
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_THIS_MONTH, DatePart.MONTH)).entrySet()) {
             for (com.legend.model.FunctionId f : e.getKey()) {
                 rules.put(f, (n, args) -> {
                     SqlExpr trunc = new SqlExpr.Call(SqlFn.DATE_TRUNC, List.of(
-                            new SqlExpr.StringLit(e.getValue()),
+                            new SqlExpr.DatePartLit(e.getValue()),
                             n.args().isEmpty()
                                     ? new SqlExpr.Call(SqlFn.TODAY, List.of())
                                     : Scalars.dateArg(n.args().get(0), args.get(0))));
@@ -148,7 +150,7 @@ static String intervalFn(String unitName) {
                             args.get(1)));
                 }
                 SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
-                        new SqlExpr.StringLit(intervalFn(Scalars.enumName(n.args().get(2)))),
+                        new SqlExpr.DatePartLit(durationPart(Scalars.enumName(n.args().get(2)))),
                         args.get(1), Scalars.dateArg(n.args().get(0), args.get(0))));
                 // A PARTIAL-date operand keeps its precision: pad in (dateArg),
                 // adjust, then truncate BACK to the written form —
@@ -262,7 +264,7 @@ static String intervalFn(String unitName) {
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(com.legend.builtin.Pure.DAY_OF_WEEK_NUMBER__DATE_1__DAY_OF_WEEK_1)) {
             rules.put(f, (n, args) -> {
                 SqlExpr iso = new SqlExpr.Call(SqlFn.EXTRACT, List.of(
-                        new SqlExpr.StringLit("isodow"),
+                        new SqlExpr.DatePartLit(DatePart.ISO_DAY_OF_WEEK),
                         Scalars.dateArg(n.args().get(0), args.get(0))));
                 return switch (Scalars.enumName(n.args().get(1))) {
                     case "Monday" -> iso;

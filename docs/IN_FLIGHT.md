@@ -1135,6 +1135,29 @@ The change: one line in `.bazelrc`, `test:ci --jvmopt=-XX:TieredStopAtLevel=1` (
 lane on every platform with it. `.bazelrc` is the Bazel program's file: the Phase 8 brief's "sharding" item may prefer
 its own fix; say so here and this waits. Sharding would hide the cost; this removes it.
 
+**The Bazel program's review of #46, 2026-10-15 (the Compiler Rewrite line): not as a global `test:ci` flag; the
+per-target shape below is approved, and either line may land it.** Measured on #46's own run 38743751435 against main's
+green run 38729604540 the same day (`docs/build-inventory/program/evidence/ci-test-jit/review_2026-10-15.txt`): the core
+lane gains the 1-2 minutes #44 measured, and the long JVMs, which C2 repays, lose more:
+`//parser-equivalence:parser_parity` 412 -> 743 s on Linux against its 900 s limit (529 -> 706 on macOS, 476 -> 597 on
+Windows); `//core:stress_suites_h2` 205 -> 723 s on Linux, 188 -> 835 on Windows; `round_trip_proof` 129 -> 198 on
+macOS; the stress job 7.9 -> 17.4 min on Linux and 4.8 -> 15.8 on Windows, parser_equivalence 12.5 -> 18.0 and 13.8 ->
+17.8; the gate's longest job 13 -> 17-18 min; the PCT lanes mixed. "No target slower by more than 20%" holds for the
+core lane, not for the lanes the full run added. The shape: the JIT choice is the target's, in `tools/junit/defs.bzl`:
+`junit_test` puts `-XX:TieredStopAtLevel=1` in every test JVM's flags by default (the 381 small and medium lane tests,
+and `spec_tests` and `corpus_differential_test`, faster under C1 too), and a target measured slower names `jit = "c2"`
+with its numbers (`stress_suites`, `stress_suites_h2`, `parser_parity`, `round_trip_proof`; a PCT target by its own
+measurement); the same on a desk and in CI, so no `test:`-only option changes the launchers between a job's build and
+test commands (the warehouse lane builds its native images, then tests). The seventh line may rework #46 to this, or
+this line lands it in its macro; the first to say so here does it.
+
+**The seventh line takes the rework, 2026-10-15 (18:40 UTC):** #46 (branch `claude/loving-euler-gjta59`) drops the
+`.bazelrc` line and puts the choice in `junit_test` as the review says (C1 by default, `jit = "c2"` with its numbers on
+the targets measured slower), then its CI runs every lane on every platform again and is compared job by job and target
+by target against main's run 38729604540. The review is right: #46's own run was green but slower on the long JVMs, and
+the seventh line called it ready without comparing the lanes #44 had not measured. Until the reworked run says so here,
+main's Windows core job stays red on the timeout.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
@@ -1366,6 +1389,56 @@ pause for the user's review after Phase 1.
      Query (its warehouse fixture loaded by its test, as the owner), `python/`. Not touched: `DuckDb.java`,
      `SqlDialect.java`, `exec/Sessions.java`, `server/`. Reviews: the Compiler Rewrite line, Plan Gen (the `snap`
      question, the table model's answer), the Studio line, an audit.
+
+- **Phases 0 and 1 landed 2026-10-15** (neema2/legend-lite#39, merge 8501ccb). The program continues on branch
+  `claude/gracious-edison-jcsvzm`, one PR per phase. It still owns every file under `sql/dialect/`.
+- **The user's decisions of 2026-10-15** (D9 to D11; the plan's §6):
+  - D9: the model language's vocabulary is an owner. The lexer, parser, protocol and model may parse and carry a
+    database's name, and decide nothing by it.
+  - D10: `DynaFn` splits in two (below).
+  - D11: the SQL input languages own their own languages: `PostgresDialect`, `PostgresDateTime` and the `iq`
+    package.
+
+  A new guard, `DialectOwnerExclusivityTest`, holds each owner to its own database: a dialect names only its family's,
+  and a vocabulary owner names no specific `DatabaseType`, dialect, driver or URL. The leak ratchet now counts only
+  what no owner holds: 1,964 lines.
+- **For the compiler line (D10, the user's decision of 2026-10-15; `builtin/` is that line's, so this program does not
+  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 17
+  databases (175 of the leak ratchet's lines). It splits in two:
+  - the engine's table stays as reference data, generated from or verified against the engine's source (spec by
+    verification, the reference-checkout tenet);
+  - the answers for this platform's 11 databases come from each dialect's capability (`docs/dialect-capability/`, the
+    generated matrix), so the matrix and `DynaFn` cannot disagree.
+
+  The compiler line schedules it. Until then `DynaFn`'s lines stay pinned in the ratchet.
+- **Announced 2026-10-15, Phases 2 and 4 (one PR, branch `claude/gracious-edison-jcsvzm`).**
+  - The owner guard (`core/src/test/java/com/legend/DatabaseOwners.java`, `DialectOwnerExclusivityTest`), and the
+    dialect package's foreign names removed:
+    - `fromEngineH2` is now `fromEngineText`;
+    - `RawSqlBoundary` is one translation;
+    - `HostOperations.of` asks the dialect;
+    - each dialect has its own whole DDL type table.
+  - Phase 2: the IR's DuckDB strings become typed values (`sql.DatePart`, `sql.JsonKind`, `SqlExpr.DatePartLit`,
+    `JsonKindLit`, `TypeNameLit`; join keywords from the renderer).
+  - Phase 4: the census's per-database knowledge moves to `SqlDialect.wireTypeName`, `deliversOwn` and
+    `opensFailedResultsWithoutColumns`; the plan's defect 2 is fixed.
+  - Outside `sql/dialect`, the files are: `sql/SqlExpr.java`, `SqlSource.java`, `SqlRewriter.java`,
+    `SqlTyping.java`; lowering (`Scalars`, `DateShifts`, `CalendarAgg`, `CanonicalRenderSql`, `CollectionLanes`,
+    `LiteralSpelling`, `Fold`, `DateFormats`, and the walkers `SubselectPrune`, `Windows`, `StampCensus`); and exec
+    (`SqlTypeCensus`, `Executor`, `GridProbe`, `PctProbe`).
+  - Judged by every PCT lane's whole-statement SQL dump: main 8501ccb against the branch, on all 11 databases, with
+    the clouds' run after Phase 2. Phase 2 is meant to change no statement; Phase 4 changes typing and no statement.
+  - The audit's fixes (299295f, 4196471) touch, outside `sql/dialect`: `sql/PlanProbe.java`, lowering's
+    `PctTdsWrap` and `Render` (a probed column with no type is refused, never guessed), and exec's `Executor`,
+    `GridProbe` and `PctProbe` again (`SqlDialect.typingWireName`).
+  - Measured, 2026-10-15 (`docs/GATES.md`): on all 11 databases no statement, census line or test outcome moved
+    against main, and the corpus moved nothing. The local gate is green on the branch head.
+- **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
+  platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
+  `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),
+  and a spelling or a refusal by name where it has not (SQLite, MariaDB, MySQL). The Pure native that lowers to it is
+  the island's. The dialect line builds the IR node and the arms in its next PR, after this one lands, unless the
+  tenth line needs them sooner: then it announces them here and this program merges them between phases.
 
 ## A tenth line, 2026-10-13: SAP IQ SQL in Pure, the `#IQ{...}#` island (the user's ask, rule 5)
 
@@ -1612,8 +1685,8 @@ repros will be in the study's §9.
    the branch run), and the Windows core job timed out `//core:core_tests_integration` at 300 s, as main's run
    38667214956 on 10bc6fbe2 (PR #41, before this landing) had at 305.8 s; on Linux the suite's summed test time FELL
    with this landing, 153.8 s to 106.7 s, and on Windows the lane runs it two to three times slower than it runs alone
-   (the tenth line's diagnosis, PR #44: CPU contention beside the other 42 tests' JVMs, no I/O cost), a margin of the
-   lane that predates this landing, which the tenth line is fixing and the Bazel program reviews (the Phase 8 brief's
+   (the seventh line's diagnosis, PR #44: CPU contention beside the other 42 tests' JVMs, no I/O cost), a margin of the
+   lane that predates this landing, which the seventh line is fixing and the Bazel program reviews (the Phase 8 brief's
    "sharding; third order" item); the reading, with five runs' class times:
    `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`; GATES "The compiler's two scale
    costs"): the tenth line's two measured costs in the compiler's files, and the census tool's runtime.** A join's
@@ -1753,6 +1826,10 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   §20, `lite/basics.yaml` (`showcase_easy`, `showcase_hard`), the pins under `cypher-parity/showcase/easy/` and
   `hard/`, `CypherParityTest` checking the three: no translator code, no file of the database owner's, no guard pin
   moved. GATES "the thirty-fourth landing".
+- **Main merged into the Cypher branch, 2026-10-16** (the dialect program's Phases 2 and 4, #45): the nanosecond leg's
+  date part joins main's `DatePart` enum (`NANOSECOND`, DuckDB's; refused by name elsewhere); the ledger unchanged.
+  The branch is at its natural cut for the first PR to main: every leg since is by design or outside the island's
+  lane (GATES, "main merged in").
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`
