@@ -456,6 +456,7 @@ public final class IqDialect implements InputDialect {
             nameLengths(s);
             fromClause(s);
             orderPositions(s);
+            windowedDerivedFilter(s);
             if (s != statement && (s.limit() != null || s.offset() != null) && setBranches.contains(s)) {
                 // IQ island, 2026-10-14 (the third landing): a subquery's and a derived table's are read
                 // ({@link #reading}); a set operation's branch's stays refused
@@ -951,6 +952,68 @@ public final class IqDialect implements InputDialect {
     }
 
     /** An ORDER BY position of a SELECT names one of its items (else IQ's error -152). */
+    /**
+     * IQ island, 2026-10-16 (the corpus lane's judged runs: sqlstorm-5634 and 20 more; measured on IQ 17.1): a WHERE
+     * over a derived table or a common table expression that computes a window function is refused by name when the
+     * derived table is the query's one FROM item and the WHERE's own columns are none of its windows' columns. Its
+     * windows may be at any depth of derived tables read alone. SQL computes a derived table's windows over all of its
+     * rows. Lite's lowering composes the relation as Pure composes an extend and a later filter: the filter folds into
+     * the window's WHERE, so the window sees the filtered rows (Fold.filterSlot; legend-engine's PCT
+     * testExtendFilterOutNull pins that). The answer would be wrong: a RANK, a COUNT(*) OVER () or a running SUM of the
+     * filtered rows. Answered, as measured: a WHERE that reads a window's column (computed after the window: QUALIFY),
+     * a join of the derived table (which isolates it), and a GROUP BY over it.
+     */
+    private static void windowedDerivedFilter(SqlAst.Select s) {
+        if (s.where() == null || s.from().size() != 1 || !(s.from().get(0) instanceof SqlAst.SubqueryFrom d)) {
+            return;
+        }
+        Set<String> names = new java.util.HashSet<>();
+        if (!windowed(d.query(), names)) {
+            return;
+        }
+        if (!d.columnAliases().isEmpty() && d.query() instanceof SqlAst.Select top) {
+            // a column list renames the derived table's columns by position
+            for (int i = 0; i < top.items().size() && i < d.columnAliases().size(); i++) {
+                if (top.items().get(i) instanceof SqlAst.SelectExpr x && !IqWindows.windows(x.expr()).isEmpty()) {
+                    names.add(IqLexer.lower(d.columnAliases().get(i).text()));
+                }
+            }
+        }
+        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+        columnRefs(java.util.Objects.requireNonNull(s.where()), refs);
+        for (SqlAst.ColumnRef r : refs) {
+            if (names.contains(IqLexer.lower(r.parts().get(r.parts().size() - 1).text()))) {
+                return;
+            }
+        }
+        throw SqlTranslationException.unsupported("a WHERE that reads none of the window functions' columns of the"
+                + " derived table or common table expression it filters is not supported yet: lite's lowering would"
+                + " compute the windows over the filtered rows, where SQL computes them over all of the derived"
+                + " table's rows", java.util.Objects.requireNonNull(s.where()).pos());
+    }
+
+    /** Whether {@code q} computes a window function, in its own select list or in a derived table it reads alone, at
+     *  any depth; the names of the window items' columns into {@code names} (lower case). */
+    private static boolean windowed(SqlAst.Statement q, Set<String> names) {
+        if (!(q instanceof SqlAst.Select s)) {
+            return false;
+        }
+        boolean found = false;
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x && !IqWindows.windows(x.expr()).isEmpty()) {
+                found = true;
+                if (x.alias() != null) {
+                    names.add(IqLexer.lower(java.util.Objects.requireNonNull(x.alias()).text()));
+                }
+            }
+        }
+        if (s.from().size() == 1 && s.from().get(0) instanceof SqlAst.SubqueryFrom inner
+                && windowed(inner.query(), names)) {
+            found = true;
+        }
+        return found;
+    }
+
     private static void orderPositions(SqlAst.Select s) {
         int n = width(s);
         for (SqlAst.SortItem item : s.orderBy()) {

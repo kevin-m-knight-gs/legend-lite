@@ -416,3 +416,48 @@ tests:
   - id: a_subquery_alias_read_in_the_select_list_and_order_by
     sql: "SELECT id, (SELECT MAX(id) FROM u) AS m, m + 1 AS n FROM t ORDER BY m, id"
     profile: iq17-default
+
+  # ---- found by the lane's judged runs (sqlstorm-5634 and 20 more): an outer query's filter over a derived table's
+  # window function, which ranks every row of the derived table
+  - id: a_filter_over_a_derived_tables_rank
+    sql: "SELECT * FROM (SELECT id, sm, DENSE_RANK() OVER (ORDER BY id DESC) AS r FROM t) d WHERE d.sm > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_over_a_ctes_rank
+    sql: "WITH c AS (SELECT id, sm, RANK() OVER (ORDER BY it DESC) AS r, COUNT(*) OVER () AS n FROM t) SELECT id, r, n FROM c WHERE sm > 0 AND id > 1 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_over_a_grouped_derived_tables_rank
+    sql: "SELECT * FROM (SELECT t_id, COUNT(*) AS c, RANK() OVER (ORDER BY COUNT(*) DESC, t_id) AS r FROM u GROUP BY t_id) d WHERE d.c > 1 ORDER BY t_id"
+    profile: iq17-default
+  - id: a_filter_over_a_derived_tables_running_sum
+    sql: "SELECT * FROM (SELECT id, sm, SUM(id) OVER (ORDER BY id) AS s FROM t) d WHERE d.id > 3 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_of_a_derived_tables_rank_alone
+    sql: "SELECT * FROM (SELECT id, sm, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 5 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_of_a_derived_tables_rank_and_another_column
+    sql: "SELECT * FROM (SELECT id, sm, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 5 AND sm > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_of_a_derived_tables_rank_or_another_column
+    sql: "SELECT * FROM (SELECT id, sm, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r = 7 OR sm > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_join_of_a_derived_tables_rank
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, RANK() OVER (ORDER BY id DESC) AS r FROM t) d JOIN u ON u.t_id = d.id ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_join_and_a_filter_of_a_derived_tables_rank
+    sql: "SELECT d.id, d.r FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d JOIN u ON u.t_id = d.id WHERE d.sm > 0 ORDER BY d.id"
+    profile: iq17-default
+  - id: a_grouping_of_a_derived_tables_rank
+    sql: "SELECT d.bt, MAX(d.r) AS m FROM (SELECT id, bt, RANK() OVER (ORDER BY id) AS r FROM t) d GROUP BY d.bt ORDER BY d.bt"
+    profile: iq17-default
+  - id: a_filtered_count_of_a_derived_tables_rank
+    sql: "SELECT COUNT(*) AS c, MAX(r) AS m FROM (SELECT id, sm, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE sm > 0"
+    profile: iq17-default
+  - id: an_in_filter_of_a_derived_tables_rank
+    sql: "SELECT * FROM (SELECT id, RANK() OVER (ORDER BY id DESC) AS r FROM t) d WHERE d.id IN (SELECT t_id FROM u) ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_of_a_derived_tables_rank_two_levels_down
+    sql: "SELECT * FROM (SELECT * FROM (SELECT id, sm, RANK() OVER (ORDER BY id) AS r FROM t) d1) d2 WHERE sm > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_over_a_derived_table_of_a_grouped_rank
+    sql: "SELECT * FROM (SELECT sm, COUNT(*) AS c, RANK() OVER (ORDER BY sm) AS r FROM t GROUP BY sm) d WHERE d.sm > 0 ORDER BY sm"
+    profile: iq17-default
