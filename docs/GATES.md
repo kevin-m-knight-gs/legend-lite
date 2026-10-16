@@ -9865,7 +9865,8 @@ Branch `claude/keen-noether-v5mis0`, after the review of PR1; the record is the 
    42 names, each other name refused by name before its arguments are read. The judge reads a list or map cell as
    the database returns it. The reader: quantifiers, comprehensions, `[i]`, `[a..b]`, `UNWIND` as a clause.
 2. **The ledger,** identical on both lanes: 3,942 cases; PASS 1,037 (from 190); FAIL 0; BUG 0; ERROR 0;
-   REFUSED 1,904; BOTH_ERROR 671; SKIP 330. 28 lite cases in `lite/values.yaml`, each judged by
+   REFUSED 1,904; BOTH_ERROR 671; SKIP 330; with boolean ordering the next day (2026-10-16): 3,943 cases, PASS
+   1,044, REFUSED 1,898, the rest unchanged. 29 lite cases in `lite/values.yaml`, each judged by
    Neo4j 2026.09.0, six of them refused by name on purpose (`collect`; lists of row values that may be null; a map of
    row values; `%` inside a database-computed lambda). What
    the runs found and fixed, what the census says next (the temporal values, the join form, `collect`), and what

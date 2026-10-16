@@ -68,3 +68,5 @@ tests:
   - id: where_in_over_rows
     graph: legend
     cypher: "MATCH (p:Person) WHERE p.name IN ['Alice', 'Eve', 'Nobody'] AND NOT p.age IN [25] RETURN p.name ORDER BY p.name"
+  - id: ordering_booleans
+    cypher: "RETURN true > false AS a, false < true AS b, true >= true AS c, false <= null AS d, true < 1 AS e"

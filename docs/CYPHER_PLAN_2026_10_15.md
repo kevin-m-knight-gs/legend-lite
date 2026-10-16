@@ -71,8 +71,8 @@ the TCK as test input, the inferred models, the two parity lanes in `//gates:cor
 and the showcase. The independent review of PR1 (§12.4): 17 findings, every one met or recorded; after it 3,914 cases,
 190 PASS, 0 FAIL, 0 BUG, 0 ERROR. PR2 landed on the branch (§12.5): lists and maps of known shape, the quantifiers,
 comprehensions, indexing and slicing, `IN` over lists, `WITH` first, `UNWIND`, lists and maps as returned values, the
-function table, 28 more lite cases: 3,942 cases, 1,037 PASS, 0 FAIL, 0 BUG, 0 ERROR, 1,904 REFUSED by
-name, identical on both lanes. Next: the full CI run on the branch, the merge; then PR2b (§12.5.4: `collect`, the
+function table, 29 more lite cases (boolean ordering followed on 2026-10-16): 3,943 cases, 1,044 PASS, 0 FAIL,
+0 BUG, 0 ERROR, 1,898 REFUSED by name, identical on both lanes. Next: the full CI run on the branch, the merge; then PR2b (§12.5.4: `collect`, the
 temporal values) or the join form (316 fan-out cases), the user's call.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**

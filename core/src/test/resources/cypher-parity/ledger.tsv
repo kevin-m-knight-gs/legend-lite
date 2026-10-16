@@ -2065,7 +2065,7 @@ tck/expressions/precedence/Precedence1/[2] Conjunction disjunction takes precede
 tck/expressions/precedence/Precedence1/[3] Conjunction disjunction takes precedence over inclusive disjunction	PASS	PASS
 tck/expressions/precedence/Precedence1/[4] Negation takes precedence over conjunction	PASS	PASS
 tck/expressions/precedence/Precedence1/[5] Negation takes precedence over inclusive disjunction	PASS	PASS
-tck/expressions/precedence/Precedence1/[6] Comparison operator takes precedence over boolean negation	REFUSED	REFUSED
+tck/expressions/precedence/Precedence1/[6] Comparison operator takes precedence over boolean negation	PASS	PASS
 tck/expressions/precedence/Precedence1/[7] Comparison operator takes precedence over binary boolean operator	PASS	PASS
 tck/expressions/precedence/Precedence1/[8] Null predicate takes precedence over comparison operator	PASS	PASS
 tck/expressions/precedence/Precedence1/[9] Null predicate takes precedence over negation	PASS	PASS
@@ -2700,11 +2700,11 @@ tck/expressions/quantifier/Quantifier7/[2] Any quantifier can nest itself and ot
 tck/expressions/quantifier/Quantifier7/[2] Any quantifier can nest itself and other quantifiers on the same list #6	PASS	PASS
 tck/expressions/quantifier/Quantifier7/[2] Any quantifier can nest itself and other quantifiers on the same list #7	PASS	PASS
 tck/expressions/quantifier/Quantifier7/[2] Any quantifier can nest itself and other quantifiers on the same list #8	PASS	PASS
-tck/expressions/quantifier/Quantifier7/[3] Any quantifier is true if the single or the all quantifier is true #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier7/[3] Any quantifier is true if the single or the all quantifier is true #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier7/[3] Any quantifier is true if the single or the all quantifier is true #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier7/[3] Any quantifier is true if the single or the all quantifier is true #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier7/[3] Any quantifier is true if the single or the all quantifier is true #5	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier7/[3] Any quantifier is true if the single or the all quantifier is true #1	PASS	PASS
+tck/expressions/quantifier/Quantifier7/[3] Any quantifier is true if the single or the all quantifier is true #2	PASS	PASS
+tck/expressions/quantifier/Quantifier7/[3] Any quantifier is true if the single or the all quantifier is true #3	PASS	PASS
+tck/expressions/quantifier/Quantifier7/[3] Any quantifier is true if the single or the all quantifier is true #4	PASS	PASS
+tck/expressions/quantifier/Quantifier7/[3] Any quantifier is true if the single or the all quantifier is true #5	PASS	PASS
 tck/expressions/quantifier/Quantifier7/[4] Any quantifier is equal the boolean negative of the none quantifier #1	PASS	PASS
 tck/expressions/quantifier/Quantifier7/[4] Any quantifier is equal the boolean negative of the none quantifier #2	PASS	PASS
 tck/expressions/quantifier/Quantifier7/[4] Any quantifier is equal the boolean negative of the none quantifier #3	PASS	PASS
@@ -3943,3 +3943,4 @@ lite/values/unwind_then_quantifier_over_collected	REFUSED	REFUSED
 lite/values/comparison_of_different_types_is_false	PASS	PASS
 lite/values/size_and_keys_errors_are_cyphers	BOTH_ERROR	BOTH_ERROR
 lite/values/where_in_over_rows	PASS	PASS
+lite/values/ordering_booleans	PASS	PASS

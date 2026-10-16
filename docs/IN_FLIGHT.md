@@ -1675,7 +1675,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   of PR1, then the merge.
 - **Landed on the branch, 2026-10-15 (PR2, the study's §12.5):** the values slice — `protocol/cypher/` (the AST's
   `Quantifier`, `ListComprehension`, `Index`, `Slice`, `Unwind`; the parser; the translator's value model, scopes,
-  `UNWIND`, the function table), `lite/values.yaml` (28 Neo4j-judged cases), the answers, the ledger (both lanes),
+  `UNWIND`, the function table), `lite/values.yaml` (29 Neo4j-judged cases; boolean ordering followed on 2026-10-16), the answers, the ledger (both lanes),
   `testcases/CypherValues` (a list or map cell read as a value), `testcases/CypherParity` (the cells as returned; a
   per-case outcome file beside the census). No guard pin moved; no file of another line touched. Next: the merge.
 - **Found by this line in other lines' code, 2026-10-15 (PR2; the database owner's unless said):** (a) lite's
@@ -1705,6 +1705,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   answers an exact numeric where Neo4j and DuckDB answer a float (the TCK's Literals5 [5], [11], [25], [26]). The Cypher
   translator refuses a float literal beyond 1e15 or below 1e-15 by name until the dialect spells a float
   (`CypherToPure`, the `FloatLit` arm; `docs/CYPHER_STUDY_2026_10_15.md` §12.2).
+- **Announced to the database owner, 2026-10-16 (for `collect`, the Cypher island's PR2b):** a collection-valued
+  relation aggregate — `->aggregate(~[xs: x|$x.a : y|$y])` with the reduce returning `T[*]` (the database's
+  `array_agg` / `list`), which the typer refuses today ("multiplicity [*] is not compatible with result [0..1]"), or
+  `toVariant` registered as an aggregate lowering. Cypher's `collect(x)` (30 TCK cases, plus Precedence1's 15 over
+  the collected list) waits on it; the translator refuses it by name.
 - **Not touched by PR1 to PR4:** `lowering/`, `sql/dialect/`, `builtin/`, `Typer.java`, `NameResolver.java`,
   `SqlToPure.java`, `InputDialect.java`. **Announced to the database owner for PR3:** the identity half of
   `lowering/InstanceEquality` (the minted `__id` from a mapping's primary key) on the product lane, which Cypher's

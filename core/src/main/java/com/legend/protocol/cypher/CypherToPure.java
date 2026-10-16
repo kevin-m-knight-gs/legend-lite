@@ -1651,13 +1651,25 @@ public final class CypherToPure {
         return SqlToPure.strictTest(List.of(l, r), v -> call("equal", v.get(0), v.get(1)));
     }
 
-    /** {@code l < r} and the others: null when either is null, or when the values are of different types. */
+    /** {@code l < r} and the others: null when either is null, or when the values are of different types. Booleans
+     *  order false before true, as the databases order them. */
     private static Tx ordered(BinaryOp op, Tx l, Tx r, Pos pos) {
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
+        if (l.kind() == Kind.BOOLEAN && r.kind() == Kind.BOOLEAN) {
+            String fn = switch (op) {
+                case LT -> "lessThan";
+                case LE -> "lessThanEqual";
+                case GT -> "greaterThan";
+                case GE -> "greaterThanEqual";
+                default -> throw new IllegalStateException("unreachable: " + op);
+            };
+            return SqlToPure.strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1)));
+        }
         if (l.kind() == Kind.BOOLEAN || r.kind() == Kind.BOOLEAN) {
-            throw CypherErrors.unsupported("ordering booleans (" + op.name() + ") is not supported yet", pos);
+            // null in Neo4j: values of different types do not order
+            return SqlToPure.nullOf(Kind.BOOLEAN);
         }
         if (!comparable(l.kind(), r.kind())) {
             throw CypherErrors.unsupported("comparing a " + cypherType(l.kind()) + " with a " + cypherType(r.kind())

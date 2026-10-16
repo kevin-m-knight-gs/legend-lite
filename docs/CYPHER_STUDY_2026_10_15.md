@@ -1548,7 +1548,7 @@ The ledger after the review, both lanes: 3,914 cases, PASS 190, FAIL 0, BUG 0, E
 The plan's PR2, less what §12.5.4 names. The user's direction was "keep going until all the tests pass or as many
 that make sense to pass"; the refusal census (§12.3) set the order: the list predicates, the lists and maps, `WITH`
 as a first clause, `UNWIND`, the functions. Everything below is judged by Neo4j 2026.09.0 through the lanes (the
-TCK's scenarios and 28 lite cases in `lite/values.yaml`, snapped by the oracle); nothing was derived by hand.
+TCK's scenarios and 29 lite cases in `lite/values.yaml`, snapped by the oracle); nothing was derived by hand.
 
 #### 12.5.1 The design: a value is a scalar, a known shape, or a collection the database computes
 
@@ -1608,6 +1608,8 @@ spelled `floor(x + 0.5)`); `substring(s, start)` is 0-based where lite's `substr
 without its CORRECT_SQL_SUBSTRING_INDEXING flag: a 1-based start and a length, passed through), so the start is
 moved by one. Values of different types are never equal in Cypher (`1 = 'a'` is false, `1 < 'a'` null): a type is a
 fact of the spelling, so the comparison is known false here (null when either side may be null); PR1 refused it.
+Booleans order false before true, as the databases order them (`true > false`, verified on Neo4j by the lite case
+`ordering_booleans`; a boolean against another type is null): 2026-10-16, the 21 "ordering booleans" refusals.
 
 #### 12.5.2 The ledger, before and after
 
@@ -1617,6 +1619,7 @@ Both lanes, identical:
 |---|---|---|---|---|---|---|---|---|
 | after the review of PR1 (§12.4) | 3,914 | 190 | 0 | 0 | 0 | 2,724 | 670 | 330 |
 | PR2 | 3,942 | 1,037 | 0 | 0 | 0 | 1,904 | 671 | 330 |
+| PR2 + boolean ordering (2026-10-16) | 3,943 | 1,044 | 0 | 0 | 0 | 1,898 | 671 | 330 |
 
 What the runs found on the way, each fixed with its test, each judged by Neo4j: a float's negation folded into
 the literal lost `-0.0` (kept as IEEE's `x * -1.0`, with the literal's spelling for JSON); the typer's `[0..1]` for a
@@ -1637,7 +1640,6 @@ a string column (Map1 [2], Map2 [3], Map3 [3], Null1 [5], Null2 [5]); a function
 | a label naming no class (C4), a property no class declares | 40 | decided |
 | `collect` | 30 | PR2b (a `Coll` column the aggregate builds) |
 | OPTIONAL MATCH (29), UNION (8), a parameter (16), a node or relationship as a value (16), a pattern in an expression (14), a relationship pattern without a type (13), sharing no variable (7), several types (2), a label predicate (2), two hops of one type (1) | 108 | PR3 |
-| ordering booleans | 21 | lite's dialects order booleans; Neo4j's order is false before true: to verify (PR2b) |
 | `%` and integer `/` inside a comprehension or predicate the database computes (9; §12.5.5), a float literal beyond 1e15 or below 1e-15 (6), `RETURN *` (5), a variable-length relationship (5), comparing a Map with a Map after a WITH (5), `toInteger`/`toFloat` of a String (6), a comprehension whose condition may be null (3), lists of row values that may be null or of different types (4), a map of row values (1), the rest (9) | 53 | by name, each a small leg |
 
 SKIP, unchanged: 330 (the harness's own, §12.3).
@@ -1645,7 +1647,9 @@ SKIP, unchanged: 330 (the harness's own, §12.3).
 #### 12.5.4 What PR2 leaves to a next slice, by name
 
 `collect` (an aggregate building a `Coll` column, then `all(x IN eq WHERE x)` over it: the TCK's Precedence1 [14] to
-[28]); `UNWIND` after a `MATCH` and over lists of lists or maps (a Variant column with a known shape: the elements'
+[28]) — lite's relation layer has no collection-valued aggregate today (the typer wants a reduce of `[0..1]`:
+"multiplicity [*] is not compatible with result [0..1]"; `toVariant` has no aggregate lowering), so `collect` waits
+on a lowering leg of the database owner's (announced, IN_FLIGHT), not on the translator; `UNWIND` after a `MATCH` and over lists of lists or maps (a Variant column with a known shape: the elements'
 kinds agree in every case of the corpus); lists and maps holding values of the row that may be null (the inferred
 models type every property `[0..1]`, so `[p.age, p.age * 2]` is refused today: a hidden column per leaf, or
 `toVariant` of a `[0..1]`); `toInteger`/`toFloat` of a string (null for text that is not a number, where Pure's
