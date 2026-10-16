@@ -394,7 +394,7 @@ class Frames:
         table or view Frames did not make in any schema, and never Frames' own ``__legend_lite_`` names -- so no page
         reads into, or later drops, a table it did not make. ``view``: a remote file, read through a view of that name.
         Inside, the model is kept with ``keep_file``; a read that fails leaves nothing under the name."""
-        if not _NAME.match(asked) or asked.lower() in _LITERALS:
+        if not _NAME.match(asked) or asked in _LITERALS:
             raise ValueError(f"a file's table is named by a plain identifier (letters, digits, '_'), not {asked!r}")
         if asked.lower().startswith(_OWN):
             raise ValueError(f'a name beginning {_OWN} is legend-lite\'s own, not a file\'s: {asked!r}')

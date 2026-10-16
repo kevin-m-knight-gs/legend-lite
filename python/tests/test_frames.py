@@ -161,6 +161,16 @@ class Names(unittest.TestCase):
         with self.assertRaises(ValueError):
             ll.Frames().register('true', trades())
 
+    def test_a_name_is_refused_as_a_literal_only_as_pure_spells_one(self):
+        # Pure's literals are `true` and `false`, as spelled: `True` is an identifier, for a page's file's table as for
+        # a frame (frames.py read the file's name lowercased, and refused it)
+        frames = ll.Frames()
+        frames.register('True', trades())
+        with frames.reading_file('False') as name:
+            self.assertEqual(name, 'False')
+        with self.assertRaises(ValueError), frames.reading_file('false'):
+            pass
+
 
 class Session(unittest.TestCase):
     def test_the_session_answers_in_utc_on_any_machine(self):
