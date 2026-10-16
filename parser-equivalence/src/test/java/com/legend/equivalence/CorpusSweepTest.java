@@ -822,7 +822,7 @@ public class CorpusSweepTest {
         }
         if ("null".equals(msg)) {
             // an InputMismatchException with a null message is ANTLR's
-            // ORDINARY grammar-refusal path, NOT an referee defect — the
+            // ORDINARY grammar-refusal path, NOT a referee defect — the
             // audit found 346 rows laundered under the old label
             // (HARNESS_SIMPLIFICATION_PLAN Phase 7). Real crashes carry
             // messages and classify above.
