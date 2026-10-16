@@ -750,7 +750,7 @@ final class ArchitectureTest {
             java.util.Map.entry("PureAsserts", 1),
             java.util.Map.entry("Sessions", 2),
             java.util.Map.entry("SetupRunner", 3),
-            java.util.Map.entry("SqlReplayOracle", 1),
+            java.util.Map.entry("SqlReplayReferee", 1),
             java.util.Map.entry("SystemDatabase", 3),
             java.util.Map.entry("VerdictBatch", 4),
             java.util.Map.entry("WireTypes", 3));
@@ -1338,8 +1338,8 @@ final class ArchitectureTest {
      *   <li>Misfiled passes just MOVE — {@code resolver.DriverPkAppend}.</li>
      *   <li>LATE BINDING is staged compilation — the runtime fact
      *       becomes an INPUT: {@code resolver.RawGridSchema} takes the
-     *       probed roster through its {@code SchemaOracle};
-     *       {@code exec.GridProbe} is the executor's oracle.</li>
+     *       probed roster through its {@code SchemaReferee};
+     *       {@code exec.GridProbe} is the executor's referee.</li>
      *   <li>Verdict-query synthesis is compiler emission —
      *       {@code VerdictQueries} builds; {@code AssertVerdicts}
      *       fetches and judges, minting nothing.</li>

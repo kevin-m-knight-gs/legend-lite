@@ -85,7 +85,7 @@ public final class Corpus {
      *  persistence test-runner's models and scattered
      *  json/xml/lineage/graphQL fixtures): the first non-blank line is a
      *  {@code ###Section} header or a top-level declaration. 55 files at
-     *  enrollment (2026-08-12); the oracle adjudicates each like every
+     *  enrollment (2026-08-12); the referee adjudicates each like every
      *  tier. */
     private static void addTxtDocuments(List<Source> out, Path root,
             String tier) {
@@ -149,7 +149,7 @@ public final class Corpus {
      */
     /** The first line of the fixture snapshot: the engine release it was
      *  harvested from, INSIDE the file (upstream boundary batch 2), and it must
-     *  equal the pinned release ({@link OraclePins#engineRelease()}; checked on
+     *  equal the pinned release ({@link RefereePins#engineRelease()}; checked on
      *  every read below). The filename carried the release too until
      *  2026-09-22: the header is the check that fires, and a fixed name is what
      *  lets the snapshot be an ordinary generated file (the Bazel build writes
@@ -197,7 +197,7 @@ public final class Corpus {
         java.nio.file.Path p = engineFixturesFile();
         if (!java.nio.file.Files.exists(p)) {
             throw new IllegalStateException("engine fixture snapshot for the pinned release "
-                    + OraclePins.engineRelease() + " is missing: " + p
+                    + RefereePins.engineRelease() + " is missing: " + p
                     + " — regenerate it: bazel run //:update_generated");
         }
         try {
@@ -212,10 +212,10 @@ public final class Corpus {
                                 + FIXTURE_HEADER_PREFIX + "<release>' header line");
                     }
                     String harvested = line.substring(FIXTURE_HEADER_PREFIX.length()).strip();
-                    if (!harvested.equals(OraclePins.engineRelease())) {
+                    if (!harvested.equals(RefereePins.engineRelease())) {
                         throw new IllegalStateException("fixture snapshot " + p + " was harvested from"
                                 + " engine " + harvested + " but release.MODULE.bazel pins "
-                                + OraclePins.engineRelease() + " — re-harvest");
+                                + RefereePins.engineRelease() + " — re-harvest");
                     }
                     continue;
                 }
@@ -258,7 +258,7 @@ public final class Corpus {
         // EXECUTION (ZEngineFixtureHarvest: the 4.138.2 tests-jars run
         // under recording shims; snapshot committed). The per-production
         // coverage the static tiers cannot see — the Binding transformer
-        // hid here. Adjudicated like every tier: the oracle decides.
+        // hid here. Adjudicated like every tier: the referee decides.
         out.addAll(engineFixtures());
         // C11 — Pure documents in .txt resources (resource sweep,
         // 2026-08-12); legend-pure has none (measured)

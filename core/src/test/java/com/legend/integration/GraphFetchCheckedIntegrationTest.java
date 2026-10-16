@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * generated checker treats a mid-evaluation throw: a required property
  * absent on the wire yields the catch-branch defect {@code Unable to
  * evaluate constraint [id]: data not available - check your mappings}
- * (oracle: legendJavaPlatformBinding shared/constraints.pure
+ * (referee: legendJavaPlatformBinding shared/constraints.pure
  * generateConstraintMethod). Before the fix, {@code NOT NULL} was
  * not-true and an object violating EVERY constraint reported
  * {@code "defects":[]}.
@@ -125,7 +125,7 @@ class GraphFetchCheckedIntegrationTest {
         // the EQUALITY constraint is pure-faithful null-safe: [] != ''
         // is TRUE, so the absent string SATISFIES nonEmptyStr — its
         // predicate is true, not NULL, and no defect is correct (both
-        // oracles agree: pure equal is size-aware, the engine's
+        // referees agree: pure equal is size-aware, the engine's
         // generated equal is null-safe)
         assertFalse(json.contains("Unable to evaluate constraint"
                         + " [nonEmptyStr]"),

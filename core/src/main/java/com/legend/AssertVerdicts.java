@@ -1012,10 +1012,10 @@ final class AssertVerdicts {
      * extent-subset fact, the ORDER VIEW (ends in a sort = order is
      * contract), and the tail-most sort's keys. Typed-tree navigation
      * only — nothing evaluated. */
-    static com.legend.exec.SqlReplayOracle.ReplayFacts replayFacts(
+    static com.legend.exec.SqlReplayReferee.ReplayFacts replayFacts(
             TypedSpec chain, List<TypedSpec> letPrefix) {
         boolean ordered = com.legend.compiler.spec.OrderView.of(chain, letPrefix) == com.legend.compiler.spec.OrderView.SORTED;
-        return new com.legend.exec.SqlReplayOracle.ReplayFacts(
+        return new com.legend.exec.SqlReplayReferee.ReplayFacts(
                 com.legend.compiler.spec.VerdictQueries.extentSubset(chain),
                 ordered,
                 ordered ? sortKeys(chain, letPrefix, new java.util.HashSet<>()) : null);

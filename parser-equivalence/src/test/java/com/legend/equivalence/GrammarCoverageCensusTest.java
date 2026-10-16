@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * every parity claim quantifies over sources that EXIST in the corpus —
  * this census measures what fraction of the ENGINE'S OWN GRAMMAR the
  * corpus actually exercises, by driving the engine's generated ANTLR
- * parsers (from the pinned oracle jars) over every corpus section
+ * parsers (from the pinned referee jars) over every corpus section
  * fragment and recording which parser rules ever fire.
  *
  * <p>An uncovered rule is a grammar path where lite could diverge with

@@ -37,9 +37,9 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     public static final ConnectionSectionGrammar INSTANCE =
             new ConnectionSectionGrammar();
 
-    /** DatabaseType at the 4.138.2 oracle pin — the walker refuses
-     *  anything else via valueOf (javap'd from the oracle jar; re-check
-     *  on an oracle bump). */
+    /** DatabaseType at the 4.138.2 referee pin — the walker refuses
+     *  anything else via valueOf (javap'd from the referee jar; re-check
+     *  on an referee bump). */
     private static final java.util.Set<String> DATABASE_TYPES =
             java.util.Set.of("DB2", "H2", "MemSQL", "Sybase", "SybaseIQ",
                     "Composite", "Postgres", "SqlServer", "Hive", "Snowflake",
@@ -47,7 +47,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     "Spanner", "Athena", "DuckDB", "Oracle", "ClickHouse",
                     "Aurora");
 
-    /** The database types legend-lite adds to the oracle's (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12-13): declared
+    /** The database types legend-lite adds to the referee's (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12-13): declared
      *  lite extensions, refused on the drop-in surface. */
     private static final java.util.Set<String> LITE_DATABASE_TYPES = java.util.Set.of("SQLite", "MariaDB", "MySQL");
 
@@ -532,7 +532,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     int tTok = c.pos();
                     dbType = c.parseIdentifier();
                     // DatabaseType.valueOf in the walker — enum javap'd
-                    // from the 4.138.2 oracle jar (21 values); SQLite,
+                    // from the 4.138.2 referee jar (21 values); SQLite,
                     // MariaDB and MySQL are DECLARED lite extensions (same
                     // gate as BOOLEAN/BOOL columns), so they refuse only on
                     // the drop-in surface

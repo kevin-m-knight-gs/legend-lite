@@ -95,7 +95,7 @@ class LeniencyD6Test {
                     "The table 'NOPE' can't be found in the database 's::DB'");
             // out-of-range date components: LEGEND_LITE validates at PARSE
             // (was: DuckDB "Conversion Error: date field value out of
-            // range"); LEGEND_ENGINE stays deferred — oracle byte-parity.
+            // range"); LEGEND_ENGINE stays deferred — referee byte-parity.
             expect(c, "", "{|%2020-99-99}",
                     "invalid date literal '%2020-99-99'");
         }

@@ -10,13 +10,13 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** The oracle pins ({@code //tools:oracle-pins.env}, generated from release.MODULE.bazel), read once: THE release
+/** The referee pins ({@code //tools:oracle-pins.env}, generated from release.MODULE.bazel), read once: THE release
  *  every upstream identity in this repository must agree with (docs/UPSTREAM_BOUNDARY_PROGRAM.md §3 A). The BUILD
  *  file passes it as {@code -Doracle.pins}: its $(rootpath) to a test, its $(execpath) to a build action, each
  *  resolved by {@link Repo#path}. */
-public final class OraclePins {
+public final class RefereePins {
 
-    private OraclePins() {
+    private RefereePins() {
     }
 
     private static final Map<String, String> PINS = load();

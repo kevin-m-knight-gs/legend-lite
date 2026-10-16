@@ -88,7 +88,7 @@ final class Coercions {
                 // relational, follow the type system literally"): a
                 // store-free maybe-empty — []->first(), a value
                 // expression's optional — NULL-checks with pure's own
-                // size-0 raise (the interpreted lane is the oracle for
+                // size-0 raise (the interpreted lane is the referee for
                 // store-free expressions; the flow arm below is the
                 // RELATIONAL lane's, where the engine's own goldens
                 // bless flowing NULLs). Same lane discriminator as the

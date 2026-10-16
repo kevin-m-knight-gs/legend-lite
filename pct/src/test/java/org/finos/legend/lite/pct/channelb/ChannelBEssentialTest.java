@@ -165,7 +165,7 @@ class ChannelBEssentialTest {
                 + " AGREE-FAIL=" + agreeFail + " WIRE-BUG=" + wireBug
                 + " B-FIXES-A=" + bFixesA + " DECLINED=" + declined);
 
-        // THE FRONTIER ORACLE (third channel): the engine's OWN
+        // THE FRONTIER REFEREE (third channel): the engine's OWN
         // relational-DuckDB PCT manifest (the pinned release's, read from
         // @legend_engine_src since Bazel workplan P2-11) names the
         // tests the reference RELATIONAL executor itself cannot pass

@@ -65,7 +65,7 @@ class CorrelatedComputedColumnTest {
         return rows;
     }
 
-    /** DuckDB's own answer to the same SQL over the same table: the oracle, no snap needed. */
+    /** DuckDB's own answer to the same SQL over the same table: the referee, no snap needed. */
     private static List<List<String>> duckdb(String sql) throws SQLException {
         List<List<String>> rows = new ArrayList<>();
         try (Statement s = duckdb.createStatement(); ResultSet rs = s.executeQuery(sql.replace(EMP, "EMP"))) {

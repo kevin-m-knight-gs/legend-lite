@@ -1615,18 +1615,18 @@ final class GraphEmission {
         return changed ? n.withChildren(out) : n;
     }
 
-    /** The chained-hop derived child: h2's target correlated to the
-     * parent through an EXISTS over h1's relation — parent↔h1 via the
-     * first association join, h1↔child via the second, the mid filter
-     * substituted through h1's bindings (engine: nested per-hop join
+    /** The chained-hop derived child: secondHop's target correlated to the
+     * parent through an EXISTS over firstHop's relation — parent↔firstHop via the
+     * first association join, firstHop↔child via the second, the mid filter
+     * substituted through firstHop's bindings (engine: nested per-hop join
      * chain; the EXISTS form is the [0..1]-safe emission). */
     private TypedSerializeGraph.@com.legend.base.Nullable Child chainedDerivedChild(
             ClassSource cs, TypedGraphTree node, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType,
-            String h1, @com.legend.base.Nullable TypedLambda midPred, String h2,
+            String firstHop, @com.legend.base.Nullable TypedLambda midPred, String secondHop,
             com.legend.compiler.element.Property.Derived d, String thisVar) {
-        HopJoin j1 = hopJoin(cs, h1, context);
-        HopJoin j2 = j1 == null ? null : hopJoin(j1.target(), h2, context);
+        HopJoin j1 = hopJoin(cs, firstHop, context);
+        HopJoin j2 = j1 == null ? null : hopJoin(j1.target(), secondHop, context);
         if (j1 == null || j2 == null) {
             return null;
         }

@@ -22,7 +22,7 @@ import java.util.function.Function;
  * absent on the wire) is the SQL analog of the engine's generated
  * checker THROWING mid-evaluation, and produces the engine's
  * catch-branch defect — {@code Unable to evaluate constraint [id]:
- * data not available - check your mappings} (oracle:
+ * data not available - check your mappings} (referee:
  * legendJavaPlatformBinding shared/constraints.pure
  * generateConstraintMethod, the NullPointerException catch). Before
  * this arm a NULL predicate produced NO defect — an object violating

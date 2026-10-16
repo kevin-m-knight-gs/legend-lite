@@ -15,8 +15,8 @@ import java.util.List;
  * The LIMIT-0 metadata probe — the ONE execution-bound ingredient of
  * late-bound raw-grid resolution (staged compilation, Invariant 7): the
  * REWRITE pass lives in {@code resolver.RawGridSchema} and takes the
- * probed column roster as INPUT through its {@code SchemaOracle}; this
- * class is the executor's oracle implementation. A schema read, never
+ * probed column roster as INPUT through its {@code SchemaReferee}; this
+ * class is the executor's referee implementation. A schema read, never
  * values (the E1 probe discipline; moved from ResultNav at its Phase 1c
  * deletion). The one {@code new SqlSource.RawSql} here is a chartered
  * construction site (RawSqlLedgerTest register); the text is the
@@ -38,7 +38,7 @@ public final class GridProbe {
         return names;
     }
 
-    /** The grid's TYPED columns for the boundary resolver's oracle
+    /** The grid's TYPED columns for the boundary resolver's referee
      * (§4bZ-U follow-on): the database's own column type when the SQL
      * type maps to a Pure primitive; the trusted-Any wildcard column
      * otherwise — an upgrade over the old names-only stamp, never a

@@ -10,7 +10,7 @@ import java.util.List;
  * The connection profiles an {@code #IQ{...}#} island is written for (docs/IQ_SQL_STUDY_2026_10_13.md §4, I1 and I2):
  * a closed set, {@code #IQ:<profile>{...}#} naming one, {@code iq16-default} when none is named. A profile is the
  * database's creation settings and the options a client of that kind has after connecting: the research's Tier 1
- * option vector (its OPTIONS §9), the values the oracle's profiles set (tools/iq-oracle/README.md, "Profiles").
+ * option vector (its OPTIONS §9), the values the referee's profiles set (tools/iq-oracle/README.md, "Profiles").
  *
  * <p>The {@code iq16-*} profiles are an IQ database (case-sensitive, blank-padded, ISO-8859-1 with a binary
  * collation); the {@code sqla17-*} ones a SQL Anywhere 17 database at its defaults (case-insensitive, not

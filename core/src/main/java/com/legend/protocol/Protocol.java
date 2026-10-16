@@ -496,7 +496,7 @@ public final class Protocol {
      * A column binding in a {@code : Relation} class mapping.
      *
      * <p>{@code enumMappingId} and {@code expr} were carried-not-emitted
-     * while the 4.133 oracle had no production for them; the 4.138 grammar
+     * while the 4.133 referee had no production for them; the 4.138 grammar
      * DOES (probe ZRelationMappingProbe), so both are real wire now:
      * {@code enumMappingId} emits after {@code column}, and {@code expr}
      * emits as {@code valueFn} — a parameterless lambda whose body keeps
@@ -2377,7 +2377,7 @@ public final class Protocol {
      *  {@code _type:"userPassword"}; span = the {@code authentication} key
      *  through the island close. */
     /** An authentication-module island value ({@code # <Kind> {...}#}) —
-     *  the kinds the ORACLE's registered extensions accept (probed:
+     *  the kinds the REFEREE's registered extensions accept (probed:
      *  UserPassword, ApiKey, Kerberos, EncryptedPrivateKey). */
     public sealed interface PAuthSpecValue
             permits PMongoAuth, PApiKeyAuth, PKerberosAuth, PEpkAuth,
@@ -2643,7 +2643,7 @@ public final class Protocol {
             implements PDatasourceSpec {
     }
 
-    /** {@code _type:"oracle"} — OracleParserGrammar: host and port
+    /** {@code _type:"referee"} — OracleParserGrammar: host and port
      *  required, serviceName optional. */
     public record POracleSpec(String host, long port,
                               @com.legend.base.Nullable String serviceName,

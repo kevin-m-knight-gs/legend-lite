@@ -42,14 +42,14 @@ _HARVEST_SHIMS = [
 ]
 
 # The corpus machinery the generators share, in a library of its own, so gen_fixtures and gen_manifest run without
-# the parity tests, core or their own committed outputs (closure: Corpus -> InlineSnippets, OraclePins;
+# the parity tests, core or their own committed outputs (closure: Corpus -> InlineSnippets, RefereePins;
 # InlineSnippets -> Corpus, ModuleFiles; ModuleFiles -> Corpus; ManifestGenerator -> Corpus).
 _CORPUS = ["src/test/java/com/legend/equivalence/%s.java" % c for c in [
     "Corpus",
     "InlineSnippets",
     "ManifestGenerator",
     "ModuleFiles",
-    "OraclePins",
+    "RefereePins",
 ]]
 
 # the harvest's own program (it reaches the shims and FixtureRecorder by name, at run time)
@@ -256,7 +256,7 @@ _FILE_DATA = ["//docs:%s.tsv" % l for l in _LEDGERS] + [
     "src/test/resources/engine-grammar-fixtures.jsonl",
 ]
 
-# the oracle pins (OraclePins, through ProgramPaths): a test's by its runfiles path, an action's by its exec path
+# the oracle pins (RefereePins, through ProgramPaths): a test's by its runfiles path, an action's by its exec path
 _PINS_TEST_FLAG = "-Doracle.pins.rlocation=$(rlocationpath //tools:oracle-pins.env)"
 
 _PINS_ACTION_FLAG = "-Doracle.pins=$(execpath //tools:oracle-pins.env)"
@@ -361,7 +361,7 @@ legend_java_library(
     testonly = True,
     srcs = _HARVEST_SHIMS,
     deps = [
-        # FixtureRecorder stamps the dump with the pinned release (Corpus, OraclePins)
+        # FixtureRecorder stamps the dump with the pinned release (Corpus, RefereePins)
         ":pe_corpus",
         "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
         "@maven_upstream//:org_antlr_antlr4_runtime",

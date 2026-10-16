@@ -32,7 +32,7 @@ import java.util.TreeMap;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE READ LEG'S ORACLE (docs/PROTOCOL_PROGRAM_2026_10_05.md §3): lite's MODEL READER
+ * THE READ LEG'S REFEREE (docs/PROTOCOL_PROGRAM_2026_10_05.md §3): lite's MODEL READER
  * ({@link ModelReader}, protocol JSON to records) is the exact inverse of its emitter
  * ({@link ProtocolEmitter}, records to JSON).
  *
@@ -86,7 +86,7 @@ class ModelReaderParityTest {
         if (System.getenv("MODEL_READER_DUMP") != null) {
             dump = Files.newBufferedWriter(TestOutputs.file("model-reader-dump.jsonl"));
         }
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         int liteSources = 0;
         int engineSources = 0;
         for (Corpus.Source src : Corpus.all()) {
@@ -97,7 +97,7 @@ class ModelReaderParityTest {
             }
             PureModelContextData parsed;
             try {
-                parsed = oracle.parseModel(src.text());
+                parsed = referee.parseModel(src.text());
             } catch (Throwable t) {
                 continue;   // the engine refuses the source: no J2
             }
@@ -109,7 +109,7 @@ class ModelReaderParityTest {
             for (String run : InlineSnippets.literalRuns(Files.readString(file))) {
                 PureModelContextData parsed;
                 try {
-                    parsed = oracle.parseModel(run, "", 0, 0, false);
+                    parsed = referee.parseModel(run, "", 0, 0, false);
                 } catch (Throwable t) {
                     continue;   // not a model text
                 }
@@ -159,7 +159,7 @@ class ModelReaderParityTest {
     }
 
     // ---------------------------------------------------------------------
-    // The two oracles
+    // The two referees
     // ---------------------------------------------------------------------
 
     /** Lite's own document: each element, then the whole, with and without source information. */

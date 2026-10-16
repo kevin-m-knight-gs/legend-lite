@@ -191,18 +191,18 @@ public final class RelationalTypeInference {
         if (b instanceof RelationalDataType.Other) {
             return a;
         }
-        Integer[] da = decimalOf(a);
-        Integer[] db2 = decimalOf(b);
-        if (da != null && db2 != null) {
-            int intDigits = Math.max(da[0] - da[1], db2[0] - db2[1]);
-            int scale = Math.max(da[1], db2[1]);
+        Integer[] aDecimal = decimalOf(a);
+        Integer[] bDecimal = decimalOf(b);
+        if (aDecimal != null && bDecimal != null) {
+            int intDigits = Math.max(aDecimal[0] - aDecimal[1], bDecimal[0] - bDecimal[1]);
+            int scale = Math.max(aDecimal[1], bDecimal[1]);
             return new RelationalDataType.Decimal(intDigits + scale, scale);
         }
-        if (da != null) {
-            return new RelationalDataType.Decimal(da[0], da[1]);
+        if (aDecimal != null) {
+            return new RelationalDataType.Decimal(aDecimal[0], aDecimal[1]);
         }
-        if (db2 != null) {
-            return new RelationalDataType.Decimal(db2[0], db2[1]);
+        if (bDecimal != null) {
+            return new RelationalDataType.Decimal(bDecimal[0], bDecimal[1]);
         }
         boolean aFloat = a instanceof RelationalDataType.Double_
                 || a instanceof RelationalDataType.Float_

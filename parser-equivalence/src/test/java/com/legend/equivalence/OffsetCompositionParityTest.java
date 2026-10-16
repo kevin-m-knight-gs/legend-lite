@@ -14,7 +14,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * FIXTURE-LEVEL ORACLES for span/offset COMPOSITION
+ * FIXTURE-LEVEL REFEREES for span/offset COMPOSITION
  * (HARNESS_SIMPLIFICATION_PLAN "not in scope" note, adopted): the audit
  * proved one island-offset mutation survives the ENTIRE corpus because
  * no corpus file reaches the branch — more corpus will never find that
@@ -114,7 +114,7 @@ class OffsetCompositionParityTest {
         // which no corpus file contains. The inner connection island
         // here sits entirely on one line at a deep column: every span
         // inside it has endLine==1, so a dropped end-column offset is a
-        // byte diff against the oracle.
+        // byte diff against the referee.
         FIXTURES.put("single-line-inner-island", """
                 ###Service
                 Service a::S
@@ -168,15 +168,15 @@ class OffsetCompositionParityTest {
     }
 
     @Test
-    void handBuiltOffsetFixturesByteMatchTheLiveOracle() throws Exception {
+    void handBuiltOffsetFixturesByteMatchTheLiveReferee() throws Exception {
         ObjectMapper mapper = ObjectMapperFactory
                 .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         for (Map.Entry<String, String> f : FIXTURES.entrySet()) {
             String expected;
             try {
                 expected = mapper.writeValueAsString(
-                        oracle.parseModel(f.getValue()));
+                        referee.parseModel(f.getValue()));
             } catch (Throwable t) {
                 throw new AssertionError("fixture '" + f.getKey()
                         + "' must be ORACLE-ACCEPTED (fix the fixture): "

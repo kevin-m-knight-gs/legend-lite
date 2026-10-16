@@ -39,8 +39,8 @@ final class StatementExecutor {
 
     /** Listener overload: {@code assertListener} observes every
      * statement-root assert verdict (the runner's scoring seam —
-     * judging stays here, in one place); {@code replayOracle} is the
-     * registered SQL-replay oracle (SQLTEXT charter §2 — same
+     * judging stays here, in one place); {@code replayReferee} is the
+     * registered SQL-replay referee (SQLTEXT charter §2 — same
      * registration seam, same nullable carriage; production passes
      * neither). */
     static @com.legend.base.Nullable ExecutionResult execute(
@@ -49,9 +49,9 @@ final class StatementExecutor {
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle) {
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee) {
         return execute(resolved, ctx, runtimeFqn, dialect, connection, assertListener,
-                replayOracle, ExecuteOptions.NONE);
+                replayReferee, ExecuteOptions.NONE);
     }
 
     /** With the caller's execute OPTIONS (they ride the environment and the
@@ -62,7 +62,7 @@ final class StatementExecutor {
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> typedBody = specs.typeQueryBody(resolved);
@@ -70,8 +70,8 @@ final class StatementExecutor {
         // own from (the engine's exeCtx overload binds them onto its bound
         // context); the caller's ride the environment
         ExecEnv env0 = new ExecEnv(ctx, runtimeFqn, dialect, connection).withOptions(options);
-        ExecEnv env = assertListener == null && replayOracle == null ? env0
-                : env0.withListeners(assertListener, replayOracle);
+        ExecEnv env = assertListener == null && replayReferee == null ? env0
+                : env0.withListeners(assertListener, replayReferee);
         if (resolved instanceof com.legend.protocol.spec.LambdaFunction rlf
                 && rlf.parameters().isEmpty()) {
             env = env.withProtocolBody(rlf.body());
@@ -89,9 +89,9 @@ final class StatementExecutor {
      * failures per SETUP UNIT and keeps its emptiness guard). */
     /** The raw-SQL ledger append (Phase 2b): the caller's recorder, when it
      * handed one through the options; the executor never keeps one. */
-    /** The replay ledger records DDL in its oracle database's spelling on EVERY session. */
+    /** The replay ledger records DDL in its referee database's spelling on EVERY session. */
     private static final com.legend.sql.dialect.SqlDialect H2_DDL =
-            com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_ORACLE);
+            com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_REFEREE);
 
     /** The engine's golden DDL TEXT renderer (root layer only — invariant 4d): the text of the database
      *  legend-engine's test connections declare. */
@@ -111,7 +111,7 @@ final class StatementExecutor {
             java.util.Map<String, String> tableReplace,
             com.legend.exec.InstanceIds instanceIds,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
                     planRows,
             java.util.List<com.legend.protocol.spec.ValueSpecification> protocolBody,
@@ -123,14 +123,14 @@ final class StatementExecutor {
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.exec.VerdictBatch b) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace,
-                    instanceIds, assertListener, replayOracle, planRows, protocolBody, frame,
+                    instanceIds, assertListener, replayReferee, planRows, protocolBody, frame,
                     options, trace, b, effectSink);
         }
         /** Block-compiler stage 3: the effect natives' sends land in this sink (an
          * effect segment under construction) instead of the connection. */
         ExecEnv withEffectSink(com.legend.exec.@com.legend.base.Nullable EffectSink sink) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace,
-                    instanceIds, assertListener, replayOracle, planRows, protocolBody, frame,
+                    instanceIds, assertListener, replayReferee, planRows, protocolBody, frame,
                     options, trace, verdictBatch, sink);
         }
         /** Without the protocol body (a handle's rows built off the typed
@@ -142,32 +142,32 @@ final class StatementExecutor {
                 java.util.Map<String, String> tableReplace,
                 com.legend.exec.InstanceIds instanceIds,
                 com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-                com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
+                com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
                 java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
                         planRows) {
             this(ctx, runtimeFqn, dialect, connection, queryLets,
-                    tableReplace, instanceIds, assertListener, replayOracle, planRows,
+                    tableReplace, instanceIds, assertListener, replayReferee, planRows,
                     java.util.List.of(), null, ExecuteOptions.NONE,
                     new com.legend.exec.ExecutionTrace(), null, null);
         }
         /** The caller's execute options (the PCT wire render). */
         ExecEnv withOptions(ExecuteOptions o) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
-                    queryLets, tableReplace, instanceIds, assertListener, replayOracle,
+                    queryLets, tableReplace, instanceIds, assertListener, replayReferee,
                     planRows, protocolBody, frame, o, trace, verdictBatch, effectSink);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
         ExecEnv withFrame(com.legend.compiler.spec.typed.ExecutionContext f) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, assertListener, replayOracle,
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, assertListener, replayReferee,
                     planRows, protocolBody, f, options, trace, verdictBatch, effectSink);
         }
         ExecEnv withTableReplace(java.util.Map<String, String> tr) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tr, instanceIds, assertListener, replayOracle,
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tr, instanceIds, assertListener, replayReferee,
                     planRows, protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
         ExecEnv withListeners(com.legend.exec.@com.legend.base.Nullable AssertListener l,
-                com.legend.exec.@com.legend.base.Nullable SqlReplayOracle o) {
+                com.legend.exec.@com.legend.base.Nullable SqlReplayReferee o) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
         com.legend.compiler.spec.typed.ExecutionContext.PostProcessors postProcessors() {
@@ -183,7 +183,7 @@ final class StatementExecutor {
         ExecEnv withConnection(java.sql.Connection other) {
             return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
                     dialect, other, queryLets, tableReplace,
-                    instanceIds, assertListener, replayOracle, planRows,
+                    instanceIds, assertListener, replayReferee, planRows,
                     protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
 
@@ -205,7 +205,7 @@ final class StatementExecutor {
                 }
             });
             return new ExecEnv(ctx, runtimeFqn, dialect, on.connection, queryLets, renames,
-                    instanceIds, assertListener, replayOracle, planRows,
+                    instanceIds, assertListener, replayReferee, planRows,
                     protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
 
@@ -216,7 +216,7 @@ final class StatementExecutor {
                 java.util.List<com.legend.protocol.spec.ValueSpecification> body) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
                     queryLets, tableReplace, instanceIds,
-                    assertListener, replayOracle, planRows, body, frame, options, trace, verdictBatch, effectSink);
+                    assertListener, replayReferee, planRows, body, frame, options, trace, verdictBatch, effectSink);
         }
 
         ExecEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
@@ -1307,10 +1307,10 @@ final class StatementExecutor {
      * EXPLICIT mapping argument as the chain's execution context, and — for
      * a let binding — run it eagerly through the pipeline.
      */
-    /** The executor's SchemaOracle: the LIMIT-0 probe with its checked
+    /** The executor's SchemaReferee: the LIMIT-0 probe with its checked
      * failure wrapped — F1.3 keeps the JDBC surface (its exception type
      * included) out of the resolver. */
-    static com.legend.resolver.RawGridSchema.SchemaOracle gridOracle(
+    static com.legend.resolver.RawGridSchema.SchemaReferee gridReferee(
             java.sql.Connection connection, ExecEnv env) {
         return (sql, writtenFor) -> {
             try {
@@ -2284,9 +2284,9 @@ final class StatementExecutor {
         env = routeSystemDatabase(body, env);
         java.sql.Connection connection = env.connection();
         // late-bound grids: FIRST-query schema pin — staged compilation:
-        // the resolver pass takes the probed roster through the oracle
+        // the resolver pass takes the probed roster through the referee
         body = com.legend.resolver.RawGridSchema.stamp(body,
-                gridOracle(connection, env));
+                gridReferee(connection, env));
         // the from being executed IS the frame: its bound context carries the
         // post-processors, the connection's time zone and the options this
         // execution runs under (batch 120 — no static slot). The OUTERMOST

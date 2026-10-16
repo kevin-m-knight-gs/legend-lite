@@ -116,7 +116,7 @@ class RawSqlLedgerTest {
             // the LIMIT-0 schema probe (itself MIR-rendered; moved from
             // ResultNav at its Phase 1c-endgame deletion, then to
             // GridProbe at the Invariant-7 staged-compilation split —
-            // the resolver pass takes the roster through its oracle)
+            // the resolver pass takes the roster through its referee)
             "GridProbe.java", 1,
             // Phase 1c: the compiler's TypedRawSqlRelation lowering,
             // carrying the AUTHORED text from the typed node verbatim

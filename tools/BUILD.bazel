@@ -1,4 +1,4 @@
-# The release as the tests and generators read it (parser-equivalence's OraclePins): generated from
+# The release as the tests and generators read it (parser-equivalence's RefereePins): generated from
 # release.MODULE.bazel's pins (@oracle_pins, tools/oracle_pins.bzl), here under its old name so every reader keeps
 # one label. Nothing to hold equal any more: the pins are written once (Bazel workplan P2-10).
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")

@@ -31,20 +31,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * THE SWEEP — the equivalence harness's end state
  * (HARNESS_SIMPLIFICATION_PLAN): ONE pass over the manifest-pinned
- * corpus, ONE oracle parse per source, every claim computed as a column
+ * corpus, ONE referee parse per source, every claim computed as a column
  * of the same iteration and asserted TOGETHER at the end. It replaces
  * six test classes (CorpusEquivalence, PmcdEquivalence, RefusalSymmetry,
  * LeniencyCatalog, StrictDialectParity, SpiSeamProof) and the
- * {@code OracleParses} cache whose eviction tuning existed only because
+ * {@code RefereeParses} cache whose eviction tuning existed only because
  * those six each ran their own corpus loop.
  *
  * <p>THE CLAIM FAMILIES (each with its numeric ratchets):
  * <ol>
  *   <li><b>Byte equality where both accept</b> — lite's document parser
- *       AND the SPI seam (engine+lite bridge) byte-match the oracle's
+ *       AND the SPI seam (engine+lite bridge) byte-match the referee's
  *       full PMCD; the seam's engine-serialize-only bucket is
  *       membership-proven per row ({@link Comparators}).</li>
- *   <li><b>Verdict symmetry</b> — oracle threw ⟺ we threw, every
+ *   <li><b>Verdict symmetry</b> — referee threw ⟺ we threw, every
  *       exception a line of a checked-in, shrink-only allowlist file
  *       ({@code docs/refusal-allowlist.tsv},
  *       {@code docs/model-refuse-allowlist.tsv}); stale lines are
@@ -82,7 +82,7 @@ public class CorpusSweepTest {
 
     /** Vanilla-rejected sources the SPI seam accepts — post-flip residue
      *  (upstream walker defects + the reviewed allowlist). Down-only. */
-    private static final int MAX_SEAM_ORACLE_ASYMMETRY = 0;   // 2026-08-14: Primitive + brace-less #TDS gates closed the last 18
+    private static final int MAX_SEAM_REFEREE_ASYMMETRY = 0;   // 2026-08-14: Primitive + brace-less #TDS gates closed the last 18
 
     /** Seam rows whose delta is the ENGINE's serialize-only field,
      *  membership-proven per row. Down-only. */
@@ -90,7 +90,7 @@ public class CorpusSweepTest {
 
     /** Pure-only vanilla-rejected files raw parseStrict accepts — the
      *  strict element surface's own census. Down-only. */
-    private static final int MAX_STRICT_ORACLE_ASYMMETRY = 2;   // 2026-08-14: was 181 -> 22 (stray-')' gate) -> 2 (Primitive + brace-less #TDS gates); the 2 are ORACLE-DEFECT-crash walker NPEs (U3), named in UPSTREAM_DEFECTS.md
+    private static final int MAX_STRICT_REFEREE_ASYMMETRY = 2;   // 2026-08-14: was 181 -> 22 (stray-')' gate) -> 2 (Primitive + brace-less #TDS gates); the 2 are REFEREE-DEFECT-crash walker NPEs (U3), named in UPSTREAM_DEFECTS.md
 
     /** CEILING on the platform-COVERAGE catalog (each oracle-refused source the PLATFORM dialect accepts, classified) (deep-audit #2
      *  2d: the population was unbounded — every row classifies, but
@@ -98,7 +98,7 @@ public class CorpusSweepTest {
      *  measured 2026-08-14. */
     // 2026-08-23 relation wall burn: +2 ADJUDICATED rows — Profile
     // self-stereotypes (m4-pure syntax; the engine grammar has no such
-    // slot, verified in DomainParserGrammar, so the oracle refuses).
+    // slot, verified in DomainParserGrammar, so the referee refuses).
     // The platform lane parses-and-DROPS them faithfully (the engine
     // protocol Profile carries no applied-annotation field); the LEGEND
     // dialect still refuses verbatim (refusesLiteExtensions-gated). The
@@ -111,7 +111,7 @@ public class CorpusSweepTest {
     // spec's declaration files); the engine grammar has no variance slot
     // (its refusal: type/multiplicity parameters not authorized) —
     // PURE-DIALECT-generics family; the exact-engine surface is untouched.
-    private static final int MAX_PLATFORM_CATALOG = 1633;   // 2026-09-09 parser leg (batch 174): +32 rows the PLATFORM dialect now reads and the engine refuses (null-message GRAMMAR-REFUSAL / PURE-DIALECT-generics): type variables `Class X(x:Integer[1])` / `Primitive P(x) extends`, `@[m]`, `^X(v)(…)` — legend-pure's cast.pure, toMultiplicity.pure, addColumns.pure, new.pure, precisePrimitives.pure and their inline tests; the exact-engine surface refuses them as before (dialect quarantine). CORRECTION 2026-09-10 (upstream boundary batch 1): bare `@(…)` was listed here too, but the 4.138.2 oracle ACCEPTS it in every probed position (bare, `->cast(@(…))`, `@(name:Varchar(200))->genericType()` — the engine's own testSchema.pure carries it), so SpecParser now reads it on every surface
+    private static final int MAX_PLATFORM_CATALOG = 1633;   // 2026-09-09 parser leg (batch 174): +32 rows the PLATFORM dialect now reads and the engine refuses (null-message GRAMMAR-REFUSAL / PURE-DIALECT-generics): type variables `Class X(x:Integer[1])` / `Primitive P(x) extends`, `@[m]`, `^X(v)(…)` — legend-pure's cast.pure, toMultiplicity.pure, addColumns.pure, new.pure, precisePrimitives.pure and their inline tests; the exact-engine surface refuses them as before (dialect quarantine). CORRECTION 2026-09-10 (upstream boundary batch 1): bare `@(…)` was listed here too, but the 4.138.2 referee ACCEPTS it in every probed position (bare, `->cast(@(…))`, `@(name:Varchar(200))->genericType()` — the engine's own testSchema.pure carries it), so SpecParser now reads it on every surface
     // was 1601;   // 2026-09-08 units (census batch 150): +37 PURE-DIALECT-unit-instance rows (AbstractTestMeasure, AbstractTestToJson)
     // was 1564;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
     // 2026-08-19 Phase-4 entry-gate m3 burn: +42 adjudicated rows — the
@@ -128,7 +128,7 @@ public class CorpusSweepTest {
     /** A6: verbatim first-line message matches on both-reject rows.
      *  UP-only; measured 2026-08-15 (first measurement pins at 0 until
      *  the run below replaces it). */
-    private static final int MSG_VERBATIM_FLOOR = 863;   // 2026-08-15 first pin: position-normalized text parity on both-reject rows (ours carries [l:c], the oracle does not); 1,531 mismatch rows in target/message-parity.txt are the A6 closure work-list
+    private static final int MSG_VERBATIM_FLOOR = 863;   // 2026-08-15 first pin: position-normalized text parity on both-reject rows (ours carries [l:c], the referee does not); 1,531 mismatch rows in target/message-parity.txt are the A6 closure work-list
 
     /** A5: m3-accepts-platform-refuses ceiling — measured 2026-08-15;
      *  placeholder until the first run pins it. */
@@ -159,7 +159,7 @@ public class CorpusSweepTest {
                 "no corpus on disk — set -Dlegend.engine.root / -Dlegend.pure.root");
         ObjectMapper mapper = ObjectMapperFactory
                 .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         List<org.finos.legend.engine.language.pure.grammar.from.extension
                 .PureGrammarParserExtension> withLite = new ArrayList<>();
         withLite.add(LegendLiteSectionParser.extension());
@@ -191,7 +191,7 @@ public class CorpusSweepTest {
         List<String> msgMismatch = new ArrayList<>();
         int m3PlatformAgree = 0;
         List<String> m3OnlyRows = new ArrayList<>();
-        int oracleAccepts = 0;
+        int refereeAccepts = 0;
         int calAccepted = 0;
         int calAgree = 0;
         int strictAsymmetry = 0;
@@ -217,22 +217,22 @@ public class CorpusSweepTest {
         java.util.Set<String> asymIds = new java.util.HashSet<>();
 
         for (Corpus.Source src : sources) {
-            String oracleJson = null;
-            Throwable oracleRoot = null;
+            String refereeJson = null;
+            Throwable refereeRoot = null;
             try {
-                oracleJson = mapper.writeValueAsString(
-                        oracle.parseModel(src.text()));
+                refereeJson = mapper.writeValueAsString(
+                        referee.parseModel(src.text()));
             } catch (Throwable t) {
-                oracleRoot = rootOf(t);
+                refereeRoot = rootOf(t);
             }
 
-            if (oracleJson != null) {
-                oracleAccepts++;
+            if (refereeJson != null) {
+                refereeAccepts++;
                 // CLAIM 1a: the document parser byte-matches
                 try {
                     String doc = com.legend.parser.PmcdParser
                             .parseDocument(src.text());
-                    if (Comparators.sameBytes(oracleJson, doc)) {
+                    if (Comparators.sameBytes(refereeJson, doc)) {
                         docsMatched++;
                         // CLAIM 1c: and WITHOUT source information too (grammarToJson's
                         // returnSourceInformation=false): the engine's parser then records no
@@ -240,15 +240,15 @@ public class CorpusSweepTest {
                         // (ParseTreeWalkerSourceInformation.getSourceInformation answers null).
                         // Found by the protocol program's leg 5, 2026-10-09.
                         try {
-                            String oracleSpanFree = mapper.writeValueAsString(
-                                    oracle.parseModel(src.text(), "", 0, 0, false));
+                            String refereeSpanFree = mapper.writeValueAsString(
+                                    referee.parseModel(src.text(), "", 0, 0, false));
                             String docSpanFree = com.legend.parser.PmcdParser
                                     .parseDocument(src.text(), false);
-                            if (Comparators.sameBytes(oracleSpanFree, docSpanFree)) {
+                            if (Comparators.sameBytes(refereeSpanFree, docSpanFree)) {
                                 spanFreeMatched++;
                             } else {
                                 spanFreeDiffs.add(src.id() + " :: "
-                                        + firstDivergence(oracleSpanFree, docSpanFree));
+                                        + firstDivergence(refereeSpanFree, docSpanFree));
                             }
                         } catch (Throwable t) {
                             spanFreeDiffs.add(src.id() + " :: " + msgOf(rootOf(t)));
@@ -257,7 +257,7 @@ public class CorpusSweepTest {
                         c12DiffsUsed.add(src.id());
                     } else {
                         docDiffs.add(src.id() + " :: "
-                                + firstDivergence(oracleJson, doc));
+                                + firstDivergence(refereeJson, doc));
                     }
                 } catch (Throwable t) {
                     if (c12Walls.containsKey(src.id())) {
@@ -283,10 +283,10 @@ public class CorpusSweepTest {
                 try {
                     String spiJson = mapper.writeValueAsString(
                             spi.parseModel(src.text()));
-                    if (Comparators.sameBytes(oracleJson, spiJson)) {
+                    if (Comparators.sameBytes(refereeJson, spiJson)) {
                         seamMatched++;
                     } else if (Comparators.engineSerializeOnlyDelta(mapper,
-                            oracleJson, spiJson)) {
+                            refereeJson, spiJson)) {
                         engineAsym.add(src.id());
                     } else {
                         seamDiffs.add(src.id());
@@ -304,7 +304,7 @@ public class CorpusSweepTest {
                 continue;
             }
 
-            // ---------------- oracle REFUSED this source ----------------
+            // ---------------- referee REFUSED this source ----------------
             // our document parse, ONCE: its JSON (accepted) or its refusal
             String docJson = null;
             Throwable docRefusal = null;
@@ -337,10 +337,10 @@ public class CorpusSweepTest {
                 // verbatim. The floor ratchets the drop-in error voice.
                 {
                     Throwable ours = java.util.Objects.requireNonNull(docRefusal);
-                    String om = msgOf(oracleRoot);
+                    String om = msgOf(refereeRoot);
                     String lm = String.valueOf(rootOf(ours).getMessage())
                             .split("\n")[0]
-                            // ours carries a [line:col] prefix the oracle
+                            // ours carries a [line:col] prefix the referee
                             // lacks — RICHER, not divergent; compare text
                             .replaceFirst("^\\[\\d+:\\d+\\]\\s*", "");
                     if (om.equals(lm)) {
@@ -351,7 +351,7 @@ public class CorpusSweepTest {
                             || om.startsWith("Index ")
                             || om.equals("Unexpected token")
                             || om.equals("Unsupported syntax")) {
-                        // ORACLE-DEGENERATE: the engine's "message" is a
+                        // REFEREE-DEGENERATE: the engine's "message" is a
                         // raw NPE string, null, or its generic catch-all
                         // while ours is a positioned specific diagnostic
                         // — richer BY DESIGN (never regress to match)
@@ -364,7 +364,7 @@ public class CorpusSweepTest {
             } else {
                 if (docAccepts) {
                     // PROTOCOL-CHECK (sibling handoff instrument, adopted
-                    // 2026-08-14): a document WE accept that the oracle
+                    // 2026-08-14): a document WE accept that the referee
                     // refuses must still emit JSON the ENGINE's own
                     // protocol classes deserialize — a wrong-kind key
                     // emits wire no downstream consumer can read (the
@@ -390,26 +390,26 @@ public class CorpusSweepTest {
                         + (strictAccepts ? "strict" : "");
                 asymIds.add(src.id());
                 asymRows.add(src.id() + "\t" + category + "\t" + surfaces
-                        + "\t" + msgOf(oracleRoot));
+                        + "\t" + msgOf(refereeRoot));
                 if (!refusalAllow.containsKey(src.id())) {
                     unlistedAsym.add(src.id() + " [" + category + "/"
-                            + surfaces + "] " + msgOf(oracleRoot));
+                            + surfaces + "] " + msgOf(refereeRoot));
                 }
             }
             if (pureOnly && strictAccepts) {
                 strictAsymmetry++;
                 strictAsymmetryIds.add(src.id() + " :: vanilla: "
-                        + msgOf(oracleRoot));
+                        + msgOf(refereeRoot));
                 // LEG-1 CLOSURE (2026-08-13): every strict-lenient row must
                 // CLASSIFY — the bare count looked like unadjudicated debt
-                // when it was really 154 oracle-NPE + skew-claims + nullmsg
+                // when it was really 154 referee-NPE + skew-claims + nullmsg
                 // pure-dialect files; an unexplained row goes red here
                 CLASSIFYING_ID.set(src.id());
-                String scls = classify(oracleRoot, src.text());
+                String scls = classify(refereeRoot, src.text());
                 CLASSIFYING_ID.remove();
                 if (scls == null) {
                     strictUnexplained.add(src.id() + " :: "
-                            + msgOf(oracleRoot));
+                            + msgOf(refereeRoot));
                 } else {
                     strictAsymmetryByClass.merge(scls, 1, Integer::sum);
                 }
@@ -417,20 +417,20 @@ public class CorpusSweepTest {
             // seam census: the drop-in accepting what vanilla refuses
             if (accepts(() -> spi.parseModel(src.text()))) {
                 seamAccepts.add(src.id() + " :: vanilla: "
-                        + msgOf(oracleRoot));
+                        + msgOf(refereeRoot));
             }
             // leniency catalog + dialect parity (the lenient MODEL surface)
             if (platformAccepts) {
                 CLASSIFYING_ID.set(src.id());
-                String cls = classify(oracleRoot, src.text());
+                String cls = classify(refereeRoot, src.text());
                 CLASSIFYING_ID.remove();
                 if (cls == null) {
-                    unclassified.add(src.id() + " :: " + msgOf(oracleRoot));
+                    unclassified.add(src.id() + " :: " + msgOf(refereeRoot));
                     cls = "UNCLASSIFIED";
                 }
                 catalogByClass.merge(cls, 1, Integer::sum);
                 catalog.append(cls).append('\t').append(src.id())
-                        .append('\t').append(msgOf(oracleRoot)).append('\n');
+                        .append('\t').append(msgOf(refereeRoot)).append('\n');
                 if (cls.startsWith("DIALECT-") && strictAccepts) {
                     dialectLeaks.add(cls + " :: " + src.id());
                 }
@@ -467,7 +467,7 @@ public class CorpusSweepTest {
                 "the c12 ledgers are EMPTY and stay empty — a new row is a"
                         + " reviewed event (raise this pin deliberately)");
 
-        writeReports(sources.size(), oracleAccepts, docsMatched, docDiffs,
+        writeReports(sources.size(), refereeAccepts, docsMatched, docDiffs,
                 weRefuse, bothReject, seamMatched, engineAsym, seamDiffs,
                 seamAccepts, seamRejects, strictAsymmetry, strictAsymmetryIds,
                 asymRows, catalog, catalogByClass, stale);
@@ -508,7 +508,7 @@ public class CorpusSweepTest {
                 + " matched %d diff %d weRefuse %d | seam %d/%d asym %d |"
                 + " both-reject %d asymmetric %d (stale %d) | strictAsymmetry"
                 + " %d | M3 cal %.1f%%%n",
-                sources.size(), oracleAccepts, docsMatched, docDiffs.size(),
+                sources.size(), refereeAccepts, docsMatched, docDiffs.size(),
                 weRefuse.size(), seamMatched, seamRejects.size(),
                 engineAsym.size(), bothReject, asymRows.size(), stale.size(),
                 strictAsymmetry, calibration);
@@ -520,7 +520,7 @@ public class CorpusSweepTest {
         final int fSeam = seamMatched;
         final int fStrict = strictAsymmetry;
         final double fCal = calibration;
-        final int fAccepts = oracleAccepts;
+        final int fAccepts = refereeAccepts;
         final int fBoth = bothReject;
         final int fCatalogTotal = catalogByClass.values().stream()
                 .mapToInt(Integer::intValue).sum();
@@ -571,15 +571,15 @@ public class CorpusSweepTest {
                 () -> assertTrue(fSeam >= MIN_SEAM_MATCHED,
                         "seam coverage shrank: " + fSeam + " < "
                                 + MIN_SEAM_MATCHED),
-                () -> assertTrue(seamAccepts.size() <= MAX_SEAM_ORACLE_ASYMMETRY,
+                () -> assertTrue(seamAccepts.size() <= MAX_SEAM_REFEREE_ASYMMETRY,
                         "seam leniency census grew: " + seamAccepts.size()
-                                + " > " + MAX_SEAM_ORACLE_ASYMMETRY),
+                                + " > " + MAX_SEAM_REFEREE_ASYMMETRY),
                 () -> assertTrue(engineAsym.size() <= MAX_ENGINE_JSON_ASYMMETRY,
                         "engine JSON-asymmetry bucket grew: "
                                 + engineAsym.size()),
-                () -> assertTrue(fStrict <= MAX_STRICT_ORACLE_ASYMMETRY,
+                () -> assertTrue(fStrict <= MAX_STRICT_REFEREE_ASYMMETRY,
                         "parseStrict leniency census grew: " + fStrict
-                                + " > " + MAX_STRICT_ORACLE_ASYMMETRY),
+                                + " > " + MAX_STRICT_REFEREE_ASYMMETRY),
                 () -> assertTrue(fCal >= M3_CALIBRATION_FLOOR,
                         String.format(java.util.Locale.ROOT, "M3 second-reference calibration %.1f%%"
                                 + " below floor %.1f%% — the m3-corroborated"
@@ -603,7 +603,7 @@ public class CorpusSweepTest {
      *  sweep's classifier and SectionParseSentinelTest's), so liveness
      *  is asserted SEMANTICALLY, not by per-consumer usage: a claim row
      *  is live iff its source still EXISTS in the corpus, the pinned
-     *  oracle still REFUSES it (the definition of checkout-unreleased
+     *  referee still REFUSES it (the definition of checkout-unreleased
      *  skew), and lite still ACCEPTS it (otherwise there is nothing to
      *  pardon). Any other row is stale and must leave
      *  docs/version-skew-claims.tsv. */
@@ -617,7 +617,7 @@ public class CorpusSweepTest {
         for (Corpus.Source s : sources) {
             byId.put(s.id(), s.text());
         }
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         List<String> stale = new java.util.ArrayList<>();
         for (String claim : new java.util.TreeSet<>(SKEW_CLAIMS)) {
             String text = byId.get(claim);
@@ -625,14 +625,14 @@ public class CorpusSweepTest {
                 stale.add(claim + " (source left the corpus)");
                 continue;
             }
-            boolean oracleRefuses;
+            boolean refereeRefuses;
             try {
-                oracle.parseModel(text);
-                oracleRefuses = false;
+                referee.parseModel(text);
+                refereeRefuses = false;
             } catch (Throwable t) {
-                oracleRefuses = true;
+                refereeRefuses = true;
             }
-            if (!oracleRefuses) {
+            if (!refereeRefuses) {
                 stale.add(claim + " (the pinned oracle now ACCEPTS it —"
                         + " not skew anymore)");
                 continue;
@@ -674,7 +674,7 @@ public class CorpusSweepTest {
     // a label here is therefore an ACCEPTANCE decision, not diagnostics.
     // ------------------------------------------------------------------
 
-    /** Class a refusal by the ORACLE'S OWN evidence (message/exception),
+    /** Class a refusal by the REFEREE'S OWN evidence (message/exception),
      *  with one mechanical assist: a bare "Unexpected token" is adjudicated
      *  by OUR strict surface — its engine-verbatim gates name the dialect
      *  construct row by row (ZSkewResidueProbe), and a strict ACCEPT means
@@ -809,12 +809,12 @@ public class CorpusSweepTest {
                 || msg.contains("Unknown permission scheme")) {
             return "EXTENSION-format";
         }
-        // ORACLE-DEFECT — a crash, not a refusal
+        // REFEREE-DEFECT — a crash, not a refusal
         if (root instanceof NullPointerException
                 || msg.contains("Cannot invoke")
                 || msg.contains("NullPointerException")
                 || msg.contains("please notify developer")
-                // NumberFormatException escaping the oracle's unicode-escape
+                // NumberFormatException escaping the referee's unicode-escape
                 // parser (TestProfile.java#52: For input string "sers"
                 // under radix 16)
                 || msg.contains("under radix")) {
@@ -822,7 +822,7 @@ public class CorpusSweepTest {
         }
         if ("null".equals(msg)) {
             // an InputMismatchException with a null message is ANTLR's
-            // ORDINARY grammar-refusal path, NOT an oracle defect — the
+            // ORDINARY grammar-refusal path, NOT an referee defect — the
             // audit found 346 rows laundered under the old label
             // (HARNESS_SIMPLIFICATION_PLAN Phase 7). Real crashes carry
             // messages and classify above.
@@ -967,7 +967,7 @@ public class CorpusSweepTest {
         }
     }
 
-    private static void writeReports(int sources, int oracleAccepts,
+    private static void writeReports(int sources, int refereeAccepts,
             int docsMatched, List<String> docDiffs, List<String> weRefuse,
             int bothReject, int seamMatched, List<String> engineAsym,
             List<String> seamDiffs, List<String> seamAccepts,
@@ -981,7 +981,7 @@ public class CorpusSweepTest {
                 .append("=".repeat(72)).append('\n')
                 .append(String.format(java.util.Locale.ROOT, "corpus sources        : %d%n", sources))
                 .append(String.format(java.util.Locale.ROOT, "oracle accepts        : %d%n",
-                        oracleAccepts))
+                        refereeAccepts))
                 .append(String.format(java.util.Locale.ROOT, "  docs byte-MATCH     : %d%n",
                         docsMatched))
                 .append(String.format(java.util.Locale.ROOT, "  docs DIFF (BUG)     : %d%n",
@@ -989,7 +989,7 @@ public class CorpusSweepTest {
                 .append(String.format(java.util.Locale.ROOT, "  we-refuse (BUG)     : %d%n",
                         weRefuse.size()))
                 .append(String.format(java.util.Locale.ROOT, "oracle rejects        : %d (both-reject %d)%n",
-                        sources - oracleAccepts, bothReject));
+                        sources - refereeAccepts, bothReject));
         docDiffs.stream().limit(15).forEach(d ->
                 eq.append("  DIFF ").append(d).append('\n'));
         try {

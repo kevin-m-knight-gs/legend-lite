@@ -6,11 +6,11 @@ package com.legend.exec;
 /**
  * THE REPLAY-ORACLE SPI (SQLTEXT_ROW_VERDICT_CHARTER §2, the
  * {@link AssertListener} precedent): rows for a SQL text, executed on
- * the referee's oracle database with the run's recorded seed ledger
+ * the referee's referee database with the run's recorded seed ledger
  * applied. The platform defines only this seam and carries it on
  * {@code ExecEnv}; a test harness registers its implementation per run
  * (the H2 mirror). Production registers nothing — a SQL-text assert
- * that needs the oracle then WALLS loudly, which is correct: no
+ * that needs the referee then WALLS loudly, which is correct: no
  * goldens exist outside tests. The platform never learns what a
  * golden is, where the ledger lives, or which database answers.
  *
@@ -18,21 +18,21 @@ package com.legend.exec;
  * plan-replayer slice — its signature derives from that replayer's
  * real consumption, never guessed ahead of it.
  */
-public interface SqlReplayOracle {
+public interface SqlReplayReferee {
 
     /**
-     * Execute {@code sql} on the seeded oracle session and return its
+     * Execute {@code sql} on the seeded referee session and return its
      * result whole: column labels, JDBC type codes, and raw cell
      * values ({@code getObject} arrivals, untransformed — comparison
-     * policy normalizes, never the oracle). Any exception means the
-     * oracle could not answer; the caller's decline policy applies.
+     * policy normalizes, never the referee). Any exception means the
+     * referee could not answer; the caller's decline policy applies.
      */
-    OracleRows rows(String sql) throws java.sql.SQLException;
+    RefereeRows rows(String sql) throws java.sql.SQLException;
 
     /** THE TDG FETCH-TEXT VERDICT (charter burn map, TDG scoring
      * flip): BOTH sides are generator fetch TEXTS — ours executes on
      * the calling session's own database, the golden replays on the
-     * oracle, rows compare under the referee's multiset policy (the
+     * referee, rows compare under the referee's multiset policy (the
      * generator's fetches carry no ORDER BY by construction; an
      * ordered or chained text DECLINES with its named reason). The
      * platform arm consumes the outcome; seeds and session policy
@@ -43,7 +43,7 @@ public interface SqlReplayOracle {
     /** The CHAINED generator-fetch verdict (batch 64 — the walk's
      * chained replay behind the SPI): hop {@code hopIndex}'s golden is
      * remembered for the attempt; a hop whose fetch joins the generator's
-     * own temp tables replays its golden on the oracle with every
+     * own temp tables replays its golden on the referee with every
      * ANCESTOR temp materialized from that ancestor's remembered golden
      * (root-first — the engine fills each temp with the parent fetch's
      * rows, i.e. the parent golden's result) and multiset-compares
@@ -69,17 +69,17 @@ public interface SqlReplayOracle {
             java.util.List<java.util.List<Object>> rows) {
     }
 
-    /** One materialized oracle result: {@code labels}/{@code
+    /** One materialized referee result: {@code labels}/{@code
      * jdbcTypes} aligned by column, {@code rows} of raw cells. */
-    record OracleRows(java.util.List<String> labels,
+    record RefereeRows(java.util.List<String> labels,
             java.util.List<Integer> jdbcTypes,
             java.util.List<java.util.List<@com.legend.base.Nullable Object>> rows) {
     }
 
     /**
      * THE ROW VERDICT (charter §3.5d-6): replay {@code goldenSql} on
-     * the seeded oracle and compare its rows against {@code ours}
-     * under the oracle's OWN comparison policy (the §6 normalization
+     * the seeded referee and compare its rows against {@code ours}
+     * under the referee's OWN comparison policy (the §6 normalization
      * inventory + the §7 order rule live with the referee — charter
      * §2 puts comparison policy on the testing side; the platform arm
      * consumes the OUTCOME and owns the assert's judgment).
@@ -132,7 +132,7 @@ public interface SqlReplayOracle {
 
     /** MATCH = rows agree (the verdict of record); DIVERGED = rows
      * differ ({@code detail} says how — a REAL failure whatever the
-     * text said); DECLINED = the oracle could not answer
+     * text said); DECLINED = the referee could not answer
      * ({@code detail} = the counted reason; the caller's §4 policy
      * applies — e.g. text stays the contract). */
     /** A golden's ENGINE-SESSION temp table the referee materializes
@@ -140,13 +140,13 @@ public interface SqlReplayOracle {
      * holds the query's in-list literal — {@code values} in the
      * literal's Pure spelling (dates as the literal's engine string),
      * {@code kind} the literal's Pure type ({@code date}, {@code
-     * datetime}, {@code string}, {@code integer}). The oracle spells the
+     * datetime}, {@code string}, {@code integer}). The referee spells the
      * table in its own dialect. */
     record TempTable(String name, String kind, java.util.List<String> values) {
     }
 
     /** {@link #verify} with the golden's temp tables materialized on the
-     * oracle session first; the default ignores them (an oracle without
+     * referee session first; the default ignores them (an referee without
      * temp support declines through the missing table as before). */
     default RowVerdict verify(java.sql.Connection session, String goldenSql,
             ExecutionResult ours,
@@ -160,7 +160,7 @@ public interface SqlReplayOracle {
     }
 
     /** A golden PLAN's replay (batch 66): the plan text's nodes run in
-     * order on the oracle — an Allocation's value (a Constant's literal;
+     * order on the referee — an Allocation's value (a Constant's literal;
      * a Relational node's rows) binds the later holes, the template
      * operations (collectionSize, renderCollection,
      * optionalVarPlaceHolderOperationSelector, GMTtoTZ) evaluate over

@@ -21,7 +21,7 @@ package com.legend.exec;
  * renderer (a column reference knows whether its name is PHYSICAL —
  * DDL-owned, bare-unless-special — or DERIVED — query-invented,
  * quoted like the engine spells every alias). Receipts: all four
- * consumers probed green on THIS session (oracle sweep
+ * consumers probed green on THIS session (referee sweep
  * census-byte-identical; h2 lane 1369; PCT DuckDB + PCT h2modern).
  */
 public final class H2Settings {

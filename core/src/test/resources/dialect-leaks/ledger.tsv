@@ -7,21 +7,19 @@
 # 2026-10-15, the user's decisions D9 and D11 (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md §6): the model language's vocabulary (lexer, parser, protocol, model) and the SQL input languages (PostgresDialect, PostgresDateTime, protocol/sql/iq) are owners (DatabaseOwners), held to their own databases by DialectOwnerExclusivityTest; their 40 rows (368 lines) left this ledger.
 # 2026-10-15, the dialect program's Phase 4 (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): exec/SqlTypeCensus.java names no database; each database's reading of its driver (its type names, its carrier conventions, Trino's empty failed result) is its dialect's (SqlDialect.wireTypeName, deliversOwn, opensFailedResultsWithoutColumns), and its row (10 lines) left this ledger.
 # 2026-10-16, the dialect program's Phase 3: the engine-text and plan-text paths take EngineTextDialect, not EngineStyleH2 (StatementExecutor's 5 and PlanEnvelope's 1 dialect-class lines gone), and schema DDL is SqlDdl (StatementExecutor 31 -> 27, EngineText 12 -> 10 product-name lines); lowered as measured.
-core/src/main/java/com/legend/AssertVerdicts.java	product-name	4
-core/src/main/java/com/legend/BodyCompiler.java	product-name	1
+# 2026-10-16, the dialect program's Phase 3: the test oracle is named the referee in code (SqlReplayOracle -> SqlReplayReferee, ReplayOracle -> ReplayReferee, OraclePins -> RefereePins, REPLAY_ORACLE -> REPLAY_REFEREE, and every oracle identifier and comment): the product pattern read each as the Oracle database. The Oracle database's own names (DatabaseType.Oracle, its connection specification) are unchanged; lowered as measured, ReplayReferee.java's rows moved with its file.
+# 2026-10-16, the dialect program's Phase 3: three locals the H2/DB2 pattern read as a database renamed for what they hold (SeedSqlForms' seed database, RelationalTypeInference's two decimals, GraphEmission's two hops); their rows (11 lines) left the ledger.
+core/src/main/java/com/legend/AssertVerdicts.java	product-name	2
 core/src/main/java/com/legend/EngineText.java	database-type	1
 core/src/main/java/com/legend/EngineText.java	dialect-class	6
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/main/java/com/legend/EngineText.java	product-name	10
-core/src/main/java/com/legend/Execution.java	product-name	4
-core/src/main/java/com/legend/SeedSqlForms.java	product-name	3
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/SqlTextVerdicts.java	product-name	63
+core/src/main/java/com/legend/SqlTextVerdicts.java	product-name	4
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/StatementExecutor.java	product-name	27
+core/src/main/java/com/legend/StatementExecutor.java	product-name	7
 core/src/main/java/com/legend/builtin/DynaFn.java	product-name	175
 core/src/main/java/com/legend/compiler/NameResolver.java	product-name	1
-core/src/main/java/com/legend/compiler/element/RelationalTypeInference.java	product-name	6
 # 2026-10-14, the merge of neema2/legend-lite#37 (#IQ{...}#, the tenth line) into this branch at 1a36a71: the SQL front end's input dialects (InputDialect, PostgresDialect, SqlToPure, SqlIslands) and the iq-parity tests name the language of the SQL text a user writes (Postgres, SAP IQ / SQL Anywhere), not a database the platform executes on; pinned as measured. Whether protocol/sql/'s input dialects are owners was the user's question (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, Phase 1, 'after #37'): decided 2026-10-15, D11, they are, and the translator they share is not.
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/main/java/com/legend/compiler/element/type/PlatformTypes.java	product-name	5
@@ -36,7 +34,6 @@ core/src/main/java/com/legend/exec/Sessions.java	jdbc-url	10
 core/src/main/java/com/legend/exec/Sessions.java	product-call	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/main/java/com/legend/exec/Sessions.java	product-name	65
-core/src/main/java/com/legend/exec/SqlReplayOracle.java	product-name	3
 # 2026-10-16, the dialect program's Phase 3: the type pattern no longer counts DatabaseType.class (an enumeration naming no database, DialectLeakRatchetTest); lowered as measured.
 core/src/main/java/com/legend/executionplan/PlanJson.java	database-type	1
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
@@ -49,14 +46,10 @@ core/src/main/java/com/legend/protocol/sql/InputDialect.java	product-name	6
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 # 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
 core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	47
-core/src/main/java/com/legend/resolver/GraphEmission.java	product-name	2
-core/src/main/java/com/legend/resolver/RawGridSchema.java	product-name	12
 core/src/main/java/com/legend/setup/CsvSeed.java	product-name	5
-core/src/main/java/com/legend/test/PureTestRunner.java	product-name	5
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/main/java/com/legend/test/ServiceTestRunner.java	product-name	1
 core/src/main/java/com/legend/test/StorelessRuntime.java	product-name	6
-core/src/main/java/com/legend/test/TestObserver.java	product-name	2
 core/src/test/java/com/legend/ArchitectureTest.java	dialect-class	5
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/test/java/com/legend/ArchitectureTest.java	product-name	3
@@ -201,7 +194,7 @@ core/src/test/java/com/legend/integration/InheritanceIntegrationTest.java	jdbc-u
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 core/src/test/java/com/legend/integration/IqParityTest.java	jdbc-url	1
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
-core/src/test/java/com/legend/integration/IqParityTest.java	product-name	5
+core/src/test/java/com/legend/integration/IqParityTest.java	product-name	4
 core/src/test/java/com/legend/integration/IsDistinctByTreeIntegrationTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/JoinCheckerTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/JsonM2MChainIntegrationTest.java	jdbc-url	1
@@ -471,26 +464,7 @@ core/src/test/java/com/legend/testcases/SqlIslandCases.java	product-name	3
 core/src/test/java/com/legend/testcases/SqlParity.java	product-name	7
 # 2026-10-15, the merge of neema2/legend-lite#39 into the #SQL stress branch (neema2/legend-lite#41): the stress corpus's hand runner (core/src/test/resources/sql-stress/run.sh) compares the island with the Postgres 16 that answers each query and runs the DuckDB lane in memory, as SqlParityTest does: its two connection URLs (the answering server's default, overridable by -Dstress.pg.url, and DuckDB's in-memory jdbc:duckdb:) are pinned as measured. Its other five lines were moved: the host and port read through java.net.URI, the helper renamed.
 core/src/test/java/com/legend/testcases/SqlStress.java	jdbc-url	2
-parser-equivalence/src/test/java/com/legend/equivalence/ComparatorSelfTest.java	product-name	3
-parser-equivalence/src/test/java/com/legend/equivalence/ComposerParityTest.java	product-name	6
-parser-equivalence/src/test/java/com/legend/equivalence/Corpus.java	product-name	3
-parser-equivalence/src/test/java/com/legend/equivalence/CorpusSweepTest.java	product-name	45
-parser-equivalence/src/test/java/com/legend/equivalence/FixtureCorpusParityTest.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/GenerativeDualParseTest.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/GrammarKeywordCensus.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/ModelComposerParityTest.java	product-name	3
-parser-equivalence/src/test/java/com/legend/equivalence/ModelReaderParityTest.java	product-name	3
-parser-equivalence/src/test/java/com/legend/equivalence/MutationFuzzTest.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/OffsetCompositionParityTest.java	product-name	3
-parser-equivalence/src/test/java/com/legend/equivalence/OraclePins.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/OwnCorpusConformanceTest.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/OwnCorpusParityTest.java	product-name	1
-parser-equivalence/src/test/java/com/legend/equivalence/ParseSpeedBenchmark.java	product-name	13
-parser-equivalence/src/test/java/com/legend/equivalence/ProtocolSeedParityTest.java	product-name	1
-parser-equivalence/src/test/java/com/legend/equivalence/RosterGenerator.java	product-name	2
 parser-equivalence/src/test/java/com/legend/equivalence/Sectionize.java	product-name	1
-parser-equivalence/src/test/java/com/legend/equivalence/harvest/FixtureRecorder.java	product-name	1
-parser-equivalence/src/test/java/com/legend/equivalence/harvest/ZFixtureAdjudicationProbe.java	product-name	2
 pct/src/test/java/org/finos/legend/lite/pct/PctCensusGate.java	product-name	4
 pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_EssentialFunctions_PCT.java	product-name	1
 pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_GrammarFunctions_PCT.java	product-name	1
@@ -540,7 +514,7 @@ pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_RelationFuncti
 pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_StandardFunctions_PCT.java	product-name	1
 pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_UnclassifiedFunctions_PCT.java	product-name	1
 pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelBEssentialTest.java	product-name	2
-pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelBLane.java	product-name	5
+pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelBLane.java	product-name	1
 pct/src/test/java/org/finos/legend/lite/pct/extension/CloudLane.java	database-type	3
 pct/src/test/java/org/finos/legend/lite/pct/extension/CloudLane.java	product-name	3
 pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	database-type	11
@@ -551,16 +525,16 @@ spec/src/test/java/com/legend/generators/Phase3bProbesTest.java	product-name	3
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 spec/src/test/java/com/legend/harness/H2ExtensionFunctions.java	product-name	12
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/harness/H2Verify.java	product-name	6
+spec/src/test/java/com/legend/harness/H2Verify.java	product-name	3
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 spec/src/test/java/com/legend/harness/H2VerifyNormTest.java	product-name	7
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/harness/PlanReplay.java	product-name	12
-spec/src/test/java/com/legend/harness/ReplayOracle.java	driver	1
-spec/src/test/java/com/legend/harness/ReplayOracle.java	jdbc-url	1
-spec/src/test/java/com/legend/harness/ReplayOracle.java	product-call	1
+spec/src/test/java/com/legend/harness/PlanReplay.java	product-name	9
+spec/src/test/java/com/legend/harness/ReplayReferee.java	driver	1
+spec/src/test/java/com/legend/harness/ReplayReferee.java	jdbc-url	1
+spec/src/test/java/com/legend/harness/ReplayReferee.java	product-call	1
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/harness/ReplayOracle.java	product-name	115
+spec/src/test/java/com/legend/harness/ReplayReferee.java	product-name	61
 spec/src/test/java/com/legend/rcorpus/Corpus.java	dialect-class	1
 spec/src/test/java/com/legend/rcorpus/Corpus.java	product-name	1
 spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	driver	1
@@ -569,9 +543,9 @@ spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	product-name	2
 spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	database-type	3
 spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	jdbc-url	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	product-name	32
+spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	product-name	22
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java	product-name	52
+spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java	product-name	51
 spec/src/test/java/com/legend/rcorpus/ServerWorkspaces.java	product-name	2
 warehouse/src/test/java/com/legend/warehouse/TestServer.java	product-name	4
 warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java	jdbc-url	2
