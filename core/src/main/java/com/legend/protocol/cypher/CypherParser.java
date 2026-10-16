@@ -668,6 +668,16 @@ public final class CypherParser {
     /** Whether a node pattern closes at {@code k} and a relationship pattern follows ({@code )-[}, {@code )-(},
      *  {@code )--}, {@code )-->}, {@code )<-}): what tells a pattern inside brackets from a parenthesized
      *  expression ({@code [(a) - 1]}). */
+    /** At {@code (n:A:B ...}: whether the labelled node starts a pattern -- a property map, or a relationship after
+     *  its `)` -- rather than a parenthesized label predicate, {@code (n:Foo)} (Return2 [8]). */
+    private boolean labelledNodeStartsPattern() {
+        int k = 1;
+        while (peek(k).is(Type.COLON) && peek(k + 1).is(Type.IDENT)) {
+            k += 2;
+        }
+        return peek(k).is(Type.LBRACE) || relationshipAt(k);
+    }
+
     private boolean relationshipAt(int k) {
         return peek(k).is(Type.RPAREN) && (peek(k + 1).is(Type.ARROW_LEFT) || peek(k + 1).is(Type.MINUS)
                 && (peek(k + 2).is(Type.LBRACKET) || peek(k + 2).is(Type.LPAREN) || peek(k + 2).is(Type.MINUS)
@@ -697,7 +707,7 @@ public final class CypherParser {
             case LPAREN -> {
                 advance();
                 if (peek().is(Type.RPAREN) || peek().is(Type.IDENT) && (peek(1).is(Type.COLON)
-                        || peek(1).is(Type.LBRACE) || relationshipAt(1))) {
+                        && labelledNodeStartsPattern() || peek(1).is(Type.LBRACE) || relationshipAt(1))) {
                     throw CypherErrors.unsupported("a pattern inside an expression (a pattern predicate or"
                             + " comprehension) is not supported yet", pos);
                 }

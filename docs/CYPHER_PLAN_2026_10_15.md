@@ -122,7 +122,9 @@ on both. Then label predicates and relationships of several types (§12.35); Duc
 2260, 0 FAIL, 0 BUG, 0 ERROR on both. Then the showcase's easy and hard examples, pinned (`docs/CYPHER_SHOWCASE.md`
 §17 to §20); DuckDB PASS 2612, Postgres PASS 2262. Then main merged in and the first PR (#48) opened. Then a hop from an
 absent node and a pattern no way of the model reads (§12.36); DuckDB PASS 2636, Postgres PASS 2286, 0 FAIL, 0 BUG,
-0 ERROR on both. An edge class, named zones, and `collect` (the database owner's aggregate) wait.
+0 ERROR on both. Then a stored list as a Variant, `(n:Foo)` as a predicate, a first-clause OPTIONAL MATCH over no
+way (§12.37); DuckDB PASS 2648, Postgres PASS 2298, 0 FAIL, 0 BUG, 0 ERROR on both. An edge class, named zones, and
+`collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

@@ -298,6 +298,8 @@ public final class CypherToPure {
             // a date as the oracle's spelling of one, Date('yyyy-MM-dd'), which the judge reads back as that value
             // (the study's §12.21)
             case DATE -> plus(new CString("\"Date('"), call("toString", v), new CString("')\""));
+            // a stored list: its Variant's canonical text, in place
+            case JSON -> call("toString", v);
             default -> throw CypherErrors.unsupported("a node holding a " + cypherType(kind) + " property (" + name
                     + "), as a value, is not supported yet (the Variant spells it as text)", pos);
         };
@@ -638,6 +640,12 @@ public final class CypherToPure {
         if (m.optional()) {
             return optionalMatch(m, state);
         }
+        return matchPattern(m, state);
+    }
+
+    /** A MATCH's pattern read as required; {@code m.optional()} only when {@link #optionalMatch} reads an OPTIONAL
+     *  MATCH as the first clause this way (a pattern no way reads is then one null row, {@link #noWay}). */
+    private State matchPattern(CypherAst.Match m, @com.legend.base.Nullable State state) {
         if (state instanceof Rows rows) {
             Rows hop = absentHop(m, rows);
             if (hop != null) {
@@ -759,8 +767,10 @@ public final class CypherToPure {
                             r.pos());
                 }
             }
-            // no relationship of the model reads the pattern (the study's §12.36): no row, its variables absent
-            return noWay(elements, p.variable(), m.where(), null, p.pos());
+            // no relationship of the model reads the pattern (the study's §12.36): no row, its variables absent;
+            // under an OPTIONAL MATCH as the first clause, one null row -- the root too: Neo4j's OPTIONAL MATCH is
+            // the whole pattern's, null everywhere when it matches nothing
+            return noWay(elements, p.variable(), m.where(), null, m.optional(), p.pos());
         }
         // every variable's classes across the arms: what its carried columns are the union of
         Map<String, List<String>> variableClasses = new LinkedHashMap<>();
@@ -921,7 +931,7 @@ public final class CypherToPure {
             // no way of the model leaves the bound node's class (the study's §12.36): the rows in hand limited to
             // none, the pattern's other variables absent
             return noWay(ordered, null, m.where(), materializeArms(bases, new ArrayList<>(any.bindings().keySet()),
-                    m.pos()), p.pos());
+                    m.pos()), false, p.pos());
         }
         return materializeArms(graphs, order, m.pos());
     }
@@ -1019,7 +1029,8 @@ public final class CypherToPure {
                 return withAbsentNode(rows, labels,
                         ((NodePattern) m.patterns().get(0).elements().get(0)).variable());
             }
-            return match(new CypherAst.Match(false, m.patterns(), m.where(), m.pos()), null);
+            // (a pattern no way of the model reads answers one null row here, not no row: noWay reads m.optional())
+            return matchPattern(m, null);
         }
         if (state instanceof Rows rows) {
             Rows hop = absentHop(m, rows);
@@ -1334,12 +1345,17 @@ public final class CypherToPure {
     /** A pattern no relationship of the model reads ({@code MATCH ()-[r]->()} over a model declaring none; a hop
      *  from a class no way leaves): no row, as Neo4j answers, every variable of the pattern absent -- over
      *  {@code from} (the rows in hand, limited to none; its first element bound there) or, {@code from} null, over
-     *  no row at all; the property maps and the WHERE read for their static errors. */
+     *  no row at all -- one null row under an OPTIONAL MATCH as the first clause ({@code nullRow}); the property maps
+     *  and the WHERE read for their static errors. */
     private Rows noWay(List<PatternElement> elements, @com.legend.base.Nullable String pathVar,
-            @com.legend.base.Nullable Expr where, @com.legend.base.Nullable Rows from, Pos pos) {
+            @com.legend.base.Nullable Expr where, @com.legend.base.Nullable Rows from, boolean nullRow, Pos pos) {
         Rows rows;
         int start;
-        if (from == null) {
+        if (from == null && nullRow) {
+            // OPTIONAL MATCH as the first clause: one row, every variable absent (Neo4j's null row)
+            rows = oneRow();
+            start = 0;
+        } else if (from == null) {
             String column = SYNTHETIC + "row";
             rows = new Rows(noRows(column), List.of(new Col(column, Kind.STRING, true)));
             start = 0;
@@ -2274,6 +2290,11 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("ORDER BY a node (" + key + "; Neo4j orders nodes by identity) is not"
                         + " supported yet", o.pos());
             }
+            if (key != null && scalars.get(key) != null && scalars.get(key).kind() == Kind.JSON) {
+                // (a stored list, a path: Neo4j orders a list by its elements, which the Variant's text does not)
+                throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant ("
+                        + key + ") is not supported yet", o.pos());
+            }
             if (key == null && (skip != null || limit != null) && o.expr() instanceof CypherAst.Prop pr
                     && pr.target() instanceof CypherAst.Var pv && nodes.containsKey(pv.name())) {
                 // a carried node's property: its own column is the key (the node is carried under its name)
@@ -2315,6 +2336,10 @@ public final class CypherToPure {
                             + " SKIP or LIMIT, is not supported yet (the lowering renders no such sort key)", o.pos());
                 }
                 Tx t = tx(o.expr(), sortScope);
+                if (t.kind() == Kind.JSON) {
+                    throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant"
+                            + " is not supported yet", o.pos());
+                }
                 key = freshName(names);
                 hidden.add(new ColSpec(key, lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
                 sortKeys.add(new SortKey(key, o.descending(), true));
@@ -3518,6 +3543,11 @@ public final class CypherToPure {
                 return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
                         np.nullable()));
             }
+            if (found.detail() instanceof RelShape) {
+                // a relationship's property: the harness's model holds none, so null (Neo4j's for a property the
+                // relationship lacks); of one an OPTIONAL MATCH never found, null too
+                return nullValue();
+            }
             if (found.kind() == Kind.JSON) {
                 throw CypherErrors.unsupported("a property of a projected value (a node or map carried through WITH)"
                         + " is not supported yet", p.pos());
@@ -3585,6 +3615,8 @@ public final class CypherToPure {
             case "StrictDate" -> Kind.DATE;
             case "DateTime", "Date" -> Kind.DATETIME;
             case "StrictTime" -> Kind.TIME;
+            // a stored list (Neo4j's list property): a Variant over a SEMISTRUCTURED column (the study's §12.37)
+            case "Variant" -> Kind.JSON;
             default -> throw CypherErrors.unsupported("the property " + name + " is of type " + type + ": not"
                     + " supported yet", pos);
         };
@@ -4033,6 +4065,10 @@ public final class CypherToPure {
                 || t.kind() == Kind.ZONED_TIME || t.kind() == Kind.DURATION) {
             throw CypherErrors.unsupported("temporal arithmetic (" + cypherType(t.kind()) + ") is not supported yet",
                     e.pos());
+        }
+        if (t.kind() == Kind.JSON) {
+            throw CypherErrors.unsupported("arithmetic over a list or map the database holds as a Variant (two stored"
+                    + " lists concatenated) is not supported yet", e.pos());
         }
         if (!t.kind().numeric()) {
             throw CypherErrors.invalid("Type mismatch: expected Float or Integer but was " + cypherType(t.kind()),

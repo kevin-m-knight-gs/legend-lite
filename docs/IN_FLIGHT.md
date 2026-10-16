@@ -1837,6 +1837,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   branch's and are fixed (c428b45: the TCK's null features hidden by `.gitignore`'s `null`, a fixture closed on an
   escaped quote). **Thirty-fifth landing, 2026-10-16, on the PR's branch:** a hop from an absent node and a pattern no
   way of the model reads answer no row or absent values (the study's §12.36); DuckDB PASS 2636, Postgres PASS 2286.
+  **Thirty-sixth landing, 2026-10-16:** a stored list property as a Variant over a SEMISTRUCTURED column, `(n:Foo)` as a
+  label predicate, a first-clause OPTIONAL MATCH over no way as one null row (§12.37; one lowering exemption:
+  `resolver/Substitution.java` reads a Variant-typed property whole); DuckDB PASS 2648, Postgres PASS 2298.
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

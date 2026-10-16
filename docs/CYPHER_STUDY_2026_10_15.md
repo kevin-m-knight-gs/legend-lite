@@ -2884,3 +2884,32 @@ Neo4j.
 | Postgres | 4334 | 2286 (from 2,262) | 0 | 0 | 0 | 971 | 709 | 368 |
 
 14 lite cases in `lite/absent.yaml`, each judged by Neo4j (one a refusal by name: a cycle from an absent node).
+
+### 12.37 A stored list, a parenthesized label predicate, a first-clause OPTIONAL MATCH over no way, 2026-10-16
+
+- **`CREATE ({numbers: [1, 2, 3]})`, `MATCH (n) RETURN n.numbers, n`:** a list property of the graph (Neo4j's: a list
+  of primitives of one kind, no null) is a Variant over a SEMISTRUCTURED column -- the harness declares the class's
+  property `meta::pure::metamodel::variant::Variant[0..1]`, the store column `SEMISTRUCTURED` (seeded as JSON: DuckDB's
+  JSON, Postgres's JSONB), the island's model adapter reports it as a value (not an end to a class), and the
+  translator reads it as a JSON kind: returned as the list; in a node's value and in a map, its canonical text in
+  place; under DISTINCT and a grouping, the database's JSON equality. `ORDER BY` over it is refused by name (Neo4j
+  orders a list by its elements, which the Variant's text does not); `+` of two stored lists, `size`, `IN` and the
+  list functions over it stay what they were for a Variant (refused by name).
+  One exemption in the compiler: the resolver's rewrite refused any class-typed property read whole as "graph
+  output" (`resolver/Substitution.java`, Phase H4); a Variant-typed one is the column's value, not an instance, and
+  reads whole as its JSON.
+- **`RETURN (n:Foo)`:** a label predicate in parentheses is the predicate, not a pattern: the parser reads
+  `(n:A:B ...)` as a pattern only when a property map or a relationship follows the labels.
+- **`OPTIONAL MATCH (a:A)-[r]->(x)` as the first clause, no way leaving `A`; `OPTIONAL MATCH ()-[r]->()` over a model
+  declaring no relationship:** the root's rows (one per node of its class, or of every class), the rest of the
+  pattern absent; over no class at all, one null row (Neo4j's). A relationship's property reads null (the model holds
+  none; of a relationship never found, null too).
+
+#### 12.37.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4343 | 2648 (from 2,636) | 0 | 0 | 0 | 638 | 709 | 348 |
+| Postgres | 4343 | 2298 (from 2,286) | 0 | 0 | 0 | 988 | 709 | 348 |
+
+6 lite cases in `lite/stored.yaml`, 2 more in `lite/absent.yaml`, 1 in `lite/labels.yaml`, each judged by Neo4j.

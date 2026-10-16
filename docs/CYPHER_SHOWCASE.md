@@ -919,21 +919,31 @@ OPTIONAL MATCH (a) WITH a OPTIONAL MATCH (a)-[r:T]->(b) WHERE b.name = 'x' RETUR
 |---|---|---|---|
 | null | null | null | null |
 
+**§12.37, a stored list** (`lite/stored/stored_list_returned`): over `CREATE ({numbers: [1, 2, 3], name: 'n'})`.
 
-## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.36)
+```
+MATCH (n) RETURN n.numbers AS l, n.name AS name, n
+```
+
+| l | name | n |
+|---|---|---|
+| [1, 2, 3] | 'n' | ({name: 'n', numbers: [1, 2, 3]}) |
+
+
+## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.37)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
 negative scenarios, a syntax or type error) and lite errors too, by the same static check or by a refusal. `REFUSED`:
 Neo4j answers, lite refuses by name. `SKIP`: the harness cannot model the scenario (a relationship type joining
-several class pairs, a relationship property, a `CALL`). No case is `FAIL`, `BUG` or `ERROR` on either lane.
+several class pairs, a relationship property, a `CALL`; a list property is modelled since §12.37). No case is `FAIL`, `BUG` or `ERROR` on either lane.
 
 | status | cases |
 |---|---|
-| PASS | 2266 |
+| PASS | 2272 |
 | BOTH_ERROR | 666 |
-| REFUSED | 581 |
-| SKIP | 367 |
+| REFUSED | 595 |
+| SKIP | 347 |
 
 | area | cases | PASS | BOTH_ERROR | REFUSED | SKIP |
 |---|---|---|---|---|---|
@@ -944,14 +954,14 @@ several class pairs, a relationship property, a `CALL`). No case is `FAIL`, `BUG
 | clauses/match-where | 34 | 13 | 2 | 6 | 13 |
 | clauses/merge | 75 | 0 | 13 | 47 | 15 |
 | clauses/remove | 33 | 0 | 0 | 22 | 11 |
-| clauses/return | 63 | 24 | 10 | 15 | 14 |
+| clauses/return | 63 | 29 | 10 | 19 | 5 |
 | clauses/return-orderby | 35 | 16 | 3 | 15 | 1 |
 | clauses/return-skip-limit | 31 | 11 | 16 | 3 | 1 |
 | clauses/set | 53 | 0 | 2 | 43 | 8 |
 | clauses/union | 12 | 7 | 4 | 1 | 0 |
 | clauses/unwind | 14 | 8 | 0 | 5 | 1 |
-| clauses/with | 29 | 9 | 4 | 11 | 5 |
-| clauses/with-orderBy | 292 | 154 | 67 | 20 | 51 |
+| clauses/with | 29 | 9 | 4 | 12 | 4 |
+| clauses/with-orderBy | 292 | 154 | 67 | 30 | 41 |
 | clauses/with-skip-limit | 9 | 3 | 0 | 2 | 4 |
 | clauses/with-where | 19 | 6 | 0 | 7 | 6 |
 | expressions/aggregation | 35 | 15 | 7 | 13 | 0 |
@@ -959,7 +969,7 @@ several class pairs, a relationship property, a `CALL`). No case is `FAIL`, `BUG
 | expressions/comparison | 72 | 58 | 1 | 10 | 3 |
 | expressions/conditional | 13 | 13 | 0 | 0 | 0 |
 | expressions/existentialSubqueries | 10 | 0 | 1 | 0 | 9 |
-| expressions/graph | 61 | 16 | 15 | 14 | 16 |
+| expressions/graph | 61 | 17 | 15 | 13 | 16 |
 | expressions/list | 185 | 117 | 59 | 6 | 3 |
 | expressions/literals | 131 | 100 | 25 | 6 | 0 |
 | expressions/map | 44 | 35 | 9 | 0 | 0 |
@@ -978,7 +988,8 @@ several class pairs, a relationship property, a `CALL`). No case is `FAIL`, `BUG
 The refusals, by what they name (the larger buckets): the write clauses `CREATE`, `SET`, `MERGE`, `REMOVE`, `DELETE`
 (208, out of the island's scope); `collect` (45, the database owner's aggregate, waiting); `rand()` and the clock
 functions (50, never reproducible); `UNWIND` over lists of lists, maps or mixed types (64, Variant rows); a label or a
-property the model does not declare (52, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns that need
+property the model does not declare (53, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns that need
 node identity, which the values do not carry (a `MATCH` or `OPTIONAL MATCH` after rows, both ends bound, an undirected
 self-association, nodes among grouping keys or under `DISTINCT`, nodes compared: 72); variable-length relationships
-(13); the rest (77) is small buckets of one to nine, each named in the ledger.
+(13); a stored list ordered, concatenated or under `count(DISTINCT ...)` (18, the Variant's text); the rest (72) is
+small buckets of one to nine, each named in the ledger.

@@ -356,6 +356,12 @@ public final class CypherGraph {
             case CypherValues.Str s -> "String";
             case CypherValues.Bool b -> "Boolean";
             case CypherValues.Opaque o when o.text().startsWith("Date('") -> "StrictDate";
+            // a list property (Neo4j's, of primitives): a Variant over a SEMISTRUCTURED column, seeded as its JSON
+            // (the study's §12.37); a temporal inside it stays unsupported with the temporal's own reason
+            case CypherValues.Lst l -> {
+                jsonOf(l, key, valueText);
+                yield VARIANT;
+            }
             case CypherValues.Opaque o when LOCAL_DATE_TIME.matcher(o.text()).matches() -> {
                 String fraction = LOCAL_DATE_TIME.matcher(o.text()).replaceAll("$2");
                 if (fraction.length() > 6 && !fraction.substring(6).matches("0+")) {
@@ -369,6 +375,36 @@ public final class CypherGraph {
             default -> throw new Unsupported("harness: the property " + key + " holds a " + v.getClass()
                     .getSimpleName().toLowerCase(Locale.ROOT) + " (" + valueText + "), a kind the model does not"
                     + " hold yet (a time of day: no TIME store column; a zoned date-time; a duration)");
+        };
+    }
+
+    private static final String VARIANT = "meta::pure::metamodel::variant::Variant";
+
+    /** A list property's JSON text, as the seed binds it (DuckDB's JSON, Postgres's JSONB): its primitives spelled
+     *  as JSON spells them. */
+    private static String jsonOf(CypherValues.Value v, String key, String valueText) throws Unsupported {
+        return switch (v) {
+            case CypherValues.Null n -> "null";
+            case CypherValues.Bool b -> String.valueOf(b.value());
+            case CypherValues.Int i -> i.value().toString();
+            case CypherValues.Flt f -> {
+                if (Double.isNaN(f.value()) || Double.isInfinite(f.value())) {
+                    throw new Unsupported("harness: the property " + key + " holds a list with " + f.value()
+                            + " (" + valueText + "), which JSON does not spell");
+                }
+                yield Double.toString(f.value());
+            }
+            case CypherValues.Str str -> com.legend.json.Json.toCompact(str.value());
+            case CypherValues.Lst l -> {
+                StringBuilder out = new StringBuilder("[");
+                for (int i = 0; i < l.items().size(); i++) {
+                    out.append(i > 0 ? "," : "").append(jsonOf(l.items().get(i), key, valueText));
+                }
+                yield out.append(']').toString();
+            }
+            default -> throw new Unsupported("harness: the property " + key + " holds a list with a " + v.getClass()
+                    .getSimpleName().toLowerCase(Locale.ROOT) + " (" + valueText + "), a kind the model does not hold"
+                    + " in a list yet");
         };
     }
 
@@ -386,6 +422,13 @@ public final class CypherGraph {
             // a date or date-time: the text the seed binds (java.sql.Date.valueOf, Timestamp.valueOf)
             case CypherValues.Opaque o when o.text().startsWith("Date('") -> o.text().substring(6,
                     o.text().length() - 2);
+            case CypherValues.Lst l -> {
+                try {
+                    yield jsonOf(l, "", text);
+                } catch (Unsupported e) {
+                    throw new IllegalStateException(e);
+                }
+            }
             case CypherValues.Opaque o when LOCAL_DATE_TIME.matcher(o.text()).matches() -> {
                 java.util.regex.Matcher m = LOCAL_DATE_TIME.matcher(o.text());
                 m.matches();
@@ -405,6 +448,7 @@ public final class CypherGraph {
             case "Boolean" -> "BOOLEAN";
             case "StrictDate" -> "DATE";
             case "DateTime" -> "TIMESTAMP";
+            case VARIANT -> "JSONB";
             default -> throw new IllegalStateException(pureType);
         };
     }
@@ -417,6 +461,7 @@ public final class CypherGraph {
             case "Boolean" -> "BIT";
             case "StrictDate" -> "DATE";
             case "DateTime" -> "TIMESTAMP";
+            case VARIANT -> "SEMISTRUCTURED";
             default -> throw new IllegalStateException(pureType);
         };
     }

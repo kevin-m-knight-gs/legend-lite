@@ -241,6 +241,9 @@ public final class CypherIslands {
                 upper = u == null ? -1 : u;
             }
             switch (type) {
+                // a Variant (a stored list: a SEMISTRUCTURED column, the study's §12.37) is a value, not a class
+                case Type.ClassType c when com.legend.compiler.element.type.PlatformTypes.isVariant(c) ->
+                        sink.property(name, "Variant", false, false, lower, upper);
                 case Type.ClassType c -> sink.property(name, c.fqn(), true, false, lower, upper);
                 case Type.EnumType e -> sink.property(name, e.fqn(), false, true, lower, upper);
                 default -> sink.property(name, type.typeName(), false, false, lower, upper);

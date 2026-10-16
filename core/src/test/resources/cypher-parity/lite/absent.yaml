@@ -45,3 +45,9 @@ tests:
     cypher: "MATCH (b:B) WITH b MATCH (b)-[r]->(x) WHERE x.name <> 'z' RETURN *"
   - id: a_cycle_from_an_absent_node_refused
     cypher: "OPTIONAL MATCH (a) WITH a MATCH (a)-->(a) RETURN a"
+  - id: optional_first_pattern_no_relationship_reads
+    cypher: "OPTIONAL MATCH ()-[r]->() RETURN r, r.missing AS m, type(r) AS t"
+  - id: optional_first_hop_from_a_class_no_way_leaves
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "OPTIONAL MATCH (a:A)-[r]->(x) RETURN a.name AS an, r, x, r IS NULL AS nor"

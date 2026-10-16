@@ -1,0 +1,30 @@
+# The #Cypher{...}# island's stored-list cases (docs/CYPHER_STUDY_2026_10_15.md §12.37): a list property of the graph
+# is a Variant over a SEMISTRUCTURED column (JSON on DuckDB, JSONB on Postgres), read as a value, in a node's value,
+# in a map, under DISTINCT and a grouping; ordered by, refused by name (Neo4j orders a list by its elements). Each
+# case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/stored/*'), keyed lite/stored/<id>.
+tests:
+  - id: stored_list_returned
+    graph: |
+      CREATE ({numbers: [1, 2, 3], name: 'n'})
+    cypher: "MATCH (n) RETURN n.numbers AS l, n.name AS name, n"
+  - id: stored_lists_of_texts_and_booleans
+    graph: |
+      CREATE (:A {tags: ['x', 'y'], flags: [true, false], ratios: [1.5, 2.0]})
+    cypher: "MATCH (a:A) RETURN a.tags AS t, a.flags AS f, a.ratios AS r"
+  - id: stored_list_in_a_map_under_distinct
+    graph: |
+      CREATE ({list: ['A', 'B']}), ({list: ['A', 'B']}), ({list: ['B']})
+    cypher: "MATCH (n) RETURN count(DISTINCT {name: n.list}) AS c"
+  - id: stored_list_as_a_grouping_key
+    graph: |
+      CREATE ({color: ['red']}), ({color: ['blue']}), ({color: ['red']})
+    cypher: "MATCH (a) RETURN a.color AS c, count(*) AS n"
+  - id: stored_list_ordered_by_refused
+    graph: |
+      CREATE (:A {list: [2, -2]}), (:B {list: [1, 2]})
+    cypher: "MATCH (a) WITH a, a.list AS list ORDER BY list RETURN list"
+  - id: stored_lists_concatenated
+    graph: |
+      CREATE ({list1: [1, 2, 3], list2: [4, 5]})
+    cypher: "MATCH (a) RETURN a.list2 + a.list1 AS foo"

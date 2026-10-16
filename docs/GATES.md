@@ -9850,6 +9850,25 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the thirty-sixth landing — a stored list as a Variant, a parenthesized label predicate, a first-clause OPTIONAL MATCH over no way (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, on PR #48; the record is the study's §12.37
+(`docs/CYPHER_STUDY_2026_10_15.md`). The harness (`CypherGraph`), the island's model adapter (`CypherIslands`),
+the parser, the translator, and one exemption in the resolver's rewrite (`Substitution`: a Variant-typed property
+read whole is the column's value, not graph output).
+
+1. **What lands.** A list property of the graph is a Variant over a SEMISTRUCTURED column (seeded as JSON/JSONB),
+   read as a value, inside a node's value and a map, under DISTINCT and a grouping; ORDER BY over it refused by
+   name. `(n:Foo)` reads as a label predicate. An OPTIONAL MATCH as the first clause whose pattern no way of the
+   model reads keeps its root's rows with the rest absent (one null row over no class); a relationship's property
+   reads null.
+2. **The ledger.** DuckDB: 4343 cases; PASS 2648 (from 2,636); FAIL 0; BUG 0; ERROR 0; REFUSED 638;
+   BOTH_ERROR 709; SKIP 348 (from 368: the list-property skips lifted). Postgres: PASS 2298 (from 2,286);
+   FAIL 0; BUG 0; ERROR 0; REFUSED 988; BOTH_ERROR 709; SKIP 348. 9 lite cases, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. CI runs on the PR.
+
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-fifth landing — a hop from an absent node, a pattern no way reads (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the first PR (#48) opened; the record is the study's §12.36

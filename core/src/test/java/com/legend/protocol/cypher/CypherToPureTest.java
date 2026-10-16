@@ -495,6 +495,12 @@ class CypherToPureTest {
         String path = pure("WITH null AS a OPTIONAL MATCH p = (a)-[r]->() RETURN nodes(p) AS n, length(p) AS l");
         assertTrue(path.contains("n:r|[]->cast(@meta::pure::metamodel::variant::Variant)")
                 && path.contains("l:r|[]->cast(@Integer)"), path);
+        // an OPTIONAL MATCH as the first clause whose pattern no way reads (no way leaves City): one null row, the
+        // root too (Neo4j's OPTIONAL MATCH is the whole pattern's: nothing matched, null everywhere), over the
+        // one-row TDS
+        String first = pure("OPTIONAL MATCH (c:City)-[r]->(x) RETURN c, r, type(r) AS t");
+        assertTrue(first.startsWith("#TDS{") && !first.contains("->limit(0)") && !first.contains("City.all()"),
+                first);
         // the WHERE is still read: a variable it names must exist
         invalid("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x, 1 AS one MATCH (x)-->(b) WHERE q.x = 1"
                 + " RETURN b", "not defined");
