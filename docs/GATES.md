@@ -9864,7 +9864,11 @@ translator (the hop's existence over the pattern comprehension's resolution, gat
    After the review (item 5): DuckDB 4395 cases, PASS 2718, REFUSED 779, BOTH_ERROR 717, SKIP 181; Postgres PASS 2368,
    REFUSED 1129, BOTH_ERROR 717, SKIP 181; FAIL, BUG and ERROR 0 on both.
 3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:guardrails`,
-   `//core:core_tests_integration`, `//projects:every_project_test` green.
+   `//core:core_tests_integration`, `//projects:every_project_test` green. The PR's CI (`checks` lane) caught one
+   ratchet the three landings moved: `//parser-equivalence:update_ratchets_test`, `own_corpus.matched` 2856 to 2891,
+   the landings' test snippets (`GraphEdgesTest`'s models, the harness's edge-class text in `CypherGraph`, the
+   integration test's) 35 more own-corpus elements the oracle matches; regenerated with
+   `bazel run //parser-equivalence:update_ratchets`.
 4. **Refused by name, recorded.** A pattern predicate over rows, with both ends bound, with a property map, over
    more than one hop; an EXISTS subquery with several patterns or further clauses; `COUNT { }`, `COLLECT { }`.
 5. **The review.** Two independent reviews of the three landings (the study's §12.40.2): nine findings in the reader,
