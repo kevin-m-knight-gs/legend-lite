@@ -655,6 +655,11 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Optional<com.legend.model.AssociationDefinition> findAssociation(String fqn) {
+        return model.findAssociation(fqn);
+    }
+
+    @Override
     public java.util.Optional<com.legend.model.AssociationDefinition.AssociationEndDefinition>
             findAssociationEnd(String ownerClassFqn, String propName) {
         return model.findAssociationEnd(ownerClassFqn, propName);

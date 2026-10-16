@@ -98,6 +98,16 @@ class CypherToPureTest {
         public String labelOf(String classPath) {
             return classPath.substring(classPath.lastIndexOf("::") + 2);
         }
+
+        @Override
+        public void ends(String classPath, CypherToPure.PropertySink sink) {
+            // firm is the forward end of Person-Firm (employees its inverse); hq a plain property holding a class
+            if (classPath.equals("demo::Person")) {
+                prop("firm", "demo::Firm", 0, 1).reportTo(sink);
+            } else if (classPath.equals("demo::Firm")) {
+                prop("hq", "demo::City", 0, 1).reportTo(sink);
+            }
+        }
     };
 
     private static String pure(String cypher) {

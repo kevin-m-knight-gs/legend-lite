@@ -2314,3 +2314,40 @@ patterns (a cartesian product over every class), cycles and relationship uniquen
 
 11 lite cases in `lite/joins.yaml`, each judged by Neo4j.
 
+### 12.17 The join form's second stage, 2026-10-16: an untyped relationship is one arm per relationship the model declares
+
+`MATCH (a)-->(b)`, `(a)-[r]-(b)`, `(x)-->(y)-->(z)` (74 TCK cases refused as "a relationship pattern without a
+type"): a relationship pattern with no type names every relationship the model declares between the classes it
+could stand between. The translator **enumerates the arms** (`untypedArms`, `assign`): from the node before the
+hop, read forward, each relationship of its class (`Model.ends`: the class's stored properties holding a class,
+and the associations whose *first* end is its — the end a relationship type names, which the harness declares
+first; the inverse end is the other class's); read backward, each relationship of another class reaching it; both
+for an undirected hop; a typed hop on the way its own type's ways. Each arm is the pattern rewritten with the
+chosen type and direction and the classes it decides as labels, read as a typed pattern is (a to-one root or
+§12.16's fanning root), its WHERE read against its own classes, materialized to rows — every node carried as the
+union of its classes' properties across the arms (`Graph.variableClasses`), the nodes in the pattern's order and
+every unnamed node named synthetically before the arms, so the arms' columns agree — and the arms concatenated.
+The seam indexes the associations by the class their first end is injected onto (`CypherIslands.Ends`; the
+context gained `findAssociation`).
+
+Refused by name: a relationship variable in a pattern read as rows (a relationship as a value), an undirected hop
+over a self-association (a loop matches once in Neo4j, which needs identity), an untyped pattern after a bound
+pattern or among several patterns, one the model declares no relationship for (no rows).
+
+**A harness fix found by the leg (TriadicSelection1 [1], the binary tree).** The harness's model of a
+self-association (a relationship type between nodes of one class, realized as a foreign key) mapped both ends to
+one join written from the inverse end's side — and lite reads `{target}` as the node navigated to, so the forward
+end navigated backward (`(c:X)<-[:FRIEND]-(b:X)` read b1's own friends). A self-association now gets one join
+per end, each end mapped to its own (`CypherGraph`); the four cases that read a self-association's forward end
+changed outcome, nothing else (measured by the per-case diff). The TCK's `binary-tree-1` graph is copied beside
+lite's `graphs/` as a fixture for the diagnostic cases.
+
+#### 12.17.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4,138 | 2,293 (from 2,276) | 0 | 0 | 0 | 818 | 709 | 318 |
+| Postgres | 4,138 | 1,945 (from 1,928) | 0 | 0 | 0 | 1,166 | 709 | 318 |
+
+22 lite cases in `lite/joins.yaml`, each judged by Neo4j.
+

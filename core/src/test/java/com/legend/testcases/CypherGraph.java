@@ -195,21 +195,39 @@ public final class CypherGraph {
                 dst.ends.add(in + ": g::" + src.name + "[*];");
                 joins.append("    Join ").append(t.name).append('(').append(src.table).append('.').append(column)
                         .append(" = ").append(target).append("id)\n");
+                // a self-association: the inverse end is its own join, read from the other side ({target} is the
+                // node navigated to, so one join text cannot serve both ends)
+                String inJoin = t.name;
+                if (src == dst) {
+                    inJoin = in;
+                    joins.append("    Join ").append(in).append("({target}.").append(column).append(" = ")
+                            .append(src.table).append(".id)\n");
+                }
                 associationMappings.append("    ").append(assoc).append(": Relational { AssociationMapping ( ")
                         .append(t.name).append(": [g::DB]@").append(t.name).append(", ").append(in)
-                        .append(": [g::DB]@").append(t.name).append(" ) }\n");
+                        .append(": [g::DB]@").append(inJoin).append(" ) }\n");
             } else if (maxIn <= 1) {
                 // the end node holds at most one start node: a foreign key on the end class's table
                 String col = column + "_in";
                 dst.fkColumns.put(in, col);
                 src.ends.add(t.name + ": g::" + dst.name + "[*];");
                 dst.ends.add(in + ": g::" + src.name + "[0..1];");
-                String left = src == dst ? "{target}." : src.table + ".";
-                joins.append("    Join ").append(t.name).append('(').append(dst.table).append('.').append(col)
-                        .append(" = ").append(left).append("id)\n");
+                String inJoin = t.name;
+                if (src == dst) {
+                    // a self-association: the forward end reads the end node's key from the start ({target} is
+                    // the node navigated to), the inverse end its own join from the other side
+                    joins.append("    Join ").append(t.name).append("({target}.").append(col).append(" = ")
+                            .append(src.table).append(".id)\n");
+                    inJoin = in;
+                    joins.append("    Join ").append(in).append('(').append(dst.table).append('.').append(col)
+                            .append(" = {target}.id)\n");
+                } else {
+                    joins.append("    Join ").append(t.name).append('(').append(dst.table).append('.').append(col)
+                            .append(" = ").append(src.table).append(".id)\n");
+                }
                 associationMappings.append("    ").append(assoc).append(": Relational { AssociationMapping ( ")
                         .append(t.name).append(": [g::DB]@").append(t.name).append(", ").append(in)
-                        .append(": [g::DB]@").append(t.name).append(" ) }\n");
+                        .append(": [g::DB]@").append(inJoin).append(" ) }\n");
             } else {
                 // many to many: a junction table and a join chain
                 String junction = column;

@@ -9850,6 +9850,24 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the fifteenth landing — the join form's second stage: an untyped relationship as one arm per relationship of the model (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the join form's first stage; the record is the study's §12.17
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator, the seam (`Ends`, `Model.ends`) and the context
+(`ModelContext.findAssociation`, one implementation).
+
+1. **What lands.** An untyped relationship pattern enumerates the model's relationships between the classes it
+   could stand between (forward: the class's own; backward: another class's reaching it; both when undirected),
+   each arm read as a typed pattern, materialized to rows over the union of each node's classes, the arms
+   concatenated. Refused by name: a relationship variable in a pattern read as rows, an undirected hop over a
+   self-association, an untyped pattern after a bound one or among several, one with no relationship to read.
+2. **The ledger.** DuckDB: 4,138 cases; PASS 2,293 (from 2,276); FAIL 0; BUG 0; ERROR 0; REFUSED 818;
+   BOTH_ERROR 709; SKIP 318. Postgres: PASS 1,945 (from 1,928); FAIL 0; BUG 0; ERROR 0; REFUSED 1,166;
+   BOTH_ERROR 709; SKIP 318. 22 lite cases in `lite/joins.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the fourteenth landing — the join form: a pattern that fans out reads one row per pair (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the parameters leg; the record is the study's §12.16

@@ -47,3 +47,44 @@ tests:
     graph: |
       CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (b2:B {name: 'b2'}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1)
     cypher: "MATCH (a:A)-[:T]->(:B {name: 'b2'}) RETURN a.name AS a"
+  - id: untyped_from_a_labelled_node
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (a:A)-->(x) RETURN a.name AS a, x.name AS x ORDER BY a, x"
+  - id: untyped_between_label_less_nodes
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (x)-->(y) RETURN x.name AS x, y.name AS y ORDER BY x, y"
+  - id: untyped_with_a_label_on_the_far_node
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (x)-->(c:C) RETURN x.name AS x ORDER BY x"
+  - id: untyped_incoming
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (c:C)<--(x) RETURN x.name AS x ORDER BY x"
+  - id: untyped_undirected
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (b:B)--(x) RETURN x.name AS x ORDER BY x"
+  - id: untyped_two_hops
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (x)-->(y)-->(z) RETURN x.name AS x, y.name AS y, z.name AS z ORDER BY x, y, z"
+  - id: untyped_count_and_nodes
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (x)-->(y) RETURN count(*) AS n"
+  - id: untyped_with_where_and_return_of_nodes
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (x)-->(y) WHERE y.name <> 'c1' RETURN x, y"
+  - id: self_association_read_backward
+    graph: binary-tree-1
+    cypher: "MATCH (c:X)<-[:FRIEND]-(b:X) RETURN c.name AS c, b.name AS b ORDER BY c"
+  - id: self_association_then_another_backward
+    graph: binary-tree-1
+    cypher: "MATCH (c:X)<-[:FRIEND]-(b:X)<-[:KNOWS]-(a:A) RETURN c.name AS c ORDER BY c"
+  - id: typed_then_untyped_two_hops
+    graph: binary-tree-1
+    cypher: "MATCH (a:A)-[:KNOWS]->(b)-->(c) RETURN c.name AS c ORDER BY c"

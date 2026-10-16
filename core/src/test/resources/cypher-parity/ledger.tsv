@@ -175,7 +175,7 @@ tck/clauses/delete/Delete6/[14] Aggregating in `WITH` after deleting relationshi
 tck/clauses/match-where/MatchWhere1/[1] Filter node with node label predicate on multi variables with multiple bindings	SKIP	SKIP
 tck/clauses/match-where/MatchWhere1/[2] Filter node with node label predicate on multi variables without any bindings	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[3] Filter node with property predicate on a single variable with multiple bindings	PASS	PASS
-tck/clauses/match-where/MatchWhere1/[4] Filter start node of relationship with property predicate on multi variables with multiple bindings	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere1/[4] Filter start node of relationship with property predicate on multi variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[5] Filter end node of relationship with property predicate on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[6] Filter node with a parameter in a property predicate on multi variables with one binding	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere1/[7] Filter relationship with relationship type predicate on multi variables with multiple bindings	REFUSED	REFUSED
@@ -386,7 +386,7 @@ tck/clauses/match/Match3/[5] Return two subgraphs with bound undirected relation
 tck/clauses/match/Match3/[6] Matching a relationship pattern using a label predicate	SKIP	SKIP
 tck/clauses/match/Match3/[7] Matching nodes with many labels	SKIP	SKIP
 tck/clauses/match/Match3/[8] Matching using relationship predicate with multiples of the same type	REFUSED	REFUSED
-tck/clauses/match/Match3/[9] Get related to related to	REFUSED	REFUSED
+tck/clauses/match/Match3/[9] Get related to related to	PASS	PASS
 tck/clauses/match/Match3/[10] Matching using self-referencing pattern returns no result	REFUSED	REFUSED
 tck/clauses/match/Match3/[11] Undirected match in self-relationship graph	REFUSED	REFUSED
 tck/clauses/match/Match3/[12] Undirected match of self-relationship in self-relationship graph	REFUSED	REFUSED
@@ -3853,16 +3853,16 @@ tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid
 tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #5	REFUSED	REFUSED
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[1] Undirected match in self-relationship graph, count	REFUSED	REFUSED
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[2] Undirected match of self-relationship in self-relationship graph, count	REFUSED	REFUSED
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[3] Undirected match on simple relationship graph, count	REFUSED	REFUSED
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[4] Directed match on self-relationship graph, count	REFUSED	REFUSED
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[3] Undirected match on simple relationship graph, count	PASS	PASS
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[4] Directed match on self-relationship graph, count	PASS	PASS
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[5] Directed match of self-relationship on self-relationship graph, count	REFUSED	REFUSED
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[6] Counting undirected self-relationships in self-relationship graph	REFUSED	REFUSED
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[7] Counting distinct undirected self-relationships in self-relationship graph	REFUSED	REFUSED
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[8] Directed match of a simple relationship, count	REFUSED	REFUSED
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[8] Directed match of a simple relationship, count	PASS	PASS
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[9] Counting directed self-relationships	REFUSED	REFUSED
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[10] Mixing directed and undirected pattern parts with self-relationship, count	REFUSED	REFUSED
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[11] Mixing directed and undirected pattern parts with self-relationship, undirected count	REFUSED	REFUSED
-tck/useCases/triadicSelection/TriadicSelection1/[1] Handling triadic friend of a friend	REFUSED	REFUSED
+tck/useCases/triadicSelection/TriadicSelection1/[1] Handling triadic friend of a friend	PASS	PASS
 tck/useCases/triadicSelection/TriadicSelection1/[2] Handling triadic friend of a friend that is not a friend	REFUSED	REFUSED
 tck/useCases/triadicSelection/TriadicSelection1/[3] Handling triadic friend of a friend that is not a friend with different relationship type	REFUSED	REFUSED
 tck/useCases/triadicSelection/TriadicSelection1/[4] Handling triadic friend of a friend that is not a friend with superset of relationship type	REFUSED	REFUSED
@@ -3926,6 +3926,17 @@ lite/joins/grouped_over_pairs	PASS	PASS
 lite/joins/count_over_nodes_without_properties	REFUSED	REFUSED
 lite/joins/many_then_one	PASS	PASS
 lite/joins/unnamed_far_node	PASS	PASS
+lite/joins/untyped_from_a_labelled_node	PASS	PASS
+lite/joins/untyped_between_label_less_nodes	PASS	PASS
+lite/joins/untyped_with_a_label_on_the_far_node	PASS	PASS
+lite/joins/untyped_incoming	PASS	PASS
+lite/joins/untyped_undirected	PASS	PASS
+lite/joins/untyped_two_hops	PASS	PASS
+lite/joins/untyped_count_and_nodes	PASS	PASS
+lite/joins/untyped_with_where_and_return_of_nodes	PASS	PASS
+lite/joins/self_association_read_backward	PASS	PASS
+lite/joins/self_association_then_another_backward	PASS	PASS
+lite/joins/typed_then_untyped_two_hops	PASS	PASS
 lite/labelless/count_of_every_node	PASS	PASS
 lite/labelless/properties_across_classes	PASS	PASS
 lite/labelless/where_across_classes	PASS	PASS

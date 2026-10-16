@@ -92,6 +92,12 @@ public final class CypherToPure {
 
         /** The label of the class at {@code classPath}: the simple name a pattern names it by. */
         String labelOf(String classPath);
+
+        /** Reports the relationships of the class at {@code classPath} read forward, to {@code sink}: its stored
+         *  properties holding a class, and the associations whose first end is its (the end a relationship type
+         *  names; the inverse end is the other class's); its superclasses' too. What an untyped relationship
+         *  pattern enumerates (the study's §12.17). */
+        void ends(String classPath, PropertySink sink);
     }
 
     /** Where the model reports a property: its name, its type's name (a primitive's simple name, a class's or an
@@ -137,7 +143,7 @@ public final class CypherToPure {
             if (b == null || !b.node()) {
                 return null;
             }
-            return gs.carry(b, v.pos(), names);
+            return gs.carry(b, v.pos(), names, gs.g.variableClasses().getOrDefault(v.name(), List.of()));
         }
         if (scope instanceof RowScope rs) {
             Col c = rs.column(v.name());
@@ -334,10 +340,19 @@ public final class CypherToPure {
      *  conditions the rows must satisfy. {@code row} is the lambda parameter that names the root instance. */
     private record Graph(String rootClass, String row, Map<String, Binding> bindings,
             List<ValueSpecification> conditions, List<String> candidates, boolean fanning,
-            List<NodeConstraint> deferredConstraints, List<Expr> deferredWhere) implements State {
+            List<NodeConstraint> deferredConstraints, List<Expr> deferredWhere,
+            Map<String, List<String>> variableClasses) implements State {
         Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
                 List<String> candidates) {
-            this(rootClass, row, bindings, conditions, candidates, false, new ArrayList<>(), new ArrayList<>());
+            this(rootClass, row, bindings, conditions, candidates, false, new ArrayList<>(), new ArrayList<>(),
+                    Map.of());
+        }
+
+        Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
+                List<String> candidates, boolean fanning, List<NodeConstraint> deferredConstraints,
+                List<Expr> deferredWhere) {
+            this(rootClass, row, bindings, conditions, candidates, fanning, deferredConstraints, deferredWhere,
+                    Map.of());
         }
     }
 
@@ -446,6 +461,10 @@ public final class CypherToPure {
             // a label-less node alone: a node of any class of the model, one arm per class
             return arms(m);
         }
+        if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
+                && r.types().isEmpty()))) {
+            return untypedArms(m, state);
+        }
         Graph g = state instanceof Graph existing ? existing : null;
         typesInThisMatch.clear();
         for (PathPattern p : m.patterns()) {
@@ -464,19 +483,195 @@ public final class CypherToPure {
                 graph.conditions().add(condition(where, new GraphScope(graph), "WHERE"));
             }
         }
-        return graph.fanning() ? materialize(graph, m.pos()) : graph;
+        return graph.fanning() ? materialize(graph, m.pos(), List.of()) : graph;
+    }
+
+    /** {@code MATCH (a)-->(b)}, {@code (a)-[r]-(b)}: an untyped relationship is one arm per relationship the
+     *  model declares (the study's §12.17) -- from the node before it, read forward, each end of its class; read
+     *  backward, each end of another class reaching it; both for an undirected pattern -- the pattern rewritten
+     *  with that type, that direction and the classes it decides as labels, each arm read as a typed pattern is,
+     *  materialized to rows (every node carried as the union of its classes' properties, the same columns in every
+     *  arm) and the arms concatenated. */
+    private State untypedArms(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        if (state != null) {
+            throw CypherErrors.unsupported("an untyped relationship pattern after a bound pattern is not supported"
+                    + " yet", m.pos());
+        }
+        if (m.patterns().size() != 1) {
+            throw CypherErrors.unsupported("an untyped relationship in a MATCH of several patterns is not supported"
+                    + " yet", m.pos());
+        }
+        PathPattern p = m.patterns().get(0);
+        if (p.variable() != null) {
+            throw CypherErrors.unsupported("a named path (" + p.variable() + " = ...) is not supported yet", p.pos());
+        }
+        // every node named before the arms are read (an unnamed one synthetically), so the arms' columns agree
+        List<PatternElement> elements = new ArrayList<>(p.elements());
+        List<String> order = new ArrayList<>();
+        Set<String> taken = new HashSet<>();
+        for (PatternElement e : elements) {
+            if (e instanceof NodePattern n && n.variable() != null) {
+                taken.add(n.variable());
+            }
+        }
+        for (int i = 0; i < elements.size(); i += 2) {
+            NodePattern n = (NodePattern) elements.get(i);
+            if (n.variable() == null) {
+                n = new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos());
+                elements.set(i, n);
+            }
+            order.add(java.util.Objects.requireNonNull(n.variable()));
+        }
+        NodePattern root = (NodePattern) elements.get(0);
+        String rootLabel = labelClass(root);
+        List<String> rootClasses = rootLabel != null ? List.of(rootLabel) : new ArrayList<>(model.classes());
+        rootClasses = new ArrayList<>(rootClasses);
+        rootClasses.removeAll(durationClasses());
+        List<List<PatternElement>> arms = new ArrayList<>();
+        for (String cls : rootClasses) {
+            List<PatternElement> head = new ArrayList<>();
+            head.add(new NodePattern(root.variable(), List.of(cls), root.properties(), root.pos()));
+            assign(elements, 2, cls, head, arms);
+        }
+        if (arms.isEmpty()) {
+            throw CypherErrors.unsupported("an untyped relationship pattern the model declares no relationship for"
+                    + " (no rows) is not supported yet", p.pos());
+        }
+        // every variable's classes across the arms: what its carried columns are the union of
+        Map<String, List<String>> variableClasses = new LinkedHashMap<>();
+        for (List<PatternElement> arm : arms) {
+            for (PatternElement e : arm) {
+                if (e instanceof NodePattern n && n.variable() != null) {
+                    List<String> classes = variableClasses.computeIfAbsent(n.variable(), k -> new ArrayList<>());
+                    if (!classes.contains(n.labels().get(0))) {
+                        classes.add(n.labels().get(0));
+                    }
+                }
+            }
+        }
+        List<String> everyClass = new ArrayList<>();
+        variableClasses.values().forEach(cs -> cs.forEach(c -> {
+            if (!everyClass.contains(c)) {
+                everyClass.add(c);
+            }
+        }));
+        int mark = fresh;
+        Rows out = null;
+        for (List<PatternElement> arm : arms) {
+            // the same fresh names in every arm, so the arms' columns agree
+            fresh = mark;
+            typesInThisMatch.clear();
+            Graph g = pattern(new PathPattern(null, arm, p.pos()), null);
+            g = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
+                    g.deferredConstraints(), g.deferredWhere(), variableClasses);
+            Expr where = m.where();
+            if (where != null) {
+                if (g.fanning()) {
+                    g.deferredWhere().add(where);
+                } else {
+                    g.conditions().add(condition(where, new GraphScope(g), "WHERE"));
+                }
+            }
+            Rows rows = materialize(g, m.pos(), order);
+            out = out == null ? rows : new Rows(call("concatenate", out.vs(), rows.vs()), out.columns());
+        }
+        return java.util.Objects.requireNonNull(out);
+    }
+
+    /** The arms from {@code at} on: the hop before {@code at} typed each way the model allows from {@code cls}, the
+     *  node at {@code at} labelled with the class that way reaches (its own label must agree), and on. */
+    private void assign(List<PatternElement> elements, int at, String cls, List<PatternElement> head,
+            List<List<PatternElement>> arms) {
+        if (at >= elements.size()) {
+            arms.add(List.copyOf(head));
+            return;
+        }
+        RelPattern rel = (RelPattern) elements.get(at - 1);
+        NodePattern node = (NodePattern) elements.get(at);
+        String label = labelClass(node);
+        // (type, direction, the class reached)
+        List<Object[]> ways = new ArrayList<>();
+        if (!rel.types().isEmpty()) {
+            for (String type : rel.types()) {
+                if (rel.direction() != CypherAst.Direction.IN) {
+                    Property forward = property(cls, type);
+                    if (forward != null && forward.classTyped()) {
+                        ways.add(new Object[] {type, CypherAst.Direction.OUT, forward.type()});
+                    }
+                }
+                if (rel.direction() != CypherAst.Direction.OUT) {
+                    for (String other : model.classes()) {
+                        Property back = property(other, type);
+                        if (back != null && back.classTyped() && model.isSubclass(cls, back.type())) {
+                            ways.add(new Object[] {type, CypherAst.Direction.IN, other});
+                        }
+                    }
+                }
+            }
+        } else {
+            if (rel.direction() != CypherAst.Direction.IN) {
+                for (Property end : ends(cls)) {
+                    ways.add(new Object[] {end.name(), CypherAst.Direction.OUT, end.type()});
+                }
+            }
+            if (rel.direction() != CypherAst.Direction.OUT) {
+                for (String other : model.classes()) {
+                    for (Property end : ends(other)) {
+                        if (model.isSubclass(cls, end.type())) {
+                            ways.add(new Object[] {end.name(), CypherAst.Direction.IN, other});
+                        }
+                    }
+                }
+            }
+        }
+        for (Object[] way : ways) {
+            String reached = (String) way[2];
+            if (label != null && !label.equals(reached) && !model.isSubclass(reached, label)) {
+                continue;
+            }
+            if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {
+                throw CypherErrors.unsupported("an undirected relationship over a self-association (" + way[0]
+                        + " of " + cls + "; a loop matches once in Neo4j, which needs identity) is not supported"
+                        + " yet", rel.pos());
+            }
+            List<PatternElement> next = new ArrayList<>(head);
+            next.add(new RelPattern(rel.variable(), List.of((String) way[0]), (CypherAst.Direction) way[1],
+                    rel.properties(), rel.lengthRange(), rel.pos()));
+            next.add(new NodePattern(node.variable(), List.of(reached), node.properties(), node.pos()));
+            assign(elements, at + 2, reached, next, arms);
+        }
+    }
+
+    /** The class's relationships read forward, as the model reports them. */
+    private List<Property> ends(String classPath) {
+        List<Property> out = new ArrayList<>();
+        model.ends(classPath, (n, type, classTyped, enumTyped, lower, upper) ->
+                out.add(new Property(n, type, classTyped, enumTyped, lower, upper)));
+        return out;
     }
 
     /** A fanning graph as rows (the study's §12.16): every node carried as its columns, one row per match (a
      *  to-many navigation multiplies the rows; a fanning node's labels column navigates its path, so a node without
      *  a property still counts), then the deferred conditions -- the far nodes' property maps, the WHERE -- filtered
      *  over the rows, where a far node's property is a typed column. */
-    private Rows materialize(Graph g, Pos pos) {
+    private Rows materialize(Graph g, Pos pos, List<String> order) {
         List<Item> items = new ArrayList<>();
-        for (Map.Entry<String, Binding> b : g.bindings().entrySet()) {
-            if (b.getValue().node()) {
-                items.add(new Item(new CypherAst.Var(b.getKey(), pos), b.getKey(), b.getKey(), pos));
+        List<String> names = new ArrayList<>(order);
+        g.bindings().keySet().forEach(n -> {
+            if (!names.contains(n)) {
+                names.add(n);
             }
+        });
+        for (String name : names) {
+            Binding b = g.bindings().get(name);
+            if (b == null) {
+                continue;
+            }
+            if (!b.node()) {
+                throw CypherErrors.unsupported("a relationship variable (" + name + ") in a pattern read as rows (a"
+                        + " relationship as a value) is not supported yet", pos);
+            }
+            items.add(new Item(new CypherAst.Var(name, pos), name, name, pos));
         }
         Rows rows = project(items, false, List.of(), null, null, null, g, pos, false);
         RowScope scope = new RowScope(rows);
@@ -1646,9 +1841,10 @@ public final class CypherToPure {
         /** A bound node carried through a projection: its labels' text and its properties as columns -- of every
          *  class a label-less root may be (the arms' columns agree: null where a class lacks the property, the
          *  same fresh names in every arm). */
-        NodeCarry carry(Binding b, Pos pos, Set<String> names) {
+        NodeCarry carry(Binding b, Pos pos, Set<String> names, List<String> acrossArms) {
             String cls = java.util.Objects.requireNonNull(b.classPath());
-            List<String> classes = b.path().isEmpty() && g.candidates().size() > 1 ? g.candidates() : List.of(cls);
+            List<String> classes = !acrossArms.isEmpty() ? acrossArms
+                    : b.path().isEmpty() && g.candidates().size() > 1 ? g.candidates() : List.of(cls);
             // the properties of every class, in first-declaration order, each of one kind across the classes
             Map<String, Kind> kinds = new LinkedHashMap<>();
             for (String c : classes) {

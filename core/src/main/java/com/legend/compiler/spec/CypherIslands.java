@@ -75,6 +75,34 @@ public final class CypherIslands {
         }
     }
 
+    /** The model's associations read forward, indexed by the class their first end is injected onto (the end a
+     *  relationship type names; the harness declares it first): what an untyped relationship pattern enumerates
+     *  (the study's §12.17). */
+    record Ends(Map<String, List<AssociationDefinition.AssociationEndDefinition>> byOwner) {
+
+        static Ends of(ModelContext model) {
+            Map<String, List<AssociationDefinition.AssociationEndDefinition>> out = new TreeMap<>();
+            for (String fqn : new java.util.TreeSet<>(model.elementFqns())) {
+                AssociationDefinition ad = model.findAssociation(fqn).orElse(null);
+                if (ad == null) {
+                    continue;
+                }
+                // the first end is a property of the class the second end names
+                String owner = className(ad.property2().targetClass());
+                if (owner != null) {
+                    out.computeIfAbsent(owner, k -> new ArrayList<>()).add(ad.property1());
+                }
+            }
+            Map<String, List<AssociationDefinition.AssociationEndDefinition>> frozen = new TreeMap<>();
+            out.forEach((k, v) -> frozen.put(k, List.copyOf(v)));
+            return new Ends(java.util.Collections.unmodifiableMap(frozen));
+        }
+
+        private static @com.legend.base.Nullable String className(com.legend.protocol.TypeExpression type) {
+            return type instanceof com.legend.protocol.TypeExpression.NameRef nr ? nr.name() : null;
+        }
+    }
+
     /** The model as the translator reads it. */
     private static final class Graph implements CypherToPure.Model {
         private final ModelContext model;
@@ -143,6 +171,38 @@ public final class CypherIslands {
                     if (p instanceof Property.Stored s && seen.add(s.name())) {
                         report(sink, s.name(), s.type(), s.multiplicity());
                     }
+                }
+                todo.addAll(tc.superClassFqns());
+            }
+        }
+
+        @Override
+        public void ends(String classPath, CypherToPure.PropertySink sink) {
+            // the class's own stored properties holding a class, then the associations whose first end is its (and
+            // its superclasses'), in declaration order
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            java.util.Deque<String> todo = new java.util.ArrayDeque<>(List.of(classPath));
+            Ends ends = model.derived(Ends.class, Ends::of);
+            while (!todo.isEmpty()) {
+                String path = todo.poll();
+                com.legend.compiler.element.TypedClass tc = model.findClass(path).orElse(null);
+                if (tc == null) {
+                    continue;
+                }
+                for (Property p : tc.properties()) {
+                    if (p instanceof Property.Stored s && s.type() instanceof Type.ClassType && seen.add(s.name())) {
+                        report(sink, s.name(), s.type(), s.multiplicity());
+                    }
+                }
+                for (AssociationDefinition.AssociationEndDefinition end : ends.byOwner().getOrDefault(path,
+                        List.of())) {
+                    if (!(end.multiplicity() instanceof com.legend.protocol.Multiplicity.Concrete m)
+                            || !seen.add(end.propertyName())) {
+                        continue;
+                    }
+                    Integer upper = m.upperBound();
+                    sink.property(end.propertyName(), end.targetClass() instanceof com.legend.protocol.TypeExpression
+                            .NameRef nr ? nr.name() : "", true, false, m.lowerBound(), upper == null ? -1 : upper);
                 }
                 todo.addAll(tc.superClassFqns());
             }
