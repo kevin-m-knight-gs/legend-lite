@@ -26,10 +26,12 @@ import {
   OPERATORS, isCompatible, newCondition, newGroup, toFilterNode, type DraftCondition, type DraftNode,
 } from '../filter-operators.ts';
 import { STALE } from '../epoch.ts';
-import { columnFormats, heatmapColour, heatmapSetting, measureHeatmaps, renderExport, type ExportKind } from '../export-render.ts';
+import {
+  EXPORT_KINDS, columnFormats, heatmapColour, heatmapSetting, isExportKind, measureHeatmaps, renderExport,
+} from '../export-render.ts';
 import { FormatterCache } from '../format.ts';
 import { LitePlanner } from '../lite-planner.ts';
-import { takesAggregate } from '../offers.ts';
+import { measureOfferProblem } from '../offers.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
 import { pivotFacts, typeColumns } from '../plan.ts';
 import { PlanError } from '../planner.ts';
@@ -367,19 +369,28 @@ function columnsFrom(given: unknown, what: string, types: ReadonlyMap<string, st
 }
 
 /**
- * `given` as the grid's measures, each by the rules the screen's Aggregation offers it (panel-column.ts aggregatesFor):
- * one of DataCube's aggregates over a column of the grid -- a count too, which reads none of its values but is placed by
- * its column (query.ts groupedMeasures), so a count of no column would be left out -- offered for the column's type as
- * the compiler answers it (offers.ts takesAggregate, a count offered on any; a column not yet typed is offered every
- * one, the compile judging it); a weight is a column, and only a weighted average takes one -- refused on another,
- * never dropped (an API call has no half-set field); named, its text trimmed (a name's rule is the cube's:
- * measureNameProblem, at compile). Or why not.
+ * `given` as the grid's measures: one the grid has, as it has it (judged when it was set, its name as saved -- a call
+ * that adds a measure sends the others back); any other by the measure's rules -- one of DataCube's aggregates over a
+ * column of the grid -- a count too, which reads none of its values but is placed by its column (query.ts
+ * groupedMeasures), so a count of no column would be left out -- offered for the column's type as the compiler answers
+ * it (offers.ts measureOfferProblem; a column not yet typed is offered every one, the compile judging it); a weight is a
+ * column, and only a weighted average takes one -- refused on another, never dropped (an API call has no half-set
+ * field); named, its text trimmed (a name's rule is the cube's: measureNameProblem, at compile). Or why not, naming the
+ * measure.
  */
-function measuresFrom(given: unknown, types: ReadonlyMap<string, string | undefined>): Measure[] | string {
+function measuresFrom(
+  given: unknown, types: ReadonlyMap<string, string | undefined>, had: readonly Measure[],
+): Measure[] | string {
   if (!Array.isArray(given)) return 'the measures are a list';
   const made: Measure[] = [];
   for (const m of given) {
     if (!isObject(m)) return `a measure is {name, column, fn[, weight]}, not ${JSON.stringify(m)}`;
+    const kept = had.find((h) => h.name === m['name'] && h.column === m['column'] && h.fn === m['fn']
+      && h.weight === m['weight']);
+    if (kept !== undefined) {
+      made.push(kept);
+      continue;
+    }
     const { name: given, column, fn, weight } = m;
     if (typeof given !== 'string' || given.trim() === '') {
       return `a measure's name is not blank: ${JSON.stringify(given)}`;
@@ -394,9 +405,8 @@ function measuresFrom(given: unknown, types: ReadonlyMap<string, string | undefi
       return `the measure ${name} names ${JSON.stringify(column)}, not a column of the grid (${names})`;
     }
     const type = types.get(column);
-    if (aggregate !== 'count' && type !== undefined && !takesAggregate(aggregate, type)) {
-      return `'${aggregate}' is not offered on ${column}, a ${type} column`;
-    }
+    const offer = type === undefined ? null : measureOfferProblem({ fn: aggregate, column }, type);
+    if (offer !== null) return `the measure ${name}: ${offer}`;
     if (weight !== undefined) {
       if (aggregate !== 'wavg') {
         return `only a weighted average (wavg) takes a weight: the measure ${name} is a ${aggregate}`;
@@ -429,7 +439,7 @@ function sortsFrom(given: unknown): SortSpec[] | string {
 }
 
 /** The parts `given` sets, each by its rules over the grid's columns as typed now -- or why not. */
-function queryFrom(given: GivenQuery, typed: CubeSnapshot): QueryParts | string {
+function queryFrom(given: GivenQuery, typed: CubeSnapshot, had: CubeSnapshot): QueryParts | string {
   const types = new Map(rowColumns(typed).map((c) => [c.name, c.type] as const));
   const parts: { -readonly [K in keyof QueryParts]: QueryParts[K] } = {};
   if ('rows' in given) {
@@ -443,7 +453,7 @@ function queryFrom(given: GivenQuery, typed: CubeSnapshot): QueryParts | string 
     parts.pivotOn = pivotOn;
   }
   if ('measures' in given) {
-    const measures = measuresFrom(given.measures, types);
+    const measures = measuresFrom(given.measures, types, had.measures);
     if (typeof measures === 'string') return measures;
     parts.measures = measures;
   }
@@ -502,7 +512,7 @@ export async function gridQuery(spec: GridSpec, given: string): Promise<string> 
     if (!isObject(asked)) {
       return JSON.stringify({ problems: ['a query is {rows, pivotOn, measures, sorts}, any of them'] });
     }
-    const parts = queryFrom(asked, typed);
+    const parts = queryFrom(asked, typed, state.snapshot);
     if (typeof parts === 'string') return JSON.stringify({ problems: [parts] });
     const snapshot: CubeSnapshot = { ...typed, ...parts };
     // a sort the call names (one the grid had stays as the screen keeps it: applied where its header is produced)
@@ -579,11 +589,16 @@ export async function gridClass(spec: GridSpec, named: { readonly source: string
 
 /**
  * The grid exported, as its Export menu makes the file (export-render.ts, the screen's own core): what it shows, its
- * formats, appearance and heatmaps, as `kind` -- CSV, Excel, HTML, plain text or PDF. JSON: its name and type, and
- * its content (text, or base64 for a workbook or a PDF). No chart rides along: a page's board with its charts' pictures
- * is the screen's (a chart drawn headless is not yet: PARK-32).
+ * formats, appearance and heatmaps, as `kind`, one its Export menu offers (export-render.ts EXPORT_KINDS). JSON: its
+ * name and type, and its content (text, or base64 for a workbook or a PDF); or `{problems}`, a kind it does not export.
+ * No chart rides along: a page's board with its charts' pictures is the screen's (a chart drawn headless is not yet:
+ * PARK-32).
  */
-export async function gridExport(spec: GridSpec, kind: ExportKind): Promise<string> {
+export async function gridExport(spec: GridSpec, kind: string): Promise<string> {
+  if (!isExportKind(kind)) {
+    const kinds = EXPORT_KINDS.map((k) => `'${k}'`).join(', ');
+    return JSON.stringify({ problems: [`a grid exports as one of ${kinds}, not ${JSON.stringify(kind)}`] });
+  }
   return using(spec, async ({ planner, state }) => {
     const controller = new CubeController(new DuckDbEngine(hostDatabase(hostCalls()).connection), planner);
     const view = await controller.run({ snapshot: state.snapshot, tree: state.tree });

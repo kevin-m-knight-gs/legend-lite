@@ -83,7 +83,9 @@ class Grids(unittest.TestCase):
         self.assertRegex(html.lower(), r'background(-color)?:\s*(#ff0000|rgb\(255,\s*0,\s*0\))')
         self.assertTrue(grid.export('excel').startswith(b'PK'), 'a workbook is a zip')
         self.assertTrue(grid.export('pdf').startswith(b'%PDF'))
-        with self.assertRaisesRegex(ValueError, "'csv', 'excel', 'html', 'text' or 'pdf'"):
+        # the kinds its Export menu offers, judged by DataCube (export-render.ts EXPORT_KINDS), in its words
+        with self.assertRaisesRegex(ValueError,
+                                    "a grid exports as one of 'csv', 'excel', 'html', 'text', 'pdf', not \"docx\""):
             grid.export('docx')
         import tempfile
         with tempfile.TemporaryDirectory() as folder:

@@ -227,6 +227,18 @@ describe('naming a measure: the calculated column\'s rule (takenNames)', () => {
     assert.match(measureNameProblem(snap({ measures: [x] }), x) ?? '', /pivot/);
   });
 
+  it('pivoted, a spread measure clashes with no column, only with another measure; one kept out by the column rule', () => {
+    const [pnl, again] = [m('pnl', 'notional'), m('pnl', 'region', 'count')];
+    // spread under each pivot value (`<value>__|__pnl`): the column pnl is no clash
+    assert.equal(measureNameProblem(snap({ pivotOn: ['region'], measures: [pnl] }), pnl), null);
+    assert.match(measureNameProblem(snap({ pivotOn: ['region'], measures: [pnl, again] }), again) ?? '',
+      /'pnl' is already a measure's name: the measure count\(region\) takes a name of its own/);
+    // its column kept out of the pivot: written beside the keys under its name, as a grouped level writes it
+    const keptOut = snap({ pivotOn: ['region'], measures: [pnl],
+      columns: snap().columns.map((c) => (c.name === 'notional' ? { ...c, excludedFromPivot: true } : c)) });
+    assert.match(measureNameProblem(keptOut, pnl) ?? '', /'pnl' is already a column/);
+  });
+
   it('two measures of one column, each named, are both free', () => {
     const [sum, avg] = [m('notional', 'notional'), m('avg_notional', 'notional', 'average')];
     const s = snap({ rows: ['region'], measures: [sum, avg] });

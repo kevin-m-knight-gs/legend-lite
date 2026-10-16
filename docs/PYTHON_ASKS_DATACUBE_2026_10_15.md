@@ -8,7 +8,10 @@ and nothing more. Logic is never repeated, and a table of shared cases is a test
 between two copies. Nor is a vocabulary list: the last ones Python repeated (its chart words, the chart's and the
 page's versions and kind, held equal by `datacube/test/python-vocabulary.test.ts`) went on 2026-10-16 with the test --
 DataCube's reader refuses a word it does not know, naming the words it takes, and a new page is DataCube's own
-(headless `pageNew`).
+(headless `pageNew`). The round's audit found four more, gone the same day: the export kinds (DataCube's
+`gridExport` judges the kind, `export-render.ts EXPORT_KINDS`), a new sheet's layout (headless `layoutNew`, the
+screen's own `bands.ts NEW_SHEET`), a relative date's words (`gridFilter` judges them) and a class column's roles (the
+compiler's `CreateClass` refuses another, by name).
 
 **What makes it possible: one package, two things** (the user, same day). `pip install legend-lite` is the compiler,
 on Python's standard library alone. `pip install 'legend-lite[datacube]'` is DataCube with everything it needs --
@@ -38,7 +41,11 @@ the DataCube + Python line before CI (the BUILD edits by the Compiler Rewrite li
   carried the tab's worker requests over HTTP (`planner.json`), which needed an allowlist and a handle translation on
   both sides. The user's step back retired that: a page asks Python on legend-engine's own routes (`pure/v1`) and the
   host's compute (`plan-and-run.json`, and its dry run `plan.json`; the one-app design §15.10), so neither list exists,
-  in Python or TypeScript.
+  in Python or TypeScript. What stays is no twin either (the user, 2026-10-16): `planner-answer.ts`'s switch and
+  `_planner.KINDS` are each host's binding to the same `Boundary` functions -- glue, not a rule -- held alike by the
+  start-up check (`_headless.check_interface`). One dispatcher in the compiler was built, measured and dropped: one
+  generic request put a JSON envelope around every model's text. Follow-up: shrink the protocol toward legend-engine's
+  own `pure/v1` API.
 - **8, the snap's limit -- Python's own** (2026-10-15): a fact of the database a copy lands in (this machine's, the
   tab's browser memory), so the two need not agree; no pin.
 - **3, layout editing.** `headless/layout.ts` over `bands.ts` `add`, `remove`, `arrange` and the new `stackTiles`
@@ -119,13 +126,16 @@ name, the one list the level query writes and the group stage's calculated colum
 columnsInScope`, which offered the measures alone and so left out the columns the query aggregates). With every measure
 kept, a measure's name follows the calculated column's rule (`calc.ts takenNames`, `measureNameProblem`): its own
 column's while that column is no key, or a name nothing else has, the queries' reserved `__root__` and `__leafCount`
-included -- refused where a level would write two columns of one name, grouped or pivoted, in DataCube's words on the
-screen and in Python. The charts' stand-in for the bug, a copy of a column (`__chart_<name>`) for each measure of it
+included -- refused where a level would write two columns of one name, in DataCube's words on the screen and in Python:
+grouped, every measure; pivoted, a measure kept out of the pivot (written beside the keys), while a measure spread
+under each pivot value writes `<value>__|__<name>` and so clashes only with another measure's name (the round's audit
+found the first version refusing those too, 2026-10-16). The charts' stand-in for the bug, a copy of a column (`__chart_<name>`) for each measure of it
 past the first, went with it. Found beside it, and fixed: a grouped level sorted by a column a measure renamed (a sort
 on `notional` beside `total` of it) asked the planner for a column its groupBy did not keep, so every grouped level of
 the grid was refused; it now sorts by what it writes, as a pivot's level did, the detail rows by the rest. A cube saved
 before the rule -- old Python's `grid.group('region').measure('region', 'count')`, whose count the grouped level had
-dropped without a word -- opens without each measure the rule refuses, judged in order as the level judges them, and
+dropped without a word, or a sum of a text column, which old Python checked no type of -- opens without each measure
+the rule or its column's type refuses (`offers.ts measureOfferProblem`), judged in order as the level judges them, and
 says so (`cube-document.ts openCube`, as it leaves out a measure of a column that is gone): the screen's note, Python's
 warning when it loads the page. No panel shows a measure to fix, so refusing it at every level would lock the page. A
 page Python loads takes each cube as DataCube opens it whenever opening changed it (`page.py _reopened`, at load and
@@ -141,13 +151,19 @@ already uses.
 design): `config.ts` never reads `snapshot.measures`, and the level query takes a column's set measure over its Column
 Properties > Aggregation -- so on a page Python made, changing that column's Aggregation in the panel does nothing, and
 says nothing. True before the fix above; with two measures of one column and one dropdown it is easier to see. How the
-panel shows a column's measures is the DataCube line's to decide.
+panel shows a column's measures is the DataCube line's to decide. A known limit that comes from the same gap (recorded
+2026-10-16, not fixed): old Python's `grid.pivot('desk').measure('notional', 'sum', name='pnl')` is legal (a spread
+measure clashes with no column), but a person who takes the pivot off on the screen meets the grouped column rule, and
+every level refuses: "'pnl' is already a column". The refusal names the measure, and putting the pivot back undoes it;
+renaming the measure is Python's alone until the panel shows measures.
 
 **A class's sample writes a NaN or an infinity as `null`** (found 2026-10-15, the audit of item 7): `sample-rows.ts
 sampleOf` keeps a double as the executor gives it, and the sample goes to the route as JSON, which has neither, so
 `JSON.stringify` writes `null` -- the window's Create a Class and, since item 7, Python's alike. Python's own writer
 refused them before. A silent `null` is a default (AGENTS.md invariant 4). **Fixed 2026-10-16:** `sampleOf` refuses the
-sample, naming its column and row, before anything is written -- on the screen and in Python, in one rule.
+sample, naming its column and row, before anything is written -- on the screen and in Python, in one rule. (The round's
+audit found the window's Create a Class still writing its sample by a copy of its own, `create-class.ts`; it asks
+`sampleOf` now, as Create a Data Space and Python's `gridClass` do.)
 
 ## A finding for the compiler line
 

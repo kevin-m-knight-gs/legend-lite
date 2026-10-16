@@ -324,6 +324,27 @@ describe('opening a cube over its file as it is now', () => {
       'the first of two of one name is kept, as the level query judges them in order');
     assert.equal(opened.tree.isOpen(['EMEA']), true, 'the grouping is the one saved: its open rows stay');
   });
+
+  it('leaves out a measure whose column, as the compiler types it now, does not take its aggregate; a count fits any', () => {
+    const old = writeCube({
+      name: 'retyped', source: SOURCE,
+      snapshot: {
+        source: RELATION, columns: SOURCE.columns, derived: [], rows: ['region'], pivotOn: [],
+        measures: [{ name: 'n', column: 'notional', fn: 'sum' }, { name: 'c', column: 'desk', fn: 'count' }],
+        sorts: [], epoch: 1,
+      },
+      configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty(),
+    });
+    // the file's notional is text now
+    const opened = openCube(readCube(cubeToJson(old)), RELATION,
+      now([['region', 'String'], ['desk', 'String'], ['notional', 'String'], ['qty', 'Integer']]));
+    assert.deepEqual(opened.notes, [
+      'notional is now String (it was Float)',
+      "left out measure n: 'sum' is not offered on notional, a String column",
+    ]);
+    assert.deepEqual(opened.snapshot.measures, [{ name: 'c', column: 'desk', fn: 'count' }]);
+    assert.equal(opened.changed, true);
+  });
 });
 
 describe('the pieces', () => {

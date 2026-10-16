@@ -35,7 +35,7 @@ import type { CubeSnapshot, SortSpec } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { button, dropdown } from './form.ts';
 import {
-  SORT_DIRECTIONS,
+  SORT_DIRECTION_OPTIONS,
   allColumns,
   groupableColumns,
   panelShell,
@@ -368,7 +368,7 @@ const horizontalPivotsPanel: PanelBuilder = (ctx) => {
         dropdown(
           ctx.doc,
           columnConfig(ctx.draft().config, name).pivotSortDirection ?? 'asc',
-          SORT_DIRECTIONS,
+          SORT_DIRECTION_OPTIONS,
           (direction) =>
             ctx.setConfig(
               withColumn(ctx.draft().config, name, {
@@ -434,7 +434,7 @@ const sortsPanel: PanelBuilder = (ctx) => {
         dropdown(
           ctx.doc,
           directionOf(name),
-          SORT_DIRECTIONS,
+          SORT_DIRECTION_OPTIONS,
           (direction) => {
             const s = ctx.draft().snapshot;
             ctx.setSnapshot({

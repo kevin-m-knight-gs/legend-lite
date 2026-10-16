@@ -12,7 +12,7 @@ import {
 } from './grid.ts';
 import { forget, ingest, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelKept, pageModelNames } from './model.ts';
-import { layoutAdd, layoutArrange, layoutRemove, layoutStack } from './layout.ts';
+import { layoutAdd, layoutArrange, layoutNew, layoutRemove, layoutStack } from './layout.ts';
 import { nameGiven, pageNew, pageRead } from './page.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
@@ -33,9 +33,9 @@ export { forget, ingest, mount, remoteAccess };
  *  holds: what Python asks beside the generic library. */
 export { classDuplicate, pageModelKept, pageModelNames };
 
-/** A sheet's layout edited by DataCube's own rules (layout/bands.ts): a tile placed, taken off, the places arranged,
- *  tiles stacked -- what Python's pages ask, so they place nothing by rules of their own. */
-export { layoutAdd, layoutArrange, layoutRemove, layoutStack };
+/** A sheet's layout edited by DataCube's own rules (layout/bands.ts): a new sheet's, a tile placed, taken off, the
+ *  places arranged, tiles stacked -- what Python's pages ask, so they place nothing by rules of their own. */
+export { layoutAdd, layoutArrange, layoutNew, layoutRemove, layoutStack };
 
 /** A page document read as DataCube reads it (any version, migrated, every rule held) and written as DataCube writes
  *  it: what Python's pages ask when one is loaded, read back, laid out or saved. And a new page as DataCube starts one:

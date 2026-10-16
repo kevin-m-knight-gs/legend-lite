@@ -226,19 +226,35 @@ class Document(Paged):
         saved = ll.Page('counts')
         saved.grid(trades(), name='old_counts', rows=['region'], measures={'notional': 'sum'})
         doc = saved.to_dict()
-        doc['cubes'][0]['cube']['query']['measures'].append({'name': 'region', 'column': 'region', 'fn': 'count'})
+        # old Python checked no aggregate against its column's type either, and kept a name's spaces
+        doc['cubes'][0]['cube']['query']['measures'] += [{'name': 'region', 'column': 'region', 'fn': 'count'},
+                                                         {'name': 's', 'column': 'desk', 'fn': 'sum'},
+                                                         {'name': ' total ', 'column': 'pnl', 'fn': 'sum'}]
         with warnings.catch_warnings(record=True) as said:
             warnings.simplefilter('always')
             page = ll.Page.load(doc, frames={'old_counts': trades()})
-        self.assertEqual([str(w.message) for w in said], ["old_counts: left out measure region: 'region' is already a "
-                                                          'column: the measure count(region) takes a name of its own'])
-        page.grids[0].measure('pnl', 'sum', name='p')
+        self.assertEqual([str(w.message) for w in said], [
+            "old_counts: left out measure region: 'region' is already a column: the measure count(region) takes a name "
+            'of its own',
+            "old_counts: left out measure s: 'sum' is not offered on desk, a String column"])
+        page.grids[0].measure('pnl', 'average', name='p')
         measures = page.to_dict()['cubes'][0]['cube']['query']['measures']
-        self.assertEqual([m['name'] for m in measures], ['notional', 'p'])
+        # the measures the grid had are sent back as it has them: ' total ' keeps its name, judged when it was set
+        self.assertEqual([m['name'] for m in measures], ['notional', ' total ', 'p'])
         with warnings.catch_warnings(record=True) as again:
             warnings.simplefilter('always')
             ll.Page.load(page.to_dict(), frames={'old_counts': trades()})
         self.assertEqual(again, [], 'saved again, it opens as it was saved')
+
+    def test_a_frame_served_again_takes_the_cube_datacube_opens_when_opening_changed_it(self):
+        # its columns as they were, but a part DataCube leaves out: the cube is taken all the same (page.py _reopened's
+        # test is "nothing left out and the same source", not the source alone)
+        page = ll.Page('served again')
+        grid = page.grid(trades(), name='again_trades', rows=['region'], measures={'notional': 'sum'})
+        page._doc['cubes'][0]['cube']['query']['measures'].append({'name': 'region', 'column': 'region', 'fn': 'count'})
+        with self.assertWarnsRegex(UserWarning, "again_trades: left out measure region: 'region' is already a column"):
+            grid.update(trades())
+        self.assertEqual([m['name'] for m in page.to_dict()['cubes'][0]['cube']['query']['measures']], ['notional'])
 
     def test_a_layout_of_splits_and_sizes_is_kept_as_tiles_come_and_go(self):
         page, grid, chart = self.built()
@@ -555,8 +571,8 @@ class Document(Paged):
         # grouping, pivot, measures and sorts by DataCube's own rules (headless gridQuery), the grid compiled with them
         page, grid, _ = self.built()
         before = page.to_dict()
-        # an aggregate DataCube does not offer for the column's type (offers.ts takesAggregate)
-        with self.assertRaisesRegex(ValueError, "'sum' is not offered on desk, a String column"):
+        # an aggregate DataCube does not offer for the column's type (offers.ts measureOfferProblem), the measure named
+        with self.assertRaisesRegex(ValueError, "the measure desks: 'sum' is not offered on desk, a String column"):
             grid.measure('desk', 'sum', name='desks')
         # only a weighted average takes a weight, refused rather than dropped; and it takes one (the query's own words)
         with self.assertRaisesRegex(ValueError, r'only a weighted average \(wavg\) takes a weight'):
@@ -661,6 +677,8 @@ class Document(Paged):
             grid.chart('bar', title='')
         with self.assertRaisesRegex(ValueError, "a page's name is not blank"):
             page.name = '  '
+        with self.assertRaisesRegex(ValueError, "a page's name: a page's name is not blank"):
+            ll.Page('  ')
         with self.assertRaisesRegex(ValueError, 'is a name, not 3'):
             grid.title = 3
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
@@ -684,6 +702,9 @@ class Document(Paged):
         dated = page.grid(pd.DataFrame({'day': [datetime.date(2024, 1, 1)], 'qty': [1]}), name='dated')
         dated.filter(('day', 'lessThan', {'relative': 'today'}))
         self.assertEqual(page.to_dict()['cubes'][1]['cube']['query']['filter']['value'], {'relative': 'today'})
+        # a relative date's word is DataCube's to judge (gridFilter), never a list of Python's
+        with self.assertRaisesRegex(ValueError, r'takes text, a number, a boolean, a date as its text, \{"relative"'):
+            dated.filter(('day', 'lessThan', {'relative': 'yesterday'}))
 
     def test_a_grid_refused_leaves_the_page_and_the_frames_as_they_were(self):
         page, _, _ = self.built()

@@ -92,8 +92,9 @@ def _number(id: str) -> int:
 
 def _value(value: Any) -> Any:
     """A filter's value as DataCube keeps one (snapshot.ts, FilterValue): text, a number, a boolean, a date relative to
-    when the query runs (``{'relative': 'today' | 'now'}``) or a variant column's JSON (``{'json': text}``). A date and a
-    Decimal go as their exact text, which DataCube writes as the column's type writes it (``'2024-01-31'``, ``'12.30'``)."""
+    when the query runs (``{'relative': ...}``, in DataCube's words: ``'today'``, ``'now'``; gridFilter judges the word)
+    or a variant column's JSON (``{'json': text}``). A date and a Decimal go as their exact text, which DataCube writes
+    as the column's type writes it (``'2024-01-31'``, ``'12.30'``)."""
     if isinstance(value, (bool, str)):
         return value
     if isinstance(value, numbers.Integral):
@@ -104,11 +105,12 @@ def _value(value: Any) -> Any:
         return float(value)
     if isinstance(value, datetime.date) and not isinstance(value, datetime.datetime):
         return value.isoformat()
-    if isinstance(value, Mapping) and ((set(value) == {'relative'} and value['relative'] in ('today', 'now'))
+    if isinstance(value, Mapping) and ((set(value) == {'relative'} and isinstance(value['relative'], str))
                                        or (set(value) == {'json'} and isinstance(value['json'], str))):
+        # a relative date's word is DataCube's to judge (gridFilter: snapshot.ts isRelativeDate)
         return dict(value)
-    raise ValueError(f'a filter takes text, a number, a boolean, a date, {{"relative": "today" | "now"}} or '
-                     f'{{"json": text}}, not {value!r} (a timestamp as its text: "2024-01-31 10:30:00")')
+    raise ValueError(f'a filter takes text, a number, a boolean, a date, {{"relative": word}} or {{"json": text}}, '
+                     f'not {value!r} (a timestamp as its text: "2024-01-31 10:30:00")')
 
 
 def _given_filter(node: Any) -> dict[str, Any]:
@@ -327,14 +329,15 @@ class Grid(Tile):
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
         """The grid as its Export menu exports it, by DataCube's own code (the screen's core, run headless): what it
         shows, with its formats, appearance and heatmaps -- ``'csv'`` (raw values), ``'excel'`` (a workbook, the tree
-        as outlines), ``'html'``, ``'text'`` (formatted, to paste) or ``'pdf'``. Answers the file's content (text, or
-        bytes for a workbook or a PDF), or, given ``to``, writes it there and answers the path."""
+        as outlines), ``'html'``, ``'text'`` (formatted, to paste) or ``'pdf'``: the kinds its menu offers, a kind it
+        does not refused in DataCube's words. Answers the file's content (text, or bytes for a workbook or a PDF), or,
+        given ``to``, writes it there and answers the path."""
         import base64
-        if kind not in ('csv', 'excel', 'html', 'text', 'pdf'):
-            raise ValueError(f"a grid exports as 'csv', 'excel', 'html', 'text' or 'pdf', not {kind!r}")
         engine, frames = self._headless()
         with frames.serving():
             said = _json.loads(engine.call('gridExport', self._spec(frames), kind))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
         content: str | bytes = said['content'] if said['text'] else base64.b64decode(said['content'])
         if to is None:
             return content
@@ -1003,8 +1006,9 @@ class Page:
         if name is not None:
             name = _given_name(self._session, 'sheet', name, "a sheet's name")
         id = self._next('sheet')
+        # its layout as DataCube starts a sheet's (headless layoutNew: bands.ts NEW_SHEET, as the screen's new sheet)
         self._doc['sheets'].append({'id': id, **({'name': name} if name else {}),
-                                    'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
+                                    'layout': json.loads(self._session.headless().call('layoutNew'))})
         self._ids.add(id)
         self._changed()
         return self._sheet(id)
@@ -1315,8 +1319,7 @@ def _column_choices(columns: Mapping[str, Any]) -> dict[str, dict[str, str]]:
     for column, choice in columns.items():
         if isinstance(choice, str):
             choice = {'as': choice}
-        if choice.get('as', 'property') not in ('property', 'key', 'omit'):
-            raise ValueError(f"a column is a 'property', a 'key' or 'omit', not {choice.get('as')!r} ({column!r})")
+        # its role ('property', 'key' or 'omit') is the writer's to judge (CreateClass refuses another, by name)
         out[column] = {k: v for k, v in choice.items() if k in ('as', 'name', 'documentation')}
     return out
 

@@ -26,7 +26,7 @@ import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile } from '../layout/band-board.ts';
-import { type Bands, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
+import { type Bands, NEW_SHEET, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { followCube, GRID_MARKS, measureName } from '../chart-spec.ts';
 import type { GridShown } from '../chart-option.ts';
@@ -299,9 +299,8 @@ export class CubePage {
         },
       } : {}),
     });
-    // a new sheet fits its window (the user, 2026-10-09: fit by default) -- and scrolls once its bands are too many to
-    // fit (bands.ts draw's floor)
-    board.setLayout({ fit: true, bands: [] });
+    // a new sheet's board (bands.ts NEW_SHEET): it fits its window, and scrolls once its bands are too many to fit
+    board.setLayout(NEW_SHEET);
     board.setEditing(this.#editing);
     const sheet: Sheet = { id, name, host, board, steps };
     this.#sheets.push(sheet);

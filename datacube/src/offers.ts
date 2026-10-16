@@ -4,7 +4,7 @@
 // type. The one place every panel, menu and editor asks.
 
 import { OFFER_FACTS, type OfferFact } from './generated/offer-facts.ts';
-import type { AggregateFn, FilterOperator } from './snapshot.ts';
+import type { AggregateFn, FilterOperator, Measure } from './snapshot.ts';
 import { familyOf, plainType } from '../../engine-client/src/types.ts';
 
 function factsOf(type: string): OfferFact | undefined {
@@ -21,6 +21,19 @@ function factsOf(type: string): OfferFact | undefined {
 export function takesAggregate(fn: AggregateFn, type: string): boolean {
   const result = factsOf(type)?.aggregates[fn];
   return result !== undefined && result !== null && familyOf(result) === familyOf(type);
+}
+
+/**
+ * Why a column of this type does not take the measure, or null: a measure is one of its column's aggregates
+ * (takesAggregate), or a count, which reads none of its column's values (query.ts groupedMeasures: `x|1`) and so is
+ * taken by any. The one rule a measure is offered by: a grid's query set from Python (headless/grid.ts gridQuery), and
+ * a saved cube reopened over a source that retyped a column (cube-document.ts openCube). The screen's Aggregation
+ * offers a column's own aggregate (panel-column.ts aggregatesFor: takesAggregate alone), never a count of a column of
+ * another family.
+ */
+export function measureOfferProblem(m: Pick<Measure, 'fn' | 'column'>, type: string): string | null {
+  if (m.fn === 'count' || takesAggregate(m.fn, type)) return null;
+  return `'${m.fn}' is not offered on ${m.column}, a ${type} column`;
 }
 
 /**

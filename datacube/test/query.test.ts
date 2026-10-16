@@ -69,12 +69,22 @@ function snap(over: Partial<CubeSnapshot> = {}): CubeSnapshot {
 }
 
 describe('a level query', () => {
-  it('refuses, pivoted as grouped, a measure named as another column: the level would write two of one name', async () => {
-    // a pivot writes its kept-out measures beside the keys, a grouped level all of them: one rule at the level's top
-    const twice = snap({ measures: [{ name: 'total', column: 'notional', fn: 'sum' }, { name: 'total', column: 'qty', fn: 'sum' }] });
-    await assert.rejects(async () => level(twice, undefined, YEARS), /'total' is already a column: the measure sum\(qty\)/);
-    const key = snap({ measures: [{ name: 'region', column: 'qty', fn: 'sum' }] });
-    await assert.rejects(async () => level(key, undefined, YEARS), /'region' is already a column/);
+  it('refuses a measure named as another column where the level writes it under its name, and two of one name', async () => {
+    // one rule at the level's top (calc.ts measureNameProblem): a grouped level writes every measure beside the keys
+    const key = (over: Partial<CubeSnapshot> = {}) => snap({ measures: [{ name: 'region', column: 'qty', fn: 'sum' }], ...over });
+    await assert.rejects(async () => level(key({ pivotOn: [] }), { level: 1, parent: [] }), /'region' is already a column/);
+    await assert.rejects(async () => level(key({ pivotOn: [] }), { level: 1, parent: [] }),
+      /the measure sum\(qty\) takes a name of its own/);
+    // pivoted, a measure spread under each pivot value writes `<value>__|__region`: no column of the level is its name
+    assert.match(await level(key(), undefined, YEARS), /2024__\|__region/);
+    // kept out of the pivot (its column excluded), it is written beside the keys under its own name
+    const keptOut = key({ columns: snap().columns.map((c) => (c.name === 'qty' ? { ...c, excludedFromPivot: true } : c)) });
+    await assert.rejects(async () => level(keptOut, undefined, YEARS), /'region' is already a column/);
+    // two measures of one name, pivoted or not
+    const twice = (over: Partial<CubeSnapshot> = {}) => snap({
+      measures: [{ name: 'total', column: 'notional', fn: 'sum' }, { name: 'total', column: 'qty', fn: 'sum' }], ...over });
+    await assert.rejects(async () => level(twice(), undefined, YEARS), /'total' is already a measure's name: the measure sum\(qty\)/);
+    await assert.rejects(async () => level(twice({ pivotOn: [] }), { level: 1, parent: [] }), /'total' is already a column/);
   });
 
   it('a grouped level sorts by what it writes; a sort on a column its measure renamed is the detail rows\' alone', async () => {

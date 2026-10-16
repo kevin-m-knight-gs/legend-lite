@@ -10,7 +10,7 @@ import {
   columnConfig,
   type CubeConfiguration,
 } from '../config.ts';
-import { rowColumns, type CubeSnapshot, type SortDirection } from '../snapshot.ts';
+import { SORT_DIRECTIONS, rowColumns, type CubeSnapshot, type SortDirection } from '../snapshot.ts';
 import { ColumnsSelector, type SelectorColumn } from './columns-selector.ts';
 
 /** Everything the editor edits, as one value. */
@@ -50,13 +50,9 @@ export interface PanelContext {
 
 export type PanelBuilder = (ctx: PanelContext) => HTMLElement;
 
-export const SORT_DIRECTIONS: readonly {
-  value: SortDirection;
-  label: string;
-}[] = [
-  { value: 'asc', label: 'Ascending' },
-  { value: 'desc', label: 'Descending' },
-];
+const DIRECTION_LABELS: Readonly<Record<SortDirection, string>> = { asc: 'Ascending', desc: 'Descending' };
+export const SORT_DIRECTION_OPTIONS: readonly { value: SortDirection; label: string }[] =
+  SORT_DIRECTIONS.map((value) => ({ value, label: DIRECTION_LABELS[value] }));
 
 export function panelShell(
   doc: Document,

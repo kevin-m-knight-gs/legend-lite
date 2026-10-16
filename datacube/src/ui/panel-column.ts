@@ -54,7 +54,7 @@ import { colourGrid, fontControls } from './panel-general.ts';
 import { dataTypeOf } from './filter-editor.ts';
 import { docHint } from './docs.ts';
 import {
-  SORT_DIRECTIONS,
+  SORT_DIRECTION_OPTIONS,
   allColumns,
   panelShell,
   type PanelBuilder,
@@ -343,7 +343,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       dropdown(
         doc,
         c.pivotSortDirection,
-        SORT_DIRECTIONS,
+        SORT_DIRECTION_OPTIONS,
         (pivotSortDirection) => patch({ pivotSortDirection }),
         { allowNone: true, width: 140 },
       ),

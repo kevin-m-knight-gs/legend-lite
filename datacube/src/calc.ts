@@ -29,7 +29,7 @@
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { CALC_FACTS } from './generated/offer-facts.ts';
 import { ROOT_COLUMN } from './grid/columns.ts';
-import { groupedMeasures, pivotLabel, type PivotColumn } from './query.ts';
+import { groupedMeasures, pivotLabel, spreadMeasures, type PivotColumn } from './query.ts';
 import { LEAF_COUNT_COLUMN, rowColumns, type CubeSnapshot, type Measure } from './snapshot.ts';
 
 /** Which extend stage an expression belongs to. */
@@ -265,11 +265,19 @@ const SEPARATOR_TAKEN = `'${PIVOT_SEPARATOR}' is how a pivot spells its generate
  * Why a measure's name is no name of its own, or null: its own column's, when that column is no grouping key (the
  * column's aggregate, as the level query writes it), or a name nothing else of the cube has (takenNames: the measures
  * before it, so of two of one name the later is the one refused) -- a measure named after another column, or after a
- * key, would write a second column of that name.
+ * key, would write a second column of that name. Pivoted, a measure spread under each pivot value writes no column of
+ * its own name (query.ts pivotColumns: `<value>__|__<name>`), so it clashes with no column -- only with another
+ * measure's name; one kept out of the pivot is written beside the keys, by the column rule (found by the round's
+ * audit, 2026-10-16: the rule had refused a spread measure's name, which no column of the level writes).
  */
 export function measureNameProblem(snapshot: CubeSnapshot, m: Measure): string | null {
   if (m.name.includes(PIVOT_SEPARATOR)) return SEPARATOR_TAKEN;
   const before = snapshot.measures.slice(0, Math.max(0, snapshot.measures.indexOf(m)));
+  if (snapshot.pivotOn.length > 0 && spreadMeasures(snapshot).includes(m)) {
+    return before.some((b) => b.name === m.name)
+      ? `'${m.name}' is already a measure's name: the measure ${m.fn}(${m.column}) takes a name of its own`
+      : null;
+  }
   const taken = takenNames({ ...snapshot, measures: before });
   const own = m.name === m.column && !snapshot.rows.includes(m.column);
   // its own column's name is the column's aggregate: the column itself takes nothing from it

@@ -888,15 +888,29 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   SQL plan's ground -- but for one forced line in `_warehouse_snap` (`_on_planner_threads()`, the planner switch gone)
   and one in `frames.py reading_file` (58e807c: a file's table named as `register` names a frame, so `True` is an
   identifier; this line's OK).
-  **Round 2, 2026-10-16 (the user, reading what #47 left: "fix the bad stuff, that was the point of this PR").** In this
-  PR, each reviewed by this line before push: `Grid.measure`, `group`, `pivot` and `sort` through DataCube's code
-  (headless `gridQuery`: its column offers and rules, the cube compiled), Python's own measure rules and its
-  `AGGREGATES`/`DIRECTIONS` pins gone (`datacube/src/headless/grid.ts`, `snapshot.ts`, `python/legend_lite/page.py`); a
-  class's sample refusing a NaN or an infinity, never writing `null` (`datacube/src/sample-rows.ts`); `frames._NAME`
-  given up to the compiler's model writer (`python/legend_lite/frames.py`, loading's one name check); the empty page's
-  hint told by DataCube's reader (`page-document.ts`, `headless/page.ts`); `Engine(planner=)` and the one plane's
-  label gone (`engine.py`, `services/python-host.ts`). Proposed to the Plan Gen line, not started: one planner
-  dispatcher in the compiler, which deletes `planner-answer.ts`'s switch and `_planner.py`'s table.
+  **Round 2, 2026-10-16 (the user, reading what #47 left: "fix the bad stuff, that was the point of this PR"; "lets fix
+  datacube where we find bugs").** In this PR, each reviewed by this line before push (rewritten after the round's
+  audit to what landed):
+  - a grid's grouping, pivot, measures and sorts through DataCube's code (headless `gridQuery`), Python's own rules and
+    its `AGGREGATES`/`DIRECTIONS` gone: `datacube/src/headless/grid.ts`, `snapshot.ts`, `offers.ts` (one measure-offer
+    rule), `ui/panel-kit.ts` with `ui/editor.ts`, `ui/panel-column.ts`, `ui/panel-general.ts` (their sort options built
+    from `snapshot.ts`'s directions), `python/legend_lite/page.py`;
+  - DataCube's bugs found doing it, fixed: the grouped level's measures and sorts and the measure name rule
+    (`query.ts`, `calc.ts`), the charts' stand-in for the bug gone (`chart-spec.ts`); a saved cube reopened without a
+    measure that no longer fits, said, and Python taking the cube DataCube opens (`cube-document.ts`, `page.py`);
+  - a class's sample refusing a NaN or an infinity on every path (`sample-rows.ts`, `create-class.ts`); the empty page's
+    hint (`page-document.ts`, `headless/page.ts`); the engine making its own planner (`engine.py`'s constructor alone);
+  - Python repeats no DataCube list: a new page, a new sheet and the first tile laid out by DataCube's code
+    (`page-document.ts`, `layout/bands.ts`, `page/cube-page.ts`, `app.ts`, `app/datacube-app.ts`, `headless/layout.ts`,
+    `headless/entry.ts`), the export kinds DataCube's (`export-render.ts`); `datacube/test/python-vocabulary.test.ts`
+    retired with its wiring (`datacube/BUILD.bazel`, `python/BUILD.bazel`, `datacube/test_imports.bzl`: the Compiler
+    Rewrite line's OK); doc carries (`docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`, `docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md`);
+  - not done, by the user's ruling (2026-10-16): one planner dispatcher in the compiler. Built and measured, then
+    dropped: `planner-answer.ts`'s switch and `_planner.py`'s table are each host's binding to the same `Boundary`
+    functions -- glue, not a rule, held alike by the start-up check -- and one generic request cost every call a JSON
+    envelope around the model's text. Shrinking the protocol toward legend-engine's own `pure/v1` API is the follow-up.
+  Still not touched: the SQL plan's ground (`engine.py`'s snap, frames and project-data paths, `_headless._query`,
+  `warehouse.py`, `_warehouse_snap`).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

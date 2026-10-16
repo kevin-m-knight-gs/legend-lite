@@ -5,7 +5,7 @@
 // gives it back as a page saves it (bands.ts asSaved: no stack's tile in front).
 
 import {
-  NotALayout, add, arrange, asSaved, problems, remove, stackTiles, type Bands, type Preset,
+  NEW_SHEET, NotALayout, add, arrange, asSaved, problems, remove, stackTiles, type Bands, type Preset,
 } from '../layout/bands.ts';
 
 /** A sheet's layout, held to bands.ts's rules as its page holds it: one that breaks them is refused, never mended. */
@@ -19,6 +19,11 @@ function read(layout: string): Bands {
 }
 
 const written = (layout: Bands): string => JSON.stringify({ kind: 'bands', ...asSaved(layout) });
+
+/** A new sheet's layout, as DataCube starts one (bands.ts NEW_SHEET): what Python's page.sheet() lays its tiles on. */
+export function layoutNew(): string {
+  return written(NEW_SHEET);
+}
 
 /** A new tile's place, as DataCube places one (bands.ts add): beside `near` while its band has room, else a band of
  *  its own below it; with no `near` (null), a band at the bottom. */

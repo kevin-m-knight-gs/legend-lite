@@ -21,8 +21,9 @@
 // Opening a cube RECONCILES it with what its source holds now (the user's ruling on schema
 // drift): a new column is available but hidden; a part that uses a column that is gone is
 // left out and NAMED; a changed type is reported. Nothing is refused for drift alone. A
-// measure whose name is not its own (calc.ts measureNameProblem) is left out and named the
-// same way, so a cube saved before that rule (2026-10-16) still opens.
+// measure whose name is not its own (calc.ts measureNameProblem), or whose column's type no
+// longer takes its aggregate (offers.ts measureOfferProblem), is left out and named the same
+// way, so a cube saved before those rules (2026-10-16) still opens.
 
 import {
   ExactNumber,
@@ -32,6 +33,7 @@ import {
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { measureNameProblem } from './calc.ts';
+import { measureOfferProblem } from './offers.ts';
 import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, type CubeConfiguration } from './config.ts';
 import type {
   ColumnSpec,
@@ -472,7 +474,7 @@ export function openCube(
     ...(filter !== undefined ? { filter } : {}),
     epoch: 0,
   };
-  const snapshot: CubeSnapshot = { ...reconciled, measures: ownNamed(reconciled, notes) };
+  const snapshot: CubeSnapshot = { ...reconciled, measures: fitting(reconciled, notes) };
   // The open rows are paths through the saved grouping; a different grouping has none.
   const tree = TreeState.fromPaths(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals);
   const changed = notes.some((n) => n.startsWith('left out'));
@@ -480,15 +482,21 @@ export function openCube(
 }
 
 /**
- * A cube's measures whose names are their own (calc.ts measureNameProblem), each judged against those kept before it, as
- * the level query judges them in order; any other is left out, in the rule's words. A cube saved before the rule
- * (2026-10-16) -- old Python's `grid.group('region').measure('region', 'count')`, whose count the grouped level dropped
- * without a word -- opens without it, saying so, rather than refusing at every level: no panel shows a measure to fix.
+ * A cube's measures that still fit it: each over a source column whose type, as the compiler types it now, takes its
+ * aggregate (offers.ts measureOfferProblem; a calculated column's measure is judged at compile), and named by the rule
+ * (calc.ts measureNameProblem), judged against those kept before it, as the level query judges them in order; any other
+ * is left out, in the rule's words. A cube saved before the rules (2026-10-16) -- old Python's
+ * `grid.group('region').measure('region', 'count')`, whose count the grouped level dropped without a word, or a sum of a
+ * text column it dropped too -- opens without it, saying so, rather than refusing at every level: no panel shows a
+ * measure to fix.
  */
-function ownNamed(snapshot: CubeSnapshot, notes: string[]): Measure[] {
+function fitting(snapshot: CubeSnapshot, notes: string[]): Measure[] {
+  const typeOf = new Map(snapshot.columns.map((c) => [c.name, c.type] as const));
   const kept: Measure[] = [];
   for (const m of snapshot.measures) {
-    const problem = measureNameProblem({ ...snapshot, measures: [...kept, m] }, m);
+    const type = typeOf.get(m.column);
+    const problem = (type === undefined ? null : measureOfferProblem(m, type))
+      ?? measureNameProblem({ ...snapshot, measures: [...kept, m] }, m);
     if (problem === null) kept.push(m);
     else notes.push(`left out measure ${m.name}: ${problem}`);
   }
