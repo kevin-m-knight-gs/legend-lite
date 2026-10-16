@@ -146,7 +146,7 @@ public interface SqlReplayReferee {
     }
 
     /** {@link #verify} with the golden's temp tables materialized on the
-     * referee session first; the default ignores them (an referee without
+     * referee session first; the default ignores them (a referee without
      * temp support declines through the missing table as before). */
     default RowVerdict verify(java.sql.Connection session, String goldenSql,
             ExecutionResult ours,

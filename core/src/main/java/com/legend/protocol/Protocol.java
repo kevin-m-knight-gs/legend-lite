@@ -2643,7 +2643,7 @@ public final class Protocol {
             implements PDatasourceSpec {
     }
 
-    /** {@code _type:"referee"} — OracleParserGrammar: host and port
+    /** {@code _type:"oracle"} — OracleParserGrammar: host and port
      *  required, serviceName optional. */
     public record POracleSpec(String host, long port,
                               @com.legend.base.Nullable String serviceName,

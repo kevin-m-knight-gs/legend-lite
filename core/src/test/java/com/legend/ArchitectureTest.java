@@ -243,6 +243,22 @@ final class ArchitectureTest {
     }
 
     /**
+     * Invariant 4d for the engine-text renderers' interface (the dialect program's Phase 3, the PR audit of
+     * 2026-10-16): {@code EngineTextDialect} is a {@code SqlDialect}, so the concrete-class rule above would let an
+     * execution path hold one through it. Root layer only, and the test-data generator, which prints its plan in the
+     * engine's text (TestDataGenerator.planText) while its session's own dialect runs every statement.
+     */
+    @Test
+    void engineTextDialectIsQuarantinedToTheRootLayerAndThePlanPrinter() {
+        noClasses()
+            .that().resideOutsideOfPackages("com.legend", "com.legend.sql.dialect", "com.legend.testdatagen")
+            .and().resideInAPackage("com.legend..")
+            .should().dependOnClassesThat().belongToAnyOf(com.legend.sql.dialect.EngineTextDialect.class)
+            .as("Invariant 4d: the engine-text dialect is the root layer's, and the generator's plan printer's")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
      * Sub-rule of Invariant 4 the top-level slices can't see: the typed HIR
      * package must not reach back into the checker package (the old
      * spec&lt;-&gt;spec.typed cycle existed solely because ExprType lived in spec).

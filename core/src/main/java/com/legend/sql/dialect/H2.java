@@ -176,6 +176,13 @@ public class H2 extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
+    /** {@inheritDoc} H2 runs the standard spelling: the test-data generator's sessions prove it (the corpus's
+     *  generator tests, ReservedNamesGenerationTest). */
+    @Override
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        return createTemporaryTableAs(ct);
+    }
+
     /** H2's catalog names a column's type by its own name ({@code CHARACTER VARYING}, {@code DOUBLE PRECISION}) and
      *  keeps the declared one beside it: its JDBC driver reads the code by the declared name where there is one
      *  (a FLOAT is FLOAT, a DECIMAL DECIMAL, though both are stored as another) and reports a DECIMAL by that name.

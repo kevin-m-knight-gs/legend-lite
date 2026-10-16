@@ -766,12 +766,13 @@ final class StatementExecutor {
         }
         boolean quote = pc != null && pc.quoteIdentifiers();
         String tz = pc != null ? pc.timeZone() : null;
-        String fromConn = pc == null
+        com.legend.compiler.spec.typed.ExecutionContext.PlanConnection fromConn = pc == null
                 ? firstFromConnectionName(
                         lam.body().get(lam.body().size() - 1))
                 : null;
-        String connName = pc != null && pc.connectionName() != null ? pc.connectionName()
-                : fromConn != null ? fromConn
+        var conn = pc != null && pc.connectionName() != null ? pc.connectionName() : fromConn;
+        String connName = conn != null ? conn.planText()
+                // no connection instance read at all: the engine's test runtime's (the reader gap W2.1)
                 : "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")";
         com.legend.model.ConnectionDefinition.DatabaseType dbType = planDatabase(pc);
         if (!lam.parameters().isEmpty() || lam.body().size() > 1
@@ -953,7 +954,7 @@ final class StatementExecutor {
 
     /** Pre-order search for the first {@code TypedFrom} carrying a
      * connection-name hint (instance-runtime from()). */
-    private static @com.legend.base.Nullable String firstFromConnectionName(
+    private static com.legend.compiler.spec.typed.ExecutionContext.@com.legend.base.Nullable PlanConnection firstFromConnectionName(
             com.legend.compiler.spec.typed.TypedSpec t) {
         return com.legend.compiler.spec.typed.ExecutionContext.froms(t).stream()
                 .map(com.legend.compiler.spec.typed.TypedFrom::connectionName)

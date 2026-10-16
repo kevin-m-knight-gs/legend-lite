@@ -39,7 +39,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
 
     /** DatabaseType at the 4.138.2 referee pin — the walker refuses
      *  anything else via valueOf (javap'd from the referee jar; re-check
-     *  on an referee bump). */
+     *  on a referee bump). */
     private static final java.util.Set<String> DATABASE_TYPES =
             java.util.Set.of("DB2", "H2", "MemSQL", "Sybase", "SybaseIQ",
                     "Composite", "Postgres", "SqlServer", "Hive", "Snowflake",

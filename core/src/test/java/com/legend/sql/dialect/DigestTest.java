@@ -48,6 +48,21 @@ class DigestTest {
         }
     }
 
+    /** A NULL's digest is NULL on each (the PR audit of 2026-10-16). */
+    @Test
+    void aNullsDigestIsNull() throws Exception {
+        for (var db : List.<Map.Entry<SqlDialect, String>>of(Map.entry(new DuckDb(), "jdbc:duckdb:"),
+                Map.entry(new H2(), "jdbc:h2:mem:digest_null"))) {
+            try (Connection c = DriverManager.getConnection(db.getValue()); Statement st = c.createStatement()) {
+                for (SqlFn fn : List.of(SqlFn.MD5, SqlFn.SHA1, SqlFn.SHA256)) {
+                    SqlSelect q = SqlSelect.starOf(new SqlSource.Dual()).withProjections(List.of(new SqlSelect.Projection(
+                            SqlExpr.Call.of(fn, new SqlExpr.NullLit()), "v", null)));
+                    assertEquals(null, one(st, db.getKey().render(q)), db.getKey().getClass().getSimpleName() + " " + fn);
+                }
+            }
+        }
+    }
+
     private static String java(String algorithm, String s) throws Exception {
         byte[] d = java.security.MessageDigest.getInstance(algorithm).digest(
                 s.getBytes(java.nio.charset.StandardCharsets.UTF_8));

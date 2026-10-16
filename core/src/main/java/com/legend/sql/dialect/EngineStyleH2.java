@@ -423,8 +423,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                 + String.join(",", columns) + ") values (" + String.join(",", cells) + ");";
     }
 
-    /** A cell as the engine's {@code convertValuesToCsvH2} writes it: {@code null}; a string quoted, its quotes
-     *  doubled; a date or timestamp quoted as written; a bit's truth; a number as written. */
+    /** A cell as the engine's {@code convertValuesToCsvH2} writes it: {@code null}; a string, a date and a timestamp
+     *  quoted, their quotes doubled (as the seed text did before it was IR, the PR audit of 2026-10-16); a bit's
+     *  truth; a number by its value, in plain notation ({@code 007} and {@code 1e3} are written {@code 7} and
+     *  {@code 1000}). */
     private static String seedCell(SqlExpr cell) {
         if (cell instanceof SqlExpr.NullLit) {
             return "null";
@@ -433,10 +435,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             return "'" + s.value().replace("'", "''") + "'";
         }
         if (cell instanceof SqlExpr.DateLit d) {
-            return "'" + d.iso() + "'";
+            return "'" + d.iso().replace("'", "''") + "'";
         }
         if (cell instanceof SqlExpr.TimestampLit t) {
-            return "'" + t.iso() + "'";
+            return "'" + t.iso().replace("'", "''") + "'";
         }
         if (cell instanceof SqlExpr.BoolLit b) {
             return b.value() ? "true" : "false";

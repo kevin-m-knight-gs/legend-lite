@@ -82,7 +82,7 @@ public record TypedFrom(TypedSpec source, ExecutionContext context,
         return context.csvSetups();
     }
 
-    public @com.legend.base.Nullable String connectionName() {
+    public ExecutionContext.@com.legend.base.Nullable PlanConnection connectionName() {
         return context.connectionName();
     }
 

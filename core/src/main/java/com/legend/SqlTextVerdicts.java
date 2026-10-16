@@ -29,7 +29,7 @@ import java.util.List;
  * the env's runtime, Appendix A); GOLDEN ROWS via the
  * {@link SqlReplayReferee} SPI on ExecEnv. Text match/diff is a CENSUS
  * number ({@link SqlTextEmission}); a row divergence FAILS whatever
- * the text said; an referee decline (foreign dialects — no reference
+ * the text said; a referee decline (foreign dialects — no reference
  * database) keeps TEXT as the contract, hard pass/fail, counted (§4).
  * Production registers no referee and this arm WALLS loudly (§2).
  *

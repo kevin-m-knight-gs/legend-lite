@@ -41,7 +41,10 @@ public sealed interface ConnectionSpecification
     record TestData(@com.legend.base.Nullable String csv, java.util.@com.legend.base.Nullable List<String> sqls) {
     }
 
-    /** A specification that carries {@code csv} as its connection's test data (a service test's runtime). */
+    /** A specification that carries {@code csv} as its connection's test data (a service test's runtime): the
+     *  vocabulary's one such, {@link LocalH2}'s. A connection opened through {@code exec.Sessions} with it opens on
+     *  H2 only; a runtime overlay that pairs it with another type opens its own session, as ServiceTestRunner does,
+     *  and the specification only carries the rows. */
     static ConnectionSpecification carryingTestData(String csv) {
         return new LocalH2(null, csv, null);
     }

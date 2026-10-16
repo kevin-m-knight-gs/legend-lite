@@ -9888,15 +9888,16 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     its body, and both H2 judges reach and fail its assert #1 alike: `h2-database-outside-body-register.txt` −1 and
     `h2-database-untriaged-register.txt` −1, that test's entries.
 - **The plan text's SQL is its dialect's** (`PlanText`, `PlanAllocations`): the engine-text dialect
-  (`EngineTextDialect`) writes each node's select and its temp-table select. The connection line names the runtime's
-  connection, not a fixed H2. The test-data generator's plan (`planText`) is IR that dialect writes too
+  (`EngineTextDialect`) writes each node's select and its temp-table select. A relational node's connection line names
+  the runtime's connection, not a fixed H2; the generator's plan names the engine's test connection, the constant its
+  caller passes. The test-data generator's plan (`planText`) is IR that dialect writes too
   (`EngineTextDialect.renderAsAliased`: the aliases as built, so a child fetch's parent is `(${parent}) as "root"`).
   A differential run of the old hand-written text against the new one, over every generator plan the corpus prints,
   found no differing byte. The hand-written text is deleted.
 - **PARK-16 is closed** (docs/PARKED_WORK_LEDGER.md): `ReservedNamesGenerationTest` generates over a default-schema
   table `order` and a table in schema `select` on every database with an in-memory instance (DuckDB, H2, SQLite).
-  It names none of them; the leak ratchet's type pattern no longer counts `DatabaseType.values()` or
-  `DatabaseType.class`, which enumerate and name nothing (`PlanJson.java` database-type 2 → 1).
+  It names none of them; the leak ratchet's type pattern no longer counts `DatabaseType.values()`, which
+  enumerates every database and names none (`.class` and `valueOf` still count).
 - **Names the leak ratchet read as a database** (no behaviour change). The product pattern counts `oracle` as the
   Oracle database, so the test oracle is named the referee in code and comments (`SqlReplayReferee`,
   `ReplayReferee`, `RefereePins`, `Databases.REPLAY_REFEREE`, and every `oracle` identifier in 103 files; the Oracle
@@ -9911,3 +9912,33 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
   snippet sources it touches (`CatalogGridTest`, `DigestTest`, `SchemaDdlTextTest`, `TranslateTest`,
   `ReservedNamesGenerationTest`, and `ReservedNames` split into its store and its connection): four more snippets on
   which lite's parse and the engine's agree; `tools/deps/core-layers.txt` gains testdatagen → sql.
+- **The independent audit of the branch** (an agent that wrote none of it, 2026-10-16), and what it changed:
+  - *Blocking*: `//gates:local` was red on three generated files, the entry above.
+  - A connection whose type the body computes is no longer guessed. Since the second piece (f938b88), its reading
+    returned nothing and the walk went on: a sibling connection's literal type could be printed, or the default
+    `TestDatabaseConnection(type = "H2")`. The commit said it refused; it did not. The first connection instance
+    found now answers (`ExecutionContext.PlanConnection`), and the plan text refuses one without a literal type
+    (`PlanConnection.planText`). The default for a runtime with no connection instance read at all stays the
+    engine's test runtime's (`EngineText.ENGINE_TEST_DATABASE`, the reader gap W2.1).
+  - The engine-text dialect's interface is quarantined like its classes
+    (`ArchitectureTest.engineTextDialectIsQuarantinedToTheRootLayerAndThePlanPrinter`): it is a `SqlDialect`, so the
+    rule on the concrete classes let an execution path hold one through it. The root layer and the generator's plan
+    printer may.
+  - A seed row's date and timestamp cells double their quotes, as every non-numeric cell did before the rows were
+    IR (`EngineSeedRowTest`). A number is written by its value (`007` as `7`), as the javadoc now says.
+  - `CREATE TEMPORARY TABLE ... AS` is refused by the base renderer, as every spelling is a dialect's (D1): H2,
+    DuckDB and SQLite, the generator's sessions, spell it. SQLite writes its query as a root, as its own render does
+    (`TempTableAsTest`). Until now every dialect inherited the standard spelling.
+  - The ratchet's type pattern counts `DatabaseType.class` again (`Enum.valueOf(DatabaseType.class, "H2")` picks
+    one database); `ReservedNamesGenerationTest` enumerates with `values()`, and a type whose opener fails fails the
+    test instead of leaving it.
+  - Tests where the new code had none: `EngineSeedRowTest` (each cell kind, the refusals, a table of an included
+    database), `TempTableAsTest` (the three spellings run, every other dialect's refusal, `renderInline` on one line
+    with a literal's newline kept), `DigestTest` (a NULL's digest).
+  - Smaller: a comment the rename made name `_type:"referee"` (the Oracle datasource's protocol type is
+    `"oracle"`) restored; the catalog grid's output names quoted by the dialect's quote character, not a literal `"`;
+    `carryingTestData`'s javadoc says the specification is H2's `LocalH2`, which only carries the rows when a runtime
+    overlay opens its own session.
+  - Recorded, not changed: Postgres refuses a catalog grid. The compiler's old text excluded `pg_catalog`, but no
+    test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
+    measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.

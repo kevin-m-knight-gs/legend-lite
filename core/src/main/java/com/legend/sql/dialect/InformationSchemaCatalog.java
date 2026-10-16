@@ -72,9 +72,11 @@ final class InformationSchemaCatalog {
                     + " columns, its source " + c.outputs().size());
         }
         writer.append("SELECT ");
+        String q = String.valueOf(renderer.quoteChar());
         for (int i = 0; i < projections.size(); i++) {
-            writer.append(i == 0 ? "" : ", ").append(projections.get(i)).append(" AS \"")
-                    .append(c.outputs().get(i).name()).append("\"");
+            // each output quoted, its JDBC name's case kept on every database
+            writer.append(i == 0 ? "" : ", ").append(projections.get(i)).append(" AS " + q)
+                    .append(c.outputs().get(i).name()).append(q);
         }
         return switch (c.grid()) {
             case SCHEMAS -> like(writer.append(" FROM information_schema.schemata WHERE schema_name" + NOT_SYSTEM),

@@ -667,6 +667,13 @@ public final class DuckDb extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
+    /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's
+     *  generator tests, ReservedNamesGenerationTest). */
+    @Override
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        return createTemporaryTableAs(ct);
+    }
+
     /** DuckDB's catalog names a column's type as its JDBC driver does, a DECIMAL with its precision and scale
      *  ({@code DECIMAL(10,2)}), whose code is DECIMAL's; each name's code is the driver's (measured 2026-10-16 against
      *  {@code DatabaseMetaData.getColumns}, CatalogGridTest). REAL is FLOAT there. */

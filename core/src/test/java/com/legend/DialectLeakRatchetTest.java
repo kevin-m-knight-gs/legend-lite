@@ -64,10 +64,11 @@ class DialectLeakRatchetTest {
 
     /** The kinds counted in code, each by the census's own pattern (scanner/scan.py). */
     static final Map<String, Pattern> IN_CODE = Map.of(
-            // 2026-10-16, the dialect program's Phase 3 (PARK-16's acceptance test): DatabaseType.values() and
-            // DatabaseType.class enumerate every database and name none, as DialectOwnerExclusivityTest.ANY_TYPE
-            // reads them; until then the pattern counted them as DatabaseType.X. valueOf is still counted.
-            "database-type", Pattern.compile("\\bDatabaseType\\s*\\.\\s*(?!values\\b|class\\b)\\w+"),
+            // 2026-10-16, the dialect program's Phase 3 (PARK-16's acceptance test): DatabaseType.values()
+            // enumerates every database and names none; until then the pattern counted it as DatabaseType.X.
+            // valueOf and .class are still counted (the PR audit of 2026-10-16: Enum.valueOf(DatabaseType.class,
+            // "H2") picks one database by a literal)
+            "database-type", Pattern.compile("\\bDatabaseType\\s*\\.\\s*(?!values\\s*\\()\\w+"),
             "dialect-class", Pattern.compile("\\b(new\\s+|instanceof\\s+|\\(\\s*)(?:com\\.legend\\.sql\\.dialect\\.)?("
                     + DIALECTS + ")\\b(\\s*\\(|\\s+\\w|\\s*\\)|\\.class)|\\bcom\\.legend\\.sql\\.dialect\\.(" + DIALECTS
                     + ")\\b"),
@@ -84,10 +85,10 @@ class DialectLeakRatchetTest {
     void theTypePatternSeesANamedTypeOnly() {
         Pattern types = IN_CODE.get("database-type");
         for (String named : List.of("DatabaseType.H2", "DatabaseType . DuckDB", "DatabaseType.valueOf(n)",
-                "DatabaseType.classic")) {
+                "DatabaseType.valuesOf", "Enum.valueOf(DatabaseType.class, \"H2\")", "EnumSet.allOf(DatabaseType.class)")) {
             assertTrue(types.matcher("x = " + named + ";").find(), named);
         }
-        for (String not : List.of("DatabaseType.values()", "EnumSet.allOf(DatabaseType.class)")) {
+        for (String not : List.of("DatabaseType.values()", "DatabaseType . values ()")) {
             assertTrue(!types.matcher("x = " + not + ";").find(), not);
         }
     }

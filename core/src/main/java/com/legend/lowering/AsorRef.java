@@ -29,7 +29,7 @@ public final class AsorRef {
      *  encoder spells it as {@code lpad(.., SEG_LEN_WIDTH, '0')}. */
     public static final int SEG_LEN_WIDTH = 10;
 
-    /** The engine protocol's canonical connection segment for its test database (EngineText.ENGINE_TEST_DATABASE) —
+    /** The engine protocol's canonical connection segment for its test database (H2's, as the goldens pin it) —
      * part of the WIRE FORMAT (both producer and consumer are ours;
      * the goldens pin these exact bytes), not an execution choice. */
     public static final String ENGINE_TEST_CONNECTION =

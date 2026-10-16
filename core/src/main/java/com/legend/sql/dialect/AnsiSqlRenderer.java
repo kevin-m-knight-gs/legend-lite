@@ -1594,16 +1594,30 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da ->
                     "DELETE FROM " + ddlQualified(da.schema(), da.table(), da.quoting()) + ";";
-            case com.legend.sql.SqlDml.CreateTempTableAs ct -> {
-                RenderedStatement create = query(newWriter().append("CREATE TEMPORARY TABLE ").append(ident(ct.table()))
-                        .append(" AS "), passed(ct.query()), 0).append(";").statement();
-                if (!create.binds().isEmpty()) {
-                    throw new DialectCapability("plan parameters " + create.binds() + " in a temporary table's query:"
-                            + " a DML statement is text");
-                }
-                yield create.sql();
-            }
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct);
         };
+    }
+
+    /** A temporary table holding a query's rows (the test-data generator's): refused unless the dialect's database is
+     *  measured to run {@link #createTemporaryTableAs}, as every spelling is its dialect's (D1). Until the PR audit of
+     *  2026-10-16 every dialect inherited the standard spelling. */
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        throw new DialectCapability("a temporary table from a query (CREATE TEMPORARY TABLE ... AS) on "
+                + getClass().getSimpleName() + ": no spelling measured on its database (the test-data generator's"
+                + " sessions are H2, DuckDB and SQLite)");
+    }
+
+    /** The standard {@code CREATE TEMPORARY TABLE t AS <query>}, for a dialect whose database runs it: the query
+     *  written as this dialect writes a query, its passes applied. A query with plan parameters is refused: the
+     *  statement is text. */
+    protected final String createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        RenderedStatement create = query(newWriter().append("CREATE TEMPORARY TABLE ").append(ident(ct.table()))
+                .append(" AS "), passed(ct.query()), 0).append(";").statement();
+        if (!create.binds().isEmpty()) {
+            throw new DialectCapability("plan parameters " + create.binds() + " in a temporary table's query:"
+                    + " a DML statement is text");
+        }
+        return create.sql();
     }
 
     /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every

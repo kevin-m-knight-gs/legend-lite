@@ -20,7 +20,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,13 +47,14 @@ class ReservedNamesGenerationTest {
             )
             """;
 
-    /** Each database type an in-memory session opens on ({@link Sessions#openPrivate} refuses the rest by name). */
-    static List<DatabaseType> inMemory() {
+    /** Each database type an in-memory session opens on: {@link Sessions#openPrivate} refuses the rest by name, and a
+     *  type whose opener fails fails here, rather than leaving the test (the PR audit of 2026-10-16). */
+    static List<DatabaseType> inMemory() throws SQLException {
         List<DatabaseType> out = new ArrayList<>();
-        for (DatabaseType t : EnumSet.allOf(DatabaseType.class)) {
+        for (DatabaseType t : DatabaseType.values()) {
             try (Connection ignored = Sessions.openPrivate(t)) {
                 out.add(t);
-            } catch (NotImplementedException | SQLException refused) {
+            } catch (NotImplementedException refused) {
                 // no in-memory instance of this type
             }
         }
