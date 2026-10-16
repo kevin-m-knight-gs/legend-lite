@@ -2345,6 +2345,20 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_AT_TIME) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.DATE_AT_TIME, args));
         }
+        // a named zone, read by the database (the Cypher island's zoned date-time leg, 2026-10-16): the
+        // convertTimeZone pair below — timezone(zone, naive) reads a wall time in the zone (its instant), and
+        // timezone('UTC', instant) is that instant as the naive UTC date-time the platform carries; the other way
+        // round, timezone('UTC', naive) pins the naive value as a UTC instant and timezone(zone, instant) is its
+        // wall time in the zone (measured on DuckDB 1.4.4 through the ICU it bundles, Europe/Stockholm in and out
+        // of summer time; Postgres's timezone(zone, t) is AT TIME ZONE, the same pair)
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_INSTANT_IN) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"),
+                    new SqlExpr.Call(SqlFn.TIMEZONE, List.of(args.get(1), args.get(0))))));
+        }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_LOCAL_IN) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(args.get(1),
+                    new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"), args.get(0))))));
+        }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_IS_NUMERIC) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
                     SqlExpr.Call.of(SqlFn.LOWER, args.get(0)),

@@ -262,7 +262,10 @@ public final class SqlToPure {
      * not know a column's width. Dividing it by an integer is refused.
      */
     public enum Kind {
-        INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, TIME, JSON, NULL, OTHER;
+        INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, TIME,
+        /** A zoned date-time (Cypher's {@code datetime}): carried as its instant, Pure's DateTime; its zone, when the
+         *  translator knows it, rides the translation's detail. */
+        ZONED, JSON, NULL, OTHER;
 
         public boolean numeric() {
             return this == INTEGER || this == WHOLE || this == FLOAT || this == DECIMAL || this == NUMBER
@@ -3840,6 +3843,7 @@ public final class SqlToPure {
             case DATE -> "StrictDate";
             case DATETIME -> "DateTime";
             case TIME -> "StrictTime";
+            case ZONED -> "DateTime";
             case JSON -> VARIANT;
             case BOOLEAN, OTHER -> null;
         };
@@ -4277,6 +4281,7 @@ public final class SqlToPure {
             case DATE -> "date";
             case DATETIME -> "timestamp without time zone";
             case TIME -> "time without time zone";
+            case ZONED -> "timestamp with time zone";
             case JSON -> "jsonb";
             case NULL -> "unknown";
             case OTHER -> "an enumeration";

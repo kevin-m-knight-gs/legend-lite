@@ -1653,6 +1653,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `exec/SqlTypeCensus.java`, `values/PureTimeLiteral.java` (`fromLocalTime`), `builtin/Pure.java` (the two lite
   natives and their overload groups, as the generator writes them), `NativeCatalogGovernanceTest` (17 → 19, dated).
   The record: the study's §12.7; GATES "the fifth landing".
+- **The zoned date-time leg, 2026-10-16, announced here as landed** — `protocol/sql/SqlToPure.java` (`Kind.ZONED`),
+  `protocol/cypher/CypherToPure.java` (the zone beside the value), `builtin/Pure.java` (`instantIn`, `localIn`),
+  `lowering/Scalars.java` (their rules: the `convertTimeZone` pair), `NativeCatalogGovernanceTest` (19 → 21, dated),
+  the judge (`testcases/CypherValues.java`, the instant rule). The record: the study's §12.8; GATES "the sixth
+  landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

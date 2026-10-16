@@ -3996,7 +3996,7 @@ public final class IqDialect implements InputDialect {
             case BOOLEAN -> "a condition";
             case STRING -> "a string";
             case DATE -> "a date";
-            case DATETIME -> "a timestamp";
+            case DATETIME, ZONED -> "a timestamp";
             case TIME -> "a time";
             case NULL -> "NULL";
             case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT -> "a number";

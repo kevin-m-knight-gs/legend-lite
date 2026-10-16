@@ -9850,6 +9850,25 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the sixth landing — the zoned date-time leg: `datetime` as an instant, its zone carried beside (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the time-of-day leg; the record is the study's §12.8
+(`docs/CYPHER_STUDY_2026_10_15.md`). Upstream's model, as the user asked: a DateTime is an instant, zones are not
+kept with the value.
+
+1. **What lands.** `Kind.ZONED`, the instant, with its zone beside the value while the translator sees it (the
+   translation's detail, carried by a projected column); a spelled offset as `adjust` steps the database computes,
+   a named zone as the database's conversions through two lite natives (`meta::legend::lite::instantIn`,
+   `localIn`; `INTERNAL_DESUGAR` 19 → 21, dated). `datetime` from texts, components, local date-times and the
+   epoch; the fields on the wall time and the zone fields; comparison and ordering of instants; truncation in the
+   written or the source's zone; the local values of a zoned one; Neo4j's errors as it spells them. The judge
+   equates Neo4j's zoned text with lite's instant (`docs/SEMANTICS_REGISTER.md` S65).
+2. **The ledger,** identical on both lanes: 3,998 cases; PASS 1,401 (from 1,195); FAIL 0; BUG 0; ERROR 0;
+   REFUSED 1,592; BOTH_ERROR 687; SKIP 318. Of the TCK's 1,004 temporal cases, 323 PASS. 55 lite
+   cases in `lite/temporal.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`, the generated-files check. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the fifth landing — the time-of-day leg: `localtime` over Pure's StrictTime, a SQL TIME (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the temporal slice; the record is the study's §12.7

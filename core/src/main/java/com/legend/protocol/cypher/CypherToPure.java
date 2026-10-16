@@ -224,9 +224,14 @@ public final class CypherToPure {
     private record Rows(ValueSpecification vs, List<Col> columns) implements State {
     }
 
-    private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable Val carried) {
+    private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable Val carried,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
         Col(String name, Kind kind, boolean nullable) {
-            this(name, kind, nullable, null);
+            this(name, kind, nullable, null, null);
+        }
+
+        Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable Val carried) {
+            this(name, kind, nullable, carried, null);
         }
     }
 
@@ -803,7 +808,8 @@ public final class CypherToPure {
                 }
                 Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
                 specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
-                columns.add(new Col(out.name(), t.kind(), t.nullable()));
+                // (a zoned date-time's zone rides with its column, so the clauses after read its fields in it)
+                columns.add(new Col(out.name(), t.kind(), t.nullable(), null, t.detail()));
             }
             if (specs.isEmpty()) {
                 // every item carried: the rows stay (one per row in hand), under a column nothing names
@@ -826,7 +832,7 @@ public final class CypherToPure {
                     Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
                     specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
                     keys.add(new ColSpec(out.name(), null, null, null));
-                    columns.add(new Col(out.name(), t.kind(), t.nullable()));
+                    columns.add(new Col(out.name(), t.kind(), t.nullable(), null, t.detail()));
                 } else {
                     specs.add(new ColSpec(agg.argColumn(), lambda(scope.row(), SqlToPure.valueOf(agg.arg())), null,
                             null));
@@ -1277,8 +1283,10 @@ public final class CypherToPure {
                         // a null the query named: null wherever it is read
                         return nullValue();
                     }
-                    return scalar(columnLike(new AppliedProperty(new Variable(row()), c.name()), c.kind(),
-                            c.nullable()));
+                    Tx read = columnLike(new AppliedProperty(new Variable(row()), c.name()), c.kind(),
+                            c.nullable());
+                    return scalar(c.detail() == null ? read : new Tx(read.vs(), read.kind(), read.nullable(),
+                            read.whenFalse(), c.detail()));
                 }
             }
             throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
@@ -1381,8 +1389,9 @@ public final class CypherToPure {
             case STRING -> "String";
             case BOOLEAN -> "Boolean";
             case DATE -> "Date";
-            case DATETIME -> "DateTime";
+            case DATETIME -> "LocalDateTime";
             case TIME -> "LocalTime";
+            case ZONED -> "DateTime";
             case JSON -> "Map";
             case NULL -> "Null";
             case OTHER -> "Any";
@@ -1760,7 +1769,7 @@ public final class CypherToPure {
         if (t.kind() == Kind.NULL) {
             return;
         }
-        if (t.kind() == Kind.DATE || t.kind() == Kind.DATETIME || t.kind() == Kind.TIME) {
+        if (t.kind() == Kind.DATE || t.kind() == Kind.DATETIME || t.kind() == Kind.TIME || t.kind() == Kind.ZONED) {
             throw CypherErrors.unsupported("temporal arithmetic is not supported yet", e.pos());
         }
         if (!t.kind().numeric()) {
@@ -2114,8 +2123,8 @@ public final class CypherToPure {
                     Kind.STRING, List.of(t), x -> call("toString", x.get(0))));
             case DATETIME -> throw CypherErrors.unsupported("toString of a DateTime (Neo4j spells it as Java does,"
                     + " the database its own way) is not supported yet", c.pos());
-            case TIME -> throw CypherErrors.unsupported("toString of a LocalTime (Neo4j spells it as Java does, the"
-                    + " database its own way) is not supported yet", c.pos());
+            case TIME, ZONED -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind()) + " (Neo4j"
+                    + " spells it as Java does, the database its own way) is not supported yet", c.pos());
             default -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind()) + " is not supported"
                     + " yet", c.pos());
         };
@@ -2478,7 +2487,8 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("a list or map holding a value that may be null, as a value, is not"
                         + " supported yet", pos);
             }
-            if (s.tx().kind() == Kind.DATE || s.tx().kind() == Kind.DATETIME || s.tx().kind() == Kind.TIME) {
+            if (s.tx().kind() == Kind.DATE || s.tx().kind() == Kind.DATETIME || s.tx().kind() == Kind.TIME
+                    || s.tx().kind() == Kind.ZONED) {
                 throw CypherErrors.unsupported("a list or map holding a " + cypherType(s.tx().kind()) + ", as a"
                         + " value, is not supported yet (the Variant spells it as text)", pos);
             }
@@ -2496,7 +2506,8 @@ public final class CypherToPure {
             }
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
             case Scalar s when s.tx().kind() == Kind.DATE || s.tx().kind() == Kind.DATETIME
-                    || s.tx().kind() == Kind.TIME -> scalar(temporalField(s.tx(), name, pos));
+                    || s.tx().kind() == Kind.TIME || s.tx().kind() == Kind.ZONED ->
+                    scalar(temporalField(s.tx(), name, pos));
             case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("a property of a value"
                     + " the database holds as a Variant is not supported yet", pos);
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point,"
@@ -2928,7 +2939,8 @@ public final class CypherToPure {
 
     /** What a temporal family's namespace names: the constructor, {@code truncate}, the clock reads. */
     private enum TemporalMember {
-        CONSTRUCT(""), TRUNCATE("truncate"), REALTIME("realtime"), STATEMENT("statement"), TRANSACTION("transaction");
+        CONSTRUCT(""), TRUNCATE("truncate"), REALTIME("realtime"), STATEMENT("statement"), TRANSACTION("transaction"),
+        FROM_EPOCH("fromepoch"), FROM_EPOCH_MILLIS("fromepochmillis");
 
         final String cypher;
 
@@ -2960,7 +2972,9 @@ public final class CypherToPure {
     private enum TemporalField {
         YEAR("year"), QUARTER("quarter"), MONTH("month"), WEEK("week"), WEEK_YEAR("weekYear"), DAY("day"),
         ORDINAL_DAY("ordinalDay"), WEEK_DAY("weekDay"), DAY_OF_QUARTER("dayOfQuarter"), HOUR("hour"), MINUTE("minute"),
-        SECOND("second"), MILLISECOND("millisecond"), MICROSECOND("microsecond"), NANOSECOND("nanosecond");
+        SECOND("second"), MILLISECOND("millisecond"), MICROSECOND("microsecond"), NANOSECOND("nanosecond"),
+        TIMEZONE("timezone"), OFFSET("offset"), OFFSET_MINUTES("offsetMinutes"), OFFSET_SECONDS("offsetSeconds"),
+        EPOCH_SECONDS("epochSeconds"), EPOCH_MILLIS("epochMillis");
 
         final String cypher;
 
@@ -2971,6 +2985,12 @@ public final class CypherToPure {
         boolean time() {
             return this == HOUR || this == MINUTE || this == SECOND || this == MILLISECOND || this == MICROSECOND
                     || this == NANOSECOND;
+        }
+
+        /** A field only a zoned date-time has. */
+        boolean zoned() {
+            return this == TIMEZONE || this == OFFSET || this == OFFSET_MINUTES || this == OFFSET_SECONDS
+                    || this == EPOCH_SECONDS || this == EPOCH_MILLIS;
         }
     }
 
@@ -3039,6 +3059,153 @@ public final class CypherToPure {
                 "1970-01-01", null);
     }
 
+    /** Lite's own natives for a named zone ({@code Pure.Lite.INSTANT_IN}, {@code Pure.Lite.LOCAL_IN}): the instant
+     *  a wall time names in a zone, and the wall time of an instant in a zone, both the database's. */
+    private static final String INSTANT_IN = "meta::legend::lite::instantIn";
+    private static final String LOCAL_IN = "meta::legend::lite::localIn";
+
+    /**
+     * A zoned date-time's zone, as the translator carries it beside the instant (the study's §12.8): an offset is
+     * its sign and its hours, minutes and seconds as written, which the translator spells into {@code adjust} steps
+     * (the database computes the instant); a named zone is its name, which the database reads. {@code Z}, {@code
+     * UTC} and a zero offset are the UTC offset, as Neo4j prints them.
+     */
+    private record Zone(String written, int sign, int hours, int minutes, int seconds,
+            @com.legend.base.Nullable String name) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+
+        static final Zone UTC = new Zone("Z", 1, 0, 0, 0, null);
+
+        boolean named() {
+            return name != null;
+        }
+
+        boolean zero() {
+            return name == null && hours == 0 && minutes == 0 && seconds == 0;
+        }
+
+        /** The offset as Neo4j prints it ({@code +01:00}, {@code Z}, {@code +02:05:59}). */
+        String offsetText() {
+            if (zero()) {
+                return "Z";
+            }
+            String text = (sign < 0 ? "-" : "+") + two(hours) + ":" + two(minutes);
+            return seconds == 0 ? text : text + ":" + two(seconds);
+        }
+
+        private static String two(int n) {
+            return (n < 10 ? "0" : "") + n;
+        }
+    }
+
+    /** A zone as Cypher writes one: {@code Z}, an offset {@code ±hh[:mm[:ss]]} (the colons optional in a text, as
+     *  Neo4j reads one; required in a component), or a region's name ({@code Europe/Stockholm}); anything else is
+     *  Neo4j's error. */
+    private static Zone zone(String text, boolean inText, Pos pos) {
+        if (text.equals("Z") || text.equals("z")) {
+            return Zone.UTC;
+        }
+        if (text.startsWith("+") || text.startsWith("-")) {
+            int sign = text.startsWith("-") ? -1 : 1;
+            String rest = text.substring(1).replace(":", "");
+            boolean colons = inText || text.length() == 3 || text.charAt(3) == ':';
+            if (colons && (rest.length() == 2 || rest.length() == 4 || rest.length() == 6)
+                    && digits(rest, 0, rest.length())) {
+                int h = Integer.parseInt(rest.substring(0, 2));
+                int m = rest.length() >= 4 ? Integer.parseInt(rest.substring(2, 4)) : 0;
+                int s = rest.length() == 6 ? Integer.parseInt(rest.substring(4, 6)) : 0;
+                if (h <= 18 && m <= 59 && s <= 59) {
+                    return new Zone(text, sign, h, m, s, null);
+                }
+            }
+            throw CypherErrors.invalid("Invalid value for TimeZone: Text '" + text + "' could not be parsed at"
+                    + " index 0", pos);
+        }
+        if (text.equals("UTC") || text.equals("GMT")) {
+            return Zone.UTC;
+        }
+        boolean name = !text.isEmpty();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (!Character.isLetterOrDigit(c) && c != '/' && c != '_' && c != '-' && c != '+') {
+                name = false;
+            }
+        }
+        if (!name || !text.contains("/")) {
+            throw CypherErrors.invalid("Invalid value for TimeZone: Text '" + text + "' could not be parsed at"
+                    + " index 0", pos);
+        }
+        // a region the database does not know is its error (Neo4j's names the text); the island does not check
+        // the name here
+        return new Zone(text, 1, 0, 0, 0, text);
+    }
+
+    private static @com.legend.base.Nullable Zone zoneOf(Tx t) {
+        return t.detail() instanceof Zone z ? z : null;
+    }
+
+    /** {@code t}, an instant, as a zoned date-time of zone {@code z}. */
+    private static Tx zoned(Tx t, Zone z) {
+        return new Tx(t.vs(), Kind.ZONED, t.nullable(), t.whenFalse(), z, t.guard(), t.body());
+    }
+
+    /** The wall time of a zoned date-time in its zone (Pure's DateTime): the instant shifted by the offset, or the
+     *  database's reading of it in the named zone. */
+    private static Tx localOf(Tx zoned, Zone z) {
+        return SqlToPure.strict(Kind.DATETIME, List.of(zoned), x -> z.named()
+                ? call(LOCAL_IN, x.get(0), new CString(java.util.Objects.requireNonNull(z.name())))
+                : shifted(x.get(0), z, 1));
+    }
+
+    /** The instant a wall time names in a zone, as a zoned date-time of that zone. */
+    private static Tx instantOf(Tx local, Zone z) {
+        return zoned(SqlToPure.strict(Kind.DATETIME, List.of(local), x -> z.named()
+                ? call(INSTANT_IN, x.get(0), new CString(java.util.Objects.requireNonNull(z.name())))
+                : shifted(x.get(0), z, -1)), z);
+    }
+
+    /** A date-time shifted by an offset's parts ({@code direction} 1 towards the wall time, -1 towards the
+     *  instant), each part an {@code adjust} step the database computes; a zero part is no step. */
+    private static ValueSpecification shifted(ValueSpecification x, Zone z, int direction) {
+        ValueSpecification out = x;
+        int sign = z.sign * direction;
+        if (z.hours != 0) {
+            out = call("adjust", out, new CInteger((long) sign * z.hours), unit("HOURS"));
+        }
+        if (z.minutes != 0) {
+            out = call("adjust", out, new CInteger((long) sign * z.minutes), unit("MINUTES"));
+        }
+        if (z.seconds != 0) {
+            out = call("adjust", out, new CInteger((long) sign * z.seconds), unit("SECONDS"));
+        }
+        return out;
+    }
+
+    /** A zoned date-time's wall time, for the constructors that read a date-time's fields (Neo4j reads a zoned value
+     *  by its wall time); any other value stays. */
+    private Val unzoned(Val v, Pos pos) {
+        if (v instanceof Scalar s && s.tx().kind() == Kind.ZONED) {
+            return scalar(localOf(s.tx(), zoneKnown(s.tx(), pos)));
+        }
+        return v;
+    }
+
+    /** The zone of a zoned date-time the translator carries; a zoned value whose zone it does not carry (one of a
+     *  list, an aggregate's) is refused by name: the island keeps the instant. */
+    private static Zone zoneKnown(Tx t, Pos pos) {
+        Zone z = zoneOf(t);
+        if (z == null) {
+            throw CypherErrors.unsupported("a zoned date-time whose zone is not carried here (a value of a list, an"
+                    + " aggregate's, or one computed) read in its zone is not supported yet (the island keeps the"
+                    + " instant)", pos);
+        }
+        return z;
+    }
+
+    private static ValueSpecification epochInstant() {
+        return new com.legend.protocol.spec.CDate(new com.legend.values.PureDateLiteral.DateWithSecond(1970, 1, 1,
+                0, 0, 0), "1970-01-01T00:00:00", null);
+    }
+
     /** A value read as an Integer: Pure types the arithmetic of integers as Number, and {@code date}, {@code adjust}
      *  take Integers. */
     private static ValueSpecification integer(ValueSpecification v) {
@@ -3054,11 +3221,11 @@ public final class CypherToPure {
     private Val temporalCall(CypherAst.Call c, String fn, TemporalFamily family, Scope scope) {
         String suffix = fn.contains(".") ? fn.substring(fn.indexOf('.') + 1) : "";
         switch (family) {
-            case DATETIME, TIME -> throw CypherErrors.unsupported("the function " + c.name()
-                    + "(...) (a zoned date-time or time: no Pure type carries a zone) is not supported yet", c.pos());
+            case TIME -> throw CypherErrors.unsupported("the function " + c.name()
+                    + "(...) (a zoned time of day) is not supported yet", c.pos());
             case DURATION -> throw CypherErrors.unsupported("the function " + c.name() + "(...) (a duration: no"
                     + " Pure type carries it) is not supported yet", c.pos());
-            case DATE, LOCALDATETIME, LOCALTIME -> {
+            case DATE, LOCALDATETIME, LOCALTIME, DATETIME -> {
             }
         }
         boolean withTime = family == TemporalFamily.LOCALDATETIME;
@@ -3067,9 +3234,18 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos());
         }
         return switch (member) {
-            case CONSTRUCT -> family == TemporalFamily.LOCALTIME ? timeFrom(c, scope) : temporalFrom(c, withTime,
-                    scope);
+            case CONSTRUCT -> switch (family) {
+                case LOCALTIME -> timeFrom(c, scope);
+                case DATETIME -> zonedFrom(c, scope);
+                default -> temporalFrom(c, withTime, scope);
+            };
             case TRUNCATE -> truncate(c, family, scope);
+            case FROM_EPOCH, FROM_EPOCH_MILLIS -> {
+                if (family != TemporalFamily.DATETIME) {
+                    throw CypherErrors.invalid("Unknown function '" + c.name() + "'", c.pos());
+                }
+                yield fromEpoch(c, member == TemporalMember.FROM_EPOCH_MILLIS, scope);
+            }
             case REALTIME, STATEMENT, TRANSACTION -> throw CypherErrors.unsupported("the function " + c.name()
                     + "() (the current date or time: a value of the call, not of the data) is not supported yet",
                     c.pos());
@@ -3085,7 +3261,7 @@ public final class CypherToPure {
         if (c.args().size() > 1) {
             throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
         }
-        Val a = val(c.args().get(0), scope);
+        Val a = unzoned(val(c.args().get(0), scope), c.pos());
         Kind result = withTime ? Kind.DATETIME : Kind.DATE;
         return switch (a) {
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
@@ -3106,6 +3282,198 @@ public final class CypherToPure {
         };
     }
 
+    /** {@code datetime(x)}: from a map of components (a zone among them), an ISO text with its offset, a local
+     *  date-time (the default zone, UTC), or another zoned date-time. */
+    private Val zonedFrom(CypherAst.Call c, Scope scope) {
+        if (c.args().isEmpty()) {
+            throw CypherErrors.unsupported("the function " + c.name() + "() (the current date-time: a value of the"
+                    + " call, not of the data) is not supported yet", c.pos());
+        }
+        if (c.args().size() > 1) {
+            throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
+        }
+        Val a = val(c.args().get(0), scope);
+        return switch (a) {
+            case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            case Scalar s when s.tx().kind() == Kind.STRING -> zonedFromText(c, s);
+            case Scalar s when s.tx().kind() == Kind.ZONED -> a;
+            case Scalar s when s.tx().kind() == Kind.DATETIME -> scalar(zoned(s.tx(), Zone.UTC));
+            case Scalar s when s.tx().kind() == Kind.DATE || s.tx().kind() == Kind.TIME -> {
+                // Neo4j's error names the value, as it prints it: spelled for a written one, refused by name for
+                // one of the row
+                String printed = printed(s.tx());
+                if (printed == null) {
+                    throw CypherErrors.unsupported("a date-time of a " + cypherType(s.tx().kind()) + " of the row"
+                            + " (Neo4j's error names the value) is not supported yet", c.pos());
+                }
+                throw CypherErrors.invalid("Cannot select datetime from: " + printed, c.pos());
+            }
+            case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, String, Date, LocalDateTime or"
+                    + " DateTime but was " + cypherType(s.tx().kind()), c.pos());
+            case MapVal m -> zonedFromComponents(c, m);
+            default -> throw CypherErrors.invalid("Type mismatch: expected Map, String, Date, LocalDateTime or"
+                    + " DateTime but was List<T>", c.pos());
+        };
+    }
+
+    /** A written temporal value as Neo4j prints it in a message (a date {@code 1984-10-11}, a time or date-time with
+     *  its seconds, the fraction's zero groups trimmed); null for a value of the row, or a form Neo4j prints
+     *  otherwise. */
+    private static @com.legend.base.Nullable String printed(Tx t) {
+        if (t.vs() instanceof com.legend.protocol.spec.CDate d) {
+            return switch (d.value()) {
+                case com.legend.values.PureDateLiteral.StrictDate sd -> sd.toEngineString();
+                case com.legend.values.PureDateLiteral.DateWithMinute m -> m.toEngineString() + ":00";
+                case com.legend.values.PureDateLiteral.DateWithSecond s -> s.toEngineString();
+                case com.legend.values.PureDateLiteral.DateWithSubsecond s -> s.toEngineString().substring(0, 19)
+                        + fraction(s.subsecond());
+                default -> null;
+            };
+        }
+        if (t.vs() instanceof com.legend.protocol.spec.CTime ct && ct.value() != null) {
+            return switch (ct.value()) {
+                case com.legend.values.PureTimeLiteral.TimeWithMinute m -> m.toEngineString() + ":00";
+                case com.legend.values.PureTimeLiteral.TimeWithSecond s -> s.toEngineString();
+                case com.legend.values.PureTimeLiteral.TimeWithSubsecond s -> s.toEngineString().substring(0, 8)
+                        + fraction(s.subsecond());
+            };
+        }
+        return null;
+    }
+
+    /** A fraction of a second as Neo4j prints one: in groups of three digits, the trailing zero groups dropped. */
+    private static String fraction(String digits) {
+        String nine = (digits + "000000000").substring(0, 9);
+        int keep = 9;
+        while (keep > 0 && nine.substring(keep - 3, keep).equals("000")) {
+            keep -= 3;
+        }
+        return keep == 0 ? "" : "." + nine.substring(0, keep);
+    }
+
+    /** A zoned date-time from a text: a literal in the ISO calendar form with {@code Z} or an offset (no zone, as
+     *  Neo4j, the default zone UTC) is Pure's date literal, the instant the database's shift of it; a named zone in
+     *  brackets, the other literal forms, and a text of the row are refused by name. */
+    private Val zonedFromText(CypherAst.Call c, Scalar s) {
+        if (!s.literal()) {
+            throw CypherErrors.unsupported("a zoned date-time text of the row (its offset read by the database) is"
+                    + " not supported yet", c.pos());
+        }
+        String text = (String) java.util.Objects.requireNonNull(s.constant());
+        if (text.endsWith("]")) {
+            throw CypherErrors.unsupported("a named zone in a date-time text (" + text + ") is not supported yet",
+                    c.pos());
+        }
+        int t = text.indexOf('T');
+        int at = -1;
+        for (int i = t + 1; i < text.length() && t >= 0; i++) {
+            char ch = text.charAt(i);
+            if (ch == 'Z' || ch == 'z' || ch == '+' || ch == '-') {
+                at = i;
+                break;
+            }
+        }
+        String local = at < 0 ? text : text.substring(0, at);
+        Zone z = at < 0 ? Zone.UTC : zone(text.substring(at), true, c.pos());
+        com.legend.values.PureDateLiteral lit = isoLiteral(local, true);
+        if (lit == null) {
+            throw CypherErrors.unsupported("a temporal text in a form other than the ISO calendar form (" + text
+                    + ") is not supported yet", c.pos());
+        }
+        if (lit instanceof com.legend.values.PureDateLiteral.DateWithSubsecond sub && sub.subsecond().length() > 6) {
+            throw CypherErrors.unsupported("a temporal value of sub-microsecond precision (" + text
+                    + ") is not supported yet (the database keeps microseconds)", c.pos());
+        }
+        Tx wall = Tx.value(new com.legend.protocol.spec.CDate(lit, lit.toEngineString(), null), Kind.DATETIME, false);
+        return scalar(instantOf(wall, z));
+    }
+
+    /** {@code datetime({...})}: the wall time the components spell, in the written zone, else a zoned {@code datetime}
+     *  or {@code time} base's, else UTC (the TCK's Temporal3 [8] to [11]: a zoned {@code date} base lends its wall
+     *  date, not its zone). A zoned {@code datetime} or {@code time} base is read by its wall time in the result's
+     *  zone (its instant converted: {@code {datetime: d, timezone: '+05:00'}} alone keeps the instant, with fields
+     *  written over it the fields apply to the converted wall time); a zoned {@code date} base by its own. */
+    private Val zonedFromComponents(CypherAst.Call c, MapVal m) {
+        Zone written = null;
+        Tx zonedBase = null;
+        Component zonedBaseKey = null;
+        Map<String, Val> rest = new LinkedHashMap<>();
+        for (Map.Entry<String, Val> e : m.entries().entrySet()) {
+            Component k = COMPONENTS.get(e.getKey().toLowerCase(Locale.ROOT));
+            if (k == Component.TIMEZONE) {
+                if (!(e.getValue() instanceof Scalar s) || !s.literal() || !(s.constant() instanceof String zt)) {
+                    throw CypherErrors.unsupported("a time zone that is not a spelled text is not supported yet",
+                            c.pos());
+                }
+                written = zone(zt, false, c.pos());
+                continue;
+            }
+            if (e.getValue() instanceof Scalar s && s.tx().kind() == Kind.ZONED
+                    && (k == Component.DATETIME || k == Component.TIME)) {
+                zonedBase = s.tx();
+                zonedBaseKey = k;
+            }
+            rest.put(e.getKey(), e.getValue());
+        }
+        Zone baseZone = zonedBase != null ? zoneKnown(zonedBase, c.pos()) : null;
+        Zone result = written != null ? written : baseZone != null ? baseZone : Zone.UTC;
+        if (zonedBase != null && zonedBaseKey == Component.DATETIME && rest.size() == 1) {
+            // the conversion: the instant kept, the zone changed
+            return scalar(zoned(zonedBase, result));
+        }
+        // every zoned base read by its wall time in its own zone; the wall time the fields spell is read in the
+        // datetime or time base's zone on the date it spells (a named zone's offset is the result date's: the
+        // TCK's Temporal3 [10] #32, a March date with an October Stockholm time), then converted to the written
+        // zone, the instant kept
+        Map<String, Val> wall = new LinkedHashMap<>();
+        for (Map.Entry<String, Val> e : rest.entrySet()) {
+            Val v = e.getValue();
+            if (v instanceof Scalar s && s.tx().kind() == Kind.ZONED) {
+                v = scalar(localOf(s.tx(), zoneKnown(s.tx(), c.pos())));
+            }
+            wall.put(e.getKey(), v);
+        }
+        Val local = temporalFromComponents(c, new MapVal(wall), true, Kind.DATETIME);
+        if (!(local instanceof Scalar ls) || ls.tx().kind() == Kind.NULL) {
+            return local;
+        }
+        Tx instant = instantOf(ls.tx(), baseZone != null ? baseZone : result);
+        return scalar(written != null && baseZone != null ? zoned(instant, written) : instant);
+    }
+
+    /** {@code datetime.fromepoch(seconds, nanoseconds)}, {@code datetime.fromepochmillis(milliseconds)}: the epoch
+     *  instant adjusted, at UTC. */
+    private Val fromEpoch(CypherAst.Call c, boolean millis, Scope scope) {
+        int arity = millis ? 1 : 2;
+        if (c.args().size() != arity) {
+            throw CypherErrors.invalid((c.args().size() < arity ? "Insufficient" : "Too many") + " parameters for"
+                    + " function '" + c.name() + "'", c.pos());
+        }
+        List<Tx> inputs = new ArrayList<>();
+        for (Expr e : c.args()) {
+            Val v = val(e, scope);
+            if (isNull(v)) {
+                return nullValue();
+            }
+            if (!(v instanceof Scalar s) || s.tx().kind() != Kind.INTEGER) {
+                throw CypherErrors.invalid("Type mismatch: expected Integer but was " + (v instanceof Scalar s2
+                        ? cypherType(s2.tx().kind()) : "List<T>"), e.pos());
+            }
+            inputs.add(s.tx());
+        }
+        if (!millis) {
+            Long ns = inputs.get(1).vs() instanceof CInteger n ? Long.valueOf(n.value().longValue()) : null;
+            if (ns == null || ns % 1000 != 0) {
+                throw CypherErrors.unsupported("a nanosecond component (the database keeps microseconds) is not"
+                        + " supported yet", c.pos());
+            }
+        }
+        return scalar(zoned(SqlToPure.strict(Kind.DATETIME, inputs, v -> millis
+                ? call("adjust", epochInstant(), integer(v.get(0)), unit("MILLISECONDS"))
+                : call("adjust", call("adjust", epochInstant(), integer(v.get(0)), unit("SECONDS")),
+                        integer(call("divide", v.get(1), new CInteger(1000L))), unit("MICROSECONDS"))), Zone.UTC));
+    }
+
     /** {@code localtime(x)}: from a map of components, an ISO text, or a date-time or time of day. */
     private Val timeFrom(CypherAst.Call c, Scope scope) {
         if (c.args().isEmpty()) {
@@ -3115,7 +3483,7 @@ public final class CypherToPure {
         if (c.args().size() > 1) {
             throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
         }
-        Val a = val(c.args().get(0), scope);
+        Val a = unzoned(val(c.args().get(0), scope), c.pos());
         return switch (a) {
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
             case Scalar s when s.tx().kind() == Kind.STRING -> timeFromText(c, s);
@@ -3208,7 +3576,7 @@ public final class CypherToPure {
             if (k == null) {
                 throw CypherErrors.invalid("No such field: " + key, c.pos());
             }
-            if (!(e.getValue() instanceof Scalar s)) {
+            if (!(unzoned(e.getValue(), c.pos()) instanceof Scalar s)) {
                 throw CypherErrors.invalid("Type mismatch: the component " + key + " must be a scalar", c.pos());
             }
             Tx t = s.tx();
@@ -3404,7 +3772,7 @@ public final class CypherToPure {
             if (k == null) {
                 throw CypherErrors.invalid("No such field: " + key, c.pos());
             }
-            if (!(e.getValue() instanceof Scalar s)) {
+            if (!(unzoned(e.getValue(), c.pos()) instanceof Scalar s)) {
                 throw CypherErrors.invalid("Type mismatch: the component " + key + " must be a scalar", c.pos());
             }
             Tx t = s.tx();
@@ -3439,8 +3807,8 @@ public final class CypherToPure {
                     }
                     timeBase = t;
                 }
-                case TIMEZONE -> throw CypherErrors.unsupported("a time zone (a zoned date-time: no Pure type"
-                        + " carries one) is not supported yet", c.pos());
+                case TIMEZONE -> throw CypherErrors.invalid("Cannot assign time zone if also assigning other"
+                        + " fields.", c.pos());
                 default -> {
                     if (t.kind() != Kind.INTEGER) {
                         throw CypherErrors.invalid("Type mismatch: " + key + " must be an Integer but was "
@@ -3563,13 +3931,25 @@ public final class CypherToPure {
         if (field == null) {
             throw CypherErrors.invalid("No such field: " + name, pos);
         }
-        boolean dateTime = t.kind() == Kind.DATETIME;
+        boolean dateTime = t.kind() == Kind.DATETIME || t.kind() == Kind.ZONED;
         boolean time = t.kind() == Kind.TIME;
         if (time && !field.time()) {
             throw CypherErrors.invalid("Unsupported field: " + capitalized(name), pos);
         }
-        // a time of day's fields are read off the date-time at it
-        Tx x = time ? atEpoch(t) : t;
+        if (field.zoned()) {
+            if (t.kind() != Kind.ZONED) {
+                // Neo4j's error names the value: spelled for a written one, refused by name for one of the row
+                String printed = printed(t);
+                if (printed == null) {
+                    throw CypherErrors.unsupported("the " + name + " of a " + cypherType(t.kind()) + " of the row"
+                            + " (Neo4j's error names the value) is not supported yet", pos);
+                }
+                throw CypherErrors.invalid("Cannot get the offset of: " + printed, pos);
+            }
+            return zoneField(t, field, zoneKnown(t, pos), pos);
+        }
+        // a time of day's fields are read off the date-time at it; a zoned date-time's off its wall time
+        Tx x = time ? atEpoch(t) : t.kind() == Kind.ZONED ? localOf(t, zoneKnown(t, pos)) : t;
         return switch (field) {
             case YEAR -> field(x, v -> call("year", v));
             case QUARTER -> field(x, v -> call("quarterNumber", v));
@@ -3603,6 +3983,33 @@ public final class CypherToPure {
                             List.of(micros, new CInteger(1000L)))) : micros;
                 });
             }
+            case TIMEZONE, OFFSET, OFFSET_MINUTES, OFFSET_SECONDS, EPOCH_SECONDS, EPOCH_MILLIS ->
+                    throw new IllegalStateException("unreachable: a zone field reads above");
+        };
+    }
+
+    /** A zoned date-time's zone fields: the zone's name or offset as Neo4j prints them (a spelled zone's are
+     *  spelled; a named zone's offset is the database's, the instant against its wall time), the epoch distances
+     *  the database's. */
+    private static Tx zoneField(Tx t, TemporalField field, Zone z, Pos pos) {
+        return switch (field) {
+            case TIMEZONE -> SqlToPure.strict(Kind.STRING, List.of(t), x -> new CString(z.named()
+                    ? java.util.Objects.requireNonNull(z.name()) : z.offsetText()));
+            case OFFSET -> {
+                if (z.named()) {
+                    throw CypherErrors.unsupported("the offset of a named zone as a text is not supported yet",
+                            pos);
+                }
+                yield SqlToPure.strict(Kind.STRING, List.of(t), x -> new CString(z.offsetText()));
+            }
+            case OFFSET_MINUTES, OFFSET_SECONDS -> {
+                String u = field == TemporalField.OFFSET_MINUTES ? "MINUTES" : "SECONDS";
+                yield field(t, v -> call("dateDiff", v, z.named() ? call(LOCAL_IN, v, new CString(
+                        java.util.Objects.requireNonNull(z.name()))) : shifted(v, z, 1), unit(u)));
+            }
+            case EPOCH_SECONDS, EPOCH_MILLIS -> field(t, v -> call("dateDiff", epochInstant(), v,
+                    unit(field == TemporalField.EPOCH_SECONDS ? "SECONDS" : "MILLISECONDS")));
+            default -> throw new IllegalStateException("not a zone field: " + field);
         };
     }
 
@@ -3621,12 +4028,15 @@ public final class CypherToPure {
                 call("dayOfWeekNumber", d)))), days());
     }
 
-    /** {@code date.truncate(unit, d[, fields])}, {@code localdatetime.truncate(...)}, {@code localtime.truncate(...)}:
-     *  the value at the start of its unit, the fields written over it; the unit must be spelled. A time of day
-     *  truncates as the date-time at it on the epoch day, and its time is taken back. */
+    /** {@code date.truncate(unit, d[, fields])}, {@code localdatetime.truncate(...)}, {@code localtime.truncate(...)},
+     *  {@code datetime.truncate(...)}: the value at the start of its unit, the fields written over it; the unit must
+     *  be spelled. A time of day truncates as the date-time at it on the epoch day, and its time is taken back; a
+     *  zoned date-time truncates by its wall time, and the result is in the zone written over it, else the source's
+     *  (UTC for a date or local date-time). */
     private Val truncate(CypherAst.Call c, TemporalFamily family, Scope scope) {
         boolean withTime = family != TemporalFamily.DATE;
         boolean toTime = family == TemporalFamily.LOCALTIME;
+        boolean toZoned = family == TemporalFamily.DATETIME;
         if (c.args().size() < 2 || c.args().size() > 3) {
             throw CypherErrors.invalid((c.args().size() < 2 ? "Insufficient" : "Too many") + " parameters for"
                     + " function '" + c.name() + "'", c.pos());
@@ -3656,22 +4066,29 @@ public final class CypherToPure {
                     + "\"), NO_VALUE, NO_VALUE]", c.pos());
         }
         if (toTime) {
-            if (!(source instanceof Scalar ss) || ss.tx().kind() != Kind.TIME && ss.tx().kind() != Kind.DATETIME) {
+            if (!(source instanceof Scalar ss) || ss.tx().kind() != Kind.TIME && ss.tx().kind() != Kind.DATETIME
+                    && ss.tx().kind() != Kind.ZONED) {
                 throw CypherErrors.invalid("Type mismatch: expected Time, LocalTime, DateTime or LocalDateTime but"
                         + " was " + (source instanceof Scalar s ? cypherType(s.tx().kind()) : "a list or map"),
                         c.args().get(1).pos());
             }
-        } else if (!(source instanceof Scalar ss) || ss.tx().kind() != Kind.DATE && ss.tx().kind() != Kind.DATETIME) {
-            throw CypherErrors.invalid("Type mismatch: expected Date or LocalDateTime but was " + (source
+        } else if (!(source instanceof Scalar ss) || ss.tx().kind() != Kind.DATE && ss.tx().kind() != Kind.DATETIME
+                && ss.tx().kind() != Kind.ZONED) {
+            throw CypherErrors.invalid("Type mismatch: expected Date, LocalDateTime or DateTime but was " + (source
                     instanceof Scalar s ? cypherType(s.tx().kind()) : "a list or map"), c.args().get(1).pos());
         }
         Tx t = ((Scalar) source).tx();
-        if (unit.time() && t.kind() != Kind.DATETIME && t.kind() != Kind.TIME) {
+        if (unit.time() && t.kind() == Kind.DATE) {
             throw CypherErrors.invalid("Cannot truncate a Date to the " + unitText, c.args().get(1).pos());
         }
+        Zone sourceZone = Zone.UTC;
         if (t.kind() == Kind.TIME) {
             t = atEpoch(t);
+        } else if (t.kind() == Kind.ZONED) {
+            sourceZone = zoneKnown(t, c.args().get(1).pos());
+            t = localOf(t, sourceZone);
         }
+        Zone written = null;
         Map<Component, Tx> over = new LinkedHashMap<>();
         if (c.args().size() == 3) {
             Val fields = val(c.args().get(2), scope);
@@ -3684,8 +4101,15 @@ public final class CypherToPure {
                     throw CypherErrors.invalid("No such field: " + e.getKey(), c.pos());
                 }
                 if (k == Component.TIMEZONE) {
-                    throw CypherErrors.unsupported("a time zone (a zoned date-time: no Pure type carries one) is not"
-                            + " supported yet", c.pos());
+                    if (!toZoned) {
+                        throw CypherErrors.invalid("Not supported: timezone", c.pos());
+                    }
+                    if (!(e.getValue() instanceof Scalar s) || !s.literal() || !(s.constant() instanceof String zt)) {
+                        throw CypherErrors.unsupported("a time zone that is not a spelled text is not supported"
+                                + " yet", c.pos());
+                    }
+                    written = zone(zt, false, c.pos());
+                    continue;
                 }
                 if (k == Component.MILLISECOND || k == Component.MICROSECOND || k == Component.NANOSECOND) {
                     throw CypherErrors.unsupported("the field " + e.getKey() + " over a truncation is not"
@@ -3716,7 +4140,7 @@ public final class CypherToPure {
         inputs.addAll(over.values());
         Set<Component> keys = over.keySet();
         Kind result = toTime ? Kind.TIME : withTime ? Kind.DATETIME : Kind.DATE;
-        return scalar(SqlToPure.strict(result, inputs, v -> {
+        Tx truncated = SqlToPure.strict(result, inputs, v -> {
             ValueSpecification x = v.get(0);
             Map<Component, ValueSpecification> o = new java.util.EnumMap<>(Component.class);
             int i = 1;
@@ -3749,7 +4173,8 @@ public final class CypherToPure {
                     ? call("second", start) : zero));
             ValueSpecification dt = call("date", y, mo, d, h, mi, s);
             return toTime ? call(TIME_OF, dt) : dt;
-        }));
+        });
+        return scalar(toZoned ? instantOf(truncated, written != null ? written : sourceZone) : truncated);
     }
 
     /** The start of a value's unit, as the database computes it. */
@@ -3906,7 +4331,7 @@ public final class CypherToPure {
             case STRING, NULL -> "String";
             case BOOLEAN -> "Boolean";
             case DATE -> "StrictDate";
-            case DATETIME -> "DateTime";
+            case DATETIME, ZONED -> "DateTime";
             case TIME -> "StrictTime";
             case JSON -> "meta::pure::metamodel::variant::Variant";
             case OTHER -> throw new IllegalStateException("no type for " + kind);

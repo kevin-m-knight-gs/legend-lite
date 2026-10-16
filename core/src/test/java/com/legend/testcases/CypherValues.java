@@ -466,6 +466,39 @@ public final class CypherValues {
         return String.format(java.util.Locale.ROOT, "%04d-%02d-%02d", year, month, day);
     }
 
+    /** A zoned date-time of Neo4j's ({@code DateTime('...T...+01:00')}) against lite's, which keeps the instant and
+     *  no zone ({@code DateTime('...')}, UTC): equal when they name one instant (docs/SEMANTICS_REGISTER.md S65).
+     *  Only a pair of one zoned and one local text compares so; two of one kind compare as text. */
+    static boolean sameInstant(String a, String b) {
+        java.time.Instant x = instantOf(a);
+        java.time.Instant y = instantOf(b);
+        return x != null && y != null && x.equals(y) && zonedText(a) != zonedText(b);
+    }
+
+    private static boolean zonedText(String text) {
+        if (!text.startsWith("DateTime('") || !text.endsWith("')")) {
+            return false;
+        }
+        String body = text.substring(10, text.length() - 2);
+        int t = body.indexOf('T');
+        return t > 0 && (body.indexOf('+', t) > 0 || body.indexOf('-', t) > 0 || body.endsWith("Z"));
+    }
+
+    private static java.time.@com.legend.base.Nullable Instant instantOf(String text) {
+        if (!text.startsWith("DateTime('") || !text.endsWith("')")) {
+            return null;
+        }
+        String body = text.substring(10, text.length() - 2);
+        try {
+            if (zonedText(text)) {
+                return java.time.OffsetDateTime.parse(body).toInstant();
+            }
+            return java.time.LocalDateTime.parse(body).toInstant(java.time.ZoneOffset.UTC);
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
+    }
+
     private static String time(int hour, int minute, int second, String fraction) {
         String nanos = (fraction + "000000000").substring(0, 9);
         return "Time('" + String.format(java.util.Locale.ROOT, "%02d:%02d:%02d.", hour, minute, second) + nanos + "')";
@@ -514,6 +547,9 @@ public final class CypherValues {
     public static boolean equal(Value a, Value b, boolean bagLists) {
         if (a instanceof Int x && b instanceof Int y) {
             return x.value().equals(y.value());
+        }
+        if (a instanceof Opaque x && b instanceof Opaque y) {
+            return x.text().equals(y.text()) || sameInstant(x.text(), y.text());
         }
         if (a instanceof Flt x && b instanceof Flt y) {
             return sameDouble(x.value(), y.value());

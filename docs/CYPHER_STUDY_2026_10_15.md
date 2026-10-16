@@ -1844,3 +1844,66 @@ writes. Neo4j 2026.09.0 answers `localtime({time: null})` with "Cannot construct
 Zoned date-times and times (`datetime`, `time`: the next leg, as instants); durations and temporal arithmetic;
 `toString` of a time or date-time; nanosecond precision; truncation to the millisecond or microsecond; the compact
 and week-form texts; a stored time of day (a TIME store column, if ever wanted, is a grammar decision).
+
+### 12.8 The zoned date-time leg, 2026-10-16: `datetime` as an instant, its zone carried beside
+
+The second of the user's three ("do it all here"): zoned date-times. The spec is upstream's model, as the user asked
+("Does upstream legend-pure or legend-engine support timezones? We should try to use that as spec"): legend-pure's
+DateTime is an instant — a literal's offset is normalised to UTC at parse, the offset discarded — and zones exist
+only at formatting (`%t{[zone]pattern}`) and on the connection (`timeZone`). So the island carries Cypher's
+`datetime` as Pure's DateTime, the instant, and the zone as a fact beside the value, which the translator knows while
+it can see it (`docs/SEMANTICS_REGISTER.md` S65).
+
+#### 12.8.1 What lands
+
+**The zone beside the value.** `Kind.ZONED` is a date-time instant whose zone, when known, rides the translation's
+detail (`SqlToPure.Tx.detail`, the hook the SQL islands' dialects use for what they know of a type beyond its
+kind) as a `Zone`: a spelled offset's sign, hours, minutes and seconds as written, or a region's name. A projected
+column carries it (`Col.detail`), so `WITH datetime(...) AS d RETURN d.hour` reads the field in the zone; a value of
+a list, an aggregate's or one otherwise computed has no zone, and reading it in its zone is refused by name ("the
+island keeps the instant"). **An offset is adjust steps:** the wall time of `datetime('...T12:31+01:00')` is the
+literal, the instant `adjust(-1, HOURS)` of it, the field `hour(adjust(+1, HOURS))` — the translator spells the
+offset's digits, the database computes every value (the second-precision offsets of the TCK's Temporal1 [13],
+`+02:05:59`, are three steps). **A named zone is the database's:** two lite natives, each two of the database's zone
+conversions (the `convertTimeZone` lowering's pair), `meta::legend::lite::instantIn(local, zone)` —
+`timezone('UTC', timezone(zone, local))` — and `localIn(instant, zone)` — `timezone(zone, timezone('UTC',
+instant))`; DuckDB reads region names through the ICU it bundles (measured 1.4.4: Europe/Stockholm in and out of
+summer time), Postgres's `timezone(zone, t)` is `AT TIME ZONE`, the same pair; `INTERNAL_DESUGAR` 19 → 21.
+
+**The island.** `datetime(...)` from an ISO text with `Z` or an offset (no zone is the default zone, UTC; a named
+zone in brackets is refused by name), from components (the wall time the components spell, in the written zone,
+else the base's, else UTC; `{datetime: d, timezone: z}` alone converts, the instant kept, as the TCK's Temporal3
+[11] pins), from a local date-time (UTC), from epoch seconds and milliseconds; the fields read on the wall time
+(`year` to `nanosecond`), the zone fields (`timezone`, `offset` as Neo4j prints them, `offsetMinutes` and
+`offsetSeconds` as the database's distance between the instant and the wall time, `epochSeconds` and `epochMillis`
+as its distance from the epoch); comparison and ordering of instants; truncation by the wall time, the result in
+the zone written over it (`{timezone: 'Europe/Stockholm'}`), else the source's; `localdatetime`, `date` and
+`localtime` of a zoned value by its wall time; null propagation. Neo4j's errors as Neo4j spells them ("Cannot
+select datetime from: 1984-10-11", "Cannot get the offset of: 1984-10-11T12:00:00", "Invalid value for TimeZone:
+Text '+0100' could not be parsed at index 0" — a component's offset needs its colon where a text's does not —
+"Cannot assign time zone if also assigning other fields."). Refused by name: a zoned `time`, a named zone in a text,
+a zoned text of the row, `toString`, lists holding zoned values, the clock functions.
+
+**The judge.** Neo4j's driver spells a zoned date-time with its offset, `DateTime('...T12:31:14.000000000+01:00')`;
+lite's cell is the instant, `DateTime('...T11:31:14.000000000')`. A pair of one zoned and one local text is equal
+when they name one instant (`CypherValues.sameInstant`, S65); two of one kind compare as text. A local date-time
+Neo4j prints without an offset still has to match lite's text exactly.
+
+#### 12.8.2 The ledger
+
+Both lanes, identical:
+
+| | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| before (the time-of-day leg) | 3,979 | 1,195 | 0 | 0 | 0 | 1,785 | 681 | 318 |
+| the zoned date-time leg | 3,998 | 1,401 | 0 | 0 | 0 | 1,592 | 687 | 318 |
+
+Of the TCK's temporal features (1,004 cases): 323 PASS, 631 REFUSED by name, 50 SKIP. 55 lite
+cases in `lite/temporal.yaml`, each judged by Neo4j.
+
+#### 12.8.3 Left by name
+
+Zoned times of day (`time`: the same carriage, a time of day and its zone; not built here); durations and temporal
+arithmetic (the third leg); `toString` of a zoned value; nanosecond precision; a zoned value stored (no zoned store
+column: the harness refuses the graph); the fields of a zoned value whose zone the translator does not carry.
+

@@ -356,3 +356,30 @@ ORDER BY name
 1970-01-01 (lite's `atTime`: the date is a token the translator spells, the database computes every value), and
 `timeOf` takes the time back. The judge reads a TIME cell as Neo4j's driver spells a local time. A time of day is
 never stored: the store grammar has no TIME column (`docs/SEMANTICS_REGISTER.md` S64).
+
+## 15. What the zoned date-time leg brings: `datetime` as an instant, its zone beside it (2026-10-16)
+
+Cypher's `datetime` is Pure's DateTime, the instant — upstream's model: a zone is not kept with the value — and the
+island carries the zone beside the value while it can see it (the study's §12.8). One of the leg's Neo4j-judged
+cases (`lite/temporal.yaml`, `stored_datetimes_zoned`; `ledger.tsv`: PASS on both lanes), over the graph whose
+nodes hold a local date-time:
+
+```
+MATCH (v:Val)
+RETURN v.name AS name, datetime(v.dt) AS z, datetime({datetime: v.dt, timezone: '+02:00'}) AS z2,
+       datetime({datetime: v.dt, timezone: '+02:00'}).hour AS h,
+       datetime({datetime: v.dt, timezone: 'Europe/Stockholm'}).offsetMinutes AS om
+ORDER BY name
+```
+
+| name | z | z2 | h | om |
+|---|---|---|---|---|
+| 'a' | 1984-10-11T12:31:14.645Z | 1984-10-11T12:31:14.645+02:00 | 12 | 60 |
+| 'b' | 2016-07-21T21:45:22.142Z | 2016-07-21T21:45:22.142+02:00 | 21 | 120 |
+
+`z` is the stored local date-time read at the default zone, UTC; `z2` its wall time in `+02:00`, the instant the
+database computes (`adjust(-2, HOURS)`), the zone a fact the translator keeps, so `h` reads the hour back on the
+wall time; `om` is the database's distance between the instant and its Stockholm wall time (winter 60, summer 120:
+DuckDB's ICU and Postgres's `AT TIME ZONE` through lite's `localIn`). The judge equates Neo4j's zoned text with the
+instant lite returns (`docs/SEMANTICS_REGISTER.md` S65); Neo4j's `=` between zones is the decision S66.
+

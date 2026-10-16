@@ -121,9 +121,36 @@ class CypherToPureTest {
                 "Unit is too large to be used for truncation");
         invalid("RETURN localtime(date('1984-10-11')) AS t", "Cannot get the time of: 1984-10-11");
         // refused by name: a zone, a text in the compact form, the Variant's text spelling of a time
-        unsupported("RETURN time('12:00+01:00') AS t", "a zoned date-time or time");
+        unsupported("RETURN time('12:00+01:00') AS t", "a zoned time of day");
         unsupported("RETURN localtime('123114') AS t", "a form other than hh:mm[:ss[.fraction]]");
         unsupported("RETURN [localtime('12:31'), localtime('13:00')] AS l", "a list or map holding a LocalTime");
+    }
+
+    // ------------------------------------------------------------------ a zoned date-time (the study's §12.8)
+
+    @Test
+    void aZonedDateTimeIsItsInstantWithTheZoneCarriedBeside() {
+        // a local date-time at the default zone (UTC) is the instant itself; a written offset is spelled as the
+        // adjust steps the database computes (the instant is the wall time less the offset); the zone rides beside
+        // the value, so a field reads the wall time back
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[d:r|%1984-10-11T12:31:14,"
+                        + " z:r|%1984-10-11T12:31:14->adjust(-1, meta::pure::functions::date::DurationUnit.HOURS),"
+                        + " h:r|%1984-10-11T12:31:14->adjust(-1, meta::pure::functions::date::DurationUnit.HOURS)"
+                        + "->adjust(1, meta::pure::functions::date::DurationUnit.HOURS)->hour()])->select(~[d, z, h])",
+                pure("RETURN datetime(localdatetime('1984-10-11T12:31:14')) AS d,"
+                        + " datetime('1984-10-11T12:31:14+01:00') AS z, datetime('1984-10-11T12:31:14+01:00').hour AS h"));
+        // Neo4j's errors, spelled as Neo4j spells them
+        invalid("RETURN datetime(date('1984-10-11')) AS d", "Cannot select datetime from: 1984-10-11");
+        invalid("RETURN datetime({year: 1984, month: 10, day: 11, timezone: '+0100'}) AS d",
+                "Invalid value for TimeZone: Text '+0100' could not be parsed at index 0");
+        invalid("RETURN localdatetime('1984-10-11T12:00').timezone AS z", "Cannot get the offset of: 1984-10-11T12:00:00");
+        invalid("RETURN localdatetime({year: 1984, month: 1, day: 1, timezone: '+01:00'}) AS d",
+                "Cannot assign time zone if also assigning other fields.");
+        // refused by name: a named zone in a text, toString, a zoned value of a list read in its zone
+        unsupported("RETURN datetime('1984-10-11T12:31:14+01:00[Europe/Stockholm]') AS d", "a named zone in a date-time text");
+        unsupported("RETURN toString(datetime('1984-10-11T12:31:14Z')) AS s", "toString of a DateTime");
+        unsupported("UNWIND [datetime('1984-10-11T12:31:14+01:00'), datetime('1984-10-11T12:31:14Z')] AS d RETURN d.hour",
+                "whose zone is not carried here");
     }
 
     // ------------------------------------------------------------------ shapes
