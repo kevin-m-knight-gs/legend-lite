@@ -3563,12 +3563,9 @@ public final class CypherToPure {
             case STRING -> scalar(t);
             case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, BOOLEAN, DATE -> scalar(SqlToPure.strict(
                     Kind.STRING, List.of(t), x -> call("toString", x.get(0))));
-            case DATETIME -> throw CypherErrors.unsupported("toString of a DateTime (Neo4j spells it as Java does,"
-                    + " the database its own way) is not supported yet", c.pos());
+            case DATETIME -> scalar(temporalText(t, c.pos()));
             case DURATION -> scalar(durationText(t));
-            case TIME, ZONED, ZONED_TIME -> throw CypherErrors.unsupported("toString of a "
-                    + cypherType(t.kind())
-                    + " (Neo4j spells it as Java does, the database its own way) is not supported yet", c.pos());
+            case TIME, ZONED, ZONED_TIME -> scalar(temporalText(t, c.pos()));
             default -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind()) + " is not supported"
                     + " yet", c.pos());
         };
@@ -5917,8 +5914,11 @@ public final class CypherToPure {
     private Val timeFromText(CypherAst.Call c, Scalar s) {
         Tx t = s.tx();
         if (!s.literal()) {
-            return scalar(SqlToPure.strict(Kind.TIME, List.of(t), x -> call(TIME_OF, call("parseDate",
-                    AppliedFunction.infixRun("plus", List.of(new CString("1970-01-01T"), x.get(0)))))));
+            boolean fine = nanos(t);
+            // (a nanosecond time is the date-time at it on the epoch day, §12.12)
+            return scalar(withNanos(SqlToPure.strict(Kind.TIME, List.of(t), x -> fine
+                    ? parsedWithNanos(x.get(0), 15, true, "1970-01-01T")
+                    : call(TIME_OF, parsedWithNanos(x.get(0), 15, false, "1970-01-01T"))), fine));
         }
         String text = (String) java.util.Objects.requireNonNull(s.constant());
         com.legend.values.PureTimeLiteral lit = timeLiteral(text);
@@ -6165,8 +6165,10 @@ public final class CypherToPure {
     private Val temporalFromText(CypherAst.Call c, Scalar s, boolean withTime) {
         Tx t = s.tx();
         if (!s.literal()) {
-            return scalar(SqlToPure.strict(withTime ? Kind.DATETIME : Kind.DATE, List.of(t), x -> withTime
-                    ? call("parseDate", x.get(0)) : call("datePart", call("parseDate", x.get(0)))));
+            boolean fine = withTime && nanos(t);
+            return scalar(withNanos(SqlToPure.strict(withTime ? Kind.DATETIME : Kind.DATE, List.of(t), x -> withTime
+                    ? parsedWithNanos(x.get(0), 26, fine, null) : call("datePart", call("parseDate", x.get(0)))),
+                    fine));
         }
         String text = (String) java.util.Objects.requireNonNull(s.constant());
         com.legend.values.PureDateLiteral lit = isoLiteral(text, withTime);
@@ -6812,6 +6814,75 @@ public final class CypherToPure {
                     unit(field == TemporalField.EPOCH_SECONDS ? "SECONDS" : "MILLISECONDS")));
             default -> throw new IllegalStateException("not a zone field: " + field);
         };
+    }
+
+    /** {@code toString} of a date-time or a time (the study's §12.22), Neo4j's spelling, which is Java's:
+     *  {@code yyyy-MM-ddTHH:mm:ss[.f]} for a local date-time, with the offset ({@code +01:00}, {@code Z}) after it
+     *  for a zoned one, {@code HH:mm:ss[.f]} for a time (with its offset for a zoned one); the fraction of the second
+     *  trimmed of its trailing zeros (Neo4j's, as a duration's), none when zero. Every field is the database's,
+     *  read off the wall time as the fields are (§12.8, §12.11), zero-padded by text arithmetic; a named zone and
+     *  a year outside 0..9999 are refused by name. */
+    private static Tx temporalText(Tx t, Pos pos) {
+        Zone zone = t.kind() == Kind.ZONED || t.kind() == Kind.ZONED_TIME ? zoneKnown(t, pos) : null;
+        if (zone != null && zone.named()) {
+            throw CypherErrors.unsupported("toString of a value in a named zone (" + zone.name() + "; Neo4j spells"
+                    + " the zone's offset at that instant and the name) is not supported yet", pos);
+        }
+        boolean fine = nanos(t);
+        boolean time = t.kind() == Kind.TIME || t.kind() == Kind.ZONED_TIME;
+        Tx wall = t.kind() == Kind.TIME ? atEpoch(t)
+                : t.kind() == Kind.ZONED_TIME ? wallAtEpoch(t, java.util.Objects.requireNonNull(zone))
+                : t.kind() == Kind.ZONED ? localOf(t, java.util.Objects.requireNonNull(zone)) : t;
+        String offset = zone == null ? "" : zone.offsetText();
+        // (the text of a nanosecond value is marked as one: a parse of it reads the digits past the microsecond)
+        return withNanos(SqlToPure.strict(Kind.STRING, List.of(wall), x -> {
+            ValueSpecification v = x.get(0);
+            // the digits of the fraction: the nanoseconds since the second's start (the microseconds a thousandfold
+            // when the value keeps microseconds), behind a leading 1 that keeps the zeros, then cut to the three,
+            // six or nine Java prints
+            ValueSpecification ns = fine ? call("dateDiff", call("firstMillisecondOfSecond", v), v,
+                    unit("NANOSECONDS")) : integer(AppliedFunction.infixRun("times", List.of(call("dateDiff",
+                    call("firstMillisecondOfSecond", v), v, unit("MICROSECONDS")), new CInteger(1000L))));
+            // (Neo4j trims the fraction's trailing zeros to the digit, as a duration's: 10 microseconds is .00001)
+            ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(ns,
+                    lit(NANOS))), new CInteger(2L)), new CString("0+$"), new CString(""), new CBoolean(true));
+            ValueSpecification fraction = call("if", call("equal", ns, lit(0)), thunk(new CString("")),
+                    thunk(plus(new CString("."), digits)));
+            ValueSpecification clock = plus(two(call("hour", v)), new CString(":"), two(call("minute", v)),
+                    new CString(":"), two(call("second", v)), fraction, new CString(offset));
+            if (time) {
+                return clock;
+            }
+            ValueSpecification year = call("year", v);
+            // (a year of four digits: 0..9999; Neo4j's expanded years are refused by name above the lane's reach)
+            ValueSpecification date = plus(call("substring", call("toString", plus(year, lit(10000))),
+                    new CInteger(2L)), new CString("-"), two(call("monthNumber", v)), new CString("-"),
+                    two(call("dayOfMonth", v)));
+            return plus(date, new CString("T"), clock);
+        }), fine);
+    }
+
+    /** A text of the row parsed to a date-time ({@code micro} characters hold its microsecond form); a text marked
+     *  as a nanosecond value's (one {@link #temporalText} spelled) has its digits past the microsecond read and
+     *  stepped on (the database's: the first three of them, zero-padded, as nanoseconds). */
+    private static ValueSpecification parsedWithNanos(ValueSpecification text, int micro, boolean nanos,
+            @com.legend.base.Nullable String prefix) {
+        ValueSpecification whole = prefix == null ? text : plus(new CString(prefix), text);
+        if (!nanos) {
+            return call("parseDate", whole);
+        }
+        ValueSpecification head = call("parseDate", prefix == null ? call("substring", text, new CInteger(1L),
+                new CInteger((long) micro)) : plus(new CString(prefix), call("substring", text, new CInteger(1L),
+                new CInteger((long) micro))));
+        ValueSpecification tail = call("if", call("greaterThan", call("length", text), new CInteger((long) micro)),
+                thunk(call("parseInteger", call("substring", plus(text, new CString("00")),
+                        new CInteger((long) micro + 1), new CInteger(3L)))), thunk(new CInteger(0L)));
+        return call("adjust", head, tail, unit("NANOSECONDS"));
+    }
+
+    /** A number of at most two digits, zero-padded to two: the digits of 100 plus it, after the 1. */
+    private static ValueSpecification two(ValueSpecification n) {
+        return call("substring", call("toString", plus(n, lit(100))), new CInteger(2L));
     }
 
     /** A field's name as Neo4j's messages spell it ({@code Year}). */

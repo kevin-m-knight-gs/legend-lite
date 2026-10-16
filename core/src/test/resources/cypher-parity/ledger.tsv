@@ -3421,9 +3421,9 @@ tck/expressions/temporal/Temporal5/[5] Should provide accessors for local date t
 tck/expressions/temporal/Temporal5/[6] Should provide accessors for date time	SKIP	SKIP
 tck/expressions/temporal/Temporal5/[7] Should provide accessors for duration	SKIP	SKIP
 tck/expressions/temporal/Temporal6/[1] Should serialize date	PASS	PASS
-tck/expressions/temporal/Temporal6/[2] Should serialize local time	REFUSED	REFUSED
+tck/expressions/temporal/Temporal6/[2] Should serialize local time	PASS	REFUSED
 tck/expressions/temporal/Temporal6/[3] Should serialize time	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[4] Should serialize local date time	REFUSED	REFUSED
+tck/expressions/temporal/Temporal6/[4] Should serialize local date time	PASS	REFUSED
 tck/expressions/temporal/Temporal6/[5] Should serialize date time	REFUSED	REFUSED
 tck/expressions/temporal/Temporal6/[6] Should serialize duration #1	REFUSED	REFUSED
 tck/expressions/temporal/Temporal6/[6] Should serialize duration #2	REFUSED	REFUSED
@@ -4054,7 +4054,7 @@ lite/temporal/datetime_bad_zone_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/datetime_zone_field_of_a_local_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/localdatetime_with_timezone_component	BOTH_ERROR	BOTH_ERROR
 lite/temporal/datetime_text_named_zone	PASS	PASS
-lite/temporal/datetime_to_string_refused_by_name	REFUSED	REFUSED
+lite/temporal/datetime_to_string	PASS	PASS
 lite/temporal/localtime_from_text	PASS	PASS
 lite/temporal/localtime_from_components	PASS	PASS
 lite/temporal/localtime_selection	PASS	PASS
@@ -4073,7 +4073,7 @@ lite/temporal/localtime_with_date_component	BOTH_ERROR	BOTH_ERROR
 lite/temporal/date_with_time_component	BOTH_ERROR	BOTH_ERROR
 lite/temporal/localdatetime_from_time_only	BOTH_ERROR	BOTH_ERROR
 lite/temporal/localtime_compact_text	PASS	PASS
-lite/temporal/localtime_to_string_refused_by_name	REFUSED	REFUSED
+lite/temporal/localtime_to_string	PASS	PASS
 lite/temporal/localtime_list_refused_by_name	REFUSED	REFUSED
 lite/temporal/temporal_errors_are_cyphers	BOTH_ERROR	BOTH_ERROR
 lite/temporal/date_from_compact_and_partial_text	PASS	PASS
@@ -4123,7 +4123,7 @@ lite/temporal/time_truncate_of_a_date_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/time_named_zone_refused_by_name	BOTH_ERROR	BOTH_ERROR
 lite/temporal/time_named_zone_component_refused_by_name	REFUSED	REFUSED
 lite/temporal/time_of_a_named_zone_datetime_refused_by_name	REFUSED	REFUSED
-lite/temporal/time_to_string_refused_by_name	REFUSED	REFUSED
+lite/temporal/time_to_string	PASS	PASS
 lite/temporal/time_list_refused_by_name	REFUSED	REFUSED
 lite/temporal/nanos_construction	PASS	REFUSED
 lite/temporal/nanos_from_text	PASS	REFUSED
@@ -4145,6 +4145,10 @@ lite/temporal/duration_fraction_in_text	PASS	PASS
 lite/temporal/duration_to_string_whole_units	PASS	PASS
 lite/temporal/duration_to_string_negative_and_fractions	PASS	PASS
 lite/temporal/date_property_inside_a_node	PASS	PASS
+lite/temporal/localdatetime_to_string_fractions	PASS	PASS
+lite/temporal/datetime_to_string_with_offsets	PASS	PASS
+lite/temporal/times_to_string	PASS	PASS
+lite/temporal/to_string_in_a_named_zone_refused_by_name	REFUSED	REFUSED
 lite/union/union_distinct	PASS	PASS
 lite/union/union_all	PASS	PASS
 lite/union/union_over_matches	PASS	PASS

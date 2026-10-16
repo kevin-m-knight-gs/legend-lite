@@ -2471,3 +2471,29 @@ answer where Neo4j errs as a BUG. `RETURN *` over no variable is Neo4j's error t
 
 6 new lite cases in `lite/temporal.yaml` (and two refusal cases turned into passing ones), each judged by Neo4j.
 
+### 12.22 `toString` of date-times and times, 2026-10-16
+
+`toString` of a local date-time, a zoned date-time, a local time and a zoned time (Temporal6, 6 TCK cases with the
+lite ones) is Neo4j's spelling, which is Java's: `yyyy-MM-ddTHH:mm:ss[.f]` with the offset (`+01:00`, `Z`) after
+it for a zoned one, `HH:mm:ss[.f]` for a time; the fraction of the second trimmed of its trailing zeros (Neo4j's, as
+a duration's: ten microseconds is `.00001`, measured against the oracle), none when zero. Every field is the
+database's, read off the wall time as the fields are (§12.8, §12.11: a time's off the date-time at it on the epoch
+day, a zoned value's off its wall time), zero-padded by text arithmetic (the digits of 100 plus the number, after
+the 1; the year's of 10000 plus it); a named zone (its offset at the instant and its name) and a year outside
+0..9999 are refused by name.
+
+The TCK's round trips (`localtime(toString(d)) = d` over a nanosecond value) showed a text of the row parsed at
+the microsecond: the database's parse. The text `toString` spells for a nanosecond value is marked as one
+(`withNanos` on the String), and a parse of a text so marked reads the digits past the microsecond — the first
+three of them, zero-padded, `parseInteger`'d and stepped on as nanoseconds (`parsedWithNanos`) — so the round
+trip holds on DuckDB, and no other text's parse changes (a stored or built text keeps the database's parse).
+
+#### 12.22.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4,183 | 2,385 (from 2,377) | 0 | 0 | 0 | 722 | 708 | 368 |
+| Postgres | 4,183 | 2,035 (from 2,029) | 0 | 0 | 0 | 1,072 | 708 | 368 |
+
+4 new lite cases in `lite/temporal.yaml` (and three refusal cases turned into passing ones), each judged by Neo4j.
+

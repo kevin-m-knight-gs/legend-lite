@@ -111,7 +111,7 @@ tests:
     cypher: "RETURN localdatetime({year: 1984, month: 1, day: 1, timezone: '+01:00'}) AS d"
   - id: datetime_text_named_zone
     cypher: "RETURN datetime('1984-10-11T12:31:14+01:00[Europe/Stockholm]') AS d"
-  - id: datetime_to_string_refused_by_name
+  - id: datetime_to_string
     cypher: "RETURN toString(datetime('1984-10-11T12:31:14Z')) AS s"
   - id: localtime_from_text
     cypher: "RETURN localtime('12:31:14.645') AS a, localtime('12:31:14') AS b, localtime('12:31') AS c, localtime('12:31:14.645876') AS d, localtime('12:31:14.645000') AS e"
@@ -152,7 +152,7 @@ tests:
     cypher: "RETURN localdatetime({time: localtime('12:00')}) AS t"
   - id: localtime_compact_text
     cypher: "RETURN localtime('123114') AS t"
-  - id: localtime_to_string_refused_by_name
+  - id: localtime_to_string
     cypher: "RETURN toString(localtime('12:31')) AS s"
   - id: localtime_list_refused_by_name
     cypher: "RETURN [localtime('12:31'), localtime('13:00')] AS l"
@@ -252,7 +252,7 @@ tests:
     cypher: "RETURN time({hour: 12, timezone: 'Europe/Stockholm'}) AS t"
   - id: time_of_a_named_zone_datetime_refused_by_name
     cypher: "RETURN time(datetime('1984-10-11T12:31:14[Europe/Stockholm]')) AS t"
-  - id: time_to_string_refused_by_name
+  - id: time_to_string
     cypher: "RETURN toString(time('12:00+01:00')) AS s"
   - id: time_list_refused_by_name
     cypher: "RETURN [time('12:00+01:00'), time('13:00Z')] AS l"
@@ -298,3 +298,11 @@ tests:
     graph: |
       CREATE (:A {name: 'a', date: date({year: 1910, month: 5, day: 6})}), (:B {name: 'b', date: date({year: 1980, month: 12, day: 24})})
     cypher: "MATCH (n) WITH n ORDER BY n.date LIMIT 1 RETURN n, n.date AS d"
+  - id: localdatetime_to_string_fractions
+    cypher: "RETURN toString(localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645})) AS a, toString(localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14})) AS b, toString(localdatetime({year: 1984, month: 1, day: 1, hour: 0, minute: 0, second: 0, microsecond: 645876})) AS c"
+  - id: datetime_to_string_with_offsets
+    cypher: "RETURN toString(datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, timezone: '+01:00'})) AS a, toString(datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, timezone: 'Z'})) AS b, toString(datetime('2015-07-21T21:40:32.142-05:30')) AS c"
+  - id: times_to_string
+    cypher: "RETURN toString(localtime({hour: 12, minute: 31, second: 14, millisecond: 645})) AS a, toString(time({hour: 12, minute: 31, second: 14, timezone: '+01:00'})) AS b, toString(time({hour: 0, minute: 5, second: 0, microsecond: 10})) AS c"
+  - id: to_string_in_a_named_zone_refused_by_name
+    cypher: "RETURN toString(datetime({year: 2017, month: 8, day: 8, hour: 12, timezone: 'Europe/Stockholm'})) AS a"

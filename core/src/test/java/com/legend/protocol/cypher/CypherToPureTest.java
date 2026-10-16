@@ -228,7 +228,7 @@ class CypherToPureTest {
         invalid("RETURN datetime('1984-10-11T12:31:14+2') AS d", "Invalid value for TimeZone: Text '+2'");
         // refused by name: a signed year, toString, a zoned value of a list read in its zone
         unsupported("RETURN datetime('+999999999-12-31T12:31:14Z') AS d", "a signed year");
-        unsupported("RETURN toString(datetime('1984-10-11T12:31:14Z')) AS s", "toString of a DateTime");
+        unsupported("RETURN toString(datetime({year: 2017, month: 8, day: 8, hour: 12, timezone: 'Europe/Stockholm'})) AS s", "toString of a value in a named zone");
         unsupported("UNWIND [datetime('1984-10-11T12:31:14+01:00'), datetime('1984-10-11T12:31:14Z')] AS d RETURN d.hour",
                 "whose zone is not carried here");
     }

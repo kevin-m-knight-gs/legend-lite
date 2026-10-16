@@ -1711,6 +1711,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   durations, `toString(duration)`, a date inside a node's JSON), the judge (`testcases/CypherValues`: a temporal
   text inside a node read as its value) and `lite/temporal.yaml`: no file of the database owner's, no guard pin
   moved. The record: the study's §12.21; GATES "the nineteenth landing".
+- **The temporal `toString` leg, 2026-10-16, announced here as landed** — the translator (`temporalText`,
+  `parsedWithNanos`) and `lite/temporal.yaml`: no file of the database owner's, no guard pin moved. The record: the
+  study's §12.22; GATES "the twentieth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`
