@@ -9850,6 +9850,23 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the eighth landing — the temporal remainder: the text forms, fields over a base, fine truncation, the mixed `between`, a named zone in a text (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the duration leg; the record is the study's §12.10
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only; no file of the database owner's.
+
+1. **What lands.** One reader for the temporal texts Neo4j reads beyond the ISO calendar form (compact, month,
+   year, week, ordinal and quarter dates; compact times; offsets without colons; a named zone in brackets, alone
+   or beside an offset, the two agreeing under a check the database judges and raises as Neo4j does); week,
+   quarter and ordinal fields over a date or date-time base; truncation to the millisecond and the microsecond;
+   `duration.between` of a time of day and a date or date-time as Neo4j reads the mix. Neo4j's errors as it
+   spells them. Refused by name: a signed year, a field over a fine truncation, a named zone's `offset` field.
+2. **The ledger,** identical on both lanes: 4,036 cases; PASS 1,577 (from 1,488); FAIL 0; BUG 0; ERROR 0;
+   REFUSED 1,443; BOTH_ERROR 698; SKIP 318. Of the TCK's 1,004 temporal cases, 477 PASS. 93 lite
+   cases in `lite/temporal.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the seventh landing — the duration leg: a class of the model, not a platform type (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the zoned date-time leg; the record is the study's §12.9

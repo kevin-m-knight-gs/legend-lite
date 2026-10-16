@@ -120,9 +120,9 @@ class CypherToPureTest {
         invalid("RETURN localtime.truncate('month', localtime('12:00')) AS t",
                 "Unit is too large to be used for truncation");
         invalid("RETURN localtime(date('1984-10-11')) AS t", "Cannot get the time of: 1984-10-11");
-        // refused by name: a zone, a text in the compact form, the Variant's text spelling of a time
+        invalid("RETURN localtime('25:00') AS t", "Text cannot be parsed to a LocalTime: \"25:00\"");
+        // refused by name: a zone, the Variant's text spelling of a time
         unsupported("RETURN time('12:00+01:00') AS t", "a zoned time of day");
-        unsupported("RETURN localtime('123114') AS t", "a form other than hh:mm[:ss[.fraction]]");
         unsupported("RETURN [localtime('12:31'), localtime('13:00')] AS l", "a list or map holding a LocalTime");
     }
 
@@ -146,8 +146,9 @@ class CypherToPureTest {
         invalid("RETURN localdatetime('1984-10-11T12:00').timezone AS z", "Cannot get the offset of: 1984-10-11T12:00:00");
         invalid("RETURN localdatetime({year: 1984, month: 1, day: 1, timezone: '+01:00'}) AS d",
                 "Cannot assign time zone if also assigning other fields.");
-        // refused by name: a named zone in a text, toString, a zoned value of a list read in its zone
-        unsupported("RETURN datetime('1984-10-11T12:31:14+01:00[Europe/Stockholm]') AS d", "a named zone in a date-time text");
+        invalid("RETURN datetime('1984-10-11T12:31:14+2') AS d", "Invalid value for TimeZone: Text '+2'");
+        // refused by name: a signed year, toString, a zoned value of a list read in its zone
+        unsupported("RETURN datetime('+999999999-12-31T12:31:14Z') AS d", "a signed year");
         unsupported("RETURN toString(datetime('1984-10-11T12:31:14Z')) AS s", "toString of a DateTime");
         unsupported("UNWIND [datetime('1984-10-11T12:31:14+01:00'), datetime('1984-10-11T12:31:14Z')] AS d RETURN d.hour",
                 "whose zone is not carried here");

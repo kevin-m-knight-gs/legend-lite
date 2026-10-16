@@ -2812,9 +2812,9 @@ tck/expressions/temporal/Temporal1/[1] Should construct week date #9	PASS	PASS
 tck/expressions/temporal/Temporal1/[1] Should construct week date #10	PASS	PASS
 tck/expressions/temporal/Temporal1/[1] Should construct week date #11	PASS	PASS
 tck/expressions/temporal/Temporal1/[1] Should construct week date #12	PASS	PASS
-tck/expressions/temporal/Temporal1/[1] Should construct week date #13	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[1] Should construct week date #14	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[1] Should construct week date #15	REFUSED	REFUSED
+tck/expressions/temporal/Temporal1/[1] Should construct week date #13	PASS	PASS
+tck/expressions/temporal/Temporal1/[1] Should construct week date #14	PASS	PASS
+tck/expressions/temporal/Temporal1/[1] Should construct week date #15	PASS	PASS
 tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #1	PASS	PASS
 tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #2	PASS	PASS
 tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #3	PASS	PASS
@@ -2827,9 +2827,9 @@ tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #9	PA
 tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #10	PASS	PASS
 tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #11	PASS	PASS
 tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #12	PASS	PASS
-tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #13	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #14	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #15	REFUSED	REFUSED
+tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #13	PASS	PASS
+tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #14	PASS	PASS
+tck/expressions/temporal/Temporal1/[2] Should construct week localdatetime #15	PASS	PASS
 tck/expressions/temporal/Temporal1/[3] Should construct week datetime #1	PASS	PASS
 tck/expressions/temporal/Temporal1/[3] Should construct week datetime #2	PASS	PASS
 tck/expressions/temporal/Temporal1/[3] Should construct week datetime #3	PASS	PASS
@@ -2842,9 +2842,9 @@ tck/expressions/temporal/Temporal1/[3] Should construct week datetime #9	PASS	PA
 tck/expressions/temporal/Temporal1/[3] Should construct week datetime #10	PASS	PASS
 tck/expressions/temporal/Temporal1/[3] Should construct week datetime #11	PASS	PASS
 tck/expressions/temporal/Temporal1/[3] Should construct week datetime #12	PASS	PASS
-tck/expressions/temporal/Temporal1/[3] Should construct week datetime #13	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[3] Should construct week datetime #14	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[3] Should construct week datetime #15	REFUSED	REFUSED
+tck/expressions/temporal/Temporal1/[3] Should construct week datetime #13	PASS	PASS
+tck/expressions/temporal/Temporal1/[3] Should construct week datetime #14	PASS	PASS
+tck/expressions/temporal/Temporal1/[3] Should construct week datetime #15	PASS	PASS
 tck/expressions/temporal/Temporal1/[4] Should construct date #1	PASS	PASS
 tck/expressions/temporal/Temporal1/[4] Should construct date #2	PASS	PASS
 tck/expressions/temporal/Temporal1/[4] Should construct date #3	PASS	PASS
@@ -3011,16 +3011,16 @@ tck/expressions/temporal/Temporal10/[1] Should split between boundaries correctl
 tck/expressions/temporal/Temporal10/[1] Should split between boundaries correctly #2	PASS	PASS
 tck/expressions/temporal/Temporal10/[1] Should split between boundaries correctly #3	PASS	PASS
 tck/expressions/temporal/Temporal10/[1] Should split between boundaries correctly #4	PASS	PASS
-tck/expressions/temporal/Temporal10/[1] Should split between boundaries correctly #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[1] Should split between boundaries correctly #6	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[1] Should split between boundaries correctly #5	PASS	PASS
+tck/expressions/temporal/Temporal10/[1] Should split between boundaries correctly #6	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #1	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #2	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #3	PASS	PASS
-tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #4	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #4	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #7	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #8	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #6	PASS	PASS
+tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #7	PASS	PASS
+tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #8	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #9	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #10	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #11	REFUSED	REFUSED
@@ -3031,63 +3031,63 @@ tck/expressions/temporal/Temporal10/[2] Should compute duration between two temp
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #16	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #17	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #18	PASS	PASS
-tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #19	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #19	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #20	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #21	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #22	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #23	PASS	PASS
-tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #24	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #24	PASS	PASS
 tck/expressions/temporal/Temporal10/[2] Should compute duration between two temporals #25	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #1	PASS	PASS
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #2	PASS	PASS
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #3	PASS	PASS
-tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #4	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #4	PASS	PASS
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #7	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #8	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #6	PASS	PASS
+tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #7	PASS	PASS
+tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #8	PASS	PASS
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #9	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #10	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #11	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #12	PASS	PASS
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #13	PASS	PASS
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #14	PASS	PASS
-tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #15	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #15	PASS	PASS
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #16	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #17	PASS	PASS
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #18	PASS	PASS
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #19	PASS	PASS
-tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #20	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #20	PASS	PASS
 tck/expressions/temporal/Temporal10/[3] Should compute duration between two temporals in months #21	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #1	PASS	PASS
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #2	PASS	PASS
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #3	PASS	PASS
-tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #4	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #4	PASS	PASS
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #7	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #8	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #6	PASS	PASS
+tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #7	PASS	PASS
+tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #8	PASS	PASS
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #9	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #10	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #11	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #12	PASS	PASS
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #13	PASS	PASS
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #14	PASS	PASS
-tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #15	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #15	PASS	PASS
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #16	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #17	PASS	PASS
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #18	PASS	PASS
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #19	PASS	PASS
-tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #20	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #20	PASS	PASS
 tck/expressions/temporal/Temporal10/[4] Should compute duration between two temporals in days #21	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #1	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #2	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #3	PASS	PASS
-tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #4	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #4	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #7	REFUSED	REFUSED
-tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #8	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #6	PASS	PASS
+tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #7	PASS	PASS
+tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #8	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #9	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #10	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #11	REFUSED	REFUSED
@@ -3098,12 +3098,12 @@ tck/expressions/temporal/Temporal10/[5] Should compute duration between two temp
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #16	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #17	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #18	PASS	PASS
-tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #19	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #19	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #20	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #21	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #22	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #23	PASS	PASS
-tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #24	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #24	PASS	PASS
 tck/expressions/temporal/Temporal10/[5] Should compute duration between two temporals in seconds #25	REFUSED	REFUSED
 tck/expressions/temporal/Temporal10/[6] Should compute duration between if they differ only by a fraction of a second and the first comes after the second.	PASS	PASS
 tck/expressions/temporal/Temporal10/[7] Should compute negative duration between in big units #1	PASS	PASS
@@ -3112,9 +3112,9 @@ tck/expressions/temporal/Temporal10/[7] Should compute negative duration between
 tck/expressions/temporal/Temporal10/[7] Should compute negative duration between in big units #4	PASS	PASS
 tck/expressions/temporal/Temporal10/[7] Should compute negative duration between in big units #5	PASS	PASS
 tck/expressions/temporal/Temporal10/[8] Should handle durations at daylight saving time day #1	PASS	PASS
-tck/expressions/temporal/Temporal10/[8] Should handle durations at daylight saving time day #2	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[8] Should handle durations at daylight saving time day #2	PASS	PASS
 tck/expressions/temporal/Temporal10/[8] Should handle durations at daylight saving time day #3	PASS	PASS
-tck/expressions/temporal/Temporal10/[8] Should handle durations at daylight saving time day #4	REFUSED	REFUSED
+tck/expressions/temporal/Temporal10/[8] Should handle durations at daylight saving time day #4	PASS	PASS
 tck/expressions/temporal/Temporal10/[8] Should handle durations at daylight saving time day #5	PASS	PASS
 tck/expressions/temporal/Temporal10/[8] Should handle durations at daylight saving time day #6	PASS	PASS
 tck/expressions/temporal/Temporal10/[9] Should handle large durations	REFUSED	REFUSED
@@ -3139,23 +3139,23 @@ tck/expressions/temporal/Temporal10/[13] Should propagate null #2	PASS	PASS
 tck/expressions/temporal/Temporal10/[13] Should propagate null #3	PASS	PASS
 tck/expressions/temporal/Temporal10/[13] Should propagate null #4	PASS	PASS
 tck/expressions/temporal/Temporal2/[1] Should parse date from string #1	PASS	PASS
-tck/expressions/temporal/Temporal2/[1] Should parse date from string #2	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[1] Should parse date from string #3	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[1] Should parse date from string #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[1] Should parse date from string #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[1] Should parse date from string #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[1] Should parse date from string #7	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[1] Should parse date from string #8	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[1] Should parse date from string #9	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[1] Should parse date from string #10	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[1] Should parse date from string #11	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[1] Should parse date from string #2	PASS	PASS
+tck/expressions/temporal/Temporal2/[1] Should parse date from string #3	PASS	PASS
+tck/expressions/temporal/Temporal2/[1] Should parse date from string #4	PASS	PASS
+tck/expressions/temporal/Temporal2/[1] Should parse date from string #5	PASS	PASS
+tck/expressions/temporal/Temporal2/[1] Should parse date from string #6	PASS	PASS
+tck/expressions/temporal/Temporal2/[1] Should parse date from string #7	PASS	PASS
+tck/expressions/temporal/Temporal2/[1] Should parse date from string #8	PASS	PASS
+tck/expressions/temporal/Temporal2/[1] Should parse date from string #9	PASS	PASS
+tck/expressions/temporal/Temporal2/[1] Should parse date from string #10	PASS	PASS
+tck/expressions/temporal/Temporal2/[1] Should parse date from string #11	PASS	PASS
 tck/expressions/temporal/Temporal2/[2] Should parse local time from string #1	PASS	PASS
-tck/expressions/temporal/Temporal2/[2] Should parse local time from string #2	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[2] Should parse local time from string #2	PASS	PASS
 tck/expressions/temporal/Temporal2/[2] Should parse local time from string #3	PASS	PASS
-tck/expressions/temporal/Temporal2/[2] Should parse local time from string #4	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[2] Should parse local time from string #4	PASS	PASS
 tck/expressions/temporal/Temporal2/[2] Should parse local time from string #5	PASS	PASS
-tck/expressions/temporal/Temporal2/[2] Should parse local time from string #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[2] Should parse local time from string #7	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[2] Should parse local time from string #6	PASS	PASS
+tck/expressions/temporal/Temporal2/[2] Should parse local time from string #7	PASS	PASS
 tck/expressions/temporal/Temporal2/[3] Should parse time from string #1	REFUSED	REFUSED
 tck/expressions/temporal/Temporal2/[3] Should parse time from string #2	REFUSED	REFUSED
 tck/expressions/temporal/Temporal2/[3] Should parse time from string #3	REFUSED	REFUSED
@@ -3165,25 +3165,25 @@ tck/expressions/temporal/Temporal2/[3] Should parse time from string #6	REFUSED	
 tck/expressions/temporal/Temporal2/[3] Should parse time from string #7	REFUSED	REFUSED
 tck/expressions/temporal/Temporal2/[3] Should parse time from string #8	REFUSED	REFUSED
 tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #1	PASS	PASS
-tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #2	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #3	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #7	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #2	PASS	PASS
+tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #3	PASS	PASS
+tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #4	PASS	PASS
+tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #5	PASS	PASS
+tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #6	PASS	PASS
+tck/expressions/temporal/Temporal2/[4] Should parse local date time from string #7	PASS	PASS
 tck/expressions/temporal/Temporal2/[5] Should parse date time from string #1	PASS	PASS
-tck/expressions/temporal/Temporal2/[5] Should parse date time from string #2	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[5] Should parse date time from string #3	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[5] Should parse date time from string #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[5] Should parse date time from string #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[5] Should parse date time from string #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[5] Should parse date time from string #7	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[5] Should parse date time from string #8	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #1	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #2	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #3	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #5	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[5] Should parse date time from string #2	PASS	PASS
+tck/expressions/temporal/Temporal2/[5] Should parse date time from string #3	PASS	PASS
+tck/expressions/temporal/Temporal2/[5] Should parse date time from string #4	PASS	PASS
+tck/expressions/temporal/Temporal2/[5] Should parse date time from string #5	PASS	PASS
+tck/expressions/temporal/Temporal2/[5] Should parse date time from string #6	PASS	PASS
+tck/expressions/temporal/Temporal2/[5] Should parse date time from string #7	PASS	PASS
+tck/expressions/temporal/Temporal2/[5] Should parse date time from string #8	PASS	PASS
+tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #1	PASS	PASS
+tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #2	PASS	PASS
+tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #3	PASS	PASS
+tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #4	PASS	PASS
+tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #5	PASS	PASS
 tck/expressions/temporal/Temporal2/[7] Should parse duration from string #1	PASS	PASS
 tck/expressions/temporal/Temporal2/[7] Should parse duration from string #2	REFUSED	REFUSED
 tck/expressions/temporal/Temporal2/[7] Should parse duration from string #3	REFUSED	REFUSED
@@ -3195,9 +3195,9 @@ tck/expressions/temporal/Temporal3/[1] Should select date #1	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #2	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #3	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #4	PASS	PASS
-tck/expressions/temporal/Temporal3/[1] Should select date #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[1] Should select date #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[1] Should select date #7	REFUSED	REFUSED
+tck/expressions/temporal/Temporal3/[1] Should select date #5	PASS	PASS
+tck/expressions/temporal/Temporal3/[1] Should select date #6	PASS	PASS
+tck/expressions/temporal/Temporal3/[1] Should select date #7	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #8	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[1] Should select date #9	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[1] Should select date #10	REFUSED	REFUSED
@@ -3209,9 +3209,9 @@ tck/expressions/temporal/Temporal3/[1] Should select date #15	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #16	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #17	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #18	PASS	PASS
-tck/expressions/temporal/Temporal3/[1] Should select date #19	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[1] Should select date #20	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[1] Should select date #21	REFUSED	REFUSED
+tck/expressions/temporal/Temporal3/[1] Should select date #19	PASS	PASS
+tck/expressions/temporal/Temporal3/[1] Should select date #20	PASS	PASS
+tck/expressions/temporal/Temporal3/[1] Should select date #21	PASS	PASS
 tck/expressions/temporal/Temporal3/[2] Should select local time #1	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[2] Should select local time #2	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[2] Should select local time #3	REFUSED	REFUSED
@@ -3962,7 +3962,7 @@ lite/temporal/datetime_component_offset_without_colon_is_neo4js_error	BOTH_ERROR
 lite/temporal/datetime_bad_zone_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/datetime_zone_field_of_a_local_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/localdatetime_with_timezone_component	BOTH_ERROR	BOTH_ERROR
-lite/temporal/datetime_text_named_zone_refused_by_name	REFUSED	REFUSED
+lite/temporal/datetime_text_named_zone	PASS	PASS
 lite/temporal/datetime_to_string_refused_by_name	REFUSED	REFUSED
 lite/temporal/localtime_from_text	PASS	PASS
 lite/temporal/localtime_from_components	PASS	PASS
@@ -3981,10 +3981,33 @@ lite/temporal/localtime_truncate_to_month_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/localtime_with_date_component	BOTH_ERROR	BOTH_ERROR
 lite/temporal/date_with_time_component	BOTH_ERROR	BOTH_ERROR
 lite/temporal/localdatetime_from_time_only	BOTH_ERROR	BOTH_ERROR
-lite/temporal/localtime_compact_text_refused_by_name	REFUSED	REFUSED
+lite/temporal/localtime_compact_text	PASS	PASS
 lite/temporal/localtime_to_string_refused_by_name	REFUSED	REFUSED
 lite/temporal/localtime_list_refused_by_name	REFUSED	REFUSED
 lite/temporal/temporal_errors_are_cyphers	BOTH_ERROR	BOTH_ERROR
+lite/temporal/date_from_compact_and_partial_text	PASS	PASS
+lite/temporal/date_text_week_53_and_leap_ordinal	PASS	PASS
+lite/temporal/date_text_month_13_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/date_junk_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/localtime_from_compact_text	PASS	PASS
+lite/temporal/localtime_from_text_with_a_comma_fraction	PASS	PASS
+lite/temporal/localtime_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/localdatetime_from_compact_text	PASS	PASS
+lite/temporal/localdatetime_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/datetime_from_compact_text	PASS	PASS
+lite/temporal/datetime_from_text_with_named_zone	PASS	PASS
+lite/temporal/datetime_named_zone_offset_refused_by_name	REFUSED	REFUSED
+lite/temporal/date_signed_year_refused_by_name	REFUSED	REFUSED
+lite/temporal/datetime_text_offset_disagreeing_with_its_zone	BOTH_ERROR	BOTH_ERROR
+lite/temporal/datetime_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/datetime_text_unknown_zone_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/date_week_quarter_ordinal_over_a_base	PASS	PASS
+lite/temporal/localdatetime_week_over_a_base	PASS	PASS
+lite/temporal/fine_truncation	PASS	PASS
+lite/temporal/fine_truncation_with_a_field_refused_by_name	REFUSED	REFUSED
+lite/temporal/date_truncate_to_millisecond_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/duration_between_a_time_and_a_date	PASS	PASS
+lite/temporal/duration_between_a_time_and_a_zoned_datetime	PASS	PASS
 lite/values/with_first_literal_list	PASS	PASS
 lite/values/quantifiers_three_valued	PASS	PASS
 lite/values/quantifier_over_a_property	PASS	PASS

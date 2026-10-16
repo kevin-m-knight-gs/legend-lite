@@ -78,10 +78,12 @@ name (§12.6.5). The time-of-day leg landed on the branch (§12.7, 2026-10-16): 
 SQL TIME type end to end (the user's "do it all here": the first Cypher landing in the database owner's files); PASS
 1,195, 0 FAIL, 0 BUG, 0 ERROR, 1,785 REFUSED, identical on both lanes. The zoned date-time leg landed next (§12.8): `datetime` as an instant with its zone carried beside, upstream's
 model; PASS 1,401, 0 FAIL, 0 BUG, 0 ERROR, identical on both lanes. The duration leg landed next (§12.9): a duration as an instance of a class the model declares, no platform type (the user's
-question answered there); PASS 1,488, 0 FAIL, 0 BUG, 0 ERROR, identical on both lanes. Left in temporal, by name: zoned times of
-day, fractional durations, `toString` of the new values, nanosecond precision. Next: durations (the user's question, whether a duration can be a user class on the Variant
-rather than a platform type, answered in the study's §12.9 when that leg lands). Then the full CI run on the branch,
-the merge; the join form (316 fan-out cases) and `collect` (the database owner's aggregate) wait.
+question answered there); PASS 1,488, 0 FAIL, 0 BUG, 0 ERROR, identical on both lanes. The temporal remainder landed next
+(§12.10): the text forms, week/quarter/ordinal fields over a base, truncation to the millisecond and microsecond, the
+mixed `between`, a named zone in a text; PASS 1,577, 0 FAIL, 0 BUG, 0 ERROR, identical on both lanes. Left in temporal,
+by name: zoned times of day (`time(...)`, 165 TCK cases: the next leg), nanosecond precision (282: the database keeps
+microseconds), `toString` of the new values, fractional durations. Then the full CI run on the branch, the merge; the
+join form (326 fan-out cases) and `collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

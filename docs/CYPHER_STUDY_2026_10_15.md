@@ -1982,5 +1982,71 @@ cases in `lite/temporal.yaml`, each judged by Neo4j.
 #### 12.9.4 Left by name
 
 `toString` of a duration; fractional components and division; the date-time text form; `duration.between` of a
-date and a time of day (Neo4j's reading of the mix); zoned times of day; a stored duration; nanosecond precision.
+date and a time of day (Neo4j's reading of the mix; landed in §12.10); zoned times of day; a stored duration;
+nanosecond precision.
+
+### 12.10 The temporal remainder, 2026-10-16: the text forms, fields over a base, fine truncation, the mixed `between`, a named zone in a text
+
+The translator only: what §12.6 to §12.9 left by name that the database can answer, taken from the ledger's refusal
+census (the user: "keep going until we pass all the tests or as many as makes sense").
+
+#### 12.10.1 What lands
+
+**The text forms.** One reader (`TemporalText`) for the forms Neo4j reads beyond the ISO calendar one: a date's
+compact form (`20150721`), a month (`2015-07`, `201507`), a year (`2015`), the week forms (`2015-W30-2`,
+`2015W302`, `2015-W30`, `2015W30`), the ordinal forms (`2015-202`, `2015202`), the quarter forms (`2015-Q2-60`,
+`2015Q260`, `2015-Q2`, `2015Q2`); a time of day as `214032.142`, `2140`, `21`, with `.` or `,` before the
+fraction; a date-time as any date form, `T`, any time form; after the time a zone: `Z`, an offset with or without
+its colon (`+01:30`, `+0130`, `+01`), a region's name in brackets, alone or after an offset. The calendar forms
+keep Pure's literal (the Pure the island writes prints `%2015-07-21T21:40:32.142`); the week, ordinal and quarter
+forms are the components' spelling, the database computing the date as it does for `date({year, week,
+dayOfWeek})`. A named zone alone is the database's reading of the wall time in that zone (`instantIn`, §12.8);
+with an offset too, the instant is the offset's and the zone is kept beside, under Neo4j's check that the two
+agree — the database judges it: the instant read back in the zone (`localIn`) is the wall time written, else
+`fail('Timezone and offset do not match: ...')` raises in the database (Pure's `fail` in an `if` arm, the typer's
+raise-typed-at-the-value rule). An overlap's second reading passes (`2017-10-29T02:30+01:00[Europe/Stockholm]`),
+a gap's or a wrong offset's does not. The errors are Neo4j's: `Text cannot be parsed to a Date` (`LocalDateTime`,
+`LocalTime`, `DateTime`), `Invalid value for TimeZone: Text '+2' could not be parsed at index 0`. A signed year
+(ISO's expanded form, `+2015-07-21`, Neo4j's nine-digit years) is refused by name.
+
+**Week, quarter and ordinal fields over a date base.** `date({date: d, week: 1})` keeps `d`'s week-year and day
+of the week (`2015-07-21` to `2014-12-30`, as Neo4j), `{date: d, quarter: 1}` its year and day of the quarter,
+`{date: d, ordinalDay: 5}` its year, `{date: date('1816-12-30'), week: 2, dayOfWeek: 3}` the base's week-year
+1817; each field not written is the database's read of the base (`weekOfYear`, `dayOfWeekNumber`, the year of the
+week's Thursday, `quarterNumber`, the days since the quarter's first day), then the §12.6 construction. Over a
+date-time base too (`localdatetime({datetime: dt, week: 1})`).
+
+**Truncation to the millisecond and the microsecond.** The millisecond: the second's start plus the whole
+milliseconds since it (`adjust` by `dateDiff`); the microsecond: the value itself, the database keeping
+microseconds. For local and zoned date-times and times of day; a field written over either is refused by name
+(Neo4j sets it on the truncated value). A date's: Neo4j's `Unit too small for truncation: Millis`.
+
+**`duration.between` of a time of day and a date or date-time.** Neo4j's reading: the time on the other's date — a
+date at its midnight, a local date-time's date, a zoned date-time's wall date with the time then read in its zone
+(`instantOf`) — so only the times tell (`between(date, localtime('12:00'))` is `PT12H`; the reverse `PT-12H`;
+`inMonths` and `inDays` of the mix `PT0S`). The day summer time ends in Stockholm measured as instants, as Neo4j's.
+
+#### 12.10.2 The ledger
+
+Both lanes, identical:
+
+| | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| before (the duration leg) | 4,014 | 1,488 | 0 | 0 | 0 | 1,517 | 690 | 318 |
+| the temporal remainder | 4,036 | 1,577 | 0 | 0 | 0 | 1,443 | 698 | 318 |
+
+Of the TCK's temporal features (1,004 cases): 477 PASS, 477 REFUSED by name, 50 SKIP. 93 lite
+cases in `lite/temporal.yaml`, each judged by Neo4j.
+
+#### 12.10.3 Left by name, and the census after this leg
+
+The refusal census over the whole corpus (the per-case file beside the ledger): a pattern that fans out, 326 (the
+join form, PR3); a nanosecond component, 282 (the database keeps microseconds: Temporal9's 202 are the
+nanosecond feature itself — stays refused); `time(...)` and `time.truncate`, 165 (a zoned time of day: the next
+leg, a time with a zone beside as §12.8's date-time); the write clauses `CREATE`, `SET`, `MERGE`, `REMOVE`,
+`DELETE`, 230 (a read-only island); `UNWIND` over lists of lists or maps, 43; `collect`, 40 (the database
+owner's aggregate); named paths, 40; a label naming no class (C4), 39; `rand()`, 30 and the clock functions
+(`date()`, `datetime.transaction()`, ...: a clock is the database's, 16); `OPTIONAL MATCH`, 29; parameters, 16;
+`toString` of a duration, 12; fractional durations, 9; a field over a fine truncation; the `offset` field of a
+named zone (the database would format the offset it reads); signed years.
 

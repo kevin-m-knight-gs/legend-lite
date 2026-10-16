@@ -1661,6 +1661,10 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
 - **The duration leg, 2026-10-16, announced here as landed** — the translator only (`protocol/sql/SqlToPure.java`
   `Kind.DURATION`, `protocol/cypher/CypherToPure.java`) and the harness (`testcases/CypherValues.java`,
   `CypherGraph.java`): no file of the database owner's. The record: the study's §12.9; GATES "the seventh landing".
+- **The temporal remainder leg, 2026-10-16, announced here as landed** — the translator only
+  (`protocol/cypher/CypherToPure.java`: the text reader, the fields over a base, the fine truncation, the mixed
+  `between`, a named zone's check as the database's raise) and `lite/temporal.yaml`'s cases: no file of the
+  database owner's, no guard pin moved. The record: the study's §12.10; GATES "the eighth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

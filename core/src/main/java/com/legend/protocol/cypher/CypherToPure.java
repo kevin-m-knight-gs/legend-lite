@@ -3042,6 +3042,12 @@ public final class CypherToPure {
         }
     }
 
+    /** Neo4j's name of a time unit in its truncation error (java.time's ChronoUnit). */
+    private static String chronoName(TruncateUnit unit) {
+        return unit == TruncateUnit.MILLISECOND ? "Millis" : unit == TruncateUnit.MICROSECOND ? "Micros"
+                : capitalized(unit.cypher) + "s";
+    }
+
     private static <E extends Enum<E>> Map<String, E> byName(E[] values, java.util.function.Function<E, String> name) {
         Map<String, E> out = new LinkedHashMap<>();
         for (E e : values) {
@@ -3694,13 +3700,29 @@ public final class CypherToPure {
         Tx y = sb.tx();
         boolean dates = isDateLike(x.kind()) && isDateLike(y.kind());
         boolean times = x.kind() == Kind.TIME && y.kind() == Kind.TIME;
-        if (!dates && !times) {
+        boolean mixed = x.kind() == Kind.TIME && isDateLike(y.kind()) || isDateLike(x.kind()) && y.kind() == Kind.TIME;
+        if (!dates && !times && !mixed) {
             throw CypherErrors.unsupported("duration.between of a " + cypherType(x.kind()) + " and a "
                     + cypherType(y.kind()) + " is not supported yet", c.pos());
         }
         if (times) {
             x = atEpoch(x);
             y = atEpoch(y);
+        }
+        if (mixed) {
+            // Neo4j's reading of a time of day and a date or date-time: the time on the other's date (a date at its
+            // midnight; a zoned date-time's wall date, the time then read in its zone), so only the times tell
+            boolean timeFirst = x.kind() == Kind.TIME;
+            Tx time = timeFirst ? x : y;
+            Tx other = timeFirst ? y : x;
+            Zone z = other.kind() == Kind.ZONED ? zoneKnown(other, c.pos()) : null;
+            Tx wall = z == null ? asDateTime(other) : localOf(other, z);
+            Tx onDate = SqlToPure.strict(Kind.DATETIME, List.of(wall, time), v -> call(AT_TIME, call("datePart",
+                    v.get(0)), v.get(1)));
+            Tx placed = z == null ? onDate : instantOf(onDate, z);
+            Tx otherSide = z == null ? wall : other;
+            x = timeFirst ? placed : otherSide;
+            y = timeFirst ? otherSide : placed;
         }
         // Neo4j's reading of a zoned and a local value: the local one (a date at its midnight) in the zoned one's
         // zone, then the instants (the TCK's Temporal10 [8]: a Stockholm midnight and a local 04:00 on the day
@@ -3930,32 +3952,32 @@ public final class CypherToPure {
                     + " not supported yet", c.pos());
         }
         String text = (String) java.util.Objects.requireNonNull(s.constant());
-        if (text.endsWith("]")) {
-            throw CypherErrors.unsupported("a named zone in a date-time text (" + text + ") is not supported yet",
-                    c.pos());
+        expandedYear(text, c.pos());
+        TemporalText tt = TemporalText.read(text, true, true);
+        if (tt == null) {
+            throw CypherErrors.invalid("Text cannot be parsed to a DateTime: \"" + text + "\"", c.pos());
         }
-        int t = text.indexOf('T');
-        int at = -1;
-        for (int i = t + 1; i < text.length() && t >= 0; i++) {
-            char ch = text.charAt(i);
-            if (ch == 'Z' || ch == 'z' || ch == '+' || ch == '-') {
-                at = i;
-                break;
-            }
+        // the instant from the offset when one is written, else the database's reading of the wall time in the
+        // named zone; the zone kept is the named one when written (Neo4j prints both)
+        Zone offset = tt.zoneText() == null ? null : zone(tt.zoneText(), true, c.pos());
+        Zone named = tt.zoneName() == null ? null : zone(tt.zoneName(), false, c.pos());
+        Val wall = dateTimeOfText(c, tt, text);
+        if (!(wall instanceof Scalar ws)) {
+            return wall;
         }
-        String local = at < 0 ? text : text.substring(0, at);
-        Zone z = at < 0 ? Zone.UTC : zone(text.substring(at), true, c.pos());
-        com.legend.values.PureDateLiteral lit = isoLiteral(local, true);
-        if (lit == null) {
-            throw CypherErrors.unsupported("a temporal text in a form other than the ISO calendar form (" + text
-                    + ") is not supported yet", c.pos());
+        Zone in = offset != null ? offset : named != null ? named : Zone.UTC;
+        Tx instant = instantOf(ws.tx(), in);
+        if (named == null || offset == null) {
+            return scalar(instant);
         }
-        if (lit instanceof com.legend.values.PureDateLiteral.DateWithSubsecond sub && sub.subsecond().length() > 6) {
-            throw CypherErrors.unsupported("a temporal value of sub-microsecond precision (" + text
-                    + ") is not supported yet (the database keeps microseconds)", c.pos());
-        }
-        Tx wall = Tx.value(new com.legend.protocol.spec.CDate(lit, lit.toEngineString(), null), Kind.DATETIME, false);
-        return scalar(instantOf(wall, z));
+        // Neo4j's check that the offset is the zone's at that instant (an overlap's second reading passes: the
+        // instant read back in the zone is the wall time written): the database judges, and raises as Neo4j does
+        String zoneName = java.util.Objects.requireNonNull(named.name());
+        Tx checked = SqlToPure.strict(Kind.DATETIME, List.of(instant, ws.tx()), v -> call("if",
+                call("equal", call(LOCAL_IN, v.get(0), new CString(zoneName)), v.get(1)), thunk(v.get(0)),
+                new LambdaFunction(List.of(), List.of(call("fail", new CString("Timezone and offset do not match: "
+                        + text)), v.get(0)))));
+        return scalar(zoned(checked, named));
     }
 
     /** {@code datetime({...})}: the wall time the components spell, in the written zone, else a zoned {@code datetime}
@@ -4089,8 +4111,21 @@ public final class CypherToPure {
         String text = (String) java.util.Objects.requireNonNull(s.constant());
         com.legend.values.PureTimeLiteral lit = timeLiteral(text);
         if (lit == null) {
-            throw CypherErrors.unsupported("a time text in a form other than hh:mm[:ss[.fraction]] (" + text
-                    + ") is not supported yet", c.pos());
+            TemporalText tt = TemporalText.read(text, false, true);
+            if (tt == null || tt.zoneText() != null || tt.zoneName() != null) {
+                throw CypherErrors.invalid("Text cannot be parsed to a LocalTime: \"" + text + "\"", c.pos());
+            }
+            int h = java.util.Objects.requireNonNull(tt.hour());
+            int mi = java.util.Objects.requireNonNull(tt.minute());
+            int sec = java.util.Objects.requireNonNull(tt.second());
+            String fraction = tt.fraction();
+            int keep = fraction.length();
+            while (keep > 6 && fraction.charAt(keep - 1) == '0') {
+                keep--;
+            }
+            lit = keep == 0 ? new com.legend.values.PureTimeLiteral.TimeWithSecond(h, mi, sec)
+                    : new com.legend.values.PureTimeLiteral.TimeWithSubsecond(h, mi, sec, fraction.substring(0,
+                            keep));
         }
         if (lit instanceof com.legend.values.PureTimeLiteral.TimeWithSubsecond sub && sub.subsecond().length() > 6) {
             throw CypherErrors.unsupported("a temporal value of sub-microsecond precision (" + text
@@ -4260,8 +4295,13 @@ public final class CypherToPure {
         String text = (String) java.util.Objects.requireNonNull(s.constant());
         com.legend.values.PureDateLiteral lit = isoLiteral(text, withTime);
         if (lit == null) {
-            throw CypherErrors.unsupported("a temporal text in a form other than the ISO calendar form (" + text
-                    + ") is not supported yet", c.pos());
+            expandedYear(text, c.pos());
+            TemporalText tt = TemporalText.read(text, true, withTime);
+            if (tt == null || tt.zoneText() != null || tt.zoneName() != null) {
+                throw CypherErrors.invalid("Text cannot be parsed to a " + (withTime ? "LocalDateTime" : "Date")
+                        + ": \"" + text + "\"", c.pos());
+            }
+            return withTime ? dateTimeOfText(c, tt, text) : scalar(Tx.value(dateOfText(c, tt), Kind.DATE, false));
         }
         if (lit instanceof com.legend.values.PureDateLiteral.DateWithSubsecond sub && sub.subsecond().length() > 6) {
             throw CypherErrors.unsupported("a temporal value of sub-microsecond precision (" + text
@@ -4270,6 +4310,266 @@ public final class CypherToPure {
         // (the literal carries its written form, so the Pure the island writes prints)
         return scalar(Tx.value(new com.legend.protocol.spec.CDate(lit, lit.toEngineString(), null),
                 withTime ? Kind.DATETIME : Kind.DATE, false));
+    }
+
+    /**
+     * A temporal text in the forms Neo4j reads beyond the ISO calendar one ({@code isoLiteral}): the date compact
+     * ({@code 20150721}), a month ({@code 2015-07}, {@code 201507}), a year ({@code 2015}), the week forms
+     * ({@code 2015-W30-2}, {@code 2015W302}, {@code 2015-W30}, {@code 2015W30}), the ordinal forms ({@code 2015-202},
+     * {@code 2015202}), the quarter forms ({@code 2015-Q2-60}, {@code 2015Q260}, {@code 2015-Q2}, {@code 2015Q2});
+     * a time ({@code 21:40:32.142}, {@code 214032.142}, {@code 21:40}, {@code 2140}, {@code 21}) after a {@code T},
+     * or alone; a zone ({@code Z}, an offset, a region's name in brackets) after the time. Null when the text is
+     * none of these. The parts are the digits as written; what they spell is the database's. (Package-private:
+     * its one construction is inside its own body, which the dead-code guard would read as no use of a private
+     * one.)
+     */
+    record TemporalText(Map<Component, Long> date, boolean calendar, @com.legend.base.Nullable Integer hour,
+            @com.legend.base.Nullable Integer minute, @com.legend.base.Nullable Integer second, String fraction,
+            @com.legend.base.Nullable String zoneText, @com.legend.base.Nullable String zoneName) {
+
+        boolean hasTime() {
+            return hour != null;
+        }
+
+        static @com.legend.base.Nullable TemporalText read(String text, boolean wantDate, boolean wantTime) {
+            String rest = text;
+            String zoneName = null;
+            if (rest.endsWith("]")) {
+                int open = rest.lastIndexOf('[');
+                if (open < 0) {
+                    return null;
+                }
+                zoneName = rest.substring(open + 1, rest.length() - 1);
+                rest = rest.substring(0, open);
+            }
+            String datePart = null;
+            String timePart = null;
+            if (wantDate && wantTime) {
+                int t = rest.indexOf('T');
+                if (t < 0) {
+                    return null;
+                }
+                datePart = rest.substring(0, t);
+                timePart = rest.substring(t + 1);
+            } else if (wantDate) {
+                datePart = rest;
+            } else {
+                timePart = rest;
+            }
+            Map<Component, Long> date = new java.util.EnumMap<>(Component.class);
+            boolean calendar = true;
+            if (datePart != null) {
+                calendar = readDate(datePart, date);
+                if (date.isEmpty()) {
+                    return null;
+                }
+            }
+            Integer hour = null;
+            Integer minute = null;
+            Integer second = null;
+            String fraction = "";
+            String zoneText = null;
+            if (timePart != null) {
+                int at = -1;
+                for (int i = 0; i < timePart.length(); i++) {
+                    char ch = timePart.charAt(i);
+                    if (ch == 'Z' || ch == 'z' || ch == '+' || ch == '-') {
+                        at = i;
+                        break;
+                    }
+                }
+                String clock = at < 0 ? timePart : timePart.substring(0, at);
+                zoneText = at < 0 ? null : timePart.substring(at);
+                int[] hms = new int[3];
+                String[] frac = new String[1];
+                int parts = readTime(clock, hms, frac);
+                if (parts == 0) {
+                    return null;
+                }
+                hour = hms[0];
+                minute = parts > 1 ? hms[1] : 0;
+                second = parts > 2 ? hms[2] : 0;
+                fraction = frac[0] == null ? "" : frac[0];
+            }
+            return new TemporalText(date, calendar, hour, minute, second, fraction, zoneText, zoneName);
+        }
+
+        /** The date part into {@code out}; true for a calendar form (year, month, day — the month and day 1 when
+         *  not written); false for a week, ordinal or quarter form; nothing in {@code out} when malformed. */
+        private static boolean readDate(String d, Map<Component, Long> out) {
+            boolean dashed = d.length() > 4 && d.charAt(4) == '-';
+            String s = dashed ? d.replace("-", "") : d;
+            if (s.length() < 4 || !digits(s, 0, 4)) {
+                return true;
+            }
+            long year = Long.parseLong(s.substring(0, 4));
+            String tail = s.substring(4);
+            if (dashed && d.contains("--")) {
+                return true;
+            }
+            if (tail.isEmpty()) {
+                out.put(Component.YEAR, year);
+                out.put(Component.MONTH, 1L);
+                out.put(Component.DAY, 1L);
+                return true;
+            }
+            if (tail.charAt(0) == 'W') {
+                String w = tail.substring(1);
+                if (w.length() == 2 && digits(w, 0, 2)) {
+                    out.put(Component.YEAR, year);
+                    out.put(Component.WEEK, Long.parseLong(w));
+                    out.put(Component.DAY_OF_WEEK, 1L);
+                    return false;
+                }
+                if (w.length() == 3 && digits(w, 0, 3)) {
+                    out.put(Component.YEAR, year);
+                    out.put(Component.WEEK, Long.parseLong(w.substring(0, 2)));
+                    out.put(Component.DAY_OF_WEEK, Long.parseLong(w.substring(2)));
+                    return false;
+                }
+                return true;
+            }
+            if (tail.charAt(0) == 'Q') {
+                String q = tail.substring(1);
+                if (q.length() == 1 && digits(q, 0, 1)) {
+                    out.put(Component.YEAR, year);
+                    out.put(Component.QUARTER, Long.parseLong(q));
+                    out.put(Component.DAY_OF_QUARTER, 1L);
+                    return false;
+                }
+                if (q.length() == 3 && digits(q, 0, 3)) {
+                    out.put(Component.YEAR, year);
+                    out.put(Component.QUARTER, Long.parseLong(q.substring(0, 1)));
+                    out.put(Component.DAY_OF_QUARTER, Long.parseLong(q.substring(1)));
+                    return false;
+                }
+                return true;
+            }
+            if (!digits(tail, 0, tail.length())) {
+                return true;
+            }
+            if (tail.length() == 2) {
+                out.put(Component.YEAR, year);
+                out.put(Component.MONTH, Long.parseLong(tail));
+                out.put(Component.DAY, 1L);
+                return true;
+            }
+            if (tail.length() == 4) {
+                out.put(Component.YEAR, year);
+                out.put(Component.MONTH, Long.parseLong(tail.substring(0, 2)));
+                out.put(Component.DAY, Long.parseLong(tail.substring(2)));
+                return true;
+            }
+            if (tail.length() == 3) {
+                out.put(Component.YEAR, year);
+                out.put(Component.ORDINAL_DAY, Long.parseLong(tail));
+                return false;
+            }
+            return true;
+        }
+
+        /** The clock part: how many of hour, minute and second were written (0 when malformed), the fraction. */
+        private static int readTime(String clock, int[] hms, String[] fraction) {
+            String s = clock;
+            int dot = s.indexOf('.');
+            if (dot < 0) {
+                dot = s.indexOf(',');
+            }
+            if (dot >= 0) {
+                String f = s.substring(dot + 1);
+                if (f.isEmpty() || !digits(f, 0, f.length()) || f.length() > 9) {
+                    return 0;
+                }
+                fraction[0] = f;
+                s = s.substring(0, dot);
+            }
+            String compact = s.replace(":", "");
+            if (compact.isEmpty() || !digits(compact, 0, compact.length())) {
+                return 0;
+            }
+            boolean colons = s.contains(":");
+            if (colons && !(s.length() == 5 && s.charAt(2) == ':' || s.length() == 8 && s.charAt(2) == ':'
+                    && s.charAt(5) == ':')) {
+                return 0;
+            }
+            int parts = compact.length() == 2 ? 1 : compact.length() == 4 ? 2 : compact.length() == 6 ? 3 : 0;
+            if (parts == 0 || fraction[0] != null && parts < 3) {
+                return 0;
+            }
+            hms[0] = Integer.parseInt(compact.substring(0, 2));
+            hms[1] = parts > 1 ? Integer.parseInt(compact.substring(2, 4)) : 0;
+            hms[2] = parts > 2 ? Integer.parseInt(compact.substring(4, 6)) : 0;
+            if (hms[0] > 23 || hms[1] > 59 || hms[2] > 59) {
+                return 0;
+            }
+            return parts;
+        }
+    }
+
+    /** A text whose year is signed (ISO's expanded form, {@code +999999999-12-31}, {@code -0044-03-15}): Neo4j's
+     *  nine-digit years are beyond the database's calendar, and a year before 1 its own reading; refused by name. */
+    private static void expandedYear(String text, Pos pos) {
+        if (text.startsWith("+") || text.startsWith("-")) {
+            throw CypherErrors.unsupported("a signed year (" + text + ", ISO's expanded form) is not supported yet",
+                    pos);
+        }
+    }
+
+    /** The component a calendar text spelled (the reader put all three there). */
+    private static int part(Map<Component, Long> d, Component k) {
+        return java.util.Objects.requireNonNull(d.get(k), k.name()).intValue();
+    }
+
+    /** A date a text spells: the calendar form as Pure's literal, the others as the components' spelling. */
+    private ValueSpecification dateOfText(CypherAst.Call c, TemporalText t) {
+        Map<Component, Long> d = t.date();
+        if (t.calendar()) {
+            com.legend.values.PureDateLiteral lit = new com.legend.values.PureDateLiteral.StrictDate(
+                    part(d, Component.YEAR), part(d, Component.MONTH), part(d, Component.DAY));
+            return new com.legend.protocol.spec.CDate(lit, lit.toEngineString(), null);
+        }
+        Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
+        d.forEach((k, v) -> p.put(k, lit(v)));
+        return dateOf(c, null, p);
+    }
+
+    /** A date-time a text spells: the calendar form with its time as Pure's literal, the others as the date's
+     *  spelling at the time written (the fraction as microseconds). */
+    private Val dateTimeOfText(CypherAst.Call c, TemporalText t, String text) {
+        String fraction = t.fraction();
+        int keep = fraction.length();
+        while (keep > 6 && fraction.charAt(keep - 1) == '0') {
+            keep--;
+        }
+        if (keep > 6) {
+            throw CypherErrors.unsupported("a temporal value of sub-microsecond precision (" + text
+                    + ") is not supported yet (the database keeps microseconds)", c.pos());
+        }
+        fraction = fraction.substring(0, keep);
+        Map<Component, Long> d = t.date();
+        if (t.calendar()) {
+            int y = part(d, Component.YEAR);
+            int mo = part(d, Component.MONTH);
+            int day = part(d, Component.DAY);
+            int h = java.util.Objects.requireNonNull(t.hour());
+            int mi = java.util.Objects.requireNonNull(t.minute());
+            int s = java.util.Objects.requireNonNull(t.second());
+            com.legend.values.PureDateLiteral lit = fraction.isEmpty()
+                    ? new com.legend.values.PureDateLiteral.DateWithSecond(y, mo, day, h, mi, s)
+                    : new com.legend.values.PureDateLiteral.DateWithSubsecond(y, mo, day, h, mi, s, fraction);
+            return scalar(Tx.value(new com.legend.protocol.spec.CDate(lit, lit.toEngineString(), null),
+                    Kind.DATETIME, false));
+        }
+        ValueSpecification date = dateOfText(c, t);
+        Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
+        p.put(Component.HOUR, lit(java.util.Objects.requireNonNull(t.hour())));
+        p.put(Component.MINUTE, lit(java.util.Objects.requireNonNull(t.minute())));
+        p.put(Component.SECOND, lit(java.util.Objects.requireNonNull(t.second())));
+        if (!fraction.isEmpty()) {
+            p.put(Component.MICROSECOND, lit(Long.parseLong((fraction + "000000").substring(0, 6))));
+        }
+        return scalar(Tx.value(timeParts(call("year", date), call("monthNumber", date), call("dayOfMonth", date),
+                null, p), Kind.DATETIME, false));
     }
 
     /** The ISO calendar form read character by character: {@code yyyy-mm-dd}, and with a time
@@ -4452,8 +4752,25 @@ public final class CypherToPure {
         }
         if (base != null) {
             if (week || quarter || ordinal) {
-                throw CypherErrors.unsupported("a week, quarter or ordinal field over a date component is not"
-                        + " supported yet", c.pos());
+                // the form's fields not written are the base's (Neo4j's: {date: d, week: 1} keeps d's day of the
+                // week in its week-year; {date: d, quarter: 3} keeps d's day of the quarter), the database's reads
+                Map<Component, ValueSpecification> q = new java.util.EnumMap<>(Component.class);
+                if (week) {
+                    q.put(Component.YEAR, p.getOrDefault(Component.YEAR, call("year", thursdayOf(base))));
+                    q.put(Component.WEEK, p.getOrDefault(Component.WEEK, call("weekOfYear", base)));
+                    q.put(Component.DAY_OF_WEEK, p.getOrDefault(Component.DAY_OF_WEEK, call("dayOfWeekNumber",
+                            base)));
+                } else if (quarter) {
+                    q.put(Component.YEAR, p.getOrDefault(Component.YEAR, call("year", base)));
+                    q.put(Component.QUARTER, p.getOrDefault(Component.QUARTER, call("quarterNumber", base)));
+                    q.put(Component.DAY_OF_QUARTER, p.getOrDefault(Component.DAY_OF_QUARTER, integer(
+                            AppliedFunction.infixRun("plus", List.of(call("dateDiff", call("firstDayOfQuarter",
+                                    base), base, days()), one)))));
+                } else {
+                    q.put(Component.YEAR, p.getOrDefault(Component.YEAR, call("year", base)));
+                    q.put(Component.ORDINAL_DAY, p.getOrDefault(Component.ORDINAL_DAY, call("dayOfYear", base)));
+                }
+                return dateOf(c, null, q);
             }
             if (!calendar && !p.containsKey(Component.YEAR)) {
                 return base;
@@ -4620,11 +4937,8 @@ public final class CypherToPure {
         if (unit == null) {
             throw CypherErrors.invalid("Unsupported unit: " + unitText, c.pos());
         }
-        if (unit == TruncateUnit.MILLISECOND || unit == TruncateUnit.MICROSECOND) {
-            throw CypherErrors.unsupported("truncating to the " + unitText + " is not supported yet", c.pos());
-        }
         if (!withTime && unit.time()) {
-            throw CypherErrors.invalid("Cannot truncate a Date to the " + unitText, c.pos());
+            throw CypherErrors.invalid("Unit too small for truncation: " + chronoName(unit), c.pos());
         }
         if (toTime && !unit.time() && unit != TruncateUnit.DAY) {
             throw CypherErrors.invalid("Unit is too large to be used for truncation", c.pos());
@@ -4649,7 +4963,7 @@ public final class CypherToPure {
         }
         Tx t = ((Scalar) source).tx();
         if (unit.time() && t.kind() == Kind.DATE) {
-            throw CypherErrors.invalid("Cannot truncate a Date to the " + unitText, c.args().get(1).pos());
+            throw CypherErrors.invalid("Unit too small for truncation: " + chronoName(unit), c.args().get(1).pos());
         }
         Zone sourceZone = Zone.UTC;
         if (t.kind() == Kind.TIME) {
@@ -4681,9 +4995,10 @@ public final class CypherToPure {
                     written = zone(zt, false, c.pos());
                     continue;
                 }
-                if (k == Component.MILLISECOND || k == Component.MICROSECOND || k == Component.NANOSECOND) {
-                    throw CypherErrors.unsupported("the field " + e.getKey() + " over a truncation is not"
-                            + " supported yet", c.pos());
+                if (k == Component.MILLISECOND || k == Component.MICROSECOND || k == Component.NANOSECOND
+                        || unit == TruncateUnit.MILLISECOND || unit == TruncateUnit.MICROSECOND) {
+                    throw CypherErrors.unsupported("the field " + e.getKey() + " over a truncation" + (unit.time()
+                            ? " to the " + unitText : "") + " is not supported yet", c.pos());
                 }
                 if (toTime && !k.time()) {
                     throw CypherErrors.unsupported("the field " + e.getKey() + " over a time truncation is not"
@@ -4729,6 +5044,10 @@ public final class CypherToPure {
             if (o.isEmpty() && !withTime) {
                 return call("datePart", start);
             }
+            if (unit == TruncateUnit.MILLISECOND || unit == TruncateUnit.MICROSECOND) {
+                // the start keeps its fraction: no recomposition (no field is written over these units)
+                return toTime ? call(TIME_OF, start) : start;
+            }
             ValueSpecification y = integer(o.getOrDefault(Component.YEAR, call("year", start)));
             ValueSpecification mo = integer(o.getOrDefault(Component.MONTH, call("monthNumber", start)));
             ValueSpecification d = integer(o.getOrDefault(Component.DAY, call("dayOfMonth", start)));
@@ -4770,7 +5089,11 @@ public final class CypherToPure {
             case HOUR -> call("firstMinuteOfHour", x);
             case MINUTE -> call("firstSecondOfMinute", x);
             case SECOND -> call("firstMillisecondOfSecond", x);
-            case MILLISECOND, MICROSECOND -> throw new IllegalStateException("refused before: " + unit);
+            // the second's start plus the whole milliseconds since it; the database keeps microseconds, so the
+            // microsecond's start is the value itself
+            case MILLISECOND -> call("adjust", call("firstMillisecondOfSecond", x), call("dateDiff",
+                    call("firstMillisecondOfSecond", x), x, unit("MILLISECONDS")), unit("MILLISECONDS"));
+            case MICROSECOND -> x;
         };
     }
 

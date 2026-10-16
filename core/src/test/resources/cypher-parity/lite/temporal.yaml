@@ -1,8 +1,9 @@
-# The #Cypher{...}# island's temporal cases (docs/CYPHER_STUDY_2026_10_15.md §12.6, §12.7): a date is Pure's
+# The #Cypher{...}# island's temporal cases (docs/CYPHER_STUDY_2026_10_15.md §12.6-§12.10): a date is Pure's
 # StrictDate, a localdatetime Pure's DateTime (the database's DATE and TIMESTAMP, to the microsecond), a localtime
-# Pure's StrictTime (the database's TIME); zoned date-times and times, and durations, are refused by name. Each case
-# is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/temporal/*'
-# snaps them), keyed lite/temporal/<id>.
+# Pure's StrictTime (the database's TIME), a datetime its instant with the zone carried beside, a duration an
+# instance of the model's Duration class; zoned times of day are refused by name. Each case is judged by Neo4j's
+# answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/temporal/*' snaps them), keyed
+# lite/temporal/<id>.
 tests:
   - id: date_from_components
     cypher: "RETURN date({year: 1984, month: 10, day: 11}) AS a, date({year: 1984, month: 10}) AS b, date({year: 1984}) AS c, date({year: 1984, week: 10, dayOfWeek: 3}) AS d, date({year: 1816, week: 1}) AS e, date({year: 1816, week: 52}) AS f, date({year: 1984, quarter: 3, dayOfQuarter: 45}) AS g, date({year: 1984, ordinalDay: 202}) AS h, date({year: 2015, week: 53}) AS i"
@@ -107,7 +108,7 @@ tests:
     cypher: "RETURN localdatetime('1984-10-11T12:00').timezone AS z"
   - id: localdatetime_with_timezone_component
     cypher: "RETURN localdatetime({year: 1984, month: 1, day: 1, timezone: '+01:00'}) AS d"
-  - id: datetime_text_named_zone_refused_by_name
+  - id: datetime_text_named_zone
     cypher: "RETURN datetime('1984-10-11T12:31:14+01:00[Europe/Stockholm]') AS d"
   - id: datetime_to_string_refused_by_name
     cypher: "RETURN toString(datetime('1984-10-11T12:31:14Z')) AS s"
@@ -148,7 +149,7 @@ tests:
     cypher: "RETURN date({date: date('1984-10-11'), time: localtime('12:00')}) AS d"
   - id: localdatetime_from_time_only
     cypher: "RETURN localdatetime({time: localtime('12:00')}) AS t"
-  - id: localtime_compact_text_refused_by_name
+  - id: localtime_compact_text
     cypher: "RETURN localtime('123114') AS t"
   - id: localtime_to_string_refused_by_name
     cypher: "RETURN toString(localtime('12:31')) AS s"
@@ -156,3 +157,49 @@ tests:
     cypher: "RETURN [localtime('12:31'), localtime('13:00')] AS l"
   - id: temporal_errors_are_cyphers
     cypher: "RETURN date({year: 1984, month: 13, day: 1}) AS a"
+  - id: date_from_compact_and_partial_text
+    cypher: "RETURN date('20150721') AS a, date('2015-07') AS b, date('201507') AS c, date('2015') AS d, date('2015-W30-2') AS e, date('2015W302') AS f, date('2015-W30') AS g, date('2015W30') AS h, date('2015-202') AS i, date('2015202') AS j, date('2015-Q2-60') AS k, date('2015Q260') AS l, date('2015-Q2') AS m, date('2015Q2') AS n"
+  - id: date_text_week_53_and_leap_ordinal
+    cypher: "RETURN date('2015-W53-5') AS a, date('2016-366') AS b, date('2016-W52-7') AS c, date('2017-W01-1') AS d, date('2015-W53-5').week AS w, date('2015-W53-5').weekYear AS wy"
+  - id: date_text_month_13_is_neo4js_error
+    cypher: "RETURN date('2015-13') AS d"
+  - id: date_junk_text_is_neo4js_error
+    cypher: "RETURN date('yesterday') AS d"
+  - id: localtime_from_compact_text
+    cypher: "RETURN localtime('214032.142') AS a, localtime('214032') AS b, localtime('2140') AS c, localtime('21') AS d, localtime('21:40:32.142876') AS e, localtime('123114') AS f"
+  - id: localtime_from_text_with_a_comma_fraction
+    cypher: "RETURN localtime('21:40:32,142') AS a"
+  - id: localtime_bad_text_is_neo4js_error
+    cypher: "RETURN localtime('25:00') AS t"
+  - id: localdatetime_from_compact_text
+    cypher: "RETURN localdatetime('2015-W30-2T214032.142') AS a, localdatetime('2015T214032') AS b, localdatetime('20150721T21:40') AS c, localdatetime('2015202T21') AS d, localdatetime('2015-Q2-60T2140') AS e, localdatetime('2015-07T21:40:32') AS f, localdatetime('2015-07-21T21') AS g"
+  - id: localdatetime_bad_text_is_neo4js_error
+    cypher: "RETURN localdatetime('2015-07-21 21:40') AS t"
+  - id: datetime_from_compact_text
+    cypher: "RETURN datetime('2015-W30-2T214032.142Z') AS a, datetime('2015202T21+18:00') AS b, datetime('2015T214032-0100') AS c, datetime('2015-07-21T21:40:32.142+01') AS d, datetime('20150721T21:40+0130') AS e, datetime('2015-07-21T21:40:32.142') AS f"
+  - id: datetime_from_text_with_named_zone
+    cypher: "RETURN datetime('2015-07-21T21:40:32.142+02:00[Europe/Stockholm]') AS a, datetime('2015-07-21T21:40:32.142[Europe/London]') AS b, datetime('2015-12-21T21:40:32.142[Europe/Stockholm]') AS c, datetime('2015-07-21T21:40:32.142[Europe/Stockholm]').timezone AS z, datetime('2015-07-21T21:40:32.142[Europe/Stockholm]').epochSeconds AS s"
+  - id: datetime_named_zone_offset_refused_by_name
+    cypher: "RETURN datetime('2015-07-21T21:40:32.142[Europe/Stockholm]').offset AS o"
+  - id: date_signed_year_refused_by_name
+    cypher: "RETURN date('+2015-07-21') AS a"
+  - id: datetime_text_offset_disagreeing_with_its_zone
+    cypher: "RETURN datetime('2015-07-21T21:40:32.142Z[Europe/Stockholm]') AS d"
+  - id: datetime_bad_text_is_neo4js_error
+    cypher: "RETURN datetime('2015-07-21T21:40:32.142+2') AS d"
+  - id: datetime_text_unknown_zone_is_neo4js_error
+    cypher: "RETURN datetime('2015-07-21T21:40:32.142[Mars/Olympus]') AS d"
+  - id: date_week_quarter_ordinal_over_a_base
+    cypher: "WITH date('2015-07-21') AS d RETURN date({date: d, week: 1}) AS a, date({date: d, quarter: 1}) AS b, date({date: d, ordinalDay: 5}) AS c, date({date: d, dayOfQuarter: 5}) AS e, date({date: d, dayOfWeek: 5}) AS f, date({date: date('1816-12-30'), week: 2, dayOfWeek: 3}) AS g, date({date: d, year: 2016, week: 1}) AS h, date({date: d, quarter: 4, dayOfQuarter: 1}) AS i, date({date: d, year: 2000, ordinalDay: 60}) AS j"
+  - id: localdatetime_week_over_a_base
+    cypher: "WITH localdatetime('2015-07-21T21:40:32') AS dt RETURN localdatetime({datetime: dt, week: 1}) AS a, localdatetime({date: dt, quarter: 1, hour: 5}) AS b, localdatetime({datetime: dt, ordinalDay: 5, minute: 1}) AS c"
+  - id: fine_truncation
+    cypher: "WITH localdatetime('1984-10-11T12:31:14.645876') AS dt, localtime('12:31:14.645876') AS t, datetime('1984-10-11T12:31:14.645876+01:00') AS z RETURN localdatetime.truncate('millisecond', dt) AS a, localdatetime.truncate('microsecond', dt) AS b, localtime.truncate('millisecond', t) AS c, localtime.truncate('microsecond', t) AS d, datetime.truncate('millisecond', z) AS e, datetime.truncate('microsecond', z) AS f, localtime.truncate('millisecond', dt) AS g, localdatetime.truncate('millisecond', localdatetime('1984-10-11T12:31:14.645')) AS h"
+  - id: fine_truncation_with_a_field_refused_by_name
+    cypher: "RETURN localdatetime.truncate('millisecond', localdatetime('1984-10-11T12:31:14.645876'), {microsecond: 2}) AS a"
+  - id: date_truncate_to_millisecond_is_neo4js_error
+    cypher: "RETURN date.truncate('millisecond', date('1984-10-11')) AS d"
+  - id: duration_between_a_time_and_a_date
+    cypher: "WITH date('1984-10-11') AS d, localtime('12:00') AS t, localdatetime('1984-10-11T14:30') AS dt RETURN duration.between(d, t) AS a, duration.between(t, d) AS b, duration.between(t, dt) AS c, duration.between(dt, t) AS e, duration.inMonths(d, t) AS f, duration.inDays(t, d) AS g, duration.inSeconds(d, t) AS h, duration.inSeconds(t, dt) AS i"
+  - id: duration_between_a_time_and_a_zoned_datetime
+    cypher: "WITH localtime('12:00') AS t, datetime('1984-10-11T14:30+01:00') AS z RETURN duration.between(t, z) AS a, duration.between(z, t) AS b, duration.inSeconds(z, t) AS c, duration.between(localtime('01:00'), datetime('2017-10-29T02:30+01:00[Europe/Stockholm]')) AS d, duration.between(datetime('2017-03-26T03:30[Europe/Stockholm]'), localtime('01:00')) AS e"
