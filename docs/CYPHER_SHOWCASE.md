@@ -1009,9 +1009,9 @@ and `DETACH DELETE` (241, the platform's `write` first: `docs/BI_AND_ETL_PLAN_20
 table lacks, `rand()` and the clock functions among them (50, never reproducible); a label, a property or a
 relationship type the model does not declare (52, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns
 that need node identity, which the values do not carry (a `MATCH` or `OPTIONAL MATCH` after rows, both ends bound, an
-undirected self-association, nodes among grouping keys, nodes compared: 87, the study's C5); variable-length relationships without an upper bound, or unrolling past two hops (20); a value the database holds as a Variant read by member, index, order or `IN` without a known
+undirected self-association, nodes among grouping keys, nodes compared: 87, the study's C5); variable-length relationships without an upper bound, past two hops in all, or under a predicate (25); a value the database holds as a Variant read by member, index, order or `IN` without a known
 shape (64: a map's member or a list's element where the shape did not travel, `ORDER BY` a Variant); a pattern
 predicate or comprehension over rows, from no bound node or over more than one hop, and `COUNT { }` (22); a list
 holding a value that may be null, read by the database (8); `%` inside a comprehension the database computes (8);
-an untyped relationship in an OPTIONAL MATCH (7); the rest (116) is small buckets of one to eight, each named in the
+an untyped relationship in an OPTIONAL MATCH (7); the rest (122) is small buckets of one to eight, each named in the
 ledger.
