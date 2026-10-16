@@ -382,6 +382,15 @@ public sealed interface SqlExpr
                     OutputCol.Origin.PHYSICAL);
         }
 
+        /** An UNTYPED reference to a DDL name, its origin stamped by its
+         * declaration: quoted ({@link OutputCol.Origin#PHYSICAL_QUOTED})
+         * or bare. */
+        public static Column physical(@com.legend.base.Nullable String table,
+                String name, boolean declaredQuoted) {
+            return declaredQuoted ? new Column(table, name, SqlTyping.UNKNOWN,
+                    OutputCol.Origin.PHYSICAL_QUOTED) : physical(table, name);
+        }
+
         /** The STAMPED reference to a source's declared output — the M2
          * leaf-supply door (TYPED_SQL_IR.md §2): the builder always has
          * the {@link OutputCol} in hand, and the reference carries its

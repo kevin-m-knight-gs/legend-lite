@@ -14,6 +14,11 @@ public interface SqlDialect {
     /** A query as SQL text: a statement with no bound parameters (one reaching the text is refused). */
     String render(SqlQuery query);
 
+    /** {@link #render} on one line, its clauses separated by single spaces (written so, never collapsed: a string
+     *  literal keeps its own whitespace): the form legend-engine prints a statement it reports, such as the
+     *  test-data generator's fetches, which its tests compare with their newlines removed. */
+    String renderInline(SqlQuery query);
+
     /** A query as a statement for execution with bound values: its text with a {@code ?} for each bound parameter, and
      *  the parameters in placeholder order (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10, E). */
     RenderedStatement renderStatement(SqlQuery query);

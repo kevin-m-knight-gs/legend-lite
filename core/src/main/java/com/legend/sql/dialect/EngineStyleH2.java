@@ -402,6 +402,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case com.legend.sql.SqlDml.InsertValues iv -> seedRow(iv);
             case com.legend.sql.SqlDml.InsertFromTable it -> super.render(it);
             case com.legend.sql.SqlDml.DeleteAll da -> super.render(da);
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> super.render(ct);
         };
     }
 

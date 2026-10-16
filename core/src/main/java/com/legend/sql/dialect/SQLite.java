@@ -3054,6 +3054,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO " + qualified(it.schema(), it.table(), it.quoting())
                     + columns(it.columns(), it.quotedColumns()) + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + ";";
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> super.render(ct);
         };
     }
 

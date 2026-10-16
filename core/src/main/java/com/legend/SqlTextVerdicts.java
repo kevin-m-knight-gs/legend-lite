@@ -1041,7 +1041,7 @@ final class SqlTextVerdicts {
                         golden, ours, () -> fetchTranscript(
                                 com.legend.testdatagen.TestDataGenerationNatives
                                         .transcript(hop.source(), env.ctx(),
-                                                env.connection(),
+                                                env.connection(), env.dialect(),
                                                 StatementExecutor.viewSqlRenderer(specs, env))));
         }
         refereed(env, name, rv);

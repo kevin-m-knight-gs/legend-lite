@@ -9873,3 +9873,17 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
   - `h2-database-lost-register.txt` +1, the same test: database mode fails it as it fails 61 other rows of that
     register (`DialectCapability: variant navigation reached a dialect without JSON support`, its
     `.rows.value(...)` read). It was not in the register before because the host judge failed it first.
+- **The test-data generator's statements are IR its session's dialect writes** (`TestDataGenerator`): the fetches
+  (selects over the store tables, quoted as declared, and the parent's temp table), their temp tables
+  (`SqlDml.CreateTempTableAs`), their read-backs, the CSV envelope and the seed read. Until now it wrote one text it
+  hoped both H2 and DuckDB would read. Its trail is the dialect's one-line form (`SqlDialect.renderInline`), since
+  the engine's tests compare it with the newlines removed. The CSV compare, which had no caller, is deleted, and with
+  it the `EXCEPT` diff and the `duckType` table.
+  - H2's dialect spelled `md5`/`sha1`/`sha256`, which H2 lacks. They are now its `RAWTOHEX(HASH(...))`, and
+    `DigestTest` asks H2 and DuckDB for Java's digests.
+  - The CSV envelope found a text column by exact case, so H2 (which upper-cases a temp's columns) hashed nothing.
+    It compares without case now. `h2-fail-roster.txt` −1: `testUnionToUnionMultipleLevelsWithStringHashing` passes
+    on both H2 judges.
+  - With H2's digests spelled, `testJoinWithExtendWithDigestOnColumnsOnBothQueries` no longer falls back outside
+    its body, and both H2 judges reach and fail its assert #1 alike: `h2-database-outside-body-register.txt` −1 and
+    `h2-database-untriaged-register.txt` −1, that test's entries.

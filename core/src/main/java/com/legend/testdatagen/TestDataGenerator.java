@@ -10,6 +10,17 @@ import com.legend.model.DatabaseDefinition;
 import com.legend.model.RelationalDataType;
 import com.legend.model.RelationalOperation;
 import com.legend.protocol.spec.LambdaFunction;
+import com.legend.sql.NameQuoting;
+import com.legend.sql.OutputCol;
+import com.legend.sql.SqlDdl;
+import com.legend.sql.SqlDml;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
+import com.legend.sql.SqlQuery;
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
+import com.legend.sql.SqlTyping;
+import com.legend.sql.dialect.SqlDialect;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -31,14 +42,12 @@ import java.util.TreeSet;
  * trail and a CSV dump ({@code schema\ntable\ncols\nrows...-----\n}).
  *
  * <p>Java ORCHESTRATES, the database EXECUTES (tenet #1): every node's
- * rows land in a DuckDB TEMP table ({@code CREATE TEMP TABLE ... AS
+ * rows land in a session TEMP table ({@code CREATE TEMP TABLE ... AS
  * SELECT}, the engine's own temp-table discipline), child fetches JOIN
- * the parent's temp table in the database, per-table dedup is a DB-side
- * {@code UNION}, and {@link #compareCsv} loads both CSV strings into
- * typed temp tables and diffs them with {@code EXCEPT} both ways (the
- * engine's assertTestData = setUpDataSQLs + assertSameElements — an
- * order-insensitive, type-normalized row-set contract). Row values only
- * cross into Java as display strings for the CSV text.
+ * the parent's temp table in the database, and per-table dedup is a
+ * DB-side {@code UNION}. Row values only cross into Java as display
+ * strings for the CSV text. (The CSV compare, never called since
+ * assertTestData folds through setUpDataSQLs, was deleted 2026-10-16.)
  *
  * <p>Walls are LOUD ({@link NotImplementedException} naming the
  * pending shape) — but the previously-listed examples (view-backed
@@ -174,19 +183,6 @@ public final class TestDataGenerator {
         }
     }
 
-    public static Result generate(ModelContext ctx,
-            LambdaFunction resolvedQuery, String mappingFqn,
-            List<TableRowIds> rowIds, Connection conn) throws SQLException {
-        return generate(ctx, resolvedQuery, mappingFqn, rowIds, null, conn);
-    }
-
-    public static Result generate(ModelContext ctx,
-            LambdaFunction resolvedQuery, String mappingFqn,
-            List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates,
-            Connection conn) throws SQLException {
-        return generate(ctx, resolvedQuery, mappingFqn, rowIds, dates,
-                false, conn);
-    }
 
     /** The VIEW's fetch SQL, rendered by the driver's COMPILER (the engine's
      *  own shape, testDataGeneration.pure 377–412: the view planned by the SQL
@@ -198,22 +194,13 @@ public final class TestDataGenerator {
         String render(String dbFqn, String viewName, Map<String, String> tableToTemp);
     }
 
+    /** The generator's run on the session {@code conn}, whose database {@code dialect} writes every statement: the
+     *  fetches into its temp tables, their read-backs and the CSV envelope (the dialect program's Phase 3,
+     *  2026-10-16: until then this class wrote one SQL text it hoped both H2 and DuckDB would read). */
     public static Result generate(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
             List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates,
-            boolean hashStrings, Connection conn) throws SQLException {
-        return generate(ctx, resolvedQuery, mappingFqn, rowIds, dates, hashStrings, conn,
-                (db, view, temps) -> {
-                    throw new NotImplementedException("testDataGen: a VIEW fetch needs the"
-                            + " driver's view renderer (TestDataGenerator.ViewSql); view '"
-                            + view + "' of '" + db + "'");
-                });
-    }
-
-    public static Result generate(ModelContext ctx,
-            LambdaFunction resolvedQuery, String mappingFqn,
-            List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates,
-            boolean hashStrings, Connection conn, ViewSql viewSql) throws SQLException {
+            boolean hashStrings, Connection conn, SqlDialect dialect, ViewSql viewSql) throws SQLException {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         // engine generateRelationColumnMap: column demand merges PER
@@ -233,7 +220,8 @@ public final class TestDataGenerator {
         // per-call temp-name counter (temps drop in finally, so names
         // never collide across sequential invocations)
         List<String> temps = new ArrayList<>();
-        try (Statement st = conn.createStatement()) {
+        try (Statement statement = conn.createStatement()) {
+            Session st = new Session(statement, dialect);
             for (ScanRelations.Rel r : roots) {
                 fetchRoot(ctx, r, rowIds, st, sqls, fetches, fetched,
                         temps, colMap, dates, viewSql);
@@ -242,7 +230,7 @@ public final class TestDataGenerator {
             return new Result(List.copyOf(sqls), csv, null,
                     List.copyOf(fetches));
         } finally {
-            dropTemps(conn, temps);
+            dropTemps(conn, dialect, temps);
         }
     }
 
@@ -271,7 +259,7 @@ public final class TestDataGenerator {
         }
     }
 
-    private record Fetched(String schema, String table, List<String> cols,
+    private record Fetched(String schema, String table, DatabaseDefinition.TableDefinition def, List<String> cols,
             List<String> temps) {
     }
 
@@ -282,7 +270,7 @@ public final class TestDataGenerator {
     // ===== tree walk =====
 
     private static void fetchRoot(ModelContext ctx, ScanRelations.Rel rel,
-            List<TableRowIds> rowIds, Statement st, List<String> sqls,
+            List<TableRowIds> rowIds, Session st, List<String> sqls,
             List<Fetch> fetches,
             Map<String, Fetched> fetched, List<String> temps,
             Map<String, List<String>> colMap, @com.legend.base.Nullable MilestoningDates dates,
@@ -314,18 +302,12 @@ public final class TestDataGenerator {
                     + " identifiers for root table '" + loc.schema() + "."
                     + rel.table() + "' (generateWithDefaultPKs pending)");
         }
-        String where = rowIdWhere(ids, loc.def());
-        String mf = milestoningFilter(loc.def(), "\"root\"", dates);
-        String sql = "select " + String.join(", ",
-                cols.stream().map(c -> "\"root\"." + q(c)).toList())
-                + " from " + qualify(loc.schema(), tbl)
-                + " as \"root\" where " + (mf == null ? where
-                        : "(" + where + ") and " + mf) + " limit 20";
-        String temp = materialize(st, sql, tbl, temps);
+        SqlSelect fetch = idFetch(ids, loc, tbl, cols, dates);
+        String temp = materialize(st, fetch, tbl, temps);
         int idx = sqls.size();
-        sqls.add(sql);
+        sqls.add(st.dialect().renderInline(fetch));
         fetches.add(new Fetch(-1, tbl, cols, tempRows(st, temp)));
-        record(fetched, loc.schema(), tbl, cols, temp);
+        record(fetched, loc, tbl, cols, temp);
         for (ScanRelations.Rel child : rel.children()) {
             fetchChild(ctx, rel, temp, idx, child, st, sqls, fetches,
                     fetched, temps, colMap, rowIds, dates, viewSql);
@@ -336,32 +318,41 @@ public final class TestDataGenerator {
         }
     }
 
-    /** The OR-of-row-id equality WHERE ({@code (a and b) or (…)}). */
-    private static String rowIdWhere(TableRowIds ids,
-            DatabaseDefinition.TableDefinition def) {
-        StringBuilder where = new StringBuilder();
+    /** The fetch of a table's rows by their identifiers: its demanded columns, under {@code "root"}, the rows whose
+     *  identifiers match ({@code (a and b) or (…)}) and are live on the milestoning dates, at most 20. */
+    private static SqlSelect idFetch(TableRowIds ids, Located loc, String table, List<String> cols,
+            @com.legend.base.Nullable MilestoningDates dates) {
+        SqlExpr where = null;
         for (RowId id : ids.ids()) {
-            if (where.length() > 0) {
-                where.append(" or ");
-            }
-            StringBuilder one = new StringBuilder();
+            SqlExpr one = null;
             for (int i = 0; i < id.cols().size(); i++) {
-                if (i > 0) {
-                    one.append(" and ");
-                }
-                one.append("\"root\".").append(q(id.cols().get(i)))
-                        .append(" = ").append(lit(id.values().get(i),
-                                column(def, id.cols().get(i))));
+                one = and(one, SqlExpr.Call.of(SqlFn.EQUAL, stored(ROOT, loc.def(), id.cols().get(i)),
+                        literal(id.values().get(i), column(loc.def(), id.cols().get(i)))));
             }
-            one.insert(0, "(").append(")");
-            where.append(one);
+            SqlExpr group = new SqlExpr.Group(java.util.Objects.requireNonNull(one, "a row identifier with no column"));
+            where = where == null ? group : SqlExpr.Call.of(SqlFn.OR, where, group);
         }
-        return where.toString();
+        SqlExpr mf = milestoningFilter(loc.def(), ROOT, dates);
+        SqlExpr rows = java.util.Objects.requireNonNull(where, "no row identifiers");
+        return fetch(cols, loc.def(), ROOT, storeTable(loc, table, ROOT), mf == null ? rows
+                : SqlExpr.Call.of(SqlFn.AND, new SqlExpr.Group(rows), mf));
+    }
+
+    /** {@code select <alias>.c, ... from <from> [where <where>] limit 20}: the demanded columns of the table
+     *  {@code alias} reads, unaliased, so the database names its temp's columns as it names a read column (H2 upper
+     *  case, DuckDB as stored), as when this was text. */
+    private static SqlSelect fetch(List<String> cols, DatabaseDefinition.TableDefinition def, String alias,
+            SqlSource from, @com.legend.base.Nullable SqlExpr where) {
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (String c : cols) {
+            ps.add(new SqlSelect.Projection(stored(alias, def, c), null, null));
+        }
+        return new SqlSelect(ps, false, from, where, List.of(), null, null, List.of(), 20L, null, List.of());
     }
 
     private static void fetchChild(ModelContext ctx, ScanRelations.Rel parent,
             String parentTemp, int parentIdx, ScanRelations.Rel child,
-            Statement st,
+            Session st,
             List<String> sqls, List<Fetch> fetches,
             Map<String, Fetched> fetched,
             List<String> temps, Map<String, List<String>> colMap,
@@ -388,18 +379,12 @@ public final class TestDataGenerator {
         for (TableRowIds t : viewName == null ? List.<TableRowIds>of()
                 : rowIds) {
             if (t.table().equals(ct) && t.schema().equals(loc.schema())) {
-                String mfr = milestoningFilter(loc.def(), "\"root\"", dates);
-                String w = rowIdWhere(t, loc.def());
-                String idSql = "select " + String.join(", ",
-                        cols.stream().map(c -> "\"root\"." + q(c)).toList())
-                        + " from " + qualify(loc.schema(), ct)
-                        + " as \"root\" where " + (mfr == null ? w
-                                : "(" + w + ") and " + mfr) + " limit 20";
-                String idTemp = materialize(st, idSql, ct, temps);
+                SqlSelect idFetch = idFetch(t, loc, ct, cols, dates);
+                String idTemp = materialize(st, idFetch, ct, temps);
                 int idIdx = sqls.size();
-                sqls.add(idSql);
+                sqls.add(st.dialect().renderInline(idFetch));
                 fetches.add(new Fetch(-1, ct, cols, tempRows(st, idTemp)));
-                record(fetched, loc.schema(), ct, cols, idTemp);
+                record(fetched, loc, ct, cols, idTemp);
                 for (ScanRelations.Rel sub : child.children()) {
                     fetchChild(ctx, child, idTemp, idIdx, sub, st, sqls,
                             fetches, fetched, temps, colMap, rowIds, dates, viewSql);
@@ -415,20 +400,16 @@ public final class TestDataGenerator {
                 : findJoin(ctx, child.joinName(), child.db(),
                         parent.db()).operation();
         String alias = ct.equals(parent.table()) ? "t_" + ct : ct;
-        String cond = renderCondition(op, parent.table(),
-                child.table(), alias, String.valueOf(child.joinName()));
-        String mf = milestoningFilter(loc.def(), q(alias), dates);
-        String sql = "select " + String.join(", ",
-                cols.stream().map(c -> q(alias) + "." + q(c)).toList())
-                + " from " + parentTemp + " as main inner join "
-                + qualify(loc.schema(), ct) + " as " + q(alias)
-                + " on " + cond
-                + (mf == null ? "" : " where " + mf) + " limit 20";
-        String temp = materialize(st, sql, child.table(), temps);
+        SqlExpr cond = condition(op, parent.table(), locate(ctx, parent.db(), parent.table()).def(),
+                child.table(), alias, loc.def(), String.valueOf(child.joinName()));
+        SqlSelect fetch = fetch(cols, loc.def(), alias, new SqlSource.Join(tempTable(parentTemp, PARENT),
+                storeTable(loc, ct, alias), SqlSource.Join.Kind.INNER, cond),
+                milestoningFilter(loc.def(), alias, dates));
+        String temp = materialize(st, fetch, child.table(), temps);
         int idx = sqls.size();
-        sqls.add(sql);
+        sqls.add(st.dialect().renderInline(fetch));
         fetches.add(new Fetch(parentIdx, ct, cols, tempRows(st, temp)));
-        record(fetched, loc.schema(), child.table(), cols, temp);
+        record(fetched, loc, child.table(), cols, temp);
         for (ScanRelations.Rel sub : child.children()) {
             fetchChild(ctx, child, temp, idx, sub, st, sqls, fetches,
                     fetched, temps, colMap, rowIds, dates, viewSql);
@@ -447,7 +428,7 @@ public final class TestDataGenerator {
      * stacks. The view result pairs with a View (not a Table), so it
      * adds no CSV block; the SQL and its execution are the contract. */
     private static void emitViewFetches(ModelContext ctx, String db,
-            String viewName, Statement st, List<String> sqls,
+            String viewName, Session st, List<String> sqls,
             List<Fetch> fetches,
             Map<String, Fetched> fetched, ViewSql viewSql) throws SQLException {
         List<String> chain = ScanRelations
@@ -472,25 +453,24 @@ public final class TestDataGenerator {
         }
     }
 
-    /** The ONE whole-relation read spelling (csvEnvelope's union arms
-     * and the transcript capture share it — single owner). */
-    private static String selectAll(String rel) {
-        return "select * from " + rel;
+    /** The ONE whole-temp read (csvEnvelope's union arms and the transcript capture share it — single owner). */
+    private static SqlSelect selectAll(String temp) {
+        return SqlSelect.starOf(tempTable(temp, temp));
     }
 
     /** The materialized temp's LIVE contents — the fetch's transcript
      * rows (engine parity: generateTestData pairs each SQL with its
      * ResultSet). */
-    private static List<List<Object>> tempRows(Statement st, String temp)
+    private static List<List<Object>> tempRows(Session st, String temp)
             throws SQLException {
-        return captureRows(st, selectAll(temp), null);
+        return captureRows(st, st.render(selectAll(temp)), null);
     }
 
-    private static List<List<Object>> captureRows(Statement st, String sql,
+    private static List<List<Object>> captureRows(Session st, String sql,
             @com.legend.base.Nullable List<String> colsOut) throws SQLException {
         List<List<Object>> rows = new ArrayList<>();
         com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-        try (java.sql.ResultSet rs = st.executeQuery(sql)) {
+        try (java.sql.ResultSet rs = st.statement().executeQuery(sql)) {
             int n = rs.getMetaData().getColumnCount();
             if (colsOut != null) {
                 for (int i = 1; i <= n; i++) {
@@ -510,55 +490,52 @@ public final class TestDataGenerator {
 
     /** The engine's getMilestoningFilter: forced temporal dates filter a
      * MILESTONED table's fetch (business/processing from-thru ranges,
-     * snapshot equality). A milestoned table without its date is the
-     * engine's own assert — a loud wall. */
-    private static @com.legend.base.Nullable String milestoningFilter(
+     * snapshot equality), the table read through {@code alias}. A
+     * milestoned table without its date is the engine's own assert — a
+     * loud wall. */
+    private static @com.legend.base.Nullable SqlExpr milestoningFilter(
             DatabaseDefinition.TableDefinition def, String alias,
             @com.legend.base.Nullable MilestoningDates d) {
         var ms = def.milestoning();
         if (ms == null || d == null) {
             return null;
         }
-        List<String> parts = new ArrayList<>();
+        SqlExpr parts = null;
         if (ms.business() != null) {
             var b = ms.business();
             if (b.snapshotDate() != null) {
-                parts.add(alias + "." + q(b.snapshotDate()) + " = DATE '"
-                        + requireDate(d.snapshot(), def, "snapshotDate")
-                        + "'");
+                parts = and(parts, onDate(alias, def, b.snapshotDate(), SqlFn.EQUAL,
+                        requireDate(d.snapshot(), def, "snapshotDate")));
             } else {
                 String bd = requireDate(d.business(), def, "businessDate");
-                parts.add(alias + "." + q(java.util.Objects.requireNonNull(b.from(),
-                        "milestoning business block without BUS_FROM"))
-                        + " <= DATE '" + bd
-                        + "'");
-                parts.add(alias + "." + q(java.util.Objects.requireNonNull(b.thru(),
-                        "milestoning business block without BUS_THRU"))
-                        + (b.thruIsInclusive() ? " >= DATE '" : " > DATE '")
-                        + bd + "'");
+                parts = and(parts, onDate(alias, def, java.util.Objects.requireNonNull(b.from(),
+                        "milestoning business block without BUS_FROM"), SqlFn.LESS_EQUAL, bd));
+                parts = and(parts, onDate(alias, def, java.util.Objects.requireNonNull(b.thru(),
+                        "milestoning business block without BUS_THRU"),
+                        b.thruIsInclusive() ? SqlFn.GREATER_EQUAL : SqlFn.GREATER, bd));
             }
         }
         if (ms.processing() != null) {
             var pr = ms.processing();
             if (pr.snapshotDate() != null) {
-                parts.add(alias + "." + q(pr.snapshotDate()) + " = DATE '"
-                        + requireDate(d.processing(), def, "processingDate")
-                        + "'");
+                parts = and(parts, onDate(alias, def, pr.snapshotDate(), SqlFn.EQUAL,
+                        requireDate(d.processing(), def, "processingDate")));
             } else {
-                String pd = requireDate(d.processing(), def,
-                        "processingDate");
-                parts.add(alias + "." + q(java.util.Objects.requireNonNull(pr.in(),
-                        "milestoning processing block without"
-                        + " PROCESSING_IN")) + " <= DATE '" + pd
-                        + "'");
-                parts.add(alias + "." + q(java.util.Objects.requireNonNull(pr.out(),
-                        "milestoning processing block without"
-                        + " PROCESSING_OUT"))
-                        + (pr.outIsInclusive() ? " >= DATE '" : " > DATE '")
-                        + pd + "'");
+                String pd = requireDate(d.processing(), def, "processingDate");
+                parts = and(parts, onDate(alias, def, java.util.Objects.requireNonNull(pr.in(),
+                        "milestoning processing block without PROCESSING_IN"), SqlFn.LESS_EQUAL, pd));
+                parts = and(parts, onDate(alias, def, java.util.Objects.requireNonNull(pr.out(),
+                        "milestoning processing block without PROCESSING_OUT"),
+                        pr.outIsInclusive() ? SqlFn.GREATER_EQUAL : SqlFn.GREATER, pd));
             }
         }
-        return parts.isEmpty() ? null : String.join(" and ", parts);
+        return parts;
+    }
+
+    /** {@code alias.column <op> DATE 'date'}. */
+    private static SqlExpr onDate(String alias, DatabaseDefinition.TableDefinition def, String column, SqlFn op,
+            String date) {
+        return SqlExpr.Call.of(op, stored(alias, def, column), new SqlExpr.DateLit(date));
     }
 
     private static String requireDate(@com.legend.base.Nullable String v,
@@ -571,20 +548,22 @@ public final class TestDataGenerator {
         return v;
     }
 
-    private static String materialize(Statement st, String sql,
+    /** The fetch's rows into a temp table of the session's own, named {@code tdg_<n>_<table>} (the referee knows a
+     *  chained fetch by that prefix). */
+    private static String materialize(Session st, SqlSelect fetch,
             String table, List<String> temps) throws SQLException {
         String temp = "tdg_" + temps.size() + "_"
                 + table.replaceAll("[^A-Za-z0-9_]", "_");
         com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-        st.execute("CREATE TEMPORARY TABLE " + temp + " AS " + sql);
+        st.statement().execute(st.dialect().render(new SqlDml.CreateTempTableAs(temp, fetch)));
         temps.add(temp);
         return temp;
     }
 
-    private static void record(Map<String, Fetched> fetched, String schema,
+    private static void record(Map<String, Fetched> fetched, Located loc,
             String table, List<String> cols, String temp) {
-        Fetched f = fetched.computeIfAbsent(schema + "\n" + table,
-                k -> new Fetched(schema, table, cols, new ArrayList<>()));
+        Fetched f = fetched.computeIfAbsent(loc.schema() + "\n" + table,
+                k -> new Fetched(loc.schema(), table, loc.def(), cols, new ArrayList<>()));
         if (!f.cols().equals(cols)) {
             throw new IllegalStateException("testDataGen: table '" + table
                     + "' fetched twice with differing column sets "
@@ -688,53 +667,50 @@ public final class TestDataGenerator {
         }
     }
 
-    // ===== join condition rendering =====
+    // ===== the join condition =====
 
-    private static String renderCondition(RelationalOperation op,
-            @com.legend.base.Nullable String parentTable, String childTable, String childAlias,
-            String joinName) {
+    /** A child edge's join condition over the parent's temp table ({@code main}) and the child table
+     *  ({@code childAlias}): a self-join's plain spelling is the PARENT side, its {@code {target}} spelling the
+     *  child (engine reprocessAliases). */
+    private static SqlExpr condition(RelationalOperation op,
+            @com.legend.base.Nullable String parentTable, DatabaseDefinition.TableDefinition parentDef,
+            String childTable, String childAlias,
+            DatabaseDefinition.TableDefinition childDef, String joinName) {
         return switch (op) {
             case RelationalOperation.ColumnRef cr -> {
                 String t = bare(cr.table());
-                // self-join: the plain spelling is the PARENT side, the
-                // {target} spelling the child (engine reprocessAliases)
-                String a;
                 if (t.equals(parentTable)) {
-                    a = "main";
-                } else if (t.equals(childTable)) {
-                    a = q(childAlias);
-                } else {
-                    throw new NotImplementedException("testDataGen: join '"
-                            + joinName + "' references table '" + t
-                            + "' outside the parent/child pair — multi-table"
-                            + " join conditions pending");
+                    yield SqlExpr.Column.derived(PARENT, tempColumn(parentDef, cr.column()));
                 }
-                yield a + "." + q(cr.column());
+                if (t.equals(childTable)) {
+                    yield stored(childAlias, childDef, cr.column());
+                }
+                throw new NotImplementedException("testDataGen: join '"
+                        + joinName + "' references table '" + t
+                        + "' outside the parent/child pair — multi-table"
+                        + " join conditions pending");
             }
-            case RelationalOperation.TargetColumnRef tr ->
-                    q(childAlias) + "." + q(tr.column());
-            case RelationalOperation.Literal l -> lit(l.value(), null);
-            case RelationalOperation.Comparison c ->
-                    renderCondition(c.left(), parentTable, childTable,
-                            childAlias, joinName) + " " + c.op().symbol() + " "
-                    + renderCondition(c.right(), parentTable, childTable,
-                            childAlias, joinName);
-            case RelationalOperation.BooleanOp b ->
-                    renderCondition(b.left(), parentTable, childTable,
-                            childAlias, joinName)
-                    + (b.op() == com.legend.model.LogicalOp.AND ? " and "
-                            : " or ")
-                    + renderCondition(b.right(), parentTable, childTable,
-                            childAlias, joinName);
-            case RelationalOperation.Group g -> "("
-                    + renderCondition(g.inner(), parentTable, childTable,
-                            childAlias, joinName) + ")";
-            case RelationalOperation.IsNull n ->
-                    renderCondition(n.operand(), parentTable, childTable,
-                            childAlias, joinName) + " is null";
-            case RelationalOperation.IsNotNull n ->
-                    renderCondition(n.operand(), parentTable, childTable,
-                            childAlias, joinName) + " is not null";
+            case RelationalOperation.TargetColumnRef tr -> stored(childAlias, childDef, tr.column());
+            case RelationalOperation.Literal l -> literal(l.value(), null);
+            case RelationalOperation.Comparison c -> SqlExpr.Call.of(switch (c.op()) {
+                case EQ -> SqlFn.EQUAL;
+                case NEQ -> SqlFn.NOT_EQUAL;
+                case LT -> SqlFn.LESS;
+                case LTE -> SqlFn.LESS_EQUAL;
+                case GT -> SqlFn.GREATER;
+                case GTE -> SqlFn.GREATER_EQUAL;
+            }, condition(c.left(), parentTable, parentDef, childTable, childAlias, childDef, joinName),
+                    condition(c.right(), parentTable, parentDef, childTable, childAlias, childDef, joinName));
+            case RelationalOperation.BooleanOp b -> SqlExpr.Call.of(
+                    b.op() == com.legend.model.LogicalOp.AND ? SqlFn.AND : SqlFn.OR,
+                    condition(b.left(), parentTable, parentDef, childTable, childAlias, childDef, joinName),
+                    condition(b.right(), parentTable, parentDef, childTable, childAlias, childDef, joinName));
+            case RelationalOperation.Group g -> new SqlExpr.Group(
+                    condition(g.inner(), parentTable, parentDef, childTable, childAlias, childDef, joinName));
+            case RelationalOperation.IsNull n -> SqlExpr.Call.of(SqlFn.IS_NULL,
+                    condition(n.operand(), parentTable, parentDef, childTable, childAlias, childDef, joinName));
+            case RelationalOperation.IsNotNull n -> SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
+                    condition(n.operand(), parentTable, parentDef, childTable, childAlias, childDef, joinName));
             default -> throw new NotImplementedException("testDataGen: join '"
                     + joinName + "' condition node "
                     + op.getClass().getSimpleName() + " pending");
@@ -941,14 +917,9 @@ public final class TestDataGenerator {
                 ? col.toUpperCase(java.util.Locale.ROOT) : col;
     }
 
-    private static List<String> headerKey(String[] cols) {
-        return java.util.Arrays.stream(cols)
-                .map(c -> c.toUpperCase(java.util.Locale.ROOT)).toList();
-    }
-
     // ===== CSV =====
 
-    private static String csvEnvelope(Statement st,
+    private static String csvEnvelope(Session st,
             Map<String, Fetched> fetched, boolean hashStrings)
             throws SQLException {
         StringBuilder out = new StringBuilder();
@@ -957,11 +928,9 @@ public final class TestDataGenerator {
                 out.append("-----\n");
             }
             // dedup ACROSS fetches of one table = DB-side UNION
-            String union = String.join(" union ", f.temps().stream()
-                    .map(TestDataGenerator::selectAll).toList());
-            if (f.temps().size() == 1) {
-                union = "select distinct * from " + f.temps().get(0);
-            }
+            SqlQuery union = f.temps().size() == 1 ? selectAll(f.temps().get(0)).withDistinct()
+                    : new com.legend.sql.SqlUnion(f.temps().stream().<SqlQuery>map(TestDataGenerator::selectAll)
+                            .toList(), false, List.of());
             // engine parity: H2 UPPERCASES unquoted result labels; plain
             // identifiers print uppercase, exotic names ride as-is.
             // The CSV column order sorts on the DISPLAY (uppercased)
@@ -980,38 +949,34 @@ public final class TestDataGenerator {
             // LIMIT-0 metadata read, not value sniffing).
             java.util.Set<String> textCols = new java.util.HashSet<>();
             com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-            try (ResultSet meta = st.executeQuery(
-                    "select * from (" + union + ") limit 0")) {
+            try (ResultSet meta = st.statement().executeQuery(st.render(
+                    SqlSelect.starOf(new SqlSource.Subselect(union, "_u", null)).withLimit(0L)))) {
                 var mmd = meta.getMetaData();
                 for (int i = 1; i <= mmd.getColumnCount(); i++) {
                     if (isTextType(mmd.getColumnType(i))) {
-                        textCols.add(mmd.getColumnName(i));
+                        // without case: H2 names a temp's column upper case, DuckDB as stored
+                        textCols.add(mmd.getColumnName(i).toUpperCase(java.util.Locale.ROOT));
                     }
                 }
             }
-            List<String> projs = new ArrayList<>(cs.size());
+            List<SqlSelect.Projection> projs = new ArrayList<>(cs.size());
             for (String c : cs) {
-                if (!textCols.contains(c)) {
+                String tc = tempColumn(f.def(), c);
+                SqlExpr cell = SqlExpr.Column.derived(null, tc);
+                if (!textCols.contains(tc.toUpperCase(java.util.Locale.ROOT))) {
                     // non-string kinds pass through (engine
                     // hashStrings(): s:String -> hash, Any unchanged);
                     // their display forms never carry scrub characters
-                    projs.add(q(c));
+                    projs.add(new SqlSelect.Projection(cell, null, null));
                 } else if (hashStrings) {
-                    // the engine's hashString (testDataGeneration
-                    // .pure:656) IN SQL: first 5 hex chars of sha256,
-                    // tiled to the source length (whole repeats + the
-                    // LAST len%5 chars) — hex output needs no scrub
-                    String h = "substr(sha256(" + q(c) + "),1,5)";
-                    projs.add("repeat(" + h + ", length(" + q(c)
-                            + ")//5) || right(" + h + ", length(" + q(c)
-                            + ")%5) as " + q(c));
+                    projs.add(new SqlSelect.Projection(hashString(cell), tc, null));
                 } else {
                     // the CSV scrub (quote/comma/newline) in SQL — the
                     // old Java replace chain was A6's lossy scrub at
                     // the wrong layer
-                    projs.add("replace(replace(replace(" + q(c)
-                            + ", chr(39), ' '), ',', ';'), chr(10), ' ')"
-                            + " as " + q(c));
+                    projs.add(new SqlSelect.Projection(replace(replace(replace(cell,
+                            SqlExpr.Call.of(SqlFn.CHR, new SqlExpr.IntLit(39)), " "), new SqlExpr.StringLit(","), ";"),
+                            SqlExpr.Call.of(SqlFn.CHR, new SqlExpr.IntLit(10)), " "), tc, null));
                 }
             }
             // E5: the ROW TEXT is SQL — cells cast to their display
@@ -1020,20 +985,25 @@ public final class TestDataGenerator {
             // OUTER query orders by the projected display columns
             // (left-to-right — the old ordinal semantics; the sort keys
             // need not be projected).
-            String line = cs.stream()
-                    .map(c -> "coalesce(cast(_r." + q(c)
-                            + " as varchar), '---null---')")
-                    .collect(java.util.stream.Collectors
-                            .joining(" || ',' || "));
+            List<SqlExpr> parts = new ArrayList<>();
+            for (String c : cs) {
+                if (!parts.isEmpty()) {
+                    parts.add(new SqlExpr.StringLit(","));
+                }
+                parts.add(SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Cast(
+                        SqlExpr.Column.derived(CSV_ROW, tempColumn(f.def(), c)), com.legend.sql.SqlType.Scalar.VARCHAR),
+                        new SqlExpr.StringLit("---null---")));
+            }
+            SqlSelect cells = new SqlSelect(projs, false, new SqlSource.Subselect(union, "_u", null), null, List.of(),
+                    null, null, List.of(), null, null, List.of());
+            SqlSelect lines = new SqlSelect(List.of(new SqlSelect.Projection(parts.size() == 1 ? parts.get(0)
+                    : new SqlExpr.Call(SqlFn.CONCAT, parts, SqlTyping.UNKNOWN), "_csv_line", null)), false,
+                    new SqlSource.Subselect(cells, CSV_ROW, null), null, List.of(), null, null,
+                    cs.stream().map(c -> SqlSelect.SortKey.asc(SqlExpr.Column.derived(CSV_ROW, tempColumn(f.def(), c))))
+                            .toList(), null, null, List.of());
             com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
             com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-            try (ResultSet rs = st.executeQuery("select " + line
-                    + " as _csv_line from (select "
-                    + String.join(", ", projs)
-                    + " from (" + union + ")) _r order by "
-                    + cs.stream().map(c -> "_r." + q(c))
-                            .collect(java.util.stream.Collectors
-                                    .joining(", ")))) {
+            try (ResultSet rs = st.statement().executeQuery(st.render(lines))) {
                 while (rs.next()) {
                     out.append(rs.getString(1)).append('\n');
                 }
@@ -1045,217 +1015,59 @@ public final class TestDataGenerator {
         return out.toString();
     }
 
+    /** The engine's hashString (testDataGeneration.pure:656) IN SQL: the first 5 hex characters of the string's
+     *  SHA-256, tiled to its length (whole repeats, then the LAST {@code length % 5} characters). Hex needs no
+     *  scrub. A NULL string stays NULL. */
+    private static SqlExpr hashString(SqlExpr s) {
+        SqlExpr h = SqlExpr.Call.of(SqlFn.SUBSTRING, SqlExpr.Call.of(SqlFn.SHA256, s), new SqlExpr.IntLit(1),
+                new SqlExpr.IntLit(5));
+        SqlExpr length = SqlExpr.Call.of(SqlFn.LENGTH, s);
+        SqlExpr tiled = SqlExpr.Call.of(SqlFn.CONCAT,
+                SqlExpr.Call.of(SqlFn.REPEAT_STR, h, SqlExpr.Call.of(SqlFn.INT_DIVIDE, length, new SqlExpr.IntLit(5))),
+                SqlExpr.Call.of(SqlFn.RIGHT, h, SqlExpr.Call.of(SqlFn.MOD, length, new SqlExpr.IntLit(5))));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, s), new SqlExpr.NullLit())),
+                tiled);
+    }
+
+    private static SqlExpr replace(SqlExpr s, SqlExpr from, String to) {
+        return SqlExpr.Call.of(SqlFn.REPLACE, s, from, new SqlExpr.StringLit(to));
+    }
+
     private static boolean isTextType(int sqlType) {
         return sqlType == java.sql.Types.VARCHAR
                 || sqlType == java.sql.Types.CHAR
                 || sqlType == java.sql.Types.LONGVARCHAR;
     }
 
-    // ===== assertTestData (engine: setUpDataSQLs + assertSameElements) =====
-
-    /**
-     * Compare two testDataGen CSV strings as TYPED ROW SETS: both sides
-     * load into temp tables typed from the store model and diff with
-     * {@code EXCEPT} both ways — the database normalizes types, dates and
-     * numeric spellings, exactly like the engine's route through
-     * setUpDataSQLs. Returns null when equal, else a failure message.
-     */
-    public static @com.legend.base.Nullable String compareCsv(ModelContext ctx,
-            String dbFqn,
-            String expected, String actual, Connection conn)
-            throws SQLException {
-        Map<String, String[][]> exp = parseBlocks(expected);
-        Map<String, String[][]> act = parseBlocks(actual);
-        if (!exp.keySet().equals(act.keySet())) {
-            return "assertTestData: table sets differ — expected "
-                    + exp.keySet() + ", got " + act.keySet();
-        }
-        List<String> temps = new ArrayList<>();
-        try (Statement st = conn.createStatement()) {
-            for (String key : exp.keySet()) {
-                String[][] e = java.util.Objects.requireNonNull(exp.get(key), "exp.get(key)");
-                String[][] a = java.util.Objects.requireNonNull(act.get(key),
-                        "assertTestData: actual data lacks " + key);
-                String table = key.substring(key.indexOf('\n') + 1);
-                if (!headerKey(e[0]).equals(headerKey(a[0]))) {
-                    return "assertTestData: columns of '" + table
-                            + "' differ — expected "
-                            + java.util.Arrays.toString(e[0]) + ", got "
-                            + java.util.Arrays.toString(a[0]);
-                }
-                Located loc = locate(ctx, dbFqn, table);
-                String te = loadSide(st, loc, e, temps);
-                String ta = loadSide(st, loc, a, temps);
-                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-                try (ResultSet rs = st.executeQuery(
-                        "select count(*) from ((select * from " + te
-                        + " except select * from " + ta
-                        + ") union all (select * from " + ta
-                        + " except select * from " + te + "))")) {
-                    rs.next();
-                    long asymmetric = rs.getLong(1);
-                    if (asymmetric != 0) {
-                        return "assertTestData: rows of '" + table
-                                + "' differ (" + asymmetric
-                                + " asymmetric rows)\nexpected:\n"
-                                + side(e) + "got:\n" + side(a);
-                    }
-                }
-            }
-            return null;
-        } finally {
-            dropTemps(conn, temps);
-        }
-    }
-
-    private static String side(String[][] block) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 1; i < block.length; i++) {
-            sb.append(String.join(",", block[i])).append('\n');
-        }
-        return sb.toString();
-    }
-
-    /** One side's rows into a typed temp table; values ride as QUOTED
-     * literals and the DATABASE casts them to the model's column types
-     * (uniform policy — no host-side type dispatch). */
-    private static String loadSide(Statement st, Located loc,
-            String[][] block, List<String> temps) throws SQLException {
-        String temp = "tdgcmp_" + temps.size();
-        StringBuilder ddl = new StringBuilder("CREATE TEMPORARY TABLE ")
-                .append(temp).append(" (");
-        for (int c = 0; c < block[0].length; c++) {
-            if (c > 0) {
-                ddl.append(", ");
-            }
-            ddl.append(q(block[0][c])).append(' ')
-                    .append(duckType(column(loc.def(), block[0][c])
-                            .dataType()));
-        }
-        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-        st.execute(ddl.append(")").toString());
-        temps.add(temp);
-        // F7.5: one multi-row INSERT — statement count is the cost
-        if (block.length > 1) {
-            StringBuilder ins = new StringBuilder("INSERT INTO ")
-                    .append(temp).append(" VALUES ");
-            for (int i = 1; i < block.length; i++) {
-                ins.append(i > 1 ? ", (" : "(");
-                for (int c = 0; c < block[0].length; c++) {
-                    if (c > 0) {
-                        ins.append(", ");
-                    }
-                    String tok = c < block[i].length ? block[i][c] : "";
-                    ins.append(tok.isEmpty() || tok.equals("---null---")
-                            ? "NULL"
-                            : "'" + tok.replace("'", "''") + "'");
-                }
-                ins.append(')');
-            }
-            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-            st.execute(ins.toString());
-        }
-        return temp;
-    }
-
-    /** Parse {@code schema\ntable\ncols\nrows...} blocks separated by
-     * {@code -----} lines into key (schema\ntable) -> [header, rows...]. */
-    private static Map<String, String[][]> parseBlocks(String csv) {
-        Map<String, String[][]> out = new LinkedHashMap<>();
-        List<String> cur = new ArrayList<>();
-        for (String line : csv.split("\n", -1)) {
-            if (line.strip().matches("-{3,}")) {
-                flushBlock(cur, out);
-                cur.clear();
-            } else {
-                cur.add(line);
-            }
-        }
-        flushBlock(cur, out);
-        return out;
-    }
-
-    private static void flushBlock(List<String> lines,
-            Map<String, String[][]> out) {
-        while (!lines.isEmpty() && lines.get(lines.size() - 1).strip().isEmpty()) {
-            lines.remove(lines.size() - 1);
-        }
-        while (!lines.isEmpty() && lines.get(0).strip().isEmpty()) {
-            lines.remove(0);
-        }
-        if (lines.size() < 3) {
-            if (!lines.isEmpty()) {
-                throw new NotImplementedException(
-                        "testDataGen: malformed CSV block " + lines);
-            }
-            return;
-        }
-        String key = lines.get(0).strip() + "\n" + lines.get(1).strip();
-        String[][] block = new String[lines.size() - 2][];
-        for (int i = 2; i < lines.size(); i++) {
-            block[i - 2] = lines.get(i).split(",", -1);
-            for (int c = 0; c < block[i - 2].length; c++) {
-                block[i - 2][c] = block[i - 2][c].strip();
-            }
-        }
-        out.put(key, block);
-    }
-
     // ===== rendering primitives =====
 
-    private static String duckType(RelationalDataType t) {
-        return switch (t) {
-            case RelationalDataType.Bit ignored -> "BOOLEAN";
-            case RelationalDataType.BigInt ignored -> "BIGINT";
-            case RelationalDataType.SmallInt ignored -> "BIGINT";
-            case RelationalDataType.TinyInt ignored -> "BIGINT";
-            case RelationalDataType.Integer_ ignored -> "BIGINT";
-            case RelationalDataType.Float_ ignored -> "DOUBLE";
-            case RelationalDataType.Double_ ignored -> "DOUBLE";
-            case RelationalDataType.Real ignored -> "DOUBLE";
-            case RelationalDataType.Timestamp ignored -> "TIMESTAMP";
-            case RelationalDataType.Date_ ignored -> "DATE";
-            case RelationalDataType.Decimal d ->
-                    "DECIMAL(" + d.precision() + ", " + d.scale() + ")";
-            case RelationalDataType.Numeric n ->
-                    "DECIMAL(" + n.precision() + ", " + n.scale() + ")";
-            // Text-shaped seeds — EXPLICIT per variant so a new variant is
-            // a compile error, never a silent VARCHAR (T3.1).
-            case RelationalDataType.Varchar ignored -> "VARCHAR";
-            case RelationalDataType.Char_ ignored -> "VARCHAR";
-            case RelationalDataType.Binary ignored -> "VARCHAR";
-            case RelationalDataType.Varbinary ignored -> "VARCHAR";
-            case RelationalDataType.Distinct ignored -> "VARCHAR";
-            case RelationalDataType.Other ignored -> "VARCHAR";
-            case RelationalDataType.SemiStructured ignored -> "VARCHAR";
-            case RelationalDataType.Array ignored -> "VARCHAR";
-            case RelationalDataType.Object_ ignored -> "VARCHAR";
-        };
-    }
-
-    private static String lit(@com.legend.base.Nullable Object v,
+    /** A row identifier's or a join's value as a literal: a string of a DATE or TIMESTAMP column that type's
+     *  literal, a whole number an integer, any other number its exact value. */
+    private static SqlExpr literal(@com.legend.base.Nullable Object v,
             @com.legend.base.Nullable DatabaseDefinition.ColumnDefinition col) {
         if (v == null) {
-            return "NULL";
+            return new SqlExpr.NullLit();
         }
         if (v instanceof String s) {
-            String quoted = "'" + s.replace("'", "''") + "'";
             if (col != null) {
                 RelationalDataType t = col.dataType();
                 if (t instanceof RelationalDataType.Date_) {
-                    return "DATE " + quoted;
+                    return new SqlExpr.DateLit(s);
                 }
                 if (t instanceof RelationalDataType.Timestamp) {
-                    return "TIMESTAMP " + quoted;
+                    return new SqlExpr.TimestampLit(s);
                 }
             }
-            return quoted;
+            return new SqlExpr.StringLit(s);
         }
         if (v instanceof Boolean b) {
-            return b ? "TRUE" : "FALSE";
+            return new SqlExpr.BoolLit(b);
+        }
+        if (v instanceof Long || v instanceof Integer || v instanceof Short || v instanceof Byte) {
+            return new SqlExpr.IntLit(((Number) v).longValue());
         }
         if (v instanceof Number n) {
-            return n.toString();
+            return new SqlExpr.DecimalLit(new java.math.BigDecimal(n.toString()));
         }
         throw new NotImplementedException(
                 "testDataGen: row identifier value " + v.getClass());
@@ -1301,13 +1113,14 @@ public final class TestDataGenerator {
      * QUOTE-BEARING identity. */
     public static String seedDataString(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
-            Connection conn) throws SQLException {
+            Connection conn, SqlDialect dialect) throws SQLException {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         roots = roots.stream().map(r -> expandIfView(ctx, r, null))
                 .toList();
         StringBuilder out = new StringBuilder();
-        try (Statement st = conn.createStatement()) {
+        try (Statement statement = conn.createStatement()) {
+            Session st = new Session(statement, dialect);
             for (ScanRelations.Rel r : roots) {
                 Located loc = locate(ctx, r.db(), r.table());
                 List<String> cols = new ArrayList<>();
@@ -1329,10 +1142,13 @@ public final class TestDataGenerator {
                         .map(c -> column(loc.def(), c).quoted()
                                 ? "\"" + c + "\"" : c)
                         .toList();
-                String sql = "select " + String.join(", ",
-                        cols.stream().map(TestDataGenerator::q).toList())
-                        + " from " + qualify(loc.schema(),
-                                java.util.Objects.requireNonNull(r.table(), "r.table()"));
+                List<SqlSelect.Projection> ps = new ArrayList<>();
+                for (String c : cols) {
+                    ps.add(new SqlSelect.Projection(stored(ROOT, loc.def(), c), null, null));
+                }
+                String sql = st.render(new SqlSelect(ps, false, storeTable(loc,
+                        java.util.Objects.requireNonNull(r.table(), "r.table()"), ROOT), null, List.of(), null, null,
+                        List.of(), null, null, List.of()));
                 out.append('\n')
                         .append("meta::relational::testDataGeneration::"
                                 + "createTableRowIdentifiers(")
@@ -1654,25 +1470,60 @@ public final class TestDataGenerator {
         return v instanceof String str ? "'" + str + "'" : String.valueOf(v);
     }
 
+    /** The alias a fetch reads its seed table through, and the one a child fetch reads its parent's temp
+     *  through. */
+    private static final String ROOT = "root";
+
+    private static final String PARENT = "main";
+
+    /** The alias the CSV envelope's row text reads its cells through. */
+    private static final String CSV_ROW = "_r";
+
+    /** The statement every query of a run goes through, and the session's dialect, which writes them. */
+    private record Session(Statement statement, SqlDialect dialect) {
+        String render(SqlQuery q) {
+            return dialect.render(q);
+        }
+    }
+
+    /** A temp's column, as a query over the temp names it: a column its store declared quoted by its name, any
+     *  other upper case. The database named it as it names a read column: H2 upper case (unquoted), DuckDB as stored,
+     *  and DuckDB compares names without case, so both read it so (the dialect program's Phase 3, 2026-10-16: a
+     *  declared-quoted column was upper-cased too while this was text, which H2 cannot find). */
+    private static String tempColumn(DatabaseDefinition.TableDefinition def, String c) {
+        DatabaseDefinition.ColumnDefinition cd = column(def, c);
+        return cd.quoted() ? cd.name() : cd.name().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    /** A column of the store table {@code def}, read through {@code alias}, spelled as its DDL declared it (bare, or
+     *  quoted with its case kept). */
+    private static SqlExpr stored(@com.legend.base.Nullable String alias, DatabaseDefinition.TableDefinition def,
+            String c) {
+        DatabaseDefinition.ColumnDefinition cd = column(def, c);
+        return SqlExpr.Column.physical(alias, cd.name(), cd.quoted());
+    }
+
+    /** The store table a fetch reads, by its schema's name and its own, quoted as its store declared them. */
+    private static SqlSource.Table storeTable(Located loc, String table, String alias) {
+        String name = loc.schema() == null || loc.schema().isEmpty() || "default".equals(loc.schema()) ? table
+                : loc.schema() + "." + table;
+        return new SqlSource.Table(name, alias, List.of(), false, Map.of(),
+                new NameQuoting(loc.def().schemaQuoted(), loc.def().quoted()));
+    }
+
+    /** A temp table of the run's own. */
+    private static SqlSource.Table tempTable(String temp, String alias) {
+        return new SqlSource.Table(temp, alias, List.of(), false, Map.of(), NameQuoting.BARE);
+    }
+
+    private static SqlExpr and(@com.legend.base.Nullable SqlExpr left, SqlExpr right) {
+        return left == null ? right : SqlExpr.Call.of(SqlFn.AND, left, right);
+    }
+
+    /** The plan text's {@code schema.table} (the engine's own spelling). */
     private static String qualify(String schema, String table) {
         return schema == null || schema.isEmpty()
                 || "default".equals(schema) ? table : schema + "." + table;
-    }
-
-    /** ONE spelling valid on BOTH targets (convergence batch B,
-     * 2026-08-29): TDG statements execute raw on whatever session runs
-     * them — no dialect, no boundary. A bare-created column's
-     * case-sensitive H2 name is its UPPERCASE (the session uppercases
-     * unquoted DDL), so quoted-uppercase resolves there; DuckDB
-     * compares even quoted identifiers case-insensitively, so it
-     * resolves there too. Pre-quoted demand names keep their declared
-     * case (they were CREATED with it). */
-    private static String q(String name) {
-        if (name.length() > 1 && name.startsWith("\"")
-                && name.endsWith("\"")) {
-            return name;
-        }
-        return "\"" + name.toUpperCase(java.util.Locale.ROOT) + "\"";
     }
 
     private static String bare(String table) {
@@ -1680,11 +1531,11 @@ public final class TestDataGenerator {
         return dot < 0 ? table : table.substring(dot + 1);
     }
 
-    private static void dropTemps(Connection conn, List<String> temps) {
+    private static void dropTemps(Connection conn, SqlDialect dialect, List<String> temps) {
         try (Statement st = conn.createStatement()) {
             for (String t : temps) {
                 com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-                st.execute("DROP TABLE IF EXISTS " + t);
+                st.execute(dialect.render(new SqlDdl.DropTable(null, t, NameQuoting.BARE)));
             }
         } catch (SQLException ignored) {
             // cleanup only — temp tables die with the connection anyway

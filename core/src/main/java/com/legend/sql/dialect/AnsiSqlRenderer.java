@@ -74,14 +74,31 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return write(query).statement();
     }
 
+    /** {@inheritDoc} This dialect's own {@link #render}, in the single-line mode {@link #inline} writes a subquery
+     *  in. */
+    @Override
+    public final String renderInline(SqlQuery query) {
+        boolean previous = inlineMode;
+        inlineMode = true;
+        try {
+            return render(query);
+        } finally {
+            inlineMode = previous;
+        }
+    }
+
     /** The query after this dialect's passes, written. */
     private SqlWriter write(SqlQuery query) {
+        return query(newWriter(), passed(query), 0);
+    }
+
+    /** The query after this dialect's passes. */
+    private SqlQuery passed(SqlQuery query) {
         SqlQuery q = query;
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             q = pass.rewriteRoot(q);
         }
-        SqlWriter writer = newWriter();
-        return query(writer, q, 0);
+        return q;
     }
 
     /**
@@ -1577,6 +1594,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da ->
                     "DELETE FROM " + ddlQualified(da.schema(), da.table(), da.quoting()) + ";";
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> {
+                RenderedStatement create = query(newWriter().append("CREATE TEMPORARY TABLE ").append(ident(ct.table()))
+                        .append(" AS "), passed(ct.query()), 0).append(";").statement();
+                if (!create.binds().isEmpty()) {
+                    throw new DialectCapability("plan parameters " + create.binds() + " in a temporary table's query:"
+                            + " a DML statement is text");
+                }
+                yield create.sql();
+            }
         };
     }
 

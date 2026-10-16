@@ -163,6 +163,11 @@ public class H2 extends AnsiSqlRenderer {
         return aliasIdent(name);
     }
 
+    /** {@code RAWTOHEX(HASH('<algorithm>', x))}: a string's digest in lower-case hex. */
+    private static SqlWriter digest(SqlWriter writer, String algorithm, List<SqlExpr> a) {
+        return writer.append("RAWTOHEX(HASH('").append(algorithm).append("', ").expr(a.get(0), 0).append("))");
+    }
+
     /** {@inheritDoc} H2 keeps the SQL standard's {@code information_schema}: the corpus's catalog-grid tests prove
      *  it, the primary keys' {@code key_column_usage} and {@code table_constraints} pair included (H2 2.1.214, probed
      *  2026-09-05: ordinal positions, quoted names). */
@@ -553,9 +558,12 @@ public class H2 extends AnsiSqlRenderer {
             case ASCII_CODE -> writer.function("ascii", c.args());
             case CHR -> writer.function("chr", c.args());
             case LEVENSHTEIN -> writer.function("levenshtein", c.args());
-            case MD5 -> writer.function("md5", c.args());
-            case SHA1 -> writer.function("sha1", c.args());
-            case SHA256 -> writer.function("sha256", c.args());
+            // H2 has no md5/sha1/sha256: its HASH digests, RAWTOHEX spells the digest in lower-case hex (2026-10-16,
+            // the dialect program's Phase 3: the test-data generator's string hashing reached H2's sha256 and H2
+            // refused it; DigestTest asks H2 and DuckDB for the same digests)
+            case MD5 -> digest(writer, "MD5", c.args());
+            case SHA1 -> digest(writer, "SHA-1", c.args());
+            case SHA256 -> digest(writer, "SHA-256", c.args());
             case MAKE_DATE -> writer.function("make_date", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
