@@ -345,10 +345,13 @@ tests:
     sql: "SELECT k FROM g GROUP BY k, k ORDER BY 1"
   - id: group_by_an_expression
     sql: "SELECT k + 1, COUNT(*) FROM g GROUP BY k + 1 ORDER BY 1"
+  # (these two name their items by the front end's rule: the names section below says where they run)
   - id: group_by_an_expression_shown_inside_another
     sql: "SELECT (k + 1) * 2 FROM g GROUP BY k + 1 ORDER BY 1"
+    profile: sqla17-default, iq17-default
   - id: group_by_an_expression_named_as_group_by_writes_it
     sql: "SELECT k + 1 FROM g GROUP BY (k) + 1"
+    profile: sqla17-default, iq17-default
   - id: group_by_an_expression_written_otherwise_is_refused
     sql: "SELECT 1 + k FROM g GROUP BY k + 1"
   - id: group_by_an_expression_and_its_column_elsewhere_is_refused
@@ -540,6 +543,9 @@ tests:
     profile: sqla17-default
 
   # ---- the names of a grouped query's unaliased items: as IQ first reads each part (GROUP BY, HAVING, the select list)
+  # (SQL Anywhere's front end; IQ island, 2026-10-16, measured on IQ 17.1: IQ's engine names each item by its own
+  # spelling, so a case of the front end's rule over tables runs in a SQL Anywhere database, judged by SQL Anywhere 17,
+  # and in iq17-default, judged by the live IQ -- no iq16-* run, which SQL Anywhere would judge by its front end's rule)
   - id: name_of_aggregates
     sql: "SELECT COUNT(*), count(v), Sum(k), MIN(DISTINCT k), max(g.k), COUNT(DISTINCT k) FROM g"
   - id: name_of_an_aggregate_of_an_expression
@@ -550,6 +556,7 @@ tests:
     sql: "SELECT (SUM(k)) * 2 FROM g"
   - id: name_of_a_repeated_aggregate_is_the_first_spelling
     sql: "SELECT SUM(k), sum(k) + 1, SUM(ALL k) * 2 FROM g"
+    profile: sqla17-default, iq17-default
   - id: name_of_a_repeated_count_is_the_first_spelling
     sql: "SELECT COUNT(), count(*) + 1 FROM g"
     profile: sqla17-default
@@ -557,22 +564,29 @@ tests:
     sql: "SELECT SUM(k), SUM(-k) FROM g"
   - id: name_of_an_aggregate_spelled_in_having
     sql: "SELECT k, SUM(V) FROM g WHERE k < 4 GROUP BY k HAVING sum(v) > 0 ORDER BY 1"
+    profile: sqla17-default, iq17-default
   - id: name_of_count_spelled_in_having
     sql: "SELECT k, COUNT(*) FROM g GROUP BY k HAVING count(*) > 2 ORDER BY 1"
+    profile: sqla17-default, iq17-default
   - id: name_of_an_aggregate_not_spelled_in_order_by
     sql: "SELECT k, SUM(v) FROM g WHERE k < 4 GROUP BY k ORDER BY sum(V)"
   - id: name_of_an_aggregate_written_otherwise_is_refused
     sql: "SELECT SUM(v + 1), SUM(1 + v) FROM g WHERE k < 4"
+    profile: sqla17-default, iq17-default
   - id: name_of_a_qualified_aggregate_argument_is_refused
     sql: "SELECT SUM(a.v), SUM(v) FROM g a WHERE k < 4"
   - id: name_of_a_column_spelled_in_group_by
     sql: "SELECT K, k * 2, K + 1 FROM g GROUP BY k ORDER BY 1"
+    profile: sqla17-default, iq17-default
   - id: name_of_a_signed_column_spelled_in_group_by
     sql: "SELECT +k FROM g GROUP BY K ORDER BY 1"
+    profile: sqla17-default, iq17-default
   - id: name_of_a_parenthesized_key_column
     sql: "SELECT (k) + 1, ((k)) * 2 FROM g GROUP BY k ORDER BY 1"
+    profile: sqla17-default, iq17-default
   - id: name_of_a_column_qualified_in_group_by
     sql: "SELECT a.k + 1, k FROM g a GROUP BY A.K ORDER BY 1"
+    profile: sqla17-default, iq17-default
   - id: name_of_an_aggregate_of_a_derived_column
     sql: "SELECT MEDIAN(x), SUM(x), COUNT(x) FROM (SELECT -1 x UNION ALL SELECT -4) d"
     engine: sa

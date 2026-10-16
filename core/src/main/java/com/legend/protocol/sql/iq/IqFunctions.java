@@ -238,7 +238,11 @@ final class IqFunctions {
                     } catch (SqlTranslationException e) {
                         throw com.legend.protocol.sql.SqlSyntaxException.unsupported(String.valueOf(e.getMessage()), operand.pos());
                     }
-                    if (parts == null) {
+                    if (parts == null && IqDateTime.timeAlone(text) != null) {
+                        // IQ island, 2026-10-16 (measured on IQ 17.1): read on 1900-01-01 by IQ's engine
+                        frontEnd = "the string '" + text + "' is a time alone, which SQL Anywhere's front end reads on"
+                                + " the current date";
+                    } else if (parts == null) {
                         problem = "the string '" + text + "' is no date the island reads (IQ's error -157, or a"
                                 + " spelling of IQ's date order)";
                     }
@@ -2669,7 +2673,8 @@ final class IqFunctions {
     private static final String DAY_OF_WEEK = "meta::pure::functions::date::DayOfWeek";
 
     /** A date argument: a DATE or a TIMESTAMP, or a constant string in ISO spelling (IQ reads many more spellings,
-     *  by the profile's date order: refused by name); null for a NULL. */
+     *  by the profile's date order: refused by name; under IQ's engine a time alone, on 1900-01-01); null for a
+     *  NULL. */
     private @com.legend.base.Nullable Tx dateArgument(Tx x, SqlAst.Expr e, String name) {
         if (x.kind() == Kind.NULL) {
             return null;
@@ -2694,6 +2699,12 @@ final class IqFunctions {
         }
         if (x.kind() == Kind.STRING && e instanceof SqlAst.StringLit s) {
             String[] parts = isoParts(s.value(), e);
+            String alone = parts == null && engine == IqDialect.Engine.IQ ? IqDateTime.timeAlone(s.value()) : null;
+            if (alone != null) {
+                // IQ island, 2026-10-16 (measured on IQ 17.1: DATE, DATETIME, DATEPART, YEAR, DATEADD, DATEDIFF,
+                // DATEFORMAT, DAYNAME): a time alone, on 1900-01-01 under IQ's engine
+                parts = new String[] {"1900-01-01", alone};
+            }
             if (parts != null) {
                 String body = parts[0] + "T" + parts[1];
                 return Tx.value(new CDate(PureDateLiteral.parse(body), body, null), Kind.DATETIME, false,
@@ -3995,6 +4006,11 @@ final class IqFunctions {
         }
         if (x.kind() == Kind.STRING && c.operand() instanceof SqlAst.StringLit s) {
             String[] parts = isoParts(s.value(), c.operand());
+            String alone = parts == null && engine == IqDialect.Engine.IQ ? IqDateTime.timeAlone(s.value()) : null;
+            if (alone != null) {
+                // IQ island, 2026-10-16 (measured on IQ 17.1): a time alone, on 1900-01-01 under IQ's engine
+                parts = new String[] {"1900-01-01", alone};
+            }
             if (parts == null) {
                 if (s.value().isEmpty() || looksIso(s.value())) {
                     // '' and an ISO spelling of no day: IQ's error -157 where it is computed
@@ -4046,12 +4062,20 @@ final class IqFunctions {
      * day that does not exist is the database's error, as it is IQ's -157. Any other spelling (a month's name, a
      * two-digit year, a date in the profile's DATE_ORDER, a year and a month alone) is raised as an error where it is
      * computed, though IQ reads some of them: never an answer IQ would not give.
+     * <p>
+     * IQ island, 2026-10-16 (the corpus lane's sede-36359, measured on IQ 17.1): under IQ's engine a time alone,
+     * {@code h:n[:s[.f]]} (an ISO {@code T} before it read too), is that time on 1900-01-01 -- as a DATE, 1900-01-01;
+     * SQL Anywhere's front end reads it on the current date, so there it stays raised. A time out of range (an hour past
+     * 23, a minute or a second past 59) is IQ's error -1001006 for a DATE as for a TIMESTAMP: raised.
      */
     private Tx stringDate(Tx x, boolean toDate, IqType type) {
         Kind kind = toDate ? Kind.DATE : Kind.DATETIME;
         String date = "^ *" + YMD + " *$";
         String compact = "^ *([0-9]{4})([0-9]{2})([0-9]{2}) *$";
-        String timed = "^ *" + YMD + "[ T]+([0-9]{1,2}):([0-9]{1,2})(:([0-9]{1,2})([.]([0-9]{0,6})[0-9]*)?)? *$";
+        String clock = "([0-9]{1,2}):([0-9]{1,2})(:([0-9]{1,2})([.]([0-9]{0,6})[0-9]*)?)? *$";
+        String timed = "^ *" + YMD + "[ T]+" + clock;
+        String alone = "^ *T?" + clock;
+        boolean timeAlone = engine == IqDialect.Engine.IQ;
         Tx r = SqlToPure.strict(kind, List.of(x), v -> {
             ValueSpecification str = v.get(0);
             java.util.function.BiFunction<String, Integer, ValueSpecification> part = (pattern, group) ->
@@ -4063,38 +4087,49 @@ final class IqFunctions {
                     part.apply(compact, 3));
             ValueSpecification day = SqlToPure.call("date", part.apply(timed, 1), part.apply(timed, 2),
                     part.apply(timed, 3));
-            ValueSpecification time;
-            if (toDate) {
-                time = day;
-            } else {
-                // the time's parts added to the day's midnight: exact to the microsecond, no seconds as a double; a
-                // missing second or fraction is 0 (its group empty: a 0 written before it)
-                ValueSpecification seconds = SqlToPure.call("parseInteger", AppliedFunction.infixRun("plus",
-                        List.of(new CString("0"), SqlToPure.call("regexpReplace", str, new CString(timed),
-                        new CString("\\7"), new com.legend.protocol.spec.CBoolean(false)))));
-                ValueSpecification micros = SqlToPure.call("parseInteger", SqlToPure.call("rpad",
-                        AppliedFunction.infixRun("plus", List.of(new CString("0"), SqlToPure.call("regexpReplace", str,
-                        new CString(timed), new CString("\\9"), new com.legend.protocol.spec.CBoolean(false)))),
-                        integer(7), new CString("0")));
-                ValueSpecification hour = part.apply(timed, 4);
-                ValueSpecification minute = part.apply(timed, 5);
-                ValueSpecification valid = SqlToPure.call("and", SqlToPure.call("and", lt(hour, integer(24)),
-                        lt(minute, integer(60))), lt(seconds, integer(60)));
-                ValueSpecification at = timestamp(day, true);
-                for (Object[] step : new Object[][] {{hour, "HOURS"}, {minute, "MINUTES"}, {seconds, "SECONDS"},
-                        {micros, "MICROSECONDS"}}) {
-                    at = SqlToPure.call("adjust", at, (ValueSpecification) step[0], new EnumValue(DURATION_UNIT,
-                            (String) step[1]));
-                }
-                time = ifThen(valid, typed(at, "DateTime"), raise("DateTime"));
-            }
             ValueSpecification whole = toDate ? typed(dated, "StrictDate") : timestamp(dated, true);
             ValueSpecification packed = toDate ? typed(squeezed, "StrictDate") : timestamp(squeezed, true);
+            ValueSpecification otherwise = raise(toDate ? "StrictDate" : "DateTime");
+            if (timeAlone) {
+                otherwise = ifThen(SqlToPure.call("matches", str, new CString(alone)), clockOn(str, alone, 0,
+                        SqlToPure.call("date", integer(1900), integer(1), integer(1)), toDate), otherwise);
+            }
             return ifThen(SqlToPure.call("matches", str, new CString(date)), whole, ifThen(SqlToPure.call("matches",
                     str, new CString(compact)), packed, ifThen(SqlToPure.call("matches", str, new CString(timed)),
-                    toDate ? typed(time, "StrictDate") : time, raise(toDate ? "StrictDate" : "DateTime"))));
+                    clockOn(str, timed, 3, day, toDate), otherwise)));
         });
         return Tx.value(r.vs(), kind, r.nullable(), type);
+    }
+
+    /**
+     * The time {@code str} spells by {@code pattern}'s groups after its first {@code before} (hour, minute, then the
+     * second and the fraction, each optional: a missing one is 0) on {@code day}: exact to the microsecond, no seconds
+     * as a double. A time out of range is raised (IQ's -157 or -1001006); as a DATE, the day itself.
+     */
+    private static ValueSpecification clockOn(ValueSpecification str, String pattern, int before, ValueSpecification day,
+            boolean toDate) {
+        java.util.function.IntFunction<ValueSpecification> group = g -> SqlToPure.call("regexpReplace", str,
+                new CString(pattern), new CString("\\" + (before + g)), new com.legend.protocol.spec.CBoolean(false));
+        // a missing second or fraction is 0 (its group empty: a 0 written before it)
+        ValueSpecification seconds = SqlToPure.call("parseInteger", AppliedFunction.infixRun("plus",
+                List.of(new CString("0"), group.apply(4))));
+        ValueSpecification micros = SqlToPure.call("parseInteger", SqlToPure.call("rpad",
+                AppliedFunction.infixRun("plus", List.of(new CString("0"), group.apply(6))), integer(7),
+                new CString("0")));
+        ValueSpecification hour = SqlToPure.call("parseInteger", group.apply(1));
+        ValueSpecification minute = SqlToPure.call("parseInteger", group.apply(2));
+        ValueSpecification valid = SqlToPure.call("and", SqlToPure.call("and", lt(hour, integer(24)),
+                lt(minute, integer(60))), lt(seconds, integer(60)));
+        if (toDate) {
+            return ifThen(valid, typed(day, "StrictDate"), raise("StrictDate"));
+        }
+        ValueSpecification at = timestamp(day, true);
+        for (Object[] step : new Object[][] {{hour, "HOURS"}, {minute, "MINUTES"}, {seconds, "SECONDS"},
+                {micros, "MICROSECONDS"}}) {
+            at = SqlToPure.call("adjust", at, (ValueSpecification) step[0], new EnumValue(DURATION_UNIT,
+                    (String) step[1]));
+        }
+        return ifThen(valid, typed(at, "DateTime"), raise("DateTime"));
     }
 
     /** A constant's date and time as IQ reads it ({@link IqDateTime#read}: a year below 100 refused by name; IQ

@@ -43,7 +43,7 @@ import java.util.Map;
  *       {@code 24:00:00} is the next day's midnight.</li>
  * </ul>
  * Anything else is not read and refused by name by the caller: a time or a month and a year alone (IQ fills in the
- * current date or day 1), weekday names, ISO week and ordinal dates, a zone offset, a time after a tab or with spaces
+ * current date or day 1; IQ's engine reads a time alone on 1900-01-01, {@link #timeAlone}), weekday names, ISO week and ordinal dates, a zone offset, a time after a tab or with spaces
  * inside it, a month name's other abbreviations ({@code Sept}; IQ matches any prefix). A date before the year 100 is
  * refused by name (review 3's B3: lite's lowering writes its year without its zeros), and so is a time of day with hours
  * or minutes after the year 7910 (review 4's M2: SQL Anywhere 17 drops them there). An invalid date or time (IQ's
@@ -126,6 +126,30 @@ final class IqDateTime {
             time += "." + pad(v[6], 6);
         }
         return new String[] {date, time};
+    }
+
+    /**
+     * IQ island, 2026-10-16 (the corpus lane's sede-36359, measured on IQ 17.1): {@code text}, a constant string, as
+     * IQ's engine reads a time alone -- {@code h:n}, {@code h:n:s}, a fraction and AM or PM as after a date (an ISO
+     * {@code T} before it read too) -- on 1900-01-01: its time ({@code hh:nn:ss}, then {@code .ffffff}); null when it is
+     * no time read here. An hour alone is IQ's error -1001006, and {@code 24:00} (midnight of the same day there, not of
+     * the next as after a date) is not read. SQL Anywhere's front end reads a time alone on the current date.
+     */
+    static @com.legend.base.Nullable String timeAlone(String text) {
+        List<String> tokens = tokens(text);
+        if (tokens == null || tokens.size() < 3 || !tokens.get(tokens.get(0).equals("T") ? 2 : 1).equals(":")) {
+            return null;
+        }
+        List<String> t = new ArrayList<>(tokens);
+        if (!t.get(0).equals("T")) {
+            t.add(0, " ");
+        }
+        int[] v = {0, 0, 0, 0};
+        if (!time(t, v) || v[0] == 24) {
+            return null;
+        }
+        String time = pad(v[0], 2) + ":" + pad(v[1], 2) + ":" + pad(v[2], 2);
+        return v[3] == 0 ? time : time + "." + pad(v[3], 6);
     }
 
     /** The fields {@code text} spells -- year, month, day, hour (24 for the next day's midnight), minute, second and

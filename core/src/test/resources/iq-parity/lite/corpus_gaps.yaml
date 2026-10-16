@@ -329,3 +329,40 @@ tests:
   - id: order_by_a_unique_column_selected
     sql: "SELECT t.sm FROM t JOIN u ON u.t_id = t.id ORDER BY sm, t.id"
     profile: iq17-default
+
+  # ---- found by the lane's judged runs (sede-36359): IQ's engine reads a time alone on 1900-01-01
+  - id: a_time_alone_cast_to_a_timestamp
+    sql: "SELECT id, CAST('12:34' AS DATETIME) AS a, CAST('01:05:07.25' AS TIMESTAMP) AS b, CAST('12:05 am' AS DATETIME) AS c, CAST('T7:5' AS DATETIME) AS d, CONVERT(DATETIME, '23:59:59.999999') AS e, CAST('12:34' AS DATE) AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_functions_of_a_time_alone
+    sql: "SELECT id, DATEPART(hour, '12:34') AS a, YEAR('12:34') AS b, MINUTE('7:05') AS c, DATEADD(day, 1, '12:34') AS d, DATEDIFF(day, '12:34', '1900-01-03') AS e, DATE('T7:05') AS f, DATETIME('12:34:56.5') AS g FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_computed_time_alone_cast_to_a_timestamp
+    sql: "SELECT id, CAST(RIGHT('0' + CONVERT(VARCHAR(2), id), 2) + ':' + RIGHT('0' + CONVERT(VARCHAR(2), id * 7 % 60), 2) AS DATETIME) AS a, CAST(CONVERT(VARCHAR(2), id) + ':05:30.5' AS DATETIME) AS b, CAST(CONVERT(VARCHAR(2), id) + ':05' AS DATE) AS c, CAST(CAST(CONVERT(VARCHAR(2), id) + ':34:56.123456' AS DATETIME) AS VARCHAR(40)) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_computed_time_out_of_range_is_iqs_error
+    sql: "SELECT CAST(CONVERT(VARCHAR(3), id + 30) + ':00' AS DATETIME) AS a FROM t WHERE id IS NOT NULL"
+    profile: iq17-default
+  - id: a_computed_date_and_time_out_of_range_as_a_date_is_iqs_error
+    sql: "SELECT CAST(CAST(dt AS VARCHAR(10)) + ' 25:00' AS DATE) AS a FROM t WHERE id IS NOT NULL"
+    profile: iq17-default
+  - id: a_computed_date_and_time_as_a_date
+    sql: "SELECT id, CAST(CAST(dt AS VARCHAR(10)) + ' 23:59:59' AS DATE) AS a FROM t ORDER BY id"
+    profile: iq17-default
+
+  # ---- found by the lane's judged runs (56 queries): IQ's engine names a grouped query's items by their own spelling
+  - id: grouped_items_named_as_written_under_iqs_engine
+    sql: "SELECT SM, Sm + 1, 2 * (SM + 1), MAX(Sm), Count(id) FROM t GROUP BY sm HAVING count(id) > 0 ORDER BY sm"
+    profile: iq17-default
+  - id: grouped_qualified_items_named_as_written_under_iqs_engine
+    sql: "SELECT q.SM, q.SM + 1, CASE WHEN q.SM > 0 THEN 1 ELSE 0 END FROM t q GROUP BY q.sm ORDER BY q.sm"
+    profile: iq17-default
+  - id: aggregates_named_as_written_under_iqs_engine
+    sql: "SELECT SUM(IT), sum(it), Sum(it) + 1 FROM t HAVING SUM(it) > 0"
+    profile: iq17-default
+  - id: grouped_derived_items_named_as_written_under_iqs_engine
+    sql: "SELECT X, X + 1, COUNT(*) FROM (SELECT sm AS x FROM t) d GROUP BY x ORDER BY x"
+    profile: iq17-default
+  - id: grouped_items_of_the_front_end_named_as_group_by_and_having_read_them
+    sql: "SELECT X + 1, Count(*) FROM (SELECT 1 AS x UNION ALL SELECT 2) d GROUP BY x HAVING count(*) > 0 ORDER BY 1"
+    profile: iq17-default

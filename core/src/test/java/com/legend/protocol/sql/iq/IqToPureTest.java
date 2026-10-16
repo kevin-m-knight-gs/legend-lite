@@ -1046,16 +1046,22 @@ class IqToPureTest {
 
     @Test
     void aGroupedQuerysItemsAreNamedAsIqFirstReadsTheirParts() {
-        // HAVING is read before the select list, which is read from the left
-        assertTrue(pure("SELECT SUM(SM) FROM " + T + " HAVING sum(sm) > 0").contains("'sum(T.sm)'"));
-        assertTrue(pure("SELECT SUM(sm), sum(sm) + 1 FROM " + T).contains("'SUM(T.sm)+1'"));
+        // in SQL Anywhere's front end (a SQL Anywhere database's tables), HAVING is read before the select list, which
+        // is read from the left
+        IqSettings sa = IqProfile.SQLA17_DEFAULT.settings();
+        assertTrue(pure("SELECT SUM(SM) FROM " + T + " HAVING sum(sm) > 0", sa).contains("'sum(T.sm)'"));
+        assertTrue(pure("SELECT SUM(sm), sum(sm) + 1 FROM " + T, sa).contains("'SUM(T.sm)+1'"));
         // a GROUP BY item's spelling, its parentheses gone
-        assertTrue(pure("SELECT SM, sm * 2 FROM " + T + " GROUP BY sm").contains("'T.sm*2'"));
-        assertTrue(pure("SELECT (sm + 1) * 2 FROM " + T + " GROUP BY sm + 1").contains("'T.sm+1*2'"));
+        assertTrue(pure("SELECT SM, sm * 2 FROM " + T + " GROUP BY sm", sa).contains("'T.sm*2'"));
+        assertTrue(pure("SELECT (sm + 1) * 2 FROM " + T + " GROUP BY sm + 1", sa).contains("'T.sm+1*2'"));
         // an aggregate IQ may read as an earlier one, or one in parentheses: not known
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT SUM(sm + 1), SUM(1 + sm) FROM " + T)
-                .kind());
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT SUM(sm + 1), SUM(1 + sm) FROM " + T, sa,
+                COLUMNS).kind());
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT (SUM(sm)) * 2 FROM " + T).kind());
+        // IQ island, 2026-10-16 (measured on IQ 17.1): IQ's engine names each item by its own spelling
+        assertTrue(pure("SELECT SUM(SM) FROM " + T + " HAVING sum(sm) > 0").contains("'SUM(T.SM)'"));
+        assertTrue(pure("SELECT SM, sm * 2 FROM " + T + " GROUP BY sm").contains("~[SM:r|$r.sm, 'T.sm*2':"));
+        assertTrue(pure("SELECT (sm + 1) * 2 FROM " + T + " GROUP BY sm + 1").contains("'(T.sm+1)*2'"));
     }
 
     @Test

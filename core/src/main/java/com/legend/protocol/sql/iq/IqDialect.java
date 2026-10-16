@@ -3149,8 +3149,9 @@ public final class IqDialect implements InputDialect {
         return !descending;
     }
 
-    /** A column shows as its reference is written; in a grouped query, one that is a GROUP BY item written bare as that
-     *  item is written (M1c, measured: {@code SELECT K ... GROUP BY k} shows {@code k}). */
+    /** A column shows as its reference is written; in a grouped query of SQL Anywhere's front end, one that is a GROUP
+     *  BY item written bare as that item is written (M1c, measured: {@code SELECT K ... GROUP BY k} shows {@code k};
+     *  IQ island, 2026-10-16, measured on IQ 17.1: {@code K} under IQ's engine). */
     @Override
     public String columnName(SqlAst.Ident written, String label) {
         String key = naming.keyName(written);

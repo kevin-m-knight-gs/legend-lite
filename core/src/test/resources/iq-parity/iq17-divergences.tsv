@@ -12,7 +12,7 @@
 #
 # Lines: cause<TAB>id<TAB>what it is, then run<TAB>run key<TAB>cause id<TAB>lanes.
 cause	D-N3	integer arithmetic past a BIGINT: IQ's engine widens to a NUMERIC (BIGINT + 1 a NUMERIC(20,0), BIGINT * BIGINT a NUMERIC(39,0)), lite keeps a BIGINT, whose overflow the database raises; and IQ types by its data's range (k * 2 over small values a SMALLINT, its SUM a BIGINT) where lite types by the declared types' (IQ island, 2026-10-15: below a BIGINT lite widens as IQ does, 28 runs fixed)
-cause	names	the name IQ's engine gives an unaliased expression (its spelling, its parentheses, its case) is not SQL Anywhere's, which lite follows (WP2 item 3)
+cause	names	the name IQ's engine gives an unaliased expression (its spelling, its parentheses, its case) is not SQL Anywhere's, which lite follows (WP2 item 3; IQ island, 2026-10-16: a grouped query's items, named by their own spelling under IQ's engine, fixed -- 8 runs)
 cause	D-R1	the IQ engine's other restrictions lite does not raise: a column or a non-constant expression in an IN list, a scalar subquery outside the top-level select list, ORDER BY a negative constant (WP2 item 4)
 cause	top-expr	IQ 17.1's parser rejects TOP (expr), START AT (expr) and TOP ALL (-131), which lite reads (WP2 item 7)
 cause	D-A1	two LISTs ordered differently: IQ answers with one order for both, where lite raises SQL Anywhere's -904 (WP2 item 6)
@@ -44,15 +44,7 @@ run	lite/review5/b1_negated_smallest_bigint_variable_overflow@iq17-default	D-N3	
 run	lite/review5/b1_smallint_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/m1b/name_keeps_written_parentheses@iq17-default	names	duckdb,postgres
 run	lite/m1b/name_of_a_delimited_column@iq17-default	names	duckdb,postgres
-run	lite/m1c/group_by_an_expression_named_as_group_by_writes_it@iq17-default	names	duckdb,postgres
-run	lite/m1c/group_by_an_expression_shown_inside_another@iq17-default	names	duckdb,postgres
-run	lite/m1c/name_of_a_column_qualified_in_group_by@iq17-default	names	duckdb,postgres
-run	lite/m1c/name_of_a_column_spelled_in_group_by@iq17-default	names	duckdb,postgres
 run	lite/m1c/name_of_a_parenthesized_key_column@iq17-default	names	duckdb,postgres
-run	lite/m1c/name_of_a_repeated_aggregate_is_the_first_spelling@iq17-default	names	duckdb,postgres
-run	lite/m1c/name_of_a_signed_column_spelled_in_group_by@iq17-default	names	duckdb,postgres
-run	lite/m1c/name_of_an_aggregate_spelled_in_having@iq17-default	names	duckdb,postgres
-run	lite/m1c/name_of_count_spelled_in_having@iq17-default	names	duckdb,postgres
 run	lite/m1gaps/unaliased_sum_of_alias_and_constant@iq17-default	names	duckdb,postgres
 run	lite/m1review/m1_constant_chains_over_one_table_keep_their_parentheses@iq17-default	names	duckdb,postgres
 run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-default	names	duckdb,postgres

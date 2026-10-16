@@ -699,7 +699,13 @@ final class IqAggregates {
                 constantKeys(s, engine);
                 keyMatches(s);
                 lists(s, engine);
-                naming.add(s);
+                if (engine != IqDialect.Engine.IQ) {
+                    // IQ island, 2026-10-16 (the corpus lane: 56 queries; measured on IQ 17.1): IQ's engine names a
+                    // grouped query's items as an ungrouped query's, each by its own spelling (SELECT SM + 1 ... GROUP
+                    // BY sm is ll_t.SM+1, SELECT SUM(IT) ... HAVING sum(it) > 0 is SUM(ll_t.IT)); its front end reads
+                    // the GROUP BY and HAVING first, as SQL Anywhere 17 does (SELECT X + 1 ... GROUP BY x is d.x+1)
+                    naming.add(s);
+                }
             }
         }
         return naming;
@@ -1003,7 +1009,8 @@ final class IqAggregates {
     // ------------------------------------------------------------------ names
 
     /**
-     * The names a statement's grouped queries give their unaliased items (measured on SQL Anywhere 17): IQ reads each
+     * The names a statement's grouped queries give their unaliased items in SQL Anywhere's front end (measured on SQL
+     * Anywhere 17 and IQ 17.1; under IQ's engine each item is named by its own spelling, {@link #read}): IQ reads each
      * part of such an item that is a GROUP BY item, or an aggregate the query computes, as that item or aggregate where
      * it first reads it, and names it by that rendering. It reads the GROUP BY first, then HAVING, then the select list
      * from the left (never ORDER BY): {@code SELECT SUM(V) ... HAVING sum(v) > 0} names the item {@code sum(t.v)},
