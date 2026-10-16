@@ -1696,6 +1696,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (`compiler/element/ModelContext.findAssociation`, delegated by `PureModelContext` to the builder's own) and
   `lite/joins.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.17; GATES
   "the fifteenth landing".
+- **The OPTIONAL MATCH leg, 2026-10-16, announced here as landed** — the translator (optional hops, absent nodes,
+  presence-aware node values) and `lite/optional.yaml`: no file of the database owner's, no guard pin moved. The
+  record: the study's §12.18; GATES "the sixteenth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

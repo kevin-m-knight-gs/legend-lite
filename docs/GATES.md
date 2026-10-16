@@ -9850,6 +9850,24 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the sixteenth landing — OPTIONAL MATCH: optional hops from a bound node, absent nodes (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the join form's second stage; the record is the study's §12.18
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only.
+
+1. **What lands.** An OPTIONAL MATCH extends the graph in hand from a bound node with optional hops (no row
+   lost; a node the hop finds none of null, its properties null; a to-many hop fanning out, the arms read as rows);
+   a type the model declares nowhere binds an absent node, null everywhere and typed so the arms unite; node
+   values, carries, `labels()` and `properties()` presence-aware; the first clause's OPTIONAL MATCH a MATCH.
+   Refused by name: a WHERE on it, property maps in it, untyped relationships and relationship variables in it,
+   after a WITH or rows, several patterns, a single node.
+2. **The ledger.** DuckDB: 4,150 cases; PASS 2,305 (from 2,293); FAIL 0; BUG 0; ERROR 0; REFUSED 818;
+   BOTH_ERROR 709; SKIP 318. Postgres: PASS 1,957 (from 1,945); FAIL 0; BUG 0; ERROR 0; REFUSED 1,166;
+   BOTH_ERROR 709; SKIP 318. 12 lite cases in `lite/optional.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the fifteenth landing — the join form's second stage: an untyped relationship as one arm per relationship of the model (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the join form's first stage; the record is the study's §12.17

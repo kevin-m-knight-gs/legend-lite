@@ -1,0 +1,54 @@
+# The #Cypher{...}# island's OPTIONAL MATCH cases (docs/CYPHER_STUDY_2026_10_15.md §12.18): the pattern extends the
+# graph in hand from a bound node with optional hops (a node the hop finds none of is null, its properties null),
+# a to-many optional hop reading one row per leaf and one row for a root without any (lite's outer join), a type
+# the model declares nowhere binding an absent node. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/optional/*'), keyed lite/optional/<id>.
+tests:
+  - id: optional_to_one_hop
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS a, b.name AS b ORDER BY a"
+  - id: optional_node_as_value
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b) RETURN a.name AS a, b ORDER BY a"
+  - id: optional_null_checks
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b) RETURN a.name AS a, b IS NULL AS missing, b.x IS NULL AS nox ORDER BY a"
+  - id: optional_labels_and_properties
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b) RETURN a.name AS a, labels(b) AS l, properties(b) AS p ORDER BY a"
+  - id: optional_unknown_type_is_absent
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:NOPE]->(x) RETURN a.name AS a, x, x.name AS n, labels(x) AS l ORDER BY a"
+  - id: optional_from_label_less
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
+    cypher: "MATCH (n) OPTIONAL MATCH (n)-[:T]->(x) RETURN n.name AS n, x.name AS x ORDER BY n"
+  - id: optional_to_many_hop
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (b2:B {name: 'b2'}), (a1)-[:T]->(b1), (a1)-[:T]->(b2)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS a, b.name AS b ORDER BY a, b"
+  - id: optional_to_many_count
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (b2:B {name: 'b2'}), (a1)-[:T]->(b1), (a1)-[:T]->(b2)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS a, count(b) AS n ORDER BY a"
+  - id: optional_to_many_node_as_value
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (b2:B {name: 'b2'}), (a1)-[:T]->(b1), (a1)-[:T]->(b2)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS a, b ORDER BY a"
+  - id: optional_through_with
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b) WITH a, b ORDER BY a.name DESC LIMIT 1 RETURN a.name AS a, b.name AS b, b IS NULL AS missing"
+  - id: optional_two_hops
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (b1)-[:V]->(c1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b)-[:V]->(c) RETURN a.name AS a, c.name AS c ORDER BY a"
+  - id: optional_with_where_refused_by_name
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) WHERE b.x > 0 RETURN a.name AS a"

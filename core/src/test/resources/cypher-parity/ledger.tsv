@@ -545,7 +545,7 @@ tck/clauses/match/Match6/[25] Fail when matching a path variable bound to a valu
 tck/clauses/match/Match6/[25] Fail when matching a path variable bound to a value #7	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match6/[25] Fail when matching a path variable bound to a value #8	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match7/[1] Simple OPTIONAL MATCH on empty graph	REFUSED	REFUSED
-tck/clauses/match/Match7/[2] OPTIONAL MATCH with previously bound nodes	REFUSED	REFUSED
+tck/clauses/match/Match7/[2] OPTIONAL MATCH with previously bound nodes	PASS	PASS
 tck/clauses/match/Match7/[3] OPTIONAL MATCH and bound nodes	SKIP	SKIP
 tck/clauses/match/Match7/[4] Optionally matching relationship with bound nodes in reverse direction	REFUSED	REFUSED
 tck/clauses/match/Match7/[5] Optionally matching relationship with a relationship that is already bound	REFUSED	REFUSED
@@ -3969,6 +3969,18 @@ lite/nodes/distinct_over_nodes_refused_by_name	REFUSED	REFUSED
 lite/nodes/order_by_a_node_refused_by_name	REFUSED	REFUSED
 lite/nodes/node_as_a_grouping_key_refused_by_name	REFUSED	REFUSED
 lite/nodes/relationship_as_a_value_refused_by_name	REFUSED	REFUSED
+lite/optional/optional_to_one_hop	PASS	PASS
+lite/optional/optional_node_as_value	PASS	PASS
+lite/optional/optional_null_checks	PASS	PASS
+lite/optional/optional_labels_and_properties	PASS	PASS
+lite/optional/optional_unknown_type_is_absent	PASS	PASS
+lite/optional/optional_from_label_less	PASS	PASS
+lite/optional/optional_to_many_hop	PASS	PASS
+lite/optional/optional_to_many_count	PASS	PASS
+lite/optional/optional_to_many_node_as_value	PASS	PASS
+lite/optional/optional_through_with	PASS	PASS
+lite/optional/optional_two_hops	PASS	PASS
+lite/optional/optional_with_where_refused_by_name	REFUSED	REFUSED
 lite/params/list_lookup_by_parameters	REFUSED	REFUSED
 lite/params/skip_and_limit_by_parameter	PASS	PASS
 lite/params/in_with_null_parameters	PASS	PASS

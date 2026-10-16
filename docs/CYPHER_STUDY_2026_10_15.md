@@ -2351,3 +2351,38 @@ lite's `graphs/` as a fixture for the diagnostic cases.
 
 22 lite cases in `lite/joins.yaml`, each judged by Neo4j.
 
+### 12.18 The OPTIONAL MATCH leg, 2026-10-16: optional hops from a bound node, absent nodes
+
+`OPTIONAL MATCH` (45 TCK cases refused by name) extends the graph in hand from a bound node with **optional
+hops**: a hop adds no `isNotEmpty` to the root's filter, so no row is lost; a node the hop finds none of is null,
+its properties null (`Binding.optionalNode`: the node *may be absent*, which a MATCH's optional to-one hop never
+is, its `isNotEmpty` being the graph's). Three readings follow:
+
+- **Presence.** A node's value, `labels(n)` and `properties(n)` are read where the node is present — the
+  navigation finds one (`NodeParts.presence`: `if($a.T->isEmpty(), |null, |fromJson(...))`), or, once carried
+  through a projection, its labels column holds a value (the carry writes the labels' text where the hop finds a
+  node, null where none; `n IS NULL` reads that). A to-many optional hop fans out as §12.16's and the arms are
+  read as rows at once: lite's outer join keeps one row for a root with no leaf, which is Neo4j's row of nulls
+  (`count(b)` counts the leaves, 0 for none).
+- **Absent nodes.** A type the model declares nowhere, or a label the hop does not reach, binds an *absent*
+  node (`Binding.absentNode`): the optional pattern never matches, so the node is null everywhere — its value,
+  properties, `labels()`, `properties()` — typed by the classes the other arms give the variable, so the arms'
+  columns unite (`MATCH (n) OPTIONAL MATCH (n)-[:T]->(x)` over every class: `x` bound through `T` on the class
+  declaring it, absent on the others).
+- **The first clause.** `OPTIONAL MATCH (n) ...` as the first clause is a MATCH (the model has classes, so there
+  are rows; an empty model stays "the model declares no class").
+
+Refused by name: a WHERE on the OPTIONAL MATCH (the WHERE is the optional pattern's, not the rows'), a property
+map on an optional node or on the bound node, an untyped relationship or a relationship variable in it, an
+OPTIONAL MATCH after a WITH that projected its variables or after a pattern read as rows, of several patterns or
+of a single node (a cartesian product), from a relationship variable.
+
+#### 12.18.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4,150 | 2,305 (from 2,293) | 0 | 0 | 0 | 818 | 709 | 318 |
+| Postgres | 4,150 | 1,957 (from 1,945) | 0 | 0 | 0 | 1,166 | 709 | 318 |
+
+12 lite cases in `lite/optional.yaml`, each judged by Neo4j.
+
