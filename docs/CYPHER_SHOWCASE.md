@@ -947,7 +947,7 @@ ORDER BY title
 | 'Speed' | {role: 'Jack'} | 1 | false |
 | 'The Matrix' | {role: 'Neo', year: 1999} | 2 | true |
 
-## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.40)
+## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.40.2)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
@@ -958,9 +958,9 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 
 | status | cases |
 |---|---|
-| PASS | 2303 |
+| PASS | 2300 |
 | BOTH_ERROR | 670 |
-| REFUSED | 726 |
+| REFUSED | 729 |
 | SKIP | 181 |
 | total | 3880 |
 
@@ -970,7 +970,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | clauses/create | 78 | 0 | 15 | 54 | 9 |
 | clauses/delete | 41 | 0 | 5 | 36 | 0 |
 | clauses/match | 381 | 28 | 240 | 107 | 6 |
-| clauses/match-where | 34 | 20 | 2 | 12 | 0 |
+| clauses/match-where | 34 | 19 | 2 | 13 | 0 |
 | clauses/merge | 75 | 0 | 13 | 54 | 8 |
 | clauses/remove | 33 | 0 | 0 | 31 | 2 |
 | clauses/return | 63 | 29 | 11 | 23 | 0 |
@@ -988,7 +988,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | expressions/comparison | 72 | 59 | 1 | 10 | 2 |
 | expressions/conditional | 13 | 13 | 0 | 0 | 0 |
 | expressions/existentialSubqueries | 10 | 4 | 1 | 5 | 0 |
-| expressions/graph | 61 | 17 | 15 | 18 | 11 |
+| expressions/graph | 61 | 15 | 15 | 20 | 11 |
 | expressions/list | 185 | 117 | 59 | 9 | 0 |
 | expressions/literals | 131 | 100 | 25 | 6 | 0 |
 | expressions/map | 44 | 35 | 9 | 0 | 0 |
@@ -1010,8 +1010,8 @@ aggregate, waiting); the functions the table lacks, `rand()` and the clock funct
 reproducible); `UNWIND` over lists of lists, maps or mixed types (64, Variant rows); a label, a property or a
 relationship type the model does not declare (54, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns
 that need node identity, which the values do not carry (a `MATCH` or `OPTIONAL MATCH` after rows, both ends bound, an
-undirected self-association, nodes among grouping keys or under `DISTINCT`, nodes compared: 81); variable-length
+undirected self-association, nodes among grouping keys or under `DISTINCT`, nodes compared: 80); variable-length
 relationships (36); a pattern predicate or comprehension over rows, from no bound node or over more than one hop, and
 `COUNT { }` (15); a list or map of row values carried through `WITH` (10); a stored list indexed, ordered or spelled
-as text (16, the Variant's text); an untyped relationship in an OPTIONAL MATCH (7); the rest (99) is small buckets of
-one to eight, each named in the ledger.
+as text (16, the Variant's text); an untyped relationship in an OPTIONAL MATCH (7); an undirected typed relationship
+from a label-less node (5); the rest (98) is small buckets of one to eight, each named in the ledger.

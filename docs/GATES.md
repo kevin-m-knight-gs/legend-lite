@@ -9861,9 +9861,17 @@ translator (the hop's existence over the pattern comprehension's resolution, gat
 2. **The ledger.** DuckDB: 4381 cases; PASS 2712 (from 2,690); FAIL 0; BUG 0; ERROR 0; REFUSED 774; BOTH_ERROR 714;
    SKIP 181. Postgres: PASS 2362 (from 2,340); FAIL 0; BUG 0; ERROR 0; REFUSED 1124; BOTH_ERROR 714; SKIP 181. 12 lite
    cases in `lite/predicates.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
-3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green.
+   After the review (item 5): DuckDB 4395 cases, PASS 2718, REFUSED 779, BOTH_ERROR 717, SKIP 181; Postgres PASS 2368,
+   REFUSED 1129, BOTH_ERROR 717, SKIP 181; FAIL, BUG and ERROR 0 on both.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:guardrails`,
+   `//core:core_tests_integration`, `//projects:every_project_test` green.
 4. **Refused by name, recorded.** A pattern predicate over rows, with both ends bound, with a property map, over
    more than one hop; an EXISTS subquery with several patterns or further clauses; `COUNT { }`, `COLLECT { }`.
+5. **The review.** Two independent reviews of the three landings (the study's §12.40.2): nine findings in the reader,
+   twelve in the translator, parser and harness, five of them wrong answers, every one verified by a probe and fixed
+   (commits 294a783 and 0bca012), then the Postgres lane's one catch after them (a property an arm's class lacks,
+   read as its column where the known null folds) and the gap beside it (a tried root's property map read against no
+   candidate class; the study's §12.40.2); 14 lite cases and 28 unit tests pin them.
 
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-eighth landing — a relationship type joining several class pairs (PR3, step 2)
 

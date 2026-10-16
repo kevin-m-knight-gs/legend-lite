@@ -58,7 +58,20 @@ class CypherToPureTest {
                     "since", prop("since", "Integer", 0, 1)),
             "demo::Directing", Map.of(
                     "director", prop("director", "demo::Person", 1, 1),
-                    "firm", prop("firm", "demo::Firm", 1, 1)));
+                    "firm", prop("firm", "demo::Firm", 1, 1)),
+            // LINK, a type over two pairs (Person to City, Person to Firm): two edge classes of one type, their
+            // properties differing (w on one, v on the other)
+            "demo::LinkCity", Map.of(
+                    "person", prop("person", "demo::Person", 1, 1),
+                    "city", prop("city", "demo::City", 1, 1),
+                    "w", prop("w", "Integer", 0, 1)),
+            "demo::LinkFirm", Map.of(
+                    "person", prop("person", "demo::Person", 1, 1),
+                    "firm", prop("firm", "demo::Firm", 1, 1),
+                    "v", prop("v", "Integer", 0, 1)));
+
+    private static final java.util.Set<String> EDGE_CLASSES = java.util.Set.of("demo::Acting", "demo::Directing",
+            "demo::LinkCity", "demo::LinkFirm");
 
     private static final CypherToPure.Model MODEL = new CypherToPure.Model() {
         @Override
@@ -95,8 +108,7 @@ class CypherToPureTest {
         @Override
         public List<String> classes() {
             // (an edge class is never a node)
-            return CLASSES.keySet().stream().filter(c -> !c.equals("demo::Acting") && !c.equals("demo::Directing"))
-                    .sorted().toList();
+            return CLASSES.keySet().stream().filter(c -> !EDGE_CLASSES.contains(c)).sorted().toList();
         }
 
         @Override
@@ -177,6 +189,10 @@ class CypherToPureTest {
                     "cast", true);
             sink.edge("demo::Directing", "Directing", "director", "demo::Person", null, false, "firm", "demo::Firm",
                     null, false);
+            sink.edge("demo::LinkCity", "LINK", "person", "demo::Person", "cityLinks", true, "city", "demo::City",
+                    "linkedPeople", true);
+            sink.edge("demo::LinkFirm", "LINK", "person", "demo::Person", "firmLinks", true, "firm", "demo::Firm",
+                    "linkedPeople", true);
         }
     };
 
@@ -942,6 +958,26 @@ class CypherToPureTest {
         String pure = edges("MATCH (p:Person)-[:ACTED_IN {role: 'Neo'}]->(f:Firm) RETURN f.legalName AS firm");
         assertTrue(pure.contains("'Neo'"), pure);
         assertTrue(pure.contains("$p.actings.role"), pure);
+    }
+
+    @Test
+    void aPropertyOneArmsEdgeClassLacksIsTheKnownNullInThatArm() {
+        // (the Postgres lane's catch: within the arm whose edge class lacks the property, its column is the null
+        // constant, which the comparison folds to null and the property map to false; read as a column, Postgres
+        // types the null navigated to one as text and refuses it against an integer)
+        String pure = edges("MATCH (p:Person)-[:LINK {w: 1}]->(x) RETURN p.name AS name");
+        assertTrue(pure.contains("$p.cityLinks.w"), pure);
+        assertTrue(pure.contains("->filter(r|false)"), pure);
+        String where = edges("MATCH (p:Person)-[l:LINK]->(x) WHERE l.w IS NULL RETURN p.name AS name");
+        assertTrue(where.contains("->filter(r|true)"), where);
+        // a far node's property map in the arm whose class lacks it (Firm has no name): false there, not C4's
+        // refusal (lenient across every class the arms read, as the WHERE is), whichever root the arm tries
+        String node = edges("MATCH (p:Person)-[:LINK]->(x {name: 'Paris'}) RETURN p.name AS name");
+        assertTrue(node.contains("->filter(r|false)"), node);
+        assertTrue(node.contains("$p.cityLinks.city.name"), node);
+        // after the arms' union the column holds the other arm's values: read as the column, never the constant
+        String read = edges("MATCH (p:Person)-[l:LINK]->(x) WITH p, l RETURN p.name AS name, l.w AS w, l.v AS v");
+        assertTrue(read.matches("(?s).*w:r\\|\\$r\\._cypher_\\d+, v:r\\|\\$r\\._cypher_\\d+.*"), read);
     }
 
     @Test

@@ -135,3 +135,15 @@ tests:
     graph: |
       CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T {v: 2}]->(:C {name: 'c1'})
     cypher: "MATCH (x)-[:T {w: 1}]->(b) RETURN x.name AS x, b.name AS b"
+  - id: a_nodes_property_map_in_an_arm_whose_class_lacks_it
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1', num: 5}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'})
+    cypher: "MATCH (x)-[:T]->(n {num: 5}) RETURN x.name AS x, n.name AS n"
+  - id: a_where_over_an_edge_property_one_arm_lacks
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T {v: 2}]->(:C {name: 'c1'})
+    cypher: "MATCH (x)-[r:T]->(b) WHERE r.w IS NULL OR r.w = 1 RETURN x.name AS x, b.name AS b ORDER BY x"
+  - id: an_edge_property_one_arm_lacks_read_after_the_union
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T {v: 2}]->(:C {name: 'c1'})
+    cypher: "MATCH (x)-[r:T]->(b) WITH x, r RETURN x.name AS x, r.w AS w, r.v AS v ORDER BY x"

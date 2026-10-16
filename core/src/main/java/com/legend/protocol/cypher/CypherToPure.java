@@ -867,7 +867,8 @@ public final class CypherToPure {
         List<Graph> graphs = new ArrayList<>();
         for (List<PatternElement> arm : arms) {
             typesInThisMatch.clear();
-            Graph g = pattern(new PathPattern(null, arm, p.pos()), null);
+            // (the property maps lenient across every class the arms read, as the WHERE below is)
+            Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
             if (p.variable() != null) {
                 recordPath(g, new PathPattern(p.variable(), arm, p.pos()));
             }
@@ -1392,7 +1393,32 @@ public final class CypherToPure {
             Rows rows = materialize(g, pos, order);
             out = out == null ? rows : new Rows(call("concatenate", out.vs(), rows.vs()), out.columns());
         }
-        return java.util.Objects.requireNonNull(out);
+        // (the union's columns: a property absent in one arm holds the other arms' values)
+        return new Rows(java.util.Objects.requireNonNull(out).vs(), withoutAbsentMarks(out.columns()));
+    }
+
+    /** {@code columns} with no carried property marked absent ({@link NodeProp#absent}): the columns of the arms'
+     *  union, where a column null in one arm holds the other arms' values. */
+    private static List<Col> withoutAbsentMarks(List<Col> columns) {
+        List<Col> out = new ArrayList<>();
+        for (Col c : columns) {
+            if (c.detail() instanceof NodeShape shape && shape.props().values().stream().anyMatch(NodeProp::absent)) {
+                out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
+                        new NodeShape(shape.labels(), withoutAbsentMarks(shape.props()), shape.absent())));
+            } else if (c.detail() instanceof RelShape rel && rel.props().values().stream().anyMatch(NodeProp::absent)) {
+                out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
+                        new RelShape(rel.type(), withoutAbsentMarks(rel.props()))));
+            } else {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    private static Map<String, NodeProp> withoutAbsentMarks(Map<String, NodeProp> props) {
+        Map<String, NodeProp> out = new LinkedHashMap<>();
+        props.forEach((name, p) -> out.put(name, new NodeProp(p.column(), p.kind(), p.nullable())));
+        return out;
     }
 
     /** A fanning graph as rows (the study's §12.16): every node carried as its columns, one row per match (a
@@ -1727,6 +1753,13 @@ public final class CypherToPure {
     /** One path pattern read into the graph: the first pattern of a query chooses the root; a later one must start
      *  or end at a node already bound (else it is a cartesian product, which PR1 does not read). */
     private Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g) {
+        return pattern(p, g, List.of());
+    }
+
+    /** {@link #pattern(PathPattern, Graph)} with, for a first pattern, the classes its property maps are lenient
+     *  across ({@code candidates}: an arm's every class, C4 lenient across the classes the arms read, as its
+     *  WHERE is; a property declared on none of them stays an error). */
+    private Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g, List<String> candidates) {
         List<PatternElement> elements = p.elements();
         for (PatternElement e : elements) {
             if (e instanceof RelPattern r && r.lengthRange() != null) {
@@ -1734,7 +1767,7 @@ public final class CypherToPure {
             }
         }
         if (g == null) {
-            return rooted(p);
+            return rooted(p, candidates);
         }
         NodePattern first = (NodePattern) elements.get(0);
         NodePattern last = (NodePattern) elements.get(elements.size() - 1);
@@ -1758,8 +1791,10 @@ public final class CypherToPure {
         return g;
     }
 
-    /** The first pattern: its root is the node from which every hop navigates to at most one node. */
-    private Graph rooted(PathPattern p) {
+    /** The first pattern: its root is the node from which every hop navigates to at most one node. The property
+     *  maps are lenient across {@code candidates} (a class without the property, where one of them declares it,
+     *  reads null: an arm's far node, or a root tried and passed over). */
+    private Graph rooted(PathPattern p, List<String> candidates) {
         List<PatternElement> elements = p.elements();
         for (int rootAt = 0; rootAt < elements.size(); rootAt += 2) {
             NodePattern root = (NodePattern) elements.get(rootAt);
@@ -1768,7 +1803,7 @@ public final class CypherToPure {
                 continue;
             }
             String row = rowName(root.variable());
-            Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>(), List.of());
+            Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>(), candidates);
             Binding rootBinding = new Binding(true, rootClass, List.of(), false);
             bind(g, root.variable(), rootBinding, root.pos());
             nodeConstraints(root, rootBinding, g);
@@ -1791,7 +1826,7 @@ public final class CypherToPure {
             rootClass = startClassOf((RelPattern) elements.get(1), root.pos());
         }
         String row = rowName(root.variable());
-        Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>(), List.of(), true,
+        Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>(), candidates, true,
                 new ArrayList<>(), new ArrayList<>());
         Binding rootBinding = new Binding(true, rootClass, List.of(), false);
         bind(g, root.variable(), rootBinding, root.pos());
@@ -3523,7 +3558,7 @@ public final class CypherToPure {
                     String column = freshName(names);
                     specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.nullOf(k.getValue()).vs()), null, null));
                     columns.add(new Col(column, k.getValue(), true));
-                    props.put(k.getKey(), new NodeProp(column, k.getValue(), true));
+                    props.put(k.getKey(), new NodeProp(column, k.getValue(), true, true));
                 }
                 return new NodeCarry(new NodeShape(labels, props, true), specs, columns);
             }
@@ -3551,12 +3586,12 @@ public final class CypherToPure {
             Map<String, NodeProp> props = new LinkedHashMap<>();
             for (Map.Entry<String, Kind> k : kinds.entrySet()) {
                 String column = freshName(names);
-                Tx t = CypherToPure.this.property(cls, k.getKey()) != null ? propertyOf(b, k.getKey(), pos)
-                        : SqlToPure.nullOf(k.getValue());
+                boolean lacks = CypherToPure.this.property(cls, k.getKey()) == null;
+                Tx t = lacks ? SqlToPure.nullOf(k.getValue()) : propertyOf(b, k.getKey(), pos);
                 boolean nullable = classes.size() > 1 || t.nullable() || optional;
                 specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
                 columns.add(new Col(column, k.getValue(), nullable));
-                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable));
+                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, lacks));
             }
             return new NodeCarry(new NodeShape(labels, props), specs, columns);
         }
@@ -3592,12 +3627,12 @@ public final class CypherToPure {
                 String edge = b.absent() ? null : b.classPath();
                 for (Map.Entry<String, Kind> k : unionKinds(classes, pos).entrySet()) {
                     String col = freshName(names);
-                    Tx t = edge != null && CypherToPure.this.property(edge, k.getKey()) != null
-                            ? propertyOf(b, k.getKey(), pos) : SqlToPure.nullOf(k.getValue());
+                    boolean lacks = edge == null || CypherToPure.this.property(edge, k.getKey()) == null;
+                    Tx t = lacks ? SqlToPure.nullOf(k.getValue()) : propertyOf(b, k.getKey(), pos);
                     boolean nullableHere = classes.size() > 1 || t.nullable() || nullable;
                     specs.add(new ColSpec(col, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
                     columns.add(new Col(col, k.getValue(), nullableHere));
-                    props.put(k.getKey(), new NodeProp(col, k.getValue(), nullableHere));
+                    props.put(k.getKey(), new NodeProp(col, k.getValue(), nullableHere, lacks));
                 }
             }
             return new NodeCarry(new NodeShape(column, props), specs, columns, true);
@@ -4011,6 +4046,10 @@ public final class CypherToPure {
                     throw CypherErrors.invalid("the node " + v.name() + " has no property " + p.name() + " (the"
                             + " graph is the model: a property no class declares is an error, not null)", p.pos());
                 }
+                if (np.absent()) {
+                    // (the class this arm reads lacks it: the known null, which a comparison folds)
+                    return scalar(SqlToPure.nullOf(np.kind()));
+                }
                 return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
                         np.nullable()));
             }
@@ -4026,6 +4065,10 @@ public final class CypherToPure {
                                 + " not null)", p.pos());
                     }
                     return nullValue();
+                }
+                if (np.absent()) {
+                    // (the edge class this arm reads lacks it: the known null, which a comparison folds)
+                    return scalar(SqlToPure.nullOf(np.kind()));
                 }
                 return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
                         np.nullable()));
@@ -4277,7 +4320,8 @@ public final class CypherToPure {
                 return scalar(constant(!isNull));
             }
             Tx t = s.tx();
-            if (t.kind() == Kind.NULL) {
+            if (t.kind() == Kind.NULL || SqlToPure.isNullConstant(t)) {
+                // (a null the query names, or a typed one: a property the arm's class lacks)
                 return scalar(constant(isNull));
             }
             if (!t.nullable()) {
@@ -6636,8 +6680,16 @@ public final class CypherToPure {
         }
     }
 
-    /** One property of a carried node: its column, its kind, whether it may be null. */
-    private record NodeProp(String column, Kind kind, boolean nullable) {
+    /** One property of a carried node (or of a carried relationship over an edge class): its column, its kind,
+     *  whether it may be null, and whether the column holds null everywhere in the rows in hand ({@code absent}: the
+     *  class the arm reads lacks the property, the column is one the other arms have; cleared on the arms' union,
+     *  where the column holds the other arms' values). A property map or a WHERE read within the arm compares the
+     *  property as the known null it is (the comparison folds to null, as a label-less node's own does), never the
+     *  column: Postgres types a null constant navigated to one as text. */
+    private record NodeProp(String column, Kind kind, boolean nullable, boolean absent) {
+        NodeProp(String column, Kind kind, boolean nullable) {
+            this(column, kind, nullable, false);
+        }
     }
 
     /** The mark of a node's JSON value ({@link #nodeJson}): what DISTINCT, ORDER BY and a grouping refuse by name

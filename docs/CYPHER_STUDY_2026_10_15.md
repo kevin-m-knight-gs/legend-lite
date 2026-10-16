@@ -3038,3 +3038,71 @@ whose graphs mix a multi-pair type with what they read.
 | Postgres | 4381 | 2362 (from 2,340) | 0 | 0 | 0 | 1124 | 714 | 181 |
 
 12 lite cases in `lite/predicates.yaml`, each judged by Neo4j (one erroring on both sides, two refused by name).
+
+#### 12.40.2 The review of the three landings, 2026-10-16
+
+Two independent reviews of the diff since PR #48 merged, one over the model and phase-F half, one over the
+translator, parser and harness, each finding verified by a probe against the built jars; every finding fixed.
+
+**The reader (`GraphEdges`, nine findings).** The island's view of the model read platform primitives as classes
+(the context's lookup reaches the native catalog), so a `String[*]` property on an edge passed phase F and then broke
+every query: both sources now read the model's classes alike. An end typed by a primitive, an enumeration or an edge
+class passed: refused. A subclass of an association-form edge inherited an inverse reaching the superclass's
+relationships (`[:Sub]` read every superclass instance): an inherited association end has no inverse for the
+subclass, and the translator refuses the hop by name. The association scan ran only once a marked class had been
+read, so an end stereotype on an unmarked class was caught or missed by class order: the injected ends are indexed
+once. An association linking an edge by an end carrying neither marker (a third link), a type marker on an unmarked
+class, both markers on one property, two inherited types that disagree, and a derived end (`<<graph.from>> from()
+{...}`, which the reader does not read) went unchecked or were refused with the wrong words: each refused by name. A
+fault in an inherited declaration was blamed on the subclass: it names the declaring class. A tolerant build walled
+only the first bad edge, and the derived view then threw on every query: phase F checks class by class, one wall
+each. A generic superclass dropped out of the lineage: read by its head. Open, recorded: a `<<graph.type>>` marker
+on a derived property is read by its bare profile name (the resolver does not resolve a derived property's
+stereotypes), so a profile named `graph` in another package would be read as the graph profile's.
+
+**The translator, the parser and the harness (twelve findings).** Wrong answers: a hop over a to-one inverse
+(`T_out: E[0..1]`) never filtered, every start node returned (the hop is optional now, so a row without an edge is no
+match); an edge end with no inverse was silently skipped outside the typed MATCH (an untyped hop, a predicate, an
+OPTIONAL MATCH, a comprehension answered as if the edge were absent): refused by name wherever the edge is a way; a
+pattern predicate ignored its start node's label (`WHERE (a:B)-->()` over an `a:A`): the bound node's class or a
+superclass is a no-op, a class apart matches nothing, a subclass is refused; a far label that is a subclass of the
+class a way reaches made a predicate false (and an arm vanish) instead of refusing: refused as narrowing; an
+undirected typed pattern from a label-less start read one direction only: refused. An execution error: a
+relationship carried across arms as an edge in one arm and an association or an absent one in another, or an
+unnamed relationship with a property map over a multi-pair type, gave the arms different columns (a union arity
+error): every arm now carries the union's columns, null where its relationship lacks them, and such relationships
+are named before the arms are read. Accepting what Neo4j rejects: a pattern predicate could introduce new variables
+(`WHERE (a)-[r:K]->(m)`): refused with Neo4j's words, as EXISTS may introduce them; the boolean-context rule was a
+dynamic flag, so a pattern inside a function's argument under a WHERE passed and one in a quantifier's predicate
+was refused as Neo4j's rejection: the rule is structural now (a WHERE, a CASE test, a quantifier's or
+comprehension's predicate, and the operands of NOT, AND, OR, XOR under one; a quantifier's pattern is then refused
+by name, its scope not being the graph's). Missing or misplaced refusals: the hop-past-edge refusal was bypassed by
+an unnamed far node (named now) and by a comprehension's end (marked now); the parser took `(a) - (b)` for a
+relationship (arithmetic now) and refused `(:A)-[:K]->(a)`, `()-->(a)` and `({k: 1})-->(a)` as syntax errors (predicates
+now); EXISTS gave syntax errors on `RETURN *`, `RETURN DISTINCT x` and `OPTIONAL MATCH` (read, read, refused by
+name) and never read its RETURN items (read now for their static errors: an undefined variable errors, as in
+Neo4j); a carried edge relationship's undeclared property read null where a bound one errored (C4: both error now),
+and three edge refusals lacked the C4 phrase the harness classifies by. The harness's made-up names (`E_T_from`,
+`RelationshipType`, a bridge table `r_t_1` beside a type named `T_1`) could collide with the graph's own: refused by
+name.
+
+**The Postgres lane's catch after the fixes (one finding, the lanes' own).** The arms' union gives a relationship
+(and a carried node) the union of its classes' properties across the arms, null where an arm's class lacks one; the
+arm's own property map or WHERE then read that column (`isNotEmpty && toOne() == 1`), which the lowering spells, over
+a null constant, as the runtime error a `toOne()` over nothing raises: text on Postgres, refused against an integer
+when the statement is typed (DuckDB's `error(...)` takes any type, so the DuckDB lane passed). Within the arm the
+property is the known null: the carried column is marked absent, a read of it is the typed null constant the
+comparison folds to null and the property map to false (as a label-less node's own property does, §12.13), `IS NULL`
+folds too, and the marks are cleared on the union, where the column holds the other arms' values. The node form
+showed a second gap beside it: the arms route tries each labelled node of an arm as the pattern's root, and a tried
+root's property map was read against no candidate class, so a far node's map over a property its arm's class lacks
+was refused as C4's error where the same test in a WHERE was lenient; an arm's every class is its pattern's
+candidates from the start. Three more lite cases (the node form, a WHERE over the property, the property read after
+the union) and one unit test pin both. The
+reader's review also moved a guard: the lineage-order compares it made (`fqn.equals(cd.qualifiedName())`) counted
+against `IdentityGuardrailTest`'s reversed-compare pin; the reader indexes the lineage instead (the declaring class
+is position 0), the pin unmoved.
+
+The ledger after the review, DuckDB: PASS 2718 (from 2,712), REFUSED 779, BOTH_ERROR 717, SKIP 181, over 4395 cases;
+Postgres: PASS 2368 (from 2,362); 0 FAIL, 0 BUG, 0 ERROR on both. 14 more lite cases pin the findings Neo4j judges
+(`lite/predicates.yaml`, `lite/edges.yaml`), 28 unit tests the rest.

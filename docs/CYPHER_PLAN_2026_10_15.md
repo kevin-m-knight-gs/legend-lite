@@ -128,7 +128,9 @@ PR3's first step, the edge class (§12.38, the design §5.6: `projects/graph`, `
 harness); DuckDB PASS 2671, Postgres PASS 2321, 0 FAIL, 0 BUG, 0 ERROR on both. Then a type joining several class
 pairs as several edge classes of one type, read as arms (§12.39); DuckDB PASS 2690, Postgres PASS 2340, 0 FAIL, 0 BUG,
 0 ERROR on both, the harness's SKIPs down from 298 to 181. Then a pattern as a predicate and `EXISTS { ... }` over one
-hop (§12.40); DuckDB PASS 2712, Postgres PASS 2362, 0 FAIL, 0 BUG, 0 ERROR on both. The compact form read from the node
+hop (§12.40); DuckDB PASS 2712, Postgres PASS 2362, 0 FAIL, 0 BUG, 0 ERROR on both. Then the two reviews of the three
+landings, twenty-one findings fixed and the Postgres lane's one catch after them (§12.40.2); DuckDB PASS 2718,
+Postgres PASS 2368, 0 FAIL, 0 BUG, 0 ERROR on both. The compact form read from the node
 side, inheritance (a node with several labels), identity, `USE`, named zones, and `collect` (the database owner's
 aggregate) wait.
 

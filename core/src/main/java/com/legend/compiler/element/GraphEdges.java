@@ -192,7 +192,8 @@ public record GraphEdges(List<Edge> edges) {
         List<EndRead> ends = new ArrayList<>();
         List<String> thirdLinks = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
-        for (String fqn : lineage) {
+        for (int i = 0; i < lineage.size(); i++) {
+            String fqn = lineage.get(i);
             ClassDefinition c = src.findClass(fqn).orElse(null);
             if (c == null) {
                 continue;
@@ -203,11 +204,12 @@ public record GraphEdges(List<Edge> edges) {
                 }
                 String kind = endKind(pd.stereotypes(), c, pd.name());
                 if (kind != null) {
-                    ends.add(new EndRead(pd.name(), kind, pd.type(), pd.multiplicity(), null, false, fqn));
+                    ends.add(new EndRead(pd.name(), kind, pd.type(), pd.multiplicity(), null, false, fqn, i == 0));
                 }
             }
         }
-        for (String fqn : lineage) {
+        for (int i = 0; i < lineage.size(); i++) {
+            String fqn = lineage.get(i);
             for (Index.Injected in : index.onto(fqn)) {
                 if (!seen.add(in.end().propertyName())) {
                     continue;
@@ -218,8 +220,9 @@ public record GraphEdges(List<Edge> edges) {
                     thirdLinks.add(in.association().qualifiedName() + "'s end " + in.end().propertyName());
                     continue;
                 }
+                // (the lineage's first class is the edge itself: an end declared for it has its inverse)
                 ends.add(new EndRead(in.end().propertyName(), kind, in.end().targetClass(), in.end().multiplicity(),
-                        in.other().propertyName(), !in.other().isToOne(), fqn));
+                        in.other().propertyName(), !in.other().isToOne(), fqn, i == 0));
             }
         }
         for (String fqn : lineage) {
@@ -273,17 +276,16 @@ public record GraphEdges(List<Edge> edges) {
                 }
             }
         }
-        return new Edge(cd.qualifiedName(), typeOf(src, cd, lineage), from.end(cd), to.end(cd));
+        return new Edge(cd.qualifiedName(), typeOf(src, cd, lineage), from.end(), to.end());
     }
 
     /** An end as read: the property, its kind (from, to), its declared type and multiplicity, its inverse when it
-     *  is an association end, and the class it is declared on. */
+     *  is an association end, the class it is declared on, and whether that class is the edge itself. */
     private record EndRead(String property, String kind, TypeExpression type, Multiplicity multiplicity,
-            @com.legend.base.Nullable String inverse, boolean inverseMany, String declaredOn) {
-        /** The end of {@code edge}: an inverse declared for another class (a superclass) reaches that class's
-         *  instances, so it is none of this edge's. */
-        End end(ClassDefinition edge) {
-            boolean own = declaredOn.equals(edge.qualifiedName());
+            @com.legend.base.Nullable String inverse, boolean inverseMany, String declaredOn, boolean own) {
+        /** The end: an inverse declared for another class (a superclass) reaches that class's instances, so it is
+         *  none of this edge's. */
+        End end() {
             return new End(property, java.util.Objects.requireNonNull(headName(type)), own ? inverse : null,
                     own && inverseMany);
         }
@@ -325,7 +327,8 @@ public record GraphEdges(List<Edge> edges) {
         String marker = "<<" + PlatformTypes.GRAPH_PROFILE + ".type>>";
         String found = null;
         String foundOn = null;
-        for (String fqn : lineage) {
+        for (int i = 0; i < lineage.size(); i++) {
+            String fqn = lineage.get(i);
             ClassDefinition c = src.findClass(fqn).orElse(null);
             if (c == null) {
                 continue;
@@ -346,7 +349,7 @@ public record GraphEdges(List<Edge> edges) {
                 throw refuse(c, "carries " + marker + " on " + dp.name() + ", whose body is not one spelled"
                         + " enumeration value: the type is a typed constant");
             }
-            if (fqn.equals(cd.qualifiedName())) {
+            if (i == 0) {
                 // the class's own type: what it says
                 return ev.value();
             }
