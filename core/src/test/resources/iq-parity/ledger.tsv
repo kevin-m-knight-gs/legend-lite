@@ -533,6 +533,17 @@ lite/corpus_gaps/datediff_from_zero_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ER
 lite/corpus_gaps/a_double_by_a_count@iq17-default	PASS	PASS
 lite/corpus_gaps/avg_of_a_defaulted_count@iq17-default	PASS	PASS
 lite/corpus_gaps/window_avg_of_a_defaulted_count@iq17-default	PASS	PASS
+lite/corpus_gaps/on_in_of_the_inner_side@iq17-default	PASS	PASS
+lite/corpus_gaps/on_in_correlated_to_the_inner_side@iq17-default	PASS	PASS
+lite/corpus_gaps/on_scalar_correlated_to_the_inner_side@iq17-default	PASS	PASS
+lite/corpus_gaps/on_right_joins_inner_side@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/on_or_of_the_inner_side@iq17-default	PASS	PASS
+lite/corpus_gaps/on_a_later_join_of_its_own_side@iq17-default	PASS	PASS
+lite/corpus_gaps/on_in_of_the_preserved_side_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/on_exists_correlated_to_the_preserved_side_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/on_of_a_full_join_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/on_or_of_both_sides_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/on_a_later_join_reading_an_earlier_one_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

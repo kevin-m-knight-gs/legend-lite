@@ -147,3 +147,39 @@ tests:
   - id: window_avg_of_a_defaulted_count
     sql: "SELECT id, AVG(c) OVER () AS a, AVG(n) OVER () AS b FROM (SELECT t.id, COALESCE(x.n, 0) AS c, x.n AS n FROM t LEFT JOIN (SELECT t_id, COUNT(*) AS n FROM u GROUP BY t_id) x ON x.t_id = t.id) d ORDER BY id"
     profile: iq17-default
+
+  # ---- an outer join's ON: a subquery only in a conjunct that reads the null-supplying side alone
+  - id: on_in_of_the_inner_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND u.t_id IN (SELECT id FROM g) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_in_correlated_to_the_inner_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND u.t_id IN (SELECT g.id FROM g WHERE g.id = u.id) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_scalar_correlated_to_the_inner_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND u.id >= (SELECT MIN(y.id) FROM u y WHERE y.t_id = u.t_id) ORDER BY 1, 2"
+    profile: iq17-default
+  # IQ reads it; refused by name: DuckDB cannot plan a subquery in a RIGHT JOIN's condition
+  - id: on_right_joins_inner_side
+    sql: "SELECT t.id, u.id AS uid FROM t RIGHT JOIN u ON u.t_id = t.id AND t.id > (SELECT MIN(id) FROM u) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_or_of_the_inner_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND (u.id = 1 OR u.id IN (SELECT id FROM g)) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_a_later_join_of_its_own_side
+    sql: "SELECT t.id, u.id AS uid, g.id AS gid FROM t LEFT JOIN u ON u.t_id = t.id LEFT JOIN g ON g.id = u.id AND g.id IN (SELECT id FROM u) ORDER BY 1, 2, 3"
+    profile: iq17-default
+  - id: on_in_of_the_preserved_side_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND t.id IN (SELECT t_id FROM u) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_exists_correlated_to_the_preserved_side_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND EXISTS (SELECT 1 FROM g WHERE g.id = t.id) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_of_a_full_join_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t FULL JOIN u ON u.t_id = t.id AND EXISTS (SELECT 1 FROM g) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_or_of_both_sides_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id OR u.id > (SELECT MIN(id) FROM u) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_a_later_join_reading_an_earlier_one_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid, g.id AS gid FROM t LEFT JOIN u ON u.t_id = t.id LEFT JOIN g ON g.id = u.id AND u.id IN (SELECT id FROM u) ORDER BY 1, 2, 3"
+    profile: iq17-default

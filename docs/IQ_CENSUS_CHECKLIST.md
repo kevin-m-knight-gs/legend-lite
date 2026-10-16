@@ -105,7 +105,7 @@ Measured to be IQ's own errors, raised or named by the island:
 - under IQ's engine:
   - TOP in any subquery, derived table or common table expression is -1001030 (the research's D-R1 had held that IQ may ignore it);
   - a subquery inside a conditional expression is -1001030;
-  - a scalar subquery in an outer join's ON is -1001047;
+  - a subquery in an outer join's ON is -1001047 unless its conjunct reads the null-supplying side alone (directly and through correlation; in a FULL JOIN always): 21 shapes measured;
   - an integer where DATEADD or DATEDIFF reads a date is -1001011;
   - CAST to NVARCHAR or NCHAR is -1001030.
 
@@ -115,7 +115,7 @@ Open, ranked by the corpora:
 - CAST to DECIMAL without a precision, IQ's NUMERIC(126,38) (70);
 - a subquery in a derived table's select list, which IQ's engine reads only where the outer query shows its column as it is (192);
 - LIKE's `[set]` classes, which IQ reads (32);
-- the outer join ON shapes DuckDB cannot plan (46);
+- the outer join ON shapes IQ reads but DuckDB cannot plan: a subquery in a RIGHT JOIN's ON (refused by name), an uncorrelated one over a common table expression in a LEFT JOIN's ON (6, DuckDB's error);
 - CROSS APPLY (676), which this round measured only as IQ's internal error on one correlated shape (2.16c).
 
 Phase 2 is still to come: data loaded into IQ and the lane's databases, and the answers judged.

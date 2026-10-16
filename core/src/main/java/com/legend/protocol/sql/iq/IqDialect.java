@@ -2527,10 +2527,7 @@ public final class IqDialect implements InputDialect {
                 joins(f, joins);
                 for (SqlAst.Join j : joins) {
                     if (j.on() != null && j.type() != SqlAst.JoinType.INNER) {
-                        // IQ island, 2026-10-15 (the corpus lane: 124 of SQLStorm's queries, which DuckDB cannot plan
-                        // either; measured on IQ 17.1): an outer join's ON compares with no scalar subquery (an
-                        // EXISTS there is read)
-                        outerJoinScalars(java.util.Objects.requireNonNull(j.on()));
+                        outerJoinSubqueries(j, java.util.Objects.requireNonNull(j.on()));
                     }
                     if (j.on() != null) {
                         // IQ island, 2026-10-15 (measured on IQ 17.1): an ON takes them as a WHERE does
@@ -2633,15 +2630,125 @@ public final class IqDialect implements InputDialect {
                 + " list): IQ takes one in " + place);
     }
 
-    /** A scalar subquery in an outer join's ON: IQ's error -1001047 (measured on IQ 17.1). */
-    private static void outerJoinScalars(SqlAst.Expr e) {
-        if (e instanceof SqlAst.ScalarSubquery) {
-            throw SqlTranslationException.unsupported("a scalar subquery in an outer join's ON is IQ's error -1001047"
-                    + " under its engine (subqueries are not supported in outer join ON clauses), refused before"
-                    + " translating", e.pos());
+    /**
+     * IQ island, 2026-10-15 (the corpus lane: 124 of SQLStorm's queries, which DuckDB cannot plan either; measured on IQ
+     * 17.1 over 21 shapes): an outer join's ON takes a subquery only in a conjunct (of its top AND) that reads nothing
+     * but the join's null-supplying side -- a LEFT JOIN's right, a RIGHT JOIN's left -- by its own columns and, through
+     * correlation, by its subqueries' ({@code u.id > (SELECT MIN(id) FROM u)}, {@code EXISTS (SELECT 1 FROM g WHERE
+     * g.id = u.id)}, an uncorrelated EXISTS); any other, and any in a FULL JOIN's ON, is IQ's error -1001047, an IN, an
+     * ANY, an EXISTS and a scalar subquery alike (a later join's ON reading an earlier join's table too). An unqualified
+     * column in such a conjunct is refused by name: which side holds it decides.
+     */
+    private static void outerJoinSubqueries(SqlAst.Join j, SqlAst.Expr on) {
+        Set<String> nullSide = new java.util.HashSet<>();
+        if (j.type() != SqlAst.JoinType.FULL) {
+            for (SqlAst.FromItem leaf : leaves(j.type() == SqlAst.JoinType.LEFT ? j.right() : j.left())) {
+                SqlAst.Ident name = correlation(leaf);
+                if (name != null) {
+                    nullSide.add(IqLexer.lower(name.text()));
+                }
+            }
+        }
+        List<SqlAst.Expr> conjuncts = new ArrayList<>();
+        andConjuncts(on, conjuncts);
+        for (SqlAst.Expr c : conjuncts) {
+            if (!holdsSubquery(c)) {
+                continue;
+            }
+            Set<String> read = new java.util.HashSet<>();
+            boolean[] unqualified = {false};
+            tablesRead(c, Set.of(), read, unqualified);
+            if (j.type() == SqlAst.JoinType.FULL || !nullSide.containsAll(read)) {
+                throw SqlTranslationException.unsupported("a subquery in an outer join's ON that reads a table but the"
+                        + " join's null-supplying side is IQ's error -1001047 under its engine (subqueries are not"
+                        + " supported in outer join ON clauses), refused before translating", c.pos());
+            }
+            if (unqualified[0]) {
+                throw SqlTranslationException.unsupported("an unqualified column beside a subquery in an outer join's"
+                        + " ON is not supported yet: IQ reads the subquery only where its conjunct reads the join's"
+                        + " null-supplying side alone, so the column's table decides", c.pos());
+            }
+            if (j.type() == SqlAst.JoinType.RIGHT) {
+                // IQ reads it (measured); DuckDB cannot plan a subquery in a RIGHT JOIN's condition
+                throw SqlTranslationException.unsupported("a subquery in a RIGHT JOIN's ON is not supported yet: lite's"
+                        + " DuckDB lowering cannot plan it (write it as a LEFT JOIN)", c.pos());
+            }
+        }
+    }
+
+    /** Whether {@code e} holds a subquery anywhere in it. */
+    private static boolean holdsSubquery(SqlAst.Expr e) {
+        if (subqueryOf(e) != null) {
+            return true;
         }
         for (SqlAst.Expr child : children(e)) {
-            outerJoinScalars(child);
+            if (holdsSubquery(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code e}'s conjuncts under AND, parentheses aside. */
+    private static void andConjuncts(SqlAst.Expr e, List<SqlAst.Expr> out) {
+        if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.AND) {
+            andConjuncts(b.left(), out);
+            andConjuncts(b.right(), out);
+        } else {
+            out.add(e);
+        }
+    }
+
+    /** The tables (by their lowercase names) {@code e} reads by qualified columns, inside its subqueries those of no
+     *  FROM item of theirs (correlated); an unqualified column outside a subquery noted. A subquery's unqualified
+     *  column is taken as its own. */
+    private static void tablesRead(SqlAst.Expr e, Set<String> bound, Set<String> read, boolean[] unqualified) {
+        if (e instanceof SqlAst.ColumnRef r) {
+            if (r.parts().size() == 1) {
+                unqualified[0] |= bound.isEmpty();
+            } else {
+                String q = IqLexer.lower(r.parts().get(r.parts().size() - 2).text());
+                if (!bound.contains(q)) {
+                    read.add(q);
+                }
+            }
+            return;
+        }
+        SqlAst.Statement query = switch (e) {
+            case SqlAst.ScalarSubquery q -> q.query();
+            case SqlAst.Exists q -> q.query();
+            case SqlAst.InSubquery q -> q.query();
+            case SqlAst.Quantified q -> q.query();
+            default -> null;
+        };
+        if (query != null) {
+            Set<String> inner = new java.util.HashSet<>(bound);
+            List<SqlAst.Statement> nested = queries(query);
+            for (SqlAst.Statement q : nested) {
+                if (q instanceof SqlAst.Select s) {
+                    for (SqlAst.FromItem f : s.from()) {
+                        for (SqlAst.FromItem leaf : leaves(f)) {
+                            SqlAst.Ident name = correlation(leaf);
+                            if (name != null) {
+                                inner.add(IqLexer.lower(name.text()));
+                            }
+                        }
+                    }
+                }
+            }
+            if (inner.isEmpty()) {
+                inner.add("");
+            }
+            for (SqlAst.Statement q : nested) {
+                if (q instanceof SqlAst.Select s) {
+                    for (SqlAst.Expr x : expressions(s)) {
+                        tablesRead(x, inner, read, unqualified);
+                    }
+                }
+            }
+        }
+        for (SqlAst.Expr child : children(e)) {
+            tablesRead(child, bound, read, unqualified);
         }
     }
 
@@ -3858,7 +3965,7 @@ public final class IqDialect implements InputDialect {
     /** Whether {@code e} reads the rows -- a column, an aggregate, a window function, a subquery -- so that no
      *  database folds it as a constant (IQ island, 2026-10-15, the corpus lane: CAST(COUNT(*) AS DOUBLE) / 3). */
     private static boolean readsRows(SqlAst.Expr e) {
-        if (readsColumn(e) || subqueryOf(e) != null) {
+        if (readsColumn(e) || holdsSubquery(e)) {
             return true;
         }
         java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>(List.of(e));
