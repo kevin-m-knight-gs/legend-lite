@@ -1687,7 +1687,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
 
             // ---- temporal (temporal(): call is held to 250 lines)
             case NOW, DATE_TRUNC_DAY, DATE_TRUNC, PARSE_DATE, EXTRACT, MAKE_DATE, MAKE_TIMESTAMP, ADD_INTERVAL,
-                 ADD_INTERVAL_TEMPORAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, DATE_AT_TIME, EPOCH_SECONDS, EPOCH_MS,
+                 ADD_INTERVAL_TEMPORAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, DATE_AT_TIME, EPOCH_SECONDS, EPOCH_MS, EPOCH_NS, FROM_EPOCH_NS,
                  FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, STRFTIME, STRPTIME -> temporal(writer, c, a);
             // ---- lists whose first argument is no list
             case LIST_LENGTH -> writer.append("toInt64(length(").piece(list(a.get(0))).append("))");
@@ -1964,6 +1964,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
             // (of a DateTime64: a Date32 is refused, measured)
             case EPOCH_SECONDS -> writer.append("(toFloat64(toUnixTimestamp64Micro(toDateTime64(").expr(a.get(0), 0)
                     .append(", 6, 'UTC'))) / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: ClickHouse keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("toUnixTimestamp64Milli(toDateTime64(").expr(a.get(0), 0)
                     .append(", 6, 'UTC'))");
             case FROM_EPOCH_SECONDS -> writer.append("fromUnixTimestamp64Micro(toInt64(").expr(a.get(0), 0)

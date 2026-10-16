@@ -82,8 +82,11 @@ question answered there); PASS 1,488, 0 FAIL, 0 BUG, 0 ERROR, identical on both 
 (§12.10): the text forms, week/quarter/ordinal fields over a base, truncation to the millisecond and microsecond, the
 mixed `between`, a named zone in a text; PASS 1,577, 0 FAIL, 0 BUG, 0 ERROR, identical on both lanes. The zoned
 time-of-day leg landed next (§12.11): `time` as its instant on the epoch day with the offset beside; PASS 1,678, 0 FAIL,
-0 BUG, 0 ERROR, identical on both lanes. Left in temporal, by name: nanosecond precision (282: the database keeps
-microseconds), the clock functions, `toString` of the new values, fractional durations. Then the full CI run on the
+0 BUG, 0 ERROR, identical on both lanes. The nanosecond leg landed next (§12.12, the user's "let's do it" after the
+measurement that DuckDB keeps nanoseconds at rest and in no temporal function): every operation on a nanosecond value
+over the nanosecond epoch, DuckDB's; the first landing whose lanes differ by design — DuckDB PASS 2,030, Postgres PASS
+1,682 (the nanosecond cases refused by name there), 0 FAIL, 0 BUG, 0 ERROR on both. Left in temporal, by name: the
+clock functions, `toString` of the new values, fractional durations, a stored time. Then the full CI run on the
 branch, the merge; the join form (326 fan-out cases) and `collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**

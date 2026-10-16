@@ -381,6 +381,8 @@ public class H2 extends AnsiSqlRenderer {
             // EXTRACT(EPOCH FROM ts) (seconds with the subsecond fraction;
             // probed 2.1.214: 1417706543.123) and its millisecond scaling.
             case EPOCH_SECONDS -> writer.append("EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(")");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: H2 keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(") * 1000 AS BIGINT)");
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)

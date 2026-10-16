@@ -2992,6 +2992,7 @@ final class Scalars {
             case "SECONDS" -> "second";
             case "MILLISECONDS" -> "millisecond";
             case "MICROSECONDS" -> "microsecond";
+            case "NANOSECONDS" -> "nanosecond";
             default -> throw new IllegalStateException(
                     "unknown DurationUnit for dateDiff: " + enumName(unit));
         };
@@ -3042,6 +3043,13 @@ final class Scalars {
             }
             case "second" -> {
                 return elapsed(d1, d2, 1_000L);
+            }
+            case "nanosecond" -> {
+                // no engine counts nanoseconds in date_diff: the epoch counts' difference, exact where the engine
+                // keeps nanoseconds (the Cypher island's nanosecond leg, 2026-10-16)
+                return SqlExpr.Call.of(SqlFn.MINUS,
+                        new SqlExpr.Call(SqlFn.EPOCH_NS, List.of(d2)),
+                        new SqlExpr.Call(SqlFn.EPOCH_NS, List.of(d1)));
             }
             default -> {
                 return new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(

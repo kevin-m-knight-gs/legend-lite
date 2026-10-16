@@ -1984,6 +1984,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case DATE_AT_TIME -> throw new DialectCapability("a time of day: legend-engine's relational lowering"
                     + " refuses StrictTime, so its text has no spelling for one");
             case EPOCH_SECONDS -> writer.function("epoch", c.args());
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: legend-engine's H2 text keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.function("epoch_ms", c.args());
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
             case DAYNAME -> writer.function("dayname", c.args());

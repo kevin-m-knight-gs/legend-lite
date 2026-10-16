@@ -1907,6 +1907,8 @@ public class MariaDb extends AnsiSqlRenderer {
             // TIMESTAMP(date, time): the date-time at that time of that day
             case DATE_AT_TIME -> writer.function("TIMESTAMP", c.args());
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: MariaDB keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" DIV 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (")
                     .expr(a.get(0), 0).append(") * 1000000 MICROSECOND)");

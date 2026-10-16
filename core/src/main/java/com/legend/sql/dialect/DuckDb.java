@@ -488,6 +488,9 @@ public final class DuckDb extends AnsiSqlRenderer {
                     .expr(a.get(1), 6));
             case EPOCH_SECONDS -> writer.function("epoch", c.args());
             case EPOCH_MS -> writer.function("epoch_ms", c.args());
+            // the nanosecond epoch (exact over a TIMESTAMP_NS, measured 1.4.4) and the TIMESTAMP_NS it makes
+            case EPOCH_NS -> writer.function("epoch_ns", c.args());
+            case FROM_EPOCH_NS -> writer.function("make_timestamp_ns", c.args());
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
             case DAYNAME -> writer.function("dayname", c.args());
             case MONTHNAME -> writer.function("monthname", c.args());

@@ -1,7 +1,8 @@
 # The #Cypher{...}# island's temporal cases (docs/CYPHER_STUDY_2026_10_15.md §12.6-§12.10): a date is Pure's
 # StrictDate, a localdatetime Pure's DateTime (the database's DATE and TIMESTAMP, to the microsecond), a localtime
 # Pure's StrictTime (the database's TIME), a datetime its instant with the zone carried beside, a duration an
-# instance of the model's Duration class, a zoned time of day its instant on the epoch day with the offset beside.
+# instance of the model's Duration class, a zoned time of day its instant on the epoch day with the offset beside;
+# a value of nanosecond precision (§12.12) is DuckDB's TIMESTAMP_NS, refused by name on Postgres (the nanos_* cases).
 # Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/temporal/*' snaps them), keyed
 # lite/temporal/<id>.
 tests:
@@ -255,3 +256,31 @@ tests:
     cypher: "RETURN toString(time('12:00+01:00')) AS s"
   - id: time_list_refused_by_name
     cypher: "RETURN [time('12:00+01:00'), time('13:00Z')] AS l"
+  - id: nanos_construction
+    cypher: "RETURN localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123}) AS a, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123}) AS b, datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'}) AS c, time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'}) AS d, localtime({hour: 12, minute: 31, second: 14, nanosecond: 789, millisecond: 123, microsecond: 456}) AS e, localtime({hour: 12, minute: 31, second: 14, nanosecond: 3}) AS f, datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: 'Europe/Stockholm'}) AS g, datetime.fromepoch(416779, 999999999) AS h"
+  - id: nanos_from_text
+    cypher: "RETURN localtime('12:31:14.645876123') AS a, localdatetime('1984-10-11T12:31:14.645876123') AS b, datetime('1984-10-11T12:31:14.645876123+01:00') AS c, time('12:31:14.645876123+01:00') AS d, localdatetime('2015-W30-2T214032.142000009') AS e, datetime('1984-10-11T12:31:14.645876123[Europe/Stockholm]') AS f, localtime('12:31:14.645876100') AS g, localdatetime('1984-10-11T12:31:14.645876000') AS h"
+  - id: nanos_fields
+    cypher: "WITH localdatetime('1984-10-11T12:31:14.645876123') AS dt, time('12:31:14.645876123+01:00') AS t RETURN dt.millisecond, dt.microsecond, dt.nanosecond, dt.second, t.nanosecond, t.microsecond, t.hour, localtime('12:31:14.000000001').nanosecond AS n, datetime('1984-10-11T12:31:14.645876123[Europe/Stockholm]').nanosecond AS z"
+  - id: nanos_selection
+    cypher: "WITH localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123}) AS lt, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123}) AS ldt, datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'}) AS zdt RETURN localtime({time: lt, second: 42}) AS a, time({time: lt, timezone: '+05:00'}) AS b, time({time: lt, second: 42, timezone: '+05:00'}) AS c, localdatetime({date: date('1984-10-11'), time: lt}) AS d, localdatetime({year: 1984, month: 10, day: 11, time: lt, second: 42}) AS e, datetime({year: 1984, month: 10, day: 11, time: lt, timezone: '+05:00'}) AS f, localtime(ldt) AS g, time(zdt) AS h, localdatetime({datetime: zdt, year: 2000}) AS i, datetime({datetime: zdt, timezone: '+05:00'}) AS j, date(ldt) AS k, localdatetime({date: ldt, hour: 5}) AS l, localdatetime({datetime: ldt, millisecond: 1}) AS m, time({time: zdt}) AS n"
+  - id: nanos_truncate
+    cypher: "WITH localdatetime({year: 2017, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123}) AS ldt, time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '-01:00'}) AS t, datetime({year: 2017, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'}) AS zdt RETURN localdatetime.truncate('hour', ldt) AS a, localdatetime.truncate('hour', ldt, {nanosecond: 2}) AS b, localdatetime.truncate('millisecond', ldt) AS c, localdatetime.truncate('millisecond', ldt, {nanosecond: 2}) AS d, localdatetime.truncate('microsecond', ldt) AS e, localdatetime.truncate('microsecond', ldt, {nanosecond: 2}) AS f, time.truncate('minute', t, {nanosecond: 2}) AS g, time.truncate('second', t) AS h, localtime.truncate('hour', t, {nanosecond: 2}) AS i, datetime.truncate('day', zdt, {nanosecond: 2}) AS j, datetime.truncate('millennium', zdt, {timezone: 'Europe/Stockholm'}) AS k, date.truncate('month', ldt, {day: 2}) AS l, localdatetime.truncate('second', ldt, {millisecond: 2, microsecond: 3, nanosecond: 4}) AS m, datetime.truncate('hour', zdt, {timezone: 'Europe/Stockholm', nanosecond: 1}) AS n, localtime.truncate('millisecond', localtime('12:31:14.645876'), {nanosecond: 2}) AS o"
+  - id: nanos_comparison
+    cypher: "WITH localtime('12:31:14.645876123') AS a, localtime('12:31:14.645876124') AS b, localtime('12:31:14.645876') AS c, localdatetime('1984-10-11T12:31:14.645876123') AS d, localdatetime('1984-10-11T12:31:14.645876124') AS e, datetime('1984-10-11T12:31:14.645876123+01:00') AS f, datetime('1984-10-11T11:31:14.645876124Z') AS g, time('12:31:14.645876123+01:00') AS h, time('12:31:14.645876124+01:00') AS i RETURN a < b, a = b, a < c, c < a, a = localtime('12:31:14.645876123') AS same, d < e, d = e, f < g, h < i, h = i, a <> b"
+  - id: nanos_ordering
+    cypher: "UNWIND [3, 1, 2] AS i WITH localdatetime('1984-10-11T12:31:14.645876120') + duration({nanoseconds: 1}) * i AS d RETURN d ORDER BY d"
+  - id: nanos_arithmetic
+    cypher: "WITH localdatetime('1984-10-11T12:31:14.645876123') AS dt, localtime('12:31:14.645876123') AS t, datetime('1984-10-11T12:31:14.645876123+01:00') AS zdt, time('23:59:59.999999999+01:00') AS zt RETURN dt + duration({nanoseconds: 1}) AS a, dt - duration({nanoseconds: 124}) AS b, dt + duration({months: 1, days: 2, hours: 3}) AS c, t + duration({nanoseconds: 877}) AS d, zdt + duration({days: 1, nanoseconds: 1}) AS e, zt + duration({nanoseconds: 1}) AS f, localdatetime('1984-10-11T12:31:14') + duration({nanoseconds: 1}) AS g, localtime('12:00') + duration({seconds: 1, nanoseconds: 1}) AS h, dt + duration('PT0.000000001S') AS i, datetime('2017-10-29T01:30:00.123456789[Europe/Stockholm]') + duration({hours: 1}) AS j, datetime('2017-10-29T01:30:00.123456789[Europe/Stockholm]') + duration({days: 1}) AS k"
+  - id: nanos_between
+    cypher: "WITH localdatetime('1984-10-11T12:31:14.645876123') AS a, localdatetime('1984-10-12T12:31:14.645876124') AS b, localtime('12:31:14.645876123') AS t, localtime('12:31:14.645876125') AS u, datetime('1984-10-11T12:31:14.645876123+01:00') AS z RETURN duration.between(a, b) AS d1, duration.between(b, a) AS d2, duration.between(t, u) AS d3, duration.inSeconds(a, b) AS d4, duration.between(z, b) AS d5, duration.inMonths(a, localdatetime('1985-10-11T12:31:14.645876122')) AS d6, duration.between(a, localdatetime('1985-10-11T12:31:14.645876122')) AS d7, duration.inDays(a, b) AS d8, duration.between(t, localdatetime('1984-10-11T12:31:14.645876124')) AS d9"
+  - id: nanos_zones
+    cypher: "WITH datetime('2017-03-26T01:30:00.123456789+01:00[Europe/Stockholm]') AS z RETURN z.nanosecond AS n, z.hour AS h, localdatetime({datetime: z}) AS l, datetime({datetime: z, timezone: '+05:00'}) AS c, datetime.truncate('day', z) AS t, z.epochSeconds AS e, z.offsetMinutes AS o, localtime(z) AS lt"
+  - id: nanos_time_of_a_named_zone_datetime_refused_by_name
+    cypher: "RETURN time(datetime('2017-03-26T01:30:00.123456789+01:00[Europe/Stockholm]')) AS tt"
+  - id: nanos_year_outside_the_range_refused_by_name
+    cypher: "RETURN localdatetime({year: 1, month: 1, day: 1, hour: 1, minute: 1, second: 1, nanosecond: 1}) AS a"
+  - id: nanos_duration_fields
+    cypher: "WITH duration({seconds: 1, nanoseconds: 1}) AS d RETURN d.nanoseconds, d.nanosecondsOfSecond, d.microsecondsOfSecond, duration('PT1.000000001S') = d AS eq, duration.between(localdatetime('1984-10-11T12:31:14.645876123'), localdatetime('1984-10-11T12:31:14.645876124')).nanosecondsOfSecond AS one"
+  - id: nanos_component_of_the_row_refused_by_name
+    cypher: "UNWIND [1] AS i RETURN localtime({hour: 12, minute: 0, second: 0, nanosecond: i}) AS t"

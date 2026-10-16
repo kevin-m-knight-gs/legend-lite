@@ -1104,6 +1104,8 @@ public final class Databricks extends AnsiSqlRenderer {
                     .append(")");
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("(CAST(unix_micros(").expr(a.get(0), 0).append(") AS DOUBLE) / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Databricks keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("(unix_micros(").expr(a.get(0), 0).append(") div 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("timestamp_seconds(").expr(a.get(0), 0).append(")");
             case FROM_EPOCH_MS -> writer.append("timestamp_millis(CAST(").expr(a.get(0), 0).append(" AS BIGINT))");

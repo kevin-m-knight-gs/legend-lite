@@ -9850,6 +9850,27 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the tenth landing — the nanosecond leg: DuckDB's nanoseconds over the nanosecond epoch, Postgres refusing by name (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the zoned time-of-day leg; the record is the study's §12.12
+(`docs/CYPHER_STUDY_2026_10_15.md`). The first landing whose lanes differ by design: DuckDB keeps nanoseconds
+(`TIMESTAMP_NS`), Postgres keeps microseconds and refuses by name.
+
+1. **What lands.** Two MIR functions (`SqlFn.EPOCH_NS`, `FROM_EPOCH_NS`), what `dateDiff` and `adjust` with
+   `NANOSECONDS` lower to (`DateShifts`, `Scalars`), rendered by DuckDB (`epoch_ns`, `make_timestamp_ns`) and
+   refused by every other dialect (`DialectCapability`); the translator carrying a value's precision beside it and
+   spelling every operation on a nanosecond value over the nanosecond epoch (literals finer than a microsecond,
+   components, texts, selection, fields, truncation with sub-second fields, duration arithmetic, `between`, zone
+   conversions with the remainder kept, a nanosecond local time as the date-time at it on the epoch day); the
+   judge's rule for that time (S70); the harness classifying a dialect's refusal as REFUSED (S71).
+2. **The ledger.** DuckDB: 4,076 cases; PASS 2,030 (from 1,678); FAIL 0; BUG 0; ERROR 0; REFUSED 1,019;
+   BOTH_ERROR 709; SKIP 318. Postgres: PASS 1,682; FAIL 0; BUG 0; ERROR 0; REFUSED 1,367; BOTH_ERROR
+   709; SKIP 318. Of the TCK's 1,004 temporal cases, 902 PASS on DuckDB, 569 on Postgres. 133 lite
+   cases in `lite/temporal.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`, `//:update_generated` (no generated file moved). The full CI run on the branch
+   is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the ninth landing — the zoned time-of-day leg: `time` as its instant on the epoch day, the offset beside (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the temporal remainder; the record is the study's §12.11

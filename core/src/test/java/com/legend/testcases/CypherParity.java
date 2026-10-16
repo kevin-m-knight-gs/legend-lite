@@ -397,6 +397,14 @@ public final class CypherParity {
     /** The outcome of a run that threw: refused by name, lite's compile error, or another error, each BOTH_ERROR
      *  where Neo4j errs too. */
     private static SqlParity.Outcome failed(Throwable e, CypherAnswers.Answer a) {
+        // a dialect's refusal by name (DialectCapability, at render: a microsecond engine asked for nanoseconds)
+        // is a refusal, wherever it sits in the cause chain
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.sql.dialect.DialectCapability) {
+                return a.error() != null ? new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR, oneLine(e))
+                        : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
+            }
+        }
         if (e instanceof com.legend.error.NotImplementedException) {
             return a.error() != null ? new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR, oneLine(e))
                     : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));

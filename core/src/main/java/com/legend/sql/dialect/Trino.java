@@ -973,6 +973,8 @@ public final class Trino extends AnsiSqlRenderer {
                     .expr(a.get(1), 0).append(" AS VARCHAR) AS TIMESTAMP(6))");
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("to_unixtime(with_timezone(").expr(a.get(0), 0).append(", 'UTC'))");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Trino keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(truncate(to_unixtime(with_timezone(").expr(a.get(0), 0)
                     .append(", 'UTC')) * 1000) AS BIGINT)");
             case FROM_EPOCH_SECONDS -> writer.append("CAST(from_unixtime(").expr(a.get(0), 0)

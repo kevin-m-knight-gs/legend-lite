@@ -593,6 +593,27 @@ public final class CypherValues {
         }
     }
 
+    /** A local time of day of Neo4j's ({@code Time('12:31:14.645876123')}, no offset) against lite's nanosecond one,
+     *  which is the date-time at it on the epoch day ({@code DateTime('1970-01-01T12:31:14.645876123')},
+     *  docs/SEMANTICS_REGISTER.md S70): equal when the clocks agree. Only a pair of one local time and one
+     *  epoch-day date-time text compares so. */
+    static boolean sameEpochLocalTime(String a, String b) {
+        String time = localTimeText(a) ? a : localTimeText(b) ? b : null;
+        if (time == null) {
+            return false;
+        }
+        String dt = localTimeText(a) ? b : a;
+        String prefix = "DateTime('1970-01-01T";
+        if (!dt.startsWith(prefix) || !dt.endsWith("')")) {
+            return false;
+        }
+        return dt.substring(prefix.length(), dt.length() - 2).equals(time.substring(6, time.length() - 2));
+    }
+
+    private static boolean localTimeText(String text) {
+        return text.startsWith("Time('") && text.endsWith("')") && !zonedTimeText(text);
+    }
+
     private static boolean zonedTimeText(String text) {
         if (!text.startsWith("Time('") || !text.endsWith("')")) {
             return false;
@@ -675,7 +696,8 @@ public final class CypherValues {
             return x.value().equals(y.value());
         }
         if (a instanceof Opaque x && b instanceof Opaque y) {
-            return x.text().equals(y.text()) || sameInstant(x.text(), y.text()) || sameEpochTime(x.text(), y.text());
+            return x.text().equals(y.text()) || sameInstant(x.text(), y.text()) || sameEpochTime(x.text(), y.text())
+                    || sameEpochLocalTime(x.text(), y.text());
         }
         if (a instanceof Opaque x && b instanceof Mp y || a instanceof Mp x2 && b instanceof Opaque y2) {
             Opaque o = a instanceof Opaque x3 ? x3 : (Opaque) b;

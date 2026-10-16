@@ -1669,6 +1669,13 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `Kind.ZONED_TIME`, `protocol/cypher/CypherToPure.java`, the two IQ kind-name arms) and the harness
   (`testcases/CypherValues.java`, the epoch-day rule; `decisions.tsv`): no file of the database owner's, no guard
   pin moved. The record: the study's §12.11; GATES "the ninth landing"; the register's S68 and S69.
+- **The nanosecond leg, 2026-10-16 (the user's "let's do it"): the database owner's files, announced here as
+  landed** — `sql/SqlFn.java` (`EPOCH_NS`, `FROM_EPOCH_NS`), `sql/SqlTyping.java`, `lowering/DateShifts.java` and
+  `lowering/Scalars.java` (the `NANOSECONDS` unit of `adjust` and `dateDiff`), `sql/dialect/DuckDb.java` (the two
+  arms) and every other dialect (a `DialectCapability` arm by name; the delegating groups); the translator
+  (`protocol/cypher/CypherToPure.java`, the precision beside the value); the harness (`testcases/CypherParity.java`:
+  a dialect's refusal is REFUSED; `testcases/CypherValues.java`: the epoch-day local time). No guard pin moved. The
+  record: the study's §12.12; GATES "the tenth landing"; the register's S70 and S71.
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

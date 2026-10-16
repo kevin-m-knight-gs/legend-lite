@@ -799,6 +799,8 @@ public final class Postgres extends AnsiSqlRenderer {
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("CAST(extract(epoch FROM ").expr(a.get(0), 0)
                     .append(") AS DOUBLE PRECISION)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Postgres keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(trunc(extract(epoch FROM ").expr(a.get(0), 0)
                     .append(") * 1000) AS BIGINT)");
             // epoch arithmetic on a naive timestamp: no session zone involved

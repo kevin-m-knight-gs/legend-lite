@@ -2118,3 +2118,66 @@ cases in `lite/temporal.yaml`, each judged by Neo4j. What stays refused in tempo
 database keeps microseconds; Temporal9's truncation rows carry one), the clock functions, `toString` of the new
 values, fractional durations, a stored time.
 
+### 12.12 The nanosecond leg, 2026-10-16: DuckDB's nanoseconds, Postgres refusing by name
+
+The user's question ("DuckDB has nanos now, doesn't it?") and the answer measured on DuckDB 1.4.4 (the build's
+driver) and 1.5.6 (the newest release): `TIMESTAMP_NS` keeps nanoseconds at rest — literals, casts, comparisons,
+ordering, `epoch_ns`, `make_timestamp_ns`, the JDBC cell — and every temporal function drops them: `+ INTERVAL`
+returns a microsecond `TIMESTAMP` and `INTERVAL` has no nanosecond unit, `date_trunc` and `time_bucket` return
+`TIMESTAMP`, `date_diff` and `date_part` know no `nanosecond`, `TIME_NS` (new in 1.5) has no arithmetic, and the
+tracker holds no request to change any of it. Postgres is microseconds throughout. So the leg is DuckDB's, over the
+nanosecond epoch, and the first deliberate lane divergence of the line.
+
+#### 12.12.1 The model
+
+A temporal value of nanosecond precision is the database's `TIMESTAMP_NS`: a date-time, a zoned date-time (its
+instant), a zoned time of day (its instant on the epoch day, §12.11) and — new — a local time of day, carried as
+the date-time at it on the epoch day too (the database's `TIME` is microseconds). The translation carries the
+precision beside the value as it carries a zone (`Carried(zone, nanos)` on the translation's detail; through a
+`WITH` as a column's detail), and spells every operation on such a value over the nanosecond epoch, which the
+database computes:
+
+- the nanoseconds since the epoch are Pure's `dateDiff(%1970-01-01T00:00:00, x, NANOSECONDS)`, a nanosecond
+  step Pure's `adjust(x, n, NANOSECONDS)`; the lowering (`DateShifts`, `Scalars.dateDiffExpr`) gives the
+  `NANOSECONDS` unit, which no engine's interval has, the two MIR functions `EPOCH_NS` and `FROM_EPOCH_NS`; DuckDB
+  renders `epoch_ns` and `make_timestamp_ns`, every other dialect throws `DialectCapability` by name;
+- a literal finer than a microsecond is the literal to the microsecond moved by its sub-microsecond digits (the
+  translator splits the written digits, computing nothing), so no literal of nine digits reaches the lowering's
+  text path for them;
+- a sub-day shift (an offset's hours, a duration's seconds and nanoseconds) is one nanosecond step; a calendar
+  step (`adjust` by months or days) and a named zone's conversion (`instantIn`, `localIn`) keep microseconds, so
+  the sub-microsecond remainder (`rem(epochNanos(x), 1000)`) is put back after each;
+- the fields read the nanoseconds since the second's start (the millisecond and microsecond their quotients);
+  truncation to the microsecond is the second's start plus the whole microseconds; the `millisecond`,
+  `microsecond` and `nanosecond` fields written over a truncation are added after it (the nanosecond one as a
+  nanosecond step when not a multiple of a thousand);
+- `duration.between` of such values measures the rest in nanoseconds (the whole months and days stepped with the
+  remainder kept), and a duration with a nanosecond component that is not a multiple of a thousand, or a text's
+  fraction finer than a microsecond, is of nanosecond precision itself: added to any temporal value it takes
+  the nanosecond path;
+- comparison and ordering need nothing: the database compares `TIMESTAMP_NS` exactly, and a nanosecond time of
+  day against a microsecond one compares as the date-times at them on the epoch day.
+
+A nanosecond component that is not a spelled number (one of the row) is refused by name: whether it is a multiple
+of a thousand decides the path, and that is a fact of the spelling.
+
+**The judge.** Neo4j's driver spells `Time('12:31:14.645876123')`; lite's nanosecond local time is
+`DateTime('1970-01-01T12:31:14.645876123')`, judged equal when the clocks agree (`CypherValues.sameEpochLocalTime`,
+`docs/SEMANTICS_REGISTER.md` S70); the other carriers judge as before (S65, S68). The executor already read a
+`TIMESTAMP_NS` cell to its nine digits (the driver's `java.sql.Timestamp`); the harness classifies a dialect's
+`DialectCapability` at render as a refusal by name, so the Postgres lane refuses what DuckDB answers (S71).
+
+#### 12.12.2 The ledger
+
+The lanes, for the first time, differ by design:
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| before (both) | 4,062 | 1,678 | 0 | 0 | 0 | 1,357 | 709 | 318 |
+| DuckDB | 4,076 | 2,030 | 0 | 0 | 0 | 1,019 | 709 | 318 |
+| Postgres | 4,076 | 1,682 | 0 | 0 | 0 | 1,367 | 709 | 318 |
+
+Of the TCK's temporal features (1,004 cases): 902 PASS on DuckDB, 569 on Postgres. 133 lite cases in
+`lite/temporal.yaml`, each judged by Neo4j; the `nanos_*` cases pass on DuckDB and are refused by name on Postgres
+("a nanosecond epoch: Postgres keeps microseconds").
+

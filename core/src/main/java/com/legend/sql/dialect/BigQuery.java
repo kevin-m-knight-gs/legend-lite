@@ -1511,6 +1511,8 @@ public final class BigQuery extends AnsiSqlRenderer {
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero (measured), as DIV does
             case EPOCH_SECONDS -> writer.append("(CAST(UNIX_MICROS(").piece(instant(a.get(0)))
                     .append(") AS FLOAT64) / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: BigQuery keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("DIV(UNIX_MICROS(").piece(instant(a.get(0))).append("), 1000)");
             case FROM_EPOCH_SECONDS -> writer.piece(naiveUnlessZoned(c, w -> w.append("TIMESTAMP_MICROS(CAST(")
                     .expr(a.get(0), 6).append(" * 1000000 AS INT64))")));

@@ -376,7 +376,7 @@ public final class SqlTyping {
                     JSON_TYPE, JSON_PRETTY, CURRENT_USER_FN, REPEAT_STR -> T_VARCHAR;
             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
                     LIST_POSITION, EXTRACT, DATE_DIFF, EPOCH_SECONDS,
-                    EPOCH_MS, PARSE_INT,
+                    EPOCH_MS, EPOCH_NS, PARSE_INT,
                     // HASH types as OUR EMISSION: the DuckDB renderer
                     // reinterprets hash()'s UBIGINT into signed BIGINT
                     // (DuckDb.hashSigned — exact two's-complement, the
@@ -389,7 +389,7 @@ public final class SqlTyping {
                     DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
             case TODAY, MAKE_DATE -> T_DATE;
             case NOW, MAKE_TIMESTAMP, STRPTIME, PARSE_DATE, FROM_EPOCH_SECONDS,
-                    FROM_EPOCH_MS, TIMEZONE, DATE_AT_TIME -> T_TIMESTAMP;
+                    FROM_EPOCH_MS, FROM_EPOCH_NS, TIMEZONE, DATE_AT_TIME -> T_TIMESTAMP;
             // PROBED 1.5.0 (2026-08-25 full-burn): the list aggregates
             // follow the SAME reducer promotions as their grouped
             // twins, read through the element (list_sum int->HUGEINT,

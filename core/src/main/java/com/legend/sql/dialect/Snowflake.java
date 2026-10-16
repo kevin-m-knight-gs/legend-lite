@@ -1441,6 +1441,8 @@ public final class Snowflake extends AnsiSqlRenderer {
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero (EXTRACT floors, measured)
             case EPOCH_SECONDS -> writer.append("(CAST(DATE_PART(EPOCH_MICROSECOND, ").piece(naive(a.get(0)))
                     .append(") AS DOUBLE) / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Snowflake keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(TRUNC(DATE_PART(EPOCH_MICROSECOND, ").piece(naive(a.get(0)))
                     .append(") / 1000) AS BIGINT)");
             case FROM_EPOCH_SECONDS -> writer.append("TO_TIMESTAMP_NTZ(CAST(ROUND(").expr(a.get(0), 6)
