@@ -2003,6 +2003,10 @@ public final class IqParser {
                     + " that loses precision for large values, which lite's databases do not reproduce", first.pos());
         }
         // IQ island, 2026-10-15 (checklist 2.16b): GROUPING(x) is read as a call, IqDialect.rolledUp's to read
+        if (IqFunctions.NO_SUCH_FUNCTION.contains(lower)) {
+            // IQ island, 2026-10-16 (measured on IQ 17.1): STRING_AGG, GROUP_CONCAT, STDEV
+            throw SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name), first.pos());
+        }
         if (AGGREGATES.contains(lower) && !lower.equals("grouping")) {
             throw SqlSyntaxException.unsupported("the aggregate or OLAP function " + name + "(...) is not supported"
                     + " yet", first.pos());

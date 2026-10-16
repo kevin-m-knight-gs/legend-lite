@@ -431,6 +431,11 @@ public final class IqDialect implements InputDialect {
             SqlAst.Select s = (SqlAst.Select) q;
             for (SqlAst.FromItem from : s.from()) {
                 for (SqlAst.FromItem item : leaves(from)) {
+                    if (item instanceof SqlAst.TableFunction f && IqFunctions.NO_SUCH_FUNCTION.contains(
+                            IqLexer.lower(f.name().get(f.name().size() - 1).text()))) {
+                        // IQ island, 2026-10-16 (measured on IQ 17.1): STRING_SPLIT
+                        throw IqFunctions.noSuchFunction(f.name().get(f.name().size() - 1).text(), f.pos());
+                    }
                     if (item instanceof SqlAst.TableFunction f && !(f.name().size() == 1
                             && IqLexer.lower(f.name().get(0).text()).equals("tb")) && !rowGenerator(f.name())) {
                         throw SqlTranslationException.unsupported("the FROM function " + f.name().get(f.name().size()

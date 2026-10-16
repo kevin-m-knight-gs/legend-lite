@@ -623,3 +623,14 @@ tests:
   - id: a_derived_tables_subquery_in_an_aggregate_is_iqs_error
     sql: "SELECT SUM(c) AS s FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d"
     profile: iq17-default
+
+  # ---- the lane's most frequent other-dialect functions (about 2,900 queries): IQ has none of them, its error -265
+  - id: string_agg_is_iqs_error
+    sql: "SELECT STRING_AGG(vc, ',') AS s FROM t"
+    profile: iq17-default
+  - id: concat_is_iqs_error
+    sql: "SELECT CONCAT(vc, 'x') AS s FROM t"
+    profile: iq17-default
+  - id: string_split_is_iqs_error
+    sql: "SELECT value FROM STRING_SPLIT('a,b', ',')"
+    profile: iq17-default

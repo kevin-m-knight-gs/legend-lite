@@ -130,6 +130,27 @@ final class IqFunctions {
         }
     }
 
+    /**
+     * IQ island, 2026-10-16 (measured on IQ 17.1; the corpus lane: about 2,900 queries): other dialects' functions IQ
+     * has none of -- its error -265, "procedure not found", wherever the call stands. A user function of the name
+     * would be answered by IQ, and is no function an island translates, so each is refused naming IQ's error.
+     */
+    static final java.util.Set<String> NO_SUCH_FUNCTION = java.util.Set.of("string_agg", "concat", "concat_ws", "eomonth", "format",
+            "choose", "datefromparts", "date_trunc", "split_part", "age", "getutcdate", "sysdatetime", "json_value",
+            "last_day", "nvl", "group_concat", "stdev", "strftime", "translate", "initcap", "quotename", "decode",
+            "greatest", "least", "to_date", "string_split");
+
+    /** The refusal of a call of {@code name}, one of {@link #NO_SUCH_FUNCTION}. */
+    static SqlTranslationException noSuchFunction(String name, SqlAst.Pos pos) {
+        return SqlTranslationException.unsupported(noSuchFunctionText(name), pos);
+    }
+
+    /** {@link #noSuchFunction}'s text. */
+    static String noSuchFunctionText(String name) {
+        return name + "(...) is IQ's error -265 (procedure '" + name + "' not found: no function of IQ's, unless a user"
+                + " function holds the name), refused before translating";
+    }
+
     /** How many arguments {@code f} takes, {min, max}, for a function of this catalog ({@link IqDialect}'s parse checks
      *  the count). Refused by name before translation: a delimited name with a space (only the reader writes
      *  {@code CURRENT DATE}); other dialects' forms IQ raises -154 for (CHARINDEX's start, ROUND's third argument, LOG's
@@ -138,6 +159,9 @@ final class IqFunctions {
     static int[] arity(SqlAst.FunctionCall f, boolean ansiSubstring) {
         SqlAst.Ident name = f.name().get(f.name().size() - 1);
         Fn fn = Fn.named(name.text());
+        if (fn == null && NO_SUCH_FUNCTION.contains(IqLexer.lower(name.text()))) {
+            throw noSuchFunction(name.text(), f.pos());
+        }
         if (fn == null || name.quoted() && name.text().indexOf(' ') >= 0) {
             throw SqlTranslationException.unsupported("function " + name.text() + "(...) is not supported yet",
                     f.pos());
