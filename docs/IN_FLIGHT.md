@@ -1699,6 +1699,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
 - **The OPTIONAL MATCH leg, 2026-10-16, announced here as landed** — the translator (optional hops, absent nodes,
   presence-aware node values) and `lite/optional.yaml`: no file of the database owner's, no guard pin moved. The
   record: the study's §12.18; GATES "the sixteenth landing".
+- **The relationships-as-values leg, 2026-10-16, announced here as landed** — the translator (a relationship's
+  type as its value, `type(r)`, the type column of a carried relationship), the judge (`testcases/CypherValues`:
+  a `@type` object is a relationship), the harness (`testcases/CypherParity`: the edge-property skip) and
+  `lite/rels.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.19; GATES
+  "the seventeenth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

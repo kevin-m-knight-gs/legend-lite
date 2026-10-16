@@ -311,6 +311,10 @@ public final class CypherParity {
         return problems;
     }
 
+    /** A relationship variable in a pattern: {@code -[r:T]->}, {@code -[r]-}, {@code -[r {...}]->}. */
+    private static final Pattern RELATIONSHIP_VARIABLE = Pattern.compile(
+            "-\\s*\\[\\s*[A-Za-z_][A-Za-z0-9_]*\\s*[:\\]{]");
+
     /** Every case's outcome on {@code lane}: the cases grouped by their graph, each graph seeded once. */
     public static Map<String, SqlParity.Outcome> run(List<Case> cases, Map<String, CypherAnswers.Answer> answers,
             Map<String, Decision> decisions, Lane lane) throws Exception {
@@ -336,6 +340,14 @@ public final class CypherParity {
                 inf = CypherGraph.infer(java.util.Objects.requireNonNull(a.graph()));
             } catch (CypherGraph.Unsupported u) {
                 outcomes.put(c.key(), new SqlParity.Outcome(SqlParity.Status.SKIP, u.getMessage()));
+                continue;
+            }
+            if (a.graph().rels().stream().anyMatch(r -> !r.props().isEmpty())
+                    && RELATIONSHIP_VARIABLE.matcher(c.query()).find()) {
+                // the model has no relationship property (an edge class): a relationship the query names as a
+                // value would miss them (the study's §12.19)
+                outcomes.put(c.key(), new SqlParity.Outcome(SqlParity.Status.SKIP, "harness: a relationship holding"
+                        + " a property, named by the query (an edge class the model lacks)"));
                 continue;
             }
             inferred.putIfAbsent(inf.graphKey(), inf);

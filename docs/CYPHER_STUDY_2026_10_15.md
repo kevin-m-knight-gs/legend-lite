@@ -2386,3 +2386,30 @@ of a single node (a cartesian product), from a relationship variable.
 
 12 lite cases in `lite/optional.yaml`, each judged by Neo4j.
 
+### 12.19 The relationships-as-values leg, 2026-10-16: `r` as its type, `type(r)`, optional relationships
+
+A relationship binding now carries its **type** (the type the pattern names, or the arm's chosen one, §12.17). As
+a value it is the JSON the judge reads as a relationship, `{"@type":"T"}` (`CypherValues.ofJson`: an object with
+`@type` is a `Rel`) — the harness's model holds no relationship property (an association end is navigation), so
+the value is its type alone; `type(r)` is the type's text. An OPTIONAL MATCH's relationship is present where its
+hop finds a node (`r IS NULL`, `type(r)` null where none), an absent one null. Carried through a projection, a
+relationship is its **type's column** (`RelShape`; the relationship's own column virtual, its value rebuilt from
+the type): arms concatenated then carry each their own type in the one column, which is what `type(r)` after an
+untyped pattern needs. `DISTINCT`, `ORDER BY` and a grouping over a relationship are refused by name as a node's
+are (identity); `r.prop` stays refused ("a property of a relationship", an edge class).
+
+**The harness's edge-property skip.** A graph whose relationships carry properties cannot answer a query that
+names a relationship as a value (Neo4j shows the properties; the model has none), so the harness skips such a
+case — a relationship holding a property, named by the query (`CypherParity.RELATIONSHIP_VARIABLE`: `-[r:T]->`,
+`-[r]-`, `-[r {...}]->`): 50 TCK cases, none of them passing before (measured by the per-case diff). An edge
+class would lift it.
+
+#### 12.19.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4,160 | 2,328 (from 2,305) | 0 | 0 | 0 | 758 | 707 | 368 |
+| Postgres | 4,160 | 1,980 (from 1,957) | 0 | 0 | 0 | 1,106 | 707 | 368 |
+
+11 lite cases in `lite/rels.yaml`, each judged by Neo4j (one skipped by the harness, by design).
+

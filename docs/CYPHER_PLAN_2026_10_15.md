@@ -98,8 +98,10 @@ both. Then its second stage (§12.17): an untyped relationship as one arm per re
 materialized over the union of each node's classes and concatenated; DuckDB PASS 2,293, Postgres PASS 1,945,
 0 FAIL, 0 BUG, 0 ERROR on both. Left in temporal, by name: the clock functions, `toString` of the new values,
 fractional durations, a stored time. Then OPTIONAL MATCH (§12.18): optional hops from a bound node, absent nodes;
-DuckDB PASS 2,305, Postgres PASS 1,957, 0 FAIL, 0 BUG, 0 ERROR on both. Then the full CI run on the branch, the
-merge; relationships as values, an OPTIONAL MATCH's WHERE, and `collect` (the database owner's aggregate) wait.
+DuckDB PASS 2,305, Postgres PASS 1,957, 0 FAIL, 0 BUG, 0 ERROR on both. Then relationships as values (§12.19):
+`r` as its type, `type(r)`, optional relationships, the harness's edge-property skip; DuckDB PASS 2,328, Postgres
+PASS 1,980, 0 FAIL, 0 BUG, 0 ERROR on both. Then the full CI run on the branch, the merge; an OPTIONAL MATCH's
+WHERE, an edge class, and `collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

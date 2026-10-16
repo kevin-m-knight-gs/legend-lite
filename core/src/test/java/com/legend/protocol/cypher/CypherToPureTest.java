@@ -395,6 +395,14 @@ class CypherToPureTest {
     }
 
     @Test
+    void aRelationshipIsItsType() {
+        // the study's §12.19: a relationship as a value is its type's JSON (the model holds no relationship
+        // property); type(r) its type; carried through WITH as its type's column
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|'firm'])->sort([~_cypher_4->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)->extend(~[r:r|fromJson('{\"@type\":\"' + $r._cypher_5->toOne() + '\"}'), t:r|$r._cypher_5])->select(~[r, t])",
+                pure("MATCH (p:Person)-[r:firm]->(f:Firm) WITH p, r ORDER BY p.name LIMIT 1 RETURN r, type(r) AS t"));
+    }
+
+    @Test
     void aWithsWhereReadsTheScopeBeforeTheProjectionToo() {
         // Cypher's `WITH a.x AS x WHERE a.y > 1`: the WHERE sees the pattern's variables as well as the items
         assertEquals("demo::Person.all()->project(~[n:p|$p.name,"
@@ -578,7 +586,7 @@ class CypherToPureTest {
 
     @Test
     void whatPr1DoesNotReadIsRefusedByName() {
-        unsupported("MATCH (p:Person)-[r:firm]->(f) RETURN r", "a relationship as a value (r)");
+        unsupported("MATCH (p:Person)-[r:firm]->(f) RETURN r.since", "a property of a relationship");
         unsupported("MATCH (p:Person) RETURN p.firm", "a node as a value is not supported yet");
         unsupported("MATCH (p:Person) RETURN p.tags", "holds many values (a list)");
         unsupported("MATCH (f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm) RETURN g.legalName", "no inverse");

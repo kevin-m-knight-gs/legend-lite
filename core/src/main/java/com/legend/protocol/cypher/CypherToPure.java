@@ -132,7 +132,10 @@ public final class CypherToPure {
     /** A node carried through a projection as its columns (the study's §12.14): the column specs that compute them
      *  over the row before the projection, the columns they are after it, and the shape the node's own (virtual)
      *  column carries. */
-    private record NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns) {
+    private record NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns, boolean relationship) {
+        NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns) {
+            this(shape, specs, columns, false);
+        }
     }
 
     /** The node {@code v} names in {@code scope}, to carry through a projection as its columns: a pattern's node,
@@ -140,13 +143,23 @@ public final class CypherToPure {
     private @com.legend.base.Nullable NodeCarry carriedNode(CypherAst.Var v, Scope scope, Set<String> names) {
         if (scope instanceof GraphScope gs) {
             Binding b = gs.g.bindings().get(v.name());
-            if (b == null || !b.node()) {
+            if (b == null) {
                 return null;
+            }
+            if (!b.node()) {
+                return gs.carryRel(b, names);
             }
             return gs.carry(b, v.pos(), names, gs.g.variableClasses().getOrDefault(v.name(), List.of()));
         }
         if (scope instanceof RowScope rs) {
             Col c = rs.column(v.name());
+            if (c != null && c.detail() instanceof RelShape rel) {
+                // carried again: the type column kept under its name
+                Col type = java.util.Objects.requireNonNull(rs.column(rel.type()));
+                return new NodeCarry(new NodeShape(rel.type(), Map.of()), List.of(new ColSpec(rel.type(),
+                        lambda("r", new AppliedProperty(new Variable("r"), rel.type())), null, null)),
+                        List.of(new Col(rel.type(), Kind.STRING, type.nullable())), true);
+            }
             if (c == null || !(c.detail() instanceof NodeShape shape)) {
                 return null;
             }
@@ -381,26 +394,39 @@ public final class CypherToPure {
      *  navigation may find nothing, whether it fans out: a to-many hop on its path, one row per node reached) or a
      *  relationship (a hop, with no value of its own in PR1). */
     private record Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path,
-            boolean optional, boolean fanning, boolean absent, boolean maybeAbsent) {
+            boolean optional, boolean fanning, boolean absent, boolean maybeAbsent,
+            @com.legend.base.Nullable String type) {
         Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path, boolean optional) {
-            this(node, classPath, path, optional, false, false, false);
+            this(node, classPath, path, optional, false, false, false, null);
         }
 
         Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path, boolean optional,
                 boolean fanning) {
-            this(node, classPath, path, optional, fanning, false, false);
+            this(node, classPath, path, optional, fanning, false, false, null);
         }
 
         /** A node an OPTIONAL MATCH never finds (its relationship's type names nothing of the model, or a label
          *  the hop does not reach): null everywhere (the study's §12.18). */
         static Binding absentNode() {
-            return new Binding(true, null, List.of(), true, false, true, true);
+            return new Binding(true, null, List.of(), true, false, true, true, null);
         }
 
         /** An OPTIONAL MATCH's node: present where its hop finds one, null where none ({@code maybeAbsent}; a
          *  MATCH's optional hop is never absent, its isNotEmpty condition being the graph's). */
         static Binding optionalNode(String classPath, List<String> path, boolean fanning) {
-            return new Binding(true, classPath, path, true, fanning, false, true);
+            return new Binding(true, classPath, path, true, fanning, false, true, null);
+        }
+
+        /** A relationship: the hop that reaches its far node (its path) and its type, the relationship's value
+         *  (the study's §12.19); an OPTIONAL MATCH's is present where its hop finds a node. */
+        static Binding relationship(List<String> path, boolean optional, boolean fanning, String type,
+                boolean maybeAbsent) {
+            return new Binding(false, null, path, optional, fanning, false, maybeAbsent, type);
+        }
+
+        /** A relationship an OPTIONAL MATCH never finds: null. */
+        static Binding absentRelationship() {
+            return new Binding(false, null, List.of(), true, false, true, true, null);
         }
     }
 
@@ -420,9 +446,10 @@ public final class CypherToPure {
             this(name, kind, nullable, carried, null);
         }
 
-        /** Whether no column of the relation bears this name: a carried shape, or a node carried as its columns. */
+        /** Whether no column of the relation bears this name: a carried shape, a node carried as its columns, or a
+         *  relationship carried as its type's column. */
         boolean virtual() {
-            return carried != null || detail instanceof NodeShape;
+            return carried != null || detail instanceof NodeShape || detail instanceof RelShape;
         }
     }
 
@@ -720,10 +747,6 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("an untyped relationship in an OPTIONAL MATCH is not supported"
                             + " yet", r.pos());
                 }
-                if (r.variable() != null) {
-                    throw CypherErrors.unsupported("a relationship variable (" + r.variable() + ") in an OPTIONAL"
-                            + " MATCH (a relationship as a value) is not supported yet", r.pos());
-                }
                 if (!r.properties().isEmpty()) {
                     throw CypherErrors.unsupported("properties on a relationship pattern are not supported yet (an"
                             + " edge class)", r.pos());
@@ -789,6 +812,7 @@ public final class CypherToPure {
                         + " by identity) is not supported yet", next.pos());
             }
             Binding target;
+            Binding relationship = Binding.absentRelationship();
             if (current.absent()) {
                 target = Binding.absentNode();
             } else {
@@ -807,9 +831,12 @@ public final class CypherToPure {
                     List<String> path = new ArrayList<>(current.path());
                     path.add(hop.property());
                     fanning |= hop.many();
-                    target = Binding.optionalNode(hop.target(), List.copyOf(path), current.fanning() || hop.many());
+                    boolean many = current.fanning() || hop.many();
+                    target = Binding.optionalNode(hop.target(), List.copyOf(path), many);
+                    relationship = Binding.relationship(List.copyOf(path), true, many, rel.types().get(0), true);
                 }
             }
+            bind(g, rel.variable(), relationship, rel.pos());
             bind(g, nextVar, target, next.pos());
             current = target;
             at += 2;
@@ -891,10 +918,7 @@ public final class CypherToPure {
             if (b == null) {
                 continue;
             }
-            if (!b.node()) {
-                throw CypherErrors.unsupported("a relationship variable (" + name + ") in a pattern read as rows (a"
-                        + " relationship as a value) is not supported yet", pos);
-            }
+            // (a relationship is carried as its value: a JSON column, its type the column's detail)
             items.add(new Item(new CypherAst.Var(name, pos), name, name, pos));
         }
         Rows rows = project(items, false, List.of(), null, null, null, g, pos, false);
@@ -1099,10 +1123,6 @@ public final class CypherToPure {
                 nextVar = freshName(new HashSet<>(g.bindings().keySet()));
                 next = new NodePattern(nextVar, next.labels(), next.properties(), next.pos());
             }
-            if (g.fanning() && rel.variable() != null) {
-                throw CypherErrors.unsupported("a relationship variable (" + rel.variable() + ") in a pattern that"
-                        + " fans out is not supported yet", rel.pos());
-            }
             if (nextVar != null && g.bindings().containsKey(nextVar)) {
                 throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared"
                         + " by identity) is not supported yet", next.pos());
@@ -1125,7 +1145,8 @@ public final class CypherToPure {
                 // the hop must find a node: a row where it finds none is not a match
                 g.conditions().add(call("isNotEmpty", navigate(g.row(), path)));
             }
-            bind(g, rel.variable(), new Binding(false, null, List.copyOf(path), optional, fanning), rel.pos());
+            bind(g, rel.variable(), Binding.relationship(List.copyOf(path), optional, fanning, rel.types().get(0),
+                    false), rel.pos());
             bind(g, nextVar, target, next.pos());
             nodeConstraints(next, target, g);
             current = target;
@@ -1696,10 +1717,14 @@ public final class CypherToPure {
                 }
                 NodeCarry node = nodes.get(out.name());
                 if (node != null) {
-                    // the node's columns, then the node itself under its name (a virtual column)
+                    // the node's columns, then the node itself under its name (a virtual column; a relationship's
+                    // shape is its type column)
                     specs.addAll(node.specs());
                     columns.addAll(node.columns());
-                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.shape()));
+                    boolean rel = node.shape().props().isEmpty() && node.columns().size() == 1
+                            && node.shape().labels().equals(node.columns().get(0).name()) && node.relationship();
+                    columns.add(new Col(out.name(), Kind.JSON, false, null, rel ? new RelShape(node.shape().labels())
+                            : node.shape()));
                     continue;
                 }
                 Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
@@ -2016,6 +2041,12 @@ public final class CypherToPure {
             return false;
         }
 
+        /** {@code type(r)}: the type of the relationship {@code v} names, a text (null where an OPTIONAL MATCH
+         *  found none); null when {@code v} names no relationship. */
+        default @com.legend.base.Nullable Tx relType(CypherAst.Var v) {
+            return null;
+        }
+
         /** The value a property access is: a node's property, or a map's entry. */
         Val property(CypherAst.Prop p);
 
@@ -2042,13 +2073,47 @@ public final class CypherToPure {
                 throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
             }
             if (!b.node()) {
-                throw CypherErrors.unsupported("a relationship as a value (" + v.name() + ") is not supported yet",
-                        v.pos());
+                return scalar(relValue(b));
             }
             if (b.absent()) {
                 return scalar(absentNodeValue());
             }
             return scalar(nodeJson(parts(b, v.pos()), v.pos()));
+        }
+
+        /** A relationship as a value (the study's §12.19): the JSON the judge reads as a relationship, its type
+         *  (the harness's model holds no relationship property); an OPTIONAL MATCH's where its hop finds a node, an
+         *  absent one null. */
+        Tx relValue(Binding b) {
+            if (b.absent()) {
+                return new Tx(SqlToPure.nullOf(Kind.JSON).vs(), Kind.JSON, true, null, new RelValue(null), null,
+                        null);
+            }
+            String type = java.util.Objects.requireNonNull(b.type());
+            ValueSpecification json = call("fromJson", new CString("{\"@type\":" + com.legend.json.Json.toCompact(type)
+                    + "}"));
+            if (b.maybeAbsent()) {
+                json = call("if", call("isEmpty", navigate(g.row(), b.path())),
+                        thunk(SqlToPure.nullOf(Kind.JSON).vs()), thunk(json));
+            }
+            return new Tx(json, Kind.JSON, b.maybeAbsent(), null, new RelValue(type), null, null);
+        }
+
+        @Override
+        public @com.legend.base.Nullable Tx relType(CypherAst.Var v) {
+            Binding b = g.bindings().get(v.name());
+            if (b == null || b.node()) {
+                return null;
+            }
+            if (b.absent()) {
+                return SqlToPure.nullOf(Kind.STRING);
+            }
+            ValueSpecification type = new CString(java.util.Objects.requireNonNull(b.type()));
+            if (b.maybeAbsent()) {
+                return Tx.value(call("if", call("isEmpty", navigate(g.row(), b.path())),
+                        thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(type)), Kind.STRING, true);
+            }
+            return Tx.value(type, Kind.STRING, false);
         }
 
         /** An absent node as a value: a null the arms unite (typed as a node's JSON). */
@@ -2147,6 +2212,27 @@ public final class CypherToPure {
                 props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable));
             }
             return new NodeCarry(new NodeShape(labels, props), specs, columns);
+        }
+
+        /** A relationship carried through a projection: its type's column (a constant; null where an OPTIONAL
+         *  MATCH's hop finds no node, or always for an absent one). */
+        NodeCarry carryRel(Binding b, Set<String> names) {
+            String column = freshName(names);
+            ValueSpecification type;
+            boolean nullable;
+            if (b.absent()) {
+                type = SqlToPure.nullOf(Kind.STRING).vs();
+                nullable = true;
+            } else if (b.maybeAbsent()) {
+                type = call("if", call("isEmpty", navigate(g.row(), b.path())), thunk(SqlToPure.nullOf(Kind.STRING)
+                        .vs()), thunk(new CString(java.util.Objects.requireNonNull(b.type()))));
+                nullable = true;
+            } else {
+                type = new CString(java.util.Objects.requireNonNull(b.type()));
+                nullable = false;
+            }
+            return new NodeCarry(new NodeShape(column, Map.of()), List.of(new ColSpec(column, lambda(g.row(), type),
+                    null, null)), List.of(new Col(column, Kind.STRING, nullable)), true);
         }
 
         /** The labels array's JSON text of a class: its label. */
@@ -2272,6 +2358,11 @@ public final class CypherToPure {
         }
 
         @Override
+        public @com.legend.base.Nullable Tx relType(CypherAst.Var v) {
+            return projected.containsKey(v.name()) ? null : inner.relType(v);
+        }
+
+        @Override
         public Val property(CypherAst.Prop p) {
             if (p.target() instanceof CypherAst.Var v && projected.containsKey(v.name())) {
                 return member(projected.get(v.name()), p.name(), p.pos());
@@ -2317,6 +2408,11 @@ public final class CypherToPure {
         @Override
         public boolean isAbsentNode(CypherAst.Var v) {
             return inner.isAbsentNode(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable Tx relType(CypherAst.Var v) {
+            return inner.relType(v);
         }
 
         @Override
@@ -2378,6 +2474,18 @@ public final class CypherToPure {
                         return shape.absent() ? scalar(SqlToPure.nullOf(Kind.JSON))
                                 : scalar(nodeJson(parts(shape), v.pos()));
                     }
+                    if (c.detail() instanceof RelShape rel) {
+                        // a carried relationship as a value: its JSON from its type's column (null where none)
+                        Col type = java.util.Objects.requireNonNull(column(rel.type()));
+                        ValueSpecification read = new AppliedProperty(new Variable(row()), rel.type());
+                        ValueSpecification json = call("fromJson", plus(new CString("{\"@type\":\""),
+                                call("toOne", read), new CString("\"}")));
+                        if (type.nullable()) {
+                            json = call("if", call("isEmpty", read), thunk(SqlToPure.nullOf(Kind.JSON).vs()),
+                                    thunk(json));
+                        }
+                        return scalar(new Tx(json, Kind.JSON, type.nullable(), null, new RelValue(null), null, null));
+                    }
                     if (c.kind() == Kind.NULL) {
                         // a null the query named: null wherever it is read
                         return nullValue();
@@ -2401,6 +2509,27 @@ public final class CypherToPure {
         public boolean isAbsentNode(CypherAst.Var v) {
             Col c = column(v.name());
             return c != null && c.detail() instanceof NodeShape shape && shape.absent();
+        }
+
+        @Override
+        public @com.legend.base.Nullable Tx relType(CypherAst.Var v) {
+            Col c = column(v.name());
+            if (c != null && c.detail() instanceof RelShape rel) {
+                Col type = java.util.Objects.requireNonNull(column(rel.type()));
+                return Tx.value(new AppliedProperty(new Variable(row()), rel.type()), Kind.STRING, type.nullable());
+            }
+            if (c == null || !(c.detail() instanceof RelValue r)) {
+                return null;
+            }
+            if (r.type() == null) {
+                return SqlToPure.nullOf(Kind.STRING);
+            }
+            ValueSpecification type = new CString(r.type());
+            if (c.nullable()) {
+                return Tx.value(call("if", call("isEmpty", new AppliedProperty(new Variable(row()), c.name())),
+                        thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(type)), Kind.STRING, true);
+            }
+            return Tx.value(type, Kind.STRING, false);
         }
 
         /** A carried node's parts, read from its columns: present where its labels column holds a value (an
@@ -3047,6 +3176,13 @@ public final class CypherToPure {
         TemporalFamily family = TEMPORAL_FAMILIES.get(fn.contains(".") ? fn.substring(0, fn.indexOf('.')) : fn);
         if (family != null) {
             return temporalCall(c, fn, family, scope);
+        }
+        if (fn.equals("type") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.Var v) {
+            // of a relationship: its type, a text (the study's §12.19)
+            Tx type = scope.relType(v);
+            if (type != null) {
+                return scalar(type);
+            }
         }
         if ((fn.equals("labels") || fn.equals("properties")) && c.args().size() == 1
                 && c.args().get(0) instanceof CypherAst.Var v) {
@@ -4372,9 +4508,22 @@ public final class CypherToPure {
     private record NodeValue() implements com.legend.protocol.sql.InputDialect.TypeDetail {
     }
 
-    /** Whether a value is a node's JSON, or a column holding one. */
+    /** The mark of a relationship's JSON value ({@code {"@type":"T"}}, the study's §12.19), with its type (null
+     *  for one an OPTIONAL MATCH never finds): what {@code type(r)} reads, and what DISTINCT, ORDER BY and a
+     *  grouping refuse by name as they do a node's. */
+    private record RelValue(@com.legend.base.Nullable String type)
+            implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** A relationship carried through a projection as its type's column (null where an OPTIONAL MATCH found
+     *  none); the relationship's own column is virtual, its value rebuilt from the type (the study's §12.19). Arms
+     *  concatenated carry each their own type in the one column. */
+    private record RelShape(String type) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** Whether a value is a node's or a relationship's JSON, or a column holding one. */
     private static boolean isNode(@com.legend.base.Nullable Tx t) {
-        return t != null && t.detail() instanceof NodeValue;
+        return t != null && (t.detail() instanceof NodeValue || t.detail() instanceof RelValue);
     }
 
     private static @com.legend.base.Nullable Zone zoneOf(Tx t) {

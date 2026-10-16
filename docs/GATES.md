@@ -9850,6 +9850,24 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the seventeenth landing — relationships as values: `r` as its type, `type(r)`, optional relationships (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the OPTIONAL MATCH leg; the record is the study's §12.19
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator, the judge (a `@type` object is a relationship) and the
+harness (the edge-property skip).
+
+1. **What lands.** A relationship as a value is its type's JSON; `type(r)` its type; an OPTIONAL MATCH's
+   relationship present where its hop finds a node; carried through projections as its type's column (arms each
+   their own type). The harness skips a case whose graph's relationships carry properties when the query names a
+   relationship (an edge class the model lacks). Refused by name: DISTINCT, ORDER BY, grouping over a
+   relationship; a relationship's property.
+2. **The ledger.** DuckDB: 4,160 cases; PASS 2,328 (from 2,305); FAIL 0; BUG 0; ERROR 0; REFUSED 758;
+   BOTH_ERROR 707; SKIP 368. Postgres: PASS 1,980 (from 1,957); FAIL 0; BUG 0; ERROR 0; REFUSED 1,106;
+   BOTH_ERROR 707; SKIP 368. 11 lite cases in `lite/rels.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the sixteenth landing — OPTIONAL MATCH: optional hops from a bound node, absent nodes (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the join form's second stage; the record is the study's §12.18
