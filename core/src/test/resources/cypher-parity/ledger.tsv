@@ -206,7 +206,7 @@ tck/clauses/match-where/MatchWhere6/[5] Matching and optionally matching with un
 tck/clauses/match-where/MatchWhere6/[6] Join nodes on non-equality of properties – OPTIONAL MATCH and WHERE	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere6/[7] Join nodes on non-equality of properties – OPTIONAL MATCH on two relationships and WHERE	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere6/[8] Join nodes on non-equality of properties – Two OPTIONAL MATCH clauses and WHERE	REFUSED	REFUSED
-tck/clauses/match/Match1/[1] Match non-existent nodes returns empty	REFUSED	REFUSED
+tck/clauses/match/Match1/[1] Match non-existent nodes returns empty	PASS	PASS
 tck/clauses/match/Match1/[2] Matching all nodes	PASS	PASS
 tck/clauses/match/Match1/[3] Matching nodes using multiple labels	SKIP	SKIP
 tck/clauses/match/Match1/[4] Simple node inline property predicate	PASS	PASS
@@ -544,7 +544,7 @@ tck/clauses/match/Match6/[25] Fail when matching a path variable bound to a valu
 tck/clauses/match/Match6/[25] Fail when matching a path variable bound to a value #6	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match6/[25] Fail when matching a path variable bound to a value #7	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match6/[25] Fail when matching a path variable bound to a value #8	BOTH_ERROR	BOTH_ERROR
-tck/clauses/match/Match7/[1] Simple OPTIONAL MATCH on empty graph	REFUSED	REFUSED
+tck/clauses/match/Match7/[1] Simple OPTIONAL MATCH on empty graph	PASS	PASS
 tck/clauses/match/Match7/[2] OPTIONAL MATCH with previously bound nodes	PASS	PASS
 tck/clauses/match/Match7/[3] OPTIONAL MATCH and bound nodes	SKIP	SKIP
 tck/clauses/match/Match7/[4] Optionally matching relationship with bound nodes in reverse direction	REFUSED	REFUSED
@@ -733,7 +733,7 @@ tck/clauses/return-orderby/ReturnOrderBy6/[5] Fail if more complex expressions, 
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[1] Start the result from the second row	REFUSED	REFUSED
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[2] Start the result from the second row by param	REFUSED	REFUSED
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[3] SKIP with an expression that does not depend on variables	REFUSED	REFUSED
-tck/clauses/return-skip-limit/ReturnSkipLimit1/[4] Accept skip zero	REFUSED	REFUSED
+tck/clauses/return-skip-limit/ReturnSkipLimit1/[4] Accept skip zero	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[5] SKIP with an expression that depends on variables should fail	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[6] Negative parameter for SKIP should fail	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[7] Negative SKIP should fail	BOTH_ERROR	BOTH_ERROR
@@ -877,15 +877,15 @@ tck/clauses/set/Set6/[18] Skipping zero result and limiting to all results after
 tck/clauses/set/Set6/[19] Filtering after setting a property on relationships affects the result set but not the side effects	SKIP	SKIP
 tck/clauses/set/Set6/[20] Aggregating in `RETURN` after setting a property on relationships affects the result set but not the side effects	SKIP	SKIP
 tck/clauses/set/Set6/[21] Aggregating in `WITH` after setting a property on relationships affects the result set but not the side effects	SKIP	SKIP
-tck/clauses/union/Union1/[1] Two elements, both unique, distinct	REFUSED	REFUSED
-tck/clauses/union/Union1/[2] Three elements, two unique, distinct	REFUSED	REFUSED
-tck/clauses/union/Union1/[3] Two single-column inputs, one with duplicates, distinct	REFUSED	REFUSED
+tck/clauses/union/Union1/[1] Two elements, both unique, distinct	PASS	PASS
+tck/clauses/union/Union1/[2] Three elements, two unique, distinct	PASS	PASS
+tck/clauses/union/Union1/[3] Two single-column inputs, one with duplicates, distinct	PASS	PASS
 tck/clauses/union/Union1/[4] Should be able to create text output from union queries	REFUSED	REFUSED
 tck/clauses/union/Union1/[5] Failing when UNION has different columns	BOTH_ERROR	BOTH_ERROR
-tck/clauses/union/Union2/[1] Two elements, both unique, not distinct	REFUSED	REFUSED
-tck/clauses/union/Union2/[2] Three elements, two unique, not distinct	REFUSED	REFUSED
-tck/clauses/union/Union2/[3] Two single-column inputs, one with duplicates, not distinct	REFUSED	REFUSED
-tck/clauses/union/Union2/[4] Should be able to create text output from union all queries	REFUSED	REFUSED
+tck/clauses/union/Union2/[1] Two elements, both unique, not distinct	PASS	PASS
+tck/clauses/union/Union2/[2] Three elements, two unique, not distinct	PASS	PASS
+tck/clauses/union/Union2/[3] Two single-column inputs, one with duplicates, not distinct	PASS	PASS
+tck/clauses/union/Union2/[4] Should be able to create text output from union all queries	PASS	PASS
 tck/clauses/union/Union2/[5] Failing when UNION ALL has different columns	BOTH_ERROR	BOTH_ERROR
 tck/clauses/union/Union3/[1] Failing when mixing UNION and UNION ALL	BOTH_ERROR	BOTH_ERROR
 tck/clauses/union/Union3/[2] Failing when mixing UNION ALL and UNION	BOTH_ERROR	BOTH_ERROR
@@ -1563,7 +1563,7 @@ tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with var
 tck/expressions/graph/Graph5/[5] Label expression on null	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[1] Statically access a property of a non-null node	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[2] Statically access a property of a optional non-null node	REFUSED	REFUSED
-tck/expressions/graph/Graph6/[3] Statically access a property of a null node	REFUSED	REFUSED
+tck/expressions/graph/Graph6/[3] Statically access a property of a null node	PASS	PASS
 tck/expressions/graph/Graph6/[4] Statically access a property of a node resulting from an expression	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[5] Statically access a property of a non-null relationship	SKIP	SKIP
 tck/expressions/graph/Graph6/[6] Statically access a property of a optional non-null relationship	SKIP	SKIP
@@ -1961,7 +1961,7 @@ tck/expressions/mathematical/Mathematical8/[1] Arithmetic precedence test	PASS	P
 tck/expressions/mathematical/Mathematical8/[2] Arithmetic precedence with parenthesis test	PASS	PASS
 tck/expressions/null/Null1/[1] Property null check on non-null node	REFUSED	REFUSED
 tck/expressions/null/Null1/[2] Property null check on optional non-null node	REFUSED	REFUSED
-tck/expressions/null/Null1/[3] Property null check on null node	REFUSED	REFUSED
+tck/expressions/null/Null1/[3] Property null check on null node	PASS	PASS
 tck/expressions/null/Null1/[4] A literal null IS null	PASS	PASS
 tck/expressions/null/Null1/[5] IS NULL on a map #1	PASS	PASS
 tck/expressions/null/Null1/[5] IS NULL on a map #2	PASS	PASS
@@ -1978,7 +1978,7 @@ tck/expressions/null/Null1/[5] IS NULL on a map #12	PASS	PASS
 tck/expressions/null/Null1/[6] IS NULL is case insensitive	PASS	PASS
 tck/expressions/null/Null2/[1] Property not null check on non-null node	REFUSED	REFUSED
 tck/expressions/null/Null2/[2] Property not null check on optional non-null node	REFUSED	REFUSED
-tck/expressions/null/Null2/[3] Property not null check on null node	REFUSED	REFUSED
+tck/expressions/null/Null2/[3] Property not null check on null node	PASS	PASS
 tck/expressions/null/Null2/[4] A literal null is not IS NOT null	PASS	PASS
 tck/expressions/null/Null2/[5] IS NOT NULL on a map #1	PASS	PASS
 tck/expressions/null/Null2/[5] IS NOT NULL on a map #2	PASS	PASS
@@ -3915,6 +3915,12 @@ lite/basics/review_parenthesised_variable	PASS	PASS
 lite/basics/review_relationship_uniqueness_refused	REFUSED	REFUSED
 lite/basics/review_leading_zero_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/basics/showcase_main	PASS	PASS
+lite/empty/empty_match_count	PASS	PASS
+lite/empty/empty_match_rows	PASS	PASS
+lite/empty/empty_match_property	PASS	PASS
+lite/empty/empty_match_with_skip	PASS	PASS
+lite/empty/empty_optional_match	PASS	PASS
+lite/empty/empty_optional_through_with	PASS	PASS
 lite/joins/pairs_of_a_many_to_many_hop	PASS	PASS
 lite/joins/count_of_pairs	PASS	PASS
 lite/joins/where_on_the_far_node	PASS	PASS
@@ -4133,6 +4139,12 @@ lite/temporal/nanos_time_of_a_named_zone_datetime_refused_by_name	REFUSED	REFUSE
 lite/temporal/nanos_year_outside_the_range_refused_by_name	REFUSED	REFUSED
 lite/temporal/nanos_duration_fields	PASS	REFUSED
 lite/temporal/nanos_component_of_the_row_refused_by_name	REFUSED	REFUSED
+lite/union/union_distinct	PASS	PASS
+lite/union/union_all	PASS	PASS
+lite/union/union_over_matches	PASS	PASS
+lite/union/union_all_of_nodes	PASS	PASS
+lite/union/union_distinct_of_nodes_refused_by_name	REFUSED	REFUSED
+lite/union/union_with_different_names_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/values/with_first_literal_list	PASS	PASS
 lite/values/quantifiers_three_valued	PASS	PASS
 lite/values/quantifier_over_a_property	PASS	PASS

@@ -100,7 +100,8 @@ materialized over the union of each node's classes and concatenated; DuckDB PASS
 fractional durations, a stored time. Then OPTIONAL MATCH (§12.18): optional hops from a bound node, absent nodes;
 DuckDB PASS 2,305, Postgres PASS 1,957, 0 FAIL, 0 BUG, 0 ERROR on both. Then relationships as values (§12.19):
 `r` as its type, `type(r)`, optional relationships, the harness's edge-property skip; DuckDB PASS 2,328, Postgres
-PASS 1,980, 0 FAIL, 0 BUG, 0 ERROR on both. Then the full CI run on the branch, the merge; an OPTIONAL MATCH's
+PASS 1,980, 0 FAIL, 0 BUG, 0 ERROR on both. Then UNION and the empty model (§12.20); DuckDB PASS 2,351, Postgres
+PASS 2,003, 0 FAIL, 0 BUG, 0 ERROR on both. Then the full CI run on the branch, the merge; an OPTIONAL MATCH's
 WHERE, an edge class, and `collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**

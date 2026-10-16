@@ -2413,3 +2413,29 @@ class would lift it.
 
 11 lite cases in `lite/rels.yaml`, each judged by Neo4j (one skipped by the harness, by design).
 
+### 12.20 The UNION and empty-model leg, 2026-10-16
+
+**UNION.** A statement with `UNION` clauses is split at them: each part is a query of its own (translated by a
+translator of its own, so its fresh names are its own), the parts' rows concatenated by position (Cypher unites
+by name and requires the same names in the same order: "All sub queries in an UNION must have the same return
+column names"), `distinct` unless `UNION ALL`. The parser now keeps `UNION ALL` as its own keyword (it read the
+`ALL` and dropped it, so every UNION was distinct and a mixed `UNION`/`UNION ALL` passed where Neo4j refuses
+it). Refused by name: a UNION whose parts type a column differently, and `UNION` (distinct) over a node or
+relationship value (identity; `UNION ALL` reads).
+
+**The empty model.** Over a model with no class (the TCK's "empty graph" scenarios that still MATCH), a
+label-less `MATCH (n)` is no row — `noRows` — with `n` an absent node (§12.18's: null everywhere), so
+`count(*)` is 0 and `n.x` null; an `OPTIONAL MATCH (n)` as the first clause is one row with `n` absent (Neo4j's
+null row). The MATCH's WHERE and property map are still read over that scope: Neo4j's static errors (an
+aggregate in WHERE, an undefined variable) are the query's, not the data's, and the harness classes a lite
+answer where Neo4j errs as a BUG. `RETURN *` over no variable is Neo4j's error too.
+
+#### 12.20.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4,172 | 2,351 (from 2,328) | 0 | 0 | 0 | 746 | 708 | 368 |
+| Postgres | 4,172 | 2,003 (from 1,980) | 0 | 0 | 0 | 1,094 | 708 | 368 |
+
+6 lite cases in `lite/union.yaml` and 6 in `lite/empty.yaml`, each judged by Neo4j.
+

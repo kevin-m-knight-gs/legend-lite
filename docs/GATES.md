@@ -9850,6 +9850,22 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the eighteenth landing — UNION, and a MATCH over a model with no class (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the relationships-as-values leg; the record is the study's §12.20
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator and the parser (`UNION ALL` its own keyword).
+
+1. **What lands.** UNION and UNION ALL of parts, each a query of its own, concatenated by position; a label-less
+   MATCH over a model with no class as no rows with an absent node, an OPTIONAL MATCH as one null row, the WHERE
+   still read for Neo4j's static errors; `RETURN *` over no variable an error. Refused by name: a UNION typing a
+   column differently across its parts, UNION (distinct) over a node or relationship.
+2. **The ledger.** DuckDB: 4,172 cases; PASS 2,351 (from 2,328); FAIL 0; BUG 0; ERROR 0; REFUSED 746;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2,003 (from 1,980); FAIL 0; BUG 0; ERROR 0; REFUSED 1,094;
+   BOTH_ERROR 708; SKIP 368. 12 lite cases in `lite/union.yaml` and `lite/empty.yaml`, each judged by
+   Neo4j (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the seventeenth landing — relationships as values: `r` as its type, `type(r)`, optional relationships (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the OPTIONAL MATCH leg; the record is the study's §12.19

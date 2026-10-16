@@ -454,13 +454,86 @@ public final class CypherToPure {
     }
 
     private ValueSpecification statement(CypherAst.Statement s) {
-        State state = null;
+        return statementRows(s).vs();
+    }
+
+    /** A statement's rows: its parts' concatenated when it is a UNION (the study's §12.20) -- each part a query of
+     *  its own (its own fresh names), the parts' columns united by position (Cypher unites by name and requires the
+     *  same names in the same order), DISTINCT unless UNION ALL. */
+    private Rows statementRows(CypherAst.Statement s) {
         List<Clause> clauses = s.clauses();
+        List<List<Clause>> parts = new ArrayList<>();
+        List<Clause> part = new ArrayList<>();
+        Boolean all = null;
+        Pos unionPos = null;
+        for (Clause c : clauses) {
+            if (c instanceof CypherAst.OtherClause o && (o.keyword().equals("UNION")
+                    || o.keyword().equals("UNION ALL"))) {
+                boolean thisAll = o.keyword().equals("UNION ALL");
+                if (all != null && all != thisAll) {
+                    throw CypherErrors.invalid("Invalid combination of UNION and UNION ALL", o.pos());
+                }
+                all = thisAll;
+                unionPos = o.pos();
+                parts.add(part);
+                part = new ArrayList<>();
+                continue;
+            }
+            part.add(c);
+        }
+        if (parts.isEmpty()) {
+            return clausesRows(clauses, s.pos());
+        }
+        parts.add(part);
+        Rows out = null;
+        for (List<Clause> p : parts) {
+            Rows rows = new CypherToPure(model).clausesRows(p, s.pos());
+            if (out == null) {
+                out = rows;
+                continue;
+            }
+            List<String> leftNames = out.columns().stream().filter(c -> !c.virtual()).map(Col::name).toList();
+            List<String> rightNames = rows.columns().stream().filter(c -> !c.virtual()).map(Col::name).toList();
+            if (!leftNames.equals(rightNames)) {
+                throw CypherErrors.invalid("All sub queries in an UNION must have the same return column names",
+                        java.util.Objects.requireNonNull(unionPos));
+            }
+            for (int i = 0; i < out.columns().size(); i++) {
+                Col l = out.columns().get(i);
+                Col r = rows.columns().get(i);
+                if (l.kind() != r.kind() && l.kind() != Kind.NULL && r.kind() != Kind.NULL) {
+                    throw CypherErrors.unsupported("a UNION whose parts type the column " + l.name()
+                            + " differently (" + cypherType(l.kind()) + " and " + cypherType(r.kind())
+                            + ") is not supported yet", java.util.Objects.requireNonNull(unionPos));
+                }
+            }
+            out = new Rows(call("concatenate", out.vs(), rows.vs()), out.columns());
+        }
+        Rows rows = java.util.Objects.requireNonNull(out);
+        if (!java.util.Objects.requireNonNull(all)) {
+            for (Col c : rows.columns()) {
+                if (c.detail() instanceof NodeValue || c.detail() instanceof RelValue || c.virtual()) {
+                    throw CypherErrors.unsupported("UNION (distinct) over a node or relationship (" + c.name()
+                            + "; Neo4j tells them apart by identity) is not supported yet; the ALL form reads",
+                            java.util.Objects.requireNonNull(unionPos));
+                }
+            }
+            rows = new Rows(call("distinct", rows.vs()), rows.columns());
+        }
+        return rows;
+    }
+
+    private Rows clausesRows(List<Clause> clauses, Pos pos) {
+        State state = null;
         for (Clause c : clauses) {
             if (c instanceof CypherAst.OtherClause o) {
                 // refused by name first: a UNION after a RETURN is a UNION, not a misplaced RETURN
                 throw CypherErrors.unsupported(o.keyword() + " is not supported yet", o.pos());
             }
+        }
+        if (clauses.isEmpty()) {
+            throw CypherErrors.invalid("Query cannot conclude with UNION (must be a RETURN clause, a FINISH clause,"
+                    + " an update clause, a unit subquery call, or a procedure call with no YIELD)", pos);
         }
         for (int i = 0; i < clauses.size(); i++) {
             Clause c = clauses.get(i);
@@ -488,7 +561,7 @@ public final class CypherToPure {
                     + " FINISH clause, an update clause, a unit subquery call, or a procedure call with no YIELD)",
                     end.pos());
         }
-        return rows.vs();
+        return rows;
     }
 
     private static String keyword(Clause c) {
@@ -715,6 +788,19 @@ public final class CypherToPure {
      *  first clause, a MATCH (the model has classes, so there are rows). */
     private State optionalMatch(CypherAst.Match m, @com.legend.base.Nullable State state) {
         if (state == null) {
+            List<String> classes = new ArrayList<>(model.classes());
+            classes.removeAll(durationClasses());
+            if (classes.isEmpty() && m.patterns().size() == 1 && m.patterns().get(0).elements().size() == 1
+                    && m.patterns().get(0).variable() == null) {
+                // over a model with no class (the study's §12.20): one row, the node absent (Neo4j's null row)
+                Rows one = oneRow();
+                String labels = freshName(new HashSet<>());
+                Rows rows = new Rows(call("extend", one.vs(), new ColSpecArray(List.of(new ColSpec(labels,
+                        lambda("r", SqlToPure.nullOf(Kind.STRING).vs()), null, null)))),
+                        List.of(one.columns().get(0), new Col(labels, Kind.STRING, true)));
+                return withAbsentNode(rows, labels,
+                        ((NodePattern) m.patterns().get(0).elements().get(0)).variable());
+            }
             return match(new CypherAst.Match(false, m.patterns(), m.where(), m.pos()), null);
         }
         if (m.where() != null) {
@@ -944,16 +1030,39 @@ public final class CypherToPure {
         return new Rows(call("filter", rows.vs(), lambda(scope.row(), cond)), rows.columns());
     }
 
+    /** {@code rows} with {@code variable} (when named) a virtual column: an absent node, null everywhere, its
+     *  labels column {@code labels} (a column of the rows holding null). */
+    private static Rows withAbsentNode(Rows rows, String labels, @com.legend.base.Nullable String variable) {
+        if (variable == null) {
+            return rows;
+        }
+        List<Col> columns = new ArrayList<>(rows.columns());
+        columns.add(new Col(variable, Kind.JSON, false, null, new NodeShape(labels, Map.of(), true)));
+        return new Rows(rows.vs(), columns);
+    }
+
     /** {@code MATCH (n)}, {@code MATCH (n {p: v}) WHERE ...}: a node of any class of the model (the study's §12.13),
      *  one arm per class, each the graph of that class with the pattern's constraints and the WHERE read against it
      *  (a property the class lacks reads as null where another class declares it: Neo4j's heterogeneous nodes). */
-    private Arms arms(CypherAst.Match m) {
+    private State arms(CypherAst.Match m) {
         NodePattern root = (NodePattern) m.patterns().get(0).elements().get(0);
         // every class of the model but the duration value's (a value the island carries, never a node)
         List<String> classes = new ArrayList<>(model.classes());
         classes.removeAll(durationClasses());
         if (classes.isEmpty()) {
-            throw CypherErrors.invalid("the model declares no class (the graph is the model)", root.pos());
+            // a model with no class (the study's §12.20): no node, so no row; the variable an absent node. The
+            // WHERE and the property map are still read: Neo4j's static errors are the query's, not the data's
+            String column = SYNTHETIC + "row";
+            Rows rows = withAbsentNode(new Rows(noRows(column), List.of(new Col(column, Kind.STRING, true))), column,
+                    root.variable());
+            RowScope scope = new RowScope(rows);
+            for (Map.Entry<String, Expr> e : root.properties().entrySet()) {
+                tx(e.getValue(), scope);
+            }
+            if (m.where() != null) {
+                condition(m.where(), scope, "WHERE");
+            }
+            return rows;
         }
         List<Graph> out = new ArrayList<>();
         String row = rowName(root.variable());
@@ -1442,6 +1551,10 @@ public final class CypherToPure {
                     if (!c.name().startsWith(SYNTHETIC)) {
                         columnNames.add(c.name());
                     }
+                }
+                if (columnNames.isEmpty()) {
+                    throw CypherErrors.invalid("RETURN * is not allowed when there are no variables in scope",
+                            item.pos());
                 }
             } else {
                 // over a pattern: its variables, the nodes as values (the study's §12.14)

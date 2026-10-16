@@ -1704,6 +1704,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   a `@type` object is a relationship), the harness (`testcases/CypherParity`: the edge-property skip) and
   `lite/rels.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.19; GATES
   "the seventeenth landing".
+- **The UNION and empty-model leg, 2026-10-16, announced here as landed** — the translator (UNION of parts, a
+  MATCH over no class), the parser (`UNION ALL` its own keyword), `lite/union.yaml` and `lite/empty.yaml`: no file
+  of the database owner's, no guard pin moved. The record: the study's §12.20; GATES "the eighteenth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

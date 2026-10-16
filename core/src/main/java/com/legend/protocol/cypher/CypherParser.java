@@ -250,8 +250,8 @@ public final class CypherParser {
         } else if (word.equals("LOAD")) {
             matchWord("CSV");
             word = "LOAD CSV";
-        } else if (word.equals("UNION")) {
-            matchWord("ALL");
+        } else if (word.equals("UNION") && matchWord("ALL")) {
+            word = "UNION ALL";
         }
         int depth = 0;
         int end = keyword.end();
