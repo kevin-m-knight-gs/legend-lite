@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * The ELEMENT-LEVEL diagnostic of the equivalence harness — POSITIONAL
- * byte comparison of the oracle's element list against the elements of
+ * byte comparison of the referee's element list against the elements of
  * legend-lite's production document parser ({@code PmcdParser
  * .parseSections}, the same code {@code parseDocument} runs).
  *
@@ -58,7 +58,7 @@ public final class ParserEquivalence {
             ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
 
     /**
-     * Compare one source POSITIONALLY: the oracle's i-th element against
+     * Compare one source POSITIONALLY: the referee's i-th element against
      * lite's i-th element, byte for byte.
      */
     public List<Verdict> compare(Corpus.Source src) {
@@ -103,12 +103,12 @@ public final class ParserEquivalence {
         return out;
     }
 
-    /** The oracle's element JSONs in PMCD order, SectionIndex skipped
+    /** The referee's element JSONs in PMCD order, SectionIndex skipped
      *  (lite appends its SectionIndex at document level, not per
-     *  section). Shared with the whole-document sweep — ONE oracle parse
+     *  section). Shared with the whole-document sweep — ONE referee parse
      *  per source. */
     private List<String> referenceElements(Corpus.Source src) throws Exception {
-        // the DIAGNOSTIC path parses the oracle locally — it runs on
+        // the DIAGNOSTIC path parses the referee locally — it runs on
         // demand (a document failure, ZCompositionPin), never in the
         // sweep's hot loop
         PureModelContextData pmcd =

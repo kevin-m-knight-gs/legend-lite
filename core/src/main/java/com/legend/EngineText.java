@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.EngineStyleH2;
+import com.legend.sql.dialect.EngineTextDialect;
 
 /**
  * THE owner of which legend-engine golden-text renderer a declared {@link DatabaseType} gets
@@ -27,7 +28,7 @@ final class EngineText {
 
     /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
      *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). */
-    static EngineStyleH2 engineText(DatabaseType type) {
+    static EngineTextDialect engineText(DatabaseType type) {
         return switch (type) {
             case H2 -> new EngineStyleH2();
             case DB2 -> new com.legend.sql.dialect.EngineStyleDB2();
@@ -41,7 +42,7 @@ final class EngineText {
 
     /** legend-engine's exact PLAN text for {@code type}: the plan goldens pin Composite to the DB2-family spelling
      *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
-    static EngineStyleH2 enginePlanText(DatabaseType type, boolean quoteIdentifiers,
+    static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
             @com.legend.base.Nullable String timeZone) {
         return switch (type) {
             case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);

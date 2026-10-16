@@ -14,7 +14,7 @@ import java.util.TreeMap;
 
 /**
  * PARSER-EQUIVALENCE'S MEASURED RATCHET VALUES (Bazel workplan P2-16, decision D9 (b)): counts tests pinned by
- * hand-copied constants -- the own-corpus elements matching the oracle, the mutant deck's size -- measured by this
+ * hand-copied constants -- the own-corpus elements matching the referee, the mutant deck's size -- measured by this
  * program into {@code ratchets.tsv} ({@code key<TAB>value}, sorted). {@code //parser-equivalence:ratchets} runs it,
  * {@code bazel run //parser-equivalence:update_ratchets} writes the committed copy and {@code //:generated} fails when
  * it is stale; a test compares its live value with the committed one ({@link #measured}). Allowances (the per-host

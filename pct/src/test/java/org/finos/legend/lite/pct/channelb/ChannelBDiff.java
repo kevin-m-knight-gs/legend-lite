@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * The per-suite channel diff (One-Platform Plan Phase 4): channel B's
- * outcomes against TWO oracles — channel A's own expectedFailures ledger
+ * outcomes against TWO referees — channel A's own expectedFailures ledger
  * (the interpreted reference) and the engine's relational PCT manifest
  * for the same database (the pinned release's, read from
  * @legend_engine_src; DuckDB's on the reference lane). AGREE rows corroborate;

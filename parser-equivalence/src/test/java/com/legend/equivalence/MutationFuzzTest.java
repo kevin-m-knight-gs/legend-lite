@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * MUTATION differential fuzz — the sibling handoff's mutants harness as
  * a LIVE standing gate (adopted 2026-08-14). Their manifest recorded the
- * engine's verdict out-of-process; the oracle lives in THIS JVM, so the
+ * engine's verdict out-of-process; the referee lives in THIS JVM, so the
  * mutants are generated deterministically and verdict-compared directly —
  * no manifest to rot.
  *
@@ -76,10 +76,10 @@ class MutationFuzzTest {
                     // lands inside the final Connection element
                     "truncate :: connection-auth.pure");
 
-    /** ONE oracle instance for every mutant — newInstance() rebuilds
+    /** ONE referee instance for every mutant — newInstance() rebuilds
      *  the extension list per call (the sweep's own precedent; the
      *  per-mutant spelling cost ~seconds of gate 8). */
-    private static final PureGrammarParser ORACLE =
+    private static final PureGrammarParser REFEREE =
             PureGrammarParser.newInstance();
 
     @Test
@@ -95,7 +95,7 @@ class MutationFuzzTest {
                 total++;
                 boolean engineAccepts;
                 try {
-                    ORACLE.parseModel(m.text());
+                    REFEREE.parseModel(m.text());
                     engineAccepts = true;
                 } catch (Throwable t) {
                     engineAccepts = false;

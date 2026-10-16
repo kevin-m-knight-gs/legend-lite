@@ -1433,12 +1433,52 @@ pause for the user's review after Phase 1.
     `GridProbe` and `PctProbe` again (`SqlDialect.typingWireName`).
   - Measured, 2026-10-15 (`docs/GATES.md`): on all 11 databases no statement, census line or test outcome moved
     against main, and the corpus moved nothing. The local gate is green on the branch head.
+- **Landed 2026-10-16: the owner guard and Phases 2 and 4** (neema2/legend-lite#45, merged as 4fb892f).
+- **Announced 2026-10-16, Phase 3: SQL composed outside the dialect** (branch `claude/gracious-edison-jcsvzm`, after
+  `SqlFn.TRANSLATE`). It lands in slices, each judged by the lanes' SQL dumps and the corpus. The plan:
+  `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`, Phase 3. The files outside `sql/dialect`:
+  - `StatementExecutor.java` (`dropAndCreateSchemaInDb` renders `SqlDdl.CreateSchema`; the engine-text parameter
+    type);
+  - `setup/Ddl.java` (the seed `insert` text rendered by the engine-text dialect from `SqlDml`);
+  - `EngineText.java`, `PlanEnvelope.java`, `compiler/spec/typed/ContextReading.java` (one constant for the engine's
+    test database instead of `"H2"` literals; an `EngineTextDialect` interface instead of `EngineStyleH2` as a
+    parameter type);
+  - `compiler/spec/CatalogGrids.java` (the catalog SQL becomes a typed node the dialect renders);
+  - `plan/InProtocol.java`, `plan/PlanText.java` (engine text rendered from IR, not sliced by hand);
+  - `testdatagen/TestDataGenerator.java` (the largest: its fetch, envelope and diff SQL as IR);
+  - `wasm/src/main/java/planner/Boundary.java` (its dialect through `Databases`; the catalog question a dialect
+    method).
+- **Announced 2026-10-16, Phase 3 (continued): names the leak guard read as a database, and the engine-text registry.**
+  Mechanical, no behaviour change; branch `claude/gracious-edison-jcsvzm`.
+  - **The test oracle is named the referee in code** (the product pattern counts `oracle` as the Oracle database):
+    `exec/SqlReplayOracle.java` → `exec/SqlReplayReferee.java`, `Databases.REPLAY_ORACLE` → `REPLAY_REFEREE`,
+    `spec/.../harness/ReplayOracle.java` → `ReplayReferee.java`, `parser-equivalence/.../OraclePins.java` →
+    `RefereePins.java`, and every `oracle` identifier and comment in `core/`, `spec/`, `pct/` and
+    `parser-equivalence/` (103 files; the Oracle database's own names, `DatabaseType.Oracle` and its connection
+    grammar, are unchanged; the Bazel repository `@oracle_pins` and the `oracle.pins` / `pct.oracle.*` system
+    properties keep their names). A branch that names any of these classes needs the rename when it merges.
+  - Three locals the H2/DB2 pattern read as a database, renamed for what they hold: `SeedSqlForms.java`,
+    `compiler/element/RelationalTypeInference.java`, `resolver/GraphEmission.java`.
+- **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move after #43 and #48 land** (D11:
+  "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
+  lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate
+  fallback, dates, jsonb, and `postgresName`'s type names in messages). They move to Postgres-owned files in
+  `protocol/sql/`, with the translator keeping the framework IQ shares, and `InputDialect` losing its Postgres
+  defaults (each input language states its own: a message's type names become `InputDialect.typeName(Kind)`). This
+  program does the move itself, on main after both PRs land, so neither has to rebase over it; until then a new input
+  language (Cypher, #48) that extends `postgresName` or a Postgres default is extending what moves.
 - **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
   platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
   `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),
   and a spelling or a refusal by name where it has not (SQLite, MariaDB, MySQL). The Pure native that lowers to it is
   the island's. The dialect line builds the IR node and the arms in its next PR, after this one lands, unless the
   tenth line needs them sooner: then it announces them here and this program merges them between phases.
+  - **Built, 2026-10-15** (the dialect line's next PR, after #45). `translate` is spelled on DuckDB, Postgres,
+    Trino, Snowflake, Databricks and BigQuery, and as `translateUTF8` on ClickHouse (its `translate` maps ASCII only).
+    SQLite, MariaDB, MySQL and the engine text refuse it by name. One correction to the answer above: H2's
+    `TRANSLATE` keeps a character past `to`'s end, where every other database removes it (`xbcxbc`, not `xx`;
+    measured). So H2 spells it only when `from` and `to` are literals and `to` is at least as long as `from`, which
+    covers the ASCII case fold, and refuses otherwise. ClickHouse takes `from` and `to` as constants only.
 
 ## A tenth line, 2026-10-13: SAP IQ SQL in Pure, the `#IQ{...}#` island (the user's ask, rule 5)
 

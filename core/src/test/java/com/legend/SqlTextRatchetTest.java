@@ -85,7 +85,8 @@ class SqlTextRatchetTest {
         // 0 -> 2 (2026-10-13, the dialect program's Phase 0, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): not new
         // sites -- the rule now sees `create schema`, and two were there: dropAndCreateSchemaInDb's H2 text and a
         // schema's create in the module DDL. They go to the dialect (a SqlDdl node) with the program's Phase 3
-        REGISTER.put("StatementExecutor.java", 2);
+        // 2 -> 0, row deleted (2026-10-16, the dialect program's Phase 3): both are SqlDdl.CreateSchema/DropSchema
+        // nodes now, rendered by the session's dialect, H2 for the replay ledger, or the engine text for toDDL
         // exec/CsvSeed.java: 1 -> 0 and row deleted (2026-09-23): its INSERT is a RowLoad and its DELETE a SqlDml node, both dialect-rendered
         // Phase 1c: DbMetaData's 9 catalog-SQL sites moved verbatim to
         // compiler/spec/CatalogGrids (the Typer's fetchDb retype; pure
@@ -95,15 +96,22 @@ class SqlTextRatchetTest {
         // key_column_usage + table_constraints) — the model-fact VALUES
         // splice it replaces died with the Java fact-walk; catalog text
         // is the registered class this file exists for
-        REGISTER.put("compiler/spec/CatalogGrids.java", 10);
+        // 10 -> 0, row deleted (2026-10-16, the dialect program's Phase 3): a catalog grid is a typed node and an IR
+        // source (TypedCatalogGrid, SqlSource.Catalog); each dialect whose database is proven reads its own catalog
+        // (DuckDb and H2, through sql/dialect/InformationSchemaCatalog), every other refuses it
         // 3 -> 4 (metamodel-store leg 2026-08-28): metamodelSeed's
         // registry-extent INSERT joins the one DDL owner — system
         // setup text beside the create/drop it already renders
         // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
         // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9 (path only, count unchanged)
-        REGISTER.put("setup/Ddl.java", 1);   // 2 -> 1 (2026-09-23: the metamodel seed's INSERT is a dialect-rendered SqlDml node, RowLoad.values); 4 -> 2 (2026-09-16: CREATE/DROP are dialect-rendered SqlDdl nodes; the engine-text INSERT rows remain)
-        REGISTER.put("plan/InProtocol.java", 1);
-        REGISTER.put("plan/PlanText.java", 2);
+        // setup/Ddl.java: 1 -> 0 and row deleted (2026-10-16, the dialect program's Phase 3): the seed rows are
+        // SqlDml.InsertValues, typed cells the engine-text dialect renders as legend-engine's loadValuesToDbTableH2
+        // writes them. (The history: 2 -> 1, 2026-09-23: the metamodel seed's INSERT is a dialect-rendered SqlDml
+        // node, RowLoad.values; 4 -> 2, 2026-09-16: CREATE/DROP are dialect-rendered SqlDdl nodes.)
+        // plan/InProtocol.java 1 and plan/PlanText.java 2 -> 0, rows deleted (2026-10-16, the dialect program's
+        // Phase 3): the in-collection temp table's read-back is the plan text's dialect's
+        // (EngineTextDialect.inTempTableSelect), and a scalar projection's resultColumns is its select list, written
+        // from the IR (EngineTextDialect.selectList), not cut out of the rendered text
         // 17 -> 16 (documented-debts 2026-08-18): the LL_TMP_DEBUG
         // COUNT(*) round-trip died
         // (chained-fetch live-session refereeing, §S5-L: the transcript
@@ -113,7 +121,10 @@ class SqlTextRatchetTest {
         // 16 -> 15 (views stage 3, 2026-09-22): the hand-built view fetch
         // renderer is gone — the view's SQL is the compiler's, handed in by
         // the driver (TestDataGenerator.ViewSql)
-        REGISTER.put("testdatagen/TestDataGenerator.java", 15);
+        // testdatagen/TestDataGenerator.java: 15 -> 0, row deleted (2026-10-16, the dialect program's Phase 3): the
+        // generator's fetches, their temp tables, the CSV envelope and the seed read are IR its session's dialect
+        // writes, its plan's fetches IR the engine-text dialect writes (renderAsAliased); the uncalled CSV compare
+        // (EXCEPT, INSERT) is deleted
         // 0 -> 1 (2026-10-11, the MariaDB dialect, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): after a
         // MariaDB statement fails, Sessions.raisedMessage reads the session variable its raise left
         // (SELECT @legend_raise) -- no query of the user's, one fixed read of a session's state: a

@@ -24,7 +24,7 @@ import java.util.Map;
  * <p>The report pins, exactly: the coverage (functions each side typed, the bodies we FAILED, the sources our loader
  * DROPPED to make the model build -- survivorship, so losing coverage turns the lane red instead of shrinking the
  * disagreements), every bucket's count, and every disagreement class with its count. Its header names the release from
- * the oracle pins ({@code //tools:oracle-pins.env}), never a typed version.
+ * the referee pins ({@code //tools:oracle-pins.env}), never a typed version.
  *
  * <pre>
  *   ReferenceLaneReport &lt;ref-resolutions.tsv&gt; &lt;oracle-pins.env&gt; &lt;output directory&gt;

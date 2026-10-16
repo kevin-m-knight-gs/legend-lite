@@ -61,7 +61,7 @@ class FixtureCorpusParityTest {
                     "neg-persistence-graphfetch-keys-identifier.pure",
                     "neg-persistence-tds-keys-navigation-path.pure");
 
-    private static final PureGrammarParser ORACLE =
+    private static final PureGrammarParser REFEREE =
             PureGrammarParser.newInstance();
 
     private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
@@ -83,7 +83,7 @@ class FixtureCorpusParityTest {
                 boolean engineAccepts;
                 try {
                     engine = MAPPER.writeValueAsString(
-                            ORACLE.parseModel(src));
+                            REFEREE.parseModel(src));
                     engineAccepts = true;
                 } catch (Throwable t) {
                     engine = "";

@@ -108,6 +108,11 @@ final class DatabaseOwners {
     /** Sources that name every database by design: the registry and the guards that count names. */
     private static final List<String> EVERY = List.of(
             MAIN + "database/Databases.java",
+            // 2026-10-16, the dialect program's Phase 3: the engine-text registry, Databases' counterpart for
+            // legend-engine's golden text (which engine-style dialect a declared type gets, and the engine's test
+            // database), the census's SEAM; it stays in the root package, where the engine-style dialects are
+            // quarantined (ArchitectureTest.engineStyleRendererIsQuarantinedToTheRootLayer)
+            MAIN + "EngineText.java",
             "core/src/test/java/com/legend/sql/dialect/",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             "core/src/test/java/com/legend/DialectLeakRatchetTest.java",

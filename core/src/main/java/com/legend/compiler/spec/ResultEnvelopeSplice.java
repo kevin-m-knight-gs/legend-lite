@@ -383,7 +383,7 @@ public final class ResultEnvelopeSplice {
         // frame that lost its call (an alias) keeps the loud wall — no
         // activity is invented. (The sql()/sqlRemoveFormatting arms above
         // stay: they are the SQL-TEXT REFEREE's classification — a
-        // text-divergent render still row-verifies through the oracle.)
+        // text-divergent render still row-verifies through the referee.)
         TypedSpec rows = activitiesRowsRead(n, frames);
         if (rows != null) {
             return rows;

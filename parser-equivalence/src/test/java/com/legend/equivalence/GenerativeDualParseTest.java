@@ -30,14 +30,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * A4 — THE GENERATIVE DUAL-PARSE GATE (adversarial-audit charter):
  * grammar-driven sentences from the ENGINE'S OWN ATN (random walk,
- * FIXED SEED — deterministic), dual-parsed by oracle and lite, verdict
+ * FIXED SEED — deterministic), dual-parsed by referee and lite, verdict
  * parity pinned. Attacks corpus bias: the corpus exercises the corpus's
  * habits; the generator exercises the GRAMMAR's paths, including ones
  * no checked-in source spells. TRIGGERED cadence (like the census).
  *
  * <p>Terminals render as their grammar literals; abstract tokens
  * (identifiers, strings, numbers) render from an exemplar table. A
- * generated sentence is frequently oracle-INVALID beyond the walked
+ * generated sentence is frequently referee-INVALID beyond the walked
  * grammar's view (cross-rule predicates, walker checks) — those land
  * in both-reject and cost nothing. The signal is DISAGREEMENT.
  */
@@ -64,7 +64,7 @@ class GenerativeDualParseTest {
         Vocabulary vocab = probe.getVocabulary();
         int defIdx = List.of(probe.getRuleNames()).indexOf("definition");
 
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         Random rnd = new Random(SEED);
         int bothAccept = 0;
         int bothReject = 0;
@@ -74,7 +74,7 @@ class GenerativeDualParseTest {
             if (sentence == null || sentence.isBlank()) {
                 continue;
             }
-            boolean o = accepts(() -> oracle.parseModel(sentence));
+            boolean o = accepts(() -> referee.parseModel(sentence));
             boolean l = accepts(() -> Surfaces.engine(sentence));
             if (o == l) {
                 if (o) {

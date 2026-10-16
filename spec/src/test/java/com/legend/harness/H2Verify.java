@@ -279,7 +279,7 @@ public final class H2Verify {
      * post-SQL) while the frame carries decoded names — the caller
      * supplies the per-column source->name map (c46, the enum-decode
      * replay rung). A column with NO derivable map keeps the counted
-     * decline. Shared precheck of the {@link ReplayOracle} verify
+     * decline. Shared precheck of the {@link ReplayReferee} verify
      * entry points (Graph frames decode per-key instead). */
     static void enumPrecheck(ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode) {
@@ -357,13 +357,13 @@ public final class H2Verify {
     }
 
     /** Kind dispatch for the golden compare: flat frames positionally,
-     * the Graph frame by label ({@link ReplayOracle}-called — the
+     * the Graph frame by label ({@link ReplayReferee}-called — the
      * comparison policy seam). */
     static @com.legend.base.Nullable String compareFrame(Statement st,
             String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
-            com.legend.exec.SqlReplayOracle.ReplayFacts facts)
+            com.legend.exec.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
         if (facts.population() != null) {
             // a PAGED chain (batch 0.5b): the page's contents over ties or
@@ -394,7 +394,7 @@ public final class H2Verify {
         // OURS, and the ledger says so now.)
         if (instantInSelectList(goldenSql)) {
             // A golden that PROJECTS the current instant is TWO INSTANTS
-            // by construction: the oracle replays it later than our
+            // by construction: the referee replays it later than our
             // pipeline executed, so a dateDiff(x, now(), MINUTES) column
             // flips at every minute boundary the two executions straddle
             // (foundation probe 2026-09-01: the five sqlstring
@@ -466,7 +466,7 @@ public final class H2Verify {
             String goldenSql, ExecutionResult.Graph g,
             java.util.function.Function<String,
                     java.util.Map<String, String>> enumProp,
-            com.legend.exec.SqlReplayOracle.ReplayFacts facts) {
+            com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
         java.util.TreeSet<String> keys = new java.util.TreeSet<>();
         List<java.util.Map<String, Object>> objs = flatObjects(g, keys);
         // the PAGE-MEMBERSHIP population (batch 0.5b): our unpaged frame,
@@ -707,11 +707,11 @@ public final class H2Verify {
 
     /** Run the golden SELECT on {@code st}, compare rows with the frame
      * as ORDER-INSENSITIVE multisets of normalized cells (shared by the
-     * replay oracle and the session-direct verify). */
+     * replay referee and the session-direct verify). */
     private static @com.legend.base.Nullable String goldenRowsCompare(Statement st,
             String goldenSql, ExecutionResult tab,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            com.legend.exec.SqlReplayOracle.ReplayFacts facts)
+            com.legend.exec.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
                 List<Cells> theirs = new ArrayList<>();
                 int[] theirsCols = {0};
@@ -1332,7 +1332,7 @@ public final class H2Verify {
                 // INTEGRAL values compare EXACTLY — the old blanket
                 // MathContext(10) made two epoch-millis differing in the
                 // last 3 digits compare EQUAL (H2_BACKEND.md §12 step 3:
-                // a silent false PASS on BOTH sides of the oracle).
+                // a silent false PASS on BOTH sides of the referee).
                 if (d.stripTrailingZeros().scale() <= 0) {
                     return d.stripTrailingZeros().toPlainString();
                 }
@@ -1373,7 +1373,7 @@ public final class H2Verify {
             // MICROSECOND floor, same class as the float 10-digit rule
             // above: DuckDB TIMESTAMP is microsecond BY STORAGE while H2
             // holds nanos — digits 7-9 of an H2 golden cell cannot exist
-            // on our side of the oracle (witness: testLessThan seed
+            // on our side of the referee (witness: testLessThan seed
             // '15:22:23.123456789' vs our read '…123456'). Divergence at
             // micro or coarser still fails.
             int nano = ldt.getNano() / 1000 * 1000;

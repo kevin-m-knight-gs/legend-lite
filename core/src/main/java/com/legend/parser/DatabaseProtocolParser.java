@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * PROTOCOL-path {@code ###Relational} Database parse (section-parity leg 3):
- * full span fidelity against ZRelationalProbe's oracle shapes. The
+ * full span fidelity against ZRelationalProbe's referee shapes. The
  * execution-path {@link RelationalGrammarParser} stays until execution
  * derives from protocol (Phase D settled the direction: {@code
  * com.legend.model} carries zero source positions, so a model&rarr;protocol

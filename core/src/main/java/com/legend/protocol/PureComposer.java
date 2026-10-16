@@ -54,7 +54,7 @@ import java.util.function.Function;
  * the engine writes a call for, that call ({@link CaretSpecials}) -- and every other application as the call it is.
  * A record upstream cannot print is REFUSED, naming it -- never skipped, never guessed. The JSON entry points read the
  * JSON first ({@link ProtocolReader}): {@code compose(read(J))}. Byte parity with upstream's printer is pinned by the
- * parser-equivalence oracle over every lambda of the reference corpus, in both styles.
+ * parser-equivalence referee over every lambda of the reference corpus, in both styles.
  *
  * <p>Two styles: {@link Style#STANDARD} (one line) and {@link Style#PRETTY} (upstream's indentation). Upstream's HTML
  * style is not served.

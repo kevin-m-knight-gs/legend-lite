@@ -44,6 +44,8 @@ public final class AliasPrefix extends SqlRewriter {
             case SqlSource.VarSetPlaceholder vp ->
                     new SqlSource.VarSetPlaceholder(vp.varName(), p(vp.alias()), vp.outputs());
             case SqlSource.RawSql r -> new SqlSource.RawSql(r.sql(), p(r.alias()), r.outputs(), r.writtenFor());
+            case SqlSource.Catalog c -> new SqlSource.Catalog(c.grid(), c.schemaPattern(), c.tablePattern(),
+                    c.columnPattern(), p(c.alias()), c.outputs());
             case SqlSource.Subselect sub ->
                     new SqlSource.Subselect(sub.inner(), p(sub.alias()), sub.frameName());
             case SqlSource.Values v ->

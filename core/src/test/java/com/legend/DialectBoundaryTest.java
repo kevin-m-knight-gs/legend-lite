@@ -90,7 +90,7 @@ class DialectBoundaryTest {
     // Sessions.java 0 -> 1 (2026-10-04, C3b): the execution side's one session owner names the in-process
     // databases it keeps a connection for (an in-memory DuckDB; SQLite, which this census does not count)
     private static final Map<String, Integer> DATABASE_TYPE_DECISIONS = Map.of(
-            "Databases.java", 2,            // PLATFORM (S27), REPLAY_ORACLE
+            "Databases.java", 2,            // PLATFORM (S27), REPLAY_REFEREE
             "EngineText.java", 1,           // ENGINE_TEST_DATABASE
             // 1 -> 3 (2026-10-13, the dialect program's Phase 0): not new lines -- the census counts every declared type
             // now, and Sessions also names the in-memory SQLite and, on one line, MariaDB and MySQL (raisedMessage's

@@ -587,10 +587,8 @@ public final class Lowerer {
                     ? SqlSelect.starOf(new SqlSource.Subselect(relation(v.body()), nextAlias(), v.view()))
                     : relation(v.body());
 
-            case com.legend.compiler.spec.typed.TypedRawSqlRelation raw ->
-                    SqlSelect.starOf(new SqlSource.RawSql(   // Phase 1c
-                            raw.sql(), nextAlias(), outputsOf(raw.info(), OutputCol.Origin.DERIVED),
-                            raw.writtenFor()));
+            case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(raw);   // Phase 1c
+            case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(g);
 
             // leg 3.4 step 2: a planned frame, referenced by name (FrameRefs)
             case com.legend.compiler.spec.typed.TypedFrameRef fr -> FrameRefs.reference(this, fr);
@@ -1941,6 +1939,30 @@ public final class Lowerer {
                             ? null : c.name(), Fold.slot(c, sqlTypeOf(c.type()))));
         }
         return base.withProjections(ps);
+    }
+
+    /** An authored raw read's rows: its text, in the language its connection declares (decision D2). */
+    private SqlSelect rawGrid(com.legend.compiler.spec.typed.TypedRawSqlRelation raw) {
+        return SqlSelect.starOf(new SqlSource.RawSql(raw.sql(), nextAlias(), gridOutputs(raw.info()),
+                raw.writtenFor()));
+    }
+
+    /** A catalog grid: which grid and its patterns; the dialect reads its database's catalog. */
+    private SqlSelect catalogGrid(com.legend.compiler.spec.typed.TypedCatalogGrid g) {
+        SqlSource.Catalog.Grid grid = switch (g.grid()) {
+            case SCHEMAS -> SqlSource.Catalog.Grid.SCHEMAS;
+            case TABLES -> SqlSource.Catalog.Grid.TABLES;
+            case COLUMNS -> SqlSource.Catalog.Grid.COLUMNS;
+            case PRIMARY_KEYS -> SqlSource.Catalog.Grid.PRIMARY_KEYS;
+        };
+        return SqlSelect.starOf(new SqlSource.Catalog(grid, g.schemaPattern(), g.tablePattern(), g.columnPattern(),
+                nextAlias(), gridOutputs(g.info())));
+    }
+
+    /** A grid leaf's outputs: no projection makes them, so its schema does, the late-bound grid's empty (a raw read
+     *  stamped or not, a catalog grid's declared). */
+    private List<OutputCol> gridOutputs(ExprType info) {
+        return outputsOf(info, OutputCol.Origin.DERIVED);
     }
 
     /** TDS literal → VALUES; empty → one all-NULL row gated by WHERE 1=0 (schema, zero rows). */

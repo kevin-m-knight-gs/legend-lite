@@ -29,10 +29,10 @@ public final class AsorRef {
      *  encoder spells it as {@code lpad(.., SEG_LEN_WIDTH, '0')}. */
     public static final int SEG_LEN_WIDTH = 10;
 
-    /** The engine protocol's canonical test-H2 connection segment —
+    /** The engine protocol's canonical connection segment for its test database (H2's, as the goldens pin it) —
      * part of the WIRE FORMAT (both producer and consumer are ours;
      * the goldens pin these exact bytes), not an execution choice. */
-    public static final String CANONICAL_H2_CONNECTION =
+    public static final String ENGINE_TEST_CONNECTION =
             "{\"_type\":\"RelationalDatabaseConnection\","
             + "\"authenticationStrategy\":{\"_type\":\"h2Default\"},"
             + "\"datasourceSpecification\":{\"_type\":\"h2Local\"},"
@@ -48,7 +48,7 @@ public final class AsorRef {
     public static String prefix(String definingMapping, String rootSetId,
             String setId) {
         return "001:010:" + seg(KIND) + seg(definingMapping)
-                + seg(rootSetId) + seg(setId) + seg(CANONICAL_H2_CONNECTION);
+                + seg(rootSetId) + seg(setId) + seg(ENGINE_TEST_CONNECTION);
     }
 
     /** The COMPLETE reference for one row — prefix + the per-row

@@ -1480,6 +1480,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case RTRIM -> writer.function("rtrim", c.args());
             case TRIM -> writer.function("trim", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> throw wall(c.fn(), "SQLite has no translate function");
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case CHR -> writer.function("char", c.args());
             case FLOOR_RAW -> writer.function("floor", c.args());
@@ -3068,7 +3069,22 @@ public final class SQLite extends AnsiSqlRenderer {
             case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO " + qualified(it.schema(), it.table(), it.quoting())
                     + columns(it.columns(), it.quotedColumns()) + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + ";";
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct);
         };
+    }
+
+    /** {@inheritDoc} SQLite runs the standard spelling (measured: ReservedNamesGenerationTest), its query a root as
+     *  {@link #render(SqlQuery)} writes one, so its labels are delivered as the trail's text shows them. */
+    @Override
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        roots.push(ct.query().outputs());
+        rootSelects.push(new IdentityHashMap<>());
+        try {
+            return createTemporaryTableAs(ct);
+        } finally {
+            roots.pop();
+            rootSelects.pop();
+        }
     }
 
     private String columns(List<String> columns, java.util.Set<String> quoted) {

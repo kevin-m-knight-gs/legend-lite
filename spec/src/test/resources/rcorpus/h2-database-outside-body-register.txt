@@ -137,4 +137,3 @@ meta::relational::tests::query::filter::exists::testWithFilterGroupByNestedAssoc
 meta::relational::tests::runtime::extractDBs::testExtractDBsWithSubstituition ||| fallback=2
 meta::relational::tests::tds::tdsFilter::testFilterOnDynaFunctionColumn ||| fallback=1
 meta::relational::tests::tds::tdsFilter::testInOnColumnInSubselect ||| fallback=2
-meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries ||| fallback=1

@@ -144,7 +144,7 @@ final class SpecParserTest {
         // engine semantics, not a stricter invention.
         ValueSpecification v = com.legend.testing.Platform.spec("'a\\zb'");
         assertEquals("azb", ((CString) v).value());
-        // octal and unicode escapes DECODE — the oracle's decoder is
+        // octal and unicode escapes DECODE — the referee's decoder is
         // commons-text unescapeJava (verified live 2026-08-12; refusing
         // them was an invented divergence the adversarial fuzz caught)
         assertEquals("aAb", ((CString) com.legend.testing.Platform

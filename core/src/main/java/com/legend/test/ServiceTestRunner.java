@@ -416,7 +416,7 @@ public final class ServiceTestRunner implements AutoCloseable {
         String rtName = runtime.qualifiedName() + "$test$" + runtimes.size();
         String connName = rtName + "$conn";
         ConnectionDefinition conn = new ConnectionDefinition(connName, store, sessionType,
-                new ConnectionSpecification.LocalH2(null, csv.toString(), null),
+                ConnectionSpecification.carryingTestData(csv.toString()),
                 new AuthenticationSpec.TestAuth());
         Map<String, String> ids = new LinkedHashMap<>();
         runtime.connectionIds().forEach((id, s) -> ids.put(id, s));

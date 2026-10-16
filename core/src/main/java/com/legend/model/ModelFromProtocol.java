@@ -242,7 +242,7 @@ public final class ModelFromProtocol {
         if (a.activationConnection() != null) {
             fields.put("activationConfiguration", a.activationConnection());
         }
-        return new SnowflakeActivatorDefinition(a.qualifiedName(), a.kind(), fields);
+        return new FunctionActivatorDefinition(a.qualifiedName(), a.kind(), fields);
     }
 
     private static PackageableElement carried(String section, String kind, String qualifiedName) {

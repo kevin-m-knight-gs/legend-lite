@@ -484,6 +484,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LTRIM -> writer.function("ltrim", c.args());
             case RTRIM -> writer.function("rtrim", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> writer.function("translate", c.args());
             case SPLIT -> writer.function("string_split", c.args());
             case SPLIT_PART -> writer.function("split_part", c.args());
             case REVERSE_STRING -> writer.function("reverse", c.args());
@@ -664,6 +665,47 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
 
+
+    /** {@inheritDoc} DuckDB keeps the SQL standard's {@code information_schema} (and a {@code pg_catalog}, which no
+     *  grid lists): the corpus's catalog-grid tests prove it, the primary keys' {@code key_column_usage} and
+     *  {@code table_constraints} pair included (DuckDB 1.4.4, probed 2026-09-05: ordinal positions, quoted names). */
+    @Override
+    protected SqlWriter catalog(SqlWriter writer, SqlSource.Catalog c) {
+        return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
+    }
+
+    /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's
+     *  generator tests, ReservedNamesGenerationTest). */
+    @Override
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        return createTemporaryTableAs(ct);
+    }
+
+    /** DuckDB's catalog names a column's type as its JDBC driver does, a DECIMAL with its precision and scale
+     *  ({@code DECIMAL(10,2)}), whose code is DECIMAL's; each name's code is the driver's (measured 2026-10-16 against
+     *  {@code DatabaseMetaData.getColumns}, CatalogGridTest). REAL is FLOAT there. */
+    private static final InformationSchemaCatalog.Types CATALOG_GRID_TYPES = new InformationSchemaCatalog.Types(
+            "data_type", "CASE WHEN data_type LIKE 'DECIMAL%' THEN 'DECIMAL' ELSE data_type END",
+            gridTypeCodes());
+
+    private static java.util.Map<String, InformationSchemaCatalog.TypeCode> gridTypeCodes() {
+        java.util.Map<String, InformationSchemaCatalog.TypeCode> m = new java.util.LinkedHashMap<>();
+        m.put("INTEGER", InformationSchemaCatalog.TypeCode.INTEGER);
+        m.put("VARCHAR", InformationSchemaCatalog.TypeCode.VARCHAR);
+        m.put("BIGINT", InformationSchemaCatalog.TypeCode.BIGINT);
+        m.put("SMALLINT", InformationSchemaCatalog.TypeCode.SMALLINT);
+        m.put("TINYINT", InformationSchemaCatalog.TypeCode.TINYINT);
+        m.put("DOUBLE", InformationSchemaCatalog.TypeCode.DOUBLE);
+        m.put("FLOAT", InformationSchemaCatalog.TypeCode.FLOAT);
+        m.put("DECIMAL", InformationSchemaCatalog.TypeCode.DECIMAL);
+        m.put("DATE", InformationSchemaCatalog.TypeCode.DATE);
+        m.put("TIMESTAMP", InformationSchemaCatalog.TypeCode.TIMESTAMP);
+        m.put("BOOLEAN", InformationSchemaCatalog.TypeCode.BOOLEAN);
+        m.put("TIME", InformationSchemaCatalog.TypeCode.TIME);
+        m.put("TIMESTAMP WITH TIME ZONE", InformationSchemaCatalog.TypeCode.TIMESTAMP_WITH_TIMEZONE);
+        m.put("BLOB", InformationSchemaCatalog.TypeCode.BLOB);
+        return m;
+    }
 
     /**
      * {@code data:application/json,[...]} inlines the payload as a JSON

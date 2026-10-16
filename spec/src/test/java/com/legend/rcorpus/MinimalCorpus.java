@@ -57,7 +57,7 @@ import java.util.stream.Stream;
  *     production entry with the platform's {@link com.legend.exec.AssertListener};
  *     every assert is the platform's verdict; the harness attaches its referee
  *     and its census through {@link TestObserver} and owns no judgment;</li>
- * <li><b>referee</b> — {@link com.legend.harness.ReplayOracle#INSTANCE}
+ * <li><b>referee</b> — {@link com.legend.harness.ReplayReferee#INSTANCE}
  *     (golden SQL and plan text brought to rows on the engine's own H2);</li>
  * <li><b>score</b> — PASS / FAIL per test with the failure's reason; the
  *     rosters are the deliverable.</li>
@@ -510,7 +510,7 @@ public final class MinimalCorpus {
                     "sa", "");
             // the engine's H2 test database carries its extension functions;
             // on this lane the golden runs on THIS session (same-session
-            // oracle), so the session carries them too (Phase 0.6: a golden
+            // referee), so the session carries them too (Phase 0.6: a golden
             // calling legend_h2_extension_lpad was a referee FAULT here)
             try (java.sql.Statement st = h2.createStatement()) {
                 for (String alias : com.legend.harness.H2ExtensionFunctions.aliases()) {
@@ -554,7 +554,7 @@ public final class MinimalCorpus {
 
     // ---- THE HARNESS'S INSTRUMENTS, attached through the product's seam -----
 
-    /** The referee (the replay oracle with its H2 mirror), the raw-SQL
+    /** The referee (the replay referee with its H2 mirror), the raw-SQL
      * recorder with the session's seed ledger, and the text-decided census —
      * everything the harness adds to a run, and nothing it judges. */
     private final class CorpusObserver implements TestObserver {
@@ -563,7 +563,7 @@ public final class MinimalCorpus {
          * ledger prefix for every later test of the session. */
         private final List<com.legend.sql.dialect.RawSqlBoundary.Raw> seedLedger = new ArrayList<>();
         private @com.legend.base.Nullable com.legend.sql.dialect.RawSqlBoundary.Recorder recorder;
-        private @com.legend.base.Nullable com.legend.harness.ReplayOracle oracle;
+        private @com.legend.base.Nullable com.legend.harness.ReplayReferee referee;
         private com.legend.sql.dialect.RawSqlBoundary.Recorder.@com.legend.base.Nullable Mark mark;
         private @com.legend.base.Nullable String currentTest;
 
@@ -586,12 +586,12 @@ public final class MinimalCorpus {
         @Override
         public void sessionBegan(String pkg, Connection conn) throws SQLException {
             // the referee's H2 mirror replays goldens beside a DuckDB session; an
-            // H2 session IS the oracle's engine and needs no mirror
+            // H2 session IS the referee's engine and needs no mirror
             if (!H2_BACKEND && com.legend.harness.H2Verify.ready()) {
                 mirrorConn = DriverManager.getConnection("jdbc:h2:mem:c2Mirror"
                         + SESSION_IDS.getAndIncrement() + com.legend.exec.H2Settings.SETTINGS,
                         "sa", "");
-                com.legend.harness.ReplayOracle.mirrorBegin(mirrorConn);
+                com.legend.harness.ReplayReferee.mirrorBegin(mirrorConn);
             }
             seedLedger.clear();
         }
@@ -599,7 +599,7 @@ public final class MinimalCorpus {
         @Override
         public void sessionEnding() {
             h2Asides.clear();
-            com.legend.harness.ReplayOracle.mirrorEnd();
+            com.legend.harness.ReplayReferee.mirrorEnd();
             if (mirrorConn != null) {
                 try {
                     mirrorConn.close();
@@ -612,7 +612,7 @@ public final class MinimalCorpus {
 
         @Override
         public void privateWorkspace(boolean on) {
-            com.legend.harness.ReplayOracle.mirrorSuspend(on);
+            com.legend.harness.ReplayReferee.mirrorSuspend(on);
         }
 
         @Override
@@ -622,7 +622,7 @@ public final class MinimalCorpus {
             // executor appends through the options, the referee reads it
             recorder = new com.legend.sql.dialect.RawSqlBoundary.Recorder(
                     shared ? seedLedger : List.of());
-            oracle = new com.legend.harness.ReplayOracle(recorder);
+            referee = new com.legend.harness.ReplayReferee(recorder);
             // the test-input resource resolver rides the same options (Phase 2d)
             return com.legend.ExecuteOptions.recording(recorder, path -> {
                 try {
@@ -635,13 +635,13 @@ public final class MinimalCorpus {
         }
 
         @Override
-        public com.legend.exec.@com.legend.base.Nullable SqlReplayOracle oracle(PureTests.TestCase t) {
-            return oracle;
+        public com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
+            return referee;
         }
 
         @Override
         public void bodyStarting(Connection conn, boolean effectful) throws SQLException {
-            mark = effectful ? java.util.Objects.requireNonNull(oracle).beginAttempt(conn) : null;
+            mark = effectful ? java.util.Objects.requireNonNull(referee).beginAttempt(conn) : null;
         }
 
         @Override
@@ -649,7 +649,7 @@ public final class MinimalCorpus {
             // the session state the body produced is what the engine's run
             // leaves too — kept whether or not the body adjudicated anything
             if (effectful) {
-                com.legend.harness.ReplayOracle.commitAttempt(conn);
+                com.legend.harness.ReplayReferee.commitAttempt(conn);
                 mark = null;
             }
         }
@@ -657,7 +657,7 @@ public final class MinimalCorpus {
         @Override
         public void bodyFailed(Connection conn, boolean effectful) throws SQLException {
             if (effectful && mark != null) {
-                java.util.Objects.requireNonNull(oracle).rollbackAttempt(conn, mark);
+                java.util.Objects.requireNonNull(referee).rollbackAttempt(conn, mark);
                 mark = null;
             }
         }

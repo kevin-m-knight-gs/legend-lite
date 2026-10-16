@@ -697,7 +697,7 @@ public interface TokenStreamCursor {
      * drops the backslash and keeps the char (legend-pure
      * StringEscape.UNESCAPE_PURE's terminal rule — the corpus's {@code '\ '}
      * seed literal depends on it). Octal and {@code \\uXXXX} DECODE — the
-     * oracle's decoder is commons-text {@code unescapeJava}
+     * referee's decoder is commons-text {@code unescapeJava}
      * (PureGrammarParserUtility.fromGrammarString), which handles both;
      * refusing them was an invented divergence (adversarial-audit fuzz).
      */
@@ -715,7 +715,7 @@ public interface TokenStreamCursor {
         if (i > body.length()) {
             throw at.error("malformed " + what + ": trailing backslash");
         }
-        // the oracle decodes via unescapeJava — octal and \\uXXXX INCLUDED
+        // the referee decodes via unescapeJava — octal and \\uXXXX INCLUDED
         // (the old table refused them "until a corpus file demands them";
         // the engine accepts them, so refusing was an invented divergence —
         // adversarial-audit fuzz row 'a\\u0041b')
@@ -891,7 +891,7 @@ public interface TokenStreamCursor {
                 if (peek() == TokenType.DOC_STRING) {
                     if (dialect().refusesPlatformDialect()
                             && text().indexOf('\n') < 0) {
-                        // single-line ''' — the oracle's lexer splits it into
+                        // single-line ''' — the referee's lexer splits it into
                         // adjacent strings and refuses (probed live 2026-08-12)
                         throw error("Unexpected token '" + text() + "'");
                     }
@@ -991,7 +991,7 @@ public interface TokenStreamCursor {
 
     /**
      * The logical VALUE of a {@code '''...'''} literal — a VERBATIM port of
-     * the pinned oracle's {@code PureGrammarParserUtility.processTextBlock}
+     * the pinned referee's {@code PureGrammarParserUtility.processTextBlock}
      * (4.138.2 sources jar; the earlier reverse-engineered version missed
      * four of its rules — CRLF normalization, min-indent over ALL non-blank
      * lines, per-line trailing-whitespace strip, and the unescape —
@@ -1051,7 +1051,7 @@ public interface TokenStreamCursor {
         String normalized = raw.replace("\r\n", "\n").replace('\r', '\n');
         int firstNl = normalized.indexOf('\n');
         if (firstNl < 0) {
-            // single-line ''' — the oracle's grammar refuses this form
+            // single-line ''' — the referee's grammar refuses this form
             // outright; keep the naive strip for the lenient dialects
             return normalized.substring(3, normalized.length() - 3);
         }

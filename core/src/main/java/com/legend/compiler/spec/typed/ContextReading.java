@@ -667,7 +667,7 @@ final class ContextReading {
         if (n instanceof TypedNewInstance ni) {
             String db = ni.properties().get("element")
                     instanceof TypedPackageableRef el ? el.fullPath() : dbRef;
-            if (PlatformTypes.LOCAL_H2_DATASOURCE_SPECIFICATION.equals(ni.classFqn())) {
+            if (com.legend.model.ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS.equals(ni.classFqn())) {
                 String s = foldLiteral(ni.properties().get("testDataSetupSqls"));
                 if (s != null) {
                     out.add(s);
@@ -725,7 +725,7 @@ final class ContextReading {
                 String db = el != null && el.value()
                         instanceof com.legend.protocol.spec.PackageableElementPtr ptr
                         ? ptr.fullPath() : dbRef;
-                if (PlatformTypes.isLocalH2DatasourceSpecification(ni.className())) {
+                if (com.legend.model.ConnectionSpecification.isTestDataSpecificationClass(ni.className())) {
                     var ke = ni.first("testDataSetupSqls");
                     String s = ke == null ? null : foldRawLiteral(ke.value(), lets);
                     if (s != null) {
@@ -960,11 +960,11 @@ final class ContextReading {
         return null;
     }
 
-    /** The connection's plan-text spelling ({@code DatabaseConnection(type =
-     * "DB2")}): the instance's class simple name with its DatabaseType;
-     * a helper-constructed runtime's instance lives in the callee's raw
-     * body. Null when no connection instance appears. */
-    private @com.legend.base.Nullable String connectionName(TypedSpec n) {
+    /** The connection instance as the plan text names it ({@code DatabaseConnection(type = "DB2")}): the instance's
+     * class simple name with its DatabaseType; a helper-constructed runtime's instance lives in the callee's raw
+     * body. Null when no connection instance appears. The first instance found answers, its type unread when the
+     * body computes it: the walk never goes on to a sibling's (the PR audit of 2026-10-16). */
+    private ExecutionContext.@com.legend.base.Nullable PlanConnection connectionName(TypedSpec n) {
         if (n instanceof TypedVariable) {
             TypedSpec b = chase(n);
             return b == n ? null : connectionName(b);
@@ -972,20 +972,19 @@ final class ContextReading {
         if (n instanceof TypedNewInstance ni) {
             String simple = PlatformTypes.relationalConnectionSimpleName(ni.classFqn());
             if (simple != null) {
-                String type = typeOf(ni);
-                return type == null ? null : simple + "(type = \"" + type + "\")";
+                return new ExecutionContext.PlanConnection(simple, typeOf(ni));
             }
         }
         if (n instanceof TypedUserCall uc && uc.callee().body().isPresent()) {
             for (ValueSpecification b : uc.callee().body().get()) {
-                String r = rawConnectionName(b);
+                ExecutionContext.PlanConnection r = rawConnectionName(b);
                 if (r != null) {
                     return r;
                 }
             }
         }
         for (TypedSpec c : n.children()) {
-            String r = connectionName(c);
+            ExecutionContext.PlanConnection r = connectionName(c);
             if (r != null) {
                 return r;
             }
@@ -993,15 +992,15 @@ final class ContextReading {
         return null;
     }
 
-    private @com.legend.base.Nullable String rawConnectionName(ValueSpecification n) {
+    private ExecutionContext.@com.legend.base.Nullable PlanConnection rawConnectionName(ValueSpecification n) {
         if (n instanceof com.legend.protocol.spec.NewInstance ni) {
             String simple = PlatformTypes.relationalConnectionSimpleName(ni.className());
             if (simple != null) {
+                // a literal type only, as typeOf reads the typed instance's: one the raw body computes is unknown
+                // here, never assumed to be H2's (the dialect program's Phase 3, 2026-10-16; invariant 4)
                 com.legend.protocol.spec.KeyExpression ke = ni.first("type");
-                String db = ke != null && ke.value()
-                        instanceof com.legend.protocol.spec.EnumValue ev
-                        ? ev.value() : "H2";
-                return simple + "(type = \"" + db + "\")";
+                return new ExecutionContext.PlanConnection(simple,
+                        ke != null && ke.value() instanceof com.legend.protocol.spec.EnumValue ev ? ev.value() : null);
             }
         }
         List<ValueSpecification> kids = switch (n) {
@@ -1013,7 +1012,7 @@ final class ContextReading {
             default -> List.of();
         };
         for (ValueSpecification c : kids) {
-            String r = rawConnectionName(c);
+            ExecutionContext.PlanConnection r = rawConnectionName(c);
             if (r != null) {
                 return r;
             }

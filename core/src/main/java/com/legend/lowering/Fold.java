@@ -506,12 +506,18 @@ final class Fold {
         SqlExpr r = resolveIntoExact(s, column);
         if (r == null && s.projections().isEmpty() && s.from()
                 instanceof com.legend.sql.SqlSource.RawSql raw) {
-            // Phase 1c: an authored-SQL grid's by-name read. A DECLARED
-            // schema (the fetchDb catalog grids — §4bZ-U leg 4) stamps
-            // the read through the lookup door; a late-bound grid keeps
-            // the trust-name behavior (empty outputs -> plain: the
-            // database adjudicates unknown names at execution).
+            // Phase 1c: an authored-SQL grid's by-name read. A stamped
+            // schema stamps the read through the lookup door; a
+            // late-bound grid keeps the trust-name behavior (empty
+            // outputs -> plain: the database adjudicates unknown names
+            // at execution).
             return SqlExpr.Column.of(raw.alias(), raw.outputs(), column);
+        }
+        if (r == null && s.projections().isEmpty() && s.from()
+                instanceof com.legend.sql.SqlSource.Catalog cat) {
+            // a catalog grid's by-name read: its DECLARED schema
+            // (§4bZ-U leg 4) stamps the read through the lookup door
+            return SqlExpr.Column.of(cat.alias(), cat.outputs(), column);
         }
         if (r == null) {
             // A pivot dynamic column's PURE identity carries quotes
@@ -685,6 +691,7 @@ final class Fold {
                     || physicallyRenderable(j.right(), c);
             case SqlSource.VarSetPlaceholder vp -> false;
             case SqlSource.RawSql raw -> false;
+            case SqlSource.Catalog cat -> false;
             case SqlSource.Values v -> v.alias().equals(c.table())
                     && v.columns().contains(c.name());
             case SqlSource.Table t -> t.alias().equals(c.table());
@@ -1006,6 +1013,8 @@ final class Fold {
             // behavior (never claims — resolution rides its subselect).
             case SqlSource.RawSql raw -> raw.outputs().isEmpty()
                     ? SqlExpr.Column.physical(raw.alias(), column) : null;
+            // a catalog grid's schema is declared: it never claims, as a stamped grid
+            case SqlSource.Catalog cat -> null;
             case SqlSource.Subselect sub -> lateBoundGrid(sub)
                     ? SqlExpr.Column.derived(sub.alias(), column)
                     : stamped(sub.alias(), sub.outputs(), column);

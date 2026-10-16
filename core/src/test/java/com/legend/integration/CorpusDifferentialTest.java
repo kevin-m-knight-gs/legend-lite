@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Cross-engine differential: legend-lite's SQL, run against the same rows legend-engine
- * runs the .pure testSuites against, compared to the same oracle expectations.
+ * runs the .pure testSuites against, compared to the same referee expectations.
  *
  * <p>The third assertion mechanism, wired 2026-10-05 (Bazel workplan P3-18, D3 row 4): until then
  * {@code scripts/corpus/differential.py} ran in no gate and an {@code Assumptions} guard skipped this

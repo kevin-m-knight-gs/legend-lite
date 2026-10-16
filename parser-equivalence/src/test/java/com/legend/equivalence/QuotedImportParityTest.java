@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * (HARNESS_SIMPLIFICATION_PLAN 5e): {@code import a::'b c'::*;} must
  * emit {@code ["a::b c"]} through the SPI bridge exactly as vanilla
  * does — the bridge's local import loop had dropped
- * {@code Protocol.unquotePath}. A fixture-level oracle in the
+ * {@code Protocol.unquotePath}. A fixture-level referee in the
  * {@code ViewFilterParityTest} shape: hand-built input, adjudicated
  * LIVE against the engine.
  */
