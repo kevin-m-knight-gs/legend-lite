@@ -499,6 +499,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
 
     @Override
     public String render(SqlQuery query) {
+        SqlQuery planned = planned(query);
+        SqlWriter writer = newWriter();
+        query(writer, planned, 0);
+        return writer.text();
+    }
+
+    /** The query as this text writes it, its alias plan made: every render pass applied, a TDS join's top wrapped. */
+    private SqlQuery planned(SqlQuery query) {
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             query = pass.rewriteRoot(query);
         }
@@ -508,9 +516,27 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         rootConsumed.clear();
         placeholders.clear();
         planQuery(query, new LinkedHashMap<>());
-        SqlWriter writer = newWriter();
-        query(writer, query, 0);
-        return writer.text();
+        return query;
+    }
+
+    @Override
+    public @com.legend.base.Nullable String selectList(SqlQuery query) {
+        SqlQuery q = planned(query);
+        while (q instanceof com.legend.sql.SqlUnion u) {
+            q = u.branches().get(0);
+        }
+        if (!(q instanceof SqlSelect s)) {
+            return null;
+        }
+        return selectHead(newWriter(), s).text();
+    }
+
+    /** {@inheritDoc} The engine aliases a table by its name, lower case, and {@code _0}, quoted. */
+    @Override
+    public String inTempTableSelect(String tempTable) {
+        String alias = "\"" + tempTable.toLowerCase(java.util.Locale.ROOT) + "_0\"";
+        return "select " + alias + ".ColumnForStoringInCollection as ColumnForStoringInCollection from " + tempTable
+                + " as " + alias;
     }
 
     /** The legacy plan text binds nothing: its parameters are the engine's template variables ({@code ${name}}),
@@ -1038,13 +1064,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         return super.query(writer, q, depth);
     }
 
-    @Override
-    protected SqlWriter select(SqlWriter writer, SqlSelect s, int depth) {
-        if (s.qualify() != null) {
-            throw new IllegalStateException(
-                    "QUALIFY has no engine-H2 golden spelling");
-        }
-        writer.append("select ");
+    /** A select's head after {@code select}: its row cap as H2's {@code top} (a slice is OFFSET .. FETCH NEXT), its
+     *  {@code distinct}, its projections. */
+    private SqlWriter selectHead(SqlWriter writer, SqlSelect s) {
         // H2: a bare row cap is TOP; a slice is OFFSET .. FETCH NEXT
         if (s.limit() != null && s.offset() == null) {
             writer.append("top ").append(s.limit()).append(' ');
@@ -1065,6 +1087,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                     ? new SqlSelect.Projection(p.expr(), null, p.out())
                     : p));
         }
+        return writer;
+    }
+
+    @Override
+    protected SqlWriter select(SqlWriter writer, SqlSelect s, int depth) {
+        if (s.qualify() != null) {
+            throw new IllegalStateException(
+                    "QUALIFY has no engine-H2 golden spelling");
+        }
+        selectHead(writer.append("select "), s);
         if (!(s.from() instanceof SqlSource.Dual)) {
             writer.append(" from ");
             source(writer, s.from(), depth);

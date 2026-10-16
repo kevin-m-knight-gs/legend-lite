@@ -137,7 +137,8 @@ public final class InProtocol {
     public static List<String> allNodeTexts(Result inp,
             @com.legend.base.Nullable String connName,
             com.legend.model.ConnectionDefinition.DatabaseType dbType,
-            java.util.function.Function<SqlExpr.PlanParam, String> splice) {
+            java.util.function.Function<SqlExpr.PlanParam, String> splice,
+            java.util.function.UnaryOperator<String> tempSelect) {
         String conn = java.util.Objects.requireNonNull(connName,
                 "in-protocol threshold without a connection spelling");
         Integer th = java.util.Objects.requireNonNull(
@@ -147,15 +148,17 @@ public final class InProtocol {
         for (Site site : inp.sites()) {
             out.addAll(nodeTexts(site, conn, isTest, th,
                     site.conditional()
-                            ? splice.apply(site.vars().get(0)) : ""));
+                            ? splice.apply(site.vars().get(0)) : "", tempSelect));
         }
         return out;
     }
 
     /** The site's plan-node texts, in emission order (before the
-     * Relational node). */
+     * Relational node); {@code tempSelect} reads the temp table back
+     * (the plan text's dialect writes it). */
     public static List<String> nodeTexts(Site s, String connName,
-            boolean isTest, int threshold, String falseText) {
+            boolean isTest, int threshold, String falseText,
+            java.util.function.UnaryOperator<String> tempSelect) {
         List<String> out = new ArrayList<>();
         String colType = "VARCHAR(1024)";   // String collections — the
         // only element kind the goldens pin; others wall at the caller
@@ -190,7 +193,7 @@ public final class InProtocol {
         String condition = "${" + checks + "?c}";
         String trueBlock = PlanText.sequence("  type = String\n",
                 List.of(createTemp, PlanText.constantBare("String",
-                        tempSelectSql(s.tempTable()))));
+                        tempSelect.apply(s.tempTable()))));
         String falseBlock = PlanText.constantBare("String", falseText);
         out.add(PlanText.allocation(s.wrapper(), "  type = String\n",
                 PlanText.freeMarkerConditional(condition, trueBlock,
@@ -225,13 +228,5 @@ public final class InProtocol {
             });
         }
         return sb.toString();
-    }
-
-    /** The engine's generateTempTableSelectSQLQuery template text. */
-    public static String tempSelectSql(String tempTable) {
-        String a = tempTable.toLowerCase(java.util.Locale.ROOT) + "_0";
-        return "select \"" + a + "\".ColumnForStoringInCollection as"
-                + " ColumnForStoringInCollection from " + tempTable
-                + " as \"" + a + "\"";
     }
 }

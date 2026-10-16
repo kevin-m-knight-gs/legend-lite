@@ -811,7 +811,8 @@ final class StatementExecutor {
                         // PRE-resolution body: the TDS-vs-Class shape and
                         // the documentation channel live in the G output
                         // (post-H everything is a relation)
-                        lam.body(), connName, chainMaps, es.plan(), pushDownEnums(env, lam.body())),
+                        lam.body(), connName, chainMaps, es.plan(), pushDownEnums(env, lam.body()),
+                        EngineText.enginePlanText(dbType, quote, tz)::selectList),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
@@ -885,6 +886,7 @@ final class StatementExecutor {
         }
         java.util.List<String> allocs = new java.util.ArrayList<>();
         String prevVar = null;
+        var planText = EngineText.enginePlanText(dbType, quote, tz);
         for (int k = spine.size() - 1; k >= 0; k--) {
             TypedSpec at = k == spine.size() - 1
                     ? spine.get(k).left() : spine.get(k + 1);
@@ -898,13 +900,11 @@ final class StatementExecutor {
                 return null;
             }
             EngineSql aEs = engineSql(java.util.List.of(at), mappingFqn,
-                    specs, env, EngineText.enginePlanText(dbType, quote, tz),
+                    specs, env, planText,
                     java.util.Map.of(),
                     java.util.function.UnaryOperator.identity(), chainMaps);
             String aSql = prevVar == null ? aEs.sql()
-                    : com.legend.plan.PlanText.spliceLeftVar(aEs.plan(),
-                            prevVar,
-                            EngineText.enginePlanText(dbType, quote, tz)::render);
+                    : com.legend.plan.PlanText.spliceLeftVar(aEs.plan(), prevVar, planText::render);
             if (aSql == null) { return null; }
             String[] aImpl = com.legend.lineage.ScanRelations.rootImpl(
                     env.ctx(), mappingFqn, aRoot, chainMaps);
@@ -921,21 +921,20 @@ final class StatementExecutor {
                             prevVar == null ? aEs.plan()
                                     : com.legend.plan.PlanText.colsPlanFor(
                                             aEs.plan(), prevVar),
-                            pushDownEnums(env, java.util.List.of(at)))));
+                            pushDownEnums(env, java.util.List.of(at)), planText::selectList)));
             prevVar = var;
         }
         EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,
-                EngineText.enginePlanText(dbType, quote, tz), java.util.Map.of(),
+                planText, java.util.Map.of(),
                 java.util.function.UnaryOperator.identity(), chainMaps);
         String splicedSql = com.legend.plan.PlanText.spliceLeftVar(
-                fullEs.plan(), java.util.Objects.requireNonNull(prevVar),
-                EngineText.enginePlanText(dbType, quote, tz)::render);
+                fullEs.plan(), java.util.Objects.requireNonNull(prevVar), planText::render);
         if (splicedSql == null) { return null; }
         String terminal = com.legend.plan.PlanText.single(env.ctx(),
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,
                 lam.body(), connName, chainMaps,
                 com.legend.plan.PlanText.colsPlanFor(
-                        fullEs.plan(), prevVar), pushDownEnums(env, lam.body()));
+                        fullEs.plan(), prevVar), pushDownEnums(env, lam.body()), planText::selectList);
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
@@ -1022,7 +1021,7 @@ final class StatementExecutor {
                         "plan: non-let intermediate statement");
             }
             children.add(PlanAllocations.node(let, mappingFqn, specs, env,
-                    params, paramSpells, quote, timeZone, dbType));
+                    params, paramSpells, quote, timeZone, dbType, connName));
             params.put(let.name(), new com.legend.sql.SqlExpr.PlanParam(
                     let.name(), com.legend.lowering.PlanParams.kindOf(
                             let.info().type())));
@@ -1035,7 +1034,7 @@ final class StatementExecutor {
             // the plan, no Sequence envelope.
             children.add(java.util.Objects.requireNonNull(PlanAllocations
                     .node(tlet, mappingFqn, specs, env, params, paramSpells,
-                            quote, timeZone, dbType)));
+                            quote, timeZone, dbType, connName)));
             if (children.size() != 1) {
                 throw new com.legend.error.NotImplementedException(
                         "plan: trailing let in a multi-node sequence"

@@ -16,4 +16,13 @@ public interface EngineTextDialect extends SqlDialect {
 
     /** A relation alias as the engine's plan text writes it. */
     String renderedAlias(String alias);
+
+    /** The select list of a query's (first) select as {@link #render} writes it, after the same rewrites and the same
+     *  alias plan: the engine's {@code resultColumns} text for a scalar projection. Null when the query is no select
+     *  (a {@code with}). */
+    @com.legend.base.Nullable String selectList(com.legend.sql.SqlQuery query);
+
+    /** The query that reads the in-collection temp table back, as the engine's
+     *  {@code generateTempTableSelectSQLQuery} writes it: its one column, under the table's own alias. */
+    String inTempTableSelect(String tempTable);
 }

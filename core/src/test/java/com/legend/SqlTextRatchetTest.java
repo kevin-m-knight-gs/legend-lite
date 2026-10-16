@@ -108,8 +108,10 @@ class SqlTextRatchetTest {
         // SqlDml.InsertValues, typed cells the engine-text dialect renders as legend-engine's loadValuesToDbTableH2
         // writes them. (The history: 2 -> 1, 2026-09-23: the metamodel seed's INSERT is a dialect-rendered SqlDml
         // node, RowLoad.values; 4 -> 2, 2026-09-16: CREATE/DROP are dialect-rendered SqlDdl nodes.)
-        REGISTER.put("plan/InProtocol.java", 1);
-        REGISTER.put("plan/PlanText.java", 2);
+        // plan/InProtocol.java 1 and plan/PlanText.java 2 -> 0, rows deleted (2026-10-16, the dialect program's
+        // Phase 3): the in-collection temp table's read-back is the plan text's dialect's
+        // (EngineTextDialect.inTempTableSelect), and a scalar projection's resultColumns is its select list, written
+        // from the IR (EngineTextDialect.selectList), not cut out of the rendered text
         // 17 -> 16 (documented-debts 2026-08-18): the LL_TMP_DEBUG
         // COUNT(*) round-trip died
         // (chained-fetch live-session refereeing, §S5-L: the transcript
