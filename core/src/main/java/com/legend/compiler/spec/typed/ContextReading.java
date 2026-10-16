@@ -997,11 +997,11 @@ final class ContextReading {
         if (n instanceof com.legend.protocol.spec.NewInstance ni) {
             String simple = PlatformTypes.relationalConnectionSimpleName(ni.className());
             if (simple != null) {
+                // a literal type only, as typeOf reads the typed instance's: one the raw body computes is unknown
+                // here, never assumed to be H2's (the dialect program's Phase 3, 2026-10-16; invariant 4)
                 com.legend.protocol.spec.KeyExpression ke = ni.first("type");
-                String db = ke != null && ke.value()
-                        instanceof com.legend.protocol.spec.EnumValue ev
-                        ? ev.value() : "H2";
-                return simple + "(type = \"" + db + "\")";
+                return ke != null && ke.value() instanceof com.legend.protocol.spec.EnumValue ev
+                        ? simple + "(type = \"" + ev.value() + "\")" : null;
             }
         }
         List<ValueSpecification> kids = switch (n) {

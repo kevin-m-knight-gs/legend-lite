@@ -22,7 +22,7 @@ final class PlanEnvelope {
             String rootClass, String[] impl, String mappingFqn,
             TypedSpec term, @com.legend.base.Nullable String connName,
             com.legend.model.ConnectionDefinition.DatabaseType dbType,
-            com.legend.sql.dialect.EngineStyleH2 pd, boolean hasParams) {
+            com.legend.sql.dialect.EngineTextDialect pd, boolean hasParams) {
         var inp = com.legend.plan.InProtocol.apply(es.plan(),
                 com.legend.plan.InProtocol.thresholdFor(connName, dbType),
                 dbType);

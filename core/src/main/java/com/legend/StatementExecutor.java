@@ -492,7 +492,7 @@ final class StatementExecutor {
             // reader's gap, read as the engine test connection's database until the rebuild reads it
             db = dbBound == null ? EngineText.ENGINE_TEST_DATABASE.name() : dbBound;
         }
-        com.legend.sql.dialect.EngineStyleH2 renderer = EngineText.engineText(com.legend.database.Databases.named(db));
+        com.legend.sql.dialect.EngineTextDialect renderer = EngineText.engineText(com.legend.database.Databases.named(db));
         if (!(in.query()
                 instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
             throw new com.legend.error.NotImplementedException(
@@ -538,7 +538,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedLambda lam,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
-            com.legend.sql.dialect.EngineStyleH2 renderer) {
+            com.legend.sql.dialect.EngineTextDialect renderer) {
         return engineSql(lam.body(), mappingFqn, specs, env, renderer,
                 java.util.Map.of(),
                 java.util.function.UnaryOperator.identity());
@@ -550,7 +550,7 @@ final class StatementExecutor {
     static EngineSql engineSql(java.util.List<TypedSpec> raw,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
-            com.legend.sql.dialect.EngineStyleH2 renderer,
+            com.legend.sql.dialect.EngineTextDialect renderer,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
                     planParams,
             java.util.function.UnaryOperator<String> tableRenames) {
@@ -564,7 +564,7 @@ final class StatementExecutor {
     private static EngineSql engineSql(java.util.List<TypedSpec> raw,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
-            com.legend.sql.dialect.EngineStyleH2 renderer,
+            com.legend.sql.dialect.EngineTextDialect renderer,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
                     planParams,
             java.util.function.UnaryOperator<String> tableRenames,
@@ -769,7 +769,7 @@ final class StatementExecutor {
                 : null;
         String connName = pc != null && pc.connectionName() != null ? pc.connectionName()
                 : fromConn != null ? fromConn
-                : "TestDatabaseConnection(type = \"H2\")";
+                : "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")";
         com.legend.model.ConnectionDefinition.DatabaseType dbType = planDatabase(pc);
         if (!lam.parameters().isEmpty() || lam.body().size() > 1
                 // a lone LET is a sequence too (E2E §4.4 cluster 1):
@@ -1058,8 +1058,7 @@ final class StatementExecutor {
         // file guardrail — PlanEnvelope owns the block-vs-sequence rule)
         return PlanEnvelope.emit(es, children, env, rootClass, impl,
                 mappingFqn, term, connName, dbType,
-                (com.legend.sql.dialect.EngineStyleH2)
-                        EngineText.enginePlanText(dbType, quote, timeZone),
+                EngineText.enginePlanText(dbType, quote, timeZone),
                 !lam.parameters().isEmpty());
     }
 

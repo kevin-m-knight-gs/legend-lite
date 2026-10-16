@@ -24,7 +24,7 @@ import java.util.Set;
  * replaceAliasName pass), source/output aliases double-quoted, physical
  * column names bare, parenthesized ON clauses.
  */
-public class EngineStyleH2 extends AnsiSqlRenderer {
+public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect {
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
@@ -812,6 +812,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** The engine's renderCollection template for a MANY plan param —
      * ONE spelling shared by the plain in-collection rendering and the
      * temp-table protocol's falseBlock (processInOperation). */
+    @Override
     public String collectionSplice(SqlExpr.PlanParam cp) {
         // the engine's renderCollection spells each replacement pair with a
         // TRAILING space ({"'" : "''" }); varPlaceHolderToString does not
@@ -918,6 +919,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** The engine-style spelling of an alias AFTER a render pass — the
      * plan printer's resultColumns spell the renamed alias ("root", not
      * t0); call only on the instance that rendered the SQL. */
+    @Override
     public String renderedAlias(String alias) {
         return rename(alias);
     }
