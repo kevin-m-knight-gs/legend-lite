@@ -152,6 +152,8 @@
 # reads nothing before it, computed columns of one row, a FROM function; a query with FROM that reads the row before it
 # IQ's -1001030 or -1006000): accept PARSED 3,150 -> 3,162 (REFUSED 1,798 -> 1,786); reject REJECTED 1,009 -> 1,013
 # (REFUSED 775 -> 771). Reject-parsed and accept-rejected unchanged.
+# IQ island, 2026-10-16 (measured on IQ 17.1: OFFSET and FETCH, and a constant after INTERVAL, IQ's syntax error -131):
+# reject REJECTED 1,013 -> 1,014 (REFUSED 771 -> 770). Reject-parsed and accept-rejected unchanged.
 accept	parsed	3162
 accept	refused	1786
 accept	rejected	1
@@ -160,8 +162,8 @@ accept-with-option	rejected	1
 flag	parsed	80
 flag	refused	54
 reject	parsed	25
-reject	refused	771
-reject	rejected	1013
+reject	refused	770
+reject	rejected	1014
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609

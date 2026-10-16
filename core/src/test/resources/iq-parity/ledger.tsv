@@ -651,6 +651,11 @@ lite/corpus_gaps/dates_written_back_from_convert_styles@iq17-default	PASS	PASS
 lite/corpus_gaps/dates_of_month_names@iq17-default	PASS	PASS
 lite/corpus_gaps/a_date_of_no_months_name_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_join_on_the_null_side_of_a_joined_derived_rank@iq17-default	FAIL	FAIL
+lite/corpus_gaps/offset_fetch_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/fetch_first_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/offset_in_a_derived_table_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_interval_constant_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_interval_of_days_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

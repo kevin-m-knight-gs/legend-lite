@@ -550,3 +550,20 @@ tests:
   - id: a_join_on_the_null_side_of_a_joined_derived_rank
     sql: "SELECT d.id, d.uid, d.r FROM (SELECT t.id, u.id AS uid, RANK() OVER (ORDER BY t.id DESC) AS r FROM t LEFT JOIN u ON u.t_id = t.id) d JOIN u x ON x.id = d.uid WHERE d.r <= 7 ORDER BY d.id, d.uid"
     profile: iq17-default
+
+  # ---- the lane's most frequent SQLStorm shape (5,724 queries): T-SQL's OFFSET ... FETCH is IQ's syntax error
+  - id: offset_fetch_is_a_syntax_error
+    sql: "SELECT id FROM t ORDER BY id OFFSET 2 ROWS FETCH NEXT 3 ROWS ONLY"
+    profile: iq17-default
+  - id: fetch_first_is_a_syntax_error
+    sql: "SELECT id FROM t ORDER BY id FETCH FIRST 3 ROWS ONLY"
+    profile: iq17-default
+  - id: offset_in_a_derived_table_is_a_syntax_error
+    sql: "SELECT * FROM (SELECT id FROM t ORDER BY id OFFSET 1 ROWS) d"
+    profile: iq17-default
+  - id: an_interval_constant_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE ts > CURRENT TIMESTAMP - INTERVAL '1 year'"
+    profile: iq17-default
+  - id: an_interval_of_days_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE ts > ts - INTERVAL 30 DAY"
+    profile: iq17-default

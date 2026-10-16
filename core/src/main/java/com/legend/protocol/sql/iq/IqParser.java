@@ -284,8 +284,16 @@ public final class IqParser {
         SqlAst.Statement query = first.is("with") ? with() : queryBlock();
         refuseClause("for", "FOR READ ONLY, FOR UPDATE and FOR XML are not supported yet");
         refuseClause("option", "the OPTION clause is not supported yet");
-        if (peek().isWord("limit") || peek().isWord("offset")) {
-            throw SqlSyntaxException.unsupported(peek().text() + " is not supported yet", peek().pos());
+        if (peek().isWord("offset") || peek().isWord("fetch")) {
+            // IQ island, 2026-10-16 (measured on IQ 17.1; the corpus lane: 5,724 of SQLStorm's queries): T-SQL's
+            // OFFSET ... FETCH and FETCH FIRST are IQ's syntax error, in its front end's grammar as in its engine
+            throw new SqlSyntaxException("OFFSET and FETCH are no clauses of IQ's (its row limit is TOP n START AT m)"
+                    + IqDialect.syntaxCode(), peek().pos());
+        }
+        if (peek().isWord("limit")) {
+            // a syntax error too (measured on IQ 17.1), but a clause where the reserved_keywords option names it
+            throw SqlSyntaxException.unsupported("LIMIT is not supported: IQ reads it only where the reserved_keywords"
+                    + " option names it (its syntax error otherwise)", peek().pos());
         }
         // IQ island, 2026-10-15 (the corpus lane: 1,691 of SEDE's 11,708 queries end so; measured on IQ 17.1): a
         // statement's one trailing separator is read, as IQ reads it; a second statement after it is refused
@@ -2916,6 +2924,19 @@ public final class IqParser {
             return SqlSyntaxException.unsupported("INTO (a query that stores its rows) is not supported in an"
                     + " #IQ{...}# island: it is a value, not a statement (and IQ reads INTO before FROM only)",
                     t.pos());
+        }
+        // IQ island, 2026-10-16 (measured on IQ 17.1; the corpus lane: about 1,300 of SQLStorm's and SEDE's queries):
+        // INTERVAL is a name of IQ's, so a constant right after it (INTERVAL '1 year', INTERVAL 30 DAY) is its syntax
+        // error -131; so are OFFSET and FETCH, no clauses of IQ's, wherever they stand
+        IqLexer.Token before = at > 0 ? tokens.get(at - 1) : null;
+        if (before != null && before.isWord("interval") && (t.kind() == IqLexer.Kind.STRING
+                || t.kind() == IqLexer.Kind.NUMBER)) {
+            return new SqlSyntaxException("INTERVAL is no type of IQ's (a name here): '" + t.text() + "' cannot follow"
+                    + " it" + IqDialect.syntaxCode(), t.pos());
+        }
+        if (t.isWord("offset") || t.isWord("fetch")) {
+            return new SqlSyntaxException("OFFSET and FETCH are no clauses of IQ's (its row limit is TOP n START AT m)"
+                    + IqDialect.syntaxCode(), t.pos());
         }
         return SqlSyntaxException.unsupported("'" + t.text() + "' here is not supported", t.pos());
     }
