@@ -265,7 +265,10 @@ public final class SqlToPure {
         INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, TIME,
         /** A zoned date-time (Cypher's {@code datetime}): carried as its instant, Pure's DateTime; its zone, when the
          *  translator knows it, rides the translation's detail. */
-        ZONED, JSON, NULL, OTHER;
+        ZONED,
+        /** A duration (Cypher's): an instance of the model's Duration class (months, days, seconds, nanoseconds),
+         *  carried as the database's struct. */
+        DURATION, JSON, NULL, OTHER;
 
         public boolean numeric() {
             return this == INTEGER || this == WHOLE || this == FLOAT || this == DECIMAL || this == NUMBER
@@ -3845,7 +3848,7 @@ public final class SqlToPure {
             case TIME -> "StrictTime";
             case ZONED -> "DateTime";
             case JSON -> VARIANT;
-            case BOOLEAN, OTHER -> null;
+            case BOOLEAN, OTHER, DURATION -> null;
         };
         if (type == null) {
             return Tx.value(empty(), kind, true);
@@ -4282,6 +4285,7 @@ public final class SqlToPure {
             case DATETIME -> "timestamp without time zone";
             case TIME -> "time without time zone";
             case ZONED -> "timestamp with time zone";
+            case DURATION -> "interval";
             case JSON -> "jsonb";
             case NULL -> "unknown";
             case OTHER -> "an enumeration";

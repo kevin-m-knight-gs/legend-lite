@@ -443,6 +443,14 @@ public final class CypherValues {
             default -> {
             }
         }
+        // a struct cell (an instance of the model's Duration class on DuckDB): the executor's ordered field map
+        if (cell instanceof Map<?, ?> m) {
+            Map<String, Value> entries = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                entries.put(String.valueOf(e.getKey()), ofCell(e.getValue()));
+            }
+            return new Mp(entries);
+        }
         // a list or map, as the Variant lite returns (C8): DuckDB's JsonNode, Postgres's json/jsonb PGobject
         String cls = cell.getClass().getName();
         if (cls.equals("org.duckdb.JsonNode")) {
@@ -464,6 +472,92 @@ public final class CypherValues {
 
     private static String date(int year, int month, int day) {
         return String.format(java.util.Locale.ROOT, "%04d-%02d-%02d", year, month, day);
+    }
+
+    /** A duration of Neo4j's ({@code Duration('P12Y5M14DT16H13M10S')}) against lite's, an instance of the model's
+     *  Duration class (a map of its four slots: months, days, seconds, nanoseconds, docs/SEMANTICS_REGISTER.md S67):
+     *  equal when the text's units sum to the slots (years are twelve months, weeks seven days, hours and minutes
+     *  seconds; the seconds' fraction nanoseconds, the seconds floored so the nanoseconds lie in [0, 1e9), as Neo4j
+     *  keeps them). A key of the map starting with {@code __} (a layout's identity) is not a slot. */
+    static boolean sameDuration(String text, Map<String, Value> slots) {
+        long[] expected = durationSlots(text);
+        if (expected == null) {
+            return false;
+        }
+        String[] names = {"months", "days", "seconds", "nanoseconds"};
+        int seen = 0;
+        for (String k : slots.keySet()) {
+            if (!k.startsWith("__")) {
+                seen++;
+            }
+        }
+        if (seen != 4) {
+            return false;
+        }
+        for (int i = 0; i < 4; i++) {
+            Value v = slots.get(names[i]);
+            if (!(v instanceof Int n) || n.value().longValueExact() != expected[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The four slots a duration text of Neo4j's spells; null when the text is not one. */
+    static long @com.legend.base.Nullable [] durationSlots(String text) {
+        if (!text.startsWith("Duration('") || !text.endsWith("')")) {
+            return null;
+        }
+        String body = text.substring(10, text.length() - 2);
+        if (!body.startsWith("P")) {
+            return null;
+        }
+        long months = 0;
+        long days = 0;
+        java.math.BigDecimal nanos = java.math.BigDecimal.ZERO;
+        boolean time = false;
+        int i = 1;
+        while (i < body.length()) {
+            char ch = body.charAt(i);
+            if (ch == 'T') {
+                time = true;
+                i++;
+                continue;
+            }
+            int start = i;
+            if (ch == '-' || ch == '+') {
+                i++;
+            }
+            while (i < body.length() && (Character.isDigit(body.charAt(i)) || body.charAt(i) == '.')) {
+                i++;
+            }
+            if (i >= body.length()) {
+                return null;
+            }
+            java.math.BigDecimal n = new java.math.BigDecimal(body.substring(start, i));
+            char unit = body.charAt(i++);
+            switch (unit) {
+                case 'Y' -> months += 12 * n.longValueExact();
+                case 'M' -> {
+                    if (time) {
+                        nanos = nanos.add(n.multiply(java.math.BigDecimal.valueOf(60_000_000_000L)));
+                    } else {
+                        months += n.longValueExact();
+                    }
+                }
+                case 'W' -> days += 7 * n.longValueExact();
+                case 'D' -> days += n.longValueExact();
+                case 'H' -> nanos = nanos.add(n.multiply(java.math.BigDecimal.valueOf(3_600_000_000_000L)));
+                case 'S' -> nanos = nanos.add(n.multiply(java.math.BigDecimal.valueOf(1_000_000_000L)));
+                default -> {
+                    return null;
+                }
+            }
+        }
+        long total = nanos.longValueExact();
+        long seconds = Math.floorDiv(total, 1_000_000_000L);
+        long rest = Math.floorMod(total, 1_000_000_000L);
+        return new long[] {months, days, seconds, rest};
     }
 
     /** A zoned date-time of Neo4j's ({@code DateTime('...T...+01:00')}) against lite's, which keeps the instant and
@@ -550,6 +644,11 @@ public final class CypherValues {
         }
         if (a instanceof Opaque x && b instanceof Opaque y) {
             return x.text().equals(y.text()) || sameInstant(x.text(), y.text());
+        }
+        if (a instanceof Opaque x && b instanceof Mp y || a instanceof Mp x2 && b instanceof Opaque y2) {
+            Opaque o = a instanceof Opaque x3 ? x3 : (Opaque) b;
+            Mp m = a instanceof Mp x4 ? x4 : (Mp) b;
+            return sameDuration(o.text(), m.entries());
         }
         if (a instanceof Flt x && b instanceof Flt y) {
             return sameDouble(x.value(), y.value());

@@ -33,8 +33,41 @@ tests:
     cypher: "MATCH (v:Val) RETURN v.name AS name, v.d AS d, v.d.year AS y, v.dt AS dt, v.dt.month AS m, v.d < date('2000-01-01') AS early, date.truncate('month', v.dt) AS t ORDER BY name"
   - id: temporal_refused_by_name
     cypher: "RETURN datetime({year: 1984, month: 10, day: 11}) AS a"
-  - id: duration_refused_by_name
-    cypher: "RETURN duration({days: 14, hours: 16}) AS a"
+  - id: duration_from_components
+    cypher: "RETURN duration({days: 14, hours: 16, minutes: 12}) AS a, duration({years: 12, months: 5, days: 14, hours: 16, minutes: 12, seconds: 70}) AS b, duration({days: 14, seconds: 70, milliseconds: 1}) AS c, duration({days: 14, seconds: 70, microseconds: 1}) AS d, duration({seconds: 1, nanoseconds: -1000}) AS e, duration({months: -1, days: 2}) AS f, duration({weeks: 2, days: 1}) AS g"
+  - id: duration_from_text
+    cypher: "RETURN duration('P14DT16H12M') AS a, duration('P12Y5M14DT16H12M70S') AS b, duration('PT1M10.001S') AS c, duration('-P1D') AS d, duration('P-1M2DT-3H') AS e, duration('PT-0.5S') AS f"
+  - id: duration_fields
+    cypher: "WITH duration({years: 1, months: 4, days: 10, hours: 1, minutes: 1, seconds: 1, nanoseconds: 111111000}) AS d RETURN d.years, d.quarters, d.months, d.weeks, d.days, d.hours, d.minutes, d.seconds, d.milliseconds, d.microseconds, d.nanoseconds, d.quartersOfYear, d.monthsOfQuarter, d.monthsOfYear, d.daysOfWeek, d.minutesOfHour, d.secondsOfMinute, d.millisecondsOfSecond, d.microsecondsOfSecond, d.nanosecondsOfSecond"
+  - id: duration_arithmetic
+    cypher: "WITH duration({months: 1, days: -14, hours: 16, minutes: -12, seconds: 70}) AS dur, date('1984-10-11') AS d, localdatetime('1984-10-11T12:31:14.645') AS ldt, localtime('12:31:14.645') AS t, datetime('1984-10-11T12:31:14.645+01:00') AS zd RETURN d + dur AS a, d - dur AS b, ldt + dur AS c, ldt - dur AS e, t + dur AS f, t - dur AS g, zd + dur AS h, zd - dur AS i, dur + dur AS j, dur - duration({days: 1}) AS k, dur * 2 AS l, 3 * dur AS m"
+  - id: duration_between
+    cypher: "WITH date('1984-10-11') AS d1, date('2015-06-24') AS d2, localdatetime('2016-07-21T21:45:22.142') AS ldt, localdatetime('2018-01-01T12:00') AS x, localdatetime('2018-01-02T10:00') AS y, localdatetime('2018-01-01T10:00:00.2') AS p, localdatetime('2018-01-02T10:00:00.1') AS q RETURN duration.between(d1, d2) AS a, duration.between(d1, ldt) AS b, duration.between(d2, d1) AS c, duration.between(x, y) AS e, duration.between(y, x) AS f, duration.between(p, q) AS g, duration.between(q, p) AS h, duration.inMonths(d1, d2) AS i, duration.inDays(d1, d2) AS j, duration.inSeconds(x, y) AS k, duration.between(localtime('14:30'), localtime('16:45')) AS l, duration.between(datetime('2017-10-28T23:00+02:00'), datetime('2017-10-29T04:00+01:00')) AS m"
+  - id: duration_equality
+    cypher: "WITH duration({years: 12, months: 5, days: 14, hours: 16, minutes: 12, seconds: 70}) AS x RETURN x = duration('P12Y5M14DT16H13M10S') AS a, x = duration({days: 1}) AS b, x = date('1984-10-11') AS c, x <> duration({days: 1}) AS d"
+  - id: duration_null_propagation
+    cypher: "RETURN duration(null) AS a, date('1984-10-11') + duration(null) AS b, duration(null) = duration({days: 1}) AS c"
+  - id: stored_dates_with_durations
+    graph: |
+      CREATE (:Val {name: 'a', d: date('1984-10-11')}),
+             (:Val {name: 'b', d: date('2015-06-24')})
+    cypher: "MATCH (v:Val) RETURN v.name AS name, v.d + duration({months: 1}) AS m, duration.between(v.d, date('2020-01-01')).months AS mo, duration.between(v.d, date('2020-01-01')) AS dur ORDER BY name"
+  - id: duration_fraction_refused_by_name
+    cypher: "RETURN duration({days: 1.5}) AS d"
+  - id: duration_of_a_date_is_neo4js_error
+    cypher: "RETURN duration(date('1984-10-11')) AS d"
+  - id: duration_unknown_field_is_neo4js_error
+    cypher: "RETURN duration({foo: 1}) AS d"
+  - id: duration_bad_text_is_neo4js_error
+    cypher: "RETURN duration('nope') AS d"
+  - id: duration_order_refused_by_name
+    cypher: "RETURN duration({days: 1}) < duration({days: 2}) AS lt"
+  - id: duration_to_string_refused_by_name
+    cypher: "RETURN toString(duration({days: 1})) AS s"
+  - id: duration_date_time_text_form_refused_by_name
+    cypher: "RETURN duration('P2012-02-02T14:37:21.545') AS d"
+  - id: duration_divided_refused_by_name
+    cypher: "RETURN duration({days: 3}) / 2 AS d"
   - id: time_refused_by_name
     cypher: "RETURN time('12:31:14+01:00') AS a"
   - id: datetime_from_components

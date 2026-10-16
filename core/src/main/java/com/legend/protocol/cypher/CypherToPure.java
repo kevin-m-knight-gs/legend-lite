@@ -1392,6 +1392,7 @@ public final class CypherToPure {
             case DATETIME -> "LocalDateTime";
             case TIME -> "LocalTime";
             case ZONED -> "DateTime";
+            case DURATION -> "Duration";
             case JSON -> "Map";
             case NULL -> "Null";
             case OTHER -> "Any";
@@ -1659,6 +1660,18 @@ public final class CypherToPure {
             return l.nullable() || r.nullable() ? SqlToPure.strictTest(List.of(l, r), v -> new CBoolean(false))
                     : constant(false);
         }
+        if (l.kind() == Kind.DURATION) {
+            // two durations are equal when their four components are (Neo4j's: months, days, seconds, nanoseconds)
+            return SqlToPure.strictTest(List.of(l, r), v -> {
+                ValueSpecification all = null;
+                for (String f : DURATION_SLOTS) {
+                    ValueSpecification one = call("equal", new AppliedProperty(v.get(0), f),
+                            new AppliedProperty(v.get(1), f));
+                    all = all == null ? one : call("and", all, one);
+                }
+                return java.util.Objects.requireNonNull(all);
+            });
+        }
         return SqlToPure.strictTest(List.of(l, r), v -> call("equal", v.get(0), v.get(1)));
     }
 
@@ -1685,6 +1698,9 @@ public final class CypherToPure {
         if (!comparable(l.kind(), r.kind())) {
             throw CypherErrors.unsupported("comparing a " + cypherType(l.kind()) + " with a " + cypherType(r.kind())
                     + " (null in Neo4j) is not supported yet", pos);
+        }
+        if (l.kind() == Kind.DURATION) {
+            throw CypherErrors.unsupported("ordering durations is not supported yet", pos);
         }
         SqlAst.BinaryOp sqlOp = switch (op) {
             case LT -> SqlAst.BinaryOp.LT;
@@ -1721,6 +1737,17 @@ public final class CypherToPure {
         }
         if (l.kind() == Kind.NULL && r.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.INTEGER);
+        }
+        if (l.kind() == Kind.DURATION || r.kind() == Kind.DURATION) {
+            return durationArithmetic(b, l, r);
+        }
+        if ((l.kind() == Kind.NULL || r.kind() == Kind.NULL) && (op == BinaryOp.PLUS || op == BinaryOp.MINUS)) {
+            // a temporal value and null: null, of the value's kind (a duration would be the other operand)
+            Tx other = l.kind() == Kind.NULL ? r : l;
+            if (other.kind() == Kind.DATE || other.kind() == Kind.DATETIME || other.kind() == Kind.TIME
+                    || other.kind() == Kind.ZONED) {
+                return SqlToPure.nullOf(other.kind());
+            }
         }
         numericOperand(l, b.left());
         numericOperand(r, b.right());
@@ -1769,8 +1796,10 @@ public final class CypherToPure {
         if (t.kind() == Kind.NULL) {
             return;
         }
-        if (t.kind() == Kind.DATE || t.kind() == Kind.DATETIME || t.kind() == Kind.TIME || t.kind() == Kind.ZONED) {
-            throw CypherErrors.unsupported("temporal arithmetic is not supported yet", e.pos());
+        if (t.kind() == Kind.DATE || t.kind() == Kind.DATETIME || t.kind() == Kind.TIME || t.kind() == Kind.ZONED
+                || t.kind() == Kind.DURATION) {
+            throw CypherErrors.unsupported("temporal arithmetic (" + cypherType(t.kind()) + ") is not supported yet",
+                    e.pos());
         }
         if (!t.kind().numeric()) {
             throw CypherErrors.invalid("Type mismatch: expected Float or Integer but was " + cypherType(t.kind()),
@@ -2123,8 +2152,8 @@ public final class CypherToPure {
                     Kind.STRING, List.of(t), x -> call("toString", x.get(0))));
             case DATETIME -> throw CypherErrors.unsupported("toString of a DateTime (Neo4j spells it as Java does,"
                     + " the database its own way) is not supported yet", c.pos());
-            case TIME, ZONED -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind()) + " (Neo4j"
-                    + " spells it as Java does, the database its own way) is not supported yet", c.pos());
+            case TIME, ZONED, DURATION -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind())
+                    + " (Neo4j spells it as Java does, the database its own way) is not supported yet", c.pos());
             default -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind()) + " is not supported"
                     + " yet", c.pos());
         };
@@ -2488,7 +2517,7 @@ public final class CypherToPure {
                         + " supported yet", pos);
             }
             if (s.tx().kind() == Kind.DATE || s.tx().kind() == Kind.DATETIME || s.tx().kind() == Kind.TIME
-                    || s.tx().kind() == Kind.ZONED) {
+                    || s.tx().kind() == Kind.ZONED || s.tx().kind() == Kind.DURATION) {
                 throw CypherErrors.unsupported("a list or map holding a " + cypherType(s.tx().kind()) + ", as a"
                         + " value, is not supported yet (the Variant spells it as text)", pos);
             }
@@ -2508,6 +2537,7 @@ public final class CypherToPure {
             case Scalar s when s.tx().kind() == Kind.DATE || s.tx().kind() == Kind.DATETIME
                     || s.tx().kind() == Kind.TIME || s.tx().kind() == Kind.ZONED ->
                     scalar(temporalField(s.tx(), name, pos));
+            case Scalar s when s.tx().kind() == Kind.DURATION -> scalar(durationField(s.tx(), name, pos));
             case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("a property of a value"
                     + " the database holds as a Variant is not supported yet", pos);
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point,"
@@ -2940,7 +2970,8 @@ public final class CypherToPure {
     /** What a temporal family's namespace names: the constructor, {@code truncate}, the clock reads. */
     private enum TemporalMember {
         CONSTRUCT(""), TRUNCATE("truncate"), REALTIME("realtime"), STATEMENT("statement"), TRANSACTION("transaction"),
-        FROM_EPOCH("fromepoch"), FROM_EPOCH_MILLIS("fromepochmillis");
+        FROM_EPOCH("fromepoch"), FROM_EPOCH_MILLIS("fromepochmillis"), BETWEEN("between"), IN_MONTHS("inmonths"),
+        IN_DAYS("indays"), IN_SECONDS("inseconds");
 
         final String cypher;
 
@@ -3201,6 +3232,538 @@ public final class CypherToPure {
         return z;
     }
 
+    // ------------------------------------------------------------------ durations (the study's §12.9)
+
+    /** A duration's four slots, Neo4j's model: months and days (calendar units, kept apart), seconds and
+     *  nanoseconds (the nanoseconds in {@code [0, 1e9)}, the seconds floored). */
+    private static final List<String> DURATION_SLOTS = List.of("months", "days", "seconds", "nanoseconds");
+
+    private static final long NANOS = 1_000_000_000L;
+
+    /** The model's Duration class: the one class named {@code Duration} declaring the four slots as Integer[1] (a
+     *  PROGRAM of the model's, not a platform type: the island carries a duration as an instance of it, the
+     *  database's struct); refused by name when the model has none. */
+    private String durationClass(Pos pos) {
+        // (the platform's own meta::pure::functions::date::Duration, one number and one unit, shares the simple
+        // name: the four slots tell the model's class apart)
+        List<String> classes = new ArrayList<>();
+        for (String cls : model.classesOf("Duration")) {
+            boolean slots = true;
+            for (String slot : DURATION_SLOTS) {
+                Property p = property(cls, slot);
+                if (p == null || !p.type().equals("Integer") || p.many() || p.optional()) {
+                    slots = false;
+                }
+            }
+            if (slots) {
+                classes.add(cls);
+            }
+        }
+        String declaration = "Class graph::Duration { months: Integer[1]; days: Integer[1]; seconds: Integer[1];"
+                + " nanoseconds: Integer[1]; }";
+        if (classes.size() != 1) {
+            throw CypherErrors.unsupported("a duration needs one class named Duration in the model, with months,"
+                    + " days, seconds and nanoseconds as Integer[1] (the island carries a duration as an instance"
+                    + " of it; declare `" + declaration + "`): the model has " + (classes.isEmpty() ? "none"
+                    : classes.size() + " (" + classes + ")"), pos);
+        }
+        return classes.get(0);
+    }
+
+    /** An instance of the Duration class from its four slots (each an Integer the database computes). */
+    private ValueSpecification duration(String cls, ValueSpecification months, ValueSpecification days,
+            ValueSpecification seconds, ValueSpecification nanos) {
+        List<com.legend.protocol.spec.NewInstance.KeyBinding> bindings = new ArrayList<>();
+        ValueSpecification[] values = {months, days, seconds, nanos};
+        for (int i = 0; i < DURATION_SLOTS.size(); i++) {
+            bindings.add(new com.legend.protocol.spec.NewInstance.KeyBinding(DURATION_SLOTS.get(i),
+                    new com.legend.protocol.spec.KeyExpression(integer(values[i]), false, false)));
+        }
+        return new com.legend.protocol.spec.NewInstance(cls, List.of(), bindings);
+    }
+
+    /** A slot read, cast to Pure's Integer (the database's BIGINT: a struct built of literals holds 32-bit fields on
+     *  DuckDB, and 3661 seconds times a billion overflowed them, measured). */
+    private static ValueSpecification slot(ValueSpecification d, String name) {
+        return call("cast", new AppliedProperty(d, name), SqlToPure.typeArg("Integer"));
+    }
+
+    private static ValueSpecification lit(long n) {
+        return new CInteger(n);
+    }
+
+    private static ValueSpecification plus(ValueSpecification... terms) {
+        List<ValueSpecification> list = new ArrayList<>();
+        for (ValueSpecification t : terms) {
+            if (!(t instanceof CInteger c && c.value().longValue() == 0)) {
+                list.add(t);
+            }
+        }
+        return list.isEmpty() ? lit(0) : list.size() == 1 ? list.get(0) : AppliedFunction.infixRun("plus", list);
+    }
+
+    private static ValueSpecification times(long k, ValueSpecification x) {
+        return x instanceof CInteger c && c.value().longValue() == 0 ? lit(0)
+                : k == 1 ? x : AppliedFunction.infixRun("times", List.of(lit(k), x));
+    }
+
+    private static ValueSpecification minus(ValueSpecification a, ValueSpecification b) {
+        return AppliedFunction.infixRun("minus", List.of(a, b));
+    }
+
+    /** The whole seconds of a nanosecond count, floored (Neo4j keeps the nanoseconds in {@code [0, 1e9)}). */
+    private static ValueSpecification wholeSeconds(ValueSpecification nanos) {
+        return call("floor", call("divide", nanos, lit(NANOS)));
+    }
+
+    /** A duration from its raw seconds and nanoseconds: the nanoseconds carried into the seconds, floored. */
+    private ValueSpecification normalized(String cls, ValueSpecification months, ValueSpecification days,
+            ValueSpecification seconds, ValueSpecification nanos) {
+        if (nanos instanceof CInteger c && c.value().longValue() >= 0 && c.value().longValue() < NANOS) {
+            return duration(cls, months, days, seconds, nanos);
+        }
+        ValueSpecification carry = wholeSeconds(nanos);
+        return duration(cls, months, days, plus(seconds, carry), minus(nanos, times(NANOS, carry)));
+    }
+
+    /** {@code duration(x)}: from a map of components, a text, or another duration. */
+    private Val durationFrom(CypherAst.Call c, Scope scope) {
+        if (c.args().size() != 1) {
+            throw CypherErrors.invalid((c.args().isEmpty() ? "Insufficient" : "Too many") + " parameters for"
+                    + " function '" + c.name() + "'", c.pos());
+        }
+        Val a = val(c.args().get(0), scope);
+        return switch (a) {
+            case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            case Scalar s when s.tx().kind() == Kind.STRING -> durationFromText(c, s);
+            case Scalar s when s.tx().kind() == Kind.DURATION -> a;
+            case Scalar s when s.tx().kind() == Kind.DATE || s.tx().kind() == Kind.DATETIME
+                    || s.tx().kind() == Kind.TIME || s.tx().kind() == Kind.ZONED -> {
+                // Neo4j's error names the value: spelled for a written one, refused by name for one of the row
+                String printed = printed(s.tx());
+                if (printed == null) {
+                    throw CypherErrors.unsupported("a duration of a " + cypherType(s.tx().kind()) + " of the row"
+                            + " (Neo4j's error names the value) is not supported yet", c.pos());
+                }
+                throw CypherErrors.invalid("Invalid call signature for DurationFunction: Provided input was ["
+                        + printed + ", String(\"DEFAULT_TEMPORAL_ARGUMENT\")]", c.pos());
+            }
+            case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, String or Duration but was "
+                    + cypherType(s.tx().kind()), c.pos());
+            case MapVal m -> durationFromComponents(c, m);
+            default -> throw CypherErrors.invalid("Type mismatch: expected Map, String or Duration but was List<T>",
+                    c.pos());
+        };
+    }
+
+    /** A component of a duration map, by its Cypher key in lower case. */
+    private enum DurationUnit {
+        YEARS("years", 12, 0), MONTHS("months", 1, 0), WEEKS("weeks", 7, 1),
+        DAYS("days", 1, 1), HOURS("hours", 3600, 2), MINUTES("minutes", 60, 2), SECONDS("seconds", 1, 2),
+        MILLISECONDS("milliseconds", 1_000_000, 3), MICROSECONDS("microseconds", 1_000, 3),
+        NANOSECONDS("nanoseconds", 1, 3);
+
+        final String cypher;
+        /** How many of the slot one of this unit is. */
+        final long factor;
+        /** The slot (0 months, 1 days, 2 seconds, 3 nanoseconds). */
+        final int slot;
+
+        DurationUnit(String cypher, long factor, int slot) {
+            this.cypher = cypher;
+            this.factor = factor;
+            this.slot = slot;
+        }
+    }
+
+    private static final Map<String, DurationUnit> DURATION_UNITS = byName(DurationUnit.values(), u -> u.cypher);
+
+    /** {@code duration({years: .., days: .., ...})}: each component a whole number (a fractional one is refused
+     *  by name: Neo4j carries its fraction down the units), the slots their sums, the database's. */
+    private Val durationFromComponents(CypherAst.Call c, MapVal m) {
+        String cls = durationClass(c.pos());
+        Map<DurationUnit, Tx> parts = new java.util.EnumMap<>(DurationUnit.class);
+        for (Map.Entry<String, Val> e : m.entries().entrySet()) {
+            DurationUnit u = DURATION_UNITS.get(e.getKey().toLowerCase(Locale.ROOT));
+            if (u == null) {
+                throw CypherErrors.invalid("Unknown field: " + e.getKey(), c.pos());
+            }
+            if (!(e.getValue() instanceof Scalar s)) {
+                throw CypherErrors.invalid("Type mismatch: the component " + e.getKey() + " must be a number",
+                        c.pos());
+            }
+            Tx t = s.tx();
+            if (t.kind() == Kind.NULL) {
+                return nullValue();
+            }
+            if (t.kind() != Kind.INTEGER) {
+                if (t.kind().numeric()) {
+                    throw CypherErrors.unsupported("a fractional duration component (" + e.getKey() + ": Neo4j"
+                            + " carries the fraction down the units) is not supported yet", c.pos());
+                }
+                throw CypherErrors.invalid("Type mismatch: " + e.getKey() + " must be a number but was "
+                        + cypherType(t.kind()), c.pos());
+            }
+            parts.put(u, t);
+        }
+        List<Tx> inputs = new ArrayList<>(parts.values());
+        List<DurationUnit> keys = new ArrayList<>(parts.keySet());
+        return scalar(SqlToPure.strict(Kind.DURATION, inputs, v -> {
+            ValueSpecification[] slots = {lit(0), lit(0), lit(0), lit(0)};
+            for (int i = 0; i < keys.size(); i++) {
+                DurationUnit u = keys.get(i);
+                slots[u.slot] = plus(slots[u.slot], times(u.factor, v.get(i)));
+            }
+            return normalized(cls, slots[0], slots[1], slots[2], slots[3]);
+        }));
+    }
+
+    /** {@code duration('P1Y2M3DT4H5M6.007S')}: the unit form, each number whole but the seconds, which may carry a
+     *  fraction (to nine digits); the date-time form ({@code P2012-02-02T14:37:21}), fractions on other units and
+     *  a text of the row are refused by name. */
+    private Val durationFromText(CypherAst.Call c, Scalar s) {
+        if (!s.literal()) {
+            throw CypherErrors.unsupported("a duration text of the row is not supported yet", c.pos());
+        }
+        String text = (String) java.util.Objects.requireNonNull(s.constant());
+        String cls = durationClass(c.pos());
+        boolean negated = text.startsWith("-");
+        String body = negated ? text.substring(1) : text.startsWith("+") ? text.substring(1) : text;
+        if (!body.startsWith("P") && !body.startsWith("p")) {
+            throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
+        }
+        long[] slots = new long[4];
+        int i = 1;
+        boolean time = false;
+        boolean any = false;
+        while (i < body.length()) {
+            char ch = body.charAt(i);
+            if (ch == 'T' || ch == 't') {
+                if (time) {
+                    throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
+                }
+                time = true;
+                i++;
+                continue;
+            }
+            int start = i;
+            if (ch == '-' || ch == '+') {
+                i++;
+            }
+            while (i < body.length() && body.charAt(i) >= '0' && body.charAt(i) <= '9') {
+                i++;
+            }
+            String whole = body.substring(start, i);
+            String fraction = "";
+            if (i < body.length() && (body.charAt(i) == '.' || body.charAt(i) == ',')) {
+                int f = i + 1;
+                while (f < body.length() && body.charAt(f) >= '0' && body.charAt(f) <= '9') {
+                    f++;
+                }
+                fraction = body.substring(i + 1, f);
+                i = f;
+            }
+            if (i < body.length() && (body.charAt(i) == '-' && !whole.isEmpty() || body.charAt(i) == ':')) {
+                throw CypherErrors.unsupported("a duration text in the date-time form (" + text + ") is not"
+                        + " supported yet", c.pos());
+            }
+            if (i >= body.length() || whole.isEmpty() || whole.equals("-") || whole.equals("+")) {
+                throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
+            }
+            char unit = Character.toUpperCase(body.charAt(i++));
+            long n = Long.parseLong(whole.startsWith("+") ? whole.substring(1) : whole);
+            if (!fraction.isEmpty() && !(time && unit == 'S')) {
+                throw CypherErrors.unsupported("a fractional duration component (" + text + ": Neo4j carries the"
+                        + " fraction down the units) is not supported yet", c.pos());
+            }
+            any = true;
+            switch (unit) {
+                case 'Y' -> slots[0] += 12 * n;
+                case 'M' -> {
+                    if (time) {
+                        slots[2] += 60 * n;
+                    } else {
+                        slots[0] += n;
+                    }
+                }
+                case 'W' -> slots[1] += 7 * n;
+                case 'D' -> slots[1] += n;
+                case 'H' -> slots[2] += 3600 * n;
+                case 'S' -> {
+                    slots[2] += n;
+                    if (!fraction.isEmpty()) {
+                        if (fraction.length() > 9) {
+                            throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
+                        }
+                        long nanos = Long.parseLong((fraction + "000000000").substring(0, 9));
+                        slots[3] += whole.startsWith("-") ? -nanos : nanos;
+                    }
+                }
+                default -> throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
+            }
+            if (time && (unit == 'Y' || unit == 'W' || unit == 'D') || !time && (unit == 'H' || unit == 'S')) {
+                throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
+            }
+        }
+        if (!any) {
+            throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
+        }
+        if (negated) {
+            for (int k = 0; k < 4; k++) {
+                slots[k] = -slots[k];
+            }
+        }
+        // the text's numbers, read as written (a sign, digits): the sums above are the reading of a literal, as a
+        // date's year is; the normalisation of the nanoseconds is the database's
+        return scalar(Tx.value(normalized(cls, lit(slots[0]), lit(slots[1]), lit(slots[2]), lit(slots[3])),
+                Kind.DURATION, false));
+    }
+
+    /** A field of a duration ({@code d.minutesOfHour}), by its Cypher name (case-sensitive, as properties are). */
+    private enum DurationField {
+        YEARS("years"), QUARTERS("quarters"), MONTHS("months"), WEEKS("weeks"), DAYS("days"), HOURS("hours"),
+        MINUTES("minutes"), SECONDS("seconds"), MILLISECONDS("milliseconds"), MICROSECONDS("microseconds"),
+        NANOSECONDS("nanoseconds"), QUARTERS_OF_YEAR("quartersOfYear"), MONTHS_OF_QUARTER("monthsOfQuarter"),
+        MONTHS_OF_YEAR("monthsOfYear"), DAYS_OF_WEEK("daysOfWeek"), MINUTES_OF_HOUR("minutesOfHour"),
+        SECONDS_OF_MINUTE("secondsOfMinute"), MILLISECONDS_OF_SECOND("millisecondsOfSecond"),
+        MICROSECONDS_OF_SECOND("microsecondsOfSecond"), NANOSECONDS_OF_SECOND("nanosecondsOfSecond");
+
+        final String cypher;
+
+        DurationField(String cypher) {
+            this.cypher = cypher;
+        }
+    }
+
+    private static final Map<String, DurationField> DURATION_FIELDS = byName(DurationField.values(), f -> f.cypher);
+
+    /** A duration's fields, Neo4j's: the whole units of a slot ({@code years} is the months by twelve, truncated;
+     *  {@code nanoseconds} the seconds and nanoseconds together) and the remainders within the next unit
+     *  ({@code minutesOfHour}), each the database's arithmetic over the slots. */
+    private Tx durationField(Tx t, String name, Pos pos) {
+        DurationField field = DURATION_FIELDS.get(name);
+        if (field == null) {
+            throw CypherErrors.invalid("No such field: " + name, pos);
+        }
+        return field(t, d -> {
+            ValueSpecification months = slot(d, "months");
+            ValueSpecification days = slot(d, "days");
+            ValueSpecification seconds = slot(d, "seconds");
+            ValueSpecification nanos = slot(d, "nanoseconds");
+            return switch (field) {
+                case YEARS -> SqlToPure.integerQuotient(months, lit(12));
+                case QUARTERS -> SqlToPure.integerQuotient(months, lit(3));
+                case MONTHS -> months;
+                case WEEKS -> SqlToPure.integerQuotient(days, lit(7));
+                case DAYS -> days;
+                case HOURS -> SqlToPure.integerQuotient(seconds, lit(3600));
+                case MINUTES -> SqlToPure.integerQuotient(seconds, lit(60));
+                case SECONDS -> seconds;
+                case MILLISECONDS -> integer(plus(times(1000, seconds), SqlToPure.integerQuotient(nanos,
+                        lit(1_000_000))));
+                case MICROSECONDS -> integer(plus(times(1_000_000, seconds), SqlToPure.integerQuotient(nanos,
+                        lit(1000))));
+                case NANOSECONDS -> integer(plus(times(NANOS, seconds), nanos));
+                case QUARTERS_OF_YEAR -> call("rem", SqlToPure.integerQuotient(months, lit(3)), lit(4));
+                case MONTHS_OF_QUARTER -> call("rem", months, lit(3));
+                case MONTHS_OF_YEAR -> call("rem", months, lit(12));
+                case DAYS_OF_WEEK -> call("rem", days, lit(7));
+                case MINUTES_OF_HOUR -> call("rem", SqlToPure.integerQuotient(seconds, lit(60)), lit(60));
+                case SECONDS_OF_MINUTE -> call("rem", seconds, lit(60));
+                case MILLISECONDS_OF_SECOND -> SqlToPure.integerQuotient(nanos, lit(1_000_000));
+                case MICROSECONDS_OF_SECOND -> SqlToPure.integerQuotient(nanos, lit(1000));
+                case NANOSECONDS_OF_SECOND -> nanos;
+            };
+        });
+    }
+
+    /** {@code temporal + duration}, {@code temporal - duration}, {@code duration + duration}, {@code duration -
+     *  duration}, {@code duration * integer}: the database's. A date takes the months and days (the seconds are
+     *  not a date's), a time of day the seconds (it wraps at midnight), a date-time all four (months, then days,
+     *  then seconds, as Neo4j adds them), a zoned date-time the months and days on its wall time and the seconds on
+     *  its instant. */
+    private Tx durationArithmetic(CypherAst.Binary b, Tx l, Tx r) {
+        BinaryOp op = b.op();
+        if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
+            return Tx.value(SqlToPure.empty(), Kind.DURATION, true);
+        }
+        String cls = durationClass(b.pos());
+        if (l.kind() == Kind.DURATION && r.kind() == Kind.DURATION) {
+            if (op != BinaryOp.PLUS && op != BinaryOp.MINUS) {
+                throw CypherErrors.invalid("Type mismatch: a duration can be added to or subtracted from a"
+                        + " duration, not " + op, b.pos());
+            }
+            boolean subtract = op == BinaryOp.MINUS;
+            return SqlToPure.strict(Kind.DURATION, List.of(l, r), v -> {
+                ValueSpecification[] s = new ValueSpecification[4];
+                for (int i = 0; i < 4; i++) {
+                    ValueSpecification x = slot(v.get(0), DURATION_SLOTS.get(i));
+                    ValueSpecification y = slot(v.get(1), DURATION_SLOTS.get(i));
+                    s[i] = subtract ? minus(x, y) : plus(x, y);
+                }
+                return normalized(cls, s[0], s[1], s[2], s[3]);
+            });
+        }
+        if (op == BinaryOp.TIMES && (l.kind() == Kind.INTEGER || r.kind() == Kind.INTEGER)) {
+            Tx d = l.kind() == Kind.DURATION ? l : r;
+            Tx k = l.kind() == Kind.DURATION ? r : l;
+            return SqlToPure.strict(Kind.DURATION, List.of(d, k), v -> {
+                ValueSpecification[] s = new ValueSpecification[4];
+                for (int i = 0; i < 4; i++) {
+                    s[i] = AppliedFunction.infixRun("times", List.of(slot(v.get(0), DURATION_SLOTS.get(i)),
+                            v.get(1)));
+                }
+                return normalized(cls, s[0], s[1], s[2], s[3]);
+            });
+        }
+        if (op == BinaryOp.TIMES || op == BinaryOp.DIVIDE) {
+            throw CypherErrors.unsupported("a duration " + (op == BinaryOp.TIMES ? "multiplied" : "divided")
+                    + " by a " + cypherType(l.kind() == Kind.DURATION ? r.kind() : l.kind()) + " (Neo4j carries"
+                    + " the fractions down the units) is not supported yet", b.pos());
+        }
+        if (op != BinaryOp.PLUS && op != BinaryOp.MINUS || op == BinaryOp.MINUS && l.kind() == Kind.DURATION) {
+            throw CypherErrors.invalid("Type mismatch: a duration can be added to a temporal value, or subtracted"
+                    + " from one", b.pos());
+        }
+        Tx temporal = l.kind() == Kind.DURATION ? r : l;
+        Tx d = l.kind() == Kind.DURATION ? l : r;
+        boolean subtract = op == BinaryOp.MINUS;
+        Kind kind = temporal.kind();
+        if (kind != Kind.DATE && kind != Kind.DATETIME && kind != Kind.TIME && kind != Kind.ZONED) {
+            throw CypherErrors.invalid("Type mismatch: a duration can be added to a temporal value, not a "
+                    + cypherType(kind), b.pos());
+        }
+        Zone zone = kind == Kind.ZONED ? zoneKnown(temporal, b.pos()) : null;
+        Tx out = SqlToPure.strict(kind == Kind.ZONED ? Kind.DATETIME : kind, List.of(temporal, d), v -> {
+            ValueSpecification x = v.get(0);
+            ValueSpecification dur = v.get(1);
+            ValueSpecification months = slot(dur, "months");
+            ValueSpecification days = slot(dur, "days");
+            ValueSpecification seconds = slot(dur, "seconds");
+            ValueSpecification micros = SqlToPure.integerQuotient(slot(dur, "nanoseconds"), lit(1000));
+            if (subtract) {
+                months = minus(lit(0), months);
+                days = minus(lit(0), days);
+                seconds = minus(lit(0), seconds);
+                micros = minus(lit(0), micros);
+            }
+            return switch (kind) {
+                case DATE -> day(call("adjust", call("adjust", x, integer(months), unit("MONTHS")), integer(days),
+                        unit("DAYS")));
+                case TIME -> call(TIME_OF, call("adjust", call("adjust", atEpoch(x), integer(seconds),
+                        unit("SECONDS")), integer(micros), unit("MICROSECONDS")));
+                case ZONED -> {
+                    Zone z = java.util.Objects.requireNonNull(zone);
+                    ValueSpecification wall = z.named() ? call(LOCAL_IN, x, new CString(
+                            java.util.Objects.requireNonNull(z.name()))) : shifted(x, z, 1);
+                    ValueSpecification moved = call("adjust", call("adjust", wall, integer(months), unit("MONTHS")),
+                            integer(days), unit("DAYS"));
+                    ValueSpecification instant = z.named() ? call(INSTANT_IN, moved, new CString(
+                            java.util.Objects.requireNonNull(z.name()))) : shifted(moved, z, -1);
+                    yield call("adjust", call("adjust", instant, integer(seconds), unit("SECONDS")),
+                            integer(micros), unit("MICROSECONDS"));
+                }
+                default -> call("adjust", call("adjust", call("adjust", call("adjust", x, integer(months),
+                        unit("MONTHS")), integer(days), unit("DAYS")), integer(seconds), unit("SECONDS")),
+                        integer(micros), unit("MICROSECONDS"));
+            };
+        });
+        return kind == Kind.ZONED ? zoned(out, java.util.Objects.requireNonNull(zone)) : out;
+    }
+
+    /** {@code duration.between(a, b)}, {@code inMonths}, {@code inDays}, {@code inSeconds}: Neo4j's split, the
+     *  database's — the whole months from a to b (the calendar count, one back when the month's end overshoots),
+     *  then the whole days from there, then the seconds and the nanoseconds of the rest; {@code inMonths} stops at
+     *  the months, {@code inDays} counts whole days only, {@code inSeconds} seconds only. Two dates or date-times
+     *  (a date at midnight; a zoned date-time its instant), or two times of day. */
+    private Val between(CypherAst.Call c, TemporalMember member, Scope scope) {
+        if (c.args().size() != 2) {
+            throw CypherErrors.invalid((c.args().size() < 2 ? "Insufficient" : "Too many") + " parameters for"
+                    + " function '" + c.name() + "'", c.pos());
+        }
+        String cls = durationClass(c.pos());
+        Val a = val(c.args().get(0), scope);
+        Val b = val(c.args().get(1), scope);
+        if (isNull(a) || isNull(b)) {
+            return nullValue();
+        }
+        if (!(a instanceof Scalar sa) || !(b instanceof Scalar sb)) {
+            throw CypherErrors.invalid("Type mismatch: expected temporal values", c.pos());
+        }
+        Tx x = sa.tx();
+        Tx y = sb.tx();
+        boolean dates = isDateLike(x.kind()) && isDateLike(y.kind());
+        boolean times = x.kind() == Kind.TIME && y.kind() == Kind.TIME;
+        if (!dates && !times) {
+            throw CypherErrors.unsupported("duration.between of a " + cypherType(x.kind()) + " and a "
+                    + cypherType(y.kind()) + " is not supported yet", c.pos());
+        }
+        if (times) {
+            x = atEpoch(x);
+            y = atEpoch(y);
+        }
+        // Neo4j's reading of a zoned and a local value: the local one (a date at its midnight) in the zoned one's
+        // zone, then the instants (the TCK's Temporal10 [8]: a Stockholm midnight and a local 04:00 on the day
+        // summer time ends are five hours apart); two zoned values are their instants, two local their wall times
+        Zone zx = x.kind() == Kind.ZONED ? zoneKnown(x, c.pos()) : null;
+        Zone zy = y.kind() == Kind.ZONED ? zoneKnown(y, c.pos()) : null;
+        if (zx != null && zy == null) {
+            y = instantOf(asDateTime(y), zx);
+        } else if (zy != null && zx == null) {
+            x = instantOf(asDateTime(x), zy);
+        }
+        return scalar(SqlToPure.strict(Kind.DURATION, List.of(x, y), v -> {
+            ValueSpecification from = v.get(0);
+            ValueSpecification to = v.get(1);
+            ValueSpecification months = lit(0);
+            if (member == TemporalMember.BETWEEN || member == TemporalMember.IN_MONTHS) {
+                months = wholeUnits(from, to, "MONTHS");
+                from = call("adjust", from, integer(months), unit("MONTHS"));
+            }
+            if (member == TemporalMember.IN_MONTHS) {
+                return duration(cls, months, lit(0), lit(0), lit(0));
+            }
+            ValueSpecification days = lit(0);
+            if (member == TemporalMember.BETWEEN || member == TemporalMember.IN_DAYS) {
+                days = wholeUnits(from, to, "DAYS");
+                from = call("adjust", from, integer(days), unit("DAYS"));
+            }
+            if (member == TemporalMember.IN_DAYS) {
+                return duration(cls, lit(0), days, lit(0), lit(0));
+            }
+            ValueSpecification micros = call("dateDiff", from, to, unit("MICROSECONDS"));
+            ValueSpecification seconds = call("floor", call("divide", micros, lit(1_000_000)));
+            ValueSpecification nanos = times(1000, minus(micros, times(1_000_000, seconds)));
+            return duration(cls, months, days, seconds, nanos);
+        }));
+    }
+
+    private static boolean isDateLike(Kind k) {
+        return k == Kind.DATE || k == Kind.DATETIME || k == Kind.ZONED;
+    }
+
+    /** A date as the date-time at its midnight; a date-time as it is. */
+    private static Tx asDateTime(Tx t) {
+        if (t.kind() != Kind.DATE) {
+            return t;
+        }
+        return SqlToPure.strict(Kind.DATETIME, List.of(t), v -> call(AT_TIME, v.get(0),
+                new com.legend.protocol.spec.CTime(new com.legend.values.PureTimeLiteral.TimeWithMinute(0, 0),
+                        "00:00", null)));
+    }
+
+    /** The whole units of {@code unit} from {@code from} to {@code to}: the calendar count, one back when stepping
+     *  it from {@code from} overshoots {@code to} (forward), one on when it undershoots (backward). */
+    private static ValueSpecification wholeUnits(ValueSpecification from, ValueSpecification to, String unitName) {
+        ValueSpecification count = call("dateDiff", from, to, unit(unitName));
+        ValueSpecification stepped = call("adjust", from, integer(count), unit(unitName));
+        ValueSpecification forward = call("if", call("greaterThan", stepped, to), thunk(minus(count, lit(1))),
+                thunk(count));
+        ValueSpecification backward = call("if", call("lessThan", stepped, to), thunk(plus(count, lit(1))),
+                thunk(count));
+        return call("if", call("greaterThanEqual", to, from), thunk(forward), thunk(backward));
+    }
+
     private static ValueSpecification epochInstant() {
         return new com.legend.protocol.spec.CDate(new com.legend.values.PureDateLiteral.DateWithSecond(1970, 1, 1,
                 0, 0, 0), "1970-01-01T00:00:00", null);
@@ -3223,15 +3786,20 @@ public final class CypherToPure {
         switch (family) {
             case TIME -> throw CypherErrors.unsupported("the function " + c.name()
                     + "(...) (a zoned time of day) is not supported yet", c.pos());
-            case DURATION -> throw CypherErrors.unsupported("the function " + c.name() + "(...) (a duration: no"
-                    + " Pure type carries it) is not supported yet", c.pos());
-            case DATE, LOCALDATETIME, LOCALTIME, DATETIME -> {
+            case DATE, LOCALDATETIME, LOCALTIME, DATETIME, DURATION -> {
             }
         }
         boolean withTime = family == TemporalFamily.LOCALDATETIME;
         TemporalMember member = TEMPORAL_MEMBERS.get(suffix);
         if (member == null) {
             throw CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos());
+        }
+        if (family == TemporalFamily.DURATION) {
+            return switch (member) {
+                case CONSTRUCT -> durationFrom(c, scope);
+                case BETWEEN, IN_MONTHS, IN_DAYS, IN_SECONDS -> between(c, member, scope);
+                default -> throw CypherErrors.invalid("Unknown function '" + c.name() + "'", c.pos());
+            };
         }
         return switch (member) {
             case CONSTRUCT -> switch (family) {
@@ -3240,6 +3808,8 @@ public final class CypherToPure {
                 default -> temporalFrom(c, withTime, scope);
             };
             case TRUNCATE -> truncate(c, family, scope);
+            case BETWEEN, IN_MONTHS, IN_DAYS, IN_SECONDS -> throw CypherErrors.invalid("Unknown function '"
+                    + c.name() + "'", c.pos());
             case FROM_EPOCH, FROM_EPOCH_MILLIS -> {
                 if (family != TemporalFamily.DATETIME) {
                     throw CypherErrors.invalid("Unknown function '" + c.name() + "'", c.pos());
@@ -4334,7 +4904,7 @@ public final class CypherToPure {
             case DATETIME, ZONED -> "DateTime";
             case TIME -> "StrictTime";
             case JSON -> "meta::pure::metamodel::variant::Variant";
-            case OTHER -> throw new IllegalStateException("no type for " + kind);
+            case DURATION, OTHER -> throw new IllegalStateException("no type for " + kind);
         };
         return call("cast", SqlToPure.empty(), SqlToPure.typeArg(type));
     }

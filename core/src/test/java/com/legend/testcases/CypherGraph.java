@@ -226,8 +226,11 @@ public final class CypherGraph {
             }
             associations.append("}\n");
         }
-        // the classes, the tables and the mapping
+        // the classes, the tables and the mapping; the Duration class the island carries a duration as (the study's
+        // §12.9: a class of the model, not a platform type)
         StringBuilder pure = new StringBuilder("###Pure\n");
+        pure.append("Class g::Duration\n{\n    months: Integer[1];\n    days: Integer[1];\n    seconds: Integer[1];\n"
+                + "    nanoseconds: Integer[1];\n}\n");
         StringBuilder tablesDdl = new StringBuilder();
         StringBuilder mapping = new StringBuilder();
         List<SqlParity.Table> tables = new ArrayList<>();

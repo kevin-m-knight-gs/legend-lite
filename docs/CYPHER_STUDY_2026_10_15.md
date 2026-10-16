@@ -1907,3 +1907,80 @@ Zoned times of day (`time`: the same carriage, a time of day and its zone; not b
 arithmetic (the third leg); `toString` of a zoned value; nanosecond precision; a zoned value stored (no zoned store
 column: the harness refuses the graph); the fields of a zoned value whose zone the translator does not carry.
 
+### 12.9 The duration leg, 2026-10-16: a class of the model, not a platform type
+
+The third of the user's three, and the user's question with it: "can this duration concept be a user class that has
+a slot for each duration unit, does it need built into platform?"
+
+#### 12.9.1 The answer: a user class, nothing in the platform
+
+**Yes, and nothing new in the platform.** A Cypher duration is Neo4j's four-slot value — months, days, seconds,
+nanoseconds (years are twelve months, weeks seven days, hours and minutes seconds; the nanoseconds kept in
+{@code [0, 1e9)} with the seconds floored) — and the island carries one as an instance of a class **the model
+declares**:
+
+```
+Class graph::Duration
+{
+    months: Integer[1];
+    days: Integer[1];
+    seconds: Integer[1];
+    nanoseconds: Integer[1];
+}
+```
+
+The translator finds it as the model's one class named `Duration` with those four `Integer[1]` slots (any package;
+refused by name with the declaration to add when the model has none). This is the world-map tenet's PROGRAM
+case: the class is model text, typed constants at build time; the platform ships no `Duration` primitive and no
+native for it. What the platform already gives is all a duration needs: the instance literal
+`^Duration(months=…, days=…, seconds=…, nanoseconds=…)` lowers to the database's struct (DuckDB's STRUCT,
+Postgres's `jsonb_build_object`), a slot reads as a struct field, `adjust` adds a slot to a temporal value and
+`dateDiff` measures one, and every value is the database's arithmetic over the slots: the translator spells `12 *
+years + months`, never computes it. (Pure's own `meta::pure::functions::date::Duration` — one number and one
+`DurationUnit`, the argument of `add(date, duration)` — is a single-unit shape and stays what it is.)
+
+What a platform type would have bought: a `toString` in Neo4j's `P1Y2M3DT4H5M6.007S` spelling (refused by name
+here: the database would have to build the text), ordering (Neo4j answers null, refused by name) and a stored
+duration (a struct column: no store grammar for one, as for a time of day). None of those needs the type to be
+the platform's; each is a lowering or a grammar decision for later.
+
+#### 12.9.2 What lands
+
+`duration({years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds})`
+(each a whole number; a fractional component — Neo4j carries the fraction down the units — is refused by name),
+`duration('P1Y2M3DT4H5M6.007S')` in the unit form with signs and a fraction on the seconds (the date-time form
+`P2012-02-02T14:37:21` refused by name; a text of the row refused by name), `duration(duration)`; the twenty
+fields (`years` to `nanoseconds`, the whole units of a slot, `nanoseconds` the seconds and nanoseconds together;
+`quartersOfYear` to `nanosecondsOfSecond`, the remainders within the next unit), each the database's integer
+quotient and remainder; `temporal + duration` and `temporal - duration` (a date takes the months and days, a time
+of day the seconds and wraps, a local date-time all four in Neo4j's order, a zoned date-time the months and days
+on its wall time and the seconds on its instant), `duration ± duration`, `duration * integer` (a division is
+refused by name: fractions again); `duration.between(a, b)`, `inMonths`, `inDays`, `inSeconds` — Neo4j's split as
+the database's: the whole months (the calendar count, one back when stepping it overshoots, one on when it
+undershoots), the whole days from there, the seconds and nanoseconds of the rest, over two dates or date-times
+(a date at midnight, a zoned date-time its instant) or two times of day; equality by the four slots; null
+propagation. Neo4j's errors as it spells them ("Unknown field: quarters", "Text cannot be parsed to a Duration",
+"Invalid call signature for DurationFunction: Provided input was [1984-10-11, String(\"DEFAULT_TEMPORAL_ARGUMENT\")]").
+
+**The judge.** Neo4j's driver spells a duration `Duration('P30Y8M13D')`; lite's cell is the instance, a map of
+its four slots (DuckDB's struct as the executor's field map, Postgres's jsonb object). The judge sums the text's
+units into the slots and compares (`CypherValues.sameDuration`, `docs/SEMANTICS_REGISTER.md` S67); the parity
+harness declares `g::Duration` in every inferred model.
+
+#### 12.9.3 The ledger
+
+Both lanes, identical:
+
+| | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| before (the zoned date-time leg) | 3,998 | 1,401 | 0 | 0 | 0 | 1,592 | 687 | 318 |
+| the duration leg | 4,014 | 1,488 | 0 | 0 | 0 | 1,517 | 690 | 318 |
+
+Of the TCK's temporal features (1,004 cases): 402 PASS, 552 REFUSED by name, 50 SKIP. 70 lite
+cases in `lite/temporal.yaml`, each judged by Neo4j.
+
+#### 12.9.4 Left by name
+
+`toString` of a duration; fractional components and division; the date-time text form; `duration.between` of a
+date and a time of day (Neo4j's reading of the mix); zoned times of day; a stored duration; nanosecond precision.
+

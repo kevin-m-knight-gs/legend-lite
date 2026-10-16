@@ -153,6 +153,16 @@ class CypherToPureTest {
                 "whose zone is not carried here");
     }
 
+    // ------------------------------------------------------------------ a duration (the study's §12.9)
+
+    @Test
+    void aDurationIsAnInstanceOfTheModelsDurationClass() {
+        // the demo model declares no Duration class: refused by name, with the declaration to add
+        unsupported("RETURN duration({days: 1}) AS d", "a duration needs one class named Duration in the model");
+        unsupported("RETURN duration.between(date('1984-10-11'), date('2015-06-24')) AS d",
+                "a duration needs one class named Duration in the model");
+    }
+
     // ------------------------------------------------------------------ shapes
 
     @Test

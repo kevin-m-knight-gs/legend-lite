@@ -9850,6 +9850,25 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the seventh landing — the duration leg: a class of the model, not a platform type (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the zoned date-time leg; the record is the study's §12.9
+(`docs/CYPHER_STUDY_2026_10_15.md`), which answers the user's question: a duration is an instance of a class the
+model declares (`Duration` with months, days, seconds and nanoseconds as `Integer[1]`), carried as the database's
+struct; the platform gains nothing — `adjust`, `dateDiff` and the instance literal's lowering were there.
+
+1. **What lands.** `Kind.DURATION`; `duration` from component maps and unit-form texts; the twenty fields; a
+   duration added to or subtracted from a date, a time of day, a local or zoned date-time; durations added,
+   subtracted and multiplied by an integer; `duration.between`, `inMonths`, `inDays`, `inSeconds` as Neo4j's
+   split, the database's; equality by the slots; Neo4j's errors as it spells them. The judge sums Neo4j's
+   `P...` text into the slots (`docs/SEMANTICS_REGISTER.md` S67); the harness declares `g::Duration`. Refused
+   by name: fractional components and division, `toString`, ordering, the date-time text form, mixed `between`.
+2. **The ledger,** identical on both lanes: 4,014 cases; PASS 1,488 (from 1,401); FAIL 0; BUG 0; ERROR 0;
+   REFUSED 1,517; BOTH_ERROR 690; SKIP 318. Of the TCK's 1,004 temporal cases, 402 PASS. 70 lite
+   cases in `lite/temporal.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the sixth landing — the zoned date-time leg: `datetime` as an instant, its zone carried beside (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the time-of-day leg; the record is the study's §12.8

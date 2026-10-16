@@ -2387,6 +2387,7 @@ final class IqFunctions {
             case DATE -> "a date";
             case DATETIME, ZONED -> "a timestamp";
             case TIME -> "a time";
+            case DURATION -> "a duration";
             case NULL -> "NULL";
             case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT -> "a number";
             case JSON, OTHER -> "a value of this type";

@@ -802,8 +802,14 @@ public final class DuckDb extends AnsiSqlRenderer {
      * unifying (list_reduce accumulator vs reducer struct — the fold
      * family's {@code VARCHAR[] -> "NULL"} cast wall). */
     private SqlWriter structFieldValue(SqlWriter writer, SqlExpr.StructLit.Field f) {
+        // a value built of literals under a BIGINT-declared slot spells the slot's type too: DuckDB types a bare
+        // literal by its magnitude (INT32 below 2^31), arithmetic of such literals and the struct's field with it,
+        // and arithmetic over the field then overflows at 32 bits (3,661 seconds times a billion, the Cypher
+        // island's duration leg, measured 1.4.4); a column's own type and a cast's stand
         return f.declared() != null
-                && f.value().type() instanceof com.legend.sql.TypeFact.Bottom
+                && (f.value().type() instanceof com.legend.sql.TypeFact.Bottom
+                        || f.declared() == com.legend.sql.SqlType.Scalar.BIGINT
+                                && !(f.value() instanceof SqlExpr.Column) && !(f.value() instanceof SqlExpr.Cast))
                 ? writer.append("CAST(").expr(f.value(), 0).append(" AS ").append(castTypeName(f.declared()))
                         .append(")")
                 : writer.expr(f.value(), 0);

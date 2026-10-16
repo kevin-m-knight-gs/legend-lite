@@ -105,6 +105,13 @@ firm, `WORKS_AT_in` the people), realized as a foreign key on the to-one side.
 
 ```
 ###Pure
+Class g::Duration
+{
+    months: Integer[1];
+    days: Integer[1];
+    seconds: Integer[1];
+    nanoseconds: Integer[1];
+}
 Class g::City
 {
     name: String[0..1];
@@ -382,4 +389,30 @@ database computes (`adjust(-2, HOURS)`), the zone a fact the translator keeps, s
 wall time; `om` is the database's distance between the instant and its Stockholm wall time (winter 60, summer 120:
 DuckDB's ICU and Postgres's `AT TIME ZONE` through lite's `localIn`). The judge equates Neo4j's zoned text with the
 instant lite returns (`docs/SEMANTICS_REGISTER.md` S65); Neo4j's `=` between zones is the decision S66.
+
+## 16. What the duration leg brings: a duration as a class of the model (2026-10-16)
+
+A Cypher duration is an instance of a class the model declares — `Duration` with `months`, `days`, `seconds` and
+`nanoseconds` as `Integer[1]` (the study's §12.9: the user's question, answered: a user class, nothing in the
+platform) — carried as the database's struct. One of the leg's Neo4j-judged cases (`lite/temporal.yaml`,
+`stored_dates_with_durations`; `ledger.tsv`: PASS on both lanes), over the graph whose nodes hold a date:
+
+```
+MATCH (v:Val)
+RETURN v.name AS name, v.d + duration({months: 1}) AS m,
+       duration.between(v.d, date('2020-01-01')).months AS mo,
+       duration.between(v.d, date('2020-01-01')) AS dur
+ORDER BY name
+```
+
+| name | m | mo | dur |
+|---|---|---|---|
+| 'a' | 1984-11-11 | 422 | P35Y2M21D |
+| 'b' | 2015-07-24 | 54 | P4Y6M8D |
+
+`v.d + duration({months: 1})` is Pure's `adjust` by the duration's months and days (a date takes no seconds);
+`duration.between` is Neo4j's split as the database's — the whole months (the calendar count, stepped back when
+stepping it overshoots), the whole days from there, the rest in seconds — written into `^g::Duration(months=…,
+days=…, seconds=…, nanoseconds=…)`; `.months` reads the slot. The judge sums Neo4j's `P35Y2M21D` into the four slots
+(`docs/SEMANTICS_REGISTER.md` S67); `toString` of a duration is refused by name.
 

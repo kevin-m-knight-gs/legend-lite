@@ -1,4 +1,11 @@
 ###Pure
+Class g::Duration
+{
+    months: Integer[1];
+    days: Integer[1];
+    seconds: Integer[1];
+    nanoseconds: Integer[1];
+}
 Class g::City
 {
     name: String[0..1];

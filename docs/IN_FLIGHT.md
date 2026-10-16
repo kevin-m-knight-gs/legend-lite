@@ -1658,6 +1658,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `lowering/Scalars.java` (their rules: the `convertTimeZone` pair), `NativeCatalogGovernanceTest` (19 → 21, dated),
   the judge (`testcases/CypherValues.java`, the instant rule). The record: the study's §12.8; GATES "the sixth
   landing".
+- **The duration leg, 2026-10-16, announced here as landed** — the translator only (`protocol/sql/SqlToPure.java`
+  `Kind.DURATION`, `protocol/cypher/CypherToPure.java`) and the harness (`testcases/CypherValues.java`,
+  `CypherGraph.java`): no file of the database owner's. The record: the study's §12.9; GATES "the seventh landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`
