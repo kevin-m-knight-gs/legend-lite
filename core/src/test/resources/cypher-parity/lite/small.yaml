@@ -1,0 +1,30 @@
+# The #Cypher{...}# island's small-bucket cases (docs/CYPHER_STUDY_2026_10_15.md §12.30): percentileDisc and
+# percentileCont as Pure's percentile aggregate; a known map indexed by a text of the row. Each case is judged by
+# Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/small/*'), keyed
+# lite/small/<id>.
+tests:
+  - id: percentiles_over_floats
+    graph: |
+      CREATE (:P {price: 10.0}), (:P {price: 20.0}), (:P {price: 30.0})
+    cypher: "MATCH (n:P) RETURN percentileDisc(n.price, 0.5) AS d, percentileCont(n.price, 0.5) AS c, percentileDisc(n.price, 0.0) AS d0, percentileCont(n.price, 1.0) AS c1"
+  - id: percentiles_over_integers
+    graph: |
+      CREATE (:P {v: 1}), (:P {v: 2}), (:P {v: 4})
+    cypher: "MATCH (n:P) RETURN percentileDisc(n.v, 0.5) AS d, percentileDisc(n.v, 0.75) AS d75, percentileDisc(n.v, 0.0) AS d0"
+  - id: percentile_cont_over_integers_refused
+    graph: |
+      CREATE (:P {v: 1}), (:P {v: 2}), (:P {v: 4})
+    cypher: "MATCH (n:P) RETURN percentileCont(n.v, 0.5) AS c, percentileCont(n.v, 0.75) AS c75"
+  - id: percentiles_grouped
+    graph: |
+      CREATE (:P {g: 'a', v: 1.0}), (:P {g: 'a', v: 3.0}), (:P {g: 'b', v: 10.0})
+    cypher: "MATCH (n:P) RETURN n.g AS g, percentileCont(n.v, 0.5) AS c, percentileDisc(n.v, 0.5) AS d ORDER BY g"
+  - id: percentile_of_nothing
+    graph: |
+      CREATE (:P {v: 1})
+    cypher: "MATCH (n:P) WHERE n.v > 100 RETURN percentileDisc(n.v, 0.5) AS d, percentileCont(n.v, 0.5) AS c"
+  - id: map_indexed_by_a_row_value
+    cypher: "UNWIND ['a', 'b', 'z'] AS k RETURN k, {a: 1, b: 2}[k] AS v"
+  - id: map_indexed_by_a_parameter_text
+    cypher: "WITH $expr AS expr, $idx AS idx RETURN expr[idx] AS value"
+    params: "{expr: {name: 'Apa'}, idx: 'name'}"

@@ -1270,18 +1270,18 @@ tck/expressions/aggregation/Aggregation3/[1] Sum only non-null values	PASS	PASS
 tck/expressions/aggregation/Aggregation3/[2] No overflow during summation	PASS	PASS
 tck/expressions/aggregation/Aggregation5/[1] `collect()` filtering nulls	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation5/[2] OPTIONAL MATCH and `collect()` on node property	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #1	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #2	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #3	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation6/[2] `percentileCont()` #1	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation6/[2] `percentileCont()` #2	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation6/[2] `percentileCont()` #3	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #1	BOTH_ERROR	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #2	BOTH_ERROR	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #3	BOTH_ERROR	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #1	BOTH_ERROR	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #2	BOTH_ERROR	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #3	BOTH_ERROR	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #1	PASS	PASS
+tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #2	PASS	PASS
+tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #3	PASS	PASS
+tck/expressions/aggregation/Aggregation6/[2] `percentileCont()` #1	PASS	PASS
+tck/expressions/aggregation/Aggregation6/[2] `percentileCont()` #2	PASS	PASS
+tck/expressions/aggregation/Aggregation6/[2] `percentileCont()` #3	PASS	PASS
+tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #1	BUG	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #2	BUG	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #3	BUG	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #1	BUG	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #2	BUG	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #3	BUG	BOTH_ERROR
 tck/expressions/aggregation/Aggregation6/[5] `percentileDisc()` failing in more involved query	BOTH_ERROR	BOTH_ERROR
 tck/expressions/aggregation/Aggregation8/[1] Distinct on unbound node	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation8/[2] Distinct on null	REFUSED	REFUSED
@@ -1928,8 +1928,8 @@ tck/expressions/map/Map1/[6] Fail when performing property access on a non-map #
 tck/expressions/map/Map1/[6] Fail when performing property access on a non-map #4	BOTH_ERROR	BOTH_ERROR
 tck/expressions/map/Map1/[6] Fail when performing property access on a non-map #5	BOTH_ERROR	BOTH_ERROR
 tck/expressions/map/Map1/[6] Fail when performing property access on a non-map #6	BOTH_ERROR	BOTH_ERROR
-tck/expressions/map/Map2/[1] Dynamically access a field based on parameters when there is no type information	REFUSED	REFUSED
-tck/expressions/map/Map2/[2] Dynamically access a field based on parameters when there is rhs type information	REFUSED	REFUSED
+tck/expressions/map/Map2/[1] Dynamically access a field based on parameters when there is no type information	PASS	PASS
+tck/expressions/map/Map2/[2] Dynamically access a field based on parameters when there is rhs type information	PASS	PASS
 tck/expressions/map/Map2/[3] Dynamically access a field on null results in null	PASS	PASS
 tck/expressions/map/Map2/[4] Dynamically access a field with null results in null	PASS	PASS
 tck/expressions/map/Map2/[5] Dynamically access a field is case-sensitive #1	PASS	PASS
@@ -4069,6 +4069,13 @@ lite/shapes/list_with_a_computed_collection	PASS	PASS
 lite/shapes/list_appending_a_boolean	PASS	PASS
 lite/shapes/list_with_a_date	PASS	PASS
 lite/shapes/map_through_with_then_returned	PASS	PASS
+lite/small/percentiles_over_floats	PASS	PASS
+lite/small/percentiles_over_integers	FAIL	FAIL
+lite/small/percentile_cont_over_integers_refused	REFUSED	REFUSED
+lite/small/percentiles_grouped	PASS	PASS
+lite/small/percentile_of_nothing	REFUSED	REFUSED
+lite/small/map_indexed_by_a_row_value	PASS	PASS
+lite/small/map_indexed_by_a_parameter_text	PASS	PASS
 lite/temporal/date_from_components	PASS	PASS
 lite/temporal/date_from_text	PASS	PASS
 lite/temporal/localdatetime_from_components	PASS	PASS

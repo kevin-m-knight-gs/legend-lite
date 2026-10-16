@@ -2401,7 +2401,7 @@ public final class CypherToPure {
         CypherAst.Call c = (CypherAst.Call) e;
         String fn = c.name().toLowerCase(Locale.ROOT);
         if (fn.equals("percentiledisc") || fn.equals("percentilecont")) {
-            throw CypherErrors.unsupported(c.name() + " (a percentile aggregate) is not supported yet", c.pos());
+            return percentile(c, fn.equals("percentilecont"), scope, names);
         }
         if (c.args().size() != 1) {
             throw CypherErrors.invalid("Insufficient parameters for function '" + c.name() + "'", c.pos());
@@ -2456,6 +2456,38 @@ public final class CypherToPure {
             return new Aggregate(freshName(names), arg, lambda("y", call(fn, values)), arg.kind(), true, null);
         }
         throw CypherErrors.unsupported(c.name() + "(...) is not supported yet", c.pos());
+    }
+
+    /** {@code percentileDisc(x, p)}, {@code percentileCont(x, p)} (the study's §12.30): Pure's percentile aggregate
+     *  over the group's values, ascending, discrete (a value of the group, typed as it is) or continuous (a Float,
+     *  interpolated); {@code p} a spelled number. Null over no value, as Neo4j's. */
+    private Aggregate percentile(CypherAst.Call c, boolean continuous, Scope scope, Set<String> names) {
+        if (c.args().size() != 2) {
+            throw CypherErrors.invalid("Insufficient parameters for function '" + c.name() + "'", c.pos());
+        }
+        if (c.distinct()) {
+            throw CypherErrors.unsupported(c.name() + "(DISTINCT ...) is not supported yet", c.pos());
+        }
+        if (containsAggregate(c.args().get(0))) {
+            throw CypherErrors.invalid("Can't use aggregate functions inside of aggregate functions.", c.pos());
+        }
+        Val p = val(c.args().get(1), scope);
+        if (!(p instanceof Scalar ps) || !ps.literal() || !(ps.constant() instanceof Number n)) {
+            throw CypherErrors.unsupported(c.name() + " of a percentile that is not a spelled number is not supported"
+                    + " yet", c.args().get(1).pos());
+        }
+        Tx arg = tx(c.args().get(0), scope);
+        requireNumeric(arg, c);
+        if (continuous && arg.kind() != Kind.FLOAT && arg.kind() != Kind.INEXACT) {
+            // Neo4j's percentileCont over integers is the element itself (an integer) where the percentile lands
+            // on one and a float where it interpolates: a type the data decides, which no column has
+            throw CypherErrors.unsupported("percentileCont over values that are not floats (Neo4j's result is an"
+                    + " integer or a float as the data decides) is not supported yet", c.pos());
+        }
+        ValueSpecification reduce = call("percentile", new Variable("y"), new CFloat(n.doubleValue()),
+                new CBoolean(true), new CBoolean(continuous));
+        return new Aggregate(freshName(names), arg, lambda("y", reduce), continuous ? Kind.FLOAT : arg.kind(), true,
+                null);
     }
 
     private static void requireNumeric(Tx arg, CypherAst.Call c) {
@@ -4565,8 +4597,33 @@ public final class CypherToPure {
                             + " (a map is indexed by a key)", ix.index().pos());
                 }
                 if (!is.literal()) {
-                    throw CypherErrors.unsupported("indexing a map by a value that is not a literal is not supported"
-                            + " yet", ix.pos());
+                    // a key of the row (the study's §12.30): the database's choice among the entries' scalars (one
+                    // kind) through an if chain, null for a key the map lacks; strict over the key
+                    Map<String, ValueSpecification> values = new LinkedHashMap<>();
+                    Kind kind = null;
+                    for (Map.Entry<String, Val> e : m.entries().entrySet()) {
+                        Tx t = scalarOf(e.getValue(), ix.pos());
+                        if (t.kind() != Kind.NULL) {
+                            if (kind != null && kind != t.kind()) {
+                                throw CypherErrors.unsupported("indexing a map of values of different types by a"
+                                        + " value of the row is not supported yet", ix.pos());
+                            }
+                            kind = t.kind();
+                        }
+                        values.put(e.getKey(), t.kind() == Kind.NULL ? null : SqlToPure.valueOf(t));
+                    }
+                    Kind k = kind == null ? Kind.NULL : kind;
+                    Tx picked = SqlToPure.strict(k, List.of(i), x -> {
+                        ValueSpecification pick = SqlToPure.nullOf(k).vs();
+                        List<String> keys = new ArrayList<>(values.keySet());
+                        for (int p = keys.size() - 1; p >= 0; p--) {
+                            ValueSpecification v = values.get(keys.get(p));
+                            pick = call("if", call("equal", x.get(0), new CString(keys.get(p))),
+                                    thunk(v == null ? SqlToPure.nullOf(k).vs() : v), thunk(pick));
+                        }
+                        return pick;
+                    });
+                    yield scalar(Tx.value(picked.vs(), k, true));
                 }
                 Val v = m.entries().get((String) java.util.Objects.requireNonNull(is.constant()));
                 yield v == null ? nullValue() : v;

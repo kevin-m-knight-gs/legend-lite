@@ -2711,3 +2711,24 @@ from an optional node) pass; [4] (untyped, label-less) and [5] (a relationship b
 6 lite cases in `lite/optional_where.yaml`, each judged by Neo4j; `lite/optional.yaml`'s refusal case
 `optional_with_where_refused_by_name` is `optional_with_where`, a passing case.
 
+### 12.30 Two small buckets, 2026-10-16: the percentile aggregates, a map indexed by a value of the row
+
+- **`percentileDisc(x, p)` and `percentileCont(x, p)`** are Pure's `percentile` aggregate over the group's values
+  (ascending; discrete, a value of the group typed as it is, or continuous, a Float the database interpolates:
+  the lowering's `QUANTILE_DISC`/`QUANTILE_CONT`), `p` a spelled number (another is refused by name); null over no
+  value, as Neo4j's. `percentileCont` over values that are not floats is refused by name: Neo4j 2026.09 answers
+  the element itself, an integer, where the percentile lands on one (`[1, 2, 4]` at 0.5 is `2`) and a float
+  where it interpolates (at 0.75, `3.0`), a type the data decides, which no column has (measured by the oracle).
+- **A known map indexed by a text of the row** (`{a: 1, b: 2}[k]`, `$expr[$idx]` through a WITH) is the
+  database's choice among the entries' scalars (one kind) through an `if` chain, null for a key the map lacks,
+  strict over the key; as a list indexed by a value of the row is (§12.23).
+
+#### 12.30.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4252 | 2530 (from 2,518) | 0 | 0 | 0 | 646 | 708 | 368 |
+| Postgres | 4252 | 2180 (from 2,168) | 0 | 0 | 0 | 996 | 708 | 368 |
+
+7 lite cases in `lite/small.yaml`, each judged by Neo4j (one a refusal by name).
+

@@ -9850,6 +9850,21 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the twenty-eighth landing — the percentile aggregates, a map indexed by a value of the row (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the OPTIONAL MATCH WHERE leg; the record is the study's §12.30
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only.
+
+1. **What lands.** `percentileDisc` and `percentileCont` as Pure's percentile aggregate (`percentileCont` over
+   values that are not floats refused by name: Neo4j's result type is the data's); a known map indexed by a text
+   of the row.
+2. **The ledger.** DuckDB: 4252 cases; PASS 2530 (from 2,518); FAIL 0; BUG 0; ERROR 0; REFUSED 646;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2180 (from 2,168); FAIL 0; BUG 0; ERROR 0; REFUSED 996;
+   BOTH_ERROR 708; SKIP 368. 7 lite cases in `lite/small.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the twenty-seventh landing — `OPTIONAL MATCH ... WHERE` as the optional pattern's guard (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the cartesian leg; the record is the study's §12.29

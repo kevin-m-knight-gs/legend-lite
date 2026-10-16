@@ -395,6 +395,19 @@ class CypherToPureTest {
     }
 
     @Test
+    void percentilesArePuresPercentileAggregateAndAMapIsIndexedByARowValue() {
+        // the study's §12.30
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|$p.age])->aggregate(~[d:x|$x._cypher_1:y|$y->percentile(0.5,"
+                + " true, false)])->select(~[d])", pure("MATCH (p:Person) RETURN percentileDisc(p.age, 0.5) AS d"));
+        // a map indexed by a value of the row: the database's choice among its entries, strict over the key
+        assertEquals("['a', 'b']->flatten(~k)->extend(~[v:r|if($r.k->isEmpty(), |[], |if($r.k->toOne() == 'a', |1,"
+                + " |if($r.k->toOne() == 'b', |2, |[]->cast(@Integer))))])->select(~[v])",
+                pure("UNWIND ['a', 'b'] AS k RETURN {a: 1, b: 2}[k] AS v"));
+        unsupported("MATCH (p:Person) RETURN percentileCont(p.age, 0.5) AS c", "percentileCont over values that are not"
+                + " floats");
+    }
+
+    @Test
     void anOptionalMatchsWhereGuardsWhatThePatternBound() {
         // the study's §12.29: the optional node absent where its hop finds none or the WHERE does not hold; its
         // property null there, its value null there
