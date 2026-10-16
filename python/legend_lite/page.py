@@ -987,7 +987,7 @@ class Page:
             served, new = session.register(frame, name, mode), True
         try:
             # its cube as DataCube makes a grid's over a frame: capped at the row limit when it is not the page's only grid
-            cube, _ = self._frame_cube(served, len(self._doc['cubes']) + 1)
+            cube, _, _ = self._frame_cube(served, len(self._doc['cubes']) + 1)
             self._doc['cubes'].append({'id': id, 'cube': cube})
             self._doc['views'].append({'id': id, 'kind': 'grid', 'cube': id, **({'title': title} if title else {})})
             grid = self._tile(id, Grid)
@@ -1114,7 +1114,8 @@ class Page:
     def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any], *, mode: str = LIVE) -> Page:
         """A page document (a file, or its dict) as a page again, its grids over ``frames`` by their frame names (each
         cube's ``{"_type": "frame", "name": ...}``), served ``mode``: the document as DataCube reads it (any version it
-        reads, brought to its own; refused in its words when DataCube would not open it)."""
+        reads, brought to its own; refused in its words when DataCube would not open it), each cube as DataCube opens it
+        over its frame as it is now -- what DataCube leaves out of it warned, in its words."""
         from .datacube import _current
         # read on the session the page will be made on (Page() takes the current one)
         doc = _read_page(_copied(document) if isinstance(document, Mapping) else Path(document).read_text('utf-8'),
@@ -1128,6 +1129,10 @@ class Page:
             page._session.register(frames[name], name, mode)
         page._doc = doc
         page._ids |= _ids(doc)
+        # each cube as DataCube opens it over its frame as it is now (served above): what it leaves out, left out here
+        # too and said once, so no later call on the grid sends it
+        for c in doc['cubes']:
+            page._reopened(c, 3)
         return page
 
     # -- shown ---------------------------------------------------------------------------------------------------------
@@ -1247,38 +1252,46 @@ class Page:
         return json.loads(self._session.headless().call(call, _json.dumps(layout), *args))
 
     def _update(self, name: str, frame: Any, mode: str | None) -> None:
-        """Frame ``name`` served again over ``frame``: each grid's cube over it rebuilt over the frame as the compiler
-        types it now, as DataCube reopens a saved cube over its source (``_frame_cube``: a new column hidden, a gone one
-        left out of everything that read it, the open groups dropped when the grouping changed -- each said as a
-        warning, in DataCube's words); the page served again when one changed."""
+        """Frame ``name`` served again over ``frame``: each grid's cube over it reopened over the frame as the compiler
+        types it now (``_reopened``); the page served again when one changed."""
         session = self._session
         session.register(frame, name, session.frames[name].mode if mode is None else mode)
-        moved = False
-        for c in (c for c in self._doc['cubes'] if c['cube']['source']['name'] == name):
-            cube, notes = self._frame_cube(name, len(self._doc['cubes']), c['cube'])
-            # the frame's columns as they were: its cube stands as it is (a page opened over them rebuilds the same)
-            if cube['source'] == c['cube']['source']:
-                continue
-            for note in notes:
-                warnings.warn(f'{name}: {note}', stacklevel=3)
-            c['cube'] = cube
-            moved = True
-        if moved:
+        # every cube over the frame reopened, whichever changed
+        reopened = [self._reopened(c, 4) for c in self._doc['cubes'] if c['cube']['source']['name'] == name]
+        if any(reopened):
             self._changed()
 
+    def _reopened(self, c: dict[str, Any], stacklevel: int) -> bool:
+        """The page's cube ``c`` as DataCube opens it over its frame as the compiler types it now (``_frame_cube``:
+        cube-document.ts rebuilt -- a new column hidden; a gone one, and a measure whose name is not its own, left out;
+        the open groups dropped when the grouping changed), taken when it is not the cube held -- the frame's columns
+        moved, or DataCube left a part out -- each note warned once, in DataCube's words. So the page holds the cube every
+        headless call opens, and no later call sends a part DataCube leaves out (a measure of a page saved before the
+        naming rule, refused beside a new one). Whether it was taken. Asked when a page is loaded (``load``: its frames
+        served) and when a frame is served again (``_update``)."""
+        frame = c['cube']['source']['name']
+        cube, notes, changed = self._frame_cube(frame, len(self._doc['cubes']), c['cube'])
+        # the frame's columns as they were, nothing left out: the cube stands as it is (opened again, the same)
+        if not changed and cube['source'] == c['cube']['source']:
+            return False
+        for note in notes:
+            warnings.warn(f'{frame}: {note}', stacklevel=stacklevel)
+        c['cube'] = cube
+        return True
+
     def _frame_cube(self, frame: str, grids_on_page: int,
-                    saved: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str]]:
+                    saved: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str], bool]:
         """A grid's cube over ``frame`` as DataCube makes one (cube-document.ts rebuilt, asked headless: gridCube): a
         new grid's (its rows as they are; capped at the row limit when ``grids_on_page``, the page's grids counting
-        it, are more than one: DataCube's gridCapped), or ``saved`` rebuilt over the frame as it is now; and what
-        DataCube says of what changed."""
+        it, are more than one: DataCube's gridCapped), or ``saved`` rebuilt over the frame as it is now; what DataCube
+        says of what changed; and whether it left a part out."""
         engine, frames = self._session.headless(), self._session.frames
         with frames.serving():
             table = frames[frame]
             spec = {'model': table.model, 'runtime': table.runtime, 'source': table.accessor, 'frame': frame}
             made = json.loads(engine.call(
                 'gridCube', spec, None if saved is None else _json.dumps(saved), self.name, frame, grids_on_page))
-        return _plain(_json.loads(made['cube'])), list(made['notes'])
+        return _plain(_json.loads(made['cube'])), list(made['notes']), made['changed']
 
     def __repr__(self) -> str:
         return f'<Page {self.name!r}: {len(self.grids)} grids, {len(self.charts)} charts, {len(self.sheets)} sheets>'

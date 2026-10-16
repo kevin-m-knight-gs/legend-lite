@@ -295,6 +295,35 @@ describe('opening a cube over its file as it is now', () => {
     assert.deepEqual(opened.snapshot.rows, []);
     assert.equal(opened.tree.isOpen(['EMEA']), false);
   });
+
+  // A cube saved before the naming rule (2026-10-16): old Python's way to count each region's rows,
+  // grid.group('region').measure('region', 'count'), which the grouped level dropped without a word, and a second
+  // measure of a name another already has. It opens, without them, saying why -- never refused at every level.
+  it('opens a cube saved before the naming rule, leaving out each measure whose name is not its own', () => {
+    const old = writeCube({
+      name: 'counts', source: SOURCE,
+      snapshot: {
+        source: RELATION, columns: SOURCE.columns, derived: [], rows: ['region'], pivotOn: [],
+        measures: [
+          { name: 'region', column: 'region', fn: 'count' },
+          { name: 'notional', column: 'notional', fn: 'sum' },
+          { name: 'notional', column: 'qty', fn: 'max' },
+        ],
+        sorts: [], epoch: 1,
+      },
+      configuration: DEFAULT_CONFIGURATION, tree: TreeState.fromPaths([['EMEA']], false),
+    });
+    const opened = openCube(readCube(cubeToJson(old)), RELATION,
+      now([['region', 'String'], ['desk', 'String'], ['notional', 'Float'], ['qty', 'Integer']]));
+    assert.deepEqual(opened.notes, [
+      "left out measure region: 'region' is already a column: the measure count(region) takes a name of its own",
+      "left out measure notional: 'notional' is already a column: the measure max(qty) takes a name of its own",
+    ]);
+    assert.equal(opened.changed, true);
+    assert.deepEqual(opened.snapshot.measures, [{ name: 'notional', column: 'notional', fn: 'sum' }],
+      'the first of two of one name is kept, as the level query judges them in order');
+    assert.equal(opened.tree.isOpen(['EMEA']), true, 'the grouping is the one saved: its open rows stay');
+  });
 });
 
 describe('the pieces', () => {

@@ -13,6 +13,7 @@ import tempfile
 import unittest
 import urllib.error
 import urllib.request
+import warnings
 from decimal import Decimal
 from pathlib import Path
 
@@ -215,6 +216,28 @@ class Document(Paged):
         self.assertEqual(cube['configuration']['columns']['book'], {'hidden': True})
         self.assertEqual([c['name'] for c in cube['source']['columns']], ['region', 'notional', 'pnl', 'book'])
         ll.Page.load(page.to_dict(), frames={'changed_trades': trades().drop(columns=['desk']).assign(book='B1')})
+
+    def test_a_page_saved_before_the_naming_rule_opens_without_its_measure_and_says_so(self):
+        # old Python's way to count each region's rows, grid.group('region').measure('region', 'count'): the grouped
+        # level dropped the count without a word; DataCube now leaves it out when it opens the cube (cube-document.ts
+        # openCube), saying why -- and the loaded page takes the cube DataCube opens, so the next call on the grid
+        # sends no measure DataCube left out (it was refused beside a new one, at a call that never named it)
+        saved = ll.Page('counts')
+        saved.grid(trades(), name='old_counts', rows=['region'], measures={'notional': 'sum'})
+        doc = saved.to_dict()
+        doc['cubes'][0]['cube']['query']['measures'].append({'name': 'region', 'column': 'region', 'fn': 'count'})
+        with warnings.catch_warnings(record=True) as said:
+            warnings.simplefilter('always')
+            page = ll.Page.load(doc, frames={'old_counts': trades()})
+        self.assertEqual([str(w.message) for w in said], ["old_counts: left out measure region: 'region' is already a "
+                                                          'column: the measure count(region) takes a name of its own'])
+        page.grids[0].measure('pnl', 'sum', name='p')
+        measures = page.to_dict()['cubes'][0]['cube']['query']['measures']
+        self.assertEqual([m['name'] for m in measures], ['notional', 'p'])
+        with warnings.catch_warnings(record=True) as again:
+            warnings.simplefilter('always')
+            ll.Page.load(page.to_dict(), frames={'old_counts': trades()})
+        self.assertEqual(again, [], 'saved again, it opens as it was saved')
 
     def test_a_layout_of_splits_and_sizes_is_kept_as_tiles_come_and_go(self):
         page, grid, chart = self.built()

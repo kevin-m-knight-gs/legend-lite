@@ -20,7 +20,9 @@
 //
 // Opening a cube RECONCILES it with what its source holds now (the user's ruling on schema
 // drift): a new column is available but hidden; a part that uses a column that is gone is
-// left out and NAMED; a changed type is reported. Nothing is refused for drift alone.
+// left out and NAMED; a changed type is reported. Nothing is refused for drift alone. A
+// measure whose name is not its own (calc.ts measureNameProblem) is left out and named the
+// same way, so a cube saved before that rule (2026-10-16) still opens.
 
 import {
   ExactNumber,
@@ -29,12 +31,14 @@ import {
   toJson as protocolJson,
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { measureNameProblem } from './calc.ts';
 import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, type CubeConfiguration } from './config.ts';
 import type {
   ColumnSpec,
   CubeSnapshot,
   DerivedColumn,
   FilterNode,
+  Measure,
   SourceRef,
 } from './snapshot.ts';
 import { TreeState, parsePathKey, type RowPath } from './tree.ts';
@@ -453,7 +457,7 @@ export function openCube(
     columns: _c, derived: _d, groupDerived: _g, rows: _r, pivotOn: _p, measures: _m, sorts: _s,
     filter: _f, pivotValues, ...rest
   } = q;
-  const snapshot: CubeSnapshot = {
+  const reconciled: CubeSnapshot = {
     ...rest,
     source: relation,
     columns: specs,
@@ -468,10 +472,27 @@ export function openCube(
     ...(filter !== undefined ? { filter } : {}),
     epoch: 0,
   };
+  const snapshot: CubeSnapshot = { ...reconciled, measures: ownNamed(reconciled, notes) };
   // The open rows are paths through the saved grouping; a different grouping has none.
   const tree = TreeState.fromPaths(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals);
   const changed = notes.some((n) => n.startsWith('left out'));
   return { snapshot, configuration, tree, notes, changed };
+}
+
+/**
+ * A cube's measures whose names are their own (calc.ts measureNameProblem), each judged against those kept before it, as
+ * the level query judges them in order; any other is left out, in the rule's words. A cube saved before the rule
+ * (2026-10-16) -- old Python's `grid.group('region').measure('region', 'count')`, whose count the grouped level dropped
+ * without a word -- opens without it, saying so, rather than refusing at every level: no panel shows a measure to fix.
+ */
+function ownNamed(snapshot: CubeSnapshot, notes: string[]): Measure[] {
+  const kept: Measure[] = [];
+  for (const m of snapshot.measures) {
+    const problem = measureNameProblem({ ...snapshot, measures: [...kept, m] }, m);
+    if (problem === null) kept.push(m);
+    else notes.push(`left out measure ${m.name}: ${problem}`);
+  }
+  return kept;
 }
 
 /**
@@ -503,24 +524,28 @@ export function gridCapped(gridsOnPage: number): boolean {
 
 /**
  * A saved cube rebuilt over a source (`relation`, its `columns` as the compiler types them now) -- its view, its
- * configuration, the groups it had open, what it had that the source no longer has -- or a fresh one: its rows as they
- * are, grouped by nothing; `capped` (gridCapped: a grid beside others), up to the row limit. Moved here from app/sources.ts (2026-10-15) so a host's own pages make
- * their grids by it too, headless (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 2).
+ * configuration, the groups it had open, what it had that the source no longer has (`changed`: a part left out, as
+ * openCube says) -- or a fresh one: its rows as they are, grouped by nothing; `capped` (gridCapped: a grid beside
+ * others), up to the row limit. Moved here from app/sources.ts (2026-10-15) so a host's own pages make their grids by it
+ * too, headless (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 2).
  */
 export function rebuilt(saved: CubeDocument | undefined, relation: ValueSpecification, columns: CubeSnapshot['columns'],
   label: string, capped: boolean,
-): { snapshot: CubeSnapshot; configuration: CubeConfiguration; tree?: TreeState; notes: readonly string[] } {
+): {
+  snapshot: CubeSnapshot; configuration: CubeConfiguration; tree?: TreeState; notes: readonly string[]; changed: boolean;
+} {
   if (!saved) {
     return {
       snapshot: rawRows(relation, columns),
       configuration: { ...DEFAULT_CONFIGURATION, reportTitle: label, ...(capped ? { maxRows: DEFAULT_MAX_ROWS } : {}) },
       notes: [],
+      changed: false,
     };
   }
   const cube = openCube(saved, { query: relation }, columns);
   return {
     snapshot: cube.snapshot, configuration: cube.configuration, ...(cube.tree ? { tree: cube.tree } : {}),
-    notes: cube.notes,
+    notes: cube.notes, changed: cube.changed,
   };
 }
 

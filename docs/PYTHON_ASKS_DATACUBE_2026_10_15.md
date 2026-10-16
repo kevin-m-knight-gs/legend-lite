@@ -107,7 +107,19 @@ included -- refused where a level would write two columns of one name, grouped o
 screen and in Python. The charts' stand-in for the bug, a copy of a column (`__chart_<name>`) for each measure of it
 past the first, went with it. Found beside it, and fixed: a grouped level sorted by a column a measure renamed (a sort
 on `notional` beside `total` of it) asked the planner for a column its groupBy did not keep, so every grouped level of
-the grid was refused; it now sorts by what it writes, as a pivot's level did, the detail rows by the rest.
+the grid was refused; it now sorts by what it writes, as a pivot's level did, the detail rows by the rest. A cube saved
+before the rule -- old Python's `grid.group('region').measure('region', 'count')`, whose count the grouped level had
+dropped without a word -- opens without each measure the rule refuses, judged in order as the level judges them, and
+says so (`cube-document.ts openCube`, as it leaves out a measure of a column that is gone): the screen's note, Python's
+warning when it loads the page. No panel shows a measure to fix, so refusing it at every level would lock the page. A
+page Python loads takes each cube as DataCube opens it whenever opening changed it (`page.py _reopened`, at load and
+when a frame is served again), so no later call on the grid sends the measure DataCube left out -- held in Python's copy
+alone, it was refused beside the next measure added, at a call that never named it.
+
+**The query tests check printed text only** (found 2026-10-16, with the bug above): `query.test.ts` pinned a grouped
+level's query sorting by a column its groupBy did not keep -- the very query the planner refuses -- and nothing compiled
+it. A follow-up, not in PR neema2/legend-lite#47: compile each pinned level through the planner stand `calc.test.ts`
+already uses.
 
 **A set measure silently overrides the column's Aggregation** (found 2026-10-16, written up for the DataCube line to
 design): `config.ts` never reads `snapshot.measures`, and the level query takes a column's set measure over its Column
@@ -118,8 +130,8 @@ panel shows a column's measures is the DataCube line's to decide.
 **A class's sample writes a NaN or an infinity as `null`** (found 2026-10-15, the audit of item 7): `sample-rows.ts
 sampleOf` keeps a double as the executor gives it, and the sample goes to the route as JSON, which has neither, so
 `JSON.stringify` writes `null` -- the window's Create a Class and, since item 7, Python's alike. Python's own writer
-refused them before. A silent `null` is a default (AGENTS.md invariant 4); refusing such a sample, or writing the
-value as text, is the DataCube + Python line's to choose.
+refused them before. A silent `null` is a default (AGENTS.md invariant 4). **Fixed 2026-10-16:** `sampleOf` refuses the
+sample, naming its column and row, before anything is written -- on the screen and in Python, in one rule.
 
 ## A finding for the compiler line
 

@@ -110,8 +110,9 @@ export interface FrameSpec extends Omit<GridSpec, 'cube'> {
  * own rule, of `gridsOnPage`: the page's grids counting this one; rebuilt reads it only for a new cube). With one (a
  * cube document,
  * JSON): that cube rebuilt over the frame as it is now -- a new column hidden, a gone one left out of everything that
- * read it, the open groups dropped when the grouping changed -- said in `notes`. `name` is its page's (a page's cubes
- * carry the page's name). JSON: `{cube, notes}`, the cube document as its text (its numbers exact).
+ * read it, a measure whose name is not its own left out, the open groups dropped when the grouping changed -- said in
+ * `notes`, and `changed` when a part was left out (openCube's). `name` is its page's (a page's cubes carry the page's
+ * name). JSON: `{cube, notes, changed}`, the cube document as its text (its numbers exact).
  */
 export async function gridCube(spec: FrameSpec, saved: string | null, name: string, label: string,
   gridsOnPage: number): Promise<string> {
@@ -123,7 +124,7 @@ export async function gridCube(spec: FrameSpec, saved: string | null, name: stri
       name, source: frameSource(spec.frame, columns), snapshot: made.snapshot, configuration: made.configuration,
       tree: made.tree ?? TreeState.empty(), ...(was?.unknown ? { unknown: was.unknown } : {}),
     });
-    return JSON.stringify({ cube: cubeToJson(cube), notes: made.notes });
+    return JSON.stringify({ cube: cubeToJson(cube), notes: made.notes, changed: made.changed });
   } finally {
     planner.dispose();
   }
