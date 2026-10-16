@@ -624,6 +624,11 @@ lite/corpus_gaps/a_filtered_count_of_a_derived_tables_rank@iq17-default	REFUSED	
 lite/corpus_gaps/an_in_filter_of_a_derived_tables_rank@iq17-default	REFUSED	REFUSED
 lite/corpus_gaps/a_filter_of_a_derived_tables_rank_two_levels_down@iq17-default	REFUSED	REFUSED
 lite/corpus_gaps/a_filter_over_a_derived_table_of_a_grouped_rank@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/windows_over_a_filter_of_a_derived_tables_rank@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/a_grouping_of_a_filter_of_a_derived_tables_rank@iq17-default	PASS	PASS
+lite/corpus_gaps/a_count_of_a_filter_of_a_derived_tables_rank@iq17-default	PASS	PASS
+lite/corpus_gaps/windows_over_a_filter_of_a_plain_derived_table@iq17-default	PASS	PASS
+lite/corpus_gaps/a_distinct_of_a_filter_of_a_derived_tables_rank@iq17-default	PASS	ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

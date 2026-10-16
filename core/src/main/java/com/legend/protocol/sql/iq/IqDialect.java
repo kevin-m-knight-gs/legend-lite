@@ -961,7 +961,8 @@ public final class IqDialect implements InputDialect {
      * the window's WHERE, so the window sees the filtered rows (Fold.filterSlot; legend-engine's PCT
      * testExtendFilterOutNull pins that). The answer would be wrong: a RANK, a COUNT(*) OVER () or a running SUM of the
      * filtered rows. Answered, as measured: a WHERE that reads a window's column (computed after the window: QUALIFY),
-     * a join of the derived table (which isolates it), and a GROUP BY over it.
+     * a join of the derived table (which isolates it), and a GROUP BY over it. But a WHERE that reads a window's column
+     * is computed after the query's own windows too: those are refused (they would rank the unfiltered rows).
      */
     private static void windowedDerivedFilter(SqlAst.Select s) {
         if (s.where() == null || s.from().size() != 1 || !(s.from().get(0) instanceof SqlAst.SubqueryFrom d)) {
@@ -983,6 +984,16 @@ public final class IqDialect implements InputDialect {
         columnRefs(java.util.Objects.requireNonNull(s.where()), refs);
         for (SqlAst.ColumnRef r : refs) {
             if (names.contains(IqLexer.lower(r.parts().get(r.parts().size() - 1).text()))) {
+                // computed after the derived table's windows (QUALIFY), and so after the query's own (sqlstorm-5694:
+                // its RANKs of every row, where SQL ranks the rows the WHERE keeps)
+                for (SqlAst.Expr e : expressions(s)) {
+                    if (e != s.where() && !IqWindows.windows(e).isEmpty()) {
+                        throw SqlTranslationException.unsupported("window functions over a WHERE that reads a window"
+                                + " function's column of the derived table or common table expression it filters are"
+                                + " not supported yet: lite's lowering would compute them over the unfiltered rows",
+                                e.pos());
+                    }
+                }
                 return;
             }
         }

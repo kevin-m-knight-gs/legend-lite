@@ -461,3 +461,18 @@ tests:
   - id: a_filter_over_a_derived_table_of_a_grouped_rank
     sql: "SELECT * FROM (SELECT sm, COUNT(*) AS c, RANK() OVER (ORDER BY sm) AS r FROM t GROUP BY sm) d WHERE d.sm > 0 ORDER BY sm"
     profile: iq17-default
+  - id: windows_over_a_filter_of_a_derived_tables_rank
+    sql: "SELECT id, r, RANK() OVER (ORDER BY sm DESC) AS s FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d WHERE r <= 4 ORDER BY id"
+    profile: iq17-default
+  - id: a_grouping_of_a_filter_of_a_derived_tables_rank
+    sql: "SELECT d.bt, COUNT(*) AS c FROM (SELECT id, bt, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 3 GROUP BY d.bt ORDER BY d.bt"
+    profile: iq17-default
+  - id: a_count_of_a_filter_of_a_derived_tables_rank
+    sql: "SELECT COUNT(*) AS c, MAX(id) AS m FROM (SELECT id, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 3"
+    profile: iq17-default
+  - id: windows_over_a_filter_of_a_plain_derived_table
+    sql: "SELECT id, RANK() OVER (ORDER BY sm DESC) AS s, COUNT(*) OVER () AS n FROM (SELECT id, sm FROM t) d WHERE id <= 4 ORDER BY id"
+    profile: iq17-default
+  - id: a_distinct_of_a_filter_of_a_derived_tables_rank
+    sql: "SELECT DISTINCT bt FROM (SELECT id, bt, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 3 ORDER BY bt"
+    profile: iq17-default
