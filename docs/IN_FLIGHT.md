@@ -1433,6 +1433,21 @@ pause for the user's review after Phase 1.
     `GridProbe` and `PctProbe` again (`SqlDialect.typingWireName`).
   - Measured, 2026-10-15 (`docs/GATES.md`): on all 11 databases no statement, census line or test outcome moved
     against main, and the corpus moved nothing. The local gate is green on the branch head.
+- **Landed 2026-10-16: the owner guard and Phases 2 and 4** (neema2/legend-lite#45, merged as 4fb892f).
+- **Announced 2026-10-16, Phase 3: SQL composed outside the dialect** (branch `claude/gracious-edison-jcsvzm`, after
+  `SqlFn.TRANSLATE`). It lands in slices, each judged by the lanes' SQL dumps and the corpus. The plan:
+  `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`, Phase 3. The files outside `sql/dialect`:
+  - `StatementExecutor.java` (`dropAndCreateSchemaInDb` renders `SqlDdl.CreateSchema`; the engine-text parameter
+    type);
+  - `setup/Ddl.java` (the seed `insert` text rendered by the engine-text dialect from `SqlDml`);
+  - `EngineText.java`, `PlanEnvelope.java`, `compiler/spec/typed/ContextReading.java` (one constant for the engine's
+    test database instead of `"H2"` literals; an `EngineTextDialect` interface instead of `EngineStyleH2` as a
+    parameter type);
+  - `compiler/spec/CatalogGrids.java` (the catalog SQL becomes a typed node the dialect renders);
+  - `plan/InProtocol.java`, `plan/PlanText.java` (engine text rendered from IR, not sliced by hand);
+  - `testdatagen/TestDataGenerator.java` (the largest: its fetch, envelope and diff SQL as IR);
+  - `wasm/src/main/java/planner/Boundary.java` (its dialect through `Databases`; the catalog question a dialect
+    method).
 - **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
   platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
   `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),

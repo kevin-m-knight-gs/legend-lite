@@ -85,7 +85,8 @@ class SqlTextRatchetTest {
         // 0 -> 2 (2026-10-13, the dialect program's Phase 0, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): not new
         // sites -- the rule now sees `create schema`, and two were there: dropAndCreateSchemaInDb's H2 text and a
         // schema's create in the module DDL. They go to the dialect (a SqlDdl node) with the program's Phase 3
-        REGISTER.put("StatementExecutor.java", 2);
+        // 2 -> 0, row deleted (2026-10-16, the dialect program's Phase 3): both are SqlDdl.CreateSchema/DropSchema
+        // nodes now, rendered by the session's dialect, H2 for the replay ledger, or the engine text for toDDL
         // exec/CsvSeed.java: 1 -> 0 and row deleted (2026-09-23): its INSERT is a RowLoad and its DELETE a SqlDml node, both dialect-rendered
         // Phase 1c: DbMetaData's 9 catalog-SQL sites moved verbatim to
         // compiler/spec/CatalogGrids (the Typer's fetchDb retype; pure

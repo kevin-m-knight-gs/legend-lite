@@ -2945,13 +2945,18 @@ final class StatementExecutor {
      * create per family POISONED the family mirror and failed every
      * later advisory-dependent test (9 across 2 families, measured).
      * `Create schema if not exists` is valid H2 and idempotent — the
-     * replay is safe on both fresh and live mirrors. */
+     * replay is safe on both fresh and live mirrors. The statement is the
+     * IR's (SqlDdl.CreateSchema), rendered as dropAndCreateTableInDb's:
+     * the session's dialect spells the executed copy, H2 the recorded one
+     * (the dialect program's Phase 3, 2026-10-16: until then the text was
+     * written here, so a database with no schemas, SQLite, refused it). */
     static ExecutionResult dropAndCreateSchemaInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env) {
-        String schemaDdl = "Create schema if not exists "
-                + evalStringArg(body, sc.args().get(0), env);
-        sendEffect(env, schemaDdl, schemaDdl, com.legend.exec.StatementOrigin.RAW, true);
+        com.legend.sql.SqlDdl schema = new com.legend.sql.SqlDdl.CreateSchema(
+                evalStringArg(body, sc.args().get(0), env), false);
+        sendEffect(env, env.dialect().render(schema), H2_DDL.render(schema),
+                com.legend.exec.StatementOrigin.RAW, true);
         return new ExecutionResult.Scalar(true, sc.info().type());
     }
 
@@ -3115,10 +3120,12 @@ final class StatementExecutor {
                         + " names are supported, got "
                         + ds.args().get(0).getClass().getSimpleName());
             }
-            return com.legend.compiler.element.type.PlatformTypes
+            // the engine text renders the IR's schema DDL, as the table statements below
+            // (the dialect program's Phase 3, 2026-10-16: until then the text was written here)
+            return ENGINE_TEXT.render(com.legend.compiler.element.type.PlatformTypes
                     .DROP_SCHEMA_STATEMENT.equals(fqn)
-                    ? "Drop schema if exists " + sc.value() + " cascade;"
-                    : "Create Schema if not exists " + sc.value() + ";";
+                    ? new com.legend.sql.SqlDdl.DropSchema(sc.value(), false)
+                    : new com.legend.sql.SqlDdl.CreateSchema(sc.value(), false));
         }
         // 2-arg forms default the schema (toDDL.pure:34-42)
         boolean twoArg = ds.args().size() == 2;
