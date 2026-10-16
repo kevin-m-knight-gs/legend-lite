@@ -132,8 +132,10 @@ hop (§12.40); DuckDB PASS 2712, Postgres PASS 2362, 0 FAIL, 0 BUG, 0 ERROR on b
 landings, twenty-one findings fixed and the Postgres lane's one catch after them (§12.40.2); DuckDB PASS 2718,
 Postgres PASS 2368, 0 FAIL, 0 BUG, 0 ERROR on both. Then `collect` as the list the database builds, and lists the
 database holds read by their element kind (§12.41); DuckDB PASS 2784, Postgres PASS 2434, 0 FAIL, 0 BUG, 0 ERROR on
-both. The compact form read from the node side, inheritance (a node with several labels), identity, `USE` and named
-zones wait.
+both. Then variable-length relationships with an upper bound, unrolled into the chains of each length (§12.42);
+DuckDB PASS 2802, Postgres PASS 2452, 0 FAIL, 0 BUG, 0 ERROR on both. The compact form read from the node side,
+inheritance (a node with several labels), identity, `USE`, named zones, and the unbounded variable-length
+relationship (the recursion native, §6.3) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

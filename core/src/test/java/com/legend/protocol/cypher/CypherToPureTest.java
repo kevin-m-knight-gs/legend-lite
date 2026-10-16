@@ -903,7 +903,15 @@ class CypherToPureTest {
         unsupported("MATCH (f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm) RETURN g.legalName", "no inverse");
         unsupported("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name",
                 "two relationships of the type firm");
-        unsupported("MATCH (p:Person)-[:firm*1..2]->(f) RETURN f.legalName", "variable-length");
+        // a variable-length relationship with an upper bound unrolls into the chains of each length (the study's
+        // §12.42): one arm per length, concatenated; without one it is a recursion, refused by name
+        String chains = pure("MATCH (p:Person)-[:firm*1..2]->(f) RETURN f.legalName AS firm");
+        // (Firm holds no firm: the chain of two has no way, the one of one reads as the plain pattern)
+        assertTrue(chains.contains("$p.firm.legalName"), chains);
+        String zero = pure("MATCH (p:Person)-[:firm*0..1]->(x) RETURN x.name AS name");
+        assertTrue(zero.contains("->concatenate("), zero);
+        unsupported("MATCH (p:Person)-[:firm*]->(f) RETURN f.legalName", "without an upper bound");
+        unsupported("MATCH (p:Person)-[:firm*1..9]->(f) RETURN f.legalName", "longer than 4");
         unsupported("MATCH (p:Person)-[:firm {since: 1}]->(f) RETURN f.legalName", "properties on a relationship");
         unsupported("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n", "a MATCH after a WITH");
         unsupported("CREATE (p:Person {name: 'x'})", "CREATE is not supported yet");

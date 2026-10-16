@@ -480,18 +480,18 @@ public final class CypherToPure {
             List<ValueSpecification> conditions, List<String> candidates, boolean fanning,
             List<NodeConstraint> deferredConstraints, List<Expr> deferredWhere,
             Map<String, List<String>> variableClasses, Map<String, PathSpec> paths,
-            Map<String, Boolean> forward) implements State {
+            Map<String, Boolean> forward, Map<String, List<String>> lists) implements State {
         Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
                 List<String> candidates) {
             this(rootClass, row, bindings, conditions, candidates, false, new ArrayList<>(), new ArrayList<>(),
-                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>());
+                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
         }
 
         Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
                 List<String> candidates, boolean fanning, List<NodeConstraint> deferredConstraints,
                 List<Expr> deferredWhere) {
             this(rootClass, row, bindings, conditions, candidates, fanning, deferredConstraints, deferredWhere,
-                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>());
+                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
         }
     }
 
@@ -725,6 +725,12 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
         }
+        if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
+                && r.lengthRange() != null))) {
+            // a variable-length relationship: one chain per length within its bounds, read as arms (the study's
+            // §12.42)
+            return variableLength(m, state);
+        }
         if (state == null && m.patterns().size() == 1 && m.patterns().get(0).elements().size() == 1
                 && ((NodePattern) m.patterns().get(0).elements().get(0)).labels().isEmpty()) {
             // a label-less node alone: a node of any class of the model, one arm per class
@@ -874,7 +880,7 @@ public final class CypherToPure {
             }
             // (the WHERE read against the arm's own classes; C4 lenient across every class an arm reads)
             g = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
-                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward());
+                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists());
             Expr where = m.where();
             if (where != null) {
                 if (g.fanning()) {
@@ -886,6 +892,272 @@ public final class CypherToPure {
             graphs.add(g);
         }
         return materializeArms(graphs, order, m.pos());
+    }
+
+    /** The prefix of the names the unroll of a variable-length relationship makes up for the nodes and
+     *  relationships between a pattern's own: bound in the arm's graph, read by its path and its relationship list,
+     *  never carried as columns of their own (so the arms' columns agree across lengths). */
+    private static final String HIDDEN = SYNTHETIC + "vl_";
+
+    /** The prefix of the columns a materialized path's length, nodes and relationships are carried under
+     *  ({@code <prefix><function>_<path>}): what {@code length(p)}, {@code nodes(p)} and {@code relationships(p)}
+     *  read over rows. */
+    private static final String PATH_PART = SYNTHETIC + "path_";
+
+    private static boolean hidden(@com.legend.base.Nullable String name) {
+        return name != null && name.startsWith(HIDDEN);
+    }
+
+    /** The chains of one length each a variable-length relationship unrolls to, with the lists its variable names
+     *  and the aliases a zero-length hop makes (the far node is the near one). */
+    private record Chain(List<PatternElement> elements, Map<String, List<String>> lists,
+            Map<String, String> aliases) {
+    }
+
+    /**
+     * {@code MATCH (a)-[:T*1..2]->(b)}, {@code (a)-[r:T*2]->(b)}, {@code (a)-[*0..1]->(b)} (the study's §12.42): a
+     * variable-length relationship with an upper bound is the union of the patterns of each length within its
+     * bounds, each a chain of that many hops of the relationship's types and direction through nodes the query
+     * does not name, read as arms (§12.17's machinery: every chain's ways from every class the start node may be),
+     * the arms materialized and concatenated. A zero-length hop binds the far node to the near one (its labels
+     * and property map then the near node's; a far label the near node cannot carry leaves no chain of length
+     * zero). The relationship's variable is the list of the chain's relationships. Neo4j's relationship
+     * uniqueness (a chain never walks one relationship twice) is not spelled: it needs identity (C5), and only a
+     * graph whose data loops a chain back over the same relationship (a self-loop, a two-node cycle walked twice)
+     * can tell the difference (docs/SEMANTICS_REGISTER.md S73). Refused by name: no upper bound (a recursion), a
+     * bound beyond 4, a property map on the relationship, a variable-length relationship after another clause
+     * or beside another pattern, or in an OPTIONAL MATCH.
+     */
+    private State variableLength(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        if (state != null) {
+            throw CypherErrors.unsupported("a variable-length relationship in a MATCH after another clause is not"
+                    + " supported yet", m.pos());
+        }
+        if (m.patterns().size() != 1) {
+            throw CypherErrors.unsupported("a variable-length relationship in a MATCH of several patterns is not"
+                    + " supported yet", m.pos());
+        }
+        if (m.optional()) {
+            throw CypherErrors.unsupported("a variable-length relationship in an OPTIONAL MATCH is not supported"
+                    + " yet", m.pos());
+        }
+        PathPattern p = m.patterns().get(0);
+        if (p.variable() != null) {
+            p = namedPath(p, Set.of());
+        }
+        List<PatternElement> elements = new ArrayList<>(p.elements());
+        List<String> order = new ArrayList<>();
+        Set<String> taken = new HashSet<>();
+        for (PatternElement e : elements) {
+            if (e instanceof NodePattern n && n.variable() != null) {
+                taken.add(n.variable());
+            }
+        }
+        for (int i = 0; i < elements.size(); i += 2) {
+            NodePattern n = (NodePattern) elements.get(i);
+            if (n.variable() == null) {
+                n = new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos());
+                elements.set(i, n);
+            }
+            order.add(java.util.Objects.requireNonNull(n.variable()));
+        }
+        nameRelationshipsWithMaps(elements, taken);
+        int combinations = 1;
+        for (int i = 1; i < elements.size(); i += 2) {
+            RelPattern r = (RelPattern) elements.get(i);
+            CypherAst.LengthRange range = r.lengthRange();
+            if (range == null) {
+                continue;
+            }
+            String spelled = "*" + (range.lower() < 0 ? "" : range.lower()) + ".." + (range.upper() < 0 ? ""
+                    : range.upper());
+            if (range.upper() < 0) {
+                throw CypherErrors.unsupported("a variable-length relationship without an upper bound (" + spelled
+                        + ", a recursion) is not supported yet", r.pos());
+            }
+            if (range.upper() > 4) {
+                throw CypherErrors.unsupported("a variable-length relationship longer than 4 (" + spelled + ") is"
+                        + " not supported yet", r.pos());
+            }
+            int lower = range.lower() < 0 ? 1 : range.lower();
+            if (lower > range.upper()) {
+                throw CypherErrors.invalid("Invalid input '" + spelled + "': the lower bound exceeds the upper",
+                        r.pos());
+            }
+            if (!r.properties().isEmpty()) {
+                throw CypherErrors.unsupported("a property map on a variable-length relationship is not supported"
+                        + " yet", r.pos());
+            }
+            combinations *= range.upper() - lower + 1;
+        }
+        if (combinations > 16) {
+            throw CypherErrors.unsupported("variable-length relationships unrolling to more than 16 chains are not"
+                    + " supported yet", p.pos());
+        }
+        List<Chain> chains = new ArrayList<>();
+        List<PatternElement> head = new ArrayList<>();
+        head.add(elements.get(0));
+        int[] counter = {0};
+        expand(elements, 1, head, new LinkedHashMap<>(), new LinkedHashMap<>(), counter, chains);
+        for (Chain chain : chains) {
+            if (chain.elements().size() > 5) {
+                // (the resolver's nested navigation reads no association end past a second step: IN_FLIGHT,
+                // 2026-10-16, the resolver line's finding)
+                throw CypherErrors.unsupported("a variable-length relationship whose pattern unrolls to more than two"
+                        + " hops in all is not supported yet", p.pos());
+            }
+        }
+        // every chain's arms, from every class the start node may be (as the untyped route reads a pattern)
+        List<List<PatternElement>> arms = new ArrayList<>();
+        List<Chain> armChains = new ArrayList<>();
+        for (Chain chain : chains) {
+            NodePattern root = (NodePattern) chain.elements().get(0);
+            String rootLabel = labelClass(root);
+            List<String> rootClasses = new ArrayList<>(rootLabel != null ? List.of(rootLabel) : model.classes());
+            rootClasses.removeAll(durationClasses());
+            int before = arms.size();
+            for (String cls : rootClasses) {
+                List<PatternElement> start = new ArrayList<>();
+                start.add(new NodePattern(root.variable(), List.of(cls), root.properties(), root.pos()));
+                assign(chain.elements(), 2, cls, start, arms);
+            }
+            for (int i = before; i < arms.size(); i++) {
+                armChains.add(chain);
+            }
+        }
+        if (arms.isEmpty()) {
+            throw CypherErrors.unsupported("a variable-length relationship no way of the model reads is not"
+                    + " supported yet", p.pos());
+        }
+        Map<String, List<String>> variableClasses = new LinkedHashMap<>();
+        for (int a = 0; a < arms.size(); a++) {
+            for (PatternElement e : arms.get(a)) {
+                if (e instanceof NodePattern n && n.variable() != null && !hidden(n.variable())) {
+                    List<String> classes = variableClasses.computeIfAbsent(n.variable(), k -> new ArrayList<>());
+                    if (!classes.contains(n.labels().get(0))) {
+                        classes.add(n.labels().get(0));
+                    }
+                }
+            }
+            for (Map.Entry<String, String> alias : armChains.get(a).aliases().entrySet()) {
+                String cls = ((NodePattern) arms.get(a).get(0)).labels().get(0);
+                for (PatternElement e : arms.get(a)) {
+                    if (e instanceof NodePattern n && alias.getValue().equals(n.variable())) {
+                        cls = n.labels().get(0);
+                    }
+                }
+                List<String> classes = variableClasses.computeIfAbsent(alias.getKey(), k -> new ArrayList<>());
+                if (!classes.contains(cls)) {
+                    classes.add(cls);
+                }
+            }
+        }
+        List<String> everyClass = new ArrayList<>();
+        variableClasses.values().forEach(cs -> cs.forEach(c -> {
+            if (!everyClass.contains(c)) {
+                everyClass.add(c);
+            }
+        }));
+        List<Graph> graphs = new ArrayList<>();
+        for (int a = 0; a < arms.size(); a++) {
+            List<PatternElement> arm = arms.get(a);
+            Chain chain = armChains.get(a);
+            typesInThisMatch.clear();
+            Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
+            if (p.variable() != null) {
+                recordPath(g, new PathPattern(p.variable(), arm, p.pos()));
+            }
+            // a zero-length hop: the far node is the near one
+            chain.aliases().forEach((far, near) -> g.bindings().put(far,
+                    java.util.Objects.requireNonNull(g.bindings().get(near))));
+            g.lists().putAll(chain.lists());
+            Graph read = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
+                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists());
+            Expr where = m.where();
+            if (where != null) {
+                if (read.fanning()) {
+                    read.deferredWhere().add(where);
+                } else {
+                    read.conditions().add(condition(where, new GraphScope(read), "WHERE"));
+                }
+            }
+            graphs.add(read);
+        }
+        return materializeArms(graphs, order, m.pos());
+    }
+
+    /** The chains from {@code at} (a relationship's place in {@code elements}) on: a fixed relationship and its
+     *  node as they are; a variable-length one as each length within its bounds -- zero folding the far node into
+     *  the node before it, k as k hops through k-1 nodes of the unroll's own. */
+    private void expand(List<PatternElement> elements, int at, List<PatternElement> head,
+            Map<String, List<String>> lists, Map<String, String> aliases, int[] counter, List<Chain> out) {
+        if (at >= elements.size()) {
+            out.add(new Chain(List.copyOf(head), new LinkedHashMap<>(lists), new LinkedHashMap<>(aliases)));
+            return;
+        }
+        RelPattern rel = (RelPattern) elements.get(at);
+        NodePattern next = (NodePattern) elements.get(at + 1);
+        CypherAst.LengthRange range = rel.lengthRange();
+        if (range == null) {
+            head.add(rel);
+            head.add(next);
+            expand(elements, at + 2, head, lists, aliases, counter, out);
+            head.remove(head.size() - 1);
+            head.remove(head.size() - 1);
+            return;
+        }
+        int lower = range.lower() < 0 ? 1 : range.lower();
+        for (int k = lower; k <= range.upper(); k++) {
+            if (k == 0) {
+                NodePattern near = (NodePattern) head.get(head.size() - 1);
+                if (!near.labels().isEmpty() && !next.labels().isEmpty() && !near.labels().equals(next.labels())) {
+                    // (the far node would have to be the near one: a label the near node does not carry leaves no
+                    // chain of length zero)
+                    continue;
+                }
+                Map<String, Expr> properties = new LinkedHashMap<>(near.properties());
+                for (Map.Entry<String, Expr> e : next.properties().entrySet()) {
+                    if (properties.containsKey(e.getKey())) {
+                        throw CypherErrors.unsupported("a zero-length relationship between two nodes whose property"
+                                + " maps both name " + e.getKey() + " is not supported yet", next.pos());
+                    }
+                    properties.put(e.getKey(), e.getValue());
+                }
+                NodePattern merged = new NodePattern(near.variable(), near.labels().isEmpty() ? next.labels()
+                        : near.labels(), properties, near.pos());
+                head.set(head.size() - 1, merged);
+                aliases.put(java.util.Objects.requireNonNull(next.variable()),
+                        java.util.Objects.requireNonNull(near.variable()));
+                if (rel.variable() != null) {
+                    lists.put(rel.variable(), List.of());
+                }
+                expand(elements, at + 2, head, lists, aliases, counter, out);
+                if (rel.variable() != null) {
+                    lists.remove(rel.variable());
+                }
+                aliases.remove(next.variable());
+                head.set(head.size() - 1, near);
+                continue;
+            }
+            List<String> names = new ArrayList<>();
+            for (int j = 1; j <= k; j++) {
+                String name = HIDDEN + "r" + counter[0]++;
+                names.add(name);
+                head.add(new RelPattern(name, rel.types(), rel.direction(), Map.of(), null, rel.pos()));
+                head.add(j == k ? next : new NodePattern(HIDDEN + "n" + counter[0]++, List.of(), Map.of(),
+                        next.pos()));
+            }
+            if (rel.variable() != null) {
+                lists.put(rel.variable(), names);
+            }
+            expand(elements, at + 2, head, lists, aliases, counter, out);
+            if (rel.variable() != null) {
+                lists.remove(rel.variable());
+            }
+            for (int j = 0; j < 2 * k; j++) {
+                head.remove(head.size() - 1);
+            }
+        }
     }
 
     /** {@code MATCH (a:A) WITH a MATCH (a)-->(b)}, {@code MATCH (a:A) MATCH (x)-[r]-(a)}: an untyped relationship
@@ -990,7 +1262,7 @@ public final class CypherToPure {
                         new ArrayList<>(base.conditions()), base.candidates(), true,
                         new ArrayList<>(base.deferredConstraints()), new ArrayList<>(base.deferredWhere()),
                         base.variableClasses(), new LinkedHashMap<>(base.paths()),
-                        new LinkedHashMap<>(base.forward()));
+                        new LinkedHashMap<>(base.forward()), new LinkedHashMap<>(base.lists()));
                 Graph g = pattern(new PathPattern(null, arm, p.pos()), copy);
                 if (m.where() != null) {
                     g.deferredWhere().add(m.where());
@@ -1309,7 +1581,7 @@ public final class CypherToPure {
                         && !model.isSubclass(hop.target(), labelled)) {
                     target = Binding.absentNode();
                 } else {
-                    if (!typesInThisMatch.add(rel.types().get(0))) {
+                    if (!hidden(rel.variable()) && !typesInThisMatch.add(rel.types().get(0))) {
                         throw CypherErrors.unsupported("two relationships of the type " + rel.types().get(0)
                                 + " in one MATCH (Neo4j binds them to different relationships: relationship"
                                 + " uniqueness) are not supported yet", rel.pos());
@@ -1389,7 +1661,7 @@ public final class CypherToPure {
             fresh = mark;
             Graph g = new Graph(arm.rootClass(), arm.row(), arm.bindings(), arm.conditions(), everyClass,
                     arm.fanning(), arm.deferredConstraints(), arm.deferredWhere(), variableClasses, arm.paths(),
-                    arm.forward());
+                    arm.forward(), arm.lists());
             Rows rows = materialize(g, pos, order);
             out = out == null ? rows : new Rows(call("concatenate", out.vs(), rows.vs()), out.columns());
         }
@@ -1435,14 +1707,26 @@ public final class CypherToPure {
         });
         for (String name : names) {
             Binding b = g.bindings().get(name);
-            if (b == null) {
+            if (b == null || hidden(name)) {
+                // (a node or relationship the unroll of a variable-length relationship made up: read by the path
+                // and the relationship list, never a column of its own)
                 continue;
             }
             // (a relationship is carried as its value: a JSON column, its type the column's detail)
             items.add(new Item(new CypherAst.Var(name, pos), name, name, pos));
         }
-        // (a path too: its value, a JSON column)
-        g.paths().keySet().forEach(name -> items.add(new Item(new CypherAst.Var(name, pos), name, name, pos)));
+        // (a path too: its value, a JSON column, and beside it its length, its nodes and its relationships under
+        // the names the row scope reads them by, since a variable-length pattern's arms differ in them; a
+        // variable-length relationship's list likewise)
+        g.paths().keySet().forEach(name -> {
+            items.add(new Item(new CypherAst.Var(name, pos), name, name, pos));
+            for (String fn : List.of("length", "nodes", "relationships")) {
+                String column = PATH_PART + fn + "_" + name;
+                items.add(new Item(new CypherAst.Call(fn, false, List.of(new CypherAst.Var(name, pos)), pos),
+                        column, column, pos));
+            }
+        });
+        g.lists().keySet().forEach(name -> items.add(new Item(new CypherAst.Var(name, pos), name, name, pos)));
         Rows rows = project(items, false, List.of(), null, null, null, g, pos, false);
         RowScope scope = new RowScope(rows);
         ValueSpecification cond = null;
@@ -1939,7 +2223,7 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("properties on a relationship pattern over a property or association"
                         + " (no edge class, the study's §5.6) are not supported yet", rel.pos());
             }
-            if (!typesInThisMatch.add(rel.types().get(0))) {
+            if (!hidden(rel.variable()) && !typesInThisMatch.add(rel.types().get(0))) {
                 throw CypherErrors.unsupported("two relationships of the type " + rel.types().get(0) + " in one MATCH"
                         + " (Neo4j binds them to different relationships: relationship uniqueness) are not supported"
                         + " yet", rel.pos());
@@ -2338,7 +2622,8 @@ public final class CypherToPure {
                 kept.put(alias, b);
             }
             Graph next = new Graph(g.rootClass(), g.row(), kept, g.conditions(), g.candidates(), g.fanning(),
-                    g.deferredConstraints(), g.deferredWhere(), g.variableClasses(), keptPaths, g.forward());
+                    g.deferredConstraints(), g.deferredWhere(), g.variableClasses(), keptPaths, g.forward(),
+                    new LinkedHashMap<>());
             Expr where = w.where();
             if (where != null) {
                 next.conditions().add(condition(where, new GraphScope(next), "WHERE"));
@@ -3374,6 +3659,16 @@ public final class CypherToPure {
             if (path != null) {
                 return scalar(pathJson(path, v.pos()));
             }
+            List<String> rels = g.lists().get(v.name());
+            if (rels != null) {
+                // a variable-length relationship's variable: the list of the relationships the arm's chain holds,
+                // as the Variant the database builds (the same column in every arm, the empty chain's included)
+                List<Val> values = new ArrayList<>();
+                for (String r : rels) {
+                    values.add(scalar(relValue(java.util.Objects.requireNonNull(g.bindings().get(r)), v.pos())));
+                }
+                return scalar(variant(new ListVal(values), v.pos()));
+            }
             Binding b = g.bindings().get(v.name());
             if (b == null) {
                 throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
@@ -3780,7 +4075,7 @@ public final class CypherToPure {
 
         @Override
         public boolean binds(String name) {
-            return g.bindings().containsKey(name) || g.paths().containsKey(name);
+            return g.bindings().containsKey(name) || g.paths().containsKey(name) || g.lists().containsKey(name);
         }
 
         /** A bound node's property: the class's, navigated from the root instance (C4: a property the class does not
@@ -4895,6 +5190,12 @@ public final class CypherToPure {
                 out.add(scope.variable(new CypherAst.Var(name, c.pos())));
             }
             return new ListVal(out);
+        }
+        if ((fn.equals("length") || fn.equals("nodes") || fn.equals("relationships")) && c.args().size() == 1
+                && c.args().get(0) instanceof CypherAst.Var v && scope instanceof RowScope rs
+                && rs.has(PATH_PART + fn + "_" + v.name())) {
+            // of a materialized path (a variable-length pattern's arms, §12.42): the column carried beside it
+            return rs.variable(new CypherAst.Var(PATH_PART + fn + "_" + v.name(), v.pos()));
         }
         if ((fn.equals("length") || fn.equals("nodes") || fn.equals("relationships")) && c.args().size() == 1
                 && (c.args().get(0) instanceof CypherAst.Var || c.args().get(0) instanceof CypherAst.NullLit)) {
@@ -6222,7 +6523,7 @@ public final class CypherToPure {
             Graph g = outer.g;
             Graph ext = new Graph(g.rootClass(), g.row(), new LinkedHashMap<>(g.bindings()), g.conditions(),
                     g.candidates(), g.fanning(), g.deferredConstraints(), g.deferredWhere(), g.variableClasses(),
-                    new LinkedHashMap<>(g.paths()), new LinkedHashMap<>(g.forward()));
+                    new LinkedHashMap<>(g.paths()), new LinkedHashMap<>(g.forward()), new LinkedHashMap<>(g.lists()));
             Set<String> taken = new HashSet<>(g.bindings().keySet());
             taken.addAll(g.paths().keySet());
             String end = endName(taken);

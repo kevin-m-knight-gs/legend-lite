@@ -3148,3 +3148,37 @@ Postgres: PASS 2368 (from 2,362); 0 FAIL, 0 BUG, 0 ERROR on both. 14 more lite c
 `collect(DISTINCT x)`). The TCK:
 38 more scenarios pass (the `collect` bucket, Precedence1's quantifiers over collected booleans, Unwind1's double
 unwinding and collected lists, Aggregation's and Return's `collect`s).
+
+### 12.42 Variable-length relationships with an upper bound, 2026-10-16
+
+- **`(a)-[:T*1..2]->(b)`, `(a)-[r:T*2]->(b)`, `(a)-[*0..1]->(b)`, `p = (a)-[:KNOWS*0..1]->(b)-[:FRIEND*0..1]->(c)`:**
+  a variable-length relationship with an upper bound is the union of the patterns of each length within its bounds
+  (Neo4j's missing lower bound is 1), each a chain of that many hops of the relationship's types and direction
+  through nodes the query does not name, read as arms by §12.17's machinery (every chain's ways from every class
+  the start node may be), the arms materialized and concatenated. The unroll's own nodes and relationships are
+  bound in the arm's graph under names the materialization never carries as columns, so the arms' columns agree
+  across lengths; a zero-length hop binds the far node to the near one (its labels and property map then the
+  near node's; a far label the near node cannot carry leaves no chain of length zero). The relationship's
+  variable is the list of the chain's relationships (the Variant the database builds, `[]` for the empty chain);
+  a named path over the unroll is the chain's path, and its length, nodes and relationships are carried beside it
+  when the arms are materialized, so `length(p)` reads over the rows. The WHERE is read per arm.
+- **Relationship uniqueness is not spelled.** Neo4j never walks one relationship twice within a chain; telling
+  the same relationship from another needs identity (C5), so a graph whose data loops a chain back over the same
+  relationship (a self-loop walked twice, a two-node cycle walked round and back) answers rows Neo4j does not. A
+  deliberate difference, recorded (`docs/SEMANTICS_REGISTER.md` S73); the TCK's variable-length graphs are
+  acyclic or walk a cycle once, and lite's `a_variable_length_round_a_cycle` pins the walk Neo4j allows.
+- **Refused by name:** no upper bound (`*`, `*2..`: a recursion, §6.3's native); a bound beyond 4; a pattern
+  unrolling to more than 16 chains; a property map on the relationship; a pattern unrolling to more than two hops
+  in all (the resolver's nested navigation reads no association end past a second step: the resolver line's
+  finding in `docs/IN_FLIGHT.md`); a variable-length relationship after another clause, beside another pattern,
+  or in an OPTIONAL MATCH; a chain past an edge class (§12.38's refusal, the same resolver limit).
+
+#### 12.42.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4438 | 2802 (from 2,784) | 0 | 0 | 0 | 738 | 717 | 181 |
+| Postgres | 4438 | 2452 (from 2,434) | 0 | 0 | 0 | 1088 | 717 | 181 |
+
+16 lite cases in `lite/varlen.yaml`, each judged by Neo4j (three refused by name). The TCK: 5 more scenarios pass
+(Match4, Match6, Match9, Path2, Path3).

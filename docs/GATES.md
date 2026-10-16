@@ -9850,6 +9850,27 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the forty-first landing — variable-length relationships with an upper bound
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.42. The translator alone: a
+variable-length relationship with an upper bound unrolled into the chains of each length, read as arms by the
+pattern machinery, the unroll's own nodes and relationships hidden from the carried columns, a zero-length hop
+binding the far node to the near one, the relationship's variable the list of the chain's relationships, a path's
+length, nodes and relationships carried beside it over rows.
+
+1. **What lands.** `MATCH (a)-[:T*1..2]->(b)`, `(a)-[r:T*2]->(b) RETURN r`, `(a)-[*0..1]->(b)`,
+   `p = (a)-[:KNOWS*0..1]->(b)-[:FRIEND*0..1]->(c) RETURN p`, `length(p)` over the arms; Neo4j's missing lower
+   bound is 1.
+2. **The ledger.** DuckDB: 4438 cases; PASS 2802 (from 2,784); FAIL 0; BUG 0; ERROR 0; REFUSED 738; BOTH_ERROR 717;
+   SKIP 181. Postgres: PASS 2452 (from 2,434); FAIL 0; BUG 0; ERROR 0; REFUSED 1088; BOTH_ERROR 717; SKIP 181. 16
+   lite cases in `lite/varlen.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pin that refused a bounded variable-length relationship now pins its unroll and the two refusals.
+4. **Declared.** `docs/SEMANTICS_REGISTER.md` S73: relationship uniqueness along a chain is not spelled (identity,
+   C5); a graph that loops a chain back over one relationship answers rows Neo4j does not.
+5. **Refused by name, recorded.** No upper bound, a bound beyond 4, more than 16 chains, a property map on the
+   relationship, more than two hops in all, after another clause, beside another pattern, in an OPTIONAL MATCH.
+
 ## 2026-10-16 — `#Cypher{...}#`: the fortieth landing — `collect`, and lists the database holds
 
 Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.41. The translator alone: `collect(x)`

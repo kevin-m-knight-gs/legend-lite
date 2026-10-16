@@ -1,0 +1,67 @@
+# A variable-length relationship with an upper bound, unrolled into the chains of each length (the study's §12.42):
+# each judged by Neo4j.
+cases:
+  - id: a_fixed_length_of_two
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (a:A)-[:T*2]->(x) RETURN x.name AS x"
+  - id: a_length_of_one_to_two
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (a:A)-[:T*1..2]->(x) RETURN x.name AS x ORDER BY x"
+  - id: a_length_of_zero_to_one
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (a:A)-[:T*0..1]->(x) RETURN x.name AS x ORDER BY x"
+  - id: a_length_of_zero_to_one_with_a_far_label
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A)-[:T*0..1]->(x:B) RETURN x.name AS x"
+  - id: the_relationship_list_of_a_chain
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (a:A)-[r:T*2]->(x) RETURN r, size(r) AS n"
+  - id: a_named_path_over_a_variable_length
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH p = (a:A)-[:T*1..2]->(x) RETURN length(p) AS n ORDER BY n"
+  - id: a_variable_length_with_a_where
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (a:A)-[:T*1..2]->(x) WHERE x.name = 'c' RETURN x.name AS x"
+  - id: an_untyped_variable_length
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (a:A)-[*1..2]->(x) RETURN x.name AS x ORDER BY x"
+  - id: a_variable_length_from_a_labelless_start
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (n)-[:T*1..2]->(x) RETURN n.name AS n, x.name AS x ORDER BY n, x"
+  - id: a_variable_length_in_the_middle
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:U]->(:D {name: 'd'})
+    cypher: "MATCH (a:A)-[:T*0..1]->(x)-[:U]->(d) RETURN x.name AS x, d.name AS d"
+  - id: a_variable_length_unrolling_past_two_hops_is_refused
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})-[:U]->(:D {name: 'd'})
+    cypher: "MATCH (a:A)-[:T*1..2]->(x)-[:U]->(d) RETURN x.name AS x, d.name AS d"
+  - id: a_missing_lower_bound_is_one
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (a:A {name: 'a'})-[:T*..2]->(x) RETURN x.name AS x ORDER BY x"
+  - id: an_unbounded_variable_length_is_refused
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A)-[:T*]->(x) RETURN x.name AS x"
+  - id: a_variable_length_round_a_cycle
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:A {name: 'b'})-[:T]->(a)
+    cypher: "MATCH (x:A {name: 'a'})-[:T*2]->(y) RETURN y.name AS y"
+  - id: a_variable_length_from_a_labelless_start_over_several_types
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:U]->(:D {name: 'd'})
+    cypher: "MATCH (n)-[*1..2]->(x) RETURN n.name AS n, x.name AS x ORDER BY n, x"
+  - id: a_property_map_on_a_variable_length_is_refused
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {w: 1}]->(:A {name: 'b'})
+    cypher: "MATCH (a:A)-[:T*1..2 {w: 1}]->(x) RETURN x.name AS x"

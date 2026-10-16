@@ -408,9 +408,9 @@ tck/clauses/match/Match3/[27] Matching from null nodes should return no results 
 tck/clauses/match/Match3/[28] Matching from null nodes should return no results owing to matches being filtered out	REFUSED	REFUSED
 tck/clauses/match/Match3/[29] Fail when re-using a relationship in the same pattern	REFUSED	REFUSED
 tck/clauses/match/Match3/[30] Fail when using a list or nodes as a node	BOTH_ERROR	BOTH_ERROR
-tck/clauses/match/Match4/[1] Handling fixed-length variable length pattern	REFUSED	REFUSED
+tck/clauses/match/Match4/[1] Handling fixed-length variable length pattern	PASS	PASS
 tck/clauses/match/Match4/[2] Simple variable length pattern	REFUSED	REFUSED
-tck/clauses/match/Match4/[3] Zero-length variable length pattern in the middle of the pattern	REFUSED	REFUSED
+tck/clauses/match/Match4/[3] Zero-length variable length pattern in the middle of the pattern	PASS	PASS
 tck/clauses/match/Match4/[4] Matching longer variable length paths	SKIP	SKIP
 tck/clauses/match/Match4/[5] Matching variable length pattern with property predicate	SKIP	SKIP
 tck/clauses/match/Match4/[6] Matching variable length patterns from a bound node	REFUSED	REFUSED
@@ -463,9 +463,9 @@ tck/clauses/match/Match6/[13] Matching path with both directions should respect 
 tck/clauses/match/Match6/[14] Named path with undirected fixed variable length pattern	REFUSED	REFUSED
 tck/clauses/match/Match6/[15] Variable-length named path	REFUSED	REFUSED
 tck/clauses/match/Match6/[16] Return a var length path	REFUSED	REFUSED
-tck/clauses/match/Match6/[17] Return a named var length path of length zero	REFUSED	REFUSED
+tck/clauses/match/Match6/[17] Return a named var length path of length zero	PASS	PASS
 tck/clauses/match/Match6/[18] Undirected named path	PASS	PASS
-tck/clauses/match/Match6/[19] Variable length relationship without lower bound	REFUSED	REFUSED
+tck/clauses/match/Match6/[19] Variable length relationship without lower bound	PASS	PASS
 tck/clauses/match/Match6/[20] Variable length relationship without bounds	REFUSED	REFUSED
 tck/clauses/match/Match6/[21] Fail when a node has the same variable in a preceding MATCH #1	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match6/[21] Fail when a node has the same variable in a preceding MATCH #2	BOTH_ERROR	BOTH_ERROR
@@ -2007,7 +2007,7 @@ tck/expressions/path/Path1/[1] `nodes()` on null path	PASS	PASS
 tck/expressions/path/Path2/[1] Return relationships by fetching them from the path	REFUSED	REFUSED
 tck/expressions/path/Path2/[2] Return relationships by fetching them from the path - starting from the end	REFUSED	REFUSED
 tck/expressions/path/Path2/[3] `relationships()` on null path	PASS	PASS
-tck/expressions/path/Path3/[1] Return a var length path of length zero	REFUSED	REFUSED
+tck/expressions/path/Path3/[1] Return a var length path of length zero	PASS	PASS
 tck/expressions/path/Path3/[2] Failing when using `length()` on a node	BOTH_ERROR	BOTH_ERROR
 tck/expressions/path/Path3/[3] Failing when using `length()` on a relationship	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[1] Matching on any single outgoing directed connection	PASS	PASS
@@ -4418,6 +4418,22 @@ lite/values/comparison_of_different_types_is_false	PASS	PASS
 lite/values/size_and_keys_errors_are_cyphers	BOTH_ERROR	BOTH_ERROR
 lite/values/where_in_over_rows	PASS	PASS
 lite/values/ordering_booleans	PASS	PASS
+lite/varlen/a_fixed_length_of_two	PASS	PASS
+lite/varlen/a_length_of_one_to_two	PASS	PASS
+lite/varlen/a_length_of_zero_to_one	PASS	PASS
+lite/varlen/a_length_of_zero_to_one_with_a_far_label	PASS	PASS
+lite/varlen/the_relationship_list_of_a_chain	PASS	PASS
+lite/varlen/a_named_path_over_a_variable_length	PASS	PASS
+lite/varlen/a_variable_length_with_a_where	PASS	PASS
+lite/varlen/an_untyped_variable_length	PASS	PASS
+lite/varlen/a_variable_length_from_a_labelless_start	PASS	PASS
+lite/varlen/a_variable_length_in_the_middle	PASS	PASS
+lite/varlen/a_variable_length_unrolling_past_two_hops_is_refused	REFUSED	REFUSED
+lite/varlen/a_missing_lower_bound_is_one	PASS	PASS
+lite/varlen/an_unbounded_variable_length_is_refused	REFUSED	REFUSED
+lite/varlen/a_variable_length_round_a_cycle	PASS	PASS
+lite/varlen/a_variable_length_from_a_labelless_start_over_several_types	PASS	PASS
+lite/varlen/a_property_map_on_a_variable_length_is_refused	REFUSED	REFUSED
 lite/withlists/a_list_of_row_values_through_with	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with_unwound	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with_sized_and_tested	PASS	PASS

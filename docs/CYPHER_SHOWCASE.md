@@ -947,7 +947,7 @@ ORDER BY title
 | 'Speed' | {role: 'Jack'} | 1 | false |
 | 'The Matrix' | {role: 'Neo', year: 1999} | 2 | true |
 
-## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.41)
+## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.42)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
@@ -958,9 +958,9 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 
 | status | cases |
 |---|---|
-| PASS | 2338 |
+| PASS | 2343 |
 | BOTH_ERROR | 670 |
-| REFUSED | 691 |
+| REFUSED | 686 |
 | SKIP | 181 |
 | total | 3880 |
 
@@ -969,7 +969,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | clauses/call | 52 | 0 | 2 | 0 | 50 |
 | clauses/create | 78 | 0 | 15 | 54 | 9 |
 | clauses/delete | 41 | 0 | 5 | 36 | 0 |
-| clauses/match | 381 | 28 | 240 | 107 | 6 |
+| clauses/match | 381 | 32 | 240 | 103 | 6 |
 | clauses/match-where | 34 | 19 | 2 | 13 | 0 |
 | clauses/merge | 75 | 0 | 13 | 54 | 8 |
 | clauses/remove | 33 | 0 | 0 | 31 | 2 |
@@ -994,7 +994,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | expressions/map | 44 | 35 | 9 | 0 | 0 |
 | expressions/mathematical | 6 | 5 | 1 | 0 | 0 |
 | expressions/null | 44 | 40 | 0 | 4 | 0 |
-| expressions/path | 7 | 2 | 2 | 3 | 0 |
+| expressions/path | 7 | 3 | 2 | 2 | 0 |
 | expressions/pattern | 50 | 15 | 19 | 16 | 0 |
 | expressions/precedence | 104 | 92 | 0 | 12 | 0 |
 | expressions/quantifier | 604 | 513 | 12 | 79 | 0 |
@@ -1009,8 +1009,7 @@ and `DETACH DELETE` (241, the platform's `write` first: `docs/BI_AND_ETL_PLAN_20
 table lacks, `rand()` and the clock functions among them (50, never reproducible); a label, a property or a
 relationship type the model does not declare (52, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns
 that need node identity, which the values do not carry (a `MATCH` or `OPTIONAL MATCH` after rows, both ends bound, an
-undirected self-association, nodes among grouping keys, nodes compared: 87, the study's C5); variable-length
-relationships (36); a value the database holds as a Variant read by member, index, order or `IN` without a known
+undirected self-association, nodes among grouping keys, nodes compared: 87, the study's C5); variable-length relationships without an upper bound, or unrolling past two hops (20); a value the database holds as a Variant read by member, index, order or `IN` without a known
 shape (64: a map's member or a list's element where the shape did not travel, `ORDER BY` a Variant); a pattern
 predicate or comprehension over rows, from no bound node or over more than one hop, and `COUNT { }` (22); a list
 holding a value that may be null, read by the database (8); `%` inside a comprehension the database computes (8);
