@@ -30,9 +30,11 @@ final class InformationSchemaCatalog {
      *  reports ({@code TYPE_NAME}); {@code typeKey} the expression of the name its {@code java.sql.Types} code is
      *  read by; {@code codes} each such name's code, in order. A name not among them is OTHER, as
      *  {@code DatabaseMetaData} reports a type it has no code for. */
-    record Types(String typeName, String typeKey, java.util.SequencedMap<String, TypeCode> codes) {
+    record Types(String typeName, String typeKey, java.util.Map<String, TypeCode> codes) {
         Types {
-            codes = java.util.Collections.unmodifiableSequencedMap(new java.util.LinkedHashMap<>(codes));
+            // a copy in the order given, read-only. Not Collections.unmodifiableSequencedMap: TeaVM's class library
+            // (the browser planner, //wasm:planner) has none
+            codes = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(codes));
         }
     }
 

@@ -184,8 +184,8 @@ public class H2 extends AnsiSqlRenderer {
             "CASE WHEN declared_data_type = 'DECIMAL' THEN 'DECIMAL' ELSE data_type END",
             "COALESCE(declared_data_type, data_type)", gridTypeCodes());
 
-    private static java.util.SequencedMap<String, InformationSchemaCatalog.TypeCode> gridTypeCodes() {
-        java.util.SequencedMap<String, InformationSchemaCatalog.TypeCode> m = new java.util.LinkedHashMap<>();
+    private static java.util.Map<String, InformationSchemaCatalog.TypeCode> gridTypeCodes() {
+        java.util.Map<String, InformationSchemaCatalog.TypeCode> m = new java.util.LinkedHashMap<>();
         m.put("INTEGER", InformationSchemaCatalog.TypeCode.INTEGER);
         m.put("CHARACTER VARYING", InformationSchemaCatalog.TypeCode.VARCHAR);
         m.put("BIGINT", InformationSchemaCatalog.TypeCode.BIGINT);

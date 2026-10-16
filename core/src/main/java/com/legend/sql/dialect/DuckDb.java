@@ -674,8 +674,8 @@ public final class DuckDb extends AnsiSqlRenderer {
             "data_type", "CASE WHEN data_type LIKE 'DECIMAL%' THEN 'DECIMAL' ELSE data_type END",
             gridTypeCodes());
 
-    private static java.util.SequencedMap<String, InformationSchemaCatalog.TypeCode> gridTypeCodes() {
-        java.util.SequencedMap<String, InformationSchemaCatalog.TypeCode> m = new java.util.LinkedHashMap<>();
+    private static java.util.Map<String, InformationSchemaCatalog.TypeCode> gridTypeCodes() {
+        java.util.Map<String, InformationSchemaCatalog.TypeCode> m = new java.util.LinkedHashMap<>();
         m.put("INTEGER", InformationSchemaCatalog.TypeCode.INTEGER);
         m.put("VARCHAR", InformationSchemaCatalog.TypeCode.VARCHAR);
         m.put("BIGINT", InformationSchemaCatalog.TypeCode.BIGINT);
