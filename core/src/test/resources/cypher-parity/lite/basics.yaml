@@ -1,0 +1,139 @@
+# The #Cypher{...}# island's own first cases (docs/CYPHER_STUDY_2026_10_15.md §8.1), over the Legend-shaped graph
+# graphs/legend.cypher (people, firms, cities; WORKS_AT and HQ), each judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write snaps them), keyed lite/basics/<id>. A case runs under lite's default Cypher
+# version (25) unless it names one (version: 5); its rows compare in order when it has an ORDER BY, as a bag otherwise.
+#
+# The YAML is the subset the oracle and CypherParity read: `- id:` items whose values are a quoted line or a `|` block;
+# `graph:` names a graphs/*.cypher file or holds CREATE statements; `params:` is a map in the TCK's value grammar.
+tests:
+  - id: match_return_property
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN p.name ORDER BY p.name"
+  - id: where_comparison_null_is_not_true
+    graph: legend
+    cypher: "MATCH (p:Person) WHERE p.age > 26 RETURN p.name AS name ORDER BY name"
+  - id: where_not_null_is_null
+    graph: legend
+    cypher: "MATCH (p:Person) WHERE NOT p.active OR p.age IS NULL RETURN p.name ORDER BY p.name"
+  - id: hop_out
+    graph: legend
+    cypher: "MATCH (p:Person)-[:WORKS_AT]->(f:Firm) RETURN p.name, f.legalName ORDER BY p.name"
+  - id: hop_in
+    graph: legend
+    cypher: "MATCH (f:Firm)<-[:WORKS_AT]-(p:Person) RETURN f.legalName, p.name ORDER BY f.legalName, p.name"
+  - id: two_hops
+    graph: legend
+    cypher: "MATCH (p:Person)-[:WORKS_AT]->(f:Firm)-[:HQ]->(c:City) RETURN p.name, c.name AS city ORDER BY p.name"
+  - id: property_map_and_labelless_target
+    graph: legend
+    cypher: "MATCH (p:Person {name: 'Bob'})-[:WORKS_AT]->(f) RETURN f.legalName"
+  - id: group_count_avg
+    graph: legend
+    cypher: "MATCH (f:Firm)<-[:WORKS_AT]-(p:Person) RETURN f.legalName, count(*) AS employees, avg(p.age) AS avgAge ORDER BY f.legalName"
+  - id: aggregates_alone
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN count(*), sum(p.age), avg(p.age), min(p.age), max(p.age)"
+  - id: aggregates_of_nothing
+    graph: legend
+    cypher: "MATCH (p:Person) WHERE p.age > 100 RETURN count(p), sum(p.age), avg(p.age), min(p.age)"
+  - id: with_filter_arithmetic_limit
+    graph: legend
+    cypher: "MATCH (p:Person) WITH p.name AS name, p.age AS age WHERE age IS NOT NULL RETURN name, age * 2 AS twice ORDER BY twice DESC LIMIT 2"
+  - id: with_carries_the_node
+    graph: legend
+    cypher: "MATCH (p:Person) WITH p WHERE p.age > 26 RETURN p.name ORDER BY p.name"
+  - id: case_and_coalesce
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN p.name, CASE WHEN p.age >= 30 THEN 'senior' WHEN p.age < 30 THEN 'junior' ELSE 'unknown' END AS band, coalesce(p.active, false) AS active ORDER BY p.name"
+  - id: distinct_skip_limit
+    graph: legend
+    cypher: "MATCH (p:Person)-[:WORKS_AT]->(f:Firm) RETURN DISTINCT f.legalName AS firm ORDER BY firm SKIP 1 LIMIT 1"
+  - id: null_order
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN p.name AS n, p.age AS a ORDER BY a DESC, n"
+  - id: arithmetic
+    graph: legend
+    cypher: "RETURN 7 / 2 AS q, -7 / 2 AS nq, 7 % 3 AS m, 2 ^ 3 AS p, 7 / 2.0 AS f, 'a' + 'b' AS s, -(3 - 5) AS neg"
+  - id: string_predicates_and_in
+    graph: legend
+    cypher: "MATCH (p:Person) WHERE p.name STARTS WITH 'A' OR p.name ENDS WITH 'e' OR p.age IN [25, 40] RETURN p.name ORDER BY p.name"
+  - id: boolean_logic_three_valued
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN p.name, p.age > 30 AS old, p.active AND p.age > 30 AS both, p.active OR p.age > 30 AS either, p.active XOR p.age > 30 AS one ORDER BY p.name"
+  - id: comparison_chain
+    graph: legend
+    cypher: "MATCH (p:Person) WHERE 26 < p.age <= 35 RETURN p.name ORDER BY p.name"
+  - id: cypher_5_prefix
+    graph: legend
+    cypher: "CYPHER 5 MATCH (p:Person) WHERE p.age IS NOT NULL RETURN p.name, p.age ORDER BY p.age"
+  - id: version_named_outside
+    graph: legend
+    version: 5
+    cypher: "MATCH (p:Person) RETURN count(p) AS people"
+  - id: refused_node_as_value
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN p"
+  - id: refused_unwind
+    graph: legend
+    cypher: "UNWIND [1, 2, 3] AS x RETURN x"
+  - id: error_unknown_property_is_null_in_neo4j
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN p.nam ORDER BY p.name"
+  - id: error_unknown_function
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN nosuch(p.name)"
+  # the independent review of PR1 (the study's §12.4), each judged by Neo4j
+  - id: review_float_arithmetic_is_double
+    graph: legend
+    cypher: "RETURN 0.1 + 0.2 = 0.3 AS eq, 0.1 + 0.2 AS s, 1.0 / 3 AS third, -0.0 AS z"
+  - id: review_order_by_expression_over_items_after_aggregation
+    graph: legend
+    cypher: "MATCH (p:Person)-[:WORKS_AT]->(f:Firm) RETURN f.legalName AS a, count(*) AS c ORDER BY a + 'x' DESC"
+  - id: review_order_by_unreturned_expression_under_limit
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN p.name ORDER BY p.age DESC LIMIT 2"
+  - id: review_less_than_negative
+    graph: legend
+    cypher: "RETURN 1<-1 AS lt, 2 <-1 AS lt2"
+  - id: review_end_as_a_name
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN p.name AS end ORDER BY end LIMIT 2"
+  - id: review_parenthesised_variable
+    graph: legend
+    cypher: "MATCH (p:Person) WHERE p.age IS NOT NULL RETURN (p.age) + 1 AS next ORDER BY next"
+  - id: review_relationship_uniqueness_refused
+    graph: legend
+    cypher: "MATCH (p:Person)-[:WORKS_AT]->(f:Firm), (p)-[:WORKS_AT]->(g:Firm) RETURN p.name, f.legalName, g.legalName"
+  - id: review_leading_zero_is_an_error
+    graph: legend
+    cypher: "RETURN 017 AS n"
+  - id: showcase_easy
+    graph: legend
+    cypher: |
+      MATCH (p:Person)
+      WHERE p.age > 28
+      RETURN p.name AS name, p.age AS age, coalesce(p.active, false) AS active
+      ORDER BY age DESC
+  - id: showcase_hard
+    graph: legend
+    cypher: |
+      MATCH (f:Firm)
+      OPTIONAL MATCH (f)-[:HQ]->(c:City)
+      WITH f, c
+      RETURN f.legalName AS firm, c.name AS city, c IS NULL AS noHq,
+             size([(f)<-[:WORKS_AT]-(p) | p]) AS headcount,
+             [(f)<-[:WORKS_AT]-(p) WHERE p.age > 35 | p.name] AS seniors,
+             f.founded IS NOT NULL AND f.founded < 2000 AS old,
+             CASE WHEN c IS NULL THEN 'no hq' ELSE 'in ' + c.name END AS where
+      ORDER BY firm
+  - id: showcase_main
+    graph: legend
+    cypher: |
+      MATCH (p:Person)-[:WORKS_AT]->(f:Firm)-[:HQ]->(c:City)
+      WHERE p.age IS NOT NULL AND c.name <> 'Nowhere'
+      WITH f.legalName AS firm, c.name AS city, count(*) AS headcount, avg(p.age) AS avgAge,
+           min(p.age) AS youngest, max(p.age) AS oldest
+      WHERE headcount >= 1
+      RETURN firm, city, headcount, avgAge, youngest, oldest,
+             CASE WHEN avgAge >= 32 THEN 'seasoned' ELSE 'young' END AS band
+      ORDER BY headcount DESC, firm

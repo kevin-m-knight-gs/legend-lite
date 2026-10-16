@@ -1,0 +1,36 @@
+# The #Cypher{...}# island's keys cases (docs/CYPHER_STUDY_2026_10_15.md §12.26): keys(n) of a node is the names of
+# its properties that hold a value, a collection the database builds (UNWIND-able, IN-able, sized); keys(r) of a
+# relationship holds none; keys of a node an OPTIONAL MATCH never finds is null; and RETURN n ORDER BY n.name with a
+# SKIP or LIMIT reads the pattern's property. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/keys/*'), keyed lite/keys/<id>.
+tests:
+  - id: keys_of_a_node_sized_and_tested
+    graph: |
+      CREATE (:P {name: 'a', surname: 'b'}), (:P {name: 'c'}), (:P {name: 'd', age: 3})
+    cypher: "MATCH (p:P) RETURN p.name AS name, size(keys(p)) AS n, 'surname' IN keys(p) AS has, 'missing' IN keys(p) AS no ORDER BY name"
+  - id: unwind_keys_of_nodes
+    graph: |
+      CREATE (:P {name: 'a', surname: 'b'}), (:P {name: 'c'}), (:P {age: 3})
+    cypher: "MATCH (p:P) UNWIND keys(p) AS k RETURN DISTINCT k ORDER BY k"
+  - id: keys_in_a_where
+    graph: |
+      CREATE (:P {name: 'a', surname: 'b'}), (:P {name: 'c'})
+    cypher: "MATCH (p:P) WHERE 'surname' IN keys(p) RETURN p.name AS name"
+  - id: keys_of_a_relationship
+    graph: |
+      CREATE (:A {x: 1})-[:T]->(:B {y: 2})
+    cypher: "MATCH (a:A)-[r:T]->(b:B) RETURN size(keys(r)) AS n, size(keys(a)) AS na, size(keys(b)) AS nb"
+  - id: unwind_keys_of_a_relationship
+    graph: |
+      CREATE (:A {x: 1})-[:T]->(:B {y: 2})
+    cypher: "MATCH (a:A)-[r:T]->(b:B) UNWIND keys(r) AS k RETURN k"
+  - id: keys_of_an_absent_node
+    cypher: "OPTIONAL MATCH (n) RETURN keys(n) AS k"
+  - id: order_by_a_returned_nodes_property
+    graph: |
+      CREATE (:P {name: 'b'}), (:P {name: 'a'}), (:P {name: 'c'}), (:P {name: 'd'})
+    cypher: "MATCH (p:P) RETURN p ORDER BY p.name SKIP 1 LIMIT 2"
+  - id: order_by_a_returned_nodes_property_descending
+    graph: |
+      CREATE (:P {name: 'b'}), (:P {name: 'a'}), (:P {name: 'c'})
+    cypher: "MATCH (p:P) RETURN p ORDER BY p.name DESC LIMIT 2"

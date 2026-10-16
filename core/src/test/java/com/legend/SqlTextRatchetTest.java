@@ -119,6 +119,10 @@ class SqlTextRatchetTest {
         // (SELECT @legend_raise) -- no query of the user's, one fixed read of a session's state: a
         // MariaDB SELECT can raise no error of its own text, so its dialect keeps the text there
         REGISTER.put("exec/Sessions.java", 1);
+        // 0 -> 1 (2026-10-16, the Cypher island's zoned date-time leg, docs/CYPHER_STUDY_2026_10_15.md §12.8): no
+        // SQL -- Neo4j's own error text "Cannot select datetime from: <value>", which the translator raises as
+        // Neo4j does when a datetime is asked of a date or a time; the rule reads its "select ... from"
+        REGISTER.put("protocol/cypher/CypherToPure.java", 1);
     }
 
     @Test

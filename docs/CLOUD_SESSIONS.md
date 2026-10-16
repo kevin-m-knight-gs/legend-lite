@@ -4,6 +4,15 @@ A cloud session runs in a container whose network goes through a proxy, as root,
 works there, but not out of the box. This is what a session hit and how it got through (2026-10-11 to 2026-10-14,
 Bazel 9.2.0, a 4-core Linux x86 container).
 
+## Maven Central answers Bazel's downloads with 404: `tools/cloud-maven-distdir.sh`
+
+Seen 2026-10-15 after the Bazel repository cache was emptied to free the disk allowance: Bazel's downloader got
+`404 Not Found` from `repo1.maven.org` for every jar the build pins, while `curl` of the same URL got the file. The
+proxy answers the two clients differently. `tools/cloud-maven-distdir.sh <targets>` runs `bazel fetch --keep_going`,
+reads the URLs Bazel could not download, fetches each with `curl` into the distdir (`~/.cache/legend-lite/distdir`,
+which Bazel reads first and checks against the pinned sha256), and repeats until a fetch names none; four rounds for
+the core test targets. Run it after `tools/cloud-distdir.sh`, which seeds the GitHub archives the same way.
+
 ## GitHub archive downloads are refused: `tools/cloud-distdir.sh`
 
 **The symptom.** `bazel fetch`, `build` or `test` stops on
@@ -55,7 +64,15 @@ when it starts. An environment's setup script could also run `tools/cloud-distdi
 - **The disk allowance.** The output base (about 8 GB) and the repository cache (about 20 GB) take most of it, and
   "No space left on device" then appears mid-build, often while copying inputs into a sandbox. When no build runs,
   `rm -rf "$(bazel info output_base)"/sandbox/*` and stale scratch output free a few GB. `df` reports the
-  allowance, not the machine: "Avail" near zero means it is spent.
+  allowance, not the machine: "Avail" near zero means it is spent. The two big levers (2026-10-16, a `//gates:local`
+  run that met the limit three times): Bazel 9's repository-contents cache (`~/.cache/bazel/_bazel_root/cache/repo_contents_cache`,
+  about 16 GB: every fetched repository's extracted files, kept beside the output base's own copy) and the project's
+  action disk cache (`--disk_cache`, `.bazelrc`; about 3 GB and growing). `common --repo_contents_cache=` in
+  `~/.bazelrc` turns the first off for the container, `--disk_cache=` on a command turns the second off for that run;
+  neither changes a result. The LLVM toolchain (`@@toolchains_llvm++llvm+llvm_toolchain_llvm`, 11 GB extracted, 1.9 GB
+  as its tarball in the repository cache) is the one fetched repository the core tests need: delete its extraction
+  only with its tarball kept, and re-fetch it with `bazel fetch --force --repo=@@toolchains_llvm++llvm+llvm_toolchain_llvm`
+  (a plain fetch after an `rm` of the extraction keeps the stale marker and fails at analysis).
 - **Root.** The container runs as root, and the embedded Postgres (`initdb`) refuses root:
   `tools/postgres/as_unprivileged.sh` runs a Postgres test as an unprivileged user (its header says how).
 - **The browser tests** (`//datacube:verify_smoke_test`, `//query:verify_test`, `//site:verify_test`) time out in the

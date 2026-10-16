@@ -1,0 +1,53 @@
+# The #Cypher{...}# island's named-path cases (docs/CYPHER_STUDY_2026_10_15.md §12.27): p = (a)-[:T]->(b) as a
+# value (its nodes, its relationships and their stored directions), length(p), nodes(p), relationships(p), a path
+# through a WITH, over an untyped pattern and over a fanning one. Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/paths/*'), keyed lite/paths/<id>.
+tests:
+  - id: simple_path
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH p = (a:A)-[:T]->(b:B) RETURN p"
+  - id: path_written_against_the_stored_direction
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH p = (b:B)<-[:T]-(a:A) RETURN p"
+  - id: undirected_path_prints_the_stored_direction
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH p = (b:B)-[:T]-(a:A) RETURN p"
+  - id: path_length_nodes_relationships
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH p = (a:A)-[:T]->(b:B) RETURN length(p) AS len, nodes(p) AS ns, relationships(p) AS rs"
+  - id: zero_length_path
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "MATCH p = (a:A) RETURN p, length(p) AS len, nodes(p) AS ns, relationships(p) AS rs"
+  - id: label_less_zero_length_paths
+    graph: |
+      CREATE (:A {x: 1}), (:B {y: 2})
+    cypher: "MATCH p = (n) RETURN p"
+  - id: path_through_a_with
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH p = (a:A)-[:T]->(b:B) WITH p RETURN p"
+  - id: untyped_named_path
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH p = (a:A)-->(b) RETURN p"
+  - id: two_hop_path
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:U]->(:C {name: 'c'})
+    cypher: "MATCH p = (a:A)-[:T]->(b:B)-[:U]->(c:C) RETURN p, length(p) AS len"
+  - id: path_length_in_a_where
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH p = (a:A)-->(b) WHERE length(p) = 1 RETURN b.name AS name"
+  - id: return_star_with_a_path
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH p = (a:A)-[:T]->(b:B) RETURN *"
+  - id: fanning_path
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {name: 'b1'}), (a)-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH p = (a:A)-[:T]->(b:B) RETURN p, b.name AS name ORDER BY name"

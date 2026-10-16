@@ -1,0 +1,58 @@
+# The #Cypher{...}# island's label-predicate and several-type cases (docs/CYPHER_STUDY_2026_10_15.md §12.35):
+# n:Label as an expression (true when the node carries every label, null for an absent node), a relationship
+# pattern of several types as one arm per distinct type, and a comparison of nodes refused by name (identity).
+# Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/labels/*'), keyed lite/labels/<id>.
+tests:
+  - id: a_label_predicate_over_a_labelless_node
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'}), ({name: 'c'})
+    cypher: "MATCH (n) RETURN n.name AS name, n:A AS isA, n:B AS isB, n:A:B AS both ORDER BY name"
+  - id: a_label_predicate_in_a_where
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'}), (:A {name: 'c'})
+    cypher: "MATCH (n) WHERE n:A RETURN n.name AS name ORDER BY name"
+  - id: a_label_predicate_over_a_bound_node
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (a:A) RETURN a:A AS yes, a:B AS no, NOT a:B AS notB"
+  - id: a_label_predicate_over_a_carried_node
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})-[:U]->(:C {name: 'd'})
+    cypher: "MATCH (a:A)-->(x) WITH a.name AS name, x RETURN name, x:B AS isB, x:C AS isC, x:A AS isA ORDER BY name"
+  - id: a_label_predicate_over_an_absent_node
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS name, b:B AS isB, b IS NULL AS absent ORDER BY name"
+  - id: a_label_predicate_over_null
+    graph: |
+      CREATE ()
+    cypher: "WITH null AS x RETURN x:A AS a"
+  - id: a_label_predicate_over_a_value_is_an_error
+    graph: |
+      CREATE ()
+    cypher: "RETURN 1:A AS a"
+  - id: a_relationship_of_several_types
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:KNOWS]->(:B {name: 'b'}), (a)-[:HATES]->(:C {name: 'c'}), (a)-[:LIKES]->(:D {name: 'd'})
+    cypher: "MATCH (n:A)-[r:KNOWS|HATES]->(x) RETURN n.name AS name, type(r) AS t, x.name AS xn ORDER BY t"
+  - id: a_relationship_of_several_types_from_a_labelless_node
+    graph: |
+      CREATE (a {name: 'a'}), (a)-[:KNOWS]->(:B {name: 'b'}), (a)-[:HATES]->(:C {name: 'c'}), (a)-[:LIKES]->(:D {name: 'd'})
+    cypher: "MATCH (n)-[r:KNOWS|HATES]->(x) RETURN r, type(r) AS t ORDER BY t"
+  - id: a_type_spelled_twice_is_one_type
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a)-[:T|:T]->(b) RETURN b"
+  - id: comparing_nodes_refused
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (a:A), (b:A) WHERE a = b RETURN a.name AS name"
+  - id: label_predicate_in_parentheses
+    graph: |
+      CREATE ({name: 'plain'}), (:Foo {name: 'foo'})
+    cypher: "MATCH (n) RETURN n.name AS name, (n:Foo) AS isFoo ORDER BY name"
+  - id: label_predicate_in_a_list
+    graph: |
+      CREATE ({name: 'plain'}), (:Foo {name: 'foo'})
+    cypher: "MATCH (n) RETURN n.name AS name, [(n:Foo), NOT (n:Foo)] AS l ORDER BY name"

@@ -578,6 +578,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.NullLit n -> writer.append("NULL");
             case SqlExpr.DateLit d -> writer.append(dateLit(d.iso()));
             case SqlExpr.TimestampLit t -> writer.append(timestampLit(t.iso()));
+            case SqlExpr.TimeLit t -> writer.append(timeLit(t.iso()));
             case SqlExpr.OrderedListAgg ola -> writer.append("list(").expr(ola.value(), 0).append(" ORDER BY ")
                     .expr(ola.orderBy(), 0).append(")");
             case SqlExpr.ArrayLit a -> arrayLit(writer, a.elements());
@@ -873,7 +874,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 .append(")");
         return switch (part(a.get(0))) {
             case MONTH, YEAR, WEEK, QUARTER -> writer.append("CAST(").piece(trunc).append(" AS DATE)");
-            case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK ->
+            case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK ->
                     writer.piece(trunc);
         };
     }
@@ -1179,6 +1180,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return "TIMESTAMP '" + iso + "'";
     }
 
+    /** A time of day, {@code TIME 'HH:mm:ss[.ffffff]'} (DuckDB, Postgres, H2, MariaDB, Trino, Snowflake, BigQuery
+     *  spell it so); a dialect without the type refuses. */
+    protected String timeLit(String iso) {
+        return "TIME '" + iso + "'";
+    }
+
     protected SqlWriter arrayLit(SqlWriter writer, List<SqlExpr> elements) {
         throw new DialectCapability("an array literal reached a dialect without array support");
     }
@@ -1355,6 +1362,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 case VARCHAR -> "VARCHAR";
                 case DATE -> "DATE";
                 case TIMESTAMP -> "TIMESTAMP";
+                case TIME -> "TIME";
                 case HUGEINT, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
                         "plan parameter '" + parameter + "' is typed " + scalar + ", which no parameter is bound as");
             };

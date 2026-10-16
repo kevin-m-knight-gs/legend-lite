@@ -91,6 +91,7 @@ public final class Trino extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP(6)";
             case TIMESTAMPTZ -> "TIMESTAMP(6) WITH TIME ZONE";
             case JSON -> "JSON";
+            case TIME -> "TIME(6)";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -967,8 +968,13 @@ public final class Trino extends AnsiSqlRenderer {
             // the zone's wall time of the instant t (the platform's timestamps are UTC instants; a zoned one, a
             // parsed offset's, is its own instant: with_timezone takes only a naive one)
             case TIMEZONE -> timezone(writer, c);
+            // Trino adds no date and time: the date-time is read from their texts (designed, not measured here)
+            case DATE_AT_TIME -> writer.append("CAST(CAST(").expr(a.get(0), 0).append(" AS VARCHAR) || ' ' || CAST(")
+                    .expr(a.get(1), 0).append(" AS VARCHAR) AS TIMESTAMP(6))");
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("to_unixtime(with_timezone(").expr(a.get(0), 0).append(", 'UTC'))");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Trino keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(truncate(to_unixtime(with_timezone(").expr(a.get(0), 0)
                     .append(", 'UTC')) * 1000) AS BIGINT)");
             case FROM_EPOCH_SECONDS -> writer.append("CAST(from_unixtime(").expr(a.get(0), 0)
@@ -1044,7 +1050,7 @@ public final class Trino extends AnsiSqlRenderer {
         boolean toDate = switch (part) {
             case MONTH, YEAR, WEEK, QUARTER -> true;
             case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND -> false;
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc to " + part
+            case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc to " + part
                     + " has no Trino spelling");
         };
         writer.append(toDate ? "CAST(date_trunc(" : "date_trunc(").append(stringLit(intervalUnit(part))).append(", ")
@@ -1288,7 +1294,7 @@ public final class Trino extends AnsiSqlRenderer {
             case SECOND -> "second";
             case DAY_OF_YEAR -> "day_of_year";
             case ISO_DAY_OF_WEEK -> "day_of_week";
-            case MILLISECOND, MICROSECOND -> throw new DialectCapability("date part " + part
+            case MILLISECOND, MICROSECOND, NANOSECOND -> throw new DialectCapability("date part " + part
                     + " has no probed Trino spelling");
         };
         return w -> w.append("CAST(" + fn + "(").expr(a.get(1), 0).append(") AS BIGINT)");
@@ -1308,7 +1314,7 @@ public final class Trino extends AnsiSqlRenderer {
             case SECOND -> "second";
             case MILLISECOND -> "millisecond";
             case MICROSECOND -> "microsecond";
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit " + unit
+            case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit " + unit
                     + " has no Trino spelling");
         };
     }
@@ -1336,7 +1342,7 @@ public final class Trino extends AnsiSqlRenderer {
             case SECOND -> epochBoundaries(from, to, 1000000L);
             case MILLISECOND -> epochBoundaries(from, to, 1000L);
             case MICROSECOND -> w -> w.append("(").piece(micros(to)).append(" - ").piece(micros(from)).append(")");
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part " + part
+            case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part " + part
                     + " has no probed Trino spelling");
         };
         return w -> w.append("CAST(").piece(body).append(" AS BIGINT)");
@@ -1396,7 +1402,7 @@ public final class Trino extends AnsiSqlRenderer {
             case SECOND -> 1000000L;
             case MILLISECOND -> 1000L;
             case MICROSECOND -> 1L;
-            case YEAR, QUARTER, MONTH, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
         };
     }
 

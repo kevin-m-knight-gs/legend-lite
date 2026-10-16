@@ -1,0 +1,24 @@
+# THE CYPHER ISLAND'S ORACLE (README.md): Neo4j Community's answers for the #Cypher{...}# island's parity cases
+# (core/src/test/resources/cypher-parity), snapped into the committed neo4j-answers.jsonl by a person with a Neo4j
+# Community running locally, never by a test: Neo4j Community is GPLv3, so it is never on a classpath and never in
+# CI; CI judges from the committed file, and the live drift check is run by hand.
+#   bazel run //tools/neo4j-oracle:snap -- --check      (or --write; tools/neo4j-oracle/snap.sh runs the same without Bazel)
+# A hand tool: manual, so a wildcard build does not build it, and the checks lane builds it (tools_build_test), as
+# the IQ oracle's (tools/iq-oracle/BUILD.bazel says why native_binary).
+
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+load("//tools/guards:defs.bzl", "guards_package")
+
+native_binary(
+    name = "snap",
+    src = "snap.sh",
+    tags = ["manual"],
+)
+
+build_test(
+    name = "tools_build_test",
+    targets = [":snap"],
+)
+
+guards_package()

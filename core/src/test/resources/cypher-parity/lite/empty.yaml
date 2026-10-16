@@ -1,0 +1,17 @@
+# The #Cypher{...}# island's empty-model cases (docs/CYPHER_STUDY_2026_10_15.md §12.20): over a model with no class
+# a label-less MATCH is no row, the variable an absent node (null everywhere); an OPTIONAL MATCH as the first
+# clause one null row. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/empty/*'), keyed lite/empty/<id>.
+tests:
+  - id: empty_match_count
+    cypher: "MATCH (n) RETURN count(*) AS c"
+  - id: empty_match_rows
+    cypher: "MATCH (n) RETURN n"
+  - id: empty_match_property
+    cypher: "MATCH (n) RETURN n.name AS name"
+  - id: empty_match_with_skip
+    cypher: "MATCH (n) RETURN n.name AS name SKIP 0"
+  - id: empty_optional_match
+    cypher: "OPTIONAL MATCH (n) RETURN n, n.name AS name, labels(n) AS l"
+  - id: empty_optional_through_with
+    cypher: "OPTIONAL MATCH (a) WITH a RETURN a IS NULL AS missing, a.x IS NULL AS nox"

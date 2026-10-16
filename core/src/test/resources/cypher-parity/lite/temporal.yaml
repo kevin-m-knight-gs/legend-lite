@@ -1,0 +1,308 @@
+# The #Cypher{...}# island's temporal cases (docs/CYPHER_STUDY_2026_10_15.md §12.6-§12.10): a date is Pure's
+# StrictDate, a localdatetime Pure's DateTime (the database's DATE and TIMESTAMP, to the microsecond), a localtime
+# Pure's StrictTime (the database's TIME), a datetime its instant with the zone carried beside, a duration an
+# instance of the model's Duration class, a zoned time of day its instant on the epoch day with the offset beside;
+# a value of nanosecond precision (§12.12) is DuckDB's TIMESTAMP_NS, refused by name on Postgres (the nanos_* cases).
+# Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/temporal/*' snaps them), keyed
+# lite/temporal/<id>.
+tests:
+  - id: date_from_components
+    cypher: "RETURN date({year: 1984, month: 10, day: 11}) AS a, date({year: 1984, month: 10}) AS b, date({year: 1984}) AS c, date({year: 1984, week: 10, dayOfWeek: 3}) AS d, date({year: 1816, week: 1}) AS e, date({year: 1816, week: 52}) AS f, date({year: 1984, quarter: 3, dayOfQuarter: 45}) AS g, date({year: 1984, ordinalDay: 202}) AS h, date({year: 2015, week: 53}) AS i"
+  - id: date_from_text
+    cypher: "RETURN date('1984-10-11') AS a, date('2015-07-21') < date('2015-07-22') AS b, date('1984-10-11') = date({year: 1984, month: 10, day: 11}) AS c"
+  - id: localdatetime_from_components
+    cypher: "RETURN localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14}) AS a, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS b, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, microsecond: 645876}) AS c, localdatetime({year: 1984, week: 10, dayOfWeek: 3, hour: 12, minute: 31, second: 14, millisecond: 645}) AS d, localdatetime({year: 1912}) AS e, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645000, millisecond: 1}) AS f"
+  - id: localdatetime_from_text
+    cypher: "RETURN localdatetime('2015-07-21T21:40:32.142') AS a, localdatetime('2015-07-21T21:40:32') AS b, localdatetime('2015-07-21T21:40') AS c, localdatetime('2015-07-21T21:40:32.142000') AS d"
+  - id: temporal_selection
+    cypher: "WITH date({year: 1984, month: 10, day: 11}) AS d, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS dt RETURN date(d) AS a, date({date: d}) AS b, date(dt) AS c, date({date: dt, day: 28}) AS e, localdatetime({date: d, hour: 10, minute: 10, second: 10}) AS f, localdatetime({date: d, day: 28, hour: 10, minute: 10, second: 10}) AS g, localdatetime(dt) AS h, localdatetime({datetime: dt}) AS i, localdatetime({datetime: dt, year: 2000, minute: 5}) AS j, date({date: d, year: 1990, month: 2}) AS k"
+  - id: temporal_fields
+    cypher: "WITH date({year: 1984, month: 10, day: 11}) AS d, localdatetime({year: 1984, month: 11, day: 11, hour: 12, minute: 31, second: 14}) AS dt, date({year: 1984, month: 1, day: 1}) AS ny RETURN d.year, d.quarter, d.month, d.week, d.weekYear, d.day, d.ordinalDay, d.weekDay, d.dayOfQuarter, dt.year, dt.quarter, dt.month, dt.week, dt.weekYear, dt.day, dt.ordinalDay, dt.weekDay, dt.dayOfQuarter, dt.hour, dt.minute, dt.second, ny.year, ny.weekYear, ny.week, ny.weekDay"
+  - id: temporal_comparison_and_text
+    cypher: "WITH date({year: 1980, month: 12, day: 24}) AS x, date({year: 1984, month: 10, day: 11}) AS d, localdatetime({year: 1980, month: 12, day: 11, hour: 12, minute: 31, second: 14}) AS lx, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS ld RETURN x > d, x < d, x >= d, x <= d, x = d, d = d, lx > ld, lx < ld, ld = ld, toString(d) AS t, date(toString(d)) = d AS back"
+  - id: date_truncate
+    cypher: "WITH date({year: 2017, month: 10, day: 11}) AS d, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS dt RETURN date.truncate('millennium', d) AS a, date.truncate('millennium', d, {day: 2}) AS b, date.truncate('century', d) AS c, date.truncate('decade', d) AS e, date.truncate('year', d) AS f, date.truncate('weekYear', d) AS g, date.truncate('weekYear', d, {day: 5}) AS h, date.truncate('quarter', d) AS i, date.truncate('month', d) AS j, date.truncate('month', d, {day: 2}) AS k, date.truncate('week', d) AS l, date.truncate('week', d, {day: 2}) AS m, date.truncate('day', d) AS n, date.truncate('day', dt) AS o, date.truncate('year', dt, {month: 2}) AS p, date.truncate('weekYear', date({year: 2017, month: 1, day: 1})) AS q"
+  - id: localdatetime_truncate
+    cypher: "WITH localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS dt, date({year: 2017, month: 10, day: 11}) AS d RETURN localdatetime.truncate('millennium', dt) AS a, localdatetime.truncate('year', dt, {month: 3}) AS b, localdatetime.truncate('month', dt, {day: 2, hour: 5}) AS c, localdatetime.truncate('week', dt) AS e, localdatetime.truncate('day', dt, {hour: 10, minute: 20}) AS f, localdatetime.truncate('hour', dt) AS g, localdatetime.truncate('hour', dt, {minute: 7}) AS h, localdatetime.truncate('minute', dt) AS i, localdatetime.truncate('second', dt) AS j, localdatetime.truncate('day', d) AS k, localdatetime.truncate('month', d, {day: 2}) AS l"
+  - id: temporal_null_propagation
+    cypher: "RETURN date(null) AS a, localdatetime(null) AS b, date({year: 1984, month: 1, day: 1}).year + 1 AS e"
+  - id: truncate_of_a_written_null_is_neo4js_error
+    cypher: "RETURN date.truncate('year', null) AS d"
+  - id: stored_dates
+    graph: |
+      CREATE (:Val {name: 'a', d: date('1984-10-11'), dt: localdatetime('1984-10-11T12:31:14.645')}),
+             (:Val {name: 'b', d: date('2015-06-24'), dt: localdatetime('2016-07-21T21:45:22.142')})
+    cypher: "MATCH (v:Val) RETURN v.name AS name, v.d AS d, v.d.year AS y, v.dt AS dt, v.dt.month AS m, v.d < date('2000-01-01') AS early, date.truncate('month', v.dt) AS t ORDER BY name"
+  - id: temporal_refused_by_name
+    cypher: "RETURN datetime({year: 1984, month: 10, day: 11}) AS a"
+  - id: duration_from_components
+    cypher: "RETURN duration({days: 14, hours: 16, minutes: 12}) AS a, duration({years: 12, months: 5, days: 14, hours: 16, minutes: 12, seconds: 70}) AS b, duration({days: 14, seconds: 70, milliseconds: 1}) AS c, duration({days: 14, seconds: 70, microseconds: 1}) AS d, duration({seconds: 1, nanoseconds: -1000}) AS e, duration({months: -1, days: 2}) AS f, duration({weeks: 2, days: 1}) AS g"
+  - id: duration_from_text
+    cypher: "RETURN duration('P14DT16H12M') AS a, duration('P12Y5M14DT16H12M70S') AS b, duration('PT1M10.001S') AS c, duration('-P1D') AS d, duration('P-1M2DT-3H') AS e, duration('PT-0.5S') AS f"
+  - id: duration_fields
+    cypher: "WITH duration({years: 1, months: 4, days: 10, hours: 1, minutes: 1, seconds: 1, nanoseconds: 111111000}) AS d RETURN d.years, d.quarters, d.months, d.weeks, d.days, d.hours, d.minutes, d.seconds, d.milliseconds, d.microseconds, d.nanoseconds, d.quartersOfYear, d.monthsOfQuarter, d.monthsOfYear, d.daysOfWeek, d.minutesOfHour, d.secondsOfMinute, d.millisecondsOfSecond, d.microsecondsOfSecond, d.nanosecondsOfSecond"
+  - id: duration_arithmetic
+    cypher: "WITH duration({months: 1, days: -14, hours: 16, minutes: -12, seconds: 70}) AS dur, date('1984-10-11') AS d, localdatetime('1984-10-11T12:31:14.645') AS ldt, localtime('12:31:14.645') AS t, datetime('1984-10-11T12:31:14.645+01:00') AS zd RETURN d + dur AS a, d - dur AS b, ldt + dur AS c, ldt - dur AS e, t + dur AS f, t - dur AS g, zd + dur AS h, zd - dur AS i, dur + dur AS j, dur - duration({days: 1}) AS k, dur * 2 AS l, 3 * dur AS m"
+  - id: duration_between
+    cypher: "WITH date('1984-10-11') AS d1, date('2015-06-24') AS d2, localdatetime('2016-07-21T21:45:22.142') AS ldt, localdatetime('2018-01-01T12:00') AS x, localdatetime('2018-01-02T10:00') AS y, localdatetime('2018-01-01T10:00:00.2') AS p, localdatetime('2018-01-02T10:00:00.1') AS q RETURN duration.between(d1, d2) AS a, duration.between(d1, ldt) AS b, duration.between(d2, d1) AS c, duration.between(x, y) AS e, duration.between(y, x) AS f, duration.between(p, q) AS g, duration.between(q, p) AS h, duration.inMonths(d1, d2) AS i, duration.inDays(d1, d2) AS j, duration.inSeconds(x, y) AS k, duration.between(localtime('14:30'), localtime('16:45')) AS l, duration.between(datetime('2017-10-28T23:00+02:00'), datetime('2017-10-29T04:00+01:00')) AS m"
+  - id: duration_equality
+    cypher: "WITH duration({years: 12, months: 5, days: 14, hours: 16, minutes: 12, seconds: 70}) AS x RETURN x = duration('P12Y5M14DT16H13M10S') AS a, x = duration({days: 1}) AS b, x = date('1984-10-11') AS c, x <> duration({days: 1}) AS d"
+  - id: duration_null_propagation
+    cypher: "RETURN duration(null) AS a, date('1984-10-11') + duration(null) AS b, duration(null) = duration({days: 1}) AS c"
+  - id: stored_dates_with_durations
+    graph: |
+      CREATE (:Val {name: 'a', d: date('1984-10-11')}),
+             (:Val {name: 'b', d: date('2015-06-24')})
+    cypher: "MATCH (v:Val) RETURN v.name AS name, v.d + duration({months: 1}) AS m, duration.between(v.d, date('2020-01-01')).months AS mo, duration.between(v.d, date('2020-01-01')) AS dur ORDER BY name"
+  - id: duration_fraction_cascades
+    cypher: "RETURN duration({days: 1.5}) AS d"
+  - id: duration_of_a_date_is_neo4js_error
+    cypher: "RETURN duration(date('1984-10-11')) AS d"
+  - id: duration_unknown_field_is_neo4js_error
+    cypher: "RETURN duration({foo: 1}) AS d"
+  - id: duration_bad_text_is_neo4js_error
+    cypher: "RETURN duration('nope') AS d"
+  - id: duration_order_refused_by_name
+    cypher: "RETURN duration({days: 1}) < duration({days: 2}) AS lt"
+  - id: duration_to_string
+    cypher: "RETURN toString(duration({days: 1})) AS s"
+  - id: duration_date_time_text_form_refused_by_name
+    cypher: "RETURN duration('P2012-02-02T14:37:21.545') AS d"
+  - id: duration_divided_refused_by_name
+    cypher: "RETURN duration({days: 3}) / 2 AS d"
+  - id: time_from_text
+    cypher: "RETURN time('12:31:14+01:00') AS a, time('21:40:32.142+0100') AS b, time('214032.142Z') AS c, time('214032-0100') AS d, time('21:40-01:30') AS e, time('2140-00:00') AS f, time('2140-02') AS g, time('22+18:00') AS h, time('12:31:14.645876') AS i, time('00:30+01:00') AS j, time('23:30-01:00') AS k"
+  - id: datetime_from_components
+    cypher: "RETURN datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645}) AS a, datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, timezone: '+01:00'}) AS b, datetime({year: 1984, month: 10, day: 11, hour: 12, timezone: '-01:30'}) AS c, datetime({year: 1984, week: 10, dayOfWeek: 3, hour: 12, minute: 31, timezone: '+01:00'}) AS d, datetime({year: 1984, month: 10, day: 11, timezone: 'Europe/Stockholm'}) AS e, datetime({year: 1984, month: 7, day: 11, hour: 12, timezone: 'Europe/Stockholm'}) AS f, datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 34, second: 56, timezone: '+02:05:59'}) AS g"
+  - id: datetime_from_text
+    cypher: "RETURN datetime('1984-10-11T12:31:14.645Z') AS a, datetime('1984-10-11T12:31:14+01:00') AS b, datetime('1984-10-11T12:31:14.645876+0100') AS c, datetime('1984-10-11T12:31-01:30') AS d, datetime('1984-10-11T12:31:14') AS e, datetime('2015-07-21T21:40:32.142+01:00') AS f"
+  - id: datetime_selection
+    cypher: "WITH localdatetime('1984-10-11T12:31:14.645') AS ldt, datetime('1984-10-11T12:31:14.645+01:00') AS zd, date('1984-10-11') AS d, localtime('12:31:14.645') AS t RETURN datetime(ldt) AS a, datetime({datetime: ldt}) AS b, datetime({datetime: ldt, timezone: '+05:00'}) AS c, datetime({datetime: ldt, day: 28, second: 42}) AS e, datetime(zd) AS f, datetime({datetime: zd}) AS g, datetime({datetime: zd, timezone: '+05:00'}) AS h, datetime({datetime: zd, day: 28, second: 42}) AS i, datetime({date: d, time: t}) AS j, datetime({date: d, time: t, timezone: '+05:00'}) AS k, datetime({date: d, hour: 10, timezone: 'Europe/Stockholm'}) AS l, datetime({datetime: zd, timezone: 'Europe/Stockholm'}) AS m"
+  - id: datetime_to_local
+    cypher: "WITH datetime('1984-10-11T12:31:14.645+01:00') AS zd, datetime({year: 1984, month: 7, day: 11, hour: 12, timezone: 'Europe/Stockholm'}) AS nz RETURN localdatetime(zd) AS a, date(zd) AS b, localtime(zd) AS c, localdatetime({datetime: zd, year: 2000}) AS d, localdatetime(nz) AS e, date({date: zd}) AS f, localtime({time: zd}) AS g"
+  - id: datetime_fields
+    cypher: "WITH datetime({year: 1984, month: 11, day: 11, hour: 12, minute: 31, second: 14, microsecond: 645876, timezone: '+01:00'}) AS d, datetime({year: 1984, month: 11, day: 11, hour: 12, minute: 31, second: 14, timezone: 'Europe/Stockholm'}) AS n RETURN d.year, d.quarter, d.month, d.week, d.weekYear, d.day, d.ordinalDay, d.weekDay, d.dayOfQuarter, d.hour, d.minute, d.second, d.millisecond, d.microsecond, d.nanosecond, d.timezone, d.offset, d.offsetMinutes, d.offsetSeconds, d.epochSeconds, d.epochMillis, n.hour, n.timezone, n.offsetMinutes, n.epochSeconds"
+  - id: datetime_comparison
+    cypher: "WITH datetime('1984-10-11T12:31:14+01:00') AS a, datetime('1984-10-11T12:31:14Z') AS b, datetime('1984-10-11T11:31:14Z') AS c RETURN a < b, a > b, a = c, a <> b, a <= c, b >= a"
+  - id: datetime_truncate
+    cypher: "WITH datetime('2017-10-11T12:31:14.645876+01:00') AS zd, localdatetime('2017-10-11T12:31:14.645876') AS ldt, date('2017-10-11') AS d RETURN datetime.truncate('millennium', zd) AS a, datetime.truncate('millennium', zd, {day: 2}) AS b, datetime.truncate('year', ldt) AS c, datetime.truncate('month', d) AS e, datetime.truncate('day', zd, {timezone: 'Europe/Stockholm'}) AS f, datetime.truncate('hour', zd) AS g, datetime.truncate('minute', zd, {second: 5}) AS h, datetime.truncate('week', zd, {dayOfWeek: 2}) AS i, datetime.truncate('day', ldt, {timezone: '+05:00'}) AS j"
+  - id: datetime_epoch
+    cypher: "RETURN datetime.fromepoch(416779, 999999000) AS a, datetime.fromepochmillis(237821673987) AS b, datetime({year: 1970, month: 1, day: 1, timezone: '+01:00'}).epochSeconds AS c"
+  - id: datetime_null_propagation
+    cypher: "RETURN datetime(null) AS a, datetime('1984-10-11T12:31:14Z') = null AS b"
+  - id: datetime_ordering
+    cypher: "UNWIND [datetime('1984-10-11T12:31:14+01:00'), datetime('1984-10-11T12:31:14Z'), datetime('1984-10-11T10:00:00-02:00')] AS d RETURN d ORDER BY d"
+  - id: stored_datetimes_zoned
+    graph: |
+      CREATE (:Val {name: 'a', dt: localdatetime('1984-10-11T12:31:14.645')}),
+             (:Val {name: 'b', dt: localdatetime('2016-07-21T21:45:22.142')})
+    cypher: "MATCH (v:Val) RETURN v.name AS name, datetime(v.dt) AS z, datetime({datetime: v.dt, timezone: '+02:00'}) AS z2, datetime({datetime: v.dt, timezone: '+02:00'}).hour AS h, datetime({datetime: v.dt, timezone: 'Europe/Stockholm'}).offsetMinutes AS om ORDER BY name"
+  - id: datetime_of_a_date_is_neo4js_error
+    cypher: "RETURN datetime(date('1984-10-11')) AS d"
+  - id: datetime_of_a_localtime_is_neo4js_error
+    cypher: "RETURN datetime(localtime('12:00')) AS d"
+  - id: datetime_component_offset_without_colon_is_neo4js_error
+    cypher: "RETURN datetime({year: 1984, month: 10, day: 11, timezone: '+0100'}) AS d"
+  - id: datetime_bad_zone_is_neo4js_error
+    cypher: "RETURN datetime({year: 1984, timezone: 'Mars/Olympus'}) AS d"
+  - id: datetime_zone_field_of_a_local_is_neo4js_error
+    cypher: "RETURN localdatetime('1984-10-11T12:00').timezone AS z"
+  - id: localdatetime_with_timezone_component
+    cypher: "RETURN localdatetime({year: 1984, month: 1, day: 1, timezone: '+01:00'}) AS d"
+  - id: datetime_text_named_zone
+    cypher: "RETURN datetime('1984-10-11T12:31:14+01:00[Europe/Stockholm]') AS d"
+  - id: datetime_to_string
+    cypher: "RETURN toString(datetime('1984-10-11T12:31:14Z')) AS s"
+  - id: localtime_from_text
+    cypher: "RETURN localtime('12:31:14.645') AS a, localtime('12:31:14') AS b, localtime('12:31') AS c, localtime('12:31:14.645876') AS d, localtime('12:31:14.645000') AS e"
+  - id: localtime_from_components
+    cypher: "RETURN localtime({hour: 12, minute: 31, second: 14}) AS a, localtime({hour: 12, minute: 31, second: 14, millisecond: 645}) AS b, localtime({hour: 12, minute: 31, second: 14, microsecond: 645876}) AS c, localtime({hour: 12}) AS d, localtime({hour: 12, minute: 31}) AS e, localtime({hour: 12, minute: 31, second: 14, nanosecond: 645000, millisecond: 1}) AS f"
+  - id: localtime_selection
+    cypher: "WITH localtime('12:31:14.645876') AS t, localdatetime('1984-10-11T12:31:14.645') AS dt RETURN localtime(t) AS a, localtime({time: t}) AS b, localtime(dt) AS c, localtime({time: dt}) AS d, localtime({time: t, second: 42}) AS e, localtime({time: t, hour: 5, millisecond: 1}) AS f, localdatetime({date: date('1984-10-11'), time: t}) AS g, localdatetime({date: date('1984-10-11'), time: t, second: 5}) AS h, localdatetime({date: dt, time: t}) AS i"
+  - id: localtime_fields
+    cypher: "WITH localtime('12:31:14.645876') AS t, localdatetime('1984-10-11T12:31:14.645876') AS dt RETURN t.hour, t.minute, t.second, t.millisecond, t.microsecond, t.nanosecond, dt.millisecond, dt.microsecond, dt.nanosecond"
+  - id: localtime_comparison
+    cypher: "WITH localtime('12:31:14.645') AS a, localtime('12:31:15') AS b RETURN a < b, a > b, a <= b, a >= b, a = b, a = localtime('12:31:14.645') AS same, a <> b"
+  - id: localtime_truncate
+    cypher: "WITH localtime('12:31:14.645876') AS t, localdatetime('1984-10-11T12:31:14.645876') AS dt RETURN localtime.truncate('day', t) AS a, localtime.truncate('hour', t) AS b, localtime.truncate('minute', t) AS c, localtime.truncate('second', t) AS d, localtime.truncate('hour', t, {minute: 7}) AS e, localtime.truncate('minute', dt) AS f, localtime.truncate('second', t, {hour: 2}) AS g"
+  - id: localtime_null_propagation
+    cypher: "RETURN localtime(null) AS a, localtime('12:00') = null AS b"
+  - id: localtime_of_a_null_time_component_is_neo4js_error
+    cypher: "RETURN localtime({time: null}) AS c"
+  - id: localtime_ordering
+    cypher: "UNWIND [localtime('12:31:15'), localtime('01:00'), localtime('12:31:14.645')] AS t RETURN t ORDER BY t"
+  - id: stored_datetimes_times
+    graph: |
+      CREATE (:Val {name: 'a', dt: localdatetime('1984-10-11T12:31:14.645')}),
+             (:Val {name: 'b', dt: localdatetime('2016-07-21T21:45:22.142')})
+    cypher: "MATCH (v:Val) RETURN v.name AS name, localtime(v.dt) AS t, localtime(v.dt).hour AS h, localtime(v.dt) < localtime('13:00') AS early, localtime.truncate('hour', v.dt) AS th ORDER BY name"
+  - id: localtime_of_a_date_is_neo4js_error
+    cypher: "RETURN localtime(date('1984-10-11')) AS t"
+  - id: localtime_date_field_is_neo4js_error
+    cypher: "RETURN localtime('12:00').year AS y"
+  - id: localtime_without_hour_is_neo4js_error
+    cypher: "RETURN localtime({minute: 5}) AS t"
+  - id: localtime_truncate_to_month_is_neo4js_error
+    cypher: "RETURN localtime.truncate('month', localtime('12:00')) AS t"
+  - id: localtime_with_date_component
+    cypher: "RETURN localtime({date: date('1984-10-11'), hour: 5}) AS t"
+  - id: date_with_time_component
+    cypher: "RETURN date({date: date('1984-10-11'), time: localtime('12:00')}) AS d"
+  - id: localdatetime_from_time_only
+    cypher: "RETURN localdatetime({time: localtime('12:00')}) AS t"
+  - id: localtime_compact_text
+    cypher: "RETURN localtime('123114') AS t"
+  - id: localtime_to_string
+    cypher: "RETURN toString(localtime('12:31')) AS s"
+  - id: localtime_list_refused_by_name
+    cypher: "RETURN [localtime('12:31'), localtime('13:00')] AS l"
+  - id: temporal_errors_are_cyphers
+    cypher: "RETURN date({year: 1984, month: 13, day: 1}) AS a"
+  - id: date_from_compact_and_partial_text
+    cypher: "RETURN date('20150721') AS a, date('2015-07') AS b, date('201507') AS c, date('2015') AS d, date('2015-W30-2') AS e, date('2015W302') AS f, date('2015-W30') AS g, date('2015W30') AS h, date('2015-202') AS i, date('2015202') AS j, date('2015-Q2-60') AS k, date('2015Q260') AS l, date('2015-Q2') AS m, date('2015Q2') AS n"
+  - id: date_text_week_53_and_leap_ordinal
+    cypher: "RETURN date('2015-W53-5') AS a, date('2016-366') AS b, date('2016-W52-7') AS c, date('2017-W01-1') AS d, date('2015-W53-5').week AS w, date('2015-W53-5').weekYear AS wy"
+  - id: date_text_month_13_is_neo4js_error
+    cypher: "RETURN date('2015-13') AS d"
+  - id: date_junk_text_is_neo4js_error
+    cypher: "RETURN date('yesterday') AS d"
+  - id: localtime_from_compact_text
+    cypher: "RETURN localtime('214032.142') AS a, localtime('214032') AS b, localtime('2140') AS c, localtime('21') AS d, localtime('21:40:32.142876') AS e, localtime('123114') AS f"
+  - id: localtime_from_text_with_a_comma_fraction
+    cypher: "RETURN localtime('21:40:32,142') AS a"
+  - id: localtime_bad_text_is_neo4js_error
+    cypher: "RETURN localtime('25:00') AS t"
+  - id: localdatetime_from_compact_text
+    cypher: "RETURN localdatetime('2015-W30-2T214032.142') AS a, localdatetime('2015T214032') AS b, localdatetime('20150721T21:40') AS c, localdatetime('2015202T21') AS d, localdatetime('2015-Q2-60T2140') AS e, localdatetime('2015-07T21:40:32') AS f, localdatetime('2015-07-21T21') AS g"
+  - id: localdatetime_bad_text_is_neo4js_error
+    cypher: "RETURN localdatetime('2015-07-21 21:40') AS t"
+  - id: datetime_from_compact_text
+    cypher: "RETURN datetime('2015-W30-2T214032.142Z') AS a, datetime('2015202T21+18:00') AS b, datetime('2015T214032-0100') AS c, datetime('2015-07-21T21:40:32.142+01') AS d, datetime('20150721T21:40+0130') AS e, datetime('2015-07-21T21:40:32.142') AS f"
+  - id: datetime_from_text_with_named_zone
+    cypher: "RETURN datetime('2015-07-21T21:40:32.142+02:00[Europe/Stockholm]') AS a, datetime('2015-07-21T21:40:32.142[Europe/London]') AS b, datetime('2015-12-21T21:40:32.142[Europe/Stockholm]') AS c, datetime('2015-07-21T21:40:32.142[Europe/Stockholm]').timezone AS z, datetime('2015-07-21T21:40:32.142[Europe/Stockholm]').epochSeconds AS s"
+  - id: datetime_named_zone_offset_refused_by_name
+    cypher: "RETURN datetime('2015-07-21T21:40:32.142[Europe/Stockholm]').offset AS o"
+  - id: date_signed_year_refused_by_name
+    cypher: "RETURN date('+2015-07-21') AS a"
+  - id: datetime_text_offset_disagreeing_with_its_zone
+    cypher: "RETURN datetime('2015-07-21T21:40:32.142Z[Europe/Stockholm]') AS d"
+  - id: datetime_bad_text_is_neo4js_error
+    cypher: "RETURN datetime('2015-07-21T21:40:32.142+2') AS d"
+  - id: datetime_text_unknown_zone_is_neo4js_error
+    cypher: "RETURN datetime('2015-07-21T21:40:32.142[Mars/Olympus]') AS d"
+  - id: date_week_quarter_ordinal_over_a_base
+    cypher: "WITH date('2015-07-21') AS d RETURN date({date: d, week: 1}) AS a, date({date: d, quarter: 1}) AS b, date({date: d, ordinalDay: 5}) AS c, date({date: d, dayOfQuarter: 5}) AS e, date({date: d, dayOfWeek: 5}) AS f, date({date: date('1816-12-30'), week: 2, dayOfWeek: 3}) AS g, date({date: d, year: 2016, week: 1}) AS h, date({date: d, quarter: 4, dayOfQuarter: 1}) AS i, date({date: d, year: 2000, ordinalDay: 60}) AS j"
+  - id: localdatetime_week_over_a_base
+    cypher: "WITH localdatetime('2015-07-21T21:40:32') AS dt RETURN localdatetime({datetime: dt, week: 1}) AS a, localdatetime({date: dt, quarter: 1, hour: 5}) AS b, localdatetime({datetime: dt, ordinalDay: 5, minute: 1}) AS c"
+  - id: fine_truncation
+    cypher: "WITH localdatetime('1984-10-11T12:31:14.645876') AS dt, localtime('12:31:14.645876') AS t, datetime('1984-10-11T12:31:14.645876+01:00') AS z RETURN localdatetime.truncate('millisecond', dt) AS a, localdatetime.truncate('microsecond', dt) AS b, localtime.truncate('millisecond', t) AS c, localtime.truncate('microsecond', t) AS d, datetime.truncate('millisecond', z) AS e, datetime.truncate('microsecond', z) AS f, localtime.truncate('millisecond', dt) AS g, localdatetime.truncate('millisecond', localdatetime('1984-10-11T12:31:14.645')) AS h"
+  - id: fine_truncation_with_a_field_refused_by_name
+    cypher: "RETURN localdatetime.truncate('millisecond', localdatetime('1984-10-11T12:31:14.645876'), {microsecond: 2}) AS a"
+  - id: date_truncate_to_millisecond_is_neo4js_error
+    cypher: "RETURN date.truncate('millisecond', date('1984-10-11')) AS d"
+  - id: duration_between_a_time_and_a_date
+    cypher: "WITH date('1984-10-11') AS d, localtime('12:00') AS t, localdatetime('1984-10-11T14:30') AS dt RETURN duration.between(d, t) AS a, duration.between(t, d) AS b, duration.between(t, dt) AS c, duration.between(dt, t) AS e, duration.inMonths(d, t) AS f, duration.inDays(t, d) AS g, duration.inSeconds(d, t) AS h, duration.inSeconds(t, dt) AS i"
+  - id: duration_between_a_time_and_a_zoned_datetime
+    cypher: "WITH localtime('12:00') AS t, datetime('1984-10-11T14:30+01:00') AS z RETURN duration.between(t, z) AS a, duration.between(z, t) AS b, duration.inSeconds(z, t) AS c, duration.between(localtime('01:00'), datetime('2017-10-29T02:30+01:00[Europe/Stockholm]')) AS d, duration.between(datetime('2017-03-26T03:30[Europe/Stockholm]'), localtime('01:00')) AS e"
+  - id: time_from_components
+    cypher: "RETURN time({hour: 12, minute: 31, second: 14, timezone: '+01:00'}) AS a, time({hour: 12, minute: 31, second: 14, millisecond: 645, timezone: '+01:00'}) AS b, time({hour: 12, minute: 31, second: 14, microsecond: 645876, timezone: '+01:00'}) AS c, time({hour: 12, minute: 31}) AS d, time({hour: 12}) AS e, time({hour: 12, timezone: '+01:00'}) AS f, time({hour: 12, minute: 31, second: 14, nanosecond: 645000, millisecond: 1, timezone: 'Z'}) AS g"
+  - id: time_offset_with_seconds
+    cypher: "RETURN time({hour: 12, minute: 34, second: 56, timezone: '+02:05:59'}) AS a, time({hour: 12, minute: 34, second: 56, timezone: '-02:05:07'}) AS b, time('12:34:56+02:05:59').offsetSeconds AS s"
+  - id: time_selection
+    cypher: "WITH localtime('12:31:14.645876') AS lt, time({hour: 12, minute: 31, second: 14, microsecond: 645876, timezone: '+01:00'}) AS zt, localdatetime('1984-10-11T12:31:14.645') AS ldt, datetime('1984-10-11T12:31:14.645+01:00') AS zdt RETURN time(lt) AS a, time({time: lt}) AS b, time({time: lt, timezone: '+05:00'}) AS c, time({time: lt, second: 42}) AS d, time({time: lt, second: 42, timezone: '+05:00'}) AS e, time(zt) AS f, time({time: zt}) AS g, time({time: zt, timezone: '+05:00'}) AS h, time({time: zt, second: 42}) AS i, time({time: zt, second: 42, timezone: '+05:00'}) AS j, time(ldt) AS k, time({time: ldt}) AS l, time(zdt) AS m, time({time: zdt}) AS n, time({time: zdt, timezone: '+05:00'}) AS o, time({time: zdt, second: 42}) AS p"
+  - id: time_into_other_temporals
+    cypher: "WITH time({hour: 12, minute: 31, second: 14, microsecond: 645876, timezone: '+01:00'}) AS zt, date('1984-10-11') AS d RETURN localtime(zt) AS a, localtime({time: zt}) AS b, localtime({time: zt, second: 42}) AS c, localdatetime({date: d, time: zt}) AS e, localdatetime({year: 1984, month: 10, day: 11, time: zt, second: 42}) AS f, datetime({year: 1984, month: 10, day: 11, time: zt}) AS g, datetime({year: 1984, month: 10, day: 11, time: zt, timezone: '+05:00'}) AS h, datetime({year: 1984, month: 10, day: 11, time: zt, second: 42}) AS i, datetime({date: d, time: zt, second: 42, timezone: '+05:00'}) AS j, datetime({date: d, time: zt}) AS k"
+  - id: time_fields
+    cypher: "WITH time('12:31:14.645876+01:00') AS t RETURN t.hour, t.minute, t.second, t.millisecond, t.microsecond, t.nanosecond, t.timezone, t.offset, t.offsetMinutes, t.offsetSeconds, time('12:31:14.645876-02:05:07').offset AS o2, time('12:31:14Z').timezone AS z, time('12:31:14Z').offset AS o3, time('00:30+01:00').hour AS h"
+  - id: time_comparison
+    cypher: "WITH time('10:00+01:00') AS a, time('09:35:14.645876+00:00') AS b RETURN a > b, a < b, a >= b, a <= b, a = b, a <> b, b = time('09:35:14.645876Z') AS same, time('00:30+01:00') < time('23:30Z') AS wrap, time('12:00+01:00') = time('11:00Z') AS instants"
+  - id: time_ordering
+    cypher: "UNWIND [2, 0, 1] AS i WITH time({hour: 10 + i, timezone: '+01:00'}) AS t RETURN t ORDER BY t"
+  - id: time_truncate
+    cypher: "WITH time('12:31:14.645876-01:00') AS t, localtime('12:31:14.645876') AS lt, localdatetime('1984-10-11T12:31:14.645876') AS ldt, datetime('1984-10-11T12:31:14.645876+01:00') AS zdt RETURN time.truncate('day', t) AS a, time.truncate('hour', t) AS b, time.truncate('minute', t) AS c, time.truncate('second', t) AS d, time.truncate('millisecond', t) AS e, time.truncate('microsecond', t) AS f, time.truncate('hour', t, {minute: 7}) AS g, time.truncate('hour', t, {timezone: '+01:00'}) AS h, time.truncate('hour', t, {minute: 7, timezone: '+05:00'}) AS i, time.truncate('hour', lt) AS j, time.truncate('minute', ldt) AS k, time.truncate('second', zdt) AS l, time.truncate('hour', zdt, {timezone: '-03:00'}) AS m, localtime.truncate('hour', t) AS n"
+  - id: time_arithmetic
+    cypher: "WITH time('12:31:14+01:00') AS t RETURN t + duration({hours: 2, minutes: 30}) AS a, t - duration({minutes: 31, seconds: 14}) AS b, t + duration({hours: 13}) AS c, t - duration({hours: 13}) AS d, t + duration({days: 3, hours: 1}) AS e, duration({seconds: 1, milliseconds: 500}) + t AS f, t + null AS g"
+  - id: time_between
+    cypher: "WITH time('14:30Z') AS t, time('16:30+0100') AS u, localtime('16:30') AS lt, date('2015-06-24') AS d, localdatetime('2016-07-21T21:45:22.142') AS ldt, datetime('2015-07-21T21:40:32.142+0100') AS zdt RETURN duration.between(t, u) AS a, duration.between(u, t) AS b, duration.between(lt, u) AS c, duration.between(t, lt) AS e, duration.between(d, u) AS f, duration.between(t, d) AS g, duration.between(t, ldt) AS h, duration.between(ldt, u) AS i, duration.between(t, zdt) AS j, duration.between(zdt, u) AS k, duration.inSeconds(t, u) AS l, duration.inDays(d, u) AS m, duration.inMonths(t, zdt) AS n"
+  - id: time_null_propagation
+    cypher: "RETURN time(null) AS a, time('12:00+01:00') = null AS b, time('12:00+01:00') < null AS c"
+  - id: time_of_a_null_time_component_is_neo4js_error
+    cypher: "RETURN time({time: null}) AS c"
+  - id: time_of_a_date_is_neo4js_error
+    cypher: "RETURN time(date('1984-10-11')) AS t"
+  - id: time_date_field_is_neo4js_error
+    cypher: "RETURN time('12:00+01:00').year AS y"
+  - id: time_epoch_field_is_neo4js_error
+    cypher: "RETURN time('12:00+01:00').epochSeconds AS s"
+  - id: time_without_hour_is_neo4js_error
+    cypher: "RETURN time({minute: 5, timezone: '+01:00'}) AS t"
+  - id: time_bad_text_is_neo4js_error
+    cypher: "RETURN time('25:00+01:00') AS t"
+  - id: time_bad_offset_is_neo4js_error
+    cypher: "RETURN time('12:00+2') AS t"
+  - id: time_component_offset_without_colon_is_neo4js_error
+    cypher: "RETURN time({hour: 12, timezone: '+0100'}) AS t"
+  - id: time_truncate_to_month_is_neo4js_error
+    cypher: "RETURN time.truncate('month', time('12:00+01:00')) AS t"
+  - id: time_truncate_of_a_date_is_neo4js_error
+    cypher: "RETURN time.truncate('hour', date('1984-10-11')) AS t"
+  - id: time_named_zone_refused_by_name
+    cypher: "RETURN time('12:00[Europe/Stockholm]') AS t"
+  - id: time_named_zone_component_refused_by_name
+    cypher: "RETURN time({hour: 12, timezone: 'Europe/Stockholm'}) AS t"
+  - id: time_of_a_named_zone_datetime_refused_by_name
+    cypher: "RETURN time(datetime('1984-10-11T12:31:14[Europe/Stockholm]')) AS t"
+  - id: time_to_string
+    cypher: "RETURN toString(time('12:00+01:00')) AS s"
+  - id: time_list_refused_by_name
+    cypher: "RETURN [time('12:00+01:00'), time('13:00Z')] AS l"
+  - id: nanos_construction
+    cypher: "RETURN localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123}) AS a, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123}) AS b, datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'}) AS c, time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'}) AS d, localtime({hour: 12, minute: 31, second: 14, nanosecond: 789, millisecond: 123, microsecond: 456}) AS e, localtime({hour: 12, minute: 31, second: 14, nanosecond: 3}) AS f, datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: 'Europe/Stockholm'}) AS g, datetime.fromepoch(416779, 999999999) AS h"
+  - id: nanos_from_text
+    cypher: "RETURN localtime('12:31:14.645876123') AS a, localdatetime('1984-10-11T12:31:14.645876123') AS b, datetime('1984-10-11T12:31:14.645876123+01:00') AS c, time('12:31:14.645876123+01:00') AS d, localdatetime('2015-W30-2T214032.142000009') AS e, datetime('1984-10-11T12:31:14.645876123[Europe/Stockholm]') AS f, localtime('12:31:14.645876100') AS g, localdatetime('1984-10-11T12:31:14.645876000') AS h"
+  - id: nanos_fields
+    cypher: "WITH localdatetime('1984-10-11T12:31:14.645876123') AS dt, time('12:31:14.645876123+01:00') AS t RETURN dt.millisecond, dt.microsecond, dt.nanosecond, dt.second, t.nanosecond, t.microsecond, t.hour, localtime('12:31:14.000000001').nanosecond AS n, datetime('1984-10-11T12:31:14.645876123[Europe/Stockholm]').nanosecond AS z"
+  - id: nanos_selection
+    cypher: "WITH localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123}) AS lt, localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123}) AS ldt, datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'}) AS zdt RETURN localtime({time: lt, second: 42}) AS a, time({time: lt, timezone: '+05:00'}) AS b, time({time: lt, second: 42, timezone: '+05:00'}) AS c, localdatetime({date: date('1984-10-11'), time: lt}) AS d, localdatetime({year: 1984, month: 10, day: 11, time: lt, second: 42}) AS e, datetime({year: 1984, month: 10, day: 11, time: lt, timezone: '+05:00'}) AS f, localtime(ldt) AS g, time(zdt) AS h, localdatetime({datetime: zdt, year: 2000}) AS i, datetime({datetime: zdt, timezone: '+05:00'}) AS j, date(ldt) AS k, localdatetime({date: ldt, hour: 5}) AS l, localdatetime({datetime: ldt, millisecond: 1}) AS m, time({time: zdt}) AS n"
+  - id: nanos_truncate
+    cypher: "WITH localdatetime({year: 2017, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123}) AS ldt, time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '-01:00'}) AS t, datetime({year: 2017, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'}) AS zdt RETURN localdatetime.truncate('hour', ldt) AS a, localdatetime.truncate('hour', ldt, {nanosecond: 2}) AS b, localdatetime.truncate('millisecond', ldt) AS c, localdatetime.truncate('millisecond', ldt, {nanosecond: 2}) AS d, localdatetime.truncate('microsecond', ldt) AS e, localdatetime.truncate('microsecond', ldt, {nanosecond: 2}) AS f, time.truncate('minute', t, {nanosecond: 2}) AS g, time.truncate('second', t) AS h, localtime.truncate('hour', t, {nanosecond: 2}) AS i, datetime.truncate('day', zdt, {nanosecond: 2}) AS j, datetime.truncate('millennium', zdt, {timezone: 'Europe/Stockholm'}) AS k, date.truncate('month', ldt, {day: 2}) AS l, localdatetime.truncate('second', ldt, {millisecond: 2, microsecond: 3, nanosecond: 4}) AS m, datetime.truncate('hour', zdt, {timezone: 'Europe/Stockholm', nanosecond: 1}) AS n, localtime.truncate('millisecond', localtime('12:31:14.645876'), {nanosecond: 2}) AS o"
+  - id: nanos_comparison
+    cypher: "WITH localtime('12:31:14.645876123') AS a, localtime('12:31:14.645876124') AS b, localtime('12:31:14.645876') AS c, localdatetime('1984-10-11T12:31:14.645876123') AS d, localdatetime('1984-10-11T12:31:14.645876124') AS e, datetime('1984-10-11T12:31:14.645876123+01:00') AS f, datetime('1984-10-11T11:31:14.645876124Z') AS g, time('12:31:14.645876123+01:00') AS h, time('12:31:14.645876124+01:00') AS i RETURN a < b, a = b, a < c, c < a, a = localtime('12:31:14.645876123') AS same, d < e, d = e, f < g, h < i, h = i, a <> b"
+  - id: nanos_ordering
+    cypher: "UNWIND [3, 1, 2] AS i WITH localdatetime('1984-10-11T12:31:14.645876120') + duration({nanoseconds: 1}) * i AS d RETURN d ORDER BY d"
+  - id: nanos_arithmetic
+    cypher: "WITH localdatetime('1984-10-11T12:31:14.645876123') AS dt, localtime('12:31:14.645876123') AS t, datetime('1984-10-11T12:31:14.645876123+01:00') AS zdt, time('23:59:59.999999999+01:00') AS zt RETURN dt + duration({nanoseconds: 1}) AS a, dt - duration({nanoseconds: 124}) AS b, dt + duration({months: 1, days: 2, hours: 3}) AS c, t + duration({nanoseconds: 877}) AS d, zdt + duration({days: 1, nanoseconds: 1}) AS e, zt + duration({nanoseconds: 1}) AS f, localdatetime('1984-10-11T12:31:14') + duration({nanoseconds: 1}) AS g, localtime('12:00') + duration({seconds: 1, nanoseconds: 1}) AS h, dt + duration('PT0.000000001S') AS i, datetime('2017-10-29T01:30:00.123456789[Europe/Stockholm]') + duration({hours: 1}) AS j, datetime('2017-10-29T01:30:00.123456789[Europe/Stockholm]') + duration({days: 1}) AS k"
+  - id: nanos_between
+    cypher: "WITH localdatetime('1984-10-11T12:31:14.645876123') AS a, localdatetime('1984-10-12T12:31:14.645876124') AS b, localtime('12:31:14.645876123') AS t, localtime('12:31:14.645876125') AS u, datetime('1984-10-11T12:31:14.645876123+01:00') AS z RETURN duration.between(a, b) AS d1, duration.between(b, a) AS d2, duration.between(t, u) AS d3, duration.inSeconds(a, b) AS d4, duration.between(z, b) AS d5, duration.inMonths(a, localdatetime('1985-10-11T12:31:14.645876122')) AS d6, duration.between(a, localdatetime('1985-10-11T12:31:14.645876122')) AS d7, duration.inDays(a, b) AS d8, duration.between(t, localdatetime('1984-10-11T12:31:14.645876124')) AS d9"
+  - id: nanos_zones
+    cypher: "WITH datetime('2017-03-26T01:30:00.123456789+01:00[Europe/Stockholm]') AS z RETURN z.nanosecond AS n, z.hour AS h, localdatetime({datetime: z}) AS l, datetime({datetime: z, timezone: '+05:00'}) AS c, datetime.truncate('day', z) AS t, z.epochSeconds AS e, z.offsetMinutes AS o, localtime(z) AS lt"
+  - id: nanos_time_of_a_named_zone_datetime_refused_by_name
+    cypher: "RETURN time(datetime('2017-03-26T01:30:00.123456789+01:00[Europe/Stockholm]')) AS tt"
+  - id: nanos_year_outside_the_range_refused_by_name
+    cypher: "RETURN localdatetime({year: 1, month: 1, day: 1, hour: 1, minute: 1, second: 1, nanosecond: 1}) AS a"
+  - id: nanos_duration_fields
+    cypher: "WITH duration({seconds: 1, nanoseconds: 1}) AS d RETURN d.nanoseconds, d.nanosecondsOfSecond, d.microsecondsOfSecond, duration('PT1.000000001S') = d AS eq, duration.between(localdatetime('1984-10-11T12:31:14.645876123'), localdatetime('1984-10-11T12:31:14.645876124')).nanosecondsOfSecond AS one"
+  - id: nanos_component_of_the_row_refused_by_name
+    cypher: "UNWIND [1] AS i RETURN localtime({hour: 12, minute: 0, second: 0, nanosecond: i}) AS t"
+  - id: duration_fraction_of_a_month_cascades
+    cypher: "RETURN duration({months: 0.75}) AS d, toString(duration({months: 0.75})) AS t"
+  - id: duration_fraction_of_days_and_weeks
+    cypher: "RETURN toString(duration({months: 5, days: 1.5})) AS a, toString(duration({weeks: 2.5})) AS b, toString(duration({minutes: 1.5, seconds: 1})) AS c"
+  - id: duration_fraction_in_text
+    cypher: "RETURN toString(duration('P5M1.5D')) AS a, toString(duration('P0.75M')) AS b, toString(duration('PT0.75M')) AS c, toString(duration('P2.5W')) AS d"
+  - id: duration_to_string_whole_units
+    cypher: "RETURN toString(duration({years: 12, months: 5, days: 14, hours: 16, minutes: 12, seconds: 70})) AS a, toString(duration({days: 14, seconds: 70, milliseconds: 1})) AS b, toString(duration({seconds: 0})) AS c"
+  - id: duration_to_string_negative_and_fractions
+    cypher: "RETURN toString(duration({seconds: -2, milliseconds: 1})) AS a, toString(duration({seconds: -60, milliseconds: -1})) AS b, toString(duration({days: 1, milliseconds: -1})) AS c, toString(duration({months: -14, days: -3})) AS d"
+  - id: date_property_inside_a_node
+    graph: |
+      CREATE (:A {name: 'a', date: date({year: 1910, month: 5, day: 6})}), (:B {name: 'b', date: date({year: 1980, month: 12, day: 24})})
+    cypher: "MATCH (n) WITH n ORDER BY n.date LIMIT 1 RETURN n, n.date AS d"
+  - id: localdatetime_to_string_fractions
+    cypher: "RETURN toString(localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, millisecond: 645})) AS a, toString(localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14})) AS b, toString(localdatetime({year: 1984, month: 1, day: 1, hour: 0, minute: 0, second: 0, microsecond: 645876})) AS c"
+  - id: datetime_to_string_with_offsets
+    cypher: "RETURN toString(datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, timezone: '+01:00'})) AS a, toString(datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, timezone: 'Z'})) AS b, toString(datetime('2015-07-21T21:40:32.142-05:30')) AS c"
+  - id: times_to_string
+    cypher: "RETURN toString(localtime({hour: 12, minute: 31, second: 14, millisecond: 645})) AS a, toString(time({hour: 12, minute: 31, second: 14, timezone: '+01:00'})) AS b, toString(time({hour: 0, minute: 5, second: 0, microsecond: 10})) AS c"
+  - id: to_string_in_a_named_zone_refused_by_name
+    cypher: "RETURN toString(datetime({year: 2017, month: 8, day: 8, hour: 12, timezone: 'Europe/Stockholm'})) AS a"

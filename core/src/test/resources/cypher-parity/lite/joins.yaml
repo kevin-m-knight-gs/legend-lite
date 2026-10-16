@@ -1,0 +1,90 @@
+# The #Cypher{...}# island's join-form cases (docs/CYPHER_STUDY_2026_10_15.md §12.16): a pattern that fans out (a
+# to-many hop) reads one row per pair, the graph materialized to rows at the end of the MATCH, a far node's
+# property map and the WHERE filtered over those rows. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/joins/*'), keyed lite/joins/<id>.
+tests:
+  - id: pairs_of_a_many_to_many_hop
+    graph: |
+      CREATE (a1:A {name: 'a1', x: 1}), (a2:A {name: 'a2', x: 2}), (b1:B {name: 'b1', y: 10}), (b2:B {name: 'b2', y: 20}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1)
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN a.name AS a, b.name AS b ORDER BY a, b"
+  - id: count_of_pairs
+    graph: |
+      CREATE (a1:A {name: 'a1', x: 1}), (a2:A {name: 'a2', x: 2}), (b1:B {name: 'b1', y: 10}), (b2:B {name: 'b2', y: 20}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1)
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN count(*) AS c"
+  - id: where_on_the_far_node
+    graph: |
+      CREATE (a1:A {name: 'a1', x: 1}), (a2:A {name: 'a2', x: 2}), (b1:B {name: 'b1', y: 10}), (b2:B {name: 'b2', y: 20}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1)
+    cypher: "MATCH (a:A)-[:T]->(b:B) WHERE b.y > 10 RETURN a.name AS a"
+  - id: property_map_on_the_far_node
+    graph: |
+      CREATE (a1:A {name: 'a1', x: 1}), (a2:A {name: 'a2', x: 2}), (b1:B {name: 'b1', y: 10}), (b2:B {name: 'b2', y: 20}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1)
+    cypher: "MATCH (a:A)-[:T]->(b:B {name: 'b1'}) RETURN a.name AS a ORDER BY a"
+  - id: both_ends_as_values
+    graph: |
+      CREATE (a1:A {name: 'a1', x: 1}), (a2:A {name: 'a2', x: 2}), (b1:B {name: 'b1', y: 10}), (b2:B {name: 'b2', y: 20}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1)
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN a, b"
+  - id: pairs_through_with_order_limit
+    graph: |
+      CREATE (a1:A {name: 'a1', x: 1}), (a2:A {name: 'a2', x: 2}), (b1:B {name: 'b1', y: 10}), (b2:B {name: 'b2', y: 20}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1)
+    cypher: "MATCH (a:A)-[:T]->(b:B) WITH a, b ORDER BY b.y DESC, a.name LIMIT 2 RETURN a.name AS a, b.y AS y"
+  - id: label_less_ends_read_from_the_type
+    graph: |
+      CREATE (a1:A {name: 'a1', x: 1}), (a2:A {name: 'a2', x: 2}), (b1:B {name: 'b1', y: 10}), (b2:B {name: 'b2', y: 20}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1)
+    cypher: "MATCH (a)-[:T]->(b) RETURN a.name AS a, b.name AS b ORDER BY a, b"
+  - id: grouped_over_pairs
+    graph: |
+      CREATE (a1:A {name: 'a1', x: 1}), (a2:A {name: 'a2', x: 2}), (b1:B {name: 'b1', y: 10}), (b2:B {name: 'b2', y: 20}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1)
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN a.name AS a, count(b) AS n, sum(b.y) AS s ORDER BY a"
+  - id: count_over_nodes_without_properties
+    graph: |
+      CREATE (c1:C), (c2:C), (d1:D), (d2:D), (c1)-[:U]->(d1), (c1)-[:U]->(d2), (c2)-[:U]->(d1)
+    cypher: "MATCH (c:C)-[:U]->(d:D) RETURN count(*) AS n"
+  - id: many_then_one
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (b2:B {name: 'b2'}), (c1:C {z: 1}), (c2:C {z: 2}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1), (b1)-[:V]->(c1), (b2)-[:V]->(c2)
+    cypher: "MATCH (a:A)-[:T]->(b:B)-[:V]->(c:C) RETURN a.name AS a, c.z AS z ORDER BY a, z"
+  - id: unnamed_far_node
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (b2:B {name: 'b2'}), (a1)-[:T]->(b1), (a1)-[:T]->(b2), (a2)-[:T]->(b1)
+    cypher: "MATCH (a:A)-[:T]->(:B {name: 'b2'}) RETURN a.name AS a"
+  - id: untyped_from_a_labelled_node
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (a:A)-->(x) RETURN a.name AS a, x.name AS x ORDER BY a, x"
+  - id: untyped_between_label_less_nodes
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (x)-->(y) RETURN x.name AS x, y.name AS y ORDER BY x, y"
+  - id: untyped_with_a_label_on_the_far_node
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (x)-->(c:C) RETURN x.name AS x ORDER BY x"
+  - id: untyped_incoming
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (c:C)<--(x) RETURN x.name AS x ORDER BY x"
+  - id: untyped_undirected
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (b:B)--(x) RETURN x.name AS x ORDER BY x"
+  - id: untyped_two_hops
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (x)-->(y)-->(z) RETURN x.name AS x, y.name AS y, z.name AS z ORDER BY x, y, z"
+  - id: untyped_count_and_nodes
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (x)-->(y) RETURN count(*) AS n"
+  - id: untyped_with_where_and_return_of_nodes
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1), (b1)-[:V]->(c1)
+    cypher: "MATCH (x)-->(y) WHERE y.name <> 'c1' RETURN x, y"
+  - id: self_association_read_backward
+    graph: binary-tree-1
+    cypher: "MATCH (c:X)<-[:FRIEND]-(b:X) RETURN c.name AS c, b.name AS b ORDER BY c"
+  - id: self_association_then_another_backward
+    graph: binary-tree-1
+    cypher: "MATCH (c:X)<-[:FRIEND]-(b:X)<-[:KNOWS]-(a:A) RETURN c.name AS c ORDER BY c"
+  - id: typed_then_untyped_two_hops
+    graph: binary-tree-1
+    cypher: "MATCH (a:A)-[:KNOWS]->(b)-->(c) RETURN c.name AS c ORDER BY c"

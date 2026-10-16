@@ -44,6 +44,7 @@ public class H2 extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
             case JSON -> "JSON";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -404,6 +405,8 @@ public class H2 extends AnsiSqlRenderer {
             // EXTRACT(EPOCH FROM ts) (seconds with the subsecond fraction;
             // probed 2.1.214: 1417706543.123) and its millisecond scaling.
             case EPOCH_SECONDS -> writer.append("EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(")");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: H2 keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(") * 1000 AS BIGINT)");
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
@@ -518,6 +521,9 @@ public class H2 extends AnsiSqlRenderer {
             case SHA256 -> writer.function("sha256", c.args());
             case MAKE_DATE -> writer.function("make_date", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
+            // H2 adds a date and a time to a timestamp (its datetime arithmetic; designed, not measured here)
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
+                    .expr(a.get(1), 6));
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
             case DAYNAME -> writer.function("dayname", c.args());
             case MONTHNAME -> writer.function("monthname", c.args());
@@ -605,6 +611,8 @@ public class H2 extends AnsiSqlRenderer {
             case SECOND -> "SECOND";
             case MILLISECOND -> "MILLISECOND";
             case MICROSECOND -> "MICROSECOND";
+            case NANOSECOND -> throw new DialectCapability("a nanosecond part has no measured H2 spelling (the"
+                    + " Cypher island's nanosecond leg is DuckDB's)");
             case DAY_OF_YEAR -> "DOY";
             case ISO_DAY_OF_WEEK -> "ISODOW";
         };
@@ -705,7 +713,7 @@ public class H2 extends AnsiSqlRenderer {
             case SECOND -> "SECOND";
             case MILLISECOND -> "MILLISECOND";
             case MICROSECOND -> "MICROSECOND";
-            case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability(
+            case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability(
                     "interval unit '" + unit + "' reached a dialect without a dateadd unit");
         };
     }

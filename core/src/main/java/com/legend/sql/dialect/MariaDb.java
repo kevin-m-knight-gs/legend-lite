@@ -193,6 +193,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "CHAR";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case TIME -> "TIME(6)";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -1076,6 +1077,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DOUBLE -> "DOUBLE";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case TIME -> "TIME(6)";
             case JSON -> "JSON";
             case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin";
         };
@@ -1107,6 +1109,7 @@ public class MariaDb extends AnsiSqlRenderer {
                 case DOUBLE -> "DOUBLE";
                 case DATE -> "DATE";
                 case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+                case TIME -> "TIME(6)";
                 case BOOLEAN, JSON, VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "CHAR";
             };
             return w -> w.append("CAST(").piece(text).append(" AS " + type + ")");
@@ -1648,6 +1651,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case TIMESTAMPTZ -> from == SqlType.Scalar.VARCHAR ? utcOf(value)
                     : w -> w.append("CAST(").piece(value).append(" AS DATETIME(6))");
             case JSON -> w -> w.append("JSON_EXTRACT(JSON_ARRAY(").piece(value).append("), '$[0]')");
+            case TIME -> w -> w.append("CAST(").piece(value).append(" AS TIME(6))");
             case TEMPORAL_TEXT, DECIMAL_TEXT -> value;
         };
     }
@@ -1901,7 +1905,11 @@ public class MariaDb extends AnsiSqlRenderer {
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC date-time: UTC's wall time is the instant's, either way
             case TIMEZONE -> timezone(writer, c, parentPrec);
+            // TIMESTAMP(date, time): the date-time at that time of that day
+            case DATE_AT_TIME -> writer.function("TIMESTAMP", c.args());
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: MariaDB keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" DIV 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (")
                     .expr(a.get(0), 0).append(") * 1000000 MICROSECOND)");
@@ -2033,6 +2041,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DOUBLE -> "DOUBLE";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case TIME -> "TIME(6)";
             case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT, JSON -> "CHAR";
         };
     }
@@ -2631,7 +2640,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case SECOND -> "SECOND(";
             case DAY_OF_YEAR -> "DAYOFYEAR(";
             case MICROSECOND -> "MICROSECOND(";
-            case WEEK, MILLISECOND, ISO_DAY_OF_WEEK -> null;
+            case WEEK, MILLISECOND, NANOSECOND, ISO_DAY_OF_WEEK -> null;
         };
         if (fn != null) {
             return w -> w.append(fn).expr(t, 0).append(")");
@@ -2640,6 +2649,8 @@ public class MariaDb extends AnsiSqlRenderer {
             case WEEK -> w -> w.append("WEEK(").expr(t, 0).append(", 3)");
             case MILLISECOND -> w -> w.append("(MICROSECOND(").expr(t, 0).append(") DIV 1000)");
             case ISO_DAY_OF_WEEK -> w -> w.append("(WEEKDAY(").expr(t, 0).append(") + 1)");
+            case NANOSECOND -> throw new DialectCapability("date part 'nanosecond' has no measured " + product()
+                    + " spelling");
             case YEAR, QUARTER, MONTH, DAY, HOUR, MINUTE, SECOND, DAY_OF_YEAR, MICROSECOND ->
                     throw new IllegalStateException("named: " + part);
         };
@@ -2670,7 +2681,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append(", '%Y-%m-%d %H:%i:%s') AS DATETIME(6))");
             case MILLISECOND -> w -> w.append("(CAST(").expr(t, 0).append(" AS DATETIME(6)) - INTERVAL MOD(MICROSECOND(")
                     .expr(t, 0).append("), 1000) MICROSECOND)");
-            case MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part '"
+            case MICROSECOND, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured " + product() + " spelling");
         };
     }
@@ -2691,7 +2702,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case SECOND -> new String[] {"SECOND", "1"};
             case MILLISECOND -> new String[] {"MICROSECOND", "1000"};
             case MICROSECOND -> new String[] {"MICROSECOND", "1"};
-            case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit " + unit
+            case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit " + unit
                     + " has no " + product() + " spelling");
         };
         return w -> w.append("(").expr(t, 6).append(" + INTERVAL (").expr(n, 0).append(")" + ("1".equals(u[1]) ? ""
@@ -2717,7 +2728,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case SECOND -> boundaries(from, to, 1000000L);
             case MILLISECOND -> boundaries(from, to, 1000L);
             case MICROSECOND -> boundaries(from, to, 1L);
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part '"
+            case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured " + product() + " spelling");
         };
     }
@@ -2763,7 +2774,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case SECOND -> 1000000L;
             case MILLISECOND -> 1000L;
             case MICROSECOND -> 1L;
-            case YEAR, QUARTER, MONTH, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
         };
     }
 

@@ -1,0 +1,16 @@
+# The Cypher parity corpus's decided cases (docs/CYPHER_STUDY_2026_10_15.md §8.3): a case whose answer lite gives by a
+# rule of its own, each a row of docs/SEMANTICS_REGISTER.md, judged per lane against what the decision names instead of
+# Neo4j's answer: a JSON list of rows in the TCK's value grammar, ERROR (the database raises where Neo4j answers), or
+# - (Neo4j's answer judges that lane). A decision for a case that is gone fails the guards.
+# key<TAB>register row<TAB>duckdb<TAB>postgres
+tck/expressions/comparison/Comparison1/[8] Equality and inequality of NaN #1	S60	-	ERROR
+tck/expressions/comparison/Comparison1/[8] Equality and inequality of NaN #2	S60	-	ERROR
+tck/expressions/comparison/Comparison1/[8] Equality and inequality of NaN #3	S60	[["true", "false"]]	ERROR
+tck/expressions/comparison/Comparison2/[5] Comparing NaN #1	S60	[["true", "true", "false", "false"]]	ERROR
+tck/expressions/comparison/Comparison2/[5] Comparing NaN #2	S60	[["true", "true", "false", "false"]]	ERROR
+tck/expressions/comparison/Comparison2/[5] Comparing NaN #3	S60	[["false", "true", "false", "true"]]	ERROR
+lite/temporal/datetime_comparison	S66	[["true", "false", "true", "true", "true", "true"]]	[["true", "false", "true", "true", "true", "true"]]
+lite/temporal/time_comparison	S66	[["false", "true", "false", "true", "false", "true", "true", "true", "true"]]	[["false", "true", "false", "true", "false", "true", "true", "true", "true"]]
+lite/temporal/time_offset_with_seconds	S69	[["Time('12:34:56.000000000+02:05:59')", "Time('12:34:56.000000000-02:05:07')", "7559"]]	[["Time('12:34:56.000000000+02:05:59')", "Time('12:34:56.000000000-02:05:07')", "7559"]]
+tck/expressions/temporal/Temporal1/[13] Should construct temporal with time offset with second precision #2	S69	[["Time('12:34:56.000000000+02:05:59')"]]	[["Time('12:34:56.000000000+02:05:59')"]]
+tck/expressions/temporal/Temporal1/[13] Should construct temporal with time offset with second precision #3	S69	[["Time('12:34:56.000000000-02:05:07')"]]	[["Time('12:34:56.000000000-02:05:07')"]]

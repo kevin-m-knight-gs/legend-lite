@@ -1,0 +1,30 @@
+# The #Cypher{...}# island's list-ordering cases (docs/CYPHER_STUDY_2026_10_15.md §12.34): two lists of known
+# shape ordered element by element, the first pair that is not equal deciding (null when either is null or the
+# two do not order), the lengths deciding when every pair is equal; a list and a value of another type do not
+# order. Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/ordering/*'), keyed lite/ordering/<id>.
+tests:
+  - id: lists_order_by_their_first_differing_element
+    graph: |
+      CREATE ()
+    cypher: "RETURN [1, 2] < [3, 4] AS a, [1, 9] < [2, 0] AS b, [3, 1] > [2, 9] AS c, [1, 2] <= [1, 2] AS d, [1, 2] >= [1, 3] AS e"
+  - id: a_longer_list_is_greater_after_an_equal_prefix
+    graph: |
+      CREATE ()
+    cypher: "RETURN [1, 0] >= [1] AS a, [1] < [1, 0] AS b, [] < [1] AS c, [1] <= [1] AS d, [2] > [1, 9] AS e, [1, null] >= [1] AS f"
+  - id: a_null_or_unordered_pair_is_null
+    graph: |
+      CREATE ()
+    cypher: "RETURN [1, 2] >= [1, null] AS a, [1, 'a'] >= [1, null] AS b, [1, 2] >= [3, null] AS c, [1, 'a'] < [1, 2] AS d, ['a', 1] < ['b', null] AS e"
+  - id: a_list_and_another_type_do_not_order
+    graph: |
+      CREATE ()
+    cypher: "RETURN [1, 2] < true AS a, [1] > 1 AS b, [1, 2] < [3, 4] IN [[3, 4], false] AS c, ([1, 2] < [3, 4]) IN [[3, 4], false] AS d, [1, 2] = [3, 4] IN [[3, 4], false] AS e"
+  - id: lists_of_values_of_the_row
+    graph: |
+      CREATE (:P {name: 'a', age: 1}), (:P {name: 'b', age: 3}), (:P {name: 'c'})
+    cypher: "MATCH (p:P) RETURN p.name AS name, [p.age, 1] < [2, 1] AS a, [p.name, p.age] >= ['b', 0] AS b, [p.age] > [] AS c ORDER BY name"
+  - id: ordering_nested_lists_refused
+    graph: |
+      CREATE ()
+    cypher: "RETURN [[1]] < [[2]] AS a"

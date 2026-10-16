@@ -222,6 +222,8 @@ final class SubselectPrune {
             }
             case SqlExpr.TimestampLit v -> {
             }
+            case SqlExpr.TimeLit v -> {
+            }
             case SqlExpr.FormatLit v -> {
             }
             case SqlExpr.DatePartLit v -> {

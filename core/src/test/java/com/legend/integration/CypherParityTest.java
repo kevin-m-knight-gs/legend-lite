@@ -1,0 +1,154 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.integration;
+
+import com.legend.exec.ExecutionResult;
+import com.legend.server.QueryService;
+import com.legend.testcases.CypherAnswers;
+import com.legend.testcases.CypherGraph;
+import com.legend.testcases.CypherParity;
+import com.legend.testcases.SqlParity;
+import com.legend.testing.Runfile;
+import org.junit.jupiter.api.Test;
+
+import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * The Cypher parity corpus on DuckDB (docs/CYPHER_STUDY_2026_10_15.md §8.4): every TCK scenario and lite case
+ * ({@code core/src/test/resources/cypher-parity}) as a {@code #Cypher{...}#} island over the model its graph
+ * implies, judged against Neo4j's snapped answer, each case's status pinned in the ledger's {@code duckdb} column.
+ * The answers are checked against the cases first (UNSNAPPED, STALE, GONE, VERSION fail the test). Run with
+ * {@code --jvm_flag=-Dcypher.parity.update=<core/src/test/resources/cypher-parity/ledger.tsv in the workspace>} to
+ * rewrite this lane's column.
+ */
+class CypherParityTest {
+
+    /** The showcase's queries (docs/CYPHER_SHOWCASE.md): {@code lite/basics.yaml}'s {@code showcase_main} (pinned at
+     *  the showcase directory's root), {@code showcase_easy} and {@code showcase_hard} (each in its own directory),
+     *  judged by Neo4j above like every case; the model, the Pure and the SQL for two connections pinned below. */
+    private static final String[][] SHOWCASES = {
+        {"lite/basics/showcase_main", ""},
+        {"lite/basics/showcase_easy", "easy"},
+        {"lite/basics/showcase_hard", "hard"},
+    };
+
+    /** The connections the showcase's SQL is pinned for, each a file of {@code cypher-parity/showcase/}: Snowflake's
+     *  is rendered only (planning never connects), DuckDB's is the SQL the lane runs. */
+    private static final String[][] SHOWCASE_LANES = {
+        {"snowflake", "type: Snowflake;\n    specification: Snowflake { name: 'CYPHER_SHOWCASE'; account: 'acct';"
+                + " warehouse: 'wh'; region: 'us-east-1'; };\n    auth: SnowflakePublic { publicUserName: 'u';"
+                + " privateKeyVaultReference: 'vault/k'; passPhraseVaultReference: 'vault/pp'; };"},
+        {"duckdb", "type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;"},
+    };
+
+    /**
+     * The showcase (docs/CYPHER_SHOWCASE.md): its island, compiled against the model its graph implies with a
+     * Snowflake connection and with a DuckDB one, plans the SQL pinned in {@code cypher-parity/showcase/snowflake.sql}
+     * and {@code duckdb.sql}, byte for byte. Run with {@code -Dcypher.showcase.update=<core/src/test/resources/
+     * cypher-parity/showcase in the workspace>} to rewrite them.
+     */
+    @Test
+    void theShowcasePlansItsPinnedSql() throws Exception {
+        List<CypherParity.Case> cases = CypherParity.cases(Runfile.property("cypher.parity.tck").getParent(),
+                Runfile.property("cypher.parity.lite").getParent());
+        CypherAnswers.File answers = CypherAnswers.read(Runfile.property("cypher.parity.answers"));
+        java.nio.file.Path pinned = Runfile.property("cypher.parity.showcase").getParent();
+        String update = System.getProperty("cypher.showcase.update");
+        List<String> problems = new ArrayList<>();
+        for (String[] showcase : SHOWCASES) {
+            String key = showcase[0];
+            CypherParity.Case main = cases.stream().filter(c -> c.key().equals(key)).findFirst()
+                    .orElseThrow(() -> new AssertionError("no case " + key));
+            CypherAnswers.Answer answer = answers.answers().get(key);
+            if (answer == null || answer.graph() == null) {
+                throw new AssertionError("no snapped answer with a graph for " + key);
+            }
+            CypherGraph.Inferred inferred = CypherGraph.infer(answer.graph());
+            // the model the graph implies and the Pure the island desugars to, pinned beside the SQL (the doc's
+            // §6 to §9)
+            java.util.Map<String, String> texts = new java.util.LinkedHashMap<>();
+            texts.put("model.pure", inferred.model());
+            com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(CypherGraph.model(
+                    inferred, SHOWCASE_LANES[1][1]));
+            texts.put("pure.txt", com.legend.protocol.PureComposer.valueSpecification(
+                    com.legend.compiler.spec.CypherIslands.translate(new com.legend.protocol.spec.SqlIsland(
+                            main.query(), null, com.legend.protocol.spec.SqlIsland.CYPHER, null), ctx),
+                    com.legend.protocol.PureComposer.Style.STANDARD) + "\n");
+            for (String[] lane : SHOWCASE_LANES) {
+                texts.put(lane[0] + ".sql", com.legend.Compiler.query(com.legend.Compiler.compileModel(
+                        CypherGraph.model(inferred, lane[1])), main.island()).plan(CypherGraph.RUNTIME).sql()
+                        + "\n");
+            }
+            for (java.util.Map.Entry<String, String> e : texts.entrySet()) {
+                String sql = e.getValue();
+                String file = showcase[1].isEmpty() ? e.getKey() : showcase[1] + "/" + e.getKey();
+                if (update != null) {
+                    java.nio.file.Files.writeString(Path.of(update).resolve(file), sql,
+                            java.nio.charset.StandardCharsets.UTF_8);
+                    continue;
+                }
+                String expected = java.nio.file.Files.readString(pinned.resolve(file),
+                        java.nio.charset.StandardCharsets.UTF_8);
+                if (!expected.equals(sql)) {
+                    List<String> was = expected.lines().toList();
+                    List<String> now = sql.lines().toList();
+                    int line = 0;
+                    while (line < Math.min(was.size(), now.size()) && was.get(line).equals(now.get(line))) {
+                        line++;
+                    }
+                    problems.add(file + " differs from line " + (line + 1) + ":\n  pinned: "
+                            + (line < was.size() ? was.get(line) : "<end>") + "\n  now:    "
+                            + (line < now.size() ? now.get(line) : "<end>"));
+                }
+            }
+        }
+        assertTrue(problems.isEmpty(), "the showcase's SQL moved (if on purpose, rewrite it with"
+                + " -Dcypher.showcase.update=<core/src/test/resources/cypher-parity/showcase in the workspace> and"
+                + " update docs/CYPHER_SHOWCASE.md):\n" + String.join("\n", problems));
+    }
+
+    @Test
+    void everyCaseHasItsLedgerStatusOnDuckDB() throws Exception {
+        List<CypherParity.Case> cases = CypherParity.cases(Runfile.property("cypher.parity.tck").getParent(),
+                Runfile.property("cypher.parity.lite").getParent());
+        CypherAnswers.File answers = CypherAnswers.read(Runfile.property("cypher.parity.answers"));
+        Map<String, CypherParity.Decision> decisions = CypherParity.decisions(
+                Runfile.property("cypher.parity.decisions"), "duckdb");
+        List<String> problems = new ArrayList<>(CypherAnswers.guards(cases, answers, CypherParity.PINNED_SERVER));
+        problems.addAll(CypherParity.decisionGuards(cases, Runfile.property("cypher.parity.decisions")));
+        Map<String, SqlParity.Outcome> outcomes;
+        try (Connection duckdb = DriverManager.getConnection("jdbc:duckdb:")) {
+            QueryService service = new QueryService();
+            outcomes = CypherParity.run(cases, answers.answers(), decisions, new CypherParity.Lane() {
+                @Override
+                public String connection() {
+                    return "type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;";
+                }
+
+                @Override
+                public void seed(List<SqlParity.Table> tables) throws Exception {
+                    SqlParity.seed(duckdb, tables, false);
+                }
+
+                @Override
+                public ExecutionResult run(String model, String island) throws Exception {
+                    return service.execute(model, island, CypherGraph.RUNTIME, duckdb);
+                }
+            });
+        }
+        CypherParity.census(outcomes, "duckdb");
+        String update = System.getProperty("cypher.parity.update");
+        problems.addAll(CypherParity.ratchet(cases, outcomes, Runfile.property("cypher.parity.ledger"), "duckdb",
+                update == null ? null : Path.of(update)));
+        assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems.subList(0,
+                Math.min(problems.size(), 200))));
+    }
+}

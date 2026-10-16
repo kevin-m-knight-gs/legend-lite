@@ -2340,6 +2340,28 @@ final class Scalars {
         // (h2Extension2_1_214.pure:230). Semantically loose ('', '$5' and
         // '1.2.3' are all "numeric") but it is what generated every corpus
         // expectation; a tighter regex silently diverges on those inputs.
+        // the time of day of a date-time (lite's timeOf: a CAST to TIME), and the date-time at a time of a date
+        // (lite's atTime: the database's date plus time) — the Cypher island's time-of-day leg, 2026-10-16
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TIME_OF) {
+            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), SqlType.Scalar.TIME));
+        }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_AT_TIME) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.DATE_AT_TIME, args));
+        }
+        // a named zone, read by the database (the Cypher island's zoned date-time leg, 2026-10-16): the
+        // convertTimeZone pair below — timezone(zone, naive) reads a wall time in the zone (its instant), and
+        // timezone('UTC', instant) is that instant as the naive UTC date-time the platform carries; the other way
+        // round, timezone('UTC', naive) pins the naive value as a UTC instant and timezone(zone, instant) is its
+        // wall time in the zone (measured on DuckDB 1.4.4 through the ICU it bundles, Europe/Stockholm in and out
+        // of summer time; Postgres's timezone(zone, t) is AT TIME ZONE, the same pair)
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_INSTANT_IN) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"),
+                    new SqlExpr.Call(SqlFn.TIMEZONE, List.of(args.get(1), args.get(0))))));
+        }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_LOCAL_IN) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(args.get(1),
+                    new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"), args.get(0))))));
+        }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_IS_NUMERIC) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
                     SqlExpr.Call.of(SqlFn.LOWER, args.get(0)),
@@ -2972,6 +2994,7 @@ final class Scalars {
             case "SECONDS" -> DatePart.SECOND;
             case "MILLISECONDS" -> DatePart.MILLISECOND;
             case "MICROSECONDS" -> DatePart.MICROSECOND;
+            case "NANOSECONDS" -> DatePart.NANOSECOND;
             default -> throw new IllegalStateException(
                     "unknown DurationUnit for dateDiff: " + enumName(unit));
         };
@@ -3022,6 +3045,13 @@ final class Scalars {
             }
             case SECOND -> {
                 return elapsed(d1, d2, 1_000L);
+            }
+            case NANOSECOND -> {
+                // no engine counts nanoseconds in date_diff: the epoch counts' difference, exact where the engine
+                // keeps nanoseconds (the Cypher island's nanosecond leg, 2026-10-16)
+                return SqlExpr.Call.of(SqlFn.MINUS,
+                        new SqlExpr.Call(SqlFn.EPOCH_NS, List.of(d2)),
+                        new SqlExpr.Call(SqlFn.EPOCH_NS, List.of(d1)));
             }
             default -> {
                 return new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(

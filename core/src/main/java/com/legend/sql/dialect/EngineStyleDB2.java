@@ -31,8 +31,8 @@ public class EngineStyleDB2 extends EngineStyleH2 {
     @Override
     protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
         return switch (s) {
-            case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, JSON, LITERAL,
-                 TEMPORAL_TEXT, DECIMAL_TEXT ->
+            case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON,
+                 LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT ->
                     super.scalarTypeName(s);
         };
     }
@@ -211,7 +211,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                  MAP_KEYS, MAP_VALUES, MAP_CONCAT, STARTS_WITH, ENDS_WITH, MATCHES, REPLACE, SPLIT, SPLIT_PART,
                  PURE_SPLIT_PART, ASCII_CODE, CHR, UC_FIRST, LC_FIRST, ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT,
                  HASH, MD5, SHA1, SHA256, NOW, DATE_TRUNC_DAY, MAKE_DATE, MAKE_TIMESTAMP, DATE_DIFF, TIME_BUCKET,
-                 TIMEZONE, ADD_INTERVAL_TEMPORAL, EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS, FROM_EPOCH_MS,
+                 TIMEZONE, DATE_AT_TIME, ADD_INTERVAL_TEMPORAL, EPOCH_SECONDS, EPOCH_MS, EPOCH_NS, FROM_EPOCH_NS, FROM_EPOCH_SECONDS, FROM_EPOCH_MS,
                  DAYNAME, MONTHNAME, COT, RADIANS, DEGREES, INT_DIVIDE, REPEAT_STR, JARO_WINKLER, DECODE_BASE64,
                  CURRENT_USER_FN, LIST_LENGTH, LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
                  LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN,
@@ -245,7 +245,8 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                         .append(")-1) YEARS + (month(").piece(anchor).append(")-1) MONTHS");
                 case QUARTER -> w -> w.append("date(1) + ((year(").piece(anchor)
                         .append(")-1) YEARS) + (3 * QUARTER(").piece(anchor).append(") - 3) MONTHS");
-                case WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+                case WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, DAY_OF_YEAR,
+                        ISO_DAY_OF_WEEK -> null;
             };
             if (spelled != null) {
                 return writer.piece(spelled);
@@ -267,7 +268,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                 case HOUR -> "HOURS";
                 case MINUTE -> "MINUTES";
                 case SECOND -> "SECONDS";
-                case QUARTER, WEEK, MILLISECOND, MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+                case QUARTER, WEEK, MILLISECOND, MICROSECOND, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
             };
             long v = n.value();
             if (unit == null && u == com.legend.sql.DatePart.WEEK) {
