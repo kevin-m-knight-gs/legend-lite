@@ -24,6 +24,8 @@ import {
   type PageViews,
 } from '../src/page-document.ts';
 import { givenName } from '../src/page-names.ts';
+import { layoutAdd } from '../src/headless/layout.ts';
+import { pageNew } from '../src/headless/page.ts';
 import type { ChartSpec } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
@@ -339,6 +341,12 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
       sheets: [{ id: FIRST_SHEET, layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] } }],
     });
     assert.deepEqual(startingViews(), { views: [], sheets: [{ id: FIRST_SHEET, layout: { kind: 'bands', fit: true, bands: [] } }] });
+  });
+
+  it("is the page Python starts and lays its first grid on, by the same add (headless pageNew, layoutAdd)", () => {
+    const started = JSON.parse(JSON.parse(pageNew('Q3 review')).page as string) as { sheets: { layout: unknown }[] };
+    const laid = JSON.parse(layoutAdd(JSON.stringify(started.sheets[0]!.layout), 'grid-1', null)) as unknown;
+    assert.deepEqual(laid, startingViews({ id: 'grid-1', cube: 'grid-1' }).sheets[0]!.layout);
   });
 });
 

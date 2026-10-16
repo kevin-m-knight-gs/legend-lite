@@ -73,6 +73,11 @@ export type Drop =
 
 /** A band's height when nothing says otherwise: half a screen. */
 export const BAND_HEIGHT = 0.5;
+/**
+ * The first band's height, on a board with none: the whole screen, as a page starts (page-document.ts startingViews) --
+ * so the screen's first grid, its re-add onto an emptied board and Python's first grid lay out alike (2026-10-16).
+ */
+export const FIRST_BAND_HEIGHT = 1;
 /** A part's least share of its split, and a band's least height: a divider stops there. */
 export const MIN_SHARE = 0.1;
 export const MIN_BAND_HEIGHT = 0.15;
@@ -281,10 +286,12 @@ export function remove(layout: Bands, tile: string): Bands {
 /**
  * A NEW TILE, placed where it is wanted (smart placement): beside `near` -- the tile it came from -- while `near`'s band
  * is a row of fewer than `columns` columns (MAX_COLUMNS, or fewer where the board is too narrow for them to be
- * readable), otherwise as a band of its own below `near`'s; with no `near`, a band at the bottom of the page.
+ * readable), otherwise as a band of its own below `near`'s; with no `near`, a band at the bottom of the page. On a board
+ * with no band, the page's first band: the whole screen (FIRST_BAND_HEIGHT).
  */
 export function add(layout: Bands, tile: string, near?: string, columns = MAX_COLUMNS): Bands {
   if (tiles(layout).includes(tile)) return layout;
+  if (layout.bands.length === 0) return { fit: layout.fit, bands: [{ height: FIRST_BAND_HEIGHT, node: { tile } }] };
   const at = near === undefined ? -1 : bandOf(layout, near);
   if (at < 0) return { fit: layout.fit, bands: [...layout.bands, { height: BAND_HEIGHT, node: { tile } }] };
   const band = layout.bands[at]!;

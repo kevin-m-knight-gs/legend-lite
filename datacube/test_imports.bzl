@@ -2027,6 +2027,8 @@ TEST_IMPORTS = {
         "src/format.ts",
         "src/generated/offer-facts.ts",
         "src/grid/columns.ts",
+        "src/headless/layout.ts",
+        "src/headless/page.ts",
         "src/infer.ts",
         "src/json-shape.ts",
         "src/layout/bands.ts",

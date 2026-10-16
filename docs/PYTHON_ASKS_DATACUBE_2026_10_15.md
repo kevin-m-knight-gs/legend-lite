@@ -85,6 +85,20 @@ What is left, and why:
   - `frames._NAME` is Pure's own identifier rule, which Python needs as the writer of its frames' model: no copy of
     DataCube's. Its one inconsistency is fixed (a file's table name read lowercased, so `True` was refused).
   - `_next` ids (page.py) are no copy of `cube-page.ts`'s: Python never reuses an id a handle once had.
+- **The vocabulary test's pins, each retired with the copy it held equal** (`datacube/test/python-vocabulary.test.ts`,
+  deleted 2026-10-16; never loosened):
+  - `BAND_HEIGHT`, `MAX_COLUMNS`, `SCREEN_BANDS`: with page.py's band editors (item 3; `headless/layout.ts`).
+  - `CUBE_KIND`, `CUBE_VERSION`: with its cube writer (item 2; `gridCube`).
+  - `FILTER_OPERATORS`: with its filter rules (item 6; `gridFilter`).
+  - The engine's planner kinds and `MAX_SNAP_ROWS` (items 10 and 8, 2026-10-15): no twins at all -- a page asks a
+    Python host on legend-engine's own routes and the host's compute, never by the tab's worker kinds, and the snap
+    limit is Python's own.
+  - `AGGREGATES`, `DIRECTIONS` (2026-10-16): with its measure and sort rules (`gridQuery`).
+  - The chart words (`MARKS`, `MEASURE_MARKS`, `AXES`, `SHOW_AS`, `GRAINS`, `LAYERS`, `STATS`), `CHART_VERSION`,
+    `PAGE_KIND` and `PAGE_VERSION` (2026-10-16): Python keeps none of them -- DataCube's chart reader judges each word
+    (`gridChart`), a chart's version is the one DataCube starts it from, and a new page is DataCube's own (`pageNew`,
+    over `page-document.ts startingViews`, whose first grid the same `bands.ts add` places as a page started on the
+    screen). With the last pin gone, the test went.
 
 ## A finding for DataCube (its line designs the fix)
 

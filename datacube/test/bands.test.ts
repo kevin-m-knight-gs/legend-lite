@@ -9,7 +9,9 @@ import { describe, it } from 'node:test';
 import {
   type Bands,
   type Node,
+  BAND_HEIGHT,
   EMPTY,
+  FIRST_BAND_HEIGHT,
   MAX_COLUMNS,
   MIN_SHARE,
   MIN_BAND_HEIGHT,
@@ -63,7 +65,9 @@ const sound = (layout: Bands): Bands => {
   return layout;
 };
 
-const page = (...ids: string[]): Bands => ids.reduce((layout, id) => add(layout, id), EMPTY);
+/** A page of `ids`, each a band of its own of a new band's height (add's own placing is tested below). */
+const page = (...ids: string[]): Bands =>
+  ({ fit: false, bands: ids.map((tile) => ({ height: BAND_HEIGHT, node: { tile } })) });
 
 describe('adding a tile places it where it is wanted', () => {
   it('beside the tile it came from, while that band has room', () => {
@@ -81,8 +85,16 @@ describe('adding a tile places it where it is wanted', () => {
     assert.deepEqual(picture(layout)[1], 'next');
   });
 
+  it('on a board with no band, as the page\'s first band: the whole screen, as a page starts', () => {
+    assert.deepEqual(add({ fit: true, bands: [] }, 'grid'),
+      { fit: true, bands: [{ height: FIRST_BAND_HEIGHT, node: { tile: 'grid' } }] });
+    assert.equal(FIRST_BAND_HEIGHT, 1);
+    // the next band is a new band's height, so a second grid of its own takes a third of a fitted page
+    assert.deepEqual(add(add(EMPTY, 'a'), 'b').bands.map((b) => b.height), [FIRST_BAND_HEIGHT, BAND_HEIGHT]);
+  });
+
   it('at the bottom of the page when it comes from nowhere; and a tile already there stays as it is', () => {
-    const layout = page('a', 'b');
+    const layout = add(add(EMPTY, 'a'), 'b');
     assert.deepEqual(picture(sound(layout)), ['a', 'b']);
     assert.equal(add(layout, 'a'), layout);
   });
@@ -454,7 +466,7 @@ describe('a stack: tiles in one place, one shown', () => {
 
 describe('drawn in pixels', () => {
   it('bands one under another, parts sharing their split, gaps between, edges meeting', () => {
-    const layout = drop(add(add(EMPTY, 'big'), 'top'), 'top', { onto: 'big', edge: 'right' });
+    const layout = drop(page('big', 'top'), 'top', { onto: 'big', edge: 'right' });
     const drawn = draw(drop(add(layout, 'bottom'), 'bottom', { onto: 'top', edge: 'bottom' }), 1000, 800, 8);
     assert.deepEqual(drawn.tiles.get('big'), { x: 0, y: 0, w: 496, h: 400 });
     assert.deepEqual(drawn.tiles.get('top'), { x: 504, y: 0, w: 496, h: 196 });

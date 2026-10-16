@@ -109,9 +109,10 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, "follows its grid takes 'region' across, not 'desk'"):
             grid.chart('bar', x='desk', frozen=False)
         self.assertEqual(spec['options']['sort'], {'by': 'y', 'direction': 'desc'})
-        # one sheet: the grid in a band of its own, the chart beside it, as DataCube places them
+        # one sheet: the grid in a band of its own -- the page's first, the whole screen, as a page started on the screen
+        # has it -- the chart beside it, as DataCube places them
         self.assertEqual(doc['sheets'], [{'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': [
-            {'height': 0.5, 'node': {'split': 'row', 'parts': [
+            {'height': 1, 'node': {'split': 'row', 'parts': [
                 {'node': {'tile': grid.id}, 'size': 0.5}, {'node': {'tile': chart.id}, 'size': 0.5}]}}]}}])
 
     def test_the_document_is_a_copy_and_its_numbers_exact(self):

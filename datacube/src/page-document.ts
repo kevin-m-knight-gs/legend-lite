@@ -28,7 +28,7 @@
 import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protocol/src/index.ts';
 import { readChart, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument } from './cube-document.ts';
-import { type Bands, type Node, fromCells, problems, tiles as tilesOf } from './layout/bands.ts';
+import { type Bands, type Node, add as addTile, fromCells, problems, tiles as tilesOf } from './layout/bands.ts';
 import type { PageModelRef } from './page-model.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
@@ -88,15 +88,16 @@ export interface PageViews {
 export const oneSheet = (layout: PageLayout): readonly PageSheet[] => [{ id: FIRST_SHEET, layout }];
 
 /**
- * THE VIEWS A PAGE STARTS WITH, on its one sheet, the whole board: a grid's (`grid`: its view's id and its cube's), or
- * none -- the empty board a grid is added to. The one writer of a starting page: a cube app's page of its grid alone
- * (app.ts pageViews), a cube saved before pages opened as a page (app/datacube-app.ts), and Python's new page (headless
- * page.ts pageNew).
+ * THE VIEWS A PAGE STARTS WITH, on its one sheet: the empty board a grid is added to, or with a grid (`grid`: its
+ * view's id and its cube's) added to it as any first tile is (bands.ts add: the whole board). The one writer of a
+ * starting page: a cube app's page of its grid alone (app.ts pageViews), a cube saved before pages opened as a page
+ * (app/datacube-app.ts), and Python's new page (headless page.ts pageNew), whose first grid the same add places.
  */
 export function startingViews(grid?: { readonly id: string; readonly cube: string }): PageViews {
+  const board: Bands = { fit: true, bands: [] };
   return {
     views: grid ? [{ id: grid.id, kind: 'grid', cube: grid.cube }] : [],
-    sheets: oneSheet({ kind: 'bands', fit: true, bands: grid ? [{ height: 1, node: { tile: grid.id } }] : [] }),
+    sheets: oneSheet({ kind: 'bands', ...(grid ? addTile(board, grid.id) : board) }),
   };
 }
 
