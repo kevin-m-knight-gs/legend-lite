@@ -651,23 +651,36 @@ public final class CypherToPure {
                 && r.types().isEmpty()))) {
             return untypedArms(m, state);
         }
-        if (state instanceof Arms) {
-            throw CypherErrors.unsupported("a MATCH after a label-less pattern (every class of the model) is not"
-                    + " supported yet", m.pos());
-        }
         Graph g = state instanceof Graph existing ? existing : null;
         typesInThisMatch.clear();
         List<PathPattern> patterns = m.patterns();
+        State arms = state instanceof Arms a ? a : null;
         for (int i = 0; i < patterns.size(); i++) {
             PathPattern p = patterns.get(i);
+            if (g == null && arms == null && patterns.size() > 1 && p.elements().size() == 1
+                    && ((NodePattern) p.elements().get(0)).labels().isEmpty()) {
+                // MATCH (n), ...: the label-less node's arms, the next pattern a cartesian product over them
+                arms = arms(new CypherAst.Match(false, List.of(p), null, m.pos()));
+                if (!(arms instanceof Arms)) {
+                    throw CypherErrors.unsupported("a label-less node (" + ((NodePattern) p.elements().get(0))
+                            .variable() + ") in a MATCH of several patterns, over a model with no class, is not"
+                            + " supported yet", p.pos());
+                }
+                continue;
+            }
+            Graph first = g != null ? g : arms != null ? ((Arms) arms).arms().get(0) : null;
             PathPattern named = p.variable() == null ? p
-                    : namedPath(p, g == null ? Set.of() : g.bindings().keySet());
-            if (g != null && !sharesVariable(named, g)) {
+                    : namedPath(p, first == null ? Set.of() : first.bindings().keySet());
+            if (first != null && !sharesVariable(named, first)) {
                 if (i != patterns.size() - 1) {
                     throw CypherErrors.unsupported("a pattern sharing no variable with the first, followed by another"
                             + " pattern in the same MATCH, is not supported yet", p.pos());
                 }
-                return cartesian(g, named, m.where(), m.pos());
+                return cartesian(g != null ? g : java.util.Objects.requireNonNull(arms), named, m.where(), m.pos());
+            }
+            if (arms != null) {
+                throw CypherErrors.unsupported("a MATCH after a label-less pattern (every class of the model) is not"
+                        + " supported yet", m.pos());
             }
             g = pattern(named, g);
             if (named.variable() != null) {
@@ -1296,14 +1309,11 @@ public final class CypherToPure {
      *  as rows (every node carried, the paths too), the pattern read into its own graph and as rows, every pair of
      *  rows joined (Pure's join, a condition that always holds); the WHERE over the pairs. The clauses after read
      *  the rows. */
-    private Rows cartesian(Graph first, PathPattern second, @com.legend.base.Nullable Expr where, Pos pos) {
-        Rows left = materialize(first, pos, List.of());
+    private Rows cartesian(State first, PathPattern second, @com.legend.base.Nullable Expr where, Pos pos) {
+        Rows left = rowsOf(first, pos);
         typesInThisMatch.clear();
-        Graph other = pattern(second, null);
-        if (second.variable() != null) {
-            recordPath(other, second);
-        }
-        Rows right = materialize(other, pos, List.of());
+        // the second pattern read as a first pattern is (a graph, a label-less node's arms, or rows), then its rows
+        Rows right = rowsOf(match(new CypherAst.Match(false, List.of(second), null, second.pos()), null), pos);
         List<Col> columns = new ArrayList<>(left.columns());
         for (Col c : right.columns()) {
             if (columns.stream().anyMatch(l -> l.name().equals(c.name()))) {
@@ -1320,6 +1330,16 @@ public final class CypherToPure {
                     rows.columns());
         }
         return rows;
+    }
+
+    /** A state's rows: a graph materialized (every node as its columns), a label-less pattern's arms materialized
+     *  and concatenated, rows as they are. */
+    private Rows rowsOf(State state, Pos pos) {
+        return switch (state) {
+            case Graph g -> materialize(g, pos, List.of());
+            case Arms a -> materializeArms(a.arms(), new ArrayList<>(a.arms().get(0).bindings().keySet()), pos);
+            case Rows r -> r;
+        };
     }
 
     /** A named path's pattern with every node and relationship named (an unnamed one synthetically), so the path's
@@ -1748,10 +1768,17 @@ public final class CypherToPure {
             state = oneRow();
         }
         if (state instanceof Graph g && carriesGraph(w)) {
-            // WITH n, m [WHERE ...]: the pattern's variables pass through, renamed where aliased
+            // WITH n, m [WHERE ...], WITH *: the pattern's variables pass through, renamed where aliased
             Map<String, Binding> kept = new LinkedHashMap<>();
             Map<String, PathSpec> keptPaths = new LinkedHashMap<>();
             for (Item item : w.items()) {
+                if (item.expr() == null) {
+                    // every variable under its name, and every path with the nodes and relationships it reads
+                    // (a synthetic name among them: a RETURN * leaves those out)
+                    kept.putAll(g.bindings());
+                    keptPaths.putAll(g.paths());
+                    continue;
+                }
                 String name = ((CypherAst.Var) java.util.Objects.requireNonNull(item.expr())).name();
                 String alias = item.alias() != null ? item.alias() : name;
                 if (kept.containsKey(alias)) {
@@ -1797,7 +1824,7 @@ public final class CypherToPure {
             return false;
         }
         for (Item item : w.items()) {
-            if (!(item.expr() instanceof CypherAst.Var)) {
+            if (item.expr() != null && !(item.expr() instanceof CypherAst.Var)) {
                 return false;
             }
         }
@@ -5356,11 +5383,8 @@ public final class CypherToPure {
         boolean rowFree = collectionRowFree;
         Expr where = lc.where();
         if (where != null) {
+            // (an element is kept when the condition is true: null, like false, drops it, as a WHERE clause's)
             Tx pred = SqlToPure.truth(booleanOperand(where, inner), "WHERE", where.pos());
-            if (pred.nullable()) {
-                throw CypherErrors.unsupported("a list comprehension whose condition may be null is not supported"
-                        + " yet", lc.pos());
-            }
             vs = call("filter", vs, lambda(var, pred.vs()));
             rowFree &= !readsRow(where, bound);
         }

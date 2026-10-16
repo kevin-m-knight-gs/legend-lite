@@ -210,7 +210,7 @@ tck/clauses/match/Match1/[1] Match non-existent nodes returns empty	PASS	PASS
 tck/clauses/match/Match1/[2] Matching all nodes	PASS	PASS
 tck/clauses/match/Match1/[3] Matching nodes using multiple labels	SKIP	SKIP
 tck/clauses/match/Match1/[4] Simple node inline property predicate	PASS	PASS
-tck/clauses/match/Match1/[5] Use multiple MATCH clauses to do a Cartesian product	REFUSED	REFUSED
+tck/clauses/match/Match1/[5] Use multiple MATCH clauses to do a Cartesian product	PASS	PASS
 tck/clauses/match/Match1/[6] Fail when using parameter as node predicate in MATCH	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match1/[7] Fail when a relationship has the same variable in a preceding MATCH #1	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match1/[7] Fail when a relationship has the same variable in a preceding MATCH #2	BOTH_ERROR	BOTH_ERROR
@@ -575,7 +575,7 @@ tck/clauses/match/Match7/[28] Handling optional matches with inline label predic
 tck/clauses/match/Match7/[29] Satisfies the open world assumption, relationships between same nodes	REFUSED	REFUSED
 tck/clauses/match/Match7/[30] Satisfies the open world assumption, single relationship	REFUSED	REFUSED
 tck/clauses/match/Match7/[31] Satisfies the open world assumption, relationships between different nodes	REFUSED	REFUSED
-tck/clauses/match/Match8/[1] Pattern independent of bound variables results in cross product	REFUSED	REFUSED
+tck/clauses/match/Match8/[1] Pattern independent of bound variables results in cross product	PASS	PASS
 tck/clauses/match/Match8/[2] Counting rows after MATCH, MERGE, OPTIONAL MATCH	REFUSED	REFUSED
 tck/clauses/match/Match8/[3] Matching and disregarding output, then matching again	SKIP	SKIP
 tck/clauses/match/Match9/[1] Variable length relationship variables are lists of relationships	REFUSED	REFUSED
@@ -3820,7 +3820,7 @@ tck/expressions/typeConversion/TypeConversion2/[3] `toInteger()` handling mixed 
 tck/expressions/typeConversion/TypeConversion2/[4] `toInteger()` handling Any type	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[5] `toInteger()` on a list of strings	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[6] `toInteger()` on a complex-typed expression	PASS	PASS
-tck/expressions/typeConversion/TypeConversion2/[7] `toInteger()` on node property	REFUSED	REFUSED
+tck/expressions/typeConversion/TypeConversion2/[7] `toInteger()` on node property	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid types #Example: <exampleName> #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid types #Example: <exampleName> #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid types #Example: <exampleName> #3	BOTH_ERROR	BOTH_ERROR
@@ -3830,7 +3830,7 @@ tck/expressions/typeConversion/TypeConversion3/[1] `toFloat()` on mixed number t
 tck/expressions/typeConversion/TypeConversion3/[2] `toFloat()` returning null on non-numerical string	PASS	PASS
 tck/expressions/typeConversion/TypeConversion3/[3] `toFloat()` handling Any type	PASS	PASS
 tck/expressions/typeConversion/TypeConversion3/[4] `toFloat()` on a list of strings	PASS	PASS
-tck/expressions/typeConversion/TypeConversion3/[5] `toFloat()` on node property	REFUSED	REFUSED
+tck/expressions/typeConversion/TypeConversion3/[5] `toFloat()` on node property	PASS	PASS
 tck/expressions/typeConversion/TypeConversion3/[6] Fail `toFloat()` on invalid types #Example: <exampleName> #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion3/[6] Fail `toFloat()` on invalid types #Example: <exampleName> #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion3/[6] Fail `toFloat()` on invalid types #Example: <exampleName> #3	BOTH_ERROR	BOTH_ERROR
@@ -3843,7 +3843,7 @@ tck/expressions/typeConversion/TypeConversion4/[3] `toString()` handling inlined
 tck/expressions/typeConversion/TypeConversion4/[4] `toString()` handling boolean properties	PASS	PASS
 tck/expressions/typeConversion/TypeConversion4/[5] `toString()` should work on Any type	PASS	PASS
 tck/expressions/typeConversion/TypeConversion4/[6] `toString()` on a list of integers	PASS	PASS
-tck/expressions/typeConversion/TypeConversion4/[7] `toString()` on node property	REFUSED	REFUSED
+tck/expressions/typeConversion/TypeConversion4/[7] `toString()` on node property	PASS	PASS
 tck/expressions/typeConversion/TypeConversion4/[8] `toString()` should accept potentially correct types 1	PASS	PASS
 tck/expressions/typeConversion/TypeConversion4/[9] `toString()` should accept potentially correct types 2	PASS	PASS
 tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #1	REFUSED	REFUSED
@@ -3935,6 +3935,10 @@ lite/cartesian/a_match_after_a_match	PASS	PASS
 lite/cartesian/a_hop_beside_a_lone_node	PASS	PASS
 lite/cartesian/a_map_around_an_aggregate_over_pairs	PASS	PASS
 lite/cartesian/a_path_beside_a_lone_node	PASS	PASS
+lite/comprehensions/a_condition_over_a_value_of_the_row	PASS	PASS
+lite/comprehensions/a_condition_over_a_property_that_may_be_null	PASS	PASS
+lite/comprehensions/a_null_condition_drops_every_element	PASS	PASS
+lite/comprehensions/ranks_by_a_filtered_count	PASS	PASS
 lite/continue/untyped_hop_after_a_with	PASS	PASS
 lite/continue/untyped_hop_in_a_second_match	PASS	PASS
 lite/continue/untyped_hop_backwards_to_a_bound_node	PASS	PASS
@@ -3997,7 +4001,7 @@ lite/labelless/projected_with_then_return	PASS	PASS
 lite/labelless/expression_order_without_item	PASS	PASS
 lite/labelless/property_declared_nowhere_is_refused_by_name	REFUSED	REFUSED
 lite/labelless/node_as_a_value_refused_by_name	PASS	PASS
-lite/labelless/second_match_refused_by_name	REFUSED	REFUSED
+lite/labelless/second_match_refused_by_name	PASS	PASS
 lite/labelless/property_typed_differently_refused_by_name	REFUSED	REFUSED
 lite/labelless/one_class_only	PASS	PASS
 lite/labelless/with_where_re_spells_a_distinct_key	PASS	PASS
@@ -4081,6 +4085,16 @@ lite/patterns/count_of_a_comprehension	PASS	PASS
 lite/patterns/a_comprehension_over_rows_refused	REFUSED	REFUSED
 lite/patterns/a_comprehension_with_both_ends_bound_refused	REFUSED	REFUSED
 lite/patterns/a_comprehension_over_two_hops_refused	REFUSED	REFUSED
+lite/products/two_labelless_nodes	PASS	PASS
+lite/products/labelless_nodes_of_several_classes	PASS	PASS
+lite/products/a_labelless_node_beside_a_labelled_one	PASS	PASS
+lite/products/a_labelled_node_beside_a_labelless_one_with_a_where	PASS	PASS
+lite/products/a_labelless_node_beside_a_pattern	PASS	PASS
+lite/products/labelless_match_after_a_with	PASS	PASS
+lite/products/with_star_then_a_match	PASS	PASS
+lite/products/with_star_keeps_a_path	PASS	PASS
+lite/products/labelless_product_with_a_count	PASS	PASS
+lite/products/a_match_after_a_labelless_product_refused	REFUSED	REFUSED
 lite/rels/relationship_as_a_value	PASS	PASS
 lite/rels/type_of_a_relationship	PASS	PASS
 lite/rels/untyped_relationship_as_a_value	PASS	PASS

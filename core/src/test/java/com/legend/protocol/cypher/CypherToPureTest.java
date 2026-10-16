@@ -182,8 +182,9 @@ class CypherToPureTest {
                 "the aggregate reads the whole: " + q);
         String r = pure("MATCH (n) RETURN n.age AS age");
         assertTrue(r.contains("[]->cast(@Integer)"), "a class without the property reads null: " + r);
-        // refused by name: a node as a value, a second MATCH after a label-less one, a property declared nowhere
-        unsupported("MATCH (n) MATCH (p:Person) RETURN p.name", "a MATCH after a label-less pattern");
+        // refused by name: a typed hop after a label-less one (its arms continue only through an untyped hop, the
+        // study's §12.32; a pattern sharing no variable is a product, §12.33), a property declared nowhere
+        unsupported("MATCH (n) MATCH (n)-[:firm]->(f:Firm) RETURN f.legalName", "a MATCH after a label-less pattern");
         invalid("MATCH (n) RETURN n.nope AS x", "the graph is the model");
     }
 
@@ -408,6 +409,23 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person) RETURN percentileCont(p.age, 0.5) AS c", "percentileCont over values that are not"
                 + " floats");
         invalid("MATCH (p:Person) RETURN percentileDisc(p.age, 1.5) AS d", "must be a number in the range 0.0 to 1.0");
+    }
+
+    @Test
+    void aCartesianProductWithALabelLessPatternAndWithStar() {
+        // the study's §12.33: WITH * keeps the graph; a pattern sharing no variable with it is a join of the two
+        // patterns' rows (§12.28), a label-less one the union of its arms' rows
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name])->join(demo::Firm.all()->project(~[_cypher_5:f|'[\"Firm\"]', _cypher_6:f|$f.legalName]), meta::pure::functions::relation::JoinKind.INNER, {l, r|true})->extend(~[a:r|$r._cypher_4, b:r|$r._cypher_6])->select(~[a, b])",
+                pure("MATCH (p:Person) WITH * MATCH (f:Firm) RETURN p.name AS a, f.legalName AS b"));
+        assertTrue(pure("MATCH (n), (m) RETURN n.name AS a, m.name AS b").contains("->join("));
+        assertTrue(pure("MATCH (a) WITH a MATCH (b) RETURN a, b").contains("->join("));
+        // WITH * keeps a path with the nodes and relationships it reads (one named synthetically)
+        assertTrue(pure("MATCH q = (p:Person)-[:firm]->(f) WITH * MATCH (c:City) RETURN q, c.name AS n")
+                .contains("@path"));
+        unsupported("MATCH (n), (m) WITH n, m MATCH (n)-->(x) RETURN x", "a MATCH after a WITH that projected");
+        // a list comprehension's WHERE keeps an element when its condition is true: null, like false, drops it
+        assertEquals("[1, 2, 3]->flatten(~value)->extend(~[x:r|[1, 2, 3]->filter(x|$r.value->isNotEmpty() && ($x < $r.value->toOne()))->size()])->select(~[x])",
+                pure("UNWIND [1, 2, 3] AS value RETURN size([x IN [1, 2, 3] WHERE x < value]) AS x"));
     }
 
     @Test

@@ -2791,3 +2791,28 @@ from an optional node) pass; [4] (untyped, label-less) and [5] (a relationship b
 
 13 lite cases in `lite/continue.yaml`, each judged by Neo4j (three refusals by name).
 
+### 12.33 Products with a label-less pattern, `WITH *`, a comprehension's null condition, 2026-10-16
+
+- **`MATCH (n), (m)`, `MATCH (a:A), (n)`, `MATCH (a) WITH a MATCH (b)`, `WITH * MATCH (n)`:** a pattern sharing no
+  variable with the graph in hand is a product of the two patterns' rows (§12.28's join), either side a label-less
+  pattern: its arms' rows (§12.13's union, every node as the union of its classes' columns). `MATCH (n), ...` reads
+  the label-less node's arms first, the next pattern the product over them; a third pattern, or a pattern sharing a
+  variable with a label-less one through a typed hop, stays refused by name (an untyped hop continues, §12.32).
+  The WHERE of the MATCH is read over the joined rows.
+- **`WITH *`** over a graph keeps it (every variable and path under its name), as a WITH of bare variables does
+  (§12.5), so the MATCH after it continues the graph.
+- **`[x IN list WHERE condition]`** keeps an element when the condition is true: null, like false, drops it (Neo4j's
+  rule), the same filter a WHERE clause is (§12.3's truth); the refusal of a condition that may be null is lifted.
+  The quantifiers (`all`, `any`, `none`, `single`) keep theirs over a list the database computes: a null condition
+  takes part in their three-valued answer.
+
+#### 12.33.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4301 | 2585 (from 2,566) | 0 | 0 | 0 | 640 | 708 | 368 |
+| Postgres | 4301 | 2235 (from 2,216) | 0 | 0 | 0 | 990 | 708 | 368 |
+
+10 lite cases in `lite/products.yaml` (one a refusal by name) and 4 in `lite/comprehensions.yaml`, each judged by
+Neo4j.
+
