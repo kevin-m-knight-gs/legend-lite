@@ -69,6 +69,25 @@ function snap(over: Partial<CubeSnapshot> = {}): CubeSnapshot {
 }
 
 describe('a level query', () => {
+  it('refuses, pivoted as grouped, a measure named as another column: the level would write two of one name', async () => {
+    // a pivot writes its kept-out measures beside the keys, a grouped level all of them: one rule at the level's top
+    const twice = snap({ measures: [{ name: 'total', column: 'notional', fn: 'sum' }, { name: 'total', column: 'qty', fn: 'sum' }] });
+    await assert.rejects(async () => level(twice, undefined, YEARS), /'total' is already a column: the measure sum\(qty\)/);
+    const key = snap({ measures: [{ name: 'region', column: 'qty', fn: 'sum' }] });
+    await assert.rejects(async () => level(key, undefined, YEARS), /'region' is already a column/);
+  });
+
+  it('a grouped level sorts by what it writes; a sort on a column its measure renamed is the detail rows\' alone', async () => {
+    const s = snap({ rows: ['region'], pivotOn: [], measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
+      sorts: [{ column: 'notional', direction: 'desc' }] });
+    const grouped = await level(s, { level: 1, parent: [] });
+    assert.equal(/notional->descending/.test(grouped), false, grouped);
+    // the detail rows beneath a group, read as the tree reads them (treeview.ts)
+    const rows = detailSnapshot(s, ['EMEA']);
+    const detail = await level(rows, { level: rows.rows.length, parent: [] });
+    assert.match(detail, /~notional->descending\(\)/, detail);
+  });
+
   it('keeps every measure of a grouped cube, two of one column and one of a grouping column too', async () => {
     // keyed by column, the grouped aggregates kept a column's last measure alone and skipped a grouping column's
     // (found 2026-10-16, PR neema2/legend-lite#47): each measure is a column of the level, under its own name
@@ -365,17 +384,19 @@ describe('a level query', () => {
   });
 
   it('appends row dimensions to make the sort a total order', async () => {
-    // Unpivoted: a pivot consumes `notional`, and a sort on a column the
-    // query does not make is dropped (P2-6), not sent.
-    const s = snap({ pivotOn: [], sorts: [{ column: 'notional', direction: 'desc' }] });
+    // Unpivoted: a pivot consumes `qty`, and a sort on a column the query does not make is dropped (P2-6), not sent.
+    // On `qty`, which the grouped level writes on its own aggregate: this case sorted on `notional` once, which the
+    // level writes as its measure `total` -- the printed query sorted on a column the groupBy did not keep (found
+    // 2026-10-16: the level now sorts by what it writes, the detail rows by the rest).
+    const s = snap({ pivotOn: [], sorts: [{ column: 'qty', direction: 'desc' }] });
     assert.deepEqual(totalOrderSorts(s), [
-      { column: 'notional', direction: 'desc' },
+      { column: 'qty', direction: 'desc' },
       { column: 'region', direction: 'asc' },
       { column: 'country', direction: 'asc' },
     ]);
     assert.match(
       (await level(s)),
-      /sort\(\[~notional->descending\(\), ~region->ascending\(\), ~country->ascending\(\)\]\)/,
+      /sort\(\[~qty->descending\(\), ~region->ascending\(\), ~country->ascending\(\)\]\)/,
     );
   });
 

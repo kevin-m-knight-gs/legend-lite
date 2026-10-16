@@ -263,12 +263,14 @@ const SEPARATOR_TAKEN = `'${PIVOT_SEPARATOR}' is how a pivot spells its generate
 
 /**
  * Why a measure's name is no name of its own, or null: its own column's, when that column is no grouping key (the
- * column's aggregate, as the level query writes it), or a name nothing else of the cube has (takenNames) -- a measure
- * named after another column, or after a key, would write a second column of that name.
+ * column's aggregate, as the level query writes it), or a name nothing else of the cube has (takenNames: the measures
+ * before it, so of two of one name the later is the one refused) -- a measure named after another column, or after a
+ * key, would write a second column of that name.
  */
 export function measureNameProblem(snapshot: CubeSnapshot, m: Measure): string | null {
   if (m.name.includes(PIVOT_SEPARATOR)) return SEPARATOR_TAKEN;
-  const taken = takenNames({ ...snapshot, measures: snapshot.measures.filter((x) => x !== m) });
+  const before = snapshot.measures.slice(0, Math.max(0, snapshot.measures.indexOf(m)));
+  const taken = takenNames({ ...snapshot, measures: before });
   const own = m.name === m.column && !snapshot.rows.includes(m.column);
   // its own column's name is the column's aggregate: the column itself takes nothing from it
   const others = own ? taken.filter((n, i) => n !== m.column || taken.indexOf(n) !== i) : taken;

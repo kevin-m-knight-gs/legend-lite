@@ -27,7 +27,7 @@ import {
   type SortSpec,
 } from './snapshot.ts';
 import { defaultKind, isDay, isFractional, isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
-import { lambda, property, variable, type Lambda } from '../../pure-protocol/src/index.ts';
+import type { Lambda } from '../../pure-protocol/src/index.ts';
 
 export type ChartMark =
   | 'bar' | 'line' | 'area' | 'scatter' | 'pie' | 'heatmap' | 'treemap' | 'kpi'
@@ -1221,24 +1221,14 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
   if (!scatter && rangesAcross(spec) && across !== undefined) {
     measures.push({ name: AXIS_UPPER, column: upperName(across), fn: 'max' });
   }
-  // THE GRID AGGREGATES A COLUMN ONCE (query.ts `groupedAggs` keys its measures by column): a second measure of the
-  // same column -- the chart's max beside the sum a margin reads -- reads a copy of it, `$x.<column>`, as a child
-  // aggregate does
-  const copies: DerivedColumn[] = [];
-  const used = new Set<string>();
-  const allMeasures = [...measures, ...keptMeasures].map((m): Measure => {
-    if (!used.has(m.column)) {
-      used.add(m.column);
-      return m;
-    }
-    const copy = `__chart_${m.name}`;
-    copies.push({ name: copy, lambda: lambda(['x'], property(variable('x'), m.column)), kind: 'measure' });
-    return { ...m, column: copy };
-  });
+  // every measure under its own name, two of one column too -- the chart's max beside the sum a margin reads: the
+  // grouped level keeps each (query.ts groupedMeasures; it kept a column's last alone, and a copy of the column,
+  // `__chart_<name>`, stood in for each other one until 2026-10-16)
+  const allMeasures = [...measures, ...keptMeasures];
   return {
     ...(rest as CubeSnapshot),
     columns: s.columns.filter((c) => reads.has(c.name)),
-    derived: [...s.derived, ...rowCalcs, ...copies],
+    derived: [...s.derived, ...rowCalcs],
     ...(filter ? { filter } : {}),
     rows: scatter ? [] : keys,
     pivotOn: [],

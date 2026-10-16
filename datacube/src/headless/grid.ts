@@ -34,7 +34,8 @@ import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '..
 import { pivotFacts, typeColumns } from '../plan.ts';
 import { PlanError } from '../planner.ts';
 import {
-  classLambda, levelLambda, pinnedPivotFacts, pivotValuesLambda, sampleLambda, storeTableOf, type PivotFacts,
+  classLambda, detailSnapshot, levelLambda, pinnedPivotFacts, pivotValuesLambda, sampleLambda, storeTableOf,
+  type PivotFacts,
 } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
 import { SampleRefusal, sampleOf, type SampleRows } from '../sample-rows.ts';
@@ -366,36 +367,39 @@ function columnsFrom(given: unknown, what: string, types: ReadonlyMap<string, st
 
 /**
  * `given` as the grid's measures, each by the rules the screen's Aggregation offers it (panel-column.ts aggregatesFor):
- * one of DataCube's aggregates, offered for its column's type as the compiler answers it (offers.ts takesAggregate; a
- * column not yet typed is offered every one, the compile judging it); a count reads no column; a weight is a column,
- * and only a weighted average takes one -- refused on another, never dropped (an API call has no half-set field); each
- * named, once. Or why not.
+ * one of DataCube's aggregates over a column of the grid -- a count too, which reads none of its values but is placed by
+ * its column (query.ts groupedMeasures), so a count of no column would be left out -- offered for the column's type as
+ * the compiler answers it (offers.ts takesAggregate, a count offered on any; a column not yet typed is offered every
+ * one, the compile judging it); a weight is a column, and only a weighted average takes one -- refused on another,
+ * never dropped (an API call has no half-set field); named, its text trimmed (a name's rule is the cube's:
+ * measureNameProblem, at compile). Or why not.
  */
 function measuresFrom(given: unknown, types: ReadonlyMap<string, string | undefined>): Measure[] | string {
   if (!Array.isArray(given)) return 'the measures are a list';
   const made: Measure[] = [];
   for (const m of given) {
     if (!isObject(m)) return `a measure is {name, column, fn[, weight]}, not ${JSON.stringify(m)}`;
-    const { name, column, fn, weight } = m;
-    if (typeof name !== 'string' || name.trim() === '') return `a measure's name is not blank: ${JSON.stringify(name)}`;
-    if (made.some((x) => x.name === name)) return `two measures are named ${name}: each takes a name of its own`;
+    const { name: given, column, fn, weight } = m;
+    if (typeof given !== 'string' || given.trim() === '') {
+      return `a measure's name is not blank: ${JSON.stringify(given)}`;
+    }
+    const name = given.trim();
     if (typeof fn !== 'string' || !AGGREGATE_FNS.includes(fn as AggregateFn)) {
       return `${JSON.stringify(fn)} is not one of DataCube's aggregates: ${AGGREGATE_FNS.join(', ')}`;
     }
     const aggregate = fn as AggregateFn;
-    if (typeof column !== 'string') return `the measure ${name} names no column`;
-    if (aggregate !== 'count') {
-      if (!types.has(column)) {
-        const names = [...types.keys()].sort().join(', ');
-        return `the measure ${name} names ${JSON.stringify(column)}, not a column of the grid (${names})`;
-      }
-      const type = types.get(column);
-      if (type !== undefined && !takesAggregate(aggregate, type)) {
-        return `'${aggregate}' is not offered on ${column}, a ${type} column`;
-      }
+    if (typeof column !== 'string' || !types.has(column)) {
+      const names = [...types.keys()].sort().join(', ');
+      return `the measure ${name} names ${JSON.stringify(column)}, not a column of the grid (${names})`;
+    }
+    const type = types.get(column);
+    if (aggregate !== 'count' && type !== undefined && !takesAggregate(aggregate, type)) {
+      return `'${aggregate}' is not offered on ${column}, a ${type} column`;
     }
     if (weight !== undefined) {
-      if (aggregate !== 'wavg') return `only a weighted average (wavg) takes a weight: the measure ${name} is a ${aggregate}`;
+      if (aggregate !== 'wavg') {
+        return `only a weighted average (wavg) takes a weight: the measure ${name} is a ${aggregate}`;
+      }
       if (typeof weight !== 'string' || !types.has(weight)) {
         return `the measure ${name}'s weight names ${JSON.stringify(weight)}, not a column of the grid`;
       }
@@ -415,7 +419,8 @@ function sortsFrom(given: unknown): SortSpec[] | string {
     const { column, direction } = s;
     if (typeof column !== 'string') return `a sort names a column, not ${JSON.stringify(column)}`;
     if (typeof direction !== 'string' || !SORT_DIRECTIONS.includes(direction as SortDirection)) {
-      return `a sort's direction is ${SORT_DIRECTIONS.map((d) => `'${d}'`).join(' or ')}, not ${JSON.stringify(direction)}`;
+      const directions = SORT_DIRECTIONS.map((d) => `'${d}'`).join(' or ');
+      return `a sort's direction is ${directions}, not ${JSON.stringify(direction)}`;
     }
     made.push({ column, direction: direction as SortDirection });
   }
@@ -450,10 +455,11 @@ function queryFrom(given: GivenQuery, typed: CubeSnapshot): QueryParts | string 
 }
 
 /**
- * The headers the grid's query produces, as the compiler types it -- its deepest level, every grouping column and
- * every measure in it, a pivot's columns written with its values as a run reads them (pinned, or the values query
- * run) -- with no sort: what a sort may name. A header the query does not produce is one its sort would be left out
- * of without a word (query.ts levelLambda, `produced`; a detail level's hidden columns), so a sort naming one is
+ * The headers the grid's queries produce, as the compiler types them -- its deepest level (every grouping column and
+ * every measure in it, a pivot's columns written with its values as a run reads them: pinned, or the values query run)
+ * and, grouped, the detail rows beneath it, read as the tree reads them (treeview.ts: detailSnapshot, at the depth of
+ * its rows) -- with no sort: what a sort may name. A header neither produces is one its sort would be left out of
+ * without a word (query.ts levelLambda, `produced`; a detail level's hidden columns), so a sort naming one is
  * refused. Or why the query cannot be built.
  */
 async function producedColumns(planner: LitePlanner, s: CubeSnapshot): Promise<ReadonlySet<string> | string> {
@@ -466,8 +472,13 @@ async function producedColumns(planner: LitePlanner, s: CubeSnapshot): Promise<R
       facts = pinnedPivotFacts(unsorted) ?? pivotFacts((await runner.run(values, unsorted)).rows, unsorted);
     }
     const scope = unsorted.rows.length > 0 ? { level: unsorted.rows.length, parent: [] } : undefined;
-    const level = levelLambda(unsorted, scope, facts);
-    return new Set((await planner.relationType(level)).map((c) => c.name));
+    const produced = new Set((await planner.relationType(levelLambda(unsorted, scope, facts))).map((c) => c.name));
+    if (unsorted.rows.length > 0) {
+      const detail = detailSnapshot(unsorted, []);
+      const rows = levelLambda(detail, { level: detail.rows.length, parent: [] }, facts);
+      for (const c of await planner.relationType(rows)) produced.add(c.name);
+    }
+    return produced;
   } catch (e) {
     if (e instanceof CubeRefusal || e instanceof PlanError) return e.message;
     throw e;

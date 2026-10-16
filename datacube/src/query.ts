@@ -413,6 +413,12 @@ export function duplicateLambda(relation: ValueSpecification, column: string): L
 
 /** `ordered`: a level's rows sorted and capped as the grid reads them; a class's, neither. */
 function levelRelation(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: PivotFacts, ordered = true): Relation {
+  // each measure named a column of its own, grouped or pivoted, or the level writes two columns of one name: a
+  // grouped level its measures beside the keys, a pivot its kept-out measures beside them (calc.ts measureNameProblem)
+  for (const m of snapshot.measures) {
+    const problem = measureNameProblem(snapshot, m);
+    if (problem !== null) throw new CubeRefusal(problem);
+  }
   let rel = from(snapshot.source.query);
   const groupCols = scope ? snapshot.rows.slice(0, Math.max(0, scope.level)) : snapshot.rows;
   const grandTotal = scope !== undefined && scope.level === 0 && snapshot.rows.length > 0;
@@ -434,11 +440,6 @@ function levelRelation(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: Pivot
   const grouping = !pivoting && (groupCols.length > 0 || snapshot.measures.length > 0 || grandTotal);
 
   const groupedAggs = (keys: readonly string[], projected: readonly string[]): ColSpec[] => {
-    // each measure named a column of its own, or the level writes two of one name (calc.ts measureNameProblem)
-    for (const m of snapshot.measures) {
-      const problem = measureNameProblem(snapshot, m);
-      if (problem !== null) throw new CubeRefusal(problem);
-    }
     const specs: ColSpec[] = groupedMeasures(snapshot, keys, projected).map((m) => aggregateSpec(m));
     if (snapshot.leafCount === true && keys.length > 0) specs.push(LEAF_COUNT_SPEC());
     if (specs.length > 0) return specs;
@@ -499,10 +500,21 @@ function levelRelation(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: Pivot
     }
     if (snapshot.measures.length > 0 || groupCols.length > 0 || grandTotal) {
       groupByLevel(groupedAggs(groupCols, needed));
+      // what the grouped level writes, as the pivot's branch says its own: a sort on any other column -- one a
+      // measure renamed (`total` of `notional`) -- is the detail rows' (treeview.ts detailSnapshot), never this
+      // level's. Named here, it asked the planner for a column the groupBy did not keep, and every grouped level of
+      // the grid was refused (found 2026-10-16, PR neema2/legend-lite#47)
+      produced = new Set([
+        ...groupCols,
+        ...(groupCols.length === 0 ? [ROOT_COLUMN] : []),
+        ...groupedMeasures(snapshot, groupCols, needed).map((m) => m.name),
+        ...(snapshot.groupDerived ?? []).map((d) => d.name),
+        LEAF_COUNT_COLUMN,
+      ]);
     }
   }
 
-  const shown = totalOrderSorts(snapshot, groupCols);
+  const shown = totalOrderSorts(snapshot, groupCols).filter((x) => produced === null || produced.has(x.column));
   const rooted = (grouping || pivoting) && groupCols.length === 0;
   const keys: SortSpec[] = groupCols.length > 0
     ? groupCols.map((column) => ({ column, direction: 'asc' as const }))

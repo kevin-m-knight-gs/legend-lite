@@ -551,12 +551,16 @@ class Document(Paged):
             grid.measure('region', 'count')
         with self.assertRaisesRegex(ValueError, "'desk' is already a column"):
             grid.measure('pnl', 'sum', name='desk')
+        # a count reads none of its column's values but is placed by its column: one the grid does not have is refused,
+        # never left out; a name's text is trimmed, so ' w_pnl ' and 'w_pnl' are one name
+        with self.assertRaisesRegex(ValueError, 'the measure n names "nope", not a column of the grid'):
+            grid.measure('nope', 'count', name='n')
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
         # a count reads no column, a grouping column's too; a weighted average with its weight; a second measure of one
         # column (each shown under its own name: the grouped query kept the last alone, a DataCube bug fixed here); a
         # sort on a measure's header
         grid.measure('pnl', 'wavg', name='w_pnl', weight='notional').measure('region', 'count', name='trades')
-        grid.measure('notional', 'average', name='avg_notional').sort('w_pnl', 'desc')
+        grid.measure('notional', 'average', name=' avg_notional ').sort('w_pnl', 'desc')
         query = page.to_dict()['cubes'][0]['cube']['query']
         self.assertEqual([m['name'] for m in query['measures']], ['notional', 'w_pnl', 'trades', 'avg_notional'])
         self.assertEqual(query['sorts'][-1], {'column': 'w_pnl', 'direction': 'desc'})
@@ -564,7 +568,21 @@ class Document(Paged):
         names = {c['name'] for c in shown.columns}
         self.assertTrue({'notional', 'avg_notional', 'w_pnl', 'trades'} <= names, names)
 
+    def test_pandas_missing_value_is_no_nan_in_a_class_sample(self):
+        # pandas' own missing value is no NaN in the rows: pa.Table.from_pandas reads it as null (frames.py), so a class's
+        # sample writes it as null, as every missing value is -- only a NaN the data holds is refused (test_model)
+        missing = ll.Page('Missing').grid(pd.DataFrame({'desk': ['FX', 'EQ'], 'rate': [1.5, float('nan')]}),
+                                          name='missing_rate')
+        cls, asked = missing._class()
+        rows = cls['where']['samples'][asked['table']['table']]['rows']
+        self.assertEqual(sorted(r[1] is None for r in rows), [False, True])
+
     def test_a_sort_the_grid_would_leave_out_is_refused_and_a_new_grouping_closes_its_groups(self):
+        # grouped, a sort applies to the groups and to the detail rows beneath them (the tree's detailSnapshot): a
+        # column its measure renames is no group's header, but the detail rows show it
+        detailed = ll.Page('Detailed').grid(trades(), name='detailed_trades', rows=['region'])
+        detailed.measure('notional', 'sum', name='total').sort('notional', 'desc')
+        self.assertEqual(detailed._query['sorts'], [{'column': 'notional', 'direction': 'desc'}])
         page = ll.Page('Sorted')
         grid = page.grid(trades(), name='sorted_trades', columns=['desk'], measures={'notional': 'sum'})
         # pivoted on desk, the query shows no pnl header: a sort on it would be left out without a word
@@ -608,7 +626,7 @@ class Document(Paged):
                 grid.filter(('notional', 'greaterThan', wrong))
         with self.assertRaisesRegex(ValueError, "not one of DataCube's aggregates"):
             grid.measure('pnl', 'total')
-        with self.assertRaisesRegex(ValueError, 'two measures are named notional'):
+        with self.assertRaisesRegex(ValueError, "'notional' is already a column: the measure average\\(notional\\)"):
             grid.measure('notional', 'average')
         with self.assertRaisesRegex(ValueError, 'is not one this DataCube draws'):
             grid.chart('violin', x='region')

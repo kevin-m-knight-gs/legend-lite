@@ -103,7 +103,11 @@ name, the one list the level query writes and the group stage's calculated colum
 columnsInScope`, which offered the measures alone and so left out the columns the query aggregates). With every measure
 kept, a measure's name follows the calculated column's rule (`calc.ts takenNames`, `measureNameProblem`): its own
 column's while that column is no key, or a name nothing else has, the queries' reserved `__root__` and `__leafCount`
-included -- refused where the level would write two columns of one name, in DataCube's words on the screen and in Python.
+included -- refused where a level would write two columns of one name, grouped or pivoted, in DataCube's words on the
+screen and in Python. The charts' stand-in for the bug, a copy of a column (`__chart_<name>`) for each measure of it
+past the first, went with it. Found beside it, and fixed: a grouped level sorted by a column a measure renamed (a sort
+on `notional` beside `total` of it) asked the planner for a column its groupBy did not keep, so every grouped level of
+the grid was refused; it now sorts by what it writes, as a pivot's level did, the detail rows by the rest.
 
 **A set measure silently overrides the column's Aggregation** (found 2026-10-16, written up for the DataCube line to
 design): `config.ts` never reads `snapshot.measures`, and the level query takes a column's set measure over its Column
