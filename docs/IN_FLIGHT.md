@@ -1473,6 +1473,27 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     error codes; unaliased names; INTERSECT/EXCEPT and the other IQ restrictions.
   - The most-used features and their scale come first, including CTEs and window functions.
   - The refusal of an outer column in a subquery's select list goes now that 9bc695885 has landed.
+- **Announced 2026-10-16: landing 4's cross-area edits of the corpus lane's round** (`claude/iq-island-4-scale`;
+  one PR and one CI run after review, the user's merge). Each was found by the corpus lane against the live IQ 17.1
+  and is judged by both `iq-parity` and both `sql-parity` ledgers:
+  - `lowering/Lowerer.java`: a correlated read of an enclosing row's window column. It was a wrong answer, then a
+    crash; now fixed. `tryWindowPredicate` takes only its own lambda's columns, and `predicateOrThrow` reports an
+    enclosing miss.
+  - `protocol/sql/InputDialect.java`: `ordersByOutput` (Postgres's default: any output name). In
+    `protocol/sql/SqlToPure.java`, `sortKey` reads it. Under DISTINCT a name the dialect reads as no output is
+    resolved in the FROM scope first, for its ambiguity error only.
+  - `protocol/sql/SqlToPure.java`, also:
+    - `computedColumns`: a one-row LATERAL query without FROM is an extend of the left relation;
+    - a flattened column (`generate_series`, `unnest`) is nullable, as Pure's typer types it.
+    The Postgres island's `lateral_select_without_from` and `lateral_reads_the_item_before_it_twice` went from refused
+    to PASS on both lanes.
+  - **A decision for the user, both SQL islands:** `Fold.filterSlot` composes an extend and a later filter as Pure
+    does (legend-engine's PCT `testExtendFilterOutNull`): the filter folds into the window's WHERE. A SQL derived
+    table's windows are computed over all of its rows, so a WHERE over a windowed derived table that reads none of
+    its windows' columns is a wrong answer. The same holds for window functions over a WHERE that reads one. The IQ
+    island refuses both by name (21 corpus queries were wrong answers). The Postgres island shares the path and very
+    likely answers them wrongly. The fix proposed is a boundary the SQL islands mark on a derived table's windows, as
+    `ClassSources` stamps a class extent's (`TypedExtendWindow.extentBoundary`).
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):

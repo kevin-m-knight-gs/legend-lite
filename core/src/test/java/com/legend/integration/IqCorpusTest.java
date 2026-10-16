@@ -280,11 +280,12 @@ class IqCorpusTest {
     }
 
     /** The parity harness's classes of an island's exception ({@code IqParity.judged}); a refusal that names IQ's own
-     *  error ("... is IQ's error -1001030 under its engine ..., refused before translating") is IQ_ERROR. */
+     *  error ("... is IQ's error -1001030 under its engine ..., refused before translating", or IQ island, 2026-10-16,
+     *  one that ends in its code: "... (IQ: SQLCODE -938, ...)") is IQ_ERROR. */
     private static Status classify(Throwable e) {
         for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
-            if (t.getMessage() != null && t.getMessage().contains("refused before translating")
-                    && t.getMessage().contains("is IQ's error -")) {
+            if (t.getMessage() != null && (t.getMessage().contains("refused before translating")
+                    && t.getMessage().contains("is IQ's error -") || t.getMessage().contains("(IQ: SQLCODE -"))) {
                 return Status.IQ_ERROR;
             }
             if (t instanceof com.legend.error.NotImplementedException) {

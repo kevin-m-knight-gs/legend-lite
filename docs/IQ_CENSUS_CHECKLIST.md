@@ -80,12 +80,16 @@ Exchange Data Explorer queries, T-SQL), SQLStorm v1.0's SQL Server set (18,251),
 queries), BIRD Mini-Dev (500). A query is ANSWERED, REFUSED (by name), IQ_ERROR (the island says IQ raises an error,
 its syntax error or an error it names), DB_ERROR or CRASH.
 
-| Suite | Answered before | Answered now | IQ's own error now |
-|---|---|---|---|
-| SEDE | 40.6% | 57.3% | 13.4% |
-| SQLStorm | 21.7% | 31.5% | 10.6% |
-| Public BI | 93.0% | 94.4% | 2.2% |
-| BIRD | 58.2% | 68.8% | 18.2% |
+| Suite | Answered before | Answered now | IQ's own error now | Refused by name now |
+|---|---|---|---|---|
+| SEDE | 40.6% | 56.8% | 15.5% | 27.4% |
+| SQLStorm | 21.7% | 30.7% | 50.7% | 18.6% |
+| Public BI | 93.0% | 94.4% | 2.6% | 2.9% |
+| BIRD | 58.2% | 69.2% | 18.4% | 12.4% |
+
+(2026-10-16. Answered fell a little where former wrong answers are now refused (the windowed derived tables, below).
+IQ's own error now counts each refusal that names IQ's code, measured. In SQLStorm, 5,724 queries end in T-SQL's
+OFFSET ... FETCH, IQ's syntax error -131. What lite does not answer is mostly SQL IQ itself rejects.)
 
 Measured on the live IQ 17.1 and built (parity cases: `lite/corpus_gaps.yaml`):
 - a statement's trailing separator (1,691 of SEDE's queries);
