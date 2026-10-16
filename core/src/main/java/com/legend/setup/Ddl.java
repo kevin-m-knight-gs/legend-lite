@@ -273,36 +273,86 @@ public final class Ddl {
         return cells;
     }
 
+    /** One CSV row as the engine's {@code loadValuesToDbTable} writes it: an IR row
+     *  ({@link com.legend.sql.SqlDml.InsertValues}) the engine-text dialect renders, each cell
+     *  typed by its store column as the engine's {@code convertValuesToCsv} reads it (the
+     *  dialect program's Phase 3, 2026-10-16: until then the text was written here, an empty
+     *  cell as {@code ''} or nothing where the engine writes {@code null}). */
     private static String insertText(com.legend.sql.dialect.SqlDialect engineText, String schema, String table,
             DatabaseDefinition.@com.legend.base.Nullable TableDefinition def,
             java.util.List<String> header, java.util.List<String> cells) {
-        java.util.List<String> colNames = new java.util.ArrayList<>();
-        java.util.List<String> values = new java.util.ArrayList<>();
+        if (def == null) {
+            throw new IllegalStateException("setUpDataSQLs: no table '" + table + "' in schema '" + schema
+                    + "' of the store: a row's cells are typed by its columns");
+        }
+        java.util.List<String> columns = new java.util.ArrayList<>();
+        java.util.Set<String> quoted = new java.util.LinkedHashSet<>();
+        java.util.List<com.legend.sql.SqlExpr> row = new java.util.ArrayList<>();
         for (int c = 0; c < header.size() && c < cells.size(); c++) {
             String h = header.get(c).strip();
             DatabaseDefinition.ColumnDefinition col = null;
-            if (def != null) {
-                for (var cd : def.columns()) {
-                    if (cd.name().equalsIgnoreCase(h)) {
-                        col = cd;
-                        break;
-                    }
+            for (var cd : def.columns()) {
+                if (cd.name().equalsIgnoreCase(h)) {
+                    col = cd;
+                    break;
                 }
             }
-            // SAME identifier rule as the create (batch A): a reserved
-            // or space-bearing column quotes in BOTH or the pair breaks
-            // on a case-sensitive session
-            colNames.add(engineText.insertColumnName(col != null ? col.name() : h, col != null && col.quoted()));
-            String cell = cells.get(c);
-            boolean numeric = col != null && isNumericType(col.dataType());
-            values.add(numeric ? cell.strip()
-                    : "'" + cell.replace("'", "''") + "'");
+            if (col == null) {
+                throw new IllegalStateException("setUpDataSQLs: no column '" + h + "' in table '" + table + "'");
+            }
+            columns.add(col.name());
+            if (col.quoted()) {
+                quoted.add(col.name());
+            }
+            row.add(cell(cells.get(c), col, table));
         }
-        String qualified = "default".equals(schema) ? table
-                : schema + "." + table;
-        return "insert into " + qualified + " ("
-                + String.join(",", colNames) + ") values ("
-                + String.join(",", values) + ");";
+        return engineText.render(new com.legend.sql.SqlDml.InsertValues(
+                "default".equals(schema) ? null : schema, table, com.legend.sql.NameQuoting.BARE, columns, quoted,
+                java.util.List.of(row)));
+    }
+
+    /** The engine's spellings of an absent cell. */
+    private static final java.util.Set<String> NULL_CELLS = java.util.Set.of("", "---null---");
+
+    /** H2's {@code bitValueFromString}: the spellings of a bit's truth. */
+    private static final java.util.Set<String> TRUE_BITS = java.util.Set.of("y", "1", "true");
+
+    private static final java.util.Set<String> FALSE_BITS = java.util.Set.of("n", "0", "false");
+
+    /** A CSV cell as the engine's {@code convertValuesToCsvH2} reads it, by its column's type: empty
+     *  (or the engine's {@code ---null---}) is null; text, char and semi-structured are strings, a
+     *  date and a timestamp their text; a bit is its truth (H2's {@code bitValueFromString}); a
+     *  number is its value, exact. The engine copies any other cell as raw text, which is SQL only
+     *  by accident, so such a cell is refused here, naming it (invariant 4). */
+    private static com.legend.sql.SqlExpr cell(String text, DatabaseDefinition.ColumnDefinition col, String table) {
+        if (NULL_CELLS.contains(text)) {
+            return new com.legend.sql.SqlExpr.NullLit();
+        }
+        RelationalDataType t = col.dataType();
+        if (t instanceof RelationalDataType.Varchar || t instanceof RelationalDataType.Char_
+                || t instanceof RelationalDataType.SemiStructured) {
+            return new com.legend.sql.SqlExpr.StringLit(text);
+        }
+        if (t instanceof RelationalDataType.Date_) {
+            return new com.legend.sql.SqlExpr.DateLit(text);
+        }
+        if (t instanceof RelationalDataType.Timestamp) {
+            return new com.legend.sql.SqlExpr.TimestampLit(text);
+        }
+        if (t instanceof RelationalDataType.Bit) {
+            String b = text.strip().toLowerCase(java.util.Locale.ROOT);
+            if (TRUE_BITS.contains(b) || FALSE_BITS.contains(b)) {
+                return new com.legend.sql.SqlExpr.BoolLit(TRUE_BITS.contains(b));
+            }
+        } else if (isNumericType(t)) {
+            try {
+                return new com.legend.sql.SqlExpr.DecimalLit(new java.math.BigDecimal(text.strip()));
+            } catch (NumberFormatException e) {
+                // not a number: refused below
+            }
+        }
+        throw new IllegalStateException("setUpDataSQLs: the cell '" + text + "' of column '" + col.name() + "' ("
+                + t + ") in table '" + table + "' is no value of its type the engine's seed text writes");
     }
 
     private static boolean isNumericType(RelationalDataType t) {

@@ -392,6 +392,61 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         return physicalName(name);
     }
 
+    /** {@inheritDoc} A seed row as legend-engine's H2 {@code loadValuesToDbTableH2} writes it: one row a statement,
+     *  the table's names as the store wrote them, its columns by {@link #insertColumnName}, joined with {@code ,}, and
+     *  each cell as {@code convertValuesToCsvH2} spells it (the dialect program's Phase 3, 2026-10-16: until then
+     *  {@code setup/Ddl} wrote this text). Every other statement is the base's. */
+    @Override
+    public String render(com.legend.sql.SqlDml dml) {
+        return switch (dml) {
+            case com.legend.sql.SqlDml.InsertValues iv -> seedRow(iv);
+            case com.legend.sql.SqlDml.InsertFromTable it -> super.render(it);
+            case com.legend.sql.SqlDml.DeleteAll da -> super.render(da);
+        };
+    }
+
+    private String seedRow(com.legend.sql.SqlDml.InsertValues iv) {
+        if (iv.rows().size() != 1 || iv.columns().size() != iv.rows().get(0).size()) {
+            throw new DialectCapability("the engine's seed text writes one row a statement, a cell a column: "
+                    + iv.rows().size() + " rows of " + iv.columns().size() + " columns reached it");
+        }
+        java.util.List<String> columns = new java.util.ArrayList<>();
+        for (String c : iv.columns()) {
+            columns.add(insertColumnName(c, iv.quotedColumns().contains(c)));
+        }
+        java.util.List<String> cells = new java.util.ArrayList<>();
+        for (SqlExpr cell : iv.rows().get(0)) {
+            cells.add(seedCell(cell));
+        }
+        return "insert into " + (iv.schema() == null ? "" : iv.schema() + ".") + iv.table() + " ("
+                + String.join(",", columns) + ") values (" + String.join(",", cells) + ");";
+    }
+
+    /** A cell as the engine's {@code convertValuesToCsvH2} writes it: {@code null}; a string quoted, its quotes
+     *  doubled; a date or timestamp quoted as written; a bit's truth; a number as written. */
+    private static String seedCell(SqlExpr cell) {
+        if (cell instanceof SqlExpr.NullLit) {
+            return "null";
+        }
+        if (cell instanceof SqlExpr.StringLit s) {
+            return "'" + s.value().replace("'", "''") + "'";
+        }
+        if (cell instanceof SqlExpr.DateLit d) {
+            return "'" + d.iso() + "'";
+        }
+        if (cell instanceof SqlExpr.TimestampLit t) {
+            return "'" + t.iso() + "'";
+        }
+        if (cell instanceof SqlExpr.BoolLit b) {
+            return b.value() ? "true" : "false";
+        }
+        if (cell instanceof SqlExpr.DecimalLit n) {
+            return n.value().toPlainString();
+        }
+        throw new DialectCapability("a " + cell.getClass().getSimpleName() + " cell reached the engine's seed text,"
+                + " which writes values only");
+    }
+
     /** The engine's rule plus the execution necessity: a name that is not a plain identifier quotes, so the insert
      *  runs on a case-sensitive session (moved here from the shared DdlSpelling, the dialect program's Phase 1d). */
     @Override

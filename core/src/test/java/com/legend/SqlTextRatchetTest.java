@@ -102,7 +102,10 @@ class SqlTextRatchetTest {
         // setup text beside the create/drop it already renders
         // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
         // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9 (path only, count unchanged)
-        REGISTER.put("setup/Ddl.java", 1);   // 2 -> 1 (2026-09-23: the metamodel seed's INSERT is a dialect-rendered SqlDml node, RowLoad.values); 4 -> 2 (2026-09-16: CREATE/DROP are dialect-rendered SqlDdl nodes; the engine-text INSERT rows remain)
+        // setup/Ddl.java: 1 -> 0 and row deleted (2026-10-16, the dialect program's Phase 3): the seed rows are
+        // SqlDml.InsertValues, typed cells the engine-text dialect renders as legend-engine's loadValuesToDbTableH2
+        // writes them. (The history: 2 -> 1, 2026-09-23: the metamodel seed's INSERT is a dialect-rendered SqlDml
+        // node, RowLoad.values; 4 -> 2, 2026-09-16: CREATE/DROP are dialect-rendered SqlDdl nodes.)
         REGISTER.put("plan/InProtocol.java", 1);
         REGISTER.put("plan/PlanText.java", 2);
         // 17 -> 16 (documented-debts 2026-08-18): the LL_TMP_DEBUG
