@@ -47,10 +47,6 @@ from .frames import LIVE, SNAPPED
 # DataCube's own vocabularies, as its sources spell them (datacube/src/snapshot.ts, chart-spec.ts): a name outside
 # them is refused here, at the line that names it. datacube/test/python-vocabulary.test.ts reads each against
 # DataCube's source.
-AGGREGATES = frozenset({
-    'sum', 'count', 'average', 'min', 'max', 'median', 'stdDevSample', 'stdDevPopulation', 'varianceSample',
-    'variancePopulation', 'joinStrings', 'wavg', 'unique',
-})
 MARKS = frozenset({'bar', 'line', 'area', 'scatter', 'pie', 'heatmap', 'treemap', 'kpi',
                    # batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3)
                    'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'radar',
@@ -64,7 +60,6 @@ SHOW_AS = frozenset({'runningTotal', 'percentOfTotal', 'difference', 'percentCha
 GRAINS = frozenset({'day', 'week', 'month', 'quarter', 'year'})
 LAYERS = frozenset({'line', 'stat', 'band', 'threshold', 'extremes'})
 STATS = frozenset({'average', 'min', 'max'})
-DIRECTIONS = frozenset({'asc', 'desc'})
 
 PAGE_KIND = 'datacube.page'
 # 4: the page's model, where its classes are (DataCube's Create a Class…); a page of Python's has none yet
@@ -266,21 +261,23 @@ class Grid(Tile):
         """The name of the frame it is over."""
         return self._cube['source']['name']
 
-    def _columns(self) -> set[str]:
-        """Its columns: the frame's, as the compiler types it now, and its calculated ones."""
-        return {c.name for c in self._page._session.frames[self.frame].columns} | \
-            {d['name'] for d in self._query.get('derived', [])}
-
-    def _check(self, names: Sequence[str], what: str) -> list[str]:
-        columns = self._columns()
-        unknown = [n for n in names if n not in columns]
-        if unknown:
-            raise ValueError(f'{what} names {", ".join(map(repr, unknown))}, not a column of {self.frame!r} '
-                             f'({", ".join(sorted(columns))})')
-        return list(names)
-
     def _set(self, key: str, value: Any) -> Grid:
         self._query[key] = value
+        self._page._changed()
+        return self
+
+    def _ask_query(self, given: dict[str, Any]) -> Grid:
+        """Parts of its query -- ``rows``, ``pivotOn``, ``measures``, ``sorts``, each whole -- set as DataCube's screen
+        sets them, and the grid with them compiled (DataCube's code, headless: gridQuery): refused in DataCube's words,
+        nothing set; else set, and its open groups as DataCube keeps them (let go when the grouping changed)."""
+        engine, frames = self._headless()
+        with frames.serving():
+            said = json.loads(engine.call('gridQuery', self._spec(frames), _json.dumps(given)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        made = _plain(_json.loads(said['query']))
+        self._cube['tree'] = made.pop('tree')
+        self._query.update(made)
         self._page._changed()
         return self
 
@@ -389,32 +386,19 @@ class Grid(Tile):
 
     def group(self, *rows: str) -> Grid:
         """Grouped by ``rows``, outermost first (the Rows zone); none, not grouped."""
-        return self._set('rows', self._check(rows, 'group'))
+        return self._ask_query({'rows': list(rows)})
 
     def pivot(self, *columns: str) -> Grid:
         """Pivoted on ``columns`` (the Columns zone); none, not pivoted."""
-        return self._set('pivotOn', self._check(columns, 'pivot'))
+        return self._ask_query({'pivotOn': list(columns)})
 
     def measure(self, column: str, fn: str = 'sum', name: str | None = None, *, weight: str | None = None) -> Grid:
-        """A measure: ``column`` aggregated by ``fn`` (one of AGGREGATES; ``wavg`` takes a ``weight`` column), named
-        ``name`` (the column's own unless given: two measures of one column need names of their own)."""
-        if fn not in AGGREGATES:
-            raise ValueError(f'{fn!r} is not one of DataCube\'s aggregates: {", ".join(sorted(AGGREGATES))}')
-        # a count counts rows: its column is not read (snapshot.ts, Measure)
-        if fn != 'count':
-            self._check([column], 'a measure')
-        if (fn == 'wavg') != (weight is not None):
-            raise ValueError('a weighted average (wavg) takes a weight column, and only it does')
-        if name is not None and (not isinstance(name, str) or not name.strip()):
-            # DataCube offers no name entry for a measure (a person never types one): only the argument's own check
-            raise ValueError(f"a measure's name is a name, not {name!r}")
-        named = name or column
-        measures = self._query.get('measures', [])
-        if any(m['name'] == named for m in measures):
-            raise ValueError(f'the grid has a measure named {named!r} already: give this one a name of its own (name=...)')
-        measure = {'name': named, 'column': column, 'fn': fn,
-                   **({'weight': self._check([weight], 'a weight')[0]} if weight is not None else {})}
-        return self._set('measures', [*measures, measure])
+        """A measure: ``column`` aggregated by ``fn`` (one DataCube offers for the column's type; ``wavg`` takes a
+        ``weight`` column, and only it does), named ``name`` -- the column's own unless given, while the column is not
+        grouped; a second measure of a column, or one of a grouping column, takes a name of its own."""
+        measure = {'name': column if name is None else name, 'column': column, 'fn': fn,
+                   **({'weight': weight} if weight is not None else {})}
+        return self._ask_query({'measures': [*self._query.get('measures', []), measure]})
 
     def filter(self, condition: Any) -> Grid:
         """Its filter: a condition ``(column, operator[, value])``, a list of them (all of them), a group
@@ -436,11 +420,8 @@ class Grid(Tile):
         return self
 
     def sort(self, column: str, direction: str = 'asc') -> Grid:
-        """A sort, after those it has: ``column`` ``'asc'`` or ``'desc'``."""
-        if direction not in DIRECTIONS:
-            raise ValueError(f"a sort's direction is 'asc' or 'desc', not {direction!r}")
-        sort = {'column': self._check([column], 'a sort')[0], 'direction': direction}
-        return self._set('sorts', [*self._query.get('sorts', []), sort])
+        """A sort, after those it has: ``column`` (any header the grid shows, a measure's too) ``'asc'`` or ``'desc'``."""
+        return self._ask_query({'sorts': [*self._query.get('sorts', []), {'column': column, 'direction': direction}]})
 
     def calculate(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
@@ -1010,16 +991,16 @@ class Page:
             self._doc['cubes'].append({'id': id, 'cube': cube})
             self._doc['views'].append({'id': id, 'kind': 'grid', 'cube': id, **({'title': title} if title else {})})
             grid = self._tile(id, Grid)
-            # set before it is placed, nothing told meanwhile
+            # set before it is placed, nothing told meanwhile: its query's parts as one, as DataCube sets them (a new
+            # grid's cube has none: nothing to ask when none is given)
             with self._batch(tell=False):
-                grid.group(*rows)
-                grid.pivot(*columns)
-                for column, fn in (measures.items() if isinstance(measures, Mapping) else measures or ()):
-                    grid.measure(column, fn)
+                pairs = list(measures.items() if isinstance(measures, Mapping) else measures or ())
+                if rows or columns or pairs or sort:
+                    grid._ask_query({'rows': list(rows), 'pivotOn': list(columns),
+                                     'measures': [{'name': column, 'column': column, 'fn': fn} for column, fn in pairs],
+                                     'sorts': [{'column': column, 'direction': direction} for column, direction in sort]})
                 if filter is not None:
                     grid.filter(filter)
-                for column, direction in sort:
-                    grid.sort(column, direction)
         except BaseException:
             # the grid taken off again, and a frame served for it served no more
             self._doc['cubes'] = [c for c in self._doc['cubes'] if c['id'] != id]

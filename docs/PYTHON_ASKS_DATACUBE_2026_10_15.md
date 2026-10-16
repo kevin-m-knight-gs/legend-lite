@@ -95,6 +95,22 @@ any other -- asked by every query builder (the grouped aggregates, a child group
 spread), and `CubeController.compile` types the cube first, as a refresh does, so its check compiles the aggregate the
 run sends. Python's columns are measures unless told, as the editor's are.
 
+**A grouped grid left measures out without a word** (found 2026-10-16, the round the user asked for: "fix the bad
+stuff"; "lets fix datacube where we find bugs"). With no pivot, the level query keyed its measures by column, so a
+column's second measure replaced its first (a sum and an average of one column: the average alone) and a measure of a
+grouping column (a count of its rows) was skipped. **Fixed:** `query.ts groupedMeasures`, every measure under its own
+name, the one list the level query writes and the group stage's calculated columns are offered (`calc.ts
+columnsInScope`, which offered the measures alone and so left out the columns the query aggregates). With every measure
+kept, a measure's name follows the calculated column's rule (`calc.ts takenNames`, `measureNameProblem`): its own
+column's while that column is no key, or a name nothing else has, the queries' reserved `__root__` and `__leafCount`
+included -- refused where the level would write two columns of one name, in DataCube's words on the screen and in Python.
+
+**A set measure silently overrides the column's Aggregation** (found 2026-10-16, written up for the DataCube line to
+design): `config.ts` never reads `snapshot.measures`, and the level query takes a column's set measure over its Column
+Properties > Aggregation -- so on a page Python made, changing that column's Aggregation in the panel does nothing, and
+says nothing. True before the fix above; with two measures of one column and one dropdown it is easier to see. How the
+panel shows a column's measures is the DataCube line's to decide.
+
 **A class's sample writes a NaN or an infinity as `null`** (found 2026-10-15, the audit of item 7): `sample-rows.ts
 sampleOf` keeps a double as the executor gives it, and the sample goes to the route as JSON, which has neither, so
 `JSON.stringify` writes `null` -- the window's Create a Class and, since item 7, Python's alike. Python's own writer

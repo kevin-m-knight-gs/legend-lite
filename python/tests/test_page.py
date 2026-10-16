@@ -527,6 +527,58 @@ class Document(Paged):
         # a chart can plot it, as any column
         grid.chart('line', x='region', y=[('margin', 'average')])
 
+    def test_a_grids_query_is_set_as_datacubes_screen_sets_it_and_refused_in_its_words(self):
+        # grouping, pivot, measures and sorts by DataCube's own rules (headless gridQuery), the grid compiled with them
+        page, grid, _ = self.built()
+        before = page.to_dict()
+        # an aggregate DataCube does not offer for the column's type (offers.ts takesAggregate)
+        with self.assertRaisesRegex(ValueError, "'sum' is not offered on desk, a String column"):
+            grid.measure('desk', 'sum', name='desks')
+        # only a weighted average takes a weight, refused rather than dropped; and it takes one (the query's own words)
+        with self.assertRaisesRegex(ValueError, r'only a weighted average \(wavg\) takes a weight'):
+            grid.measure('pnl', 'sum', name='p', weight='notional')
+        with self.assertRaisesRegex(ValueError, 'uses wavg but has no weight column'):
+            grid.measure('pnl', 'wavg', name='w')
+        with self.assertRaisesRegex(ValueError, 'a sort\'s direction is \'asc\' or \'desc\', not "up"'):
+            grid.sort('region', 'up')
+        with self.assertRaisesRegex(ValueError, 'the grouping names "nope", not a column of the grid'):
+            grid.group('nope')
+        with self.assertRaisesRegex(ValueError, 'the grouping names region twice'):
+            grid.group('region', 'region')
+        # a measure's name is its own column's while that column is no key, or a name nothing else has: the calculated
+        # column's rule (calc.ts measureNameProblem) -- else the level writes two columns of one name
+        with self.assertRaisesRegex(ValueError, r"'region' is already a column: the measure count\(region\) takes a name"):
+            grid.measure('region', 'count')
+        with self.assertRaisesRegex(ValueError, "'desk' is already a column"):
+            grid.measure('pnl', 'sum', name='desk')
+        self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
+        # a count reads no column, a grouping column's too; a weighted average with its weight; a second measure of one
+        # column (each shown under its own name: the grouped query kept the last alone, a DataCube bug fixed here); a
+        # sort on a measure's header
+        grid.measure('pnl', 'wavg', name='w_pnl', weight='notional').measure('region', 'count', name='trades')
+        grid.measure('notional', 'average', name='avg_notional').sort('w_pnl', 'desc')
+        query = page.to_dict()['cubes'][0]['cube']['query']
+        self.assertEqual([m['name'] for m in query['measures']], ['notional', 'w_pnl', 'trades', 'avg_notional'])
+        self.assertEqual(query['sorts'][-1], {'column': 'w_pnl', 'direction': 'desc'})
+        shown = grid.view()
+        names = {c['name'] for c in shown.columns}
+        self.assertTrue({'notional', 'avg_notional', 'w_pnl', 'trades'} <= names, names)
+
+    def test_a_sort_the_grid_would_leave_out_is_refused_and_a_new_grouping_closes_its_groups(self):
+        page = ll.Page('Sorted')
+        grid = page.grid(trades(), name='sorted_trades', columns=['desk'], measures={'notional': 'sum'})
+        # pivoted on desk, the query shows no pnl header: a sort on it would be left out without a word
+        with self.assertRaisesRegex(ValueError, 'the sort names "pnl", which the grid does not show'):
+            grid.sort('pnl')
+        grid.pivot()
+        grid.group('region')
+        # its open groups, as DataCube keeps them: a changed grouping lets them go (as a reopened cube's do)
+        page._doc['cubes'][0]['cube']['tree'] = {'open': [['EMEA']], 'showTotals': True}
+        grid.sort('region', 'desc')
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'], {'open': [['EMEA']], 'showTotals': True})
+        grid.group('desk')
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'], {'open': [], 'showTotals': True})
+
     def test_names_and_values_outside_datacubes_words_are_refused_where_they_are_written(self):
         page, grid, _ = self.built()
         before = page.to_dict()
@@ -556,7 +608,7 @@ class Document(Paged):
                 grid.filter(('notional', 'greaterThan', wrong))
         with self.assertRaisesRegex(ValueError, "not one of DataCube's aggregates"):
             grid.measure('pnl', 'total')
-        with self.assertRaisesRegex(ValueError, 'a measure named'):
+        with self.assertRaisesRegex(ValueError, 'two measures are named notional'):
             grid.measure('notional', 'average')
         with self.assertRaisesRegex(ValueError, 'is not one this DataCube draws'):
             grid.chart('violin', x='region')

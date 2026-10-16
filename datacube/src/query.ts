@@ -39,7 +39,7 @@ import type { GroupKey, RowPath } from './tree.ts';
 import { ROOT_COLUMN, WINDOW_ALL_PREFIX } from './grid/columns.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { isBoolean, isNumeric, isVariant, plainType } from '../../engine-client/src/types.ts';
-import { columnRef } from './calc.ts';
+import { columnRef, measureNameProblem } from './calc.ts';
 
 // ---- literals: typed by the column's COMPILER type, never by the value ----
 
@@ -434,15 +434,12 @@ function levelRelation(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: Pivot
   const grouping = !pivoting && (groupCols.length > 0 || snapshot.measures.length > 0 || grandTotal);
 
   const groupedAggs = (keys: readonly string[], projected: readonly string[]): ColSpec[] => {
-    const isKey = new Set(keys);
-    const byMeasure = new Map(snapshot.measures.map((m) => [m.column, m]));
-    const specOf = columnSpecs(snapshot);
-    const specs: ColSpec[] = [];
-    for (const name of projected) {
-      if (isKey.has(name)) continue;
-      const configured = byMeasure.get(name);
-      specs.push(aggregateSpec(configured ?? defaultMeasure(name, specOf.get(name))));
+    // each measure named a column of its own, or the level writes two of one name (calc.ts measureNameProblem)
+    for (const m of snapshot.measures) {
+      const problem = measureNameProblem(snapshot, m);
+      if (problem !== null) throw new CubeRefusal(problem);
     }
+    const specs: ColSpec[] = groupedMeasures(snapshot, keys, projected).map((m) => aggregateSpec(m));
     if (snapshot.leafCount === true && keys.length > 0) specs.push(LEAF_COUNT_SPEC());
     if (specs.length > 0) return specs;
     // upstream's filler: a groupBy has to aggregate something (serialize.ts writes `$x.''`
@@ -951,6 +948,29 @@ export function columnSpecs(s: CubeSnapshot): Map<string, SpecLike> {
  */
 export function defaultAggregate(spec: SpecLike | undefined): AggregateFn {
   return isNumeric(spec?.type) && spec?.kind !== 'dimension' ? 'sum' : 'unique';
+}
+
+/**
+ * A GROUPED LEVEL'S AGGREGATES with no pivot, as its query writes them: every projected column but the keys -- on
+ * each of its configured measures, under each one's name, or on its default aggregate under its own -- then each
+ * measure of a grouping column (a count of its rows). Every measure is in it: keyed by column, all but a column's last
+ * measure, and any of a grouping column, were left out without a word (found 2026-10-16, PR neema2/legend-lite#47).
+ * The one list: the level query aggregates it, and the group stage's calculated columns are offered it (calc.ts
+ * columnsInScope).
+ */
+export function groupedMeasures(
+  snapshot: CubeSnapshot, keys: readonly string[], projected: readonly string[] = detailColumns(snapshot),
+): Measure[] {
+  const isKey = new Set(keys);
+  const byColumn = new Map<string, Measure[]>();
+  for (const m of snapshot.measures) byColumn.set(m.column, [...(byColumn.get(m.column) ?? []), m]);
+  const specOf = columnSpecs(snapshot);
+  const out: Measure[] = [];
+  for (const name of projected) {
+    if (!isKey.has(name)) out.push(...(byColumn.get(name) ?? [defaultMeasure(name, specOf.get(name))]));
+  }
+  for (const m of snapshot.measures) if (isKey.has(m.column)) out.push(m);
+  return out;
 }
 
 /**

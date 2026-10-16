@@ -69,6 +69,22 @@ function snap(over: Partial<CubeSnapshot> = {}): CubeSnapshot {
 }
 
 describe('a level query', () => {
+  it('keeps every measure of a grouped cube, two of one column and one of a grouping column too', async () => {
+    // keyed by column, the grouped aggregates kept a column's last measure alone and skipped a grouping column's
+    // (found 2026-10-16, PR neema2/legend-lite#47): each measure is a column of the level, under its own name
+    const out = await level(snap({
+      rows: ['region'], pivotOn: [],
+      measures: [
+        { name: 'total', column: 'notional', fn: 'sum' },
+        { name: 'avg_n', column: 'notional', fn: 'average' },
+        { name: 'trades', column: 'region', fn: 'count' },
+      ],
+    }), { level: 1, parent: [] });
+    assert.match(out, /total:x\|\$x\.notional:y\|\$y->sum\(\)/, out);
+    assert.match(out, /avg_n:x\|\$x\.notional:y\|\$y->average\(\)/, out);
+    assert.match(out, /trades:x\|1:y\|\$y->count\(\)/, out);
+  });
+
   it('writes a pivot as ONE groupBy, a conditional aggregate per value', async () => {
     // Each cell is its measure over exactly the rows of its value, and
     // the other columns are carried on their own aggregate in the same

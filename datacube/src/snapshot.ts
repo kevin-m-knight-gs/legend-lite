@@ -393,6 +393,10 @@ export interface DerivedColumn {
 
 export type SortDirection = 'asc' | 'desc';
 
+/** Every sort direction, once: exhaustive by construction (a Record over the union), as AGGREGATE_FNS is. */
+const EVERY_DIRECTION: Readonly<Record<SortDirection, true>> = { asc: true, desc: true };
+export const SORT_DIRECTIONS: readonly SortDirection[] = Object.keys(EVERY_DIRECTION) as SortDirection[];
+
 export interface SortSpec {
   readonly column: string;
   readonly direction: SortDirection;

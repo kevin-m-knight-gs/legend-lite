@@ -176,12 +176,14 @@ export function writeCube(o: WriteOptions): CubeDocument {
     source: o.source,
     query,
     configuration: (difference(o.configuration, DEFAULT_CONFIGURATION) ?? {}) as Record<string, unknown>,
-    tree: {
-      open: o.tree.openPaths.map(parsePathKey),
-      showTotals: o.tree.showTotals,
-    },
+    tree: treeDocument(o.tree),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
   };
+}
+
+/** The open rows as a cube document holds them: typed paths, and whether totals show. */
+export function treeDocument(tree: TreeState): CubeDocument['tree'] {
+  return { open: tree.openPaths.map(parsePathKey), showTotals: tree.showTotals };
 }
 
 /**
@@ -446,7 +448,7 @@ export function openCube(
     return { ...c, ...settings, name: c.name, type: c.type };
   });
 
-  const shapeChanged = rows.length !== q.rows.length || pivotOn.length !== q.pivotOn.length;
+  const shapeChanged = groupingChanged(q, { rows, pivotOn });
   const {
     columns: _c, derived: _d, groupDerived: _g, rows: _r, pivotOn: _p, measures: _m, sorts: _s,
     filter: _f, pivotValues, ...rest
@@ -470,6 +472,18 @@ export function openCube(
   const tree = TreeState.fromPaths(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals);
   const changed = notes.some((n) => n.startsWith('left out'));
   return { snapshot, configuration, tree, notes, changed };
+}
+
+/**
+ * Whether a cube's grouping changed -- its row groups or its pivot, by name and order. Its open rows are paths through
+ * the grouping it had, so a changed one has none: a cube reopened over a source that lost a grouping column (openCube),
+ * and one regrouped by Python's call (headless gridQuery), by this one test.
+ */
+export function groupingChanged(
+  was: Pick<CubeSnapshot, 'rows' | 'pivotOn'>, now: Pick<CubeSnapshot, 'rows' | 'pivotOn'>,
+): boolean {
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((n, i) => n === b[i]);
+  return !same(was.rows, now.rows) || !same(was.pivotOn, now.pivotOn);
 }
 
 /** A source's rows as they are: grouped by nothing, up to the row cap (a person builds the cube up). */

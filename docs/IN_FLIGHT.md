@@ -888,6 +888,15 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   SQL plan's ground -- but for one forced line in `_warehouse_snap` (`_on_planner_threads()`, the planner switch gone)
   and one in `frames.py reading_file` (58e807c: a file's table named as `register` names a frame, so `True` is an
   identifier; this line's OK).
+  **Round 2, 2026-10-16 (the user, reading what #47 left: "fix the bad stuff, that was the point of this PR").** In this
+  PR, each reviewed by this line before push: `Grid.measure`, `group`, `pivot` and `sort` through DataCube's code
+  (headless `gridQuery`: its column offers and rules, the cube compiled), Python's own measure rules and its
+  `AGGREGATES`/`DIRECTIONS` pins gone (`datacube/src/headless/grid.ts`, `snapshot.ts`, `python/legend_lite/page.py`); a
+  class's sample refusing a NaN or an infinity, never writing `null` (`datacube/src/sample-rows.ts`); `frames._NAME`
+  given up to the compiler's model writer (`python/legend_lite/frames.py`, loading's one name check); the empty page's
+  hint told by DataCube's reader (`page-document.ts`, `headless/page.ts`); `Engine(planner=)` and the one plane's
+  label gone (`engine.py`, `services/python-host.ts`). Proposed to the Plan Gen line, not started: one planner
+  dispatcher in the compiler, which deletes `planner-answer.ts`'s switch and `_planner.py`'s table.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
