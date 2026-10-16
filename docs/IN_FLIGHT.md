@@ -1684,6 +1684,10 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   database; a node through WITH as its columns), the seam's model (`properties`, `labelOf`), the judge
   (`testcases/CypherValues`: an object with `@labels` is a node; `CypherGraph.ownLabels`) and `lite/nodes.yaml`:
   no file of the database owner's, no guard pin moved. The record: the study's §12.14; GATES "the twelfth landing".
+- **The parameters leg, 2026-10-16, announced here as landed** — the harness (`testcases/CypherParity`: a case's
+  parameters bound into the island's text; `CypherGraph.ownLabels` for a `labels()` list), the translator
+  (`labels(n)`, `properties(n)` from a node's parts) and `lite/params.yaml`: no file of the database owner's, no
+  guard pin moved. The record: the study's §12.15; GATES "the thirteenth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

@@ -90,9 +90,11 @@ next (§12.13): `MATCH (n)` over every class of the model, one arm per class con
 (the "fans out" bucket was label-less nodes, not to-many hops); DuckDB PASS 2098, Postgres PASS 1750, 0 FAIL,
 0 BUG, 0 ERROR on both. Then nodes as values (§12.14): a node returned as its label and properties (JSON the
 database builds), a node through WITH carried as its columns; DuckDB PASS 2,244, Postgres PASS 1,896, 0 FAIL, 0 BUG,
-0 ERROR on both. Left in temporal, by name: the clock functions, `toString` of the new values, fractional durations,
-a stored time. Then the full CI run on the branch, the merge; the label-less patterns with relationships (86, the
-join form), relationships as values, and `collect` (the database owner's aggregate) wait.
+0 ERROR on both. Then the parameters leg (§12.15): a scenario's parameters bound into the query's text by the
+harness, `labels(n)` and `properties(n)`; DuckDB PASS 2,266, Postgres PASS 1,918, 0 FAIL, 0 BUG, 0 ERROR on
+both. Left in temporal, by name: the clock functions, `toString` of the new values, fractional durations, a stored
+time. Then the full CI run on the branch, the merge; the label-less patterns with relationships (86, the join form),
+relationships as values, and `collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

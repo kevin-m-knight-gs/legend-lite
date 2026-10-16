@@ -164,9 +164,34 @@ public final class CypherToPure {
      *  {@code {"@labels":[...],"<property>":<value>,...}}, each property present when it holds a value (Neo4j stores
      *  no null), built as text by the database and read as a Variant. {@code labels} is the labels array's JSON
      *  text; each property's value is spelled by its kind. */
-    private static Tx nodeJson(ValueSpecification labels, List<Map.Entry<String, Tx>> props, Pos pos) {
-        ValueSpecification text = plus(new CString("{\"@labels\":"), labels);
-        for (Map.Entry<String, Tx> p : props) {
+    private static Tx nodeJson(NodeParts parts, Pos pos) {
+        ValueSpecification text = plus(new CString("{\"@labels\":"), parts.labels());
+        text = plus(text, propertyPieces(parts, pos), new CString("}"));
+        return new Tx(call("fromJson", text), Kind.JSON, false, null, new NodeValue(), null, null);
+    }
+
+    /** A node's parts: its labels' JSON array text (a constant, or the column carrying it) and its properties. */
+    private record NodeParts(ValueSpecification labels, List<Map.Entry<String, Tx>> props) {
+    }
+
+    /** {@code labels(n)}: the node's labels, a list. */
+    private static Tx nodeLabels(NodeParts parts) {
+        return Tx.value(call("fromJson", parts.labels()), Kind.JSON, false);
+    }
+
+    /** {@code properties(n)}: the node's properties that hold a value, a map (the pieces each lead with a comma: the
+     *  first is dropped). */
+    private static Tx nodeProperties(NodeParts parts, Pos pos) {
+        ValueSpecification text = plus(new CString("{"), call("substring", propertyPieces(parts, pos),
+                new CInteger(2L)), new CString("}"));
+        return Tx.value(call("fromJson", text), Kind.JSON, false);
+    }
+
+    /** The JSON text of a node's properties, each as {@code ,"name":value} when it holds a value (Neo4j stores no
+     *  null); empty when it holds none. */
+    private static ValueSpecification propertyPieces(NodeParts parts, Pos pos) {
+        ValueSpecification text = null;
+        for (Map.Entry<String, Tx> p : parts.props()) {
             Tx t = p.getValue();
             if (t.kind() == Kind.NULL) {
                 continue;
@@ -177,10 +202,9 @@ public final class CypherToPure {
                     ? call("if", call("isEmpty", v), thunk(new CString("")),
                             thunk(plus(key, jsonText(call("toOne", v), t.kind(), p.getKey(), pos))))
                     : plus(key, jsonText(v, t.kind(), p.getKey(), pos));
-            text = plus(text, piece);
+            text = text == null ? piece : plus(text, piece);
         }
-        return new Tx(call("fromJson", plus(text, new CString("}"))), Kind.JSON, false, null, new NodeValue(), null,
-                null);
+        return text == null ? new CString("") : text;
     }
 
     /** A property value's JSON text, as the database spells it: a number's or a boolean's spelling (a whole float
@@ -1442,6 +1466,12 @@ public final class CypherToPure {
             return null;
         }
 
+        /** The parts of the node {@code v} names (its labels' JSON text, its properties), for a node as a value and
+         *  for {@code labels(n)} and {@code properties(n)}; null when {@code v} names no node. */
+        default @com.legend.base.Nullable NodeParts nodeParts(CypherAst.Var v) {
+            return null;
+        }
+
         /** The value a property access is: a node's property, or a map's entry. */
         Val property(CypherAst.Prop p);
 
@@ -1471,11 +1501,17 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("a relationship as a value (" + v.name() + ") is not supported yet",
                         v.pos());
             }
-            return scalar(nodeOf(b, v.pos()));
+            return scalar(nodeJson(parts(b, v.pos()), v.pos()));
         }
 
-        /** A bound node as a value: its class's label and its properties, navigated from the root instance. */
-        Tx nodeOf(Binding b, Pos pos) {
+        @Override
+        public @com.legend.base.Nullable NodeParts nodeParts(CypherAst.Var v) {
+            Binding b = g.bindings().get(v.name());
+            return b == null || !b.node() ? null : parts(b, v.pos());
+        }
+
+        /** A bound node's parts: its class's label, its properties navigated from the root instance. */
+        NodeParts parts(Binding b, Pos pos) {
             String cls = java.util.Objects.requireNonNull(b.classPath());
             if (b.optional()) {
                 throw CypherErrors.unsupported("a node that may be absent, as a value, is not supported yet", pos);
@@ -1486,7 +1522,7 @@ public final class CypherToPure {
                     props.add(Map.entry(p.name(), propertyOf(b, p.name(), pos)));
                 }
             }
-            return nodeJson(new CString(labelsJson(cls)), props, pos);
+            return new NodeParts(new CString(labelsJson(cls)), props);
         }
 
         /** A bound node carried through a projection: its labels' text and its properties as columns -- of every
@@ -1622,6 +1658,11 @@ public final class CypherToPure {
         }
 
         @Override
+        public @com.legend.base.Nullable NodeParts nodeParts(CypherAst.Var v) {
+            return projected.containsKey(v.name()) ? null : inner.nodeParts(v);
+        }
+
+        @Override
         public Val property(CypherAst.Prop p) {
             if (p.target() instanceof CypherAst.Var v && projected.containsKey(v.name())) {
                 return member(projected.get(v.name()), p.name(), p.pos());
@@ -1657,6 +1698,11 @@ public final class CypherToPure {
         @Override
         public Val variable(CypherAst.Var v) {
             return inner.variable(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable NodeParts nodeParts(CypherAst.Var v) {
+            return inner.nodeParts(v);
         }
 
         @Override
@@ -1715,14 +1761,7 @@ public final class CypherToPure {
                     }
                     if (c.detail() instanceof NodeShape shape) {
                         // a carried node as a value: its JSON from its columns
-                        List<Map.Entry<String, Tx>> props = new ArrayList<>();
-                        for (Map.Entry<String, NodeProp> p : shape.props().entrySet()) {
-                            NodeProp np = p.getValue();
-                            props.add(Map.entry(p.getKey(), columnLike(new AppliedProperty(new Variable(row()),
-                                    np.column()), np.kind(), np.nullable())));
-                        }
-                        return scalar(nodeJson(new AppliedProperty(new Variable(row()), shape.labels()), props,
-                                v.pos()));
+                        return scalar(nodeJson(parts(shape), v.pos()));
                     }
                     if (c.kind() == Kind.NULL) {
                         // a null the query named: null wherever it is read
@@ -1735,6 +1774,23 @@ public final class CypherToPure {
                 }
             }
             throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
+        }
+
+        @Override
+        public @com.legend.base.Nullable NodeParts nodeParts(CypherAst.Var v) {
+            Col c = column(v.name());
+            return c != null && c.detail() instanceof NodeShape shape ? parts(shape) : null;
+        }
+
+        /** A carried node's parts, read from its columns. */
+        NodeParts parts(NodeShape shape) {
+            List<Map.Entry<String, Tx>> props = new ArrayList<>();
+            for (Map.Entry<String, NodeProp> p : shape.props().entrySet()) {
+                NodeProp np = p.getValue();
+                props.add(Map.entry(p.getKey(), columnLike(new AppliedProperty(new Variable(row()), np.column()),
+                        np.kind(), np.nullable())));
+            }
+            return new NodeParts(new AppliedProperty(new Variable(row()), shape.labels()), props);
         }
 
         @Override
@@ -2362,6 +2418,14 @@ public final class CypherToPure {
         TemporalFamily family = TEMPORAL_FAMILIES.get(fn.contains(".") ? fn.substring(0, fn.indexOf('.')) : fn);
         if (family != null) {
             return temporalCall(c, fn, family, scope);
+        }
+        if ((fn.equals("labels") || fn.equals("properties")) && c.args().size() == 1
+                && c.args().get(0) instanceof CypherAst.Var v) {
+            // of a node: its labels, a list; its properties that hold a value, a map (the study's §12.15)
+            NodeParts parts = scope.nodeParts(v);
+            if (parts != null) {
+                return scalar(fn.equals("labels") ? nodeLabels(parts) : nodeProperties(parts, c.pos()));
+            }
         }
         Function f = FUNCTIONS_BY_NAME.get(fn);
         if (f == null) {

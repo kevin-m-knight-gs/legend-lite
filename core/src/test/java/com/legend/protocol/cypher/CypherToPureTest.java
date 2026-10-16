@@ -361,14 +361,7 @@ class CypherToPureTest {
     void aNodeReturnedIsItsLabelAndItsProperties() {
         // C8 (the study's §12.14): a node as a value is the JSON the judge reads as a node, built as text by the
         // database -- its label, then each property that holds a value (Neo4j stores no null)
-        assertEquals("demo::Person.all()->project(~[p:p|fromJson((((('{\"@labels\":' + '[\"Person\"]')"
-                        + " + if(if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty()"
-                        + " && !$p.active->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":'"
-                        + " + if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty()"
-                        + " && !$p.active->toOne(), |false, |[]))->toOne()->toString()))"
-                        + " + if($p.age->isEmpty(), |'', |',\"age\":' + $p.age->toOne()->toString()))"
-                        + " + (',\"name\":' + ('\"' + $p.name->replace('\\\\', '\\\\\\\\')"
-                        + "->replace('\"', '\\\\\"') + '\"'))) + '}')])",
+        assertEquals("demo::Person.all()->project(~[p:p|fromJson(('{\"@labels\":' + '[\"Person\"]') + ((if(if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":' + if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[]))->toOne()->toString()) + if($p.age->isEmpty(), |'', |',\"age\":' + $p.age->toOne()->toString())) + (',\"name\":' + ('\"' + $p.name->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + '}')])",
                 pure("MATCH (p:Person) RETURN p"));
     }
 
@@ -376,18 +369,7 @@ class CypherToPureTest {
     void aNodeThroughWithIsCarriedAsItsColumns() {
         // the node's label and properties as columns of the WITH, so ORDER BY p.age sorts a typed column and the
         // RETURN reads p.name as one; the node's own name is a virtual column
-        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty()"
-                        + " && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false,"
-                        + " |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name])"
-                        + "->sort([~_cypher_3->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)"
-                        + "->extend(~['p.name':r|$r._cypher_4, p:r|fromJson((((('{\"@labels\":' + $r._cypher_1)"
-                        + " + if(if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true,"
-                        + " |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->isEmpty(), |'',"
-                        + " |',\"active\":' + if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true,"
-                        + " |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->toOne()"
-                        + "->toString())) + if($r._cypher_3->isEmpty(), |'', |',\"age\":' + $r._cypher_3->toOne()"
-                        + "->toString())) + (',\"name\":' + ('\"' + $r._cypher_4->replace('\\\\', '\\\\\\\\')"
-                        + "->replace('\"', '\\\\\"') + '\"'))) + '}')])->select(~['p.name', p])",
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name])->sort([~_cypher_3->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)->extend(~['p.name':r|$r._cypher_4, p:r|fromJson(('{\"@labels\":' + $r._cypher_1) + ((if(if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true, |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":' + if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true, |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->toOne()->toString()) + if($r._cypher_3->isEmpty(), |'', |',\"age\":' + $r._cypher_3->toOne()->toString())) + (',\"name\":' + ('\"' + $r._cypher_4->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + '}')])->select(~['p.name', p])",
                 pure("MATCH (p:Person) WITH p ORDER BY p.age LIMIT 1 RETURN p.name, p"));
     }
 
@@ -588,7 +570,6 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n", "a MATCH after a WITH");
         unsupported("MATCH (p:Person) UNWIND [1, 2] AS x RETURN p.name, x", "UNWIND after a MATCH");
         unsupported("CREATE (p:Person {name: 'x'})", "CREATE is not supported yet");
-        unsupported("MATCH (p:Person) RETURN labels(p)", "the function labels(...) is not supported yet");
         unsupported("MATCH (p:Person) RETURN collect(p.name)", "collect(...) is not supported yet");
         unsupported("MATCH (p:Person) RETURN count(DISTINCT p.name)", "count(DISTINCT ...)");
         unsupported("MATCH (p:Person) WHERE p.name = $name RETURN p.name", "a parameter ($name)");

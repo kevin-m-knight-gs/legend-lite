@@ -53,10 +53,16 @@ public final class CypherGraph {
     /** The class of the nodes without a label. */
     private static final String UNLABELLED = "Unlabelled";
 
-    /** A value lite returned, its node labels as Neo4j's: the class of the unlabelled nodes is no label. */
+    /** A value lite returned, its node labels as Neo4j's: the class of the unlabelled nodes is no label -- on a node,
+     *  and as the one element of a {@code labels(n)} list (the harness refuses a graph that labels a node so, above,
+     *  so the list is its own). */
     static CypherValues.Value ownLabels(CypherValues.Value v) {
         if (v instanceof CypherValues.Node n && n.labels().size() == 1 && n.labels().first().equals(UNLABELLED)) {
             return new CypherValues.Node(new java.util.TreeSet<>(), n.props());
+        }
+        if (v instanceof CypherValues.Lst l && l.items().size() == 1 && l.items().get(0) instanceof CypherValues.Str s
+                && s.value().equals(UNLABELLED)) {
+            return new CypherValues.Lst(List.of());
         }
         return v;
     }

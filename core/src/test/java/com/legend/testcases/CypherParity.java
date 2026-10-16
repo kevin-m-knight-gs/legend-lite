@@ -66,9 +66,10 @@ public final class CypherParity {
             return CypherAnswers.sha(query, cypherVersion(), setup, paramsText, decision, expectText);
         }
 
-        /** The island as the lane runs it: the version named outside the query made its prefix. */
+        /** The island as the lane runs it: the parameters bound into the query's text, the version named outside
+         *  the query made its prefix. */
         public String island() {
-            String q = query;
+            String q = bindParameters(query, paramsText);
             if (version != null && !PREFIX.matcher(q).lookingAt()) {
                 q = "CYPHER " + version + " " + q;
             }
@@ -77,6 +78,34 @@ public final class CypherParity {
 
         SqlParity.Case asSql() {
             return new SqlParity.Case(file, id, query, skip);
+        }
+
+        /** The parameters bound into the query's text (the island has no parameter channel; the study's §12.15): a
+         *  TCK scenario's {@code name=value} lines, or a lite case's flow map in the value grammar, each
+         *  {@code $name} replaced by its value's literal text -- the grammar's spelling of a list, map, string,
+         *  number, boolean or null is Cypher's. The oracle passes the same values to Neo4j as parameters. */
+        static String bindParameters(String query, String paramsText) {
+            if (paramsText == null || paramsText.isBlank()) {
+                return query;
+            }
+            Map<String, String> values = new LinkedHashMap<>();
+            if (paramsText.strip().startsWith("{")) {
+                CypherValues.Value v = CypherValues.parse(paramsText.strip());
+                ((CypherValues.Mp) v).entries().forEach((k, x) -> values.put(k, CypherValues.text(x)));
+            } else {
+                for (String line : paramsText.split("\n")) {
+                    int eq = line.indexOf('=');
+                    if (eq > 0) {
+                        values.put(line.substring(0, eq).strip(), line.substring(eq + 1).strip());
+                    }
+                }
+            }
+            String out = query;
+            for (Map.Entry<String, String> e : values.entrySet()) {
+                out = out.replaceAll("\\$" + java.util.regex.Pattern.quote(e.getKey()) + "\\b",
+                        java.util.regex.Matcher.quoteReplacement(e.getValue()));
+            }
+            return out;
         }
     }
 

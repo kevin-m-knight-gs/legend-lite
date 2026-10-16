@@ -9850,6 +9850,22 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the thirteenth landing — parameters bound by the harness; `labels(n)` and `properties(n)` (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the nodes-as-values leg; the record is the study's §12.15
+(`docs/CYPHER_STUDY_2026_10_15.md`). The harness (`testcases/CypherParity.Case.bindParameters`,
+`CypherGraph.ownLabels`) and the translator.
+
+1. **What lands.** A scenario's parameters are bound into the query's text by the harness before the island runs
+   (their grammar's spelling is Cypher's); the oracle passes the same values to Neo4j. `labels(n)` (a list) and
+   `properties(n)` (a map) of a node, from the node's parts.
+2. **The ledger.** DuckDB: 4,116 cases; PASS 2,266 (from 2,244); FAIL 0; BUG 0; ERROR 0; REFUSED 823;
+   BOTH_ERROR 709; SKIP 318. Postgres: PASS 1,918 (from 1,896); FAIL 0; BUG 0; ERROR 0; REFUSED 1,171;
+   BOTH_ERROR 709; SKIP 318. 8 lite cases in `lite/params.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the twelfth landing — nodes as values: a node returned as its label and properties, a node through WITH carried as its columns (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the label-less node leg; the record is the study's §12.14

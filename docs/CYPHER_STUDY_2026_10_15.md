@@ -2250,3 +2250,30 @@ text); a node that may be absent.
 
 14 lite cases in `lite/nodes.yaml`, each judged by Neo4j.
 
+### 12.15 The parameters leg, 2026-10-16: the harness binds a scenario's parameters; `labels(n)`, `properties(n)`
+
+A TCK scenario's parameters (`And parameters are:`, 16 cases) are values in the TCK's grammar, whose spelling of a
+list, map, string, number, boolean or null is Cypher's own. The island has no parameter channel (a `#Cypher{...}#`
+island is text inside a Pure query), so the **harness** binds them: `CypherParity.Case.island` replaces each
+`$name` in the query's text by its value's literal text before the island runs (`bindParameters`: a TCK
+scenario's `name=value` lines, or a lite case's `params:` flow map in the value grammar, printed back by the
+judge's printer); the oracle passes the same values to Neo4j as parameters. The translator still refuses a `$name`
+by name: binding is the harness's, not the island's. What a bound parameter reaches is whatever the translator
+reads of the literal (`expr[idx]` over a projected index stays refused: "indexing a list by a value that is not a
+literal").
+
+Beside it, two functions of a node now that a node is a value (§12.14): `labels(n)` is the node's labels, a list
+(`fromJson` of the labels' text — the constant of the class, or the column carrying it); `properties(n)` is the
+node's properties that hold a value, a map (the same pieces as the node's JSON, without the labels). The harness's
+class of the unlabelled nodes reads as no label here too (`CypherGraph.ownLabels`: a `labels()` list of that one
+name is empty — the harness refuses a graph that labels a node so, so the list is its own).
+
+#### 12.15.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4,116 | 2,266 (from 2,244) | 0 | 0 | 0 | 823 | 709 | 318 |
+| Postgres | 4,116 | 1,918 (from 1,896) | 0 | 0 | 0 | 1,171 | 709 | 318 |
+
+8 lite cases in `lite/params.yaml`, each judged by Neo4j.
+

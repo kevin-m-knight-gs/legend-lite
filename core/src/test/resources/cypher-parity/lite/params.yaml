@@ -1,0 +1,37 @@
+# The #Cypher{...}# island's parameter cases (docs/CYPHER_STUDY_2026_10_15.md §12.15): the harness binds a case's
+# parameters (`params:`, a flow map in the value grammar) into the query's text before the island runs, the oracle
+# passing the same values to Neo4j as parameters; and labels(n) / properties(n) of a node. Each case is judged by
+# Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/params/*'), keyed
+# lite/params/<id>.
+tests:
+  - id: list_lookup_by_parameters
+    cypher: "WITH $expr AS expr, $idx AS idx RETURN expr[idx] AS value"
+    params: "{expr: ['Apa'], idx: 0}"
+  - id: skip_and_limit_by_parameter
+    graph: |
+      CREATE (:A {num: 1}), (:A {num: 2}), (:A {num: 3}), (:A {num: 4})
+    cypher: "MATCH (n:A) WITH n.num AS num ORDER BY num SKIP $s LIMIT $l RETURN num"
+    params: "{s: 1, l: 2}"
+  - id: in_with_null_parameters
+    cypher: "RETURN $elt IN $coll AS result"
+    params: "{elt: 5, coll: [1, 2, 3, null]}"
+  - id: string_parameter_in_where
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (n:A) WHERE n.name = $name RETURN n.name AS name"
+    params: "{name: 'b'}"
+  - id: map_parameter_member
+    cypher: "RETURN $m.a AS a, $m.b AS b"
+    params: "{m: {a: 1, b: 'x'}}"
+  - id: labels_of_a_node
+    graph: |
+      CREATE (:A {num: 1}), (:B {num: 2})
+    cypher: "MATCH (n) RETURN labels(n) AS l, n.num AS num ORDER BY num"
+  - id: properties_of_a_node
+    graph: |
+      CREATE (:A {num: 1, name: 'a'}), (:A {num: 2})
+    cypher: "MATCH (n:A) RETURN properties(n) AS p, n.num AS num ORDER BY num"
+  - id: properties_of_a_carried_node
+    graph: |
+      CREATE (:A {num: 1, name: 'a'}), (:A {num: 2}), (:A {num: 3})
+    cypher: "MATCH (n:A) WITH n ORDER BY n.num DESC LIMIT 2 RETURN properties(n) AS p, labels(n) AS l"

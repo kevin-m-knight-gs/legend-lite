@@ -1202,7 +1202,7 @@ tck/clauses/with-skip-limit/WithSkipLimit2/[2] Handle dependencies across WITH w
 tck/clauses/with-skip-limit/WithSkipLimit2/[3] Connected components succeeding WITH with LIMIT	REFUSED	REFUSED
 tck/clauses/with-skip-limit/WithSkipLimit2/[4] Ordering and limiting on aggregate	REFUSED	REFUSED
 tck/clauses/with-skip-limit/WithSkipLimit3/[1] Get rows in the middle	PASS	PASS
-tck/clauses/with-skip-limit/WithSkipLimit3/[2] Get rows in the middle by param	REFUSED	REFUSED
+tck/clauses/with-skip-limit/WithSkipLimit3/[2] Get rows in the middle by param	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit3/[3] Limiting amount of rows when there are fewer left than the LIMIT argument	PASS	PASS
 tck/clauses/with-where/WithWhere1/[1] Filter node with property predicate on a single variable with multiple bindings	PASS	PASS
 tck/clauses/with-where/WithWhere1/[2] Filter node with property predicate on a single variable with multiple distinct bindings	PASS	PASS
@@ -1536,7 +1536,7 @@ tck/expressions/graph/Graph3/[1] Creating node without label	REFUSED	REFUSED
 tck/expressions/graph/Graph3/[2] Creating node with two labels	REFUSED	REFUSED
 tck/expressions/graph/Graph3/[3] Ignore space when creating node with labels	REFUSED	REFUSED
 tck/expressions/graph/Graph3/[4] Create node with label in pattern	REFUSED	REFUSED
-tck/expressions/graph/Graph3/[5] Using `labels()` in return clauses	REFUSED	REFUSED
+tck/expressions/graph/Graph3/[5] Using `labels()` in return clauses	PASS	PASS
 tck/expressions/graph/Graph3/[6] `labels()` should accept type Any	SKIP	SKIP
 tck/expressions/graph/Graph3/[7] `labels()` on null node	REFUSED	REFUSED
 tck/expressions/graph/Graph3/[8] `labels()` failing on a path	SKIP	SKIP
@@ -1586,7 +1586,7 @@ tck/expressions/graph/Graph8/[5] Using `keys()` on a relationship, non-empty res
 tck/expressions/graph/Graph8/[6] Using `keys()` on a relationship, empty result	REFUSED	REFUSED
 tck/expressions/graph/Graph8/[7] Using `keys()` on an optionally matched relationship	REFUSED	REFUSED
 tck/expressions/graph/Graph8/[8] Using `keys()` and `IN` to check property existence	REFUSED	REFUSED
-tck/expressions/graph/Graph9/[1] `properties()` on a node	REFUSED	REFUSED
+tck/expressions/graph/Graph9/[1] `properties()` on a node	PASS	PASS
 tck/expressions/graph/Graph9/[2] `properties()` on a relationship	REFUSED	REFUSED
 tck/expressions/graph/Graph9/[3] `properties()` on null	REFUSED	REFUSED
 tck/expressions/graph/Graph9/[4] `properties()` on a map	REFUSED	REFUSED
@@ -1596,7 +1596,7 @@ tck/expressions/graph/Graph9/[7] `properties()` failing on a list of booleans	BO
 tck/expressions/list/List1/[1] Indexing into literal list	PASS	PASS
 tck/expressions/list/List1/[2] Indexing into nested literal lists	PASS	PASS
 tck/expressions/list/List1/[3] Use list lookup based on parameters when there is no type information	REFUSED	REFUSED
-tck/expressions/list/List1/[4] Use list lookup based on parameters when there is lhs type information	REFUSED	REFUSED
+tck/expressions/list/List1/[4] Use list lookup based on parameters when there is lhs type information	PASS	PASS
 tck/expressions/list/List1/[5] Use list lookup based on parameters when there is rhs type information	REFUSED	REFUSED
 tck/expressions/list/List1/[6] Fail when indexing a non-list #Example: <exampleName> #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List1/[6] Fail when indexing a non-list #Example: <exampleName> #2	BOTH_ERROR	BOTH_ERROR
@@ -1703,8 +1703,8 @@ tck/expressions/list/List2/[9] List slice with null range #2	PASS	PASS
 tck/expressions/list/List2/[9] List slice with null range #3	PASS	PASS
 tck/expressions/list/List2/[9] List slice with null range #4	PASS	PASS
 tck/expressions/list/List2/[9] List slice with null range #5	PASS	PASS
-tck/expressions/list/List2/[10] List slice with parameterised range	REFUSED	REFUSED
-tck/expressions/list/List2/[11] List slice with parameterised invalid range	REFUSED	REFUSED
+tck/expressions/list/List2/[10] List slice with parameterised range	PASS	PASS
+tck/expressions/list/List2/[11] List slice with parameterised invalid range	PASS	PASS
 tck/expressions/list/List3/[1] Equality between list and literal should return false	PASS	PASS
 tck/expressions/list/List3/[2] Equality of lists of different length should return false despite nulls	PASS	PASS
 tck/expressions/list/List3/[3] Equality between different lists with null should return false	PASS	PASS
@@ -1943,7 +1943,7 @@ tck/expressions/map/Map2/[6] Fail at runtime when attempting to index with an In
 tck/expressions/map/Map2/[7] Fail at runtime when trying to index into a map with a non-string	BOTH_ERROR	BOTH_ERROR
 tck/expressions/map/Map2/[8] Fail at runtime when trying to index something which is not a map	BOTH_ERROR	BOTH_ERROR
 tck/expressions/map/Map3/[1] Using `keys()` on a literal map	PASS	PASS
-tck/expressions/map/Map3/[2] Using `keys()` on a parameter map	REFUSED	REFUSED
+tck/expressions/map/Map3/[2] Using `keys()` on a parameter map	PASS	PASS
 tck/expressions/map/Map3/[3] Using `keys()` on null map	PASS	PASS
 tck/expressions/map/Map3/[4] Using `keys()` on map with null values #1	PASS	PASS
 tck/expressions/map/Map3/[4] Using `keys()` on map with null values #2	PASS	PASS
@@ -1996,13 +1996,13 @@ tck/expressions/null/Null2/[6] IS NOT NULL is case insensitive	PASS	PASS
 tck/expressions/null/Null3/[1] The inverse of a null is a null	PASS	PASS
 tck/expressions/null/Null3/[2] It is unknown - i.e. null - if a null is equal to a null	PASS	PASS
 tck/expressions/null/Null3/[3] It is unknown - i.e. null - if a null is not equal to a null	PASS	PASS
-tck/expressions/null/Null3/[4] Using null in IN #1	REFUSED	REFUSED
-tck/expressions/null/Null3/[4] Using null in IN #2	REFUSED	REFUSED
-tck/expressions/null/Null3/[4] Using null in IN #3	REFUSED	REFUSED
-tck/expressions/null/Null3/[4] Using null in IN #4	REFUSED	REFUSED
-tck/expressions/null/Null3/[4] Using null in IN #5	REFUSED	REFUSED
-tck/expressions/null/Null3/[4] Using null in IN #6	REFUSED	REFUSED
-tck/expressions/null/Null3/[4] Using null in IN #7	REFUSED	REFUSED
+tck/expressions/null/Null3/[4] Using null in IN #1	PASS	PASS
+tck/expressions/null/Null3/[4] Using null in IN #2	PASS	PASS
+tck/expressions/null/Null3/[4] Using null in IN #3	PASS	PASS
+tck/expressions/null/Null3/[4] Using null in IN #4	PASS	PASS
+tck/expressions/null/Null3/[4] Using null in IN #5	PASS	PASS
+tck/expressions/null/Null3/[4] Using null in IN #6	PASS	PASS
+tck/expressions/null/Null3/[4] Using null in IN #7	PASS	PASS
 tck/expressions/path/Path1/[1] `nodes()` on null path	REFUSED	REFUSED
 tck/expressions/path/Path2/[1] Return relationships by fetching them from the path	SKIP	SKIP
 tck/expressions/path/Path2/[2] Return relationships by fetching them from the path - starting from the end	SKIP	SKIP
@@ -3819,7 +3819,7 @@ tck/expressions/typeConversion/TypeConversion2/[2] `toInteger()` returning null 
 tck/expressions/typeConversion/TypeConversion2/[3] `toInteger()` handling mixed number types	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[4] `toInteger()` handling Any type	REFUSED	REFUSED
 tck/expressions/typeConversion/TypeConversion2/[5] `toInteger()` on a list of strings	REFUSED	REFUSED
-tck/expressions/typeConversion/TypeConversion2/[6] `toInteger()` on a complex-typed expression	REFUSED	REFUSED
+tck/expressions/typeConversion/TypeConversion2/[6] `toInteger()` on a complex-typed expression	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[7] `toInteger()` on node property	REFUSED	REFUSED
 tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid types #Example: <exampleName> #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid types #Example: <exampleName> #2	BOTH_ERROR	BOTH_ERROR
@@ -3947,6 +3947,14 @@ lite/nodes/distinct_over_nodes_refused_by_name	REFUSED	REFUSED
 lite/nodes/order_by_a_node_refused_by_name	REFUSED	REFUSED
 lite/nodes/node_as_a_grouping_key_refused_by_name	REFUSED	REFUSED
 lite/nodes/relationship_as_a_value_refused_by_name	REFUSED	REFUSED
+lite/params/list_lookup_by_parameters	REFUSED	REFUSED
+lite/params/skip_and_limit_by_parameter	PASS	PASS
+lite/params/in_with_null_parameters	PASS	PASS
+lite/params/string_parameter_in_where	PASS	PASS
+lite/params/map_parameter_member	PASS	PASS
+lite/params/labels_of_a_node	PASS	PASS
+lite/params/properties_of_a_node	PASS	PASS
+lite/params/properties_of_a_carried_node	PASS	PASS
 lite/temporal/date_from_components	PASS	PASS
 lite/temporal/date_from_text	PASS	PASS
 lite/temporal/localdatetime_from_components	PASS	PASS
