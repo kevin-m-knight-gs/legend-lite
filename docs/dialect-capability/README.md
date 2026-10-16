@@ -36,8 +36,8 @@ input).
 
 | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
 |---|---|---:|---:|---:|---:|---:|
-| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 86 | 67 | 48 | 15 | 22 |
-| H2Modern ([functions](functions.md#h2modern), [aggregates](aggregates.md#h2modern)) | no database type's own (it extends `H2`) | 85 | 69 | 47 | 15 | — |
+| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 83 | 70 | 48 | 15 | 22 |
+| H2Modern ([functions](functions.md#h2modern), [aggregates](aggregates.md#h2modern)) | no database type's own (it extends `H2`) | 82 | 72 | 47 | 15 | — |
 | Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 74 | 120 | 7 | 15 | 28 |
 | Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 94 | 103 | 4 | 15 | 31 |
 | Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 83 | 115 | 3 | 15 | 31 |
@@ -162,9 +162,9 @@ input).
 | `GUID` | E | E | E | S | E | S | S | E | E | E | E | E | E | E | E |
 | `FORMAT` | E | E | E | E | S | E | S | S | E | E | E | E | S | S | S |
 | `HASH` | R | R | E | E | E | E | E | E | E | R | E | E | R | R | R |
-| `MD5` | S | S | S | S | E | E | S | S | E | R | S | S | E | E | E |
-| `SHA1` | S | S | R | S | E | E | S | S | E | R | S | S | E | E | E |
-| `SHA256` | S | S | E | E | E | E | E | S | E | R | E | E | E | E | E |
+| `MD5` | E | E | S | S | E | E | S | S | E | R | S | S | E | E | E |
+| `SHA1` | E | E | R | S | E | E | S | S | E | R | S | S | E | E | E |
+| `SHA256` | E | E | E | E | E | E | E | S | E | R | E | E | E | E | E |
 | `EXTRACT` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `TODAY` | S· | S | S· | S· | S· | S· | S· | S· | R | E· | S· | S· | E | E | E |
 | `NOW` | S· | S | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | S | S | S |

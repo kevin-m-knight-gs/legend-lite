@@ -9905,3 +9905,9 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
 - **The browser planner compiles again** (`//wasm:planner`, which no local core target builds): the catalog grid's
   type codes had used `Collections.unmodifiableSequencedMap`, which TeaVM's class library lacks; they are a
   read-only copy of an ordered map now.
+- **The local gate's generated files** (`//gates:local`, 2026-10-16): the capability matrix regenerated (H2's and
+  H2Modern's `MD5`, `SHA1`, `SHA256` move from spelled to emulated, the digest arms above); parser-equivalence's
+  `own_corpus.matched` 2847 → 2851, from the inline models in this branch's new and changed tests, the only
+  snippet sources it touches (`CatalogGridTest`, `DigestTest`, `SchemaDdlTextTest`, `TranslateTest`,
+  `ReservedNamesGenerationTest`, and `ReservedNames` split into its store and its connection): four more snippets on
+  which lite's parse and the engine's agree; `tools/deps/core-layers.txt` gains testdatagen → sql.

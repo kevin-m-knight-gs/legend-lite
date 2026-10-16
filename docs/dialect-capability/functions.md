@@ -133,9 +133,9 @@ Database types planned with it: H2.
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
 | `FORMAT` | emulated | `formatArm` |  | 42 |
 | `HASH` | refused | `signed 64-bit hashCode reached a dialect without a spelling` | `via AnsiSqlRenderer.hashSigned` | 5 |
-| `MD5` | spelled | `md5` |  | 1 |
-| `SHA1` | spelled | `sha1` |  | 1 |
-| `SHA256` | spelled | `sha256` |  | 1 |
+| `MD5` | emulated | `digest: MD5` |  | 1 |
+| `SHA1` | emulated | `digest: SHA-1` |  | 1 |
+| `SHA256` | emulated | `digest: SHA-256` |  | 1 |
 | `EXTRACT` | emulated | `datePart, part: extract(… FROM …)` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | spelled | `now` |  | 0 |
@@ -316,9 +316,9 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as H2` | — |
 | `FORMAT` | emulated | `formatArm` | `as H2` | — |
 | `HASH` | refused | `signed 64-bit hashCode reached a dialect without a spelling` | `as H2, via AnsiSqlRenderer.hashSigned` | — |
-| `MD5` | spelled | `md5` | `as H2` | — |
-| `SHA1` | spelled | `sha1` | `as H2` | — |
-| `SHA256` | spelled | `sha256` | `as H2` | — |
+| `MD5` | emulated | `digest: MD5` | `as H2` | — |
+| `SHA1` | emulated | `digest: SHA-1` | `as H2` | — |
+| `SHA256` | emulated | `digest: SHA-256` | `as H2` | — |
 | `EXTRACT` | emulated | `datePart, part: extract(… FROM …)` | `as H2` | — |
 | `TODAY` | spelled | `current_date` | `as H2` | — |
 | `NOW` | spelled | `now` | `as H2` | — |

@@ -108,9 +108,9 @@ H2	H2	call	LEVENSHTEIN	spelled	levenshtein		2
 H2	H2	call	GUID	emulated	CAST(uuid() AS VARCHAR)		2
 H2	H2	call	FORMAT	emulated	formatArm		42
 H2	H2	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	via AnsiSqlRenderer.hashSigned	5
-H2	H2	call	MD5	spelled	md5		1
-H2	H2	call	SHA1	spelled	sha1		1
-H2	H2	call	SHA256	spelled	sha256		1
+H2	H2	call	MD5	emulated	digest: MD5		1
+H2	H2	call	SHA1	emulated	digest: SHA-1		1
+H2	H2	call	SHA256	emulated	digest: SHA-256		1
 H2	H2	call	EXTRACT	emulated	datePart, part: extract(… FROM …)		24
 H2	H2	call	TODAY	spelled	current_date		0
 H2	H2	call	NOW	spelled	now		0
@@ -324,9 +324,9 @@ H2Modern	-	call	LEVENSHTEIN	spelled	levenshtein	as H2	-
 H2Modern	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)	as H2	-
 H2Modern	-	call	FORMAT	emulated	formatArm	as H2	-
 H2Modern	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	as H2, via AnsiSqlRenderer.hashSigned	-
-H2Modern	-	call	MD5	spelled	md5	as H2	-
-H2Modern	-	call	SHA1	spelled	sha1	as H2	-
-H2Modern	-	call	SHA256	spelled	sha256	as H2	-
+H2Modern	-	call	MD5	emulated	digest: MD5	as H2	-
+H2Modern	-	call	SHA1	emulated	digest: SHA-1	as H2	-
+H2Modern	-	call	SHA256	emulated	digest: SHA-256	as H2	-
 H2Modern	-	call	EXTRACT	emulated	datePart, part: extract(… FROM …)	as H2	-
 H2Modern	-	call	TODAY	spelled	current_date	as H2	-
 H2Modern	-	call	NOW	spelled	now	as H2	-
