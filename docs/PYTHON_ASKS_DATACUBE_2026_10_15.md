@@ -90,7 +90,10 @@ What is left, and why:
     Python helper, `_json.protocol` (a request's JSON written byte for byte as `toJson` writes it), goes with it.
   - `warehouse.py` ↔ `warehouse.ts`: held by the SQL API corpus; the DataCube + Python line's plan for SQL handling.
   - `frames._NAME` is Pure's own identifier rule, which Python needs as the writer of its frames' model: no copy of
-    DataCube's. Its one inconsistency is fixed (a file's table name read lowercased, so `True` was refused).
+    DataCube's. Its one inconsistency is fixed (a file's table name read lowercased, so `True` was refused). It is a
+    copy of the compiler's `ModelChanges.isIdentifier`, kept and named so (the user, 2026-10-16: moving the check into
+    the model writer, `Boundary.tableModel`, was weighed and not taken). DataCube holds a third copy for its naming
+    dialogs (`model-names.ts isPureName`): a follow-up, not in PR neema2/legend-lite#47, could have them ask the worker.
   - `_next` ids (page.py) are no copy of `cube-page.ts`'s: Python never reuses an id a handle once had.
 - **The vocabulary test's pins, each retired with the copy it held equal** (`datacube/test/python-vocabulary.test.ts`,
   deleted 2026-10-16; never loosened):

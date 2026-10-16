@@ -47,9 +47,11 @@ from ._types import UnknownType, is_integer
 LIVE = 'live'
 SNAPPED = 'snapped'
 
-# a frame's name is its DuckDB table and its Legend package: one plain identifier
+# a frame's name is its DuckDB table and its Legend package (its model's `name::DB`): a name Pure holds unquoted. A copy
+# of the compiler's rule, ModelChanges.isIdentifier (its regex and LITERAL_WORDS), kept here so a name is refused before
+# anything is made under it (the user's ruling, 2026-10-16: a copy, named, over moving the check into the model writer)
 _NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\Z')
-# the plain identifiers Pure reads as literals, so no package can be named by them
+# the plain identifiers Pure reads as literals, so no package can be named by them (ModelChanges.LITERAL_WORDS)
 _LITERALS = ('true', 'false')
 # the names Frames gives what it registers for a Live frame (its Arrow source): never a page's file's table's
 _OWN = '__legend_lite_'
