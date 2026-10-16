@@ -24,8 +24,9 @@
 //   a query read by Python's native library and opened as a grid planned over its project's mapping, its rows the
 //   project's own Data rows in that project's database inside Python's DuckDB.
 //
-// What Python does not answer yet is a service it does not give, and the app does not offer what reads it (§3.4): the
-// other planes (2c). A share link needs an address others can open; Python's is this machine's loopback.
+// What Python does not answer is a service it does not give, and the app does not offer what reads it (§3.4): another
+// plane (a host plans in process: Python's own planner is its one plane, the program's §1.1). A share link needs an
+// address others can open; Python's is this machine's loopback.
 
 import { arrowIpcAnswer } from '../../../engine-client/src/arrow-ipc.ts';
 import { toRawTable } from '../../../engine-client/src/duckdb.ts';
@@ -35,7 +36,7 @@ import { hostOf, type Receipt } from '../../../engine-client/src/receipt.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { LitePlanner } from '../lite-planner.ts';
-import { readServerPlan, UpstreamPlanner, type ModelOptions } from '../planner.ts';
+import { type ModelOptions } from '../planner.ts';
 import type { PlannerWorker, Request, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { ExactNumber, fromJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { base64 } from '../headless/web.ts';
@@ -73,7 +74,7 @@ export interface PythonPlane {
 }
 
 /** What Python's host offers beside its frames (`services.json`): whether it reads a page's file, the plane it plans on
- *  (chosen once, in Python: R3), and every plane it offers (that one: a page on Python chooses none of its own). */
+ *  (its own, in process: a host plans in process, the program's §1.1), and every plane it offers (that one). */
 export interface PythonOffers {
   readonly files: boolean;
   /** Whether it reads a page's remote file (the httpfs extension it carries). */
@@ -111,33 +112,37 @@ export interface PythonServicesOptions {
   readonly browser: BrowserService;
 }
 
-const WORDS: readonly PlaneWord[] = ['local', 'remote', 'engine'];
+// the one plane a Python host plans on: its own compiler, in process (a remote engine is a client feature over the remote
+// side's own models and data, never a mode of the host: the user, 2026-10-15)
+const WORDS: readonly PlaneWord[] = ['local'];
 
-/** A plane Python said, read: its word one of the three every host says (§4.1), or refused. */
+/** A plane Python said, read: its own, in process, or refused. */
 function planeOf(said: unknown): PythonPlane {
   const p = said as { word?: unknown; label?: unknown } | null;
-  if (p === null || typeof p !== 'object' || !WORDS.includes(p.word as PlaneWord) || typeof p.label !== 'string') {
+  if (p === null || typeof p !== 'object' || typeof p.word !== 'string' || typeof p.label !== 'string') {
     throw new Error(`the engine named a plane this page does not know: ${JSON.stringify(said)}`);
+  }
+  if (!WORDS.includes(p.word as PlaneWord)) {
+    throw new Error(`a Python host plans on its own planner, in process: it named ${JSON.stringify(p.word)}`);
   }
   return { word: p.word as PlaneWord, label: p.label };
 }
 
 /**
- * WHERE THE PAGE PLANS, as Python says (§4.1, R3): the plane Python plans on, chosen once in Python, and the planes it
- * offers, which the planner menu lists (the one the page is on disabled). A plane is chosen in Python, before its first
- * cube is shown (`ll.show(..., planner=..., server=...)`), so a page asks for none: Python offers only the one it plans on.
+ * WHERE THE PAGE PLANS, as Python says (§4.1, R3's "shown"): the plane Python plans on -- its own compiler, in process,
+ * the one plane a Python host has -- and the planes it offers, that one, so a page asks for none.
  */
 function pythonPlanes(offers: PythonOffers): PlaneService {
-  // a plane offered here would be one the page could choose, which it cannot yet: refused, never a menu entry that
-  // asks to reload and then fails
+  // a plane offered here would be one the page could choose, which a Python host has none of: refused, never a menu
+  // entry that asks to reload and then fails
   const other = offers.planes.find((p) => p.word !== offers.plane.word);
-  if (other) throw new Error(`the engine offers ${other.label}, and a page on Python chooses no plane: Python chooses it`);
+  if (other) throw new Error(`the engine offers ${other.label}, and a page on Python plans on Python's own planner only`);
   const asPlane = (p: PythonPlane): Plane => ({ id: `host.plane.${p.word}`, word: p.word, label: p.label });
   return {
     word: offers.plane.word,
     planes: offers.planes.map(asPlane),
     choose: (plane) => {
-      throw new Error(`${plane.label}: Python plans on ${offers.plane.word}, chosen in Python, not on this page`);
+      throw new Error(`${plane.label}: a page on Python plans on Python's own planner, in process`);
     },
   };
 }
@@ -222,9 +227,8 @@ function pythonWorker(link: PythonLink): PlannerWorker {
  * metadata; the page reads the plan as its planner reads its own, and the rows typed by it as the tab's executor types
  * the tab's (engine.ts typedByPlan, §15.3a).
  */
-export function pythonRunner(link: PythonLink, model: string, runtime: string, plane: PlaneWord = 'local',
-  how: ModelOptions = {}): PlanAndRun {
-  const { planner, request, read } = planning(link, model, runtime, plane, how);
+export function pythonRunner(link: PythonLink, model: string, runtime: string, how: ModelOptions = {}): PlanAndRun {
+  const { planner, request, read } = planning(link, model, runtime, how);
   const readPlan = (answer: string, query: Lambda): Plan => {
     try {
       return read(answer, query);
@@ -289,37 +293,22 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, p
 }
 
 /**
- * HOW A PAGE ON PYTHON PLANS, by the plane Python plans on (chosen in Python, R3): the planner the page asks for a
- * query's types, a parse and a print, the plan request Python's plan-and-run takes, and the reading of the plan it
- * answers with the rows. On the local plane, Python's own planner, over its planner protocol, read as the tab reads its
- * module's. On a server's (legend-lite's, legend-engine's: the program's G1), the tab's planner on a server, but at
- * Python's address -- Python sends each call on to the server, plans there, and runs the SQL itself, so the page sends
- * Pure to Python alone (R4) -- its plan read as the tab reads a server's (planner.ts `readServerPlan`).
+ * HOW A PAGE ON PYTHON PLANS: Python's own planner, over its planner protocol (the tab's planner over Python's worker,
+ * read as the tab reads its module's) for a query's types, a parse and a print; the plan request Python's plan-and-run
+ * takes; and the reading of the plan it answers with the rows. Over a mapping (a saved query's project, C5), the query
+ * is planned as `->from(mapping, runtime)`, as Query sends it.
  */
-function planning(link: PythonLink, model: string, runtime: string, plane: PlaneWord, how: ModelOptions): {
-  readonly planner: LitePlanner | UpstreamPlanner;
+function planning(link: PythonLink, model: string, runtime: string, how: ModelOptions): {
+  readonly planner: LitePlanner;
   readonly request: (query: Lambda) => { readonly lambda: string; readonly model: string; readonly runtime: string };
   readonly read: (answer: string, query: Lambda) => Plan;
 } {
-  if (plane === 'local') {
-    // over a mapping (a saved query's project, C5), the query is planned as `->from(mapping, runtime)`, as Query sends it
-    const planner = new LitePlanner({
-      model, runtime, worker: () => pythonWorker(link),
-      ...(how.mapping === undefined ? {} : { mapping: how.mapping }),
-      ...(how.enumerations === undefined ? {} : { enumerations: how.enumerations }),
-    });
-    return { planner, request: (query) => planner.planRequest(query), read: (answer, query) => planner.readPlan(answer, query) };
-  }
-  const planner = new UpstreamPlanner({
-    baseUrl: link.baseUrl, model, runtime, fetch: link.fetch, ...(link.authorization ? { authorization: link.authorization } : {}),
+  const planner = new LitePlanner({
+    model, runtime, worker: () => pythonWorker(link),
+    ...(how.mapping === undefined ? {} : { mapping: how.mapping }),
+    ...(how.enumerations === undefined ? {} : { enumerations: how.enumerations }),
   });
-  planner.useModel(model, runtime, how);
-  const bits = new Set(how.bitColumns ?? []);
-  return {
-    planner,
-    request: (query) => ({ lambda: toJson(query), model, runtime }),
-    read: (answer, query) => readServerPlan(answer, query, bits),
-  };
+  return { planner, request: (query) => planner.planRequest(query), read: (answer, query) => planner.readPlan(answer, query) };
 }
 
 /** A frame as Python says it is now (`cube.json`): the model Python wrote for it, and its version. */
@@ -566,13 +555,10 @@ export function pythonServices(o: PythonServicesOptions): Services {
       // reading of legend-engine's types (relation-type.ts, S23), not of legend-lite's, which Python plans with
       rows: (model, runtime, how) => {
         // a mapping is a project's (a saved query's, C5): Python plans over a model it wrote, or a project's model
-        // with Data rows in that project's own database (C5), and refuses any other; a server's planner takes none yet
-        if (how?.mapping !== undefined && o.offers.plane.word !== 'local') {
-          throw new Error(`a saved query opens on Python with Python's own planner: the ${o.offers.plane.word} planner takes no mapping from the page here`);
-        }
-        // PlanAndRun on Python (§15): planned against the model Python holds, by the planner Python chose (its own,
-        // or a server's), and run on its DuckDB, in one call
-        return { runner: pythonRunner(link, model, runtime, o.offers.plane.word, how ?? {}) };
+        // with Data rows in that project's own database (C5), and refuses any other.
+        // PlanAndRun on Python (§15): planned against the model Python holds, by Python's own planner, and run on its
+        // DuckDB, in one call
+        return { runner: pythonRunner(link, model, runtime, how ?? {}) };
       },
       database: pythonDatabase(link, o.offers),
       // the model actions: Python's native library writes, a project's facts planned and run in Python (PlanAndRun)

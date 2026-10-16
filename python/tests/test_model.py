@@ -315,28 +315,6 @@ class OnThePage(unittest.TestCase):
             'rows': [['FX', 1, str(2 ** 60), Decimal('1.5'), '12.30', '2024-01-01', '2024-01-01T09:30:00.12', True],
                      ['EQ', 2, 3, 2, '1.05', '2024-01-02', '2024-01-02T10:00:00', None]]})
 
-    def test_a_class_sample_is_planned_where_the_session_plans(self):
-        # the sample's query (headless gridClass) planned by the planner the session chose (R3: here a server's, made
-        # to count), never by another in its place; only its rows are DataCube's to write (classSample)
-        from legend_lite.engine import NativePlanner
-        planned = []
-
-        class Server(NativePlanner):
-            plane = 'remote'
-
-            def plan(self, query, held, runtime):
-                planned.append(query)
-                return super().plan(query, held, runtime)
-
-        grid = ll.Page('Planned').grid(pa.table({'desk': ['FX', 'EQ'], 'qty': [1, 2]}), name='planned')
-        frames = grid._headless()[1]
-        self.addCleanup(setattr, frames, 'planner', frames.planner)
-        frames.planner = Server()
-        cls, asked = grid._class()
-        self.assertEqual(len(planned), 1, planned)
-        self.assertEqual(cls['where']['samples'][asked['table']['table']],
-                         {'columns': ['desk', 'qty'], 'rows': [['FX', 1], ['EQ', 2]]})
-
     def test_the_project_made_is_named_as_asked(self):
         page = _page(self)
         page.grids[0].create_class('Trade', project='Desk book')

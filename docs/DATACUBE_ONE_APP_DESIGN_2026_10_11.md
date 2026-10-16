@@ -172,8 +172,9 @@ The planes are the same three words everywhere:
 - `engine`: legend-engine.
 
 The rule of 2026-09-30 holds on every host:
-- **chosen once**, when the app opens, in one place per host: the tab's `?planner=`, and Python's
-  `ll.show(page, planner=...)` or the session's setting;
+- **chosen once**, when the app opens, in one place per host: the tab's `?planner=` (a Python host has one plane, its
+  own: a host plans in process, the program's §1.1, the user's ruling of 2026-10-15; Python's `ll.show(page,
+  planner=...)` is removed);
 - **always shown**, in the status bar's readout;
 - **never substituted**: a planner that does not answer is said, and the page stops.
 
@@ -584,9 +585,9 @@ Python's in-process services.
      other change to the engine. Python's own calls in its process (a headless grid's view, `Frames.plan`) still plan
      with the native library: routing them through the same planner is 2c's too.
    - `services.json` names the plane Python plans on and the planes it offers (today its own), and the page builds its
-     planner menu and its status word from them: no plane is written into the page. Choosing another plane is Python's
-     (`ll.show(..., planner=...)`, when 2c is built); until then the page refuses an offer of a plane it could not
-     switch to, rather than list one whose entry would fail.
+     planner menu and its status word from them: no plane is written into the page. A Python host has one plane, its
+     own (2026-10-15: a host plans in process, the program's §1.1; the server planners 2c built are removed), and the
+     page refuses an offer of any other.
 
    **2d, as built (2026-10-12): Save and Open… on Python** (the user's choice of the two shapes: the page keeps the
    store's rules, Python keeps the records).

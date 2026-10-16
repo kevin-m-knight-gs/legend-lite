@@ -61,21 +61,11 @@ What is left, and why:
 
 - **Item 1's name rules** (a blank page name or tile title): wait on the user's answer -- Python to raise, or to keep
   the old name as the screen does.
-- **Item 8's rest** (`engine.py _warehouse_snap`'s preflight and receipt) and **item 9** (`upstream.py`: a server's
-  plans, interim by its own words; the `BIT`-as-`TinyInt` label below): left to the DataCube + Python line's plan for
-  SQL handling, which rewrites both.
-  One difference item 9 carries (item 4 left it there, 2026-10-15): a server's Database `BIT` column, which
-  legend-engine types `precisePrimitives::TinyInt`, reads as a Boolean on the page (`relation-type.ts`'s rule,
-  `docs/SEMANTICS_REGISTER.md` S23) but is labelled `TinyInt` -- an Integer by the lattice -- in Python's rows
-  (`frames.TYPE_KEY`, as `upstream.tds_columns` keeps the server's type). The rows are booleans either way; the label
-  is put right when the server's plan is read where the page reads it.
-- **Items 5's and 6's checks on a server's plane** (the audit of the PR, 2026-10-15): `gridCalculate` and `gridFilter`
-  compile on the headless planner, legend-lite's, whatever planner the session chose (PARK-30,
-  `docs/PARKED_WORK_LEDGER.md`). That plane is not new -- `calculate` typed its column by legend-lite's compiler before
-  too (`Table.relation_type`, which no session planner reaches) -- but the check now compiles and lowers the whole cube
-  where it typed one column, so on a session planned by a server a column legend-lite does not lower (StrictTime,
-  below) is refused where that server's own DataCube editor takes it. It goes with PARK-30: headless planning on the
-  session's plane.
+- **Item 8's rest** (`engine.py _warehouse_snap`'s preflight and receipt): left to the DataCube + Python line's plan for
+  SQL handling, which replaces both snap recipes, the tab's and Python's, with one plan both hosts run.
+- **Item 9 is gone, not done** (2026-10-15): `upstream.py`, the copy it named, was removed with the remote planner (the
+  user: a host plans in process, `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md` §1.1), and with it the `BIT`-as-`TinyInt`
+  label it left in Python's rows and the server-plane difference items 5 and 6 had (PARK-30, closed by the removal).
 - **Smaller, none checked mechanically:** `model.py` ↔ `model-changes/src` (five replayed cases), `warehouse.py` ↔
   `warehouse.ts` (the SQL API corpus), `_json.protocol` ↔ pure-protocol `toJson` (key order, float spelling),
   `frames._NAME` ↔ `model-names.ts isPureName`, `_next` ids ↔ `cube-page.ts`.

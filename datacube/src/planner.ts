@@ -137,11 +137,10 @@ export class UpstreamPlanner implements Planner {
 /**
  * A server's `generatePlan` answer as a Plan: its one SQL node's statement (`sqlNode`), and the plan's own
  * `tdsColumns`, the result's type as the compiler gave it. The one reading of a server's plan: the tab's planner on a
- * server reads it so, and so does a page on Python whose Python plans on a server and runs the SQL itself
- * (python-host.ts; Python reads it the same way, python/legend_lite/upstream.py, the two held alike by
- * test/fixtures/upstream-plans.json). INTERIM: core reads no legend-engine plan into its own ExecutionPlan yet; when it
- * does (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, phase 2) the tab reads a server's plan through the module and
- * this reader and Python's go, the fixture their cases.
+ * server reads it so (its cases: test/fixtures/upstream-plans.json). A Python host plans in process and reads no
+ * server's plan (the program's §1.1, 2026-10-15). INTERIM: core reads no legend-engine plan into its own ExecutionPlan
+ * yet; when it does (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, phase 2) the tab reads a server's plan through the
+ * module and this reader goes, the fixture its cases.
  */
 export function serverPlan(body: unknown, query: Lambda, bitColumns: ReadonlySet<string> = new Set(),
   database = 'DuckDB'): Plan {

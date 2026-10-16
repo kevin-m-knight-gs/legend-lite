@@ -20,11 +20,10 @@ load(
     "compatible_with",
     "platform_select",
 )
-load("//tools/runfiles:defs.bzl", "executable_of")
 
 # the compiler's bindings, and what reaches the native library beside them -- this user's legend-lite folder and its saved
-# pages and queries (_home.py), a model home (model.py), a server planning (upstream.py), the compiler's threads
-# (_pool.py): no package beyond Python's own (the compiler-only install, //python:wheel_test)
+# pages and queries (_home.py), a model home (model.py), the compiler's threads (_pool.py): no package beyond Python's
+# own (the compiler-only install, //python:wheel_test)
 py_library(
     name = "compiler",
     srcs = glob(
@@ -270,43 +269,6 @@ py_test(
         ":iceberg_table",
         ":legend_lite",
         "@pypi//pandas",
-        "@rules_python//python/runfiles",
-    ],
-)
-
-# legend-lite's server's launcher, exactly one file (server.exe on Windows), for upstream_test to start
-executable_of(
-    name = "legend_server",
-    testonly = True,
-    binary = "//core:server",
-)
-
-# A SERVER PLANNING FOR PYTHON'S PAGES (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md G1; legend_lite/upstream.py): the twin
-# of the tab's planner on a server, held to the cases the tab's is (//datacube's upstream-plans), then against a
-# legend-lite server it starts on a free port -- a page's grid planned there and run on Python's DuckDB answers as
-# Python's own planner does -- and where a session plans, chosen once.
-py_test(
-    name = "upstream_test",
-    size = "medium",
-    srcs = [
-        "tests/main.py",
-        "tests/test_upstream.py",
-    ],
-    args = ["test_upstream"],
-    data = [
-        ":legend_server",
-        "//core:server",
-        "//datacube:test/fixtures/upstream-plans.json",
-        "//native:compiler",
-    ],
-    env = _ENV | {
-        "LEGEND_LITE_SERVER": "$(rlocationpath :legend_server)",
-        "LEGEND_LITE_UPSTREAM_PLANS": "$(rlocationpath //datacube:test/fixtures/upstream-plans.json)",
-    },
-    main = "tests/main.py",
-    target_compatible_with = _PLATFORMS,
-    deps = [
-        ":legend_lite",
         "@rules_python//python/runfiles",
     ],
 )

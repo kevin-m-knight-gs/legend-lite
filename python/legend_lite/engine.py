@@ -42,7 +42,7 @@ import threading
 import traceback
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from types import MappingProxyType
-from typing import Any, NamedTuple, Protocol
+from typing import Any, NamedTuple
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlsplit
 
@@ -162,11 +162,9 @@ def _arrow_of(chunks: Iterable[bytes]) -> pa.Table:
     return pa.concat_tables(tables) if len(tables) > 1 else tables[0]
 
 
-def _on_planner_threads(planner: Any) -> Callable[..., Any]:
-    """Where a planner's calls run: Python's own on the compiler's threads; a server's is its HTTP, here."""
-    if planner.plane == 'local':
-        return lambda f, *a: _workers().submit(f, *a).result()
-    return lambda f, *a: f(*a)
+def _on_planner_threads() -> Callable[..., Any]:
+    """Where a planner's calls run: the compiler's threads (the native library's)."""
+    return lambda f, *a: _workers().submit(f, *a).result()
 
 
 def _arrow_rows(rows: pa.Table, planned: str, receipt: dict[str, Any] | None = None) -> Answer:
@@ -296,58 +294,13 @@ def _arrow_ipc(rows: pa.Table, metadata: dict[str, str]) -> bytes:
     return sink.getvalue().to_pybytes()
 
 
-class Planner(Protocol):
-    """WHERE THE ENGINE PLANS (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §4.1, R3): every call the PAGE makes that the
-    compiler answers -- the engine's pure/v1 API: a query's types, a parse, a print, and an execute's plan, whose SQL
-    Python then runs on its own DuckDB (R4) -- is answered by the one planner the engine was made with, chosen once and
-    shown on the page. Its ``plane`` is the word the page's status bar says (``local``, ``remote``, ``engine``) and its
-    ``label`` the menu's: Python's own (``NativePlanner``), or a server's (``upstream.RemotePlanner``: legend-lite's,
-    legend-engine's; the program's G1), chosen in Python (``ll.show(..., planner=...)``). A page's grids, and Python's
-    own ``Table.plan`` and ``execute``, are planned by it; a headless grid's view (legend_lite._headless) still plans
-    with the native library (PARK-30)."""
-
-    plane: str
-    label: str
-
-    def plan(self, query: str, held: compiler.HeldModel, runtime: str) -> str:
-        """A grid's query (its lambda's JSON) planned over the model held, through ``runtime``: this planner's answer as
-        it came, which the page reads as its planner on this plane reads it (``read`` reads it here)."""
-        ...
-
-    def read(self, answer: str) -> compiler.Plan:
-        """A ``plan`` answer as a Plan, its SQL and its columns; a refusal raised (``LegendError``), in its words."""
-        ...
-
-    def refused_plan(self, message: str) -> str:
-        """A plan refused before this planner was asked, in its own answer's shape (the page reads it as it reads the
-        planner's own refusals)."""
-        ...
-
-    def answer(self, path: str, query: str, body: str) -> compiler.Answer:
-        """A ``pure/v1`` call other than execute, answered as upstream answers it."""
-        ...
-
-    def execute_plan(self, body: str, models: list[str]) -> compiler.Answer:
-        """An ``ExecuteInput`` over one of ``models`` (the only models this host runs) planned: ``{"sql", "metadata"}``,
-        or a refusal to send as it is."""
-        ...
-
-    def execute_json_plan(self, body: str, models: list[str]) -> compiler.Answer:
-        """The same, for legend-engine's JSON answer: ``{"sql", "run", ...}`` (``compiler.execute_json_plan``), or a
-        refusal to send as it is."""
-        ...
-
-    def execute_json_answer(self, plan: str, wire: str) -> compiler.Answer:
-        """That plan's answer from the one value the database wrote running its ``run`` SQL."""
-        ...
-
-    def refusal(self, message: str) -> compiler.Answer:
-        """A failure said in this planner's own answer shape (legend-engine's)."""
-        ...
-
-
 class NativePlanner:
-    """The ``local`` plane on a Python host: legend-lite's compiler in this process, the native library."""
+    """WHERE THE ENGINE PLANS (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §4.1, R3): legend-lite's compiler in this
+    process, the native library -- the one plane a Python host has (a host plans in process: the program's §1.1, the
+    user's ruling of 2026-10-15; a remote engine is a client feature over the remote side's own models and data, never a
+    mode of the host). Every call the PAGE makes that the compiler answers -- the engine's pure/v1 API: a query's types,
+    a parse, a print, and an execute's plan, whose SQL Python then runs on its own DuckDB (R4) -- is answered here. Its
+    ``plane`` is the word the page's status bar says, and its ``label`` the plane's, as every host says its plane."""
 
     plane = 'local'
     label = 'Plan local (in Python: the native library)'
@@ -426,11 +379,11 @@ class Engine:
     messages."""
 
     def __init__(self, frames: Frames, site: str | Path | None = None,
-                 headless: Callable[[], Any] | None = None, planner: Planner | None = None,
+                 headless: Callable[[], Any] | None = None, planner: NativePlanner | None = None,
                  pages: str | Path | None = None) -> None:
         """``headless``: DataCube's own non-screen code over the frames' database (legend_lite._headless), made when
         first asked for -- what reads a page's file into it (file.json). Absent, the engine takes no file, and says so
-        (services.json). ``planner``: where every query is planned, chosen once (R3): Python's own when not given.
+        (services.json). ``planner``: the native library's planner (a test's own, to see each call it answers).
         ``pages``: the folder the page's Save and Open… keep pages in (step 2d, B6): this user's (``home()/pages``) when
         not given."""
         self.frames = frames
@@ -541,8 +494,8 @@ class Engine:
 
     def services(self) -> dict[str, Any]:
         """What this engine offers the page beside its frames (services.json, asked once as the page starts): whether
-        it reads a page's file, and where it plans -- the plane it plans on (chosen in Python, R3), and every plane it
-        offers: that one, since a page on Python chooses none of its own."""
+        it reads a page's file, and where it plans -- the plane it plans on (Python's own, in this process: R3's "shown",
+        as every host says its plane), and every plane it offers: that one, the only one a Python host has."""
         plane = {'word': self.planner.plane, 'label': self.planner.label}
         # where the page's saved pages are, and whose: the folder's one owner, this user (as the browser's store is
         # 'this browser''s)
@@ -973,7 +926,7 @@ class Engine:
                 # held by another grid already: this one holds the same copy, as it is
                 table.holders += 1
                 return Answer(200, 'application/json', json.dumps(table.frozen).encode('utf-8'))
-            on = _on_planner_threads(self.planner)
+            on = _on_planner_threads()
             planned = on(self.planner.plan, asked['pull'], table.held, table.runtime)
             try:
                 plan = on(self.planner.read, planned)
@@ -1068,7 +1021,7 @@ class Engine:
             return _planned({'plan': self.planner.refused_plan(
                 f'{table.schema}.{table.name} is read on its warehouse, through its own runtime, or snapped, through its '
                 'copy\'s')})
-        on = _on_planner_threads(self.planner)
+        on = _on_planner_threads()
         planned = on(self.planner.plan, asked['lambda'], table.held, asked['runtime'])
         try:
             plan = on(self.planner.read, planned)
@@ -1114,25 +1067,13 @@ class Engine:
             served = self.frames.model_for(asked['model']) is not None
         if not served:
             return self._project_plan_and_run(asked, refused)
-        local = self.planner.plane == 'local'
-        planned = None
-        if not local:
-            # a server's plan awaited holding no lock of the frames' (the audit of G1): the model checked first, and
-            # again before its SQL runs
-            with self.frames.serving() as models:
-                self._noted(models)
-                held = self.frames.model_for(asked['model'])
-            if held is None:
-                return _planned({'plan': refused})
-            planned = self.planner.plan(asked['lambda'], held, asked['runtime'])
         with self.frames.serving() as models:
             self._noted(models)
             held = self.frames.model_for(asked['model'])
             if held is None:
                 return _planned({'plan': refused})
-            if planned is None:
-                # by the planner chosen (R3): Python's own, over the model this process holds
-                planned = self.planner.plan(asked['lambda'], held, asked['runtime'])
+            # Python's own planner, over the model this process holds
+            planned = self.planner.plan(asked['lambda'], held, asked['runtime'])
             try:
                 plan = self.planner.read(planned)
             except LegendError:

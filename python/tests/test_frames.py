@@ -248,8 +248,8 @@ class TypedByPlan(unittest.TestCase):
             typed_by_plan(pa.table({'a': [1], 'b': [2]}), plan)
         self.assertIn("does not type the result column 'b'", str(e.exception))
 
-    def test_a_servers_precise_integer_is_an_integer(self):
-        # a server's plan names a column by legend-engine's precise primitive (upstream.tds_columns keeps it as given):
+    def test_a_precise_integer_is_an_integer(self):
+        # a column named by a precise primitive (the lattice knows them: _type_facts) is the plain primitive it refines:
         # an Int or a BigInt is an Integer by legend-lite's lattice (_types, generated), so an int64, and its name kept
         from legend_lite.frames import typed_by_plan
         plan = ll.Plan('SELECT a, b', (ll.Column('a', 'meta::pure::precisePrimitives::Int', {}),

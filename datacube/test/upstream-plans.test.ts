@@ -1,6 +1,6 @@
-// A SERVER PLANNING FOR A PAGE, held alike in both languages (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md G1): the tab's
-// planner on a server writes each request of test/fixtures/upstream-plans.json exactly, and reads each plan there as
-// its SQL and columns, as Python's twin does (python/legend_lite/upstream.py, python/tests/test_upstream.py).
+// A SERVER PLANNING FOR A PAGE (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md G1): the tab's planner on a server writes each
+// request of test/fixtures/upstream-plans.json exactly, and reads each plan there as its SQL and columns. (Python's
+// twin went with the remote planner on Python, 2026-10-15: a host plans in process, the program's §1.1.)
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -37,7 +37,7 @@ describe('a server planning for a page: the requests', () => {
       const { client, bodies } = caught(c.model, c.runtime);
       await client.generatePlan(readLambda(c.query));
       assert.equal(bodies.length, 1);
-      // the bytes Python's twin sends (python/tests/test_upstream.py holds it to the same text)
+      // the bytes the tab's planner on a server sends, exactly
       assert.equal(bodies[0], c.text);
     });
   }
@@ -56,8 +56,8 @@ describe('a server planning for a page: the plans', () => {
     it(`${c.name}: read as its SQL and its columns`, () => {
       const plan = serverPlan(c.answer, query, new Set(), c.database);
       assert.equal(plan.sql, c.sql);
-      // the page reads each type by legend-lite's lattice (relation-type.ts); Python keeps it as the server says it
-      // (PARK-31), and carries each column's SQL type (sqlTypes), which the tab's columns do not yet (G9)
+      // the page reads each type by legend-lite's lattice (relation-type.ts); the fixture carries each column's SQL
+      // type too (sqlTypes), which the tab's columns do not yet (G9)
       assert.deepEqual(plan.columns.map((col) => [col.name, col.type]), c.columns.map(([n, t]) => [n, pureType(t)]));
       assert.deepEqual(readServerPlan(toJson(c.answer), query, new Set(), c.database), plan);
     });

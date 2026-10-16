@@ -1,7 +1,7 @@
 {
  "_about": [
   "The shared cases of a server planning for a page (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md G1). The tab's planner on a",
-  "server (datacube/src/planner.ts, engine-client/src/pure-v1.ts) and Python's (python/legend_lite/upstream.py) each send",
+  "server (datacube/src/planner.ts, engine-client/src/pure-v1.ts) sends (Python's twin went, 2026-10-15: a host plans in process)",
   "every request below as its `text`, byte for byte (pure-protocol's toJson: `_type` first, then the keys in order; a",
   "decimal keeps its digits), refuse every `refused` query before sending anything, read every plan for its `database`",
   "(the type of its SQL's connection: Python and the tab run DuckDB) as its `sql`, `columns` and `sqlTypes` (the columns'",

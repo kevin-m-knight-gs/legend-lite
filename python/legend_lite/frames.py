@@ -41,7 +41,7 @@ require_datacube()
 import duckdb
 import pyarrow as pa
 
-from . import _host, _json, compiler
+from . import _host, compiler
 from ._types import UnknownType, is_integer
 
 LIVE = 'live'
@@ -231,36 +231,17 @@ class Table:
             self._refresh()
 
     def plan(self, query: str | dict[str, Any]) -> compiler.Plan:
-        """The plan for a query over this table (Pure text, a tree, or ``->...`` applied to it), by the planner the
-        frames plan with (``Frames.planner``: Python's own unless a server was chosen)."""
-        planner = self._frames.planner
-        if planner is not None:
-            return self._on_server(planner, query)
+        """The plan for a query over this table (Pure text, a tree, or ``->...`` applied to it), by Python's own
+        compiler, in this process."""
         with self._frames._lock:
             self._ready()
             return self._model().plan(self._tree(query), self.runtime)
 
     def execute(self, query: str | dict[str, Any]) -> pa.Table:
         """Runs a query over this table (as ``plan`` takes it) and answers as an Arrow table, typed by its plan."""
-        planner = self._frames.planner
-        if planner is not None:
-            plan = self._on_server(planner, query)
-            with self._frames._lock:
-                # read for this query already (_on_server): only still this table's
-                if self._closed:
-                    raise ValueError(f'the frame {self.name!r} was registered again or unregistered: use the new table')
-                return self._frames.run(plan)
         with self._frames._lock:
             self._ready()
             return self._frames.run(self._model().plan(self._tree(query), self.runtime))
-
-    def _on_server(self, planner: Any, query: str | dict[str, Any]) -> compiler.Plan:
-        """The planner chosen (R3) is a server's: it plans over this table's model, its answer awaited holding none of
-        the frames' locks (the audit of G1), and its SQL is run here."""
-        with self._frames._lock:
-            self._ready()
-            held, tree = self._model(), self._tree(query)
-        return planner.read(planner.plan(_json.dumps(tree), held, self.runtime))
 
 
 class Frames:
@@ -280,9 +261,6 @@ class Frames:
         for statement in compiler.session_setup('DuckDB'):
             self.connection.execute(statement)
         self._lock = threading.RLock()
-        # where Python's own queries over these frames (Table.plan, execute) are planned: the planner a session chose
-        # (engine.py's Planner: a server's, the program's G1), or None, Python's own in this process
-        self.planner: Any = None
         # how deep in ``serving`` the thread holding the lock is: inside, the frames are held still, each Live one read
         self._still = 0
         # DuckDB matches names without regard to case, quoted or not: so does this
