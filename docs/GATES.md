@@ -10697,3 +10697,15 @@ change is intended.
   - `bazel build //...` (`--jobs=2`): every target, the browser planner included, on 01cf198. At full parallelism one
     corpus judge action (`//spec:judge_database_h2`) was OOM-killed.
   - `bazel test //gates:local`, less the four targets the container cannot run: 369 of 369 on 01cf198.
+- **The measurement round, 59b547a (main) against 01cf198, every target with `dump-sql`:**
+  - Snowflake, Databricks and BigQuery (10 targets each): all pass on both commits. Digests, census lines and
+    channel B are byte-identical. Each session was accepted under its connector's product name ("Snowflake",
+    "SparkSQL", "Google BigQuery").
+  - DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres (60 lanes): all pass, and the 60 digests, the census
+    lines and the 25 channel B lines are identical. MariaDB's and MySQL's ten targets were diffed log for log, with
+    run times, heap figures, UUIDs and byte-array identity hashes normalized, and are line-for-line identical: every
+    raise read back through `MariaDbConnector` gives the same outcome as through `Sessions`.
+  - Found on the way, not this branch's: main's baseline moved between 0d0e5e1 (Phase 3's last measured commit) and
+    59b547a, in 8 of those 60 lanes. The moves are #48's (the Cypher island), and every test still passes:
+    - Postgres casts a string literal to VARCHAR before parsing it: ec902e07, "numbers from texts".
+    - DuckDB casts a struct's integer field to BIGINT under a BIGINT slot: 6852139b, the duration leg.
