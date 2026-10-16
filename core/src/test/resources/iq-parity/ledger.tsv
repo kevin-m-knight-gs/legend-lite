@@ -944,6 +944,12 @@ lite/iq_reals/reals_cast_back@iq17-default	PASS	PASS
 lite/iq_reals/reals_compared_as_doubles@iq17-default	PASS	PASS
 lite/iq_reals/a_real_in_a_union@iq17-default	PASS	PASS
 lite/iq_reals/counts_as_floats@iq17-default	PASS	PASS
+lite/iq_reals/round_of_doubles_by_iqs_steps@iq17-default	PASS	PASS
+lite/iq_reals/round_of_doubles_to_other_places@iq17-default	PASS	PASS
+lite/iq_reals/round_of_double_columns@iq17-default	PASS	PASS
+lite/iq_reals/round_of_reals@iq17-default	PASS	PASS
+lite/iq_reals/a_percentage_of_floats_rounded@iq17-default	PASS	PASS
+lite/iq_reals/two_clock_readings_under_iqs_engine@iq17-default	PASS	PASS
 lite/like_more/like_a_char_column_exactly@iq17-default	PASS	PASS
 lite/like_more/like_a_char_column_by_a_prefix@iq17-default	PASS	PASS
 lite/like_more/like_a_char_column_with_its_pad@iq17-default	PASS	PASS
@@ -3368,7 +3374,7 @@ lite/m1d/round_of_a_cast_constant_past_its_precision@iq16-default	PASS	PASS
 lite/m1d/round_of_a_cast_constant_past_its_precision@iq17-default	PASS	PASS
 lite/m1d/round_of_a_literal_has_a_digit_more@iq16-default	PASS	PASS
 lite/m1d/round_of_a_literal_has_a_digit_more@iq17-default	PASS	PASS
-lite/m1d/round_of_a_double_is_refused@sqla17-default	REFUSED	REFUSED
+lite/m1d/round_of_a_double_is_refused@sqla17-default	PASS	PASS
 lite/m1d/round_under_the_iq_engine@iq16-default	PASS	PASS
 lite/m1d/round_under_the_iq_engine@iq17-default	PASS	PASS
 lite/m1d/round_of_one_argument@iq16-default	BOTH_ERROR	BOTH_ERROR

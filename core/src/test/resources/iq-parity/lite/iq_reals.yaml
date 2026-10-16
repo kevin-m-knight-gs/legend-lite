@@ -38,3 +38,24 @@ tests:
   - id: counts_as_floats
     sql: "SELECT CAST(COUNT(*) AS FLOAT) / 3 AS a, CAST(COUNT(id) AS FLOAT) * 100 / COUNT(*) AS b, CAST(SUM(sm) AS REAL) / COUNT(sm) AS c FROM t"
     profile: iq17-default
+
+  # ROUND of a DOUBLE or a REAL: the sign times floor(|x| * 10^n + 0.5) / 10^n, every step a DOUBLE's
+  - id: round_of_doubles_by_iqs_steps
+    sql: "SELECT ROUND(CAST(2675 * id AS DOUBLE) / CAST(1000 AS DOUBLE), 2) AS a, ROUND(CAST(285 * id AS DOUBLE) / CAST(1000 AS DOUBLE), 2) AS b, ROUND(CAST(1005 * id AS DOUBLE) / CAST(1000 AS DOUBLE), 2) AS c, ROUND(CAST(-2675 * id AS DOUBLE) / CAST(1000 AS DOUBLE), 2) AS d, ROUND(CAST(17 * id AS DOUBLE) / CAST(8 AS DOUBLE), 2) AS e, ROUND(CAST(-5 * id AS DOUBLE) / CAST(2 AS DOUBLE), 0) AS f, ROUND(CAST(3 * id AS DOUBLE) / CAST(10 AS DOUBLE), 1) AS g FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: round_of_doubles_to_other_places
+    sql: "SELECT ROUND(CAST(15 * id AS DOUBLE), -1) AS a, ROUND(CAST(25 * id AS DOUBLE), -1) AS b, ROUND(CAST(98765 * id AS DOUBLE), -4) AS c, ROUND(CAST(1 * id AS DOUBLE) / CAST(3 AS DOUBLE), 23) AS d, ROUND(CAST(1 * id AS DOUBLE) / CAST(7 AS DOUBLE), 10) AS e, ROUND(CAST(1 * id AS DOUBLE) / CAST(3 AS DOUBLE), NULL) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: round_of_double_columns
+    sql: "SELECT id, ROUND(dbl, 2) AS a, ROUND(dbl, 0) AS b, ROUND(dbl, -1) AS c, ROUND(dbl * 100 / 3, 2) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: round_of_reals
+    sql: "SELECT ROUND(CAST(2.675 AS REAL), 2) AS a, ROUND(CAST(1.005 AS REAL), 2) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: a_percentage_of_floats_rounded
+    sql: "SELECT ROUND(CAST(COUNT(id) AS FLOAT) * 100 / COUNT(*), 2) AS a, ROUND(CAST(SUM(sm) AS DOUBLE) / COUNT(sm), 1) AS b FROM t"
+    profile: iq17-default
+  # under IQ's engine a statement reads one clock (D-T13 is SQL Anywhere's front end's)
+  - id: two_clock_readings_under_iqs_engine
+    sql: "SELECT COUNT(*) AS n, SUM(CASE WHEN GETDATE() = NOW() THEN 1 ELSE 0 END) AS a, SUM(CASE WHEN DATEDIFF(DAY, ts, GETDATE()) >= 0 AND GETDATE() >= CURRENT TIMESTAMP THEN 1 ELSE 0 END) AS b FROM t"
+    profile: iq17-default

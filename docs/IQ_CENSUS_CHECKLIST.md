@@ -82,8 +82,8 @@ its syntax error or an error it names), DB_ERROR or CRASH.
 
 | Suite | Answered before | Answered now | IQ's own error now |
 |---|---|---|---|
-| SEDE | 40.6% | 55.7% | 12.3% |
-| SQLStorm | 21.7% | 31.2% | 10.5% |
+| SEDE | 40.6% | 56.5% | 12.3% |
+| SQLStorm | 21.7% | 31.4% | 10.5% |
 | Public BI | 93.0% | 94.4% | 2.2% |
 | BIRD | 58.2% | 60.0% | 18.2% |
 
@@ -98,7 +98,9 @@ Measured on the live IQ 17.1 and built (parity cases: `lite/corpus_gaps.yaml`):
 - national strings (`N'...'`);
 - GROUP BY expressions that read no select-list alias;
 - REAL and FLOAT, IQ's single precision (`lite/iq_reals.yaml`), rounded by Veltkamp's split in double arithmetic: FLOAT and FLOAT(1..24) are REAL, FLOAT(25..53) DOUBLE; a value past the largest single is IQ's error, one below the smallest normal 0. Two REALs give a REAL in SQL Anywhere's front end, a DOUBLE (unrounded) under IQ's engine. A REAL with another number is a DOUBLE, in COALESCE, CASE and UNION too. SUM and AVG are DOUBLEs, MIN and MAX REALs;
-- an aggregate's DISTINCT over an expression, and one in a SELECT DISTINCT, under IQ's engine (the research's D-R1 held that IQ restricts them; IQ 17.1 reads them).
+- an aggregate's DISTINCT over an expression, and one in a SELECT DISTINCT, under IQ's engine (the research's D-R1 held that IQ restricts them; IQ 17.1 reads them);
+- ROUND of a DOUBLE or a REAL. IQ's steps are the sign times floor(|x| * 10^n + 0.5) / 10^n, each step a DOUBLE: ROUND(2.675e0, 2) is 2.68 and ROUND(1.005e0, 2) 1.0. This holds for its front end and SQL Anywhere 17 alike;
+- several clock readings in one statement under IQ's engine, which reads one clock. D-T13 is SQL Anywhere's front end's.
 
 Measured to be IQ's own errors, raised or named by the island:
 - `OFFSET ... FETCH`, `LIMIT`, `INTERVAL` and `FILTER` are -131;
@@ -112,7 +114,6 @@ Measured to be IQ's own errors, raised or named by the island:
   - CAST to NVARCHAR or NCHAR is -1001030.
 
 Open, ranked by the corpora:
-- ROUND of a DOUBLE: IQ rounds its decimal digits;
 - CAST to DECIMAL without a precision, IQ's NUMERIC(126,38) (70);
 - a subquery in a derived table's select list, which IQ's engine reads only where the outer query shows its column as it is (192);
 - LIKE's `[set]` classes, which IQ reads (32);

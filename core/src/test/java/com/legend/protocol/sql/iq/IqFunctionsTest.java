@@ -314,8 +314,11 @@ class IqFunctionsTest {
         // the IQ engine raises outside a function's domain (D-F9), SQL Anywhere's front end answers NULL
         assertTrue(pure("SELECT LN(d) AS l FROM " + T).contains("cast(@Float)->toOne()"));
         assertFalse(pure("SELECT LN(d) AS l FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("cast(@Float)->toOne()"));
-        assertTrue(refusal("SELECT ROUND(d, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).getMessage()
-                .contains("decimal digits"));
+        // IQ island, 2026-10-15 (the corpus lane, measured on IQ 17.1 and SQL Anywhere 17): ROUND of a DOUBLE is read,
+        // floor(|x| * 10^n + 0.5) / 10^n in double steps; TRUNCNUM of one is not yet
+        assertTrue(pure("SELECT ROUND(d, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("floor"));
+        assertTrue(refusal("SELECT TRUNCNUM(d, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).getMessage()
+                .contains("DOUBLE"));
         assertTrue(refusal("SELECT POWER(2, 3) AS p").getMessage().contains("Infinity"));
     }
 

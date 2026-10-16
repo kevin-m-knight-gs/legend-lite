@@ -1329,7 +1329,12 @@ public final class IqDialect implements InputDialect {
             }
         }
         nullFirstBranches(statement);
-        clocks(statement);
+        if (chosen != Engine.IQ) {
+            // IQ island, 2026-10-15 (the corpus lane: 159 queries; measured on IQ 17.1): under IQ's engine a statement
+            // reads one clock -- GETDATE(), NOW() and CURRENT TIMESTAMP equal, and two GETDATE()s, over 117,649 rows
+            // -- so D-T13 holds in SQL Anywhere's front end alone (there GETDATE() is 3 microseconds from NOW())
+            clocks(statement);
+        }
         IqAggregates.Naming groupedNames = IqAggregates.read(statement, chosen, spans);
         Set<SqlAst.Expr> valuesHere = statement instanceof SqlAst.Select s ? shownOnly(s)
                 : Collections.newSetFromMap(new IdentityHashMap<>());

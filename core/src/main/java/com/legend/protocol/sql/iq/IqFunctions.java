@@ -1878,9 +1878,11 @@ final class IqFunctions {
         if (x.kind() == Kind.NULL) {
             return Tx.value(SqlToPure.nullOf(Kind.FLOAT).vs(), Kind.FLOAT, true, new IqType("DOUBLE"));
         }
+        if (x.kind() == Kind.FLOAT && round) {
+            return doubleRound(f, x, places);
+        }
         if (x.kind() == Kind.FLOAT) {
-            throw SqlTranslationException.unsupported(name + " of a DOUBLE is not supported yet: SQL Anywhere rounds"
-                    + " its decimal digits (ROUND(2.675e0, 2) is 2.68), which needs a native", f.pos());
+            throw SqlTranslationException.unsupported(name + " of a DOUBLE is not supported yet", f.pos());
         }
         int p;
         int s;
@@ -1952,6 +1954,50 @@ final class IqFunctions {
             }
             return ifThen(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", r), new CDecimal(pow10(p - s))),
                     raise("Decimal"), r);
+        });
+    }
+
+    /**
+     * {@code ROUND(x, n)} of a DOUBLE or a REAL (IQ island, 2026-10-15; the corpus lane, measured on IQ 17.1, its engine
+     * and its front end alike): the sign of x times floor(|x| * 10^n + 0.5) / 10^n, every step a DOUBLE's -- for n < 0,
+     * floor(|x| / 10^-n + 0.5) * 10^-n -- so ROUND(2.675e0, 2) is 2.68 (267.49999999999997 + 0.5 rounds to 268.0) and
+     * ROUND(1.005e0, 2) 1.0 (100.49999999999999 + 0.5 does not reach 101), the final step a quotient (ROUND(0.3, 1)
+     * is 0.3, not 0.30000000000000004). Of n past 22 places x itself (measured: 23, 308); a magnitude of 2^52 or more
+     * is whole already. A DOUBLE's ROUND is a DOUBLE, a REAL's a REAL (the DOUBLE rounded to single precision). Refused
+     * by name: n below -22.
+     */
+    private Tx doubleRound(SqlAst.FunctionCall f, Tx x, @com.legend.base.Nullable BigInteger places) {
+        boolean single = real(x);
+        if (!single) {
+            doubleOnly(x, f.args().get(0), "ROUND");
+        }
+        IqType type = new IqType(single ? "REAL" : "DOUBLE");
+        if (places == null) {
+            return Tx.value(SqlToPure.nullOf(Kind.FLOAT).vs(), Kind.FLOAT, true, type);
+        }
+        if (places.compareTo(BigInteger.valueOf(22)) > 0) {
+            return Tx.value(x.vs(), Kind.FLOAT, x.nullable(), type);
+        }
+        if (places.compareTo(BigInteger.valueOf(-22)) < 0) {
+            throw SqlTranslationException.unsupported("ROUND of a DOUBLE to fewer than -22 places is not supported yet",
+                    f.args().get(1).pos());
+        }
+        int n = places.intValue();
+        CFloat scale = new CFloat(Math.pow(10, Math.abs(n)));
+        return strict(Kind.FLOAT, type, List.of(x), v -> {
+            ValueSpecification d = v.get(0);
+            ValueSpecification magnitude = SqlToPure.call("abs", d);
+            ValueSpecification scaled = n >= 0 ? AppliedFunction.infixRun("times", List.of(magnitude, scale))
+                    : SqlToPure.call("divide", magnitude, scale);
+            ValueSpecification half = AppliedFunction.infixRun("plus", List.of(scaled, new CFloat(0.5)));
+            ValueSpecification whole = ifThen(SqlToPure.call("greaterThanEqual", half, new CFloat(WHOLE)), half,
+                    SqlToPure.call("toFloat", SqlToPure.call("floor", half)));
+            ValueSpecification back = n >= 0 ? SqlToPure.call("divide", whole, scale)
+                    : AppliedFunction.infixRun("times", List.of(whole, scale));
+            ValueSpecification signed = ifThen(lt(d, new CFloat(0.0)), SqlToPure.call("minus", back), back);
+            ValueSpecification r = n >= 0 ? ifThen(SqlToPure.call("greaterThanEqual", magnitude, new CFloat(WHOLE)), d,
+                    signed) : signed;
+            return single ? single(r) : r;
         });
     }
 
