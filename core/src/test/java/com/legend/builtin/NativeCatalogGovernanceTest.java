@@ -94,6 +94,10 @@ class NativeCatalogGovernanceTest {
         // route of a several-route legacyNavigate (the target set's own
         // function, its rows, the join as written); the union stops
         // publishing keys once the emitter switches (step 2). 16 -> 17.
+        // +1 2026-10-16 (the SQL islands' inline views; docs/LITE_INVENTION_CENSUS.md): inlineView — a derived
+        // table or CTE whose own query computes windows, typed as its relation with each window a boundary
+        // (InlineViewChecker; ClassSources' extent rule) and erased: SQL computes such windows before the enclosing
+        // WHERE, which Pure's relation composition folds under them. 16 -> 17, within the ceiling.
         assertTrue(Pure.INTERNAL_DESUGAR.size() <= 17,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/

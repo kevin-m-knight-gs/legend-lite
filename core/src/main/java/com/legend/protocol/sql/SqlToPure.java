@@ -78,6 +78,14 @@ public final class SqlToPure {
          *  none unless the caller types in a scope. */
         default void variables(java.util.function.Consumer<String> names) {
         }
+
+        /** IQ island, 2026-10-16: {@code relation}, a derived table's or a common table expression's whose own query
+         *  computes window functions, as an inline view -- its windows computed over all of its rows, before the
+         *  enclosing query's WHERE, as SQL computes them (the compiler's marker, Pure.Lite.INLINE_VIEW; Pure's
+         *  relation composition would fold a later filter under them). Itself unless the caller compiles. */
+        default ValueSpecification inlineView(ValueSpecification relation) {
+            return relation;
+        }
     }
 
     /** IQ island, 2026-10-14 (M1e): a table of the model ({@link Sources#tables}): its Database's path, its schema's
@@ -1397,7 +1405,8 @@ public final class SqlToPure {
             }
             case SqlAst.SubqueryFrom q -> {
                 // not LATERAL: the subquery sees the WITH queries, never this query's other FROM items
-                Rel rel = new SqlToPure(sources, dialect, env.with(env.ctes())).statement(q.query());
+                Rel rel = inlineView(new SqlToPure(sources, dialect, env.with(env.ctes())).statement(q.query()),
+                        q.query());
                 yield bound(rel, q.alias(), q.columnAliases(), q.pos());
             }
             case SqlAst.Join j when lateral(j.right()) && j.using().isEmpty() && !j.natural() ->
@@ -1674,6 +1683,25 @@ public final class SqlToPure {
                     "JOIN/ON")));
         }
         return new Source(relation, bindings, star);
+    }
+
+    /**
+     * IQ island, 2026-10-16: {@code rel}, a derived table's or a common table expression's relation, as an inline view
+     * ({@link Sources#inlineView}) where its own query computes window functions -- a SELECT's select list, or a set
+     * operation's branch's: SQL computes them over all of the view's rows, before the enclosing query's WHERE. Pure
+     * composes an extend and a later filter otherwise (the filter folds under the window: legend-engine's PCT
+     * testExtendFilterOutNull).
+     */
+    private Rel inlineView(Rel rel, SqlAst.Statement query) {
+        return computesWindows(query) ? new Rel(sources.inlineView(rel.vs()), rel.columns()) : rel;
+    }
+
+    private static boolean computesWindows(SqlAst.Statement query) {
+        return switch (query) {
+            case SqlAst.Select s -> hasWindow(s);
+            case SqlAst.SetOperation o -> computesWindows(o.left()) || computesWindows(o.right());
+            case SqlAst.With w -> computesWindows(w.body());
+        };
     }
 
     /** True iff {@code item} may read the FROM items before it: a function (not the source function) or a LATERAL
@@ -2333,7 +2361,8 @@ public final class SqlToPure {
         Map<String, Rel> ctes = new LinkedHashMap<>(env.ctes());
         for (SqlAst.Cte cte : w.ctes()) {
             String name = cte.name().quoted() ? cte.name().text() : dialect.fold(cte.name().text());
-            Rel rel = new SqlToPure(sources, dialect, env.with(ctes)).statement(cte.query());
+            Rel rel = inlineView(new SqlToPure(sources, dialect, env.with(ctes)).statement(cte.query()),
+                    cte.query());
             if (!cte.columns().isEmpty()) {
                 rel = aliased(rel, cte.columns(), cte.name(), cte.pos());
             }

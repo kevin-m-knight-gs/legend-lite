@@ -170,10 +170,13 @@ Wrong answers found and fixed, each measured on the live IQ (parity cases: `lite
 - an ORDER BY name reads a select item only by its alias; otherwise it is a FROM column, an ambiguous one -144, DISTINCT
   too;
 - a computed date-and-time string cast to DATE did not check its time;
-- a WHERE over a windowed derived table or CTE that reads none of its window columns. Lite's lowering folds it into
+- a WHERE over a windowed derived table or CTE that reads none of its window columns. Lite's lowering folded it into
   the window's WHERE, as Pure composes an extend and a filter (`Fold.filterSlot`), so the window ranked the filtered
-  rows. Also, window functions over a WHERE that reads a derived window column. Both are refused by name until the
-  boundary below is decided (21 corpus queries).
+  rows. Also, window functions over a WHERE that reads a derived window column (21 corpus queries). Fixed 2026-10-16
+  in both SQL islands by inline views: `SqlToPure` marks a derived table or CTE whose own query computes windows
+  (`meta::legend::lite::inlineView`), and `InlineViewChecker` stamps each window inside as a boundary, so the lowerer
+  computes them in their own SELECT. The Postgres island had the same wrong answers: 4 Postgres-judged cases in
+  `sql-parity/lite/windows.yaml`, now PASS.
 
 Built, measured on the live IQ:
 - a time alone read on 1900-01-01 under IQ's engine;
@@ -194,7 +197,5 @@ first, a child keeping the rows that reach kept parents, then filled to 600 rows
 - 1 ERROR: FALSE, a keyword in IQ 17.1 (the listed true-keyword divergence).
 
 Decisions for the user:
-- a window boundary the SQL islands can mark. A derived table's windows would form a non-mergeable view, as ClassSources
-  stamps a class extent's (`TypedExtendWindow.extentBoundary`). That would answer the refused shapes above. The
-  Postgres island shares `SqlToPure` and very likely answers them wrongly today;
-- TOP's select list computed after the limit (above).
+- TOP's select list computed after the limit (above). (The window boundary was decided 2026-10-16, the user: built as
+  inline views, above.)

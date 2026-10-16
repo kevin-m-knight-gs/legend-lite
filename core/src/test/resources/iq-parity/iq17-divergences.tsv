@@ -24,7 +24,6 @@ cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Any
 cause	true-keyword	TRUE is a keyword in IQ 17.1, a name in SQL Anywhere 17 (WP2 item 10)
 cause	having-alias	a GROUP BY expression read by its alias in HAVING is IQ's -149 under its engine
 cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING; (IQ island, 2026-10-16) a filter of the null-supplying side of a LEFT JOIN inside a windowed derived table, or an outer join's condition on it, applied below its window functions (a RANK or a COUNT(*) OVER () of the filtered rows)
-cause	pg-distinct-qualify	a DISTINCT over a WHERE that reads a derived table's window column: computed after the window (QUALIFY), which the Postgres dialect cannot render under DISTINCT (a hidden column would change what is distinct); the DuckDB lane answers
 cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, which the island answers; Postgres raises its own float8 overflow before the island's test can read the infinity
 
 # IQ island, landing 4 (WP1), 2026-10-14: the first snap of the iq17-* runs from the live IQ (161 runs)
@@ -79,9 +78,6 @@ run	lite/windows/window_of_an_alias@iq17-default	D-N3	duckdb,postgres
 # IQ island, 2026-10-15 (landing 4: the census's scale suite, DOUBLE arithmetic linear in size): IQ's engine answers a
 # DOUBLE overflow NULL (measured on IQ 17.1), which the DuckDB lane now answers; Postgres raises on float8 overflow.
 run	lite/m1a/double_overflow@iq17-default	pg-double-overflow	postgres
-# IQ island, 2026-10-16 (the corpus lane's windowed derived tables, measured on IQ 17.1): a DISTINCT over a WHERE that
-# reads a derived table's window column, which the Postgres dialect cannot render (QUALIFY under DISTINCT).
-run	lite/corpus_gaps/a_distinct_of_a_filter_of_a_derived_tables_rank@iq17-default	pg-distinct-qualify	postgres
 # IQ island, 2026-10-16 (the corpus lane's sqlstorm-2642, measured on IQ 17.1): IQ applies a WHERE over a windowed
 # derived table's LEFT JOIN, on its null-supplying side, below the window (RANK 2 and 1 for SQL's 7 and 5); lite
 # computes the window over all of the derived table's rows, as SQL does.
@@ -89,3 +85,6 @@ run	lite/corpus_gaps/a_left_join_and_a_filter_of_a_joined_derived_rank@iq17-defa
 # IQ island, 2026-10-16 (the corpus lane's sqlstorm-6989, measured on IQ 17.1): the same, through an outer JOIN's
 # condition on the derived table's null-supplying column (RANK 2, 2, 1 for SQL's 7, 7, 5).
 run	lite/corpus_gaps/a_join_on_the_null_side_of_a_joined_derived_rank@iq17-default	iq-defect	duckdb,postgres
+# IQ island, 2026-10-16 (inline views: lite now computes a derived table's windows over all of its rows): the IQ
+# defect above, with a WHERE alone (IQ ranks the filtered rows: RANK 2 and 1 for SQL's 7 and 5).
+run	lite/corpus_gaps/a_filter_of_a_joined_derived_rank@iq17-default	iq-defect	duckdb,postgres

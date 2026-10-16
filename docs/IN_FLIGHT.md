@@ -1487,13 +1487,20 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     - a flattened column (`generate_series`, `unnest`) is nullable, as Pure's typer types it.
     The Postgres island's `lateral_select_without_from` and `lateral_reads_the_item_before_it_twice` went from refused
     to PASS on both lanes.
-  - **A decision for the user, both SQL islands:** `Fold.filterSlot` composes an extend and a later filter as Pure
-    does (legend-engine's PCT `testExtendFilterOutNull`): the filter folds into the window's WHERE. A SQL derived
-    table's windows are computed over all of its rows, so a WHERE over a windowed derived table that reads none of
-    its windows' columns is a wrong answer. The same holds for window functions over a WHERE that reads one. The IQ
-    island refuses both by name (21 corpus queries were wrong answers). The Postgres island shares the path and very
-    likely answers them wrongly. The fix proposed is a boundary the SQL islands mark on a derived table's windows, as
-    `ClassSources` stamps a class extent's (`TypedExtendWindow.extentBoundary`).
+  - **Inline views, both SQL islands (the user's decision, 2026-10-16).** `Fold.filterSlot` composes an extend and a
+    later filter as Pure does (legend-engine's PCT `testExtendFilterOutNull`): the filter folds into the window's
+    WHERE. A SQL derived table's windows are computed over all of its rows, so a WHERE over a windowed derived table
+    was a wrong answer in both islands (proven on the Postgres island by 4 Postgres-judged cases). The fix leaves Pure's
+    relation semantics alone; the SQL islands mark the view:
+    - `builtin/Pure.java`: a new lite-internal native, `meta::legend::lite::inlineView<T>(Relation<T>[1])`
+      (`INTERNAL_DESUGAR` 16 to 17, within the governance ceiling; census row in `docs/LITE_INVENTION_CENSUS.md`);
+    - `platform/CoreFn.java`: its form, `INLINE_VIEW`;
+    - `compiler/spec/Typer.java` and the new `compiler/spec/InlineViewChecker.java`: typed as its relation, each window
+      inside stamped `extentBoundary` (the rule `ClassSources` applies to a class extent), the marker erased;
+    - `compiler/spec/SqlIslands.java`: supplies the marker through `SqlToPure.Sources.inlineView` (identity by
+      default, so the protocol layer names no catalog function);
+    - `protocol/sql/SqlToPure.java`: a derived table or CTE whose own query computes windows is an inline view.
+    The lowerer is unchanged; the plans gain one subquery level where a view computes windows.
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):
