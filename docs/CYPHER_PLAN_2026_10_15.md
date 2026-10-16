@@ -117,7 +117,8 @@ Then pattern comprehensions as navigations from a bound node (§12.31); DuckDB P
 0 FAIL, 0 BUG, 0 ERROR on both. Then an untyped relationship from a bound node (§12.32); DuckDB PASS 2566,
 Postgres PASS 2216, 0 FAIL, 0 BUG, 0 ERROR on both. Then products with a label-less pattern, `WITH *` and a
 comprehension's null condition (§12.33); DuckDB PASS 2585, Postgres PASS 2235, 0 FAIL, 0 BUG, 0 ERROR on both.
-Then the full CI run on the branch, the merge; an edge class, named zones, and `collect` (the database owner's
+Then lists ordered element by element (§12.34); DuckDB PASS 2599, Postgres PASS 2249, 0 FAIL, 0 BUG, 0 ERROR
+on both. Then the full CI run on the branch, the merge; an edge class, named zones, and `collect` (the database owner's
 aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**

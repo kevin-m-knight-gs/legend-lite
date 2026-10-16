@@ -9850,6 +9850,21 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the thirty-second landing — lists ordered element by element (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the products leg; the record is the study's §12.34
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only.
+
+1. **What lands.** `[1, 2] < [3, 4]`, `[1, null] >= [1]`: two lists of known shape ordered as Cypher orders them, the
+   first pair that is not equal deciding (null when either is null or the two do not order), the lengths when every
+   pair is equal; a list and a value of another type do not order (null).
+2. **The ledger.** DuckDB: 4307 cases; PASS 2599 (from 2,585); FAIL 0; BUG 0; ERROR 0; REFUSED 632;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2249 (from 2,235); FAIL 0; BUG 0; ERROR 0; REFUSED 982;
+   BOTH_ERROR 708; SKIP 368. 6 lite cases in `lite/ordering.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-first landing — products with a label-less pattern, `WITH *`, a comprehension's null condition (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the continuation leg; the record is the study's §12.33

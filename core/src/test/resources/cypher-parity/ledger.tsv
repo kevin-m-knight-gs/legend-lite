@@ -1486,11 +1486,11 @@ tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, e
 tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #2	REFUSED	REFUSED
 tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #3	REFUSED	REFUSED
 tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #4	REFUSED	REFUSED
-tck/expressions/comparison/Comparison2/[4] Comparing lists #1	REFUSED	REFUSED
-tck/expressions/comparison/Comparison2/[4] Comparing lists #2	REFUSED	REFUSED
-tck/expressions/comparison/Comparison2/[4] Comparing lists #3	REFUSED	REFUSED
-tck/expressions/comparison/Comparison2/[4] Comparing lists #4	REFUSED	REFUSED
-tck/expressions/comparison/Comparison2/[4] Comparing lists #5	REFUSED	REFUSED
+tck/expressions/comparison/Comparison2/[4] Comparing lists #1	PASS	PASS
+tck/expressions/comparison/Comparison2/[4] Comparing lists #2	PASS	PASS
+tck/expressions/comparison/Comparison2/[4] Comparing lists #3	PASS	PASS
+tck/expressions/comparison/Comparison2/[4] Comparing lists #4	PASS	PASS
+tck/expressions/comparison/Comparison2/[4] Comparing lists #5	PASS	PASS
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #1	PASS	PASS
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #2	PASS	PASS
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #3	PASS	PASS
@@ -2148,10 +2148,10 @@ tck/expressions/precedence/Precedence3/[4] List appending takes precedence over 
 tck/expressions/precedence/Precedence3/[5] List concatenation takes precedence over list element containment	PASS	PASS
 tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #1	PASS	PASS
 tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #2	PASS	PASS
-tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #3	REFUSED	REFUSED
-tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #4	REFUSED	REFUSED
-tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #5	REFUSED	REFUSED
-tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #6	REFUSED	REFUSED
+tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #3	PASS	PASS
+tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #4	PASS	PASS
+tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #5	PASS	PASS
+tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #6	PASS	PASS
 tck/expressions/precedence/Precedence4/[1] Null predicate takes precedence over comparison operator #1	PASS	PASS
 tck/expressions/precedence/Precedence4/[1] Null predicate takes precedence over comparison operator #2	PASS	PASS
 tck/expressions/precedence/Precedence4/[1] Null predicate takes precedence over comparison operator #3	PASS	PASS
@@ -4044,6 +4044,12 @@ lite/optional_where/two_hops_with_a_where	PASS	PASS
 lite/optional_where/second_optional_match_with_a_where	PASS	PASS
 lite/optional_where/where_and_the_relationship	PASS	PASS
 lite/optional_where/where_over_a_fanning_hop_refused	REFUSED	REFUSED
+lite/ordering/lists_order_by_their_first_differing_element	PASS	PASS
+lite/ordering/a_longer_list_is_greater_after_an_equal_prefix	PASS	PASS
+lite/ordering/a_null_or_unordered_pair_is_null	PASS	PASS
+lite/ordering/a_list_and_another_type_do_not_order	PASS	PASS
+lite/ordering/lists_of_values_of_the_row	PASS	PASS
+lite/ordering/ordering_nested_lists_refused	REFUSED	REFUSED
 lite/params/list_lookup_by_parameters	PASS	PASS
 lite/params/skip_and_limit_by_parameter	PASS	PASS
 lite/params/in_with_null_parameters	PASS	PASS

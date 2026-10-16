@@ -3607,7 +3607,12 @@ public final class CypherToPure {
                 return scalar(op == BinaryOp.EQ ? eq : SqlToPure.not(eq));
             }
             case LT, LE, GT, GE -> {
-                return scalar(ordered(op, tx(b.left(), scope), tx(b.right(), scope), b.pos()));
+                Val l = val(b.left(), scope);
+                Val r = val(b.right(), scope);
+                if (l instanceof ListVal || r instanceof ListVal || l instanceof MapVal || r instanceof MapVal) {
+                    return scalar(orderedVal(op, l, r, b.pos()));
+                }
+                return scalar(ordered(op, scalarOf(l, b.pos()), scalarOf(r, b.pos()), b.pos()));
             }
             case PLUS -> {
                 Val l = val(b.left(), scope);
@@ -4743,6 +4748,50 @@ public final class CypherToPure {
         }
         // a list, a map and a scalar are values of different types: never equal
         return constant(false);
+    }
+
+    /** {@code l < r} and the others over lists of known shape (the study's §12.34): Cypher orders lists element by
+     *  element, the first pair that is not equal deciding (null when either of the pair is null or the two do not
+     *  order), the lengths deciding when every pair is equal; a list and a value of another type do not order
+     *  (null), as a list and a map do not. */
+    private Tx orderedVal(BinaryOp op, Val l, Val r, Pos pos) {
+        if (isNull(l) || isNull(r)) {
+            return SqlToPure.nullOf(Kind.BOOLEAN);
+        }
+        if (l instanceof Coll || r instanceof Coll) {
+            throw CypherErrors.unsupported("ordering a list the database computes is not supported yet", pos);
+        }
+        if (!(l instanceof ListVal a) || !(r instanceof ListVal b)) {
+            if (l instanceof MapVal && r instanceof MapVal) {
+                throw CypherErrors.unsupported("ordering maps is not supported yet", pos);
+            }
+            // a list and a value of another type (a number, a text, a map) do not order
+            return SqlToPure.nullOf(Kind.BOOLEAN);
+        }
+        int n = Math.min(a.elements().size(), b.elements().size());
+        int la = a.elements().size();
+        int lb = b.elements().size();
+        Tx result = constant(switch (op) {
+            case LT -> la < lb;
+            case LE -> la <= lb;
+            case GT -> la > lb;
+            default -> la >= lb;
+        });
+        for (int i = n - 1; i >= 0; i--) {
+            Val x = a.elements().get(i);
+            Val y = b.elements().get(i);
+            if (x instanceof ListVal || y instanceof ListVal || x instanceof MapVal || y instanceof MapVal) {
+                throw CypherErrors.unsupported("ordering lists holding lists or maps is not supported yet", pos);
+            }
+            Tx eq = equalVal(x, y, pos);
+            Tx decided = isNull(x) || isNull(y) ? SqlToPure.nullOf(Kind.BOOLEAN)
+                    : ordered(op, scalarOf(x, pos), scalarOf(y, pos), pos);
+            // the pair equal: the pairs after decide; not equal: this pair does; null: null
+            result = Tx.condition(call("or", call("and", eq.vs(), result.vs()), call("and", eq.falseWhen(),
+                    decided.vs())), call("or", call("and", eq.vs(), result.falseWhen()), call("and", eq.falseWhen(),
+                    decided.falseWhen())), eq.nullable() || result.nullable() || decided.nullable());
+        }
+        return result;
     }
 
     /** {@code list + list}, {@code list + value}, {@code value + list}: the elements in a row. */

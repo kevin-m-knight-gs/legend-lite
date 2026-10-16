@@ -412,6 +412,18 @@ class CypherToPureTest {
     }
 
     @Test
+    void listsOfKnownShapeOrderElementByElement() {
+        // the study's §12.34: the first pair that is not equal decides (null when either is null or the two do
+        // not order), the lengths when every pair is equal; a list and a value of another type do not order
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[a:r|((1 == 3) && (((2 == 4) && false) || ((2 != 4) && (2 < 4)))) || ((1 != 3) && (1 < 3)), b:r|if(false, |true, |if(false, |false, |[])), c:r|((1 == 3) && (((2 == 4) && false) || ((2 != 4) && (2 < 4)))) || ((1 != 3) && (1 < 3)) == false])->select(~[a, b, c])",
+                pure("RETURN [1, 2] < [3, 4] AS a, [1, 2] < true AS b, ([1, 2] < [3, 4]) IN [[3, 4], false] AS c"));
+        assertEquals("demo::Person.all()->project(~[a:p|if((($p.age->isNotEmpty() && ($p.age->toOne() == 2)) && (((1 == 1) && false) || ((1 != 1) && (1 < 1)))) || (($p.age->isNotEmpty() && ($p.age->toOne() != 2)) && ($p.age->isNotEmpty() && ($p.age->toOne() < 2))), |true, |if((($p.age->isNotEmpty() && ($p.age->toOne() == 2)) && (((1 == 1) && true) || ((1 != 1) && !(1 < 1)))) || (($p.age->isNotEmpty() && ($p.age->toOne() != 2)) && ($p.age->isNotEmpty() && !($p.age->toOne() < 2))), |false, |[]))])",
+                pure("MATCH (p:Person) RETURN [p.age, 1] < [2, 1] AS a"));
+        unsupported("RETURN [[1]] < [[2]] AS a", "ordering lists holding lists or maps");
+        unsupported("RETURN {a: 1} < {a: 2} AS a", "ordering maps");
+    }
+
+    @Test
     void aCartesianProductWithALabelLessPatternAndWithStar() {
         // the study's §12.33: WITH * keeps the graph; a pattern sharing no variable with it is a join of the two
         // patterns' rows (§12.28), a label-less one the union of its arms' rows

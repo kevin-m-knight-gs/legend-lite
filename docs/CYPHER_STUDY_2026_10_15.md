@@ -2816,3 +2816,23 @@ from an optional node) pass; [4] (untyped, label-less) and [5] (a relationship b
 10 lite cases in `lite/products.yaml` (one a refusal by name) and 4 in `lite/comprehensions.yaml`, each judged by
 Neo4j.
 
+### 12.34 Lists ordered element by element, 2026-10-16
+
+- **`[1, 2] < [3, 4]`, `[1, null] >= [1]`, `[a.x, 1] < [2, 1]`:** two lists of known shape order as Cypher orders
+  them: element by element, the first pair that is not equal deciding (the pair's own ordering, §12.3's; null when
+  either of the pair is null, or the two do not order: a text and a number), the lengths deciding when every pair is
+  equal (the longer list the greater). The decision is the database's at each pair (the pair's equality and its
+  ordering, three-valued, nested from the last pair back: `if equal then the pairs after else this pair's order`),
+  the lengths a shape compared here. A list and a value of another type (a number, a boolean, a map) do not order:
+  null, as Neo4j answers. Lists holding lists or maps, maps against maps, and a list the database computes stay
+  refused by name.
+
+#### 12.34.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4307 | 2599 (from 2,585) | 0 | 0 | 0 | 632 | 708 | 368 |
+| Postgres | 4307 | 2249 (from 2,235) | 0 | 0 | 0 | 982 | 708 | 368 |
+
+6 lite cases in `lite/ordering.yaml`, each judged by Neo4j (one a refusal by name).
+
