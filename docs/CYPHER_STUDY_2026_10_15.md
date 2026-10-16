@@ -2683,3 +2683,31 @@ by the condition, the synthetic names by one counter). An item that is a list or
 
 7 lite cases in `lite/cartesian.yaml`, each judged by Neo4j.
 
+### 12.29 `OPTIONAL MATCH ... WHERE`, 2026-10-16: the WHERE as the optional pattern's guard
+
+An OPTIONAL MATCH's WHERE is the optional pattern's, not the rows': `OPTIONAL MATCH (x)-[:E1]->(y:Y) WHERE x.val
+< y.val` finds `y` only where the condition holds, and `x` keeps its row with `y` null otherwise (§12.18's
+semantics with one more reason to be absent). The reading: the WHERE is a **guard** on what the pattern bound.
+After the optional hops are bound onto each arm's graph, the condition is read over the graph (the pattern's nodes
+null where their hops find none, so a comparison with one is null, so false) and every binding the OPTIONAL MATCH
+made (its nodes and relationships, not the bound start) carries it (`Binding.guard`). A binding is **absent** where
+its navigation finds nothing or its guard does not hold (`GraphScope.absent`), and every read of an OPTIONAL
+MATCH's binding tests that one absence: a node's value and its parts (`NodeParts.absent`, a boolean now, where
+it was the navigation to test), a relationship's value and its type, a property (null where absent), the carried
+columns (the labels column and each property), `keys`. The guard is read over the graph's own row, so it travels
+with the bindings through a WITH that carries the graph.
+
+Over to-one hops; a hop that fans out under a WHERE is refused by name (the pairs would need a left join to keep
+the start node's row). The TCK's MatchWhere6 [6], [7] (two hops) and [8] (the WHERE on a second OPTIONAL MATCH
+from an optional node) pass; [4] (untyped, label-less) and [5] (a relationship bound twice) stay refused.
+
+#### 12.29.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4246 | 2518 (from 2,509) | 0 | 0 | 0 | 652 | 708 | 368 |
+| Postgres | 4246 | 2168 (from 2,159) | 0 | 0 | 0 | 1002 | 708 | 368 |
+
+6 lite cases in `lite/optional_where.yaml`, each judged by Neo4j; `lite/optional.yaml`'s refusal case
+`optional_with_where_refused_by_name` is `optional_with_where`, a passing case.
+

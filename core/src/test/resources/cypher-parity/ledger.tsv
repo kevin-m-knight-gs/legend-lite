@@ -203,9 +203,9 @@ tck/clauses/match-where/MatchWhere6/[2] Filter node with false node label predic
 tck/clauses/match-where/MatchWhere6/[3] Filter node with property predicate on multi variables with multiple bindings after OPTIONAL MATCH	SKIP	SKIP
 tck/clauses/match-where/MatchWhere6/[4] Do not fail when predicates on optionally matched and missed nodes are invalid	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere6/[5] Matching and optionally matching with unbound nodes and equality predicate in reverse direction	REFUSED	REFUSED
-tck/clauses/match-where/MatchWhere6/[6] Join nodes on non-equality of properties – OPTIONAL MATCH and WHERE	REFUSED	REFUSED
-tck/clauses/match-where/MatchWhere6/[7] Join nodes on non-equality of properties – OPTIONAL MATCH on two relationships and WHERE	REFUSED	REFUSED
-tck/clauses/match-where/MatchWhere6/[8] Join nodes on non-equality of properties – Two OPTIONAL MATCH clauses and WHERE	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere6/[6] Join nodes on non-equality of properties – OPTIONAL MATCH and WHERE	PASS	PASS
+tck/clauses/match-where/MatchWhere6/[7] Join nodes on non-equality of properties – OPTIONAL MATCH on two relationships and WHERE	PASS	PASS
+tck/clauses/match-where/MatchWhere6/[8] Join nodes on non-equality of properties – Two OPTIONAL MATCH clauses and WHERE	PASS	PASS
 tck/clauses/match/Match1/[1] Match non-existent nodes returns empty	PASS	PASS
 tck/clauses/match/Match1/[2] Matching all nodes	PASS	PASS
 tck/clauses/match/Match1/[3] Matching nodes using multiple labels	SKIP	SKIP
@@ -4020,7 +4020,13 @@ lite/optional/optional_to_many_count	PASS	PASS
 lite/optional/optional_to_many_node_as_value	PASS	PASS
 lite/optional/optional_through_with	PASS	PASS
 lite/optional/optional_two_hops	PASS	PASS
-lite/optional/optional_with_where_refused_by_name	REFUSED	REFUSED
+lite/optional/optional_with_where	PASS	PASS
+lite/optional_where/optional_hop_filtered_by_a_where	PASS	PASS
+lite/optional_where/where_over_both_ends	PASS	PASS
+lite/optional_where/two_hops_with_a_where	PASS	PASS
+lite/optional_where/second_optional_match_with_a_where	PASS	PASS
+lite/optional_where/where_and_the_relationship	PASS	PASS
+lite/optional_where/where_over_a_fanning_hop_refused	REFUSED	REFUSED
 lite/params/list_lookup_by_parameters	PASS	PASS
 lite/params/skip_and_limit_by_parameter	PASS	PASS
 lite/params/in_with_null_parameters	PASS	PASS

@@ -9850,6 +9850,21 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the twenty-seventh landing — `OPTIONAL MATCH ... WHERE` as the optional pattern's guard (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the cartesian leg; the record is the study's §12.29
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only.
+
+1. **What lands.** An OPTIONAL MATCH's WHERE guards what the pattern bound: each node and relationship absent
+   where its navigation finds nothing or the WHERE does not hold, every read (value, parts, property, carried
+   columns, keys) testing that one absence; over to-one hops, a hop that fans out refused by name.
+2. **The ledger.** DuckDB: 4246 cases; PASS 2518 (from 2,509); FAIL 0; BUG 0; ERROR 0; REFUSED 652;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2168 (from 2,159); FAIL 0; BUG 0; ERROR 0; REFUSED 1002;
+   BOTH_ERROR 708; SKIP 368. 6 lite cases in `lite/optional_where.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the twenty-sixth landing — the cartesian product: `MATCH (a:A), (b:B)` as every pair of the two patterns' rows (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the named-path leg; the record is the study's §12.28

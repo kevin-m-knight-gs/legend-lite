@@ -186,7 +186,7 @@ public final class CypherToPure {
      *  text; each property's value is spelled by its kind. */
     private static Tx nodeJson(NodeParts parts, Pos pos) {
         return new Tx(present(parts, call("fromJson", nodeJsonText(parts, pos))), Kind.JSON,
-                parts.presence() != null, null, new NodeValue(), null, null);
+                parts.absent() != null, null, new NodeValue(), null, null);
     }
 
     /** A node's JSON text, built by the database: its labels array and its properties that hold a value. */
@@ -201,27 +201,27 @@ public final class CypherToPure {
     }
 
     /** A node's parts: its labels' JSON array text (a constant, or the column carrying it), its properties, and,
-     *  for an OPTIONAL MATCH's node, what its presence is read from (a navigation, or the labels column: empty
-     *  when the hop found none, the node then null). */
+     *  for an OPTIONAL MATCH's node, whether it is absent (its navigation empty or its WHERE not holding; the
+     *  labels column null, after a projection), the node then null. */
     private record NodeParts(ValueSpecification labels, List<Map.Entry<String, Tx>> props,
-            @com.legend.base.Nullable ValueSpecification presence) {
+            @com.legend.base.Nullable ValueSpecification absent) {
         NodeParts(ValueSpecification labels, List<Map.Entry<String, Tx>> props) {
             this(labels, props, null);
         }
     }
 
-    /** {@code value} where the node is present, null where its hop found none. */
+    /** {@code value} where the node is present, null where it is absent. */
     private static ValueSpecification present(NodeParts parts, ValueSpecification value) {
-        ValueSpecification presence = parts.presence();
-        if (presence == null) {
+        ValueSpecification absent = parts.absent();
+        if (absent == null) {
             return value;
         }
-        return call("if", call("isEmpty", presence), thunk(SqlToPure.nullOf(Kind.JSON).vs()), thunk(value));
+        return call("if", absent, thunk(SqlToPure.nullOf(Kind.JSON).vs()), thunk(value));
     }
 
     /** {@code labels(n)}: the node's labels, a list. */
     private static Tx nodeLabels(NodeParts parts) {
-        return Tx.value(present(parts, call("fromJson", parts.labels())), Kind.JSON, parts.presence() != null);
+        return Tx.value(present(parts, call("fromJson", parts.labels())), Kind.JSON, parts.absent() != null);
     }
 
     /** {@code properties(n)}: the node's properties that hold a value, a map (the pieces each lead with a comma: the
@@ -229,7 +229,7 @@ public final class CypherToPure {
     private static Tx nodeProperties(NodeParts parts, Pos pos) {
         ValueSpecification text = plus(new CString("{"), call("substring", propertyPieces(parts, pos),
                 new CInteger(2L)), new CString("}"));
-        return Tx.value(present(parts, call("fromJson", text)), Kind.JSON, parts.presence() != null);
+        return Tx.value(present(parts, call("fromJson", text)), Kind.JSON, parts.absent() != null);
     }
 
     /** {@code keys(n)}: the names of the node's properties that hold a value (Neo4j stores no null), a collection
@@ -446,38 +446,44 @@ public final class CypherToPure {
      *  relationship (a hop, with no value of its own in PR1). */
     private record Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path,
             boolean optional, boolean fanning, boolean absent, boolean maybeAbsent,
-            @com.legend.base.Nullable String type) {
+            @com.legend.base.Nullable String type, @com.legend.base.Nullable ValueSpecification guard) {
         Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path, boolean optional) {
-            this(node, classPath, path, optional, false, false, false, null);
+            this(node, classPath, path, optional, false, false, false, null, null);
         }
 
         Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path, boolean optional,
                 boolean fanning) {
-            this(node, classPath, path, optional, fanning, false, false, null);
+            this(node, classPath, path, optional, fanning, false, false, null, null);
+        }
+
+        /** This binding, absent too where {@code guard} (an OPTIONAL MATCH's WHERE over the graph, the study's
+         *  §12.29) does not hold. */
+        Binding withGuard(ValueSpecification guard) {
+            return new Binding(node, classPath, path, optional, fanning, absent, maybeAbsent, type, guard);
         }
 
         /** A node an OPTIONAL MATCH never finds (its relationship's type names nothing of the model, or a label
          *  the hop does not reach): null everywhere (the study's §12.18). */
         static Binding absentNode() {
-            return new Binding(true, null, List.of(), true, false, true, true, null);
+            return new Binding(true, null, List.of(), true, false, true, true, null, null);
         }
 
         /** An OPTIONAL MATCH's node: present where its hop finds one, null where none ({@code maybeAbsent}; a
          *  MATCH's optional hop is never absent, its isNotEmpty condition being the graph's). */
         static Binding optionalNode(String classPath, List<String> path, boolean fanning) {
-            return new Binding(true, classPath, path, true, fanning, false, true, null);
+            return new Binding(true, classPath, path, true, fanning, false, true, null, null);
         }
 
         /** A relationship: the hop that reaches its far node (its path) and its type, the relationship's value
          *  (the study's §12.19); an OPTIONAL MATCH's is present where its hop finds a node. */
         static Binding relationship(List<String> path, boolean optional, boolean fanning, String type,
                 boolean maybeAbsent) {
-            return new Binding(false, null, path, optional, fanning, false, maybeAbsent, type);
+            return new Binding(false, null, path, optional, fanning, false, maybeAbsent, type, null);
         }
 
         /** A relationship an OPTIONAL MATCH never finds: null. */
         static Binding absentRelationship() {
-            return new Binding(false, null, List.of(), true, false, true, true, null);
+            return new Binding(false, null, List.of(), true, false, true, true, null, null);
         }
     }
 
@@ -867,10 +873,6 @@ public final class CypherToPure {
             }
             return match(new CypherAst.Match(false, m.patterns(), m.where(), m.pos()), null);
         }
-        if (m.where() != null) {
-            throw CypherErrors.unsupported("OPTIONAL MATCH with a WHERE (the WHERE is the optional pattern's, not the"
-                    + " rows') is not supported yet", m.pos());
-        }
         if (state instanceof Rows) {
             throw CypherErrors.unsupported("OPTIONAL MATCH after a WITH that projected its variables, or after a"
                     + " pattern read as rows, is not supported yet", m.pos());
@@ -922,8 +924,27 @@ public final class CypherToPure {
             }
         }
         boolean fanning = false;
+        Expr where = m.where();
         for (Graph g : arms) {
+            Set<String> before = new HashSet<>(g.bindings().keySet());
             fanning |= optionalExtend(elements, g);
+            if (where != null) {
+                // the WHERE is the optional pattern's (the study's §12.29): a guard on what the pattern bound, each
+                // absent where its navigation finds nothing or the WHERE does not hold (read over the graph, the
+                // pattern's nodes null where their hops find none)
+                ValueSpecification guard = condition(where, new GraphScope(g), "WHERE");
+                for (String name : new ArrayList<>(g.bindings().keySet())) {
+                    Binding b = java.util.Objects.requireNonNull(g.bindings().get(name));
+                    if (before.contains(name) || b.absent()) {
+                        continue;
+                    }
+                    if (b.fanning()) {
+                        throw CypherErrors.unsupported("OPTIONAL MATCH with a WHERE over a hop that fans out is not"
+                                + " supported yet", m.pos());
+                    }
+                    g.bindings().put(name, b.withGuard(guard));
+                }
+            }
         }
         if (!fanning) {
             // the graphs read on: an optional node reads null where its hop finds none
@@ -2566,7 +2587,7 @@ public final class CypherToPure {
             String type = java.util.Objects.requireNonNull(b.type());
             ValueSpecification json = call("fromJson", new CString(relJsonText(type)));
             if (b.maybeAbsent()) {
-                json = call("if", call("isEmpty", navigate(g.row(), b.path())),
+                json = call("if", absent(b),
                         thunk(SqlToPure.nullOf(Kind.JSON).vs()), thunk(json));
             }
             return new Tx(json, Kind.JSON, b.maybeAbsent(), null, new RelValue(type), null, null);
@@ -2583,7 +2604,7 @@ public final class CypherToPure {
             }
             ValueSpecification type = new CString(java.util.Objects.requireNonNull(b.type()));
             if (b.maybeAbsent()) {
-                return Tx.value(call("if", call("isEmpty", navigate(g.row(), b.path())),
+                return Tx.value(call("if", absent(b),
                         thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(type)), Kind.STRING, true);
             }
             return Tx.value(type, Kind.STRING, false);
@@ -2629,8 +2650,8 @@ public final class CypherToPure {
                     props.add(Map.entry(p.name(), propertyOf(b, p.name(), pos)));
                 }
             }
-            ValueSpecification presence = b.maybeAbsent() ? navigate(g.row(), b.path()) : null;
-            return new NodeParts(new CString(labelsJson(cls)), props, presence);
+            ValueSpecification absent = b.maybeAbsent() ? absent(b) : null;
+            return new NodeParts(new CString(labelsJson(cls)), props, absent);
         }
 
         /** A bound node carried through a projection: its labels' text and its properties as columns -- of every
@@ -2669,7 +2690,7 @@ public final class CypherToPure {
             // an OPTIONAL MATCH's node: its labels where its navigation finds one, null where none (the node's
             // presence, read by the clauses after)
             boolean optional = b.maybeAbsent();
-            ValueSpecification labelsText = optional ? call("if", call("isEmpty", navigate(g.row(), b.path())),
+            ValueSpecification labelsText = optional ? call("if", absent(b),
                     thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(new CString(labelsJson(cls))))
                     : new CString(labelsJson(cls));
             specs.add(new ColSpec(labels, lambda(g.row(), labelsText), null, null));
@@ -2697,7 +2718,7 @@ public final class CypherToPure {
                 type = SqlToPure.nullOf(Kind.STRING).vs();
                 nullable = true;
             } else if (b.maybeAbsent()) {
-                type = call("if", call("isEmpty", navigate(g.row(), b.path())), thunk(SqlToPure.nullOf(Kind.STRING)
+                type = call("if", absent(b), thunk(SqlToPure.nullOf(Kind.STRING)
                         .vs()), thunk(new CString(java.util.Objects.requireNonNull(b.type()))));
                 nullable = true;
             } else {
@@ -2756,6 +2777,13 @@ public final class CypherToPure {
 
         /** A bound node's property: the class's, navigated from the root instance (C4: a property the class does not
          *  declare is an error, not null). */
+        /** Whether an OPTIONAL MATCH's binding found nothing: its navigation empty, or its WHERE (the guard, the
+         *  study's §12.29) not holding. */
+        ValueSpecification absent(Binding b) {
+            ValueSpecification none = call("isEmpty", navigate(g.row(), b.path()));
+            return b.guard() == null ? none : call("or", none, call("not", b.guard()));
+        }
+
         Tx propertyOf(Binding b, String name, Pos pos) {
             if (!b.node()) {
                 throw CypherErrors.unsupported("a property of a relationship is not supported yet (an edge class)",
@@ -2794,6 +2822,11 @@ public final class CypherToPure {
             path.add(name);
             ValueSpecification v = navigate(g.row(), path);
             boolean nullable = prop.optional() || b.optional();
+            if (b.guard() != null) {
+                // null where the OPTIONAL MATCH's WHERE does not hold, as where its hop finds none
+                v = call("if", absent(b), thunk(SqlToPure.nullOf(kind).vs()), thunk(v));
+                nullable = true;
+            }
             return columnLike(v, kind, nullable);
         }
     }
@@ -3023,7 +3056,7 @@ public final class CypherToPure {
             Col labels = java.util.Objects.requireNonNull(column(shape.labels()));
             ValueSpecification read = new AppliedProperty(new Variable(row()), shape.labels());
             // (the column is read as one: a projected column types [0..1], the labels' text is there when present)
-            return new NodeParts(call("toOne", read), props, labels.nullable() ? read : null);
+            return new NodeParts(call("toOne", read), props, labels.nullable() ? call("isEmpty", read) : null);
         }
 
         @Override
@@ -3702,7 +3735,7 @@ public final class CypherToPure {
             }
             NodeParts parts = scope.nodeParts(v);
             if (parts != null) {
-                if (parts.presence() != null) {
+                if (parts.absent() != null) {
                     throw CypherErrors.unsupported("keys of a node an OPTIONAL MATCH may not find is not supported"
                             + " yet", c.pos());
                 }

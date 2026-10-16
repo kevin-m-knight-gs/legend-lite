@@ -48,7 +48,7 @@ tests:
     graph: |
       CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (b1)-[:V]->(c1)
     cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b)-[:V]->(c) RETURN a.name AS a, c.name AS c ORDER BY a"
-  - id: optional_with_where_refused_by_name
+  - id: optional_with_where
     graph: |
       CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
     cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) WHERE b.x > 0 RETURN a.name AS a"

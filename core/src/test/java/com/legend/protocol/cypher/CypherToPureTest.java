@@ -395,6 +395,17 @@ class CypherToPureTest {
     }
 
     @Test
+    void anOptionalMatchsWhereGuardsWhatThePatternBound() {
+        // the study's §12.29: the optional node absent where its hop finds none or the WHERE does not hold; its
+        // property null there, its value null there
+        assertEquals("demo::Person.all()->project(~[n:p|$p.name, l:p|if($p.firm->isEmpty() || !($p.firm.legalName->isNotEmpty() && ($p.firm.legalName->toOne() == 'x')), |[]->cast(@String), |$p.firm.legalName), f:p|if($p.firm->isEmpty() || !($p.firm.legalName->isNotEmpty() && ($p.firm.legalName->toOne() == 'x')), |[]->cast(@meta::pure::metamodel::variant::Variant), |fromJson(('{\"@labels\":' + '[\"Firm\"]') + if(if($p.firm->isEmpty() || !($p.firm.legalName->isNotEmpty() && ($p.firm.legalName->toOne() == 'x')), |[]->cast(@String), |$p.firm.legalName)->isEmpty(), |'', |',\"legalName\":' + ('\"' + if($p.firm->isEmpty() || !($p.firm.legalName->isNotEmpty() && ($p.firm.legalName->toOne() == 'x')), |[]->cast(@String), |$p.firm.legalName)->toOne()->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"')) + '}'))])",
+                pure("MATCH (p:Person) OPTIONAL MATCH (p)-[:firm]->(f:Firm) WHERE f.legalName = 'x'"
+                        + " RETURN p.name AS n, f.legalName AS l, f"));
+        unsupported("MATCH (f:Firm) OPTIONAL MATCH (f)-[:employees]->(p:Person) WHERE p.age > 1 RETURN p.name",
+                "OPTIONAL MATCH with a WHERE over a hop that fans out");
+    }
+
+    @Test
     void aPatternSharingNoVariableIsEveryPairOfRows() {
         // the study's §12.28: each pattern read as rows, the rows joined on a condition that always holds, the WHERE
         // over the pairs
