@@ -547,3 +547,6 @@ tests:
   - id: a_date_of_no_months_name_is_iqs_error
     sql: "SELECT CAST(CAST(id AS VARCHAR(2)) + ' Nox 2009' AS DATE) AS a FROM t WHERE id IS NOT NULL"
     profile: iq17-default
+  - id: a_join_on_the_null_side_of_a_joined_derived_rank
+    sql: "SELECT d.id, d.uid, d.r FROM (SELECT t.id, u.id AS uid, RANK() OVER (ORDER BY t.id DESC) AS r FROM t LEFT JOIN u ON u.t_id = t.id) d JOIN u x ON x.id = d.uid WHERE d.r <= 7 ORDER BY d.id, d.uid"
+    profile: iq17-default

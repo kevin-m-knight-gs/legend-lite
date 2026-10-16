@@ -31,7 +31,7 @@ Status words:
 | 0.2 | NULL semantics: IS [NOT] NULL, outer-join NULLs, COALESCE/ISNULL typing, NULL sort position, NOT IN with a NULL member, NULL in concatenation, `''` versus NULL, aggregates over empty and all-NULL input | done. Allowlisted remainder: IS UNKNOWN over NOT IN of a subquery holding NULL. |
 | 0.3 | GROUP BY with SUM/COUNT/MIN/MAX: result type and overflow of SUM, AVG of integers, COUNT(*) versus COUNT(col), an aggregate over no rows, GROUP BY on text by its collation | done for every value within a BIGINT. Deferred (the user, 2026-10-15: features before overflow edges): IQ's engine widens an integer result past a BIGINT to a NUMERIC (D-N3, 15 allowlisted runs), where lite's database raises; it matters only past 9.2 × 10^18. |
 | 0.4 | ORDER BY plus TOP/START AT: NULL placement, collation order, ties | done. IQ has no LIMIT/OFFSET, and TOP 0 is IQ's error. `ORDER BY (1)`, a position under IQ's engine and a constant on SQL Anywhere's front end, is refused by name under IQ's engine (2026-10-15). |
-| 0.5 | CASE/IF, CAST and coercion: branch unification, rounding versus truncation, string-to-number and string-to-date, DECIMAL scale, integer division, a zero divisor | partial. String to date reads the year-first spellings. Done (2026-10-15, measured on IQ 17.1): a CAST to a shorter VARCHAR or CHAR is cut to n bytes, never inside a character, and CHAR(n) padded to n bytes (D-C2); a narrower NUMERIC, and a DOUBLE to a NUMERIC of at most 18 digits, truncate toward zero (D-N6); a number or a date to too short a text raises for that row (D-C1); a NUMERIC as text, in CAST, `\|\|` and STRING, keeps its 0 before the point (D-C8); SIGN and TRUNCNUM keep their argument's type (D-F19). A string read as an INTEGER or a NUMERIC by IQ's engine's own reading (white space around, a sign, digits with one point; no exponent; '' its error), cut toward zero. CASE, IF and COALESCE of a string and a number are IQ's error -1009145, refused. Refused by name: `CAST(x AS NUMERIC)` without a precision (a NUMERIC(126,38) under IQ's engine), a DOUBLE to a NUMERIC of more than 18 digits, a NUMERIC constant or a DOUBLE as text, a string that is no constant read as a DOUBLE (IQ's reading is not correctly rounded: '1.555' is 1.5550000000000002). Nothing open. |
+| 0.5 | CASE/IF, CAST and coercion: branch unification, rounding versus truncation, string-to-number and string-to-date, DECIMAL scale, integer division, a zero divisor | partial. String to date reads the year-first spellings and, measured on IQ 17.1 (2026-10-16), blanks around the separators, a month's English name or a start of it in either order, AM and PM, and under IQ's engine a time alone on 1900-01-01: a computed string passes through linear replacements into one ISO spelling, then is parsed once. Done (2026-10-15, measured on IQ 17.1): a CAST to a shorter VARCHAR or CHAR is cut to n bytes, never inside a character, and CHAR(n) padded to n bytes (D-C2); a narrower NUMERIC, and a DOUBLE to a NUMERIC of at most 18 digits, truncate toward zero (D-N6); a number or a date to too short a text raises for that row (D-C1); a NUMERIC as text, in CAST, `\|\|` and STRING, keeps its 0 before the point (D-C8); SIGN and TRUNCNUM keep their argument's type (D-F19). A string read as an INTEGER or a NUMERIC by IQ's engine's own reading (white space around, a sign, digits with one point; no exponent; '' its error), cut toward zero. CASE, IF and COALESCE of a string and a number are IQ's error -1009145, refused. Refused by name: `CAST(x AS NUMERIC)` without a precision (a NUMERIC(126,38) under IQ's engine), a DOUBLE to a NUMERIC of more than 18 digits, a NUMERIC constant or a DOUBLE as text, a string that is no constant read as a DOUBLE (IQ's reading is not correctly rounded: '1.555' is 1.5550000000000002). Nothing open. |
 | 0.6 | Joins, inner and outer: ON versus WHERE under outer joins, text and NULL keys, legacy outer-join syntax | done (2026-10-15): the T-SQL `*=` / `=*` outer joins as IQ 17.1 reads them (its PUBLIC tsql_outer_joins is On; Off, IQ's -1099): a WHERE condition that reads the NULL-extended table joins, the rest filters; a chain (-680), a cycle (-136) and an ANSI join beside them (-681) are IQ's errors, refused; under OR refused. Out: two output columns of one name (S58). KEY JOIN (IQ's foreign-key join) is IQ's own, and comes after Tier 0. |
 | 0.7 | Dates: EXTRACT/DATEPART, DATEDIFF's boundaries, DATEADD at month end, week and weekday numbering, CURRENT DATE, fractional seconds, date arithmetic | done (2026-10-15): EXTRACT, DATEPART/DATENAME with IQ's calendar weeks (from Sunday, D-T10), DATEDIFF, DATEADD, date ± days and date − date, strings read as dates, DATEFORMAT (its tokens as measured; another refused by name), DAYNAME, MONTHNAME, DATETIME, YMD. LAST_DAY is not IQ's (-265). |
 
@@ -129,4 +129,60 @@ Open, ranked by the corpora:
 - the outer join ON shapes IQ reads but DuckDB cannot plan: a subquery in a RIGHT JOIN's ON (refused by name), an uncorrelated one over a common table expression in a LEFT JOIN's ON (6, DuckDB's error);
 - CROSS APPLY (676), which this round measured only as IQ's internal error on one correlated shape (2.16c).
 
-Phase 2 is still to come: data loaded into IQ and the lane's databases, and the answers judged.
+### Phase 2: the answers judged (2026-10-16)
+
+The data is a sample of dba.stackexchange's (29 tables), loaded into the live IQ as `ll_*` tables and into each lane's
+database. The live IQ answered all 12,445 SEDE and SQLStorm queries the island translates. The snapper's machinery
+collected the answers (the scratchpad's `corpus_answers.py`; the data and the answers stay private). `IqCorpusTest`
+judges them as parity runs (`-Diq.corpus.answers`), and `-Diq.corpus.rows` writes lite's rows of each FAIL. A FAIL
+whose rows are IQ's as a multiset is PASS_UNORDERED: a real-world ORDER BY ties. Each remaining FAIL with an ORDER BY or
+a TOP was judged again with every output position appended to its ORDER BY. IQ answered these tie-broken twins too.
+
+| Verdict | First judge | Now |
+|---|---|---|
+| PASS | 10,471 | 10,433 |
+| PASS_UNORDERED | 1,454 | 1,434 |
+| BOTH_ERROR | 46 | 62 |
+| REFUSED | 1 | 182 |
+| FAIL | 437 | 319 |
+| BUG (lite answers where IQ raises) | 20 | 5 |
+| ERROR (lite raises where IQ answers) | 5 | 0 |
+
+Every remaining FAIL is accounted for. Of the tie-broken twins:
+- 148 PASS: their FAIL was ties only;
+- 135 are ROW_NUMBER or NTILE numbering tied rows, each engine its own way;
+- 10 read the clock;
+- 7 are D-N3: IQ types a column by its data's range (`ROUND(1.0 * Score / ViewCount, 8)` is a NUMERIC(12,7) over this
+  data);
+- 2 are an IQ defect, listed under iq-defect: a WHERE or an outer join's condition on the null-supplying side of a
+  windowed derived table's LEFT JOIN, applied below its windows;
+- 1 is a name: a window ordered by aggregates in a grouped query.
+
+The BUGs left are IQ's optimizer limit -1005015 on three Cartesian products, which no translation can know, and a
+FROM-rewrite artifact of the answers driver.
+
+Wrong answers found and fixed, each measured on the live IQ (parity cases: `lite/corpus_gaps.yaml`):
+- a correlated read of an enclosing row's window column (a Lowerer fix);
+- an ORDER BY name reads a select item only by its alias; otherwise it is a FROM column, an ambiguous one -144, DISTINCT
+  too;
+- a computed date-and-time string cast to DATE did not check its time;
+- a WHERE over a windowed derived table or CTE that reads none of its window columns. Lite's lowering folds it into
+  the window's WHERE, as Pure composes an extend and a filter (`Fold.filterSlot`), so the window ranked the filtered
+  rows. Also, window functions over a WHERE that reads a derived window column. Both are refused by name until the
+  boundary below is decided (21 corpus queries).
+
+Built, measured on the live IQ:
+- a time alone read on 1900-01-01 under IQ's engine;
+- a grouped query's unaliased items named by their own spelling under IQ's engine (56 queries);
+- a CONVERT with a style named as IQ names it;
+- computed date strings with month names, blanks and AM/PM.
+
+IQ's errors raised by name, measured: a window function in a condition's subquery (-1001030); two subqueries compared
+and a subquery as BETWEEN's operand (-1001030); an alias of a select-list subquery read in WHERE, GROUP BY or HAVING
+(-1001030); a subquery inside a condition's expression, now naming IQ's -1001030.
+
+Decisions for the user:
+- a window boundary the SQL islands can mark. A derived table's windows would form a non-mergeable view, as ClassSources
+  stamps a class extent's (`TypedExtendWindow.extentBoundary`). That would answer the refused shapes above. The
+  Postgres island shares `SqlToPure` and very likely answers them wrongly today;
+- TOP's select list computed after the limit (above).
