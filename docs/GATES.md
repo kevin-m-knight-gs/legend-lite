@@ -9868,7 +9868,8 @@ translator (the hop's existence over the pattern comprehension's resolution, gat
    ratchet the three landings moved: `//parser-equivalence:update_ratchets_test`, `own_corpus.matched` 2856 to 2891,
    the landings' test snippets (`GraphEdgesTest`'s models, the harness's edge-class text in `CypherGraph`, the
    integration test's) 35 more own-corpus elements the oracle matches; regenerated with
-   `bazel run //parser-equivalence:update_ratchets`.
+   `bazel run //parser-equivalence:update_ratchets`. After the merge of main (#49, whose own move was 2856 to 2862)
+   the regeneration on the merged tree reads 2897, main's 2862 plus this branch's 35 (commit 17df891).
 4. **Refused by name, recorded.** A pattern predicate over rows, with both ends bound, with a property map, over
    more than one hop; an EXISTS subquery with several patterns or further clauses; `COUNT { }`, `COLLECT { }`.
 5. **The review.** Two independent reviews of the three landings (the study's §12.40.2): nine findings in the reader,
