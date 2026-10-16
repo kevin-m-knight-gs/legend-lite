@@ -84,6 +84,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP_NTZ";
             case TIMESTAMPTZ -> "TIMESTAMP_LTZ";
             case JSON -> "VARIANT";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -1429,6 +1430,8 @@ public final class Snowflake extends AnsiSqlRenderer {
                     .append(", ").expr(a.get(2), 0).append(") AS TIMESTAMP_NTZ)");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
+            // TIMESTAMP_FROM_PARTS(date, time): the date-time at that time of that day
+            case DATE_AT_TIME -> writer.function("TIMESTAMP_NTZ_FROM_PARTS", c.args());
             // DuckDB's timezone(zone, t): a naive t read in the zone (to its instant); an instant to the zone's time
             case TIMEZONE -> instant(a.get(1))
                     ? writer.append("CONVERT_TIMEZONE('UTC', ").expr(a.get(0), 0).append(", CAST(").expr(a.get(1), 0)
@@ -1708,7 +1711,7 @@ public final class Snowflake extends AnsiSqlRenderer {
         }
         return switch (slot) {
             case SqlType.Scalar s -> switch (s) {
-                case INTEGER, BIGINT, HUGEINT, DOUBLE, BOOLEAN, DATE, TIMESTAMP, TIMESTAMPTZ ->
+                case INTEGER, BIGINT, HUGEINT, DOUBLE, BOOLEAN, DATE, TIMESTAMP, TIMESTAMPTZ, TIME ->
                         w -> w.append("CAST(").piece(text).append(" AS " + castTypeName(s) + ")");
                 case JSON -> w -> w.append("TO_VARIANT(").piece(number).append(")");
                 case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> w -> w.append("CAST(").piece(number)
@@ -2886,6 +2889,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case SqlExpr.NullLit n -> true;
             case SqlExpr.DateLit d -> true;
             case SqlExpr.TimestampLit t -> true;
+            case SqlExpr.TimeLit t -> true;
             case SqlExpr.Cast c -> !(c.target() instanceof SqlType.Array || c.target() instanceof SqlType.Map
                     || c.target() instanceof SqlType.Struct || c.target() == SqlType.Scalar.JSON) && constant(c.value());
             default -> false;

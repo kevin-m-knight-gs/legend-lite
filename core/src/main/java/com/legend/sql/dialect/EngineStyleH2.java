@@ -40,6 +40,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
+            // legend-engine's relational lowering refuses StrictTime (pureToSQLQuery.pure: "not supported yet")
+            case TIME -> throw new DialectCapability("a time of day: legend-engine's relational lowering refuses"
+                    + " StrictTime, so its text has no spelling for one");
             case JSON, DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -880,6 +883,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     protected String dateLit(String iso) {
         return "DATE'" + iso + "'";
+    }
+
+    @Override
+    protected String timeLit(String iso) {
+        throw new DialectCapability("a time of day: legend-engine's relational lowering refuses StrictTime, so its"
+                + " text has no spelling for one");
     }
 
     @Override
@@ -1972,6 +1981,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case FORMAT -> writer.function("printf", c.args());
             case MAKE_DATE -> writer.function("make_date", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
+            case DATE_AT_TIME -> throw new DialectCapability("a time of day: legend-engine's relational lowering"
+                    + " refuses StrictTime, so its text has no spelling for one");
             case EPOCH_SECONDS -> writer.function("epoch", c.args());
             case EPOCH_MS -> writer.function("epoch_ms", c.args());
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());

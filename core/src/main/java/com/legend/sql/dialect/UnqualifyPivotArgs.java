@@ -103,6 +103,7 @@ final class UnqualifyPivotArgs extends SqlRewriter {
             case SqlExpr.NullLit ignored -> e;
             case SqlExpr.DateLit ignored -> e;
             case SqlExpr.TimestampLit ignored -> e;
+            case SqlExpr.TimeLit ignored -> e;
             case SqlExpr.FormatLit fml -> e;
         };
     }

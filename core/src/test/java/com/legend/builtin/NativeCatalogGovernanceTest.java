@@ -94,7 +94,12 @@ class NativeCatalogGovernanceTest {
         // route of a several-route legacyNavigate (the target set's own
         // function, its rows, the join as written); the union stops
         // publishing keys once the emitter switches (step 2). 16 -> 17.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 17,
+        // +2 2026-10-16 (the Cypher island's time-of-day leg, docs/CYPHER_STUDY_2026_10_15.md §12.7): timeOf /
+        // atTime — a time of day (Pure's StrictTime) in SQL: the date-time's time (a CAST to TIME) and the
+        // date-time at a time of a date (the database's date plus time). legend-pure declares StrictTime and only
+        // prints it; legend-engine's relational lowering refuses it (pureToSQLQuery.pure "not supported yet"), so
+        // neither has an upstream counterpart; emitted by the Cypher translator only, by FQN. 17 -> 19.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 19,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

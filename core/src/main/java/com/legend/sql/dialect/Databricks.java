@@ -61,6 +61,8 @@ public final class Databricks extends AnsiSqlRenderer {
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "TIMESTAMP";
             case JSON -> "VARIANT";
+            // Databricks SQL has no TIME type
+            case TIME -> throw new DialectCapability("a time of day: Databricks has no TIME type");
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -1095,6 +1097,7 @@ public final class Databricks extends AnsiSqlRenderer {
                     .append(", ").expr(a.get(2), 0).append(")");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
+            case DATE_AT_TIME -> throw new DialectCapability("a time of day: Databricks has no TIME type");
             // the zone's wall time of the instant t (the platform's timestamps are UTC instants): measured by the
             // PCT's format with a zone (13:07:44 UTC is 08:07:44 in EST)
             case TIMEZONE -> writer.append("from_utc_timestamp(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0)

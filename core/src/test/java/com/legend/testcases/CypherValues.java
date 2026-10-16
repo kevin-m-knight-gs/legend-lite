@@ -422,6 +422,24 @@ public final class CypherValues {
                 return new Opaque(dateTime(l.getYear(), l.getMonthValue(), l.getDayOfMonth(), l.getHour(),
                         l.getMinute(), l.getSecond(), String.format(java.util.Locale.ROOT, "%09d", l.getNano())));
             }
+            // a time of day (lite's StrictTime, or the driver's): Time('HH:mm:ss.nnnnnnnnn'), as the Python driver
+            // spells a local time, the nanoseconds always nine digits
+            case com.legend.values.PureTimeLiteral.TimeWithMinute t -> {
+                return new Opaque(time(t.hour(), t.minute(), 0, ""));
+            }
+            case com.legend.values.PureTimeLiteral.TimeWithSecond t -> {
+                return new Opaque(time(t.hour(), t.minute(), t.second(), ""));
+            }
+            case com.legend.values.PureTimeLiteral.TimeWithSubsecond t -> {
+                return new Opaque(time(t.hour(), t.minute(), t.second(), t.subsecond()));
+            }
+            case java.sql.Time t -> {
+                return ofCell(t.toLocalTime());
+            }
+            case java.time.LocalTime l -> {
+                return new Opaque(time(l.getHour(), l.getMinute(), l.getSecond(), String.format(
+                        java.util.Locale.ROOT, "%09d", l.getNano())));
+            }
             default -> {
             }
         }
@@ -446,6 +464,11 @@ public final class CypherValues {
 
     private static String date(int year, int month, int day) {
         return String.format(java.util.Locale.ROOT, "%04d-%02d-%02d", year, month, day);
+    }
+
+    private static String time(int hour, int minute, int second, String fraction) {
+        String nanos = (fraction + "000000000").substring(0, 9);
+        return "Time('" + String.format(java.util.Locale.ROOT, "%02d:%02d:%02d.", hour, minute, second) + nanos + "')";
     }
 
     private static String dateTime(int year, int month, int day, int hour, int minute, int second, String fraction) {

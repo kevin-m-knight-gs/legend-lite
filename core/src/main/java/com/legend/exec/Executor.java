@@ -684,7 +684,7 @@ public final class Executor {
             // required-label column is a breach sighting
             SqlTypeCensus.wireNullSeen(i);
         }
-        if (o instanceof java.sql.Timestamp) {
+        if (o instanceof java.sql.Timestamp || o instanceof java.sql.Time) {
             // (a TIMESTAMP-typed output may still surface a VARCHAR cell —
             // the precision-faithful string convention — so gate on the
             // actual driver object, not the declared type.)
@@ -699,12 +699,16 @@ public final class Executor {
             // their BC date-time is designed, not built, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15. Any other
             // driver's refusal fails loudly, AGENTS invariant 4 -- the independent review of
             // neema2/legend-lite#30 narrowed a catch that had kept the Timestamp for every driver.)
-            if (!dialect.refetchesTimestampAsJavaTime()) {
+            // A TIME cell delivered as java.sql.Time holds milliseconds (pgjdbc's getObject): the same re-fetch,
+            // as LocalTime, keeps the microseconds the column holds (DuckDB's driver delivers a LocalTime itself,
+            // measured 1.4.4; the Cypher island's time-of-day leg, 2026-10-16). One re-fetch site for both.
+            if (o instanceof java.sql.Timestamp && !dialect.refetchesTimestampAsJavaTime()) {
                 return o;
             }
-            java.time.LocalDateTime ldt =
-                    rs.getObject(i, java.time.LocalDateTime.class);
-            return ldt != null ? ldt : o;
+            Class<? extends java.time.temporal.Temporal> carrier = o instanceof java.sql.Timestamp
+                    ? java.time.LocalDateTime.class : java.time.LocalTime.class;
+            Object t = rs.getObject(i, carrier);
+            return t != null ? t : o;
         }
         return o;
     }
@@ -823,6 +827,11 @@ public final class Executor {
             case java.time.OffsetDateTime odt ->
                     PureDateLiteral.fromLocalDateTime(odt.withOffsetSameInstant(
                             java.time.ZoneOffset.UTC).toLocalDateTime());
+            // a time of day: the ONE host carrier is PureTimeLiteral (the date's rule, for the time)
+            case java.time.LocalTime lt -> com.legend.values.PureTimeLiteral.fromLocalTime(lt);
+            case java.sql.Time t -> com.legend.values.PureTimeLiteral.fromLocalTime(t.toLocalTime());
+            case String s when type == com.legend.sql.SqlType.Scalar.TIME ->
+                    com.legend.values.PureTimeLiteral.parse(s.trim());
             case String s when isTemporalType(type) ->
                     PureDateLiteral.parse(s.trim().replace(' ', 'T'));
             // the wire-decoded decimal carrier (DECIMAL_TEXT, the B3

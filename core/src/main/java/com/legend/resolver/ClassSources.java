@@ -1220,6 +1220,7 @@ public final class ClassSources {
             case TypedCDecimal ignored -> n;
             case TypedCBoolean ignored -> n;
             case TypedCDate ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCTime ignored -> n;
             case TypedEnumValue ignored -> n;
             default -> throw new NotImplementedException(
                     "model-to-model binding node "

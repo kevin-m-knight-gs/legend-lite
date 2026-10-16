@@ -91,6 +91,7 @@ public final class Trino extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP(6)";
             case TIMESTAMPTZ -> "TIMESTAMP(6) WITH TIME ZONE";
             case JSON -> "JSON";
+            case TIME -> "TIME(6)";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -967,6 +968,9 @@ public final class Trino extends AnsiSqlRenderer {
             // the zone's wall time of the instant t (the platform's timestamps are UTC instants; a zoned one, a
             // parsed offset's, is its own instant: with_timezone takes only a naive one)
             case TIMEZONE -> timezone(writer, c);
+            // Trino adds no date and time: the date-time is read from their texts (designed, not measured here)
+            case DATE_AT_TIME -> writer.append("CAST(CAST(").expr(a.get(0), 0).append(" AS VARCHAR) || ' ' || CAST(")
+                    .expr(a.get(1), 0).append(" AS VARCHAR) AS TIMESTAMP(6))");
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("to_unixtime(with_timezone(").expr(a.get(0), 0).append(", 'UTC'))");
             case EPOCH_MS -> writer.append("CAST(truncate(to_unixtime(with_timezone(").expr(a.get(0), 0)

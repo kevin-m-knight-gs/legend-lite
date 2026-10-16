@@ -192,6 +192,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "CHAR";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case TIME -> "TIME(6)";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -1075,6 +1076,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DOUBLE -> "DOUBLE";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case TIME -> "TIME(6)";
             case JSON -> "JSON";
             case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin";
         };
@@ -1106,6 +1108,7 @@ public class MariaDb extends AnsiSqlRenderer {
                 case DOUBLE -> "DOUBLE";
                 case DATE -> "DATE";
                 case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+                case TIME -> "TIME(6)";
                 case BOOLEAN, JSON, VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "CHAR";
             };
             return w -> w.append("CAST(").piece(text).append(" AS " + type + ")");
@@ -1647,6 +1650,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case TIMESTAMPTZ -> from == SqlType.Scalar.VARCHAR ? utcOf(value)
                     : w -> w.append("CAST(").piece(value).append(" AS DATETIME(6))");
             case JSON -> w -> w.append("JSON_EXTRACT(JSON_ARRAY(").piece(value).append("), '$[0]')");
+            case TIME -> w -> w.append("CAST(").piece(value).append(" AS TIME(6))");
             case TEMPORAL_TEXT, DECIMAL_TEXT -> value;
         };
     }
@@ -1900,6 +1904,8 @@ public class MariaDb extends AnsiSqlRenderer {
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC date-time: UTC's wall time is the instant's, either way
             case TIMEZONE -> timezone(writer, c, parentPrec);
+            // TIMESTAMP(date, time): the date-time at that time of that day
+            case DATE_AT_TIME -> writer.function("TIMESTAMP", c.args());
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" DIV 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (")
@@ -2032,6 +2038,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DOUBLE -> "DOUBLE";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case TIME -> "TIME(6)";
             case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT, JSON -> "CHAR";
         };
     }

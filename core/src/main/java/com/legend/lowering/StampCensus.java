@@ -182,6 +182,7 @@ public final class StampCensus {
             case SqlExpr.BoolLit ignored -> true;
             case SqlExpr.DateLit ignored -> true;
             case SqlExpr.TimestampLit ignored -> true;
+            case SqlExpr.TimeLit ignored -> true;
             case SqlExpr.Cast c -> c.target() instanceof SqlType.Scalar;
             default -> false;
         };

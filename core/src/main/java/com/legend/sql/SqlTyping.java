@@ -131,6 +131,7 @@ public final class SqlTyping {
     static final TypeFact T_VARCHAR = typed(SqlType.Scalar.VARCHAR);
     static final TypeFact T_DATE = typed(SqlType.Scalar.DATE);
     static final TypeFact T_TIMESTAMP = typed(SqlType.Scalar.TIMESTAMP);
+    static final TypeFact T_TIME = typed(SqlType.Scalar.TIME);
     static final TypeFact T_JSON = typed(SqlType.Scalar.JSON);
 
     // ------------------------------------------------------------------
@@ -388,7 +389,7 @@ public final class SqlTyping {
                     DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
             case TODAY, MAKE_DATE -> T_DATE;
             case NOW, MAKE_TIMESTAMP, STRPTIME, PARSE_DATE, FROM_EPOCH_SECONDS,
-                    FROM_EPOCH_MS, TIMEZONE -> T_TIMESTAMP;
+                    FROM_EPOCH_MS, TIMEZONE, DATE_AT_TIME -> T_TIMESTAMP;
             // PROBED 1.5.0 (2026-08-25 full-burn): the list aggregates
             // follow the SAME reducer promotions as their grouped
             // twins, read through the element (list_sum int->HUGEINT,

@@ -2045,6 +2045,7 @@ final class Substitution {
             case TypedCDecimal ignored -> n;
             case TypedCBoolean ignored -> n;
             case TypedCDate ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCTime ignored -> n;
             case TypedEnumValue ignored -> n;
             // CONSTRUCTED RELATION MATERIAL (R2): a nested scope's rewrite
             // (innerRegs — R1a) builds exists/leaf relations whose nodes
@@ -2721,6 +2722,7 @@ final class Substitution {
             case TypedCDecimal ignored -> n;
             case TypedCBoolean ignored -> n;
             case TypedCDate ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCTime ignored -> n;
             case TypedEnumValue ignored -> n;
             case com.legend.compiler.spec.typed.TypedTypeRef ignored -> n;
             case TypedLambda l -> {

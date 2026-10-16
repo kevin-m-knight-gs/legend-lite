@@ -33,6 +33,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
             case JSON -> "JSON";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -482,6 +483,9 @@ public final class DuckDb extends AnsiSqlRenderer {
             case MAKE_DATE -> writer.function("make_date", c.args());
             case DATE_DIFF -> writer.function("date_diff", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
+            // a date plus a time of day is the timestamp at it (measured, 1.4.4)
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
+                    .expr(a.get(1), 6));
             case EPOCH_SECONDS -> writer.function("epoch", c.args());
             case EPOCH_MS -> writer.function("epoch_ms", c.args());
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());

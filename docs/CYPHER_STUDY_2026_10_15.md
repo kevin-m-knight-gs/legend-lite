@@ -1771,3 +1771,76 @@ declared, a SQL TIME type is the lowering's leg); durations (`duration`, `durati
 temporal arithmetic: a months-days-seconds-nanoseconds value with its own normalization and `P...` spelling, no Pure
 type); nanosecond precision (the databases keep microseconds); `toString` of a date-time; the sub-second fields;
 compact and week-form texts.
+
+### 12.7 The time-of-day leg, 2026-10-16: `localtime` over Pure's StrictTime, a SQL TIME
+
+The user's direction after the temporal slice: "Yes do it all here" — times of day, zoned date-times, durations —
+with the time-of-day leg first, since every database the lanes run names a TIME type. This leg is the first that
+touches the database owner's files: Pure declares `StrictTime` and only prints it, and legend-engine's relational
+lowering refuses it (`pureToSQLQuery.pure`, "not supported yet"), so a time of day in SQL is lite's own
+(`docs/SEMANTICS_REGISTER.md` S63).
+
+#### 12.7.1 What lands
+
+**The platform.** `SqlType.Scalar.TIME` (DuckDB, Postgres, H2 `TIME`; MariaDB and Trino `TIME(6)`; Snowflake and
+BigQuery `TIME`; SQLite its text; ClickHouse, whose `Time` type is experimental, and Databricks, which has none,
+refuse by name; the engine-text renderers refuse, as legend-engine does) and `SqlExpr.TimeLit`, rendered
+`TIME 'HH:mm:ss[.ffffff]'`. `StrictTime` lowers to it (`PureSql.primitiveCarrier`; a `%12:31:14.645` literal is a
+`TimeLit`, its minute form padded with its seconds). Two lite natives, each one lowering rule, both emitted by the
+Cypher translator only and by FQN (`Pure.Lite.TIME_OF`, `Pure.Lite.AT_TIME`; `INTERNAL_DESUGAR` 17 → 19 with the
+dated note in `NativeCatalogGovernanceTest`): `meta::legend::lite::timeOf(Date[1]):StrictTime[1]`, a CAST to
+TIME, and `meta::legend::lite::atTime(Date[1], StrictTime[1]):DateTime[1]`, the date-time at that time of that
+day (`SqlFn.DATE_AT_TIME`: `date + time` on DuckDB, Postgres and H2, `TIMESTAMP(d, t)` on MariaDB,
+`TIMESTAMP_NTZ_FROM_PARTS` on Snowflake, `DATETIME(d, t)` on BigQuery, the texts joined on SQLite and Trino). The
+executor reads a TIME cell as `PureTimeLiteral` (the date's one-carrier rule, for the time): DuckDB's driver delivers
+a `LocalTime`, pgjdbc a `java.sql.Time` holding milliseconds that the executor re-fetches as `LocalTime` for the
+microseconds; `WireTypes` maps `Types.TIME`. No TIME store column: the `###Relational` store grammar (legend-engine's,
+and lite's) has none, so a time of day is never stored (S64) — the island computes one from texts, components and
+date-times, and the harness refuses a graph holding one by name.
+
+**The island.** `localtime(...)` from an ISO text (`hh:mm[:ss[.f{1,9}]]`; the compact forms refused by name), from
+components (`hour` to `nanosecond`, a `time` base — a time or a date-time — with fields written over it: the
+fraction kept through a written-over second, as the TCK pins for date-times), from a date-time (`timeOf`), the
+fields (`hour`, `minute`, `second`, and the sub-second fields `millisecond`, `microsecond`, `nanosecond` — new for
+date-times too: the whole fraction of the second in that unit, the database's `dateDiff` from the second's start),
+comparison, ordering, truncation (`day` to `second`, fields written over), null propagation,
+`localdatetime({date: d, time: t})` (`atTime`, with fields written over), and times of stored date-times. The one
+design rule: **Pure's date-time natives read a time of day through the date-time at it on 1970-01-01** — `atTime(%1970-01-01, t)`
+for a field, a truncation, a comparison (Pure orders no `StrictTime`) — and `timeOf` takes the time back. The date is
+a token the translator spells; the database computes every value. Neo4j's errors as Neo4j spells them: "Cannot get the
+time of: 1984-10-11" (a written date; one of the row is refused by name, the message names the value), "Unsupported
+field: Year", "hour must be specified", "Unit is too large to be used for truncation", "Not supported: date" /
+"Not supported: time" (a date component of a time, a time component of a date), "Cannot construct local time from:
+NO_VALUE" (a null `time` component). Refused by name: a zoned `time`, `toString` of a time (Neo4j trims the
+fraction's zero groups, the database spells its own way), a list or map holding a time (the Variant spells it as
+text — and now a date or date-time too, which the JSON carrier had spelled as text), a text of the row in a form the
+database does not parse, the clock functions.
+
+**The judge.** `CypherValues.ofCell` renders a `PureTimeLiteral` (or a driver's `LocalTime`) as the Python driver
+spells a local time, `Time('HH:mm:ss.nnnnnnnnn')`, nine digits.
+
+#### 12.7.2 The ledger
+
+Both lanes, identical:
+
+| | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| before (the temporal slice) | 3,959 | 1,168 | 0 | 0 | 0 | 1,800 | 673 | 318 |
+| the time-of-day leg | 3,979 | 1,195 | 0 | 0 | 0 | 1,785 | 681 | 318 |
+
+Of the TCK's temporal features (1,004 cases): 129 PASS, 825 REFUSED by name, 50 SKIP. 35 lite
+cases in `lite/temporal.yaml`, each judged by Neo4j.
+
+#### 12.7.3 What the first runs found
+
+DuckDB has no `date_trunc` over a TIME (measured, 1.4.4) — which is why nothing truncates a TIME: the epoch-day rule
+above. The composer refuses to print a synthesized temporal literal without its written form, so the island's date
+and time literals now carry one (`CDate(lit, written, pos)`), and the translator's unit test can read the Pure it
+writes. Neo4j 2026.09.0 answers `localtime({time: null})` with "Cannot construct local time from: NO_VALUE" where
+`date({year: null})` is its internal error: the island mirrors the first and answers null for the second.
+
+#### 12.7.4 Left by name
+
+Zoned date-times and times (`datetime`, `time`: the next leg, as instants); durations and temporal arithmetic;
+`toString` of a time or date-time; nanosecond precision; truncation to the millisecond or microsecond; the compact
+and week-form texts; a stored time of day (a TIME store column, if ever wanted, is a grammar decision).

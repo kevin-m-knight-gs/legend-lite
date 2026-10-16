@@ -103,6 +103,29 @@ class CypherToPureTest {
         assertTrue(e.getMessage().contains(message), e.getMessage());
     }
 
+    // ------------------------------------------------------------------ a time of day (the study's §12.7)
+
+    @Test
+    void aLocalTimeIsPuresStrictTimeReadThroughTheEpochDay() {
+        // a written time is Pure's time literal; one from components is the date-time at it on 1970-01-01, its time
+        // taken back (lite's atTime and timeOf: the date is a token the database never sees as a value)
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[t:r|%12:31:14.645,"
+                        + " u:r|1970->date(1, 1, 12, 0, 0)->meta::legend::lite::timeOf(),"
+                        + " h:r|%1970-01-01->meta::legend::lite::atTime(%12:31:14.645)->hour()])->select(~[t, u, h])",
+                pure("RETURN localtime('12:31:14.645') AS t, localtime({hour: 12}) AS u,"
+                        + " localtime('12:31:14.645').hour AS h"));
+        // Neo4j's errors, spelled as Neo4j spells them
+        invalid("RETURN localtime({minute: 5}) AS t", "hour must be specified");
+        invalid("RETURN localtime('12:00').year AS y", "Unsupported field: Year");
+        invalid("RETURN localtime.truncate('month', localtime('12:00')) AS t",
+                "Unit is too large to be used for truncation");
+        invalid("RETURN localtime(date('1984-10-11')) AS t", "Cannot get the time of: 1984-10-11");
+        // refused by name: a zone, a text in the compact form, the Variant's text spelling of a time
+        unsupported("RETURN time('12:00+01:00') AS t", "a zoned date-time or time");
+        unsupported("RETURN localtime('123114') AS t", "a form other than hh:mm[:ss[.fraction]]");
+        unsupported("RETURN [localtime('12:31'), localtime('13:00')] AS l", "a list or map holding a LocalTime");
+    }
+
     // ------------------------------------------------------------------ shapes
 
     @Test

@@ -1643,6 +1643,16 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   - `core/src/main/java/com/legend/compiler/spec/CypherIslands.java` (the seam)
   - `core/src/test/resources/cypher-parity/`, `tools/neo4j-oracle/`, `projects/graph/` (PR3)
   - the tests `testcases/Cypher*`, `integration/Cypher*`, `server/Cypher*` and `protocol/cypher/*Test`
+- **The time-of-day leg, 2026-10-16 (the user's "do it all here"): the first Cypher landing in the database owner's
+  files, announced here as landed** — `sql/SqlType.java` (`Scalar.TIME`), `sql/SqlExpr.java` (`TimeLit`),
+  `sql/SqlFn.java` (`DATE_AT_TIME`), `sql/SqlTyping.java`, `sql/SqlRewriter.java`, every dialect under `sql/dialect/`
+  (the type's name, the literal, the date-at-time call), `lowering/PureSql.java` (StrictTime → TIME),
+  `lowering/Lowerer.java`, `lowering/MatchFold.java`, `lowering/Scalars.java` (the two natives' rules),
+  `lowering/CastPolicy.java`, the literal switches (`NullSemantics`, `StampCensus`, `SubselectPrune`, `Windows`),
+  `compiler/element/type/Type.java` (`kindOfSqlType`), `exec/Executor.java` (TIME cells), `exec/WireTypes.java`,
+  `exec/SqlTypeCensus.java`, `values/PureTimeLiteral.java` (`fromLocalTime`), `builtin/Pure.java` (the two lite
+  natives and their overload groups, as the generator writes them), `NativeCatalogGovernanceTest` (17 → 19, dated).
+  The record: the study's §12.7; GATES "the fifth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

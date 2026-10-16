@@ -65,6 +65,8 @@ public enum SqlFn {
     // Temporal (part-literal-first like EXTRACT): truncation, arithmetic,
     // bucketing, epoch conversion, calendar names
     DATE_TRUNC, ADD_INTERVAL, DATE_DIFF, TIME_BUCKET, TIMEZONE,
+    /** {@code (date, time)}: the date-time at that time of that day (Pure's {@code meta::legend::lite::atTime}). */
+    DATE_AT_TIME,
     /** milestoning adjust() shift — same semantics as ADD_INTERVAL; the
      *  engine-H2 golden spells its unit UPPERCASE (adjust/mapToDBUnitType
      *  channel: dateadd(DAY,...) vs the dynaFn's dateadd(day,...)). */

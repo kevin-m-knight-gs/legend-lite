@@ -1,7 +1,8 @@
-# The #Cypher{...}# island's temporal cases (docs/CYPHER_STUDY_2026_10_15.md §12.6): a date is Pure's StrictDate, a
-# localdatetime Pure's DateTime (the database's DATE and TIMESTAMP, to the microsecond); zoned date-times, times of
-# day and durations are refused by name. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
-# (tools/neo4j-oracle/snap.sh --write --only 'lite/temporal/*' snaps them), keyed lite/temporal/<id>.
+# The #Cypher{...}# island's temporal cases (docs/CYPHER_STUDY_2026_10_15.md §12.6, §12.7): a date is Pure's
+# StrictDate, a localdatetime Pure's DateTime (the database's DATE and TIMESTAMP, to the microsecond), a localtime
+# Pure's StrictTime (the database's TIME); zoned date-times and times, and durations, are refused by name. Each case
+# is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/temporal/*'
+# snaps them), keyed lite/temporal/<id>.
 tests:
   - id: date_from_components
     cypher: "RETURN date({year: 1984, month: 10, day: 11}) AS a, date({year: 1984, month: 10}) AS b, date({year: 1984}) AS c, date({year: 1984, week: 10, dayOfWeek: 3}) AS d, date({year: 1816, week: 1}) AS e, date({year: 1816, week: 52}) AS f, date({year: 1984, quarter: 3, dayOfQuarter: 45}) AS g, date({year: 1984, ordinalDay: 202}) AS h, date({year: 2015, week: 53}) AS i"
@@ -34,7 +35,50 @@ tests:
     cypher: "RETURN datetime({year: 1984, month: 10, day: 11}) AS a"
   - id: duration_refused_by_name
     cypher: "RETURN duration({days: 14, hours: 16}) AS a"
-  - id: localtime_refused_by_name
-    cypher: "RETURN localtime({hour: 12, minute: 31}) AS a"
+  - id: time_refused_by_name
+    cypher: "RETURN time('12:31:14+01:00') AS a"
+  - id: localtime_from_text
+    cypher: "RETURN localtime('12:31:14.645') AS a, localtime('12:31:14') AS b, localtime('12:31') AS c, localtime('12:31:14.645876') AS d, localtime('12:31:14.645000') AS e"
+  - id: localtime_from_components
+    cypher: "RETURN localtime({hour: 12, minute: 31, second: 14}) AS a, localtime({hour: 12, minute: 31, second: 14, millisecond: 645}) AS b, localtime({hour: 12, minute: 31, second: 14, microsecond: 645876}) AS c, localtime({hour: 12}) AS d, localtime({hour: 12, minute: 31}) AS e, localtime({hour: 12, minute: 31, second: 14, nanosecond: 645000, millisecond: 1}) AS f"
+  - id: localtime_selection
+    cypher: "WITH localtime('12:31:14.645876') AS t, localdatetime('1984-10-11T12:31:14.645') AS dt RETURN localtime(t) AS a, localtime({time: t}) AS b, localtime(dt) AS c, localtime({time: dt}) AS d, localtime({time: t, second: 42}) AS e, localtime({time: t, hour: 5, millisecond: 1}) AS f, localdatetime({date: date('1984-10-11'), time: t}) AS g, localdatetime({date: date('1984-10-11'), time: t, second: 5}) AS h, localdatetime({date: dt, time: t}) AS i"
+  - id: localtime_fields
+    cypher: "WITH localtime('12:31:14.645876') AS t, localdatetime('1984-10-11T12:31:14.645876') AS dt RETURN t.hour, t.minute, t.second, t.millisecond, t.microsecond, t.nanosecond, dt.millisecond, dt.microsecond, dt.nanosecond"
+  - id: localtime_comparison
+    cypher: "WITH localtime('12:31:14.645') AS a, localtime('12:31:15') AS b RETURN a < b, a > b, a <= b, a >= b, a = b, a = localtime('12:31:14.645') AS same, a <> b"
+  - id: localtime_truncate
+    cypher: "WITH localtime('12:31:14.645876') AS t, localdatetime('1984-10-11T12:31:14.645876') AS dt RETURN localtime.truncate('day', t) AS a, localtime.truncate('hour', t) AS b, localtime.truncate('minute', t) AS c, localtime.truncate('second', t) AS d, localtime.truncate('hour', t, {minute: 7}) AS e, localtime.truncate('minute', dt) AS f, localtime.truncate('second', t, {hour: 2}) AS g"
+  - id: localtime_null_propagation
+    cypher: "RETURN localtime(null) AS a, localtime('12:00') = null AS b"
+  - id: localtime_of_a_null_time_component_is_neo4js_error
+    cypher: "RETURN localtime({time: null}) AS c"
+  - id: localtime_ordering
+    cypher: "UNWIND [localtime('12:31:15'), localtime('01:00'), localtime('12:31:14.645')] AS t RETURN t ORDER BY t"
+  - id: stored_datetimes_times
+    graph: |
+      CREATE (:Val {name: 'a', dt: localdatetime('1984-10-11T12:31:14.645')}),
+             (:Val {name: 'b', dt: localdatetime('2016-07-21T21:45:22.142')})
+    cypher: "MATCH (v:Val) RETURN v.name AS name, localtime(v.dt) AS t, localtime(v.dt).hour AS h, localtime(v.dt) < localtime('13:00') AS early, localtime.truncate('hour', v.dt) AS th ORDER BY name"
+  - id: localtime_of_a_date_is_neo4js_error
+    cypher: "RETURN localtime(date('1984-10-11')) AS t"
+  - id: localtime_date_field_is_neo4js_error
+    cypher: "RETURN localtime('12:00').year AS y"
+  - id: localtime_without_hour_is_neo4js_error
+    cypher: "RETURN localtime({minute: 5}) AS t"
+  - id: localtime_truncate_to_month_is_neo4js_error
+    cypher: "RETURN localtime.truncate('month', localtime('12:00')) AS t"
+  - id: localtime_with_date_component
+    cypher: "RETURN localtime({date: date('1984-10-11'), hour: 5}) AS t"
+  - id: date_with_time_component
+    cypher: "RETURN date({date: date('1984-10-11'), time: localtime('12:00')}) AS d"
+  - id: localdatetime_from_time_only
+    cypher: "RETURN localdatetime({time: localtime('12:00')}) AS t"
+  - id: localtime_compact_text_refused_by_name
+    cypher: "RETURN localtime('123114') AS t"
+  - id: localtime_to_string_refused_by_name
+    cypher: "RETURN toString(localtime('12:31')) AS s"
+  - id: localtime_list_refused_by_name
+    cypher: "RETURN [localtime('12:31'), localtime('13:00')] AS l"
   - id: temporal_errors_are_cyphers
     cypher: "RETURN date({year: 1984, month: 13, day: 1}) AS a"

@@ -110,6 +110,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "Nullable(String)";
             case DATE -> "Nullable(Date32)";
             case TIMESTAMP, TIMESTAMPTZ -> "Nullable(DateTime64(6, 'UTC'))";
+            // ClickHouse's Time type is experimental (25.6, behind a setting): no time of day here yet
+            case TIME -> throw new DialectCapability("a time of day: ClickHouse's Time type is experimental");
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -603,6 +605,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
     @Override
     protected String dateLit(String iso) {
         return "toDate32('" + inRange(iso) + "')";
+    }
+
+    @Override
+    protected String timeLit(String iso) {
+        throw new DialectCapability("a time of day: ClickHouse's Time type is experimental");
     }
 
     private static final java.util.regex.Pattern YEAR = java.util.regex.Pattern.compile("^(-?\\d+)-");
@@ -1680,7 +1687,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
 
             // ---- temporal (temporal(): call is held to 250 lines)
             case NOW, DATE_TRUNC_DAY, DATE_TRUNC, PARSE_DATE, EXTRACT, MAKE_DATE, MAKE_TIMESTAMP, ADD_INTERVAL,
-                 ADD_INTERVAL_TEMPORAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, EPOCH_SECONDS, EPOCH_MS,
+                 ADD_INTERVAL_TEMPORAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, DATE_AT_TIME, EPOCH_SECONDS, EPOCH_MS,
                  FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, STRFTIME, STRPTIME -> temporal(writer, c, a);
             // ---- lists whose first argument is no list
             case LIST_LENGTH -> writer.append("toInt64(length(").piece(list(a.get(0))).append("))");
@@ -1950,6 +1957,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // the wall clock in the zone at the instant (DuckDB's of a zoned value, Trino's), as a naive UTC value:
             // toTimeZone keeps the instant and changes only how it prints (measured)
+            case DATE_AT_TIME -> throw new DialectCapability("a time of day: ClickHouse's Time type is experimental");
             case TIMEZONE -> writer.append("addSeconds(toDateTime64(").expr(a.get(1), 0)
                     .append(", 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(").expr(a.get(1), 0).append(", 6, 'UTC'), ")
                     .expr(a.get(0), 0).append(")))");

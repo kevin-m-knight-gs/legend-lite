@@ -331,3 +331,28 @@ ORDER BY name
 The inferred model types `d` as StrictDate (a DATE column) and `dt` as DateTime (a TIMESTAMP); the island reads
 `v.d.year` as Pure's `year`, the comparison as the database's, the truncation as `firstDayOfMonth`, and the judge
 reads each date cell as Neo4j's driver spells one. What the slice refuses by name is the study's §12.6.5.
+
+## 14. What the time-of-day leg brings: `localtime` over a SQL TIME (2026-10-16)
+
+Cypher's `localtime` is Pure's StrictTime, which lite now lowers to the database's TIME (the study's §12.7: Pure
+declares the type and only prints it, legend-engine refuses it in SQL, so this is lite's own). One of the leg's
+Neo4j-judged cases (`lite/temporal.yaml`, `stored_datetimes_times`; `ledger.tsv`: PASS on both lanes), over the
+graph whose nodes hold a local date-time:
+
+```
+MATCH (v:Val)
+RETURN v.name AS name, localtime(v.dt) AS t, localtime(v.dt).hour AS h,
+       localtime(v.dt) < localtime('13:00') AS early, localtime.truncate('hour', v.dt) AS th
+ORDER BY name
+```
+
+| name | t | h | early | th |
+|---|---|---|---|---|
+| 'a' | 12:31:14.645 | 12 | true | 12:00:00 |
+| 'b' | 21:45:22.142 | 21 | false | 21:00:00 |
+
+`localtime(v.dt)` is lite's `timeOf` (a CAST to TIME); `localtime('13:00')` is Pure's `%13:00` literal, a
+`TIME '13:00:00'`; the field, the comparison and the truncation read a time through the date-time at it on
+1970-01-01 (lite's `atTime`: the date is a token the translator spells, the database computes every value), and
+`timeOf` takes the time back. The judge reads a TIME cell as Neo4j's driver spells a local time. A time of day is
+never stored: the store grammar has no TIME column (`docs/SEMANTICS_REGISTER.md` S64).

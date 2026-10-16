@@ -124,7 +124,7 @@ public final class SQLite extends AnsiSqlRenderer {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT -> "INTEGER";
             case DOUBLE -> "REAL";
-            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
+            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -658,6 +658,12 @@ public final class SQLite extends AnsiSqlRenderer {
     @Override
     protected String timestampLit(String iso) {
         return "'" + iso.replace('T', ' ') + "'";
+    }
+
+    /** A time of day is its text. */
+    @Override
+    protected String timeLit(String iso) {
+        return "'" + iso + "'";
     }
 
     /** A Float literal is a REAL; the infinities are REALs past the range ({@code 9e999}, measured: Infinity); NaN has
@@ -1268,6 +1274,10 @@ public final class SQLite extends AnsiSqlRenderer {
                             .append(" FROM (SELECT ").piece(padded(dateTimeText(value))).append(" AS t) AS __u)")
                     : value;
             case JSON -> w -> w.append("json_quote(").piece(value).append(")");
+            // a time of day is its text: a date-time text's from its twelfth character, a date's midnight
+            case TIME -> from == SqlType.Scalar.TIMESTAMP || from == SqlType.Scalar.TIMESTAMPTZ
+                    ? w -> w.append("substr(").piece(value).append(", 12)")
+                    : from == SqlType.Scalar.DATE ? w -> w.append("'00:00:00'") : value;
             case TEMPORAL_TEXT, DECIMAL_TEXT -> value;
         };
     }
@@ -1562,6 +1572,9 @@ public final class SQLite extends AnsiSqlRenderer {
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC text: UTC's wall time is the instant's, either way
             case TIMEZONE -> timezone(writer, c, parentPrec);
+            // a date's text, a space, a time's text: the date-time text SQLite's date functions read
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 3).append(" || ' ' || ")
+                    .expr(a.get(1), 3));
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000.0)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("datetime(").expr(a.get(0), 0).append(", 'unixepoch')");

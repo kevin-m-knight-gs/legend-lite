@@ -172,6 +172,7 @@ public abstract class SqlRewriter {
             case SqlExpr.NullLit l -> l;
             case SqlExpr.DateLit l -> l;
             case SqlExpr.TimestampLit l -> l;
+            case SqlExpr.TimeLit l -> l;
             case SqlExpr.FormatLit l -> l;
             case SqlExpr.PlanParam p -> p;
             case SqlExpr.Group g -> {

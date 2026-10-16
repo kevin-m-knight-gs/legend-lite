@@ -61,6 +61,12 @@ final class MatchFold {
                 && p.isNumeric();
     }
 
+    /** A time-of-day literal: a TIME, its minute form padded with its seconds ({@code %10:30} is 10:30:00). */
+    static SqlExpr timeLit(com.legend.values.PureTimeLiteral t) {
+        return new SqlExpr.TimeLit(t instanceof com.legend.values.PureTimeLiteral.TimeWithMinute
+                ? t.toEngineString() + ":00" : t.toEngineString());
+    }
+
     /** Date literals: full dates/timestamps render typed; PARTIAL dates
      * (year / year-month) compare as STRINGS (master's pinned
      * semantics); HOUR/MINUTE-precision timestamps PAD to the full

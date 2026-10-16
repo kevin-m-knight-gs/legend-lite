@@ -262,7 +262,7 @@ public final class SqlToPure {
      * not know a column's width. Dividing it by an integer is refused.
      */
     public enum Kind {
-        INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, JSON, NULL, OTHER;
+        INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, TIME, JSON, NULL, OTHER;
 
         public boolean numeric() {
             return this == INTEGER || this == WHOLE || this == FLOAT || this == DECIMAL || this == NUMBER
@@ -3839,6 +3839,7 @@ public final class SqlToPure {
             case STRING, NULL -> "String";
             case DATE -> "StrictDate";
             case DATETIME -> "DateTime";
+            case TIME -> "StrictTime";
             case JSON -> VARIANT;
             case BOOLEAN, OTHER -> null;
         };
@@ -4275,6 +4276,7 @@ public final class SqlToPure {
             case BOOLEAN -> "boolean";
             case DATE -> "date";
             case DATETIME -> "timestamp without time zone";
+            case TIME -> "time without time zone";
             case JSON -> "jsonb";
             case NULL -> "unknown";
             case OTHER -> "an enumeration";

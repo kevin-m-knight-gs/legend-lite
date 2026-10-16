@@ -74,8 +74,12 @@ comprehensions, indexing and slicing, `IN` over lists, `WITH` first, `UNWIND`, l
 function table, 29 more lite cases (boolean ordering followed on 2026-10-16): 3,943 cases, 1,044 PASS, 0 FAIL,
 0 BUG, 0 ERROR, 1,898 REFUSED by name, identical on both lanes. The temporal slice landed on the branch (§12.6, 2026-10-16): dates and local date-times over Pure's StrictDate and
 DateTime, 3,959 cases, 1,168 PASS, 0 FAIL, 0 BUG, 0 ERROR; zoned date-times, times of day and durations refused by
-name (§12.6.5). Next: the full CI run on the branch, the merge; then the join form (316 fan-out cases), `collect`
-(the database owner's aggregate), or the rest of temporal, the user's call.
+name (§12.6.5). The time-of-day leg landed on the branch (§12.7, 2026-10-16): `localtime` over Pure's StrictTime, a
+SQL TIME type end to end (the user's "do it all here": the first Cypher landing in the database owner's files); PASS
+1,195, 0 FAIL, 0 BUG, 0 ERROR, 1,785 REFUSED, identical on both lanes. Next in the same direction: zoned
+date-times as instants, then durations (the user's question, whether a duration can be a user class on the Variant
+rather than a platform type, answered in the study's §12.9 when that leg lands). Then the full CI run on the branch,
+the merge; the join form (316 fan-out cases) and `collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

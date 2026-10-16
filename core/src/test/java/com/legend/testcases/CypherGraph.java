@@ -316,9 +316,11 @@ public final class CypherGraph {
                 }
                 yield "DateTime";
             }
+            // a time of day is not stored: the ###Relational store grammar (legend-engine's, lite's) has no TIME
+            // column type (docs/SEMANTICS_REGISTER.md S64); the island computes times from texts and date-times
             default -> throw new Unsupported("harness: the property " + key + " holds a " + v.getClass()
                     .getSimpleName().toLowerCase(Locale.ROOT) + " (" + valueText + "), a kind the model does not"
-                    + " hold yet (a time, a zoned date-time, a duration)");
+                    + " hold yet (a time of day: no TIME store column; a zoned date-time; a duration)");
         };
     }
 

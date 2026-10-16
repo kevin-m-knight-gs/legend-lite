@@ -9850,6 +9850,30 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the fifth landing — the time-of-day leg: `localtime` over Pure's StrictTime, a SQL TIME (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the temporal slice; the record is the study's §12.7
+(`docs/CYPHER_STUDY_2026_10_15.md`). The first Cypher landing in the database owner's files (the user's "do it all
+here").
+
+1. **What lands.** `SqlType.Scalar.TIME` and `SqlExpr.TimeLit` with an arm in every dialect (seven name the type,
+   SQLite holds its text, ClickHouse, Databricks and the engine-text renderers refuse by name, as legend-engine
+   refuses StrictTime); `StrictTime` lowered to it; two lite natives, `meta::legend::lite::timeOf` (a date-time's
+   time of day, a CAST to TIME) and `meta::legend::lite::atTime` (the date-time at a time of a date,
+   `SqlFn.DATE_AT_TIME`), `INTERNAL_DESUGAR` 17 → 19 with its dated note; the executor reading a TIME cell as
+   `PureTimeLiteral` (pgjdbc's `java.sql.Time` re-fetched as `LocalTime` for the microseconds). Cypher's `localtime`
+   from texts, components, selection, the fields (the sub-second fields for date-times too), comparison, ordering,
+   truncation, `localdatetime({date, time})`, times of stored date-times; Neo4j's errors as Neo4j spells them; the
+   judge rendering `Time('HH:mm:ss.nnnnnnnnn')`. Refused by name: zoned times, `toString` of a time, lists holding
+   temporal values, stored times (no TIME store column: `docs/SEMANTICS_REGISTER.md` S63, S64).
+2. **The ledger,** identical on both lanes: 3,979 cases; PASS 1,195 (from 1,168); FAIL 0; BUG 0; ERROR 0;
+   REFUSED 1,785; BOTH_ERROR 681; SKIP 318. Of the TCK's 1,004 temporal cases, 129 PASS. 35 lite
+   cases in `lite/temporal.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** `//core:cypher_parity_test` (DuckDB) and `//core:cypher_parity_postgres_test` in update mode, the
+   oracle's check, `//core:guardrails`, `//core:core_tests_protocol`, `//core:core_tests_integration`, the
+   generated-files check (`bazel run //:update_generated`: the catalog's overload groups as the generator writes
+   them). The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the fourth landing — the temporal slice: dates and local date-times over Pure's StrictDate and DateTime (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after PR2; the record is the study's §12.6 (`docs/CYPHER_STUDY_2026_10_15.md`).

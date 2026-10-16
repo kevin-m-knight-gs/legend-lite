@@ -2855,11 +2855,11 @@ tck/expressions/temporal/Temporal1/[4] Should construct date #7	PASS	PASS
 tck/expressions/temporal/Temporal1/[4] Should construct date #8	PASS	PASS
 tck/expressions/temporal/Temporal1/[5] Should construct local time #1	REFUSED	REFUSED
 tck/expressions/temporal/Temporal1/[5] Should construct local time #2	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[5] Should construct local time #3	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[5] Should construct local time #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[5] Should construct local time #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[5] Should construct local time #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[5] Should construct local time #7	REFUSED	REFUSED
+tck/expressions/temporal/Temporal1/[5] Should construct local time #3	PASS	PASS
+tck/expressions/temporal/Temporal1/[5] Should construct local time #4	PASS	PASS
+tck/expressions/temporal/Temporal1/[5] Should construct local time #5	PASS	PASS
+tck/expressions/temporal/Temporal1/[5] Should construct local time #6	PASS	PASS
+tck/expressions/temporal/Temporal1/[5] Should construct local time #7	PASS	PASS
 tck/expressions/temporal/Temporal1/[6] Should construct time #1	REFUSED	REFUSED
 tck/expressions/temporal/Temporal1/[6] Should construct time #2	REFUSED	REFUSED
 tck/expressions/temporal/Temporal1/[6] Should construct time #3	REFUSED	REFUSED
@@ -3149,11 +3149,11 @@ tck/expressions/temporal/Temporal2/[1] Should parse date from string #8	REFUSED	
 tck/expressions/temporal/Temporal2/[1] Should parse date from string #9	REFUSED	REFUSED
 tck/expressions/temporal/Temporal2/[1] Should parse date from string #10	REFUSED	REFUSED
 tck/expressions/temporal/Temporal2/[1] Should parse date from string #11	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[2] Should parse local time from string #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[2] Should parse local time from string #1	PASS	PASS
 tck/expressions/temporal/Temporal2/[2] Should parse local time from string #2	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[2] Should parse local time from string #3	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[2] Should parse local time from string #3	PASS	PASS
 tck/expressions/temporal/Temporal2/[2] Should parse local time from string #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[2] Should parse local time from string #5	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[2] Should parse local time from string #5	PASS	PASS
 tck/expressions/temporal/Temporal2/[2] Should parse local time from string #6	REFUSED	REFUSED
 tck/expressions/temporal/Temporal2/[2] Should parse local time from string #7	REFUSED	REFUSED
 tck/expressions/temporal/Temporal2/[3] Should parse time from string #1	REFUSED	REFUSED
@@ -3218,9 +3218,9 @@ tck/expressions/temporal/Temporal3/[2] Should select local time #3	REFUSED	REFUS
 tck/expressions/temporal/Temporal3/[2] Should select local time #4	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[2] Should select local time #5	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[2] Should select local time #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[2] Should select local time #7	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[2] Should select local time #8	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[2] Should select local time #9	REFUSED	REFUSED
+tck/expressions/temporal/Temporal3/[2] Should select local time #7	PASS	PASS
+tck/expressions/temporal/Temporal3/[2] Should select local time #8	PASS	PASS
+tck/expressions/temporal/Temporal3/[2] Should select local time #9	PASS	PASS
 tck/expressions/temporal/Temporal3/[2] Should select local time #10	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[2] Should select local time #11	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[2] Should select local time #12	REFUSED	REFUSED
@@ -3254,24 +3254,24 @@ tck/expressions/temporal/Temporal3/[5] Should select time into local date time #
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #2	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #3	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[5] Should select time into local date time #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[5] Should select time into local date time #6	REFUSED	REFUSED
+tck/expressions/temporal/Temporal3/[5] Should select time into local date time #5	PASS	PASS
+tck/expressions/temporal/Temporal3/[5] Should select time into local date time #6	PASS	PASS
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #7	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #8	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #1	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #2	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #3	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #6	REFUSED	REFUSED
+tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #5	PASS	PASS
+tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #6	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #7	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #8	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #9	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #10	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #11	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #12	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #13	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #14	REFUSED	REFUSED
+tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #13	PASS	PASS
+tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #14	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #15	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #16	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #17	REFUSED	REFUSED
@@ -3396,7 +3396,7 @@ tck/expressions/temporal/Temporal4/[13] Should propagate null #1	PASS	PASS
 tck/expressions/temporal/Temporal4/[13] Should propagate null #2	REFUSED	REFUSED
 tck/expressions/temporal/Temporal4/[13] Should propagate null #3	REFUSED	REFUSED
 tck/expressions/temporal/Temporal4/[13] Should propagate null #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal4/[13] Should propagate null #5	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[13] Should propagate null #5	PASS	PASS
 tck/expressions/temporal/Temporal4/[13] Should propagate null #6	REFUSED	REFUSED
 tck/expressions/temporal/Temporal4/[13] Should propagate null #7	REFUSED	REFUSED
 tck/expressions/temporal/Temporal4/[13] Should propagate null #8	REFUSED	REFUSED
@@ -3929,7 +3929,27 @@ lite/temporal/truncate_of_a_written_null_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/stored_dates	PASS	PASS
 lite/temporal/temporal_refused_by_name	REFUSED	REFUSED
 lite/temporal/duration_refused_by_name	REFUSED	REFUSED
-lite/temporal/localtime_refused_by_name	REFUSED	REFUSED
+lite/temporal/time_refused_by_name	REFUSED	REFUSED
+lite/temporal/localtime_from_text	PASS	PASS
+lite/temporal/localtime_from_components	PASS	PASS
+lite/temporal/localtime_selection	PASS	PASS
+lite/temporal/localtime_fields	PASS	PASS
+lite/temporal/localtime_comparison	PASS	PASS
+lite/temporal/localtime_truncate	PASS	PASS
+lite/temporal/localtime_null_propagation	PASS	PASS
+lite/temporal/localtime_of_a_null_time_component_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/localtime_ordering	PASS	PASS
+lite/temporal/stored_datetimes_times	PASS	PASS
+lite/temporal/localtime_of_a_date_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/localtime_date_field_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/localtime_without_hour_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/localtime_truncate_to_month_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
+lite/temporal/localtime_with_date_component	BOTH_ERROR	BOTH_ERROR
+lite/temporal/date_with_time_component	BOTH_ERROR	BOTH_ERROR
+lite/temporal/localdatetime_from_time_only	BOTH_ERROR	BOTH_ERROR
+lite/temporal/localtime_compact_text_refused_by_name	REFUSED	REFUSED
+lite/temporal/localtime_to_string_refused_by_name	REFUSED	REFUSED
+lite/temporal/localtime_list_refused_by_name	REFUSED	REFUSED
 lite/temporal/temporal_errors_are_cyphers	BOTH_ERROR	BOTH_ERROR
 lite/values/with_first_literal_list	PASS	PASS
 lite/values/quantifiers_three_valued	PASS	PASS

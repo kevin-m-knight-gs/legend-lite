@@ -11,7 +11,7 @@ import java.util.List;
 public sealed interface SqlExpr
         permits SqlExpr.Column, SqlExpr.Star, SqlExpr.StarExcept, SqlExpr.StringLit, SqlExpr.IntLit,
                 SqlExpr.FloatLit, SqlExpr.DecimalLit, SqlExpr.BoolLit, SqlExpr.NullLit,
-                SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.FormatLit, SqlExpr.ArrayLit,
+                SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.TimeLit, SqlExpr.FormatLit, SqlExpr.ArrayLit,
                 SqlExpr.OrderedListAgg, SqlExpr.JsonArray,
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
@@ -65,6 +65,7 @@ public sealed interface SqlExpr
             case NullLit ignored -> List.of();
             case DateLit ignored -> List.of();
             case TimestampLit ignored -> List.of();
+            case TimeLit ignored -> List.of();
             case FormatLit ignored -> List.of();
             case PlanParam ignored -> List.of();
             case TempTableInSplice ignored -> List.of();
@@ -158,6 +159,7 @@ public sealed interface SqlExpr
             case NullLit ignored -> this;
             case DateLit ignored -> this;
             case TimestampLit ignored -> this;
+            case TimeLit ignored -> this;
             case FormatLit ignored -> this;
             case PlanParam ignored -> this;
             case TempTableInSplice ignored -> this;
@@ -638,6 +640,18 @@ public sealed interface SqlExpr
         }
 
         public TimestampLit(String iso) {
+            this(iso, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /** A time of day, {@code HH:mm:ss[.ffffff]} (Pure's StrictTime literal, its minute form padded with its
+     *  seconds); renders as a typed TIME literal. */
+    record TimeLit(String iso, TypeFact type) implements SqlExpr {
+        public TimeLit {
+            type = SqlTyping.T_TIME;
+        }
+
+        public TimeLit(String iso) {
             this(iso, SqlTyping.UNKNOWN);
         }
     }

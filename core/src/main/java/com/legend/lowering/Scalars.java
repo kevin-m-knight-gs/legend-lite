@@ -2337,6 +2337,14 @@ final class Scalars {
         // (h2Extension2_1_214.pure:230). Semantically loose ('', '$5' and
         // '1.2.3' are all "numeric") but it is what generated every corpus
         // expectation; a tighter regex silently diverges on those inputs.
+        // the time of day of a date-time (lite's timeOf: a CAST to TIME), and the date-time at a time of a date
+        // (lite's atTime: the database's date plus time) — the Cypher island's time-of-day leg, 2026-10-16
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TIME_OF) {
+            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), SqlType.Scalar.TIME));
+        }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_AT_TIME) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.DATE_AT_TIME, args));
+        }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_IS_NUMERIC) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
                     SqlExpr.Call.of(SqlFn.LOWER, args.get(0)),

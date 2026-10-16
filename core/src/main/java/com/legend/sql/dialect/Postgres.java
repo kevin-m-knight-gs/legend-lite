@@ -80,6 +80,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
             case JSON -> "JSONB";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -709,6 +710,9 @@ public final class Postgres extends AnsiSqlRenderer {
             case TAN -> writer.function("tan", c.args());
             case TANH -> writer.function("tanh", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
+            // a date plus a time of day is the timestamp at it
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
+                    .expr(a.get(1), 6));
             case TRIM -> writer.function("trim", c.args());
             case UPPER -> writer.function("upper", c.args());
             // a Float, as DuckDB's answers; each of these has a numeric overload on Postgres, which a

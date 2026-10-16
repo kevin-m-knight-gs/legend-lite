@@ -117,6 +117,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case TIMESTAMP -> "DATETIME";
             case TIMESTAMPTZ -> "TIMESTAMP";
             case JSON -> "JSON";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -1498,6 +1499,8 @@ public final class BigQuery extends AnsiSqlRenderer {
                     .append(")");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
+            // DATETIME(date, time): the date-time at that time of that day
+            case DATE_AT_TIME -> writer.function("DATETIME", c.args());
             // DuckDB's timezone(zone, t): a naive t read in the zone (its instant); an instant to the zone's time
             // (an operand is an instant by its type, or as a timezone() of a naive one: format's zone shift is
             // timezone(zone, timezone('UTC', t)), whose inner call is typed naive but renders a TIMESTAMP)
