@@ -220,7 +220,7 @@ class SqlTextRatchetTest {
             int end;
             if (src.startsWith("\"\"\"", i)) {
                 end = src.indexOf("\"\"\"", i + 3);
-                while (end > 0 && src.charAt(end - 1) == '\\') {
+                while (end > 0 && escaped(src, end)) {
                     end = src.indexOf("\"\"\"", end + 1);
                 }
                 end = end < 0 ? n : end + 3;
@@ -245,5 +245,15 @@ class SqlTextRatchetTest {
             i = end;
         }
         return out.toString();
+    }
+
+    /** Whether the character at {@code at} is escaped: an odd run of backslashes before it ({@code \\"""} ends a text
+     *  block; {@code \"""} does not). */
+    private static boolean escaped(String src, int at) {
+        int run = 0;
+        while (at - run - 1 >= 0 && src.charAt(at - run - 1) == '\\') {
+            run++;
+        }
+        return run % 2 == 1;
     }
 }

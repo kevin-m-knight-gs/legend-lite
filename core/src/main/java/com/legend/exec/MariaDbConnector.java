@@ -41,6 +41,12 @@ class MariaDbConnector implements DatabaseConnector {
         return DatabaseConnector.refused(def);
     }
 
+    /** {@inheritDoc} No: MariaDB is a server. */
+    @Override
+    public boolean inProcess() {
+        return false;
+    }
+
     /** {@inheritDoc} A MariaDB statement cannot raise an error of its own text, so the dialect keeps the message in the
      *  session's user variable {@code @legend_raise} before it fails ({@code sql.dialect.MariaDb}'s raise, and
      *  MySQL's): one fixed read of the session's state, and its reset, never a query of the user's. */

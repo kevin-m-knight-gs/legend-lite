@@ -66,7 +66,7 @@ class DialectBoundaryTest {
             .collect(java.util.stream.Collectors.joining("|"));
 
     /** Every name a database goes by: its declared type, and the product name its driver reports where that differs
-     *  ({@code Sessions.jdbcProduct}). */
+     *  ({@code DatabaseConnector.jdbcProduct}). */
     private static final String NAMES = TYPES + "|PostgreSQL|SparkSQL|Google BigQuery";
 
     /** {@code rawH2IsNative()} CALLS outside the dialect package, by file. None: the hook is gone (2026-10-13, the
@@ -175,8 +175,10 @@ class DialectBoundaryTest {
         assertEquals(new TreeMap<>(JDBC_URLS), census(Pattern.compile("\"jdbc:")),
                 "a JDBC URL outside a database's connector (exec/<Db>Connector.java) — it opens that database's"
                         + " sessions");
+        // the connectors too (2026-10-16, the dialect program's Phase 5, the audit of the branch): a connector opens
+        // its database by URL through DriverManager, and names no driver class
         assertEquals(new TreeMap<>(), census(Pattern.compile("\"(org\\.(duckdb|h2|postgresql|sqlite|mariadb)|com\\.(clickhouse|databricks|mysql"
-                        + "|google\\.cloud\\.bigquery)|io\\.trino|net\\.snowflake)\\.")),
+                        + "|google\\.cloud\\.bigquery)|io\\.trino|net\\.snowflake)\\."), true),
                 "a driver class named in core — a driver's own types live beside it (exec.DriverCells, :duckdb_load)");
     }
 
@@ -209,6 +211,11 @@ class DialectBoundaryTest {
     /** file name → number of non-comment lines matching, outside the dialect package: core's main sources and the
      *  DuckDB-only ones. */
     private static TreeMap<String, Integer> census(Pattern p) throws IOException {
+        return census(p, false);
+    }
+
+    /** {@link #census(Pattern)}, the connectors walked too when {@code withConnectors}. */
+    private static TreeMap<String, Integer> census(Pattern p, boolean withConnectors) throws IOException {
         TreeMap<String, Integer> out = new TreeMap<>();
         List<Path> files = new ArrayList<>();
         SourceFiles.under(DUCKDB_MAIN).stream().filter(f -> f.toString().endsWith(".java")).forEach(files::add);
@@ -219,8 +226,9 @@ class DialectBoundaryTest {
             s.filter(f -> f.toString().endsWith(".java"))
                     .filter(f -> !SourceFiles.rel(MAIN, f).contains("/sql/dialect/"))
                     // a database's connector is its owner on the execution side, as its dialect is on the plan side
-                    // (2026-10-16, the dialect program's Phase 5; DatabaseOwners holds each to its own database)
-                    .filter(f -> !SourceFiles.rel(MAIN, f).matches("/exec/\\w+Connector\\.java"))
+                    // (2026-10-16, the dialect program's Phase 5; DatabaseOwners holds each to its own database, in
+                    // its code and its strings); the driver census walks them too (withConnectors)
+                    .filter(f -> withConnectors || !DatabaseOwners.isConnector(SourceFiles.path(f)))
                     .forEach(files::add);
         }
         for (Path f : files) {

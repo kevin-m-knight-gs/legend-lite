@@ -55,4 +55,10 @@ final class DuckDbConnector implements DatabaseConnector {
     public String storelessDeclaration() {
         return "specification: DuckDB { };\n  auth: Test";
     }
+
+    /** {@inheritDoc} None: {@code DuckDB}'s errors carry their raise. */
+    @Override
+    public @com.legend.base.Nullable String raisedMessage(Connection session) {
+        return null;
+    }
 }

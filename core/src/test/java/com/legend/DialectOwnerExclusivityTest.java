@@ -35,7 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       reaching a dialect, a connection or {@code Databases} ({@code ArchitectureTest}: 6j, 7a, 7b, 7c,
  *       {@code compileSideLayersAreDialectBlind}).</li>
  * </ul>
- * Code only, as the ratchet reads it: a comment or a string never counts (a refusal's message names its database).
+ * Code only, as the ratchet reads it: a comment or a string never counts (a refusal's message names its database);
+ * a connector's strings count too (its URLs and product name are its own database's).
  */
 @Tag("census")
 class DialectOwnerExclusivityTest {
@@ -78,7 +79,15 @@ class DialectOwnerExclusivityTest {
                     || owner.kind() == DatabaseOwners.Kind.VOCABULARY) {
                 continue;
             }
-            for (String line : DialectLeakRatchetTest.lex(src).code()) {
+            DialectLeakRatchetTest.Lines lines = DialectLeakRatchetTest.lex(src);
+            List<String> read = new ArrayList<>(lines.code());
+            // a connector's strings too (2026-10-16, the dialect program's Phase 5, the audit of the branch): its URLs,
+            // its product name and its messages are its own database's, and no census counts them (the leak ratchet
+            // skips an owner, the boundary census skips a connector)
+            if (owner.kind() == DatabaseOwners.Kind.CONNECTOR) {
+                read.addAll(lines.strings());
+            }
+            for (String line : read) {
                 for (String db : DatabaseOwners.named(line)) {
                     if (!owner.databases().contains(db)) {
                         crossings.merge(rel + "\t" + db, 1, Integer::sum);

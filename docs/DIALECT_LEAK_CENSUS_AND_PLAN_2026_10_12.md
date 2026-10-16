@@ -892,13 +892,22 @@ did, and where it departs from the list above:
   `PostgresConnector`, `MariaDbConnector`, `MySqlConnector` extending it, and the product-name-only `Snowflake`,
   `Databricks`, `BigQuery`, `Trino` and `ClickHouse` connectors). **`exec/Connectors`** is the registry: one exhaustive
   switch, a type with no connector refused by name, and the one read of which database a session is on
-  (`Connectors.product`, `Connectors.of(Connection)`). `Sessions` keeps its API and decides nothing by a database.
+  (`Connectors.product`, `Connectors.of(Connection)`). `Sessions` decides nothing by a database. Its API changed in
+  one place: `openNamed`, `openKept` and `joinKept` take the `Opening.Named`, and `Opening.Named` and `Opening.Held`
+  carry the connector that opens them.
   - In `exec/`, not `exec/connect/`: the JDBC funnel admits `com.legend.exec` exactly
     (`ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`), so a subpackage would need a new chartered seam for no
     gain. The owner guard's new CONNECTOR kind holds each `exec/<Db>Connector.java` to its own database and its
     parent's (`DatabaseOwners`); `Connectors` names every one, as `Databases` does.
-  - `Opening.Named` and `Opening.Held` carry the connector that opens them, so `ConnectionResolver` and
-    `PlanSessions` switch on a lifetime, never on a database.
+  - `ConnectionResolver` and `PlanSessions` switch on an opening's lifetime (`Named`, `Held`, `Url`), never on a
+    database.
+  - A connector refuses by name every specification it does not open. It switches over none exhaustively, because
+    the specifications are named for databases (`LocalH2`, `Snowflake`...), so an exhaustive switch would name other
+    databases in every connector. Instead `exec/ConnectorsTest` pins every type with every specification and every
+    authentication, and fails on a specification or authentication its table lacks. That forces the decision the
+    old exhaustive switches forced.
+  - Every connector answers `inProcess` and `raisedMessage` itself, with no default. The owner guard reads a
+    connector's strings as well as its code, and the driver census walks the connectors.
   - H2's URL settings are `H2Connector.SETTINGS` (`H2Settings` is deleted; still a `String.join`, never a literal a
     reader would inline).
   - Authentication: each flavour answers `AuthenticationSpec.credentialFree()` (an exhaustive switch in the model);
@@ -917,13 +926,17 @@ did, and where it departs from the list above:
   `SERVERS`) and whether its rows load in bulk (`loadsRowsInBulk`, DuckDB). The IN-list temp-table facts are
   legend-engine's, so they moved to `EngineText.inListTempTables`. They are per declared type, not per engine-text
   dialect, because Composite's plan text is DB2's and its IN lists are not. Two layer edges died: `database` no
-  longer reaches `execution_plan`, and `plan` no longer reaches `database`.
+  longer reaches `execution_plan`, and `plan` no longer reaches `database`. `H2Modern` refuses `serverVersions`:
+  it is chosen at run time for a server outside `H2.SERVERS`, and a plan cannot name those servers.
 - **The lite plan format's connection codec is the model's** (`model/ConnectionWire`, the vocabulary, D9). It reads
-  through a `Fields` interface because the model depends on no JSON. `PlanJson` names no database.
+  through a `Fields` interface because the model depends on no JSON. `PlanJson` names no database. One message
+  changed: a declared connection's unknown database type is now refused as "unknown database type 'X'", the plan
+  format's own wording, where it used to surface `valueOf`'s message.
 - **The guards:**
   - `SqlTextRatchetTest` strips comments outside literals: a `//` in `jdbc:mariadb://` had cut its line and hidden
     the next literal;
-  - `DialectBoundaryTest` walks no connector, as it walks no dialect;
+  - `DialectBoundaryTest`'s type, URL and name censuses walk no connector, as they walk no dialect; its driver
+    census walks them;
   - the JDBC surface, JavaEval and boundary registers name the new files, each with its reason.
 
 The ledger: the main code's `Sessions`, `PlanSessions`, `H2Settings`, `PlanJson` and `StorelessRuntime` rows are

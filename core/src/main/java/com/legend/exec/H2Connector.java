@@ -14,8 +14,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * H2's sessions: a file, a server, or an in-memory database that outlives its connections by NAME
- * ({@link Sessions.Opening.Named}). Every H2 session the platform opens takes {@link #SETTINGS} (moved here from
- * {@code H2Settings}, the dialect program's Phase 5, 2026-10-16).
+ * ({@link Sessions.Opening.Named}). Every in-memory H2 session the platform opens, named or private, takes
+ * {@link #SETTINGS} (moved here from {@code H2Settings}, the dialect program's Phase 5, 2026-10-16); a file's or a
+ * server's URL is opened as the connection declares it.
  *
  * <p>THE H2 session — the engine's own, VERBATIM (convergence batch C,
  * user-ratified "converge directly", landed 2026-08-29): H2Defaults
@@ -129,5 +130,11 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
 
     private static Connection named(String name, String closeDelay) throws SQLException {
         return DriverManager.getConnection("jdbc:h2:mem:" + name + closeDelay + SETTINGS);
+    }
+
+    /** {@inheritDoc} None: {@code H2}'s errors carry their raise. */
+    @Override
+    public @com.legend.base.Nullable String raisedMessage(Connection session) {
+        return null;
     }
 }

@@ -32,22 +32,21 @@ public interface DatabaseConnector {
     Sessions.Opening opening(ConnectionDefinition def);
 
     /** Whether it has a private in-process instance ({@link #openPrivate}). A server has none: its system database is
-     *  on a system connection the host configures ({@link Sessions.Opener}). */
-    default boolean inProcess() {
-        return false;
-    }
+     *  on a system connection the host configures ({@link Sessions.Opener}). Each connector answers: a default would
+     *  send a new in-process database's system database to the host's connection. */
+    boolean inProcess();
 
-    /** A PRIVATE in-memory instance, gone when the connection closes (the system database, the platform's engine). */
+    /** A PRIVATE in-memory instance, gone when the connection closes (the system database, the platform's engine);
+     *  refused by name for a database with none ({@link #inProcess} false). */
     default Connection openPrivate() throws SQLException {
         throw new com.legend.error.NotImplementedException("no in-memory instance of database type '" + type() + "'");
     }
 
     /** The raise {@code session} holds after a statement failed (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13), read and
      *  cleared: where this database's errors cannot carry a raise's text, its dialect keeps it in the session. Null
-     *  when none is held, or this database keeps none (its error carries the raise). */
-    default @com.legend.base.Nullable String raisedMessage(Connection session) throws SQLException {
-        return null;
-    }
+     *  when none is held, or this database keeps none (its error carries the raise). Each connector answers: a
+     *  default would lose a new database's held message without a word. */
+    @com.legend.base.Nullable String raisedMessage(Connection session) throws SQLException;
 
     /** The specification and authentication a storeless runtime declares for this database's in-process session
      *  ({@code test.StorelessRuntime}), in the model's connection grammar. */

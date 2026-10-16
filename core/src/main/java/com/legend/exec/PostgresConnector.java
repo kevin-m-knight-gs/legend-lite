@@ -7,6 +7,8 @@ import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.model.ConnectionSpecification;
 
+import java.sql.Connection;
+
 /** Postgres's sessions: a server, reached by its coordinates. */
 final class PostgresConnector implements DatabaseConnector {
 
@@ -38,5 +40,17 @@ final class PostgresConnector implements DatabaseConnector {
     public String storelessDeclaration() {
         throw new IllegalArgumentException(type() + " is a server: its storeless runtime declares the session's"
                 + " coordinates (onServer)");
+    }
+
+    /** {@inheritDoc} No: {@code Postgres} is a server. */
+    @Override
+    public boolean inProcess() {
+        return false;
+    }
+
+    /** {@inheritDoc} None: {@code Postgres}'s errors carry their raise. */
+    @Override
+    public @com.legend.base.Nullable String raisedMessage(Connection session) {
+        return null;
     }
 }

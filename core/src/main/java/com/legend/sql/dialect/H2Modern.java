@@ -20,6 +20,15 @@ import java.util.List;
  */
 public class H2Modern extends H2 {
 
+    /** Refused: this dialect is chosen for a server at run time ({@link H2#forServer}), never planned with, and the
+     *  servers it is for (every one but {@link H2#SERVERS}) are none a plan can name (the dialect program's Phase 5,
+     *  2026-10-16, the audit of the branch). */
+    @Override
+    public java.util.List<String> serverVersions() {
+        throw new DialectCapability("H2Modern: a plan is written for H2's servers " + H2.SERVERS
+                + ", and H2Modern is chosen for any other at run time");
+    }
+
     /** Every scalar type's name: H2's (the dialect program's Phase 1, 2026-10-13: an exhaustive
      *  switch, so a new scalar type asks this dialect too). */
     @Override

@@ -21,8 +21,9 @@ import java.util.regex.Pattern;
  *       ({@code core/src/main/duckdb}): the database its class is named for, and its family's (the class it
  *       extends: {@code MySql} names MariaDB); a file named for none is shared, and names none;</li>
  *   <li>a <b>connector</b> (a database's sessions, {@code exec/*Connector.java}, the dialect program's Phase 5,
- *       2026-10-16): the same, by its class's name and its parent's ({@code MySqlConnector} names MariaDB);
- *       {@code DatabaseConnector}, the interface, names none;</li>
+ *       2026-10-16): the same, by its class's name and its parent's ({@code MySqlConnector} names MariaDB), in its
+ *       code and in its strings too (its URLs, its product name); {@code DatabaseConnector}, the interface, names
+ *       none;</li>
  *   <li>an <b>input language</b> (the SQL a user writes, {@code protocol/sql/}, D11): {@code PostgresDialect} and
  *       {@code PostgresDateTime} Postgres's, the {@code iq} package IQ's (Sybase's); the translator they share is no
  *       owner;</li>
@@ -120,6 +121,9 @@ final class DatabaseOwners {
             // execution side (a declared type to the connector that opens its sessions)
             MAIN + "exec/Connectors.java",
             "core/src/test/java/com/legend/sql/dialect/",
+            // 2026-10-16, the dialect program's Phase 5 (the audit of the branch): the connectors' table test, which
+            // compares every database's sessions by design, as the dialect package's tests compare their SQL
+            "core/src/test/java/com/legend/exec/ConnectorsTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             "core/src/test/java/com/legend/DialectLeakRatchetTest.java",
             "core/src/test/java/com/legend/DialectOwnerExclusivityTest.java",
@@ -137,7 +141,7 @@ final class DatabaseOwners {
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
             return new Owner(Kind.DIALECT, own);
         }
-        if (rel.matches(Pattern.quote(MAIN) + "exec/\\w+Connector\\.java")) {
+        if (isConnector(rel)) {
             return new Owner(Kind.CONNECTOR, ownAndParent(rel, source));
         }
         if (INPUT_LANGUAGES.containsKey(rel)) {
@@ -153,6 +157,14 @@ final class DatabaseOwners {
             return new Owner(Kind.VOCABULARY, DATABASES.keySet());
         }
         return null;
+    }
+
+    private static final Pattern CONNECTOR = Pattern.compile(Pattern.quote(MAIN) + "exec/\\w+Connector\\.java");
+
+    /** Whether {@code rel} (a source's path from the repository root) is a connector, {@code exec/<Db>Connector.java}
+     *  or the interface they implement. */
+    static boolean isConnector(String rel) {
+        return CONNECTOR.matcher(rel).matches();
     }
 
     /** The databases {@code rel}'s class is named for, and its parent class's. */

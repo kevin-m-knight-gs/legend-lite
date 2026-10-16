@@ -142,7 +142,7 @@ public final class PlanSessions {
             BulkLoad bulk = BulkLoads.of(c);
             if (bulk == null && target.setup().stream().anyMatch(ExecutionPlan.SetupStep.Rows.class::isInstance)) {
                 throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"
-                        + " database has none (" + Sessions.product(c) + ")");
+                        + " database has none (" + Connectors.product(c) + ")");
             }
             for (ExecutionPlan.SetupStep step : target.setup()) {
                 switch (step) {

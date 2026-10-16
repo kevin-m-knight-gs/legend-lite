@@ -1061,8 +1061,9 @@ class JavaEvalLedgerTest {
                     // the dialect program's Phase 5 (2026-10-16, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md):
                     // each database's sessions in a connector of its own -- its driver's product name, the URL a
                     // declared connection opens, its private in-memory instance -- and Connectors the one place
-                    // a declared type finds its connector; Sessions asks them. Names, URLs and openings only:
-                    // nothing is evaluated, produced or compared
+                    // a declared type finds its connector; Sessions asks them. Names, URLs and openings, and
+                    // MariaDbConnector's one fixed read and reset of a session's held raise (its two statements,
+                    // moved from Sessions): nothing is evaluated, produced or compared
                     "DatabaseConnector.java", "Connectors.java", "H2Connector.java", "DuckDbConnector.java",
                     "SqliteConnector.java", "PostgresConnector.java", "MariaDbConnector.java",
                     "MySqlConnector.java", "SnowflakeConnector.java", "DatabricksConnector.java",

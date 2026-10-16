@@ -41,13 +41,13 @@ public final class Connectors {
     /** The product name {@code session}'s JDBC driver reports ({@code DatabaseMetaData.getDatabaseProductName}): the
      *  one read of which database a session is on, matched against each connector's {@link
      *  DatabaseConnector#jdbcProduct}. */
-    public static String product(Connection session) throws SQLException {
+    static String product(Connection session) throws SQLException {
         return session.getMetaData().getDatabaseProductName();
     }
 
     /** {@code session}'s connector: the built one whose JDBC driver reports its product name, or null when none
      *  does. */
-    public static @com.legend.base.Nullable DatabaseConnector of(Connection session) throws SQLException {
+    static @com.legend.base.Nullable DatabaseConnector of(Connection session) throws SQLException {
         String product = product(session);
         for (DatabaseType t : DatabaseType.values()) {
             DatabaseConnector c = of(t);
@@ -58,18 +58,33 @@ public final class Connectors {
         return null;
     }
 
-    /** A type no connector is built for: every question refused by name. */
+    /** A type no connector is built for: its sessions refused by name (no product name, no declared connection
+     *  opened, no private instance, no storeless runtime); it has no in-process instance, as a server has none. */
     private record Unbuilt(DatabaseType type) implements DatabaseConnector {
 
         @Override
         public String jdbcProduct() {
-            throw new com.legend.error.NotImplementedException(
-                    "sessions on database type '" + type + "' are not implemented");
+            throw unbuilt();
         }
 
         @Override
         public Sessions.Opening opening(ConnectionDefinition def) {
             return DatabaseConnector.notOpened(def);
+        }
+
+        @Override
+        public boolean inProcess() {
+            return false;
+        }
+
+        @Override
+        public @com.legend.base.Nullable String raisedMessage(Connection session) {
+            throw unbuilt();
+        }
+
+        private com.legend.error.NotImplementedException unbuilt() {
+            return new com.legend.error.NotImplementedException(
+                    "sessions on database type '" + type + "' are not implemented");
         }
     }
 }

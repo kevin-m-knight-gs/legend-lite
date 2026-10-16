@@ -105,11 +105,6 @@ public final class Sessions {
         return metadata(session, false);
     }
 
-    /** The product name {@code session}'s driver reports ({@code DatabaseMetaData.getDatabaseProductName}). */
-    public static String product(Connection session) {
-        return metadata(session, true);
-    }
-
     private static String metadata(Connection session, boolean product) {
         try {
             return product ? Connectors.product(session) : session.getMetaData().getDatabaseProductVersion();
