@@ -2497,3 +2497,37 @@ trip holds on DuckDB, and no other text's parse changes (a stored or built text 
 
 4 new lite cases in `lite/temporal.yaml` (and three refusal cases turned into passing ones), each judged by Neo4j.
 
+### 12.23 Odds and ends, 2026-10-16: the duration round trip, numbers from texts, UNWIND after a MATCH, a list indexed by the row
+
+Four small refusals with a clear reading, 25 TCK cases between them:
+
+- **`duration(toString(d))` reads `d`.** The text `toString` spells for a duration carries the duration it spells
+  (`DurationText`), and `duration(...)` of such a text is that duration: print then parse is the identity, and
+  the translator can see it. A duration text of the row from anywhere else stays refused by name (its parse would
+  be the database's reading of seven units, a later leg).
+- **`toInteger` and `toFloat` of a text** are the database's parse behind a shape guard (`matches` against the
+  integer's or the float's spelling): an integer's digits `parseInteger`'d, a float's spelling `parseFloat`'d
+  (and truncated toward zero for `toInteger`), any other text null, which is Neo4j's. One dialect quirk surfaced
+  on Postgres: it reads a bare text literal under a cast as a constant of the cast's type when it PARSES the
+  statement, before any `CASE` around it is weighed, so `toInteger('foo')` was the parse's error there, not null
+  (DuckDB evaluates the guard first). The Postgres dialect now spells a text literal under a cast as a typed text
+  first (`CAST(CAST('foo' AS VARCHAR) AS BIGINT)`; `parseInteger`, `parseFloat`, `parseDate` and every other
+  cast of a literal to a non-text type): a typed text's cast is the planner's, which drops a `CASE` arm whose
+  test is false before it folds the arm (measured on Postgres 16). Pinned by
+  `PostgresDialectTest.aTextLiteralUnderACastIsSpelledAsATextFirst`; PCT on Postgres and the Postgres parity
+  lanes unchanged.
+- **UNWIND after a MATCH** reads the graph as rows first (§12.16's materialization, every node carried), then
+  the lateral over the rows as after a WITH.
+- **A list indexed by a value of the row** (`l[i]`, `i` a column) is the element at that place, the database
+  choosing among the elements' scalars (one kind) through an `if` chain, a negative place counted from the end,
+  none beyond null; strict over the place (a null place is null).
+
+#### 12.23.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4189 | 2407 (from 2,385) | 0 | 0 | 0 | 706 | 708 | 368 |
+| Postgres | 4189 | 2057 (from 2,035) | 0 | 0 | 0 | 1056 | 708 | 368 |
+
+6 lite cases in `lite/odds.yaml`, each judged by Neo4j.
+

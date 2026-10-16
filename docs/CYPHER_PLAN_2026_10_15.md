@@ -104,8 +104,9 @@ PASS 1,980, 0 FAIL, 0 BUG, 0 ERROR on both. Then UNION and the empty model (§12
 PASS 2,003, 0 FAIL, 0 BUG, 0 ERROR on both. Then the temporal remainder's second leg (§12.21): fractional durations,
 `toString(duration)`, a date inside a node; DuckDB PASS 2,377, Postgres PASS 2,029, 0 FAIL, 0 BUG, 0 ERROR on
 both. Then `toString` of date-times and times (§12.22); DuckDB PASS 2,385, Postgres PASS 2,035, 0 FAIL, 0 BUG,
-0 ERROR on both. Then the full CI run on the branch, the merge; an OPTIONAL MATCH's WHERE, an edge class, named
-zones, and `collect` (the database owner's aggregate) wait.
+0 ERROR on both. Then the odds and ends (§12.23); DuckDB PASS 2407, Postgres PASS 2057, 0 FAIL, 0 BUG, 0 ERROR
+on both. Then the full CI run on the branch, the merge; an OPTIONAL MATCH's WHERE, an edge class, named zones, and
+`collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

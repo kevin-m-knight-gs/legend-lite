@@ -1595,9 +1595,9 @@ tck/expressions/graph/Graph9/[6] `properties()` failing on a string literal	BOTH
 tck/expressions/graph/Graph9/[7] `properties()` failing on a list of booleans	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List1/[1] Indexing into literal list	PASS	PASS
 tck/expressions/list/List1/[2] Indexing into nested literal lists	PASS	PASS
-tck/expressions/list/List1/[3] Use list lookup based on parameters when there is no type information	REFUSED	REFUSED
+tck/expressions/list/List1/[3] Use list lookup based on parameters when there is no type information	PASS	PASS
 tck/expressions/list/List1/[4] Use list lookup based on parameters when there is lhs type information	PASS	PASS
-tck/expressions/list/List1/[5] Use list lookup based on parameters when there is rhs type information	REFUSED	REFUSED
+tck/expressions/list/List1/[5] Use list lookup based on parameters when there is rhs type information	PASS	PASS
 tck/expressions/list/List1/[6] Fail when indexing a non-list #Example: <exampleName> #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List1/[6] Fail when indexing a non-list #Example: <exampleName> #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List1/[6] Fail when indexing a non-list #Example: <exampleName> #3	BOTH_ERROR	BOTH_ERROR
@@ -3425,17 +3425,17 @@ tck/expressions/temporal/Temporal6/[2] Should serialize local time	PASS	REFUSED
 tck/expressions/temporal/Temporal6/[3] Should serialize time	REFUSED	REFUSED
 tck/expressions/temporal/Temporal6/[4] Should serialize local date time	PASS	REFUSED
 tck/expressions/temporal/Temporal6/[5] Should serialize date time	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #1	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #2	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #3	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #5	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #6	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #7	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #8	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #9	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #10	REFUSED	REFUSED
-tck/expressions/temporal/Temporal6/[6] Should serialize duration #11	REFUSED	REFUSED
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #1	PASS	PASS
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #2	PASS	PASS
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #3	PASS	PASS
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #4	PASS	PASS
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #5	PASS	PASS
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #6	PASS	PASS
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #7	PASS	PASS
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #8	PASS	PASS
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #9	PASS	PASS
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #10	PASS	PASS
+tck/expressions/temporal/Temporal6/[6] Should serialize duration #11	PASS	PASS
 tck/expressions/temporal/Temporal6/[7] Should serialize timezones correctly	REFUSED	REFUSED
 tck/expressions/temporal/Temporal7/[1] Should compare dates #1	PASS	PASS
 tck/expressions/temporal/Temporal7/[1] Should compare dates #2	PASS	PASS
@@ -3815,7 +3815,7 @@ tck/expressions/typeConversion/TypeConversion1/[5] Fail `toBoolean()` on invalid
 tck/expressions/typeConversion/TypeConversion1/[5] Fail `toBoolean()` on invalid types #Example: <exampleName> #5	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion1/[5] Fail `toBoolean()` on invalid types #Example: <exampleName> #6	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion2/[1] `toInteger()` on float	PASS	PASS
-tck/expressions/typeConversion/TypeConversion2/[2] `toInteger()` returning null on non-numerical string	REFUSED	REFUSED
+tck/expressions/typeConversion/TypeConversion2/[2] `toInteger()` returning null on non-numerical string	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[3] `toInteger()` handling mixed number types	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[4] `toInteger()` handling Any type	REFUSED	REFUSED
 tck/expressions/typeConversion/TypeConversion2/[5] `toInteger()` on a list of strings	REFUSED	REFUSED
@@ -3827,7 +3827,7 @@ tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid
 tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid types #Example: <exampleName> #4	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid types #Example: <exampleName> #5	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion3/[1] `toFloat()` on mixed number types	PASS	PASS
-tck/expressions/typeConversion/TypeConversion3/[2] `toFloat()` returning null on non-numerical string	REFUSED	REFUSED
+tck/expressions/typeConversion/TypeConversion3/[2] `toFloat()` returning null on non-numerical string	PASS	PASS
 tck/expressions/typeConversion/TypeConversion3/[3] `toFloat()` handling Any type	REFUSED	REFUSED
 tck/expressions/typeConversion/TypeConversion3/[4] `toFloat()` on a list of strings	REFUSED	REFUSED
 tck/expressions/typeConversion/TypeConversion3/[5] `toFloat()` on node property	REFUSED	REFUSED
@@ -3975,6 +3975,12 @@ lite/nodes/distinct_over_nodes_refused_by_name	REFUSED	REFUSED
 lite/nodes/order_by_a_node_refused_by_name	REFUSED	REFUSED
 lite/nodes/node_as_a_grouping_key_refused_by_name	REFUSED	REFUSED
 lite/nodes/relationship_as_a_value_refused_by_name	PASS	PASS
+lite/odds/to_integer_of_texts	PASS	PASS
+lite/odds/to_float_of_texts	PASS	PASS
+lite/odds/unwind_after_a_match	PASS	PASS
+lite/odds/unwind_after_a_label_less_match	PASS	PASS
+lite/odds/list_indexed_by_a_row_value	PASS	PASS
+lite/odds/duration_round_trip	PASS	PASS
 lite/optional/optional_to_one_hop	PASS	PASS
 lite/optional/optional_node_as_value	PASS	PASS
 lite/optional/optional_null_checks	PASS	PASS
@@ -3987,7 +3993,7 @@ lite/optional/optional_to_many_node_as_value	PASS	PASS
 lite/optional/optional_through_with	PASS	PASS
 lite/optional/optional_two_hops	PASS	PASS
 lite/optional/optional_with_where_refused_by_name	REFUSED	REFUSED
-lite/params/list_lookup_by_parameters	REFUSED	REFUSED
+lite/params/list_lookup_by_parameters	PASS	PASS
 lite/params/skip_and_limit_by_parameter	PASS	PASS
 lite/params/in_with_null_parameters	PASS	PASS
 lite/params/string_parameter_in_where	PASS	PASS

@@ -596,7 +596,6 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person)-[:firm*1..2]->(f) RETURN f.legalName", "variable-length");
         unsupported("MATCH (p:Person)-[:firm {since: 1}]->(f) RETURN f.legalName", "properties on a relationship");
         unsupported("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n", "a MATCH after a WITH");
-        unsupported("MATCH (p:Person) UNWIND [1, 2] AS x RETURN p.name, x", "UNWIND after a MATCH");
         unsupported("CREATE (p:Person {name: 'x'})", "CREATE is not supported yet");
         unsupported("MATCH (p:Person) RETURN collect(p.name)", "collect(...) is not supported yet");
         unsupported("MATCH (p:Person) RETURN count(DISTINCT p.name)", "count(DISTINCT ...)");

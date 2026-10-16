@@ -656,9 +656,9 @@ public final class Postgres extends AnsiSqlRenderer {
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PARSE_INT -> castAs(writer, typedText(c.args().get(0)), "BIGINT");
             // parseDate(text): the ISO text as a timestamp
-            case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
+            case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
@@ -1368,7 +1368,23 @@ public final class Postgres extends AnsiSqlRenderer {
             super.variantAwareCast(writer, c);
             return writer.append(", '^(-?[0-9]+)$', '\\1.0')");
         }
+        if (c.value() instanceof SqlExpr.StringLit && c.target() != SqlType.Scalar.VARCHAR
+                && c.target() != SqlType.Scalar.TEMPORAL_TEXT && c.target() != SqlType.Scalar.DECIMAL_TEXT) {
+            return super.variantAwareCast(writer, new SqlExpr.Cast(typedText(c.value()), c.target()));
+        }
         return super.variantAwareCast(writer, c);
+    }
+
+    /**
+     * A text literal under a cast, spelled as a text first: Postgres reads a bare literal under a cast as a
+     * constant of the cast's type WHEN IT PARSES the statement, before any CASE around it is weighed, so
+     * {@code CASE WHEN 'x' ~ '[0-9]+' THEN CAST('x' AS BIGINT) END} is the parse's error, not NULL (measured
+     * 2026-10-16 on Postgres 16, the Cypher island's toInteger of a text, docs/CYPHER_STUDY_2026_10_15.md §12.23).
+     * A typed text's cast is the planner's, which drops a CASE arm whose test is false before it folds the arm.
+     * Any other value is itself.
+     */
+    private static SqlExpr typedText(SqlExpr x) {
+        return x instanceof SqlExpr.StringLit ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR) : x;
     }
 
     /** A value to a list of scalars: a Variant array's elements read as the element type, in order (a

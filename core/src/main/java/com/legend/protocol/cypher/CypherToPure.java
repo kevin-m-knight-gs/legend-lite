@@ -3580,10 +3580,24 @@ public final class CypherToPure {
             case FLOAT, DECIMAL, NUMBER, INEXACT -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(t), x -> call("if",
                     call("greaterThanEqual", x.get(0), new CInteger(0L)), thunk(call("floor", x.get(0))),
                     thunk(call("ceiling", x.get(0))))));
+            // of a text (the study's §12.23): the database's parse behind a shape guard -- an integer's digits
+            // parsed as one, a float's spelling parsed and truncated toward zero, any other text null (Neo4j's)
+            case STRING -> scalar(Tx.value(SqlToPure.strict(Kind.INTEGER, List.of(t), x -> call("if",
+                    call("matches", x.get(0), new CString(INTEGER_TEXT)), thunk(call("parseInteger", x.get(0))),
+                    thunk(call("if", call("matches", x.get(0), new CString(FLOAT_TEXT)),
+                            thunk(integer(call("if", call("greaterThanEqual", call("parseFloat", x.get(0)),
+                                    new CFloat(0.0)), thunk(call("floor", call("parseFloat", x.get(0)))),
+                                    thunk(call("ceiling", call("parseFloat", x.get(0))))))),
+                            thunk(SqlToPure.nullOf(Kind.INTEGER).vs()))))).vs(), Kind.INTEGER, true));
             default -> throw CypherErrors.unsupported("toInteger of a " + cypherType(t.kind()) + " (null for text"
                     + " that is not a number) is not supported yet", c.pos());
         };
     }
+
+    /** An integer's text: an optional sign and digits. */
+    private static final String INTEGER_TEXT = "[+-]?[0-9]+";
+    /** A float's text: digits with a point and an exponent as Cypher writes them. */
+    private static final String FLOAT_TEXT = "[+-]?([0-9]+\\.?[0-9]*|\\.[0-9]+)([eE][+-]?[0-9]+)?";
 
     private Val toFloatFn(CypherAst.Call c, Val v) {
         Tx t = scalarArg(c, v, "Integer, Float, String");
@@ -3592,6 +3606,10 @@ public final class CypherToPure {
             case FLOAT, INEXACT -> scalar(t);
             case INTEGER, WHOLE, DECIMAL, NUMBER -> scalar(SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call(
                     "toFloat", x.get(0))));
+            // of a text (the study's §12.23): the database's parse behind a shape guard, null for any other text
+            case STRING -> scalar(Tx.value(SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call("if",
+                    call("matches", x.get(0), new CString(FLOAT_TEXT)), thunk(call("parseFloat", x.get(0))),
+                    thunk(SqlToPure.nullOf(Kind.FLOAT).vs()))).vs(), Kind.FLOAT, true));
             default -> throw CypherErrors.unsupported("toFloat of a " + cypherType(t.kind()) + " (null for text"
                     + " that is not a number) is not supported yet", c.pos());
         };
@@ -4044,11 +4062,38 @@ public final class CypherToPure {
                             ix.index().pos());
                 }
                 Long n = integerLiteral(is);
-                if (n == null) {
-                    throw CypherErrors.unsupported("indexing a list by a value that is not a literal is not supported"
-                            + " yet", ix.pos());
-                }
                 int size = l.elements().size();
+                if (n == null) {
+                    // a place of the row (the study's §12.23): the element at it, the database choosing among the
+                    // elements' scalars (one kind), a negative place counted from the end, none beyond null
+                    Kind kind = null;
+                    List<ValueSpecification> values = new ArrayList<>();
+                    for (Val e : l.elements()) {
+                        Tx t = scalarOf(e, ix.pos());
+                        if (t.kind() != Kind.NULL) {
+                            if (kind != null && kind != t.kind()) {
+                                throw CypherErrors.unsupported("indexing a list of values of different types by a"
+                                        + " value of the row is not supported yet", ix.pos());
+                            }
+                            kind = t.kind();
+                        }
+                        values.add(t.kind() == Kind.NULL ? null : SqlToPure.valueOf(t));
+                    }
+                    Kind k = kind == null ? Kind.NULL : kind;
+                    // (strict over the place: null for a null place, the place read as one value)
+                    Tx picked = SqlToPure.strict(k, List.of(i), x -> {
+                        ValueSpecification at = call("if", call("lessThan", x.get(0), new CInteger(0L)),
+                                thunk(plus(x.get(0), new CInteger((long) size))), thunk(x.get(0)));
+                        ValueSpecification pick = SqlToPure.nullOf(k).vs();
+                        for (int p = size - 1; p >= 0; p--) {
+                            ValueSpecification v = values.get(p);
+                            pick = call("if", call("equal", at, new CInteger((long) p)),
+                                    thunk(v == null ? SqlToPure.nullOf(k).vs() : v), thunk(pick));
+                        }
+                        return pick;
+                    });
+                    yield scalar(Tx.value(picked.vs(), k, true));
+                }
                 long at = n < 0 ? n + size : n;
                 yield at < 0 || at >= size ? nullValue() : l.elements().get((int) at);
             }
@@ -5172,6 +5217,10 @@ public final class CypherToPure {
      *  a text of the row are refused by name. */
     private Val durationFromText(CypherAst.Call c, Scalar s) {
         if (!s.literal()) {
+            if (s.tx().detail() instanceof DurationText dt) {
+                // the text a duration was spelled from: that duration (print then parse is the identity)
+                return scalar(dt.source());
+            }
             throw CypherErrors.unsupported("a duration text of the row is not supported yet", c.pos());
         }
         String text = (String) java.util.Objects.requireNonNull(s.constant());
@@ -6900,6 +6949,17 @@ public final class CypherToPure {
      *  count of nanoseconds (so -60.001 s is {@code -1M-0.001S}), the seconds' fraction trimmed of trailing zeros.
      *  The database computes every quotient and spells every number. */
     private static Tx durationText(Tx t) {
+        Tx text = durationTextOf(t);
+        // (the text carries its source: a parse of it reads the duration itself, print then parse being the identity)
+        return new Tx(text.vs(), text.kind(), text.nullable(), text.whenFalse(), new DurationText(t), text.guard(),
+                text.body());
+    }
+
+    /** The mark of a duration's spelled text: the duration it spells (the study's §12.23). */
+    private record DurationText(Tx source) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    private static Tx durationTextOf(Tx t) {
         return SqlToPure.strict(Kind.STRING, List.of(t), x -> {
             // each quantity read straight from the slots (a quotient toward zero, a remainder keeping the
             // dividend's sign), never from another quantity: a nested quotient would spell the struct once per
@@ -7159,8 +7219,11 @@ public final class CypherToPure {
      * each paired with the list's elements (Pure's {@code lateral}).
      */
     private State unwind(CypherAst.Unwind u, @com.legend.base.Nullable State state) {
-        if (state instanceof Graph || state instanceof Arms) {
-            throw CypherErrors.unsupported("UNWIND after a MATCH is not supported yet", u.pos());
+        if (state instanceof Graph g) {
+            // after a MATCH (the study's §12.23): the graph read as rows, every node carried, then the lateral
+            state = materialize(g, u.pos(), List.of());
+        } else if (state instanceof Arms a) {
+            state = materializeArms(a.arms(), new ArrayList<>(a.arms().get(0).bindings().keySet()), u.pos());
         }
         Rows rows = (Rows) state;
         Scope scope = new RowScope(rows == null ? oneRow() : rows);

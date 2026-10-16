@@ -9850,6 +9850,22 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the twenty-first landing — odds and ends: the duration round trip, numbers from texts, UNWIND after a MATCH, a list indexed by the row (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the temporal `toString` leg; the record is the study's §12.23
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator, and one line of the Postgres dialect (a text literal under a
+cast spelled as a typed text first, so a `CASE` guard holds against Postgres's parse-time coercion).
+
+1. **What lands.** `duration(toString(d))` reads `d`; `toInteger`/`toFloat` of a text as the database's parse
+   behind a shape guard (null otherwise); UNWIND after a MATCH over the graph read as rows; a list indexed by a
+   value of the row.
+2. **The ledger.** DuckDB: 4189 cases; PASS 2407 (from 2,385); FAIL 0; BUG 0; ERROR 0; REFUSED 706;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2057 (from 2,035); FAIL 0; BUG 0; ERROR 0; REFUSED 1056;
+   BOTH_ERROR 708; SKIP 368. 6 lite cases in `lite/odds.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the twentieth landing — `toString` of date-times and times (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the temporal remainder's second leg; the record is the study's §12.22
