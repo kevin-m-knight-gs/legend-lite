@@ -15,6 +15,7 @@ import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { nameProblem } from '../calc.ts';
 import { chartFrom, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
+import { draftCandidate, draftColumn, draftStage, newDraft } from '../column-draft.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, type CubeState } from '../cube-state.ts';
 import {
@@ -34,7 +35,7 @@ import { sampleOf } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, isJsonValue, isRelativeDate, rowColumns, type ColumnKind, type ColumnSpec, type CubeSnapshot,
-  type DerivedColumn, type FilterNode, type FilterValue,
+  type FilterNode, type FilterValue,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
@@ -158,13 +159,14 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
 }
 
 /**
- * A CALCULATED COLUMN ADDED as DataCube's column editor adds one (ui/column-editor.ts): named as calc.ts nameProblem
- * allows, its expression (the whole lambda, `x|$x.qty * 2`) parsed by the planner, a row-stage column of the `kind`
- * declared (null: none, so that its type decides, as for any column -- types.ts defaultKind), and the cube with it
- * compiled as a refresh would send it (CubeController.compile: every query, window and child columns too) -- so Python
- * checks no calculated column by rules of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). JSON: `{derived}`,
- * the column as the cube document holds it (its text: its lambda's numbers exact), or `{problems}`, why it was refused,
- * in DataCube's words.
+ * A CALCULATED COLUMN ADDED as DataCube's column editor adds one (ui/column-editor.ts), by its own steps
+ * (column-draft.ts): a new row-stage column's draft, of the `kind` declared -- a measure unless told (null), as the
+ * editor starts one (newDraft) -- named as calc.ts nameProblem allows, its expression (the whole lambda,
+ * `x|$x.qty * 2`) parsed by the planner, the cube with it (draftCandidate) compiled as a refresh would send it
+ * (CubeController.compile: its columns typed, then every query, window and child columns too) -- so Python checks no
+ * calculated column by rules of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). JSON: `{derived}`, the column
+ * as the cube document holds it (its text: its lambda's numbers exact), or `{problems}`, why it was refused, in
+ * DataCube's words.
  */
 export async function gridCalculate(spec: GridSpec, name: string, expression: string,
   kind: ColumnKind | null): Promise<string> {
@@ -173,23 +175,22 @@ export async function gridCalculate(spec: GridSpec, name: string, expression: st
       const kinds = COLUMN_KINDS.map((k) => `'${k}'`).join(' or ');
       return JSON.stringify({ problems: [`a column's kind is ${kinds}, not '${String(kind)}'`] });
     }
-    const problem = nameProblem(state.snapshot, 'row', name);
+    const draft = newDraft(name, expression, kind ?? undefined);
+    const problem = nameProblem(state.snapshot, draftStage(draft), draft.name);
     if (problem !== null) return JSON.stringify({ problems: [problem] });
     let lambda: Lambda;
     try {
-      lambda = await planner.parse(expression);
+      lambda = await planner.parse(draft.expression.trim());
     } catch (e) {
       // the parse refused (the editor's #parsed): its message is the compiler's. Only the planner's refusal: a planner
       // that cannot answer (PlannerUnavailableError), or any other failure, is no mistake of the expression's
       if (!(e instanceof PlanError)) throw e;
       return JSON.stringify({ problems: [e.message] });
     }
-    const column: DerivedColumn = { name: name.trim(), lambda, ...(kind !== null ? { kind } : {}) };
-    const typed = await typedColumns(planner, state.snapshot);
-    const snapshot: CubeSnapshot = { ...typed, derived: [...typed.derived, column] };
+    const snapshot = draftCandidate(state.snapshot, undefined, draft, lambda);
     const outcome = await compiled(planner, { snapshot, tree: state.tree });
     if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
-    return JSON.stringify({ derived: toJson(column) });
+    return JSON.stringify({ derived: toJson(draftColumn(draft, lambda)) });
   });
 }
 
@@ -200,13 +201,11 @@ async function typedColumns(planner: LitePlanner, snapshot: CubeSnapshot): Promi
   return (await typeColumns(snapshot, runner)).snapshot;
 }
 
-/** The cube compiled as a refresh would send it (CubeController.compile), never run; a host that cannot is a bug. */
+/** The cube compiled as a refresh would send it (CubeController.compile: its columns typed, every query), never run. */
 async function compiled(planner: LitePlanner, state: { snapshot: CubeSnapshot; tree: CubeState['tree'] }):
   Promise<{ readonly refusal: string | null }> {
   const controller = new CubeController(new DuckDbEngine(hostDatabase(hostCalls()).connection), planner);
-  const outcome = await controller.compile(state, null);
-  if (outcome === undefined) throw new Error('the host cannot compile a cube without running it');
-  return outcome;
+  return controller.compile(state, null);
 }
 
 /** A filter as Python hands one in: its own conditions' operands, not yet the editor's values or columns. */

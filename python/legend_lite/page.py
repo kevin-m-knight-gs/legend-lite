@@ -438,8 +438,9 @@ class Grid(Tile):
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
         empty, as a dataframe's can, ``->toOne()`` first for arithmetic), added as the grid's own column editor adds one
         (DataCube's code, headless: gridCalculate): its name as DataCube takes one, ``kind`` ``'measure'`` or
-        ``'dimension'`` as declared (not given, its type decides, as for any column: a number a measure), and the grid
-        with it compiled as DataCube would run it -- reading any of the grid's columns before it, a window column's too.
+        ``'dimension'`` as declared (not given, a measure, as the editor starts a new column -- summed when grouped if it
+        is a number, its unique value if not), and the grid with it compiled as DataCube would run it -- reading any of
+        the grid's columns before it, a window column's too.
         A mistake fails at this line, in DataCube's and the compiler's words."""
         if not isinstance(name, str) or not isinstance(expression, str):
             raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')

@@ -45,9 +45,11 @@ the DataCube + Python line before CI (the BUILD edits by the Compiler Rewrite li
 - **2 and 1's reopened cube.** `rawRows` and `rebuilt` moved from `app/sources.ts` into `cube-document.ts`, with
   `frameSource`; `headless/grid.ts gridCube` makes a grid's cube over a frame as DataCube does, new (capped beside
   others) or rebuilt over the frame as it is now (a gone column left out of everything, said as a warning).
-- **5, a calculated column.** `gridCalculate`: `nameProblem`, the planner's parse, the kind declared or none, the cube
-  compiled as a refresh sends it. `_step`, `_pure_name` deleted. DataCube now refuses what Python's own typing passed:
-  a StrictTime column on this plane (its query does not lower; below).
+- **5, a calculated column.** `gridCalculate`: the column editor's own steps (`column-draft.ts`, no DOM, which the
+  editor calls too: a new column's draft, a measure unless told, as the editor starts one; `nameProblem`; the
+  planner's parse; the cube with the draft), the cube compiled as a refresh sends it. `_step`, `_pure_name` deleted.
+  DataCube now refuses what Python's own typing passed: a StrictTime column on this plane (its query does not lower;
+  below).
 - **6, a filter.** `filter-operators.ts` (the editor's table, no DOM, now exhaustive over `FilterOperator`);
   `gridFilter` builds Python's tree by each operator's operand (each named, none by default) and offers, in the
   editor's normal form (`normalFilter`), and compiles it. Python keeps only the shape of its argument and its values'
@@ -73,11 +75,13 @@ What is left, and why:
 ## A finding for DataCube (its line designs the fix)
 
 **A calculated column kept at the editor's starting Level is summed, whatever its type** (found 2026-10-15, item 5): the
-column editor starts a new column as a `measure` (`ui/column-editor.ts`, `start.level ?? 'measure'`), and a column
-declared a measure is summed when the cube groups (`query.ts`'s grouped aggregates) -- so a boolean or a text column a
-person adds and groups by is refused, `sum(Boolean)`. Python's columns are undeclared unless told (item 5), so its type
-decides, as for any column. Two fixes are possible: the editor's starting Level from `defaultKind` once the column is
-typed, or a non-numeric measure's default aggregate not `sum`; the DataCube + Python line decides.
+column editor starts a new column as a `measure`, and a column declared a measure was summed when the cube grouped -- so
+a boolean or a text column a person added and grouped by was refused, `sum(Boolean)`. **Fixed 2026-10-15** (the
+DataCube + Python line chose the default aggregate over the editor's starting Level, which a person or a saved page can
+still set): one rule, `query.ts defaultAggregate` -- `sum` for a numeric column not declared a dimension, `unique` for
+any other -- asked by every query builder (the grouped aggregates, a child group's measure, the detail cube's, a pivot's
+spread), and `CubeController.compile` types the cube first, as a refresh does, so its check compiles the aggregate the
+run sends. Python's columns are measures unless told, as the editor's are.
 
 **A class's sample writes a NaN or an infinity as `null`** (found 2026-10-15, the audit of item 7): `sample-rows.ts
 sampleRows` keeps a double as the executor gives it, and the sample goes to the route as JSON, which has neither, so

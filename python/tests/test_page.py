@@ -503,10 +503,10 @@ class Document(Paged):
         derived = page.to_dict()['cubes'][0]['cube']['query']['derived']
         self.assertEqual(derived[0]['name'], 'margin')
         self.assertEqual(derived[0]['lambda']['_type'], 'lambda')
-        # added as DataCube's column editor adds one; its kind undeclared unless given (DataCube then reads its type, as
-        # for any column: a number a measure), declared when it is; refused in DataCube's and the compiler's words -- a
-        # column it does not have, a multiplicity, a name the grid has already, a kind DataCube has not
-        self.assertNotIn('kind', derived[0])
+        # added as DataCube's column editor adds one: a measure unless told, as the editor starts one (a number summed
+        # when grouped, anything else its unique value), declared as told; refused in DataCube's and the compiler's
+        # words -- a column it does not have, a multiplicity, a name the grid has already, a kind DataCube has not
+        self.assertEqual(derived[0]['kind'], 'measure')
         grid.calculate('loss', '$x.pnl->toOne() < 0', kind='dimension')
         self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['derived'][-1]['kind'], 'dimension')
         with self.assertRaisesRegex(ValueError, "a column's kind is 'dimension' or 'measure', not 'sum'"):
