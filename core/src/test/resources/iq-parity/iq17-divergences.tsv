@@ -23,7 +23,7 @@ cause	D-S5	blank padding with a tab: IQ's engine pads the shorter string with bl
 cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Anywhere 17's (WP2 item 10)
 cause	true-keyword	TRUE is a keyword in IQ 17.1, a name in SQL Anywhere 17 (WP2 item 10)
 cause	having-alias	a GROUP BY expression read by its alias in HAVING is IQ's -149 under its engine
-cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING
+cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING; (IQ island, 2026-10-16) a filter of the null-supplying side of a LEFT JOIN inside a windowed derived table, applied below its window functions (a RANK or a COUNT(*) OVER () of the filtered rows)
 cause	pg-distinct-qualify	a DISTINCT over a WHERE that reads a derived table's window column: computed after the window (QUALIFY), which the Postgres dialect cannot render under DISTINCT (a hidden column would change what is distinct); the DuckDB lane answers
 cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, which the island answers; Postgres raises its own float8 overflow before the island's test can read the infinity
 cause	string-date-spellings	a string read as a date where the database computes it: the island reads the year-first spellings every profile reads (IqFunctions.stringDate) and raises on another, which IQ reads by its own rules (a month's name, a two-digit year)
@@ -86,3 +86,7 @@ run	lite/iq_engine_dates/string_date_by_a_month_name@iq17-default	string-date-sp
 # IQ island, 2026-10-16 (the corpus lane's windowed derived tables, measured on IQ 17.1): a DISTINCT over a WHERE that
 # reads a derived table's window column, which the Postgres dialect cannot render (QUALIFY under DISTINCT).
 run	lite/corpus_gaps/a_distinct_of_a_filter_of_a_derived_tables_rank@iq17-default	pg-distinct-qualify	postgres
+# IQ island, 2026-10-16 (the corpus lane's sqlstorm-2642, measured on IQ 17.1): IQ applies a WHERE over a windowed
+# derived table's LEFT JOIN, on its null-supplying side, below the window (RANK 2 and 1 for SQL's 7 and 5); lite
+# computes the window over all of the derived table's rows, as SQL does.
+run	lite/corpus_gaps/a_left_join_and_a_filter_of_a_joined_derived_rank@iq17-default	iq-defect	duckdb,postgres

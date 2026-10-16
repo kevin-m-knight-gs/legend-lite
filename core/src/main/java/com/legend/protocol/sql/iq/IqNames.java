@@ -168,8 +168,10 @@ final class IqNames {
         // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): an item that is a CAST, or a CONVERT without a
         // style, is named as its operand would be (CAST(t.ts AS DATE) is ts, CAST(sm + 1 AS INT) t.sm+1, CAST(SUM(sm)
         // AS DOUBLE) SUM(t.sm), CAST(1 AS INT) 1, CAST(NULL AS INT) null)
-        while (e instanceof SqlAst.Cast c) {
-            e = c.operand();
+        while (e instanceof SqlAst.Cast || e instanceof SqlAst.FunctionCall f && isConvertStyle(f)) {
+            // IQ island, 2026-10-16 (measured on IQ 17.1): a CONVERT with a style too (CONVERT(VARCHAR(12), ts, 107)
+            // is ts)
+            e = e instanceof SqlAst.Cast c ? c.operand() : ((SqlAst.FunctionCall) e).args().get(0);
         }
         String name;
         if (e instanceof SqlAst.ColumnRef ref) {
@@ -296,6 +298,7 @@ final class IqNames {
             case SqlAst.IsDistinct d -> negatable(d, false);
             case SqlAst.IsTruth t -> negatable(t, false);
             case SqlAst.Case c -> written.ifs().contains(c) ? ifExpression(c) : caseExpression(c);
+            case SqlAst.FunctionCall f when isConvertStyle(f) -> convertStyle(f);
             case SqlAst.FunctionCall f -> call(f);
             case SqlAst.Window w -> window(w);
             case SqlAst.Cast c -> cast(c);
@@ -318,6 +321,31 @@ final class IqNames {
             return null;
         }
         return convert ? "convert(" + type + "," + operand + ")" : "cast(" + operand + " as " + type + ")";
+    }
+
+    /** Whether {@code f} is a CONVERT with a style ({@link IqParser#CONVERT_STYLE}). */
+    private static boolean isConvertStyle(SqlAst.FunctionCall f) {
+        return f.name().size() == 1 && f.name().get(0).text().equals(IqParser.CONVERT_STYLE);
+    }
+
+    /** IQ island, 2026-10-16 (measured on IQ 17.1): a CONVERT with a style inside an item, as IQ names it --
+     *  {@code convert(varchar(12),t.ts,107)}: its type as written, its operand, its style. */
+    private @com.legend.base.Nullable String convertStyle(SqlAst.FunctionCall f) {
+        List<IqLexer.Token> tokens = written.tokens();
+        int i = 0;
+        while (i < tokens.size() && !tokens.get(i).pos().equals(f.pos())) {
+            i++;
+        }
+        // CONVERT, then (, then the type
+        if (i + 2 >= tokens.size() || !tokens.get(i + 1).isOp("(")) {
+            return null;
+        }
+        String type = writtenType(new SqlAst.TypeName("", List.of(), tokens.get(i + 2).pos()), true);
+        String operand = render(f.args().get(0));
+        if (type == null || operand == null || !(f.args().get(1) instanceof SqlAst.IntegerLit style)) {
+            return null;
+        }
+        return "convert(" + type + "," + operand + "," + style.value() + ")";
     }
 
     /** The type names a CAST's name was measured with (the first word, lower case). */

@@ -476,3 +476,59 @@ tests:
   - id: a_distinct_of_a_filter_of_a_derived_tables_rank
     sql: "SELECT DISTINCT bt FROM (SELECT id, bt, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 3 ORDER BY bt"
     profile: iq17-default
+
+  # ---- quotients under IQ's engine, over columns holding their types' whole ranges (IQ types a column by its data's
+  # range: D-N3): a constant's trailing zeros dropped, then the scale max(6, s1 + p2 - s2 + 1)
+  - id: quotients_of_a_constant_times_a_column
+    sql: "SELECT 1.0 * it / it AS a, 1.0 * sm / it AS b, it * 1.0 / it AS c, 2.50 * it / it AS d, 100.00 * sm / sm AS e, 1.0 * bg / bg AS f FROM t WHERE id = 4"
+    profile: iq17-default
+  - id: quotients_of_columns_and_constants
+    sql: "SELECT 1.0 / it AS a, it / 1.0 AS b, it / (it + 1.0) AS c, sm / (it + 1.0) AS d, 100.0 - (it * 100.0 / it) AS e FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: quotients_of_numerics_and_integers
+    sql: "SELECT nm / it AS a, it / nm AS b, nm / nm AS c, 100.0 * it / (it + it) AS d FROM t WHERE id = 1"
+    profile: iq17-default
+
+  # ---- found by the lane's judged runs (sede-394767): the name of a CONVERT with a style
+  - id: unaliased_converts_with_a_style
+    sql: "SELECT id, CONVERT(VARCHAR(12), ts, 107), CONVERT(VARCHAR(10), dt, 101), CONVERT(VARCHAR(12), ts, 107) || 'x', CONVERT(CHAR(10), q.dt, 101) || '' FROM t q ORDER BY id"
+    profile: iq17-default
+  - id: a_left_join_and_a_filter_of_a_derived_tables_rank
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d LEFT JOIN u ON u.t_id = d.id WHERE d.sm > 0 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_join_and_a_filter_of_a_derived_tables_rank_column
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d JOIN u ON u.t_id = d.id WHERE d.r <= 6 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_left_join_and_a_filter_of_a_derived_tables_rank_column
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d LEFT JOIN u ON u.t_id = d.id WHERE d.r <= 6 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_join_onto_a_derived_tables_rank_and_a_filter
+    sql: "SELECT d.id, d.r, u.id AS uid FROM u JOIN (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d ON u.t_id = d.id WHERE d.sm > 0 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_join_condition_on_a_derived_tables_rank
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d JOIN u ON u.t_id = d.id AND d.sm > 0 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_join_of_two_derived_ranks_and_a_filter
+    sql: "SELECT d.id, d.r, e.r AS r2 FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d JOIN (SELECT t_id, RANK() OVER (ORDER BY id) AS r FROM u) e ON e.t_id = d.id WHERE d.sm > 0 ORDER BY d.id, r2"
+    profile: iq17-default
+  - id: a_right_join_and_a_filter_of_a_derived_tables_rank
+    sql: "SELECT d.id, d.r, u.id AS uid FROM u RIGHT JOIN (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d ON u.t_id = d.id WHERE d.sm > 0 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_comma_join_and_a_filter_of_a_derived_tables_rank
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d, u WHERE u.t_id = d.id AND d.sm > 0 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_left_join_and_a_filter_of_a_joined_derived_rank
+    sql: "SELECT d.id, d.r, x.id AS xid FROM (SELECT t.id, t.sm, u.id AS uid, RANK() OVER (ORDER BY t.id DESC) AS r FROM t LEFT JOIN u ON u.t_id = t.id) d LEFT JOIN u x ON x.t_id = d.id WHERE d.uid IS NOT NULL ORDER BY d.id, d.uid, xid"
+    profile: iq17-default
+  - id: a_filter_of_a_joined_derived_rank
+    sql: "SELECT d.id, d.uid, d.r FROM (SELECT t.id, t.sm, u.id AS uid, RANK() OVER (ORDER BY t.id DESC) AS r FROM t LEFT JOIN u ON u.t_id = t.id) d WHERE d.uid IS NOT NULL ORDER BY d.id, d.uid"
+    profile: iq17-default
+  - id: a_join_and_a_rank_filter_of_a_grouped_derived_rank
+    sql: "SELECT d.t_id, d.r FROM (SELECT t_id, COUNT(*) AS c, RANK() OVER (ORDER BY t_id DESC) AS r FROM u GROUP BY t_id) d JOIN t ON t.id = d.t_id WHERE d.r <= 3 ORDER BY d.t_id"
+    profile: iq17-default
+  - id: a_join_of_a_grouped_derived_rank
+    sql: "SELECT d.t_id, d.r FROM (SELECT t_id, COUNT(*) AS c, RANK() OVER (ORDER BY t_id DESC) AS r FROM u GROUP BY t_id) d JOIN t ON t.id = d.t_id ORDER BY d.t_id"
+    profile: iq17-default
+  - id: a_join_and_a_filter_of_a_grouped_derived_rank
+    sql: "SELECT d.t_id, d.r FROM (SELECT t_id, COUNT(*) AS c, RANK() OVER (ORDER BY t_id DESC) AS r FROM u GROUP BY t_id) d JOIN t ON t.id = d.t_id WHERE d.c > 1 ORDER BY d.t_id"
+    profile: iq17-default
