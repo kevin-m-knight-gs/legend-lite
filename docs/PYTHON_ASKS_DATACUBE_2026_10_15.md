@@ -95,6 +95,10 @@ What is left, and why:
     the model writer, `Boundary.tableModel`, was weighed and not taken). DataCube holds a third copy for its naming
     dialogs (`model-names.ts isPureName`): a follow-up, not in PR neema2/legend-lite#47, could have them ask the worker.
   - `_next` ids (page.py) are no copy of `cube-page.ts`'s: Python never reuses an id a handle once had.
+  - `_column_choices` (page.py) passes the writer only the keys it reads (`as`, `name`, `documentation`) and drops any
+    other unsaid, so a misspelt key is ignored, never refused (found by the round's second audit, 2026-10-16; there
+    before PR neema2/legend-lite#47). A follow-up could pass every key and have `CreateClass` refuse one it does not
+    read, as it refuses a role it does not know.
 - **The vocabulary test's pins, each retired with the copy it held equal** (`datacube/test/python-vocabulary.test.ts`,
   deleted 2026-10-16; never loosened):
   - `BAND_HEIGHT`, `MAX_COLUMNS`, `SCREEN_BANDS`: with page.py's band editors (item 3; `headless/layout.ts`).
