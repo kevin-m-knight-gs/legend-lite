@@ -9940,6 +9940,14 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     `"oracle"`) restored; the catalog grid's output names quoted by the dialect's quote character, not a literal `"`;
     `carryingTestData`'s javadoc says the specification is H2's `LocalH2`, which only carries the rows when a runtime
     overlay opens its own session.
+  - Recorded, not changed (the measurement round, Trino/H2/corpus session): with H2's digests spelled, two corpus
+    tests that failed on `Function "MD5" not found` now reach their asserts and fail on the digest's value:
+    `tds::tests::extensions::testExtendDigest_Relational` and `tds::tdsJoin::alloy::
+    testJoinWithExtendWithDigestOnColumnsOnBothQueries`, on both H2 judges. The engine's own H2 2.1.214 spells md5
+    as we now do (`rawtohex(hash('MD5', %s))`, `h2Extension2_1_214.pure`), and `md5('')` agrees, so the difference
+    is the text `extendWithDigestOnColumns` hashes (how its columns are joined and cast), not the function; that
+    is the corpus's next layer, not this program's. One message-only change: `graphFetch::milestoning::
+    testMilestonedProperty` fails as before, its printed SQL-text list now holding a subselect's whole text.
   - Recorded, not changed: Postgres refuses a catalog grid. The compiler's old text excluded `pg_catalog`, but no
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
