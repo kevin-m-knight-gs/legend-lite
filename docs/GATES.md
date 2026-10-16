@@ -9850,6 +9850,21 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the thirty-third landing — label predicates, relationships of several types (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the list-ordering leg; the record is the study's §12.35
+(`docs/CYPHER_STUDY_2026_10_15.md`). The parser and the translator only.
+
+1. **What lands.** `n:Label` as an expression (the node's labels text tested by the database, null for an absent
+   node); a relationship pattern of several types as one arm per distinct type; a comparison of nodes refused by
+   name as identity.
+2. **The ledger.** DuckDB: 4318 cases; PASS 2610 (from 2,599); FAIL 0; BUG 0; ERROR 0; REFUSED 631;
+   BOTH_ERROR 709; SKIP 368. Postgres: PASS 2260 (from 2,249); FAIL 0; BUG 0; ERROR 0; REFUSED 981;
+   BOTH_ERROR 709; SKIP 368. 11 lite cases in `lite/labels.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-second landing — lists ordered element by element (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the products leg; the record is the study's §12.34

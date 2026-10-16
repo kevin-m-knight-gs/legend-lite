@@ -297,7 +297,7 @@ tck/clauses/match/Match2/[2] Matching a relationship pattern using a label predi
 tck/clauses/match/Match2/[3] Matching a self-loop with an undirected relationship pattern	REFUSED	REFUSED
 tck/clauses/match/Match2/[4] Matching a self-loop with a directed relationship pattern	PASS	PASS
 tck/clauses/match/Match2/[5] Match relationship with inline property value	SKIP	SKIP
-tck/clauses/match/Match2/[6] Match relationships with multiple types	REFUSED	REFUSED
+tck/clauses/match/Match2/[6] Match relationships with multiple types	PASS	PASS
 tck/clauses/match/Match2/[7] Matching twice with conflicting relationship types on same relationship	REFUSED	REFUSED
 tck/clauses/match/Match2/[8] Fail when using parameter as relationship predicate in MATCH	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match2/[9] Fail when a node has the same variable in a preceding MATCH #1	BOTH_ERROR	BOTH_ERROR
@@ -385,7 +385,7 @@ tck/clauses/match/Match3/[4] Get two related nodes	SKIP	SKIP
 tck/clauses/match/Match3/[5] Return two subgraphs with bound undirected relationship	SKIP	SKIP
 tck/clauses/match/Match3/[6] Matching a relationship pattern using a label predicate	SKIP	SKIP
 tck/clauses/match/Match3/[7] Matching nodes with many labels	SKIP	SKIP
-tck/clauses/match/Match3/[8] Matching using relationship predicate with multiples of the same type	REFUSED	REFUSED
+tck/clauses/match/Match3/[8] Matching using relationship predicate with multiples of the same type	PASS	PASS
 tck/clauses/match/Match3/[9] Get related to related to	PASS	PASS
 tck/clauses/match/Match3/[10] Matching using self-referencing pattern returns no result	REFUSED	REFUSED
 tck/clauses/match/Match3/[11] Undirected match in self-relationship graph	REFUSED	REFUSED
@@ -4006,6 +4006,17 @@ lite/labelless/property_typed_differently_refused_by_name	REFUSED	REFUSED
 lite/labelless/one_class_only	PASS	PASS
 lite/labelless/with_where_re_spells_a_distinct_key	PASS	PASS
 lite/labelless/order_by_over_a_grouping_key_expression	PASS	PASS
+lite/labels/a_label_predicate_over_a_labelless_node	PASS	PASS
+lite/labels/a_label_predicate_in_a_where	PASS	PASS
+lite/labels/a_label_predicate_over_a_bound_node	PASS	PASS
+lite/labels/a_label_predicate_over_a_carried_node	PASS	PASS
+lite/labels/a_label_predicate_over_an_absent_node	PASS	PASS
+lite/labels/a_label_predicate_over_null	PASS	PASS
+lite/labels/a_label_predicate_over_a_value_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/labels/a_relationship_of_several_types	PASS	PASS
+lite/labels/a_relationship_of_several_types_from_a_labelless_node	PASS	PASS
+lite/labels/a_type_spelled_twice_is_one_type	PASS	PASS
+lite/labels/comparing_nodes_refused	REFUSED	REFUSED
 lite/nodes/node_of_one_class	PASS	PASS
 lite/nodes/nodes_of_every_class	PASS	PASS
 lite/nodes/node_with_order_and_limit	PASS	PASS

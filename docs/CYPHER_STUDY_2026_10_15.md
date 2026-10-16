@@ -2836,3 +2836,24 @@ Neo4j.
 
 6 lite cases in `lite/ordering.yaml`, each judged by Neo4j (one a refusal by name).
 
+### 12.35 Label predicates, relationships of several types, node comparisons named, 2026-10-16
+
+- **`n:Label`, `n:A:B` as an expression** (a WHERE, a returned item): true when the node carries every label, read
+  from its labels' JSON text (a spelled constant for a node of a known class, which the database folds; the column
+  carrying it for a node read as rows: the database tests the text for each quoted label); null for a node an
+  OPTIONAL MATCH may not find, and for a null value; Neo4j's type error for a value that is no node.
+- **`(a)-[:KNOWS|HATES]->(b)`, `(a)-[:T|:T]->(b)`:** a relationship pattern of several types is one arm per distinct
+  type (a type spelled twice is one), as an untyped pattern's arms are decided (§12.17, from a label-less or a
+  labelled node, after a bound node too, §12.32), each arm read as a typed pattern, materialized and concatenated.
+- **`a = b` over nodes**, relationships or paths is refused by name as what it is: Neo4j compares them by identity,
+  which their values do not carry (the refusal read "comparing a Map with a Map" before).
+
+#### 12.35.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4318 | 2610 (from 2,599) | 0 | 0 | 0 | 631 | 709 | 368 |
+| Postgres | 4318 | 2260 (from 2,249) | 0 | 0 | 0 | 981 | 709 | 368 |
+
+11 lite cases in `lite/labels.yaml`, each judged by Neo4j (one a refusal by name, one Neo4j's own error).
+

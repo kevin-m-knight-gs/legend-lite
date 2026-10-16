@@ -648,7 +648,8 @@ public final class CypherToPure {
             return arms(m);
         }
         if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
-                && r.types().isEmpty()))) {
+                && r.types().size() != 1))) {
+            // (a relationship of several types too: one arm per type, the study's §12.35)
             return untypedArms(m, state);
         }
         Graph g = state instanceof Graph existing ? existing : null;
@@ -909,7 +910,8 @@ public final class CypherToPure {
         // (type, direction, the class reached)
         List<Object[]> ways = new ArrayList<>();
         if (!rel.types().isEmpty()) {
-            for (String type : rel.types()) {
+            // (a type spelled twice, :T|:T, is one type)
+            for (String type : new java.util.LinkedHashSet<>(rel.types())) {
                 if (rel.direction() != CypherAst.Direction.IN) {
                     Property forward = property(cls, type);
                     if (forward != null && forward.classTyped()) {
@@ -2489,6 +2491,7 @@ public final class CypherToPure {
             }
             case CypherAst.Paren p -> List.of(p.inner());
             case CypherAst.Quantifier q -> List.of(q.list(), q.where());
+            case CypherAst.LabelPredicate lp -> List.of(lp.target());
             case CypherAst.PatternComprehension pc -> {
                 List<Expr> all = new ArrayList<>();
                 if (pc.where() != null) {
@@ -3495,6 +3498,7 @@ public final class CypherToPure {
             case CypherAst.Quantifier q -> scalar(quantifier(q, scope));
             case CypherAst.ListComprehension lc -> comprehension(lc, scope);
             case CypherAst.PatternComprehension pc -> patternComprehension(pc, scope);
+            case CypherAst.LabelPredicate lp -> scalar(labelPredicate(lp, scope));
             case CypherAst.Index ix -> index(ix, scope);
             case CypherAst.Slice sl -> slice(sl, scope);
         };
@@ -3703,6 +3707,10 @@ public final class CypherToPure {
     private static Tx equal(Tx l, Tx r, Pos pos) {
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
+        }
+        if (isNode(l) || isNode(r) || l.detail() instanceof PathValue || r.detail() instanceof PathValue) {
+            throw CypherErrors.unsupported("comparing nodes, relationships or paths (Neo4j compares them by identity,"
+                    + " which their values do not carry) is not supported yet", pos);
         }
         if (l.kind() == Kind.JSON || r.kind() == Kind.JSON || l.kind() == Kind.OTHER || r.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("comparing a " + cypherType(l.kind()) + " with a " + cypherType(r.kind())
@@ -5075,6 +5083,41 @@ public final class CypherToPure {
                 new CInteger(2L)), call("and", call("equal", holds, new CInteger(0L)), noUnknown)), true);
     }
 
+    /** {@code n:Label}, {@code n:A:B} (the study's §12.35): true when the node carries every label, read from its
+     *  labels' JSON text (a spelled constant for a node of a known class, the column carrying it for a node read
+     *  as rows: the database tests the text for each quoted label); null for a node an OPTIONAL MATCH may not
+     *  find, or a null value. */
+    private Tx labelPredicate(CypherAst.LabelPredicate lp, Scope scope) {
+        if (!(lp.target() instanceof CypherAst.Var v)) {
+            throw CypherErrors.invalid("Type mismatch: expected Node or Relationship but was "
+                    + cypherType(tx(lp.target(), scope).kind()), lp.pos());
+        }
+        if (scope.isAbsentNode(v)) {
+            return SqlToPure.nullOf(Kind.BOOLEAN);
+        }
+        NodeParts parts = scope.nodeParts(v);
+        if (parts == null) {
+            Val value = scope.variable(v);
+            if (isNull(value)) {
+                return SqlToPure.nullOf(Kind.BOOLEAN);
+            }
+            throw CypherErrors.invalid("Type mismatch: expected Node or Relationship but was "
+                    + cypherType(scalarOf(value, lp.pos()).kind()), lp.pos());
+        }
+        ValueSpecification holds = null;
+        for (String label : lp.labels()) {
+            ValueSpecification one = call("contains", parts.labels(), new CString(com.legend.json.Json.toCompact(
+                    label)));
+            holds = holds == null ? one : call("and", holds, one);
+        }
+        ValueSpecification test = java.util.Objects.requireNonNull(holds);
+        if (parts.absent() == null) {
+            return Tx.condition(test, call("not", test), false);
+        }
+        return Tx.condition(call("and", call("not", parts.absent()), test), call("and", call("not", parts.absent()),
+                call("not", test)), true);
+    }
+
     /** One way a pattern comprehension's hop reads: the relationship's type (an association end's name), the
      *  direction, the class it reaches, and the hop that navigates it from the start node. */
     private record Way(String type, Hop hop) {
@@ -5274,7 +5317,7 @@ public final class CypherToPure {
         // the ways: (type, direction, the class reached), as an untyped pattern's arms are decided (§12.17)
         List<Object[]> candidates = new ArrayList<>();
         if (!rel.types().isEmpty()) {
-            for (String type : rel.types()) {
+            for (String type : new java.util.LinkedHashSet<>(rel.types())) {
                 if (rel.direction() != CypherAst.Direction.IN) {
                     Property forward = property(cls, type);
                     if (forward != null && forward.classTyped()) {
@@ -5492,6 +5535,7 @@ public final class CypherToPure {
             case CypherAst.Quantifier q -> readsRow(q.list(), bound) || readsRow(q.where(), with(bound,
                     q.variable()));
             case CypherAst.PatternComprehension pc -> true;
+            case CypherAst.LabelPredicate lp -> readsRow(lp.target(), bound);
             case CypherAst.ListComprehension lc -> readsRow(lc.list(), bound)
                     || lc.where() != null && readsRow(lc.where(), with(bound, lc.variable()))
                     || lc.map() != null && readsRow(lc.map(), with(bound, lc.variable()));
@@ -8503,6 +8547,7 @@ public final class CypherToPure {
             case CypherAst.Paren p -> "(" + text(p.inner()) + ")";
             case CypherAst.Quantifier q -> q.name() + "(" + q.variable() + " IN " + text(q.list()) + " WHERE "
                     + text(q.where()) + ")";
+            case CypherAst.LabelPredicate lp -> text(lp.target()) + ":" + String.join(":", lp.labels());
             case CypherAst.PatternComprehension pc -> "[" + text(pc.pattern())
                     + (pc.where() == null ? "" : " WHERE " + text(pc.where())) + " | " + text(pc.map()) + "]";
             case CypherAst.ListComprehension lc -> "[" + lc.variable() + " IN " + text(lc.list())

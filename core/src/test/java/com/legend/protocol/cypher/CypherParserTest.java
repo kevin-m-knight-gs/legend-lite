@@ -72,6 +72,7 @@ class CypherParserTest {
             case CypherAst.ListComprehension lc -> "[" + lc.variable() + " IN " + tree(lc.list())
                     + (lc.where() == null ? "" : " WHERE " + tree(lc.where()))
                     + (lc.map() == null ? "" : " | " + tree(lc.map())) + "]";
+            case CypherAst.LabelPredicate lp -> tree(lp.target()) + ":" + String.join(":", lp.labels());
             case CypherAst.PatternComprehension pc -> "[pattern" + (pc.pattern().variable() == null ? ""
                     : " " + pc.pattern().variable()) + ":" + pc.pattern().elements().size()
                     + (pc.where() == null ? "" : " WHERE " + tree(pc.where())) + " | " + tree(pc.map()) + "]";
@@ -332,12 +333,14 @@ class CypherParserTest {
         assertEquals("[pattern:3 | b.name]", tree(expr("[(a)--(b) | b.name]")));
         assertEquals("[pattern:3 | r]", tree(expr("[(a)<-[r:T]-() | r]")));
         assertEquals("[MINUS((a),1),2]", tree(expr("[(a) - 1, 2]")));
+        // a label predicate, after a variable or a parenthesized expression
+        assertEquals("n:A:B", tree(expr("n:A:B")));
+        assertEquals("AND(n:A,GT(n.x,1))", tree(expr("n:A AND n.x > 1")));
         assertEquals("a[0]", tree(expr("a[0]")));
         assertEquals("a[1..]", tree(expr("a[1..]")));
         assertEquals("a[..2]", tree(expr("a[..2]")));
         assertEquals("a[-1..2][0]", tree(expr("a[-1..2][0]")));
         assertEquals("[[1]][0][0]", tree(expr("[[1]][0][0]")));
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("MATCH (n) RETURN n:Person").kind());
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("MATCH (n) WHERE EXISTS { (n)-->() } RETURN n")
                 .kind());
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("MATCH (n) WHERE (n)-->() RETURN n").kind());

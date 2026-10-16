@@ -98,7 +98,7 @@ public final class CypherAst {
 
     public sealed interface Expr permits IntLit, FloatLit, StringLit, BoolLit, NullLit, Var, Prop, Param, ListLit,
             MapLit, Unary, Binary, Call, CountStar, Case, Paren, Quantifier, ListComprehension, PatternComprehension,
-            Index, Slice {
+            LabelPredicate, Index, Slice {
         Pos pos();
     }
 
@@ -181,6 +181,10 @@ public final class CypherAst {
      *  {@code expression} over every match of the pattern from the bound nodes it names. */
     public record PatternComprehension(PathPattern pattern, @com.legend.base.Nullable Expr where, Expr map, Pos pos)
             implements Expr {
+    }
+
+    /** {@code n:Label:Other}: a label predicate, true when the node carries every label. */
+    public record LabelPredicate(Expr target, List<String> labels, Pos pos) implements Expr {
     }
 
     /** {@code target[index]}: a list's element or a map's entry. */

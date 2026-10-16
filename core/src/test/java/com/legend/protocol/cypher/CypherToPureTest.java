@@ -412,6 +412,22 @@ class CypherToPureTest {
     }
 
     @Test
+    void aLabelPredicateReadsTheNodesLabelsAndSeveralTypesAreArms() {
+        // the study's §12.35: n:Label tests the node's labels text (a constant for a known class: the database
+        // folds it), null for an absent node; a relationship of several types is one arm per distinct type
+        assertEquals("demo::Person.all()->project(~[a:p|'[\"Person\"]'->contains('\"Person\"'), b:p|'[\"Person\"]'->contains('\"Firm\"')])",
+                pure("MATCH (p:Person) RETURN p:Person AS a, p:Firm AS b"));
+        assertEquals("demo::Person.all()->project(~[a:p|if(!$p.firm->isEmpty() && '[\"Firm\"]'->contains('\"Firm\"'), |true, |if(!$p.firm->isEmpty() && !'[\"Firm\"]'->contains('\"Firm\"'), |false, |[]))])",
+                pure("MATCH (p:Person) OPTIONAL MATCH (p)-[:firm]->(f:Firm) RETURN f:Firm AS a"));
+        invalid("RETURN 1:Person AS a", "expected Node or Relationship but was Integer");
+        // (a type spelled twice is one type: one arm, read as rows)
+        String twice = pure("MATCH (p:Person)-[:firm|:firm]->(f) RETURN f.legalName AS l");
+        assertTrue(twice.contains("$p.firm.legalName") && !twice.contains("->concatenate("), twice);
+        assertTrue(pure("MATCH (n)-[r:firm|employees]->(x) RETURN type(r) AS t").contains("->concatenate("));
+        unsupported("MATCH (a:Person), (b:Person) WHERE a = b RETURN a.name", "Neo4j compares them by identity");
+    }
+
+    @Test
     void listsOfKnownShapeOrderElementByElement() {
         // the study's §12.34: the first pair that is not equal decides (null when either is null or the two do
         // not order), the lengths when every pair is equal; a list and a value of another type do not order

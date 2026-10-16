@@ -651,8 +651,14 @@ public final class CypherParser {
                 expect(Type.RBRACKET, "']'");
                 e = new CypherAst.Index(e, first, pos);
             } else if (peek().is(Type.COLON) && peek(1).is(Type.IDENT)) {
-                throw CypherErrors.unsupported("a label predicate (n:Label) in an expression is not supported yet",
-                        peek().pos());
+                // n:Label:Other, a label predicate
+                Pos at = peek().pos();
+                List<String> labels = new ArrayList<>();
+                while (peek().is(Type.COLON) && peek(1).is(Type.IDENT)) {
+                    advance();
+                    labels.add(advance().text());
+                }
+                e = new CypherAst.LabelPredicate(e, labels, at);
             } else {
                 return e;
             }
