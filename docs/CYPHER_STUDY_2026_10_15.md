@@ -2572,3 +2572,35 @@ Four small refusals with a clear reading, 25 TCK cases between them:
 
 13 lite cases in `lite/aggregates.yaml`, each judged by Neo4j.
 
+### 12.25 Lists and maps of values of the row, 2026-10-16: the shape's JSON text built by the database
+
+§12.5.1 built a list holding values of the row by {@code toVariant} of a Pure collection, within what a collection
+carries: one kind, no null, two or more elements (Pure reads `[x]` as `x`); a map holding values of the row was
+refused by name (`newMap`'s Variant is a list of pairs on Postgres). Now a shape holding values of the row is its
+**JSON text built by the database**, as a node is (§12.14): each scalar spelled by its kind (`jsonText`: a number's
+or a boolean's spelling, a whole float with its `.0`, a string in quotes escaped, a date as the oracle spells one),
+an empty one `null`, a nested list's or map's text within its brackets, a Variant (a node, a relationship, a list
+or map the database holds) by its canonical text (`toString` of a Variant is its compact JSON), a collection the
+database computes by its Variant's text; the whole read as a Variant (`fromJson`). A shape of literals stays a JSON
+constant, and a collection the database computes stays `toVariant` of it. So `[p.age]`, `[p.age, p.name]` with a
+null, `[p.age, p.name, p.age > 1, 2.5]`, `{age: p.age, name: p.name}`, `[{age: p.age}, [p.name, 1]]`,
+`[n IN things | toInteger(n)]` with a null, `[p, p.age]`, `[range(1, p.age), p.age]` and `[1] + (2 IN [3]) + 4`
+are values. A time, a date-time or a duration inside a shape is still refused by name (the Variant would spell
+it as text the judge does not read yet); a shape carried through a WITH (not returned) still is.
+
+One register row retired, S62: on Postgres a list of floats of the row was `toVariant` of a Pure collection, a jsonb
+value that spells a whole float as an integer (`[3.4, 3]` where Neo4j has `[3.4, 3.0]`, TypeConversion3 [1], decided
+on that lane). The text route spells the float with its `.0` on both lanes (`jsonText`), so the difference is gone:
+the row and its decision (`cypher-parity/decisions.tsv`) are removed, the case judged by Neo4j's answer on both lanes.
+
+#### 12.25.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4213 | 2456 (from 2,435) | 0 | 0 | 0 | 681 | 708 | 368 |
+| Postgres | 4213 | 2106 (from 2,085) | 0 | 0 | 0 | 1031 | 708 | 368 |
+
+11 lite cases in `lite/shapes.yaml`, each judged by Neo4j; `lite/values.yaml`'s map-over-rows refusal case is a
+passing case now (renamed `returned_map_over_rows`), and its two list cases with a null and with strings of the row
+pass.
+

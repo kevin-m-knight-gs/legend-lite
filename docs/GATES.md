@@ -9850,6 +9850,22 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the twenty-third landing — lists and maps of values of the row, as JSON text the database builds (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the aggregates-in-expressions leg; the record is the study's §12.25
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only.
+
+1. **What lands.** A list or map holding values of the row is its JSON text built by the database (each scalar by
+   its kind, an empty one null, a nested shape within, a node's or a computed collection's canonical text), read as
+   a Variant: a list of one value of the row, of values that may be null, of mixed kinds, a map of values of the
+   row, nested shapes.
+2. **The ledger.** DuckDB: 4213 cases; PASS 2456 (from 2,435); FAIL 0; BUG 0; ERROR 0; REFUSED 681;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2106 (from 2,085); FAIL 0; BUG 0; ERROR 0; REFUSED 1031;
+   BOTH_ERROR 708; SKIP 368. 11 lite cases in `lite/shapes.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the twenty-second landing — aggregates in expressions: an expression around aggregates, an ORDER BY aggregate, a null column aggregated (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the odds-and-ends leg; the record is the study's §12.24

@@ -395,6 +395,18 @@ class CypherToPureTest {
     }
 
     @Test
+    void aShapeOfRowValuesIsItsJsonTextBuiltByTheDatabase() {
+        // the study's §12.25: each element spelled by its kind (null for an empty one, a string escaped, a whole
+        // float with its .0), a map's entries under their keys, a nested shape within; read as a Variant
+        assertEquals("demo::Person.all()->project(~[l:p|fromJson(('[' + if($p.age->isEmpty(), |'null', |$p.age->toOne()->toString())) + ']')])",
+                pure("MATCH (p:Person) RETURN [p.age] AS l"));
+        assertEquals("demo::Person.all()->project(~[l:p|fromJson((((('[' + if($p.age->isEmpty(), |'null', |$p.age->toOne()->toString())) + (',' + ('\"' + $p.name->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + (',' + if(if($p.age->isNotEmpty() && ($p.age->toOne() > 1), |true, |if($p.age->isNotEmpty() && !($p.age->toOne() > 1), |false, |[]))->isEmpty(), |'null', |if($p.age->isNotEmpty() && ($p.age->toOne() > 1), |true, |if($p.age->isNotEmpty() && !($p.age->toOne() > 1), |false, |[]))->toOne()->toString()))) + (',' + if(toFloat(2.5)->toString()->contains('.') || toFloat(2.5)->toString()->contains('e'), |toFloat(2.5)->toString(), |toFloat(2.5)->toString() + '.0'))) + ']')])",
+                pure("MATCH (p:Person) RETURN [p.age, p.name, p.age > 1, 2.5] AS l"));
+        assertEquals("demo::Person.all()->project(~[m:p|fromJson((('{' + '\"age\":' + if($p.age->isEmpty(), |'null', |$p.age->toOne()->toString())) + ',\"inner\":' + (('[' + ('\"' + $p.name->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"')) + ']')) + '}')])",
+                pure("MATCH (p:Person) RETURN {age: p.age, inner: [p.name]} AS m"));
+    }
+
+    @Test
     void anExpressionAroundAggregatesIsComputedAfterTheGrouping() {
         // the study's §12.24: each aggregate a hidden column of the grouping, the expression extended over the
         // finished aggregates (a count of nothing is 0), the items alone selected; an ORDER BY aggregate beyond the
@@ -620,7 +632,7 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person) WHERE p.name = $name RETURN p.name", "a parameter ($name)");
         unsupported("MATCH (p:Person) WHERE p.name =~ 'A.*' RETURN p.name", "regular expression");
         unsupported("MATCH (p:Person) WITH [p.age] AS l RETURN l", "holding a value of the row (l), carried");
-        unsupported("MATCH (p:Person) RETURN [p.age] AS l", "a list of one value of the row");
+        unsupported("MATCH (p:Person) RETURN [localtime('12:00')] AS l", "a list or map holding a LocalTime, as a value");
         invalid("MATCH (p:Person) RETURN all(x IN p.name WHERE x > 1)", "expected List<T> but was String");
         unsupported("USE demo::Space MATCH (p:Person) RETURN p.name", "USE");
         unsupported("MATCH (p:Person) RETURN DISTINCT p", "RETURN DISTINCT over a node (p");

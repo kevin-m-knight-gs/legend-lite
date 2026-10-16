@@ -775,7 +775,7 @@ tck/clauses/return/Return2/[9] Returning a projected map	SKIP	SKIP
 tck/clauses/return/Return2/[10] Return count aggregation over an empty graph	PASS	PASS
 tck/clauses/return/Return2/[11] RETURN does not lose precision on large integers	PASS	PASS
 tck/clauses/return/Return2/[12] Projecting a list of nodes and relationships	PASS	PASS
-tck/clauses/return/Return2/[13] Projecting a map of nodes and relationships	REFUSED	REFUSED
+tck/clauses/return/Return2/[13] Projecting a map of nodes and relationships	PASS	PASS
 tck/clauses/return/Return2/[14] Do not fail when returning type of deleted relationships	REFUSED	REFUSED
 tck/clauses/return/Return2/[15] Fail when returning properties of deleted nodes	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return2/[16] Fail when returning labels of deleted nodes	BOTH_ERROR	BOTH_ERROR
@@ -2144,8 +2144,8 @@ tck/expressions/precedence/Precedence2/[5] Numeric unary negative takes preceden
 tck/expressions/precedence/Precedence3/[1] List element access takes precedence over list appending	PASS	PASS
 tck/expressions/precedence/Precedence3/[2] List element access takes precedence over list concatenation	PASS	PASS
 tck/expressions/precedence/Precedence3/[3] List slicing takes precedence over list concatenation	PASS	PASS
-tck/expressions/precedence/Precedence3/[4] List appending takes precedence over list element containment	REFUSED	REFUSED
-tck/expressions/precedence/Precedence3/[5] List concatenation takes precedence over list element containment	REFUSED	REFUSED
+tck/expressions/precedence/Precedence3/[4] List appending takes precedence over list element containment	PASS	PASS
+tck/expressions/precedence/Precedence3/[5] List concatenation takes precedence over list element containment	PASS	PASS
 tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #1	PASS	PASS
 tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #2	PASS	PASS
 tck/expressions/precedence/Precedence3/[6] List element containment takes precedence over comparison operator #3	REFUSED	REFUSED
@@ -3817,8 +3817,8 @@ tck/expressions/typeConversion/TypeConversion1/[5] Fail `toBoolean()` on invalid
 tck/expressions/typeConversion/TypeConversion2/[1] `toInteger()` on float	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[2] `toInteger()` returning null on non-numerical string	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[3] `toInteger()` handling mixed number types	PASS	PASS
-tck/expressions/typeConversion/TypeConversion2/[4] `toInteger()` handling Any type	REFUSED	REFUSED
-tck/expressions/typeConversion/TypeConversion2/[5] `toInteger()` on a list of strings	REFUSED	REFUSED
+tck/expressions/typeConversion/TypeConversion2/[4] `toInteger()` handling Any type	PASS	PASS
+tck/expressions/typeConversion/TypeConversion2/[5] `toInteger()` on a list of strings	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[6] `toInteger()` on a complex-typed expression	PASS	PASS
 tck/expressions/typeConversion/TypeConversion2/[7] `toInteger()` on node property	REFUSED	REFUSED
 tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid types #Example: <exampleName> #1	BOTH_ERROR	BOTH_ERROR
@@ -3828,8 +3828,8 @@ tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid
 tck/expressions/typeConversion/TypeConversion2/[8] Fail `toInteger()` on invalid types #Example: <exampleName> #5	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion3/[1] `toFloat()` on mixed number types	PASS	PASS
 tck/expressions/typeConversion/TypeConversion3/[2] `toFloat()` returning null on non-numerical string	PASS	PASS
-tck/expressions/typeConversion/TypeConversion3/[3] `toFloat()` handling Any type	REFUSED	REFUSED
-tck/expressions/typeConversion/TypeConversion3/[4] `toFloat()` on a list of strings	REFUSED	REFUSED
+tck/expressions/typeConversion/TypeConversion3/[3] `toFloat()` handling Any type	PASS	PASS
+tck/expressions/typeConversion/TypeConversion3/[4] `toFloat()` on a list of strings	PASS	PASS
 tck/expressions/typeConversion/TypeConversion3/[5] `toFloat()` on node property	REFUSED	REFUSED
 tck/expressions/typeConversion/TypeConversion3/[6] Fail `toFloat()` on invalid types #Example: <exampleName> #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/typeConversion/TypeConversion3/[6] Fail `toFloat()` on invalid types #Example: <exampleName> #2	BOTH_ERROR	BOTH_ERROR
@@ -4025,6 +4025,17 @@ lite/rels/relationship_in_a_list	PASS	PASS
 lite/rels/distinct_relationship_refused_by_name	REFUSED	REFUSED
 lite/rels/relationship_property_refused_by_name	REFUSED	REFUSED
 lite/rels/edge_property_skipped_by_the_harness	SKIP	SKIP
+lite/shapes/list_of_one_row_value	PASS	PASS
+lite/shapes/list_with_a_null_element	PASS	PASS
+lite/shapes/list_of_mixed_kinds	PASS	PASS
+lite/shapes/map_of_row_values	PASS	PASS
+lite/shapes/nested_shapes_of_row_values	PASS	PASS
+lite/shapes/comprehension_to_integer_over_mixed_literals	PASS	PASS
+lite/shapes/list_with_a_node	PASS	PASS
+lite/shapes/list_with_a_computed_collection	PASS	PASS
+lite/shapes/list_appending_a_boolean	PASS	PASS
+lite/shapes/list_with_a_date	PASS	PASS
+lite/shapes/map_through_with_then_returned	PASS	PASS
 lite/temporal/date_from_components	PASS	PASS
 lite/temporal/date_from_text	PASS	PASS
 lite/temporal/localdatetime_from_components	PASS	PASS
@@ -4195,9 +4206,9 @@ lite/values/ranges	PASS	PASS
 lite/values/functions_conversions_and_numbers	PASS	PASS
 lite/values/functions_strings	PASS	PASS
 lite/values/returned_lists_over_rows	PASS	PASS
-lite/values/returned_map_over_rows_is_refused	REFUSED	REFUSED
-lite/values/returned_list_of_strings_of_the_row	REFUSED	REFUSED
-lite/values/returned_list_of_a_value_that_may_be_null	REFUSED	REFUSED
+lite/values/returned_map_over_rows	PASS	PASS
+lite/values/returned_list_of_strings_of_the_row	PASS	PASS
+lite/values/returned_list_of_a_value_that_may_be_null	PASS	PASS
 lite/values/unwind_then_quantifier_over_collected	REFUSED	REFUSED
 lite/values/comparison_of_different_types_is_false	PASS	PASS
 lite/values/size_and_keys_errors_are_cyphers	BOTH_ERROR	BOTH_ERROR

@@ -1720,6 +1720,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
 - **The aggregates-in-expressions leg, 2026-10-16, announced here as landed** — the translator and
   `lite/aggregates.yaml`: no file of the database owner's, no guard pin moved. The record: the study's §12.24; GATES
   "the twenty-second landing".
+- **The shapes leg, 2026-10-16, announced here as landed** — the translator and `lite/shapes.yaml`: lists and maps
+  of values of the row as JSON text the database builds; no file of the database owner's, no guard pin moved. The
+  record: the study's §12.25; GATES "the twenty-third landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`
@@ -1765,7 +1768,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   collection) types the divide-by-zero guard as text ("CASE types bigint and character varying cannot be matched"),
   and `cast([], @Boolean)` renders a bare `NULL` (two in a row make a `CASE` text to Postgres); (e) lite's Postgres
   lowering writes `toVariant(newMap([pair(...)]))` as a list of `{key, value}` pairs where DuckDB's writes the object;
-  (f) Postgres's jsonb spells a whole float as an integer inside a returned list (S62, decided per lane). The Cypher translator
+  (f) Postgres's jsonb spells a whole float as an integer inside a returned list (S62, decided per lane; moot since
+  the shapes leg, 2026-10-16: a shape of row values is JSON text the translator spells, the float with its `.0`, and
+  the row is retired). The Cypher translator
   works around each (a JSON constant for literal shapes, refusals by name for the rest; `floor(x + 0.5)`; the column
   read as one that may be null; `%` and integer `/` refused inside a database-computed lambda; a null element falling
   through to the one `ELSE`; a map of row values refused by name).

@@ -9,7 +9,6 @@ tck/expressions/comparison/Comparison1/[8] Equality and inequality of NaN #3	S60
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #1	S60	[["true", "true", "false", "false"]]	ERROR
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #2	S60	[["true", "true", "false", "false"]]	ERROR
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #3	S60	[["false", "true", "false", "true"]]	ERROR
-tck/expressions/typeConversion/TypeConversion3/[1] `toFloat()` on mixed number types	S62	-	[["[3.4, 3]"]]
 lite/temporal/datetime_comparison	S66	[["true", "false", "true", "true", "true", "true"]]	[["true", "false", "true", "true", "true", "true"]]
 lite/temporal/time_comparison	S66	[["false", "true", "false", "true", "false", "true", "true", "true", "true"]]	[["false", "true", "false", "true", "false", "true", "true", "true", "true"]]
 lite/temporal/time_offset_with_seconds	S69	[["Time('12:34:56.000000000+02:05:59')", "Time('12:34:56.000000000-02:05:07')", "7559"]]	[["Time('12:34:56.000000000+02:05:59')", "Time('12:34:56.000000000-02:05:07')", "7559"]]

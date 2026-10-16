@@ -49,7 +49,7 @@ tests:
   - id: returned_lists_over_rows
     graph: legend
     cypher: "MATCH (p:Person) RETURN p.name AS name, [p.age IS NULL, p.active IS NULL] AS unknowns, [coalesce(p.name, '?'), coalesce(p.name, '?') + '!'] AS names ORDER BY name"
-  - id: returned_map_over_rows_is_refused
+  - id: returned_map_over_rows
     graph: legend
     cypher: "MATCH (p:Person) RETURN p.name AS name, {name: coalesce(p.name, '?'), known: p.age IS NOT NULL} AS m ORDER BY name"
   - id: returned_list_of_strings_of_the_row

@@ -4057,11 +4057,10 @@ public final class CypherToPure {
     }
 
     /**
-     * A list or map as a value the database holds: a Variant (C8). A shape of literals is a JSON constant; a shape
-     * holding values of the row is built by the database ({@code toVariant} of a collection), within what Pure's
-     * collections carry: one kind, no null, two or more elements (Pure reads {@code [x]} as {@code x}); a collection
-     * it computes is {@code toVariant} of it; a map holding values of the row is refused by name ({@code newMap}'s
-     * Variant is a list of pairs on Postgres).
+     * A list or map as a value the database holds: a Variant (C8). A shape of literals is a JSON constant; a
+     * collection the database computes is {@code toVariant} of it; a shape holding values of the row is its JSON
+     * text built by the database (the study's §12.25), as a node is: each scalar spelled by its kind (an empty one
+     * {@code null}), a nested shape's text within, a collection's or a Variant's canonical text, read as a Variant.
      */
     private Tx variant(Val v, Pos pos) {
         if (isLiteral(v)) {
@@ -4070,48 +4069,55 @@ public final class CypherToPure {
         return switch (v) {
             case Scalar s -> s.tx();
             case Coll c -> Tx.value(call("toVariant", c.vs()), Kind.JSON, false);
-            case ListVal l -> {
-                if (l.elements().size() < 2) {
-                    throw CypherErrors.unsupported("a list of one value of the row, as a value, is not supported yet"
-                            + " (Pure reads [x] as x)", pos);
-                }
-                List<ValueSpecification> values = new ArrayList<>();
-                Kind kind = null;
-                for (Val e : l.elements()) {
-                    Tx t = element(e, pos);
-                    if (kind == null) {
-                        kind = t.kind();
-                    } else if (kind != t.kind()) {
-                        throw CypherErrors.unsupported("a list holding values of different types, as a value, is not"
-                                + " supported yet", pos);
-                    }
-                    values.add(SqlToPure.valueOf(t));
-                }
-                yield Tx.value(call("toVariant", new PureCollection(values)), Kind.JSON, false);
-            }
-            case MapVal m -> throw CypherErrors.unsupported("a map holding a value of the row, as a value, is not"
-                    + " supported yet (lite's Postgres lowering writes toVariant of newMap as a list of pairs where"
-                    + " DuckDB's writes an object; reported, docs/IN_FLIGHT.md 2026-10-15)", pos);
+            case ListVal l -> Tx.value(call("fromJson", jsonTextOf(l, pos)), Kind.JSON, false);
+            case MapVal m -> Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false);
         };
     }
 
-    /** An element of a shape the database builds: a scalar that is never null (a Pure collection holds no empty,
-     *  and lite's {@code toOne} asserts on one), or a nested shape's Variant. */
-    private Tx element(Val e, Pos pos) {
-        if (e instanceof Scalar s) {
-            if (s.tx().nullable() || s.tx().kind() == Kind.NULL) {
-                throw CypherErrors.unsupported("a list or map holding a value that may be null, as a value, is not"
-                        + " supported yet", pos);
+    /** A value's JSON text, built by the database: a scalar by its kind ({@link #jsonText}; an empty one
+     *  {@code null}; a Variant's, its canonical text), a list's elements and a map's entries within their brackets,
+     *  a collection the database computes by its Variant's text. */
+    private ValueSpecification jsonTextOf(Val v, Pos pos) {
+        return switch (v) {
+            case Scalar s -> scalarJsonText(s.tx(), pos);
+            case Coll c -> call("toString", call("toVariant", c.vs()));
+            case ListVal l -> {
+                ValueSpecification text = new CString("[");
+                for (int i = 0; i < l.elements().size(); i++) {
+                    text = plus(text, i == 0 ? jsonTextOf(l.elements().get(i), pos)
+                            : plus(new CString(","), jsonTextOf(l.elements().get(i), pos)));
+                }
+                yield plus(text, new CString("]"));
             }
-            if (s.tx().kind() == Kind.DATE || s.tx().kind() == Kind.DATETIME || s.tx().kind() == Kind.TIME
-                    || s.tx().kind() == Kind.ZONED || s.tx().kind() == Kind.ZONED_TIME
-                    || s.tx().kind() == Kind.DURATION) {
-                throw CypherErrors.unsupported("a list or map holding a " + cypherType(s.tx().kind()) + ", as a"
-                        + " value, is not supported yet (the Variant spells it as text)", pos);
+            case MapVal m -> {
+                ValueSpecification text = new CString("{");
+                int i = 0;
+                for (Map.Entry<String, Val> e : m.entries().entrySet()) {
+                    String key = (i++ == 0 ? "" : ",") + com.legend.json.Json.toCompact(e.getKey()) + ":";
+                    text = plus(text, new CString(key), jsonTextOf(e.getValue(), pos));
+                }
+                yield plus(text, new CString("}"));
             }
-            return s.tx();
+        };
+    }
+
+    /** A scalar's JSON text: {@code null} for a null, else its kind's spelling ({@link #jsonText}: a number, a
+     *  boolean, a string, a date as the oracle spells one); a Variant's (a node, a relationship, a list or map the
+     *  database holds) its canonical text. A time or a duration inside a list or map is not spelled yet. */
+    private static ValueSpecification scalarJsonText(Tx t, Pos pos) {
+        if (t.kind() == Kind.NULL) {
+            return new CString("null");
         }
-        return variant(e, pos);
+        if (t.kind() == Kind.DATETIME || t.kind() == Kind.TIME || t.kind() == Kind.ZONED
+                || t.kind() == Kind.ZONED_TIME || t.kind() == Kind.DURATION || t.kind() == Kind.OTHER) {
+            throw CypherErrors.unsupported("a list or map holding a " + cypherType(t.kind()) + ", as a value, is"
+                    + " not supported yet (the Variant spells it as text)", pos);
+        }
+        ValueSpecification value = SqlToPure.valueOf(t);
+        ValueSpecification one = t.nullable() ? call("toOne", value) : value;
+        ValueSpecification text = t.kind() == Kind.JSON ? call("toString", one)
+                : jsonText(one, t.kind(), "the element", pos);
+        return t.nullable() ? call("if", call("isEmpty", value), thunk(new CString("null")), thunk(text)) : text;
     }
 
     /** {@code value.name}: a known map's entry (null when it has none), null's null. */
