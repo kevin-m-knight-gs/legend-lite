@@ -4754,14 +4754,17 @@ public final class IqDialect implements InputDialect {
      * and SCALE (the research's TYPING §9, measured): blanks around it ignored, nothing but blanks 0, else an optional
      * sign, digits with an optional point, an optional exponent. Read here for a constant string only, written with at
      * most the profile's SCALE places and 38 digits, so that its NUMERIC is its own value exactly. Refused by name:
-     * under the IQ engine (which NUMERIC it converts to is the research's D-N1, not yet verified); a DOUBLE (its
-     * NUMERIC is not read yet); a string that is not a constant, or spelled otherwise.
+     * a DOUBLE (its NUMERIC is not read yet); a string that is not a constant, or spelled otherwise. IQ island,
+     * 2026-10-15 (the corpus lane: 123 queries -- PostTypeId = '1', YEAR(ts) = '2026'; measured on IQ 17.1): under
+     * IQ's engine no such comparison is read -- a column or a computed number against a string, a string column
+     * against a number, in WHERE, IN, BETWEEN and a CASE's test alike, is its error -1001013 (a string that is no
+     * number its front end's -157 first), named before translating.
      */
     private Tx numberOf(Tx text, Kind other, Tx number, SqlAst.Pos pos) {
         if (engine == Engine.IQ) {
-            throw SqlTranslationException.unsupported("comparing a string with a number is not supported under the IQ"
-                    + " engine yet: IQ converts both to NUMERIC, whose type there is the research's D-N1, not yet"
-                    + " verified", pos);
+            throw SqlTranslationException.unsupported("comparing a string with a number is IQ's error -1001013 under"
+                    + " its engine (an invalid data type comparison in a predicate; a string that is no number is -157"
+                    + " first), refused before translating", pos);
         }
         if (other == Kind.FLOAT) {
             throw SqlTranslationException.unsupported("comparing a string with a DOUBLE is not supported yet: IQ"
@@ -5136,6 +5139,12 @@ public final class IqDialect implements InputDialect {
         }
         List<String> parts = likeParts(pattern, l.escape(), true);
         boolean caseless = !settings.caseSensitive();
+        for (int i = 1; caseless && i < parts.size(); i += 2) {
+            if (parts.get(i).startsWith("[")) {
+                throw SqlTranslationException.unsupported("LIKE's [set] classes in a case-insensitive database are not"
+                        + " supported yet", pattern.pos());
+            }
+        }
         java.util.function.Function<List<ValueSpecification>, ValueSpecification> test = v -> {
             ValueSpecification value = integer ? SqlToPure.call("toString", v.get(0)) : v.get(0);
             return likeTest(value, parts, caseless);
@@ -5282,14 +5291,57 @@ public final class IqDialect implements InputDialect {
                 parts.add(String.valueOf(c));
                 run.setLength(0);
             } else if (c == '[' && sets) {
-                throw SqlTranslationException.unsupported("LIKE's [set] classes are not supported yet (escape a [ to"
-                        + " match it)", pattern.pos());
+                // IQ island, 2026-10-15 (the corpus lane: '%[^0-9]%' and kin in 39 queries; measured on IQ 17.1):
+                // a set of one character, a wildcard part of its own, as the regular expression's class it is
+                int close = p.indexOf(']', i + 1);
+                String set = close < 0 ? null : likeSet(p.substring(i + 1, close), escape);
+                if (set == null) {
+                    throw SqlTranslationException.unsupported("this LIKE [set] is not supported yet: a set of ASCII"
+                            + " letters, digits, blanks and plain marks, ranges of them and a leading ^ are read",
+                            pattern.pos());
+                }
+                parts.add(run.toString());
+                parts.add(set);
+                run.setLength(0);
+                i = close;
             } else {
                 run.append(c);
             }
         }
         parts.add(run.toString());
         return parts;
+    }
+
+    /** The marks a LIKE set reads as themselves, in a regular expression's class too. */
+    private static final String SET_MARKS = " .,:;!?@#&*/+=<>'\"~$";
+
+    /** A LIKE set's members ({@code abc}, {@code a-z}, {@code ^0-9}) as a regular expression's class, or null where
+     *  they are not read: a non-ASCII character, a mark of a class's own or a wildcard, the escape, an empty set, a
+     *  range not ascending or of a mark. */
+    private static @com.legend.base.Nullable String likeSet(String members, char escape) {
+        int from = members.startsWith("^") ? 1 : 0;
+        if (members.length() == from) {
+            return null;
+        }
+        StringBuilder out = new StringBuilder(from == 1 ? "[^" : "[");
+        for (int k = from; k < members.length(); k++) {
+            char c = members.charAt(k);
+            boolean plain = c < 0x80 && (Character.isLetterOrDigit(c) || SET_MARKS.indexOf(c) >= 0) && c != escape;
+            if (!plain) {
+                return null;
+            }
+            if (k + 2 < members.length() && members.charAt(k + 1) == '-') {
+                char to = members.charAt(k + 2);
+                if (!(to < 0x80 && Character.isLetterOrDigit(to) && Character.isLetterOrDigit(c)) || to < c) {
+                    return null;
+                }
+                out.append(c).append('-').append(to);
+                k += 2;
+            } else {
+                out.append(c);
+            }
+        }
+        return out.append(']').toString();
     }
 
     /** A pattern's test, by its shape: no wildcard is equality; a trailing, leading or enclosing {@code %} alone is
@@ -5301,7 +5353,7 @@ public final class IqDialect implements InputDialect {
         for (int i = 1; i < parts.size(); i += 2) {
             wild.add(parts.get(i));
         }
-        boolean onlyPercent = !wild.contains("_");
+        boolean onlyPercent = !wild.contains("_") && wild.stream().noneMatch(w -> w.startsWith("["));
         if (caseless) {
             StringBuilder regex = new StringBuilder("(?s)^");
             for (int i = 0; i < parts.size(); i++) {
@@ -5327,7 +5379,7 @@ public final class IqDialect implements InputDialect {
         for (int i = 0; i < parts.size(); i++) {
             String part = parts.get(i);
             if (i % 2 == 1) {
-                regex.append(part.equals("%") ? ".*" : ".");
+                regex.append(part.equals("%") ? ".*" : part.equals("_") ? "." : part);
             } else {
                 for (int k = 0; k < part.length(); k++) {
                     char c = part.charAt(k);

@@ -82,8 +82,8 @@ its syntax error or an error it names), DB_ERROR or CRASH.
 
 | Suite | Answered before | Answered now | IQ's own error now |
 |---|---|---|---|
-| SEDE | 40.6% | 57.0% | 12.3% |
-| SQLStorm | 21.7% | 31.4% | 10.5% |
+| SEDE | 40.6% | 57.3% | 13.4% |
+| SQLStorm | 21.7% | 31.5% | 10.6% |
 | Public BI | 93.0% | 94.4% | 2.2% |
 | BIRD | 58.2% | 68.8% | 18.2% |
 
@@ -101,7 +101,10 @@ Measured on the live IQ 17.1 and built (parity cases: `lite/corpus_gaps.yaml`):
 - an aggregate's DISTINCT over an expression, and one in a SELECT DISTINCT, under IQ's engine (the research's D-R1 held that IQ restricts them; IQ 17.1 reads them);
 - ROUND of a DOUBLE or a REAL. IQ's steps are the sign times floor(|x| * 10^n + 0.5) / 10^n, each step a DOUBLE: ROUND(2.675e0, 2) is 2.68 and ROUND(1.005e0, 2) 1.0. This holds for its front end and SQL Anywhere 17 alike;
 - several clock readings in one statement under IQ's engine, which reads one clock. D-T13 is SQL Anywhere's front end's;
-- the names IQ gives unaliased CASTs and CONVERTs. A whole item is named as its operand (`CAST(t.ts AS DATE)` is `ts`). One inside an item is written out in lower case: `cast(t.sm as numeric(10,2))`, `convert(varchar(10),t.sm)`. The type keeps its written spelling, except that INT is `integer`, DOUBLE PRECISION is `double` and FLOAT is `real`. This fixed 34 of the research's naming cases, under both judges.
+- the names IQ gives unaliased CASTs and CONVERTs. A whole item is named as its operand (`CAST(t.ts AS DATE)` is `ts`). One inside an item is written out in lower case: `cast(t.sm as numeric(10,2))`, `convert(varchar(10),t.sm)`. The type keeps its written spelling, except that INT is `integer`, DOUBLE PRECISION is `double` and FLOAT is `real`. This fixed 34 of the research's naming cases, under both judges;
+- LIKE's `[set]` classes of ASCII members, ranges and a leading `^`;
+- DATALENGTH: a string's bytes, and a column's storage width under IQ's engine;
+- a table's `WITH (NOLOCK)` and `WITH (READUNCOMMITTED)`, read and dropped. After a derived table or a FROM function a hint is IQ's -131.
 
 Measured to be IQ's own errors, raised or named by the island:
 - `OFFSET ... FETCH`, `LIMIT`, `INTERVAL` and `FILTER` are -131;
@@ -112,12 +115,13 @@ Measured to be IQ's own errors, raised or named by the island:
   - a subquery inside a conditional expression is -1001030;
   - a subquery in an outer join's ON is -1001047 unless its conjunct reads the null-supplying side alone (directly and through correlation; in a FULL JOIN always): 21 shapes measured;
   - an integer where DATEADD or DATEDIFF reads a date is -1001011;
-  - CAST to NVARCHAR or NCHAR is -1001030.
+  - CAST to NVARCHAR or NCHAR is -1001030;
+  - a number compared with a string (`PostTypeId = '1'`, `YEAR(ts) = '2026'`, in IN, BETWEEN and CASE alike) is -1001013. A string that is no number is the front end's -157 first.
 
 Open, ranked by the corpora:
 - CAST to DECIMAL without a precision, IQ's NUMERIC(126,38) (70);
 - a subquery in a derived table's select list, which IQ's engine reads only where the outer query shows its column as it is (192);
-- LIKE's `[set]` classes, which IQ reads (32);
+- a statement with TOP whose select list can raise. IQ computes the select list only for the rows it keeps (measured: `TOP 2 ... 10 / (id - 3)` answers), so this needs the translator to sort and limit before it projects (114);
 - the outer join ON shapes IQ reads but DuckDB cannot plan: a subquery in a RIGHT JOIN's ON (refused by name), an uncorrelated one over a common table expression in a LEFT JOIN's ON (6, DuckDB's error);
 - CROSS APPLY (676), which this round measured only as IQ's internal error on one correlated shape (2.16c).
 

@@ -554,6 +554,14 @@ lite/corpus_gaps/unaliased_casts_named_as_their_operands@iq17-default	PASS	PASS
 lite/corpus_gaps/unaliased_casts_inside_items@iq17-default	PASS	PASS
 lite/corpus_gaps/unaliased_casts_of_aggregates@iq17-default	PASS	PASS
 lite/corpus_gaps/unaliased_cast_type_spellings@iq17-default	PASS	PASS
+lite/corpus_gaps/a_number_against_a_numeric_string_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_year_against_a_string_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_string_column_against_a_number_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/like_sets@iq17-default	PASS	PASS
+lite/corpus_gaps/like_a_set_over_a_char_column@iq17-default	PASS	PASS
+lite/corpus_gaps/datalength_of_columns@iq17-default	PASS	PASS
+lite/corpus_gaps/datalength_of_strings@iq17-default	PASS	PASS
+lite/corpus_gaps/table_hints_nolock@iq17-default	PASS	PASS
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS
@@ -5560,8 +5568,8 @@ lite/options/database_properties/iq_utf8_less_than@iq16-default	PASS	PASS
 lite/options/database_properties/iq_utf8_less_than@iq17-default	PASS	PASS
 lite/options/database_properties/iq_utf8_like_prefix@iq16-default	PASS	PASS
 lite/options/database_properties/iq_utf8_like_prefix@iq17-default	PASS	PASS
-lite/options/database_properties/iq_utf8_like_range@iq16-default	REFUSED	REFUSED
-lite/options/database_properties/iq_utf8_like_range@iq17-default	REFUSED	REFUSED
+lite/options/database_properties/iq_utf8_like_range@iq16-default	PASS	PASS
+lite/options/database_properties/iq_utf8_like_range@iq17-default	PASS	PASS
 lite/options/database_properties/iq_utf8_in_list@iq16-default	PASS	PASS
 lite/options/database_properties/iq_utf8_in_list@iq17-default	PASS	PASS
 lite/options/database_properties/iq_utf8_accented@iq16-default	PASS	PASS
@@ -5611,7 +5619,7 @@ lite/options/database_properties/sa_cs_equal_trailing_blanks@sqla17-default	PASS
 lite/options/database_properties/sa_cs_not_equal@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_less_than@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_like_prefix@sqla17-default	PASS	PASS
-lite/options/database_properties/sa_cs_like_range@sqla17-default	REFUSED	REFUSED
+lite/options/database_properties/sa_cs_like_range@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_in_list@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_accented@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_order_by@sqla17-default	PASS	PASS
@@ -5639,7 +5647,7 @@ lite/options/database_properties/sa_cs_bp_equal_trailing_blanks@sqla17-default	P
 lite/options/database_properties/sa_cs_bp_not_equal@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_bp_less_than@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_bp_like_prefix@sqla17-default	PASS	PASS
-lite/options/database_properties/sa_cs_bp_like_range@sqla17-default	REFUSED	REFUSED
+lite/options/database_properties/sa_cs_bp_like_range@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_bp_in_list@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_bp_accented@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_bp_order_by@sqla17-default	PASS	PASS
@@ -5667,7 +5675,7 @@ lite/options/database_properties/sa_cs_latin1_equal_trailing_blanks@sqla17-defau
 lite/options/database_properties/sa_cs_latin1_not_equal@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_latin1_less_than@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_latin1_like_prefix@sqla17-default	PASS	PASS
-lite/options/database_properties/sa_cs_latin1_like_range@sqla17-default	REFUSED	REFUSED
+lite/options/database_properties/sa_cs_latin1_like_range@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_latin1_in_list@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_latin1_accented@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_latin1_order_by@sqla17-default	PASS	PASS
@@ -5695,7 +5703,7 @@ lite/options/database_properties/sa_cs_bp_latin1_equal_trailing_blanks@sqla17-de
 lite/options/database_properties/sa_cs_bp_latin1_not_equal@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_bp_latin1_less_than@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_bp_latin1_like_prefix@sqla17-default	PASS	PASS
-lite/options/database_properties/sa_cs_bp_latin1_like_range@sqla17-default	REFUSED	REFUSED
+lite/options/database_properties/sa_cs_bp_latin1_like_range@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_bp_latin1_in_list@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_bp_latin1_accented@sqla17-default	PASS	PASS
 lite/options/database_properties/sa_cs_bp_latin1_order_by@sqla17-default	PASS	PASS
@@ -7276,8 +7284,8 @@ lite/rules/c04_fn_a-252@iq16-default	REFUSED	REFUSED
 lite/rules/c04_fn_a-252@iq17-default	REFUSED	REFUSED
 lite/rules/c04_fn_a-264@iq16-default	REFUSED	REFUSED
 lite/rules/c04_fn_a-264@iq17-default	REFUSED	REFUSED
-lite/rules/c04_fn_a-270@iq16-default	REFUSED	REFUSED
-lite/rules/c04_fn_a-270@iq17-default	REFUSED	REFUSED
+lite/rules/c04_fn_a-270@iq16-default	PASS	PASS
+lite/rules/c04_fn_a-270@iq17-default	PASS	PASS
 lite/rules/c04_fn_a-271@iq16-default	REFUSED	REFUSED
 lite/rules/c04_fn_a-271@iq17-default	REFUSED	REFUSED
 lite/rules/c04_fn_a-272@iq16-default	REFUSED	REFUSED

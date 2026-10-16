@@ -102,7 +102,7 @@ final class IqFunctions {
         HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE), STR(1, 3),
         EXTRACT(2, 2, IqParser.EXTRACT), DATEFORMAT(2, 2), DAYNAME(1, 1), MONTHNAME(1, 1), DATETIME(1, 1), YMD(3, 3),
         GREATER(2, 2), LESSER(2, 2), ARGN(2, Integer.MAX_VALUE), REVERSE(1, 1), INSERTSTR(3, 3), BYTE_LENGTH(1, 1),
-        REGEXP_SUBSTR(2, 5);
+        REGEXP_SUBSTR(2, 5), DATALENGTH(1, 1);
 
         final int min;
         final int max;
@@ -346,6 +346,7 @@ final class IqFunctions {
             case REVERSE -> reverse(name, f, args);
             case INSERTSTR -> insertstr(name, f, args);
             case BYTE_LENGTH -> byteLength(name, f, args);
+            case DATALENGTH -> dataLength(name, f, args);
             case REGEXP_SUBSTR -> regexpSubstr(name, f, args);
             case PI -> Tx.value(SqlToPure.call("pi"), Kind.FLOAT, false, new IqType("DOUBLE"));
             case GETDATE, NOW, CURRENT_TIMESTAMP -> Tx.value(SqlToPure.call("now"), Kind.DATETIME, false,
@@ -2619,6 +2620,42 @@ final class IqFunctions {
         return strict(Kind.INTEGER, type, List.of(s), v -> SqlToPure.call("length", utf8 ? utf8Units(v.get(0))
                 : v.get(0)));
     }
+
+    /**
+     * {@code DATALENGTH(x)} (IQ island, 2026-10-15; the corpus lane, measured on IQ 17.1): a string's length in bytes,
+     * as {@link #byteLength} (a CHAR(n) column's n, its value blank padded under IQ's engine); under IQ's engine a
+     * column of any other type its storage width -- BIT 1, SMALLINT 2, INTEGER and DATE 4, BIGINT, DOUBLE and TIMESTAMP
+     * 8, a NUMERIC of at most 4 digits 2, of at most 9 4, of at most 18 8; NULL for NULL. Refused by name: a value
+     * that is no string and no column (IQ types a computed integer by its data: DATALENGTH(id + 1) is 2), a NUMERIC
+     * of more digits.
+     */
+    private Tx dataLength(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx x = args.get(0);
+        if (x.kind() == Kind.STRING || x.kind() == Kind.NULL) {
+            return byteLength(name, f, args);
+        }
+        SqlAst.Expr e = f.args().get(0);
+        Integer width = null;
+        if (engine == IqDialect.Engine.IQ && e instanceof SqlAst.ColumnRef && x.detail() instanceof IqType t) {
+            String family = t.family();
+            width = STORAGE_WIDTHS.get(family);
+            if (width == null && (x.kind() == Kind.DECIMAL || family.equals("NUMERIC")) && t.size() > 0) {
+                width = t.size() <= 4 ? 2 : t.size() <= 9 ? 4 : t.size() <= 18 ? 8 : null;
+            } else if (width == null) {
+                width = FIXED_WIDTHS.get(family);
+            }
+        }
+        if (width == null) {
+            throw SqlTranslationException.unsupported(name + " of " + kindName(x.kind()) + " that is no column, or of"
+                    + " this type, is not supported yet: IQ answers its storage width", e.pos());
+        }
+        BigInteger w = BigInteger.valueOf(width);
+        long bytes = width;
+        return strict(Kind.INTEGER, IqType.integer("INTEGER", w, w, false), List.of(x), v -> integer(bytes));
+    }
+
+    /** The other fixed types' storage widths under IQ's engine, in bytes ({@link #dataLength}). */
+    private static final Map<String, Integer> FIXED_WIDTHS = Map.of("DOUBLE", 8, "DATE", 4, "TIMESTAMP", 8);
 
     // ------------------------------------------------------------------ dates
 

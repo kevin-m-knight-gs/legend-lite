@@ -557,8 +557,9 @@ class IqToPureTest {
         assertTrue(p.contains("1.5D"), p);
         assertTrue(pure("SELECT 1 AS x WHERE '' = 0").contains("0D"));
         assertTrue(pure("SELECT 1 AS x WHERE '1e1' > 9").contains("10D"));
-        // the IQ engine's NUMERIC is D-N1; a string IQ reads otherwise, or that SCALE rounds, is refused
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE id = '3'").getMessage().contains("D-N1"));
+        // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine it is its error -1001013; a string IQ reads
+        // otherwise, or that SCALE rounds, is refused
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE id = '3'").getMessage().contains("-1001013"));
         for (String s : new String[] {"'abc'", "'1\t'", "'- 1'", "'1e'", "'.'", "'1e40'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 1 AS x WHERE " + s + " = 1")
                     .kind(), s);
@@ -663,7 +664,10 @@ class IqToPureTest {
         pure("SELECT id FROM " + T + " WHERE ch LIKE 'a%'", IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR);
         pure("SELECT id FROM " + T + " WHERE ch || '' LIKE 'a%'", IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR);
         assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE vc ESCAPE '!'").contains("matches("));
-        for (String like : new String[] {"vc LIKE 'a[b]'", "vc LIKE 'a' ESCAPE '!!'",
+        // IQ island, 2026-10-15 (the corpus lane, measured on IQ 17.1): a set of ASCII members reads now; an
+        // unclosed one, an empty one, a dash at its edge do not
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE '%[^a-z]%'").contains("[^a-z]"));
+        for (String like : new String[] {"vc LIKE 'a[b'", "vc LIKE '[]a'", "vc LIKE '[e-]'", "vc LIKE 'a' ESCAPE '!!'",
                 "vc LIKE 'a' ESCAPE ''", "vc LIKE '!a' ESCAPE '!'", "vc LIKE 'a!' ESCAPE '!'",
                 "vc LIKE '" + "a".repeat(127) + "'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE " + like)

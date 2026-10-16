@@ -219,3 +219,35 @@ tests:
   - id: unaliased_cast_type_spellings
     sql: "SELECT id, CAST(sm AS INT) || '', CAST(sm AS NUMERIC(10,2)) || '', CAST(sm AS DOUBLE PRECISION) * 2, CAST(sm AS FLOAT) * 2, CAST(sm AS CHAR(8)) || '', CAST(sm AS VARCHAR) || '' FROM t WHERE id < 5 ORDER BY id"
     profile: iq17-default
+
+  # ---- a number compared with a string under IQ's engine: its -1001013 (a string that is no number its -157)
+  - id: a_number_against_a_numeric_string_is_iqs_error
+    sql: "SELECT id FROM t WHERE id = '1'"
+    profile: iq17-default
+  - id: a_year_against_a_string_is_iqs_error
+    sql: "SELECT id FROM t WHERE YEAR(ts) = '2026'"
+    profile: iq17-default
+  - id: a_string_column_against_a_number_is_iqs_error
+    sql: "SELECT id FROM t WHERE vc = 1"
+    profile: iq17-default
+
+  # ---- LIKE's sets: a set, a range, a negated range
+  - id: like_sets
+    sql: "SELECT id, CASE WHEN vc LIKE '[hH]%' THEN 1 ELSE 0 END AS a, CASE WHEN vc LIKE '%[^a-z]%' THEN 1 ELSE 0 END AS b, CASE WHEN vc LIKE '_[a-e]%' THEN 1 ELSE 0 END AS c, CASE WHEN vc LIKE '%[lp][lp]%' THEN 1 ELSE 0 END AS d FROM t WHERE vc IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: like_a_set_over_a_char_column
+    sql: "SELECT id FROM t WHERE ch LIKE '[a-z]%' ORDER BY id"
+    profile: iq17-default
+
+  # ---- DATALENGTH: a string's bytes, a column's storage width
+  - id: datalength_of_columns
+    sql: "SELECT id, DATALENGTH(sm) AS a, DATALENGTH(it) AS b, DATALENGTH(bg) AS c, DATALENGTH(nm) AS d, DATALENGTH(dbl) AS e, DATALENGTH(ch) AS f, DATALENGTH(vc) AS g, DATALENGTH(dt) AS h, DATALENGTH(ts) AS i, DATALENGTH(bt) AS j FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datalength_of_strings
+    sql: "SELECT id, DATALENGTH(vc || 'x') AS a, DATALENGTH(CAST(id AS VARCHAR(10))) AS b FROM t ORDER BY id"
+    profile: iq17-default
+
+  # ---- the isolation hints NOLOCK and READUNCOMMITTED, read and dropped
+  - id: table_hints_nolock
+    sql: "SELECT t.id, u.label FROM t WITH (NOLOCK) JOIN u WITH (READUNCOMMITTED) ON u.t_id = t.id ORDER BY 1, 2"
+    profile: iq17-default

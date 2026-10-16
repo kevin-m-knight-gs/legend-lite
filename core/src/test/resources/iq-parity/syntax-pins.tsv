@@ -140,16 +140,20 @@
 # precision, lite/iq_reals.yaml): accept PARSED 3,095 -> 3,105 (REFUSED 1,853 -> 1,843). The rest unchanged.
 # IQ island, 2026-10-15 (the corpus lane, measured on the live IQ 17.1: DATE, COMMENT, TIME and KEY standing alone as a
 # value are IQ's -131): reject REJECTED 995 -> 1,001 (REFUSED 789 -> 783). Accept-rejected unchanged (2).
-accept	parsed	3105
-accept	refused	1843
+# IQ island, 2026-10-15 (the corpus lane, measured on the live IQ 17.1: LIKE's [set] classes of ASCII members read; a
+# table's WITH (NOLOCK) and WITH (READUNCOMMITTED) read and dropped, a hint after a derived table or a FROM function IQ's
+# -131): accept PARSED 3,105 -> 3,120 (REFUSED 1,843 -> 1,828); reject REJECTED 1,001 -> 1,003 (REFUSED 783 -> 781).
+# Reject-parsed and accept-rejected unchanged.
+accept	parsed	3120
+accept	refused	1828
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	69
 flag	refused	65
 reject	parsed	25
-reject	refused	783
-reject	rejected	1001
+reject	refused	781
+reject	rejected	1003
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609

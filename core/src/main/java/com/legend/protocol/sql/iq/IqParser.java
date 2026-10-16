@@ -1104,7 +1104,7 @@ public final class IqParser {
             } while (takeOp(","));
             expectOp(")");
         }
-        noTableHints();
+        noTableHints(false);
         return new SqlAst.SubqueryFrom(query, alias, columns, false, open.pos());
     }
 
@@ -1145,11 +1145,12 @@ public final class IqParser {
             }
             expectOp(")");
             SqlAst.Ident alias = alias(true);
-            noTableHints();
+            // tb('pkg::Database.schema.table') names a table of the model: a table's hints follow it
+            noTableHints(name.size() == 1 && IqLexer.lower(name.get(0).text()).equals("tb"));
             return new SqlAst.TableFunction(name, args, alias, List.of(), first.pos());
         }
         SqlAst.Ident alias = alias(true);
-        noTableHints();
+        noTableHints(true);
         CteDef cte = name.size() == 1 ? cteScopes.element().get(IqLexer.lower(name.get(0).text())) : null;
         if (cte != null) {
             return cte.read(this, alias != null ? alias : new SqlAst.Ident(name.get(0).text(), name.get(0).quoted(),
@@ -1166,9 +1167,39 @@ public final class IqParser {
         }
     }
 
-    private void noTableHints() {
+    private void noTableHints(boolean table) {
+        if (!table && peek().is("with") && peek(1).isOp("(")) {
+            // measured (the research's syntax cases a6_sa_query-320, -356): a hint after a derived table or a FROM
+            // function is IQ's syntax error; a function's WITH (name type, ...), its columns' types, is not read yet
+            if (peek(2).isWord("nolock") || peek(2).isWord("readuncommitted")) {
+                throw new SqlSyntaxException("a table hint follows a table only, not a derived table or a function"
+                        + IqDialect.syntaxCode(), peek().pos());
+            }
+            throw SqlSyntaxException.unsupported("WITH (...) after a derived table or a FROM function is not supported"
+                    + " yet", peek().pos());
+        }
         if (peek().is("with") && peek(1).isOp("(")) {
-            throw SqlSyntaxException.unsupported("table hints (WITH (...)) are not supported yet", peek().pos());
+            // IQ island, 2026-10-15 (the corpus lane: WITH (NOLOCK) in SEDE's queries; measured on IQ 17.1): the
+            // isolation hints NOLOCK and READUNCOMMITTED, which change no answer here, are read and dropped
+            int i = 2;
+            boolean read = true;
+            while (read) {
+                IqLexer.Token hint = peek(i);
+                read = hint.isWord("nolock") || hint.isWord("readuncommitted");
+                if (read && peek(i + 1).isOp(",")) {
+                    i += 2;
+                } else {
+                    break;
+                }
+            }
+            if (read && peek(i + 1).isOp(")")) {
+                for (int k = 0; k <= i + 1; k++) {
+                    take();
+                }
+                return;
+            }
+            throw SqlSyntaxException.unsupported("table hints (WITH (...)) other than NOLOCK and READUNCOMMITTED are not"
+                    + " supported yet", peek().pos());
         }
         if (peek().is("force") || peek().isWord("noholdlock") || peek().is("holdlock")) {
             throw SqlSyntaxException.unsupported("table hints are not supported yet", peek().pos());
