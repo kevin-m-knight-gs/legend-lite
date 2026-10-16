@@ -33,6 +33,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
             case JSON -> "JSON";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -500,8 +501,14 @@ public final class DuckDb extends AnsiSqlRenderer {
             case DATE_DIFF -> writer.append("date_diff(").append(stringLit(DuckDbSpellings.datePart(part(a.get(0)))))
                     .append(", ").list(a.subList(1, a.size())).append(")");
             case TIMEZONE -> writer.function("timezone", c.args());
+            // a date plus a time of day is the timestamp at it (measured, 1.4.4)
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
+                    .expr(a.get(1), 6));
             case EPOCH_SECONDS -> writer.function("epoch", c.args());
             case EPOCH_MS -> writer.function("epoch_ms", c.args());
+            // the nanosecond epoch (exact over a TIMESTAMP_NS, measured 1.4.4) and the TIMESTAMP_NS it makes
+            case EPOCH_NS -> writer.function("epoch_ns", c.args());
+            case FROM_EPOCH_NS -> writer.function("make_timestamp_ns", c.args());
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
             case DAYNAME -> writer.function("dayname", c.args());
             case MONTHNAME -> writer.function("monthname", c.args());
@@ -858,8 +865,14 @@ public final class DuckDb extends AnsiSqlRenderer {
      * unifying (list_reduce accumulator vs reducer struct — the fold
      * family's {@code VARCHAR[] -> "NULL"} cast wall). */
     private SqlWriter structFieldValue(SqlWriter writer, SqlExpr.StructLit.Field f) {
+        // a value built of literals under a BIGINT-declared slot spells the slot's type too: DuckDB types a bare
+        // literal by its magnitude (INT32 below 2^31), arithmetic of such literals and the struct's field with it,
+        // and arithmetic over the field then overflows at 32 bits (3,661 seconds times a billion, the Cypher
+        // island's duration leg, measured 1.4.4); a column's own type and a cast's stand
         return f.declared() != null
-                && f.value().type() instanceof com.legend.sql.TypeFact.Bottom
+                && (f.value().type() instanceof com.legend.sql.TypeFact.Bottom
+                        || f.declared() == com.legend.sql.SqlType.Scalar.BIGINT
+                                && !(f.value() instanceof SqlExpr.Column) && !(f.value() instanceof SqlExpr.Cast))
                 ? writer.append("CAST(").expr(f.value(), 0).append(" AS ").append(castTypeName(f.declared()))
                         .append(")")
                 : writer.expr(f.value(), 0);

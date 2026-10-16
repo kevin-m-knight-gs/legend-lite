@@ -1,0 +1,78 @@
+# The #Cypher{...}# island's label-less node cases (docs/CYPHER_STUDY_2026_10_15.md §12.13): MATCH (n) reads a node of
+# any class of the model, one arm per class, projected to the same columns and concatenated at the first projection;
+# a property a class lacks reads as null where another class declares it (Neo4j's heterogeneous nodes). Each case is
+# judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/labelless/*'),
+# keyed lite/labelless/<id>.
+tests:
+  - id: count_of_every_node
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n) RETURN count(*) AS c"
+  - id: properties_across_classes
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n) RETURN n.num AS num, n.name AS name, n.bool AS b ORDER BY num, name"
+  - id: where_across_classes
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n) WHERE n.num > 0 RETURN n.num AS num ORDER BY num DESC"
+  - id: property_map_across_classes
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n {bool: false}) RETURN n.num AS num ORDER BY num"
+  - id: with_order_limit_over_the_whole
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n) WITH n ORDER BY n.num LIMIT 2 RETURN n.num AS num"
+  - id: aggregates_over_the_whole
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n) RETURN count(n.num) AS c, sum(n.num) AS s, max(n.name) AS m, min(n.num) AS mn"
+  - id: grouped_over_the_whole
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n) RETURN n.bool AS b, count(*) AS c ORDER BY b"
+  - id: distinct_over_the_whole
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n) RETURN DISTINCT n.bool AS b ORDER BY b"
+  - id: with_where_then_return
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n) WITH n WHERE n.name IS NOT NULL RETURN n.name AS name, n.num + 1 AS next ORDER BY name"
+  - id: projected_with_then_return
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n) WITH n.num AS num, n.name AS name WHERE num IS NOT NULL RETURN num * 2 AS twice, name ORDER BY twice SKIP 1"
+  - id: expression_order_without_item
+    graph: |
+      CREATE (:A {num: 9, bool: true, name: 'a'}), (:B {num: 5, bool: false}), (:C {num: -30, bool: false, name: 'c'}), (:D {name: 'd'})
+    cypher: "MATCH (n) WITH n ORDER BY n.bool, n.num LIMIT 3 RETURN n.num AS num"
+  - id: property_declared_nowhere_is_refused_by_name
+    graph: |
+      CREATE (:A {num: 9}), (:B {num: 5})
+    cypher: "MATCH (n) RETURN n.nope AS x"
+  - id: node_as_a_value_refused_by_name
+    graph: |
+      CREATE (:A {num: 9}), (:B {num: 5})
+    cypher: "MATCH (n) RETURN n"
+  - id: second_match_refused_by_name
+    graph: |
+      CREATE (:A {num: 9}), (:B {num: 5})
+    cypher: "MATCH (n) MATCH (m:A) RETURN m.num AS num"
+  - id: property_typed_differently_refused_by_name
+    graph: |
+      CREATE (:A {v: 1}), (:B {v: 'x'})
+    cypher: "MATCH (n) RETURN n.v AS v"
+  - id: one_class_only
+    graph: |
+      CREATE (:A {num: 9}), (:A {num: 5})
+    cypher: "MATCH (n) RETURN n.num AS num ORDER BY num"
+  - id: with_where_re_spells_a_distinct_key
+    graph: |
+      CREATE (:A {name2: 'A'}), (:A {name2: 'A'}), (:B {name2: 'B'})
+    cypher: "MATCH (a) WITH DISTINCT a.name2 AS name WHERE a.name2 = 'B' RETURN *"
+  - id: order_by_over_a_grouping_key_expression
+    graph: |
+      CREATE (:A {name: 'A'}), (:A {name: 'A'}), (:B {name: 'B'}), (:C {name: 'C'}), (:C {name: 'C'})
+    cypher: "MATCH (a) WITH a.name AS name, count(*) AS cnt ORDER BY a.name + 'C' DESC LIMIT 1 RETURN name, cnt"

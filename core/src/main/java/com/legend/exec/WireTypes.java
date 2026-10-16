@@ -213,6 +213,7 @@ public final class WireTypes {
                     ? new SqlType.Decimal(precision, Math.max(scale, 0)) : null;
             case Types.BIT, Types.BOOLEAN -> SqlType.Scalar.BOOLEAN;
             case Types.DATE -> SqlType.Scalar.DATE;
+            case Types.TIME -> SqlType.Scalar.TIME;
             case Types.TIMESTAMP -> SqlType.Scalar.TIMESTAMP;
             case Types.TIMESTAMP_WITH_TIMEZONE -> SqlType.Scalar.TIMESTAMPTZ;
             default -> null;

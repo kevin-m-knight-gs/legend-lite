@@ -78,6 +78,16 @@ public sealed interface PureTimeLiteral
         }
     }
 
+    /** A driver's time of day as the host carrier: whole seconds keep no fraction, else the fraction's digits with
+     *  their trailing zeros dropped (the date-time's rule, {@code PureDateLiteral.fromLocalDateTime}). */
+    static PureTimeLiteral fromLocalTime(java.time.LocalTime t) {
+        if (t.getNano() == 0) {
+            return new TimeWithSecond(t.getHour(), t.getMinute(), t.getSecond());
+        }
+        String frac = String.format(java.util.Locale.ROOT, "%09d", t.getNano()).replaceFirst("0+$", "");
+        return new TimeWithSubsecond(t.getHour(), t.getMinute(), t.getSecond(), frac);
+    }
+
     /**
      * Parse the body of a Pure strict-time literal (text after
      * {@code %}). Throws {@link IllegalArgumentException} for

@@ -3123,6 +3123,21 @@ public final class SpecParser implements TokenStreamCursor {
      * island takes the place of legend-pure's legacy graph-fetch reading of the same spelling (a tree rooted at a class
      * named {@code IQ}, which nothing here writes), so the own-corpus census sees it as the lite extension it is.
      */
+    /**
+     * {@code #Cypher{ MATCH ... }#}: legend-lite's Cypher island (docs/CYPHER_STUDY_2026_10_15.md §4, C1), carried
+     * like the SQL island, its text UNTRIMMED: a Cypher query as Neo4j accepts it, its {@code CYPHER 5} or
+     * {@code CYPHER 25} prefix included. Upstream has no such island: the LEGEND_ENGINE surface refuses it as it
+     * refuses any unknown island type; on the LEGEND_PLATFORM surface it takes the place of legend-pure's legacy
+     * graph-fetch reading of the same spelling, as the IQ island does.
+     */
+    private ValueSpecification cypherIsland(String dslType, String cypher, int islandStart) {
+        if (dialect().refusesLiteExtensions()) {
+            throw error("unknown DSL island type: '#" + dslType + "{'");
+        }
+        return new com.legend.protocol.spec.SqlIsland(cypher, spanOf(islandStart, pos - 1),
+                com.legend.protocol.spec.SqlIsland.CYPHER, null);
+    }
+
     private ValueSpecification iqIsland(String dslType, String sql, int islandStart) {
         if (dialect().refusesLiteExtensions()) {
             throw error("unknown DSL island type: '#" + dslType + "{'");
@@ -3176,6 +3191,9 @@ public final class SpecParser implements TokenStreamCursor {
 
         if (dslType.equals("IQ") || dslType.startsWith("IQ:")) {
             return iqIsland(dslType, content.toString(), islandStart);
+        }
+        if (dslType.equals("Cypher")) {
+            return cypherIsland(dslType, content.toString(), islandStart);
         }
         ValueSpecification result = switch (dslType) {
             // the tree is the source between the opener '#{' and the closer '}#'

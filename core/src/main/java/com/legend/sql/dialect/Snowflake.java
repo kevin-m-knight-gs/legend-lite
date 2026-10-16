@@ -85,6 +85,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP_NTZ";
             case TIMESTAMPTZ -> "TIMESTAMP_LTZ";
             case JSON -> "VARIANT";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -1440,6 +1441,8 @@ public final class Snowflake extends AnsiSqlRenderer {
                     .append(", ").expr(a.get(2), 0).append(") AS TIMESTAMP_NTZ)");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
+            // TIMESTAMP_FROM_PARTS(date, time): the date-time at that time of that day
+            case DATE_AT_TIME -> writer.function("TIMESTAMP_NTZ_FROM_PARTS", c.args());
             // DuckDB's timezone(zone, t): a naive t read in the zone (to its instant); an instant to the zone's time
             case TIMEZONE -> instant(a.get(1))
                     ? writer.append("CONVERT_TIMEZONE('UTC', ").expr(a.get(0), 0).append(", CAST(").expr(a.get(1), 0)
@@ -1449,6 +1452,8 @@ public final class Snowflake extends AnsiSqlRenderer {
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero (EXTRACT floors, measured)
             case EPOCH_SECONDS -> writer.append("(CAST(DATE_PART(EPOCH_MICROSECOND, ").piece(naive(a.get(0)))
                     .append(") AS DOUBLE) / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Snowflake keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(TRUNC(DATE_PART(EPOCH_MICROSECOND, ").piece(naive(a.get(0)))
                     .append(") / 1000) AS BIGINT)");
             case FROM_EPOCH_SECONDS -> writer.append("TO_TIMESTAMP_NTZ(CAST(ROUND(").expr(a.get(0), 6)
@@ -1712,7 +1717,7 @@ public final class Snowflake extends AnsiSqlRenderer {
         }
         return switch (slot) {
             case SqlType.Scalar s -> switch (s) {
-                case INTEGER, BIGINT, HUGEINT, DOUBLE, BOOLEAN, DATE, TIMESTAMP, TIMESTAMPTZ ->
+                case INTEGER, BIGINT, HUGEINT, DOUBLE, BOOLEAN, DATE, TIMESTAMP, TIMESTAMPTZ, TIME ->
                         w -> w.append("CAST(").piece(text).append(" AS " + castTypeName(s) + ")");
                 case JSON -> w -> w.append("TO_VARIANT(").piece(number).append(")");
                 case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> w -> w.append("CAST(").piece(number)
@@ -2080,6 +2085,8 @@ public final class Snowflake extends AnsiSqlRenderer {
                     .append(") * 1000 + TRUNC(DATE_PART(NANOSECOND, ").piece(naive(x)).append(") / 1000000))");
             case MICROSECOND -> w -> w.append("(DATE_PART(SECOND, ").piece(naive(x))
                     .append(") * 1000000 + TRUNC(DATE_PART(NANOSECOND, ").piece(naive(x)).append(") / 1000))");
+            case NANOSECOND -> throw new DialectCapability("date part " + part
+                    + " has no measured Snowflake spelling");
         };
     }
 
@@ -2094,7 +2101,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                     .append(") AS DATE)");
             case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND -> w -> w.append("DATE_TRUNC('"
                     + unit + "', ").piece(naive(x)).append(")");
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part " + part
+            case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part " + part
                     + " has no probed Snowflake spelling");
         };
     }
@@ -2112,7 +2119,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case SECOND -> "SECOND";
             case MILLISECOND -> "MILLISECOND";
             case MICROSECOND -> "MICROSECOND";
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("a " + part
+            case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("a " + part
                     + " unit has no Snowflake spelling");
         };
     }
@@ -2138,7 +2145,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                     .append(") / 7) AS BIGINT)");
             case HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND -> w -> w.append("DATEDIFF(" + unit(part) + ", ")
                     .piece(naive(from)).append(", ").piece(naive(to)).append(")");
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part " + part
+            case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part " + part
                     + " has no probed Snowflake spelling");
         };
     }
@@ -2149,7 +2156,7 @@ public final class Snowflake extends AnsiSqlRenderer {
         DatePart unit = part(a.get(0));
         String slice = switch (unit) {
             case YEAR, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND -> unit(unit);
-            case QUARTER, MILLISECOND, MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("a "
+            case QUARTER, MILLISECOND, MICROSECOND, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("a "
                     + unit + " time bucket has no Snowflake TIME_SLICE unit");
         };
         return w -> w.append("TIME_SLICE(").piece(naive(a.get(2))).append(", ").expr(a.get(1), 0)
@@ -2894,6 +2901,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case SqlExpr.NullLit n -> true;
             case SqlExpr.DateLit d -> true;
             case SqlExpr.TimestampLit t -> true;
+            case SqlExpr.TimeLit t -> true;
             case SqlExpr.Cast c -> !(c.target() instanceof SqlType.Array || c.target() instanceof SqlType.Map
                     || c.target() instanceof SqlType.Struct || c.target() == SqlType.Scalar.JSON) && constant(c.value());
             default -> false;

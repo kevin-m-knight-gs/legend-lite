@@ -1,0 +1,21 @@
+# The #Cypher{...}# island's odds-and-ends cases (docs/CYPHER_STUDY_2026_10_15.md §12.23): toInteger/toFloat of a
+# text (the database's parse behind a shape guard), UNWIND after a MATCH (the graph read as rows first), a list
+# indexed by a value of the row, duration(toString(d)) reading d. Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/odds/*'), keyed lite/odds/<id>.
+tests:
+  - id: to_integer_of_texts
+    cypher: "RETURN toInteger('42') AS a, toInteger('-7') AS b, toInteger('4.9') AS c, toInteger('abc') AS d, toInteger('') AS e, toInteger('-1.5') AS f"
+  - id: to_float_of_texts
+    cypher: "RETURN toFloat('1.5') AS a, toFloat('3') AS b, toFloat('1e3') AS c, toFloat('x') AS d, toFloat('.5') AS e"
+  - id: unwind_after_a_match
+    graph: |
+      CREATE (:A {name: 'a1'}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) UNWIND [1, 2] AS x RETURN a.name AS n, x ORDER BY n, x"
+  - id: unwind_after_a_label_less_match
+    graph: |
+      CREATE (:A {name: 'a1'}), (:B {name: 'b1'})
+    cypher: "MATCH (n) UNWIND [1] AS x RETURN n.name AS name, x ORDER BY name"
+  - id: list_indexed_by_a_row_value
+    cypher: "WITH ['a', 'b', 'c'] AS l UNWIND [0, 2, -1, 5, -4] AS i RETURN i, l[i] AS v ORDER BY i"
+  - id: duration_round_trip
+    cypher: "WITH duration({months: 0.75}) AS d RETURN duration(toString(d)) = d AS same, toString(duration(toString(d))) AS t"

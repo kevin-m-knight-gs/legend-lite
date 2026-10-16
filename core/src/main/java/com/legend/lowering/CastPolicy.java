@@ -253,8 +253,7 @@ final class CastPolicy {
 
     static boolean isSqlPrimitive(Type t) {
         return (t instanceof Type.Primitive p
-                        && p != Type.Primitive.BYTE && p != Type.Primitive.LATEST_DATE
-                        && p != Type.Primitive.STRICT_TIME)
+                        && p != Type.Primitive.BYTE && p != Type.Primitive.LATEST_DATE)
                 || t instanceof Type.PrecisionDecimal;
     }
 
@@ -287,6 +286,7 @@ final class CastPolicy {
             case TypedCInteger ignored -> true;
             case TypedCBoolean ignored -> true;
             case TypedCDate ignored -> true;
+            case com.legend.compiler.spec.typed.TypedCTime ignored -> true;
             case com.legend.compiler.spec.typed.TypedCollection c ->
                     c.elements().stream().allMatch(CastPolicy::literalish);
             default -> false;

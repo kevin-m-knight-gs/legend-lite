@@ -109,6 +109,7 @@ final class FoldToListReduce extends SqlRewriter {
             case SqlExpr.NullLit v -> v;
             case SqlExpr.DateLit v -> v;
             case SqlExpr.TimestampLit v -> v;
+            case SqlExpr.TimeLit v -> v;
             case SqlExpr.FormatLit v -> v;
             case SqlExpr.DatePartLit v -> v;
             case SqlExpr.JsonKindLit v -> v;

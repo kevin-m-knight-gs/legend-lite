@@ -2563,6 +2563,7 @@ public final class Lowerer {
             // dates (year / year-month) compare as STRINGS in SQL (master's
             // pinned semantics) — represented as string literals here.
             case TypedCDate d -> MatchFold.dateLit(d.value(), dbTimeZone);
+            case com.legend.compiler.spec.typed.TypedCTime t -> MatchFold.timeLit(t.value());
             // %latest VALUE = the engine's STRING sentinel (VERDICT
             // burn §FINAL); the PREDICATE keeps TemporalFrame's arm.
             case com.legend.compiler.spec.typed.TypedCLatestDate ignored ->

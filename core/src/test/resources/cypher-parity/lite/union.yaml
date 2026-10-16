@@ -1,0 +1,23 @@
+# The #Cypher{...}# island's UNION cases (docs/CYPHER_STUDY_2026_10_15.md §12.20): each part a query of its own, the
+# parts' rows concatenated by position (the same column names required), DISTINCT unless UNION ALL. Each case is
+# judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/union/*'), keyed
+# lite/union/<id>.
+tests:
+  - id: union_distinct
+    cypher: "RETURN 1 AS x UNION RETURN 2 AS x UNION RETURN 1 AS x"
+  - id: union_all
+    cypher: "RETURN 1 AS x UNION ALL RETURN 1 AS x"
+  - id: union_over_matches
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'}), (:B {name: 'a'})
+    cypher: "MATCH (a:A) RETURN a.name AS n UNION MATCH (b:B) RETURN b.name AS n"
+  - id: union_all_of_nodes
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (a:A) RETURN a AS a UNION ALL MATCH (b:B) RETURN b AS a"
+  - id: union_distinct_of_nodes_refused_by_name
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (a:A) RETURN a AS a UNION MATCH (b:B) RETURN b AS a"
+  - id: union_with_different_names_is_an_error
+    cypher: "RETURN 1 AS x UNION RETURN 2 AS y"

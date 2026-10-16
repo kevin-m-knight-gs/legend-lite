@@ -1300,7 +1300,9 @@ public final class ProtocolEmitter {
         srcInfo(b, span != null ? span : si.pos());
         b.append(",\"type\":");
         str(b, si.language());
-        b.append(",\"value\":{\"sql\":");
+        // the Cypher island's value is its text under "cypher" (docs/CYPHER_STUDY_2026_10_15.md §5.3)
+        b.append(si.language().equals(com.legend.protocol.spec.SqlIsland.CYPHER) ? ",\"value\":{\"cypher\":"
+                : ",\"value\":{\"sql\":");
         str(b, si.sql());
         if (si.profile() != null) {
             // the IQ island's named profile (docs/IQ_SQL_STUDY_2026_10_13.md §5.3)

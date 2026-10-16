@@ -40,6 +40,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
+            // legend-engine's relational lowering refuses StrictTime (pureToSQLQuery.pure: "not supported yet")
+            case TIME -> throw new DialectCapability("a time of day: legend-engine's relational lowering refuses"
+                    + " StrictTime, so its text has no spelling for one");
             case JSON, DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -979,6 +982,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
     }
 
     @Override
+    protected String timeLit(String iso) {
+        throw new DialectCapability("a time of day: legend-engine's relational lowering refuses StrictTime, so its"
+                + " text has no spelling for one");
+    }
+
+    @Override
     protected String timestampLit(String iso) {
         // the engine spells the datetime separator as a SPACE
         // (TIMESTAMP'9999-12-31 00:00:00.0000'), never ISO 'T'
@@ -1909,6 +1918,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case MICROSECOND -> "microsecond";
             case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new IllegalStateException(
                     "no H2 dateadd unit for an interval of " + unit);
+            case NANOSECOND -> throw new DialectCapability("a nanosecond interval: legend-engine's text keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
         };
     }
 
@@ -1926,6 +1937,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case SECOND -> "second";
             case MILLISECOND -> "millisecond";
             case MICROSECOND -> "microsecond";
+            case NANOSECOND -> throw new DialectCapability("a nanosecond part: legend-engine's text keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case DAY_OF_YEAR -> "doy";
             case ISO_DAY_OF_WEEK -> "isodow";
         };
@@ -2105,7 +2118,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case FORMAT -> writer.function("printf", c.args());
             case MAKE_DATE -> writer.function("make_date", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
+            case DATE_AT_TIME -> throw new DialectCapability("a time of day: legend-engine's relational lowering"
+                    + " refuses StrictTime, so its text has no spelling for one");
             case EPOCH_SECONDS -> writer.function("epoch", c.args());
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: legend-engine's H2 text keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.function("epoch_ms", c.args());
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
             case DAYNAME -> writer.function("dayname", c.args());

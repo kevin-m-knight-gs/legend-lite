@@ -1,0 +1,58 @@
+# The #Cypher{...}# island's continuation cases (docs/CYPHER_STUDY_2026_10_15.md §12.32): an untyped relationship
+# pattern from a node the graph in hand binds, after a WITH that carried it or a MATCH before, one arm per way the
+# model reads the hop from that node's class, the arms materialized and concatenated; over a label-less pattern's
+# arms, each arm's ways. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/continue/*'), keyed lite/continue/<id>.
+tests:
+  - id: untyped_hop_after_a_with
+    graph: |
+      CREATE (:A {name: 'a'})-[:REL]->(:B {name: 'b'}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) WITH a MATCH (a)-->(b) RETURN a.name AS an, b.name AS bn ORDER BY an"
+  - id: untyped_hop_in_a_second_match
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:REL]->(:B {name: 'b'}), (a)-[:OWNS]->(:C {name: 'x'}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) MATCH (a)-[r]->(b) RETURN a.name AS an, type(r) AS t, b.name AS bn ORDER BY t"
+  - id: untyped_hop_backwards_to_a_bound_node
+    graph: |
+      CREATE (:A {name: 'a'})-[:REL]->(b:B {name: 'b'}), (:C {name: 'c'})-[:OWNS]->(b)
+    cypher: "MATCH (b:B) WITH b MATCH (x)-->(b) RETURN b.name AS bn, x.name AS xn, labels(x) AS ls ORDER BY xn"
+  - id: untyped_undirected_hop_from_a_bound_node
+    graph: |
+      CREATE (a:A {name: 'a'}), (:C {name: 'c'})-[:OWNS]->(a), (a)-[:REL]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) MATCH (a)-[r]-(x) RETURN a.name AS an, x.name AS xn, type(r) AS t ORDER BY xn"
+  - id: a_label_on_the_far_node_picks_the_ways
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:REL]->(:B {name: 'b'}), (a)-[:OWNS]->(:C {name: 'x'})
+    cypher: "MATCH (a:A) MATCH (a)-->(b:B) RETURN b.name AS bn"
+  - id: untyped_hop_with_a_where_and_return_star
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:REL]->(:B {name: 'b'}), (a)-[:OWNS]->(:C {name: 'x'})
+    cypher: "MATCH (a:A) WITH a MATCH (a)-->(b) WHERE b.name <> 'x' RETURN *"
+  - id: untyped_hop_after_an_optional_match
+    graph: |
+      CREATE (:Start {name: 's'})-[:T]->(:End {name: 'e'})
+    cypher: "OPTIONAL MATCH (a:Start) WITH a MATCH (a)-->(b) RETURN *"
+  - id: untyped_hop_after_a_labelless_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:U]->(:C {name: 'c'})
+    cypher: "MATCH (n) WITH n MATCH (n)-->(x) RETURN n.name AS nn, x.name AS xn, x ORDER BY nn"
+  - id: untyped_hop_that_fans_out
+    graph: |
+      CREATE (a:A {name: 'a'}), (a)-[:REL]->(:B {name: 'b1'}), (a)-[:REL]->(:B {name: 'b2'}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) MATCH (a)-->(b) RETURN a.name AS an, b.name AS bn ORDER BY bn"
+  - id: two_untyped_hops_from_a_bound_node
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:U]->(:C {name: 'c'})
+    cypher: "MATCH (a:A) MATCH (a)-->(b)-->(c) RETURN a.name AS an, b.name AS bn, c.name AS cn"
+  - id: untyped_hop_after_a_projecting_with_refused
+    graph: |
+      CREATE (:A {name: 'a'})-[:REL]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) WITH a.name AS n, a MATCH (a)-->(b) RETURN n, b.name AS bn"
+  - id: untyped_hop_between_two_bound_nodes_refused
+    graph: |
+      CREATE (:A {name: 'a'})-[:REL]->(:B {name: 'b'})
+    cypher: "MATCH (a:A)-[:REL]->(b:B) MATCH (a)-->(b) RETURN b.name AS bn"
+  - id: untyped_hop_from_a_node_no_way_leaves
+    graph: |
+      CREATE (:A {name: 'a'})-[:REL]->(:B {name: 'b'})
+    cypher: "MATCH (b:B) MATCH (b)-->(x) RETURN x.name AS xn"

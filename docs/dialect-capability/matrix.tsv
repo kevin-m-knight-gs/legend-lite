@@ -122,6 +122,9 @@ H2	H2	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)		93
 H2	H2	call	DATE_DIFF	emulated	dateDiffArm		53
 H2	H2	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()		109
 H2	H2	call	TIMEZONE	spelled	timezone		6
+H2	H2	call	DATE_AT_TIME	spelled	an operator (+)		0
+H2	H2	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+H2	H2	call	FROM_EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 H2	H2	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit, part: dateadd(…, …, …)		0
 H2	H2	call	EPOCH_SECONDS	emulated	EXTRACT(EPOCH FROM …)		0
 H2	H2	call	EPOCH_MS	emulated	CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)		24
@@ -338,6 +341,9 @@ H2Modern	-	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)	as 
 H2Modern	-	call	DATE_DIFF	emulated	dateDiffArm	as H2	-
 H2Modern	-	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()	as H2	-
 H2Modern	-	call	TIMEZONE	spelled	timezone	as H2	-
+H2Modern	-	call	DATE_AT_TIME	spelled	an operator (+)	as H2	-
+H2Modern	-	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as H2	-
+H2Modern	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as H2	-
 H2Modern	-	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit, part: dateadd(…, …, …)	as H2	-
 H2Modern	-	call	EPOCH_SECONDS	emulated	EXTRACT(EPOCH FROM …)	as H2	-
 H2Modern	-	call	EPOCH_MS	emulated	CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)	as H2	-
@@ -554,6 +560,9 @@ Postgres	Postgres	call	ADD_INTERVAL	emulated	intervalUnit, part: … + … * INT
 Postgres	Postgres	call	DATE_DIFF	emulated	dateDiff		53
 Postgres	Postgres	call	TIME_BUCKET	emulated	timeBucket		109
 Postgres	Postgres	call	TIMEZONE	spelled	timezone		6
+Postgres	Postgres	call	DATE_AT_TIME	spelled	an operator (+)		0
+Postgres	Postgres	call	EPOCH_NS	refused	a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Postgres	Postgres	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Postgres	Postgres	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: … + … * INTERVAL '1 …'		0
 Postgres	Postgres	call	EPOCH_SECONDS	emulated	CAST(extract(epoch FROM …) AS DOUBLE PRECISION)		0
 Postgres	Postgres	call	EPOCH_MS	emulated	CAST(trunc(extract(epoch FROM …) * 1000) AS BIGINT)		24
@@ -770,6 +779,9 @@ Snowflake	Snowflake	call	ADD_INTERVAL	emulated	intervalUnit, part: CAST(DATEADD(
 Snowflake	Snowflake	call	DATE_DIFF	emulated	dateDiff		53
 Snowflake	Snowflake	call	TIME_BUCKET	emulated	timeBucket		109
 Snowflake	Snowflake	call	TIMEZONE	emulated	by its operands: CONVERT_TIMEZONE('UTC', …, CAST(… AS TIMESTAMP_NTZ)) / CAST(CONVERT_TIMEZONE(…, 'UTC', CAST(… AS TIMESTAMP_NTZ)) AS TIMESTAMP_LTZ)		6
+Snowflake	Snowflake	call	DATE_AT_TIME	spelled	TIMESTAMP_NTZ_FROM_PARTS		0
+Snowflake	Snowflake	call	EPOCH_NS	refused	a nanosecond epoch: Snowflake keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Snowflake	Snowflake	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Snowflake keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Snowflake	Snowflake	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: CAST(DATEADD(…, …, …) AS TIMESTAMP_NTZ)		0
 Snowflake	Snowflake	call	EPOCH_SECONDS	emulated	naive: (CAST(DATE_PART(EPOCH_MICROSECOND, …) AS DOUBLE) / 1000000)		0
 Snowflake	Snowflake	call	EPOCH_MS	emulated	naive: CAST(TRUNC(DATE_PART(EPOCH_MICROSECOND, …) / 1000) AS BIGINT)		24
@@ -986,6 +998,9 @@ Trino	Trino	call	ADD_INTERVAL	emulated	addInterval		93
 Trino	Trino	call	DATE_DIFF	emulated	dateDiff		53
 Trino	Trino	call	TIME_BUCKET	emulated	timeBucket		109
 Trino	Trino	call	TIMEZONE	emulated	timezone		6
+Trino	Trino	call	DATE_AT_TIME	emulated	CAST(CAST(… AS VARCHAR) || ' ' || CAST(… AS VARCHAR) AS TIMESTAMP(6))		0
+Trino	Trino	call	EPOCH_NS	refused	a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Trino	Trino	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Trino	Trino	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval		0
 Trino	Trino	call	EPOCH_SECONDS	emulated	to_unixtime(with_timezone(…, 'UTC'))		0
 Trino	Trino	call	EPOCH_MS	emulated	CAST(truncate(to_unixtime(with_timezone(…, 'UTC')) * 1000) AS BIGINT)		24
@@ -1202,6 +1217,9 @@ BigQuery	BigQuery	call	ADD_INTERVAL	emulated	intervalUnit, part: (… + INTERVAL
 BigQuery	BigQuery	call	DATE_DIFF	emulated	dateDiff		53
 BigQuery	BigQuery	call	TIME_BUCKET	emulated	timeBucket		109
 BigQuery	BigQuery	call	TIMEZONE	emulated	by its operands: DATETIME(…, …) / TIMESTAMP(CAST(… AS DATETIME), …)		6
+BigQuery	BigQuery	call	DATE_AT_TIME	spelled	DATETIME		0
+BigQuery	BigQuery	call	EPOCH_NS	refused	a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+BigQuery	BigQuery	call	FROM_EPOCH_NS	refused	a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 BigQuery	BigQuery	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)		0
 BigQuery	BigQuery	call	EPOCH_SECONDS	emulated	instant: (CAST(UNIX_MICROS(…) AS FLOAT64) / 1000000)		0
 BigQuery	BigQuery	call	EPOCH_MS	emulated	instant: DIV(UNIX_MICROS(…), 1000)		24
@@ -1418,6 +1436,9 @@ Databricks	Databricks	call	ADD_INTERVAL	emulated	intervalUnit, part: timestampad
 Databricks	Databricks	call	DATE_DIFF	emulated	dateDiff		53
 Databricks	Databricks	call	TIME_BUCKET	emulated	timeBucket		109
 Databricks	Databricks	call	TIMEZONE	spelled	from_utc_timestamp		6
+Databricks	Databricks	call	DATE_AT_TIME	refused	a time of day: Databricks has no TIME type		0
+Databricks	Databricks	call	EPOCH_NS	refused	a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Databricks	Databricks	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Databricks	Databricks	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: timestampadd(…, …, …)		0
 Databricks	Databricks	call	EPOCH_SECONDS	emulated	(CAST(unix_micros(…) AS DOUBLE) / 1000000)		0
 Databricks	Databricks	call	EPOCH_MS	emulated	(unix_micros(…) div 1000)		24
@@ -1634,6 +1655,9 @@ DuckDb	DuckDB	call	ADD_INTERVAL	emulated	intervalFunction, part: … + …(…)	
 DuckDb	DuckDB	call	DATE_DIFF	emulated	stringLit, datePart, part: date_diff(…, …)		53
 DuckDb	DuckDB	call	TIME_BUCKET	emulated	timeBucket		109
 DuckDb	DuckDB	call	TIMEZONE	spelled	timezone		6
+DuckDb	DuckDB	call	DATE_AT_TIME	spelled	an operator (+)		0
+DuckDb	DuckDB	call	EPOCH_NS	spelled	epoch_ns		0
+DuckDb	DuckDB	call	FROM_EPOCH_NS	spelled	make_timestamp_ns		0
 DuckDb	DuckDB	call	ADD_INTERVAL_TEMPORAL	emulated	intervalFunction, part: … + …(…)		0
 DuckDb	DuckDB	call	EPOCH_SECONDS	spelled	epoch		0
 DuckDb	DuckDB	call	EPOCH_MS	spelled	epoch_ms		24
@@ -1850,6 +1874,9 @@ ClickHouse	ClickHouse	call	ADD_INTERVAL	emulated	composed in a block	via ClickHo
 ClickHouse	ClickHouse	call	DATE_DIFF	emulated	composed in a block	via ClickHouse.temporal	53
 ClickHouse	ClickHouse	call	TIME_BUCKET	emulated	timeBucket	via ClickHouse.temporal	109
 ClickHouse	ClickHouse	call	TIMEZONE	emulated	addSeconds(toDateTime64(…, 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(...	via ClickHouse.temporal	6
+ClickHouse	ClickHouse	call	DATE_AT_TIME	refused	a time of day: ClickHouse's Time type is experimental	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	EPOCH_NS	refused	a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	FROM_EPOCH_NS	refused	a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	via ClickHouse.temporal	0
 ClickHouse	ClickHouse	call	ADD_INTERVAL_TEMPORAL	emulated	composed in a block	via ClickHouse.temporal	0
 ClickHouse	ClickHouse	call	EPOCH_SECONDS	emulated	(toFloat64(toUnixTimestamp64Micro(toDateTime64(…, 6, 'UTC'))) / 1000000)	via ClickHouse.temporal	0
 ClickHouse	ClickHouse	call	EPOCH_MS	emulated	toUnixTimestamp64Milli(toDateTime64(…, 6, 'UTC'))	via ClickHouse.temporal	24
@@ -2066,6 +2093,9 @@ SQLite	SQLite	call	ADD_INTERVAL	emulated	addInterval, raise: (CASE WHEN … IS N
 SQLite	SQLite	call	DATE_DIFF	emulated	dateDiff		53
 SQLite	SQLite	call	TIME_BUCKET	emulated	timeBucket		109
 SQLite	SQLite	call	TIMEZONE	emulated	timezone		6
+SQLite	SQLite	call	DATE_AT_TIME	emulated	… || ' ' || …		0
+SQLite	SQLite	call	EPOCH_NS	refused	a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+SQLite	SQLite	call	FROM_EPOCH_NS	refused	a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 SQLite	SQLite	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
 SQLite	SQLite	call	EPOCH_SECONDS	emulated	micros: (… / 1000000.0)		0
 SQLite	SQLite	call	EPOCH_MS	emulated	micros: (… / 1000)		24
@@ -2282,6 +2312,9 @@ MariaDb	MariaDB	call	ADD_INTERVAL	emulated	addInterval, raise, product, typeOf: 
 MariaDb	MariaDB	call	DATE_DIFF	emulated	dateDiff		53
 MariaDb	MariaDB	call	TIME_BUCKET	emulated	timeBucket		109
 MariaDb	MariaDB	call	TIMEZONE	emulated	timezone		6
+MariaDb	MariaDB	call	DATE_AT_TIME	spelled	TIMESTAMP		0
+MariaDb	MariaDB	call	EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+MariaDb	MariaDB	call	FROM_EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 MariaDb	MariaDB	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
 MariaDb	MariaDB	call	EPOCH_SECONDS	emulated	micros: (… / 1000000)		0
 MariaDb	MariaDB	call	EPOCH_MS	emulated	micros: (… DIV 1000)		24
@@ -2498,6 +2531,9 @@ MySql	MySQL	call	ADD_INTERVAL	emulated	addInterval, raise, product, typeOf: (CAS
 MySql	MySQL	call	DATE_DIFF	emulated	dateDiff	as MariaDb	53
 MySql	MySQL	call	TIME_BUCKET	emulated	timeBucket	as MariaDb	109
 MySql	MySQL	call	TIMEZONE	emulated	timezone	as MariaDb	6
+MySql	MySQL	call	DATE_AT_TIME	spelled	TIMESTAMP	as MariaDb	0
+MySql	MySQL	call	EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as MariaDb	0
+MySql	MySQL	call	FROM_EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as MariaDb	0
 MySql	MySQL	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...	as MariaDb	0
 MySql	MySQL	call	EPOCH_SECONDS	emulated	micros: (… / 1000000)	as MariaDb	0
 MySql	MySQL	call	EPOCH_MS	emulated	micros: (… DIV 1000)	as MariaDb	24
@@ -2714,6 +2750,9 @@ EngineStyleH2	-	call	ADD_INTERVAL	emulated	dbUnitOf, part: dateadd(…, …, …
 EngineStyleH2	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)		-
 EngineStyleH2	-	call	TIME_BUCKET	emulated	timeBucket		-
 EngineStyleH2	-	call	TIMEZONE	spelled	timezone		-
+EngineStyleH2	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one		-
+EngineStyleH2	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		-
+EngineStyleH2	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		-
 EngineStyleH2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)		-
 EngineStyleH2	-	call	EPOCH_SECONDS	spelled	epoch		-
 EngineStyleH2	-	call	EPOCH_MS	spelled	epoch_ms		-
@@ -2930,6 +2969,9 @@ EngineStyleDB2	-	call	ADD_INTERVAL	emulated	addInterval		-
 EngineStyleDB2	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)	as EngineStyleH2	-
 EngineStyleDB2	-	call	TIME_BUCKET	emulated	timeBucket	as EngineStyleH2	-
 EngineStyleDB2	-	call	TIMEZONE	spelled	timezone	as EngineStyleH2	-
+EngineStyleDB2	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one	as EngineStyleH2	-
+EngineStyleDB2	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleH2	-
+EngineStyleDB2	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleH2	-
 EngineStyleDB2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)	as EngineStyleH2	-
 EngineStyleDB2	-	call	EPOCH_SECONDS	spelled	epoch	as EngineStyleH2	-
 EngineStyleDB2	-	call	EPOCH_MS	spelled	epoch_ms	as EngineStyleH2	-
@@ -3146,6 +3188,9 @@ EngineStyleComposite	-	call	ADD_INTERVAL	emulated	addInterval	as EngineStyleDB2	
 EngineStyleComposite	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TIME_BUCKET	emulated	timeBucket	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TIMEZONE	spelled	timezone	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	EPOCH_SECONDS	spelled	epoch	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	EPOCH_MS	spelled	epoch_ms	as EngineStyleDB2, as EngineStyleH2	-

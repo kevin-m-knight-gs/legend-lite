@@ -110,6 +110,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "Nullable(String)";
             case DATE -> "Nullable(Date32)";
             case TIMESTAMP, TIMESTAMPTZ -> "Nullable(DateTime64(6, 'UTC'))";
+            // ClickHouse's Time type is experimental (25.6, behind a setting): no time of day here yet
+            case TIME -> throw new DialectCapability("a time of day: ClickHouse's Time type is experimental");
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -603,6 +605,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
     @Override
     protected String dateLit(String iso) {
         return "toDate32('" + inRange(iso) + "')";
+    }
+
+    @Override
+    protected String timeLit(String iso) {
+        throw new DialectCapability("a time of day: ClickHouse's Time type is experimental");
     }
 
     private static final java.util.regex.Pattern YEAR = java.util.regex.Pattern.compile("^(-?\\d+)-");
@@ -1683,7 +1690,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
 
             // ---- temporal (temporal(): call is held to 250 lines)
             case NOW, DATE_TRUNC_DAY, DATE_TRUNC, PARSE_DATE, EXTRACT, MAKE_DATE, MAKE_TIMESTAMP, ADD_INTERVAL,
-                 ADD_INTERVAL_TEMPORAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, EPOCH_SECONDS, EPOCH_MS,
+                 ADD_INTERVAL_TEMPORAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, DATE_AT_TIME, EPOCH_SECONDS, EPOCH_MS, EPOCH_NS, FROM_EPOCH_NS,
                  FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, STRFTIME, STRPTIME -> temporal(writer, c, a);
             // ---- lists whose first argument is no list
             case LIST_LENGTH -> writer.append("toInt64(length(").piece(list(a.get(0))).append("))");
@@ -1871,7 +1878,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case SECOND -> 1000000L;
             case MILLISECOND -> 1000L;
             case MICROSECOND -> 1L;
-            case YEAR, QUARTER, MONTH, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
         };
     }
 
@@ -1888,7 +1895,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case SECOND -> "second";
             case MILLISECOND -> "millisecond";
             case MICROSECOND -> "microsecond";
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("dateDiff of " + unit
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, NANOSECOND -> throw new DialectCapability("dateDiff of " + unit
                     + " has no ClickHouse spelling");
         };
     }
@@ -1935,7 +1942,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     case HOUR -> writer.append("toStartOfHour(").expr(a.get(1), 0).append(")");
                     case MINUTE -> writer.append("toStartOfMinute(").expr(a.get(1), 0).append(")");
                     case SECOND -> writer.append("toStartOfSecond(").expr(a.get(1), 0).append(")");
-                    case MILLISECOND, MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability(
+                    case MILLISECOND, MICROSECOND, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability(
                             "date_trunc " + part + " has no ClickHouse spelling");
                 };
             }
@@ -1962,7 +1969,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     case SECOND -> "addSeconds";
                     case MILLISECOND -> "addMilliseconds";
                     case MICROSECOND -> "addMicroseconds";
-                    case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw wall(c.fn(), "the unit " + unit);
+                    case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw wall(c.fn(), "the unit " + unit);
                 };
                 yield writer.append(fn + "(").expr(a.get(2), 0).append(", ").expr(a.get(1), 0).append(")");
             }
@@ -1982,12 +1989,15 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // the wall clock in the zone at the instant (DuckDB's of a zoned value, Trino's), as a naive UTC value:
             // toTimeZone keeps the instant and changes only how it prints (measured)
+            case DATE_AT_TIME -> throw new DialectCapability("a time of day: ClickHouse's Time type is experimental");
             case TIMEZONE -> writer.append("addSeconds(toDateTime64(").expr(a.get(1), 0)
                     .append(", 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(").expr(a.get(1), 0).append(", 6, 'UTC'), ")
                     .expr(a.get(0), 0).append(")))");
             // (of a DateTime64: a Date32 is refused, measured)
             case EPOCH_SECONDS -> writer.append("(toFloat64(toUnixTimestamp64Micro(toDateTime64(").expr(a.get(0), 0)
                     .append(", 6, 'UTC'))) / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: ClickHouse keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("toUnixTimestamp64Milli(toDateTime64(").expr(a.get(0), 0)
                     .append(", 6, 'UTC'))");
             case FROM_EPOCH_SECONDS -> writer.append("fromUnixTimestamp64Micro(toInt64(").expr(a.get(0), 0)
@@ -2045,7 +2055,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case SECOND -> "toSecond";
             case DAY_OF_YEAR -> "toDayOfYear";
             case ISO_DAY_OF_WEEK -> "toDayOfWeek";
-            case MILLISECOND, MICROSECOND -> throw new DialectCapability("date part " + part
+            case MILLISECOND, MICROSECOND, NANOSECOND -> throw new DialectCapability("date part " + part
                     + " has no probed ClickHouse spelling");
         };
         return w -> w.append("toInt64(" + fn + "(").expr(a.get(1), 0).append("))");

@@ -142,6 +142,13 @@ final class DateShifts {
     static void registerAdjustRules(java.util.Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
         for (com.legend.model.FunctionId f : com.legend.builtin.Pure.AT_DATE_ADJUST) {
             rules.put(f, (n, args) -> {
+                if ("NANOSECONDS".equals(Scalars.enumName(n.args().get(2)))) {
+                    // the nanosecond unit has no interval in any engine: the epoch count moved, exact where the
+                    // engine keeps nanoseconds (the Cypher island's nanosecond leg, 2026-10-16)
+                    return SqlExpr.Call.of(SqlFn.FROM_EPOCH_NS, SqlExpr.Call.of(SqlFn.PLUS,
+                            SqlExpr.Call.of(SqlFn.EPOCH_NS, Scalars.dateArg(n.args().get(0), args.get(0))),
+                            args.get(1)));
+                }
                 SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
                         new SqlExpr.DatePartLit(durationPart(Scalars.enumName(n.args().get(2)))),
                         args.get(1), Scalars.dateArg(n.args().get(0), args.get(0))));

@@ -612,6 +612,7 @@ public final class SqlTypeCensus {
             case "VARCHAR" -> SqlType.Scalar.VARCHAR;
             case "JSON" -> SqlType.Scalar.JSON;
             case "DATE" -> SqlType.Scalar.DATE;
+            case "TIME" -> SqlType.Scalar.TIME;
             case "TIMESTAMP" -> SqlType.Scalar.TIMESTAMP;
             case "DOUBLE" -> SqlType.Scalar.DOUBLE;
             case "BOOLEAN" -> SqlType.Scalar.BOOLEAN;
