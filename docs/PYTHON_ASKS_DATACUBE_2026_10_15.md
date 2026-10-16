@@ -52,10 +52,10 @@ the DataCube + Python line before CI (the BUILD edits by the Compiler Rewrite li
   `gridFilter` builds Python's tree by each operator's operand (each named, none by default) and offers, in the
   editor's normal form (`normalFilter`), and compiles it. Python keeps only the shape of its argument and its values'
   JSON.
-- **7, a class's sample rows.** `sample-rows.ts sampleRows` (out of `model-actions.ts`, whose `sampleOf` calls it):
-  Python plans and runs `gridClass`'s sample query by the session's own planner, as before (R3: a server's when one was
-  chosen), and hands the rows, as the engine hands DataCube every query's (`_headless.arrow_text`), to `classSample`,
-  which writes them. Python's four value writers deleted; the formats and the planner pinned in test_model.
+- **7, a class's sample rows.** `sample-rows.ts sampleOf` (out of `model-actions.ts`), run by `gridClass` on the host's
+  database; Python's four value writers deleted (the formats are pinned in test_model). (A review had Python plan the
+  sample on its session's plane and hand DataCube the rows, `classSample`, for a session planned by a server; with one
+  plane, 2026-10-15, that went back.)
 
 What is left, and why:
 

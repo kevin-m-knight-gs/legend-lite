@@ -8,7 +8,7 @@ import './install-url.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
-  classSample, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridRelation, gridView,
+  gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridRelation, gridView,
 } from './grid.ts';
 import { forget, ingest, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelKept, pageModelNames } from './model.ts';
@@ -29,9 +29,9 @@ export { gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, 
  *  checks what it names). */
 export { forget, ingest, mount, remoteAccess };
 
-/** The page's model as DataCube names it, a class's key's facts (B4), a class's sample rows as its window writes them,
- *  and the model a page keeps for the cubes it still holds: what Python asks beside the generic library. */
-export { classDuplicate, classSample, pageModelKept, pageModelNames };
+/** The page's model as DataCube names it, a class's key's facts (B4), and the model a page keeps for the cubes it still
+ *  holds: what Python asks beside the generic library. */
+export { classDuplicate, pageModelKept, pageModelNames };
 
 /** A sheet's layout edited by DataCube's own rules (layout/bands.ts): a tile placed, taken off, the places arranged,
  *  tiles stacked -- what Python's pages ask, so they place nothing by rules of their own. */

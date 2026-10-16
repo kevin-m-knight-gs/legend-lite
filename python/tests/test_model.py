@@ -297,9 +297,9 @@ class OnThePage(unittest.TestCase):
         self.assertEqual(set(page.model['classes']), {kept})
 
     def test_a_class_sample_is_its_first_rows_as_datacube_writes_them(self):
-        # DataCube's own sample rows (sample-rows.ts sampleRows, headless classSample), each value as its executor
-        # gives it: an integer past 2**53 as text, a decimal its digits at its scale, a date and a timestamp as text, a
-        # double as JavaScript writes it (a whole one an integer)
+        # DataCube's own sample (sample-rows.ts sampleOf, headless gridClass), each value as its executor gives it: an
+        # integer past 2**53 as text, a decimal its digits at its scale, a date and a timestamp as text, a double as
+        # JavaScript writes it (a whole one an integer)
         import datetime
         from decimal import Decimal
         page = ll.Page('Sampled')

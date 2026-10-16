@@ -10,8 +10,7 @@
 // Each call opens the grid afresh from the cube document it is given: the document is the grid's state, Python's
 // page keeps it, and nothing here holds a grid between calls.
 
-import { arrowIpcTable } from '../../../engine-client/src/arrow-ipc.ts';
-import { DuckDbEngine, toRawTable } from '../../../engine-client/src/duckdb.ts';
+import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { nameProblem } from '../calc.ts';
@@ -31,7 +30,7 @@ import { typeColumns } from '../plan.ts';
 import { PlanError } from '../planner.ts';
 import { classLambda, sampleLambda, storeTableOf } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
-import { sampleRows } from '../sample-rows.ts';
+import { sampleOf } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, isJsonValue, isRelativeDate, rowColumns, type ColumnKind, type ColumnSpec, type CubeSnapshot,
@@ -40,7 +39,7 @@ import {
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
-import { base64, fromBase64 } from './web.ts';
+import { base64 } from './web.ts';
 
 /** A grid as Python hands it in: its cube document (page-document's, as JSON text), and its source's model. */
 export interface GridSpec {
@@ -327,9 +326,10 @@ export async function gridRelation(spec: GridSpec): Promise<string> {
 
 /**
  * A grid's rows as a class's, as Create a Class… asks for one (model-actions.ts `pageGrids`): its rows at their finest
- * level (classLambda), the table its source reads (storeTableOf), the query of that table's first rows (sampleLambda,
- * which the host plans and runs on the plane its session chose, its rows then written by classSample), the source they
- * are read from, and the names the window offers (`named`: the grid's source's and the page's) -- DataCube's own
+ * level (classLambda), the table its source reads (storeTableOf), that table's first rows as the window writes them
+ * into the project (sampleLambda, run on the host's database by sample-rows.ts sampleOf: item 7 of
+ * docs/PYTHON_ASKS_DATACUBE_2026_10_15.md), the source they are read from, and the names the window offers (`named`:
+ * the grid's source's and the page's) -- DataCube's own
  * semantics, which Python's `grid.create_class()` asks of DataCube's code before it calls the generic library
  * (legend_lite/model.py; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4). JSON, each query as the protocol writes it; a
  * source that is no table of its own refused in words (`{"refused"}`).
@@ -345,22 +345,14 @@ export async function gridClass(spec: GridSpec, named: { readonly source: string
       className: suggestedClassName(named.source), package: suggestedPackage(named.page),
       dataSpace: suggestedDataSpaceName(named.page),
     };
-    return `{"query":${toJson(classLambda(state.snapshot))},"sample":${toJson(sampleLambda(state.snapshot.source.query))},`
+    // its first rows as the window writes them into the project (sample-rows.ts sampleOf), read on the host's database
+    const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
+    const sample = await sampleOf(runner.host, sampleLambda(state.snapshot.source.query));
+    return `{"query":${toJson(classLambda(state.snapshot))},"sample":${JSON.stringify(sample)},`
       + `"table":${JSON.stringify(table)},"source":${JSON.stringify(planner.source())},"names":${JSON.stringify(names)}}`;
   });
 }
 
-
-/**
- * A CLASS'S SAMPLE ROWS as Create a Class writes them into its project (sample-rows.ts sampleRows), from the rows the
- * host read for gridClass's sample query on the plane its session chose (`arrow`: an Arrow IPC stream, base64, as the
- * host's database answers every query: read here as the headless connection reads them, arrowIpcTable then
- * toRawTable) -- so Python writes no value by formats of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 7).
- * JSON: `{columns, rows}`.
- */
-export function classSample(arrow: string): string {
-  return JSON.stringify(sampleRows(toRawTable(arrowIpcTable(fromBase64(arrow)), 0, 0)));
-}
 
 /**
  * The grid exported, as its Export menu makes the file (export-render.ts, the screen's own core): what it shows, its
