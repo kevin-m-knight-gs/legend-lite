@@ -566,6 +566,15 @@ lite/corpus_gaps/coalesce_of_a_timestamp_and_a_date_string@iq17-default	PASS	PAS
 lite/corpus_gaps/case_of_a_timestamp_and_a_date_string@iq17-default	PASS	PASS
 lite/corpus_gaps/max_of_a_defaulted_timestamp@iq17-default	PASS	PASS
 lite/corpus_gaps/a_timestamp_against_a_number_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/top_computes_its_items_for_the_kept_rows@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/top_descending_keeps_other_rows@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/first_computes_one_row@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/start_at_computes_the_skipped_rows_too@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/start_at_skipping_a_raising_row_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/top_of_groups_computes_the_kept_groups@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/top_with_a_window_kept_rows@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/top_with_a_double_quotient@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/top_ordered_by_a_raising_item_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

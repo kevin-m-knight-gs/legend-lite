@@ -122,7 +122,10 @@ Measured to be IQ's own errors, raised or named by the island:
 Open, ranked by the corpora:
 - CAST to DECIMAL without a precision, IQ's NUMERIC(126,38) (70);
 - a subquery in a derived table's select list, which IQ's engine reads only where the outer query shows its column as it is (192);
-- a statement with TOP whose select list can raise. IQ computes the select list only for the rows it keeps (measured: `TOP 2 ... 10 / (id - 3)` answers), so this needs the translator to sort and limit before it projects (114);
+- a statement with TOP whose select list can raise (114).
+  - Measured on IQ: the items ORDER BY does not read are computed only for the rows up to the limit's last (START AT's skipped rows too, grouped queries and windows alike). ORDER BY's items, and all of a DISTINCT's, are computed for every row.
+  - Tried 2026-10-15 and reverted: a dialect hook in `SqlToPure.assemble` that sorts, limits, then extends. Postgres answered all cases, but DuckDB did not. Lite's lowering folds an extend over truncated rows back into the truncated block (`Fold.extendFolds`: "extend commutes with truncation", true of values, not of errors). The `SELECT *, ...` that folding makes also let DuckDB's case-insensitive names bind `Labels` to `labels`.
+  - The fix belongs to the Lowerer (isolate an extend after a LIMIT, as `Fold.filterSlot` isolates a filter). It is a cross-area change to every island's plans, so it is the user's to decide. `lite/corpus_gaps.yaml` holds the measured cases (REFUSED until then);
 - the outer join ON shapes IQ reads but DuckDB cannot plan: a subquery in a RIGHT JOIN's ON (refused by name), an uncorrelated one over a common table expression in a LEFT JOIN's ON (6, DuckDB's error);
 - CROSS APPLY (676), which this round measured only as IQ's internal error on one correlated shape (2.16c).
 
