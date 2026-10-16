@@ -26,7 +26,7 @@ import { MenuView } from '../ui/menu-view.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
-import { pageToJson, writePageOf, type PageDocument, type PageViews } from '../page-document.ts';
+import { givenName, pageToJson, writePageOf, type PageDocument, type PageViews } from '../page-document.ts';
 import type { PageModelRef } from '../page-model.ts';
 import type { CubeDocument } from '../cube-document.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
@@ -342,11 +342,13 @@ export class PageApp {
     const finish = (keep: boolean): void => {
       if (done) return;
       done = true;
-      const name = field.value.trim();
+      // the one rule (page-document.ts givenName): trimmed, a blank refused -- the page keeps the name it had
+      const given = givenName('page', field.value);
       field.remove();
       this.#paintTitle();
       this.#title.focus();
-      if (keep && name !== '' && name !== this.#name) this.#options.onRename?.(name);
+      const name = 'name' in given ? given.name : undefined;
+      if (keep && name !== undefined && name !== this.#name) this.#options.onRename?.(name);
     };
     field.addEventListener('keydown', (e) => {
       e.stopPropagation();

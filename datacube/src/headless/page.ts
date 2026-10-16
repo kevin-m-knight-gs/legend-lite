@@ -4,7 +4,7 @@
 // (readPage), written as DataCube writes it (pageToJson) -- so Python checks and writes no page by rules of its own.
 
 import { CubeDocumentError } from '../cube-document.ts';
-import { PageDocumentError, pageToJson, readPage } from '../page-document.ts';
+import { PageDocumentError, givenName, pageToJson, readPage, type NamedPart } from '../page-document.ts';
 
 /**
  * A page document (JSON text) as DataCube reads it and would write it again. JSON: `{page}`, the page's text as
@@ -17,4 +17,17 @@ export function pageRead(text: string): string {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
   }
+}
+
+const PARTS: readonly NamedPart[] = ['page', 'tile', 'sheet'];
+
+/**
+ * A NAME PYTHON GIVES a page, a tile or a sheet, by DataCube's one rule (page-document.ts givenName, which the screen's
+ * renames ask too) -- so Python names nothing by a rule of its own. JSON: `{name}` (null: a sheet's blank, none of its
+ * own) or `{problems}`, why it was refused, in DataCube's words.
+ */
+export function nameGiven(part: string, text: string): string {
+  if (!PARTS.includes(part as NamedPart)) throw new Error(`a name is a page's, a tile's or a sheet's, not a ${part}'s`);
+  const given = givenName(part as NamedPart, text);
+  return JSON.stringify('refused' in given ? { problems: [given.refused] } : { name: given.name ?? null });
 }

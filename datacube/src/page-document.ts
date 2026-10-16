@@ -97,6 +97,26 @@ export interface PageDocument extends PageViews {
   readonly unknown?: Readonly<Record<string, unknown>>;
 }
 
+/** What a person names on a page. */
+export type NamedPart = 'page' | 'tile' | 'sheet';
+
+/**
+ * A NAME A PERSON GIVES a page, a tile or a sheet, by DataCube's one rule (the user, 2026-10-15: "one rule please"):
+ * its text trimmed; a page and a tile must have one -- a blank is refused (the screen keeps the name it had; Python's
+ * call raises) -- and a sheet's blank is none of its own (the sheet is then named after its first grid). The reader
+ * holds a saved page to the same rule (readPage).
+ */
+export function givenName(part: NamedPart, text: string):
+  { readonly name: string | undefined } | { readonly refused: string } {
+  const name = text.trim();
+  if (name !== '') return { name };
+  return part === 'sheet' ? { name: undefined } : { refused: `a ${part}'s name is not blank` };
+}
+
+/** Whether a saved name holds by the rule: text, and for a page or a tile not blank. */
+const named = (part: NamedPart, value: unknown): value is string =>
+  typeof value === 'string' && !('refused' in givenName(part, value));
+
 export class PageDocumentError extends Error {
   constructor(detail: string) {
     super(`cannot read saved page: ${detail}`);
@@ -230,6 +250,7 @@ export function readPage(input: string | unknown): PageDocument {
     throw new PageDocumentError(`written by a newer version (${version} > ${PAGE_VERSION}); upgrade to open it`);
   }
   if (typeof raw['name'] !== 'string') throw new PageDocumentError("missing 'name'");
+  if (!named('page', raw['name'])) throw new PageDocumentError("the page's name is blank");
 
   const cubesRaw = raw['cubes'];
   if (!Array.isArray(cubesRaw) || cubesRaw.length === 0) throw new PageDocumentError('it has no cube');
@@ -333,6 +354,9 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     throw new PageDocumentError(`view ${id} shows no cube of this page`);
   }
   if (v['kind'] === 'grid') {
+    if (v['title'] !== undefined && !named('tile', v['title'])) {
+      throw new PageDocumentError(`grid ${id}'s title is blank`);
+    }
     return {
       id,
       kind: 'grid',
@@ -342,6 +366,7 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
   }
   if (v['kind'] !== 'chart') throw new PageDocumentError(`view ${id} is of an unknown kind ${JSON.stringify(v['kind'] ?? null)}`);
   if (typeof v['title'] !== 'string') throw new PageDocumentError(`chart ${id} has no title`);
+  if (!named('tile', v['title'])) throw new PageDocumentError(`chart ${id}'s title is blank`);
   // version 1 or 2 (chart-spec.ts CHART_VERSION): every word of the spec's slots one this DataCube knows
   const spec = readChart(v['spec']);
   if (typeof spec === 'string') throw new PageDocumentError(`chart ${id} has no chart it can draw: ${spec}`);

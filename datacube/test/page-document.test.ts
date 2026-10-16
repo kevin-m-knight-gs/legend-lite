@@ -12,6 +12,7 @@ import {
   FIRST_SHEET,
   PAGE_KIND,
   PageDocumentError,
+  givenName,
   oneSheet,
   pageDefinitionText,
   pageToJson,
@@ -232,6 +233,12 @@ describe('a saved page', () => {
       { node: { tile: 'chart-1' }, size: 0.5 }, { node: { tile: 'chart-2' }, size: 0.5 }] }, size: 0.5 }] };
     assert.throws(bad({ sheets: [{ id: 'a', layout: layout(all) }, { id: 'a', layout: layout({ tile: 'chart-2' }) }] }), /two sheets are a/);
     assert.throws(bad({ sheets: [{ id: 'a', name: ' ', layout: layout(all) }] }), /sheet a's name is not a name/);
+    // DataCube's one name rule (givenName): a page's name and a tile's title are not blank
+    assert.throws(bad({ name: '  ' }), /the page's name is blank/);
+    assert.throws(bad({ views: [{ id: 'c', kind: 'chart', cube: 'cube', title: ' ',
+      spec: { version: 2, mark: 'bar', x: 'region', y: [{ column: 'notional', fn: 'sum' }], options: {} } }] }),
+    /chart c's title is blank/);
+    assert.throws(bad({ views: [{ id: 'g', kind: 'grid', cube: 'cube', title: '' }] }), /grid g's title is blank/);
     assert.throws(bad({ sheets: [{ id: 'a', layout: layout(all) }, { id: 'b', layout: layout({ tile: 'chart-2' }) }] }),
       /chart-2 on two sheets/);
     assert.throws(() => readPage('{'), /not valid JSON/);
@@ -318,5 +325,19 @@ describe('a saved page', () => {
     // a version 1 page's grid that is wrong is still refused by name
     assert.throws(() => readPage(JSON.stringify({ ...v1, layout: { ...v1.layout, tiles: [{ id: 'grid', x: -1, y: 0, w: 1, h: 1 }] } })),
       /not an id and a place/);
+  });
+});
+
+describe("a name a person gives, by DataCube's one rule (givenName: the screen's renames and Python's ask it)", () => {
+  it('a page and a tile: trimmed, a blank refused', () => {
+    assert.deepEqual(givenName('page', '  Sales  '), { name: 'Sales' });
+    assert.deepEqual(givenName('tile', 'Totals'), { name: 'Totals' });
+    assert.deepEqual(givenName('page', '   '), { refused: "a page's name is not blank" });
+    assert.deepEqual(givenName('tile', ''), { refused: "a tile's name is not blank" });
+  });
+
+  it("a sheet: trimmed, a blank none of its own (it is named after its first grid)", () => {
+    assert.deepEqual(givenName('sheet', ' Summary '), { name: 'Summary' });
+    assert.deepEqual(givenName('sheet', '  '), { name: undefined });
   });
 });

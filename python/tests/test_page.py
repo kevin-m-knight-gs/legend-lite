@@ -562,11 +562,22 @@ class Document(Paged):
             grid.chart('violin', x='region')
         with self.assertRaisesRegex(ValueError, 'not a column'):
             grid.group('nope')
-        with self.assertRaisesRegex(ValueError, 'is a name'):
-            page.sheet('  ')
-        with self.assertRaisesRegex(ValueError, 'is a name'):
+        # DataCube's one name rule (page-document.ts givenName): a tile's or a page's blank is refused, in its words
+        with self.assertRaisesRegex(ValueError, "a tile's name is not blank"):
             grid.chart('bar', title='')
+        with self.assertRaisesRegex(ValueError, "a page's name is not blank"):
+            page.name = '  '
+        with self.assertRaisesRegex(ValueError, 'is a name, not 3'):
+            grid.title = 3
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
+        # ... a sheet's blank is none of its own (named after its first grid), as the screen's rename makes it; a name
+        # is kept trimmed, as the screen keeps one
+        blank = page.sheet('  ')
+        self.assertIsNone(blank.name)
+        blank.name = ' Summary '
+        self.assertEqual(blank.name, 'Summary')
+        blank.name = ''
+        self.assertIsNone(blank.name)
         # what it takes: nested groups and a negation, as the filter editor writes them; a date and a decimal as their
         # exact text, a relative date as DataCube keeps one
         grid.filter(('or', [('region', 'equal', 'EMEA'), ('not', ('desk', 'in', ['FX', 'Rates']))]))

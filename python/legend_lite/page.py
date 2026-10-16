@@ -72,11 +72,16 @@ PAGE_VERSION = 4
 _KEEP: Any = object()
 
 
-def _named(name: Any, what: str) -> Any:
-    """A name given (a title, a sheet's, a page's): text that is not blank, or None."""
-    if name is not None and (not isinstance(name, str) or not name.strip()):
+def _given_name(session: Any, part: str, name: Any, what: str) -> str | None:
+    """A name a page, a tile or a sheet is given, by DataCube's one rule (page-document.ts givenName, asked headless:
+    nameGiven, as the screen's renames ask it): its text trimmed, a page's or a tile's blank refused in DataCube's words,
+    a sheet's blank none of its own (None). Python only refuses what is not text."""
+    if not isinstance(name, str):
         raise ValueError(f'{what} is a name, not {name!r}')
-    return name
+    said = json.loads(session.headless().call('nameGiven', part, name))
+    if 'problems' in said:
+        raise ValueError(f'{what}: ' + '; '.join(said['problems']))
+    return said['name']
 
 
 def _plain(value: Any, exact: bool = False) -> Any:
@@ -223,12 +228,12 @@ class Tile:
     @title.setter
     def title(self, title: str | None) -> None:
         view = self._view
-        if _named(title, 'a title') is None:
+        if title is None:
             if self._kind == 'chart':
                 raise ValueError('a chart has a title')
             view.pop('title', None)
         else:
-            view['title'] = title
+            view['title'] = _given_name(self._page._session, 'tile', title, 'a title')
         self._page._changed()
 
     @property
@@ -400,7 +405,10 @@ class Grid(Tile):
             self._check([column], 'a measure')
         if (fn == 'wavg') != (weight is not None):
             raise ValueError('a weighted average (wavg) takes a weight column, and only it does')
-        named = _named(name, "a measure's name") or column
+        if name is not None and (not isinstance(name, str) or not name.strip()):
+            # DataCube offers no name entry for a measure (a person never types one): only the argument's own check
+            raise ValueError(f"a measure's name is a name, not {name!r}")
+        named = name or column
         measures = self._query.get('measures', [])
         if any(m['name'] == named for m in measures):
             raise ValueError(f'the grid has a measure named {named!r} already: give this one a name of its own (name=...)')
@@ -489,7 +497,7 @@ class Grid(Tile):
         # made as DataCube makes a new chart (what is not given is its own default), and judged as it will draw it: what
         # DataCube would refuse to draw is refused here, in its words, before the chart is kept
         spec = _made(self._page, self._view['cube'], given)
-        named = _named(title, 'a title')
+        named = None if title is None else _given_name(self._page._session, 'tile', title, 'a title')
         id = self._page._next('chart')
         self._page._doc['views'].append({'id': id, 'kind': 'chart', 'cube': self._view['cube'],
                                          'title': named or f'Chart {_number(id)}', 'spec': spec})
@@ -690,10 +698,11 @@ class Sheet:
     @name.setter
     def name(self, name: str | None) -> None:
         sheet = self._doc
-        if _named(name, "a sheet's name") is None:
+        own = None if name is None else _given_name(self._page._session, 'sheet', name, "a sheet's name")
+        if own is None:
             sheet.pop('name', None)
         else:
-            sheet['name'] = name
+            sheet['name'] = own
         self._page._changed()
 
     @property
@@ -791,9 +800,10 @@ class Page:
 
     def __init__(self, name: str = 'Untitled page') -> None:
         from .datacube import _current
-        if _named(name, "a page's name") is None:
+        if name is None:
             raise ValueError('a page has a name')
         self._session = _current()
+        name = _given_name(self._session, 'page', name, "a page's name")
         # the page: its one copy
         self._doc: dict[str, Any] = {'kind': PAGE_KIND, 'version': PAGE_VERSION, 'name': name, 'cubes': [], 'views': [],
                                      'sheets': [{'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}}]}
@@ -940,8 +950,9 @@ class Page:
 
     @name.setter
     def name(self, name: str) -> None:
-        if _named(name, "a page's name") is None:
+        if name is None:
             raise ValueError('a page has a name')
+        name = _given_name(self._session, 'page', name, "a page's name")
         self._doc['name'] = name
         for cube in self._doc['cubes']:
             cube['cube']['name'] = name
@@ -980,7 +991,8 @@ class Page:
             raise ValueError(f'{sheet!r} is another page\'s')
         target = self.sheets[0] if sheet is None else sheet
         _ = target._doc
-        _named(title, 'a title')
+        if title is not None:
+            title = _given_name(self._session, 'tile', title, 'a title')
         id = self._next('grid')
         session = self._session
         if name is not None and name in session.frames:
@@ -1021,7 +1033,8 @@ class Page:
 
     def sheet(self, name: str | None = None) -> Sheet:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
-        _named(name, "a sheet's name")
+        if name is not None:
+            name = _given_name(self._session, 'sheet', name, "a sheet's name")
         id = self._next('sheet')
         self._doc['sheets'].append({'id': id, **({'name': name} if name else {}),
                                     'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
@@ -1099,9 +1112,7 @@ class Page:
             Path(path).write_text(self.to_json() + '\n', 'utf-8', newline='')
             return None
         from ._home import THIS_USER, pages_folder, store_call
-        named = _named(name if name is not None else self.name, "a saved page's name")
-        if named is None:
-            raise ValueError('a saved page has a name')
+        named = _given_name(self._session, 'page', name if name is not None else self.name, "a saved page's name")
         id = self._saved if self._saved is not None else str(uuid.uuid4())
         record = _json.dumps({'id': id, 'name': named, 'content': _read_page(self._doc, self._session)}, indent=None)
         status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
