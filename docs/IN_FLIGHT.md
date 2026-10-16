@@ -864,6 +864,20 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `python/legend_lite/_planner.py` (a comment, item 10), and `_headless._query`'s Arrow writer, factored out unchanged
   as `arrow_text` so item 7 hands its rows to DataCube through it (this line's ask); `docs/PARKED_WORK_LEDGER.md`
   (PARK-30's row names items 5's and 6's checks, text only: the audit's review).
+  **Expanded, 2026-10-15 (the user: no remote planner on Python, and every weak row done properly, in this PR; the
+  design agreed with this line the same day).** Python plans in process only: `planner=`, `server=`, `ll.planner()` and
+  `upstream.py` removed, with the server paths of `engine.py`, `frames.py`, `page.py`, `datacube.py` and the Python
+  host's branch of `datacube/src/services/python-host.ts` (the browser app's own server planner stays); PARK-30 and
+  PARK-31 closed by removal; the program doc's §1.1, §1.4 and §7 reworded. Then: a class's sample planned by DataCube
+  again; the column editor's and the filter editor's cores shared with headless (`datacube/src/ui/column-editor.ts`,
+  `ui/filter-editor.ts`, `filter-operators.ts`, a new DOM-free module); one default aggregate for a measure
+  (`datacube/src/query.ts`, its three copies); the cap rule in DataCube (`datacube/src/app/datacube-app.ts`,
+  `page-document.ts`); Python's planner kinds and snap limit generated from DataCube's sources (a generator, its diff
+  test, `python/BUILD.bazel`); shared corpora for the protocol JSON writer and the name rule. More files: their tests,
+  `docs/PARKED_WORK_LEDGER.md`, `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`, `test_upstream.py` and its lane (the BUILD
+  edits to the Compiler Rewrite line). Still not touched: `engine.py`'s snap, frames and project-data paths,
+  `_headless._query` (but the `arrow_text` fold back), `warehouse.py`, the planner kinds that answer SQL -- the SQL
+  plan's ground.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
