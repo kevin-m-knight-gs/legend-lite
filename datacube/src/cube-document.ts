@@ -478,10 +478,19 @@ export function rawRows(query: ValueSpecification, columns: CubeSnapshot['column
 }
 
 /**
+ * WHETHER A NEW GRID'S ROWS ARE CAPPED at the row limit: when its page holds more than one grid, counting it
+ * (`gridsOnPage`) -- a page's only grid shows its rows, one beside others its first rows (the user, 2026-10-01: "showing
+ * the max rows configured (1000 default)"). The one rule: a source added from the picker, a saved page reopened, a
+ * host's grid made headless (headless/grid.ts gridCube) each ask it.
+ */
+export function gridCapped(gridsOnPage: number): boolean {
+  return gridsOnPage > 1;
+}
+
+/**
  * A saved cube rebuilt over a source (`relation`, its `columns` as the compiler types them now) -- its view, its
  * configuration, the groups it had open, what it had that the source no longer has -- or a fresh one: its rows as they
- * are, grouped by nothing; `capped` (a source added beside others), up to the row limit (the user, 2026-10-01: "showing
- * the max rows configured (1000 default)"). Moved here from app/sources.ts (2026-10-15) so a host's own pages make
+ * are, grouped by nothing; `capped` (gridCapped: a grid beside others), up to the row limit. Moved here from app/sources.ts (2026-10-15) so a host's own pages make
  * their grids by it too, headless (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 2).
  */
 export function rebuilt(saved: CubeDocument | undefined, relation: ValueSpecification, columns: CubeSnapshot['columns'],

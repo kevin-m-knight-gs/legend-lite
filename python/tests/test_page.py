@@ -262,7 +262,8 @@ class Document(Paged):
             empty.layout_from({'kind': 'bands', 'fit': True, 'bands': []})
 
     def test_a_grid_beside_others_is_capped_as_datacube_caps_a_source_added_beside_others(self):
-        # the one rule item 2 leaves Python: the page's first grid is not capped, one beside it is (gridCube's capped)
+        # DataCube's one rule (gridCapped), of the page's grids counting the new one: the page's first grid is not capped,
+        # one beside it is
         page, grid, chart = self.built()
         other = page.grid(desks(), name='desks')
         cubes = {c['id']: c['cube'] for c in page.to_dict()['cubes']}

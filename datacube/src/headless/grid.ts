@@ -19,7 +19,7 @@ import { draftCandidate, draftColumn, draftStage, newDraft } from '../column-dra
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, type CubeState } from '../cube-state.ts';
 import {
-  cubeToJson, frameSource, openCube, readCube, rebuilt, writeCube, type OpenedCube,
+  cubeToJson, frameSource, gridCapped, openCube, readCube, rebuilt, writeCube, type OpenedCube,
 } from '../cube-document.ts';
 import {
   OPERATORS, isCompatible, newCondition, newGroup, toFilterNode, type DraftCondition, type DraftNode,
@@ -100,19 +100,19 @@ export interface FrameSpec extends Omit<GridSpec, 'cube'> {
  * A GRID'S CUBE OVER A FRAME, as DataCube makes one (cube-document.ts rebuilt and writeCube, the frame's source as
  * frameSource records it) -- so Python's pages make no cube document of their own
  * (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 2 and 1). With no `saved` cube: a new grid's, its rows as they are,
- * titled `label`, capped at the row limit when it joins others on its page (`capped`: the app's own rule -- the source
- * picker's "add" opens a source capped, openInPlace not, and a saved page reopening caps its cubes when it holds more
- * than one, app/datacube-app.ts; rebuilt reads it only for a new cube). With one (a cube document,
+ * titled `label`, capped at the row limit when it is not its page's only grid (cube-document.ts gridCapped, the app's
+ * own rule, of `gridsOnPage`: the page's grids counting this one; rebuilt reads it only for a new cube). With one (a
+ * cube document,
  * JSON): that cube rebuilt over the frame as it is now -- a new column hidden, a gone one left out of everything that
  * read it, the open groups dropped when the grouping changed -- said in `notes`. `name` is its page's (a page's cubes
  * carry the page's name). JSON: `{cube, notes}`, the cube document as its text (its numbers exact).
  */
 export async function gridCube(spec: FrameSpec, saved: string | null, name: string, label: string,
-  capped: boolean): Promise<string> {
+  gridsOnPage: number): Promise<string> {
   const { planner, relation, columns } = await typed(spec);
   try {
     const was = saved === null ? undefined : readCube(fromJson(saved));
-    const made = rebuilt(was, relation, columns, label, capped);
+    const made = rebuilt(was, relation, columns, label, gridCapped(gridsOnPage));
     const cube = writeCube({
       name, source: frameSource(spec.frame, columns), snapshot: made.snapshot, configuration: made.configuration,
       tree: made.tree ?? TreeState.empty(), ...(was?.unknown ? { unknown: was.unknown } : {}),

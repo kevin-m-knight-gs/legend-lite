@@ -993,8 +993,8 @@ class Page:
         else:
             served, new = session.register(frame, name, mode), True
         try:
-            # its cube as DataCube makes a grid's over a frame: capped at the row limit when it joins others
-            cube, _ = self._frame_cube(served, capped=bool(self._doc['cubes']))
+            # its cube as DataCube makes a grid's over a frame: capped at the row limit when it is not the page's only grid
+            cube, _ = self._frame_cube(served, len(self._doc['cubes']) + 1)
             self._doc['cubes'].append({'id': id, 'cube': cube})
             self._doc['views'].append({'id': id, 'kind': 'grid', 'cube': id, **({'title': title} if title else {})})
             grid = self._tile(id, Grid)
@@ -1255,7 +1255,7 @@ class Page:
         session.register(frame, name, session.frames[name].mode if mode is None else mode)
         moved = False
         for c in (c for c in self._doc['cubes'] if c['cube']['source']['name'] == name):
-            cube, notes = self._frame_cube(name, c['cube'])
+            cube, notes = self._frame_cube(name, len(self._doc['cubes']), c['cube'])
             # the frame's columns as they were: its cube stands as it is (a page opened over them rebuilds the same)
             if cube['source'] == c['cube']['source']:
                 continue
@@ -1266,17 +1266,18 @@ class Page:
         if moved:
             self._changed()
 
-    def _frame_cube(self, frame: str, saved: dict[str, Any] | None = None,
-                    capped: bool = False) -> tuple[dict[str, Any], list[str]]:
+    def _frame_cube(self, frame: str, grids_on_page: int,
+                    saved: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str]]:
         """A grid's cube over ``frame`` as DataCube makes one (cube-document.ts rebuilt, asked headless: gridCube): a
-        new grid's (its rows as they are; ``capped`` at the row limit when it joins others), or ``saved`` rebuilt over
-        the frame as it is now; and what DataCube says of what changed."""
+        new grid's (its rows as they are; capped at the row limit when ``grids_on_page``, the page's grids counting
+        it, are more than one: DataCube's gridCapped), or ``saved`` rebuilt over the frame as it is now; and what
+        DataCube says of what changed."""
         engine, frames = self._session.headless(), self._session.frames
         with frames.serving():
             table = frames[frame]
             spec = {'model': table.model, 'runtime': table.runtime, 'source': table.accessor, 'frame': frame}
             made = json.loads(engine.call(
-                'gridCube', spec, None if saved is None else _json.dumps(saved), self.name, frame, capped))
+                'gridCube', spec, None if saved is None else _json.dumps(saved), self.name, frame, grids_on_page))
         return _plain(_json.loads(made['cube'])), list(made['notes'])
 
     def __repr__(self) -> str:
