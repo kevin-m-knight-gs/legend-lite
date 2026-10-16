@@ -2727,8 +2727,8 @@ from an optional node) pass; [4] (untyped, label-less) and [5] (a relationship b
 
 | lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
 |---|---|---|---|---|---|---|---|---|
-| DuckDB | 4252 | 2530 (from 2,518) | 0 | 0 | 0 | 646 | 708 | 368 |
-| Postgres | 4252 | 2180 (from 2,168) | 0 | 0 | 0 | 996 | 708 | 368 |
+| DuckDB | 4253 | 2532 (from 2,518) | 0 | 0 | 0 | 645 | 708 | 368 |
+| Postgres | 4253 | 2182 (from 2,168) | 0 | 0 | 0 | 995 | 708 | 368 |
 
 7 lite cases in `lite/small.yaml`, each judged by Neo4j (one a refusal by name).
 

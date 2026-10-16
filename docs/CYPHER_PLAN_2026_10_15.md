@@ -112,7 +112,7 @@ on both. Then lists and maps of values of the row as JSON text (§12.25); DuckDB
 Postgres PASS 2149, 0 FAIL, 0 BUG, 0 ERROR on both. Then the cartesian product (§12.28); DuckDB PASS 2509,
 Postgres PASS 2159, 0 FAIL, 0 BUG, 0 ERROR on both. Then an OPTIONAL MATCH's WHERE as the pattern's guard (§12.29);
 DuckDB PASS 2518, Postgres PASS 2168, 0 FAIL, 0 BUG, 0 ERROR on both. Then the percentile aggregates and a map
-indexed by a value of the row (§12.30); DuckDB PASS 2530, Postgres PASS 2180, 0 FAIL, 0 BUG, 0 ERROR on both.
+indexed by a value of the row (§12.30); DuckDB PASS 2532, Postgres PASS 2182, 0 FAIL, 0 BUG, 0 ERROR on both.
 Then the full CI run on the branch, the merge; an edge class, named zones, and `collect` (the database owner's
 aggregate) wait.
 

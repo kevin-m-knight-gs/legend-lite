@@ -21,7 +21,7 @@ tests:
     cypher: "MATCH (n:P) RETURN n.g AS g, percentileCont(n.v, 0.5) AS c, percentileDisc(n.v, 0.5) AS d ORDER BY g"
   - id: percentile_of_nothing
     graph: |
-      CREATE (:P {v: 1})
+      CREATE (:P {v: 1.0})
     cypher: "MATCH (n:P) WHERE n.v > 100 RETURN percentileDisc(n.v, 0.5) AS d, percentileCont(n.v, 0.5) AS c"
   - id: map_indexed_by_a_row_value
     cypher: "UNWIND ['a', 'b', 'z'] AS k RETURN k, {a: 1, b: 2}[k] AS v"

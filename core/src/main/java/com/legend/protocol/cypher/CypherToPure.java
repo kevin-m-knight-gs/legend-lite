@@ -2476,6 +2476,11 @@ public final class CypherToPure {
             throw CypherErrors.unsupported(c.name() + " of a percentile that is not a spelled number is not supported"
                     + " yet", c.args().get(1).pos());
         }
+        if (n.doubleValue() < 0.0 || n.doubleValue() > 1.0) {
+            // Neo4j's static check of the spelled percentile (the TCK's Aggregation6 [3], [4])
+            throw CypherErrors.invalid("Invalid input '" + text(c.args().get(1)) + "' is not a valid argument, must"
+                    + " be a number in the range 0.0 to 1.0", c.args().get(1).pos());
+        }
         Tx arg = tx(c.args().get(0), scope);
         requireNumeric(arg, c);
         if (continuous && arg.kind() != Kind.FLOAT && arg.kind() != Kind.INEXACT) {
@@ -2486,8 +2491,12 @@ public final class CypherToPure {
         }
         ValueSpecification reduce = call("percentile", new Variable("y"), new CFloat(n.doubleValue()),
                 new CBoolean(true), new CBoolean(continuous));
+        boolean whole = arg.kind() == Kind.INTEGER || arg.kind() == Kind.WHOLE;
+        // (the discrete percentile of integers is one of them: the database delivers the aggregate as a double,
+        // read back as the integer it is)
         return new Aggregate(freshName(names), arg, lambda("y", reduce), continuous ? Kind.FLOAT : arg.kind(), true,
-                null);
+                !continuous && whole ? raw -> call("if", call("isEmpty", raw),
+                        thunk(SqlToPure.nullOf(Kind.INTEGER).vs()), thunk(integer(call("toOne", raw)))) : null);
     }
 
     private static void requireNumeric(Tx arg, CypherAst.Call c) {

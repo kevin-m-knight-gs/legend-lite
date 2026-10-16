@@ -9858,8 +9858,8 @@ Branch `claude/keen-noether-v5mis0`, after the OPTIONAL MATCH WHERE leg; the rec
 1. **What lands.** `percentileDisc` and `percentileCont` as Pure's percentile aggregate (`percentileCont` over
    values that are not floats refused by name: Neo4j's result type is the data's); a known map indexed by a text
    of the row.
-2. **The ledger.** DuckDB: 4252 cases; PASS 2530 (from 2,518); FAIL 0; BUG 0; ERROR 0; REFUSED 646;
-   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2180 (from 2,168); FAIL 0; BUG 0; ERROR 0; REFUSED 996;
+2. **The ledger.** DuckDB: 4253 cases; PASS 2532 (from 2,518); FAIL 0; BUG 0; ERROR 0; REFUSED 645;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2182 (from 2,168); FAIL 0; BUG 0; ERROR 0; REFUSED 995;
    BOTH_ERROR 708; SKIP 368. 7 lite cases in `lite/small.yaml`, each judged by Neo4j
    (`tools/neo4j-oracle/snap.sh --check` clean).
 3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,

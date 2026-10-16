@@ -397,14 +397,17 @@ class CypherToPureTest {
     @Test
     void percentilesArePuresPercentileAggregateAndAMapIsIndexedByARowValue() {
         // the study's §12.30
-        assertEquals("demo::Person.all()->project(~[_cypher_1:p|$p.age])->aggregate(~[d:x|$x._cypher_1:y|$y->percentile(0.5,"
-                + " true, false)])->select(~[d])", pure("MATCH (p:Person) RETURN percentileDisc(p.age, 0.5) AS d"));
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|$p.age])->aggregate(~[_cypher_2:x|$x._cypher_1:y|$y"
+                + "->percentile(0.5, true, false)])->extend(~[d:r|if($r._cypher_2->isEmpty(), |[]->cast(@Integer),"
+                + " |$r._cypher_2->toOne()->cast(@Integer))])->select(~[d])",
+                pure("MATCH (p:Person) RETURN percentileDisc(p.age, 0.5) AS d"));
         // a map indexed by a value of the row: the database's choice among its entries, strict over the key
         assertEquals("['a', 'b']->flatten(~k)->extend(~[v:r|if($r.k->isEmpty(), |[], |if($r.k->toOne() == 'a', |1,"
                 + " |if($r.k->toOne() == 'b', |2, |[]->cast(@Integer))))])->select(~[v])",
                 pure("UNWIND ['a', 'b'] AS k RETURN {a: 1, b: 2}[k] AS v"));
         unsupported("MATCH (p:Person) RETURN percentileCont(p.age, 0.5) AS c", "percentileCont over values that are not"
                 + " floats");
+        invalid("MATCH (p:Person) RETURN percentileDisc(p.age, 1.5) AS d", "must be a number in the range 0.0 to 1.0");
     }
 
     @Test

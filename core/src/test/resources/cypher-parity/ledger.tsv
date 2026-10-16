@@ -1276,12 +1276,12 @@ tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #3	PASS	PASS
 tck/expressions/aggregation/Aggregation6/[2] `percentileCont()` #1	PASS	PASS
 tck/expressions/aggregation/Aggregation6/[2] `percentileCont()` #2	PASS	PASS
 tck/expressions/aggregation/Aggregation6/[2] `percentileCont()` #3	PASS	PASS
-tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #1	BUG	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #2	BUG	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #3	BUG	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #1	BUG	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #2	BUG	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #3	BUG	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #1	BOTH_ERROR	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #2	BOTH_ERROR	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad arguments #3	BOTH_ERROR	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #1	BOTH_ERROR	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #2	BOTH_ERROR	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #3	BOTH_ERROR	BOTH_ERROR
 tck/expressions/aggregation/Aggregation6/[5] `percentileDisc()` failing in more involved query	BOTH_ERROR	BOTH_ERROR
 tck/expressions/aggregation/Aggregation8/[1] Distinct on unbound node	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation8/[2] Distinct on null	REFUSED	REFUSED
@@ -4070,10 +4070,10 @@ lite/shapes/list_appending_a_boolean	PASS	PASS
 lite/shapes/list_with_a_date	PASS	PASS
 lite/shapes/map_through_with_then_returned	PASS	PASS
 lite/small/percentiles_over_floats	PASS	PASS
-lite/small/percentiles_over_integers	FAIL	FAIL
+lite/small/percentiles_over_integers	PASS	PASS
 lite/small/percentile_cont_over_integers_refused	REFUSED	REFUSED
 lite/small/percentiles_grouped	PASS	PASS
-lite/small/percentile_of_nothing	REFUSED	REFUSED
+lite/small/percentile_of_nothing	PASS	PASS
 lite/small/map_indexed_by_a_row_value	PASS	PASS
 lite/small/map_indexed_by_a_parameter_text	PASS	PASS
 lite/temporal/date_from_components	PASS	PASS
