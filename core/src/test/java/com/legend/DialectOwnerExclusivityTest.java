@@ -243,6 +243,16 @@ class DialectOwnerExclusivityTest {
                 DatabaseOwners.of("core/src/main/java/com/legend/protocol/sql/PostgresDialect.java", "").databases());
         assertEquals(null, DatabaseOwners.of("core/src/main/java/com/legend/protocol/sql/SqlToPure.java", ""));
         assertEquals(null, DatabaseOwners.of("core/src/main/java/com/legend/exec/Sessions.java", ""));
+        // a connector (2026-10-16, the dialect program's Phase 5): its own database and its parent's; the interface
+        // none; the registry every one
+        String exec = "core/src/main/java/com/legend/exec/";
+        assertEquals(Set.of("H2"), DatabaseOwners.of(exec + "H2Connector.java",
+                "final class H2Connector implements DatabaseConnector").databases());
+        assertEquals(Set.of("MySQL", "MariaDB"), DatabaseOwners.of(exec + "MySqlConnector.java",
+                "final class MySqlConnector extends MariaDbConnector").databases());
+        assertEquals(Set.of(), DatabaseOwners.of(exec + "DatabaseConnector.java", "interface DatabaseConnector")
+                .databases());
+        assertEquals(DatabaseOwners.Kind.EVERY, DatabaseOwners.of(exec + "Connectors.java", "").kind());
     }
 
     /** Every name the ratchet counts as a database is one the register knows: the two read the same names. */

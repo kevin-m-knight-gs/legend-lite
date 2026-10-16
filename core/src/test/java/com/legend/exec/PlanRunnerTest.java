@@ -231,7 +231,7 @@ class PlanRunnerTest {
         literals.put(1.5e15d, "1.5E15");
         literals.put(2.5e-7d, "2.5E-7");
         literals.put(7L, "CAST(7 AS BIGINT)");
-        try (Connection h2 = DriverManager.getConnection("jdbc:h2:mem:holes" + H2Settings.SETTINGS)) {
+        try (Connection h2 = DriverManager.getConnection("jdbc:h2:mem:holes" + H2Connector.SETTINGS)) {
             for (var e : literals.entrySet()) {
                 StringWriter out = new StringWriter();
                 PlanRunner.run(holed("Number"), Map.of("v", e.getKey()), PlanSessions.given(h2), out);
@@ -308,7 +308,7 @@ class PlanRunnerTest {
                 "T", new ExecutionPlan.Servers.Every());
         ExecutionPlan h2ForNine = counting(inMemory("s::H2", DatabaseType.H2, new ConnectionSpecification.LocalH2(null)),
                 "T", new ExecutionPlan.Servers.Versions(List.of("9.")));
-        try (Connection h2 = DriverManager.getConnection("jdbc:h2:mem:planrunner" + H2Settings.SETTINGS)) {
+        try (Connection h2 = DriverManager.getConnection("jdbc:h2:mem:planrunner" + H2Connector.SETTINGS)) {
             var otherDatabase = assertThrows(RuntimeException.class, () -> run(duck, PlanSessions.given(h2)));
             assertTrue(otherDatabase.getMessage().contains("dialect/connection mismatch"), otherDatabase.getMessage());
             var otherVersion = assertThrows(com.legend.error.NotImplementedException.class,

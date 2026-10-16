@@ -8,12 +8,14 @@ import com.legend.sql.dialect.SqlDialect;
 
 /**
  * THE plan-side owner of every per-database decision (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md
- * C3): given a DECLARED {@link DatabaseType}, the SQL this platform writes for it — the execution dialect and its
- * plan-protocol facts. legend-engine's golden TEXT for a type is not here: its renderers are quarantined to the root
- * layer (AGENTS invariant 4d), so their one owner is {@code com.legend.EngineText}. Upstream's own split: SQL generation per database type
- * ({@code dbExtension.pure}, {@code loadDbExtension}) apart from connection management (the execution side,
- * {@code com.legend.exec.Sessions}). Every type is listed in every switch, none has a {@code default} arm, and a
- * capability a database lacks is refused by name. Nothing here touches JDBC: the browser planner uses it.
+ * C3): given a DECLARED {@link DatabaseType}, the dialect this platform writes its SQL in, which answers every plan
+ * fact of its database itself (its server versions, how its rows load: the dialect program's Phase 5, 2026-10-16,
+ * when this class shrank to type to dialect). legend-engine's golden TEXT for a type is not here: its renderers are
+ * quarantined to the root layer (AGENTS invariant 4d), so their one owner is {@code com.legend.EngineText}.
+ * Upstream's own split: SQL generation per database type ({@code dbExtension.pure}, {@code loadDbExtension}) apart
+ * from connection management (the execution side, {@code com.legend.exec.Connectors}). Every type is listed in the
+ * switch, none has a {@code default} arm, and a database with no dialect is refused by name. Nothing here touches
+ * JDBC: the browser planner uses it.
  */
 public final class Databases {
 
@@ -63,49 +65,6 @@ public final class Databases {
                  Redshift, Spanner, Athena, Oracle, Aurora ->
                     throw new com.legend.error.NotImplementedException(
                             "SQL dialect for database type '" + type + "' is not implemented yet");
-        };
-    }
-
-    /** The server versions a statement planned for {@code type} is written for ({@link #dialect}'s spelling): H2's
-     *  depends on the server's version ({@code H2.forServer}), so a plan names the versions its text is for and its
-     *  runner refuses another; the other databases' spelling depends on none. */
-    public static com.legend.executionplan.ExecutionPlan.Servers servers(DatabaseType type) {
-        return switch (type) {
-            case H2 -> new com.legend.executionplan.ExecutionPlan.Servers.Versions(com.legend.sql.dialect.H2.SERVERS);
-            case DuckDB, Postgres, SQLite, Databricks, Snowflake, BigQuery, MariaDB, MySQL, Trino, ClickHouse ->
-                    new com.legend.executionplan.ExecutionPlan.Servers.Every();
-            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto,
-                 Redshift, Spanner, Athena, Oracle, Aurora ->
-                    throw new com.legend.error.NotImplementedException(
-                            "SQL dialect for database type '" + type + "' is not implemented yet");
-        };
-    }
-
-    /** Whether a target on {@code type} loads its declared rows through the database's own bulk loader (a plan's
-     *  {@code SetupStep.Rows}) rather than one INSERT: DuckDB, where one giant INSERT cost most of a 61 s first query
-     *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, "setup at plan time, one form per database"). */
-    public static boolean loadsRowsInBulk(DatabaseType type) {
-        return switch (type) {
-            case DuckDB -> true;
-            case H2, Postgres, SQLite, Databricks, Snowflake, BigQuery, MariaDB, MySQL, Trino, ClickHouse -> false;
-            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto,
-                 Redshift, Spanner, Athena, Oracle, Aurora ->
-                    throw new com.legend.error.NotImplementedException(
-                            "loading rows into database type '" + type + "' is not implemented yet");
-        };
-    }
-
-    /** legend-engine's IN-list-to-temp-table facts for {@code type}: the temp table's name prefix and the list size past
-     *  which the engine uses one (null: never, for this database). */
-    public record InListTempTables(String tablePrefix, @com.legend.base.Nullable Integer threshold) {
-    }
-
-    public static InListTempTables inListTempTables(DatabaseType type) {
-        return switch (type) {
-            case DB2 -> new InListTempTables("SESSION.tempTableForIn_", 32767);
-            case H2, DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto,
-                 Trino, BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL ->
-                    new InListTempTables("tempTableForIn_", null);
         };
     }
 }

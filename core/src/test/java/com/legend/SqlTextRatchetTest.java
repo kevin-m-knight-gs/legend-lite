@@ -128,8 +128,12 @@ class SqlTextRatchetTest {
         // 0 -> 1 (2026-10-11, the MariaDB dialect, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): after a
         // MariaDB statement fails, Sessions.raisedMessage reads the session variable its raise left
         // (SELECT @legend_raise) -- no query of the user's, one fixed read of a session's state: a
-        // MariaDB SELECT can raise no error of its own text, so its dialect keeps the text there
-        REGISTER.put("exec/Sessions.java", 1);
+        // MariaDB SELECT can raise no error of its own text, so its dialect keeps the text there.
+        // exec/Sessions.java -> exec/MariaDbConnector.java (2026-10-16, the dialect program's Phase 5): the
+        // read is MariaDB's connector's (DatabaseConnector.raisedMessage), the owner of its sessions' state
+        // (the plan's §4: the connector owns the held raise). exec may not reach the dialect for it
+        // (ArchitectureTest.execsReachIntoPlanningOnlyShrinks), so the statement stays on the execution side
+        REGISTER.put("exec/MariaDbConnector.java", 1);
         // 0 -> 1 (2026-10-16, the Cypher island's zoned date-time leg, docs/CYPHER_STUDY_2026_10_15.md §12.8): no
         // SQL -- Neo4j's own error text "Cannot select datetime from: <value>", which the translator raises as
         // Neo4j does when a datetime is asked of a date or a time; the rule reads its "select ... from"
@@ -149,9 +153,7 @@ class SqlTextRatchetTest {
                     continue;
                 }
                 scanned++;
-                String src = Files.readString(p)
-                        .replaceAll("//.*", "")
-                        .replaceAll("(?s)/\\*.*?\\*/", "");
+                String src = stripComments(Files.readString(p));
                 int n = 0;
                 Matcher m = LITERAL.matcher(src);
                 while (m.find()) {
@@ -203,5 +205,45 @@ class SqlTextRatchetTest {
         assertTrue(drift.length() == 0,
                 "shadow-SQL-producer drift (AGENTS.md invariants 2/3/3a;"
                 + " audit 2026-08-18 §8):" + drift);
+    }
+
+    /** {@code src} with its comments removed and its literals kept as written: a {@code //} or a {@code /*} inside a
+     *  literal (a JDBC URL's {@code jdbc:mariadb://}) is no comment (2026-10-16, the dialect program's Phase 5: the
+     *  regex stripping before cut such a line at its {@code //}, and the literal scan, out of step with the quotes,
+     *  read the code up to the next literal as one and that literal's SQL as none). */
+    static String stripComments(String src) {
+        StringBuilder out = new StringBuilder(src.length());
+        int n = src.length();
+        int i = 0;
+        while (i < n) {
+            char c = src.charAt(i);
+            int end;
+            if (src.startsWith("\"\"\"", i)) {
+                end = src.indexOf("\"\"\"", i + 3);
+                while (end > 0 && src.charAt(end - 1) == '\\') {
+                    end = src.indexOf("\"\"\"", end + 1);
+                }
+                end = end < 0 ? n : end + 3;
+                out.append(src, i, end);
+            } else if (c == '"' || c == '\'') {
+                end = i + 1;
+                while (end < n && src.charAt(end) != c && src.charAt(end) != '\n') {
+                    end += src.charAt(end) == '\\' ? 2 : 1;
+                }
+                end = Math.min(end + 1, n);
+                out.append(src, i, end);
+            } else if (src.startsWith("//", i)) {
+                end = src.indexOf('\n', i);
+                end = end < 0 ? n : end;
+            } else if (src.startsWith("/*", i)) {
+                end = src.indexOf("*/", i + 2);
+                end = end < 0 ? n : end + 2;
+            } else {
+                end = i + 1;
+                out.append(c);
+            }
+            i = end;
+        }
+        return out.toString();
     }
 }

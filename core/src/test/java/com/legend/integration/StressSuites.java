@@ -84,9 +84,9 @@ final class StressSuites {
         ServiceTestRunner.Sessions policy = c.sessions() != null ? c.sessions()
                 : h2 ? ServiceTestRunner.Sessions.FRESH_PER_TEST : ServiceTestRunner.Sessions.SHARED;
         // both: a private in-memory database per session; H2 carries the engine's own
-        // session settings (H2Settings: NON_KEYWORDS incl VALUE/YEAR, MODE=LEGACY), as the
+        // session settings (H2Connector.SETTINGS: NON_KEYWORDS incl VALUE/YEAR, MODE=LEGACY), as the
         // engine's test connection does — a bare jdbc:h2:mem: refused ESG_METRIC.VALUE
-        String jdbcUrl = h2 ? "jdbc:h2:mem:" + com.legend.exec.H2Settings.SETTINGS : "jdbc:duckdb:";
+        String jdbcUrl = h2 ? "jdbc:h2:mem:" + com.legend.exec.H2Connector.SETTINGS : "jdbc:duckdb:";
         var sessionType = h2 ? com.legend.model.ConnectionDefinition.DatabaseType.H2
                 : com.legend.model.ConnectionDefinition.DatabaseType.DuckDB;
         System.out.println("[suites] sessions: " + policy + " on " + sessionType);

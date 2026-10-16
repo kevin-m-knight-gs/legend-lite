@@ -1,9 +1,15 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
-**Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
-steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and so are P1a (e64e7e8), P1c (9e6363e to
-074bd95), P1d with D8 (0470214 to 1447d42) and the capability matrix (b563e84, 6ff3815). Main is merged in (beebe47)
-and every lane re-measured on it: **Phase 1 is complete and waits for the user's review (D7).**
+**Status: IN PROGRESS (2026-10-16).**
+- Phases 0 and 1 landed as neema2/legend-lite#39 (8501ccb).
+- The owner guard and Phases 2 and 4 landed as neema2/legend-lite#45 (4fb892f).
+- Phase 3 landed as neema2/legend-lite#49 (59b547a).
+- Phase 5 is done on branch `claude/gracious-edison-jcsvzm` (its record is under Phase 5).
+- Left: Phase 6, Phase 7, and the SQL translator's Postgres rules, which wait for neema2/legend-lite#43.
+
+(The status of 2026-10-13, on `claude/great-wright-p6t5s1`: Phase 0 done (55569df); Phase 1's 1b steps 1 to 3
+(2a4a5c8, 9373aec, 4a9f1bc, 43ad660), P1a (e64e7e8), P1c (9e6363e to 074bd95), P1d with D8 (0470214 to 1447d42) and
+the capability matrix (b563e84, 6ff3815).)
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -278,7 +284,7 @@ registries.** Nothing else in the codebase may need an edit.
 | layer | the one class per database | what it owns | registry (one exhaustive switch) |
 |---|---|---|---|
 | **SQL** (plan side, no JDBC) | `sql/dialect/<Db>.java` | All SQL text (queries, DDL, DML, session setup); its function names, type names, keywords and carrier capabilities, as constants in the class; reading raw engine-H2 text (`fromEngineH2`); catalog queries; identifier folding; reading the driver's type names back (`wireTypeName`) and its values (`normalize`, which exists) | `Databases.dialect(type)` |
-| **Connection** (execution side) | `exec/connect/<Db>Connector.java` *(new)* | JDBC product name, URL from a connection spec, driver, in-process private instance, bulk loader, driver cells, held raise (MariaDB/MySQL), in-memory connection declaration | `Connectors.of(type)` *(new; replaces `Sessions`' five switches)* |
+| **Connection** (execution side) | `exec/<Db>Connector.java` *(built in Phase 5)* | JDBC product name, URL from a connection spec, driver, in-process private instance, bulk loader, driver cells, held raise (MariaDB/MySQL), in-memory connection declaration | `Connectors.of(type)` *(new; replaces `Sessions`' five switches)* |
 | **Test backend** (harness) | `testing/.../<Db>Backend.java` *(new; absorbs `PctBackend.Lane`'s arms)* | Starting the server (embedded or cloud), a fresh **workspace** (DuckDB `ATTACH`, Postgres `CREATE DATABASE`, H2 a fresh in-memory database, clouds a schema per package), fixture isolation, the referee's reader, the Pure connection block, seeding via the dialect, roster and pin names, census ceilings | `TestBackends.of(type)` |
 
 The `DatabaseType` enum and the connection grammar are the Legend language (LANG). They stay where they are.
@@ -879,6 +885,51 @@ Size: about 400 lines.
 
 Size: about 600 lines. No behaviour change.
 
+**Done, 2026-10-16** (branch `claude/gracious-edison-jcsvzm`, after Phase 3 landed as neema2/legend-lite#49). What it
+did, and where it departs from the list above:
+
+- **`exec/DatabaseConnector` and one connector per database** (`DuckDbConnector`, `H2Connector`, `SqliteConnector`,
+  `PostgresConnector`, `MariaDbConnector`, `MySqlConnector` extending it, and the product-name-only `Snowflake`,
+  `Databricks`, `BigQuery`, `Trino` and `ClickHouse` connectors). **`exec/Connectors`** is the registry: one exhaustive
+  switch, a type with no connector refused by name, and the one read of which database a session is on
+  (`Connectors.product`, `Connectors.of(Connection)`). `Sessions` keeps its API and decides nothing by a database.
+  - In `exec/`, not `exec/connect/`: the JDBC funnel admits `com.legend.exec` exactly
+    (`ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`), so a subpackage would need a new chartered seam for no
+    gain. The owner guard's new CONNECTOR kind holds each `exec/<Db>Connector.java` to its own database and its
+    parent's (`DatabaseOwners`); `Connectors` names every one, as `Databases` does.
+  - `Opening.Named` and `Opening.Held` carry the connector that opens them, so `ConnectionResolver` and
+    `PlanSessions` switch on a lifetime, never on a database.
+  - H2's URL settings are `H2Connector.SETTINGS` (`H2Settings` is deleted; still a `String.join`, never a literal a
+    reader would inline).
+  - Authentication: each flavour answers `AuthenticationSpec.credentialFree()` (an exhaustive switch in the model);
+    `Sessions.openingFor` refuses a credential by name, as before.
+- **The held raise is the connector's, statements included** (`MariaDbConnector.raisedMessage`). The list above said
+  its SQL text comes from the dialect, but exec may not reach the dialect
+  (`ArchitectureTest.execsReachIntoPlanningOnlyShrinks`, the plan/execution boundary). The dialect writes the session
+  variable and the connector reads it back, as the raise envelope's sentinel is shared between the dialects and
+  `RaisedErrors`. The SQL-text register's row moved from `Sessions` to `MariaDbConnector`.
+- **`storelessDeclaration()`** (the list's `inMemoryDeclaration`) is `StorelessRuntime`'s specification text.
+  `server/CreateClass`'s DuckDB path fill is the protocol's tag, a string no ledger counts: it is on Phase 7's list.
+- **`bulkLoad()` and `cells()` stay beside the DuckDB driver** (`core/src/main/duckdb`, `:duckdb_load`): core compiles
+  against no driver, and those sources are already DuckDB's owner. ClickHouse's URL settings and session are the test
+  harness's: Phase 6.
+- **`Databases` is type to dialect.** A dialect answers its server versions (`SqlDialect.serverVersions`, H2's
+  `SERVERS`) and whether its rows load in bulk (`loadsRowsInBulk`, DuckDB). The IN-list temp-table facts are
+  legend-engine's, so they moved to `EngineText.inListTempTables`. They are per declared type, not per engine-text
+  dialect, because Composite's plan text is DB2's and its IN lists are not. Two layer edges died: `database` no
+  longer reaches `execution_plan`, and `plan` no longer reaches `database`.
+- **The lite plan format's connection codec is the model's** (`model/ConnectionWire`, the vocabulary, D9). It reads
+  through a `Fields` interface because the model depends on no JSON. `PlanJson` names no database.
+- **The guards:**
+  - `SqlTextRatchetTest` strips comments outside literals: a `//` in `jdbc:mariadb://` had cut its line and hidden
+    the next literal;
+  - `DialectBoundaryTest` walks no connector, as it walks no dialect;
+  - the JDBC surface, JavaEval and boundary registers name the new files, each with its reason.
+
+The ledger: the main code's `Sessions`, `PlanSessions`, `H2Settings`, `PlanJson` and `StorelessRuntime` rows are
+gone (9 rows, 118 lines). What remains in main code is `DynaFn` (D10) and the SQL translator's three files, which
+wait for neema2/legend-lite#43.
+
 ### Phase 6: test backends (the harnesses)
 
 - **`TestBackend` per database**, built on its connector, with these methods:
@@ -944,6 +995,9 @@ work (tasks #29 and #30), rather than only delaying it.
   `model-data.ts`'s file reads, `duckdb.ts`'s and `snap.ts`'s local DDL) become named operations of the DuckDB dialect
   (`readFile`, `installExtension`, `createSecret`), which every other dialect refuses by name. The five TypeScript
   copies of identifier quoting go with them.
+- **`server/CreateClass`** (found by Phase 5, 2026-10-16): a host's DuckDB specification with no path gets
+  `:memory:`, decided by the protocol's `duckDB` tag in server code. The ledger does not count it (a string), so it is
+  listed here.
 - **Dead code** (decision D6, measured 2026-10-13): they hold 255 of the 1,002 TEST-LEAK sites, and no target builds
   them.
   - **Deleted:** the orphan tools (`tools/{spikes,wrongrows,untangle,metamodel-census}`, `tools/reference/join.py`,

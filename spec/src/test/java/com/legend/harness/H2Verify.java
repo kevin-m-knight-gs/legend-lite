@@ -28,7 +28,7 @@ import java.util.List;
  * leaving golden-SQL asserts advisory exactly as before.
  *
  * <p>Connection settings are the engine's own H2 2.1.214 server
- * VERBATIM (H2Settings = H2Defaults; convergence batch C) — the old
+ * VERBATIM (H2Connector.SETTINGS = H2Defaults; convergence batch C) — the old
  * DATABASE_TO_UPPER/CASE_INSENSITIVE leniency died when our emitters
  * learned to spell identifiers the engine's way.
  */
@@ -229,10 +229,10 @@ public final class H2Verify {
     }
 
     /** The engine's H2 session settings — the OWNER is
-     * {@link com.legend.exec.H2Settings} (F1.1: nothing outside the
+     * {@link com.legend.exec.H2Connector} (F1.1: nothing outside the
      * harness depends on the harness); this alias keeps in-package
      * readers stable. */
-    public static final String SETTINGS = com.legend.exec.H2Settings.SETTINGS;
+    public static final String SETTINGS = com.legend.exec.H2Connector.SETTINGS;
 
     /** The JSON carrier has NO temporal types — a Date-family element
      * arrives as its ISO text. The DECLARED pure type drives the
