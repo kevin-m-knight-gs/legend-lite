@@ -125,8 +125,10 @@ absent node and a pattern no way of the model reads (§12.36); DuckDB PASS 2636,
 0 ERROR on both. Then a stored list as a Variant, `(n:Foo)` as a predicate, a first-clause OPTIONAL MATCH over no
 way (§12.37); DuckDB PASS 2648, Postgres PASS 2298, 0 FAIL, 0 BUG, 0 ERROR on both. Then, after the first PR merged,
 PR3's first step, the edge class (§12.38, the design §5.6: `projects/graph`, `GraphEdges`, the association form in the
-harness); DuckDB PASS 2671, Postgres PASS 2321, 0 FAIL, 0 BUG, 0 ERROR on both. The compact form read from the node
-side, inheritance, identity, `USE`, named zones, and `collect` (the database owner's aggregate) wait.
+harness); DuckDB PASS 2671, Postgres PASS 2321, 0 FAIL, 0 BUG, 0 ERROR on both. Then a type joining several class
+pairs as several edge classes of one type, read as arms (§12.39); DuckDB PASS 2690, Postgres PASS 2340, 0 FAIL, 0 BUG,
+0 ERROR on both, the harness's SKIPs down from 298 to 181. The compact form read from the node side, inheritance (a
+node with several labels), identity, `USE`, named zones, and `collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

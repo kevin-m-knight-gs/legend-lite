@@ -9850,6 +9850,23 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the thirty-eighth landing — a relationship type joining several class pairs (PR3, step 2)
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.39. The harness (`CypherGraph`: one edge class
+per class pair a type joins) and the translator (a type naming several edge classes read as arms, a relationship
+carried across arms as the union of its edge classes' properties).
+
+1. **What lands.** `(:A)-[:T]->(:B)` and `(:D)-[:T]->(:B)` in one graph are two edge classes of the type `T`; a
+   pattern `(a:A)-[:T]->(x)` reads one arm per edge class the start class allows, the far label choosing; the
+   harness's largest SKIP bucket (117 cases) runs.
+2. **The ledger.** DuckDB: 4369 cases; PASS 2690 (from 2,671); FAIL 0; BUG 0; ERROR 0; REFUSED 785; BOTH_ERROR 713;
+   SKIP 181 (from 298). Postgres: PASS 2340 (from 2,321); FAIL 0; BUG 0; ERROR 0; REFUSED 1135; BOTH_ERROR 713;
+   SKIP 181. 6 more lite cases in `lite/edges.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`:
+   0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green.
+4. **Refused by name, recorded.** A type naming several edge classes in an OPTIONAL MATCH's hop or a pattern
+   comprehension's (the ways stay several outside the arms).
+
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-seventh landing — the edge class, a relationship type with properties (PR3, step 1; the twelfth line)
 
 Branch `claude/keen-noether-v5mis0`, after PR #48 merged; the record is the study's §12.38 and the design its §5.6

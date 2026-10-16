@@ -91,3 +91,31 @@ tests:
       CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (n:Movie {title: 'Speed'}),
              (a)-[:ACTED_IN {role: 'Neo', year: 1999}]->(m), (a)-[:ACTED_IN {role: 'Jack'}]->(n)
     cypher: "MATCH (:Actor)-[r:ACTED_IN]->(m:Movie) RETURN m.title AS title, r.year AS year, r.year IS NULL AS missing ORDER BY title"
+  - id: a_type_joining_several_class_pairs
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'}),
+             (:D {name: 'd1'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (a:A)-[:T]->(x) RETURN a.name AS a, labels(x) AS labels, x.name AS x ORDER BY a"
+  - id: a_type_joining_several_class_pairs_with_the_far_label
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'}),
+             (:D {name: 'd1'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (a:A)-[r:T]->(b:B) RETURN a.name AS a, type(r) AS type, b.name AS b"
+  - id: a_type_joining_several_class_pairs_from_a_labelless_start
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'}),
+             (:D {name: 'd1'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (x)-[r:T]->(y) RETURN x.name AS x, y.name AS y ORDER BY x"
+  - id: a_type_joining_several_class_pairs_incoming
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'}),
+             (:D {name: 'd1'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (b:B)<-[r:T]-(x) RETURN b.name AS b, x.name AS x, r AS rel ORDER BY b"
+  - id: a_type_joining_several_class_pairs_with_properties_on_one
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'})
+    cypher: "MATCH (a:A)-[r:T]->(x) RETURN a.name AS a, r.w AS w, properties(r) AS props ORDER BY a"
+  - id: a_type_joining_several_class_pairs_in_an_optional_match
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(x) RETURN a.name AS a, x.name AS x ORDER BY a"

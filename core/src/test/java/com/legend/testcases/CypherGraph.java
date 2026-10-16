@@ -100,30 +100,49 @@ public final class CypherGraph {
         }
     }
 
+    /** A relationship type between one class pair: a type joining several pairs is several of these, one edge class
+     *  each (the study's §5.6: one Neo4j type may join several label pairs, and the endpoint labels choose), numbered
+     *  in the order the pairs appear. */
     private static final class RelType {
         final String name;
-        Cls src;
-        Cls dst;
+        final Cls src;
+        final Cls dst;
         final List<CypherAnswers.GraphRel> rels = new ArrayList<>();
         /** The relationships' properties, typed by their values: an edge class when any. */
         final Map<String, String> propertyTypes = new TreeMap<>();
+        /** 0 for the one pair of its type; 1, 2, ... for a type joining several pairs (always edge classes). */
+        int pair;
 
-        RelType(String name) {
+        RelType(String name, Cls src, Cls dst) {
             this.name = name;
+            this.src = src;
+            this.dst = dst;
         }
 
         boolean edge() {
-            return !propertyTypes.isEmpty();
+            return !propertyTypes.isEmpty() || pair > 0;
         }
 
-        /** The edge class, its enumeration value, its bridge table, its associations and joins: all named apart
-         *  from the classes and the other types (a label may be spelled like a relationship type). */
+        /** The type's name with the pair's number: what the edge class, its table, its ends and joins are named by,
+         *  apart from the classes and the other types (a label may be spelled like a relationship type). */
+        String stem() {
+            return pair == 0 ? name : name + "_" + pair;
+        }
+
         String edgeClass() {
-            return "g::E_" + name;
+            return "g::E_" + stem();
         }
 
         String table() {
-            return "r_" + name.toLowerCase(Locale.ROOT);
+            return "r_" + stem().toLowerCase(Locale.ROOT);
+        }
+
+        String outEnd() {
+            return stem() + "_out";
+        }
+
+        String inEnd() {
+            return stem() + "_in";
         }
     }
 
@@ -187,17 +206,11 @@ public final class CypherGraph {
                 throw new Unsupported("harness: the relationship types " + other + " and " + r.type() + " differ only"
                         + " in case");
             }
-            RelType t = types.computeIfAbsent(r.type(), RelType::new);
             Cls src = classOfNode.get(r.start());
             Cls dst = classOfNode.get(r.end());
-            if (t.src == null) {
-                t.src = src;
-                t.dst = dst;
-            } else if (t.src != src || t.dst != dst) {
-                throw new Unsupported("harness: the relationship type " + r.type() + " joins several class pairs ("
-                        + t.src.name + " to " + t.dst.name + ", " + src.name + " to " + dst.name + "), which waits for"
-                        + " PR3's inheritance");
-            }
+            // (one entry per class pair the type joins, in the order the pairs appear)
+            RelType t = types.computeIfAbsent(r.type() + "|" + src.name + "|" + dst.name,
+                    k -> new RelType(r.type(), src, dst));
             t.rels.add(r);
             for (Map.Entry<String, String> p : r.props().entrySet()) {
                 if (!IDENTIFIER.matcher(p.getKey()).matches()) {
@@ -215,6 +228,17 @@ public final class CypherGraph {
                 }
             }
         }
+        // a type joining several pairs: its entries numbered (each an edge class of the type)
+        Map<String, Integer> pairsOf = new HashMap<>();
+        for (RelType t : types.values()) {
+            pairsOf.merge(t.name, 1, Integer::sum);
+        }
+        Map<String, Integer> numbered = new HashMap<>();
+        for (RelType t : types.values()) {
+            if (pairsOf.get(t.name) > 1) {
+                t.pair = numbered.merge(t.name, 1, Integer::sum);
+            }
+        }
         for (RelType t : types.values()) {
             Set<String> lower = new HashSet<>();
             for (String p : t.propertyTypes.keySet()) {
@@ -222,8 +246,8 @@ public final class CypherGraph {
                     throw new Unsupported("harness: two properties of " + t.name + " differ only in case (" + p + ")");
                 }
             }
-            if (t.edge() && classes.containsKey("E_" + t.name)) {
-                throw new Unsupported("harness: the label E_" + t.name + " is the edge class of " + t.name);
+            if (t.edge() && classes.containsKey("E_" + t.stem())) {
+                throw new Unsupported("harness: the label E_" + t.stem() + " is the edge class of " + t.name);
             }
         }
         // the associations: one per type, realized by a foreign key on the to-one side, else a junction table; a
@@ -238,8 +262,8 @@ public final class CypherGraph {
         for (RelType t : types.values()) {
             Cls src = java.util.Objects.requireNonNull(t.src);
             Cls dst = java.util.Objects.requireNonNull(t.dst);
-            String in = t.name + "_in";
-            String outEnd = t.name + "_out";
+            String in = t.edge() ? t.inEnd() : t.name + "_in";
+            String outEnd = t.outEnd();
             for (Cls c : List.of(src, dst)) {
                 if (c.propertyTypes.containsKey(t.name) || c.propertyTypes.containsKey(in)
                         || c.propertyTypes.containsKey(outEnd) || c.ends.stream().anyMatch(e -> e.startsWith(t.name
@@ -249,7 +273,9 @@ public final class CypherGraph {
                 }
             }
             if (t.edge()) {
-                edgeTypes.add(t.name);
+                if (!edgeTypes.contains(t.name)) {
+                    edgeTypes.add(t.name);
+                }
                 String edge = t.edgeClass();
                 edgeClasses.append("Class <<graph::graph.Edge>> ").append(edge).append("\n{\n")
                         .append("    <<graph::graph.type>> type() { ").append(RELATIONSHIP_TYPE).append('.')
@@ -284,8 +310,8 @@ public final class CypherGraph {
                         .append(propertyMappings.isEmpty() ? "" : "\n").append("    }\n");
                 // the two ends: the edge's from (the start class's T_out) and to (the end class's T_in), each an
                 // association over its own join (a self-typed edge's two joins are two)
-                String fromJoin = t.name + "_from";
-                String toJoin = t.name + "_to";
+                String fromJoin = t.stem() + "_from";
+                String toJoin = t.stem() + "_to";
                 joins.append("    Join ").append(fromJoin).append('(').append(t.table()).append(".src_id = ")
                         .append(src.table).append(".id)\n");
                 joins.append("    Join ").append(toJoin).append('(').append(t.table()).append(".dst_id = ")

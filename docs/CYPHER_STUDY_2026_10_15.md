@@ -2980,3 +2980,34 @@ harness's JSON spelling correct.
 18 lite cases in `lite/edges.yaml`, each judged by Neo4j (one of them the hop past an edge, refused by name). The SKIP
 count fell from 348: the 50 cases the harness skipped for a relationship property run now (most of them writes,
 refused by name; the read-only ones pass).
+
+### 12.39 A relationship type joining several class pairs, as several edge classes of one type, 2026-10-16 (PR3, step 2)
+
+- **The model.** One Neo4j relationship type may join several label pairs (`(:A)-[:T]->(:B)` and `(:D)-[:T]->(:B)`);
+  §5.6 says two edge classes may name the same type with different end pairs, `[:T]` is then their union and the
+  endpoint labels choose. The harness now declares one edge class per class pair a type joins, numbered in the order
+  the pairs appear (`g::E_T_1`, `g::E_T_2`, each `<<graph::graph.type>> type() { g::RelationshipType.T }`, each over
+  its own bridge table, its ends `T_1_out`/`T_1_in` on the node classes), with or without properties; a type joining
+  one pair stays what it was (an association, or an edge class when its relationships carry properties). Its SKIP
+  "joins several class pairs, which waits for PR3's inheritance" is gone: 117 TCK cases run.
+- **The island.** A typed relationship pattern whose type names several edge classes reads as arms, through the
+  machinery an untyped relationship reads by (§12.17, §12.32): one arm per edge class the start node's class allows
+  (`edgeWays`), the far node labelled with the class that edge reaches, each arm a typed pattern over one edge, the
+  arms materialized to rows and concatenated. A far label written in the pattern keeps the arms it agrees with (an
+  edge reaching another class is left out, as a label narrowing an end would be). A relationship carried through
+  the arms is the union of its edge classes' properties (null where an edge class lacks one), as a node is of its
+  classes'. Where the ways stay several outside the arms (an OPTIONAL MATCH's hop, a pattern comprehension's), the
+  hop is refused by name: "the relationship type T names 2 edge classes read from A".
+
+#### 12.39.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4369 | 2690 (from 2,671) | 0 | 0 | 0 | 785 | 713 | 181 |
+| Postgres | 4369 | 2340 (from 2,321) | 0 | 0 | 0 | 1135 | 713 | 181 |
+
+6 more lite cases in `lite/edges.yaml`, each judged by Neo4j (one of them the OPTIONAL MATCH form, refused by name).
+The SKIP count fell from 298 to 181: the 117 cases the harness skipped for a type joining several pairs run, 14 of
+them passing, 2 erroring on both sides as the TCK expects, the other 101 refused by name (variable-length
+relationships, patterns inside expressions, an OPTIONAL MATCH after rows, identity); 5 more passes come from cases
+whose graphs mix a multi-pair type with what they read.

@@ -180,7 +180,7 @@ public final class CypherToPure {
                 return null;
             }
             if (!b.node()) {
-                return gs.carryRel(b, names, v.pos());
+                return gs.carryRel(b, names, v.pos(), gs.g.variableClasses().getOrDefault(v.name(), List.of()));
             }
             return gs.carry(b, v.pos(), names, gs.g.variableClasses().getOrDefault(v.name(), List.of()));
         }
@@ -731,8 +731,10 @@ public final class CypherToPure {
             return arms(m);
         }
         if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
-                && r.types().size() != 1))) {
-            // (a relationship of several types too: one arm per type, the study's §12.35)
+                && (r.types().size() != 1 || edgesOf(r.types().get(0)).size() > 1)))) {
+            // (a relationship of several types too: one arm per type, the study's §12.35; and a type naming several
+            // edge classes, one per class pair it joins: one arm per edge class the start node's class allows, the
+            // far node's label choosing, the study's §5.6)
             return untypedArms(m, state);
         }
         Graph g = state instanceof Graph existing ? existing : null;
@@ -1332,8 +1334,10 @@ public final class CypherToPure {
         Map<String, List<String>> variableClasses = new LinkedHashMap<>();
         for (Graph arm : arms) {
             for (Map.Entry<String, Binding> b : arm.bindings().entrySet()) {
+                // (a relationship over an edge class too: its columns are the union of its edge classes'
+                // properties across the arms, as a node's are of its classes')
                 String cls = b.getValue().classPath();
-                if (!b.getValue().node() || cls == null) {
+                if (cls == null) {
                     continue;
                 }
                 List<String> classes = variableClasses.computeIfAbsent(b.getKey(), k -> new ArrayList<>());
@@ -1343,8 +1347,8 @@ public final class CypherToPure {
             }
         }
         List<String> everyClass = new ArrayList<>();
-        variableClasses.values().forEach(cs -> cs.forEach(c -> {
-            if (!everyClass.contains(c)) {
+        variableClasses.forEach((v, cs) -> cs.forEach(c -> {
+            if (!everyClass.contains(c) && !isEdge(c)) {
                 everyClass.add(c);
             }
         }));
@@ -3504,8 +3508,10 @@ public final class CypherToPure {
 
         /** A relationship carried through a projection: its type's column (a constant; null where an OPTIONAL
          *  MATCH's hop finds no node, or always for an absent one) and, over an edge class, its properties as
-         *  columns (the study's §5.6), as a node's are carried. */
-        NodeCarry carryRel(Binding b, Set<String> names, Pos pos) {
+         *  columns (the study's §5.6), as a node's are carried -- of every edge class the relationship is over
+         *  across a pattern's arms ({@code acrossArms}: the columns agree, null where an edge class lacks the
+         *  property). */
+        NodeCarry carryRel(Binding b, Set<String> names, Pos pos, List<String> acrossArms) {
             String column = freshName(names);
             ValueSpecification type;
             boolean nullable;
@@ -3526,16 +3532,15 @@ public final class CypherToPure {
             columns.add(new Col(column, Kind.STRING, nullable));
             Map<String, NodeProp> props = new LinkedHashMap<>();
             if (b.classPath() != null && !b.absent()) {
-                for (Property p : properties(b.classPath())) {
-                    if (p.classTyped() || p.enumTyped() || p.many()) {
-                        continue;
-                    }
+                List<String> classes = !acrossArms.isEmpty() ? acrossArms : List.of(b.classPath());
+                for (Map.Entry<String, Kind> k : unionKinds(classes, pos).entrySet()) {
                     String col = freshName(names);
-                    Tx t = propertyOf(b, p.name(), pos);
-                    boolean nullableHere = t.nullable() || nullable;
+                    Tx t = CypherToPure.this.property(b.classPath(), k.getKey()) != null
+                            ? propertyOf(b, k.getKey(), pos) : SqlToPure.nullOf(k.getValue());
+                    boolean nullableHere = classes.size() > 1 || t.nullable() || nullable;
                     specs.add(new ColSpec(col, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
-                    columns.add(new Col(col, t.kind(), nullableHere));
-                    props.put(p.name(), new NodeProp(col, t.kind(), nullableHere));
+                    columns.add(new Col(col, k.getValue(), nullableHere));
+                    props.put(k.getKey(), new NodeProp(col, k.getValue(), nullableHere));
                 }
             }
             return new NodeCarry(new NodeShape(column, props), specs, columns, true);
