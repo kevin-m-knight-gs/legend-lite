@@ -4,31 +4,25 @@
 package com.legend.exec;
 
 import com.legend.database.Target;
-import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.model.ConnectionSpecification;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * THE execution-side owner of every per-database decision about a SESSION (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER
- * _2026_10_03.md C3b): the product name a database's JDBC driver reports (what a handed session is checked against),
- * how a declared connection is opened (its JDBC URL from its specification and authentication), and a private
- * in-memory instance of a database (the platform's engine, the system database). Upstream's counterpart is the Java
- * {@code ConnectionManagerSelector} and its per-type {@code DatabaseManager}s. Every database type, specification and
- * authentication is listed; none has a {@code default} arm: anything not built is refused by name, never folded into
- * something that is.
+ * THE execution-side entry to a SESSION (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md C3b): the product
+ * name a database's JDBC driver reports (what a handed session is checked against), how a declared connection is
+ * opened, and a private in-memory instance of a database (the platform's engine, the system database). Each answer is
+ * the database's connector's ({@link Connectors}, the dialect program's Phase 5, 2026-10-16: until then this class held
+ * a switch of every database for each); this class decides nothing by a database of its own. Upstream's counterpart is
+ * the Java {@code ConnectionManagerSelector} and its per-type {@code DatabaseManager}s.
  *
  * <p>The SQL a database is written in is the plan side's ({@code com.legend.database.Databases}); this class never
  * renders.
  */
 public final class Sessions {
-
-    private static final AtomicInteger PRIVATE_IDS = new AtomicInteger();
 
     private Sessions() {
     }
@@ -59,11 +53,7 @@ public final class Sessions {
     /** Does {@code type} have a private in-process instance ({@link #openPrivate})? A server engine has none: its
      *  system database is on a system connection the host configures ({@link Opener}). */
     public static boolean inProcess(DatabaseType type) {
-        return switch (type) {
-            case H2, DuckDB, SQLite -> true;
-            case Postgres, DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino,
-                 BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL -> false;
-        };
+        return Connectors.of(type).inProcess();
     }
 
     /** A caller's own session: checked against the target's database, never closed here. */
@@ -86,46 +76,16 @@ public final class Sessions {
 
     /** The product name the JDBC driver of {@code type} reports ({@code DatabaseMetaData.getDatabaseProductName}). */
     public static String jdbcProduct(DatabaseType type) {
-        return switch (type) {
-            case DuckDB -> "DuckDB";
-            case H2 -> "H2";
-            case Postgres -> "PostgreSQL";
-            case SQLite -> "SQLite";
-            // the Databricks JDBC driver reports Spark's name (measured, databricks-jdbc 3.4.3)
-            case Databricks -> "SparkSQL";
-            case Snowflake -> "Snowflake";
-            // Google's BigQuery JDBC driver (measured, google-cloud-bigquery-jdbc 1.6.0)
-            case BigQuery -> "Google BigQuery";
-            // MariaDB Connector/J names the server it reached (measured, 3.5.10 on MariaDB 11.4)
-            case MariaDB -> "MariaDB";
-            // ... and so does it on MySQL (measured, 3.5.10 on MySQL 8.4)
-            case MySQL -> "MySQL";
-            // the Trino JDBC driver (measured, trino-jdbc 483)
-            case Trino -> "Trino";
-            // the ClickHouse JDBC driver (measured, clickhouse-jdbc 0.10.0 on 25.8)
-            case ClickHouse -> "ClickHouse";
-            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto,
-                 Redshift, Spanner, Athena, Oracle, Aurora ->
-                    throw new com.legend.error.NotImplementedException(
-                            "sessions on database type '" + type + "' are not implemented");
-        };
+        return Connectors.of(type).jdbcProduct();
     }
 
-    /** The raise a MariaDB or MySQL session holds after a statement failed (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): its
-     *  dialect keeps a raised message in the session variable {@code @legend_raise} before it fails, since a MariaDB
-     *  error cannot carry a raise's text. Read and cleared; null for any other session, or none held. */
+    /** The raise {@code session} holds after a statement failed (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13), where its
+     *  database's errors cannot carry one: its connector reads it back ({@link DatabaseConnector#raisedMessage}). Read
+     *  and cleared; null for any other session, or none held. */
     public static @com.legend.base.Nullable String raisedMessage(Connection session) {
         try {
-            String product = session.getMetaData().getDatabaseProductName();
-            if (!jdbcProduct(DatabaseType.MariaDB).equals(product) && !jdbcProduct(DatabaseType.MySQL).equals(product)) {
-                return null;
-            }
-            try (java.sql.Statement st = session.createStatement();
-                    java.sql.ResultSet rs = st.executeQuery("SELECT @legend_raise")) {
-                String held = rs.next() ? rs.getString(1) : null;
-                st.execute("SET @legend_raise = NULL");
-                return held;
-            }
+            DatabaseConnector connector = Connectors.of(session);
+            return connector == null ? null : connector.raisedMessage(session);
         } catch (SQLException unreadable) {
             return null;
         }
@@ -147,139 +107,42 @@ public final class Sessions {
 
     private static String metadata(Connection session, boolean product) {
         try {
-            return product
-                    ? session.getMetaData().getDatabaseProductName()
-                    : session.getMetaData().getDatabaseProductVersion();
+            return product ? Connectors.product(session) : session.getMetaData().getDatabaseProductVersion();
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
     }
 
-    /** How a declared connection is opened: a JDBC URL opened fresh per use, or an in-memory database whose identity
-     *  the opener keeps (its tables persist across uses — the server's feature). */
+    /** How a declared connection is opened, as its database's connector answers: a JDBC URL opened fresh per use, or an
+     *  in-memory database whose identity the opener keeps (its tables persist across uses — the server's feature). */
     public sealed interface Opening {
         /** A database reached by URL; each use opens (and its lease closes) a connection. */
         record Url(String url) implements Opening {
         }
 
-        /** An in-memory database that outlives its connections by NAME (H2, {@code DB_CLOSE_DELAY=-1}): each use
-         *  opens a connection ({@link #openNamed}) the lease closes. {@code name} is the user's when the
-         *  specification names it (an {@code EmbeddedH2} database name, shared by design), else null and the
-         *  opener names it by the identity it keeps. */
-        record Named(@com.legend.base.Nullable String name) implements Opening {
+        /** An in-memory database that outlives its connections by NAME ({@code memory}'s, its database's connector):
+         *  each use opens a connection ({@link #openNamed}) the lease closes. {@code name} is the user's when the
+         *  specification names it (an embedded database's name, shared by design), else null and the opener names it
+         *  by the identity it keeps. */
+        record Named(DatabaseConnector.NamedMemory memory, @com.legend.base.Nullable String name) implements Opening {
         }
 
-        /** An in-memory database that lives exactly as long as its ONE connection (DuckDB, SQLite): the opener
-         *  keeps that connection ({@link #openHeld}) for as long as the database's tables must persist. */
-        record Held(DatabaseType type) implements Opening {
+        /** An in-memory database that lives exactly as long as its ONE connection: the opener keeps that connection
+         *  ({@link #openHeld}, {@code connector}'s private instance) for as long as the database's tables must
+         *  persist. */
+        record Held(DatabaseConnector connector) implements Opening {
         }
     }
 
-    /** The opening for {@code def}: its database type and specification, with its authentication checked. */
+    /** The opening for {@code def}: its database's connector's, from its specification, with its authentication
+     *  checked first: one that carries a credential is refused by name, never ignored (no session the platform opens
+     *  reads one yet). */
     public static Opening openingFor(ConnectionDefinition def) {
-        authentication(def);
-        ConnectionSpecification spec = def.specification();
-        return switch (def.databaseType()) {
-            case DuckDB -> switch (spec) {
-                case ConnectionSpecification.LocalFile(String path) -> new Opening.Url("jdbc:duckdb:" + path);
-                case ConnectionSpecification.InMemory() -> new Opening.Held(DatabaseType.DuckDB);
-                case ConnectionSpecification.LocalH2 x -> refused(def);
-                case ConnectionSpecification.EmbeddedH2 x -> refused(def);
-                case ConnectionSpecification.StaticDatasource x -> refused(def);
-                case ConnectionSpecification.Snowflake x -> refused(def);
-                case ConnectionSpecification.Spanner x -> refused(def);
-                case ConnectionSpecification.Databricks x -> refused(def);
-                case ConnectionSpecification.BigQuery x -> refused(def);
-            };
-            case SQLite -> switch (spec) {
-                case ConnectionSpecification.LocalFile(String path) -> new Opening.Url("jdbc:sqlite:" + path);
-                case ConnectionSpecification.InMemory() -> new Opening.Held(DatabaseType.SQLite);
-                case ConnectionSpecification.LocalH2 x -> refused(def);
-                case ConnectionSpecification.EmbeddedH2 x -> refused(def);
-                case ConnectionSpecification.StaticDatasource x -> refused(def);
-                case ConnectionSpecification.Snowflake x -> refused(def);
-                case ConnectionSpecification.Spanner x -> refused(def);
-                case ConnectionSpecification.Databricks x -> refused(def);
-                case ConnectionSpecification.BigQuery x -> refused(def);
-            };
-            case H2 -> switch (spec) {
-                case ConnectionSpecification.LocalFile(String path) -> new Opening.Url("jdbc:h2:file:" + path);
-                case ConnectionSpecification.StaticDatasource(String host, int port, String database) ->
-                        new Opening.Url("jdbc:h2:tcp://" + host + ":" + port + "/" + database);
-                // A19: a DISTINCT in-memory database per databaseName — the engine's directory-backed isolation
-                // without disk side effects; a USER-NAMED database is user-chosen identity and shares BY DESIGN
-                case ConnectionSpecification.EmbeddedH2(String dbName, String dir, boolean auto) ->
-                        new Opening.Named(dbName);
-                // legend-engine's test specification and an in-memory one: the opener names it
-                case ConnectionSpecification.LocalH2 h -> new Opening.Named(null);
-                case ConnectionSpecification.InMemory() -> new Opening.Named(null);
-                case ConnectionSpecification.Snowflake x -> refused(def);
-                case ConnectionSpecification.Spanner x -> refused(def);
-                case ConnectionSpecification.Databricks x -> refused(def);
-                case ConnectionSpecification.BigQuery x -> refused(def);
-            };
-            case Postgres -> switch (spec) {
-                case ConnectionSpecification.StaticDatasource(String host, int port, String database) ->
-                        new Opening.Url("jdbc:postgresql://" + host + ":" + port + "/" + database);
-                case ConnectionSpecification.InMemory x -> refused(def);
-                case ConnectionSpecification.LocalFile x -> refused(def);
-                case ConnectionSpecification.LocalH2 x -> refused(def);
-                case ConnectionSpecification.EmbeddedH2 x -> refused(def);
-                case ConnectionSpecification.Snowflake x -> refused(def);
-                case ConnectionSpecification.Spanner x -> refused(def);
-                case ConnectionSpecification.Databricks x -> refused(def);
-                case ConnectionSpecification.BigQuery x -> refused(def);
-            };
-            // MariaDB Connector/J opens both (measured on MariaDB 11.4 and MySQL 8.4): one driver, one URL
-            case MariaDB, MySQL -> switch (spec) {
-                case ConnectionSpecification.StaticDatasource(String host, int port, String database) ->
-                        new Opening.Url("jdbc:mariadb://" + host + ":" + port + "/" + database);
-                case ConnectionSpecification.InMemory x -> refused(def);
-                case ConnectionSpecification.LocalFile x -> refused(def);
-                case ConnectionSpecification.LocalH2 x -> refused(def);
-                case ConnectionSpecification.EmbeddedH2 x -> refused(def);
-                case ConnectionSpecification.Snowflake x -> refused(def);
-                case ConnectionSpecification.Spanner x -> refused(def);
-                case ConnectionSpecification.Databricks x -> refused(def);
-                case ConnectionSpecification.BigQuery x -> refused(def);
-            };
-            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
-                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora ->
-                    throw new com.legend.error.NotImplementedException("connections to database type '"
-                            + def.databaseType() + "' are not implemented (connection '" + def.qualifiedName() + "')");
-        };
-    }
-
-    private static Opening refused(ConnectionDefinition def) {
-        throw new com.legend.error.NotImplementedException("a " + def.databaseType() + " connection with a "
-                + def.specification().getClass().getSimpleName() + " specification is not implemented (connection '"
-                + def.qualifiedName() + "')");
-    }
-
-    /** The authentications a session needs nothing for; every other is refused by name, never ignored. */
-    private static void authentication(ConnectionDefinition def) {
-        switch (def.authentication()) {
-            case AuthenticationSpec.NoAuth a -> {
-            }
-            case AuthenticationSpec.DefaultH2 a -> {
-            }
-            case AuthenticationSpec.TestAuth a -> {
-            }
-            case AuthenticationSpec.UsernamePassword a -> refusedAuth(def);
-            case AuthenticationSpec.DelegatedKerberos a -> refusedAuth(def);
-            case AuthenticationSpec.VaultUserNamePassword a -> refusedAuth(def);
-            case AuthenticationSpec.SnowflakePublic a -> refusedAuth(def);
-            case AuthenticationSpec.GCPApplicationDefaultCredentials a -> refusedAuth(def);
-            case AuthenticationSpec.ApiToken a -> refusedAuth(def);
-            case AuthenticationSpec.MiddleTierUserNamePassword a -> refusedAuth(def);
-            case AuthenticationSpec.OAuth a -> refusedAuth(def);
-            case AuthenticationSpec.GcpWorkloadIdentityFederation a -> refusedAuth(def);
+        if (!def.authentication().credentialFree()) {
+            throw new com.legend.error.NotImplementedException(def.authentication().getClass().getSimpleName()
+                    + " authentication is not implemented (connection '" + def.qualifiedName() + "')");
         }
-    }
-
-    private static void refusedAuth(ConnectionDefinition def) {
-        throw new com.legend.error.NotImplementedException(def.authentication().getClass().getSimpleName()
-                + " authentication is not implemented (connection '" + def.qualifiedName() + "')");
+        return Connectors.of(def.databaseType()).opening(def);
     }
 
     /** Opens {@code url}. */
@@ -287,44 +150,31 @@ public final class Sessions {
         return DriverManager.getConnection(url.url());
     }
 
-    /** Opens a connection to the named H2 in-memory database {@code name}, which outlives it. */
-    public static Connection openNamed(String name) throws SQLException {
-        return named(name, ";DB_CLOSE_DELAY=-1");
+    /** Opens a connection to {@code named}'s in-memory database {@code name}, which outlives it. */
+    public static Connection openNamed(Opening.Named named, String name) throws SQLException {
+        return named.memory().openNamed(name);
     }
 
-    /** Opens a connection to the named H2 in-memory database {@code name}, which lives only while a connection to it
-     *  is open: its opener keeps one, and when that one closes with no other open, the database is gone. */
-    public static Connection openKept(String name) throws SQLException {
-        return named(name, "");
+    /** Opens a connection to {@code named}'s in-memory database {@code name}, which lives only while a connection to
+     *  it is open: its opener keeps one, and when that one closes with no other open, the database is gone. */
+    public static Connection openKept(Opening.Named named, String name) throws SQLException {
+        return named.memory().openKept(name);
     }
 
     /** Opens another connection to the kept database {@code name} ({@link #openKept}), which must still be open: one
      *  whose keeper closed is gone, and connecting fails by name rather than making an empty database of that name. */
-    public static Connection joinKept(String name) throws SQLException {
-        return named(name, ";IFEXISTS=TRUE");
-    }
-
-    private static Connection named(String name, String closeDelay) throws SQLException {
-        return DriverManager.getConnection("jdbc:h2:mem:" + name + closeDelay + H2Settings.SETTINGS);
+    public static Connection joinKept(Opening.Named named, String name) throws SQLException {
+        return named.memory().joinKept(name);
     }
 
     /** Opens the in-memory database a {@link Opening.Held} opening names: it lives as long as this connection. */
     public static Connection openHeld(Opening.Held held) throws SQLException {
-        return openPrivate(held.type());
+        return held.connector().openPrivate();
     }
 
     /** A PRIVATE in-memory database of {@code type}, gone when this connection closes (the system database, the
      *  platform's engine). */
     public static Connection openPrivate(DatabaseType type) throws SQLException {
-        return switch (type) {
-            case H2 -> DriverManager.getConnection("jdbc:h2:mem:private" + PRIVATE_IDS.getAndIncrement()
-                    + H2Settings.SETTINGS, "sa", "");
-            case DuckDB -> DriverManager.getConnection("jdbc:duckdb:");
-            case SQLite -> DriverManager.getConnection("jdbc:sqlite::memory:");
-            case Postgres, DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino,
-                 BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL ->
-                    throw new com.legend.error.NotImplementedException(
-                            "no in-memory instance of database type '" + type + "'");
-        };
+        return Connectors.of(type).openPrivate();
     }
 }

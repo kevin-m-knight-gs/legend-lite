@@ -506,7 +506,7 @@ public final class MinimalCorpus {
     private static Connection openSession() throws SQLException {
         if (H2_BACKEND) {
             Connection h2 = DriverManager.getConnection("jdbc:h2:mem:c2s"
-                    + SESSION_IDS.getAndIncrement() + com.legend.exec.H2Settings.SETTINGS,
+                    + SESSION_IDS.getAndIncrement() + com.legend.exec.H2Connector.SETTINGS,
                     "sa", "");
             // the engine's H2 test database carries its extension functions;
             // on this lane the golden runs on THIS session (same-session
@@ -589,7 +589,7 @@ public final class MinimalCorpus {
             // H2 session IS the referee's engine and needs no mirror
             if (!H2_BACKEND && com.legend.harness.H2Verify.ready()) {
                 mirrorConn = DriverManager.getConnection("jdbc:h2:mem:c2Mirror"
-                        + SESSION_IDS.getAndIncrement() + com.legend.exec.H2Settings.SETTINGS,
+                        + SESSION_IDS.getAndIncrement() + com.legend.exec.H2Connector.SETTINGS,
                         "sa", "");
                 com.legend.harness.ReplayReferee.mirrorBegin(mirrorConn);
             }

@@ -151,7 +151,7 @@ class RowLoadTest {
         // declared test data is a LocalH2 connection's (as legend-engine's): it loads on the H2 session its
         // runtime declares -- the server opens one for it (ConnectionResolver) -- which takes the insert
         // text; DuckDB's bulk path is systemSeedIsBulk's
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:declaredcsv" + com.legend.exec.H2Settings.SETTINGS)) {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:declaredcsv" + H2Connector.SETTINGS)) {
             long before = Census.count(Census.Key.BULK_LOADS);
             var r = com.legend.Execution.execute(model, "|x::Firm.all()->project(~[name: f|$f.name,"
                     + " since: f|$f.since, size: f|$f.size])->sort(~name->ascending())", "x::RT", c);

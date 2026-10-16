@@ -406,7 +406,7 @@ class PlanMakerTest {
         return switch (type) {
             case DuckDB -> DriverManager.getConnection("jdbc:duckdb:");
             case H2 -> DriverManager.getConnection("jdbc:h2:mem:planmaker" + H2_NAMES.incrementAndGet()
-                    + com.legend.exec.H2Settings.SETTINGS);
+                    + com.legend.exec.H2Connector.SETTINGS);
             default -> throw new IllegalArgumentException(type.name());
         };
     }

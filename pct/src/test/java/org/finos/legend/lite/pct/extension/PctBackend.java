@@ -59,7 +59,7 @@ public final class PctBackend {
         H2(DatabaseType.H2) {
             @Override
             Connection open() throws SQLException {
-                return DriverManager.getConnection("jdbc:h2:mem:" + com.legend.exec.H2Settings.SETTINGS, "sa", "");
+                return DriverManager.getConnection("jdbc:h2:mem:" + com.legend.exec.H2Connector.SETTINGS, "sa", "");
             }
         },
         SQLITE(DatabaseType.SQLite) {

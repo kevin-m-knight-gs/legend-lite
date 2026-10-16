@@ -10652,3 +10652,65 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
   - Recorded, not changed: Postgres refuses a catalog grid. The compiler's old text excluded `pg_catalog`, but no
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
+
+## 2026-10-16 — The dialect program's Phase 5: each database's sessions in a connector of its own (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main 59b547a (#49): 8664e99 (the connectors) and 01cf198 (the audit's
+findings). The record: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 5, "Done, 2026-10-16"). No behaviour
+change is intended.
+- **What moved:**
+  - Each database's sessions moved to `exec/<Db>Connector.java`: its driver's product name, a declared connection's
+    URL, its private in-memory instance, MariaDB's held raise and the storeless declaration. `exec/Connectors` is the
+    registry. `H2Settings` is deleted (`H2Connector.SETTINGS`).
+  - `Databases` is type to dialect: `SqlDialect.serverVersions` and `loadsRowsInBulk`, and
+    `EngineText.inListTempTables`.
+  - The lite plan format's connection codec is `model/ConnectionWire`.
+  - The dialect-leak ledger loses 9 main-code rows (118 lines). Main code keeps only `DynaFn` (D10) and the SQL
+    translator's three files, which wait for neema2/legend-lite#43.
+- **One message changed.** A plan whose declared connection names an unknown database type is refused as "unknown
+  database type 'X'", the plan format's wording; before, it surfaced `DatabaseType.valueOf`'s text. Same exception
+  class.
+- **Guards:**
+  - `SqlTextRatchetTest` stripped `//...` to the end of a line even inside a string. `jdbc:mariadb://` cut its line,
+    the literal scan fell out of step, and it read the next literal's SQL as none. It now strips comments outside
+    literals; the counts over every other file are unchanged (the audit re-ran the old and new stripping over
+    `core/src/main/java`).
+  - The owner guard's new CONNECTOR kind holds each connector to its own database, in its strings as well as its
+    code (the audit's blocking finding: nothing read a connector's strings).
+  - `exec/ConnectorsTest` pins every type with every specification and authentication against the pre-connector
+    `Sessions`, and fails on a specification or authentication its table lacks.
+- **The independent audit of 8664e99** (an agent that wrote none of it):
+  - Blocking: the string hole above. Fixed in 01cf198.
+  - Should-fix, fixed in 01cf198:
+    - no default for `inProcess` or `raisedMessage`;
+    - the table test;
+    - `H2Modern.serverVersions` refused;
+    - `PlanSessions`' `SQLException` path kept;
+    - the text-block escape in the new stripping;
+    - docs and comments that overstated.
+  - Answered, not taken: an exhaustive specification switch in each connector. It would name other databases'
+    specifications, which the owner guard forbids; the table test forces the same decision. Every other case the
+    audit compared (every type, specification and authentication; product names; private URLs; the settings string;
+    storeless texts; server versions; bulk loading; IN-list facts; the plan JSON) was identical.
+- **Proof:**
+  - `bazel test //core:all //spec:corpus_h2 //spec:corpus_duckdb` (root container): 84 of 84 on 8664e99.
+  - `bazel build //...` (`--jobs=2`): every target, the browser planner included, on 01cf198. At full parallelism one
+    corpus judge action (`//spec:judge_database_h2`) was OOM-killed.
+  - `bazel test //gates:local`, less the four targets the container cannot run: 369 of 369 on 01cf198.
+- **The measurement round, 59b547a (main) against 01cf198, every target with `dump-sql`:**
+  - Snowflake, Databricks and BigQuery (10 targets each): all pass on both commits. Digests, census lines and
+    channel B are byte-identical. Each session was accepted under its connector's product name ("Snowflake",
+    "SparkSQL", "Google BigQuery").
+  - DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres (60 lanes): all pass, and the 60 digests, the census
+    lines and the 25 channel B lines are identical. MariaDB's and MySQL's ten targets were diffed log for log, with
+    run times, heap figures, UUIDs and byte-array identity hashes normalized, and are line-for-line identical: every
+    raise read back through `MariaDbConnector` gives the same outcome as through `Sessions`.
+  - Trino, H2 and the corpus (12 lanes): all pass on both commits, and every digest and channel B line is identical.
+    The corpus's 12 targets pass on both. Its roster and register files are byte-identical, so every
+    `update_rcorpus_*` target was a cache hit. The judge logs' failures agree test by test once trace IDs are
+    stripped: host H2 359, host DuckDB 108, database H2 353, database DuckDB 108. So H2's sessions behave the same
+    under `H2Connector.SETTINGS`.
+  - Found on the way, not this branch's: main's baseline moved between 0d0e5e1 (Phase 3's last measured commit) and
+    59b547a, in 8 of those 60 lanes. The moves are #48's (the Cypher island), and every test still passes:
+    - Postgres casts a string literal to VARCHAR before parsing it: ec902e07, "numbers from texts".
+    - DuckDB casts a struct's integer field to BIGINT under a BIGINT slot: 6852139b, the duration leg.

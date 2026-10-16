@@ -612,7 +612,7 @@ class PureV1ApiTest {
         // legend-engine's own H2 settings (its NON_KEYWORDS list, MODE=LEGACY): the setup
         // data names a `year` column, reserved in a bare H2 2.x
         try (Connection c = DriverManager.getConnection(
-                "jdbc:h2:mem:" + com.legend.exec.H2Settings.SETTINGS);
+                "jdbc:h2:mem:" + com.legend.exec.H2Connector.SETTINGS);
                 Statement st = c.createStatement()) {
             for (String s : setup) {
                 st.execute(s);

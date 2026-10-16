@@ -1058,6 +1058,16 @@ class JavaEvalLedgerTest {
                     // session's product checked, a declared connection or a private
                     // in-memory database opened; reads names, computes nothing
                     "Sessions.java",
+                    // the dialect program's Phase 5 (2026-10-16, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md):
+                    // each database's sessions in a connector of its own -- its driver's product name, the URL a
+                    // declared connection opens, its private in-memory instance -- and Connectors the one place
+                    // a declared type finds its connector; Sessions asks them. Names, URLs and openings, and
+                    // MariaDbConnector's one fixed read and reset of a session's held raise (its two statements,
+                    // moved from Sessions): nothing is evaluated, produced or compared
+                    "DatabaseConnector.java", "Connectors.java", "H2Connector.java", "DuckDbConnector.java",
+                    "SqliteConnector.java", "PostgresConnector.java", "MariaDbConnector.java",
+                    "MySqlConnector.java", "SnowflakeConnector.java", "DatabricksConnector.java",
+                    "BigQueryConnector.java", "TrinoConnector.java", "ClickHouseConnector.java",
                     // block-compiler stage 3 (2026-09-21): an EFFECT SEGMENT under
                     // construction — the statements the effect natives would have
                     // sent, collected (text + the ledger's text + a statically
@@ -1097,7 +1107,8 @@ class JavaEvalLedgerTest {
                     // TestAssertions became delegations to it. It compares
                     // two produced sides and never produces a value.
                     "Equality.java",
-                    "H2Settings.java",
+                    // (H2Settings.java: H2's URL settings, DELETED 2026-10-16 -- into H2Connector.SETTINGS,
+                    // the dialect program's Phase 5)
                     "PctProbe.java",
                     // leg 3.3 (2026-09-19): the wire-decided kinds of a
                     // store-reading verdict side are the DATABASE's — one

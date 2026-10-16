@@ -44,9 +44,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * <p>Since C3 (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md, the guard at zero 2026-10-04) every
  * per-database decision has one owner, and the censuses below pin each shape to it: a declared type becomes a dialect
  * in {@code com.legend.database.Databases} (legend-engine's golden text in {@code com.legend.EngineText}, root layer
- * only); a session is checked and opened in {@code com.legend.exec.Sessions}; a driver's own types live beside the
- * driver ({@code exec.DriverCells}). What remains outside them is named with its reason: the connection grammar
- * parses a specification keyword per database, as upstream's grammar does.
+ * only); a session is opened by its database's connector ({@code exec/<Db>Connector.java}, found by
+ * {@code exec.Connectors}; the dialect program's Phase 5, 2026-10-16), which this census does not walk, as it does not
+ * walk the dialects; a driver's own types live beside the driver ({@code exec.DriverCells}). What remains outside them
+ * is named with its reason: the connection grammar parses a specification keyword per database, as upstream's grammar
+ * does.
  */
 @Tag("guardrail")
 class DialectBoundaryTest {
@@ -64,7 +66,7 @@ class DialectBoundaryTest {
             .collect(java.util.stream.Collectors.joining("|"));
 
     /** Every name a database goes by: its declared type, and the product name its driver reports where that differs
-     *  ({@code Sessions.jdbcProduct}). */
+     *  ({@code DatabaseConnector.jdbcProduct}). */
     private static final String NAMES = TYPES + "|PostgreSQL|SparkSQL|Google BigQuery";
 
     /** {@code rawH2IsNative()} CALLS outside the dialect package, by file. None: the hook is gone (2026-10-13, the
@@ -91,24 +93,30 @@ class DialectBoundaryTest {
     // databases it keeps a connection for (an in-memory DuckDB; SQLite, which this census does not count)
     private static final Map<String, Integer> DATABASE_TYPE_DECISIONS = Map.of(
             "Databases.java", 2,            // PLATFORM (S27), REPLAY_REFEREE
-            "EngineText.java", 1,           // ENGINE_TEST_DATABASE
-            // 1 -> 3 (2026-10-13, the dialect program's Phase 0): not new lines -- the census counts every declared type
-            // now, and Sessions also names the in-memory SQLite and, on one line, MariaDB and MySQL (raisedMessage's
-            // product check); the connectors take them (the program's Phase 5)
-            "Sessions.java", 3);            // the in-memory DuckDB and SQLite; MariaDB and MySQL's raise check
+            // Sessions.java: 1 -> 3 (2026-10-13, the dialect program's Phase 0): not new lines -- the census counts
+            // every declared type now, and Sessions also named the in-memory SQLite and, on one line, MariaDB and
+            // MySQL (raisedMessage's product check); 3 -> 0, row deleted (2026-10-16, the program's Phase 5): each is
+            // its connector's (an in-process instance, a held raise), and Sessions asks Connectors
+            "EngineText.java", 1);          // ENGINE_TEST_DATABASE
 
     /** Lines with a switch arm on a declared database type ({@code case Snowflake ->}) outside the dialect package, by
      *  file (added 2026-10-13, the dialect program's Phase 0: the type census saw {@code DatabaseType.X} only, so a
      *  switch over the type was invisible). Pinned at what is there; shrink-only. */
     private static final Map<String, Integer> DATABASE_TYPE_CASES = Map.of(
-            "Databases.java", 20,           // the owner: a declared type's dialect, engine text and plan facts
-            "Sessions.java", 24,            // the session owner: each type's product name, URL and opening (Phase 5)
-            "EngineText.java", 7,           // legend-engine's golden text per database, root layer only
+            // 20 -> 12 (2026-10-16, the dialect program's Phase 5): a database's server versions and how its rows load
+            // are its dialect's (SqlDialect.serverVersions, loadsRowsInBulk); the IN-list facts, legend-engine's, are
+            // EngineText's (7 -> 9)
+            "Databases.java", 12,           // the owner: a declared type's dialect
+            // Sessions.java 24 -> 0, row deleted, and StorelessRuntime.java 5 -> 0, row deleted (2026-10-16, the
+            // dialect program's Phase 5): each type's product name, URL, opening and storeless declaration are its
+            // connector's; Connectors is the registry, one arm per type, as Databases is the dialects'
+            "Connectors.java", 12,
+            "EngineText.java", 9,           // legend-engine's text and IN-list facts per database, root layer only
             // a connection specification's tag (same names as the types) when a plan's JSON is read: each
-            // specification's own fields, the connector's (Phase 5)
-            "PlanJson.java", 4,
-            // the test runtime a type declares (core/.../test): its specification text, the harness's (Phase 6)
-            "StorelessRuntime.java", 5);
+            // specification's own fields. PlanJson.java -> ConnectionWire.java (2026-10-16, the dialect program's
+            // Phase 5): the codec is the model's, the vocabulary that carries every database's name (D9), and the
+            // plan format names none; the arms are the specification tags, not the declared types
+            "ConnectionWire.java", 4);
 
     /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
      *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */
@@ -148,11 +156,13 @@ class DialectBoundaryTest {
             "Databases.java", 11,
             "EngineText.java", 5);          // legend-engine's text printers, root layer only (invariant 4d)
 
-    /** Lines spelling a JDBC URL, by file: only the execution side's session owner opens a database (C3b). */
+    /** Lines spelling a JDBC URL, by file: only a database's connector opens it (C3b; connectors since 2026-10-16). */
     // Sessions.java 9 -> 10 (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): a MariaDB connection's
     // declared static datasource is jdbc:mariadb://
-    private static final Map<String, Integer> JDBC_URLS = Map.of(
-            "Sessions.java", 10);           // the declared specifications' URLs and the in-memory instances
+    // Sessions.java 10 -> 0, row deleted (2026-10-16, the dialect program's Phase 5): each database's URLs, the
+    // declared specifications' and its private in-memory instance's, are its connector's (exec/<Db>Connector.java),
+    // which this census does not walk
+    private static final Map<String, Integer> JDBC_URLS = Map.of();
 
     @Test
     void eachDatabaseDecisionHasOneOwner() throws IOException {
@@ -163,9 +173,12 @@ class DialectBoundaryTest {
                 "a dialect constructed outside its owner — ask com.legend.database.Databases (the SQL a"
                         + " query runs) or com.legend.EngineText (legend-engine's golden text)");
         assertEquals(new TreeMap<>(JDBC_URLS), census(Pattern.compile("\"jdbc:")),
-                "a JDBC URL outside com.legend.exec.Sessions — it opens every session");
+                "a JDBC URL outside a database's connector (exec/<Db>Connector.java) — it opens that database's"
+                        + " sessions");
+        // the connectors too (2026-10-16, the dialect program's Phase 5, the audit of the branch): a connector opens
+        // its database by URL through DriverManager, and names no driver class
         assertEquals(new TreeMap<>(), census(Pattern.compile("\"(org\\.(duckdb|h2|postgresql|sqlite|mariadb)|com\\.(clickhouse|databricks|mysql"
-                        + "|google\\.cloud\\.bigquery)|io\\.trino|net\\.snowflake)\\.")),
+                        + "|google\\.cloud\\.bigquery)|io\\.trino|net\\.snowflake)\\."), true),
                 "a driver class named in core — a driver's own types live beside it (exec.DriverCells, :duckdb_load)");
     }
 
@@ -198,6 +211,11 @@ class DialectBoundaryTest {
     /** file name → number of non-comment lines matching, outside the dialect package: core's main sources and the
      *  DuckDB-only ones. */
     private static TreeMap<String, Integer> census(Pattern p) throws IOException {
+        return census(p, false);
+    }
+
+    /** {@link #census(Pattern)}, the connectors walked too when {@code withConnectors}. */
+    private static TreeMap<String, Integer> census(Pattern p, boolean withConnectors) throws IOException {
         TreeMap<String, Integer> out = new TreeMap<>();
         List<Path> files = new ArrayList<>();
         SourceFiles.under(DUCKDB_MAIN).stream().filter(f -> f.toString().endsWith(".java")).forEach(files::add);
@@ -207,6 +225,10 @@ class DialectBoundaryTest {
             // toString() has backslashes, so "/sql/dialect/" never matched there
             s.filter(f -> f.toString().endsWith(".java"))
                     .filter(f -> !SourceFiles.rel(MAIN, f).contains("/sql/dialect/"))
+                    // a database's connector is its owner on the execution side, as its dialect is on the plan side
+                    // (2026-10-16, the dialect program's Phase 5; DatabaseOwners holds each to its own database, in
+                    // its code and its strings); the driver census walks them too (withConnectors)
+                    .filter(f -> withConnectors || !DatabaseOwners.isConnector(SourceFiles.path(f)))
                     .forEach(files::add);
         }
         for (Path f : files) {

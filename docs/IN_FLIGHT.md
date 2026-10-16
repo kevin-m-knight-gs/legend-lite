@@ -1459,6 +1459,28 @@ pause for the user's review after Phase 1.
     properties keep their names). A branch that names any of these classes needs the rename when it merges.
   - Three locals the H2/DB2 pattern read as a database, renamed for what they hold: `SeedSqlForms.java`,
     `compiler/element/RelationalTypeInference.java`, `resolver/GraphEmission.java`.
+- **Landed 2026-10-16: Phase 3** (neema2/legend-lite#49, merged as 59b547a).
+- **Announced 2026-10-16, Phase 5: the connectors** (branch `claude/gracious-edison-jcsvzm`; the plan's Phase 5 and its
+  record there). Each database's sessions move into a connector of its own, and `Databases` shrinks to type to
+  dialect. No behaviour change. The files outside `sql/dialect`:
+  - `exec/`: `DatabaseConnector.java`, `Connectors.java` and the eleven `<Db>Connector.java` files are new.
+    `Sessions.java` and `PlanSessions.java` ask them. `H2Settings.java` is deleted: its settings are
+    `H2Connector.SETTINGS`, and every test that read them reads that now (core, `spec/`'s `MinimalCorpus` and
+    `H2Verify`, `pct/`'s `PctBackend`).
+  - `server/ConnectionResolver.java`: the openings carry their connector.
+  - `test/StorelessRuntime.java`: its specification text is the connector's.
+  - `model/`: `AuthenticationSpec.credentialFree()`, and `ConnectionWire.java` (new), the lite plan format's connection
+    codec moved out of `executionplan/PlanJson.java`.
+  - `database/Databases.java`: its facts move to `SqlDialect.serverVersions` and `loadsRowsInBulk`, and to
+    `EngineText.inListTempTables`, read by `PlanMaker.java`, `PlanEnvelope.java` and `plan/InProtocol.java`.
+  - Two layer edges removed: `core/BUILD.bazel` and `tools/deps/core-layers.txt`.
+  - The guards' registers: `DatabaseOwners`, `DialectOwnerExclusivityTest`, `DialectBoundaryTest`,
+    `JdbcSurfaceCensusTest`, `JavaEvalLedgerTest`, `SqlTextRatchetTest` and the ledger. `SqlTextRatchetTest` now
+    strips comments outside literals.
+  - `NOTICE`: the H2 settings' path.
+
+  A branch that calls `Sessions.openNamed`, `openKept` or `joinKept`, or that builds an `Opening`, now passes the
+  opening. A branch that reads `H2Settings.SETTINGS` reads `H2Connector.SETTINGS`.
 - **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move after #43 and #48 land** (D11:
   "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
   lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate

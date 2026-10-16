@@ -35,7 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       reaching a dialect, a connection or {@code Databases} ({@code ArchitectureTest}: 6j, 7a, 7b, 7c,
  *       {@code compileSideLayersAreDialectBlind}).</li>
  * </ul>
- * Code only, as the ratchet reads it: a comment or a string never counts (a refusal's message names its database).
+ * Code only, as the ratchet reads it: a comment or a string never counts (a refusal's message names its database);
+ * a connector's strings count too (its URLs and product name are its own database's).
  */
 @Tag("census")
 class DialectOwnerExclusivityTest {
@@ -78,7 +79,15 @@ class DialectOwnerExclusivityTest {
                     || owner.kind() == DatabaseOwners.Kind.VOCABULARY) {
                 continue;
             }
-            for (String line : DialectLeakRatchetTest.lex(src).code()) {
+            DialectLeakRatchetTest.Lines lines = DialectLeakRatchetTest.lex(src);
+            List<String> read = new ArrayList<>(lines.code());
+            // a connector's strings too (2026-10-16, the dialect program's Phase 5, the audit of the branch): its URLs,
+            // its product name and its messages are its own database's, and no census counts them (the leak ratchet
+            // skips an owner, the boundary census skips a connector)
+            if (owner.kind() == DatabaseOwners.Kind.CONNECTOR) {
+                read.addAll(lines.strings());
+            }
+            for (String line : read) {
                 for (String db : DatabaseOwners.named(line)) {
                     if (!owner.databases().contains(db)) {
                         crossings.merge(rel + "\t" + db, 1, Integer::sum);
@@ -243,6 +252,16 @@ class DialectOwnerExclusivityTest {
                 DatabaseOwners.of("core/src/main/java/com/legend/protocol/sql/PostgresDialect.java", "").databases());
         assertEquals(null, DatabaseOwners.of("core/src/main/java/com/legend/protocol/sql/SqlToPure.java", ""));
         assertEquals(null, DatabaseOwners.of("core/src/main/java/com/legend/exec/Sessions.java", ""));
+        // a connector (2026-10-16, the dialect program's Phase 5): its own database and its parent's; the interface
+        // none; the registry every one
+        String exec = "core/src/main/java/com/legend/exec/";
+        assertEquals(Set.of("H2"), DatabaseOwners.of(exec + "H2Connector.java",
+                "final class H2Connector implements DatabaseConnector").databases());
+        assertEquals(Set.of("MySQL", "MariaDB"), DatabaseOwners.of(exec + "MySqlConnector.java",
+                "final class MySqlConnector extends MariaDbConnector").databases());
+        assertEquals(Set.of(), DatabaseOwners.of(exec + "DatabaseConnector.java", "interface DatabaseConnector")
+                .databases());
+        assertEquals(DatabaseOwners.Kind.EVERY, DatabaseOwners.of(exec + "Connectors.java", "").kind());
     }
 
     /** Every name the ratchet counts as a database is one the register knows: the two read the same names. */
