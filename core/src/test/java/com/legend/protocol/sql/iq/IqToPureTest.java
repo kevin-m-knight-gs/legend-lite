@@ -577,6 +577,8 @@ class IqToPureTest {
     void aStringComparedWithADateIsATimestamp() {
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt = '2026-03-04'").contains("%2026-03-04"));
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt >= '2026-03-04 00:00:00.000'").contains("%2026-03-04"));
+        // IQ island, 2026-10-16 (measured on IQ 17.1): a string of no digit is no date in any spelling, IQ's -157
+        assertEquals(SqlTranslationException.Kind.INVALID, refusal("SELECT id FROM " + T + " WHERE dt = 'x'").kind());
         for (String s : new String[] {"'2026-03-04 10:00'", "'2026-02-30'", "''", "'Mar 2026'", "'10:11:12'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE dt = " + s)
                     .kind(), s);

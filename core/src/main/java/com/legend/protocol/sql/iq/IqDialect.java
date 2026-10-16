@@ -5331,6 +5331,16 @@ public final class IqDialect implements InputDialect {
     private Tx dateConstant(String value, Kind other, SqlAst.Pos pos, String what) {
         // IQ island, 2026-10-14 (M1e): IQ's spellings by the profile's DATE_ORDER (IqDateTime)
         String[] parts = IqDateTime.read(value, settings, pos);
+        if (parts == null && what.equals("comparing") && engine == Engine.IQ
+                && value.chars().noneMatch(Character::isDigit) && !(value.isEmpty() && other == Kind.DATE)) {
+            // IQ island, 2026-10-16 (measured on IQ 17.1; the corpus lane: SEDE's 'x' and '' compared with dates): a
+            // string of no digit is no date in any of IQ's spellings -- compared with a TIMESTAMP its engine's
+            // -1009145, with a DATE -157, whether or not a row reaches the comparison ('' with a DATE is IQ's -1009145
+            // and SQL Anywhere's -157: refused by name below)
+            String code = other == Kind.DATE ? code(-157, "53018") : code(-1009145, "QFA2E");
+            throw SqlTranslationException.invalid("cannot convert '" + value + "' to a " + (other == Kind.DATE ? "date"
+                    : "timestamp") + code, pos);
+        }
         if (parts == null) {
             throw SqlTranslationException.unsupported(what + " the string '" + value + "' with a date is not"
                     + " supported: it is no date spelling the island reads yet (IqDateTime)", pos);

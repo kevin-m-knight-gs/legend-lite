@@ -2934,6 +2934,12 @@ public final class IqParser {
             return new SqlSyntaxException("INTERVAL is no type of IQ's (a name here): '" + t.text() + "' cannot follow"
                     + " it" + IqDialect.syntaxCode(), t.pos());
         }
+        if (t.isWord("collate") || t.isOp("(") && before != null && before.isWord("filter")) {
+            // IQ island, 2026-10-16 (measured on IQ 17.1): T-SQL's COLLATE clause and an aggregate's FILTER (WHERE
+            // ...) are its syntax error too (FILTER alone is an alias)
+            return new SqlSyntaxException("'" + t.text() + "' cannot stand here: COLLATE and an aggregate's FILTER"
+                    + " are no syntax of IQ's" + IqDialect.syntaxCode(), t.pos());
+        }
         if (t.isWord("offset") || t.isWord("fetch")) {
             return new SqlSyntaxException("OFFSET and FETCH are no clauses of IQ's (its row limit is TOP n START AT m)"
                     + IqDialect.syntaxCode(), t.pos());

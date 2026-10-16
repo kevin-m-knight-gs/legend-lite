@@ -567,3 +567,21 @@ tests:
   - id: an_interval_of_days_is_a_syntax_error
     sql: "SELECT id FROM t WHERE ts > ts - INTERVAL 30 DAY"
     profile: iq17-default
+  - id: a_timestamp_compared_with_a_string_of_no_digit_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts >= 'x'"
+    profile: iq17-default
+  - id: a_timestamp_compared_with_an_empty_string_is_iqs_error
+    sql: "SELECT id FROM t WHERE id > 100 AND ts <> ''"
+    profile: iq17-default
+  - id: a_date_compared_with_a_string_of_no_digit_is_iqs_error
+    sql: "SELECT id FROM t WHERE dt = 'x'"
+    profile: iq17-default
+  - id: collate_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE vc LIKE 'a%' COLLATE Latin1_General_BIN"
+    profile: iq17-default
+  - id: an_aggregates_filter_is_a_syntax_error
+    sql: "SELECT COUNT(id) FILTER (WHERE id > 1) FROM t"
+    profile: iq17-default
+  - id: filter_as_an_alias
+    sql: "SELECT COUNT(id) filter FROM t"
+    profile: iq17-default

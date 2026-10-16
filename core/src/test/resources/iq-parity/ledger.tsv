@@ -656,6 +656,12 @@ lite/corpus_gaps/fetch_first_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERRO
 lite/corpus_gaps/offset_in_a_derived_table_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/an_interval_constant_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/an_interval_of_days_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_timestamp_compared_with_a_string_of_no_digit_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_timestamp_compared_with_an_empty_string_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_date_compared_with_a_string_of_no_digit_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/collate_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_aggregates_filter_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/filter_as_an_alias@iq17-default	PASS	PASS
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS
