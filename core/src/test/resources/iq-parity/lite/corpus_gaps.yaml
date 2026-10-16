@@ -325,6 +325,59 @@ tests:
     sql: "SELECT TOP 2 id, sm + 1 AS SM FROM t ORDER BY id"
     profile: iq17-default, sqla17-default
 
+  # ---- the landing's review (IQ island, 2026-10-16), each measured on IQ 17.1 and SQL Anywhere 17
+  # NUMBER(*): one ROW_NUMBER, the statement's last sort key, so tied rows are numbered as they are shown; a constant
+  # ORDER BY, or none, numbers the rows in the order shown
+  - id: number_star_over_tied_keys
+    sql: "SELECT NUMBER(*) AS n, k FROM g ORDER BY k"
+    profile: iq17-default, sqla17-default
+  - id: number_star_without_order_by
+    sql: "SELECT NUMBER(*) AS n FROM t"
+    profile: iq17-default, sqla17-default
+  - id: number_star_ordered_by_a_constant
+    sql: "SELECT 'x' AS c, NUMBER(*) AS n FROM t ORDER BY c"
+    profile: iq17-default, sqla17-default
+  - id: number_star_ordered_by_a_constants_position
+    sql: "SELECT 1 AS one, NUMBER(*) AS n FROM t ORDER BY 1"
+    profile: iq17-default, sqla17-default
+  # ROLLUP: a key any copy of which a grouping holds is grouped; a key written otherwise refused by name
+  - id: rollup_of_a_repeated_key
+    sql: "SELECT k, COUNT(*) AS c, GROUPING(k) AS gk FROM g GROUP BY ROLLUP(k, k) ORDER BY 3, 1, 2"
+    profile: iq17-default, sqla17-default
+  - id: rollup_of_a_key_written_otherwise
+    sql: "SELECT g.k, COUNT(*) AS c FROM g GROUP BY ROLLUP(k) ORDER BY 1, 2"
+    profile: iq17-default, sqla17-default
+  - id: rollup_ordered_by_a_position_past_an_int
+    sql: "SELECT k, COUNT(*) AS c FROM g GROUP BY ROLLUP(k) ORDER BY 3000000000"
+    profile: iq17-default, sqla17-default
+  - id: order_by_the_largest_int_past_the_items
+    sql: "SELECT k FROM g WHERE k = 1 ORDER BY 2147483647"
+    profile: iq17-default, sqla17-default
+  - id: order_by_an_integer_past_an_int
+    sql: "SELECT k FROM g WHERE k = 1 ORDER BY 2147483648"
+    profile: iq17-default, sqla17-default
+  - id: rollup_of_an_item_reading_an_alias
+    sql: "SELECT id AS sm, sm + 1, COUNT(*) AS c FROM t GROUP BY ROLLUP(id) ORDER BY 1, 3"
+    profile: iq17-default, sqla17-default
+  # a named window and its reference, one quoted: names match without regard to case
+  - id: a_named_window_quoted_otherwise
+    sql: "SELECT id, ROW_NUMBER() OVER w AS r FROM t WINDOW \"W\" AS (ORDER BY id) ORDER BY id"
+    profile: iq17-default, sqla17-default
+  # a derived table's WITH of the names of the CTE it stands in
+  - id: a_derived_tables_with_inside_a_cte_of_one_name
+    sql: "WITH p AS (SELECT id FROM (WITH p AS (SELECT id FROM t) SELECT id FROM p) d) SELECT id FROM p ORDER BY id"
+    profile: iq17-default, sqla17-default
+  # computed date strings: m and two digits is no month; a lower-case t between a date and its time; a time after 7910
+  - id: a_computed_m_and_two_digits_is_no_month
+    sql: "SELECT CAST('M11 7 ' + STR(2008 + id, 4) AS DATE) AS d FROM t WHERE id = 1"
+    profile: iq17-default, sqla17-default
+  - id: a_computed_date_and_time_with_a_lower_t
+    sql: "SELECT CAST('2009-11-0' + STR(id, 1) + 't10:30' AS TIMESTAMP) AS d FROM t WHERE id = 7"
+    profile: iq17-default, sqla17-default
+  - id: a_computed_timestamp_after_7910
+    sql: "SELECT CAST('7911-01-0' + STR(id, 1) + ' 10:30' AS TIMESTAMP) AS d FROM t WHERE id = 1"
+    profile: iq17-default, sqla17-default
+
   # ---- found by the lane's judged runs (sede-18206): a subquery over a CTE correlated to the CTE read again outside
   - id: a_running_total_over_a_cte_read_twice
     sql: "WITH f AS (SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t) SELECT q.id, (SELECT COUNT(*) FROM f WHERE f.rn <= q.rn) AS c FROM f q ORDER BY q.id"
@@ -660,3 +713,73 @@ tests:
   - id: string_split_is_iqs_error
     sql: "SELECT value FROM STRING_SPLIT('a,b', ',')"
     profile: iq17-default
+  # IQ island, 2026-10-16 (the landing's review: the rest of the refused names, measured on IQ 17.1 and SQL Anywhere 17)
+  - id: concat_ws_is_iqs_error
+    sql: "SELECT CONCAT_WS(',', vc, 'x') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: eomonth_is_iqs_error
+    sql: "SELECT EOMONTH(dt) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: format_is_iqs_error
+    sql: "SELECT FORMAT(dt, 'yyyy') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: choose_is_iqs_error
+    sql: "SELECT CHOOSE(2, 'a', 'b') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: datefromparts_is_iqs_error
+    sql: "SELECT DATEFROMPARTS(2020, 1, 2) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: date_trunc_is_iqs_error
+    sql: "SELECT DATE_TRUNC('month', dt) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: split_part_is_iqs_error
+    sql: "SELECT SPLIT_PART(vc, 'l', 1) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: age_is_iqs_error
+    sql: "SELECT AGE(dt) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: getutcdate_is_iqs_error
+    sql: "SELECT GETUTCDATE() AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: sysdatetime_is_iqs_error
+    sql: "SELECT SYSDATETIME() AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: json_value_is_iqs_error
+    sql: "SELECT JSON_VALUE(vc, '$.a') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: last_day_is_iqs_error
+    sql: "SELECT LAST_DAY(dt) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: nvl_is_iqs_error
+    sql: "SELECT NVL(sm, 0) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: group_concat_is_iqs_error
+    sql: "SELECT GROUP_CONCAT(vc) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: stdev_is_iqs_error
+    sql: "SELECT STDEV(sm) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: strftime_is_iqs_error
+    sql: "SELECT STRFTIME('%Y', dt) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: translate_is_iqs_error
+    sql: "SELECT TRANSLATE(vc, 'l', 'L') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: initcap_is_iqs_error
+    sql: "SELECT INITCAP(vc) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: quotename_is_iqs_error
+    sql: "SELECT QUOTENAME(vc) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: decode_is_iqs_error
+    sql: "SELECT DECODE(id, 1, 'one', 'other') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: greatest_is_iqs_error
+    sql: "SELECT GREATEST(id, sm) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: least_is_iqs_error
+    sql: "SELECT LEAST(id, sm) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: to_date_is_iqs_error
+    sql: "SELECT TO_DATE(vc, 'YYYY-MM-DD') AS s FROM t"
+    profile: iq17-default, sqla17-default

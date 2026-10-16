@@ -70,7 +70,6 @@ run	lite/basics/true_is_a_name@iq17-default	true-keyword	duckdb,postgres
 run	lite/review6/b1_having_alias_of_arithmetic_is_two_valued@iq17-tds	having-alias	duckdb,postgres
 run	lite/m1d/functions_in_case_and_isnull@iq17-default	iq-defect	duckdb,postgres
 run	lite/m1gaps/duplicate_aggregate_names_in_exists@iq17-default	iq-defect	duckdb,postgres
-# IQ island, 2026-10-15 (landing 4: the CTE cases, snapped from the live IQ when WP1 merged into the scale branch).
 # IQ island, 2026-10-15 (landing 4: the window cases, lite/windows.yaml, snapped from the live IQ): IQ's engine types k * 2
 # by the data's range (a SMALLINT here), so SUM over its window is a BIGINT where lite's INTEGER product sums to a
 # NUMERIC(20,0).

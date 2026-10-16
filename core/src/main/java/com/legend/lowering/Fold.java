@@ -400,6 +400,19 @@ final class Fold {
         return !s.distinct() && s.limit() == null && s.offset() == null;
     }
 
+    /** Whether {@code s}'s output names are apart without regard to case: a
+     *  database that reads names so (DuckDB, even quoted) binds a read of
+     *  either of two such names of a subselect to the first (2026-10-16). */
+    static boolean namesApartWithoutCase(SqlSelect s) {
+        java.util.Set<String> seen = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (com.legend.sql.OutputCol c : s.outputs()) {
+            if (!seen.add(c.name())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * A window column computes over the CURRENT select's row set: WHERE is fine
      * (windows evaluate after it), ORDER BY is fine (independent orderings) —

@@ -245,8 +245,10 @@ public final class SqlToPure {
             throw new SqlTranslationException(e.unsupported() ? SqlTranslationException.Kind.UNSUPPORTED
                     : SqlTranslationException.Kind.SYNTAX, e.reason(), e.line(), e.column());
         }
-        return new SqlToPure(sources, dialect.reading(statement), new Env(Map.of(), null, null, 0))
-                .statement(statement).vs();
+        SqlToPure translation = new SqlToPure(sources, dialect.reading(statement), new Env(Map.of(), null, null, 0));
+        // the island's own result is an inline view too (2026-10-16, the landing's review): its windows are computed
+        // over all of its rows before a Pure step after the island (a filter) reads them
+        return translation.inlineView(translation.statement(statement), statement).vs();
     }
 
     private Rel statement(SqlAst.Statement statement) {
@@ -1517,7 +1519,8 @@ public final class SqlToPure {
                         + " need distinct column names", pos);
             }
         }
-        Set<String> taken = new HashSet<>(to);
+        Set<String> taken = taken();
+        taken.addAll(to);
         rel.columns().forEach(c -> taken.add(c.name()));
         List<Integer> changed = new ArrayList<>();
         boolean swaps = false;
@@ -1573,10 +1576,12 @@ public final class SqlToPure {
     /** {@code right} with its columns renamed apart from {@code left}'s (a Pure relation's column names are
      *  distinct): a taken name becomes the qualifier's {@code t_name}, or a fresh one. */
     private Source apart(Source left, Source right) {
-        Set<String> taken = new HashSet<>();
+        Set<String> taken = taken();
         left.bindings().forEach(b -> b.columns().forEach(c -> taken.add(c.col().name())));
         right.bindings().forEach(b -> b.columns().forEach(c -> taken.add(c.col().name())));
-        Set<String> leftNames = new HashSet<>();
+        // apart without regard to case (2026-10-16, the landing's review): a database that reads names so binds a
+        // subselect's u.ID beside t.id to the first
+        Set<String> leftNames = taken();
         left.bindings().forEach(b -> b.columns().forEach(c -> leftNames.add(c.col().name())));
         Map<String, String> renames = new LinkedHashMap<>();
         ValueSpecification rightRel = right.relation();
@@ -1656,7 +1661,7 @@ public final class SqlToPure {
     private Source computedColumns(Source left, SqlAst.SubqueryFrom q, SqlAst.Select s,
             SqlAst.@com.legend.base.Nullable Expr on) {
         Input outer = new Input(left.bindings(), left.star(), "a LATERAL item");
-        Set<String> taken = new HashSet<>();
+        Set<String> taken = taken();
         left.star().forEach(c -> taken.add(c.name()));
         left.bindings().forEach(b -> b.columns().forEach(c -> taken.add(c.col().name())));
         List<ColSpec> computed = new ArrayList<>();
@@ -1961,7 +1966,7 @@ public final class SqlToPure {
             }
         }
         Source apart = apart(left, right);
-        Set<String> taken = new HashSet<>();
+        Set<String> taken = taken();
         left.bindings().forEach(b -> b.columns().forEach(c -> taken.add(c.col().name())));
         apart.bindings().forEach(b -> b.columns().forEach(c -> taken.add(c.col().name())));
         ValueSpecification rightRel = apart.relation();
@@ -2224,8 +2229,12 @@ public final class SqlToPure {
                 : rowsFound(s.op() == SqlAst.SetOp.INTERSECT, left, right);
         List<ValueSpecification> sortInfos = new ArrayList<>();
         List<ColSpec> keyed = new ArrayList<>();
-        Set<String> taken = new HashSet<>(names);
+        Set<String> taken = taken();
+        taken.addAll(names);
         for (SqlAst.SortItem item : s.orderBy()) {
+            if (dialect.ordersNothing(item.expr())) {
+                continue;
+            }
             String key = outputKey(item.expr(), names);
             OutCol column = columns.get(names.indexOf(key));
             notJsonKey(column.kind(), "ORDER BY", item.expr().pos());
@@ -2262,7 +2271,7 @@ public final class SqlToPure {
         if (values.stream().allMatch(java.util.Objects::isNull)) {
             return rel;
         }
-        Set<String> taken = new HashSet<>();
+        Set<String> taken = taken();
         rel.columns().forEach(c -> taken.add(c.name()));
         List<ColSpec> computed = new ArrayList<>();
         List<ColSpec> selection = new ArrayList<>();
@@ -2305,7 +2314,8 @@ public final class SqlToPure {
             return call("distinct", vs);
         }
         // IQ island, 2026-10-15: a column keyed by the dialect groups by its key and shows its group's least value
-        Set<String> taken = new HashSet<>(names);
+        Set<String> taken = taken();
+        taken.addAll(names);
         List<ColSpec> keyed = new ArrayList<>();
         List<ColSpec> groupKeys = new ArrayList<>();
         List<ColSpec> members = new ArrayList<>();
@@ -2722,7 +2732,11 @@ public final class SqlToPure {
                     throw SqlTranslationException.invalid("window function calls cannot be nested", inner.pos());
                 }
             }
-            out.add(w);
+            // one window read in several places is computed once (IQ island, 2026-10-16: NUMBER(*)'s, which the
+            // statement's ORDER BY reads too)
+            if (out.stream().noneMatch(seen -> seen == w)) {
+                out.add(w);
+            }
             return;
         }
         for (SqlAst.Expr child : children(e)) {
@@ -3519,6 +3533,9 @@ public final class SqlToPure {
         List<ColSpec> afterDistinct = new ArrayList<>();
         Set<String> sorted = new HashSet<>();
         for (SqlAst.SortItem item : s.orderBy()) {
+            if (dialect.ordersNothing(item.expr())) {
+                continue;
+            }
             String key = sortKey(item, s, scope, outputs, computed, present, afterDistinct);
             sorted.add(key);
             boolean nullsFirst = item.nullsFirst() != null ? java.util.Objects.requireNonNull(item.nullsFirst())

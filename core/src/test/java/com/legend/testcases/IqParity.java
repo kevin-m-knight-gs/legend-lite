@@ -1916,8 +1916,12 @@ public final class IqParity {
         List<Integer> keys = new ArrayList<>();
         for (SqlAst.SortItem item : orderBy) {
             int found = -1;
+            if (item.expr() instanceof SqlAst.IntegerLit n && n.value().bitLength() > 31) {
+                // an integer past an INT's range is a constant, which orders nothing (measured; 2026-10-16)
+                continue;
+            }
             if (item.expr() instanceof SqlAst.IntegerLit n && n.value().signum() > 0
-                    && n.value().intValue() <= expected.columns().size()) {
+                    && n.value().compareTo(java.math.BigInteger.valueOf(expected.columns().size())) <= 0) {
                 found = n.value().intValue() - 1;
             } else if (item.expr() instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
                 for (int i = 0; i < expected.columns().size(); i++) {

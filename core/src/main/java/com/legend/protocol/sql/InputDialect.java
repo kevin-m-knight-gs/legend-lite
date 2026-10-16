@@ -226,6 +226,13 @@ public interface InputDialect {
         return null;
     }
 
+    /** Whether an ORDER BY key orders nothing: a constant the dialect does not read as a position (IQ island,
+     *  2026-10-16, measured on IQ 17.1 and SQL Anywhere 17: an integer past an INT's range orders nothing, 2147483647
+     *  past the items is IQ's -152). Postgres's: none, every integer is a position. */
+    default boolean ordersNothing(SqlAst.Expr key) {
+        return false;
+    }
+
     /** Which rows a statement with a row limit computes the items of its select list for that its ORDER BY does not
      *  read ({@code SqlToPure.assemble}; IQ island, 2026-10-16, the user's decision). An item that can raise raises
      *  for those rows only. Postgres's: every row, before its sort and its limit, as SQL's order has it (measured on

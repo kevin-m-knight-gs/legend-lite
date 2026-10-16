@@ -116,18 +116,6 @@ class IqParserTest {
     }
 
     @Test
-    void scratchRollupProbe() {
-        for (String sql : List.of("SELECT YEAR(d) AS Yr, QUARTER(d) AS Qtr, COUNT(*) Orders FROM (SELECT CAST('2000-01-01' AS DATE) AS d, 1 AS b UNION ALL SELECT CAST('2000-04-01' AS DATE), 2) t GROUP BY ROLLUP(Yr, Qtr) ORDER BY Yr, Qtr")) {
-            try {
-                IqDialect.of(IqProfile.IQ16_DEFAULT.settings()).parse(sql);
-                System.out.println("SCRATCH parsed");
-            } catch (RuntimeException e) {
-                System.out.println("SCRATCH " + e);
-            }
-        }
-    }
-
-    @Test
     void formsNotReadYetAreRefusedByName() {
         String[][] refused = {
                 // IQ island, 2026-10-14 (M1b): comma joins, JOIN ... ON and UNION are read now (below)

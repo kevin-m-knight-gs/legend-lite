@@ -1259,20 +1259,29 @@ final class IqAggregates {
      */
     private static SqlToPure.Aggregation memberOfKey(SqlToPure.Grouping at, Tx x, ValueSpecification values, String fn,
             @com.legend.base.Nullable IqType type, IqDialect dialect) {
-        Tx packed = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
-            ValueSpecification key = SqlToPure.call("replace", SqlToPure.call("replace", dialect.collated(v.get(0)),
-                    new CString("\u0002"), new CString("\u0002\u0003")), new CString(SEPARATOR),
-                    new CString("\u0002\u0002"));
-            return AppliedFunction.infixRun("plus", List.of(key, new CString(SEPARATOR), v.get(0)));
-        });
+        Tx packed = SqlToPure.strict(Kind.STRING, List.of(x), v -> packedByKey(v.get(0), dialect));
         String raw = at.fresh();
         ColSpec spec = new ColSpec(raw, at.overRow(SqlToPure.valueOf(packed)), at.overGroup(SqlToPure.call(fn,
                 values)), null);
         Tx shown = SqlToPure.strict(Kind.STRING, List.of(Tx.value(at.column(raw), Kind.STRING, true)),
-                v -> SqlToPure.call("substring", v.get(0), AppliedFunction.infixRun("plus", List.of(SqlToPure.call(
-                        "indexOf", v.get(0), new CString(SEPARATOR)), new CInteger(1L)))));
+                v -> unpacked(v.get(0)));
         return new SqlToPure.Aggregation(List.of(spec), new ColSpec(at.name(), at.overRow(shown.vs()), null, null),
                 Kind.STRING, true, type);
+    }
+
+    /** {@code value} packed behind its collation key, escaped, and the separator ({@link #memberOfKey}): the least
+     *  (greatest) packed string has the least (greatest) key, whatever bytes the key holds. */
+    static ValueSpecification packedByKey(ValueSpecification value, IqDialect dialect) {
+        ValueSpecification key = SqlToPure.call("replace", SqlToPure.call("replace", dialect.collated(value),
+                new CString("\u0002"), new CString("\u0002\u0003")), new CString(SEPARATOR),
+                new CString("\u0002\u0002"));
+        return AppliedFunction.infixRun("plus", List.of(key, new CString(SEPARATOR), value));
+    }
+
+    /** The value {@link #packedByKey} packed: what follows its first separator. */
+    static ValueSpecification unpacked(ValueSpecification packed) {
+        return SqlToPure.call("substring", packed, AppliedFunction.infixRun("plus", List.of(SqlToPure.call("indexOf",
+                packed, new CString(SEPARATOR)), new CInteger(1L))));
     }
 
     /** COUNT's type: SQL Anywhere's INTEGER in its front end, IQ's UNSIGNED BIGINT under its engine (D-F15). */

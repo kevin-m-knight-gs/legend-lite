@@ -202,5 +202,14 @@ first, a child keeping the rows that reach kept parents, then filled to 600 rows
 - 4 FAIL: 3 ties, and 1 name, fixed: a column named by a reserved word shows in double quotes, t."date";
 - 1 ERROR: FALSE, a keyword in IQ 17.1 (the listed true-keyword divergence).
 
+The landing's review (2026-10-16): three independent reviewers; the fixes are listed in `docs/IN_FLIGHT.md`, each
+measured on IQ 17.1 and SQL Anywhere 17 where IQ decides (`lite/corpus_gaps.yaml`'s review cases). Known, recorded:
+- ROLLUP or CUBE with TOP computes its items before the limit (the union's), so an item that raises for a dropped
+  group raises where IQ answers;
+- an APPLY's query that reads the left side by an unqualified name its own FROM lacks may bind an enclosing query's
+  column, where IQ's engine raises -1001030;
+- the listed iq17 divergences (`iq17-divergences.tsv`) answer where IQ answers otherwise or raises; refusing them by
+  name under the iq17 profiles is the cheaper honest form (the review's finding 3), not done here.
+
 Decisions for the user: none open. (Decided 2026-10-16 by the user and built, above: the window boundary, as inline
 views; TOP's select list, computed after the limit.)

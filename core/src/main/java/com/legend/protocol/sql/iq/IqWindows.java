@@ -193,7 +193,7 @@ final class IqWindows {
      * The errors IQ raises for {@code s}'s window functions before running it, and what is refused there by name
      * ({@link IqWindows}), under {@code engine} and {@code settings}.
      */
-    static void parsed(SqlAst.Select s, IqDialect.Engine engine, IqSettings settings) {
+    static void parsed(SqlAst.Select s, IqDialect.Engine engine, IqSettings settings, Set<SqlAst.Window> numbering) {
         List<SqlAst.Expr> predicates = new ArrayList<>();
         if (s.where() != null) {
             predicates.add(java.util.Objects.requireNonNull(s.where()));
@@ -238,7 +238,10 @@ final class IqWindows {
                         throw iq("a window function cannot stand inside another", -156, "42W08", inner.pos());
                     }
                 }
-                window(w, s, engine, settings);
+                // NUMBER(*)'s window is the island's own, not one IQ reads (IqDialect.numbered)
+                if (!numbering.contains(w)) {
+                    window(w, s, engine, settings);
+                }
             }
         }
     }
@@ -387,9 +390,9 @@ final class IqWindows {
         }
         SqlAst.NamedWindow named = null;
         for (SqlAst.NamedWindow n : windows) {
-            if (named == null && IqLexer.lower(n.name().text()).equals(IqLexer.lower(base.text()))
-                    && (n.name().quoted() == base.quoted() || !n.name().quoted() && !base.quoted()
-                    || n.name().text().equals(base.text()))) {
+            // IQ's names match without regard to ASCII case, quoted or not (S51; 2026-10-16, the landing's review:
+            // WINDOW "W" read by OVER w was its -947)
+            if (named == null && IqLexer.lower(n.name().text()).equals(IqLexer.lower(base.text()))) {
                 named = n;
             }
         }
@@ -1026,27 +1029,19 @@ final class IqWindows {
     /**
      * MIN and MAX of strings over a window by IQ's collation key ({@link IqDialect#collated}): a value of the least
      * (greatest) key -- which of the values sharing it is the database's choice, as it is IQ's (the user's principle:
-     * any spelling IQ could return is right). Pure's min and max of strings over each value prefixed by its key and
-     * U+0001 (below every character a value holds), and over the keys alone; the value is what follows the key's
-     * length and the U+0001.
+     * any spelling IQ could return is right). Pure's min and max of strings over each value packed behind its escaped
+     * key ({@link IqAggregates#packedByKey}, the aggregate's packing; 2026-10-16, the landing's review: the key
+     * unescaped, a value holding U+0001 could cut at the wrong place), the value what follows the separator.
      */
     private static SqlToPure.WindowFunction collatedMinMax(String fn, SqlToPure.Windowing at, Tx arg,
             @com.legend.base.Nullable IqType type, IqDialect dialect) {
-        Tx keyed = at.computed(SqlToPure.strict(Kind.STRING, List.of(arg), v -> com.legend.protocol.spec.AppliedFunction
-                .infixRun("plus", List.of(dialect.collated(v.get(0)), new com.legend.protocol.spec.CString("\u0001"),
-                        v.get(0)))));
-        Tx key = at.computed(SqlToPure.strict(Kind.STRING, List.of(arg), v -> dialect.collated(v.get(0))));
+        Tx keyed = at.computed(SqlToPure.strict(Kind.STRING, List.of(arg), v -> IqAggregates.packedByKey(v.get(0),
+                dialect)));
         String both = at.fresh();
-        String keys = at.fresh();
-        List<ColSpec> windows = List.of(
-                new ColSpec(both, at.overWindow(SqlToPure.valueOf(keyed)), at.overGroup(SqlToPure.call(fn,
-                        at.values())), null),
-                new ColSpec(keys, at.overWindow(SqlToPure.valueOf(key)), at.overGroup(SqlToPure.call(fn,
-                        at.values())), null));
-        Tx value = SqlToPure.strict(Kind.STRING, List.of(Tx.value(at.column(both), Kind.STRING, true),
-                Tx.value(at.column(keys), Kind.STRING, true)), v -> SqlToPure.call("substring", v.get(0),
-                com.legend.protocol.spec.AppliedFunction.infixRun("plus", List.of(SqlToPure.call("length", v.get(1)),
-                        new CInteger(2L)))));
+        List<ColSpec> windows = List.of(new ColSpec(both, at.overWindow(SqlToPure.valueOf(keyed)),
+                at.overGroup(SqlToPure.call(fn, at.values())), null));
+        Tx value = SqlToPure.strict(Kind.STRING, List.of(Tx.value(at.column(both), Kind.STRING, true)),
+                v -> IqAggregates.unpacked(v.get(0)));
         return new SqlToPure.WindowFunction(windows, new ColSpec(at.name(), at.overRow(value.vs()), null, null),
                 Kind.STRING, true, type);
     }

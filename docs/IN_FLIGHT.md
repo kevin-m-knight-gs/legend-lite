@@ -1600,6 +1600,31 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     `NOT_UPSTREAM_MAX` 43 to 44 (`inlineView`, dated); `IqCorpusTest` fails naming its missing input instead of
     skipping (`SkipCensusTest`'s rule), runs in its manual `:iq_corpus_test` alone (`core/BUILD.bazel` excludes it from
     `core_tests_lib`), and its database names are pinned in `dialect-leaks/ledger.tsv` (dated).
+  - **The landing's independent review (three reviewers, 2026-10-16) and its fixes**, each pinned by a test or a
+    case measured on IQ 17.1 and SQL Anywhere 17:
+    - `lowering/`: an extend after a limit isolates only where the isolation keeps the select's names apart without
+      regard to case (DuckDB binds a subselect's `ID` beside `id` to the first, even quoted) and its whole order
+      (`Fold.namesApartWithoutCase`, `Sorts.keepsOrder`); elsewhere it folds, as before the landing.
+      `Sorts.isolateOrdered` carries an ORDER BY whole or not at all (a part of an order is another order: a rename's
+      frame re-sorted by its second key) by the names the select shows its keys under; `rename` isolates through it.
+      An enclosing row's miss is a flag on `UnfoldableRef`, not a count (`CodeShapeGuardrailTest` loses its
+      `Lowerer.enclosingMisses` entry).
+    - `protocol/sql/SqlToPure.java`: every set of names a relation's columns take compares without regard to case
+      (`taken()`: joins renamed apart, renames, set operations, APPLY's computed columns); the island's own result is
+      an inline view too (a Pure filter after it folded under its windows). `InputDialect.ordersNothing`: IQ's ORDER
+      BY integer past an INT's range is a constant (measured), Postgres's every integer a position.
+    - `compiler/spec/InlineViewChecker.java`: only a view's outermost windows are boundaries (a level a window
+      passed DuckDB's expression depth at 1,100 windows).
+    - The IQ island: NUMBER(*) one ROW_NUMBER, the statement's last sort key (tied rows were numbered otherwise than
+      shown on large data), with no ORDER BY or a constant one too; ROLLUP's repeated key grouped where a copy is
+      (IQ's engine: its -1001030), a key written two ways or a subquery beside ROLLUP refused by name, the alias
+      facts carried over the rewrite; a named window matched without regard to case, quoted or not; window MIN/MAX of
+      strings packed as the aggregate's (escaped); a nested WITH of one name no stack overflow (`CteDef` by
+      identity); computed date strings: an upper-case month marker, one `t` before a time, a run-time refusal by
+      name for a spelling not read and for a time after 7910; every name of `NO_SUCH_FUNCTION` measured (-265).
+    - Recorded, not fixed: ROLLUP with TOP computes its items before the limit (the union's), so it may raise where
+      IQ answers; an APPLY's query reading the left side by an unqualified name its own FROM lacks may bind an
+      enclosing query's column (the parser knows no columns).
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):

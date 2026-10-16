@@ -381,6 +381,19 @@ public final class IqParser {
     private record CteDef(SqlAst.Ident name, List<SqlAst.Ident> columns, int start, int end,
             Map<String, CteDef> visible) {
 
+        /** One definition is itself only (2026-10-16, the landing's review): {@code visible} is the scope that holds
+         *  it, so a record's equality recursed through it without end (a derived table's WITH inside a CTE of the
+         *  same names overflowed the stack). */
+        @Override
+        public boolean equals(Object other) {
+            return this == other;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(this);
+        }
+
         SqlAst.SubqueryFrom read(IqParser p, SqlAst.Ident alias, SqlAst.Pos pos) {
             int here = p.reading.indexOf(this);
             if (here >= 0) {

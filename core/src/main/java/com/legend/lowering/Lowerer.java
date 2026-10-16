@@ -186,10 +186,6 @@ public final class Lowerer {
      *  would fail the INNER pass, whose isolation cannot change an outer row's expression. */
     private int correlatedReads;
 
-    /** Reads of an enclosing row that no enclosing scope resolved ({@link #scopedResolver}): counted so that a
-     *  predicate's miss after its own isolation is told apart as the enclosing boundary's ({@link #predicateOrThrow}). */
-    private int enclosingMisses;
-
     /** The connection's time zone DateTime literals spell in (engine
      * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
     private @com.legend.base.Nullable String dbTimeZone;
@@ -1410,8 +1406,24 @@ public final class Lowerer {
     /** extend(~cols): existing projections stay, computed columns APPEND. */
     private SqlSelect extend(SqlSelect src, List<TypedFuncCol> columns,
                              ExprType info) {
-        SqlSelect base = Fold.extendFolds(src) ? src : Sorts.isolateOrdered(this, src);
+        SqlSelect base = Fold.extendFolds(src) ? src : extendOver(src);
         return computedColumns(base, columns, info, true, false);
+    }
+
+    /** The select an extend that does not fold computes its columns in: {@code src} isolated. Over a truncated
+     *  {@code src} (IQ island, 2026-10-16, the landing's review) only when the isolation keeps {@code src}'s rows as
+     *  they are read: its names apart without regard to case (a database that reads names so, DuckDB even quoted,
+     *  binds two of them to the first) and its whole order carried out ({@link Sorts#keepsOrder}). Else
+     *  the extend folds into {@code src} as before that day: the same values, computed for every row its limit
+     *  reads. */
+    private SqlSelect extendOver(SqlSelect src) {
+        if (src.distinct()) {
+            return Sorts.isolateOrdered(this, src);
+        }
+        if (!Fold.namesApartWithoutCase(src)) {
+            return src;
+        }
+        return Sorts.keepsOrder(src) ? Sorts.isolateOrdered(this, src) : src;
     }
 
     /** project(~cols): the computed columns REPLACE the projection list.
@@ -1653,13 +1665,12 @@ public final class Lowerer {
      * unfoldable ref can never become foldable — LOUD, never a dropped
      * predicate (the ONE retry contract, shared by filter and whereLambda). */
     private SqlExpr predicateOrThrow(SqlSelect isolated, TypedLambda lambda, String op) {
-        int missesBefore = enclosingMisses;
         return switch (tryPredicate(isolated, lambda)) {
             case Resolution.Resolved r -> r.expr();
             // IQ island, 2026-10-15 (the corpus lane): a miss of an ENCLOSING row's read (its column computed over its
             // row set, a window's, which no scope may write in place) is the enclosing boundary's to cure: it isolates
             // its select, the column becomes a plain one, and the correlated read resolves
-            case Resolution.Unfoldable u when enclosingMisses > missesBefore -> throw new UnfoldableRef(u.column());
+            case Resolution.Unfoldable u when u.enclosing() -> throw new UnfoldableRef(u.column(), true);
             case Resolution.Unfoldable u -> throw new IllegalStateException(
                     op + " predicate references column '" + u.column()
                             + "', unresolvable even after isolation [param="
@@ -1804,8 +1815,7 @@ public final class Lowerer {
             // against a same-named INNER column (the two regressions in
             // this method's doc-comment). A genuine miss takes the
             // designed UnfoldableRef route (isolate-or-loud).
-            enclosingMisses++;
-            throw new UnfoldableRef(name == null ? "<whole variable>" : name);
+            throw new UnfoldableRef(name == null ? "<whole variable>" : name, true);
         };
     }
 
@@ -1929,7 +1939,7 @@ public final class Lowerer {
         SqlSelect base = Fold.projectionFolds(src)
                 && (src.from() instanceof SqlSource.Subselect
                         || src.projections().isEmpty())
-                ? src : isolate(src);
+                ? src : Sorts.isolateOrdered(this, src);
         Type.RelationType outSchema = Type.requireRelationSchema(r.info().type());
         // Each output column reverse-maps to the source column it renames.
         Function<String, String> sourceOf = out -> {

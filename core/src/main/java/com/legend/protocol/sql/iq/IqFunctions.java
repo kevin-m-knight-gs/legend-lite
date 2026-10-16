@@ -4053,8 +4053,8 @@ final class IqFunctions {
      * {@code yyyymmdd}, then after spaces or a {@code T} a time {@code h:n[:s[.f]]} (six places of the fraction, more
      * cut) -- with blanks around it. Its parts are read as integers and built into the date and time, so a month or a
      * day that does not exist is the database's error, as it is IQ's -157. Any other spelling (a two-digit year, a date
-     * in the profile's DATE_ORDER, a year and a month alone) is raised as an error where it is computed, though IQ
-     * reads some of them: never an answer IQ would not give.
+     * in the profile's DATE_ORDER, a year and a month alone) is refused by name where it is computed ({@link
+     * #UNREAD_DATE_RAISE}), though IQ reads some of them: never an answer IQ would not give.
      * <p>
      * IQ island, 2026-10-16 (the corpus lane's sede-36359, measured on IQ 17.1): under IQ's engine a time alone,
      * {@code h:n[:s[.f]]} (an ISO {@code T} before it read too), is that time on 1900-01-01 -- as a DATE, 1900-01-01;
@@ -4066,7 +4066,9 @@ final class IqFunctions {
      * pads each number); a month's English name, or a start of it of three letters or more, in any case -- {@code
      * 07 Nov 2009}, {@code 7-November-2009}, {@code Nov 7, 2009}, {@code Nov 7 2009} (CONVERT's styles 100, 106 and 107
      * written back) -- with a time after it; and a time's {@code AM} or {@code PM} (12 AM midnight, 12 PM noon, a PM
-     * hour past 12 kept). Another name ({@code Nox}) is raised, as IQ raises -1001006.
+     * hour past 12 kept). Another name ({@code Nox}) is refused where it is computed; IQ raises -1001006. These are
+     * this reader's spellings: the constant's reader ({@link IqDateTime#read}) differs (2026-10-16, the landing's
+     * review), reading DATE_ORDER and two-digit years, not names, blanks around separators or a time alone.
      */
     private Tx stringDate(Tx x, boolean toDate, IqType type) {
         Kind kind = toDate ? Kind.DATE : Kind.DATETIME;
@@ -4081,8 +4083,14 @@ final class IqFunctions {
             ValueSpecification at = SqlToPure.call("parseDate", text);
             ValueSpecification value = toDate ? typed(SqlToPure.call("datePart", at), "StrictDate")
                     : typed(at, "DateTime");
-            return ifThen(SqlToPure.call("matches", text, new CString(CANONICAL)), value,
-                    raise(toDate ? "StrictDate" : "DateTime"));
+            if (!toDate) {
+                // as the constant's reader refuses it (IqDateTime.read; 2026-10-16, the landing's review): SQL
+                // Anywhere drops a timestamp's hours and minutes after the year 7910
+                value = refusedPast(SqlToPure.call("matches", text, new CString(PAST_TIMED)), PAST_TIMED_RAISE, value,
+                        raise("DateTime"));
+            }
+            return refusedPast(SqlToPure.call("not", SqlToPure.call("matches", text, new CString(CANONICAL))),
+                    UNREAD_DATE_RAISE, value, raise(toDate ? "StrictDate" : "DateTime"));
         });
         return Tx.value(r.vs(), kind, r.nullable(), type);
     }
@@ -4094,6 +4102,22 @@ final class IqFunctions {
      *  {@code hh:nn:ss} of hours below 24, minutes and seconds below 60, and up to six places of a fraction. */
     private static final String CANONICAL = "^" + YEAR + "-[0-9]{2}-[0-9]{2}( ([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"
             + "([.][0-9]{1,6})?)?$";
+
+    /** A {@link #CANONICAL} timestamp after the year {@link IqDialect#LAST_TIMED_YEAR} with hours or minutes (the
+     *  whole string: Pure's {@code matches} matches all of it). */
+    private static final String PAST_TIMED = "^(?:791[1-9]|79[2-9][0-9]|[89][0-9]{3})-[0-9]{2}-[0-9]{2}"
+            + " (?:(?:0[1-9]|[12][0-9]):|[0-9]{2}:(?:0[1-9]|[1-5][0-9])).*$";
+
+    /** {@link #stringDate}'s refusal of a spelling its steps do not read, where the database computes the string
+     *  (2026-10-16, the landing's review: a bare error before, though IQ reads some of them). */
+    static final String UNREAD_DATE_RAISE = IqDialect.REFUSED_AT_RUN_TIME + "a string in a spelling the island does"
+            + " not read as a date yet (IQ reads some: a date in the profile's DATE_ORDER, a two-digit year, a year"
+            + " and a month alone, 24:00; it rejects others, a month's name it does not know)";
+
+    /** {@link #PAST_TIMED}'s refusal, where the database computes the string. */
+    static final String PAST_TIMED_RAISE = IqDialect.REFUSED_AT_RUN_TIME + "a timestamp after the year "
+            + IqDialect.LAST_TIMED_YEAR + " with hours or minutes is not supported: SQL Anywhere 17 drops them there"
+            + " (its defect), so no answer of it judges lite's";
 
     /** The English months' names, January first. */
     private static final List<String> MONTH_NAMES = List.of("january", "february", "march", "april", "may", "june",
@@ -4110,11 +4134,13 @@ final class IqFunctions {
         List<String[]> steps = new ArrayList<>();
         steps.add(new String[] {"^ +", ""});
         steps.add(new String[] {" +$", ""});
-        // yyyy-m-d, its separators - / or . with blanks around them, then spaces or a T before a time
-        steps.add(new String[] {ymd + "[ t]+([0-9])", "\\1-\\2-\\3 \\4"});
+        // yyyy-m-d, its separators - / or . with blanks around them, then spaces or one T before a time (as the
+        // constant's reader; 2026-10-16, the landing's review: any run of spaces and t's was read)
+        steps.add(new String[] {ymd + "(?: +|t)([0-9])", "\\1-\\2-\\3 \\4"});
         steps.add(new String[] {ymd + "$", "\\1-\\2-\\3"});
         steps.add(new String[] {"^([0-9]{4})([0-9]{2})([0-9]{2})$", "\\1-\\2-\\3"});
-        // a month's name, or a start of it of three letters or more: m and its number
+        // a month's name, or a start of it of three letters or more: M and its number (an M the string, lower case
+        // here, cannot hold; 2026-10-16, the landing's review: a written m11 was read as November)
         for (int m = 1; m <= MONTH_NAMES.size(); m++) {
             String full = MONTH_NAMES.get(m - 1);
             StringBuilder name = new StringBuilder(full.substring(0, 3));
@@ -4122,11 +4148,11 @@ final class IqFunctions {
                 name.append("(?:").append(full.charAt(i));
             }
             name.append(")?".repeat(full.length() - 3));
-            steps.add(new String[] {"(^|[^a-z])" + name + "([^a-z]|$)", "\\1m" + (m < 10 ? "0" : "") + m + "\\2"});
+            steps.add(new String[] {"(^|[^a-z])" + name + "([^a-z]|$)", "\\1M" + (m < 10 ? "0" : "") + m + "\\2"});
         }
         // d mon yyyy (spaces or - between), mon d[,] yyyy: then a time after spaces
-        steps.add(new String[] {"^([0-9]{1,2})[ -]+m([0-9]{2})[ -]+([0-9]{4})( +|$)", "\\3-\\2-\\1 "});
-        steps.add(new String[] {"^m([0-9]{2}) +([0-9]{1,2}),? +([0-9]{4})( +|$)", "\\3-\\1-\\2 "});
+        steps.add(new String[] {"^([0-9]{1,2})[ -]+M([0-9]{2})[ -]+([0-9]{4})( +|$)", "\\3-\\2-\\1 "});
+        steps.add(new String[] {"^M([0-9]{2}) +([0-9]{1,2}),? +([0-9]{4})( +|$)", "\\3-\\1-\\2 "});
         if (timeAlone) {
             steps.add(new String[] {"^t?([0-9]{1,2}:)", "1900-01-01 \\1"});
         }

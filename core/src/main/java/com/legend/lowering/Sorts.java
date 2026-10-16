@@ -47,15 +47,63 @@ final class Sorts {
         return base.withOrderBy(keys);
     }
 
-    /** {@code src} isolated, its ORDER BY carried onto the select over it by
-     * output name (an ordered subselect orders nothing outside it): an
-     * extend keeps its source's order (IQ island, 2026-10-16: an extend after
-     * a limit). A key with no output name (a sortBy expression) is not
-     * carried, as {@link #carried} says. */
+    /** Whether {@link #isolateOrdered} carries the ORDER BY of {@code src}
+     * onto the select over it (an ordered subselect orders nothing outside
+     * it): every key read by a name {@code src} shows it under ({@link
+     * #carriedName}); not an expression key nor a value {@code src} does not
+     * show (IQ island, 2026-10-16, the landing's review). */
+    static boolean keepsOrder(SqlSelect src) {
+        for (SqlSelect.SortKey k : src.orderBy()) {
+            if (carriedName(src, k) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** {@code src} isolated, its ORDER BY carried onto the select over it
+     * when {@link #keepsOrder} (every key, or none: a part of an order is
+     * another order, the review's finding: carrying the keys it could,
+     * a rename's frame re-sorted by its second key alone); else the
+     * subselect's own order rides alone, as every isolation's did before
+     * 2026-10-16. */
     static SqlSelect isolateOrdered(Lowerer lw, SqlSelect src) {
         SqlSelect base = lw.isolate(src);
-        List<SqlSelect.SortKey> keys = carried(src, base, List.of());
-        return keys.isEmpty() ? base : base.withOrderBy(keys);
+        if (src.orderBy().isEmpty() || !keepsOrder(src)) {
+            return base;
+        }
+        List<SqlSelect.SortKey> keys = new ArrayList<>();
+        for (SqlSelect.SortKey k : src.orderBy()) {
+            String name = java.util.Objects.requireNonNull(carriedName(src, k));
+            SqlExpr.Column c = Fold.sourceColumn(base.from(), name);
+            if (c == null) {
+                throw new IllegalStateException("sort key '" + name + "' cannot be resolved after isolation");
+            }
+            keys.add(new SqlSelect.SortKey(c, k.ascending(), k.nullOrder(), k.outputName()));
+        }
+        return base.withOrderBy(keys);
+    }
+
+    /** The name {@code src} shows {@code k}'s value under: the key's output
+     * name when {@code src} shows it; else, for a plain column key, the name
+     * of the projection of that very column (its alias, a fresh internal one
+     * too), or the column's own through a star; null when there is none. */
+    private static @com.legend.base.Nullable String carriedName(SqlSelect src, SqlSelect.SortKey k) {
+        if (k.outputName() != null && Fold.resolveInto(src, k.outputName()) != null) {
+            return k.outputName();
+        }
+        if (!(k.expr() instanceof SqlExpr.Column col)) {
+            return null;
+        }
+        for (SqlSelect.Projection p : src.projections()) {
+            if (p.expr() instanceof SqlExpr.Column shown && p.outputName() != null
+                    && java.util.Objects.equals(shown.table(), col.table()) && shown.name().equals(col.name())) {
+                return p.outputName();
+            }
+        }
+        return Fold.resolveInto(src, col.name()) instanceof SqlExpr.Column shown
+                && java.util.Objects.equals(shown.table(), col.table()) && shown.name().equals(col.name())
+                ? col.name() : null;
     }
 
     /** A sort over a SORTED source COMPOSES: the new keys first, the

@@ -353,6 +353,21 @@ class LowerRelationTest {
     }
 
     @Test
+    @DisplayName("extend after LIMIT folds where isolating would lose the order or the names")
+    void extendAfterLimitFoldsWhereIsolationLoses() throws SQLException {
+        // 2026-10-16 (the IQ landing's review): two names apart only in case (DuckDB binds a read of either to the
+        // first), and an order whose key the select no longer shows: isolated, the subselect lost one or the other
+        String cased = sqlOf("#>{test::DB.T_PERSON}#->extend(~age : x|$x.AGE + 1)->sort(~AGE->ascending())"
+                + "->limit(2)->extend(~d : x|$x.age * 2)");
+        assertEquals(1, count(cased, "SELECT"), cased);
+        assertEquals(List.of("Ann|25|ACME|26|52", "Bob|35|ACME|36|72"), exec(cased));
+        String projected = sqlOf("#>{test::DB.T_PERSON}#->sort(~AGE->descending())->select(~[NAME])->limit(2)"
+                + "->extend(~n : x|$x.NAME + '!')");
+        assertEquals(1, count(projected, "SELECT"), projected);
+        assertEquals(List.of("Dan|Dan!", "Cat|Cat!"), exec(projected));
+    }
+
+    @Test
     @DisplayName("extend-on-extend chains flat; computed ref inlines the scalar")
     void extendChains() throws SQLException {
         String flat = sqlOf("#>{test::DB.T_PERSON}#"

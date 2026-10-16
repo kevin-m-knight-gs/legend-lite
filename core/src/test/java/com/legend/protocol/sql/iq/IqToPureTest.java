@@ -432,6 +432,19 @@ class IqToPureTest {
     }
 
     @Test
+    void numberStarIsOneWindowTheStatementSortsByLast() {
+        // 2026-10-16 (the landing's review): a ROW_NUMBER over the ORDER BY's keys and the statement's own sort, apart,
+        // numbered tied rows otherwise than they were shown (300,000 rows on DuckDB); one window, the last sort key
+        String p = pure("SELECT NUMBER(*) AS n, NUMBER(*) * 10 AS m, id FROM " + T + " ORDER BY sm");
+        assertEquals(1, p.split("rowNumber", -1).length - 1, p);
+        String sort = p.substring(p.indexOf("->sort(["));
+        assertTrue(sort.startsWith("->sort([~sm->ascending(") && sort.indexOf("), ~") < sort.indexOf("])"), p);
+        // none, or a constant: the rows numbered in the order shown, as IQ numbers them
+        assertTrue(pure("SELECT NUMBER(*) AS n FROM " + T).contains("->sort(["));
+        assertTrue(pure("SELECT 'x' AS c, NUMBER(*) AS n FROM " + T + " ORDER BY c").contains("rowNumber"));
+    }
+
+    @Test
     void rowLimitsAreConstantsThePlannerFolds() {
         String p = pure("SELECT TOP (1+1) START AT 3 id FROM " + T + " ORDER BY id");
         assertTrue(p.endsWith("->drop(3 - 1)->limit(1 + 1)"), p);

@@ -402,13 +402,30 @@ public final class IqDialect implements InputDialect {
                 (engine != null ? engine : engineOf(statement, settings)) == Engine.SA);
         statement = aliased.statement();
         // IQ island, 2026-10-15 (checklist 2.16b, measured on IQ 17.1): ROLLUP and CUBE as a UNION of their groupings
-        statement = rolledUp(statement, engine != null ? engine : engineOf(statement, settings));
+        // the rewrites' items keep their originals' facts (2026-10-16, the landing's review: by identity, the alias
+        // reads of a rolled-up item were lost)
+        Map<SqlAst.SelectExpr, SqlAst.SelectExpr> remade = new IdentityHashMap<>();
+        statement = rolledUp(statement, engine != null ? engine : engineOf(statement, settings), remade);
         // IQ island, 2026-10-15 (checklist 1.10, measured on IQ 17.1): NUMBER(*) as ROW_NUMBER over the ORDER BY
-        statement = numbered(statement);
+        Set<SqlAst.Window> numbering = Collections.newSetFromMap(new IdentityHashMap<>());
+        statement = numbered(statement, numbering, remade);
         outerReads.addAll(aliased.outerReads());
         aliasesRead.putAll(aliased.aliasesRead());
         innerNames.putAll(aliased.innerNames());
         nameless.addAll(aliased.nameless());
+        remade.forEach((now, was) -> {
+            Set<String> aliases = aliased.aliasesRead().get(was);
+            if (aliases != null) {
+                aliasesRead.put(now, aliases);
+            }
+            SqlAst.Ident inner = aliased.innerNames().get(was);
+            if (inner != null) {
+                innerNames.put(now, inner);
+            }
+            if (aliased.nameless().contains(was)) {
+                nameless.add(now);
+            }
+        });
         Set<SqlAst.Select> setBranches = Collections.newSetFromMap(new IdentityHashMap<>());
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.SetOperation o) {
@@ -452,7 +469,7 @@ public final class IqDialect implements InputDialect {
                 subqueryWidths(e);
             }
             // IQ island, 2026-10-15 (windows): the errors IQ raises for a query's window functions
-            IqWindows.parsed(s, engine != null ? engine : engineOf(statement, settings), settings);
+            IqWindows.parsed(s, engine != null ? engine : engineOf(statement, settings), settings, numbering);
             // IQ island, 2026-10-14 (M1c): the errors IQ raises for a query's aggregates and grouping
             IqAggregates.parsed(s);
             nameLengths(s);
@@ -956,7 +973,7 @@ public final class IqDialect implements InputDialect {
     private static void orderPositions(SqlAst.Select s) {
         int n = width(s);
         for (SqlAst.SortItem item : s.orderBy()) {
-            if (n >= 0 && item.expr() instanceof SqlAst.IntegerLit p && (p.value().signum() <= 0
+            if (n >= 0 && item.expr() instanceof SqlAst.IntegerLit p && !pastAnInt(p) && (p.value().signum() <= 0
                     || p.value().compareTo(BigInteger.valueOf(n)) > 0)) {
                 throw orderRefused(item.expr());
             }
@@ -2539,6 +2556,13 @@ public final class IqDialect implements InputDialect {
         if (held.isEmpty() || !top.contains(outer) || outer.from().size() != 1 || !(outer.from().get(0) == d)) {
             return held.isEmpty();
         }
+        // not read here (2026-10-16, the landing's review: shapes the measured cases do not cover): a derived SELECT
+        // that groups, is DISTINCT or aggregates, and an outer query with a subquery of its own (a column read in it
+        // escaped the rules below)
+        if (ds.distinct() || !ds.groupBy().isEmpty() || expressions(ds).stream().anyMatch(IqDialect::hasAggregate)
+                || expressions(outer).stream().anyMatch(IqDialect::readsQuery)) {
+            return false;
+        }
         String alias = d.alias() == null ? null : IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text());
         for (SqlAst.Expr e : expressions(outer)) {
             List<SqlAst.ColumnRef> refs = new ArrayList<>();
@@ -3028,7 +3052,8 @@ public final class IqDialect implements InputDialect {
      * function beside it, an ORDER BY key that is none of the items, and a key rolled up inside an expression the
      * rewrite does not walk.
      */
-    private static SqlAst.Statement rolledUp(SqlAst.Statement statement, Engine engine) {
+    private static SqlAst.Statement rolledUp(SqlAst.Statement statement, Engine engine,
+            Map<SqlAst.SelectExpr, SqlAst.SelectExpr> remade) {
         for (SqlAst.Statement q : queries(statement)) {
             if (q != statement && q instanceof SqlAst.Select s && rollup(s) != null) {
                 throw SqlTranslationException.unsupported("ROLLUP or CUBE in a subquery, a derived table or a set"
@@ -3048,6 +3073,18 @@ public final class IqDialect implements InputDialect {
             keys.add(aliasedItem(s, k));
         }
         int n = keys.size();
+        if (engine == Engine.IQ) {
+            for (int i = 0; i < n; i++) {
+                for (int j = i + 1; j < n; j++) {
+                    if (IqAggregates.same(keys.get(i), keys.get(j))) {
+                        // IQ island, 2026-10-16 (the landing's review, measured on IQ 17.1; SQL Anywhere answers)
+                        throw SqlTranslationException.unsupported("a key twice in ROLLUP or CUBE (itself or its alias)"
+                                + " is IQ's error -1001030 under its engine (GROUP BY ROLLUP/CUBE contains duplicate"
+                                + " columns), refused before translating", written.get(j).pos());
+                    }
+                }
+            }
+        }
         aggregatesBesideRollup(s, cube, engine);
         if (cube && n > 6) {
             throw SqlTranslationException.unsupported("CUBE of more than 6 keys is not supported yet", g.pos());
@@ -3061,9 +3098,36 @@ public final class IqDialect implements InputDialect {
                         + " yet", x.expr().pos());
             }
         }
+        // IQ island, 2026-10-16 (the landing's review): a key matched by its spelling, a column of a key's name written
+        // otherwise (t.k over ROLLUP(k)) and a subquery (its correlated reads of a key) are refused by name, not as
+        // IQ's -149, which IQ may not raise
+        List<SqlAst.Expr> read = new ArrayList<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x) {
+                read.add(x.expr());
+            }
+        }
+        if (s.having() != null) {
+            read.add(java.util.Objects.requireNonNull(s.having()));
+        }
+        for (SqlAst.Expr e : read) {
+            SqlAst.ColumnRef apart = spelledApart(e, keys);
+            if (apart != null) {
+                throw SqlTranslationException.unsupported("a key of ROLLUP or CUBE written otherwise than in it is not"
+                        + " supported yet: write it as the key is written", apart.pos());
+            }
+            if (readsQuery(e)) {
+                throw SqlTranslationException.unsupported("a subquery beside ROLLUP or CUBE is not supported yet",
+                        e.pos());
+            }
+        }
         // the whole's ORDER BY, by position
         List<SqlAst.SortItem> order = new ArrayList<>();
         for (SqlAst.SortItem o : s.orderBy()) {
+            if (pastAnInt(o.expr())) {
+                // a constant, which orders nothing (measured; the landing's review: a crash)
+                continue;
+            }
             order.add(new SqlAst.SortItem(new SqlAst.IntegerLit(BigInteger.valueOf(itemPosition(s, o.expr())),
                     o.expr().pos()), o.descending(), o.nullsFirst(), o.pos()));
         }
@@ -3094,7 +3158,7 @@ public final class IqDialect implements InputDialect {
         }
         SqlAst.Statement union = null;
         for (List<Integer> set : groupings) {
-            SqlAst.Select branch = grouping(s, keys, written, set, aggregated);
+            SqlAst.Select branch = grouping(s, keys, written, set, aggregated, remade);
             union = union == null ? branch : new SqlAst.SetOperation(SqlAst.SetOp.UNION, !s.distinct(), union, branch,
                     List.of(), null, null, s.pos());
         }
@@ -3181,14 +3245,16 @@ public final class IqDialect implements InputDialect {
     /** One grouping's SELECT ({@link #rolledUp}): {@code s} grouped by the keys of {@code set}, the others NULL
      *  ({@code written}: the keys as written, for GROUPING of an alias). */
     private static SqlAst.Select grouping(SqlAst.Select s, List<SqlAst.Expr> keys, List<SqlAst.Expr> written,
-            List<Integer> set, boolean aggregated) {
+            List<Integer> set, boolean aggregated, Map<SqlAst.SelectExpr, SqlAst.SelectExpr> remade) {
         List<SqlAst.SelectItem> items = new ArrayList<>();
         for (SqlAst.SelectItem item : s.items()) {
             SqlAst.SelectExpr x = (SqlAst.SelectExpr) item;
             // a whole item that is a key not grouped by is NULL (the union types it by the other groupings)
             SqlAst.Expr e = rolledKey(x.expr(), keys, set) ? new SqlAst.NullLit(x.expr().pos())
                     : rolled(x.expr(), keys, written, set);
-            items.add(new SqlAst.SelectExpr(e, x.alias(), x.pos(), x.text()));
+            SqlAst.SelectExpr now = new SqlAst.SelectExpr(e, x.alias(), x.pos(), x.text());
+            remade.put(now, x);
+            items.add(now);
         }
         SqlAst.Expr having = s.having() == null ? null : rolled(java.util.Objects.requireNonNull(s.having()), keys,
                 written, set);
@@ -3205,14 +3271,20 @@ public final class IqDialect implements InputDialect {
                 null, s.pos());
     }
 
-    /** Whether {@code e} is a key {@code set} does not group by. */
+    /** Whether {@code e} is a key {@code set} does not group by: one written as a key, no copy of which (ROLLUP(k, k),
+     *  a key and its alias) the set holds (2026-10-16, the landing's review: a copy outside the set rolled a grouped
+     *  key to NULL). */
     private static boolean rolledKey(SqlAst.Expr e, List<SqlAst.Expr> keys, List<Integer> set) {
+        boolean key = false;
         for (int i = 0; i < keys.size(); i++) {
-            if (!set.contains(i) && IqAggregates.same(e, keys.get(i))) {
-                return true;
+            if (IqAggregates.same(e, keys.get(i))) {
+                if (set.contains(i)) {
+                    return false;
+                }
+                key = true;
             }
         }
-        return false;
+        return key;
     }
 
     /** {@code e} in a grouping by the keys of {@code set} ({@link #rolledUp}): a key not grouped a NULL of its type
@@ -3222,14 +3294,20 @@ public final class IqDialect implements InputDialect {
             List<Integer> set) {
         if (isGrouping(e)) {
             SqlAst.FunctionCall f = (SqlAst.FunctionCall) e;
+            boolean key = false;
+            boolean grouped = false;
             for (int i = 0; i < keys.size() && f.args().size() == 1; i++) {
                 if (IqAggregates.same(f.args().get(0), keys.get(i)) || IqAggregates.same(f.args().get(0),
                         written.get(i))) {
-                    return new SqlAst.IntegerLit(set.contains(i) ? BigInteger.ZERO : BigInteger.ONE, f.pos());
+                    key = true;
+                    grouped |= set.contains(i);
                 }
             }
-            throw SqlTranslationException.invalid("GROUPING reads a value that is no key of the ROLLUP or the CUBE"
-                    + code(-149, "53003"), f.pos());
+            if (!key) {
+                throw SqlTranslationException.invalid("GROUPING reads a value that is no key of the ROLLUP or the CUBE"
+                        + code(-149, "53003"), f.pos());
+            }
+            return new SqlAst.IntegerLit(grouped ? BigInteger.ZERO : BigInteger.ONE, f.pos());
         }
         if (rolledKey(e, keys, set)) {
             SqlAst.Pos at = e.pos();
@@ -3259,15 +3337,38 @@ public final class IqDialect implements InputDialect {
         };
     }
 
+    /** A column of {@code e}, outside its aggregates, of a column key's name and written otherwise than every such key;
+     *  null for none. */
+    private static SqlAst.@com.legend.base.Nullable ColumnRef spelledApart(SqlAst.Expr e, List<SqlAst.Expr> keys) {
+        if (e instanceof SqlAst.FunctionCall f && IqAggregates.named(f)) {
+            return null;
+        }
+        if (e instanceof SqlAst.ColumnRef r) {
+            String name = IqLexer.lower(r.parts().get(r.parts().size() - 1).text());
+            boolean named = false;
+            boolean same = false;
+            for (SqlAst.Expr k : keys) {
+                if (k instanceof SqlAst.ColumnRef kr && IqLexer.lower(kr.parts().get(kr.parts().size() - 1).text())
+                        .equals(name)) {
+                    named = true;
+                    same |= IqAggregates.same(r, k);
+                }
+            }
+            return named && !same ? r : null;
+        }
+        for (SqlAst.Expr child : children(e)) {
+            SqlAst.ColumnRef found = spelledApart(child, keys);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     /** Whether {@code e} reads a key {@code set} does not group by, or GROUPING, outside its aggregates. */
     private static boolean rolls(SqlAst.Expr e, List<SqlAst.Expr> keys, List<Integer> set) {
-        if (isGrouping(e)) {
+        if (isGrouping(e) || rolledKey(e, keys, set)) {
             return true;
-        }
-        for (int i = 0; i < keys.size(); i++) {
-            if (!set.contains(i) && IqAggregates.same(e, keys.get(i))) {
-                return true;
-            }
         }
         if (e instanceof SqlAst.FunctionCall f && IqAggregates.named(f)) {
             return false;
@@ -3303,7 +3404,8 @@ public final class IqDialect implements InputDialect {
      * subquery, a derived table or a set operation's branch; as IQ raises -1001030, one inside a CASE or an IF; as not
      * read, one in an item without an alias (its name), and an ORDER BY position past a {@code *}.
      */
-    private static SqlAst.Statement numbered(SqlAst.Statement statement) {
+    private static SqlAst.Statement numbered(SqlAst.Statement statement, Set<SqlAst.Window> numbering,
+            Map<SqlAst.SelectExpr, SqlAst.SelectExpr> remade) {
         for (SqlAst.Statement q : queries(statement)) {
             if (!(q instanceof SqlAst.Select s)) {
                 continue;
@@ -3328,19 +3430,25 @@ public final class IqDialect implements InputDialect {
         if (s.distinct()) {
             throw misplacedNumber(s.pos(), "in a query with DISTINCT");
         }
-        // the window's order: the statement's ORDER BY, each position and alias read as its item's expression
+        // the window's order: the statement's ORDER BY, each position and alias read as its item's expression; a
+        // constant key orders nothing (IQ island, 2026-10-16, the landing's review: IQ numbers the rows of a constant
+        // ORDER BY, or of none, in the order it shows them)
         List<SqlAst.SortItem> order = new ArrayList<>();
         for (SqlAst.SortItem key : s.orderBy()) {
             SqlAst.Expr k = key.expr();
             SqlAst.SelectExpr target = null;
-            if (k instanceof SqlAst.IntegerLit position) {
+            if (k instanceof SqlAst.IntegerLit position && !pastAnInt(position)) {
                 if (s.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns)) {
                     throw SqlTranslationException.unsupported("NUMBER(*) with an ORDER BY position beside a * is not"
                             + " supported", k.pos());
                 }
+                if (position.value().signum() <= 0
+                        || position.value().compareTo(BigInteger.valueOf(s.items().size())) > 0) {
+                    // IQ's -152 (measured: 2147483647 past the items), as orderPositions raises later
+                    throw orderRefused(k);
+                }
                 int at = position.value().intValueExact() - 1;
-                target = at >= 0 && at < s.items().size() && s.items().get(at) instanceof SqlAst.SelectExpr x ? x
-                        : null;
+                target = s.items().get(at) instanceof SqlAst.SelectExpr x ? x : null;
             } else if (k instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
                 for (SqlAst.SelectItem i : s.items()) {
                     if (i instanceof SqlAst.SelectExpr x && x.alias() != null && IqLexer.lower(java.util.Objects
@@ -3353,8 +3461,18 @@ public final class IqDialect implements InputDialect {
             if (hasNumber(by)) {
                 throw misplacedNumber(k.pos(), "in ORDER BY");
             }
-            order.add(new SqlAst.SortItem(by, key.descending(), key.nullsFirst(), key.pos()));
+            if (!constantKey(by)) {
+                order.add(new SqlAst.SortItem(by, key.descending(), key.nullsFirst(), key.pos()));
+            }
         }
+        // one window for every NUMBER(*), the statement's ORDER BY's last key: the numbers and the order the rows are
+        // shown in are one computation (IQ island, 2026-10-16, the landing's review: a ROW_NUMBER over the keys and
+        // the statement's own sort, apart, numbered tied rows otherwise than they were shown)
+        SqlAst.FunctionCall rowNumber = new SqlAst.FunctionCall(List.of(new SqlAst.Ident("row_number", false,
+                s.pos())), List.of(), false, false, List.of(), List.of(), null, s.pos());
+        SqlAst.Window number = new SqlAst.Window(rowNumber, new SqlAst.WindowSpec(null, List.of(), order, null,
+                s.pos()), s.pos());
+        numbering.add(number);
         List<SqlAst.SelectItem> items = new ArrayList<>();
         for (SqlAst.SelectItem item : s.items()) {
             if (item instanceof SqlAst.SelectExpr x && hasNumber(x.expr())) {
@@ -3362,33 +3480,48 @@ public final class IqDialect implements InputDialect {
                     throw SqlTranslationException.unsupported("NUMBER(*) in an item without an alias is not supported:"
                             + " name it with AS", x.expr().pos());
                 }
-                items.add(new SqlAst.SelectExpr(numbers(x.expr(), order), x.alias(), x.pos(), x.text()));
+                SqlAst.SelectExpr now = new SqlAst.SelectExpr(numbers(x.expr(), number), x.alias(), x.pos(), x.text());
+                remade.put(now, x);
+                items.add(now);
             } else {
                 items.add(item);
             }
         }
+        List<SqlAst.SortItem> orderBy = new ArrayList<>(s.orderBy());
+        orderBy.add(new SqlAst.SortItem(number, false, null, s.pos()));
         return new SqlAst.Select(s.distinct(), items, s.from(), s.where(), s.groupBy(), s.having(), s.windows(),
-                s.orderBy(), s.limit(), s.offset(), s.pos());
+                orderBy, s.limit(), s.offset(), s.pos());
     }
 
-    /** {@code e} with each NUMBER(*) as {@code ROW_NUMBER() OVER (ORDER BY order)}: inside arithmetic, a function's
-     *  arguments and a CAST; inside a CASE or an IF IQ's -1001030, anywhere else not read (both refused). */
-    private static SqlAst.Expr numbers(SqlAst.Expr e, List<SqlAst.SortItem> order) {
+    /** Whether a sort key orders nothing: no column, aggregate or subquery read in it. */
+    private static boolean constantKey(SqlAst.Expr e) {
+        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+        columnRefs(e, refs);
+        return refs.isEmpty() && IqAggregates.aggregateCalls(e).isEmpty() && !readsQuery(e);
+    }
+
+    private static boolean readsQuery(SqlAst.Expr e) {
+        return e instanceof SqlAst.ScalarSubquery || e instanceof SqlAst.Exists || e instanceof SqlAst.InSubquery
+                || e instanceof SqlAst.Quantified || children(e).stream().anyMatch(IqDialect::readsQuery);
+    }
+
+    /** {@code e} with each NUMBER(*) as {@code number}, the statement's one {@code ROW_NUMBER() OVER (ORDER BY
+     *  ...)}: inside arithmetic, a function's arguments and a CAST; inside a CASE or an IF IQ's -1001030, anywhere else
+     *  not read (both refused). */
+    private static SqlAst.Expr numbers(SqlAst.Expr e, SqlAst.Window number) {
         if (isNumber(e)) {
-            SqlAst.FunctionCall rowNumber = new SqlAst.FunctionCall(List.of(new SqlAst.Ident("row_number", false,
-                    e.pos())), List.of(), false, false, List.of(), List.of(), null, e.pos());
-            return new SqlAst.Window(rowNumber, new SqlAst.WindowSpec(null, List.of(), order, null, e.pos()), e.pos());
+            return number;
         }
         if (!hasNumber(e)) {
             return e;
         }
         return switch (e) {
-            case SqlAst.Binary b -> new SqlAst.Binary(b.op(), numbers(b.left(), order), numbers(b.right(), order),
+            case SqlAst.Binary b -> new SqlAst.Binary(b.op(), numbers(b.left(), number), numbers(b.right(), number),
                     b.pos());
-            case SqlAst.Unary u -> new SqlAst.Unary(u.op(), numbers(u.operand(), order), u.pos());
-            case SqlAst.Cast c -> new SqlAst.Cast(numbers(c.operand(), order), c.type(), c.pos());
+            case SqlAst.Unary u -> new SqlAst.Unary(u.op(), numbers(u.operand(), number), u.pos());
+            case SqlAst.Cast c -> new SqlAst.Cast(numbers(c.operand(), number), c.type(), c.pos());
             case SqlAst.FunctionCall f when f.orderBy().isEmpty() && f.filter() == null -> new SqlAst.FunctionCall(
-                    f.name(), f.args().stream().map(a -> numbers(a, order)).toList(), f.distinct(), f.star(),
+                    f.name(), f.args().stream().map(a -> numbers(a, number)).toList(), f.distinct(), f.star(),
                     f.orderBy(), f.withinGroup(), f.filter(), f.pos());
             case SqlAst.Case c -> throw SqlTranslationException.unsupported("NUMBER(*) inside a CASE or an IF is IQ's"
                     + " error -1001030 (a CASE of a non-deterministic function), refused before translating", c.pos());
@@ -6784,6 +6917,18 @@ public final class IqDialect implements InputDialect {
                     : b.op() == SqlAst.BinaryOp.MINUS ? "minus" : "times", List.of(pure(b.left()), pure(b.right())));
             default -> throw new IllegalStateException("not a row limit's count: " + e);
         };
+    }
+
+    /** IQ island, 2026-10-16 (the landing's review; measured on IQ 17.1 and SQL Anywhere 17,
+     *  {@code lite/corpus_gaps.yaml}'s order_by cases): an integer past an INT's range is no position but a constant,
+     *  which orders nothing. */
+    @Override
+    public boolean ordersNothing(SqlAst.Expr key) {
+        return pastAnInt(key);
+    }
+
+    private static boolean pastAnInt(SqlAst.Expr key) {
+        return key instanceof SqlAst.IntegerLit n && n.value().bitLength() > 31;
     }
 
     /** IQ island, 2026-10-16 (the user's decision; measured on IQ 17.1 and SQL Anywhere 17, the TOP cases of
