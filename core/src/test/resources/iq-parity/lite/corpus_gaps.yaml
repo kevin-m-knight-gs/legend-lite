@@ -183,3 +183,25 @@ tests:
   - id: on_a_later_join_reading_an_earlier_one_is_iqs_error
     sql: "SELECT t.id, u.id AS uid, g.id AS gid FROM t LEFT JOIN u ON u.t_id = t.id LEFT JOIN g ON g.id = u.id AND u.id IN (SELECT id FROM u) ORDER BY 1, 2, 3"
     profile: iq17-default
+
+  # ---- an aggregate's DISTINCT over an expression (the research's D-R1 held IQ's engine restricts it; IQ 17.1 reads it)
+  - id: count_distinct_of_expressions
+    sql: "SELECT COUNT(DISTINCT CASE WHEN id > 2 THEN sm END) AS a, COUNT(DISTINCT id + 1) AS b, COUNT(DISTINCT CAST(ts AS DATE)) AS c, COUNT(DISTINCT YEAR(ts)) AS d FROM t"
+    profile: iq17-default
+  - id: sum_distinct_of_an_expression
+    sql: "SELECT SUM(DISTINCT sm * 2) AS a FROM t"
+    profile: iq17-default
+  - id: count_distinct_of_an_expression_grouped
+    sql: "SELECT bt, COUNT(DISTINCT CASE WHEN id > 2 THEN sm END) AS a FROM t GROUP BY bt ORDER BY bt"
+    profile: iq17-default
+  - id: count_distinct_in_a_select_distinct
+    sql: "SELECT DISTINCT COUNT(DISTINCT sm + 1) AS a FROM t"
+    profile: iq17-default
+
+  # ---- a reserved word standing alone as a column's name
+  - id: a_bare_date_column_is_iqs_error
+    sql: "SELECT Date FROM t"
+    profile: iq17-default
+  - id: a_bare_comment_column_is_iqs_error
+    sql: "SELECT id, Comment FROM t"
+    profile: iq17-default

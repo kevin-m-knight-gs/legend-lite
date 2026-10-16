@@ -82,10 +82,10 @@ its syntax error or an error it names), DB_ERROR or CRASH.
 
 | Suite | Answered before | Answered now | IQ's own error now |
 |---|---|---|---|
-| SEDE | 40.6% | 55.0% | 10.9% |
-| SQLStorm | 21.7% | 30.3% | 10.0% |
-| Public BI | 93.0% | 94.1% | 1.9% |
-| BIRD | 58.2% | 59.8% | 16.2% |
+| SEDE | 40.6% | 55.7% | 12.3% |
+| SQLStorm | 21.7% | 31.2% | 10.5% |
+| Public BI | 93.0% | 94.4% | 2.2% |
+| BIRD | 58.2% | 60.0% | 18.2% |
 
 Measured on the live IQ 17.1 and built (parity cases: `lite/corpus_gaps.yaml`):
 - a statement's trailing separator (1,691 of SEDE's queries);
@@ -96,12 +96,14 @@ Measured on the live IQ 17.1 and built (parity cases: `lite/corpus_gaps.yaml`):
 - ROUND of a NUMERIC past 18 digits;
 - a quotient or a ROUND whose IQ type passes 38 digits (`COUNT(id) * 100.0 / COUNT(*)`, IQ's NUMERIC(44,21)): computed where the value fits, refused at run time where it does not;
 - national strings (`N'...'`);
-- GROUP BY expressions that read no select-list alias.
+- GROUP BY expressions that read no select-list alias;
+- REAL and FLOAT, IQ's single precision (`lite/iq_reals.yaml`), rounded by Veltkamp's split in double arithmetic: FLOAT and FLOAT(1..24) are REAL, FLOAT(25..53) DOUBLE; a value past the largest single is IQ's error, one below the smallest normal 0. Two REALs give a REAL in SQL Anywhere's front end, a DOUBLE (unrounded) under IQ's engine. A REAL with another number is a DOUBLE, in COALESCE, CASE and UNION too. SUM and AVG are DOUBLEs, MIN and MAX REALs;
+- an aggregate's DISTINCT over an expression, and one in a SELECT DISTINCT, under IQ's engine (the research's D-R1 held that IQ restricts them; IQ 17.1 reads them).
 
 Measured to be IQ's own errors, raised or named by the island:
 - `OFFSET ... FETCH`, `LIMIT`, `INTERVAL` and `FILTER` are -131;
 - `STRING_AGG`, `CONCAT`, `EOMONTH`, `FORMAT` and `STRING_SPLIT` are -265, though a user function could hold the name, so these stay refused by name;
-- the T-SQL date parts `yyyy`, `d`, `m`, `ww`, `n`, `s` and `q`, and `x.Comment`, `x.Date`, `x.Key`, `x.Order`, `x.User` (reserved words after a dot), are -131;
+- the T-SQL date parts `yyyy`, `d`, `m`, `ww`, `n`, `s` and `q`, `x.Comment`, `x.Date`, `x.Key`, `x.Order` and `x.User` (reserved words after a dot), and `Date`, `Comment`, `time` and `Key` standing alone are all -131;
 - under IQ's engine:
   - TOP in any subquery, derived table or common table expression is -1001030 (the research's D-R1 had held that IQ may ignore it);
   - a subquery inside a conditional expression is -1001030;
@@ -110,7 +112,6 @@ Measured to be IQ's own errors, raised or named by the island:
   - CAST to NVARCHAR or NCHAR is -1001030.
 
 Open, ranked by the corpora:
-- REAL and FLOAT, IQ's single precision (430): REAL beside a non-REAL is a DOUBLE, REAL with REAL a REAL;
 - ROUND of a DOUBLE: IQ rounds its decimal digits;
 - CAST to DECIMAL without a precision, IQ's NUMERIC(126,38) (70);
 - a subquery in a derived table's select list, which IQ's engine reads only where the outer query shows its column as it is (192);

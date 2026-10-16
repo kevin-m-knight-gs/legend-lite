@@ -3431,7 +3431,9 @@ public final class IqDialect implements InputDialect {
             // a DOUBLE's negation is exact, and never leaves its range
             doubleOperand(x, u.operand(), "-");
             Tx negated = SqlToPure.strict(Kind.FLOAT, List.of(x), v -> SqlToPure.call("minus", v.get(0)));
-            return Tx.value(negated.vs(), Kind.FLOAT, negated.nullable(), new IqType("DOUBLE"));
+            // IQ island, 2026-10-15 (measured on IQ 17.1): a REAL's is a REAL
+            return Tx.value(negated.vs(), Kind.FLOAT, negated.nullable(), new IqType(IqFunctions.real(x) ? "REAL"
+                    : "DOUBLE"));
         }
         if (decimal(x)) {
             // a NUMERIC's negation keeps its type (TYPING §6), exactly; under IQ's engine too (IQ island, 2026-10-15,
@@ -4078,8 +4080,9 @@ public final class IqDialect implements InputDialect {
      * integer of any of IQ's types; a NUMERIC under SQL Anywhere's front end). A result beyond the largest DOUBLE is
      * IQ's error -158 and a zero divisor IQ's -628, where DuckDB would answer an infinity: each is checked, so every
      * database raises. With an untyped NULL it is a DOUBLE NULL. Refused by name: {@code %} (IQ types it NUMERIC), a
-     * string (IQ converts it to NUMERIC), a NUMERIC under the IQ engine (the research's D-N1), a REAL; and, as for
-     * checked integers, one in the select list or ORDER BY of a row-limited statement.
+     * string (IQ converts it to NUMERIC), a NUMERIC under the IQ engine (the research's D-N1); and, as for checked
+     * integers, one in the select list or ORDER BY of a row-limited statement. A REAL takes part as its DOUBLE, two
+     * REALs give a REAL (IQ island, 2026-10-15).
      */
     private Tx doubleArithmetic(SqlAst.Binary b, Tx l, Tx r) {
         String operator = operator(b.op());
@@ -4092,6 +4095,12 @@ public final class IqDialect implements InputDialect {
         }
         boolean lf = doubleOperand(l, b.left(), operator);
         boolean rf = doubleOperand(r, b.right(), operator);
+        // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): in SQL Anywhere's front end two REALs give a
+        // REAL, the DOUBLE result rounded to single precision (+ - * / of two singles in double precision round once,
+        // exactly as single precision does: CAST(1.1 AS REAL) * CAST(3 AS REAL) is 3.3000001907348633); under IQ's
+        // engine a DOUBLE, unrounded (1.5's REAL times 1.1's is 1.6500000357627869); a REAL with any other number is the
+        // DOUBLE of its value (CAST(1.1 AS REAL) * 3 is 3.3000000715255737)
+        boolean reals = engine != Engine.IQ && IqFunctions.real(l) && IqFunctions.real(r);
         // IQ island, 2026-10-14 (the options framework): under divide_by_zero_error Off a zero divisor gives NULL
         BigDecimal literal = numberLiteral(b.right());
         boolean nullOnZero = b.op() == SqlAst.BinaryOp.DIVIDE && !settings.divideByZeroError()
@@ -4135,7 +4144,7 @@ public final class IqDialect implements InputDialect {
         // tested once where a chain of + - * ends (an infinity or a NaN within it stays one to the end, where abs(v)
         // exceeds the largest on DuckDB and Postgres alike); its operands' NULL guards merge where they cannot raise,
         // so a sum of DOUBLE measures stays linear in size
-        boolean pending = iq && chained.contains(b) && op != SqlAst.BinaryOp.DIVIDE;
+        boolean pending = !reals && iq && chained.contains(b) && op != SqlAst.BinaryOp.DIVIDE;
         boolean merge = iq && op != SqlAst.BinaryOp.DIVIDE && cannotRaise(b.left()) && cannotRaise(b.right());
         Tx result = SqlToPure.strict(Kind.FLOAT, List.of(l, r), merge || List.of(l, r).stream().filter(Tx::nullable)
                 .count() == 1, v -> {
@@ -4147,6 +4156,9 @@ public final class IqDialect implements InputDialect {
                 case TIMES -> guard ? unflowedProduct(x, y) : AppliedFunction.infixRun("times", List.of(x, y));
                 default -> guard ? unflowedQuotient(x, y) : SqlToPure.call("divide", x, y);
             };
+            if (reals) {
+                value = IqFunctions.single(value);
+            }
             ValueSpecification finite = pending ? value : ifThen(SqlToPure.call("greaterThan", SqlToPure.call("abs",
                     value), new com.legend.protocol.spec.CFloat(DOUBLE_MAX)), iq ? SqlToPure.nullOf(Kind.FLOAT).vs()
                     : floatRaise(), value);
@@ -4159,7 +4171,8 @@ public final class IqDialect implements InputDialect {
             return new Tx(result.vs(), Kind.FLOAT, result.nullable(), null, new IqType("DOUBLE"), result.guard(),
                     result.body());
         }
-        return Tx.value(result.vs(), Kind.FLOAT, result.nullable() || nullOnZero || iq, new IqType("DOUBLE"));
+        return Tx.value(result.vs(), Kind.FLOAT, result.nullable() || nullOnZero || iq, new IqType(reals ? "REAL"
+                : "DOUBLE"));
     }
 
     private static ValueSpecification fl(double d) {
@@ -4223,7 +4236,7 @@ public final class IqDialect implements InputDialect {
      *  Anywhere's front end, a NUMERIC, which is converted); anything else is refused by name. */
     private boolean doubleOperand(Tx t, SqlAst.Expr e, String operator) {
         if (t.kind() == Kind.FLOAT) {
-            if (t.detail() instanceof IqType type && !type.family().equals("DOUBLE")) {
+            if (t.detail() instanceof IqType type && !type.family().equals("DOUBLE") && !type.family().equals("REAL")) {
                 throw SqlTranslationException.unsupported(operator + " of a " + type.spelling() + " is not supported"
                         + " yet", e.pos());
             }
@@ -5760,6 +5773,7 @@ public final class IqDialect implements InputDialect {
         boolean doubles = false;
         boolean integers = false;
         boolean counts = false;
+        boolean reals = false;
         for (Tx v : values) {
             if (v.kind() == Kind.NULL) {
                 continue;
@@ -5768,6 +5782,8 @@ public final class IqDialect implements InputDialect {
                 numeric = true;
             } else if (v.kind() == Kind.FLOAT && v.detail() instanceof IqType t && t.family().equals("DOUBLE")) {
                 doubles = true;
+            } else if (IqFunctions.real(v)) {
+                reals = true;
             } else if (v.kind() == Kind.INTEGER && v.detail() instanceof IqType t && t.isInteger()) {
                 integers = true;
             } else if (v.kind() == Kind.INTEGER && v.detail() instanceof IqType t && t.spelling().equals(
@@ -5810,8 +5826,20 @@ public final class IqDialect implements InputDialect {
             }
             return new SqlToPure.Common(unified, Kind.INTEGER, type);
         }
+        // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): REALs alone are a REAL; a REAL beside any other
+        // number a DOUBLE (COALESCE(CAST(x AS REAL), 0), a UNION of a REAL and an integer)
+        if (reals && !numeric && !doubles && !integers && !counts) {
+            IqType type = new IqType("REAL");
+            List<Tx> unified = new ArrayList<>();
+            for (Tx v : values) {
+                unified.add(v.kind() == Kind.NULL ? Tx.value(SqlToPure.nullOf(Kind.FLOAT).vs(), Kind.FLOAT, true, type)
+                        : v);
+            }
+            return new SqlToPure.Common(unified, Kind.FLOAT, type);
+        }
+        doubles |= reals;
         // IQ island, 2026-10-15 (measured on IQ 17.1): an integer beside a DOUBLE is a DOUBLE too
-        if (!numeric && !(doubles && (integers || counts))) {
+        if (!numeric && !(doubles && (integers || counts || reals))) {
             return null;
         }
         if (doubles) {

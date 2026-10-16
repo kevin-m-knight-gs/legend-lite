@@ -865,6 +865,7 @@ tests:
     engine: sa
   - id: cast_columns_to_double
     sql: "SELECT id, CAST(sm AS DOUBLE) AS a, CAST(bg AS DOUBLE) AS b, CAST(nm AS DOUBLE) AS c, CAST(dbl AS DOUBLE) AS d FROM t ORDER BY id"
+  # IQ island, 2026-10-15: read now (lite/iq_reals.yaml); the ids are kept, the answers keyed by them
   - id: cast_to_real_is_refused
     sql: "SELECT CAST(1 AS REAL) AS a"
     engine: sa

@@ -683,10 +683,12 @@ final class IqAggregates {
      *   <li>an expression of a column that is part of a GROUP BY expression, outside that expression and not grouped by
      *       itself ({@code SELECT 1 + k ... GROUP BY k + 1}): IQ may read it as the GROUP BY expression (measured: it
      *       does for {@code 1 + k}, it raises -149 for {@code k * 3});</li>
-     *   <li>under the IQ engine (which restricts them: the research's D-R1): a GROUP BY of constants only (when no
-     *       column outside an aggregate makes it IQ's -149 first), an aggregate's DISTINCT over anything but a column,
-     *       a SELECT DISTINCT with an aggregate's DISTINCT; and two LISTs ordered differently (the research's D-A1),
-     *       which SQL Anywhere's front end rejects (-904).</li>
+     *   <li>a GROUP BY of constants only (when no column outside an aggregate makes it IQ's -149 first: lite's
+     *       databases read an integer there as a position); and two LISTs ordered differently (the research's D-A1),
+     *       which SQL Anywhere's front end rejects (-904). IQ island, 2026-10-15 (the corpus lane; measured on IQ
+     *       17.1): an aggregate's DISTINCT over an expression, and one in a SELECT DISTINCT, are read under IQ's engine
+     *       too -- the research's D-R1 held that it restricts them; IQ 17.1 answers COUNT(DISTINCT CASE ... END),
+     *       COUNT(DISTINCT id + 1), SUM(DISTINCT sm * 2) and SELECT DISTINCT COUNT(DISTINCT sm + 1).</li>
      * </ul>
      */
     static Naming read(SqlAst.Statement statement, IqDialect.Engine engine, Map<SqlAst.Expr, String> spans) {
@@ -697,9 +699,6 @@ final class IqAggregates {
                 constantKeys(s, engine);
                 keyMatches(s);
                 lists(s, engine);
-                if (engine == IqDialect.Engine.IQ) {
-                    restrictions(s);
-                }
                 naming.add(s);
             }
         }
@@ -867,22 +866,6 @@ final class IqAggregates {
         throw SqlTranslationException.unsupported("a GROUP BY of constants only is not supported" + (engine
                 == IqDialect.Engine.IQ ? " under IQ's engine, which restricts it (the research's D-R1)"
                 : ": lite's databases read an integer there as a select-list position"), s.groupBy().get(0).pos());
-    }
-
-    /** The IQ engine's restrictions on a grouped query (the research's GRAMMAR G6 and F7, D-R1). */
-    private static void restrictions(SqlAst.Select s) {
-        for (SqlAst.Expr e : allExpressions(s)) {
-            for (SqlAst.FunctionCall f : aggregateCalls(e)) {
-                if (f.distinct() && s.distinct()) {
-                    throw SqlTranslationException.unsupported("an aggregate's DISTINCT in a SELECT DISTINCT is not"
-                            + " supported under IQ's engine, which restricts it (the research's D-R1)", f.pos());
-                }
-                if (f.distinct() && !(f.args().get(0) instanceof SqlAst.ColumnRef)) {
-                    throw SqlTranslationException.unsupported("an aggregate's DISTINCT over anything but a column is not"
-                            + " supported under IQ's engine, which restricts it (the research's D-R1)", f.pos());
-                }
-            }
-        }
     }
 
     // ------------------------------------------------------------------ one expression as another
@@ -1316,7 +1299,10 @@ final class IqAggregates {
             throw SqlTranslationException.unsupported(what + "(NULL) is not supported yet", f.pos());
         }
         if (kind == Kind.FLOAT) {
-            if (type == null || !type.family().equals("DOUBLE")) {
+            // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): under IQ's engine SUM and AVG of a REAL are
+            // DOUBLEs, its values added in double precision
+            if (type == null || !type.family().equals("DOUBLE") && !(type.family().equals("REAL")
+                    && engine == IqDialect.Engine.IQ)) {
                 throw SqlTranslationException.unsupported(what + " of a value of this type is not supported yet",
                         f.pos());
             }

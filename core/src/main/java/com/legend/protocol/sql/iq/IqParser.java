@@ -1592,6 +1592,12 @@ public final class IqParser {
                 if (special != null) {
                     return special;
                 }
+                if (BARE_RESERVED.contains(IqLexer.lower(t.text())) && !peek(1).isOp("(")) {
+                    // IQ island, 2026-10-15 (the corpus lane: SELECT Date, Comment ... in 160 of SEDE's and SQLStorm's
+                    // queries; measured on IQ 17.1): a column of a reserved word's name, undelimited, is IQ's -131
+                    throw new SqlSyntaxException("the reserved word '" + t.text() + "' is no value: a column of its name"
+                            + " must be delimited" + IqDialect.syntaxCode(), t.pos());
+                }
                 throw SqlSyntaxException.unsupported("'" + t.text() + "' here (" + keywordForm(t)
                         + ") is not supported yet", t.pos());
             }
@@ -1647,6 +1653,10 @@ public final class IqParser {
         expectOp(")");
         return query;
     }
+
+    /** Reserved words IQ reads as no value standing alone, measured on IQ 17.1 (SELECT Date FROM ..., Comment, time,
+     *  Key: each -131). */
+    private static final Set<String> BARE_RESERVED = Set.of("date", "comment", "time", "key");
 
     /** What a keyword heading a value would begin, for the refusal's message. */
     private static String keywordForm(IqLexer.Token t) {
@@ -2439,6 +2449,8 @@ public final class IqParser {
                 return new SqlAst.TypeName("DOUBLE", List.of(), pos);
             }
             case "FLOAT" -> {
+                // IQ island, 2026-10-15 (the corpus lane: CAST(x AS FLOAT) in 430 of the corpora's queries; measured on
+                // IQ 17.1): FLOAT and FLOAT(1) to FLOAT(24) are REAL, FLOAT(25) to FLOAT(53) DOUBLE
                 if (takeOp("(")) {
                     // SQL Anywhere takes FLOAT(0) and FLOAT(200) too (GRAMMAR T6): a precision outside 1 .. 53 is
                     // refused, not an error
@@ -2447,13 +2459,20 @@ public final class IqParser {
                     if (bits >= 25 && bits <= 53) {
                         return new SqlAst.TypeName("DOUBLE", List.of(), pos);
                     }
+                    if (bits < 1 || bits > 53) {
+                        throw SqlSyntaxException.unsupported("a FLOAT's precision outside 1 to 53 is not supported",
+                                pos);
+                    }
                 }
-                throw notRead("REAL", pos);
+                return new SqlAst.TypeName("REAL", List.of(), pos);
+            }
+            case "REAL" -> {
+                return new SqlAst.TypeName("REAL", List.of(), pos);
             }
             case "DATE", "BIT" -> {
                 return new SqlAst.TypeName(w.toUpperCase(java.util.Locale.ROOT), List.of(), pos);
             }
-            case "REAL", "TIME", "UNIQUEIDENTIFIER", "XML", "VARBIT", "UNIQUEIDENTIFIERSTR" -> {
+            case "TIME", "UNIQUEIDENTIFIER", "XML", "VARBIT", "UNIQUEIDENTIFIERSTR" -> {
                 throw notRead(w.toUpperCase(java.util.Locale.ROOT), pos);
             }
             case "TIMESTAMP", "DATETIME", "SMALLDATETIME" -> {

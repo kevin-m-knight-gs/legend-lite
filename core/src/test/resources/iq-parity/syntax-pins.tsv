@@ -136,16 +136,20 @@
 # string of the database's charset, NCHAR and NVARCHAR read as CAST targets for CAST to say IQ's -1001030, a statement's
 # trailing separator read): accept PARSED 3,068 -> 3,095 (REFUSED 1,880 -> 1,853); flag PARSED 67 -> 69 (REFUSED
 # 67 -> 65). Reject and accept-rejected unchanged.
-accept	parsed	3095
-accept	refused	1853
+# IQ island, 2026-10-15 (the corpus lane, measured on the live IQ 17.1: REAL, FLOAT and FLOAT(1..24) read as IQ's single
+# precision, lite/iq_reals.yaml): accept PARSED 3,095 -> 3,105 (REFUSED 1,853 -> 1,843). The rest unchanged.
+# IQ island, 2026-10-15 (the corpus lane, measured on the live IQ 17.1: DATE, COMMENT, TIME and KEY standing alone as a
+# value are IQ's -131): reject REJECTED 995 -> 1,001 (REFUSED 789 -> 783). Accept-rejected unchanged (2).
+accept	parsed	3105
+accept	refused	1843
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	69
 flag	refused	65
 reject	parsed	25
-reject	refused	789
-reject	rejected	995
+reject	refused	783
+reject	rejected	1001
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609

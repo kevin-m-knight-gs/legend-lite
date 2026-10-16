@@ -121,12 +121,13 @@ class IqFunctionsTest {
             assertFalse(e.unsupported(), sql);
             assertTrue(e.reason().contains("SQLCODE -131"), sql + ": " + e.reason());
         }
-        // a style the island does not read, a domain, TIMESTAMP WITH TIME ZONE, a type of no value read (REAL, TIME,
-        // TINYINT, unsigned, binary), a constant IQ cannot convert: refused by name
+        // a style the island does not read, a domain, TIMESTAMP WITH TIME ZONE, a type of no value read (TIME, TINYINT,
+        // unsigned, binary), a FLOAT's precision outside 1 to 53, a constant IQ cannot convert: refused by name (IQ
+        // island, 2026-10-15: REAL and FLOAT(24) read now, IqToPureTest)
         for (String sql : List.of("SELECT CONVERT(VARCHAR(10), dt, 23) AS x", "SELECT CONVERT(INT, dt, 112) AS x",
                 "SELECT CONVERT(VARCHAR(10), dt, 99999999999) AS x", "SELECT CAST(1 AS my_domain) AS x",
                 "SELECT CAST(ts AS TIMESTAMP WITH TIME ZONE) AS x", "SELECT CURRENT TIME AS x",
-                "SELECT CAST(id AS FLOAT(24)) AS x", "SELECT CAST(id AS FLOAT(0)) AS x", "SELECT CAST(id AS TIME) AS x",
+                "SELECT CAST(id AS FLOAT(54)) AS x", "SELECT CAST(id AS FLOAT(0)) AS x", "SELECT CAST(id AS TIME) AS x",
                 "SELECT CAST(id AS TINYINT) AS x", "SELECT CAST(id AS INT UNSIGNED) AS x",
                 "SELECT CAST(id AS VARBINARY(4)) AS x", "SELECT CAST('abc' AS INT) AS x",
                 "SELECT CAST('40000' AS SMALLINT) AS x", "SELECT CAST(2 AS BIT) AS x",
@@ -399,5 +400,19 @@ class IqFunctionsTest {
         // IQ island, 2026-10-14 (review 3's M3, the study's D-T13): SQL Anywhere reads GETDATE() apart from the
         // statement's other clock readings: beside one, refused
         assertThrows(SqlTranslationException.class, () -> pure("SELECT GETDATE() AS a, NOW(*) AS b"));
+    }
+
+    /** IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1, lite/iq_reals.yaml): REAL and FLOAT are single
+     *  precision, rounded by Veltkamp's split of 2^29 + 1; FLOAT(25) is a DOUBLE; a precision outside 1 to 53 refused. */
+    @Test
+    void realsAreRoundedToSinglePrecision() {
+        assertTrue(pure("SELECT CAST(id AS REAL) AS x FROM " + T, IqProfile.IQ17_DEFAULT.settings())
+                .matches("(?s).*(5\\.36870913E8|536870913\\.0).*"));
+        assertTrue(pure("SELECT CAST(id AS FLOAT) AS x FROM " + T, IqProfile.IQ17_DEFAULT.settings())
+                .matches("(?s).*(5\\.36870913E8|536870913\\.0).*"));
+        assertFalse(pure("SELECT CAST(id AS FLOAT(25)) AS x FROM " + T, IqProfile.IQ17_DEFAULT.settings())
+                .matches("(?s).*(5\\.36870913E8|536870913\\.0).*"));
+        assertTrue(assertThrows(SqlSyntaxException.class, () -> IqParser.parse("SELECT CAST(id AS FLOAT(54)) AS x",
+                IqProfile.IQ17_DEFAULT.settings())).unsupported());
     }
 }

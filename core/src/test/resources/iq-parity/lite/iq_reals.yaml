@@ -1,0 +1,40 @@
+# REAL and FLOAT, IQ's single precision (IQ island, 2026-10-15; the real-world corpus lane: CAST(x AS FLOAT) in 430 of its
+# queries; measured on the live IQ 17.1): FLOAT and FLOAT(1..24) are REAL, FLOAT(25..53) DOUBLE; a CAST rounds to the
+# nearest single-precision value (ties to even), beyond the largest is IQ's error, below the smallest normal 0; two REALs
+# give a REAL in SQL Anywhere's front end and a DOUBLE
+# (unrounded) under IQ's engine, a REAL with any other number a DOUBLE of its value; COALESCE, CASE and UNION alike; SUM and AVG of REALs
+# are DOUBLEs, MIN and MAX REALs; compared as doubles. Judged by the live IQ. Every case is deterministic.
+tests:
+  - id: reals_cast_from_columns
+    sql: "SELECT id, CAST(id AS REAL) AS a, CAST(nm AS REAL) AS b, CAST(dbl AS REAL) AS c, CAST(sm AS FLOAT) AS d, CAST(bg AS REAL) AS e FROM t WHERE id <> 6 ORDER BY id"
+    profile: iq17-default
+  - id: a_real_past_the_largest_is_iqs_error
+    sql: "SELECT CAST(dbl AS REAL) AS c FROM t WHERE id = 6"
+    profile: iq17-default
+  - id: reals_cast_from_constants
+    sql: "SELECT CAST(1.1 AS REAL) AS a, CAST(16777217 AS REAL) AS b, CAST(1.1 AS FLOAT(24)) AS c, CAST(1.1 AS FLOAT(25)) AS d, CAST(16777219 AS FLOAT) AS f"
+    profile: iq17-default
+  - id: reals_in_arithmetic
+    sql: "SELECT id, CAST(dbl AS REAL) * 3 AS a, CAST(dbl AS REAL) + nm AS b, CAST(dbl AS REAL) * CAST(1.1 AS REAL) AS c, CAST(dbl AS REAL) - CAST(id AS REAL) AS d, CAST(id AS REAL) / CAST(3 AS REAL) AS e, -CAST(dbl AS REAL) AS f FROM t WHERE id <> 6 ORDER BY id"
+    profile: iq17-default
+  - id: reals_in_constant_arithmetic
+    sql: "SELECT CAST(1.1 AS REAL) * 3 AS a, CAST(1.1 AS REAL) + CAST(1.1 AS DOUBLE) AS d"
+    profile: iq17-default
+  - id: reals_unified
+    sql: "SELECT id, COALESCE(CAST(dbl AS REAL), 0) AS a, COALESCE(CAST(dbl AS REAL), CAST(1 AS REAL)) AS b, CASE WHEN id > 2 THEN CAST(dbl AS REAL) ELSE dbl END AS c, CASE WHEN id > 2 THEN CAST(dbl AS REAL) ELSE nm END AS d FROM t WHERE id <> 6 ORDER BY id"
+    profile: iq17-default
+  - id: reals_aggregated
+    sql: "SELECT SUM(CAST(dbl AS REAL)) AS s, AVG(CAST(dbl AS REAL)) AS a, MIN(CAST(dbl AS REAL)) AS mn, MAX(CAST(dbl AS REAL)) AS mx FROM t WHERE id <> 6"
+    profile: iq17-default
+  - id: reals_cast_back
+    sql: "SELECT id, CAST(CAST(dbl AS REAL) AS INT) AS i, CAST(CAST(dbl AS REAL) AS NUMERIC(10,4)) AS n, CAST(CAST(dbl AS REAL) AS DOUBLE) AS d FROM t WHERE id <> 6 ORDER BY id"
+    profile: iq17-default
+  - id: reals_compared_as_doubles
+    sql: "SELECT CASE WHEN CAST(1.1 AS REAL) = 1.1 THEN 1 ELSE 0 END AS a, CASE WHEN CAST(1.5 AS REAL) = 1.5 THEN 1 ELSE 0 END AS b, CASE WHEN CAST(1.1 AS REAL) = CAST(1.1 AS DOUBLE) THEN 1 ELSE 0 END AS c, CASE WHEN CAST(1.1 AS REAL) > 1.1 THEN 1 ELSE 0 END AS d FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: a_real_in_a_union
+    sql: "SELECT CAST(1.5 AS REAL) AS a FROM t WHERE id = 1 UNION ALL SELECT 2 FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: counts_as_floats
+    sql: "SELECT CAST(COUNT(*) AS FLOAT) / 3 AS a, CAST(COUNT(id) AS FLOAT) * 100 / COUNT(*) AS b, CAST(SUM(sm) AS REAL) / COUNT(sm) AS c FROM t"
+    profile: iq17-default

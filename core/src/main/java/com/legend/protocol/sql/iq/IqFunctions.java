@@ -3220,7 +3220,13 @@ final class IqFunctions {
             throw SqlTranslationException.unsupported(what + " of a column to LONG VARCHAR is IQ's error -1001006 under"
                     + " its engine (no conversion), refused before translating", c.pos());
         }
+        if (real(x) && !target.equals("REAL")) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): a REAL converts as the DOUBLE of its value does (to INTEGER
+            // toward zero, to NUMERIC(10,4) -.1000 for -0.1's single precision)
+            x = new Tx(x.vs(), x.kind(), x.nullable(), x.whenFalse(), new IqType("DOUBLE"), x.guard(), x.body());
+        }
         Tx result = switch (target) {
+            case "REAL" -> toReal(x, c, what);
             case "SMALLINT", "INTEGER", "BIGINT" -> toInteger(target, x, c, what);
             case "NUMERIC" -> toNumeric(sizes, x, c, what);
             case "DOUBLE" -> toDouble(x, c, what);
@@ -3625,6 +3631,56 @@ final class IqFunctions {
         }
         Tx d = asDouble(x, c.operand(), what);
         return Tx.value(d.vs(), Kind.FLOAT, d.nullable(), type);
+    }
+
+    /**
+     * CAST to REAL, FLOAT or FLOAT(1) to FLOAT(24) (IQ island, 2026-10-15; the corpus lane, measured on IQ 17.1): IQ's
+     * single precision, held as the DOUBLE of its value ({@link #single}): an integer, a NUMERIC or a DOUBLE rounded to
+     * the nearest single-precision value (16777217 is 16777216, 1.1 is 1.100000023841858); a value beyond the largest
+     * one is IQ's error, a magnitude below the smallest normal one 0. A string is refused by name.
+     */
+    private Tx toReal(Tx x, SqlAst.Cast c, String what) {
+        IqType type = new IqType("REAL");
+        if (isNull(x)) {
+            return Tx.value(SqlToPure.nullOf(Kind.FLOAT).vs(), Kind.FLOAT, true, type);
+        }
+        if (real(x)) {
+            return x;
+        }
+        if (x.kind() == Kind.STRING) {
+            throw SqlTranslationException.unsupported(what + " of a string to REAL is not supported yet: IQ reads it by"
+                    + " its own rules", c.operand().pos());
+        }
+        raisesHere(c, "-158 (out of range)");
+        Tx d = asDouble(x, c.operand(), what);
+        Tx r = SqlToPure.strict(Kind.FLOAT, List.of(d), v -> single(v.get(0)));
+        return Tx.value(r.vs(), Kind.FLOAT, r.nullable(), type);
+    }
+
+    /** Whether {@code t} is IQ's REAL: a DOUBLE whose value single precision holds. */
+    static boolean real(Tx t) {
+        return t.kind() == Kind.FLOAT && t.detail() instanceof IqType type && type.family().equals("REAL");
+    }
+
+    /** The largest single-precision value, and the smallest normal one. */
+    private static final double SINGLE_MAX = Float.MAX_VALUE;
+    private static final double SINGLE_MIN = Float.MIN_NORMAL;
+
+    /**
+     * {@code x}, a DOUBLE, as IQ's REAL holds it (IQ island, 2026-10-15; measured on IQ 17.1): rounded to the nearest
+     * value of 24 significant bits, ties to even, by Veltkamp's split -- c = x * (2^29 + 1), then c - (c - x), plain
+     * double arithmetic, which every database computes alike (checked against Java's own conversion to float over
+     * 2.9 million values, 500,000 exact ties among them); beyond the largest single-precision value IQ's error (3.4028235E38
+     * is -158, the double before rounding compared), below the smallest normal one 0 (IQ keeps no subnormal: 1E-40 is
+     * 0).
+     */
+    static ValueSpecification single(ValueSpecification x) {
+        ValueSpecification c = AppliedFunction.infixRun("times", List.of(x, new CFloat(536870913.0)));
+        ValueSpecification rounded = AppliedFunction.infixRun("minus", List.of(c, AppliedFunction.infixRun("minus",
+                List.of(c, x))));
+        ValueSpecification magnitude = SqlToPure.call("abs", x);
+        return ifThen(SqlToPure.call("greaterThan", magnitude, new CFloat(SINGLE_MAX)), raise("Float"),
+                ifThen(lt(magnitude, new CFloat(SINGLE_MIN)), new CFloat(0.0), rounded));
     }
 
     /**
