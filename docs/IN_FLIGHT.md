@@ -1501,6 +1501,32 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
       default, so the protocol layer names no catalog function);
     - `protocol/sql/SqlToPure.java`: a derived table or CTE whose own query computes windows is an inline view.
     The lowerer is unchanged; the plans gain one subquery level where a view computes windows.
+  - **A computed column after a limit, all islands and Pure (the user's decision, 2026-10-16).** IQ computes the items
+    of a TOP statement's select list its ORDER BY does not read for the rows it keeps (measured on IQ 17.1 and SQL
+    Anywhere 17), so an item that raises for a dropped row raises nowhere. The IQ island refused 114 corpus queries.
+    The lowering merged an extend after a limit into the truncated select (`Fold.extendFolds`, "extend commutes with
+    truncation", true of values, not of errors); DuckDB then computed the column for every row before its top-N:
+    - `lowering/Fold.java`: `extendFolds` refuses a select with LIMIT or OFFSET (as `projectionFolds` already did);
+      `lowering/Sorts.java`'s new `isolateOrdered` carries the subselect's ORDER BY out by output name, and
+      `lowering/Lowerer.java`'s extend and flatten use it. Pure's `limit(n)->extend(...)` now computes the column for
+      the n rows; plans gain one subquery level there. No plan golden moved but the pinned rule in `FoldTest` and
+      `LowerRelationTest` (moved, dated);
+    - `protocol/sql/InputDialect.java`: `rowLimitItems` (Postgres's default: every row, before the sort; measured on
+      Postgres 16 for a division) and `protocol/sql/SqlToPure.java`'s `assemble`: the items ORDER BY does not read are
+      computed after the sort and the limit when the dialect says so. IQ's engine: the rows up to the limit's last,
+      START AT's skipped ones too, dropped after; SQL Anywhere: the rows returned;
+    - `protocol/sql/SqlToPure.java`, also: the names a relation's columns take are compared without regard to case
+      (`taken()`), as DuckDB binds `ID` beside `id` to the first (measured: a wrong answer the new nesting exposed);
+      a computed column takes a fresh name there, its own given back last;
+    - the Postgres island keeps Postgres's order. A known gap, pinned BUG in `sql-parity`: Postgres puts an item its
+      planner costs as expensive off until after its sort, and the island's checked division is one, so on Postgres
+      the island answers a zero divisor past the limit where plain Postgres raises (`lite/math.yaml`).
+  - **The local gate's drift, fixed with the above:** the generated `builtin/Pure.java` and `native-claims.tsv`
+    regenerated for `inlineView`; the ladder and `docs/dialect-capability/` regenerated for checklist 0.5's
+    `padWithSpaceToInteger` (3dce0286a); the spec ratchet's `Form` 217 to 218 and `CatalogUpstreamDiffTest`'s
+    `NOT_UPSTREAM_MAX` 43 to 44 (`inlineView`, dated); `IqCorpusTest` fails naming its missing input instead of
+    skipping (`SkipCensusTest`'s rule), runs in its manual `:iq_corpus_test` alone (`core/BUILD.bazel` excludes it from
+    `core_tests_lib`), and its database names are pinned in `dialect-leaks/ledger.tsv` (dated).
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):

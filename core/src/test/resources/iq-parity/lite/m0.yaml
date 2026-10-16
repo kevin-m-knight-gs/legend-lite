@@ -591,8 +591,9 @@ tests:
     decision: D-N3
     expect: '{"columns": [["id", "integer", 0]], "rows": [["1"], ["3"], ["6"], ["7"]]}'
 
-  # ---- a row limit over a select list or ORDER BY that can raise: IQ computes the select list only for the rows it
-  # keeps, lite's databases may compute it for every row first: refused. TOP or START AT without ORDER BY: refused
+  # ---- a row limit over a select list or ORDER BY that can raise: IQ computes the items its ORDER BY does not read
+  # only for the rows it keeps (under its engine, up to the limit's last: START AT's skipped rows too), ORDER BY's for
+  # every row. Translated so since 2026-10-16 (the user's decision; refused before)
   - id: top_over_an_overflowing_item
     sql: "SELECT TOP 1 id, it + 1 AS n FROM t ORDER BY id DESC"
   - id: top_over_a_zero_divisor

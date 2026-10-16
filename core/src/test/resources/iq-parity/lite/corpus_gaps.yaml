@@ -273,31 +273,57 @@ tests:
   # (docs/IQ_CENSUS_CHECKLIST.md's corpus section)
   - id: top_computes_its_items_for_the_kept_rows
     sql: "SELECT TOP 2 id, 10 / (id - 3) AS q FROM t ORDER BY id"
-    profile: iq17-default
+    profile: iq17-default, sqla17-default
   - id: top_descending_keeps_other_rows
     sql: "SELECT TOP 3 id, 10 / (id - 3) AS q FROM t ORDER BY id DESC"
-    profile: iq17-default
+    profile: iq17-default, sqla17-default
   - id: first_computes_one_row
     sql: "SELECT FIRST id, 10 / (id - 3) AS q FROM t ORDER BY id"
-    profile: iq17-default
+    profile: iq17-default, sqla17-default
   - id: start_at_computes_the_skipped_rows_too
     sql: "SELECT TOP 2 START AT 2 id, 10 / (id - 4) AS q FROM t ORDER BY id"
-    profile: iq17-default
+    profile: iq17-default, sqla17-default
   - id: start_at_skipping_a_raising_row_is_iqs_error
     sql: "SELECT TOP 2 START AT 4 id, 10 / (id - 3) AS q FROM t ORDER BY id"
-    profile: iq17-default
+    profile: iq17-default, sqla17-default
   - id: top_of_groups_computes_the_kept_groups
     sql: "SELECT TOP 1 k, 10 / (COUNT(*) - 2) AS q FROM g GROUP BY k ORDER BY COUNT(*) DESC, k"
-    profile: iq17-default
+    profile: iq17-default, sqla17-default
   - id: top_with_a_window_kept_rows
     sql: "SELECT TOP 2 id, 10 / (ROW_NUMBER() OVER (ORDER BY id) - 3) AS q FROM t ORDER BY id"
-    profile: iq17-default
+    profile: iq17-default, sqla17-default
   - id: top_with_a_double_quotient
     sql: "SELECT TOP 2 id, dbl / (id - 3) AS q FROM t ORDER BY id"
-    profile: iq17-default
+    profile: iq17-default, sqla17-default
   - id: top_ordered_by_a_raising_item_is_iqs_error
     sql: "SELECT TOP 2 id, 10 / (id - 3) AS q FROM t ORDER BY q, id"
-    profile: iq17-default
+    profile: iq17-default, sqla17-default
+  - id: top_computes_a_distincts_items_for_every_row
+    sql: "SELECT DISTINCT TOP 2 id, 10 / (id - 3) AS q FROM t ORDER BY id"
+    profile: iq17-default, sqla17-default
+  - id: top_computes_an_order_by_expression_for_every_row
+    sql: "SELECT TOP 2 id FROM t ORDER BY 10 / (id - 3), id"
+    profile: iq17-default, sqla17-default
+  - id: top_computes_a_cast_for_the_kept_rows
+    sql: "SELECT TOP 2 id, CAST(CASE WHEN id > 5 THEN '1' ELSE vc END AS INTEGER) AS n FROM t ORDER BY id DESC"
+    profile: iq17-default, sqla17-default
+  - id: top_over_generated_rows_computes_the_kept_rows
+    sql: "SELECT TOP 2 row_num, 10 / (row_num - 3) AS q FROM sa_rowgenerator(1, 7) ORDER BY row_num"
+    profile: iq17-default, sqla17-default
+  - id: start_at_over_generated_rows_computes_the_skipped_rows
+    sql: "SELECT TOP 2 START AT 4 row_num, 10 / (row_num - 3) AS q FROM sa_rowgenerator(1, 7) ORDER BY row_num"
+    profile: iq17-default, sqla17-default
+  - id: top_in_a_derived_table_computes_its_kept_rows
+    sql: "SELECT row_num, q FROM (SELECT TOP 2 row_num, 10 / (row_num - 3) AS q FROM sa_rowgenerator(1, 7) ORDER BY row_num) d ORDER BY row_num"
+    profile: iq17-default, sqla17-default
+  # names a database reads without regard to case, as DuckDB does even quoted: a sort key spelled as another column
+  # (computed before the limit), and an item spelled as another column (computed after it)
+  - id: top_ordered_by_an_alias_spelled_as_another_column
+    sql: "SELECT TOP 2 it AS ID, id * 2 AS q FROM t ORDER BY ID DESC, t.id"
+    profile: iq17-default, sqla17-default
+  - id: top_of_an_item_spelled_as_another_column
+    sql: "SELECT TOP 2 id, sm + 1 AS SM FROM t ORDER BY id"
+    profile: iq17-default, sqla17-default
 
   # ---- found by the lane's judged runs (sede-18206): a subquery over a CTE correlated to the CTE read again outside
   - id: a_running_total_over_a_cte_read_twice

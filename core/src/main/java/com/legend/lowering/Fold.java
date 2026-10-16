@@ -387,11 +387,17 @@ final class Fold {
 
     /**
      * extend APPENDS a computed column: row count is untouched, so it commutes
-     * with truncation and ordering; only DISTINCT is a boundary (extending a
-     * deduped row set would dedup WITH the new column).
+     * with ordering. DISTINCT is a boundary (extending a deduped row set would
+     * dedup WITH the new column), and so is truncation (IQ island, 2026-10-16,
+     * the user's decision): an extend after a limit commutes with it in its
+     * values but not in its errors. A database computes a select's items for
+     * every row its LIMIT or OFFSET reads (DuckDB, measured: for every row,
+     * before its top-N), so a column that raises (a zero divisor, a failed
+     * cast) would raise for a row the chain dropped before computing it. Behind
+     * the truncated subselect it is computed for the rows kept only.
      */
     static boolean extendFolds(SqlSelect s) {
-        return !s.distinct();
+        return !s.distinct() && s.limit() == null && s.offset() == null;
     }
 
     /**

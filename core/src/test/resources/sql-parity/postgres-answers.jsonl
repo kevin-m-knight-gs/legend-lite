@@ -1978,6 +1978,9 @@
 {"id":"lite/math/mod_of_salaries_and_sums","columns":["dept_id","a","b","c"],"rows":[["i1","d0.50","i0","s0"],["i2","d1.00","i1","s1"],["i3","d0.00","i3","s1"],[null,"d0.00",null,null]]}
 {"id":"lite/math/mod_of_a_double_does_not_exist","error":{"state":"42883","message":"ERROR: operator does not exist: double precision % integer"}}
 {"id":"lite/math/log10_of_integers_and_numerics","columns":["id","a","b"],"rows":[["i1","f1.6232492903979006","d4.0915149771692704"],["i4","f9.331929865381182","d14.000000000000000"],["i6","f0.0","d-5.000000000000000"],["i8","f2.0","d4.698971076607771"],["i9","f0.8450980400142568","d2.5228787409373927"]]}
+{"id":"lite/math/a_division_by_zero_past_the_limit_is_an_error","error":{"state":"22012","message":"ERROR: division by zero"}}
+{"id":"lite/math/a_division_by_zero_before_the_offset_is_an_error","error":{"state":"22012","message":"ERROR: division by zero"}}
+{"id":"lite/math/a_division_past_the_limit_of_no_zero","columns":["id","q"],"rows":[["i1","i-50"],["i2","i-100"]]}
 {"id":"lite/subqueries/in_subquery","columns":["name"],"rows":[["sAlice"],["sBob"],["sCharlie"],["sDiana"],["sEve"],["sFrank"],["sJack"]]}
 {"id":"lite/subqueries/not_in_subquery","columns":["name"],"rows":[["sGrace"],["sHank"],["sIvy"]]}
 {"id":"lite/subqueries/not_in_a_null_row_is_never_true","columns":["name"],"rows":[]}

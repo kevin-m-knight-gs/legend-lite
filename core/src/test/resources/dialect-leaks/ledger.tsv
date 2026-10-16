@@ -243,6 +243,10 @@ core/src/test/java/com/legend/integration/GetCheckerTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/GraphFetchCheckedIntegrationTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/GroupByCheckerTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/InheritanceIntegrationTest.java	jdbc-url	1
+# 2026-10-16, the IQ island's corpus lane (IqCorpusTest, 2026-10-15; its manual target): the DuckDB it runs the island on and the input language's name, as IqParityTest's, pinned as measured.
+core/src/test/java/com/legend/integration/IqCorpusTest.java	jdbc-url	1
+# 2026-10-16, the IQ island's corpus lane (IqCorpusTest, 2026-10-15; its manual target): the DuckDB it runs the island on and the input language's name, as IqParityTest's, pinned as measured.
+core/src/test/java/com/legend/integration/IqCorpusTest.java	product-name	8
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 core/src/test/java/com/legend/integration/IqParityTest.java	jdbc-url	1
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).

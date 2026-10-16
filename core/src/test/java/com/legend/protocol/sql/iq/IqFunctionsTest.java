@@ -373,12 +373,13 @@ class IqFunctionsTest {
     }
 
     @Test
-    void anOperationThatCanRaiseUnderARowLimitIsRefused() {
-        assertTrue(refusal("SELECT TOP 2 id, CAST(nm AS INT) AS c FROM " + T + " ORDER BY id").getMessage()
-                .contains("-158"));
-        assertTrue(refusal("SELECT TOP 2 id, SUBSTRING(vc, 1, sm) AS c FROM " + T + " ORDER BY id").getMessage()
-                .contains("-1090"));
-        pure("SELECT TOP 2 id, SUBSTRING(vc, 1, 2) AS c FROM " + T + " ORDER BY id");
+    void anOperationThatCanRaiseUnderARowLimitIsComputedForTheRowsKept() {
+        // IQ island, 2026-10-16 (the user's decision; these were refused): IQ computes the items its ORDER BY does not
+        // read for the rows it keeps, so they are computed after the limit (IqToPureTest pins the order)
+        for (String sql : new String[] {"SELECT TOP 2 id, CAST(nm AS INT) AS c FROM " + T + " ORDER BY id",
+                "SELECT TOP 2 id, SUBSTRING(vc, 1, sm) AS c FROM " + T + " ORDER BY id"}) {
+            assertTrue(pure(sql).contains("->limit(2)->extend("), sql);
+        }
     }
 
     @Test

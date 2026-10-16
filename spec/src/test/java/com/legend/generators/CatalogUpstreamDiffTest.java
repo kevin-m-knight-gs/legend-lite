@@ -195,8 +195,10 @@ class CatalogUpstreamDiffTest {
                 "upstream files our parser cannot read GREW: " + unreadable);
     }
 
-    /** Measured 2026-09-24 at legend-engine 4.145.0 / legend-pure 5.99.0. */
-    private static final int NOT_UPSTREAM_MAX = 43;
+    /** Measured 2026-09-24 at legend-engine 4.145.0 / legend-pure 5.99.0. NOT_UPSTREAM 43 to 44 on 2026-10-16 (the
+     *  user's decision, the SQL islands' inline views): {@code meta::legend::lite::inlineView}, a lite-internal
+     *  desugar native (NativeCatalogGovernanceTest's INTERNAL_DESUGAR 16 to 17, docs/LITE_INVENTION_CENSUS.md). */
+    private static final int NOT_UPSTREAM_MAX = 44;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

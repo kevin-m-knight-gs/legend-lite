@@ -2353,6 +2353,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN_EQUAL = com.legend.model.FunctionId.ofAll(GREATER_THAN_EQUAL_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_COMPUTED_KEYS = com.legend.model.FunctionId.ofAll(GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_OVER_INSTANCES = com.legend.model.FunctionId.ofAll(GROUP_BY_OVER_INSTANCES__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_OVER_INSTANCES__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_INLINE_VIEW = com.legend.model.FunctionId.ofAll(INLINE_VIEW__RELATION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_DISTINCT_FROM = com.legend.model.FunctionId.ofAll(IS_DISTINCT_FROM__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_NUMERIC = com.legend.model.FunctionId.ofAll(IS_NUMERIC__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_JOIN_SLOT = com.legend.model.FunctionId.ofAll(JOIN_SLOT__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1);

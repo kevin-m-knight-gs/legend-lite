@@ -139,7 +139,7 @@ tests:
     engine: sa
   - id: substring_under_a_row_limit
     sql: "SELECT TOP 2 id, SUBSTRING(vc, 1, 2) AS s FROM t ORDER BY id"
-  - id: substring_of_a_negative_length_under_a_row_limit_is_refused
+  - id: substring_of_a_negative_length_under_a_row_limit
     sql: "SELECT TOP 2 id, SUBSTRING(vc, 1, sm) AS s FROM t ORDER BY id"
 
   # ---- LEFT and RIGHT: a negative count is '', a count past the end the whole string
@@ -546,7 +546,7 @@ tests:
   - id: mod_of_a_numeric
     sql: "SELECT MOD(7.5, 2) AS m"
     engine: sa
-  - id: mod_under_a_row_limit_is_refused
+  - id: mod_under_a_row_limit
     sql: "SELECT TOP 2 id, MOD(it, sm) AS m FROM t ORDER BY id"
 
   # ---- SQRT, EXP, LN, LOG (natural) and LOG10: NULL outside the domain in SQL Anywhere's front end (D-F9 under IQ)
@@ -816,7 +816,7 @@ tests:
     sql: "SELECT CAST(dt AS INT) AS a FROM t WHERE id = 1"
   - id: cast_to_int_in_where
     sql: "SELECT id FROM t WHERE CAST(nm AS INT) = 0 ORDER BY id"
-  - id: cast_to_int_under_a_row_limit_is_refused
+  - id: cast_to_int_under_a_row_limit
     sql: "SELECT TOP 1 id, CAST(nm AS INT) AS a FROM t ORDER BY id"
 
   # ---- CAST to NUMERIC(p, s): rounded half away from zero; more whole digits than p - s is -158

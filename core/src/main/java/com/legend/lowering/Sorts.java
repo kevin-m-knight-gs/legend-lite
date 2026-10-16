@@ -47,6 +47,17 @@ final class Sorts {
         return base.withOrderBy(keys);
     }
 
+    /** {@code src} isolated, its ORDER BY carried onto the select over it by
+     * output name (an ordered subselect orders nothing outside it): an
+     * extend keeps its source's order (IQ island, 2026-10-16: an extend after
+     * a limit). A key with no output name (a sortBy expression) is not
+     * carried, as {@link #carried} says. */
+    static SqlSelect isolateOrdered(Lowerer lw, SqlSelect src) {
+        SqlSelect base = lw.isolate(src);
+        List<SqlSelect.SortKey> keys = carried(src, base, List.of());
+        return keys.isEmpty() ? base : base.withOrderBy(keys);
+    }
+
     /** A sort over a SORTED source COMPOSES: the new keys first, the
      * source's keys after them as tie-breakers — Pure's sort is stable, so
      * {@code sort(name)->sort(address)} is the engine's

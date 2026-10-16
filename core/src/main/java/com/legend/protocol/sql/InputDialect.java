@@ -226,9 +226,26 @@ public interface InputDialect {
         return null;
     }
 
-    /** Whether {@code *=} and {@code =*} at the top level of a query's WHERE are T-SQL outer joins, which the
-     *  translator makes the query's joins (IQ island, 2026-10-15, checklist 0.6: IQ's, under its tsql_outer_joins
-     *  option); Postgres has no such operators. */
+    /** Which rows a statement with a row limit computes the items of its select list for that its ORDER BY does not
+     *  read ({@code SqlToPure.assemble}; IQ island, 2026-10-16, the user's decision). An item that can raise raises
+     *  for those rows only. Postgres's: every row, before its sort and its limit, as SQL's order has it (measured on
+     *  Postgres 16 for a division, which it computes before the sort; it puts off an item its planner costs as
+     *  expensive, as {@code sql-parity/lite/math.yaml} records). */
+    default RowLimitItems rowLimitItems(SqlAst.Select s) {
+        return RowLimitItems.EVERY_ROW;
+    }
+
+    /** {@link #rowLimitItems}' answers. An ORDER BY's items, and all of a DISTINCT's, are computed for every row
+     *  whatever the answer: the sort and the DISTINCT read them all. */
+    enum RowLimitItems {
+        /** every row, before the sort and the limit */
+        EVERY_ROW,
+        /** the rows the limit returns */
+        ROWS_RETURNED,
+        /** the rows up to the limit's last, the ones its offset skips too */
+        ROWS_UP_TO_THE_LAST
+    }
+
     /** IQ island, 2026-10-15: whether an ORDER BY's unqualified name that is {@code output}'s name reads that output
      *  ({@code SqlToPure.sortKey}); otherwise it is a column of the FROM clause, resolved (an ambiguous one an error) as
      *  any column is. Postgres's: any output name. */
@@ -236,6 +253,9 @@ public interface InputDialect {
         return true;
     }
 
+    /** Whether {@code *=} and {@code =*} at the top level of a query's WHERE are T-SQL outer joins, which the
+     *  translator makes the query's joins (IQ island, 2026-10-15, checklist 0.6: IQ's, under its tsql_outer_joins
+     *  option); Postgres has no such operators. */
     default boolean readsTsqlOuterJoins() {
         return false;
     }

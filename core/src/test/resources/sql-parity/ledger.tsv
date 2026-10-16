@@ -2049,6 +2049,9 @@ lite/math/mod_of_numerics	PASS	PASS
 lite/math/mod_of_salaries_and_sums	PASS	PASS
 lite/math/mod_of_a_double_does_not_exist	BOTH_ERROR	BOTH_ERROR
 lite/math/log10_of_integers_and_numerics	PASS	PASS
+lite/math/a_division_by_zero_past_the_limit_is_an_error	BOTH_ERROR	BUG
+lite/math/a_division_by_zero_before_the_offset_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/math/a_division_past_the_limit_of_no_zero	PASS	PASS
 lite/subqueries/in_subquery	PASS	PASS
 lite/subqueries/not_in_subquery	PASS	PASS
 lite/subqueries/not_in_a_null_row_is_never_true	PASS	PASS

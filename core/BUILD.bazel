@@ -392,6 +392,8 @@ legend_java_library(
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
             "src/test/java/com/legend/server/IqParityPostgresTest.java",
+            # the corpus lane is :iq_corpus_test's alone (manual): it fails without -Diq.corpus.root (2026-10-16)
+            "src/test/java/com/legend/integration/IqCorpusTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's
             "src/test/java/com/legend/testcases/*.java",

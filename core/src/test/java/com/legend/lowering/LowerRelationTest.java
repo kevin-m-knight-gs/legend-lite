@@ -336,12 +336,20 @@ class LowerRelationTest {
     }
 
     @Test
-    @DisplayName("extend commutes with LIMIT — appends stay flat where master nested")
-    void extendAfterLimitStaysFlat() throws SQLException {
+    @DisplayName("extend after LIMIT is computed for the kept rows: nested, the order carried out")
+    void extendAfterLimitIsComputedForTheKeptRows() throws SQLException {
+        // IQ island, 2026-10-16 (the user's decision; this pin moved from "extend commutes with LIMIT -- appends stay
+        // flat"): an extend commutes with a limit in its values, not in its errors. Flat, the database computed it for
+        // every row before its top-N, so a column that raises for a dropped row raised
         String sql = sqlOf("#>{test::DB.T_PERSON}#->sort(~AGE->ascending())->limit(2)"
                 + "->extend(~doubled : x|$x.AGE * 2)");
-        assertEquals(1, count(sql, "SELECT"), "extend adds a column, row count untouched: " + sql);
+        assertEquals(2, count(sql, "SELECT"), "the extend over the truncated subselect: " + sql);
+        assertEquals(2, count(sql, "ORDER BY"), "the subselect's order carried onto the select over it: " + sql);
         assertEquals(List.of("Ann|25|ACME|50", "Bob|35|ACME|70"), exec(sql));
+        String raising = sqlOf("#>{test::DB.T_PERSON}#->sort(~AGE->ascending())->limit(2)"
+                + "->extend(~n : x|if($x.AGE > 40, |$x.NAME->parseInteger(), |$x.AGE))");
+        assertEquals(List.of("Ann|25|ACME|25", "Bob|35|ACME|35"), exec(raising),
+                "Cat's and Dan's names are no integers: computed only for the rows the limit keeps");
     }
 
     @Test

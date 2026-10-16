@@ -126,10 +126,16 @@ Measured to be IQ's own errors, raised or named by the island:
 Open, ranked by the corpora:
 - CAST to DECIMAL without a precision, IQ's NUMERIC(126,38) (70);
 - a subquery in a derived table's select list (192): built 2026-10-16, measured on IQ 17.1 over 40 shapes. IQ's engine reads such a subquery as if it were written where its column is read. Answered: unqualified reads in the select list (in arithmetic and functions too), in ORDER BY, under DISTINCT and TOP, and the derived table's other columns anywhere. IQ's errors, refused naming them: a qualified read of any of its columns (-1005004); the subquery's column in WHERE, GROUP BY or HAVING, or inside a conditional or an aggregate (-1001030). Still refused by name: a join beside it, a window over the column, and a nested derived table;
-- a statement with TOP whose select list can raise (114).
-  - Measured on IQ: the items ORDER BY does not read are computed only for the rows up to the limit's last (START AT's skipped rows too, grouped queries and windows alike). ORDER BY's items, and all of a DISTINCT's, are computed for every row.
-  - Tried 2026-10-15 and reverted: a dialect hook in `SqlToPure.assemble` that sorts, limits, then extends. Postgres answered all cases, but DuckDB did not. Lite's lowering folds an extend over truncated rows back into the truncated block (`Fold.extendFolds`: "extend commutes with truncation", true of values, not of errors). The `SELECT *, ...` that folding makes also let DuckDB's case-insensitive names bind `Labels` to `labels`.
-  - The fix belongs to the Lowerer (isolate an extend after a LIMIT, as `Fold.filterSlot` isolates a filter). It is a cross-area change to every island's plans, so it is the user's to decide. `lite/corpus_gaps.yaml` holds the measured cases (REFUSED until then);
+- a statement with TOP whose select list can raise (114): built 2026-10-16 (the user's decision), measured on IQ 17.1,
+  SQL Anywhere 17 and Postgres 16 (`lite/corpus_gaps.yaml`'s TOP cases, `sql-parity/lite/math.yaml`).
+  - IQ computes the items its ORDER BY does not read only for the rows it keeps: under its engine the rows up to the
+    limit's last (START AT's skipped rows too), in SQL Anywhere (its front end, and SQL Anywhere 17) the rows it
+    returns. ORDER BY's items, and all of a DISTINCT's, are computed for every row. Grouped queries and windows alike.
+  - `SqlToPure.assemble` computes those items after the sort and the limit (`InputDialect.rowLimitItems`), and the
+    Lowerer no longer merges an extend after a limit into the truncated select (`Fold.extendFolds`), which made the
+    database compute it for every row first. Both lanes answer every measured case.
+  - Postgres differs: it computes a cheap item (a division) for every row before its sort, so the Postgres island
+    keeps that order;
 - the outer join ON shapes IQ reads but DuckDB cannot plan: a subquery in a RIGHT JOIN's ON (refused by name), an uncorrelated one over a common table expression in a LEFT JOIN's ON (6, DuckDB's error);
 - CROSS APPLY (676), which this round measured only as IQ's internal error on one correlated shape (2.16c).
 
@@ -196,6 +202,5 @@ first, a child keeping the rows that reach kept parents, then filled to 600 rows
 - 4 FAIL: 3 ties, and 1 name, fixed: a column named by a reserved word shows in double quotes, t."date";
 - 1 ERROR: FALSE, a keyword in IQ 17.1 (the listed true-keyword divergence).
 
-Decisions for the user:
-- TOP's select list computed after the limit (above). (The window boundary was decided 2026-10-16, the user: built as
-  inline views, above.)
+Decisions for the user: none open. (Decided 2026-10-16 by the user and built, above: the window boundary, as inline
+views; TOP's select list, computed after the limit.)

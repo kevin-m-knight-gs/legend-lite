@@ -132,10 +132,6 @@ public final class IqDialect implements InputDialect {
     /** The places of the FROM items (tables, functions) of the queries with a star in their select list: each of
      *  their columns is read as the dialect reads it ({@link #read}), referred to or not. */
     private final Set<SqlAst.Pos> starred;
-    /** The expressions (and every expression inside them) of the select list and ORDER BY of a statement with a row
-     *  limit: IQ computes the select list only for the rows the limit keeps, where lite's databases may compute it for
-     *  every row, so an operation there that can raise IQ's error is refused ({@link #checkedInteger}). */
-    private final Set<SqlAst.Expr> limited;
     /** The select items whose names the statement shows (its first branch's, and each derived table's): one IQ's
      *  name for is not known is refused there; anywhere else (a subquery's column) no one sees the name. */
     private final Set<SqlAst.SelectExpr> shown;
@@ -227,7 +223,7 @@ public final class IqDialect implements InputDialect {
     private final Map<SqlAst.Statement, IqDialect> prefixed = new IdentityHashMap<>();
 
     private IqDialect(IqSettings settings, @com.legend.base.Nullable Engine engine, Set<SqlAst.Expr> caseConditions,
-            @com.legend.base.Nullable Set<String> referenced, Set<SqlAst.Expr> limited, Set<SqlAst.SelectExpr> shown,
+            @com.legend.base.Nullable Set<String> referenced, Set<SqlAst.SelectExpr> shown,
             Set<String> derived, Set<SqlAst.Pos> starred,
             IqAggregates.Naming naming, Set<String> setDerived, Set<SqlAst.Expr> shownValues, Set<String> folded,
             @com.legend.base.Nullable IqKeys keys, Set<String> lazy, Map<SqlAst.SelectExpr, IqNames.Chains> chains,
@@ -245,7 +241,6 @@ public final class IqDialect implements InputDialect {
         this.engine = engine;
         this.caseConditions = caseConditions;
         this.referenced = referenced;
-        this.limited = limited;
         this.shown = shown;
         this.derived = derived;
         this.shownValues = shownValues;
@@ -258,14 +253,14 @@ public final class IqDialect implements InputDialect {
     /** The dialect of an island written for {@code settings}: each statement's engine chosen by its FROM clause
      *  ({@link #engineOf}, the study's I3: {@code engine=auto}). */
     public static IqDialect of(IqSettings settings) {
-        return new IqDialect(settings, null, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
+        return new IqDialect(settings, null, Set.of(), null, Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
                 Map.of(), Set.of(), Set.of(), Set.of());
     }
 
     /** The dialect under {@code settings} with {@code engine}'s rules whatever the statement. */
     public static IqDialect of(IqSettings settings, Engine engine) {
-        return new IqDialect(settings, engine, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
+        return new IqDialect(settings, engine, Set.of(), null, Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
                 Map.of(), Set.of(), Set.of(), Set.of());
     }
@@ -1246,7 +1241,6 @@ public final class IqDialect implements InputDialect {
             return under.reading(statement);
         }
         Set<SqlAst.Expr> inCase = Collections.newSetFromMap(new IdentityHashMap<>());
-        Set<SqlAst.Expr> limitedHere = Collections.newSetFromMap(new IdentityHashMap<>());
         Set<SqlAst.SelectExpr> shownHere = Collections.newSetFromMap(new IdentityHashMap<>());
         Set<String> derivedHere = new java.util.HashSet<>();
         Set<String> setDerivedHere = new java.util.HashSet<>();
@@ -1280,14 +1274,6 @@ public final class IqDialect implements InputDialect {
             }
         }
         shown(first(statement), shownHere);
-        if (statement instanceof SqlAst.Select s && (s.limit() != null || s.offset() != null)) {
-            for (SqlAst.SelectItem item : s.items()) {
-                if (item instanceof SqlAst.SelectExpr x) {
-                    within(x.expr(), limitedHere);
-                }
-            }
-            s.orderBy().forEach(o -> within(o.expr(), limitedHere));
-        }
         Engine chosen = engine != null ? engine : engineOf(statement, settings);
         if (chosen == Engine.IQ) {
             appliedQueries(statement);
@@ -1331,12 +1317,6 @@ public final class IqDialect implements InputDialect {
                             + " is IQ's error -1001030 under its engine (TOP/FIRST/LIMIT in a subquery or a view is not"
                             + " supported), refused before translating", java.util.Objects.requireNonNull(at).pos());
                 }
-                for (SqlAst.SelectItem item : s.items()) {
-                    if (item instanceof SqlAst.SelectExpr x) {
-                        within(x.expr(), limitedHere);
-                    }
-                }
-                s.orderBy().forEach(o -> within(o.expr(), limitedHere));
             }
             // an EXISTS subquery's rows are counted, never shown: which ones a limit keeps is no one's concern
             boolean[] flags = {s.orderBy().isEmpty() && !s.from().isEmpty() && !inExists.contains(s),
@@ -1392,7 +1372,7 @@ public final class IqDialect implements InputDialect {
                 }
             }
         }
-        IqDialect read = new IqDialect(settings, chosen, inCase, names, limitedHere, shownHere, derivedHere,
+        IqDialect read = new IqDialect(settings, chosen, inCase, names, shownHere, derivedHere,
                 starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement), IqKeys.of(statement, settings),
                 lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere,
                 innerSetsHere, chainedHere, filtersHere);
@@ -2967,14 +2947,6 @@ public final class IqDialect implements InputDialect {
         }
     }
 
-    /** {@code e} and every expression inside it, into {@code out}. */
-    private static void within(SqlAst.Expr e, Set<SqlAst.Expr> out) {
-        out.add(e);
-        for (SqlAst.Expr child : children(e)) {
-            within(child, out);
-        }
-    }
-
     // ------------------------------------------------------------------ the statement's expressions
 
     /** A select's expressions: its items', WHERE's, GROUP BY's, HAVING's, ORDER BY's, its joins' ON conditions (not
@@ -4241,7 +4213,7 @@ public final class IqDialect implements InputDialect {
      * loses the last ones); a quotient
      * whose operand's type is not read exactly -- SQL Anywhere types a constant integer expression by its folded value
      * ({@code (2+3)/1.5} divides a NUMERIC(1,0)), which this reader does not compute ({@link #exactlyTyped}); a step of
-     * more than lite's 38 digits; a divisor that may be 0 in the select list or ORDER BY of a row-limited statement.
+     * more than lite's 38 digits.
      */
     private Tx quotient(SqlAst.Binary b, Tx l, Tx r, String operator) {
         boolean divide = b.op() == SqlAst.BinaryOp.DIVIDE;
@@ -4298,11 +4270,6 @@ public final class IqDialect implements InputDialect {
                 && zeroGuarded(b, operator);
         if (nullOnZero && divisor != null) {
             return Tx.value(SqlToPure.nullOf(Kind.DECIMAL).vs(), Kind.DECIMAL, true, numeric(p, s));
-        }
-        if (divisor == null && limited.contains(b) && !nullOnZero) {
-            throw SqlTranslationException.unsupported("this " + operator + " can raise IQ's error -628 (division by"
-                    + " zero) in the select list or ORDER BY of a statement with TOP, FIRST or START AT, which is not"
-                    + " supported yet: IQ computes those items only for the rows it keeps", b.pos());
         }
         boolean lInteger = !decimal(l);
         boolean rInteger = !decimal(r);
@@ -4579,9 +4546,8 @@ public final class IqDialect implements InputDialect {
      * integer of any of IQ's types; a NUMERIC under SQL Anywhere's front end). A result beyond the largest DOUBLE is
      * IQ's error -158 and a zero divisor IQ's -628, where DuckDB would answer an infinity: each is checked, so every
      * database raises. With an untyped NULL it is a DOUBLE NULL. Refused by name: {@code %} (IQ types it NUMERIC), a
-     * string (IQ converts it to NUMERIC), a NUMERIC under the IQ engine (the research's D-N1); and, as for checked
-     * integers, one in the select list or ORDER BY of a row-limited statement. A REAL takes part as its DOUBLE, two
-     * REALs give a REAL (IQ island, 2026-10-15).
+     * string (IQ converts it to NUMERIC), a NUMERIC under the IQ engine (the research's D-N1). A REAL takes part as
+     * its DOUBLE, two REALs give a REAL (IQ island, 2026-10-15).
      */
     private Tx doubleArithmetic(SqlAst.Binary b, Tx l, Tx r) {
         String operator = operator(b.op());
@@ -4607,16 +4573,7 @@ public final class IqDialect implements InputDialect {
         if (nullOnZero && literal != null) {
             return doubleNull();
         }
-        // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine a DOUBLE beyond the largest is NULL, not an
-        // error, so only a quotient's zero divisor raises
         boolean iq = engine == Engine.IQ;
-        if (limited.contains(b) && !(iq && b.op() != SqlAst.BinaryOp.DIVIDE)) {
-            String zero = b.op() == SqlAst.BinaryOp.DIVIDE ? " or -628 (division by zero)" : "";
-            throw SqlTranslationException.unsupported("this " + operator + " of a DOUBLE can raise IQ's error -158 (out"
-                    + " of range)" + zero + " in the select list or ORDER BY of a statement with TOP, FIRST or START"
-                    + " AT, which is not supported yet: IQ computes the select list only for the rows it keeps, lite's"
-                    + " databases may compute it for the rows the limit drops", b.pos());
-        }
         SqlAst.BinaryOp op = b.op();
         // IQ island, 2026-10-14 (review 3's m4): a product or quotient that underflows to 0 is 0 in SQL Anywhere and
         // DuckDB, and Postgres's error; unless a constant operand rules it out, it is computed so that no step
@@ -4824,10 +4781,8 @@ public final class IqDialect implements InputDialect {
      * <ul>
      *   <li>A result that can only leave the range is IQ's error now when every operand is a constant
      *       ({@code constant}: literals, signs and arithmetic of literals, never NULL), as IQ folds one; otherwise
-     *       the check is emitted and raises only where the operation is computed (never on a NULL).</li>
-     *   <li>An operation that can raise (a result that may leave its type, a {@code zeroDivisor}) in the select list
-     *       or ORDER BY of a statement with a row limit is refused: IQ computes the select list only for the rows it
-     *       keeps, lite's databases may compute it for every row first.</li>
+     *       the check is emitted and raises only where the operation is computed (never on a NULL): under a row
+     *       limit, for the rows IQ computes it for ({@link #rowLimitItems}).</li>
      * </ul>
      */
     private Tx checkedInteger(SqlAst.Expr node, String operator, IqType type, BigInteger lo, BigInteger hi,
@@ -4860,12 +4815,6 @@ public final class IqDialect implements InputDialect {
                     + type.family() + overflowCode(), pos);
         }
         boolean leaves = lo.compareTo(type.min()) < 0 || hi.compareTo(type.max()) > 0;
-        if ((leaves || zeroDivisor) && limited.contains(node)) {
-            throw SqlTranslationException.unsupported("this " + operator + " can raise IQ's error" + (leaves
-                    ? " -158 (out of range)" : " -628 (division by zero)") + " in the select list or ORDER BY of a"
-                    + " statement with TOP, FIRST or START AT, which is not supported yet: IQ computes the select list"
-                    + " only for the rows it keeps, lite's databases may compute it for the rows the limit drops", pos);
-        }
         // IQ island, 2026-10-14 (review 5's B1): a BIGINT result over a value the database may compute wider than 64
         // bits (a host variable's, a constant near 2^63) is checked here, the database's own overflow never coming
         boolean loose = false;
@@ -6662,12 +6611,6 @@ public final class IqDialect implements InputDialect {
         return !ordered.isEmpty();
     }
 
-    /** Whether {@code e} is in the select list or ORDER BY of a statement with a row limit (IqFunctions' refusals of
-     *  what can raise there). */
-    boolean limited(SqlAst.Expr e) {
-        return limited.contains(e);
-    }
-
     // ------------------------------------------------------------------ grouping (M1c)
 
     /** IQ reads a select-list alias in GROUP BY and HAVING before a column of its name
@@ -6839,6 +6782,15 @@ public final class IqDialect implements InputDialect {
                     : b.op() == SqlAst.BinaryOp.MINUS ? "minus" : "times", List.of(pure(b.left()), pure(b.right())));
             default -> throw new IllegalStateException("not a row limit's count: " + e);
         };
+    }
+
+    /** IQ island, 2026-10-16 (the user's decision; measured on IQ 17.1 and SQL Anywhere 17, the TOP cases of
+     *  {@code lite/corpus_gaps.yaml}): a statement with TOP, FIRST or START AT computes the items its ORDER BY does not
+     *  read for the rows it keeps, so one that can raise raises for those rows only. Under IQ's engine, the rows up to
+     *  its last, those START AT skips too; in SQL Anywhere's front end (and in SQL Anywhere 17), the rows it returns. */
+    @Override
+    public RowLimitItems rowLimitItems(SqlAst.Select s) {
+        return engine == Engine.IQ ? RowLimitItems.ROWS_UP_TO_THE_LAST : RowLimitItems.ROWS_RETURNED;
     }
 
     /** IQ island, 2026-10-15 (the corpus lane's judged runs: sede-51725, sede-52800; measured on IQ 17.1): an

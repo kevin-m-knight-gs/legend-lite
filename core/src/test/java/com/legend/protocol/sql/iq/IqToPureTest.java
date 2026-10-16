@@ -89,8 +89,10 @@ class IqToPureTest {
 
     @Test
     void namesMatchWithoutCase_quotedOrNot_andAColumnShowsAsWritten() {
-        assertEquals("#>{s::DB.T}#->extend(~[ID:r|$r.id, SM:r|$r.sm])->select(~[ID, SM])",
-                pure("SELECT ID, [SM] FROM " + T));
+        // a column shown as written, in a column of its own name only last (2026-10-16): a database that reads names
+        // without regard to case (DuckDB) binds ID beside id to one of them
+        assertEquals("#>{s::DB.T}#->extend(~[_sql_1:r|$r.id, _sql_2:r|$r.sm])->select(~[_sql_1, _sql_2])"
+                + "->rename(~_sql_1, ~ID)->rename(~_sql_2, ~SM)", pure("SELECT ID, [SM] FROM " + T));
         assertEquals("#>{s::DB.T}#->filter(r|$r.id == 1)->select(~[id])", pure("SELECT `id` FROM " + T + " a WHERE"
                 + " A.ID = 1"));
         // two names a reference matches without regard to case are an ambiguity, quoted or not
@@ -148,8 +150,8 @@ class IqToPureTest {
         assertTrue(bare.contains("->sort([~x->ascending("), bare);
         pure("SELECT id, sm AS x FROM " + T + " ORDER BY 2");
         // an alias of the column of its own name reads the same
-        assertEquals("#>{s::DB.T}#->filter(r|$r.id == 1)->extend(~[ID:r|$r.id])->select(~[ID])",
-                pure("SELECT id AS ID FROM " + T + " WHERE id = 1"));
+        assertEquals("#>{s::DB.T}#->filter(r|$r.id == 1)->extend(~[_sql_1:r|$r.id])->select(~[_sql_1])"
+                + "->rename(~_sql_1, ~ID)", pure("SELECT id AS ID FROM " + T + " WHERE id = 1"));
     }
 
     // ------------------------------------------------------------------ NULL
@@ -325,33 +327,33 @@ class IqToPureTest {
     }
 
     @Test
-    void aRowLimitOverASelectListThatCanRaiseIsRefused() {
-        // the second review's M2: IQ computes the select list only for the rows it keeps
-        for (String sql : new String[] {"SELECT TOP 1 i, sm + 1 AS n FROM " + T + " ORDER BY i DESC",
-                "SELECT TOP 1 i, 100 / sm AS n FROM " + T + " ORDER BY i DESC",
-                "SELECT FIRST i, i * 2 AS n FROM " + T + " ORDER BY i",
-                "SELECT TOP 1 START AT 2 i, -sm AS n FROM " + T + " ORDER BY i",
-                "SELECT TOP 1 i FROM " + T + " ORDER BY bg + 1",
-                "SELECT TOP 1 i, NULLIF(sm, bg) AS n FROM " + T + " ORDER BY i"}) {
-            SqlTranslationException e = saNumbersRefusal(sql);
-            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql);
-            assertTrue(e.getMessage().contains("TOP, FIRST or START AT"), e.getMessage());
-        }
-        // IQ island, 2026-10-15 (D-N3): under IQ's engine only a zero divisor and a result past a BIGINT can raise
-        for (String sql : new String[] {"SELECT TOP 1 i, 100 / sm AS n FROM " + T + " ORDER BY i DESC",
+    void aRowLimitComputesTheItemsItsOrderByDoesNotReadAfterIt() {
+        // IQ island, 2026-10-16 (the user's decision; measured on IQ 17.1 and SQL Anywhere 17, lite/corpus_gaps.yaml's
+        // TOP cases; this pin replaces the second review's M2 refusal): IQ computes the items its ORDER BY does not read
+        // for the rows it keeps, so they are computed after the sort and the limit. Under IQ's engine, the rows up to
+        // the limit's last, START AT's skipped ones too (dropped after them)
+        String iq = numbers("SELECT TOP 1 START AT 2 i, 100 / sm AS n FROM " + T + " ORDER BY i");
+        assertTrue(iq.contains("->limit((2 - 1) + 1)->extend(") && iq.endsWith("->drop(2 - 1)"), iq);
+        assertTrue(numbers("SELECT FIRST i, i * 2 AS n FROM " + T + " ORDER BY i").contains("->limit(1)->extend("));
+        // in SQL Anywhere's front end, the rows it returns
+        String sa = saNumbers("SELECT TOP 1 START AT 2 i, -sm AS n FROM " + T + " ORDER BY i");
+        assertTrue(sa.contains("->drop(2 - 1)->limit(1)->extend("), sa);
+        assertTrue(saNumbers("SELECT TOP 1 i, NULLIF(sm, bg) AS n FROM " + T + " ORDER BY i")
+                .contains("->limit(1)->extend("));
+        // an item ORDER BY reads, by its alias or written there, is computed for every row before the sort
+        for (String sql : new String[] {"SELECT TOP 1 i, 100 / sm AS n FROM " + T + " ORDER BY n, i",
                 "SELECT TOP 1 i FROM " + T + " ORDER BY bg + 1"}) {
-            assertTrue(numbersRefusal(sql).getMessage().contains("TOP, FIRST or START AT"), sql);
+            String p = numbers(sql);
+            assertTrue(p.indexOf("->extend(") < p.indexOf("->sort(") && !p.contains("->limit(1)->extend("), p);
         }
-        for (String sql : new String[] {"SELECT TOP 1 i, sm + 1 AS n FROM " + T + " ORDER BY i DESC",
-                "SELECT FIRST i, i * 2 AS n FROM " + T + " ORDER BY i",
-                "SELECT TOP 1 START AT 2 i, -sm AS n FROM " + T + " ORDER BY i",
-                "SELECT TOP 1 i, NULLIF(sm, bg) AS n FROM " + T + " ORDER BY i"}) {
-            numbers(sql);
+        // as is every item of a DISTINCT, and of a statement with no row limit
+        for (String sql : new String[] {"SELECT DISTINCT TOP 1 i, 100 / sm AS n FROM " + T + " ORDER BY i",
+                "SELECT i, sm + 1 AS n FROM " + T + " ORDER BY i DESC"}) {
+            String p = numbers(sql);
+            assertTrue(p.indexOf("->extend(") < p.indexOf("->sort("), p);
         }
-        // what cannot raise is translated, and so is the same arithmetic without a row limit or in WHERE
-        numbers("SELECT TOP 2 i, sm + 0 AS n FROM " + T + " ORDER BY i DESC");
-        numbers("SELECT i, sm + 1 AS n FROM " + T + " ORDER BY i DESC");
-        numbers("SELECT TOP 2 i FROM " + T + " WHERE sm + 1 > 0 ORDER BY i DESC");
+        // nothing computed: the limit as written
+        assertTrue(numbers("SELECT TOP 2 i FROM " + T + " ORDER BY i DESC").endsWith("->limit(2)"));
     }
 
     @Test
@@ -443,7 +445,8 @@ class IqToPureTest {
         assertTrue(pure("SELECT TOP 2 id FROM " + T).endsWith("->limit(2)"));
         assertTrue(pure("SELECT FIRST id FROM " + T).endsWith("->limit(1)"));
         assertTrue(pure("SELECT TOP 3 START AT 2 id FROM " + T).contains("->drop(2 - 1)"));
-        assertTrue(pure("SELECT TOP 1 1 AS x").endsWith("->limit(1)"));
+        // its item computed for the row kept (IQ island, 2026-10-16)
+        assertTrue(pure("SELECT TOP 1 1 AS x").contains("->limit(1)->extend("));
     }
 
     @Test
@@ -737,14 +740,10 @@ class IqToPureTest {
         // a NUMERIC with a DOUBLE is a DOUBLE, under IQ's engine too (IQ island, 2026-10-15, measured on IQ 17.1)
         numbers("SELECT d + nm AS a FROM " + T);
         numbersSa("SELECT d + nm AS a FROM " + T);
-        // IQ computes a row-limited select list for the rows it keeps only: an operation that can raise is refused --
-        // under IQ's engine a quotient (its zero divisor), as a product beyond the largest DOUBLE is NULL there (IQ
-        // island, 2026-10-15, measured on IQ 17.1), and on SQL Anywhere's front end a product too
-        assertTrue(numbersRefusal("SELECT TOP 1 i, d / d AS a FROM " + T + " ORDER BY i").getMessage().contains(
-                "TOP, FIRST or START AT"));
-        numbers("SELECT TOP 1 i, d * d AS a FROM " + T + " ORDER BY i");
-        assertTrue(refusal("SELECT TOP 1 i, d * d AS a FROM " + T + " ORDER BY i", IqProfile.SQLA17_DEFAULT.settings(),
-                NUMBERS).getMessage().contains("TOP, FIRST or START AT"));
+        // under a row limit, computed for the rows IQ keeps (IQ island, 2026-10-16, the user's decision; these were
+        // refused): a quotient's zero divisor raises for those only, in both engines
+        assertTrue(numbers("SELECT TOP 1 i, d / d AS a FROM " + T + " ORDER BY i").contains("->limit(1)->extend("));
+        assertTrue(saNumbers("SELECT TOP 1 i, d * d AS a FROM " + T + " ORDER BY i").contains("->limit(1)->extend("));
         // under IQ's engine a chain of + - * tests the largest DOUBLE once, at its end, and answers NULL past it
         String chain = numbers("SELECT d + d + d + d AS a FROM " + T);
         assertEquals(1, chain.split("1.7976931348623157E308", -1).length - 1, chain);
@@ -1062,7 +1061,8 @@ class IqToPureTest {
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT (SUM(sm)) * 2 FROM " + T).kind());
         // IQ island, 2026-10-16 (measured on IQ 17.1): IQ's engine names each item by its own spelling
         assertTrue(pure("SELECT SUM(SM) FROM " + T + " HAVING sum(sm) > 0").contains("'SUM(T.SM)'"));
-        assertTrue(pure("SELECT SM, sm * 2 FROM " + T + " GROUP BY sm").contains("~[SM:r|$r.sm, 'T.sm*2':"));
+        String spelled = pure("SELECT SM, sm * 2 FROM " + T + " GROUP BY sm");
+        assertTrue(spelled.contains(":r|$r.sm, 'T.sm*2':") && spelled.endsWith("~SM)"), spelled);
         assertTrue(pure("SELECT (sm + 1) * 2 FROM " + T + " GROUP BY sm + 1").contains("'(T.sm+1)*2'"));
     }
 

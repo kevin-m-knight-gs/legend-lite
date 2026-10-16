@@ -26,7 +26,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -58,8 +57,13 @@ class IqCorpusTest {
 
     @Test
     void coverage() throws Exception {
+        // its own manual target selects it (core/BUILD.bazel): without its input it fails naming it, never skipping
+        // (SkipCensusTest's rule, Bazel workplan P3-14)
         String root = System.getProperty("iq.corpus.root");
-        Assumptions.assumeTrue(root != null, "no -Diq.corpus.root: the corpus lane runs only where it names corpora");
+        if (root == null) {
+            throw new IllegalStateException("no -Diq.corpus.root: the corpus lane runs where it names its corpora"
+                    + " (core/BUILD.bazel's iq_corpus_test says how)");
+        }
         String report = System.getProperty("iq.corpus.report");
         String profile = System.getProperty("iq.corpus.profile", "iq17-default");
         String only = System.getProperty("iq.corpus.suites");

@@ -1410,7 +1410,7 @@ public final class Lowerer {
     /** extend(~cols): existing projections stay, computed columns APPEND. */
     private SqlSelect extend(SqlSelect src, List<TypedFuncCol> columns,
                              ExprType info) {
-        SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
+        SqlSelect base = Fold.extendFolds(src) ? src : Sorts.isolateOrdered(this, src);
         return computedColumns(base, columns, info, true, false);
     }
 
@@ -3357,7 +3357,7 @@ public final class Lowerer {
      */
     private SqlSelect flatten(TypedFlatten fl) {
         SqlSelect src = relation(fl.source());
-        SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
+        SqlSelect base = Fold.extendFolds(src) ? src : Sorts.isolateOrdered(this, src);
         return foldOrIsolate(base, "flatten", b -> buildFlatten(b, fl));
     }
 

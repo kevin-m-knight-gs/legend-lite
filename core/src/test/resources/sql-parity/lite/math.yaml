@@ -54,3 +54,15 @@ tests:
     sql: "SELECT float_val % 2 AS a FROM numbers WHERE id = 1"
   - id: log10_of_integers_and_numerics
     sql: "SELECT id, log10(int_val) AS a, log10(numeric_val) AS b FROM numbers WHERE int_val > 0 AND numeric_val > 0 ORDER BY id"
+  # a select item computed past LIMIT and OFFSET (2026-10-16, measured on Postgres 16): Postgres computes a cheap item
+  # (a division) for every row before its sort and limit, so a zero divisor on a row the limit drops is still its
+  # error; it puts an item its planner costs as expensive off until after the sort, for the rows its LIMIT reads (its
+  # OFFSET's skipped ones too). The island's translation computes the item before the limit, as Postgres's order has
+  # it, but its division checks its divisor, which Postgres costs as expensive: on Postgres the island answers the first
+  # case (BUG, pinned in the ledger), on DuckDB it raises. The IQ island differs by IQ's rule (lite/corpus_gaps.yaml)
+  - id: a_division_by_zero_past_the_limit_is_an_error
+    sql: "SELECT id, 100 / (id - 3) AS q FROM numbers ORDER BY id LIMIT 2"
+  - id: a_division_by_zero_before_the_offset_is_an_error
+    sql: "SELECT id, 100 / (id - 3) AS q FROM numbers ORDER BY id LIMIT 2 OFFSET 4"
+  - id: a_division_past_the_limit_of_no_zero
+    sql: "SELECT id, 100 / (id - 3) AS q FROM numbers WHERE id <> 3 ORDER BY id LIMIT 2"

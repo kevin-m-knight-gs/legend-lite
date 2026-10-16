@@ -1163,9 +1163,6 @@ final class IqFunctions {
                 IqType.integer("INTEGER", IqType.INTEGER_MAX, IqType.INTEGER_MAX, false))
                 : count(args.get(2), f.args().get(2), name);
         boolean negative = len.detail() instanceof IqType t && t.lo().signum() < 0;
-        if (negative) {
-            raisesHere(f, "-1090 (a negative length)");
-        }
         return strict(Kind.STRING, varchar(), List.of(s, start, len), v -> {
             ValueSpecification p = v.get(1);
             ValueSpecification n = v.get(2);
@@ -1188,9 +1185,6 @@ final class IqFunctions {
      */
     private Tx substringIq(SqlAst.FunctionCall f, Tx s, Tx start, @com.legend.base.Nullable Tx len) {
         boolean negative = len != null && len.detail() instanceof IqType t && t.lo().signum() < 0;
-        if (negative) {
-            raisesHere(f, "-1090 (a negative length)");
-        }
         List<Tx> operands = len == null ? List.of(s, start) : List.of(s, start, len);
         Tx r = strict(Kind.STRING, varchar(), operands, v -> {
             ValueSpecification str = v.get(0);
@@ -1969,9 +1963,6 @@ final class IqFunctions {
         // a constant (no column in it) SQL Anywhere folds and types a digit wider (measured): no check; nor under IQ's
         // engine, whose NUMERIC(p+1,s) holds every rounded value
         boolean check = round && readsColumn(e) && !whole && !iqRound;
-        if (check) {
-            raisesHere(f, "-158 (a rounded value its precision cannot hold)");
-        }
         return strict(Kind.DECIMAL, type, List.of(x), v -> {
             ValueSpecification value = whole ? SqlToPure.call("toDecimal", v.get(0)) : v.get(0);
             ValueSpecification r = exact ? placesExact(atScale(value, s), s, n, round) : places(value, n, round);
@@ -2334,13 +2325,8 @@ final class IqFunctions {
     /** {@code MOD(a, b)} and {@code REMAINDER(a, b)}: IQ's {@code a % b} (the same function: the dividend's sign, a
      *  zero divisor IQ's error -628, IQ's types). */
     private Tx mod(String name, SqlAst.FunctionCall f, SqlToPure.At at) {
-        SqlAst.Expr divisor = f.args().get(1);
-        boolean safe = divisor instanceof SqlAst.IntegerLit d && d.value().signum() != 0 && constantNumber(f.args()
-                .get(0));
-        if (!safe) {
-            raisesHere(f, "-628 (a zero divisor) or -158 (out of range)");
-        }
-        return dialect.binary(new SqlAst.Binary(SqlAst.BinaryOp.MODULO, f.args().get(0), divisor, f.pos()), at);
+        return dialect.binary(new SqlAst.Binary(SqlAst.BinaryOp.MODULO, f.args().get(0), f.args().get(1), f.pos()),
+                at);
     }
 
     /** The largest argument {@code EXP} gives a finite DOUBLE for (exp's of the next DOUBLE overflows). */
@@ -2359,9 +2345,6 @@ final class IqFunctions {
     private Tx mathematical(Fn fn, String name, SqlAst.FunctionCall f, List<Tx> args) {
         Tx x = asDouble(args.get(0), f.args().get(0), name);
         boolean iq = engine == IqDialect.Engine.IQ;
-        if (iq) {
-            raisesHere(f, "an error outside its domain (the research's D-F9)");
-        }
         Tx r = strict(Kind.FLOAT, new IqType("DOUBLE"), List.of(x), v -> {
             ValueSpecification d = v.get(0);
             ValueSpecification outside = iq ? raise("Float") : SqlToPure.empty();
@@ -3381,7 +3364,6 @@ final class IqFunctions {
                     return Tx.value(x.vs(), Kind.INTEGER, x.nullable(), IqType.integer(family, t.lo(), t.hi(),
                             t.wide(), t.wider()));
                 }
-                raisesHere(c, "-158 (out of range)");
                 return checkedRange(family, x, false, v -> v);
             }
             case DECIMAL, FLOAT -> {
@@ -3390,7 +3372,6 @@ final class IqFunctions {
                 } else {
                     scaleOf(x, c.operand(), what);
                 }
-                raisesHere(c, "-158 (out of range)");
                 // toward zero; a value beyond a BIGINT is the database's own error
                 return checkedRange(family, x, true, v -> ifThen(SqlToPure.call("greaterThanEqual", v,
                         integer(0)), SqlToPure.call("floor", v), SqlToPure.call("ceiling", v)));
@@ -3399,7 +3380,6 @@ final class IqFunctions {
                 if (engine == IqDialect.Engine.IQ) {
                     return iqStringToInteger(family, x, c, what);
                 }
-                raisesHere(c, "-157 (not an integer) or -158 (out of range)");
                 if (c.operand() instanceof SqlAst.StringLit s) {
                     BigInteger v = integerText(s.value());
                     if (v != null && v.bitLength() < Long.SIZE) {
@@ -3553,7 +3533,6 @@ final class IqFunctions {
      * it cannot is refused before translating ({@link #constantCast}).
      */
     private Tx iqStringToInteger(String family, Tx x, SqlAst.Cast c, String what) {
-        raisesHere(c, "-1009145 (not a number, or out of range)");
         if (c.operand() instanceof SqlAst.StringLit lit) {
             BigDecimal d = iqNumberText(lit.value());
             if (d == null) {
@@ -3587,7 +3566,6 @@ final class IqFunctions {
      * whole digits, or any other spelling ('' among them), IQ's error -1009145 (the database's own, past the digits).
      */
     private Tx iqStringToNumeric(Tx x, int p, int s, IqType type, SqlAst.Cast c) {
-        raisesHere(c, "-1009145 (not a number, or out of range)");
         return strict(Kind.DECIMAL, type, List.of(x), v -> {
             ValueSpecification t = iqNumberTrimmed(v.get(0));
             // the sign and digits before the point, the point, s digits after it, and a 0 (so that '1.' and '.' read)
@@ -3684,9 +3662,6 @@ final class IqFunctions {
         }
         // can the value need more whole digits than p - s? (rounding up may add one; IQ's engine truncates)
         boolean check = sp - ss + (round && !iq ? 1 : 0) > p - s;
-        if (check) {
-            raisesHere(c, iq ? "-1009145 (out of range)" : "-158 (out of range)");
-        }
         boolean fromWhole = whole;
         return strict(Kind.DECIMAL, type, List.of(value), v -> {
             ValueSpecification d = fromWhole ? SqlToPure.call("toDecimal", v.get(0)) : v.get(0);
@@ -3720,7 +3695,6 @@ final class IqFunctions {
         if (isNull(x)) {
             return Tx.value(SqlToPure.nullOf(Kind.DECIMAL).vs(), Kind.DECIMAL, true, type);
         }
-        raisesHere(c, "-1009145 (out of range)");
         return strict(Kind.DECIMAL, type, List.of(x), v -> {
             ValueSpecification y = s == 0 ? v.get(0) : AppliedFunction.infixRun("times", List.of(v.get(0),
                     new CFloat(pow10(s).doubleValue())));
@@ -3773,7 +3747,6 @@ final class IqFunctions {
             throw SqlTranslationException.unsupported(what + " of a string to REAL is not supported yet: IQ reads it by"
                     + " its own rules", c.operand().pos());
         }
-        raisesHere(c, "-158 (out of range)");
         Tx d = asDouble(x, c.operand(), what);
         Tx r = SqlToPure.strict(Kind.FLOAT, List.of(d), v -> single(v.get(0)));
         return Tx.value(r.vs(), Kind.FLOAT, r.nullable(), type);
@@ -3850,7 +3823,6 @@ final class IqFunctions {
                                 + " to " + target + "(" + n + ") is not supported in profile " + settings.spelling()
                                 + "'s UTF-8 database yet: its lengths are bytes", c.pos());
                     }
-                    raisesHere(c, "-638 (right truncation)");
                     Tx r = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
                         ValueSpecification s = v.get(0);
                         ValueSpecification rest = SqlToPure.call("substring", s, integer(n + 1));
@@ -3868,7 +3840,6 @@ final class IqFunctions {
                 if (n < 0 || digits <= n) {
                     text = SqlToPure.strict(Kind.STRING, List.of(x), v -> SqlToPure.call("toString", v.get(0)));
                 } else {
-                    raisesHere(c, "-157 (too long for its type)");
                     text = SqlToPure.strict(Kind.STRING, List.of(x), v -> ifThen(SqlToPure.call("greaterThan",
                             SqlToPure.call("length", SqlToPure.call("toString", v.get(0))), integer(n)),
                             raise("String"), SqlToPure.call("toString", v.get(0))));
@@ -3980,7 +3951,6 @@ final class IqFunctions {
 
     /** {@code text} (ASCII), IQ's error -1009145 where it is longer than {@code n} (the research's D-C1). */
     private Tx raisedPastLength(Tx text, int n, SqlAst.Cast c) {
-        raisesHere(c, "-1009145 (a text longer than its type)");
         return SqlToPure.strict(Kind.STRING, List.of(text), v -> ifThen(SqlToPure.call("greaterThan",
                 SqlToPure.call("length", v.get(0)), integer(n)), raise("String"), v.get(0)));
     }
@@ -4042,7 +4012,6 @@ final class IqFunctions {
             if (parts == null) {
                 if (s.value().isEmpty() || looksIso(s.value())) {
                     // '' and an ISO spelling of no day: IQ's error -157 where it is computed
-                    raisesHere(c, "-157 (not a date)");
                     return Tx.value(SqlToPure.call("toOne", SqlToPure.call("cast", SqlToPure.empty(),
                             SqlToPure.typeArg(toDate ? "StrictDate" : "DateTime"))), kind, false, type);
                 }
@@ -4222,7 +4191,6 @@ final class IqFunctions {
                     + " under the IQ engine yet: IQ's manual makes any nonzero integer 1, SQL Anywhere raises -158",
                     c.pos());
         }
-        raisesHere(c, "-158 (out of range)");
         Tx r = SqlToPure.strict(Kind.INTEGER, List.of(x), v -> ifThen(SqlToPure.call("or", lt(v.get(0), integer(0)),
                 SqlToPure.call("greaterThan", v.get(0), integer(1))), raise("Integer"), v.get(0)));
         return Tx.value(r.vs(), Kind.INTEGER, r.nullable(), type);
@@ -4367,28 +4335,6 @@ final class IqFunctions {
             case SqlAst.Cast c -> readsColumn(c.operand());
             default -> true;
         };
-    }
-
-    /** Whether {@code e} is a number constant: a literal, signed or not. */
-    private static boolean constantNumber(SqlAst.Expr e) {
-        return switch (e) {
-            case SqlAst.IntegerLit n -> true;
-            case SqlAst.NumericLit n -> true;
-            case SqlAst.Unary u -> u.op() != SqlAst.UnaryOp.NOT && constantNumber(u.operand());
-            default -> false;
-        };
-    }
-
-    /** {@code node} can raise IQ's error {@code error}: refused where it stands in the select list or ORDER BY of a
-     *  statement with a row limit (IQ computes them only for the rows it keeps; lite's databases may compute them for
-     *  the rows the limit drops). */
-    private void raisesHere(SqlAst.Expr node, String error) {
-        if (dialect.limited(node)) {
-            throw SqlTranslationException.unsupported("this can raise IQ's error " + error + " in the select list or"
-                    + " ORDER BY of a statement with TOP, FIRST or START AT, which is not supported yet: IQ computes"
-                    + " those items only for the rows it keeps, lite's databases may compute them for the rows the"
-                    + " limit drops", node.pos());
-        }
     }
 
     // ------------------------------------------------------------------ Pure

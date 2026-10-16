@@ -1433,7 +1433,7 @@ public final class SqlToPure {
     /** A source's columns as the dialect reads them ({@link InputDialect#read}): the relation itself when every
      *  column reads as stored (Postgres's always do), else each column read otherwise computed in its place. */
     private Rel read(Rel source, SqlAst.Pos pos) {
-        Set<String> present = new HashSet<>();
+        Set<String> present = taken();
         source.columns().forEach(c -> present.add(c.name()));
         List<ColSpec> computed = new ArrayList<>();
         List<ColSpec> selection = new ArrayList<>();
@@ -2378,7 +2378,8 @@ public final class SqlToPure {
             throw SqlTranslationException.unsupported("HAVING without GROUP BY or an aggregate is not supported yet",
                     having.pos());
         }
-        Set<String> present = new HashSet<>(in.names());
+        Set<String> present = taken();
+        present.addAll(in.names());
         Windowed windowed = windows(s, in, relation, present);
         Scope scope = windowed.scope();
         List<Output> outputs = new ArrayList<>();
@@ -2417,7 +2418,8 @@ public final class SqlToPure {
         List<ColSpec> keys = new ArrayList<>();
         List<ColSpec> computedKeys = new ArrayList<>();
         List<ColSpec> representatives = new ArrayList<>();
-        Set<String> names = new HashSet<>(in.names());
+        Set<String> names = taken();
+        names.addAll(in.names());
         for (SqlAst.Expr g : s.groupBy()) {
             SqlAst.Expr key = groupKey(g, s, in);
             noAggregate(key, "GROUP BY");
@@ -2525,7 +2527,7 @@ public final class SqlToPure {
         if (having != null) {
             relation = call("filter", relation, lambda(row, condition(having, g, "HAVING")));
         }
-        Set<String> present = new HashSet<>();
+        Set<String> present = taken();
         for (Col c : byCanon.values()) {
             present.add(c.name());
         }
@@ -3436,6 +3438,13 @@ public final class SqlToPure {
         return found == null ? null : found.qualifier();
     }
 
+    /** The names a relation's columns take, compared without regard to case (2026-10-16, measured on DuckDB): a
+     *  database that reads names so (DuckDB, even quoted) binds two columns of one select whose names differ in case
+     *  to one of them, the first; so a computed column takes a fresh name there, its own given back last. */
+    private static Set<String> taken() {
+        return new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+    }
+
     /** The column a computed output is built in: its own name when that is free, else a fresh one (renamed last). */
     private String internalFor(String name, Set<String> present) {
         if (!present.contains(name) && !name.startsWith(SYNTHETIC)) {
@@ -3499,12 +3508,35 @@ public final class SqlToPure {
         // dialect's collation key of a DISTINCT's output after the DISTINCT, in afterDistinct)
         List<ValueSpecification> sortInfos = new ArrayList<>();
         List<ColSpec> afterDistinct = new ArrayList<>();
+        Set<String> sorted = new HashSet<>();
         for (SqlAst.SortItem item : s.orderBy()) {
             String key = sortKey(item, s, scope, outputs, computed, present, afterDistinct);
+            sorted.add(key);
             boolean nullsFirst = item.nullsFirst() != null ? java.util.Objects.requireNonNull(item.nullsFirst())
                     : dialect.nullsFirst(item.descending());
             sortInfos.add(call(item.descending() ? "descending" : "ascending", colSpec(key),
                     new EnumValue(NULL_ORDER, nullsFirst ? "FIRST" : "LAST")));
+        }
+        // IQ island, 2026-10-16 (the user's decision; measured on IQ 17.1, SQL Anywhere 17 and Postgres 16): under a
+        // row limit, the items the ORDER BY does not read are computed for the rows the dialect says, after the sort
+        // and the limit (an item that can raise raises for those rows only)
+        InputDialect.RowLimitItems limited = s.distinct() || s.limit() == null && s.offset() == null
+                ? InputDialect.RowLimitItems.EVERY_ROW : dialect.rowLimitItems(s);
+        if (limited == InputDialect.RowLimitItems.ROWS_UP_TO_THE_LAST && s.limit() == null) {
+            // no last row: every row is up to it
+            limited = InputDialect.RowLimitItems.EVERY_ROW;
+        }
+        List<ColSpec> late = new ArrayList<>();
+        if (limited != InputDialect.RowLimitItems.EVERY_ROW) {
+            List<ColSpec> early = new ArrayList<>();
+            for (ColSpec c : computed) {
+                (sorted.contains(c.name()) ? early : late).add(c);
+            }
+            computed = early;
+            if (late.isEmpty()) {
+                // nothing to compute after the limit: the limit as written
+                limited = InputDialect.RowLimitItems.EVERY_ROW;
+            }
         }
         if (!computed.isEmpty()) {
             relation = call("extend", relation, new ColSpecArray(computed));
@@ -3546,6 +3578,12 @@ public final class SqlToPure {
             if (!sortInfos.isEmpty()) {
                 relation = call("sort", relation, new PureCollection(sortInfos));
             }
+            if (limited != InputDialect.RowLimitItems.EVERY_ROW) {
+                relation = rowsComputed(relation, s, limited);
+                if (!late.isEmpty()) {
+                    relation = call("extend", relation, new ColSpecArray(late));
+                }
+            }
             relation = call("select", relation, new ColSpecArray(selection));
         }
         for (Output o : outputs) {
@@ -3554,18 +3592,40 @@ public final class SqlToPure {
             }
         }
         SqlAst.Expr offset = s.offset();
-        if (offset != null) {
+        if (limited == InputDialect.RowLimitItems.EVERY_ROW) {
+            if (offset != null) {
+                relation = call("drop", relation, dialect.rowCount(offset, "OFFSET"));
+            }
+            SqlAst.Expr limit = s.limit();
+            if (limit != null) {
+                relation = call("limit", relation, dialect.rowCount(limit, "LIMIT"));
+            }
+        } else if (limited == InputDialect.RowLimitItems.ROWS_UP_TO_THE_LAST && offset != null) {
             relation = call("drop", relation, dialect.rowCount(offset, "OFFSET"));
-        }
-        SqlAst.Expr limit = s.limit();
-        if (limit != null) {
-            relation = call("limit", relation, dialect.rowCount(limit, "LIMIT"));
         }
         List<OutCol> columns = new ArrayList<>();
         for (Output o : outputs) {
             columns.add(new OutCol(o.name(), o.kind(), o.nullable(), o.detail()));
         }
         return new Rel(relation, columns);
+    }
+
+    /** {@code relation}, sorted, cut to the rows a row limit computes its later items for
+     *  ({@link InputDialect.RowLimitItems}): the rows it returns, or the rows up to its last (the caller drops its
+     *  offset's after the items). */
+    private ValueSpecification rowsComputed(ValueSpecification relation, SqlAst.Select s,
+            InputDialect.RowLimitItems rows) {
+        SqlAst.Expr offset = s.offset();
+        SqlAst.Expr limit = s.limit();
+        if (rows == InputDialect.RowLimitItems.ROWS_RETURNED) {
+            if (offset != null) {
+                relation = call("drop", relation, dialect.rowCount(offset, "OFFSET"));
+            }
+            return limit == null ? relation : call("limit", relation, dialect.rowCount(limit, "LIMIT"));
+        }
+        ValueSpecification count = dialect.rowCount(java.util.Objects.requireNonNull(limit), "LIMIT");
+        return call("limit", relation, offset == null ? count
+                : AppliedFunction.infixRun("plus", List.of(dialect.rowCount(offset, "OFFSET"), count)));
     }
 
     private String sortKey(SqlAst.SortItem item, SqlAst.Select s, Scope scope, List<Output> outputs,
