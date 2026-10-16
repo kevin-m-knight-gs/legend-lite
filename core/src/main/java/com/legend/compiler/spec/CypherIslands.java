@@ -128,6 +128,18 @@ public final class CypherIslands {
             return classPath.equals(superPath) || model.isSubtype(classPath, superPath);
         }
 
+        @Override
+        public List<String> classes() {
+            // the model's own classes: the platform's declarations (the resolver's type universe and the system
+            // metamodel's elements, by their declared names) are never nodes
+            List<String> out = new ArrayList<>();
+            model.derived(Labels.class, Labels::of).bySimpleName().values().forEach(out::addAll);
+            out.removeIf(c -> com.legend.compiler.NameResolver.platformFqns().contains(c)
+                    || com.legend.builtin.SystemMetamodel.elementFqns().contains(c));
+            java.util.Collections.sort(out);
+            return List.copyOf(out);
+        }
+
         private static void report(CypherToPure.PropertySink sink, String name, Type type,
                 Multiplicity multiplicity) {
             int lower = 0;

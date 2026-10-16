@@ -9850,6 +9850,24 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the eleventh landing — the label-less node leg: `MATCH (n)` over every class, the arms concatenated (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the nanosecond leg; the record is the study's §12.13
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only.
+
+1. **What lands.** A label-less node pattern reads one arm per class of the model (`Model.classes()`, the seam's
+   and the test's), each arm the graph of that class with the pattern's constraints and the WHERE; the first
+   projection projects every arm to the same columns and concatenates them, the grouping, sort, SKIP and LIMIT
+   reading the whole; a property a class lacks reads as null where another declares it. Refused by name: a node
+   as a value, a second MATCH after a label-less one, a property typed differently across the classes. With it,
+   a WITH's WHERE and ORDER BY after a grouping or a DISTINCT read a key's re-spelled expression as the key.
+2. **The ledger.** DuckDB: 4094 cases; PASS 2098 (from 2,030); FAIL 0; BUG 0; ERROR 0; REFUSED 969;
+   BOTH_ERROR 709; SKIP 318. Postgres: PASS 1750 (from 1,682); FAIL 0; BUG 0; ERROR 0; REFUSED 1317;
+   BOTH_ERROR 709; SKIP 318. 18 lite cases in `lite/labelless.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the tenth landing — the nanosecond leg: DuckDB's nanoseconds over the nanosecond epoch, Postgres refusing by name (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the zoned time-of-day leg; the record is the study's §12.12

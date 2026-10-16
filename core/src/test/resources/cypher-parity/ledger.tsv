@@ -707,21 +707,21 @@ tck/clauses/return-orderby/ReturnOrderBy1/[9] ORDER BY should order lists in the
 tck/clauses/return-orderby/ReturnOrderBy1/[10] ORDER BY DESC should order lists in the expected order	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy1/[11] ORDER BY should order distinct types in the expected order	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy1/[12] ORDER BY DESC should order distinct types in the expected order	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy2/[1] ORDER BY should return results in ascending order	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy2/[2] ORDER BY DESC should return results in descending order	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy2/[3] Sort on aggregated function	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy2/[1] ORDER BY should return results in ascending order	PASS	PASS
+tck/clauses/return-orderby/ReturnOrderBy2/[2] ORDER BY DESC should return results in descending order	PASS	PASS
+tck/clauses/return-orderby/ReturnOrderBy2/[3] Sort on aggregated function	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[4] Support sort and distinct	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy2/[5] Support ordering by a property after being distinct-ified	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy2/[6] Count star should count everything in scope	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy2/[7] Ordering with aggregation	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy2/[7] Ordering with aggregation	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[8] Returning all variables with ordering	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy2/[9] Using aliased DISTINCT expression in ORDER BY	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy2/[9] Using aliased DISTINCT expression in ORDER BY	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[10] Returned columns do not change from using ORDER BY	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy2/[11] Aggregates ordered by arithmetics	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy2/[12] Aggregation of named paths	SKIP	SKIP
 tck/clauses/return-orderby/ReturnOrderBy2/[13] Fail when sorting on variable removed by DISTINCT	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-orderby/ReturnOrderBy2/[14] Fail on aggregation in ORDER BY after RETURN	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return-orderby/ReturnOrderBy3/[1] Sort on aggregate function and normal property	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy3/[1] Sort on aggregate function and normal property	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy4/[1] ORDER BY of a column introduced in RETURN should return salient results in ascending order	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy4/[2] Handle projections with ORDER BY	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy5/[1] Renaming columns before ORDER BY should return results in ascending order	REFUSED	REFUSED
@@ -747,7 +747,7 @@ tck/clauses/return-skip-limit/ReturnSkipLimit2/[3] LIMIT 0 should return an empt
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[4] Handle ORDER BY with LIMIT 1	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[5] ORDER BY with LIMIT 0 should not generate errors	REFUSED	REFUSED
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[6] LIMIT with an expression that does not depend on variables	REFUSED	REFUSED
-tck/clauses/return-skip-limit/ReturnSkipLimit2/[7] Limit to more rows than actual results 1	REFUSED	REFUSED
+tck/clauses/return-skip-limit/ReturnSkipLimit2/[7] Limit to more rows than actual results 1	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[8] Limit to more rows than actual results 2	SKIP	SKIP
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[9] Fail when using non-constants in LIMIT	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[10] Negative parameter for LIMIT should fail	BOTH_ERROR	BOTH_ERROR
@@ -760,15 +760,15 @@ tck/clauses/return-skip-limit/ReturnSkipLimit2/[16] Fail when using floating poi
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[17] Fail when using floating point in LIMIT 2	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-skip-limit/ReturnSkipLimit3/[1] Get rows in the middle	REFUSED	REFUSED
 tck/clauses/return-skip-limit/ReturnSkipLimit3/[2] Get rows in the middle by param	REFUSED	REFUSED
-tck/clauses/return-skip-limit/ReturnSkipLimit3/[3] Limiting amount of rows when there are fewer left than the LIMIT argument	REFUSED	REFUSED
+tck/clauses/return-skip-limit/ReturnSkipLimit3/[3] Limiting amount of rows when there are fewer left than the LIMIT argument	PASS	PASS
 tck/clauses/return/Return1/[1] Returning a list property	SKIP	SKIP
 tck/clauses/return/Return1/[2] Fail when returning an undefined variable	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return2/[1] Arithmetic expressions should propagate null values	PASS	PASS
-tck/clauses/return/Return2/[2] Returning a node property value	REFUSED	REFUSED
+tck/clauses/return/Return2/[2] Returning a node property value	PASS	PASS
 tck/clauses/return/Return2/[3] Missing node property should become null	REFUSED	REFUSED
 tck/clauses/return/Return2/[4] Returning a relationship property value	REFUSED	REFUSED
 tck/clauses/return/Return2/[5] Missing relationship property should become null	REFUSED	REFUSED
-tck/clauses/return/Return2/[6] Adding a property and a literal in projection	REFUSED	REFUSED
+tck/clauses/return/Return2/[6] Adding a property and a literal in projection	PASS	PASS
 tck/clauses/return/Return2/[7] Adding list properties in projection	SKIP	SKIP
 tck/clauses/return/Return2/[8] Returning label predicate expression	REFUSED	REFUSED
 tck/clauses/return/Return2/[9] Returning a projected map	SKIP	SKIP
@@ -784,33 +784,33 @@ tck/clauses/return/Return2/[18] Fail on projecting a non-existent function	BOTH_
 tck/clauses/return/Return3/[1] Returning multiple expressions	REFUSED	REFUSED
 tck/clauses/return/Return3/[2] Returning multiple node property values	SKIP	SKIP
 tck/clauses/return/Return3/[3] Projecting nodes and relationships	REFUSED	REFUSED
-tck/clauses/return/Return4/[1] Honour the column name for RETURN items	REFUSED	REFUSED
+tck/clauses/return/Return4/[1] Honour the column name for RETURN items	PASS	PASS
 tck/clauses/return/Return4/[2] Support column renaming	REFUSED	REFUSED
-tck/clauses/return/Return4/[3] Aliasing expressions	REFUSED	REFUSED
-tck/clauses/return/Return4/[4] Keeping used expression 1	REFUSED	REFUSED
+tck/clauses/return/Return4/[3] Aliasing expressions	PASS	PASS
+tck/clauses/return/Return4/[4] Keeping used expression 1	PASS	PASS
 tck/clauses/return/Return4/[5] Keeping used expression 2	REFUSED	REFUSED
 tck/clauses/return/Return4/[6] Keeping used expression 3	REFUSED	REFUSED
 tck/clauses/return/Return4/[7] Keeping used expression 4	REFUSED	REFUSED
-tck/clauses/return/Return4/[8] Support column renaming for aggregations	REFUSED	REFUSED
+tck/clauses/return/Return4/[8] Support column renaming for aggregations	PASS	PASS
 tck/clauses/return/Return4/[9] Handle subexpression in aggregation also occurring as standalone expression with nested aggregation in a literal map	REFUSED	REFUSED
 tck/clauses/return/Return4/[10] Fail when returning multiple columns with same name	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return4/[11] Reusing variable names in RETURN	REFUSED	REFUSED
 tck/clauses/return/Return5/[1] DISTINCT inside aggregation should work with lists in maps	SKIP	SKIP
-tck/clauses/return/Return5/[2] DISTINCT on nullable values	REFUSED	REFUSED
+tck/clauses/return/Return5/[2] DISTINCT on nullable values	PASS	PASS
 tck/clauses/return/Return5/[3] DISTINCT inside aggregation should work with nested lists in maps	SKIP	SKIP
 tck/clauses/return/Return5/[4] DISTINCT inside aggregation should work with nested lists of maps in maps	SKIP	SKIP
 tck/clauses/return/Return5/[5] Aggregate on list values	SKIP	SKIP
-tck/clauses/return/Return6/[1] Return count aggregation over nodes	REFUSED	REFUSED
+tck/clauses/return/Return6/[1] Return count aggregation over nodes	PASS	PASS
 tck/clauses/return/Return6/[2] Projecting an arithmetic expression with aggregation	REFUSED	REFUSED
 tck/clauses/return/Return6/[3] Aggregating by a list property has a correct definition of equality	SKIP	SKIP
 tck/clauses/return/Return6/[4] Support multiple divisions in aggregate function	REFUSED	REFUSED
 tck/clauses/return/Return6/[5] Aggregates inside normal functions	REFUSED	REFUSED
 tck/clauses/return/Return6/[6] Handle aggregates inside non-aggregate expressions	REFUSED	REFUSED
-tck/clauses/return/Return6/[7] Aggregate on property	REFUSED	REFUSED
+tck/clauses/return/Return6/[7] Aggregate on property	PASS	PASS
 tck/clauses/return/Return6/[8] Handle aggregation on functions	REFUSED	REFUSED
 tck/clauses/return/Return6/[9] Aggregates with arithmetics	REFUSED	REFUSED
 tck/clauses/return/Return6/[10] Multiple aggregates on same variable	REFUSED	REFUSED
-tck/clauses/return/Return6/[11] Counting matches	REFUSED	REFUSED
+tck/clauses/return/Return6/[11] Counting matches	PASS	PASS
 tck/clauses/return/Return6/[12] Counting matches per group	REFUSED	REFUSED
 tck/clauses/return/Return6/[13] Returning the minimum length of paths	REFUSED	REFUSED
 tck/clauses/return/Return6/[14] Aggregates in aggregates	BOTH_ERROR	BOTH_ERROR
@@ -823,7 +823,7 @@ tck/clauses/return/Return6/[20] Fail if not returned variables are used inside a
 tck/clauses/return/Return6/[21] Fail if more complex expressions, even if returned, are used inside expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return7/[1] Return all variables	REFUSED	REFUSED
 tck/clauses/return/Return7/[2] Fail when using RETURN * without variables in scope	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return/Return8/[1] Return aggregation after With filtering	REFUSED	REFUSED
+tck/clauses/return/Return8/[1] Return aggregation after With filtering	PASS	PASS
 tck/clauses/set/Set1/[1] Set a property	REFUSED	REFUSED
 tck/clauses/set/Set1/[2] Set a property to an expression	REFUSED	REFUSED
 tck/clauses/set/Set1/[3] Set a property by selecting the node using a simple expression	REFUSED	REFUSED
@@ -899,9 +899,9 @@ tck/clauses/unwind/Unwind1/[7] Double unwinding a list of lists	REFUSED	REFUSED
 tck/clauses/unwind/Unwind1/[8] Unwinding the empty list	PASS	PASS
 tck/clauses/unwind/Unwind1/[9] Unwinding null	PASS	PASS
 tck/clauses/unwind/Unwind1/[10] Unwinding list with duplicates	PASS	PASS
-tck/clauses/unwind/Unwind1/[11] Unwind does not prune context	REFUSED	REFUSED
+tck/clauses/unwind/Unwind1/[11] Unwind does not prune context	PASS	PASS
 tck/clauses/unwind/Unwind1/[12] Unwind does not remove variables from scope	SKIP	SKIP
-tck/clauses/unwind/Unwind1/[13] Multiple unwinds after each other	REFUSED	REFUSED
+tck/clauses/unwind/Unwind1/[13] Multiple unwinds after each other	PASS	PASS
 tck/clauses/unwind/Unwind1/[14] Unwind with merge	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[1] Sort booleans in ascending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[2] Sort booleans in descending order	PASS	PASS
@@ -1049,14 +1049,14 @@ tck/clauses/with-orderBy/WithOrderBy2/[19] Sort by a date time expression in asc
 tck/clauses/with-orderBy/WithOrderBy2/[19] Sort by a date time expression in ascending order #3	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[20] Sort by a date time expression in descending order #1	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[20] Sort by a date time expression in descending order #2	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy2/[21] Sort by an expression that is only partially orderable on a non-distinct binding table #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[21] Sort by an expression that is only partially orderable on a non-distinct binding table #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[22] Sort by an expression that is only partially orderable on a non-distinct binding table, but used as a grouping key #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[22] Sort by an expression that is only partially orderable on a non-distinct binding table, but used as a grouping key #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[23] Sort by an expression that is only partially orderable on a non-distinct binding table, but used in parts as a grouping key #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[23] Sort by an expression that is only partially orderable on a non-distinct binding table, but used in parts as a grouping key #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[24] Sort by an expression that is only partially orderable on a non-distinct binding table, but made distinct #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[24] Sort by an expression that is only partially orderable on a non-distinct binding table, but made distinct #2	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[21] Sort by an expression that is only partially orderable on a non-distinct binding table #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[21] Sort by an expression that is only partially orderable on a non-distinct binding table #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[22] Sort by an expression that is only partially orderable on a non-distinct binding table, but used as a grouping key #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[22] Sort by an expression that is only partially orderable on a non-distinct binding table, but used as a grouping key #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[23] Sort by an expression that is only partially orderable on a non-distinct binding table, but used in parts as a grouping key #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[23] Sort by an expression that is only partially orderable on a non-distinct binding table, but used in parts as a grouping key #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[24] Sort by an expression that is only partially orderable on a non-distinct binding table, but made distinct #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[24] Sort by an expression that is only partially orderable on a non-distinct binding table, but made distinct #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy2/[25] Fail on sorting by an aggregation #1	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy2/[25] Fail on sorting by an aggregation #2	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy2/[25] Fail on sorting by an aggregation #3	BOTH_ERROR	BOTH_ERROR
@@ -1203,9 +1203,9 @@ tck/clauses/with-skip-limit/WithSkipLimit2/[3] Connected components succeeding W
 tck/clauses/with-skip-limit/WithSkipLimit2/[4] Ordering and limiting on aggregate	REFUSED	REFUSED
 tck/clauses/with-skip-limit/WithSkipLimit3/[1] Get rows in the middle	REFUSED	REFUSED
 tck/clauses/with-skip-limit/WithSkipLimit3/[2] Get rows in the middle by param	REFUSED	REFUSED
-tck/clauses/with-skip-limit/WithSkipLimit3/[3] Limiting amount of rows when there are fewer left than the LIMIT argument	REFUSED	REFUSED
+tck/clauses/with-skip-limit/WithSkipLimit3/[3] Limiting amount of rows when there are fewer left than the LIMIT argument	PASS	PASS
 tck/clauses/with-where/WithWhere1/[1] Filter node with property predicate on a single variable with multiple bindings	REFUSED	REFUSED
-tck/clauses/with-where/WithWhere1/[2] Filter node with property predicate on a single variable with multiple distinct bindings	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere1/[2] Filter node with property predicate on a single variable with multiple distinct bindings	PASS	PASS
 tck/clauses/with-where/WithWhere1/[3] Filter for an unbound relationship variable	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere1/[4] Filter for an unbound node variable	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	SKIP	SKIP
@@ -1220,9 +1220,9 @@ tck/clauses/with-where/WithWhere5/[2] Filter out on null if the AND'd predicate 
 tck/clauses/with-where/WithWhere5/[3] Filter out on null if the AND'd predicate evaluates to true	SKIP	SKIP
 tck/clauses/with-where/WithWhere5/[4] Do not filter out on null if the OR'd predicate evaluates to true	SKIP	SKIP
 tck/clauses/with-where/WithWhere6/[1] Filter a single aggregate	REFUSED	REFUSED
-tck/clauses/with-where/WithWhere7/[1] WHERE sees a variable bound before but not after WITH	REFUSED	REFUSED
-tck/clauses/with-where/WithWhere7/[2] WHERE sees a variable bound after but not before WITH	REFUSED	REFUSED
-tck/clauses/with-where/WithWhere7/[3] WHERE sees both, variable bound before but not after WITH and variable bound after but not before WITH	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere7/[1] WHERE sees a variable bound before but not after WITH	PASS	PASS
+tck/clauses/with-where/WithWhere7/[2] WHERE sees a variable bound after but not before WITH	PASS	PASS
+tck/clauses/with-where/WithWhere7/[3] WHERE sees both, variable bound before but not after WITH and variable bound after but not before WITH	PASS	PASS
 tck/clauses/with/With1/[1] Forwarind a node variable 1	REFUSED	REFUSED
 tck/clauses/with/With1/[2] Forwarind a node variable 2	REFUSED	REFUSED
 tck/clauses/with/With1/[3] Forwarding a relationship variable	REFUSED	REFUSED
@@ -1234,14 +1234,14 @@ tck/clauses/with/With2/[2] Forwarding a nested map literal	PASS	PASS
 tck/clauses/with/With3/[1] Forwarding multiple node and relationship variables	SKIP	SKIP
 tck/clauses/with/With4/[1] Aliasing relationship variable	REFUSED	REFUSED
 tck/clauses/with/With4/[2] Aliasing expression to new variable name	REFUSED	REFUSED
-tck/clauses/with/With4/[3] Aliasing expression to existing variable name	REFUSED	REFUSED
+tck/clauses/with/With4/[3] Aliasing expression to existing variable name	PASS	PASS
 tck/clauses/with/With4/[4] Fail when forwarding multiple aliases with the same name	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With4/[5] Fail when not aliasing expressions in WITH	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With4/[6] Reusing variable names in WITH	REFUSED	REFUSED
 tck/clauses/with/With4/[7] Multiple aliasing and backreferencing	REFUSED	REFUSED
-tck/clauses/with/With5/[1] DISTINCT on an expression	REFUSED	REFUSED
+tck/clauses/with/With5/[1] DISTINCT on an expression	PASS	PASS
 tck/clauses/with/With5/[2] Handling DISTINCT with lists in maps	SKIP	SKIP
-tck/clauses/with/With6/[1] Implicit grouping with single expression as grouping key and single aggregation	REFUSED	REFUSED
+tck/clauses/with/With6/[1] Implicit grouping with single expression as grouping key and single aggregation	PASS	PASS
 tck/clauses/with/With6/[2] Implicit grouping with single relationship variable as grouping key and single aggregation	REFUSED	REFUSED
 tck/clauses/with/With6/[3] Implicit grouping with multiple node and relationship variables as grouping key and single aggregation	REFUSED	REFUSED
 tck/clauses/with/With6/[4] Implicit grouping with single path variable as grouping key and single aggregation	REFUSED	REFUSED
@@ -1252,7 +1252,7 @@ tck/clauses/with/With6/[8] Fail if not projected variables are used inside an ex
 tck/clauses/with/With6/[9] Fail if more complex expression, even if projected, are used inside expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With7/[1] A simple pattern with one bound endpoint	REFUSED	REFUSED
 tck/clauses/with/With7/[2] Multiple WITHs using a predicate and aggregation	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation1/[1] Count only non-null values	REFUSED	REFUSED
+tck/expressions/aggregation/Aggregation1/[1] Count only non-null values	PASS	PASS
 tck/expressions/aggregation/Aggregation1/[2] Counting loop relationships	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation2/[1] `max()` over integers	PASS	PASS
 tck/expressions/aggregation/Aggregation2/[2] `min()` over integers	PASS	PASS
@@ -1266,7 +1266,7 @@ tck/expressions/aggregation/Aggregation2/[9] `max()` over list values	REFUSED	RE
 tck/expressions/aggregation/Aggregation2/[10] `min()` over list values	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation2/[11] `max()` over mixed values	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation2/[12] `min()` over mixed values	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation3/[1] Sum only non-null values	REFUSED	REFUSED
+tck/expressions/aggregation/Aggregation3/[1] Sum only non-null values	PASS	PASS
 tck/expressions/aggregation/Aggregation3/[2] No overflow during summation	PASS	PASS
 tck/expressions/aggregation/Aggregation5/[1] `collect()` filtering nulls	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation5/[2] OPTIONAL MATCH and `collect()` on node property	REFUSED	REFUSED
@@ -1499,17 +1499,17 @@ tck/expressions/comparison/Comparison2/[6] Comparability between numbers and str
 tck/expressions/comparison/Comparison2/[6] Comparability between numbers and strings #2	PASS	PASS
 tck/expressions/comparison/Comparison2/[6] Comparability between numbers and strings #3	REFUSED	REFUSED
 tck/expressions/comparison/Comparison2/[6] Comparability between numbers and strings #4	REFUSED	REFUSED
-tck/expressions/comparison/Comparison3/[1] Handling numerical ranges 1	REFUSED	REFUSED
-tck/expressions/comparison/Comparison3/[2] Handling numerical ranges 2	REFUSED	REFUSED
-tck/expressions/comparison/Comparison3/[3] Handling numerical ranges 3	REFUSED	REFUSED
-tck/expressions/comparison/Comparison3/[4] Handling numerical ranges 4	REFUSED	REFUSED
-tck/expressions/comparison/Comparison3/[5] Handling string ranges 1	REFUSED	REFUSED
-tck/expressions/comparison/Comparison3/[6] Handling string ranges 2	REFUSED	REFUSED
-tck/expressions/comparison/Comparison3/[7] Handling string ranges 3	REFUSED	REFUSED
-tck/expressions/comparison/Comparison3/[8] Handling string ranges 4	REFUSED	REFUSED
-tck/expressions/comparison/Comparison3/[9] Handling empty range	REFUSED	REFUSED
+tck/expressions/comparison/Comparison3/[1] Handling numerical ranges 1	PASS	PASS
+tck/expressions/comparison/Comparison3/[2] Handling numerical ranges 2	PASS	PASS
+tck/expressions/comparison/Comparison3/[3] Handling numerical ranges 3	PASS	PASS
+tck/expressions/comparison/Comparison3/[4] Handling numerical ranges 4	PASS	PASS
+tck/expressions/comparison/Comparison3/[5] Handling string ranges 1	PASS	PASS
+tck/expressions/comparison/Comparison3/[6] Handling string ranges 2	PASS	PASS
+tck/expressions/comparison/Comparison3/[7] Handling string ranges 3	PASS	PASS
+tck/expressions/comparison/Comparison3/[8] Handling string ranges 4	PASS	PASS
+tck/expressions/comparison/Comparison3/[9] Handling empty range	PASS	PASS
 tck/expressions/comparison/Comparison4/[1] Handling long chains of operators	SKIP	SKIP
-tck/expressions/conditional/Conditional1/[1] Run coalesce	REFUSED	REFUSED
+tck/expressions/conditional/Conditional1/[1] Run coalesce	PASS	PASS
 tck/expressions/conditional/Conditional2/[1] Simple cases over integers #1	PASS	PASS
 tck/expressions/conditional/Conditional2/[1] Simple cases over integers #2	PASS	PASS
 tck/expressions/conditional/Conditional2/[1] Simple cases over integers #3	PASS	PASS
@@ -1955,7 +1955,7 @@ tck/expressions/map/Map3/[4] Using `keys()` on map with null values #7	PASS	PASS
 tck/expressions/map/Map3/[5] Using `keys()` and `IN` to check field existence	PASS	PASS
 tck/expressions/mathematical/Mathematical11/[1] Absolute function	PASS	PASS
 tck/expressions/mathematical/Mathematical13/[1] `sqrt()` returning float values	PASS	PASS
-tck/expressions/mathematical/Mathematical2/[1] Allow addition	REFUSED	REFUSED
+tck/expressions/mathematical/Mathematical2/[1] Allow addition	PASS	PASS
 tck/expressions/mathematical/Mathematical3/[1] Fail for invalid Unicode hyphen in subtraction	BOTH_ERROR	BOTH_ERROR
 tck/expressions/mathematical/Mathematical8/[1] Arithmetic precedence test	PASS	PASS
 tck/expressions/mathematical/Mathematical8/[2] Arithmetic precedence with parenthesis test	PASS	PASS
@@ -2772,8 +2772,8 @@ tck/expressions/string/String1/[1] `substring()` with default second argument	PA
 tck/expressions/string/String10/[1] Finding exact matches with non-proper substring	REFUSED	REFUSED
 tck/expressions/string/String10/[2] Finding substring of string	REFUSED	REFUSED
 tck/expressions/string/String10/[3] Finding the empty substring	REFUSED	REFUSED
-tck/expressions/string/String10/[4] Finding strings containing whitespace	REFUSED	REFUSED
-tck/expressions/string/String10/[5] Finding strings containing newline	REFUSED	REFUSED
+tck/expressions/string/String10/[4] Finding strings containing whitespace	PASS	PASS
+tck/expressions/string/String10/[5] Finding strings containing newline	PASS	PASS
 tck/expressions/string/String10/[6] No string contains null	REFUSED	REFUSED
 tck/expressions/string/String10/[7] No string does not contain null	REFUSED	REFUSED
 tck/expressions/string/String10/[8] Handling non-string operands for CONTAINS	REFUSED	REFUSED
@@ -2785,8 +2785,8 @@ tck/expressions/string/String4/[1] `split()`	PASS	PASS
 tck/expressions/string/String8/[1] Finding exact matches with non-proper prefix	REFUSED	REFUSED
 tck/expressions/string/String8/[2] Finding beginning of string	REFUSED	REFUSED
 tck/expressions/string/String8/[3] Finding the empty prefix	REFUSED	REFUSED
-tck/expressions/string/String8/[4] Finding strings starting with whitespace	REFUSED	REFUSED
-tck/expressions/string/String8/[5] Finding strings starting with newline	REFUSED	REFUSED
+tck/expressions/string/String8/[4] Finding strings starting with whitespace	PASS	PASS
+tck/expressions/string/String8/[5] Finding strings starting with newline	PASS	PASS
 tck/expressions/string/String8/[6] No string starts with null	REFUSED	REFUSED
 tck/expressions/string/String8/[7] No string does not start with null	REFUSED	REFUSED
 tck/expressions/string/String8/[8] Handling non-string operands for STARTS WITH	REFUSED	REFUSED
@@ -2794,8 +2794,8 @@ tck/expressions/string/String8/[9] NOT with STARTS WITH	REFUSED	REFUSED
 tck/expressions/string/String9/[1] Finding exact matches with non-proper suffix	REFUSED	REFUSED
 tck/expressions/string/String9/[2] Finding end of string	REFUSED	REFUSED
 tck/expressions/string/String9/[3] Finding the empty suffix	REFUSED	REFUSED
-tck/expressions/string/String9/[4] Finding strings ending with whitespace	REFUSED	REFUSED
-tck/expressions/string/String9/[5] Finding strings ending with newline	REFUSED	REFUSED
+tck/expressions/string/String9/[4] Finding strings ending with whitespace	PASS	PASS
+tck/expressions/string/String9/[5] Finding strings ending with newline	PASS	PASS
 tck/expressions/string/String9/[6] No string ends with null	REFUSED	REFUSED
 tck/expressions/string/String9/[7] No string does not end with null	REFUSED	REFUSED
 tck/expressions/string/String9/[8] Handling non-string operands for ENDS WITH	REFUSED	REFUSED
@@ -3915,6 +3915,24 @@ lite/basics/review_parenthesised_variable	PASS	PASS
 lite/basics/review_relationship_uniqueness_refused	REFUSED	REFUSED
 lite/basics/review_leading_zero_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/basics/showcase_main	PASS	PASS
+lite/labelless/count_of_every_node	PASS	PASS
+lite/labelless/properties_across_classes	PASS	PASS
+lite/labelless/where_across_classes	PASS	PASS
+lite/labelless/property_map_across_classes	PASS	PASS
+lite/labelless/with_order_limit_over_the_whole	REFUSED	REFUSED
+lite/labelless/aggregates_over_the_whole	PASS	PASS
+lite/labelless/grouped_over_the_whole	PASS	PASS
+lite/labelless/distinct_over_the_whole	PASS	PASS
+lite/labelless/with_where_then_return	PASS	PASS
+lite/labelless/projected_with_then_return	PASS	PASS
+lite/labelless/expression_order_without_item	REFUSED	REFUSED
+lite/labelless/property_declared_nowhere_is_refused_by_name	REFUSED	REFUSED
+lite/labelless/node_as_a_value_refused_by_name	REFUSED	REFUSED
+lite/labelless/second_match_refused_by_name	REFUSED	REFUSED
+lite/labelless/property_typed_differently_refused_by_name	REFUSED	REFUSED
+lite/labelless/one_class_only	PASS	PASS
+lite/labelless/with_where_re_spells_a_distinct_key	PASS	PASS
+lite/labelless/order_by_over_a_grouping_key_expression	PASS	PASS
 lite/temporal/date_from_components	PASS	PASS
 lite/temporal/date_from_text	PASS	PASS
 lite/temporal/localdatetime_from_components	PASS	PASS

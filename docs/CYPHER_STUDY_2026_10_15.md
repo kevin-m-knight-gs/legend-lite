@@ -2181,3 +2181,36 @@ Of the TCK's temporal features (1,004 cases): 902 PASS on DuckDB, 569 on Postgre
 `lite/temporal.yaml`, each judged by Neo4j; the `nanos_*` cases pass on DuckDB and are refused by name on Postgres
 ("a nanosecond epoch: Postgres keeps microseconds").
 
+### 12.13 The label-less node leg, 2026-10-16: `MATCH (n)` over every class of the model
+
+The ledger's "fans out" bucket (326 TCK cases) was two things on inspection: 238 patterns of one label-less node
+(`MATCH (n)`, `MATCH (n {p: v})`) and 88 label-less patterns with relationships — not to-many hops at all, but
+nodes with no label, which the rooted reading (§5.3) could not root. A label-less node is a node of any class of
+the model, and the model's classes are known: the translator reads one **arm** per class (`Arms`, a state of
+graphs that share the pattern's bindings, each with its own conditions: the property map and the `WHERE`
+read against that class), and at the first projection (`WITH`, `RETURN`) projects every arm to the same columns
+and concatenates them (Pure's `concatenate`); the grouping, `DISTINCT`, the sort, `SKIP` and `LIMIT` then read the
+whole. A `WITH n` that carries the graph carries every arm. A property a class lacks reads as null where another
+class declares it (Neo4j's heterogeneous nodes: `n.num` of a node without one is null), typed as the property is
+there; a property declared on no class stays C4's refusal (the graph is the model). The arms' columns must agree
+in type; a property typed differently across the classes is refused by name. Each arm's fresh names are the same
+(the fresh counter rewinds per arm), so the arms' columns and the aggregates' argument columns coincide.
+
+Refused by name: a node as a value (`RETURN n`: C8, the next wall), a `MATCH` after a label-less pattern, a
+label-less pattern with relationships (the join form proper), `UNWIND` after a `MATCH`.
+
+Beside it, one rule of the WITH's: after a grouping or a `DISTINCT`, the `WHERE` and the `ORDER BY` read the
+projected columns and, Neo4j's rule, an expression that re-spells a key's expression reads the key (`WITH DISTINCT
+a.name2 AS name WHERE a.name2 = 'B'`; `WITH a.name AS name, count(*) AS cnt ORDER BY a.name + 'C'`): the
+`KeyedScope`, matching on the spelled text as Neo4j matches on the expression's shape (the TCK's WithWhere1 [2]
+and WithOrderBy2 [23], which the arms reached first).
+
+#### 12.13.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4094 | 2098 (from 2,030) | 0 | 0 | 0 | 969 | 709 | 318 |
+| Postgres | 4094 | 1750 (from 1,682) | 0 | 0 | 0 | 1317 | 709 | 318 |
+
+18 lite cases in `lite/labelless.yaml`, each judged by Neo4j.
+

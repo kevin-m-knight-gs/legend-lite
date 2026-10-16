@@ -81,6 +81,9 @@ public final class CypherToPure {
 
         /** Whether the class at {@code classPath} is the one at {@code superPath}, or a subclass of it. */
         boolean isSubclass(String classPath, String superPath);
+
+        /** Every class of the model, by its full path, in a fixed order: what a label-less node reads. */
+        List<String> classes();
     }
 
     /** Where the model reports a property: its name, its type's name (a primitive's simple name, a class's or an
@@ -203,13 +206,18 @@ public final class CypherToPure {
 
     /** The rows in hand between clauses: a graph (a MATCH's bindings over the root class, with its filters, not yet
      *  projected) or a relation (projected columns). */
-    private sealed interface State permits Graph, Rows {
+    private sealed interface State permits Graph, Rows, Arms {
+    }
+
+    /** A label-less pattern's arms: one graph per class of the model, each with the same bindings and its own
+     *  conditions; projected to the same columns and concatenated at the first projection (the study's §12.13). */
+    private record Arms(List<Graph> arms) implements State {
     }
 
     /** A pattern's bindings over its root class: each variable's navigation from the root instance, and the
      *  conditions the rows must satisfy. {@code row} is the lambda parameter that names the root instance. */
     private record Graph(String rootClass, String row, Map<String, Binding> bindings,
-            List<ValueSpecification> conditions) implements State {
+            List<ValueSpecification> conditions, List<String> candidates) implements State {
     }
 
     /** A pattern variable: a node (its class, the properties navigated from the root to reach it, whether that
@@ -294,6 +302,16 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
         }
+        if (state instanceof Arms) {
+            throw CypherErrors.unsupported("a MATCH after a label-less pattern (every class of the model) is not"
+                    + " supported yet", m.pos());
+        }
+        if (state == null && m.patterns().size() == 1 && m.patterns().get(0).elements().size() == 1
+                && m.patterns().get(0).variable() == null
+                && ((NodePattern) m.patterns().get(0).elements().get(0)).labels().isEmpty()) {
+            // a label-less node alone: a node of any class of the model, one arm per class
+            return arms(m);
+        }
         Graph g = state instanceof Graph existing ? existing : null;
         typesInThisMatch.clear();
         for (PathPattern p : m.patterns()) {
@@ -309,6 +327,33 @@ public final class CypherToPure {
             graph.conditions().add(condition(where, new GraphScope(graph), "WHERE"));
         }
         return graph;
+    }
+
+    /** {@code MATCH (n)}, {@code MATCH (n {p: v}) WHERE ...}: a node of any class of the model (the study's §12.13),
+     *  one arm per class, each the graph of that class with the pattern's constraints and the WHERE read against it
+     *  (a property the class lacks reads as null where another class declares it: Neo4j's heterogeneous nodes). */
+    private Arms arms(CypherAst.Match m) {
+        NodePattern root = (NodePattern) m.patterns().get(0).elements().get(0);
+        // every class of the model but the duration value's (a value the island carries, never a node)
+        List<String> classes = new ArrayList<>(model.classes());
+        classes.removeAll(durationClasses());
+        if (classes.isEmpty()) {
+            throw CypherErrors.invalid("the model declares no class (the graph is the model)", root.pos());
+        }
+        List<Graph> out = new ArrayList<>();
+        String row = rowName(root.variable());
+        for (String cls : classes) {
+            Graph g = new Graph(cls, row, new LinkedHashMap<>(), new ArrayList<>(), classes);
+            Binding rootBinding = new Binding(true, cls, List.of(), false);
+            bind(g, root.variable(), rootBinding, root.pos());
+            nodeConstraints(root, rootBinding, g);
+            Expr where = m.where();
+            if (where != null) {
+                g.conditions().add(condition(where, new GraphScope(g), "WHERE"));
+            }
+            out.add(g);
+        }
+        return new Arms(out);
     }
 
     /** One path pattern read into the graph: the first pattern of a query chooses the root; a later one must start
@@ -355,7 +400,7 @@ public final class CypherToPure {
                 continue;
             }
             String row = rowName(root.variable());
-            Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>());
+            Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>(), List.of());
             Binding rootBinding = new Binding(true, rootClass, List.of(), false);
             bind(g, root.variable(), rootBinding, root.pos());
             nodeConstraints(root, rootBinding, g);
@@ -638,22 +683,22 @@ public final class CypherToPure {
                 }
                 kept.put(alias, b);
             }
-            Graph next = new Graph(g.rootClass(), g.row(), kept, g.conditions());
+            Graph next = new Graph(g.rootClass(), g.row(), kept, g.conditions(), g.candidates());
             Expr where = w.where();
             if (where != null) {
                 next.conditions().add(condition(where, new GraphScope(next), "WHERE"));
             }
             return next;
         }
-        Rows rows = project(w.items(), w.distinct(), w.orderBy(), w.skip(), w.limit(), state, w.pos(), false);
-        Expr where = w.where();
-        if (where != null) {
-            RowScope scope = new RowScope(rows);
-            ValueSpecification filtered = call("filter", rows.vs(), lambda(scope.row(), condition(where, scope,
-                    "WHERE")));
-            return new Rows(filtered, rows.columns());
+        if (state instanceof Arms a && carriesGraph(w)) {
+            // each arm carried as one graph is
+            List<Graph> carried = new ArrayList<>();
+            for (Graph arm : a.arms()) {
+                carried.add((Graph) with(w, arm));
+            }
+            return new Arms(carried);
         }
-        return rows;
+        return project(w.items(), w.distinct(), w.orderBy(), w.skip(), w.limit(), w.where(), state, w.pos(), false);
     }
 
     /** Whether a WITH over a graph keeps it a graph: every item a pattern variable, nothing else to do. */
@@ -670,8 +715,8 @@ public final class CypherToPure {
     }
 
     private State returnClause(CypherAst.Return r, @com.legend.base.Nullable State state) {
-        return project(r.items(), r.distinct(), r.orderBy(), r.skip(), r.limit(), state == null ? oneRow() : state,
-                r.pos(), true);
+        return project(r.items(), r.distinct(), r.orderBy(), r.skip(), r.limit(), null, state == null ? oneRow()
+                : state, r.pos(), true);
     }
 
     /** {@code RETURN 1 + 1}, {@code WITH 1 AS x}: a query over no pattern is one row, of no column the query can
@@ -701,8 +746,147 @@ public final class CypherToPure {
      * holds only literals, for the clauses after the WITH to read.
      */
     private Rows project(List<Item> items, boolean distinct, List<SortItem> orderBy,
-            @com.legend.base.Nullable Expr skip, @com.legend.base.Nullable Expr limit, State state, Pos pos,
-            boolean returning) {
+            @com.legend.base.Nullable Expr skip, @com.legend.base.Nullable Expr limit,
+            @com.legend.base.Nullable Expr where, State state, Pos pos, boolean returning) {
+        // RETURN *, WITH * over projected rows: every column, by name (over a pattern: nodes as values)
+        List<Item> expanded = new ArrayList<>();
+        for (Item item : items) {
+            if (item.expr() != null) {
+                expanded.add(item);
+                continue;
+            }
+            if (!(state instanceof Rows rows)) {
+                throw CypherErrors.unsupported("RETURN * (a node as a value) is not supported yet", item.pos());
+            }
+            List<String> columnNames = new ArrayList<>();
+            for (Col c : rows.columns()) {
+                if (!c.name().startsWith(SYNTHETIC)) {
+                    columnNames.add(c.name());
+                }
+            }
+            java.util.Collections.sort(columnNames);
+            for (String name : columnNames) {
+                expanded.add(new Item(new CypherAst.Var(name, item.pos()), name, name, item.pos()));
+            }
+        }
+        items = expanded;
+        // a label-less pattern's arms (one graph per class) are each projected to the same columns and
+        // concatenated; the grouping, the sort, the SKIP and the LIMIT then read the whole (the study's §12.13)
+        List<State> arms = state instanceof Arms a ? new ArrayList<>(a.arms()) : List.of(state);
+        int mark = fresh;
+        ArmProjection first = null;
+        ValueSpecification vs = null;
+        for (State arm : arms) {
+            // the same fresh names in every arm, so the arms' columns agree
+            fresh = mark;
+            ArmProjection ap = projectArm(items, distinct, orderBy, skip, limit, where, arm, pos, returning);
+            if (first == null) {
+                first = ap;
+                vs = ap.base();
+                continue;
+            }
+            for (int i = 0; i < first.columns().size(); i++) {
+                Col c = first.columns().get(i);
+                Col d = ap.columns().get(i);
+                if (c.kind() != d.kind() && c.kind() != Kind.NULL && d.kind() != Kind.NULL) {
+                    throw CypherErrors.unsupported("the property " + c.name() + " typed differently across the"
+                            + " classes a label-less node reads (" + cypherType(c.kind()) + " and "
+                            + cypherType(d.kind()) + ") is not supported yet", pos);
+                }
+            }
+            vs = call("concatenate", java.util.Objects.requireNonNull(vs), ap.base());
+        }
+        ArmProjection ap = java.util.Objects.requireNonNull(first);
+        vs = java.util.Objects.requireNonNull(vs);
+        List<Col> columns = ap.columns();
+        List<SortKey> sortKeys = ap.sortKeys();
+        List<ColSpec> hidden = ap.hidden();
+        if (ap.grouped()) {
+            vs = ap.keys().isEmpty() ? call("aggregate", vs, new ColSpecArray(ap.aggregates()))
+                    : call("groupBy", vs, new ColSpecArray(ap.keys()), new ColSpecArray(ap.aggregates()));
+            if (!ap.finishes().isEmpty()) {
+                vs = call("extend", vs, new ColSpecArray(ap.finishes()));
+            }
+            // the result's columns in the items' order (the grouping puts the keys first), the finished sums in
+            // place of their raw ones
+            vs = call("select", vs, new ColSpecArray(columns.stream().map(c -> new ColSpec(c.name(), null, null,
+                    null)).toList()));
+        }
+        if (distinct) {
+            vs = call("distinct", vs);
+        }
+        if (where != null) {
+            // a WITH's WHERE: before its sort, SKIP and LIMIT; over the projected names and, before a grouping or
+            // a DISTINCT, the scope before the projection too (Cypher's: `WITH a.x AS x WHERE a.y > 1`)
+            if (ap.whereColumn() != null) {
+                vs = call("filter", vs, lambda("r", new AppliedProperty(new Variable("r"), ap.whereColumn())));
+            } else {
+                Scope after = new KeyedScope(new Rows(vs, List.copyOf(columns)), keyTexts(items, columns));
+                vs = call("filter", vs, lambda(after.row(), condition(where, after, "WHERE")));
+            }
+        }
+        if (!ap.afterGrouping().isEmpty()) {
+            // the sort keys over the projected columns and the keys' expressions (an alias shadows nothing here:
+            // Neo4j reads only the items)
+            Scope after = new KeyedScope(new Rows(vs, List.copyOf(columns)), keyTexts(items, columns));
+            List<ColSpec> computed = new ArrayList<>();
+            int k = 0;
+            for (SortKey sk : sortKeys) {
+                if (!sk.hidden()) {
+                    continue;
+                }
+                SortItem o = ap.afterGrouping().get(k++);
+                Tx t = tx(o.expr(), after);
+                computed.add(new ColSpec(sk.column(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
+            }
+            vs = call("extend", vs, new ColSpecArray(computed));
+            hidden.addAll(computed);
+        }
+        if (!sortKeys.isEmpty()) {
+            List<ValueSpecification> sortInfos = new ArrayList<>();
+            for (SortKey k : sortKeys) {
+                // Cypher orders null after every value ascending, before them descending, as Postgres does
+                sortInfos.add(call(k.descending() ? "descending" : "ascending", new ColSpec(k.column(), null, null,
+                        null), new EnumValue(NULL_ORDER, k.descending() ? "FIRST" : "LAST")));
+            }
+            vs = call("sort", vs, new PureCollection(sortInfos));
+        }
+        if (!hidden.isEmpty()) {
+            vs = call("select", vs, new ColSpecArray(columns.stream().filter(c -> c.carried() == null)
+                    .map(c -> new ColSpec(c.name(), null, null, null)).toList()));
+        }
+        if (skip != null) {
+            vs = call("drop", vs, rowCount(skip, "SKIP"));
+        }
+        if (limit != null) {
+            vs = call("limit", vs, rowCount(limit, "LIMIT"));
+        }
+        return new Rows(vs, List.copyOf(columns));
+    }
+
+    /** One arm's projection: its relation before the grouping ({@code base}: the projected columns, or the keys and
+     *  the aggregates' arguments), and what the grouping, the sort and the selection after need. */
+    private record ArmProjection(ValueSpecification base, boolean grouped, List<Col> columns,
+            List<SortKey> sortKeys, List<ColSpec> hidden, List<SortItem> afterGrouping, List<ColSpec> keys,
+            List<ColSpec> aggregates, List<ColSpec> finishes, @com.legend.base.Nullable String whereColumn) {
+    }
+
+    /** The grouping keys' spelled expressions, each to the column it is projected as (the items and the columns
+     *  are in the same order; an aggregating item is no key). */
+    private static Map<String, String> keyTexts(List<Item> items, List<Col> columns) {
+        Map<String, String> keys = new LinkedHashMap<>();
+        for (int i = 0; i < items.size(); i++) {
+            Expr e = items.get(i).expr();
+            if (e != null && !isAggregate(e)) {
+                keys.putIfAbsent(text(e), columns.get(i).name());
+            }
+        }
+        return keys;
+    }
+
+    private ArmProjection projectArm(List<Item> items, boolean distinct, List<SortItem> orderBy,
+            @com.legend.base.Nullable Expr skip, @com.legend.base.Nullable Expr limit,
+            @com.legend.base.Nullable Expr where, State state, Pos pos, boolean returning) {
         Scope scope = state instanceof Graph g ? new GraphScope(g) : new RowScope((Rows) state);
         List<Output> outputs = new ArrayList<>();
         Set<String> names = new HashSet<>();
@@ -796,6 +980,13 @@ public final class CypherToPure {
                 sortKeys.add(new SortKey(key, o.descending(), false));
             }
         }
+        // the WHERE of a WITH over an ungrouped projection: a hidden column, read before the sort
+        String whereColumn = null;
+        if (where != null && !grouped && !distinct) {
+            whereColumn = freshName(names);
+            hidden.add(new ColSpec(whereColumn, lambda(scope.row(), condition(where, sortScope, "WHERE")), null,
+                    null));
+        }
         ValueSpecification vs;
         List<Col> columns = new ArrayList<>();
         if (!grouped) {
@@ -847,57 +1038,13 @@ public final class CypherToPure {
                     columns.add(new Col(out.name(), agg.kind(), agg.nullable()));
                 }
             }
-            ValueSpecification input = state instanceof Graph g ? call("project", source(g), new ColSpecArray(specs))
+            vs = state instanceof Graph g ? call("project", source(g), new ColSpecArray(specs))
                     : reproject((Rows) state, specs);
-            vs = keys.isEmpty() ? call("aggregate", input, new ColSpecArray(aggregates))
-                    : call("groupBy", input, new ColSpecArray(keys), new ColSpecArray(aggregates));
-            if (!finishes.isEmpty()) {
-                vs = call("extend", vs, new ColSpecArray(finishes));
-            }
-            // the result's columns in the items' order (the grouping puts the keys first), the finished sums in
-            // place of their raw ones
-            vs = call("select", vs, new ColSpecArray(columns.stream().map(c -> new ColSpec(c.name(), null, null,
-                    null)).toList()));
+            return new ArmProjection(vs, true, columns, sortKeys, hidden, afterGrouping, keys, aggregates, finishes,
+                    null);
         }
-        if (distinct) {
-            vs = call("distinct", vs);
-        }
-        if (!afterGrouping.isEmpty()) {
-            // the sort keys over the projected columns (an alias shadows nothing here: Neo4j reads only the items)
-            RowScope after = new RowScope(new Rows(vs, List.copyOf(columns)));
-            List<ColSpec> computed = new ArrayList<>();
-            int k = 0;
-            for (SortKey sk : sortKeys) {
-                if (!sk.hidden()) {
-                    continue;
-                }
-                SortItem o = afterGrouping.get(k++);
-                Tx t = tx(o.expr(), after);
-                computed.add(new ColSpec(sk.column(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
-            }
-            vs = call("extend", vs, new ColSpecArray(computed));
-            hidden.addAll(computed);
-        }
-        if (!sortKeys.isEmpty()) {
-            List<ValueSpecification> sortInfos = new ArrayList<>();
-            for (SortKey k : sortKeys) {
-                // Cypher orders null after every value ascending, before them descending, as Postgres does
-                sortInfos.add(call(k.descending() ? "descending" : "ascending", new ColSpec(k.column(), null, null,
-                        null), new EnumValue(NULL_ORDER, k.descending() ? "FIRST" : "LAST")));
-            }
-            vs = call("sort", vs, new PureCollection(sortInfos));
-        }
-        if (!hidden.isEmpty()) {
-            vs = call("select", vs, new ColSpecArray(columns.stream().filter(c -> c.carried() == null)
-                    .map(c -> new ColSpec(c.name(), null, null, null)).toList()));
-        }
-        if (skip != null) {
-            vs = call("drop", vs, rowCount(skip, "SKIP"));
-        }
-        if (limit != null) {
-            vs = call("limit", vs, rowCount(limit, "LIMIT"));
-        }
-        return new Rows(vs, List.copyOf(columns));
+        return new ArmProjection(vs, false, columns, sortKeys, hidden, afterGrouping, List.of(), List.of(), List.of(),
+                whereColumn);
     }
 
     private record SortKey(String column, boolean descending, boolean hidden) {
@@ -1082,6 +1229,9 @@ public final class CypherToPure {
         }
         CypherAst.Call c = (CypherAst.Call) e;
         String fn = c.name().toLowerCase(Locale.ROOT);
+        if (fn.equals("percentiledisc") || fn.equals("percentilecont")) {
+            throw CypherErrors.unsupported(c.name() + " (a percentile aggregate) is not supported yet", c.pos());
+        }
         if (c.args().size() != 1) {
             throw CypherErrors.invalid("Insufficient parameters for function '" + c.name() + "'", c.pos());
         }
@@ -1143,6 +1293,13 @@ public final class CypherToPure {
         /** The value a variable is; a node or relationship variable has no value in PR1. */
         Val variable(CypherAst.Var v);
 
+        /** The column an expression is, when the scope reads a grouping's or a DISTINCT's result and the expression
+         *  re-spells one of its keys (Neo4j's rule for the WHERE and ORDER BY of such a WITH: `WITH a.name AS name,
+         *  count(*) AS cnt ORDER BY a.name + 'C'` orders by the key, whose expression is `a.name`); null otherwise. */
+        default @com.legend.base.Nullable Val keyed(Expr e) {
+            return null;
+        }
+
         /** The value a property access is: a node's property, or a map's entry. */
         Val property(CypherAst.Prop p);
 
@@ -1200,6 +1357,15 @@ public final class CypherToPure {
             // the outer class's lookup: this scope's own property(Prop) shadows its name
             Property prop = CypherToPure.this.property(cls, name);
             if (prop == null) {
+                // a label-less node of a class without the property: null (Neo4j's heterogeneous nodes), typed as
+                // the property is where a class declares it
+                for (String other : g.candidates()) {
+                    Property elsewhere = CypherToPure.this.property(other, name);
+                    if (elsewhere != null && !elsewhere.classTyped() && !elsewhere.enumTyped()
+                            && !elsewhere.many()) {
+                        return SqlToPure.nullOf(kindOf(elsewhere.type(), name, pos));
+                    }
+                }
                 throw CypherErrors.invalid("the class " + cls + " has no property " + name + " (the"
                         + " graph is the model: a property a class does not declare is an error, not null)", pos);
             }
@@ -1260,8 +1426,62 @@ public final class CypherToPure {
         }
     }
 
+    /** The scope of a WHERE or an ORDER BY after a grouping or a DISTINCT: the projected columns, and an expression
+     *  that re-spells a key's expression reads the key (the TCK's WithWhere1 [2]: `WITH DISTINCT a.name2 AS name
+     *  WHERE a.name2 = 'B'`; WithOrderBy2 [23]: `WITH a.name AS name, count(*) AS cnt ORDER BY a.name + 'C'`). The
+     *  match is on the spelled text, as Neo4j's is on the expression's shape; a projected name wins over a key. */
+    private final class KeyedScope implements Scope {
+        private final RowScope inner;
+        /** A key's spelled expression, to the column it is projected as. */
+        private final Map<String, String> keys;
+
+        KeyedScope(Rows rows, Map<String, String> keys) {
+            this.inner = new RowScope(rows);
+            this.keys = keys;
+        }
+
+        @Override
+        public String row() {
+            return inner.row();
+        }
+
+        @Override
+        public Val variable(CypherAst.Var v) {
+            return inner.variable(v);
+        }
+
+        @Override
+        public Val property(CypherAst.Prop p) {
+            return inner.property(p);
+        }
+
+        @Override
+        public @com.legend.base.Nullable Val keyed(Expr e) {
+            if (e instanceof CypherAst.Var v && inner.has(v.name())) {
+                return null;
+            }
+            String column = keys.get(text(e));
+            return column == null ? null : inner.variable(new CypherAst.Var(column, e.pos()));
+        }
+
+        @Override
+        public boolean isPatternVariable(String name) {
+            return false;
+        }
+    }
+
     private final class RowScope implements Scope {
         private final Rows rows;
+
+        /** Whether the rows have a column of this name. */
+        boolean has(String name) {
+            for (Col c : rows.columns()) {
+                if (c.name().equals(name)) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         RowScope(Rows rows) {
             this.rows = rows;
@@ -1413,6 +1633,10 @@ public final class CypherToPure {
 
     /** An expression's value over a scope: a scalar, or a list or map of known shape. */
     private Val val(Expr e, Scope scope) {
+        Val keyed = scope.keyed(e);
+        if (keyed != null) {
+            return keyed;
+        }
         return switch (e) {
             case CypherAst.IntLit n -> literal(Tx.value(new CInteger(n.value()), Kind.INTEGER, false), n.value());
             case CypherAst.FloatLit f -> floatLiteral(f, false);
@@ -3515,21 +3739,7 @@ public final class CypherToPure {
      *  PROGRAM of the model's, not a platform type: the island carries a duration as an instance of it, the
      *  database's struct); refused by name when the model has none. */
     private String durationClass(Pos pos) {
-        // (the platform's own meta::pure::functions::date::Duration, one number and one unit, shares the simple
-        // name: the four slots tell the model's class apart)
-        List<String> classes = new ArrayList<>();
-        for (String cls : model.classesOf("Duration")) {
-            boolean slots = true;
-            for (String slot : DURATION_SLOTS) {
-                Property p = property(cls, slot);
-                if (p == null || !p.type().equals("Integer") || p.many() || p.optional()) {
-                    slots = false;
-                }
-            }
-            if (slots) {
-                classes.add(cls);
-            }
-        }
+        List<String> classes = durationClasses();
         String declaration = "Class graph::Duration { months: Integer[1]; days: Integer[1]; seconds: Integer[1];"
                 + " nanoseconds: Integer[1]; }";
         if (classes.size() != 1) {
@@ -3580,6 +3790,26 @@ public final class CypherToPure {
 
     private static ValueSpecification minus(ValueSpecification a, ValueSpecification b) {
         return AppliedFunction.infixRun("minus", List.of(a, b));
+    }
+
+    /** The model's classes named Duration declaring the four slots (the platform's own
+     *  meta::pure::functions::date::Duration, one number and one unit, shares the simple name: the four slots tell
+     *  the model's class apart): the duration value's class, never a node. */
+    private List<String> durationClasses() {
+        List<String> classes = new ArrayList<>();
+        for (String cls : model.classesOf("Duration")) {
+            boolean slots = true;
+            for (String slot : DURATION_SLOTS) {
+                Property p = property(cls, slot);
+                if (p == null || !p.type().equals("Integer") || p.many() || p.optional()) {
+                    slots = false;
+                }
+            }
+            if (slots) {
+                classes.add(cls);
+            }
+        }
+        return classes;
     }
 
     /** The whole seconds of a nanosecond count, floored (Neo4j keeps the nanoseconds in {@code [0, 1e9)}). */
@@ -5557,7 +5787,7 @@ public final class CypherToPure {
      * each paired with the list's elements (Pure's {@code lateral}).
      */
     private State unwind(CypherAst.Unwind u, @com.legend.base.Nullable State state) {
-        if (state instanceof Graph) {
+        if (state instanceof Graph || state instanceof Arms) {
             throw CypherErrors.unsupported("UNWIND after a MATCH is not supported yet", u.pos());
         }
         Rows rows = (Rows) state;

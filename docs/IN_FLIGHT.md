@@ -1676,6 +1676,10 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (`protocol/cypher/CypherToPure.java`, the precision beside the value); the harness (`testcases/CypherParity.java`:
   a dialect's refusal is REFUSED; `testcases/CypherValues.java`: the epoch-day local time). No guard pin moved. The
   record: the study's §12.12; GATES "the tenth landing"; the register's S70 and S71.
+- **The label-less node leg, 2026-10-16, announced here as landed** — the translator
+  (`protocol/cypher/CypherToPure.java`: the `Arms` state, `Model.classes()`), the seam
+  (`compiler/spec/CypherIslands.java`: the model's classes) and `lite/labelless.yaml`: no file of the database
+  owner's, no guard pin moved. The record: the study's §12.13; GATES "the eleventh landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

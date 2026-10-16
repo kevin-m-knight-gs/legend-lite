@@ -80,6 +80,11 @@ class CypherToPureTest {
         public boolean isSubclass(String classPath, String superPath) {
             return classPath.equals(superPath);
         }
+
+        @Override
+        public List<String> classes() {
+            return CLASSES.keySet().stream().sorted().toList();
+        }
     };
 
     private static String pure(String cypher) {
@@ -138,6 +143,27 @@ class CypherToPureTest {
     }
 
     // ------------------------------------------------------------------ a zoned date-time (the study's §12.8)
+
+    @Test
+    void aLabelLessNodeReadsEveryClassOfTheModelAsConcatenatedArms() {
+        // MATCH (n): one arm per class, each projected to the same columns, the arms concatenated; a property a
+        // class lacks reads as null where another declares it (the study's §12.13)
+        String p = pure("MATCH (n) WHERE n.name IS NOT NULL RETURN n.name AS name ORDER BY name");
+        assertTrue(p.contains("demo::City.all()"), p);
+        assertTrue(p.contains("demo::Firm.all()"), p);
+        assertTrue(p.contains("demo::Person.all()"), p);
+        assertTrue(p.contains("->concatenate("), p);
+        assertTrue(p.indexOf("->sort(") > p.lastIndexOf("->concatenate("), "the sort reads the whole: " + p);
+        String q = pure("MATCH (n) RETURN count(*) AS c");
+        assertTrue(q.contains("->concatenate(") && q.indexOf("->aggregate(") > q.lastIndexOf("->concatenate("),
+                "the aggregate reads the whole: " + q);
+        String r = pure("MATCH (n) RETURN n.age AS age");
+        assertTrue(r.contains("[]->cast(@Integer)"), "a class without the property reads null: " + r);
+        // refused by name: a node as a value, a second MATCH after a label-less one, a property declared nowhere
+        unsupported("MATCH (n) RETURN n", "a node as a value");
+        unsupported("MATCH (n) MATCH (p:Person) RETURN p.name", "a MATCH after a label-less pattern");
+        invalid("MATCH (n) RETURN n.nope AS x", "the graph is the model");
+    }
 
     @Test
     void aNanosecondValueIsTheLiteralToTheMicrosecondMovedOverTheNanosecondEpoch() {
@@ -309,11 +335,23 @@ class CypherToPureTest {
 
     @Test
     void aWithOfValuesProjectsAndTheRestReadsItsColumns() {
-        assertEquals("demo::Person.all()->project(~[name:p|$p.name, age:p|$p.age])"
-                        + "->filter(r|$r.age->isNotEmpty() && ($r.age->toOne() > 1))"
+        // the WITH's WHERE is a hidden column of its projection (it may read the scope before the projection too),
+        // filtered on and dropped before the clauses after
+        assertEquals("demo::Person.all()->project(~[name:p|$p.name, age:p|$p.age,"
+                        + " _cypher_1:p|$p.age->isNotEmpty() && ($p.age->toOne() > 1)])"
+                        + "->filter(r|$r._cypher_1)->select(~[name, age])"
                         + "->extend(~[twice:r|if($r.age->isEmpty(), |[], |$r.age->toOne() * 2)])"
                         + "->select(~[name, twice])",
                 pure("MATCH (p:Person) WITH p.name AS name, p.age AS age WHERE age > 1 RETURN name, age * 2 AS twice"));
+    }
+
+    @Test
+    void aWithsWhereReadsTheScopeBeforeTheProjectionToo() {
+        // Cypher's `WITH a.x AS x WHERE a.y > 1`: the WHERE sees the pattern's variables as well as the items
+        assertEquals("demo::Person.all()->project(~[n:p|$p.name,"
+                        + " _cypher_1:p|$p.age->isNotEmpty() && ($p.age->toOne() > 1)])"
+                        + "->filter(r|$r._cypher_1)->select(~[n])->select(~[n])",
+                pure("MATCH (p:Person) WITH p.name AS n WHERE p.age > 1 RETURN n"));
     }
 
     @Test
@@ -504,7 +542,6 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person)-[:firm {since: 1}]->(f) RETURN f.legalName", "properties on a relationship");
         unsupported("OPTIONAL MATCH (p:Person) RETURN p.name", "OPTIONAL MATCH");
         unsupported("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n", "a MATCH after a WITH");
-        invalid("MATCH (p:Person) WITH p.name AS n WHERE p.age > 1 RETURN n", "Variable `p` not defined");
         unsupported("MATCH (p:Person) UNWIND [1, 2] AS x RETURN p.name, x", "UNWIND after a MATCH");
         unsupported("CREATE (p:Person {name: 'x'})", "CREATE is not supported yet");
         unsupported("MATCH (p:Person) RETURN labels(p)", "the function labels(...) is not supported yet");
