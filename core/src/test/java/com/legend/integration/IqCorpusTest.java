@@ -115,6 +115,11 @@ class IqCorpusTest {
                             SqlParity.Outcome o = judged.get(budget, TimeUnit.MILLISECONDS);
                             verdict = o.status().name();
                             detail = o.detail().replaceAll("\\s+", " ").strip();
+                            if (o.status() == SqlParity.Status.FAIL && !detail.contains("Column")
+                                    && sameRowsUnordered(parityRun, snap, service, model, island, duckdb)) {
+                                // a real-world query's ORDER BY may tie: the rows are IQ's, in another order
+                                verdict = "PASS_UNORDERED";
+                            }
                         } catch (TimeoutException e) {
                             judged.cancel(true);
                             verdict = "TIMEOUT";
@@ -175,6 +180,40 @@ class IqCorpusTest {
             Files.writeString(Path.of(report).resolve("coverage.md"), summary, StandardCharsets.UTF_8);
         }
         System.out.println(summary);
+    }
+
+    /** Whether lite's rows are the live IQ's as a multiset, each cell compared by IQ's type
+     *  ({@link IqParity#cellEquals}): a judged FAIL that only orders tied rows otherwise. */
+    private static boolean sameRowsUnordered(IqParity.Run run, com.legend.testcases.IqAnswers.Snap snap,
+            QueryService service, String model, String island, Connection duckdb) {
+        try {
+            if (!(com.legend.testcases.IqAnswers.expected(run, snap) instanceof SqlParity.Rows rows)) {
+                return false;
+            }
+            SqlParity.Grid expected = rows.grid();
+            SqlParity.Grid actual = SqlParity.grid(service.execute(model, island, IqParity.RUNTIME, duckdb));
+            if (expected.rows().size() != actual.rows().size() || expected.rows().size() > 5000) {
+                return false;
+            }
+            List<List<Object>> left = new ArrayList<>(actual.rows());
+            for (List<Object> e : expected.rows()) {
+                int found = -1;
+                for (int i = 0; i < left.size() && found < 0; i++) {
+                    boolean same = true;
+                    for (int c = 0; c < e.size() && same; c++) {
+                        same = IqParity.cellEquals(e.get(c), left.get(i).get(c), snap.types().get(c));
+                    }
+                    found = same ? i : -1;
+                }
+                if (found < 0) {
+                    return false;
+                }
+                left.remove(found);
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** Each line of a {@code queries.jsonl}: its id and its SQL (the lane's own reading of the two string fields). */

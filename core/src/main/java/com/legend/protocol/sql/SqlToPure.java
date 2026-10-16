@@ -3500,7 +3500,8 @@ public final class SqlToPure {
         if (e instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
             String found = dialect.resolve(ref.parts().get(0), outputs.stream().map(Output::name).toList(),
                     "column");
-            if (found != null) {
+            // a DISTINCT's ORDER BY reads its outputs whatever the dialect (its keys are the outputs)
+            if (found != null && (s.distinct() || dialect.ordersByOutput(s, found))) {
                 for (Output o : outputs) {
                     if (o.name().equals(found)) {
                         notJsonKey(o.kind(), "ORDER BY", e.pos());

@@ -229,6 +229,13 @@ public interface InputDialect {
     /** Whether {@code *=} and {@code =*} at the top level of a query's WHERE are T-SQL outer joins, which the
      *  translator makes the query's joins (IQ island, 2026-10-15, checklist 0.6: IQ's, under its tsql_outer_joins
      *  option); Postgres has no such operators. */
+    /** IQ island, 2026-10-15: whether an ORDER BY's unqualified name that is {@code output}'s name reads that output
+     *  ({@code SqlToPure.sortKey}); otherwise it is a column of the FROM clause, resolved (an ambiguous one an error) as
+     *  any column is. Postgres's: any output name. */
+    default boolean ordersByOutput(SqlAst.Select s, String output) {
+        return true;
+    }
+
     default boolean readsTsqlOuterJoins() {
         return false;
     }

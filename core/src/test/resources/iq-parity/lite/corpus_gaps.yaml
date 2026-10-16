@@ -318,3 +318,14 @@ tests:
   - id: a_running_total_over_a_cte_of_no_window
     sql: "WITH f AS (SELECT id AS rn FROM t) SELECT q.rn, (SELECT COUNT(*) FROM f WHERE f.rn <= q.rn) AS c FROM f q ORDER BY q.rn"
     profile: iq17-default
+
+  # ---- an ORDER BY name reads a select item only by its alias; else a FROM column, an ambiguous one IQ's -144
+  - id: order_by_an_ambiguous_column_is_iqs_error
+    sql: "SELECT t.id FROM t JOIN u ON u.t_id = t.id ORDER BY id"
+    profile: iq17-default
+  - id: order_by_an_alias_of_an_ambiguous_name
+    sql: "SELECT u.id AS id FROM t JOIN u ON u.t_id = t.id ORDER BY id"
+    profile: iq17-default
+  - id: order_by_a_unique_column_selected
+    sql: "SELECT t.sm FROM t JOIN u ON u.t_id = t.id ORDER BY sm, t.id"
+    profile: iq17-default

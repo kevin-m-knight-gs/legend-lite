@@ -6337,6 +6337,21 @@ public final class IqDialect implements InputDialect {
         };
     }
 
+    /** IQ island, 2026-10-15 (the corpus lane's judged runs: sede-51725, sede-52800; measured on IQ 17.1): an
+     *  ORDER BY's unqualified name reads a select item only by the item's explicit alias -- ORDER BY id over SELECT
+     *  t.id, where t and u both hold id, is IQ's -144, over SELECT t.id AS id t's id; any other name is a column of the
+     *  FROM clause. A star's outputs are columns too. */
+    @Override
+    public boolean ordersByOutput(SqlAst.Select s, String output) {
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x && x.alias() != null
+                    && IqLexer.lower(x.alias().text()).equals(IqLexer.lower(output))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ------------------------------------------------------------------ IQ's refusals, in this dialect's words
 
     @Override
