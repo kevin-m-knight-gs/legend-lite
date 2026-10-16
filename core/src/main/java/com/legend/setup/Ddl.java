@@ -166,7 +166,7 @@ public final class Ddl {
             String table = lines[i + 1].strip();
             java.util.List<String> header = csvCells(lines[i + 2]);
             DatabaseDefinition.TableDefinition def =
-                    findTable(db, schema, table);
+                    findTable(db, lookup, schema, table);
             i += 3;
             while (i < lines.length && !lines[i].strip().isEmpty()
                     && !lines[i].strip().matches("-+")) {
@@ -208,7 +208,7 @@ public final class Ddl {
             String table = records.get(i + 1).get(0).strip();
             java.util.List<String> header = records.get(i + 2);
             DatabaseDefinition.TableDefinition def =
-                    findTable(db, schema, table);
+                    findTable(db, lookup, schema, table);
             i += 3;
             while (i < records.size() && !blankRecord(records.get(i))) {
                 out.add(insertText(engineText, schema, table, def, header,
@@ -223,20 +223,25 @@ public final class Ddl {
         return r.isEmpty() || (r.size() == 1 && r.get(0).strip().isEmpty());
     }
 
-    private static DatabaseDefinition.@com.legend.base.Nullable TableDefinition
-            findTable(DatabaseDefinition db, String schema, String table) {
-        if (!"default".equals(schema)) {
-            for (var sc : db.schemas()) {
-                if (sc.name().equals(schema)) {
-                    for (var t : sc.tables()) {
-                        if (t.name().equalsIgnoreCase(table)) {
-                            return t;
-                        }
-                    }
+    /** The store's table a CSV block names, found in the database's include closure as the engine's
+     *  {@code $db->schema(...)->table(...)} finds it over {@code ^Database(includes=...)} (the
+     *  closure the DDL above walks): its schema's, else the flattened top-level list's. Null when
+     *  no database of the closure declares it. */
+    private static DatabaseDefinition.@com.legend.base.Nullable TableDefinition findTable(DatabaseDefinition db,
+            java.util.function.Function<String, java.util.Optional<DatabaseDefinition>> lookup,
+            String schema, String table) {
+        java.util.Map<String, java.util.LinkedHashMap<String, DatabaseDefinition.TableDefinition>> named =
+                new java.util.LinkedHashMap<>();
+        java.util.Map<String, DatabaseDefinition.TableDefinition> defaults = new java.util.LinkedHashMap<>();
+        collectClosure(db, lookup, new java.util.LinkedHashSet<>(), named, defaults);
+        if (!"default".equals(schema) && named.containsKey(schema)) {
+            for (var t : named.get(schema).values()) {
+                if (t.name().equalsIgnoreCase(table)) {
+                    return t;
                 }
             }
         }
-        for (var t : db.tables()) {
+        for (var t : defaults.values()) {
             if (t.name().equalsIgnoreCase(table)) {
                 return t;
             }
