@@ -9850,6 +9850,21 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the twenty-sixth landing — the cartesian product: `MATCH (a:A), (b:B)` as every pair of the two patterns' rows (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the named-path leg; the record is the study's §12.28
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only.
+
+1. **What lands.** A pattern sharing no variable with the graph so far (in the same MATCH or a MATCH after) is
+   every pair of the two patterns' rows (each read as rows, joined on a condition that always holds), the WHERE
+   over the pairs; a list or map around aggregates as an item.
+2. **The ledger.** DuckDB: 4240 cases; PASS 2509 (from 2,499); FAIL 0; BUG 0; ERROR 0; REFUSED 655;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2159 (from 2,149); FAIL 0; BUG 0; ERROR 0; REFUSED 1005;
+   BOTH_ERROR 708; SKIP 368. 7 lite cases in `lite/cartesian.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the twenty-fifth landing — named paths as values: nodes, relationships, their stored directions; `length`, `nodes`, `relationships` (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the keys leg; the record is the study's §12.27

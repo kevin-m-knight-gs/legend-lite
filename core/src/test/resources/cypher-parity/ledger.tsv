@@ -190,7 +190,7 @@ tck/clauses/match-where/MatchWhere1/[15] Fail on aggregation in WHERE	BOTH_ERROR
 tck/clauses/match-where/MatchWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	SKIP	SKIP
 tck/clauses/match-where/MatchWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere3/[1] Join between node identities	REFUSED	REFUSED
-tck/clauses/match-where/MatchWhere3/[2] Join between node properties of disconnected nodes	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere3/[2] Join between node properties of disconnected nodes	PASS	PASS
 tck/clauses/match-where/MatchWhere3/[3] Join between node properties of adjacent nodes	SKIP	SKIP
 tck/clauses/match-where/MatchWhere4/[1] Join nodes on inequality	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere4/[2] Join with disjunctive multi-part predicates including patterns	REFUSED	REFUSED
@@ -717,7 +717,7 @@ tck/clauses/return-orderby/ReturnOrderBy2/[7] Ordering with aggregation	PASS	PAS
 tck/clauses/return-orderby/ReturnOrderBy2/[8] Returning all variables with ordering	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy2/[9] Using aliased DISTINCT expression in ORDER BY	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[10] Returned columns do not change from using ORDER BY	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy2/[11] Aggregates ordered by arithmetics	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy2/[11] Aggregates ordered by arithmetics	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[12] Aggregation of named paths	SKIP	SKIP
 tck/clauses/return-orderby/ReturnOrderBy2/[13] Fail when sorting on variable removed by DISTINCT	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-orderby/ReturnOrderBy2/[14] Fail on aggregation in ORDER BY after RETURN	BOTH_ERROR	BOTH_ERROR
@@ -1211,7 +1211,7 @@ tck/clauses/with-where/WithWhere1/[4] Filter for an unbound node variable	REFUSE
 tck/clauses/with-where/WithWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	SKIP	SKIP
 tck/clauses/with-where/WithWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere3/[1] Join between node identities	REFUSED	REFUSED
-tck/clauses/with-where/WithWhere3/[2] Join between node properties of disconnected nodes	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere3/[2] Join between node properties of disconnected nodes	PASS	PASS
 tck/clauses/with-where/WithWhere3/[3] Join between node properties of adjacent nodes	SKIP	SKIP
 tck/clauses/with-where/WithWhere4/[1] Join nodes on inequality	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere4/[2] Join with disjunctive multi-part predicates including patterns	REFUSED	REFUSED
@@ -3928,6 +3928,13 @@ lite/basics/review_parenthesised_variable	PASS	PASS
 lite/basics/review_relationship_uniqueness_refused	REFUSED	REFUSED
 lite/basics/review_leading_zero_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/basics/showcase_main	PASS	PASS
+lite/cartesian/two_classes_joined_on_a_property	PASS	PASS
+lite/cartesian/counts_over_every_pair	PASS	PASS
+lite/cartesian/every_pair	PASS	PASS
+lite/cartesian/a_match_after_a_match	PASS	PASS
+lite/cartesian/a_hop_beside_a_lone_node	PASS	PASS
+lite/cartesian/a_map_around_an_aggregate_over_pairs	PASS	PASS
+lite/cartesian/a_path_beside_a_lone_node	PASS	PASS
 lite/empty/empty_match_count	PASS	PASS
 lite/empty/empty_match_rows	PASS	PASS
 lite/empty/empty_match_property	PASS	PASS

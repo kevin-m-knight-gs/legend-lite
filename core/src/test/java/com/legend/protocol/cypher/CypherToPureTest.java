@@ -395,6 +395,14 @@ class CypherToPureTest {
     }
 
     @Test
+    void aPatternSharingNoVariableIsEveryPairOfRows() {
+        // the study's §12.28: each pattern read as rows, the rows joined on a condition that always holds, the WHERE
+        // over the pairs
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name])->join(demo::Firm.all()->project(~[_cypher_5:f|'[\"Firm\"]', _cypher_6:f|$f.legalName]), meta::pure::functions::relation::JoinKind.INNER, {l, r|true})->filter(r|$r._cypher_4 == $r._cypher_6)->extend(~[n:r|$r._cypher_4, l:r|$r._cypher_6])->select(~[n, l])",
+                pure("MATCH (p:Person), (f:Firm) WHERE p.name = f.legalName RETURN p.name AS n, f.legalName AS l"));
+    }
+
+    @Test
     void aNamedPathIsItsNodesAndRelationshipsWithTheirStoredDirections() {
         // the study's §12.27: the path's JSON (nodes and relationships alternating, each relationship's stored
         // direction beside them) built as text by the database; length(p) spelled from the pattern, nodes(p) and
@@ -648,7 +656,6 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person) RETURN p.firm", "a node as a value is not supported yet");
         unsupported("MATCH (p:Person) RETURN p.tags", "holds many values (a list)");
         unsupported("MATCH (f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm) RETURN g.legalName", "no inverse");
-        unsupported("MATCH (p:Person), (f:Firm) RETURN p.name", "cartesian product");
         unsupported("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name",
                 "two relationships of the type firm");
         unsupported("MATCH (p:Person)-[:firm*1..2]->(f) RETURN f.legalName", "variable-length");

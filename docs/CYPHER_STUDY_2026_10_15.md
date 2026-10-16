@@ -2661,3 +2661,25 @@ prints them, `<(:B)<-[:T]-(:A)>`.
 
 12 lite cases in `lite/paths.yaml`, each judged by Neo4j.
 
+### 12.28 The cartesian product, 2026-10-16: `MATCH (a:A), (b:B)` as every pair of the two patterns' rows
+
+A pattern sharing no node or relationship variable with the graph so far (the second pattern of a MATCH, or a MATCH
+after a MATCH) was refused as a cartesian product. Now it is one: the graph so far is read as rows (§12.16's
+materialization: every node carried as its columns, every relationship and path as its value), the pattern is read
+into its own graph (its own root, as a first pattern is) and as rows too, and every pair of rows is joined --
+Pure's relation `join`, `JoinKind.INNER`, a condition that always holds (`{l, r | true}`; the lowering writes
+`JOIN ... ON TRUE`). The MATCH's WHERE is a filter over the pairs; the clauses after read the rows, so a
+pattern after them is still refused by name (§12.16's "a MATCH after a pattern read as rows"), as is a third
+pattern in the same MATCH after the product. The two sides' columns are distinct by construction (the variables
+by the condition, the synthetic names by one counter). An item that is a list or map around aggregates
+(`{name: count(b)}`, §12.24) is the Variant it is as a value.
+
+#### 12.28.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4240 | 2509 (from 2,499) | 0 | 0 | 0 | 655 | 708 | 368 |
+| Postgres | 4240 | 2159 (from 2,149) | 0 | 0 | 0 | 1005 | 708 | 368 |
+
+7 lite cases in `lite/cartesian.yaml`, each judged by Neo4j.
+

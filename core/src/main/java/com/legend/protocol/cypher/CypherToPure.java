@@ -651,9 +651,18 @@ public final class CypherToPure {
         }
         Graph g = state instanceof Graph existing ? existing : null;
         typesInThisMatch.clear();
-        for (PathPattern p : m.patterns()) {
+        List<PathPattern> patterns = m.patterns();
+        for (int i = 0; i < patterns.size(); i++) {
+            PathPattern p = patterns.get(i);
             PathPattern named = p.variable() == null ? p
                     : namedPath(p, g == null ? Set.of() : g.bindings().keySet());
+            if (g != null && !sharesVariable(named, g)) {
+                if (i != patterns.size() - 1) {
+                    throw CypherErrors.unsupported("a pattern sharing no variable with the first, followed by another"
+                            + " pattern in the same MATCH, is not supported yet", p.pos());
+                }
+                return cartesian(g, named, m.where(), m.pos());
+            }
             g = pattern(named, g);
             if (named.variable() != null) {
                 recordPath(g, named);
@@ -1144,6 +1153,49 @@ public final class CypherToPure {
             out.add(g);
         }
         return new Arms(out);
+    }
+
+    /** Whether a pattern names a node or relationship the graph binds. */
+    private static boolean sharesVariable(PathPattern p, Graph g) {
+        for (PatternElement e : p.elements()) {
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v != null && g.bindings().containsKey(v)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final String JOIN_KIND = "meta::pure::functions::relation::JoinKind";
+
+    /** {@code MATCH (a:A), (b:B)}, a pattern sharing no variable with the graph (the study's §12.28): the graph read
+     *  as rows (every node carried, the paths too), the pattern read into its own graph and as rows, every pair of
+     *  rows joined (Pure's join, a condition that always holds); the WHERE over the pairs. The clauses after read
+     *  the rows. */
+    private Rows cartesian(Graph first, PathPattern second, @com.legend.base.Nullable Expr where, Pos pos) {
+        Rows left = materialize(first, pos, List.of());
+        typesInThisMatch.clear();
+        Graph other = pattern(second, null);
+        if (second.variable() != null) {
+            recordPath(other, second);
+        }
+        Rows right = materialize(other, pos, List.of());
+        List<Col> columns = new ArrayList<>(left.columns());
+        for (Col c : right.columns()) {
+            if (columns.stream().anyMatch(l -> l.name().equals(c.name()))) {
+                throw new IllegalStateException("the joined patterns share a column: " + c.name());
+            }
+            columns.add(c);
+        }
+        ValueSpecification vs = call("join", left.vs(), right.vs(), new EnumValue(JOIN_KIND, "INNER"),
+                new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(new CBoolean(true))));
+        Rows rows = new Rows(vs, columns);
+        if (where != null) {
+            RowScope scope = new RowScope(rows);
+            rows = new Rows(call("filter", rows.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
+                    rows.columns());
+        }
+        return rows;
     }
 
     /** A named path's pattern with every node and relationship named (an unnamed one synthetically), so the path's
@@ -2017,7 +2069,9 @@ public final class CypherToPure {
                     grouping.addAll(aroundColumns);
                     // (the scope reads the columns; the rows' value is never read)
                     Scope after = new KeyedScope(new Rows(new CInteger(0L), grouping), out.around().columns());
-                    Tx t = tx(out.around().expr(), after);
+                    Val av = val(out.around().expr(), after);
+                    // (a list or map around aggregates, {name: count(b)}: the Variant it is as a value)
+                    Tx t = av instanceof Scalar s ? s.tx() : variant(av, pos);
                     expressions.add(new ColSpec(out.name(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
                     columns.add(new Col(out.name(), t.kind(), t.nullable(), null, t.detail()));
                 } else if (out.agg() == null) {
