@@ -9897,3 +9897,11 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
   table `order` and a table in schema `select` on every database with an in-memory instance (DuckDB, H2, SQLite).
   It names none of them; the leak ratchet's type pattern no longer counts `DatabaseType.values()` or
   `DatabaseType.class`, which enumerate and name nothing (`PlanJson.java` database-type 2 → 1).
+- **Names the leak ratchet read as a database** (no behaviour change). The product pattern counts `oracle` as the
+  Oracle database, so the test oracle is named the referee in code and comments (`SqlReplayReferee`,
+  `ReplayReferee`, `RefereePins`, `Databases.REPLAY_REFEREE`, and every `oracle` identifier in 103 files; the Oracle
+  database's own names are kept). Three locals the H2/DB2 pattern read as a database are named for what they hold.
+  The ledger is lowered as measured: 31 rows reach zero, `SqlTextVerdicts` 63 → 4, `StatementExecutor` 27 → 7.
+- **The browser planner compiles again** (`//wasm:planner`, which no local core target builds): the catalog grid's
+  type codes had used `Collections.unmodifiableSequencedMap`, which TeaVM's class library lacks; they are a
+  read-only copy of an ordered map now.

@@ -1448,6 +1448,25 @@ pause for the user's review after Phase 1.
   - `testdatagen/TestDataGenerator.java` (the largest: its fetch, envelope and diff SQL as IR);
   - `wasm/src/main/java/planner/Boundary.java` (its dialect through `Databases`; the catalog question a dialect
     method).
+- **Announced 2026-10-16, Phase 3 (continued): names the leak guard read as a database, and the engine-text registry.**
+  Mechanical, no behaviour change; branch `claude/gracious-edison-jcsvzm`.
+  - **The test oracle is named the referee in code** (the product pattern counts `oracle` as the Oracle database):
+    `exec/SqlReplayOracle.java` → `exec/SqlReplayReferee.java`, `Databases.REPLAY_ORACLE` → `REPLAY_REFEREE`,
+    `spec/.../harness/ReplayOracle.java` → `ReplayReferee.java`, `parser-equivalence/.../OraclePins.java` →
+    `RefereePins.java`, and every `oracle` identifier and comment in `core/`, `spec/`, `pct/` and
+    `parser-equivalence/` (103 files; the Oracle database's own names, `DatabaseType.Oracle` and its connection
+    grammar, are unchanged; the Bazel repository `@oracle_pins` and the `oracle.pins` / `pct.oracle.*` system
+    properties keep their names). A branch that names any of these classes needs the rename when it merges.
+  - Three locals the H2/DB2 pattern read as a database, renamed for what they hold: `SeedSqlForms.java`,
+    `compiler/element/RelationalTypeInference.java`, `resolver/GraphEmission.java`.
+- **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move after #43 and #48 land** (D11:
+  "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
+  lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate
+  fallback, dates, jsonb, and `postgresName`'s type names in messages). They move to Postgres-owned files in
+  `protocol/sql/`, with the translator keeping the framework IQ shares, and `InputDialect` losing its Postgres
+  defaults (each input language states its own: a message's type names become `InputDialect.typeName(Kind)`). This
+  program does the move itself, on main after both PRs land, so neither has to rebase over it; until then a new input
+  language (Cypher, #48) that extends `postgresName` or a Postgres default is extending what moves.
 - **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
   platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
   `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),
