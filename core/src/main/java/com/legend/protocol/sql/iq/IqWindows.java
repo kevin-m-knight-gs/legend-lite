@@ -640,38 +640,55 @@ final class IqWindows {
         return false;
     }
 
-    /** The IQ engine's -1001030 for a window function in an IN, ANY or ALL subquery (or in a derived table or a
-     *  subquery inside one), anywhere in {@code statement}. */
+    /**
+     * The IQ engine's -1001030 for a window function in an IN, ANY or ALL subquery (or in a derived table or a subquery
+     * inside one), anywhere in {@code statement}. IQ island, 2026-10-16 (the corpus lane: 8 of SQLStorm's queries; measured on IQ 17.1): under IQ's engine a window
+     * function in a subquery of a condition -- a WHERE's, a HAVING's or an ON's IN, EXISTS, ANY, ALL or comparison
+     * operand -- or in a derived table or a common table expression such a subquery reads, at any depth, is its error
+     * -1001030 ("RANK/NTILE/Window Aggregate nested in a subquery"). A scalar subquery of a select list may hold one,
+     * and so may a derived table of the FROM clause and an EXISTS's own select list (never computed).
+     */
     static void statement(SqlAst.Statement statement, IqDialect.Engine engine) {
         if (engine != IqDialect.Engine.IQ) {
             return;
         }
         for (SqlAst.Statement q : IqDialect.queries(statement)) {
             if (q instanceof SqlAst.Select s) {
-                for (SqlAst.Expr e : IqDialect.expressions(s)) {
-                    predicateSubqueries(e);
+                for (SqlAst.Expr e : IqDialect.conditions(s)) {
+                    conditionSubqueries(e);
                 }
             }
         }
     }
 
-    private static void predicateSubqueries(SqlAst.Expr e) {
-        SqlAst.Statement q = e instanceof SqlAst.InSubquery in ? in.query()
-                : e instanceof SqlAst.Quantified x ? x.query() : null;
+    private static void conditionSubqueries(SqlAst.Expr e) {
+        SqlAst.Statement q = IqDialect.subqueryOf(e);
         if (q != null) {
             for (SqlAst.Statement inner : IqDialect.queries(q)) {
-                if (inner instanceof SqlAst.Select s) {
+                if (!(inner instanceof SqlAst.Select s)) {
+                    continue;
+                }
+                List<SqlAst.Expr> read = new java.util.ArrayList<>(IqDialect.expressions(s));
+                if (e instanceof SqlAst.Exists && inner == q) {
+                    // an EXISTS's own select list is never computed (measured: a window there is answered)
                     for (SqlAst.SelectItem item : s.items()) {
-                        if (item instanceof SqlAst.SelectExpr x && !windows(x.expr()).isEmpty()) {
-                            throw iq("a window function in an IN, ANY or ALL subquery is not supported by IQ's"
-                                    + " engine", -1001030, "QFA2A", x.pos());
+                        if (item instanceof SqlAst.SelectExpr x) {
+                            read.remove(x.expr());
                         }
+                    }
+                }
+                for (SqlAst.Expr x : read) {
+                    List<SqlAst.Window> found = windows(x);
+                    if (!found.isEmpty()) {
+                        throw iq("a window function in a subquery of a WHERE, a HAVING or an ON, or in a derived table"
+                                + " or a common table expression it reads, is not supported by IQ's engine", -1001030,
+                                "QFA2A", found.get(0).pos());
                     }
                 }
             }
         }
         for (SqlAst.Expr child : IqDialect.children(e)) {
-            predicateSubqueries(child);
+            conditionSubqueries(child);
         }
     }
 

@@ -3502,6 +3502,11 @@ public final class SqlToPure {
                     "column");
             // a DISTINCT's ORDER BY reads its outputs whatever the dialect (its keys are the outputs)
             if (found != null && (s.distinct() || dialect.ordersByOutput(s, found))) {
+                if (!dialect.ordersByOutput(s, found)) {
+                    // a name the dialect reads as no output is a FROM column first: an ambiguous one is its error
+                    // there too (IQ island, 2026-10-16, measured: IQ's -144 under DISTINCT)
+                    (scope instanceof Grouped g ? g.input : scope).column(ref);
+                }
                 for (Output o : outputs) {
                     if (o.name().equals(found)) {
                         notJsonKey(o.kind(), "ORDER BY", e.pos());

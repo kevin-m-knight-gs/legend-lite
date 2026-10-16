@@ -366,3 +366,53 @@ tests:
   - id: grouped_items_of_the_front_end_named_as_group_by_and_having_read_them
     sql: "SELECT X + 1, Count(*) FROM (SELECT 1 AS x UNION ALL SELECT 2) d GROUP BY x HAVING count(*) > 0 ORDER BY 1"
     profile: iq17-default
+
+  # ---- found by the lane's judged runs (sede-257154, sede-927953): under DISTINCT too an ORDER BY name reads a select
+  # item only by its alias; else a FROM column, an ambiguous one IQ's -144
+  - id: distinct_order_by_an_ambiguous_column_is_iqs_error
+    sql: "SELECT DISTINCT t.id, t.sm FROM t JOIN u ON u.t_id = t.id ORDER BY id"
+    profile: iq17-default
+  - id: distinct_order_by_an_alias_of_an_ambiguous_name
+    sql: "SELECT DISTINCT u.id AS id FROM t JOIN u ON u.t_id = t.id ORDER BY id"
+    profile: iq17-default
+  - id: distinct_order_by_a_unique_column_selected
+    sql: "SELECT DISTINCT t.sm FROM t JOIN u ON u.t_id = t.id ORDER BY sm"
+    profile: iq17-default
+
+  # ---- found by the lane's judged runs: where IQ's engine takes a subquery in a condition, measured on IQ 17.1
+  - id: a_window_in_a_conditions_subquery_is_iqs_error
+    sql: "SELECT id FROM t WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY id) r FROM t) d WHERE r < 3)"
+    profile: iq17-default
+  - id: a_window_in_a_cte_read_by_a_conditions_subquery_is_iqs_error
+    sql: "WITH w AS (SELECT id, ROW_NUMBER() OVER (ORDER BY id) r FROM t) SELECT a.id FROM w a JOIN u ON a.r = (SELECT MAX(r) FROM w)"
+    profile: iq17-default
+  - id: a_window_in_an_exists_is_iqs_error
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM (SELECT id, LAG(id) OVER (ORDER BY id) l FROM t) d WHERE d.id = t.id)"
+    profile: iq17-default
+  - id: a_window_in_a_scalar_subquery_of_having_is_iqs_error
+    sql: "SELECT sm FROM t GROUP BY sm HAVING COUNT(*) < (SELECT MAX(r) FROM (SELECT ROW_NUMBER() OVER (ORDER BY id) r FROM t) d)"
+    profile: iq17-default
+  - id: a_window_in_a_select_lists_subquery
+    sql: "SELECT id, (SELECT MAX(r) FROM (SELECT ROW_NUMBER() OVER (ORDER BY id) r FROM t) d) AS m FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_comparison_of_two_subqueries_is_iqs_error
+    sql: "SELECT id FROM t WHERE (SELECT MAX(id) FROM t) > (SELECT MIN(id) FROM u)"
+    profile: iq17-default
+  - id: a_subquery_as_a_betweens_operand_is_iqs_error
+    sql: "SELECT id FROM t WHERE (SELECT MAX(id) FROM u) BETWEEN 1 AND 9"
+    profile: iq17-default
+  - id: a_subquery_inside_a_conditions_expression_is_iqs_error
+    sql: "SELECT id FROM t WHERE (SELECT MAX(id) FROM u) IS NULL OR ABS((SELECT MAX(id) FROM u)) > 0"
+    profile: iq17-default
+  - id: subqueries_as_betweens_bounds
+    sql: "SELECT id FROM t WHERE id BETWEEN (SELECT MIN(id) FROM u) AND (SELECT MAX(id) FROM u) ORDER BY id"
+    profile: iq17-default
+  - id: a_subquery_alias_read_in_where_is_iqs_error
+    sql: "SELECT (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t WHERE c > 0"
+    profile: iq17-default
+  - id: a_subquery_alias_read_in_group_by_is_iqs_error
+    sql: "SELECT (SELECT MAX(id) FROM u) AS m FROM t GROUP BY m"
+    profile: iq17-default
+  - id: a_subquery_alias_read_in_the_select_list_and_order_by
+    sql: "SELECT id, (SELECT MAX(id) FROM u) AS m, m + 1 AS n FROM t ORDER BY m, id"
+    profile: iq17-default

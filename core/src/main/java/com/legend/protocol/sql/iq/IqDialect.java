@@ -466,7 +466,7 @@ public final class IqDialect implements InputDialect {
             }
         }
         bound(statement, Map.of());
-        // IQ island, 2026-10-15 (windows): a window function in an IN, ANY or ALL subquery (the IQ engine's -1001030)
+        // IQ island, 2026-10-15 (windows): a window function in a condition's subquery (the IQ engine's -1001030)
         IqWindows.statement(statement, engine != null ? engine : engineOf(statement, settings));
         // IQ island, 2026-10-14 (M1c): the grouping errors a SELECT's own reading cannot see
         IqAggregates.statement(statement);
@@ -602,7 +602,7 @@ public final class IqDialect implements InputDialect {
     }
 
     /** The query of a subquery expression, or null for any other. */
-    private static SqlAst.@com.legend.base.Nullable Statement subqueryOf(SqlAst.Expr e) {
+    static SqlAst.@com.legend.base.Nullable Statement subqueryOf(SqlAst.Expr e) {
         return switch (e) {
             case SqlAst.ScalarSubquery q -> q.query();
             case SqlAst.Exists q -> q.query();
@@ -2554,7 +2554,9 @@ public final class IqDialect implements InputDialect {
     }
 
     /** A WHERE's condition: EXISTS, IN, ANY/ALL subqueries as predicates, a parenthesized query as a comparison's
-     *  operand; every other subquery refused. */
+     *  operand; every other subquery refused. IQ island, 2026-10-16 (the corpus lane; measured on IQ 17.1): a
+     *  comparison of two subqueries, and a subquery as a BETWEEN's operand, are IQ's error -1001030; so is a subquery
+     *  anywhere else in a condition ({@link #conditionSubquery}). */
     private static void predicates(SqlAst.Expr e) {
         switch (e) {
             case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.AND || b.op() == SqlAst.BinaryOp.OR -> {
@@ -2566,35 +2568,56 @@ public final class IqDialect implements InputDialect {
             case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.EQ || b.op() == SqlAst.BinaryOp.NE
                     || b.op() == SqlAst.BinaryOp.LT || b.op() == SqlAst.BinaryOp.LE || b.op() == SqlAst.BinaryOp.GT
                     || b.op() == SqlAst.BinaryOp.GE -> {
+                if (b.left() instanceof SqlAst.ScalarSubquery && b.right() instanceof SqlAst.ScalarSubquery) {
+                    throw SqlTranslationException.unsupported("a comparison of two subqueries is IQ's error -1001030"
+                            + " under its engine (a subquery on both sides of an expression), refused before"
+                            + " translating", b.pos());
+                }
                 for (SqlAst.Expr side : List.of(b.left(), b.right())) {
                     if (side instanceof SqlAst.ScalarSubquery q) {
                         noSetOperation(q.query(), q.pos());
                     } else {
-                        noSubquery(side, "WHERE, but as a comparison's operand");
+                        conditionSubquery(side);
                     }
                 }
             }
             case SqlAst.Between b -> {
-                // IQ island, 2026-10-15 (measured on IQ 17.1): a BETWEEN's operand and bounds, as a comparison's
-                for (SqlAst.Expr side : List.of(b.operand(), b.low(), b.high())) {
+                // IQ island, 2026-10-15 (measured on IQ 17.1): a BETWEEN's bounds, as a comparison's operand
+                if (b.operand() instanceof SqlAst.ScalarSubquery q) {
+                    throw SqlTranslationException.unsupported("a subquery as a BETWEEN's operand is IQ's error"
+                            + " -1001030 under its engine (a subquery on the left side of BETWEEN), refused before"
+                            + " translating", q.pos());
+                }
+                conditionSubquery(b.operand());
+                for (SqlAst.Expr side : List.of(b.low(), b.high())) {
                     if (side instanceof SqlAst.ScalarSubquery q) {
                         noSetOperation(q.query(), q.pos());
                     } else {
-                        noSubquery(side, "WHERE, but as a comparison's operand");
+                        conditionSubquery(side);
                     }
                 }
             }
             case SqlAst.Exists x -> noSetOperation(x.query(), x.pos());
             case SqlAst.InSubquery in -> {
-                noSubquery(in.operand(), "WHERE, but as a comparison's operand");
+                conditionSubquery(in.operand());
                 noSetOperation(in.query(), in.pos());
             }
             case SqlAst.Quantified q -> {
-                noSubquery(q.left(), "WHERE, but as a comparison's operand");
+                conditionSubquery(q.left());
                 noSetOperation(q.query(), q.pos());
             }
-            default -> noSubquery(e, "WHERE, but as a comparison's operand or a predicate");
+            default -> conditionSubquery(e);
         }
+    }
+
+    /** IQ island, 2026-10-16 (the corpus lane; measured on IQ 17.1 in WHERE, HAVING and ON): a subquery inside an
+     *  expression of a condition -- arithmetic, a function's argument, a CAST, a concatenation, a negation, LIKE, IS
+     *  NULL, an IN list, IN's or a quantified comparison's left side -- is IQ's error -1001030 (a scalar value subquery
+     *  outside of a top level SELECT list; inside CASE or COALESCE, inside a conditional expression). */
+    private static void conditionSubquery(SqlAst.Expr e) {
+        refuseSubquery(e, "a subquery inside an expression of a WHERE, a HAVING or an ON (but as a comparison's"
+                + " operand or a BETWEEN's bound, or as EXISTS, IN or ANY's query) is IQ's error -1001030 under its"
+                + " engine (a scalar value subquery outside of a top level SELECT list), refused before translating");
     }
 
     /** IQ's conditional expressions besides CASE and IF (which the reader reads as a CASE): a subquery inside one is
@@ -2802,6 +2825,27 @@ public final class IqDialect implements InputDialect {
             all.add(java.util.Objects.requireNonNull(s.having()));
         }
         s.orderBy().forEach(o -> all.add(o.expr()));
+        for (SqlAst.FromItem f : s.from()) {
+            List<SqlAst.Join> joins = new ArrayList<>();
+            joins(f, joins);
+            for (SqlAst.Join j : joins) {
+                if (j.on() != null) {
+                    all.add(java.util.Objects.requireNonNull(j.on()));
+                }
+            }
+        }
+        return all;
+    }
+
+    /** IQ island, 2026-10-16: {@code s}'s conditions -- its WHERE, its HAVING and its joins' ONs. */
+    static List<SqlAst.Expr> conditions(SqlAst.Select s) {
+        List<SqlAst.Expr> all = new ArrayList<>();
+        if (s.where() != null) {
+            all.add(java.util.Objects.requireNonNull(s.where()));
+        }
+        if (s.having() != null) {
+            all.add(java.util.Objects.requireNonNull(s.having()));
+        }
         for (SqlAst.FromItem f : s.from()) {
             List<SqlAst.Join> joins = new ArrayList<>();
             joins(f, joins);

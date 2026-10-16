@@ -13,7 +13,7 @@
 # Lines: cause<TAB>id<TAB>what it is, then run<TAB>run key<TAB>cause id<TAB>lanes.
 cause	D-N3	integer arithmetic past a BIGINT: IQ's engine widens to a NUMERIC (BIGINT + 1 a NUMERIC(20,0), BIGINT * BIGINT a NUMERIC(39,0)), lite keeps a BIGINT, whose overflow the database raises; and IQ types by its data's range (k * 2 over small values a SMALLINT, its SUM a BIGINT) where lite types by the declared types' (IQ island, 2026-10-15: below a BIGINT lite widens as IQ does, 28 runs fixed)
 cause	names	the name IQ's engine gives an unaliased expression (its spelling, its parentheses, its case) is not SQL Anywhere's, which lite follows (WP2 item 3; IQ island, 2026-10-16: a grouped query's items, named by their own spelling under IQ's engine, fixed -- 8 runs)
-cause	D-R1	the IQ engine's other restrictions lite does not raise: a column or a non-constant expression in an IN list, a scalar subquery outside the top-level select list, ORDER BY a negative constant (WP2 item 4)
+cause	D-R1	the IQ engine's other restrictions lite does not raise: a column or a non-constant expression in an IN list, a scalar subquery outside the top-level select list, ORDER BY a negative constant (WP2 item 4; IQ island, 2026-10-16: an alias of a subquery read in WHERE, GROUP BY or HAVING raised -- 2 runs)
 cause	top-expr	IQ 17.1's parser rejects TOP (expr), START AT (expr) and TOP ALL (-131), which lite reads (WP2 item 7)
 cause	D-A1	two LISTs ordered differently: IQ answers with one order for both, where lite raises SQL Anywhere's -904 (WP2 item 6)
 cause	non-string-input	LOCATE's start under IQ's engine: a large one is its -1009145 ("cannot be big integer for non-LOB data"), which lite answers (WP2 item 8; IQ island, 2026-10-15: the other non-string inputs -- a number or a date given to LEFT, SUBSTRING, UPPER, the TRIMs, REPLACE, STUFF, LIKE, an untyped NULL in arithmetic, a DATE's time -- are refused with IQ's codes, IqFunctions.iqEngineArguments)
@@ -51,8 +51,6 @@ run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-default
 run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-tds	names	duckdb,postgres
 run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-default	names	duckdb,postgres
 run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-tds	names	duckdb,postgres
-run	lite/m1gaps/alias_of_a_scalar_subquery_compared@iq17-default	D-R1	duckdb,postgres
-run	lite/m1gaps/alias_of_a_scalar_subquery_read_in_where@iq17-default	D-R1	duckdb,postgres
 run	lite/review7/b2_later_union_branch_needs_no_name@iq17-default	D-R1	duckdb,postgres
 run	lite/m0/start_at_an_expression_of_zero@iq17-default	top-expr	duckdb,postgres
 run	lite/m0/top_all_start_at@iq17-default	top-expr	duckdb,postgres

@@ -39,6 +39,12 @@ import org.junit.jupiter.api.Test;
  * counted, and each status's messages normalized and ranked by how many queries share them -- is written to
  * {@code -Diq.corpus.report} (run with {@code --strategy=TestRunner=local}). The corpora are not this repository's
  * (their licences and size): the lane runs only where the property names them, as the reference checkouts are read.
+ *
+ * <p>The second phase (IQ island, 2026-10-15): with {@code -Diq.corpus.answers} (the live IQ's answers over the suite's
+ * data, loaded into IQ and into each lane's database) each query is judged as a parity run is, into
+ * {@code <suite>.judged.tsv}; a FAIL whose rows are IQ's as a multiset is PASS_UNORDERED (a real-world ORDER BY ties).
+ * IQ island, 2026-10-16: {@code -Diq.corpus.rows} writes lite's own rows of each FAIL beside it, into
+ * {@code <suite>.rows.jsonl}.
  */
 class IqCorpusTest {
 
@@ -85,6 +91,7 @@ class IqCorpusTest {
             List<Query> queries = read(suite.resolve("queries.jsonl"));
             List<Result> results = new ArrayList<>();
             List<String[]> verdicts = new ArrayList<>();
+            StringBuilder rowsOut = System.getProperty("iq.corpus.rows") != null ? new StringBuilder() : null;
             try (Connection duckdb = DriverManager.getConnection("jdbc:duckdb:")) {
                 IqParity.seed(duckdb, tables, false);
                 QueryService service = new QueryService();
@@ -130,6 +137,25 @@ class IqCorpusTest {
                             detail = oneLine(t);
                         }
                         verdicts.add(new String[] {q.id(), verdict, detail});
+                        if (rowsOut != null && verdict.equals("FAIL")) {
+                            // IQ island, 2026-10-16: lite's own rows, for reading a FAIL beside the live IQ's
+                            try {
+                                SqlParity.Grid g = SqlParity.grid(service.execute(model, island, IqParity.RUNTIME,
+                                        duckdb));
+                                rowsOut.append("{\"id\":").append(json(q.id())).append(",\"columns\":[");
+                                rowsOut.append(String.join(",", g.columns().stream().map(IqCorpusTest::json)
+                                        .toList())).append("],\"rows\":[");
+                                for (int i = 0; i < g.rows().size() && i < 2000; i++) {
+                                    rowsOut.append(i == 0 ? "[" : ",[").append(String.join(",", g.rows().get(i)
+                                            .stream().map(cell -> cell == null ? "null" : json(String.valueOf(cell))).toList()))
+                                            .append(']');
+                                }
+                                rowsOut.append("]}\n");
+                            } catch (RuntimeException e) {
+                                rowsOut.append("{\"id\":").append(json(q.id())).append(",\"error\":")
+                                        .append(json(oneLine(e))).append("}\n");
+                            }
+                        }
                         continue;
                     }
                     Future<Status> run = pool.submit(() -> {
@@ -152,6 +178,10 @@ class IqCorpusTest {
             }
             if (answers != null) {
                 summary.append(judgedSection(name, verdicts));
+                if (rowsOut != null && report != null) {
+                    Files.createDirectories(Path.of(report));
+                    Files.writeString(Path.of(report).resolve(name + ".rows.jsonl"), rowsOut, StandardCharsets.UTF_8);
+                }
                 if (report != null) {
                     StringBuilder lines = new StringBuilder();
                     for (String[] v : verdicts) {
@@ -180,6 +210,25 @@ class IqCorpusTest {
             Files.writeString(Path.of(report).resolve("coverage.md"), summary, StandardCharsets.UTF_8);
         }
         System.out.println(summary);
+    }
+
+    /** {@code s} as a JSON string. */
+    private static String json(String s) {
+        StringBuilder b = new StringBuilder("\"");
+        for (char c : s.toCharArray()) {
+            switch (c) {
+                case '"' -> b.append("\\\"");
+                case '\\' -> b.append("\\\\");
+                default -> {
+                    if (c < 0x20) {
+                        b.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
+                    } else {
+                        b.append(c);
+                    }
+                }
+            }
+        }
+        return b.append('"').toString();
     }
 
     /** Whether lite's rows are the live IQ's as a multiset, each cell compared by IQ's type

@@ -494,6 +494,15 @@ final class IqAliases {
         String name = IqLexer.lower(r.parts().get(0).text());
         Scope s = p.scope();
         if (!name.equals(p.own()) && s.reads(name)) {
+            if (!frontEnd && (p.clause() == Clause.WHERE || p.clause() == Clause.GROUPING)
+                    && hasSubquery(s.expand(name, r.pos()))) {
+                // IQ island, 2026-10-16 (the corpus lane; measured on IQ 17.1): read in the select list or ORDER BY it
+                // is answered
+                throw SqlTranslationException.unsupported("the alias '" + r.parts().get(0).text() + "' of an"
+                        + " expression holding a subquery, read in a WHERE, a GROUP BY or a HAVING, is IQ's error"
+                        + " -1001030 under its engine (a reference containing a scalar value subquery outside of a top"
+                        + " level SELECT list or ORDER BY), refused before translating", r.pos());
+            }
             if (p.clause() == Clause.GROUPING) {
                 // GROUP BY and HAVING read it as IqAggregates.grouping does
                 return r;
