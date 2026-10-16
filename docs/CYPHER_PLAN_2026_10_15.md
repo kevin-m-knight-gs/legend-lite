@@ -130,9 +130,10 @@ pairs as several edge classes of one type, read as arms (§12.39); DuckDB PASS 2
 0 ERROR on both, the harness's SKIPs down from 298 to 181. Then a pattern as a predicate and `EXISTS { ... }` over one
 hop (§12.40); DuckDB PASS 2712, Postgres PASS 2362, 0 FAIL, 0 BUG, 0 ERROR on both. Then the two reviews of the three
 landings, twenty-one findings fixed and the Postgres lane's one catch after them (§12.40.2); DuckDB PASS 2718,
-Postgres PASS 2368, 0 FAIL, 0 BUG, 0 ERROR on both. The compact form read from the node
-side, inheritance (a node with several labels), identity, `USE`, named zones, and `collect` (the database owner's
-aggregate) wait.
+Postgres PASS 2368, 0 FAIL, 0 BUG, 0 ERROR on both. Then `collect` as the list the database builds, and lists the
+database holds read by their element kind (§12.41); DuckDB PASS 2784, Postgres PASS 2434, 0 FAIL, 0 BUG, 0 ERROR on
+both. The compact form read from the node side, inheritance (a node with several labels), identity, `USE` and named
+zones wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

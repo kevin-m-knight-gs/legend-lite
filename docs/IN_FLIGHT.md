@@ -1956,11 +1956,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (`strftime(make_timestamp(...))` concatenated), so a comparison or `date_part` over it fails ("Cannot compare values
   of type TIMESTAMP and type VARCHAR"); a date-time literal with a fraction and `adjust(..., MILLISECONDS)` are
   TIMESTAMPs. The Cypher translator writes whole seconds and adds the fraction by `adjust`.
-- **Announced to the database owner, 2026-10-16 (for `collect`, the Cypher island's PR2b):** a collection-valued
-  relation aggregate — `->aggregate(~[xs: x|$x.a : y|$y])` with the reduce returning `T[*]` (the database's
-  `array_agg` / `list`), which the typer refuses today ("multiplicity [*] is not compatible with result [0..1]"), or
-  `toVariant` registered as an aggregate lowering. Cypher's `collect(x)` (30 TCK cases, plus Precedence1's 15 over
-  the collected list) waits on it; the translator refuses it by name.
+- **Withdrawn, 2026-10-16 (the Cypher island's §12.41):** the ask to the database owner for a collection-valued
+  relation aggregate (`->aggregate(~[xs: x|$x.a : y|$y])` with a `T[*]` reduce, or `toVariant` as an aggregate
+  lowering), announced earlier the same day for `collect`. The island spells `collect(x)` with the string aggregate
+  it has: each value's JSON text joined by `joinStrings`, read as a Variant between brackets; the element kind
+  travels with the list as a mark, so an unwound or quantified collected list reads its elements by type.
 - **Not touched by PR1 to PR4:** `lowering/`, `sql/dialect/`, `builtin/`, `Typer.java`, `NameResolver.java`,
   `SqlToPure.java`, `InputDialect.java`. **Announced to the database owner for PR3:** the identity half of
   `lowering/InstanceEquality` (the minted `__id` from a mapping's primary key) on the product lane, which Cypher's

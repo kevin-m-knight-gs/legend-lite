@@ -9850,6 +9850,27 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the fortieth landing — `collect`, and lists the database holds
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.41. The translator alone: `collect(x)`
+as the JSON array the database builds (each value's JSON text joined by `joinStrings`, read as a Variant), the
+element kind travelling with a list (a mark on the Variant), UNWIND over a Variant list and over spelled lists of
+lists, maps or mixed kinds, a known-kind list read as the collection the database computes wherever a collection
+already is (a list predicate, `IN`, an index, a comprehension), `size` of a Variant list.
+
+1. **What lands.** `MATCH (p:Person) RETURN p.name, collect(m.title)`, `WITH collect(x) AS xs UNWIND xs AS y`,
+   `all(x IN collected WHERE x)`, `UNWIND [[1, 2], [3]] AS l`, `UNWIND [1, 'a', true] AS v`, `size(collect(x))`.
+2. **The ledger.** DuckDB: 4422 cases; PASS 2784 (from 2,718); FAIL 0; BUG 0; ERROR 0; REFUSED 740; BOTH_ERROR 717;
+   SKIP 181. Postgres: PASS 2434 (from 2,368); FAIL 0; BUG 0; ERROR 0; REFUSED 1090; BOTH_ERROR 717; SKIP 181. 22
+   lite cases in `lite/collect.yaml` and 5 in `lite/withlists.yaml` (a list or map of row values through WITH),
+   each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pin that refused `collect` now pins its spelling.
+4. **Refused by name, recorded.** `min`/`max` over Variants, `UNWIND` of a node or path, `ORDER BY` a Variant,
+   `single` over a computed collection, `collect(DISTINCT x)`, `collect` of a time or a duration.
+5. **Withdrawn.** The ask to the database owner for a collection-valued aggregate (IN_FLIGHT, 2026-10-16): the island
+   spells `collect` with the string aggregate it has.
+
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-ninth landing — a pattern as a predicate, `EXISTS { ... }`
 
 Branch `claude/keen-noether-v5mis0`; the record is the study's §12.40. The parser (two expression nodes) and the

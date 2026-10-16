@@ -3106,3 +3106,45 @@ is position 0), the pin unmoved.
 The ledger after the review, DuckDB: PASS 2718 (from 2,712), REFUSED 779, BOTH_ERROR 717, SKIP 181, over 4395 cases;
 Postgres: PASS 2368 (from 2,362); 0 FAIL, 0 BUG, 0 ERROR on both. 14 more lite cases pin the findings Neo4j judges
 (`lite/predicates.yaml`, `lite/edges.yaml`), 28 unit tests the rest.
+
+### 12.41 `collect`, and lists the database holds, 2026-10-16
+
+- **`collect(x)`:** the group's values as a list the database builds. Each value's JSON text (a number, a boolean, a
+  string, a date as the oracle spells one, a node's or a list's Variant text; the spelling of §12.14 and §12.25), a
+  null contributing nothing (Neo4j's `collect` skips nulls), joined with commas by Pure's `joinStrings` (the
+  database's string aggregate) and read as a Variant between brackets; `[]` over no value. The elements' order is the
+  database's, which the TCK's "ignoring element order for lists" allows and lite's cases avoid depending on. No new
+  aggregate was needed: the ask to the database owner for a collection-valued aggregate (IN_FLIGHT, 2026-10-16) is
+  withdrawn. `collect(DISTINCT x)` stays refused by name.
+- **The element kind travels with the list.** A collected column whose elements are of one scalar kind (an integer,
+  a float, a string, a boolean, a date), and a spelled list of such lists, carry the kind as a mark on the Variant
+  (`ListOf`), so what reads the list reads its elements by type: `UNWIND xs AS y` flattens `toMany(@Integer)` and
+  `y` is an integer column (ordered, compared, added); a list predicate, `IN`, an index and a list comprehension over
+  it read the collection the database computes (`toMany` by the kind), as they read any computed collection. A
+  list without a known element kind (a stored list, a collected list of nodes, a list of maps) unwinds as Variants
+  (`toMany(@Variant)`), each read back by its own value; `size` of any Variant list counts its elements through the
+  database.
+- **UNWIND over a spelled list of lists, of maps, or of values of several kinds:** each element a Variant (its JSON
+  text, read as a Variant), null elements null, the column marked with the lists' common element kind when they
+  have one.
+- **A list or map holding a value of the row, carried through WITH** (`WITH [p.age, p.age * 10] AS l`, `WITH {name:
+  p.name} AS m`): the Variant the database builds (§12.25's text), marked with the element kind where the list's
+  elements share one, so the clauses after unwind, size, test and index it as above; among the grouping keys it
+  stays refused by name.
+- **Refused by name:** `min` and `max` over Variants (Neo4j ranks lists, maps and mixed values by type: the three
+  TCK cases that reached them through a mixed UNWIND answered wrongly before the refusal); `UNWIND` of a node, a
+  relationship or a path (one row in Neo4j); `ORDER BY` a Variant; `single` over a collection the database computes
+  (as before); `collect(DISTINCT x)`; `collect` of a time, a date-time or a duration (the Variant spells none of
+  them yet).
+
+#### 12.41.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4422 | 2784 (from 2,718) | 0 | 0 | 0 | 740 | 717 | 181 |
+| Postgres | 4422 | 2434 (from 2,368) | 0 | 0 | 0 | 1090 | 717 | 181 |
+
+22 lite cases in `lite/collect.yaml` and 5 in `lite/withlists.yaml`, each judged by Neo4j (one refused by name:
+`collect(DISTINCT x)`). The TCK:
+38 more scenarios pass (the `collect` bucket, Precedence1's quantifiers over collected booleans, Unwind1's double
+unwinding and collected lists, Aggregation's and Return's `collect`s).

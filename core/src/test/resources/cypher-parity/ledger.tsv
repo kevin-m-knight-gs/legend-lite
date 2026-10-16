@@ -804,12 +804,12 @@ tck/clauses/return/Return6/[1] Return count aggregation over nodes	PASS	PASS
 tck/clauses/return/Return6/[2] Projecting an arithmetic expression with aggregation	REFUSED	REFUSED
 tck/clauses/return/Return6/[3] Aggregating by a list property has a correct definition of equality	REFUSED	REFUSED
 tck/clauses/return/Return6/[4] Support multiple divisions in aggregate function	PASS	PASS
-tck/clauses/return/Return6/[5] Aggregates inside normal functions	REFUSED	REFUSED
+tck/clauses/return/Return6/[5] Aggregates inside normal functions	PASS	PASS
 tck/clauses/return/Return6/[6] Handle aggregates inside non-aggregate expressions	REFUSED	REFUSED
 tck/clauses/return/Return6/[7] Aggregate on property	PASS	PASS
 tck/clauses/return/Return6/[8] Handle aggregation on functions	REFUSED	REFUSED
 tck/clauses/return/Return6/[9] Aggregates with arithmetics	PASS	PASS
-tck/clauses/return/Return6/[10] Multiple aggregates on same variable	REFUSED	REFUSED
+tck/clauses/return/Return6/[10] Multiple aggregates on same variable	PASS	PASS
 tck/clauses/return/Return6/[11] Counting matches	PASS	PASS
 tck/clauses/return/Return6/[12] Counting matches per group	REFUSED	REFUSED
 tck/clauses/return/Return6/[13] Returning the minimum length of paths	REFUSED	REFUSED
@@ -892,10 +892,10 @@ tck/clauses/union/Union3/[2] Failing when mixing UNION ALL and UNION	BOTH_ERROR	
 tck/clauses/unwind/Unwind1/[1] Unwinding a list	PASS	PASS
 tck/clauses/unwind/Unwind1/[2] Unwinding a range	PASS	PASS
 tck/clauses/unwind/Unwind1/[3] Unwinding a concatenation of lists	PASS	PASS
-tck/clauses/unwind/Unwind1/[4] Unwinding a collected unwound expression	REFUSED	REFUSED
+tck/clauses/unwind/Unwind1/[4] Unwinding a collected unwound expression	PASS	PASS
 tck/clauses/unwind/Unwind1/[5] Unwinding a collected expression	REFUSED	REFUSED
 tck/clauses/unwind/Unwind1/[6] Creating nodes from an unwound parameter list	REFUSED	REFUSED
-tck/clauses/unwind/Unwind1/[7] Double unwinding a list of lists	REFUSED	REFUSED
+tck/clauses/unwind/Unwind1/[7] Double unwinding a list of lists	PASS	PASS
 tck/clauses/unwind/Unwind1/[8] Unwinding the empty list	PASS	PASS
 tck/clauses/unwind/Unwind1/[9] Unwinding null	PASS	PASS
 tck/clauses/unwind/Unwind1/[10] Unwinding list with duplicates	PASS	PASS
@@ -1240,7 +1240,7 @@ tck/clauses/with/With4/[5] Fail when not aliasing expressions in WITH	BOTH_ERROR
 tck/clauses/with/With4/[6] Reusing variable names in WITH	REFUSED	REFUSED
 tck/clauses/with/With4/[7] Multiple aliasing and backreferencing	REFUSED	REFUSED
 tck/clauses/with/With5/[1] DISTINCT on an expression	PASS	PASS
-tck/clauses/with/With5/[2] Handling DISTINCT with lists in maps	REFUSED	REFUSED
+tck/clauses/with/With5/[2] Handling DISTINCT with lists in maps	PASS	PASS
 tck/clauses/with/With6/[1] Implicit grouping with single expression as grouping key and single aggregation	PASS	PASS
 tck/clauses/with/With6/[2] Implicit grouping with single relationship variable as grouping key and single aggregation	REFUSED	REFUSED
 tck/clauses/with/With6/[3] Implicit grouping with multiple node and relationship variables as grouping key and single aggregation	REFUSED	REFUSED
@@ -2073,38 +2073,38 @@ tck/expressions/precedence/Precedence1/[10] Null predicate takes precedence over
 tck/expressions/precedence/Precedence1/[11] List predicate takes precedence over comparison operator	PASS	PASS
 tck/expressions/precedence/Precedence1/[12] List predicate takes precedence over negation	PASS	PASS
 tck/expressions/precedence/Precedence1/[13] List predicate takes precedence over boolean operator	PASS	PASS
-tck/expressions/precedence/Precedence1/[14] Exclusive disjunction takes precedence over inclusive disjunction in every combination of truth values	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[15] Conjunction takes precedence over exclusive disjunction in every combination of truth values	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[16] Conjunction takes precedence over inclusive disjunction in every combination of truth values	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[17] Negation takes precedence over conjunction in every combination of truth values	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[18] Negation takes precedence over inclusive disjunction in every combination of truth values	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[20] Pairs of comparison operators and boolean negation that are associative in every combination of truth values #1	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[20] Pairs of comparison operators and boolean negation that are associative in every combination of truth values #2	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[21] Comparison operators take precedence over binary boolean operators in every combination of truth values #1	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[22] Pairs of comparison operators and binary boolean operators that are associative in every combination of truth values #1	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[22] Pairs of comparison operators and binary boolean operators that are associative in every combination of truth values #2	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[22] Pairs of comparison operators and binary boolean operators that are associative in every combination of truth values #3	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[22] Pairs of comparison operators and binary boolean operators that are associative in every combination of truth values #4	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #1	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #2	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #3	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #4	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #5	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #6	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #7	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #8	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #9	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #10	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #11	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #12	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[24] Null predicates take precedence over boolean negation on every truth values #1	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[24] Null predicates take precedence over boolean negation on every truth values #2	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #1	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #2	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #3	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #4	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #5	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #6	REFUSED	REFUSED
+tck/expressions/precedence/Precedence1/[14] Exclusive disjunction takes precedence over inclusive disjunction in every combination of truth values	PASS	PASS
+tck/expressions/precedence/Precedence1/[15] Conjunction takes precedence over exclusive disjunction in every combination of truth values	PASS	PASS
+tck/expressions/precedence/Precedence1/[16] Conjunction takes precedence over inclusive disjunction in every combination of truth values	PASS	PASS
+tck/expressions/precedence/Precedence1/[17] Negation takes precedence over conjunction in every combination of truth values	PASS	PASS
+tck/expressions/precedence/Precedence1/[18] Negation takes precedence over inclusive disjunction in every combination of truth values	PASS	PASS
+tck/expressions/precedence/Precedence1/[20] Pairs of comparison operators and boolean negation that are associative in every combination of truth values #1	PASS	PASS
+tck/expressions/precedence/Precedence1/[20] Pairs of comparison operators and boolean negation that are associative in every combination of truth values #2	PASS	PASS
+tck/expressions/precedence/Precedence1/[21] Comparison operators take precedence over binary boolean operators in every combination of truth values #1	PASS	PASS
+tck/expressions/precedence/Precedence1/[22] Pairs of comparison operators and binary boolean operators that are associative in every combination of truth values #1	PASS	PASS
+tck/expressions/precedence/Precedence1/[22] Pairs of comparison operators and binary boolean operators that are associative in every combination of truth values #2	PASS	PASS
+tck/expressions/precedence/Precedence1/[22] Pairs of comparison operators and binary boolean operators that are associative in every combination of truth values #3	PASS	PASS
+tck/expressions/precedence/Precedence1/[22] Pairs of comparison operators and binary boolean operators that are associative in every combination of truth values #4	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #1	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #2	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #3	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #4	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #5	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #6	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #7	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #8	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #9	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #10	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #11	PASS	PASS
+tck/expressions/precedence/Precedence1/[23] Null predicates take precedence over comparison operators in every combination of truth values #12	PASS	PASS
+tck/expressions/precedence/Precedence1/[24] Null predicates take precedence over boolean negation on every truth values #1	PASS	PASS
+tck/expressions/precedence/Precedence1/[24] Null predicates take precedence over boolean negation on every truth values #2	PASS	PASS
+tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #1	PASS	PASS
+tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #2	PASS	PASS
+tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #3	PASS	PASS
+tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #4	PASS	PASS
+tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #5	PASS	PASS
+tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #6	PASS	PASS
 tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #1	REFUSED	REFUSED
 tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #2	REFUSED	REFUSED
 tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #3	REFUSED	REFUSED
@@ -2271,7 +2271,7 @@ tck/expressions/quantifier/Quantifier1/[15] Fail none quantifier on type mismatc
 tck/expressions/quantifier/Quantifier1/[15] Fail none quantifier on type mismatch between list elements and predicate #3	BOTH_ERROR	BOTH_ERROR
 tck/expressions/quantifier/Quantifier10/[1] Single quantifier is always false if the predicate is statically false and the list is not empty	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier10/[2] Single quantifier is always false if the predicate is statically true and the list has more than one element	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier10/[3] Single quantifier is always true if the predicate is statically true and the list has exactly one non-null element	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier10/[3] Single quantifier is always true if the predicate is statically true and the list has exactly one non-null element	PASS	PASS
 tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #1	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #2	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #3	REFUSED	REFUSED
@@ -3953,6 +3953,28 @@ lite/cartesian/a_match_after_a_match	PASS	PASS
 lite/cartesian/a_hop_beside_a_lone_node	PASS	PASS
 lite/cartesian/a_map_around_an_aggregate_over_pairs	PASS	PASS
 lite/cartesian/a_path_beside_a_lone_node	PASS	PASS
+lite/collect/collect_of_a_property_per_group	PASS	PASS
+lite/collect/collect_skips_nulls	PASS	PASS
+lite/collect/collect_over_nothing_is_the_empty_list	PASS	PASS
+lite/collect/collect_of_nodes	PASS	PASS
+lite/collect/collect_of_booleans	PASS	PASS
+lite/collect/collect_of_lists	PASS	PASS
+lite/collect/collect_of_strings_and_floats	PASS	PASS
+lite/collect/collect_then_unwind	PASS	PASS
+lite/collect/size_of_a_collected_list	PASS	PASS
+lite/collect/collect_distinct_is_refused	REFUSED	REFUSED
+lite/collect/collect_with_a_count_beside	PASS	PASS
+lite/collect/unwind_a_list_of_lists	PASS	PASS
+lite/collect/unwind_a_list_of_lists_twice	PASS	PASS
+lite/collect/unwind_a_list_of_maps	PASS	PASS
+lite/collect/unwind_a_list_of_several_kinds	PASS	PASS
+lite/collect/unwind_a_stored_list	PASS	PASS
+lite/collect/unwind_a_collected_list_of_nodes	PASS	PASS
+lite/collect/a_quantifier_over_a_collected_list	PASS	PASS
+lite/collect/in_over_a_collected_list	PASS	PASS
+lite/collect/a_comprehension_over_a_collected_list	PASS	PASS
+lite/collect/a_quantifier_over_collected_booleans	PASS	PASS
+lite/collect/a_list_of_lists_unwound_and_quantified	PASS	PASS
 lite/comprehensions/a_condition_over_a_value_of_the_row	PASS	PASS
 lite/comprehensions/a_condition_over_a_property_that_may_be_null	PASS	PASS
 lite/comprehensions/a_null_condition_drops_every_element	PASS	PASS
@@ -4380,7 +4402,7 @@ lite/values/slices	PASS	PASS
 lite/values/unwind_literals_with_null	PASS	PASS
 lite/values/unwind_range_twice	PASS	PASS
 lite/values/unwind_after_with_over_rows	PASS	PASS
-lite/values/unwind_one_element_and_empty	REFUSED	REFUSED
+lite/values/unwind_one_element_and_empty	PASS	PASS
 lite/values/unwind_aggregates	PASS	PASS
 lite/values/comprehension_filter_map	PASS	PASS
 lite/values/comprehension_with_rem_is_refused	REFUSED	REFUSED
@@ -4391,8 +4413,13 @@ lite/values/returned_lists_over_rows	PASS	PASS
 lite/values/returned_map_over_rows	PASS	PASS
 lite/values/returned_list_of_strings_of_the_row	PASS	PASS
 lite/values/returned_list_of_a_value_that_may_be_null	PASS	PASS
-lite/values/unwind_then_quantifier_over_collected	REFUSED	REFUSED
+lite/values/unwind_then_quantifier_over_collected	PASS	PASS
 lite/values/comparison_of_different_types_is_false	PASS	PASS
 lite/values/size_and_keys_errors_are_cyphers	BOTH_ERROR	BOTH_ERROR
 lite/values/where_in_over_rows	PASS	PASS
 lite/values/ordering_booleans	PASS	PASS
+lite/withlists/a_list_of_row_values_through_with	PASS	PASS
+lite/withlists/a_list_of_row_values_through_with_unwound	PASS	PASS
+lite/withlists/a_list_of_row_values_through_with_sized_and_tested	PASS	PASS
+lite/withlists/a_map_of_row_values_through_with	PASS	PASS
+lite/withlists/a_list_of_row_strings_through_with	PASS	PASS

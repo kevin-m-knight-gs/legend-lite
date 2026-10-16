@@ -907,11 +907,20 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person)-[:firm {since: 1}]->(f) RETURN f.legalName", "properties on a relationship");
         unsupported("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n", "a MATCH after a WITH");
         unsupported("CREATE (p:Person {name: 'x'})", "CREATE is not supported yet");
-        unsupported("MATCH (p:Person) RETURN collect(p.name)", "collect(...) is not supported yet");
+        // collect: the group's values as the JSON array the database builds (the study's §12.41)
+        String collected = pure("MATCH (p:Person) RETURN collect(p.name) AS names");
+        assertTrue(collected.contains("->joinStrings(',')"), collected);
+        assertTrue(collected.contains("fromJson('[' + "), collected);
+        unsupported("MATCH (p:Person) RETURN collect(DISTINCT p.name)", "collect(DISTINCT ...) is not supported yet");
         unsupported("MATCH (p:Person) RETURN count(DISTINCT p.name)", "count(DISTINCT ...)");
         unsupported("MATCH (p:Person) WHERE p.name = $name RETURN p.name", "a parameter ($name)");
         unsupported("MATCH (p:Person) WHERE p.name =~ 'A.*' RETURN p.name", "regular expression");
-        unsupported("MATCH (p:Person) WITH [p.age] AS l RETURN l", "holding a value of the row (l), carried");
+        // a list of row values through WITH is the Variant the database builds, marked with its element kind
+        String carriedList = pure("MATCH (p:Person) WITH [p.age, 1] AS l UNWIND l AS x RETURN x");
+        assertTrue(carriedList.contains("l:p|fromJson(") && carriedList.contains("+ ']')"), carriedList);
+        assertTrue(carriedList.contains("$r.l->toMany(@Integer)->flatten(~x)"), carriedList);
+        unsupported("MATCH (p:Person) WITH [p.age] AS l, count(*) AS n RETURN l, n",
+                "holding a value of the row (l) among the grouping keys");
         unsupported("MATCH (p:Person) RETURN [localtime('12:00')] AS l", "a list or map holding a LocalTime, as a value");
         invalid("MATCH (p:Person) RETURN all(x IN p.name WHERE x > 1)", "expected List<T> but was String");
         unsupported("USE demo::Space MATCH (p:Person) RETURN p.name", "USE");

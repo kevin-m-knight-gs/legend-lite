@@ -2400,7 +2400,17 @@ public final class CypherToPure {
      *  values, what its result is, and a finish computed after the grouping over the raw result's read, when one is
      *  needed (a sum of nothing is 0; an average of a null column is null). */
     private record Aggregate(String argColumn, Tx arg, LambdaFunction reduce, Kind kind, boolean nullable,
-            java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish) {
+            java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+        Aggregate(String argColumn, Tx arg, LambdaFunction reduce, Kind kind, boolean nullable,
+                java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish) {
+            this(argColumn, arg, reduce, kind, nullable, finish, null);
+        }
+    }
+
+    /** The mark of a list the database holds as a Variant whose elements are all of one scalar kind (a collected
+     *  column, a spelled list of such lists): what UNWIND reads back as that kind (the study's §12.41). */
+    private record ListOf(Kind element) implements com.legend.protocol.sql.InputDialect.TypeDetail {
     }
 
     /** Cypher's sum of no values: 0 where the database's is null. */
@@ -2600,9 +2610,17 @@ public final class CypherToPure {
                 scalars.put(out.name(), s.tx());
             } else if (returning) {
                 scalars.put(out.name(), variant(v, pos));
+            } else if (!rowFree(v) && !grouped) {
+                // a list or map holding a value of the row, carried through WITH: the Variant the database builds
+                // (the study's §12.41), marked with its element kind where its elements share one, so what reads
+                // it after reads its elements by type
+                Kind element = elementKind(v);
+                Tx json = variant(v, pos);
+                scalars.put(out.name(), element == null ? json : new Tx(json.vs(), json.kind(), json.nullable(),
+                        json.whenFalse(), new ListOf(element), json.guard(), json.body()));
             } else if (!rowFree(v)) {
-                throw CypherErrors.unsupported("a list or map holding a value of the row (" + out.name() + "),"
-                        + " carried through WITH, is not supported yet", pos);
+                throw CypherErrors.unsupported("a list or map holding a value of the row (" + out.name() + ") among"
+                        + " the grouping keys is not supported yet", pos);
             } else if (grouped) {
                 throw CypherErrors.unsupported("a list or map (" + out.name() + ") among the grouping keys is not"
                         + " supported yet", pos);
@@ -2813,7 +2831,7 @@ public final class CypherToPure {
             finishes.add(new ColSpec(out.name(), lambda("r", agg.finish().apply(new AppliedProperty(
                     new Variable("r"), computed))), null, null));
         }
-        columns.add(new Col(out.name(), agg.kind(), agg.nullable()));
+        columns.add(new Col(out.name(), agg.kind(), agg.nullable(), null, agg.detail()));
     }
 
     private record SortKey(String column, boolean descending, boolean hidden) {
@@ -3148,9 +3166,85 @@ public final class CypherToPure {
             if (arg.kind() == Kind.BOOLEAN || arg.kind() == Kind.NULL || arg.kind() == Kind.OTHER) {
                 throw CypherErrors.unsupported(c.name() + " of this value is not supported yet", c.pos());
             }
+            if (arg.kind() == Kind.JSON) {
+                throw CypherErrors.unsupported(c.name() + " over lists, maps or values of several kinds (Neo4j ranks"
+                        + " them by type) is not supported yet", c.pos());
+            }
             return new Aggregate(freshName(names), arg, lambda("y", call(fn, values)), arg.kind(), true, null);
         }
+        if (fn.equals("collect")) {
+            return collect(arg, names, c.pos());
+        }
         throw CypherErrors.unsupported(c.name() + "(...) is not supported yet", c.pos());
+    }
+
+    /** {@code collect(x)} (the study's §12.41): the group's values as a list the database builds -- each value's
+     *  JSON text ({@link #scalarJsonText}: a number, a boolean, a string, a date, a node's or a list's Variant text),
+     *  a null contributing nothing (Neo4j's {@code collect} skips nulls), joined with commas (Pure's
+     *  {@code joinStrings}, the database's string aggregate) and read as a Variant between brackets; {@code []} over
+     *  no value. The elements' order is the database's, as the TCK's "ignoring element order for lists" allows. */
+    private Aggregate collect(Tx arg, Set<String> names, Pos pos) {
+        if (arg.kind() == Kind.DATETIME || arg.kind() == Kind.TIME || arg.kind() == Kind.ZONED
+                || arg.kind() == Kind.ZONED_TIME || arg.kind() == Kind.DURATION || arg.kind() == Kind.OTHER) {
+            throw CypherErrors.unsupported("collect of a " + cypherType(arg.kind()) + " is not supported yet (the"
+                    + " Variant spells it as text)", pos);
+        }
+        Tx piece;
+        if (arg.kind() == Kind.NULL) {
+            piece = SqlToPure.nullOf(Kind.STRING);
+        } else if (arg.kind() == Kind.BOOLEAN) {
+            // (a boolean's condition form: TRUE, FALSE, or neither -- its text where it is known)
+            ValueSpecification known = call("or", arg.vs(), arg.falseWhen());
+            piece = Tx.value(call("if", known, thunk(call("if", arg.vs(), thunk(new CString("true")),
+                    thunk(new CString("false")))), thunk(SqlToPure.nullOf(Kind.STRING).vs())), Kind.STRING, true);
+        } else if (arg.nullable()) {
+            ValueSpecification v = SqlToPure.valueOf(arg);
+            piece = Tx.value(call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.STRING).vs()),
+                    thunk(jsonText(call("toOne", v), arg.kind(), "collect", pos))), Kind.STRING, true);
+        } else {
+            piece = Tx.value(jsonText(SqlToPure.valueOf(arg), arg.kind(), "collect", pos), Kind.STRING, false);
+        }
+        return new Aggregate(freshName(names), piece, lambda("y", call("joinStrings", new Variable("y"),
+                new CString(","))), Kind.JSON, false, raw -> call("fromJson", plus(new CString("["),
+                call("if", call("isEmpty", raw), thunk(new CString("")), thunk(call("toOne", raw))),
+                new CString("]"))), elementType(arg.kind()) == null ? null : new ListOf(arg.kind()));
+    }
+
+    /** The Pure type a list's elements of this kind are read back as ({@code toMany}), or null for a kind the
+     *  Variant does not read back by type (a Variant element, a null, a temporal the text spells). */
+    private static @com.legend.base.Nullable String elementType(Kind kind) {
+        return switch (kind) {
+            case INTEGER, WHOLE -> "Integer";
+            case FLOAT, INEXACT -> "Float";
+            case DECIMAL, NUMBER -> "Decimal";
+            case STRING -> "String";
+            case BOOLEAN -> "Boolean";
+            case DATE -> "StrictDate";
+            default -> null;
+        };
+    }
+
+    /** The one scalar kind a spelled list's elements share (nulls aside), or null: what a Variant of it reads back
+     *  by element. */
+    private static @com.legend.base.Nullable Kind elementKind(Val v) {
+        if (!(v instanceof ListVal l) || l.elements().isEmpty()) {
+            return null;
+        }
+        Kind kind = null;
+        for (Val e : l.elements()) {
+            if (!(e instanceof Scalar s)) {
+                return null;
+            }
+            if (s.tx().kind() == Kind.NULL) {
+                continue;
+            }
+            if (kind == null) {
+                kind = s.tx().kind();
+            } else if (kind != s.tx().kind()) {
+                return null;
+            }
+        }
+        return kind != null && elementType(kind) != null ? kind : null;
     }
 
     /** {@code percentileDisc(x, p)}, {@code percentileCont(x, p)} (the study's §12.30): Pure's percentile aggregate
@@ -4676,7 +4770,7 @@ public final class CypherToPure {
      *  shape is unrolled into a disjunction of equalities (nulls, nested lists and maps among the members). */
     private Tx in(CypherAst.Binary b, Scope scope) {
         Val l = val(b.left(), scope);
-        Val r = val(b.right(), scope);
+        Val r = asCollection(val(b.right(), scope));
         if (r instanceof Scalar rs) {
             if (rs.tx().kind() == Kind.NULL) {
                 return SqlToPure.nullOf(Kind.BOOLEAN);
@@ -4919,8 +5013,15 @@ public final class CypherToPure {
                 case NULL -> scalar(SqlToPure.nullOf(Kind.INTEGER));
                 case STRING -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(s.tx()), x -> call("length",
                         x.get(0))));
-                case JSON -> throw CypherErrors.unsupported("size of a list the database holds as a Variant is not"
-                        + " supported yet", c.pos());
+                case JSON -> {
+                    if (isNode(s.tx()) || s.tx().detail() instanceof PathValue) {
+                        throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was "
+                                + (s.tx().detail() instanceof PathValue ? "Path" : "Node"), c.pos());
+                    }
+                    // (the elements as a collection the database counts: a JSON array's length)
+                    yield scalar(SqlToPure.strict(Kind.INTEGER, List.of(s.tx()), x -> call("size", call("toMany",
+                            x.get(0), SqlToPure.typeArg("meta::pure::metamodel::variant::Variant")))));
+                }
                 default -> throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was "
                         + cypherType(s.tx().kind()), c.pos());
             };
@@ -5386,6 +5487,19 @@ public final class CypherToPure {
     private record Coll(ValueSpecification vs, Kind kind, boolean rowFree) implements Val {
     }
 
+    /** A list the database holds as a Variant whose elements are of one known kind ({@link ListOf}: a collected
+     *  column, a spelled list of such lists) as the collection of them the database reads back ({@code toMany} by
+     *  that kind), so that a list predicate, IN, an index or a comprehension reads it as it reads any collection the
+     *  database computes; any other value as it is. */
+    private static Val asCollection(Val v) {
+        if (v instanceof Scalar s && s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape) {
+            return new Coll(call("toMany", SqlToPure.valueOf(s.tx()),
+                    SqlToPure.typeArg(java.util.Objects.requireNonNull(elementType(shape.element())))),
+                    shape.element(), false);
+        }
+        return v;
+    }
+
     private static Scalar scalar(Tx tx) {
         return new Scalar(tx, false, null);
     }
@@ -5637,7 +5751,7 @@ public final class CypherToPure {
     /** {@code target[index]}: a known list's element by a spelled index (from the end when negative; null beyond
      *  either end), a known map's entry by a spelled key, a computed list's element by the database. */
     private Val index(CypherAst.Index ix, Scope scope) {
-        Val target = val(ix.target(), scope);
+        Val target = asCollection(val(ix.target(), scope));
         Val idx = val(ix.index(), scope);
         if (isNull(target) || isNull(idx)) {
             return nullValue();
@@ -5800,7 +5914,7 @@ public final class CypherToPure {
     private Tx quantifier(CypherAst.Quantifier q, Scope scope) {
         Quantifier name = java.util.Objects.requireNonNull(QUANTIFIERS.get(q.name().toLowerCase(Locale.ROOT)),
                 q.name());
-        Val list = val(q.list(), scope);
+        Val list = asCollection(val(q.list(), scope));
         if (isNull(list)) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
@@ -6298,7 +6412,7 @@ public final class CypherToPure {
      * and the list stays known; with one, the database filters (and maps) a collection of one kind.
      */
     private Val comprehension(CypherAst.ListComprehension lc, Scope scope) {
-        Val list = val(lc.list(), scope);
+        Val list = asCollection(val(lc.list(), scope));
         if (isNull(list)) {
             return nullValue();
         }
@@ -9280,8 +9394,20 @@ public final class CypherToPure {
                 rel = noRows(x);
                 col = new Col(x, Kind.STRING, true);
             }
-            case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("UNWIND over a list the"
-                    + " database holds as a Variant is not supported yet", u.pos());
+            case Scalar s when s.tx().kind() == Kind.JSON -> {
+                // a list the database holds as a Variant (a stored list, a collected one, a list of lists carried
+                // through WITH): its elements, each a Variant, as rows (the study's §12.41)
+                if (isNode(s.tx()) || s.tx().detail() instanceof PathValue) {
+                    throw CypherErrors.unsupported("UNWIND of a node, a relationship or a path (one row in Neo4j) is"
+                            + " not supported yet", u.pos());
+                }
+                Kind element = s.tx().detail() instanceof ListOf shape ? shape.element() : null;
+                String type = element == null ? "meta::pure::metamodel::variant::Variant"
+                        : java.util.Objects.requireNonNull(elementType(element));
+                rel = call("flatten", call("toMany", SqlToPure.valueOf(s.tx()), SqlToPure.typeArg(type)),
+                        new ColSpec(x, null, null, null));
+                col = new Col(x, element == null ? Kind.JSON : element, true);
+            }
             case Scalar s -> throw CypherErrors.unsupported("UNWIND of a value that is not a list (one row in Neo4j)"
                     + " is not supported yet", u.pos());
             case MapVal m -> throw CypherErrors.unsupported("UNWIND of a map (one row in Neo4j) is not supported"
@@ -9299,10 +9425,12 @@ public final class CypherToPure {
                 List<Tx> elements = new ArrayList<>();
                 Kind kind = null;
                 boolean nulls = false;
+                boolean variants = false;
                 for (Val e : l.elements()) {
                     if (!(e instanceof Scalar s)) {
-                        throw CypherErrors.unsupported("UNWIND over a list of lists or maps is not supported yet",
-                                u.pos());
+                        // a list or a map among the elements: every element a Variant (the study's §12.41)
+                        variants = true;
+                        continue;
                     }
                     Tx t = s.tx();
                     if (t.kind() == Kind.NULL) {
@@ -9312,11 +9440,29 @@ public final class CypherToPure {
                         if (kind == null) {
                             kind = t.kind();
                         } else if (kind != t.kind()) {
-                            throw CypherErrors.unsupported("UNWIND over a list holding values of different types is"
-                                    + " not supported yet", u.pos());
+                            // values of several kinds: each element a Variant, read back by its own kind
+                            variants = true;
                         }
                     }
                     elements.add(t);
+                }
+                com.legend.protocol.sql.InputDialect.TypeDetail shape = null;
+                if (variants) {
+                    elements = new ArrayList<>();
+                    Kind common = null;
+                    boolean agree = true;
+                    for (Val e : l.elements()) {
+                        if (e instanceof Scalar s && s.tx().kind() == Kind.NULL) {
+                            elements.add(s.tx());
+                            continue;
+                        }
+                        elements.add(variant(e, u.pos()));
+                        Kind k = elementKind(e);
+                        agree &= k != null && (common == null || common == k);
+                        common = common == null ? k : common;
+                    }
+                    kind = Kind.JSON;
+                    shape = agree && common != null ? new ListOf(common) : null;
                 }
                 // a list holding a temporal value of nanosecond precision: every element at that precision (a
                 // time of day as the date-time at it on the epoch day), the column of it
@@ -9330,7 +9476,7 @@ public final class CypherToPure {
                     elements = moved;
                     carrier = Kind.DATETIME;
                 }
-                com.legend.protocol.sql.InputDialect.TypeDetail detail = fine ? new Carried(null, true) : null;
+                com.legend.protocol.sql.InputDialect.TypeDetail detail = fine ? new Carried(null, true) : shape;
                 if (kind == null) {
                     // every element null
                     rel = places(elements.size(), x, Kind.STRING, elements);
