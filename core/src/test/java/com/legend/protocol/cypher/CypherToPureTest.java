@@ -277,7 +277,8 @@ class CypherToPureTest {
         // the review's finding 1: Neo4j binds the two slots to different relationships (relationship uniqueness)
         unsupported("MATCH (p:Person)-[:firm]->(f:Firm), (p)-[:firm]->(g:Firm) RETURN f.legalName",
                 "two relationships of the type firm in one MATCH");
-        unsupported("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name", "fans out");
+        unsupported("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name",
+                "two relationships of the type firm");
         // in two MATCH clauses they may be the same relationship, as in Neo4j
         assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty() && $p.firm->isNotEmpty())"
                         + "->project(~['g.legalName':p|$p.firm.legalName])",
@@ -369,8 +370,18 @@ class CypherToPureTest {
     void aNodeThroughWithIsCarriedAsItsColumns() {
         // the node's label and properties as columns of the WITH, so ORDER BY p.age sorts a typed column and the
         // RETURN reads p.name as one; the node's own name is a virtual column
-        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name])->sort([~_cypher_3->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)->extend(~['p.name':r|$r._cypher_4, p:r|fromJson(('{\"@labels\":' + $r._cypher_1) + ((if(if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true, |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":' + if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true, |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->toOne()->toString()) + if($r._cypher_3->isEmpty(), |'', |',\"age\":' + $r._cypher_3->toOne()->toString())) + (',\"name\":' + ('\"' + $r._cypher_4->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + '}')])->select(~['p.name', p])",
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name])->sort([~_cypher_3->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)->extend(~['p.name':r|$r._cypher_4, p:r|fromJson(('{\"@labels\":' + $r._cypher_1->toOne()) + ((if(if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true, |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":' + if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true, |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->toOne()->toString()) + if($r._cypher_3->isEmpty(), |'', |',\"age\":' + $r._cypher_3->toOne()->toString())) + (',\"name\":' + ('\"' + $r._cypher_4->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + '}')])->select(~['p.name', p])",
                 pure("MATCH (p:Person) WITH p ORDER BY p.age LIMIT 1 RETURN p.name, p"));
+    }
+
+    @Test
+    void aPatternThatFansOutReadsOneRowPerPair() {
+        // the study's §12.16: no to-one root, so the first node is the root and the to-many hop (employees) fans
+        // out; the graph is materialized to rows at the end of the MATCH (every node carried as its columns, the
+        // fanning node's labels navigating its path so a node without a property still counts), the WHERE read over
+        // those rows, and the RETURN projects them
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty() && $p.firm.employees->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|'[\"Firm\"]', _cypher_6:p|$p.firm.legalName, _cypher_7:p|'[\"Person\"]', _cypher_8:p|if($p.firm.employees.active->isNotEmpty() && $p.firm.employees.active->toOne(), |true, |if($p.firm.employees.active->isNotEmpty() && !$p.firm.employees.active->toOne(), |false, |[])), _cypher_9:p|$p.firm.employees.age, _cypher_10:p|$p.firm.employees.name])->filter(r|$r._cypher_9->isNotEmpty() && ($r._cypher_9->toOne() > 30))->extend(~['q.name':r|$r._cypher_10])->select(~['q.name'])",
+                pure("MATCH (p:Person)-[:firm]->(f:Firm)-[:employees]->(q:Person) WHERE q.age > 30 RETURN q.name"));
     }
 
     @Test
@@ -560,10 +571,10 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person)-[r:firm]->(f) RETURN r", "a relationship as a value (r)");
         unsupported("MATCH (p:Person) RETURN p.firm", "a node as a value is not supported yet");
         unsupported("MATCH (p:Person) RETURN p.tags", "holds many values (a list)");
-        unsupported("MATCH (p:Person)-[:firm]->(f:Firm)-[:employees]->(q:Person) RETURN q.name", "fans out");
-        unsupported("MATCH (f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm) RETURN g.legalName", "fans out");
+        unsupported("MATCH (f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm) RETURN g.legalName", "no inverse");
         unsupported("MATCH (p:Person), (f:Firm) RETURN p.name", "cartesian product");
-        unsupported("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name", "fans out");
+        unsupported("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name",
+                "two relationships of the type firm");
         unsupported("MATCH (p:Person)-[:firm*1..2]->(f) RETURN f.legalName", "variable-length");
         unsupported("MATCH (p:Person)-[:firm {since: 1}]->(f) RETURN f.legalName", "properties on a relationship");
         unsupported("OPTIONAL MATCH (p:Person) RETURN p.name", "OPTIONAL MATCH");

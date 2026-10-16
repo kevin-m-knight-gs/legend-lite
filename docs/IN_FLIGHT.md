@@ -1688,6 +1688,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   parameters bound into the island's text; `CypherGraph.ownLabels` for a `labels()` list), the translator
   (`labels(n)`, `properties(n)` from a node's parts) and `lite/params.yaml`: no file of the database owner's, no
   guard pin moved. The record: the study's §12.15; GATES "the thirteenth landing".
+- **The join form's first stage, 2026-10-16, announced here as landed** — the translator (a fanning root, the
+  graph materialized to rows at the end of the MATCH, deferred far-end conditions) and `lite/joins.yaml`: no file
+  of the database owner's, no guard pin moved. The record: the study's §12.16; GATES "the fourteenth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

@@ -2277,3 +2277,40 @@ name is empty — the harness refuses a graph that labels a node so, so the list
 
 8 lite cases in `lite/params.yaml`, each judged by Neo4j.
 
+### 12.16 The join-form leg, 2026-10-16: a pattern that fans out reads one row per pair
+
+The rooted reading (§5.3) needs a node from which every hop navigates to-one; a many-to-many relationship (the
+harness's junction table) or a chain through a to-many end has none, and was refused as "a pattern that fans
+out". The leg reads it: when no to-one root exists, **the first node is the root and each hop goes forward**, a
+to-many hop binding a *fanning* node (one row per node reached). Three things make that honest:
+
+- **Materialization at the end of the MATCH.** A fanning graph cannot stay a graph (a condition over
+  `$a.T.x`, a `[*]`, is collection equality, not a per-row test), so the MATCH materializes it to rows at once:
+  every node carried as its columns (§12.14's carry: the labels' text, each property navigated from the root),
+  the rows multiplying through the navigated columns -- lite's `project` of a to-many navigation is one row per
+  leaf (`UnionTargetLeanJoinTest`), and every column along one path shares its join. A root with no leaf is no
+  match: the hop adds `isNotEmpty` to the root's filter. The clauses after see rows: `RETURN a, b` builds the
+  nodes from the columns, `count(*)` counts pairs, `WITH a, b ORDER BY b.y LIMIT 2` carries the columns on.
+- **Deferred conditions.** A far node's property map and the MATCH's WHERE are not root filters here: they are
+  read over the materialized rows, where a far node's property is a typed column (`NodeConstraint`,
+  `Graph.deferredWhere`; an unnamed far node gets a synthetic name so it is carried). A node reached by an
+  optional hop is never absent (the hop's `isNotEmpty` is the graph's), so the carry no longer refuses it.
+- **Label-less ends read from the type.** A label-less far node is the property's class (as before); a label-less
+  start node is the one class of the model declaring the type as a property holding a class (the harness's
+  model declares a type on one class pair); several or none, refused by name.
+
+Refused by name: a relationship variable in a fanning pattern (a relationship as a value), a fanning hop to a
+class without a property (the rows multiply only through a navigated column: lite's `project` of a navigation
+mapped to a constant stays one row per root, measured), an untyped relationship (`-->`, `-[r]-`: the next stage,
+one arm per association), an incoming untyped hop from a label-less node, a label-less single node among several
+patterns (a cartesian product over every class), cycles and relationship uniqueness as before.
+
+#### 12.16.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4,127 | 2,276 (from 2,266) | 0 | 0 | 0 | 824 | 709 | 318 |
+| Postgres | 4,127 | 1,928 (from 1,918) | 0 | 0 | 0 | 1,172 | 709 | 318 |
+
+11 lite cases in `lite/joins.yaml`, each judged by Neo4j.
+

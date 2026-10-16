@@ -9850,6 +9850,23 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the fourteenth landing — the join form: a pattern that fans out reads one row per pair (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the parameters leg; the record is the study's §12.16
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator only.
+
+1. **What lands.** With no to-one root, the first node is the root and a to-many hop fans out: the graph is
+   materialized to rows at the end of the MATCH (every node carried as its columns, one row per match), the far
+   nodes' property maps and the WHERE read over those rows; a label-less start node's class read from its
+   relationship's type. Refused by name: a relationship variable in a fanning pattern, a fanning hop to a class
+   without a property, untyped relationships (the next stage), a label-less single node among several patterns.
+2. **The ledger.** DuckDB: 4,127 cases; PASS 2,276 (from 2,266); FAIL 0; BUG 0; ERROR 0; REFUSED 824;
+   BOTH_ERROR 709; SKIP 318. Postgres: PASS 1,928 (from 1,918); FAIL 0; BUG 0; ERROR 0; REFUSED 1,172;
+   BOTH_ERROR 709; SKIP 318. 11 lite cases in `lite/joins.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the thirteenth landing — parameters bound by the harness; `labels(n)` and `properties(n)` (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the nodes-as-values leg; the record is the study's §12.15

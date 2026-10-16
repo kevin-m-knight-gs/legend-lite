@@ -3915,6 +3915,17 @@ lite/basics/review_parenthesised_variable	PASS	PASS
 lite/basics/review_relationship_uniqueness_refused	REFUSED	REFUSED
 lite/basics/review_leading_zero_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/basics/showcase_main	PASS	PASS
+lite/joins/pairs_of_a_many_to_many_hop	PASS	PASS
+lite/joins/count_of_pairs	PASS	PASS
+lite/joins/where_on_the_far_node	PASS	PASS
+lite/joins/property_map_on_the_far_node	PASS	PASS
+lite/joins/both_ends_as_values	PASS	PASS
+lite/joins/pairs_through_with_order_limit	PASS	PASS
+lite/joins/label_less_ends_read_from_the_type	PASS	PASS
+lite/joins/grouped_over_pairs	PASS	PASS
+lite/joins/count_over_nodes_without_properties	REFUSED	REFUSED
+lite/joins/many_then_one	PASS	PASS
+lite/joins/unnamed_far_node	PASS	PASS
 lite/labelless/count_of_every_node	PASS	PASS
 lite/labelless/properties_across_classes	PASS	PASS
 lite/labelless/where_across_classes	PASS	PASS

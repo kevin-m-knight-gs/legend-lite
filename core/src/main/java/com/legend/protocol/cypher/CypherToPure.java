@@ -333,13 +333,26 @@ public final class CypherToPure {
     /** A pattern's bindings over its root class: each variable's navigation from the root instance, and the
      *  conditions the rows must satisfy. {@code row} is the lambda parameter that names the root instance. */
     private record Graph(String rootClass, String row, Map<String, Binding> bindings,
-            List<ValueSpecification> conditions, List<String> candidates) implements State {
+            List<ValueSpecification> conditions, List<String> candidates, boolean fanning,
+            List<NodeConstraint> deferredConstraints, List<Expr> deferredWhere) implements State {
+        Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
+                List<String> candidates) {
+            this(rootClass, row, bindings, conditions, candidates, false, new ArrayList<>(), new ArrayList<>());
+        }
+    }
+
+    /** A far node's property map in a fanning graph, read over the materialized rows (the study's §12.16). */
+    private record NodeConstraint(String variable, Map<String, Expr> properties, Pos pos) {
     }
 
     /** A pattern variable: a node (its class, the properties navigated from the root to reach it, whether that
-     *  navigation may find nothing) or a relationship (a hop, with no value of its own in PR1). */
+     *  navigation may find nothing, whether it fans out: a to-many hop on its path, one row per node reached) or a
+     *  relationship (a hop, with no value of its own in PR1). */
     private record Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path,
-            boolean optional) {
+            boolean optional, boolean fanning) {
+        Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path, boolean optional) {
+            this(node, classPath, path, optional, false);
+        }
     }
 
     /** A relation: its Pure expression and its columns, in order. A column may be CARRIED: a list or map of known
@@ -445,9 +458,47 @@ public final class CypherToPure {
         Graph graph = java.util.Objects.requireNonNull(g);
         Expr where = m.where();
         if (where != null) {
-            graph.conditions().add(condition(where, new GraphScope(graph), "WHERE"));
+            if (graph.fanning()) {
+                graph.deferredWhere().add(where);
+            } else {
+                graph.conditions().add(condition(where, new GraphScope(graph), "WHERE"));
+            }
         }
-        return graph;
+        return graph.fanning() ? materialize(graph, m.pos()) : graph;
+    }
+
+    /** A fanning graph as rows (the study's §12.16): every node carried as its columns, one row per match (a
+     *  to-many navigation multiplies the rows; a fanning node's labels column navigates its path, so a node without
+     *  a property still counts), then the deferred conditions -- the far nodes' property maps, the WHERE -- filtered
+     *  over the rows, where a far node's property is a typed column. */
+    private Rows materialize(Graph g, Pos pos) {
+        List<Item> items = new ArrayList<>();
+        for (Map.Entry<String, Binding> b : g.bindings().entrySet()) {
+            if (b.getValue().node()) {
+                items.add(new Item(new CypherAst.Var(b.getKey(), pos), b.getKey(), b.getKey(), pos));
+            }
+        }
+        Rows rows = project(items, false, List.of(), null, null, null, g, pos, false);
+        RowScope scope = new RowScope(rows);
+        ValueSpecification cond = null;
+        for (NodeConstraint c : g.deferredConstraints()) {
+            for (Map.Entry<String, Expr> e : c.properties().entrySet()) {
+                Tx value = scalarOf(scope.property(new CypherAst.Prop(new CypherAst.Var(c.variable(), c.pos()),
+                        e.getKey(), c.pos())), c.pos());
+                Tx wanted = tx(e.getValue(), scope);
+                ValueSpecification x = SqlToPure.truth(equal(value, wanted, e.getValue().pos()), "a property map",
+                        c.pos()).vs();
+                cond = cond == null ? x : call("and", cond, x);
+            }
+        }
+        for (Expr w : g.deferredWhere()) {
+            ValueSpecification x = condition(w, scope, "WHERE");
+            cond = cond == null ? x : call("and", cond, x);
+        }
+        if (cond == null) {
+            return rows;
+        }
+        return new Rows(call("filter", rows.vs(), lambda(scope.row(), cond)), rows.columns());
     }
 
     /** {@code MATCH (n)}, {@code MATCH (n {p: v}) WHERE ...}: a node of any class of the model (the study's §12.13),
@@ -532,8 +583,53 @@ public final class CypherToPure {
                 return g;
             }
         }
-        throw CypherErrors.unsupported("a pattern that fans out (no node from which every relationship navigates to"
-                + " at most one node) is not supported yet", p.pos());
+        // no to-one root: the first node is the root and each hop goes forward, a to-many hop fanning out into one
+        // row per pair; the graph is materialized to rows at the end of the MATCH (the study's §12.16)
+        NodePattern root = (NodePattern) elements.get(0);
+        String rootClass = labelClass(root);
+        if (rootClass == null) {
+            if (elements.size() == 1) {
+                throw CypherErrors.unsupported("a label-less node (" + root.variable() + ") in a MATCH of several"
+                        + " patterns (a cartesian product over every class) is not supported yet", root.pos());
+            }
+            rootClass = startClassOf((RelPattern) elements.get(1), root.pos());
+        }
+        String row = rowName(root.variable());
+        Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>(), List.of(), true,
+                new ArrayList<>(), new ArrayList<>());
+        Binding rootBinding = new Binding(true, rootClass, List.of(), false);
+        bind(g, root.variable(), rootBinding, root.pos());
+        nodeConstraints(root, rootBinding, g);
+        extend(elements, 0, rootBinding, g);
+        return g;
+    }
+
+    /** The class of a label-less start node, read from its relationship's type: the one class of the model
+     *  declaring that type as a property holding a class (an outgoing hop; the harness's model declares a type on
+     *  one class pair); refused by name when none or several declare it, or the hop is incoming. */
+    private String startClassOf(RelPattern rel, Pos pos) {
+        if (rel.types().size() != 1) {
+            throw CypherErrors.unsupported("a relationship pattern without a type ([] or -->) from a label-less node"
+                    + " is not supported yet", rel.pos());
+        }
+        if (rel.direction() == CypherAst.Direction.IN) {
+            throw CypherErrors.unsupported("an incoming relationship from a label-less node (<-[:" + rel.types().get(0)
+                    + "]-) is not supported yet", rel.pos());
+        }
+        String type = rel.types().get(0);
+        List<String> declaring = new ArrayList<>();
+        for (String cls : model.classes()) {
+            Property p = property(cls, type);
+            if (p != null && p.classTyped()) {
+                declaring.add(cls);
+            }
+        }
+        if (declaring.size() != 1) {
+            throw CypherErrors.unsupported("a label-less start node of a relationship pattern whose type " + type
+                    + " is declared on " + (declaring.isEmpty() ? "no class" : declaring.size() + " classes ("
+                    + String.join(", ", declaring) + ")") + " is not supported yet", pos);
+        }
+        return declaring.get(0);
     }
 
     private static List<PatternElement> reversed(List<PatternElement> elements) {
@@ -560,7 +656,7 @@ public final class CypherToPure {
         while (at + 2 < ordered.size()) {
             RelPattern rel = (RelPattern) ordered.get(at + 1);
             NodePattern next = (NodePattern) ordered.get(at + 2);
-            Hop hop = hop(java.util.Objects.requireNonNull(cls), rel, next, false);
+            Hop hop = hop(java.util.Objects.requireNonNull(cls), rel, next, false, false);
             if (hop == null) {
                 return false;
             }
@@ -577,8 +673,17 @@ public final class CypherToPure {
             RelPattern rel = (RelPattern) ordered.get(at + 1);
             NodePattern next = (NodePattern) ordered.get(at + 2);
             String cls = java.util.Objects.requireNonNull(current.classPath());
-            Hop hop = java.util.Objects.requireNonNull(hop(cls, rel, next, true));
+            Hop hop = java.util.Objects.requireNonNull(hop(cls, rel, next, true, g.fanning()));
             String nextVar = next.variable();
+            if (g.fanning() && nextVar == null) {
+                // every node of a fanning graph is carried by name when the graph is materialized
+                nextVar = freshName(new HashSet<>(g.bindings().keySet()));
+                next = new NodePattern(nextVar, next.labels(), next.properties(), next.pos());
+            }
+            if (g.fanning() && rel.variable() != null) {
+                throw CypherErrors.unsupported("a relationship variable (" + rel.variable() + ") in a pattern that"
+                        + " fans out is not supported yet", rel.pos());
+            }
             if (nextVar != null && g.bindings().containsKey(nextVar)) {
                 throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared"
                         + " by identity) is not supported yet", next.pos());
@@ -595,12 +700,13 @@ public final class CypherToPure {
             List<String> path = new ArrayList<>(current.path());
             path.add(hop.property());
             boolean optional = current.optional() || hop.optional();
-            Binding target = new Binding(true, hop.target(), List.copyOf(path), optional);
-            if (hop.optional()) {
+            boolean fanning = current.fanning() || hop.many();
+            Binding target = new Binding(true, hop.target(), List.copyOf(path), optional, fanning);
+            if (hop.optional() || hop.many()) {
                 // the hop must find a node: a row where it finds none is not a match
                 g.conditions().add(call("isNotEmpty", navigate(g.row(), path)));
             }
-            bind(g, rel.variable(), new Binding(false, null, List.copyOf(path), optional), rel.pos());
+            bind(g, rel.variable(), new Binding(false, null, List.copyOf(path), optional, fanning), rel.pos());
             bind(g, nextVar, target, next.pos());
             nodeConstraints(next, target, g);
             current = target;
@@ -608,8 +714,9 @@ public final class CypherToPure {
         }
     }
 
-    /** A hop: the property navigated from the node before it, the class it reaches, and whether it may find nothing. */
-    private record Hop(String property, String target, boolean optional) {
+    /** A hop: the property navigated from the node before it, the class it reaches, whether it may find nothing,
+     *  and whether it may find many (a fanning hop, read only by a fanning graph). */
+    private record Hop(String property, String target, boolean optional, boolean many) {
     }
 
     /**
@@ -619,7 +726,8 @@ public final class CypherToPure {
      * before is what the property holds). When {@code refuse}, a hop that exists but fans out is refused by name
      * instead of null.
      */
-    private @com.legend.base.Nullable Hop hop(String from, RelPattern rel, NodePattern to, boolean refuse) {
+    private @com.legend.base.Nullable Hop hop(String from, RelPattern rel, NodePattern to, boolean refuse,
+            boolean allowMany) {
         if (rel.types().isEmpty()) {
             throw CypherErrors.unsupported("a relationship pattern without a type ([] or -->) is not supported yet:"
                     + " name the property or association end", rel.pos());
@@ -661,6 +769,9 @@ public final class CypherToPure {
                         + " not supported yet", to.pos());
             }
             if (forward.many()) {
+                if (allowMany) {
+                    return new Hop(type, target, false, true);
+                }
                 if (refuse) {
                     throw CypherErrors.unsupported("the relationship " + type + " holds many " + target
                             + " per " + from + ": a pattern that fans out is not supported yet",
@@ -668,7 +779,7 @@ public final class CypherToPure {
                 }
                 return null;
             }
-            return new Hop(type, target, forward.optional());
+            return new Hop(type, target, forward.optional(), false);
         }
         // the node after holds the node before, through the property on its class: navigate the inverse end
         String toCls = java.util.Objects.requireNonNull(toClass);
@@ -688,6 +799,9 @@ public final class CypherToPure {
             return null;
         }
         if (inverse.many()) {
+            if (allowMany) {
+                return new Hop(inverse.name(), toCls, false, true);
+            }
             if (refuse) {
                 throw CypherErrors.unsupported("the relationship " + type + " reaches many " + toCls
                         + " per " + from + " (its inverse " + inverse.name() + " holds many): a pattern"
@@ -695,7 +809,7 @@ public final class CypherToPure {
             }
             return null;
         }
-        return new Hop(inverse.name(), toCls, inverse.optional());
+        return new Hop(inverse.name(), toCls, inverse.optional(), false);
     }
 
     /** The class a node pattern's labels name: one label's class (PR1 reads one label); null for a label-less node. */
@@ -746,6 +860,12 @@ public final class CypherToPure {
             }
             throw CypherErrors.unsupported("the label " + labelled + " on " + cls
                     + " (a label narrowing a node's class) is not supported yet", n.pos());
+        }
+        if (b.fanning() && !n.properties().isEmpty()) {
+            // read over the materialized rows, where the node's properties are typed columns
+            g.deferredConstraints().add(new NodeConstraint(java.util.Objects.requireNonNull(n.variable()),
+                    n.properties(), n.pos()));
+            return;
         }
         GraphScope scope = new GraphScope(g);
         for (Map.Entry<String, Expr> e : n.properties().entrySet()) {
@@ -1512,10 +1632,8 @@ public final class CypherToPure {
 
         /** A bound node's parts: its class's label, its properties navigated from the root instance. */
         NodeParts parts(Binding b, Pos pos) {
+            // (a node reached by an optional hop is never absent: the hop's isNotEmpty condition is the graph's)
             String cls = java.util.Objects.requireNonNull(b.classPath());
-            if (b.optional()) {
-                throw CypherErrors.unsupported("a node that may be absent, as a value, is not supported yet", pos);
-            }
             List<Map.Entry<String, Tx>> props = new ArrayList<>();
             for (Property p : properties(cls)) {
                 if (!p.classTyped() && !p.enumTyped() && !p.many()) {
@@ -1530,10 +1648,6 @@ public final class CypherToPure {
          *  same fresh names in every arm). */
         NodeCarry carry(Binding b, Pos pos, Set<String> names) {
             String cls = java.util.Objects.requireNonNull(b.classPath());
-            if (b.optional()) {
-                throw CypherErrors.unsupported("a node that may be absent, carried through WITH, is not supported"
-                        + " yet", pos);
-            }
             List<String> classes = b.path().isEmpty() && g.candidates().size() > 1 ? g.candidates() : List.of(cls);
             // the properties of every class, in first-declaration order, each of one kind across the classes
             Map<String, Kind> kinds = new LinkedHashMap<>();
@@ -1553,6 +1667,12 @@ public final class CypherToPure {
             }
             List<ColSpec> specs = new ArrayList<>();
             List<Col> columns = new ArrayList<>();
+            if (b.fanning() && kinds.isEmpty()) {
+                // the rows multiply through the properties navigated along the to-many path: none, no rows (lite's
+                // project of a navigation mapped to a constant stays one row per root, measured)
+                throw CypherErrors.unsupported("a pattern that fans out to a node of " + cls + ", a class without a"
+                        + " property, is not supported yet (one row per node needs a navigated column)", pos);
+            }
             String labels = freshName(names);
             specs.add(new ColSpec(labels, lambda(g.row(), new CString(labelsJson(cls))), null, null));
             columns.add(new Col(labels, Kind.STRING, false));
@@ -1790,7 +1910,8 @@ public final class CypherToPure {
                 props.add(Map.entry(p.getKey(), columnLike(new AppliedProperty(new Variable(row()), np.column()),
                         np.kind(), np.nullable())));
             }
-            return new NodeParts(new AppliedProperty(new Variable(row()), shape.labels()), props);
+            // (the column is read as one: a projected column types [0..1], the labels' text is always there)
+            return new NodeParts(call("toOne", new AppliedProperty(new Variable(row()), shape.labels())), props);
         }
 
         @Override
