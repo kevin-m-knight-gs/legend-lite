@@ -214,13 +214,13 @@ public final class TestDataGenerationNatives {
      * plan (loud). */
     public static com.legend.exec.ExecutionResult planTextResult(
             com.legend.compiler.spec.typed.TypedTestDataGen g,
-            ModelContext ctx) {
+            ModelContext ctx, com.legend.sql.dialect.EngineTextDialect text, String connection) {
         if (!"plan".equals(g.flavor())) {
             throw new com.legend.error.NotImplementedException(
                     "planToString over a non-plan test-data carrier ("
                             + g.flavor() + ")");
         }
-        return new com.legend.exec.ExecutionResult.Scalar(planText(g, ctx),
+        return new com.legend.exec.ExecutionResult.Scalar(planText(g, ctx, text, connection),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
@@ -229,7 +229,7 @@ public final class TestDataGenerationNatives {
      * from the remaining arguments (runtime and exeCtx skipped). */
     public static String planText(
             com.legend.compiler.spec.typed.TypedTestDataGen g,
-            ModelContext ctx) {
+            ModelContext ctx, com.legend.sql.dialect.EngineTextDialect text, String connection) {
         List<ValueSpecification> ps = g.params();
         LambdaFunction query = (LambdaFunction) ps.get(0);
         String mappingFqn = ((com.legend.protocol.spec
@@ -242,7 +242,7 @@ public final class TestDataGenerationNatives {
             classifyArg(ps.get(i), rowIds, dates, hash);
         }
         return TestDataGenerator.planText(ctx, query, mappingFqn, rowIds,
-                dates[0]);
+                dates[0], text, connection);
     }
 
     public static void classifyArg(ValueSpecification arg,

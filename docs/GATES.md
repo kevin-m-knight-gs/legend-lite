@@ -9887,3 +9887,13 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
   - With H2's digests spelled, `testJoinWithExtendWithDigestOnColumnsOnBothQueries` no longer falls back outside
     its body, and both H2 judges reach and fail its assert #1 alike: `h2-database-outside-body-register.txt` −1 and
     `h2-database-untriaged-register.txt` −1, that test's entries.
+- **The plan text's SQL is its dialect's** (`PlanText`, `PlanAllocations`): the engine-text dialect
+  (`EngineTextDialect`) writes each node's select and its temp-table select. The connection line names the runtime's
+  connection, not a fixed H2. The test-data generator's plan (`planText`) is IR that dialect writes too
+  (`EngineTextDialect.renderAsAliased`: the aliases as built, so a child fetch's parent is `(${parent}) as "root"`).
+  A differential run of the old hand-written text against the new one, over every generator plan the corpus prints,
+  found no differing byte. The hand-written text is deleted.
+- **PARK-16 is closed** (docs/PARKED_WORK_LEDGER.md): `ReservedNamesGenerationTest` generates over a default-schema
+  table `order` and a table in schema `select` on every database with an in-memory instance (DuckDB, H2, SQLite).
+  It names none of them; the leak ratchet's type pattern no longer counts `DatabaseType.values()` or
+  `DatabaseType.class`, which enumerate and name nothing (`PlanJson.java` database-type 2 → 1).

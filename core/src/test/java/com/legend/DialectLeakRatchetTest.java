@@ -64,7 +64,10 @@ class DialectLeakRatchetTest {
 
     /** The kinds counted in code, each by the census's own pattern (scanner/scan.py). */
     static final Map<String, Pattern> IN_CODE = Map.of(
-            "database-type", Pattern.compile("\\bDatabaseType\\s*\\.\\s*\\w+"),
+            // 2026-10-16, the dialect program's Phase 3 (PARK-16's acceptance test): DatabaseType.values() and
+            // DatabaseType.class enumerate every database and name none, as DialectOwnerExclusivityTest.ANY_TYPE
+            // reads them; until then the pattern counted them as DatabaseType.X. valueOf is still counted.
+            "database-type", Pattern.compile("\\bDatabaseType\\s*\\.\\s*(?!values\\b|class\\b)\\w+"),
             "dialect-class", Pattern.compile("\\b(new\\s+|instanceof\\s+|\\(\\s*)(?:com\\.legend\\.sql\\.dialect\\.)?("
                     + DIALECTS + ")\\b(\\s*\\(|\\s+\\w|\\s*\\)|\\.class)|\\bcom\\.legend\\.sql\\.dialect\\.(" + DIALECTS
                     + ")\\b"),
@@ -75,6 +78,19 @@ class DialectLeakRatchetTest {
             "product-call", Pattern.compile("\\bgetDatabaseProductName\\b"));
 
     static final Pattern JDBC_URL = Pattern.compile("jdbc:\\w+");
+
+    /** The type pattern counts a database the code names, and not the enumeration of all of them (2026-10-16). */
+    @Test
+    void theTypePatternSeesANamedTypeOnly() {
+        Pattern types = IN_CODE.get("database-type");
+        for (String named : List.of("DatabaseType.H2", "DatabaseType . DuckDB", "DatabaseType.valueOf(n)",
+                "DatabaseType.classic")) {
+            assertTrue(types.matcher("x = " + named + ";").find(), named);
+        }
+        for (String not : List.of("DatabaseType.values()", "EnumSet.allOf(DatabaseType.class)")) {
+            assertTrue(!types.matcher("x = " + not + ";").find(), not);
+        }
+    }
 
     /** The product pattern counts H2 and DB2 as an identifier's word, as it counts {@code isPostgres}, and not as a
      *  word's letters (the PR #39 audit's planted identifiers, 2026-10-14). */

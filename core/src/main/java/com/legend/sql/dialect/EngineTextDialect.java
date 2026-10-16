@@ -22,6 +22,11 @@ public interface EngineTextDialect extends SqlDialect {
      *  (a {@code with}). */
     @com.legend.base.Nullable String selectList(com.legend.sql.SqlQuery query);
 
+    /** The query as {@link #render} writes it but with the aliases it carries: how the engine prints a query it
+     *  built with its own aliases (the test-data generator's plan: {@code "root"}, {@code <table>_0}), where
+     *  {@link #render} renames them as the engine's reAliasQuery does a query it planned. */
+    String renderAsAliased(com.legend.sql.SqlQuery query);
+
     /** The query that reads the in-collection temp table back, as the engine's
      *  {@code generateTempTableSelectSQLQuery} writes it: its one column, under the table's own alias. */
     String inTempTableSelect(String tempTable);

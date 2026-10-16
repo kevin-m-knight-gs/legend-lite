@@ -121,10 +121,10 @@ class SqlTextRatchetTest {
         // 16 -> 15 (views stage 3, 2026-09-22): the hand-built view fetch
         // renderer is gone — the view's SQL is the compiler's, handed in by
         // the driver (TestDataGenerator.ViewSql)
-        // 15 -> 3 (2026-10-16, the dialect program's Phase 3): the generator's fetches, their temp tables, the CSV
-        // envelope and the seed read are IR its session's dialect writes; the uncalled CSV compare (EXCEPT, INSERT)
-        // is deleted. What stays is the engine-H2 plan text, the phase's next piece
-        REGISTER.put("testdatagen/TestDataGenerator.java", 3);
+        // testdatagen/TestDataGenerator.java: 15 -> 0, row deleted (2026-10-16, the dialect program's Phase 3): the
+        // generator's fetches, their temp tables, the CSV envelope and the seed read are IR its session's dialect
+        // writes, its plan's fetches IR the engine-text dialect writes (renderAsAliased); the uncalled CSV compare
+        // (EXCEPT, INSERT) is deleted
         // 0 -> 1 (2026-10-11, the MariaDB dialect, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): after a
         // MariaDB statement fails, Sessions.raisedMessage reads the session variable its raise left
         // (SELECT @legend_raise) -- no query of the user's, one fixed read of a session's state: a

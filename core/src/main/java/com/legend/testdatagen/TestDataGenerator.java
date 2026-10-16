@@ -1183,7 +1183,8 @@ public final class TestDataGenerator {
      * no execution. */
     public static String planText(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
-            List<TableRowIds> rowIds, MilestoningDates dates) {
+            List<TableRowIds> rowIds, MilestoningDates dates,
+            com.legend.sql.dialect.EngineTextDialect text, String connection) {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         roots = roots.stream().map(r -> expandIfView(ctx, r, null))
@@ -1196,7 +1197,7 @@ public final class TestDataGenerator {
         int ri = 0;
         for (ScanRelations.Rel r : roots) {
             planNode(ctx, r, null, "res_c" + ri++, rowIds, dates, colMap,
-                    kids);
+                    kids, text, connection);
         }
         return "MultiResultSequence\n(\n"
                 + "  type = meta::pure::metamodel::type::Any\n"
@@ -1209,7 +1210,7 @@ public final class TestDataGenerator {
             ScanRelations.@com.legend.base.Nullable Rel parent, String res,
             List<TableRowIds> rowIds,
             @com.legend.base.Nullable MilestoningDates dates, Map<String, List<String>> colMap,
-            StringBuilder out) {
+            StringBuilder out, com.legend.sql.dialect.EngineTextDialect text, String connection) {
         Located loc = locate(ctx, rel.db(), rel.table());
         String tbl = java.util.Objects.requireNonNull(rel.table(), "rel.table()");
         List<String> cols = java.util.Objects.requireNonNull(
@@ -1226,12 +1227,12 @@ public final class TestDataGenerator {
             List<String> pkCols = loc.def().columns().stream()
                     .filter(c -> c.primaryKey()).map(c -> c.name()).toList();
             out.append(planRootErrorNode(loc, rel, tbl, pkCols,
-                    relationType(rel, loc, pkCols)));
+                    relationType(rel, loc, pkCols), text, connection));
             return;
         }
-        String sql = parent == null
-                ? planRootSql(loc, rel, cols, rowIds, dates)
-                : planChildSql(ctx, loc, parent, rel, cols, res, dates);
+        // the fetch as the engine prints the query it built (its own aliases), from IR
+        String sql = text.renderAsAliased(parent == null ? planRootFetch(loc, rel, cols, rowIds, dates)
+                : planChildFetch(ctx, loc, parent, rel, cols, res, dates));
         String inner = "Relational\n(\n"
                 + "  type = " + relType + "\n"
                 + "  resultSizeRange = *\n"
@@ -1243,7 +1244,7 @@ public final class TestDataGenerator {
                         .collect(java.util.stream.Collectors
                                 .joining(", ")) + "]\n"
                 + "  sql = " + sql + "\n"
-                + "  connection = TestDatabaseConnection(type = \"H2\")\n"
+                + "  connection = " + connection + "\n"
                 + ")\n";
         out.append(com.legend.plan.PlanText.allocation(res,
                 "  type = " + relType + "\n  resultSizeRange = *\n",
@@ -1251,7 +1252,7 @@ public final class TestDataGenerator {
         int ci = 0;
         for (ScanRelations.Rel child : rel.children()) {
             planNode(ctx, child, rel, res + "_c" + ci++, rowIds, dates,
-                    colMap, out);
+                    colMap, out, text, connection);
         }
     }
 
@@ -1283,7 +1284,7 @@ public final class TestDataGenerator {
      * sampled {@code select top 5} of the root table. */
     private static String planRootErrorNode(Located loc,
             ScanRelations.Rel rel, String tbl, List<String> cols,
-            String relType) {
+            String relType, com.legend.sql.dialect.EngineTextDialect text, String connection) {
         String alias = tbl.toLowerCase(java.util.Locale.ROOT) + "_0";
         String pk = loc.def().columns().stream()
                 .filter(c -> c.primaryKey())
@@ -1292,7 +1293,7 @@ public final class TestDataGenerator {
                 .collect(java.util.stream.Collectors.joining(","));
         String qualified = "default".equals(loc.schema()) ? tbl
                 : loc.schema() + "." + tbl;
-        String sql = sampleSelect(5, cols, alias, loc, tbl) ;
+        String sql = text.renderAsAliased(sample(5, cols, alias, loc, tbl));
         String inner = "Relational\n(\n"
                 + "  type = " + relType + "\n"
                 + "  resultSizeRange = *\n"
@@ -1304,7 +1305,7 @@ public final class TestDataGenerator {
                         .collect(java.util.stream.Collectors
                                 .joining(", ")) + "]\n"
                 + "  sql = " + sql + "\n"
-                + "  connection = TestDatabaseConnection(type = \"H2\")\n"
+                + "  connection = " + connection + "\n"
                 + ")\n";
         return "Error\n(\n"
                 + "  type = meta::pure::metamodel::type::Any\n"
@@ -1315,159 +1316,165 @@ public final class TestDataGenerator {
                 + "  )\n)\n";
     }
 
-    private static String planRootSql(Located loc, ScanRelations.Rel rel,
-            List<String> cols, List<TableRowIds> rowIds,
-            @com.legend.base.Nullable MilestoningDates dates) {
+    /** The engine's root fetch in its plan: the demanded columns of the root, under {@code "root"}, the rows of its
+     *  identifiers (the engine's combineFilters reverses its operand list, pureToSqlQuery.pure:389), live on the
+     *  milestoning dates, the first 20. */
+    private static SqlSelect planRootFetch(Located loc, ScanRelations.Rel rel, List<String> cols,
+            List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates) {
         TableRowIds ids = rootIds(loc, rel, rowIds);
         if (ids == null) {
             throw new NotImplementedException("testDataGen plan: no row"
                     + " identifiers for root '" + rel.table() + "'");
         }
-        // engine combineFilters explicitly reverses its operand list
-        // ($ns->reverse(), pureToSqlQuery.pure:389 — audit 25 verified);
-        // a single-condition row spells bare, a multi-condition row
-        // parenthesizes its and-group
-        List<String> rows = new ArrayList<>();
+        List<SqlExpr> rows = new ArrayList<>();
         for (int i = ids.ids().size() - 1; i >= 0; i--) {
             RowId id = ids.ids().get(i);
-            List<String> conds = new ArrayList<>();
+            SqlExpr row = null;
             for (int c = 0; c < id.cols().size(); c++) {
-                conds.add("\"root\"." + id.cols().get(c) + " = "
-                        + planLit(id.values().get(c)));
+                row = and(row, SqlExpr.Call.of(SqlFn.EQUAL, stored(ROOT, loc.def(), id.cols().get(c)),
+                        planLiteral(id.values().get(c))));
             }
-            rows.add(conds.size() == 1 ? conds.get(0)
-                    : "(" + String.join(" and ", conds) + ")");
+            row = java.util.Objects.requireNonNull(row, "a row identifier with no column");
+            rows.add(id.cols().size() == 1 ? row : new SqlExpr.Group(row));
         }
-        String pk = String.join(" or ", rows);
+        SqlExpr pk = rows.get(0);
+        for (int i = 1; i < rows.size(); i++) {
+            pk = SqlExpr.Call.of(SqlFn.OR, pk, rows.get(i));
+        }
         if (rows.size() > 1) {
-            pk = "(" + pk + ")";
+            pk = new SqlExpr.Group(pk);
         }
-        String mf = planMilestone(loc.def(), "\"root\"", dates);
-        String where = mf == null ? pk : mf + " and " + pk;
-        return sampleSelect(20, cols, "root", loc,
-                java.util.Objects.requireNonNull(rel.table(), "rel.table()"))
-                + " where " + where;
+        SqlExpr mf = planMilestoneFilter(loc.def(), ROOT, dates);
+        return sample(20, cols, ROOT, loc, java.util.Objects.requireNonNull(rel.table(), "rel.table()"))
+                .withWhere(mf == null ? pk : SqlExpr.Call.of(SqlFn.AND, mf, pk));
     }
 
-    /** The engine's sampled root select: {@code select top N "alias".c as
-     * "c", ... from <table> as "alias"} (the plan's root fetch and the
-     * no-seed error node's sample). */
-    private static String sampleSelect(int top, List<String> cols,
-            String alias, Located loc, String tbl) {
-        return "select top " + top + " " + cols.stream()
-                .map(c -> "\"" + alias + "\"." + c + " as \"" + c + "\"")
-                .collect(java.util.stream.Collectors.joining(", "))
-                + " from " + qualify(loc.schema(), tbl) + " as \"" + alias + "\"";
+    /** The engine's sampled select: {@code select top N "alias".c as "c", ... from <table> as "alias"} (the plan's
+     *  root fetch and the no-seed error node's sample). */
+    private static SqlSelect sample(int top, List<String> cols, String alias, Located loc, String table) {
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (String c : cols) {
+            ps.add(new SqlSelect.Projection(stored(alias, loc.def(), c), c, null));
+        }
+        return new SqlSelect(ps, false, storeTable(loc, table, alias), null, List.of(), null, null, List.of(),
+                (long) top, null, List.of());
     }
 
-    private static String planChildSql(ModelContext ctx, Located loc,
-            ScanRelations.Rel parent, ScanRelations.Rel child,
-            List<String> cols, String res, @com.legend.base.Nullable MilestoningDates dates) {
+    /** The engine's child fetch in its plan: the child table joined to its parent's result, the allocation
+     *  {@code ${res}} read as {@code "root"}, the first 20 (each child fetch joins one table, so its alias is
+     *  {@code <table>_0}). */
+    private static SqlSelect planChildFetch(ModelContext ctx, Located loc, ScanRelations.Rel parent,
+            ScanRelations.Rel child, List<String> cols, String res, @com.legend.base.Nullable MilestoningDates dates) {
         String parentRes = res.substring(0, res.lastIndexOf("_c"));
-        // the engine's per-query alias-group index: each child fetch SQL
-        // joins exactly ONE table by construction, so its group index is
-        // always 0 (audit 25 — a multi-join child would need the full
-        // group counter)
         String ct = java.util.Objects.requireNonNull(child.table(), "child.table()");
         String alias = ct.toLowerCase(java.util.Locale.ROOT) + "_0";
         RelationalOperation op = child.cond() != null ? child.cond()
-                : findJoin(ctx, child.joinName(), child.db(), parent.db())
-                        .operation();
-        String mf = planMilestone(loc.def(), "\"" + alias + "\"", dates);
-        return "select top 20 " + cols.stream()
-                .map(c -> "\"" + alias + "\"." + c + " as \"" + c + "\"")
-                .collect(java.util.stream.Collectors.joining(", "))
-                + " from (select * from (${" + parentRes
-                + "}) as \"root\") as \"root\" inner join "
-                + qualify(loc.schema(), child.table()) + " as \"" + alias
-                + "\" on (" + planCond(op, parent.table(), child.table(),
-                        alias) + ")"
-                + (mf == null ? "" : " where " + mf);
+                : findJoin(ctx, child.joinName(), child.db(), parent.db()).operation();
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (String c : cols) {
+            ps.add(new SqlSelect.Projection(stored(alias, loc.def(), c), c, null));
+        }
+        SqlSource parentRows = new SqlSource.Subselect(SqlSelect.starOf(new SqlSource.VarSetPlaceholder(parentRes,
+                ROOT, List.of())), ROOT, null);
+        return new SqlSelect(ps, false, new SqlSource.Join(parentRows, storeTable(loc, ct, alias),
+                SqlSource.Join.Kind.INNER, planCondition(op, parent.table(), ct, alias, loc.def())),
+                planMilestoneFilter(loc.def(), alias, dates), List.of(), null, null, List.of(), 20L, null, List.of());
     }
 
-    /** Engine-text join condition: parent refs read the ALLOCATION's
-     * aliased result columns ({@code "root"."col"}), child refs the
-     * joined table ({@code "alias".col}). */
-    private static String planCond(RelationalOperation op,
-            @com.legend.base.Nullable String parentTable, String childTable,
-            String childAlias) {
+    /** The engine's join condition in its plan: a parent column reads the allocation's result columns
+     *  ({@code "root"."col"}), a child column the joined table. */
+    private static SqlExpr planCondition(RelationalOperation op, @com.legend.base.Nullable String parentTable,
+            String childTable, String childAlias, DatabaseDefinition.TableDefinition childDef) {
         return switch (op) {
-            case RelationalOperation.ColumnRef r ->
-                    bareTable(r.table()).equals(parentTable)
-                            ? "\"root\".\"" + r.column() + "\""
-                            : "\"" + childAlias + "\"." + r.column();
-            case RelationalOperation.Comparison c ->
-                    planCond(c.left(), parentTable, childTable, childAlias)
-                            + " " + c.op().symbol() + " "
-                            + planCond(c.right(), parentTable, childTable,
-                                    childAlias);
-            case RelationalOperation.BooleanOp b ->
-                    planCond(b.left(), parentTable, childTable, childAlias)
-                    + (b.op() == com.legend.model.LogicalOp.AND ? " and "
-                            : " or ")
-                    + planCond(b.right(), parentTable, childTable,
-                            childAlias);
-            case RelationalOperation.Group g -> "(" + planCond(g.inner(),
-                    parentTable, childTable, childAlias) + ")";
-            case RelationalOperation.IsNull n -> planCond(n.operand(),
-                    parentTable, childTable, childAlias) + " is null";
-            case RelationalOperation.IsNotNull n -> planCond(n.operand(),
-                    parentTable, childTable, childAlias) + " is not null";
+            // the allocation's result columns are its select's quoted aliases ("root"."type")
+            case RelationalOperation.ColumnRef r -> bareTable(r.table()).equals(parentTable)
+                    ? SqlExpr.Column.physical(ROOT, r.column(), true)
+                    : stored(childAlias, childDef, r.column());
+            case RelationalOperation.Comparison c -> SqlExpr.Call.of(switch (c.op()) {
+                case EQ -> SqlFn.EQUAL;
+                case NEQ -> SqlFn.NOT_EQUAL;
+                case LT -> SqlFn.LESS;
+                case LTE -> SqlFn.LESS_EQUAL;
+                case GT -> SqlFn.GREATER;
+                case GTE -> SqlFn.GREATER_EQUAL;
+            }, planCondition(c.left(), parentTable, childTable, childAlias, childDef),
+                    planCondition(c.right(), parentTable, childTable, childAlias, childDef));
+            case RelationalOperation.BooleanOp b -> SqlExpr.Call.of(
+                    b.op() == com.legend.model.LogicalOp.AND ? SqlFn.AND : SqlFn.OR,
+                    planCondition(b.left(), parentTable, childTable, childAlias, childDef),
+                    planCondition(b.right(), parentTable, childTable, childAlias, childDef));
+            case RelationalOperation.Group g -> new SqlExpr.Group(
+                    planCondition(g.inner(), parentTable, childTable, childAlias, childDef));
+            case RelationalOperation.IsNull n -> SqlExpr.Call.of(SqlFn.IS_NULL,
+                    planCondition(n.operand(), parentTable, childTable, childAlias, childDef));
+            case RelationalOperation.IsNotNull n -> SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
+                    planCondition(n.operand(), parentTable, childTable, childAlias, childDef));
             default -> throw new NotImplementedException(
                     "testDataGen plan: condition node "
                     + op.getClass().getSimpleName() + " pending");
         };
     }
 
-    private static String bareTable(String t) {
-        int dot = t.lastIndexOf('.');
-        return dot < 0 ? t : t.substring(dot + 1);
-    }
-
-    /** Engine-text milestoning filter — {@code DATE'...'} spelling. */
-    private static @com.legend.base.Nullable String planMilestone(
-            DatabaseDefinition.TableDefinition def, String alias,
-            @com.legend.base.Nullable MilestoningDates d) {
+    /** The engine's milestoning filter in its plan: the PROCESSING dimension first (its bitemporal order). */
+    private static @com.legend.base.Nullable SqlExpr planMilestoneFilter(DatabaseDefinition.TableDefinition def,
+            String alias, @com.legend.base.Nullable MilestoningDates d) {
         var ms = def.milestoning();
         if (ms == null || d == null) {
             return null;
         }
-        // engine bitemporal order: PROCESSING dimension first
-        List<String> parts = new ArrayList<>();
+        SqlExpr parts = null;
         if (ms.processing() != null) {
             var pr = ms.processing();
             if (pr.snapshotDate() != null) {
-                parts.add(alias + "." + pr.snapshotDate() + " = DATE'"
-                        + requireDate(d.processing(), def, "processingDate")
-                        + "'");
+                parts = and(parts, onDate(alias, def, pr.snapshotDate(), SqlFn.EQUAL,
+                        requireDate(d.processing(), def, "processingDate")));
             } else {
-                String pd = requireDate(d.processing(), def,
-                        "processingDate");
-                parts.add(alias + "." + pr.in() + " <= DATE'" + pd + "'");
-                parts.add(alias + "." + pr.out()
-                        + (pr.outIsInclusive() ? " >= DATE'" : " > DATE'")
-                        + pd + "'");
+                String pd = requireDate(d.processing(), def, "processingDate");
+                parts = and(parts, onDate(alias, def, java.util.Objects.requireNonNull(pr.in(),
+                        "milestoning processing block without PROCESSING_IN"), SqlFn.LESS_EQUAL, pd));
+                parts = and(parts, onDate(alias, def, java.util.Objects.requireNonNull(pr.out(),
+                        "milestoning processing block without PROCESSING_OUT"),
+                        pr.outIsInclusive() ? SqlFn.GREATER_EQUAL : SqlFn.GREATER, pd));
             }
         }
         if (ms.business() != null) {
             var b = ms.business();
             if (b.snapshotDate() != null) {
-                parts.add(alias + "." + b.snapshotDate() + " = DATE'"
-                        + requireDate(d.snapshot(), def, "snapshotDate")
-                        + "'");
+                parts = and(parts, onDate(alias, def, b.snapshotDate(), SqlFn.EQUAL,
+                        requireDate(d.snapshot(), def, "snapshotDate")));
             } else {
                 String bd = requireDate(d.business(), def, "businessDate");
-                parts.add(alias + "." + b.from() + " <= DATE'" + bd + "'");
-                parts.add(alias + "." + b.thru()
-                        + (b.thruIsInclusive() ? " >= DATE'" : " > DATE'")
-                        + bd + "'");
+                parts = and(parts, onDate(alias, def, java.util.Objects.requireNonNull(b.from(),
+                        "milestoning business block without BUS_FROM"), SqlFn.LESS_EQUAL, bd));
+                parts = and(parts, onDate(alias, def, java.util.Objects.requireNonNull(b.thru(),
+                        "milestoning business block without BUS_THRU"),
+                        b.thruIsInclusive() ? SqlFn.GREATER_EQUAL : SqlFn.GREATER, bd));
             }
         }
-        return parts.isEmpty() ? null : String.join(" and ", parts);
+        return parts;
     }
 
-    private static String planLit(Object v) {
-        return v instanceof String str ? "'" + str + "'" : String.valueOf(v);
+    /** A row identifier's value in the plan: a string as a string, a whole number an integer, any other number its
+     *  exact value, a boolean its truth. */
+    private static SqlExpr planLiteral(Object v) {
+        if (v instanceof String str) {
+            return new SqlExpr.StringLit(str);
+        }
+        if (v instanceof Long || v instanceof Integer || v instanceof Short || v instanceof Byte) {
+            return new SqlExpr.IntLit(((Number) v).longValue());
+        }
+        if (v instanceof Number n) {
+            return new SqlExpr.DecimalLit(new java.math.BigDecimal(n.toString()));
+        }
+        if (v instanceof Boolean b) {
+            return new SqlExpr.BoolLit(b);
+        }
+        throw new NotImplementedException("testDataGen plan: row identifier value " + v.getClass());
+    }
+
+    private static String bareTable(String t) {
+        int dot = t.lastIndexOf('.');
+        return dot < 0 ? t : t.substring(dot + 1);
     }
 
     /** The alias a fetch reads its seed table through, and the one a child fetch reads its parent's temp
@@ -1518,12 +1525,6 @@ public final class TestDataGenerator {
 
     private static SqlExpr and(@com.legend.base.Nullable SqlExpr left, SqlExpr right) {
         return left == null ? right : SqlExpr.Call.of(SqlFn.AND, left, right);
-    }
-
-    /** The plan text's {@code schema.table} (the engine's own spelling). */
-    private static String qualify(String schema, String table) {
-        return schema == null || schema.isEmpty()
-                || "default".equals(schema) ? table : schema + "." + table;
     }
 
     private static String bare(String table) {

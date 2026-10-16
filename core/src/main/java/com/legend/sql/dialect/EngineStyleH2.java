@@ -500,14 +500,23 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
 
     @Override
     public String render(SqlQuery query) {
-        SqlQuery planned = planned(query);
+        SqlQuery planned = planned(query, true);
         SqlWriter writer = newWriter();
         query(writer, planned, 0);
         return writer.text();
     }
 
-    /** The query as this text writes it, its alias plan made: every render pass applied, a TDS join's top wrapped. */
-    private SqlQuery planned(SqlQuery query) {
+    @Override
+    public String renderAsAliased(SqlQuery query) {
+        SqlQuery planned = planned(query, false);
+        SqlWriter writer = newWriter();
+        query(writer, planned, 0);
+        return writer.text();
+    }
+
+    /** The query as this text writes it: every render pass applied, a TDS join's top wrapped, and its alias plan
+     *  made ({@code realias}: the engine's reAliasQuery) or none (it keeps the aliases it carries). */
+    private SqlQuery planned(SqlQuery query, boolean realias) {
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             query = pass.rewriteRoot(query);
         }
@@ -516,13 +525,15 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         subselects.clear();
         rootConsumed.clear();
         placeholders.clear();
-        planQuery(query, new LinkedHashMap<>());
+        if (realias) {
+            planQuery(query, new LinkedHashMap<>());
+        }
         return query;
     }
 
     @Override
     public @com.legend.base.Nullable String selectList(SqlQuery query) {
-        SqlQuery q = planned(query);
+        SqlQuery q = planned(query, true);
         while (q instanceof com.legend.sql.SqlUnion u) {
             q = u.branches().get(0);
         }

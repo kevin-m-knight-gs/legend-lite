@@ -95,7 +95,7 @@ final class StatementExecutor {
 
     /** The engine's golden DDL TEXT renderer (root layer only — invariant 4d): the text of the database
      *  legend-engine's test connections declare. */
-    static final com.legend.sql.dialect.SqlDialect ENGINE_TEXT = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
+    static final com.legend.sql.dialect.EngineTextDialect ENGINE_TEXT = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
 
     private static void record(ExecEnv env, String sql, boolean query) {
         var r = env.options().recorder();
@@ -668,7 +668,10 @@ final class StatementExecutor {
         // inside an assert — the handle is a symbolic binding)
         TypedSpec a0 = com.legend.compiler.spec.typed.Lets.bound(call.args().get(0), letPrefix);
         if (a0 instanceof com.legend.compiler.spec.typed.TypedTestDataGen tg) {
-            return com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, env.ctx());
+            // the generator's plan names the engine's test connection, as every engine test of it does (its
+            // runtime argument is not read)
+            return com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, env.ctx(), ENGINE_TEXT,
+                    "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")");
         }
         if (!(a0
                 instanceof com.legend.compiler.spec.typed.TypedNativeCall ep)

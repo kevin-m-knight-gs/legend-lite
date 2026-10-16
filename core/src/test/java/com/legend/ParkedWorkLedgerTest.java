@@ -133,13 +133,8 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-15 the legacy plan's enum result-column fallback",
                     new Anchor("candidates\\.isEmpty\\(\\) \\? null\\s*\\n\\s*: candidates\\.get\\(0\\)\\.mappingId\\(\\)",
                             List.of("PlanText.java"))),
-            // PARK-16 (2026-10-08, the user: "record the ddl fix so that we actually
-            // do it"; restated 2026-10-09 when DDL and DML were fixed, "product now,
-            // generator later"): the test-data generator's hand-built SQL spells a
-            // table or schema name RAW, outside the dialects.
-            Map.entry("PARK-16 the test-data generator's hand-built SQL spells names raw",
-                    new Anchor("\\|\\| \"default\"\\.equals\\(schema\\) \\? table : schema \\+ \"\\.\" \\+ table;",
-                            List.of("TestDataGenerator.java"))),
+            // PARK-16 closed 2026-10-16 (the dialect program's Phase 3): the test-data generator's statements are IR
+            // its session's dialect writes; ReservedNamesGenerationTest is its acceptance
             // PARK-18 (2026-10-09, E-4b): the legacy printer writes no null placement, the
             // IR not telling a query's explicit emptyFirst()/emptyLast() from pure's own null order
             Map.entry("PARK-18 the legacy printer cannot write an explicit null placement",
