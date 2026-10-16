@@ -179,10 +179,11 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
 /**
  * THE PLANNER'S WORKER ON A PYTHON HOST (§15.2, as amended 2026-10-15): the page's planner asks a Python host as it asks
  * any host -- a question about the Pure query on legend-engine's own route (`pure/v1`: Python answers it as every Legend
- * server does, and the tab's worker in process), and its dry run on the host's compute (`plan.json`, plan-and-run's
- * planning half). Nothing else is sent: the worker's other requests are the tab's own, refused here by name. No handle
- * crosses the hosts (§15.3): a `hold` is kept here, its model's text by the handle this gives, and the dry run sends
- * that text, Python planning against the model it holds of that text.
+ * server does, and the tab's worker in process; a model's writing on legend-lite's, `lite/v1`, through the same kind),
+ * and its dry run on the host's compute (`plan.json`, plan-and-run's planning half). Nothing else is sent: the worker's
+ * other requests are the tab's own, refused here by name. No handle crosses the hosts (§15.3): a `hold` is kept here,
+ * its model's text by the handle this gives, and the dry run sends that text, Python planning against the model it
+ * holds of that text.
  */
 function pythonWorker(link: PythonLink): PlannerWorker {
   const held = new Map<number, string>();
@@ -194,14 +195,22 @@ function pythonWorker(link: PythonLink): PlannerWorker {
     postMessage(message: Request): void {
       const reply = (response: Response): void => { if (alive) worker.onmessage?.({ data: response }); };
       const { id, base: _base, ...body } = message;
-      /** One call to Python, and the worker's answer made of Python's; the call failing is the worker's death, as a
-       *  crashed tab worker's is (the planner starts another). */
+      /** One call to Python, and the worker's answer made of Python's -- an answer it cannot read refused, never left
+       *  unanswered; the call failing is the worker's death, as a crashed tab worker's is (the planner starts another). */
       const call = (path: string, sent: string, answered: (answer: globalThis.Response, text: string) => Response): void => {
         void link.fetch(`${link.baseUrl}${path}`, {
           method: 'POST',
           headers: { ...headers(link), 'Content-Type': 'application/json' },
           body: sent,
-        }).then(async (answer) => { reply(answered(answer, await answer.text())); }, (e: unknown) => {
+        }).then(async (answer) => {
+          let made: Response;
+          try {
+            made = answered(answer, await answer.text());
+          } catch (e) {
+            made = { id, ok: false, error: `the engine's answer to ${path} could not be read: ${String(e)}` };
+          }
+          reply(made);
+        }, (e: unknown) => {
           if (!alive) return;
           alive = false;
           worker.onerror?.({ message: `the engine did not answer: ${String(e)}` });

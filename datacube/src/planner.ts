@@ -11,7 +11,6 @@
 import type { Planner } from './cube.ts';
 import { PureV1Client, type PrintStyle, type PureV1Options } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, tdsColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
-import { parseExact } from '../../engine-client/src/values.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { GridSource } from './model-writer.ts';
 
@@ -145,23 +144,6 @@ export class UpstreamPlanner implements Planner {
 export function serverPlan(body: unknown, query: Lambda, bitColumns: ReadonlySet<string> = new Set(),
   database = 'DuckDB'): Plan {
   return { sql: sqlNode(body, query, database), columns: tdsColumns(body, bitColumns) };
-}
-
-/** A server's `generatePlan` answer, as its text, read as `serverPlan` reads it; a refusal (legend-engine's error
- *  shape) thrown in the server's own words. */
-export function readServerPlan(text: string, query: Lambda, bitColumns: ReadonlySet<string> = new Set(),
-  database = 'DuckDB'): Plan {
-  let body: unknown;
-  try {
-    body = parseExact(text);
-  } catch {
-    throw new PlanError(`the server answered no plan: ${text.slice(0, 300)}`, query);
-  }
-  if (body === null || typeof body !== 'object' || !('rootExecutionNode' in body)) {
-    const message = (body as { message?: unknown } | null)?.message;
-    throw new PlanError(typeof message === 'string' ? message : `the server answered no plan: ${text.slice(0, 300)}`, query);
-  }
-  return serverPlan(body, query, bitColumns, database);
 }
 
 interface PlanNode {

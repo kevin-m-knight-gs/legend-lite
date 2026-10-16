@@ -73,7 +73,7 @@ _KEEP: Any = object()
 
 
 def _given_name(session: Any, part: str, name: Any, what: str) -> str | None:
-    """A name a page, a tile or a sheet is given, by DataCube's one rule (page-document.ts givenName, asked headless:
+    """A name a page, a tile or a sheet is given, by DataCube's one rule (page-names.ts givenName, asked headless:
     nameGiven, as the screen's renames ask it): its text trimmed, a page's or a tile's blank refused in DataCube's words,
     a sheet's blank none of its own (None). Python only refuses what is not text."""
     if not isinstance(name, str):
@@ -1098,7 +1098,7 @@ class Page:
     def to_json(self, indent: int | None = 2) -> str:
         """The page document as JSON text, its numbers exact, as DataCube writes it (what ``save`` writes): refused in
         DataCube's words when DataCube would not open it (a page with no grid)."""
-        return _json.dumps(_read_page(self._doc, self._session), indent=indent)
+        return _json.dumps(self._written(), indent=indent)
 
     def save(self, path: str | Path | None = None, *, name: str | None = None) -> str | None:
         """Saved. With no ``path``, as DataCube's Save keeps a page: into this user's saved pages (``ll.home()/pages``,
@@ -1114,7 +1114,7 @@ class Page:
         from ._home import THIS_USER, pages_folder, store_call
         named = _given_name(self._session, 'page', name if name is not None else self.name, "a saved page's name")
         id = self._saved if self._saved is not None else str(uuid.uuid4())
-        record = _json.dumps({'id': id, 'name': named, 'content': _read_page(self._doc, self._session)}, indent=None)
+        record = _json.dumps({'id': id, 'name': named, 'content': self._written()}, indent=None)
         status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
                         if self._saved is not None else (404, ''))
         if status == 404:
@@ -1176,7 +1176,17 @@ class Page:
 
     def _showable(self) -> None:
         """Refused when it cannot be shown: a page DataCube would not open (one with no grid), in DataCube's words."""
-        _read_page(self._doc, self._session)
+        self._written()
+
+    def _written(self) -> dict[str, Any]:
+        """The page as DataCube reads it, to be written, saved or shown: refused in DataCube's words -- a page with no
+        grid yet with Python's own call to make one after them, as a filter's refusals say Python's call form."""
+        try:
+            return _read_page(self._doc, self._session)
+        except ValueError as refused:
+            if self._doc['cubes']:
+                raise
+            raise ValueError(f'{refused} -- in Python, page.grid(frame) adds one') from None
 
     def _changed(self) -> None:
         """Something on the page changed: where it is shown, it is served again (and opened again there)."""

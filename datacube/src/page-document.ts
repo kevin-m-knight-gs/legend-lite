@@ -30,6 +30,7 @@ import { readChart, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument } from './cube-document.ts';
 import { type Bands, type Node, fromCells, problems, tiles as tilesOf } from './layout/bands.ts';
 import type { PageModelRef } from './page-model.ts';
+import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 
 export const PAGE_KIND = 'datacube.page';
@@ -97,23 +98,7 @@ export interface PageDocument extends PageViews {
   readonly unknown?: Readonly<Record<string, unknown>>;
 }
 
-/** What a person names on a page. */
-export type NamedPart = 'page' | 'tile' | 'sheet';
-
-/**
- * A NAME A PERSON GIVES a page, a tile or a sheet, by DataCube's one rule (the user, 2026-10-15: "one rule please"):
- * its text trimmed; a page and a tile must have one -- a blank is refused (the screen keeps the name it had; Python's
- * call raises) -- and a sheet's blank is none of its own (the sheet is then named after its first grid). The reader
- * holds a saved page to the same rule (readPage).
- */
-export function givenName(part: NamedPart, text: string):
-  { readonly name: string | undefined } | { readonly refused: string } {
-  const name = text.trim();
-  if (name !== '') return { name };
-  return part === 'sheet' ? { name: undefined } : { refused: `a ${part}'s name is not blank` };
-}
-
-/** Whether a saved name holds by the rule: text, and for a page or a tile not blank. */
+/** Whether a saved name holds by givenName's rule (page-names.ts): text, and for a page or a tile not blank. */
 const named = (part: NamedPart, value: unknown): value is string =>
   typeof value === 'string' && !('refused' in givenName(part, value));
 

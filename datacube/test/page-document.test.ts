@@ -12,7 +12,6 @@ import {
   FIRST_SHEET,
   PAGE_KIND,
   PageDocumentError,
-  givenName,
   oneSheet,
   pageDefinitionText,
   pageToJson,
@@ -22,6 +21,7 @@ import {
   type PageLayout,
   type PageViews,
 } from '../src/page-document.ts';
+import { givenName } from '../src/page-names.ts';
 import type { ChartSpec } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';

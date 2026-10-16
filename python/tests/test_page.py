@@ -562,7 +562,7 @@ class Document(Paged):
             grid.chart('violin', x='region')
         with self.assertRaisesRegex(ValueError, 'not a column'):
             grid.group('nope')
-        # DataCube's one name rule (page-document.ts givenName): a tile's or a page's blank is refused, in its words
+        # DataCube's one name rule (page-names.ts givenName): a tile's or a page's blank is refused, in its words
         with self.assertRaisesRegex(ValueError, "a tile's name is not blank"):
             grid.chart('bar', title='')
         with self.assertRaisesRegex(ValueError, "a page's name is not blank"):
@@ -798,8 +798,10 @@ class Live(Paged):
         self.assertEqual(self.get(f'/page.json?page={page._key}')[0], 404)
 
     def test_an_empty_page_is_not_shown(self):
-        # DataCube opens no page without a grid: refused in its words, and never written either
-        with self.assertRaisesRegex(ValueError, 'cannot read saved page: it has no cube'):
+        # DataCube opens no page without a grid: refused in its words, then Python's call that makes one, and never
+        # written either
+        with self.assertRaisesRegex(ValueError, r'^cannot read saved page: it has no cube -- in Python, page\.grid\(frame\) '
+                                                r'adds one$'):
             ll.Page('Empty').to_json()
         with self.assertRaisesRegex(ValueError, 'it has no cube'):
             ll.show(ll.Page('Empty'), browser=False)

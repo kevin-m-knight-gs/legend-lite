@@ -165,7 +165,9 @@ class Names(unittest.TestCase):
         # Pure's literals are `true` and `false`, as spelled: `True` is an identifier, for a page's file's table as for
         # a frame (frames.py read the file's name lowercased, and refused it)
         frames = ll.Frames()
-        frames.register('True', trades())
+        table = frames.register('True', trades())
+        # SQL's TRUE is a keyword in any case: the frame's table is quoted where a query reads it
+        self.assertEqual(table.execute("->filter(x|$x.desk == 'EQ')->select(~[id])").to_pylist(), [{'id': 2}, {'id': 5}])
         with frames.reading_file('False') as name:
             self.assertEqual(name, 'False')
         with self.assertRaises(ValueError), frames.reading_file('false'):

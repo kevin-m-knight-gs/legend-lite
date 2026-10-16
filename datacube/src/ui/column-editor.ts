@@ -151,7 +151,6 @@ const CHILD_FUNCTIONS: readonly (readonly [ChildAggregateFn, string])[] = [
   ['median', 'Median'], ['sum', 'Sum'], ['count', 'Count'],
 ];
 
-
 type Check =
   | { readonly state: 'idle' }
   | { readonly state: 'compiling' }

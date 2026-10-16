@@ -33,6 +33,7 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'warm': ('lite_warm_model', lambda m: (m['model'],)),
 }
 
+
 def answer(lib: Library, request: dict[str, Any]) -> dict[str, Any]:
     """One planner request answered as planner-worker.ts answers it: the function's tagged answer (a refusal is one too),
     or, when the call itself fails, the worker's failure."""

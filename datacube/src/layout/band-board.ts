@@ -55,7 +55,7 @@ import {
   tiles,
   tradeBands,
 } from './bands.ts';
-import { givenName } from '../page-document.ts';
+import { givenName } from '../page-names.ts';
 
 export interface BandTile {
   readonly id: string;
@@ -735,7 +735,7 @@ export class BandBoard {
     const finish = (keep: boolean): void => {
       if (done) return;
       done = true;
-      // the one rule (page-document.ts givenName): trimmed, a blank refused -- the tile keeps the title it had
+      // the one rule (page-names.ts givenName): trimmed, a blank refused -- the tile keeps the title it had
       const given = givenName('tile', input.value);
       const next = 'name' in given ? given.name : undefined;
       input.replaceWith(p.title);

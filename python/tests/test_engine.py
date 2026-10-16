@@ -334,7 +334,7 @@ class Refusals(Served):
 
 
 class Planes(Served):
-    """Where the engine plans (R3): one planner, chosen once, which every call the compiler answers goes through, and
+    """Where the engine plans (R3): one planner, Python's own, which every call the compiler answers goes through, and
     which services.json names for the page."""
 
     def test_it_plans_on_pythons_own_planner_and_says_so(self):
@@ -1167,6 +1167,27 @@ class WarehouseOnPython(unittest.TestCase):
             "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'POSITIONS'").fetchone()[0]
         made = self.frames.connection.execute("SELECT count(*) FROM duckdb_schemas() WHERE schema_name = 'trading'").fetchone()[0]
         self.assertEqual((gone, made), (0, 0), 'the copy and the schema it made are dropped')
+
+    def test_the_dry_run_plans_a_table_as_its_run_does_and_refuses_the_runtime_its_run_refuses(self):
+        # plan.json, plan-and-run's planning half (the one-app design §15.10): never run, the run's plan, and the run's
+        # refusal of a runtime (the table's rule, refused_runtime) word for word
+        m = self.opened()
+
+        def dry(runtime):
+            a = self.engine.answer('POST', '/plan.json', '', json.dumps(
+                {'lambda': self.query(m), 'model': m['model'], 'runtime': runtime}))
+            self.assertEqual(a.status, 200, a.body)
+            return json.loads(a.body)['plan']
+
+        planned = dry(m['runtime'])
+        self.assertEqual(self.pulls, 0, 'a dry run reads nothing from the warehouse')
+        run = self.plan_and_run(m, m['runtime'])
+        self.assertEqual(run.status, 200, run.body)
+        self.assertEqual(planned, pyarrow.ipc.open_stream(run.body).read_all().schema.metadata[b'legend.plan'].decode())
+        # the snap runtime with no copy held: refused by both, in the same words
+        refused = dry(m['snapRuntime'])
+        self.assertIn('or snapped, through its copy', refused)
+        self.assertEqual(refused, json.loads(self.plan_and_run(m, m['snapRuntime']).body)['plan'])
 
     def test_a_copy_that_fails_leaves_nothing(self):
         m = self.opened()

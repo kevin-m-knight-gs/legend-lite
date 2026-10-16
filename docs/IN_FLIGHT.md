@@ -874,12 +874,20 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   (`datacube/src/query.ts`, its three copies); the cap rule in DataCube (`datacube/src/app/datacube-app.ts`,
   `page-document.ts`); the page-on-Python tunnel (`planner.json`) retired for legend-engine's own routes and the host's
   compute (`/plan.json`; `engine-client/src/legend/planner-protocol.ts` back to main's), the snap limit Python's own;
-  one name rule (`page-document.ts givenName`, `layout/band-board.ts`, `page/page-app.ts`, `page/cube-page.ts`). (The
+  one name rule (`page-names.ts givenName`, new, `layout/band-board.ts`, `page/page-app.ts`, `page/cube-page.ts`). (The
   generator and the two corpora first planned here were dropped with the user, 2026-10-15.) More files: their tests,
   `docs/PARKED_WORK_LEDGER.md`, `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`, `test_upstream.py` and its lane (the BUILD
-  edits to the Compiler Rewrite line). Still not touched: `engine.py`'s snap, frames and project-data paths,
-  `_headless._query` (but the `arrow_text` fold back), `warehouse.py`, the planner kinds that answer SQL -- the SQL
-  plan's ground.
+  edits to the Compiler Rewrite line). Declared after the audit (2026-10-15): `core/BUILD.bazel` (`//core:server`'s
+  visibility for the removed `//python:upstream_test`, the one core edit); `datacube/src/cube.ts`
+  (`CubeController.compile` types the cube first; D5b touches only `run`); `datacube/src/planner.ts` (`readServerPlan`,
+  left with no caller, removed; comments) with `datacube/test/upstream-plans.test.ts` and its fixture;
+  `docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md` (§15.2 amended, §15.10 added); `datacube/demo/verify-cubes.mjs` (the
+  cap's case in the app); `engine.py`'s warehouse plan-and-run (its runtime rule asked of the table, `refused_runtime`,
+  which `/plan.json` asks too) and its docstrings' words. Still not touched: `engine.py`'s snap, frames and project-data
+  paths, `_headless._query` (but the `arrow_text` fold back), `warehouse.py`, the planner kinds that answer SQL -- the
+  SQL plan's ground -- but for one forced line in `_warehouse_snap` (`_on_planner_threads()`, the planner switch gone)
+  and one in `frames.py reading_file` (58e807c: a file's table named as `register` names a frame, so `True` is an
+  identifier; this line's OK).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

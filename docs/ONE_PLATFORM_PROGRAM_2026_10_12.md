@@ -521,10 +521,10 @@ DataCube's ten kinds are the superset, but for Query's `warm` and its unheld `pl
   `LitePlanner`, its headless host and Python's page host, and Query's and Studio's `WasmGrammar` send it.
 - Python answers every kind (`legend_lite/_planner.py` KINDS, the start-up check `_headless.check_interface` holding
   the two lists alike): the native library gains `lite_execute_json_plan`, `lite_execute_json_answer` and
-  `lite_warm_model`, each delegating to the Boundary function the tab's export delegates to. A page on Python asks
-  `planner.json` only the kinds its planner sends (`engine.py` `_PAGE_KINDS`): not an unheld plan, execute's halves or
-  a warm (the audit of b44780c8e). Its held kinds plan over the models Python serves only; its grammar (`pureV1`) and a
-  model's test data (`testData`) read the text the page sends, as a server's grammar routes do, and run no SQL.
+  `lite_warm_model`, each delegating to the Boundary function the tab's export delegates to. (A page on Python asked
+  `planner.json` the kinds its planner sent, `engine.py` `_PAGE_KINDS` -- retired 2026-10-15, PR neema2/legend-lite#47:
+  a page asks Python on legend-engine's own routes, `pure/v1`, and the host's compute, `plan-and-run.json` and its dry
+  run `plan.json`, over the models Python serves only; the one-app design's §15.10.)
 - Every kind answers folded alike on both hosts: the tab's `release` and `warm` through new exports
   (`TabExports.releaseModelOrError`, `warmModelOrError`, as the native library's entries fold them; the Plan Gen line's
   review). And one mapping of kinds to exports wherever the module runs: DataCube's LitePlanner, with no worker,
@@ -641,8 +641,8 @@ an audit.
   go to the compiler pool, as Python's own planner's do. The SQL runs on the
   warehouse, through the binding, as the signed-in person; the server's Arrow chunks are the rows, typed by the plan
   as Python's own are. The binding's calls run on the compiler pool (`warehouse.set_library_thread`): a thread that
-  calls the library is attached to it for good. The planner protocol's held kinds (a grid's column types) know the
-  table's model too.
+  calls the library is attached to it for good. A page's dry run (`plan.json`, 2026-10-15) plans over the table's
+  model too.
 - **The page.** `WarehouseService` gains `table`, the host's own reading; `live` is the tab's. `pythonServices` gives
   the warehouse when Python offers it. `sources.ts` opens a table through `table` when the service has it
   (`openedHostTable`): its rows the host's runner, as a frame's are. Opening needs no `services.engine.local`. A page on

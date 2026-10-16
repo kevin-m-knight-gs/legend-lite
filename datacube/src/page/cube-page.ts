@@ -32,8 +32,9 @@ import { followCube, GRID_MARKS, measureName } from '../chart-spec.ts';
 import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import {
-  FIRST_SHEET, PAGE_CUBE, givenName, type ChartView, type PageSheet, type PageView, type PageViews,
+  FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews,
 } from '../page-document.ts';
+import { givenName } from '../page-names.ts';
 import { withoutConditions, type AggregateFn, type CubeSnapshot, type FilterNode, type Measure } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
@@ -378,7 +379,7 @@ export class CubePage {
   /** A sheet's name: its own (trimmed), or -- empty or undefined -- named again after what it shows. */
   renameSheet(id: string, name: string | undefined): void {
     const sheet = this.#sheets.find((s) => s.id === id);
-    // the one rule (page-document.ts givenName): trimmed, a blank none of its own (named after its first grid)
+    // the one rule (page-names.ts givenName): trimmed, a blank none of its own (named after its first grid)
     const given = givenName('sheet', name ?? '');
     const own = 'name' in given ? given.name : undefined;
     if (!sheet || sheet.name === own) return;

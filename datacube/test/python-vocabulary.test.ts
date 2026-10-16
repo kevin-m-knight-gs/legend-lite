@@ -2,8 +2,7 @@
 // DataCube's own words: its aggregates, sort directions and charts, the page's version, each as DataCube's sources
 // spell them -- so a name added here is one Python offers too, and Python never writes one DataCube does not read
 // (where it places a tile, what a grid's cube holds and what its filter takes, DataCube's own code says, headless). It
-// reads Python's side as text (the two halves are in two languages), and DataCube's types as text, its values as they
-// are.
+// reads both sides as text: the two halves are in two languages.
 //
 // Pins retired, not loosened (2026-10-15, the twins program, PR neema2/legend-lite#47): each went with the Python copy
 // it held equal, which now asks DataCube's own code headless instead -- BAND_HEIGHT, MAX_COLUMNS and SCREEN_BANDS with
@@ -20,7 +19,7 @@ import { Sources } from '../../tools/js/runfiles.mts';
 
 // the sources this reads, as the BUILD target declares them (_SCANNED)
 const SOURCES = new Sources('SOURCES', 'datacube');
-const PAGE = '../python/legend_lite/page.py';
+const PYTHON = SOURCES.read('../python/legend_lite/page.py');
 
 /** The quoted names of a TypeScript union type, `export type Name = 'a' | 'b' ...;`. */
 function union(file: string, name: string): string[] {
@@ -31,23 +30,17 @@ function union(file: string, name: string): string[] {
   return [...body.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]!).sort();
 }
 
-/** The quoted names of a Python constant in `file`: `NAME = frozenset({'a', 'b', ...})` or `NAME = ('a', 'b', ...)`. */
-function python(name: string, file = PAGE): string[] {
-  const text = SOURCES.read(file);
-  const found = new RegExp(`^${name} = (frozenset\\(\\{|\\()`, 'm').exec(text);
-  assert.ok(found, `${file} declares ${name}`);
-  const body = text.slice(found.index, text.indexOf(found[1] === '(' ? ')' : '})', found.index));
-  return [...body.matchAll(/'([A-Za-z][A-Za-z0-9]*)'/g)].map((m) => m[1]!).sort();
+/** The quoted names of a Python constant, `NAME = frozenset({'a', 'b', ...})`. */
+function python(name: string): string[] {
+  const at = PYTHON.indexOf(`${name} = frozenset({`);
+  assert.ok(at >= 0, `page.py declares ${name}`);
+  const body = PYTHON.slice(at, PYTHON.indexOf('})', at));
+  return [...body.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]!).sort();
 }
 
-/** A number's digits as either language may write them, `_` between groups (`10_000_000`). */
-const digits = (text: string | undefined): number => Number(text?.replaceAll('_', ''));
-
-/** A numeric constant: `export const NAME = 0.5;` in TypeScript, `NAME = 0.5` in Python (page.py unless `file`). */
-const tsNumber = (file: string, name: string): number =>
-  digits(new RegExp(`export const ${name} = ([\\d_.]+);`).exec(SOURCES.read(file))?.[1]);
-const pyNumber = (name: string, file = PAGE): number =>
-  digits(new RegExp(`^${name} = ([\\d_.]+)$`, 'm').exec(SOURCES.read(file))?.[1]);
+/** A numeric constant: `export const NAME = 0.5;` in TypeScript, `NAME = 0.5` in Python. */
+const tsNumber = (file: string, name: string): number => Number(new RegExp(`export const ${name} = ([\\d.]+);`).exec(SOURCES.read(file))?.[1]);
+const pyNumber = (name: string): number => Number(new RegExp(`^${name} = ([\\d.]+)$`, 'm').exec(PYTHON)?.[1]);
 
 describe('Python writes pages in DataCube\'s own words', () => {
   it('its aggregates, sort directions and charts are the grid\'s and the chart\'s', () => {

@@ -66,7 +66,7 @@ the DataCube + Python line before CI (the BUILD edits by the Compiler Rewrite li
 
 What is left, and why:
 
-- **Item 1's name rules -- done** (2026-10-15, the user: "blank, one rule please"): `page-document.ts givenName`, a page's
+- **Item 1's name rules -- done** (2026-10-15, the user: "blank, one rule please"): `page-names.ts givenName`, a page's
   name and a tile's title not blank, a sheet's blank none of its own; the screen's renames, the reader and Python
   (headless `nameGiven`) ask it.
 - **Item 8's rest** (`engine.py _warehouse_snap`'s preflight and receipt): left to the DataCube + Python line's plan for
@@ -96,7 +96,7 @@ spread), and `CubeController.compile` types the cube first, as a refresh does, s
 run sends. Python's columns are measures unless told, as the editor's are.
 
 **A class's sample writes a NaN or an infinity as `null`** (found 2026-10-15, the audit of item 7): `sample-rows.ts
-sampleRows` keeps a double as the executor gives it, and the sample goes to the route as JSON, which has neither, so
+sampleOf` keeps a double as the executor gives it, and the sample goes to the route as JSON, which has neither, so
 `JSON.stringify` writes `null` -- the window's Create a Class and, since item 7, Python's alike. Python's own writer
 refused them before. A silent `null` is a default (AGENTS.md invariant 4); refusing such a sample, or writing the
 value as text, is the DataCube + Python line's to choose.

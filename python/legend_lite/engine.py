@@ -367,6 +367,14 @@ class _WarehouseTable:
     def snapped(self) -> bool:
         return self.holders > 0
 
+    def refused_runtime(self, runtime: str) -> str | None:
+        """Why a query of this table may not name ``runtime``, or None: its own runtime (live, on the warehouse), or its
+        snap runtime while a copy is held. Asked by its plan-and-run and its dry run alike (``plan.json``)."""
+        if runtime == self.runtime or (runtime == self.snap_runtime and self.snapped):
+            return None
+        return (f'{self.schema}.{self.name} is read on its warehouse, through its own runtime, or snapped, through its '
+                "copy's")
+
     def reads(self, base_url: str, catalog: str) -> bool:
         return self.warehouse.base_url.rstrip('/') == base_url.rstrip('/') and self.catalog == catalog
 
@@ -1007,19 +1015,18 @@ class Engine:
             return self._warehouse_tables.get(model)
 
     def _warehouse_plan_and_run(self, table: _WarehouseTable, body: str) -> Answer:
-        """PLANANDRUN over a warehouse table (C3): planned by the planner Python chose against the model it holds, on
-        the compiler's threads; against the live runtime its SQL runs on the warehouse as the signed-in person, the
+        """PLANANDRUN over a warehouse table (C3): planned by Python's planner against the model it holds, on the
+        compiler's threads; against the live runtime its SQL runs on the warehouse as the signed-in person, the
         server's Arrow chunks the rows, typed by the plan as Python's own are; against the snap runtime, on the copy in
         the frames' DuckDB while there is one. The page sends Pure, never SQL (R4). An expired session is 401, its words
         the driver's, with ``expired`` naming the warehouse and the person (the page offers to sign in again)."""
         asked = json.loads(body)
         if not all(isinstance(asked.get(k), str) for k in ('lambda', 'model', 'runtime')):
             return _said(400, 'a plan-and-run is {"lambda", "model", "runtime"}, each a string')
+        wrong = table.refused_runtime(asked['runtime'])
+        if wrong is not None:
+            return _planned({'plan': self.planner.refused_plan(wrong)})
         snapped = asked['runtime'] == table.snap_runtime and table.snapped
-        if asked['runtime'] != table.runtime and not snapped:
-            return _planned({'plan': self.planner.refused_plan(
-                f'{table.schema}.{table.name} is read on its warehouse, through its own runtime, or snapped, through its '
-                'copy\'s')})
         on = _on_planner_threads()
         planned = on(self.planner.plan, asked['lambda'], table.held, asked['runtime'])
         try:
@@ -1086,7 +1093,7 @@ class Engine:
 
     def _project_plan_and_run(self, asked: dict[str, str], refused: str) -> Answer:
         """A plan-and-run over a project's model (a saved query opened on Python's page: C5): planned against
-        the model held beside the project's own database, by the planner chosen, and run there on its cursor -- the
+        the model held beside the project's own database, by Python's planner, and run there on its cursor -- the
         page sent Pure; the rows are the project's Data rows. A model with none is refused, as one Python serves no
         table of is."""
         with self.projects.using(asked['model']) as project:
@@ -1123,7 +1130,12 @@ class Engine:
             if held is None:
                 with self._warehouse_lock:
                     table = self._warehouse_tables.get(asked['model'])
-                held = table.held if table is not None else None
+                if table is not None:
+                    # the runtime its run takes, refused as its run refuses it
+                    wrong = table.refused_runtime(asked['runtime'])
+                    if wrong is not None:
+                        return _planned({'plan': self.planner.refused_plan(wrong)})
+                    held = table.held
             if held is not None:
                 return _planned({'plan': self.planner.plan(asked['lambda'], held, asked['runtime'])})
             with self.projects.using(asked['model']) as project:
