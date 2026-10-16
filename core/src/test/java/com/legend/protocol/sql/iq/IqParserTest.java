@@ -143,10 +143,9 @@ class IqParserTest {
                 {"SELECT dba.f(id) FROM t", "owner-qualified"},
                 // IQ island, 2026-10-14 (M1a): LIKE, IN lists and the truth tests are read now; these are not
                 {"SELECT id FROM t WHERE vc SIMILAR TO 'a%'", "SIMILAR"},
-                // IQ island, 2026-10-14 (M1b): IN (subquery) and scalar subqueries are read now (below); KEY JOIN and
-                // APPLY stay refused
+                // IQ island, 2026-10-14 (M1b): IN (subquery) and scalar subqueries are read now (below); KEY JOIN
+                // stays refused (IQ island, 2026-10-16, checklist 2.16c: APPLY is read)
                 {"SELECT a.id FROM t a KEY JOIN u b", "KEY JOIN"},
-                {"SELECT a.id FROM t a CROSS APPLY u b", "APPLY"},
                 {"SELECT id FROM t WHERE id IS OF (INT)", "is not supported"},
                 {"SELECT id & 1 FROM t", "bitwise"},
                 // IQ island, 2026-10-14 (M1e): :name and @name are host variables now (below); ? names none

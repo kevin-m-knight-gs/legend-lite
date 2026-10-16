@@ -283,7 +283,7 @@ tests:
     sql: "SELECT t.id, DUMMY.dummy_col FROM t CROSS JOIN DUMMY WHERE t.id = 1"
   - id: cross_join_with_on_is_a_syntax_error
     sql: "SELECT t.id FROM t CROSS JOIN u ON t.id = u.id"
-  - id: cross_apply_is_refused
+  - id: cross_apply_of_a_constant_row
     sql: "SELECT t.id FROM t CROSS APPLY (SELECT 1 AS x) d"
 
   # ---- NATURAL JOIN: the shared columns are not merged

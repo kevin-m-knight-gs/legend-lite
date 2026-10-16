@@ -2015,13 +2015,13 @@ lite/lateral/lateral_top_one_per_department	PASS	PASS
 lite/lateral/lateral_aggregate_per_row	PASS	PASS
 lite/lateral/lateral_join_on	PASS	PASS
 lite/lateral/lateral_name_both_sides_hold	PASS	PASS
-lite/lateral/lateral_reads_the_item_before_it_twice	REFUSED	REFUSED
+lite/lateral/lateral_reads_the_item_before_it_twice	PASS	PASS
 lite/lateral/left_join_lateral_is_refused	REFUSED	REFUSED
 lite/lateral/a_subquery_without_lateral_cannot_read_the_items_before_it	BOTH_ERROR	BOTH_ERROR
 lite/lateral/no_from_is_one_row	PASS	PASS
 lite/lateral/no_from_filtered_away	PASS	PASS
 lite/lateral/no_from_star_is_an_error	BOTH_ERROR	BOTH_ERROR
-lite/lateral/lateral_select_without_from	REFUSED	REFUSED
+lite/lateral/lateral_select_without_from	PASS	PASS
 lite/lateral/select_list_function_reads_only_the_rows_where_keeps	PASS	PASS
 lite/lateral/select_list_function_alias_is_no_column_in_where	BOTH_ERROR	BOTH_ERROR
 lite/lateral/star_with_a_select_list_function	PASS	PASS

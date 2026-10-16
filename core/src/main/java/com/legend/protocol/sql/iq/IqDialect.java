@@ -1071,7 +1071,8 @@ public final class IqDialect implements InputDialect {
                         } else {
                             columns.put(IqLexer.lower(name.text()), cols);
                         }
-                        if (leaf instanceof SqlAst.SubqueryFrom d) {
+                        if (leaf instanceof SqlAst.SubqueryFrom d && !d.lateral()) {
+                            // (IQ island, 2026-10-16: an APPLY's lateral query reads the items before it)
                             bound(d.query(), mine);
                         }
                     }
@@ -1358,6 +1359,7 @@ public final class IqDialect implements InputDialect {
         }
         Engine chosen = engine != null ? engine : engineOf(statement, settings);
         if (chosen == Engine.IQ) {
+            appliedQueries(statement);
             subqueryPlaces(statement);
             iqEngineRestrictions(statement);
         }
@@ -2560,6 +2562,40 @@ public final class IqDialect implements InputDialect {
                         }
                     }
                     children(x).forEach(todo::push);
+                }
+            }
+        }
+    }
+
+    /**
+     * IQ island, 2026-10-16 (checklist 2.16c, measured on IQ 17.1): under IQ's engine a CROSS or OUTER APPLY of a query
+     * with FROM that reads the FROM items before it ({@link IqParser} marks it lateral) is IQ's error: -1006000 (its
+     * internal error) where the query aggregates, is DISTINCT or computes a window function; -1001030 where it is a
+     * UNION ("correlated UNION subqueries") or reads rows ("lateral derived table"). IQ answers an APPLY of a query that
+     * reads nothing before it (a join), of one row computed from them (CROSS APPLY (SELECT t.id * 2 AS d) x), and of a
+     * FROM function.
+     */
+    private static void appliedQueries(SqlAst.Statement statement) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s)) {
+                continue;
+            }
+            for (SqlAst.FromItem f : s.from()) {
+                for (SqlAst.FromItem leaf : leaves(f)) {
+                    if (!(leaf instanceof SqlAst.SubqueryFrom d) || !d.lateral()
+                            || d.query() instanceof SqlAst.Select one && one.from().isEmpty()) {
+                        continue;
+                    }
+                    String applied = "a CROSS or OUTER APPLY of a query with FROM that reads the FROM items before it";
+                    if (d.query() instanceof SqlAst.Select a && (a.distinct() || !a.groupBy().isEmpty()
+                            || expressions(a).stream().anyMatch(e -> hasAggregate(e) || hasWindowCall(e)))) {
+                        throw SqlTranslationException.unsupported(applied + " and aggregates, is DISTINCT or computes a"
+                                + " window function is IQ's internal error -1006000 under its engine, refused before"
+                                + " translating", d.pos());
+                    }
+                    throw SqlTranslationException.unsupported(applied + " is IQ's error -1001030 under its engine ("
+                            + (d.query() instanceof SqlAst.SetOperation ? "correlated UNION subqueries"
+                            : "a lateral derived table") + "), refused before translating", d.pos());
                 }
             }
         }

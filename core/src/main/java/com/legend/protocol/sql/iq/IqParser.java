@@ -9,6 +9,7 @@ import com.legend.protocol.sql.SqlSyntaxException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -984,10 +985,11 @@ public final class IqParser {
      * <pre>
      *   join:  [NATURAL] [INNER | LEFT [OUTER] | RIGHT [OUTER] | FULL [OUTER]] JOIN factor [ON condition]
      *        | CROSS JOIN factor
+     *        | CROSS APPLY factor | OUTER APPLY factor
      * </pre>
      * A join with neither ON nor NATURAL (or written KEY JOIN) is IQ's KEY JOIN, made of the tables' foreign keys: it
      * reads, and the dialect refuses it by name (its ON is null and its kind not CROSS). USING is IQ's syntax error;
-     * APPLY and the T-SQL outer joins are refused by name.
+     * the T-SQL outer joins are refused by name; APPLY is read as a join of a lateral factor (IqDialect.applied).
      */
     private SqlAst.FromItem tableExpression() {
         SqlAst.FromItem left = tableFactor();
@@ -1000,7 +1002,27 @@ public final class IqParser {
                         + IqDialect.syntaxCode(), t.pos());
             }
             if ((t.is("cross") || t.is("outer")) && peek(1).isWord("apply")) {
-                throw SqlSyntaxException.unsupported(t.text() + " APPLY is not supported yet", t.pos());
+                // IQ island, 2026-10-16 (checklist 2.16c, measured on IQ 17.1): CROSS APPLY as a CROSS JOIN, OUTER
+                // APPLY as a LEFT JOIN on a true condition; a derived table applied is marked lateral, for
+                // IqDialect.applied to read by IQ's rules (it may read the FROM items before it)
+                boolean outer = t.is("outer");
+                take();
+                take();
+                SqlAst.FromItem right = tableFactor();
+                if (right instanceof SqlAst.SubqueryFrom d) {
+                    boolean oneRow = oneRow(d.query());
+                    if (oneRow || readsBefore(d.query(), left)) {
+                        // a query of one row (OUTER as CROSS), or one reading the FROM items before it: lateral
+                        right = new SqlAst.SubqueryFrom(d.query(), d.alias(), d.columnAliases(), true, d.pos());
+                        outer &= !oneRow;
+                    }
+                }
+                SqlAst.Expr on = outer ? new SqlAst.Binary(SqlAst.BinaryOp.EQ, new SqlAst.IntegerLit(
+                        java.math.BigInteger.ONE, t.pos()), new SqlAst.IntegerLit(java.math.BigInteger.ONE, t.pos()),
+                        t.pos()) : null;
+                left = new SqlAst.Join(outer ? SqlAst.JoinType.LEFT : SqlAst.JoinType.CROSS, false, left, right, on,
+                        List.of(), t.pos());
+                continue;
             }
             boolean natural = false;
             if (t.is("natural") || t.is("key")) {
@@ -1070,6 +1092,51 @@ public final class IqParser {
     /** A table factor (the research's GRAMMAR R4): a table, a FROM function, a derived table
      *  {@code ( query ) [AS] name [(columns)]} (its name mandatory), or a parenthesized table expression, which takes no
      *  name of its own; a comma inside the parentheses is a cross join there. */
+    /** IQ island, 2026-10-16 (checklist 2.16c): whether {@code q} is one row whatever it reads -- a SELECT without
+     *  FROM, WHERE, grouping or row limit (an APPLY's computed columns: CROSS APPLY (SELECT t.id * 2 AS d) x). */
+    private static boolean oneRow(SqlAst.Statement q) {
+        return q instanceof SqlAst.Select s && s.from().isEmpty() && s.where() == null && s.groupBy().isEmpty()
+                && s.having() == null && s.limit() == null && s.offset() == null;
+    }
+
+    /** IQ island, 2026-10-16 (checklist 2.16c): whether {@code q} reads a column qualified by a correlation name of
+     *  {@code before} (the FROM items before an APPLY) that none of its own FROM items has. */
+    private static boolean readsBefore(SqlAst.Statement q, SqlAst.FromItem before) {
+        Set<String> outer = new HashSet<>();
+        for (SqlAst.FromItem leaf : IqDialect.leaves(before)) {
+            SqlAst.Ident c = IqDialect.correlationOf(leaf);
+            if (c != null) {
+                outer.add(IqLexer.lower(c.text()));
+            }
+        }
+        Set<String> own = new HashSet<>();
+        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+        for (SqlAst.Statement inner : IqDialect.queries(q)) {
+            if (inner instanceof SqlAst.Select s) {
+                for (SqlAst.FromItem f : s.from()) {
+                    for (SqlAst.FromItem leaf : IqDialect.leaves(f)) {
+                        SqlAst.Ident c = IqDialect.correlationOf(leaf);
+                        if (c != null) {
+                            own.add(IqLexer.lower(c.text()));
+                        }
+                    }
+                }
+                for (SqlAst.Expr e : IqDialect.expressions(s)) {
+                    IqDialect.columnRefs(e, refs);
+                }
+            }
+        }
+        for (SqlAst.ColumnRef r : refs) {
+            if (r.parts().size() >= 2) {
+                String qualifier = IqLexer.lower(r.parts().get(r.parts().size() - 2).text());
+                if (outer.contains(qualifier) && !own.contains(qualifier)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private SqlAst.FromItem tableFactor() {
         IqLexer.Token first = peek();
         if (!first.isOp("(")) {

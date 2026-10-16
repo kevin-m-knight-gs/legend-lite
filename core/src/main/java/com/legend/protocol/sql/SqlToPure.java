@@ -1603,6 +1603,11 @@ public final class SqlToPure {
         if (type != SqlAst.JoinType.CROSS && type != SqlAst.JoinType.INNER) {
             throw SqlTranslationException.unsupported(type + " JOIN LATERAL is not supported yet", pos);
         }
+        if (item instanceof SqlAst.SubqueryFrom q && q.query() instanceof SqlAst.Select one && one.from().isEmpty()
+                && one.where() == null && one.groupBy().isEmpty() && one.having() == null && one.limit() == null
+                && one.offset() == null && !one.distinct() && !hasWindow(one)) {
+            return computedColumns(left, q, one, on);
+        }
         Input outer = new Input(left.bindings(), left.star(), "a LATERAL item");
         Source right = switch (item) {
             case SqlAst.TableFunction f -> functionSource(f, outer);
@@ -1616,6 +1621,54 @@ public final class SqlToPure {
         List<Col> star = new ArrayList<>(left.star());
         star.addAll(apart.star());
         ValueSpecification relation = call("lateral", left.relation(), lambda(row, apart.relation()));
+        if (on != null) {
+            relation = call("filter", relation, lambda(row, condition(on, new Input(bindings, star, "JOIN/ON"),
+                    "JOIN/ON")));
+        }
+        return new Source(relation, bindings, star);
+    }
+
+    /**
+     * IQ island, 2026-10-16 (checklist 2.16c: T-SQL's {@code CROSS APPLY (SELECT t.id * 2 AS d) x}): {@code left,
+     * LATERAL (SELECT e1 AS a, ...)} of a query of one row -- no FROM, WHERE, grouping, DISTINCT, window or row limit
+     * -- is each left row with its columns computed: the left relation extended by them, under the item's name (a
+     * lateral of a one-row relation over an enclosing row is not lowered yet). Each column is named, by its alias or
+     * the item's column list.
+     */
+    private Source computedColumns(Source left, SqlAst.SubqueryFrom q, SqlAst.Select s,
+            SqlAst.@com.legend.base.Nullable Expr on) {
+        Input outer = new Input(left.bindings(), left.star(), "a LATERAL item");
+        Set<String> taken = new HashSet<>();
+        left.star().forEach(c -> taken.add(c.name()));
+        left.bindings().forEach(b -> b.columns().forEach(c -> taken.add(c.col().name())));
+        List<ColSpec> computed = new ArrayList<>();
+        List<BCol> cols = new ArrayList<>();
+        List<Col> star = new ArrayList<>(left.star());
+        for (int i = 0; i < s.items().size(); i++) {
+            if (!(s.items().get(i) instanceof SqlAst.SelectExpr x)) {
+                throw SqlTranslationException.unsupported("* in a LATERAL query without FROM is not supported yet",
+                        s.pos());
+            }
+            SqlAst.Ident label = i < q.columnAliases().size() ? q.columnAliases().get(i) : x.alias();
+            if (label == null) {
+                throw SqlTranslationException.unsupported("an unnamed column of a LATERAL query without FROM is not"
+                        + " supported yet", x.pos());
+            }
+            Tx t = tx(x.expr(), outer, row);
+            if (t.kind() == Kind.NULL) {
+                throw SqlTranslationException.unsupported("a NULL column of a LATERAL query without FROM is not"
+                        + " supported yet", x.pos());
+            }
+            String name = fresh(taken);
+            computed.add(new ColSpec(name, lambda(row, valueOf(t)), null, null));
+            Col col = new Col(name, t.kind(), t.nullable(), null, label.quoted() ? label.text()
+                    : dialect.fold(label.text()), t.detail());
+            cols.add(new BCol(col, true));
+            star.add(col);
+        }
+        List<Binding> bindings = new ArrayList<>(left.bindings());
+        bindings.add(new Binding(q.alias(), cols));
+        ValueSpecification relation = call("extend", left.relation(), new ColSpecArray(computed));
         if (on != null) {
             relation = call("filter", relation, lambda(row, condition(on, new Input(bindings, star, "JOIN/ON"),
                     "JOIN/ON")));
@@ -1670,8 +1723,9 @@ public final class SqlToPure {
             throw SqlTranslationException.unsupported("function \"" + fn + "\" in FROM is not supported yet", f.pos());
         }
         return switch (kind) {
+            // IQ island, 2026-10-16: a flattened column is Pure's [0..1] (the typer's), never NULL though it is
             case SERIES -> new Rel(call("flatten", series(argExprs, scope, f.pos()), colSpec(column)),
-                    List.of(new OutCol(column, Kind.INTEGER, false)));
+                    List.of(new OutCol(column, Kind.INTEGER, true)));
             case UNNEST -> {
                 if (argExprs.size() != 1) {
                     throw SqlTranslationException.unsupported("unnest of " + argExprs.size() + " arrays is not"
@@ -1679,7 +1733,7 @@ public final class SqlToPure {
                 }
                 Tx elements = array(argExprs.get(0), scope);
                 yield new Rel(call("flatten", elements.vs(), colSpec(column)),
-                        List.of(new OutCol(column, elements.kind(), false)));
+                        List.of(new OutCol(column, elements.kind(), true)));
             }
             case ELEMENTS -> {
                 // each element as jsonb (jsonb's null an element too); none for SQL's NULL; a value that is not an
