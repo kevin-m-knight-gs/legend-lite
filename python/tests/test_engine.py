@@ -355,7 +355,9 @@ class Planes(Served):
                 return super().execute_plan(body, models)
 
         self.server.close()
-        self.server = WebServer(Engine(self.frames, planner=Counting()))
+        # the one place an engine makes its planner, patched for this engine alone
+        with mock.patch('legend_lite.engine.NativePlanner', Counting):
+            self.server = WebServer(Engine(self.frames))
         self.arrow(GROUP)
         self.post('/api/pure/v1/grammar/grammarToJson/lambda', '|1')
         self.assertEqual(asked, ['execute', '/api/pure/v1/grammar/grammarToJson/lambda'])

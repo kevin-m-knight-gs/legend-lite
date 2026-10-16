@@ -12,6 +12,7 @@ import {
   FIRST_SHEET,
   PAGE_KIND,
   PageDocumentError,
+  PageNoCubeError,
   oneSheet,
   pageDefinitionText,
   pageToJson,
@@ -195,6 +196,8 @@ describe('a saved page', () => {
   it('says what is wrong with a page it cannot read', () => {
     const raw = JSON.parse(pageToJson(page()));
     const bad = (patch: Record<string, unknown>) => () => readPage(JSON.stringify({ ...raw, ...patch }));
+    // a page with no cube, refused by name (PageNoCubeError): a host says what makes one, never guessing it
+    assert.throws(bad({ cubes: [] }), PageNoCubeError);
     assert.throws(bad({ cubes: [] }), PageDocumentError);
     assert.throws(bad({ cubes: [] }), /no cube/);
     // two cubes of one id: a view could not say which it shows

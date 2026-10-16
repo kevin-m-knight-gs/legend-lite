@@ -386,13 +386,11 @@ class Engine:
     messages."""
 
     def __init__(self, frames: Frames, site: str | Path | None = None,
-                 headless: Callable[[], Any] | None = None, planner: NativePlanner | None = None,
-                 pages: str | Path | None = None) -> None:
+                 headless: Callable[[], Any] | None = None, pages: str | Path | None = None) -> None:
         """``headless``: DataCube's own non-screen code over the frames' database (legend_lite._headless), made when
         first asked for -- what reads a page's file into it (file.json). Absent, the engine takes no file, and says so
-        (services.json). ``planner``: the native library's planner (a test's own, to see each call it answers).
-        ``pages``: the folder the page's Save and Open… keep pages in (step 2d, B6): this user's (``home()/pages``) when
-        not given."""
+        (services.json). ``pages``: the folder the page's Save and Open… keep pages in (step 2d, B6): this user's
+        (``home()/pages``) when not given."""
         self.frames = frames
         self._headless = headless
         # where the frames' DuckDB was pointed for its extensions (a remote file's httpfs), once it was
@@ -408,7 +406,7 @@ class Engine:
         self._warehouse_lock = threading.Lock()
         # the binding's calls on the compiler's threads, never a connection's (warehouse.set_library_thread)
         warehouse.set_library_thread(_on_compiler_threads)
-        self.planner = planner if planner is not None else NativePlanner()
+        self.planner = NativePlanner()
         # a project's own rows, when Query or Studio served here runs one of its queries (C5): each project
         # version in a database of its own inside the frames' DuckDB, made by the native library's statements
         self.projects = ProjectDatabases(frames.connection, guard=frames.holding)

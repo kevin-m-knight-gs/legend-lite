@@ -4,7 +4,7 @@
 // (readPage), written as DataCube writes it (pageToJson) -- so Python checks and writes no page by rules of its own.
 
 import { CubeDocumentError } from '../cube-document.ts';
-import { PageDocumentError, pageToJson, readPage } from '../page-document.ts';
+import { PageDocumentError, PageNoCubeError, pageToJson, readPage } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
 
 /**
@@ -16,7 +16,8 @@ export function pageRead(text: string): string {
     return JSON.stringify({ page: pageToJson(readPage(text)) });
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
-    return JSON.stringify({ problems: [e.message] });
+    // a page with no cube said as one (PageNoCubeError), so Python adds what makes one rather than guessing it
+    return JSON.stringify({ problems: [e.message], ...(e instanceof PageNoCubeError ? { noCube: true } : {}) });
   }
 }
 

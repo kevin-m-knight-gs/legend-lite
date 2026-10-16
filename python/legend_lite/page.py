@@ -1160,13 +1160,11 @@ class Page:
         self._written()
 
     def _written(self) -> dict[str, Any]:
-        """The page as DataCube reads it, to be written, saved or shown: refused in DataCube's words -- a page with no
-        grid yet with Python's own call to make one after them, as a filter's refusals say Python's call form."""
+        """The page as DataCube reads it, to be written, saved or shown: refused in DataCube's words -- a page DataCube
+        says has no cube with Python's own call to make one after them, as a filter's refusals say Python's call form."""
         try:
             return _read_page(self._doc, self._session)
-        except ValueError as refused:
-            if self._doc['cubes']:
-                raise
+        except _NoCube as refused:
             raise ValueError(f'{refused} -- in Python, page.grid(frame) adds one') from None
 
     def _changed(self) -> None:
@@ -1291,6 +1289,11 @@ def _ids(doc: dict[str, Any]) -> set[str]:
     return {x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]}
 
 
+class _NoCube(ValueError):
+    """DataCube's reader refused a page for having no cube (headless pageRead's ``noCube``): told, so Python can add
+    the call that makes one."""
+
+
 def _read_page(doc: Any, session: Any) -> dict[str, Any]:
     """``doc`` (a page document, or its JSON text as it is) as DataCube reads a page document and would write it again
     (page-document.ts readPage and pageToJson, asked headless, on ``session``'s engine: the page's own): of any version
@@ -1298,7 +1301,7 @@ def _read_page(doc: Any, session: Any) -> dict[str, Any]:
     keeps no second copy of them. Then what a page in Python adds: each cube over a frame."""
     said = json.loads(session.headless().call('pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
     if 'problems' in said:
-        raise ValueError('; '.join(said['problems']))
+        raise (_NoCube if said.get('noCube') else ValueError)('; '.join(said['problems']))
     page: dict[str, Any] = _plain(_json.loads(said['page']))
     for c in page['cubes']:
         source = c['cube']['source']

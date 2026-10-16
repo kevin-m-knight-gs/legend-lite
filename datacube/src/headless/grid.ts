@@ -37,7 +37,7 @@ import {
   classLambda, levelLambda, pinnedPivotFacts, pivotValuesLambda, sampleLambda, storeTableOf, type PivotFacts,
 } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
-import { sampleOf } from '../sample-rows.ts';
+import { SampleRefusal, sampleOf, type SampleRows } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SORT_DIRECTIONS, isJsonValue, isRelativeDate, rowColumns, type AggregateFn,
@@ -551,7 +551,14 @@ export async function gridClass(spec: GridSpec, named: { readonly source: string
     };
     // its first rows as the window writes them into the project (sample-rows.ts sampleOf), read on the host's database
     const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
-    const sample = await sampleOf(runner.host, sampleLambda(state.snapshot.source.query));
+    let sample: SampleRows;
+    try {
+      sample = await sampleOf(runner.host, sampleLambda(state.snapshot.source.query));
+    } catch (e) {
+      // refused in words, as the window says it (a NaN or an infinity the sample cannot carry)
+      if (!(e instanceof SampleRefusal)) throw e;
+      return JSON.stringify({ refused: e.message });
+    }
     return `{"query":${toJson(classLambda(state.snapshot))},"sample":${JSON.stringify(sample)},`
       + `"table":${JSON.stringify(table)},"source":${JSON.stringify(planner.source())},"names":${JSON.stringify(names)}}`;
   });

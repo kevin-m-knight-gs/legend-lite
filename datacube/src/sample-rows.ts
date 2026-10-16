@@ -12,13 +12,30 @@ export interface SampleRows {
   readonly rows: (string | number | boolean | null)[][];
 }
 
-/** A class's first rows as the route's sample takes them (a bigint as text), planned and run where its grid's are. */
+/** A sample DataCube does not write, and why: a value the route's JSON has no spelling for, named by its place. */
+export class SampleRefusal extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SampleRefusal';
+  }
+}
+
+/**
+ * A class's first rows as the route's sample takes them (a bigint as text), planned and run where its grid's are. A
+ * NaN or an infinity is refused, naming its column and row, before anything is written: the sample goes to the route
+ * as JSON, which has neither, and JSON.stringify would write `null` -- a value the data never had (AGENTS.md invariant
+ * 4; found 2026-10-15, refused 2026-10-16).
+ */
 export async function sampleOf(host: PlanAndRunHost, sample: Lambda): Promise<SampleRows> {
   const { rows } = await host.planAndRun(sample, 0);
   return {
     columns: rows.columns.map((c) => c.name),
     rows: [...Array(rows.rowCount).keys()].map((r) => rows.columns.map((c) => {
       const v = c.values[r] ?? null;
+      if (typeof v === 'number' && !Number.isFinite(v)) {
+        throw new SampleRefusal(`the sample's ${c.name} in row ${r + 1} is ${String(v)}, which a class's data cannot `
+          + 'hold: its rows are written as JSON, which has no NaN or infinity');
+      }
       return typeof v === 'bigint' ? String(v) : v;
     })),
   };

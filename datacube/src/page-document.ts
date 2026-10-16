@@ -109,6 +109,14 @@ export class PageDocumentError extends Error {
   }
 }
 
+/** A page with no cube: DataCube opens none -- its own refusal, by name, so a host can say what makes one. */
+export class PageNoCubeError extends PageDocumentError {
+  constructor() {
+    super('it has no cube');
+    this.name = 'PageNoCubeError';
+  }
+}
+
 // `layout`: a version 1 or 2 page's, read into its one sheet (and not written back beside the sheets)
 const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'layout', 'model']);
 
@@ -238,7 +246,7 @@ export function readPage(input: string | unknown): PageDocument {
   if (!named('page', raw['name'])) throw new PageDocumentError("the page's name is blank");
 
   const cubesRaw = raw['cubes'];
-  if (!Array.isArray(cubesRaw) || cubesRaw.length === 0) throw new PageDocumentError('it has no cube');
+  if (!Array.isArray(cubesRaw) || cubesRaw.length === 0) throw new PageNoCubeError();
   const cubes = cubesRaw.map((c, i) => {
     if (!isObject(c) || typeof c['id'] !== 'string' || !isObject(c['cube'])) {
       throw new PageDocumentError(`cube ${i + 1} is not an id and a cube`);

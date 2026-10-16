@@ -315,6 +315,17 @@ class OnThePage(unittest.TestCase):
             'rows': [['FX', 1, str(2 ** 60), Decimal('1.5'), '12.30', '2024-01-01', '2024-01-01T09:30:00.12', True],
                      ['EQ', 2, 3, 2, '1.05', '2024-01-02', '2024-01-02T10:00:00', None]]})
 
+    def test_a_sample_holding_a_nan_or_an_infinity_is_refused_never_written_as_null(self):
+        # the sample goes to the route as JSON, which has no NaN or infinity: refused by DataCube's sampleOf, naming the
+        # column and the row, before anything is written (it wrote null, a value the data never had)
+        page = ll.Page('Odd values')
+        nan = page.grid(pa.table({'desk': ['FX', 'EQ'], 'rate': pa.array([1.5, float('nan')])}), name='odd_nan')
+        with self.assertRaisesRegex(ValueError, r"the sample's rate in row \d is NaN, which a class's data cannot hold"):
+            nan._class()
+        infinite = page.grid(pa.table({'desk': ['FX'], 'rate': pa.array([float('-inf')])}), name='odd_infinite')
+        with self.assertRaisesRegex(ValueError, r"the sample's rate in row 1 is -Infinity"):
+            infinite.create_class('Odd')
+
     def test_the_project_made_is_named_as_asked(self):
         page = _page(self)
         page.grids[0].create_class('Trade', project='Desk book')
