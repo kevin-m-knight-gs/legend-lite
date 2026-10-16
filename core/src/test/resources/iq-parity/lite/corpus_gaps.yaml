@@ -251,3 +251,17 @@ tests:
   - id: table_hints_nolock
     sql: "SELECT t.id, u.label FROM t WITH (NOLOCK) JOIN u WITH (READUNCOMMITTED) ON u.t_id = t.id ORDER BY 1, 2"
     profile: iq17-default
+
+  # ---- a constant date string beside a date or a timestamp; a timestamp against a number
+  - id: coalesce_of_a_timestamp_and_a_date_string
+    sql: "SELECT id, COALESCE(ts, '1900-01-01') AS a, ISNULL(ts, '1900-01-01 10:20:30') AS b, COALESCE(dt, '1900-01-01') AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: case_of_a_timestamp_and_a_date_string
+    sql: "SELECT id, CASE WHEN id > 3 THEN ts ELSE '1900-01-01' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: max_of_a_defaulted_timestamp
+    sql: "SELECT MAX(COALESCE(ts, '1900-01-01')) AS a FROM t"
+    profile: iq17-default
+  - id: a_timestamp_against_a_number_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts > 2008"
+    profile: iq17-default

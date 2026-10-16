@@ -562,6 +562,10 @@ lite/corpus_gaps/like_a_set_over_a_char_column@iq17-default	PASS	PASS
 lite/corpus_gaps/datalength_of_columns@iq17-default	PASS	PASS
 lite/corpus_gaps/datalength_of_strings@iq17-default	PASS	PASS
 lite/corpus_gaps/table_hints_nolock@iq17-default	PASS	PASS
+lite/corpus_gaps/coalesce_of_a_timestamp_and_a_date_string@iq17-default	PASS	PASS
+lite/corpus_gaps/case_of_a_timestamp_and_a_date_string@iq17-default	PASS	PASS
+lite/corpus_gaps/max_of_a_defaulted_timestamp@iq17-default	PASS	PASS
+lite/corpus_gaps/a_timestamp_against_a_number_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

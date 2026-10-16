@@ -104,7 +104,8 @@ Measured on the live IQ 17.1 and built (parity cases: `lite/corpus_gaps.yaml`):
 - the names IQ gives unaliased CASTs and CONVERTs. A whole item is named as its operand (`CAST(t.ts AS DATE)` is `ts`). One inside an item is written out in lower case: `cast(t.sm as numeric(10,2))`, `convert(varchar(10),t.sm)`. The type keeps its written spelling, except that INT is `integer`, DOUBLE PRECISION is `double` and FLOAT is `real`. This fixed 34 of the research's naming cases, under both judges;
 - LIKE's `[set]` classes of ASCII members, ranges and a leading `^`;
 - DATALENGTH: a string's bytes, and a column's storage width under IQ's engine;
-- a table's `WITH (NOLOCK)` and `WITH (READUNCOMMITTED)`, read and dropped. After a derived table or a FROM function a hint is IQ's -131.
+- a table's `WITH (NOLOCK)` and `WITH (READUNCOMMITTED)`, read and dropped. After a derived table or a FROM function a hint is IQ's -131;
+- a constant date string beside a DATE or a TIMESTAMP in COALESCE, ISNULL or CASE, read as one. `COALESCE(ts, '1900-01-01')` is a TIMESTAMP.
 
 Measured to be IQ's own errors, raised or named by the island:
 - `OFFSET ... FETCH`, `LIMIT`, `INTERVAL` and `FILTER` are -131;
@@ -116,7 +117,7 @@ Measured to be IQ's own errors, raised or named by the island:
   - a subquery in an outer join's ON is -1001047 unless its conjunct reads the null-supplying side alone (directly and through correlation; in a FULL JOIN always): 21 shapes measured;
   - an integer where DATEADD or DATEDIFF reads a date is -1001011;
   - CAST to NVARCHAR or NCHAR is -1001030;
-  - a number compared with a string (`PostTypeId = '1'`, `YEAR(ts) = '2026'`, in IN, BETWEEN and CASE alike) is -1001013. A string that is no number is the front end's -157 first.
+  - a number compared with a string (`PostTypeId = '1'`, `YEAR(ts) = '2026'`, in IN, BETWEEN and CASE alike), and a date or timestamp compared with a number, is -1001013. A string that is no number is the front end's -157 first.
 
 Open, ranked by the corpora:
 - CAST to DECIMAL without a precision, IQ's NUMERIC(126,38) (70);

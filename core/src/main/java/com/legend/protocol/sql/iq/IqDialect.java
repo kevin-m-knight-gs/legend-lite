@@ -4664,6 +4664,14 @@ public final class IqDialect implements InputDialect {
         }
         boolean comparable = lk.numeric() && rk.numeric() && lk != Kind.NUMBER && rk != Kind.NUMBER
                 || lk == Kind.DATE && rk == Kind.DATE || lk == Kind.DATETIME && rk == Kind.DATETIME;
+        boolean dated = lk == Kind.DATE || lk == Kind.DATETIME || rk == Kind.DATE || rk == Kind.DATETIME;
+        if (!comparable && engine == Engine.IQ && dated && (lk.numeric() || rk.numeric())) {
+            // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): a date or a timestamp against a number
+            // (ts > 2008, ts >= ts - dt) is IQ's -1001013 under its engine
+            throw SqlTranslationException.unsupported("comparing " + kindName(lk) + " with " + kindName(rk) + " is IQ's"
+                    + " error -1001013 under its engine (an invalid data type comparison in a predicate), refused"
+                    + " before translating", pos);
+        }
         if (!comparable) {
             throw SqlTranslationException.unsupported("comparing " + kindName(lk) + " with " + kindName(rk)
                     + " is not supported yet (IQ's conversions between kinds are a later slice's)", pos);
@@ -4872,16 +4880,22 @@ public final class IqDialect implements InputDialect {
             throw SqlTranslationException.unsupported("comparing a string that is not a constant with a date is not"
                     + " supported yet: IQ converts the string to TIMESTAMP", pos);
         }
+        return dateConstant(s.value(), other, pos, "comparing");
+    }
+
+    /** The date constant string {@code value} is in IQ's spellings (IqDateTime), as a DATE ({@code other} a DATE: of
+     *  a midnight only) or a TIMESTAMP; {@code what} heads the refusal of one not read. */
+    private Tx dateConstant(String value, Kind other, SqlAst.Pos pos, String what) {
         // IQ island, 2026-10-14 (M1e): IQ's spellings by the profile's DATE_ORDER (IqDateTime)
-        String[] parts = IqDateTime.read(s.value(), settings, pos);
+        String[] parts = IqDateTime.read(value, settings, pos);
         if (parts == null) {
-            throw SqlTranslationException.unsupported("comparing the string '" + s.value() + "' with a date is not"
+            throw SqlTranslationException.unsupported(what + " the string '" + value + "' with a date is not"
                     + " supported: it is no date spelling the island reads yet (IqDateTime)", pos);
         }
         String time = parts[1];
         if (other == Kind.DATE) {
             if (!time.equals("00:00:00")) {
-                throw SqlTranslationException.unsupported("comparing a date with a timestamp of a time other than"
+                throw SqlTranslationException.unsupported(what + " a date with a timestamp of a time other than"
                         + " midnight is not supported yet", pos);
             }
             // IQ island, 2026-10-14 (the merge of M1e): a constant's year carried as every date constant's
@@ -5710,6 +5724,23 @@ public final class IqDialect implements InputDialect {
                     timestamps.add(v.kind() != Kind.DATE ? v : atMidnight(v));
                 }
                 return unify(what, exprs, timestamps, pos);
+            }
+            // IQ island, 2026-10-15 (the corpus lane: COALESCE(LastActivityDate, '2000-01-01') and kin; measured on IQ
+            // 17.1): a constant date string beside a DATE or a TIMESTAMP is read as one (COALESCE(ts, '1900-01-01') is
+            // the TIMESTAMP of its midnight, COALESCE(dt, '1900-01-01') a DATE); a string IQ reads as no date is its
+            // -1001014, refused by name here
+            boolean dated = values.stream().anyMatch(v -> v.kind() == Kind.DATE || v.kind() == Kind.DATETIME);
+            boolean strings = values.stream().anyMatch(v -> v.kind() == Kind.STRING);
+            if (dated && strings && values.stream().allMatch(v -> v.kind() == Kind.DATE || v.kind() == Kind.DATETIME
+                    || v.kind() == Kind.NULL || v.kind() == Kind.STRING && v.vs() instanceof CString && !v.nullable())) {
+                Kind target = values.stream().anyMatch(v -> v.kind() == Kind.DATETIME) ? Kind.DATETIME : Kind.DATE;
+                List<Tx> read = new ArrayList<>();
+                for (int i = 0; i < values.size(); i++) {
+                    Tx v = values.get(i);
+                    read.add(v.kind() != Kind.STRING ? v : dateConstant(((CString) v.vs()).value(), target,
+                            exprs.get(i).pos(), what + " of"));
+                }
+                return unify(what, exprs, read, pos);
             }
         }
         Kind kind = null;
