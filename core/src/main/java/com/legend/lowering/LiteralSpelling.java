@@ -230,7 +230,7 @@ public final class LiteralSpelling {
                         new SqlExpr.Case.When(
                                 SqlExpr.Call.of(SqlFn.EQUAL,
                                         SqlExpr.Call.of(SqlFn.TYPEOF, e),
-                                        new SqlExpr.StringLit("DATE")),
+                                        new SqlExpr.TypeNameLit(SqlType.Scalar.DATE)),
                                 SqlExpr.Call.of(SqlFn.STRFTIME, e,
                                         new SqlExpr.FormatLit(
                                                 com.legend.sql.DateFmt

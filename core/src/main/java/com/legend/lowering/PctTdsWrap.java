@@ -108,8 +108,7 @@ public final class PctTdsWrap {
             }
             typedCols.add(new Type.Column(oc.name(),
                     sqlTypeToPure.apply(probe != null
-                            ? probe.typeNames().getOrDefault(oc.name(),
-                                    slotName(oc.type()))
+                            ? probe.typeName(oc.name())
                             : slotName(oc.type())),
                     Multiplicity.Bounded.ONE));
         }

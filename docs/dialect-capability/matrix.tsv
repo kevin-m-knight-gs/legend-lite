@@ -110,18 +110,18 @@ H2	H2	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spell
 H2	H2	call	MD5	spelled	md5		1
 H2	H2	call	SHA1	spelled	sha1		1
 H2	H2	call	SHA256	spelled	sha256		1
-H2	H2	call	EXTRACT	emulated	extract(… FROM …)		24
+H2	H2	call	EXTRACT	emulated	datePart, part: extract(… FROM …)		24
 H2	H2	call	TODAY	spelled	current_date		0
 H2	H2	call	NOW	spelled	now		0
 H2	H2	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 H2	H2	call	MAKE_DATE	spelled	make_date		2
 H2	H2	call	MAKE_TIMESTAMP	refused	a date-time constructor reached H2, which has no make_timestamp()		10
 H2	H2	call	DATE_TRUNC	emulated	dateTruncDateGrained		0
-H2	H2	call	ADD_INTERVAL	emulated	dateUnit: dateadd(…, …, …)		93
+H2	H2	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)		93
 H2	H2	call	DATE_DIFF	emulated	dateDiffArm		53
 H2	H2	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()		109
 H2	H2	call	TIMEZONE	spelled	timezone		6
-H2	H2	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit: dateadd(…, …, …)		0
+H2	H2	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit, part: dateadd(…, …, …)		0
 H2	H2	call	EPOCH_SECONDS	emulated	EXTRACT(EPOCH FROM …)		0
 H2	H2	call	EPOCH_MS	emulated	CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)		24
 H2	H2	call	FROM_EPOCH_SECONDS	spelled	to_timestamp		0
@@ -325,18 +325,18 @@ H2Modern	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a 
 H2Modern	-	call	MD5	spelled	md5	as H2	-
 H2Modern	-	call	SHA1	spelled	sha1	as H2	-
 H2Modern	-	call	SHA256	spelled	sha256	as H2	-
-H2Modern	-	call	EXTRACT	emulated	extract(… FROM …)	as H2	-
+H2Modern	-	call	EXTRACT	emulated	datePart, part: extract(… FROM …)	as H2	-
 H2Modern	-	call	TODAY	spelled	current_date	as H2	-
 H2Modern	-	call	NOW	spelled	now	as H2	-
 H2Modern	-	call	DATE_TRUNC_DAY	emulated	castAs: DATE	as H2	-
 H2Modern	-	call	MAKE_DATE	spelled	make_date	as H2	-
 H2Modern	-	call	MAKE_TIMESTAMP	refused	a date-time constructor reached H2, which has no make_timestamp()	as H2	-
 H2Modern	-	call	DATE_TRUNC	emulated	dateTruncDateGrained	as H2	-
-H2Modern	-	call	ADD_INTERVAL	emulated	dateUnit: dateadd(…, …, …)	as H2	-
+H2Modern	-	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)	as H2	-
 H2Modern	-	call	DATE_DIFF	emulated	dateDiffArm	as H2	-
 H2Modern	-	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()	as H2	-
 H2Modern	-	call	TIMEZONE	spelled	timezone	as H2	-
-H2Modern	-	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit: dateadd(…, …, …)	as H2	-
+H2Modern	-	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit, part: dateadd(…, …, …)	as H2	-
 H2Modern	-	call	EPOCH_SECONDS	emulated	EXTRACT(EPOCH FROM …)	as H2	-
 H2Modern	-	call	EPOCH_MS	emulated	CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)	as H2	-
 H2Modern	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp	as H2	-
@@ -547,11 +547,11 @@ Postgres	Postgres	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 Postgres	Postgres	call	MAKE_DATE	emulated	make_date(, CAST(… AS INTEGER))		2
 Postgres	Postgres	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 Postgres	Postgres	call	DATE_TRUNC	emulated	dateTrunc		0
-Postgres	Postgres	call	ADD_INTERVAL	emulated	intervalUnit, literal: … + … * INTERVAL '1 …'		93
+Postgres	Postgres	call	ADD_INTERVAL	emulated	intervalUnit, part: … + … * INTERVAL '1 …'		93
 Postgres	Postgres	call	DATE_DIFF	emulated	dateDiff		53
 Postgres	Postgres	call	TIME_BUCKET	emulated	timeBucket		109
 Postgres	Postgres	call	TIMEZONE	spelled	timezone		6
-Postgres	Postgres	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, literal: … + … * INTERVAL '1 …'		0
+Postgres	Postgres	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: … + … * INTERVAL '1 …'		0
 Postgres	Postgres	call	EPOCH_SECONDS	emulated	CAST(extract(epoch FROM …) AS DOUBLE PRECISION)		0
 Postgres	Postgres	call	EPOCH_MS	emulated	CAST(trunc(extract(epoch FROM …) * 1000) AS BIGINT)		24
 Postgres	Postgres	call	FROM_EPOCH_SECONDS	emulated	…TIMESTAMP '1970-01-01 00:00:00' + … * INTERVAL '1 second'		0
@@ -762,11 +762,11 @@ Snowflake	Snowflake	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 Snowflake	Snowflake	call	MAKE_DATE	spelled	date_from_parts		2
 Snowflake	Snowflake	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 Snowflake	Snowflake	call	DATE_TRUNC	emulated	dateTrunc		0
-Snowflake	Snowflake	call	ADD_INTERVAL	emulated	intervalUnit, literal: CAST(DATEADD(…, …, …) AS TIMESTAMP_NTZ)		93
+Snowflake	Snowflake	call	ADD_INTERVAL	emulated	intervalUnit, part: CAST(DATEADD(…, …, …) AS TIMESTAMP_NTZ)		93
 Snowflake	Snowflake	call	DATE_DIFF	emulated	dateDiff		53
 Snowflake	Snowflake	call	TIME_BUCKET	emulated	timeBucket		109
 Snowflake	Snowflake	call	TIMEZONE	emulated	by its operands: CONVERT_TIMEZONE('UTC', …, CAST(… AS TIMESTAMP_NTZ)) / CAST(CONVERT_TIMEZONE(…, 'UTC', CAST(… AS TIMESTAMP_NTZ)) AS TIMESTAMP_LTZ)		6
-Snowflake	Snowflake	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, literal: CAST(DATEADD(…, …, …) AS TIMESTAMP_NTZ)		0
+Snowflake	Snowflake	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: CAST(DATEADD(…, …, …) AS TIMESTAMP_NTZ)		0
 Snowflake	Snowflake	call	EPOCH_SECONDS	emulated	naive: (CAST(DATE_PART(EPOCH_MICROSECOND, …) AS DOUBLE) / 1000000)		0
 Snowflake	Snowflake	call	EPOCH_MS	emulated	naive: CAST(TRUNC(DATE_PART(EPOCH_MICROSECOND, …) / 1000) AS BIGINT)		24
 Snowflake	Snowflake	call	FROM_EPOCH_SECONDS	emulated	TO_TIMESTAMP_NTZ(CAST(ROUND(… * 1000000) AS BIGINT), 6)		0
@@ -1117,11 +1117,11 @@ BigQuery	BigQuery	call	STRUCT_INSERT	emulated	structInsert		0
 BigQuery	BigQuery	call	UNNEST	refused	an unnest in a select list reached BigQuery, which has no set-returning projection (an explode is placed in FROM by the carrier strategies)	via BigQuery.unnestProjection	83
 BigQuery	BigQuery	call	LIST_FLATTEN	refused	a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")		0
 BigQuery	BigQuery	call	JSON_MERGE_PATCH	refused	BigQuery has no JSON merge patch reached BigQuery:		0
-BigQuery	BigQuery	call	SQRT	emulated	(CAST(… AS FLOAT64))		4
+BigQuery	BigQuery	call	SQRT	emulated	SQRT(CAST(… AS FLOAT64))		4
 BigQuery	BigQuery	call	CBRT	spelled	CBRT		3
-BigQuery	BigQuery	call	EXP	emulated	(CAST(… AS FLOAT64))		4
-BigQuery	BigQuery	call	LN	emulated	(CAST(… AS FLOAT64))		3
-BigQuery	BigQuery	call	LOG10	emulated	(CAST(… AS FLOAT64))		2
+BigQuery	BigQuery	call	EXP	emulated	EXP(CAST(… AS FLOAT64))		4
+BigQuery	BigQuery	call	LN	emulated	LN(CAST(… AS FLOAT64))		3
+BigQuery	BigQuery	call	LOG10	emulated	LOG10(CAST(… AS FLOAT64))		2
 BigQuery	BigQuery	call	POW	emulated	POW(CAST(… AS FLOAT64), CAST(… AS FLOAT64))		9
 BigQuery	BigQuery	call	PI	emulated	ACOS(-1)		1
 BigQuery	BigQuery	call	SIN	spelled	SIN		3
@@ -1182,9 +1182,9 @@ BigQuery	BigQuery	call	LEVENSHTEIN	spelled	EDIT_DISTANCE		2
 BigQuery	BigQuery	call	GUID	spelled	GENERATE_UUID		2
 BigQuery	BigQuery	call	FORMAT	emulated	format		42
 BigQuery	BigQuery	call	HASH	emulated	hashSigned		5
-BigQuery	BigQuery	call	MD5	emulated	asText: TO_HEX((…))		1
-BigQuery	BigQuery	call	SHA1	emulated	asText: TO_HEX((…))		1
-BigQuery	BigQuery	call	SHA256	emulated	asText: TO_HEX((…))		1
+BigQuery	BigQuery	call	MD5	emulated	asText: TO_HEX(MD5(…))		1
+BigQuery	BigQuery	call	SHA1	emulated	asText: TO_HEX(SHA1(…))		1
+BigQuery	BigQuery	call	SHA256	emulated	asText: TO_HEX(SHA256(…))		1
 BigQuery	BigQuery	call	EXTRACT	emulated	extract		24
 BigQuery	BigQuery	call	TODAY	spelled	CURRENT_DATE		0
 BigQuery	BigQuery	call	NOW	emulated	typeOf: CURRENT_TIMESTAMP()CURRENT_DATETIME()		0
@@ -1192,11 +1192,11 @@ BigQuery	BigQuery	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 BigQuery	BigQuery	call	MAKE_DATE	emulated	DATE(, CAST(… AS INT64))		2
 BigQuery	BigQuery	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 BigQuery	BigQuery	call	DATE_TRUNC	emulated	dateTrunc		0
-BigQuery	BigQuery	call	ADD_INTERVAL	emulated	intervalUnit, literal: (… + INTERVAL CAST(… AS INT64) …)		93
+BigQuery	BigQuery	call	ADD_INTERVAL	emulated	intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)		93
 BigQuery	BigQuery	call	DATE_DIFF	emulated	dateDiff		53
 BigQuery	BigQuery	call	TIME_BUCKET	emulated	timeBucket		109
 BigQuery	BigQuery	call	TIMEZONE	emulated	by its operands: DATETIME(…, …) / TIMESTAMP(CAST(… AS DATETIME), …)		6
-BigQuery	BigQuery	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, literal: (… + INTERVAL CAST(… AS INT64) …)		0
+BigQuery	BigQuery	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)		0
 BigQuery	BigQuery	call	EPOCH_SECONDS	emulated	instant: (CAST(UNIX_MICROS(…) AS FLOAT64) / 1000000)		0
 BigQuery	BigQuery	call	EPOCH_MS	emulated	instant: DIV(UNIX_MICROS(…), 1000)		24
 BigQuery	BigQuery	call	FROM_EPOCH_SECONDS	emulated	naiveUnlessZoned: …TIMESTAMP_MICROS(CAST(… * 1000000 AS INT64))		0
@@ -1407,11 +1407,11 @@ Databricks	Databricks	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 Databricks	Databricks	call	MAKE_DATE	spelled	make_date		2
 Databricks	Databricks	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 Databricks	Databricks	call	DATE_TRUNC	emulated	dateTruncDateGrained		0
-Databricks	Databricks	call	ADD_INTERVAL	emulated	intervalUnit, literal: timestampadd(…, …, …)		93
+Databricks	Databricks	call	ADD_INTERVAL	emulated	intervalUnit, part: timestampadd(…, …, …)		93
 Databricks	Databricks	call	DATE_DIFF	emulated	dateDiff		53
 Databricks	Databricks	call	TIME_BUCKET	emulated	timeBucket		109
 Databricks	Databricks	call	TIMEZONE	spelled	from_utc_timestamp		6
-Databricks	Databricks	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, literal: timestampadd(…, …, …)		0
+Databricks	Databricks	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: timestampadd(…, …, …)		0
 Databricks	Databricks	call	EPOCH_SECONDS	emulated	(CAST(unix_micros(…) AS DOUBLE) / 1000000)		0
 Databricks	Databricks	call	EPOCH_MS	emulated	(unix_micros(…) div 1000)		24
 Databricks	Databricks	call	FROM_EPOCH_SECONDS	spelled	timestamp_seconds		0
@@ -1615,18 +1615,18 @@ DuckDb	DuckDB	call	HASH	emulated	hashSigned		5
 DuckDb	DuckDB	call	MD5	spelled	md5		1
 DuckDb	DuckDB	call	SHA1	spelled	sha1		1
 DuckDb	DuckDB	call	SHA256	spelled	sha256		1
-DuckDb	DuckDB	call	EXTRACT	spelled	date_part		24
+DuckDb	DuckDB	call	EXTRACT	emulated	stringLit, datePart, part: date_part(…, …)		24
 DuckDb	DuckDB	call	TODAY	spelled	current_date		0
 DuckDb	DuckDB	call	NOW	emulated	CAST(now() AS TIMESTAMP)		0
 DuckDb	DuckDB	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 DuckDb	DuckDB	call	MAKE_DATE	spelled	make_date		2
 DuckDb	DuckDB	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 DuckDb	DuckDB	call	DATE_TRUNC	emulated	dateTruncArm		0
-DuckDb	DuckDB	call	ADD_INTERVAL	emulated	… + …(…)		93
-DuckDb	DuckDB	call	DATE_DIFF	spelled	date_diff		53
+DuckDb	DuckDB	call	ADD_INTERVAL	emulated	intervalFunction, part: … + …(…)		93
+DuckDb	DuckDB	call	DATE_DIFF	emulated	stringLit, datePart, part: date_diff(…, …)		53
 DuckDb	DuckDB	call	TIME_BUCKET	emulated	timeBucket		109
 DuckDb	DuckDB	call	TIMEZONE	spelled	timezone		6
-DuckDb	DuckDB	call	ADD_INTERVAL_TEMPORAL	emulated	… + …(…)		0
+DuckDb	DuckDB	call	ADD_INTERVAL_TEMPORAL	emulated	intervalFunction, part: … + …(…)		0
 DuckDb	DuckDB	call	EPOCH_SECONDS	spelled	epoch		0
 DuckDb	DuckDB	call	EPOCH_MS	spelled	epoch_ms		24
 DuckDb	DuckDB	call	FROM_EPOCH_SECONDS	spelled	to_timestamp		0
@@ -2697,11 +2697,11 @@ EngineStyleH2	-	call	DATE_TRUNC_DAY	emulated	cast(truncate(…) as date)		-
 EngineStyleH2	-	call	MAKE_DATE	spelled	make_date		-
 EngineStyleH2	-	call	MAKE_TIMESTAMP	emulated	makeTimestamp		-
 EngineStyleH2	-	call	DATE_TRUNC	emulated	dateTrunc		-
-EngineStyleH2	-	call	ADD_INTERVAL	emulated	dbUnitOf: dateadd(…, …, …)		-
-EngineStyleH2	-	call	DATE_DIFF	emulated	by its operands: datediff(, …, …) / …date_diff		-
+EngineStyleH2	-	call	ADD_INTERVAL	emulated	dbUnitOf, part: dateadd(…, …, …)		-
+EngineStyleH2	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)		-
 EngineStyleH2	-	call	TIME_BUCKET	emulated	timeBucket		-
 EngineStyleH2	-	call	TIMEZONE	spelled	timezone		-
-EngineStyleH2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf: dateadd(…, …, …)		-
+EngineStyleH2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)		-
 EngineStyleH2	-	call	EPOCH_SECONDS	spelled	epoch		-
 EngineStyleH2	-	call	EPOCH_MS	spelled	epoch_ms		-
 EngineStyleH2	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp		-
@@ -2913,10 +2913,10 @@ EngineStyleDB2	-	call	MAKE_DATE	spelled	make_date	as EngineStyleH2	-
 EngineStyleDB2	-	call	MAKE_TIMESTAMP	emulated	makeTimestamp	as EngineStyleH2	-
 EngineStyleDB2	-	call	DATE_TRUNC	emulated	dateTrunc		-
 EngineStyleDB2	-	call	ADD_INTERVAL	emulated	addInterval		-
-EngineStyleDB2	-	call	DATE_DIFF	emulated	by its operands: datediff(, …, …) / …date_diff	as EngineStyleH2	-
+EngineStyleDB2	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)	as EngineStyleH2	-
 EngineStyleDB2	-	call	TIME_BUCKET	emulated	timeBucket	as EngineStyleH2	-
 EngineStyleDB2	-	call	TIMEZONE	spelled	timezone	as EngineStyleH2	-
-EngineStyleDB2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf: dateadd(…, …, …)	as EngineStyleH2	-
+EngineStyleDB2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)	as EngineStyleH2	-
 EngineStyleDB2	-	call	EPOCH_SECONDS	spelled	epoch	as EngineStyleH2	-
 EngineStyleDB2	-	call	EPOCH_MS	spelled	epoch_ms	as EngineStyleH2	-
 EngineStyleDB2	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp	as EngineStyleH2	-
@@ -3128,10 +3128,10 @@ EngineStyleComposite	-	call	MAKE_DATE	spelled	make_date	as EngineStyleDB2, as En
 EngineStyleComposite	-	call	MAKE_TIMESTAMP	emulated	makeTimestamp	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	DATE_TRUNC	emulated	dateTrunc	as EngineStyleDB2	-
 EngineStyleComposite	-	call	ADD_INTERVAL	emulated	addInterval	as EngineStyleDB2	-
-EngineStyleComposite	-	call	DATE_DIFF	emulated	by its operands: datediff(, …, …) / …date_diff	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TIME_BUCKET	emulated	timeBucket	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TIMEZONE	spelled	timezone	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf: dateadd(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	EPOCH_SECONDS	spelled	epoch	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	EPOCH_MS	spelled	epoch_ms	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp	as EngineStyleDB2, as EngineStyleH2	-

@@ -80,10 +80,18 @@ final class VariantEgress extends SqlRewriter {
             if (l instanceof SqlSource.Dual || table != null && !table.equals(l.alias())) {
                 continue;
             }
-            if (l.outputs().stream().anyMatch(DuckDb::storedVariant)) {
+            if (l.outputs().stream().anyMatch(VariantEgress::storedVariant)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** An OUTPUT column born at the store, typed JSON (SEMISTRUCTURED as stored): what a star delivers without a
+     *  reference to read it through (the column reference's own test is the dialect's). */
+    private static boolean storedVariant(com.legend.sql.OutputCol o) {
+        return (o.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
+                        || o.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
+                && o.type() == com.legend.sql.SqlType.Scalar.JSON;
     }
 }

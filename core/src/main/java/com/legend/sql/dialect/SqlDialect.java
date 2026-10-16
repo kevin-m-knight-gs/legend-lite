@@ -65,6 +65,36 @@ public interface SqlDialect {
         return jdbcValue;
     }
 
+    /** A result column's type as this database's driver names it ({@code getColumnTypeName}), in the platform's wire
+     *  vocabulary ({@link WireNames}): the type census compares a plan's label with it (the dialect program's Phase 4,
+     *  2026-10-15: until then the census held each database's names, keyed by the dialect's class name). Default: the
+     *  names that say one type whichever driver gives them. */
+    default String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
+        return WireNames.fold(driverTypeName);
+    }
+
+    /** The wire name a late-bound or pivot-made column is TYPED by, from the name its driver gives the column's type:
+     *  {@link #wireTypeName}'s, or null where that name alone does not say the type. The census reads such a name with
+     *  the column's precision and scale; typing by the name would be a guess (AGENTS.md invariant 4), so the column is
+     *  not typed by it (2026-10-15, the audit of Phase 4: Snowflake's NUMBER had typed integer columns Decimal).
+     *  Default: every name this database's driver gives says its type. */
+    default @com.legend.base.Nullable String typingWireName(@com.legend.base.Nullable String driverTypeName) {
+        return wireTypeName(driverTypeName);
+    }
+
+    /** Whether this database delivers a column the platform labels {@code label} as the wire type {@code wire} (in
+     *  {@link #wireTypeName}'s vocabulary) by a carrier convention of its own: the census counts it delivered, not a
+     *  divergence. Default: it has none. */
+    default boolean deliversOwn(com.legend.sql.SqlType label, String wire) {
+        return false;
+    }
+
+    /** Whether this database's driver opens the result of a statement that fails before its columns are known with
+     *  none, its error surfacing on the first read: a result with no columns is then no claim to check. */
+    default boolean opensFailedResultsWithoutColumns() {
+        return false;
+    }
+
     /** Whether dynamic PIVOT needs the two-phase staticization
      * pre-pass ({@link com.legend.exec.DynamicPivot} — no native
      * dynamic pivot on this backend). */
@@ -76,13 +106,20 @@ public interface SqlDialect {
      * A raw statement as this session runs it (decision D2, the dialect program's Phase 1c): raw text is in the language
      * of the database its connection DECLARES ({@code writtenFor}, that type's name), and is translated only when it
      * runs on another. The engine's H2 text (legend-engine's test database's: its corpus's setup, an H2 connection's
-     * {@code executeInDb}) is this dialect's {@link #fromEngineH2}; text written for any other database, or by this
+     * {@code executeInDb}) is this dialect's {@link #fromEngineText}; text written for any other database, or by this
      * session's own dialect ({@code writtenFor} null), runs as written, as legend-engine sends it.
      */
     String raw(String statement, @com.legend.base.Nullable String writtenFor);
 
     /** One statement of the engine's H2 text as this database runs it: H2's own, translated, or refused by name. */
-    String fromEngineH2(String statement);
+    String fromEngineText(String statement);
+
+    /** This database's host operations (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5 and D5): its own, written in its
+     *  dialect's package, or each refused, naming the database. Until 2026-10-15 {@code HostOperations.of} chose them by
+     *  the dialect's class, naming two databases outside their owners (the dialect program's owner guard). */
+    default HostOperations hostOperations() {
+        return new HostOperations.Refused(getClass().getSimpleName());
+    }
 
     /** An effect segment's statements as ONE script (block-compiler stage 3): the
      *  target decides its transaction bracket INSIDE its dialect — DuckDB brackets

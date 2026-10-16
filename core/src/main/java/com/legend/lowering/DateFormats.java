@@ -87,21 +87,24 @@ final class DateFormats {
 
     /**
      * Longest-first token map: engine format spellings (SimpleDateFormat +
-     * the Oracle-style TO_CHAR tokens the corpus mixes in) to DuckDB
-     * strptime. Case is load-bearing (MM month vs mm minutes). Two entries
-     * are pinned by ENGINE-PRODUCED expected values rather than a spec:
-     * '.mmm' and '.FF' both read as fractional seconds — the sqlFunction
-     * corpus asserts %2016-06-23T15:03:00.000 for 'yyyy-MM-dd hh:mm:ss.mmm'
-     * over '2016-06-23 15:03:00.000000000', i.e. the engine result treats
-     * the tail as millis, not minutes (SimpleDateFormat's reading would
-     * shift the minute field). SSS is SimpleDateFormat millis proper.
+     * the Oracle-style TO_CHAR tokens the corpus mixes in) to TYPED parts
+     * (until 2026-10-15 through DuckDB's strftime codes, the dialect
+     * program's Phase 2). Case is load-bearing (MM month vs mm minutes). Two
+     * entries are pinned by ENGINE-PRODUCED expected values rather than a
+     * spec: '.mmm' and '.FF' both read as fractional seconds — the
+     * sqlFunction corpus asserts %2016-06-23T15:03:00.000 for
+     * 'yyyy-MM-dd hh:mm:ss.mmm' over '2016-06-23 15:03:00.000000000', i.e.
+     * the engine result treats the tail as millis, not minutes
+     * (SimpleDateFormat's reading would shift the minute field). SSS is
+     * SimpleDateFormat millis proper.
      */
-    private static final String[][] FORMAT_TOKENS = {
-            {"HH24", "%H"}, {"SSS", "%g"}, {"MMM", "%b"}, {"MON", "%b"},
-            {"mmm", "%g"},
-            {"yyyy", "%Y"}, {"YYYY", "%Y"}, {"MM", "%m"}, {"dd", "%d"},
-            {"DD", "%d"}, {"MI", "%M"}, {"mm", "%M"}, {"hh", "%H"},
-            {"HH", "%H"}, {"ss", "%S"}, {"SS", "%S"}, {"FF", "%g"},
+    private static final Object[][] FORMAT_TOKENS = {
+            {"HH24", DateFmt.Part.HOUR2}, {"SSS", DateFmt.Part.SUBSEC_MIN}, {"MMM", DateFmt.Part.MONTH_ABBREV},
+            {"MON", DateFmt.Part.MONTH_ABBREV}, {"mmm", DateFmt.Part.SUBSEC_MIN},
+            {"yyyy", DateFmt.Part.YEAR4}, {"YYYY", DateFmt.Part.YEAR4}, {"MM", DateFmt.Part.MONTH2},
+            {"dd", DateFmt.Part.DAY2}, {"DD", DateFmt.Part.DAY2}, {"MI", DateFmt.Part.MIN2},
+            {"mm", DateFmt.Part.MIN2}, {"hh", DateFmt.Part.HOUR2}, {"HH", DateFmt.Part.HOUR2},
+            {"ss", DateFmt.Part.SEC2}, {"SS", DateFmt.Part.SEC2}, {"FF", DateFmt.Part.SUBSEC_MIN},
     };
 
     /** Pure's format vocabulary parses ONCE, here, into TYPED parts —
@@ -112,14 +115,14 @@ final class DateFormats {
         int i = 0;
         outer:
         while (i < src.length()) {
-            for (String[] tok : FORMAT_TOKENS) {
-                if (src.startsWith(tok[0], i)) {
+            for (Object[] tok : FORMAT_TOKENS) {
+                if (src.startsWith((String) tok[0], i)) {
                     if (text.length() > 0) {
                         out.add(new DateFmt.Text(text.toString()));
                         text.setLength(0);
                     }
-                    out.add(partOf(tok[1]));
-                    i += tok[0].length();
+                    out.add((DateFmt.Part) tok[1]);
+                    i += ((String) tok[0]).length();
                     continue outer;
                 }
             }
@@ -130,20 +133,5 @@ final class DateFormats {
             out.add(new DateFmt.Text(text.toString()));
         }
         return out;
-    }
-
-    private static DateFmt.Part partOf(String code) {
-        return switch (code) {
-            case "%Y" -> DateFmt.Part.YEAR4;
-            case "%m" -> DateFmt.Part.MONTH2;
-            case "%d" -> DateFmt.Part.DAY2;
-            case "%H" -> DateFmt.Part.HOUR2;
-            case "%M" -> DateFmt.Part.MIN2;
-            case "%S" -> DateFmt.Part.SEC2;
-            case "%g" -> DateFmt.Part.SUBSEC_MIN;
-            case "%b" -> DateFmt.Part.MONTH_ABBREV;
-            default -> throw new IllegalStateException(
-                    "unmapped format token: " + code);
-        };
     }
 }

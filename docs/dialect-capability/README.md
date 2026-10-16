@@ -43,7 +43,7 @@ input).
 | Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 82 | 115 | 3 | 15 | 30 |
 | BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 68 | 123 | 9 | 15 | 28 |
 | Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 94 | 102 | 4 | 15 | 29 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 143 | 57 | 0 | 15 | 34 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 141 | 59 | 0 | 15 | 34 |
 | ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 63 | 133 | 4 | 15 | 29 |
 | SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 135 | 9 | 15 | 31 |
 | MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 50 | 145 | 5 | 15 | 30 |
@@ -164,7 +164,7 @@ input).
 | `MD5` | S | S | S | S | E | E | S | S | E | R | S | S | E | E | E |
 | `SHA1` | S | S | R | S | E | E | S | S | E | R | S | S | E | E | E |
 | `SHA256` | S | S | E | E | E | E | E | S | E | R | E | E | E | E | E |
-| `EXTRACT` | E | E | E | E | E | E | E | S | E | E | E | E | E | E | E |
+| `EXTRACT` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `TODAY` | S· | S | S· | S· | S· | S· | S· | S· | R | E· | S· | S· | E | E | E |
 | `NOW` | S· | S | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | S | S | S |
 | `DATE_TRUNC_DAY` | E | E | E | E | E | E | E | E | S | S | S | S | E | E | E |
@@ -172,7 +172,7 @@ input).
 | `MAKE_TIMESTAMP` | R | R | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `DATE_TRUNC` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
 | `ADD_INTERVAL` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
-| `DATE_DIFF` | E | E | E | E | E | E | E | S | E | E | E | E | E | E | E |
+| `DATE_DIFF` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `TIME_BUCKET` | R | R | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `TIMEZONE` | S | S | S | E | E | E | S | S | E | E | E | E | S | S | S |
 | `ADD_INTERVAL_TEMPORAL` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |

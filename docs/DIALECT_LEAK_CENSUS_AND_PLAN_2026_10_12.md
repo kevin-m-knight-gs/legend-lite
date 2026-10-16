@@ -734,6 +734,31 @@ Measured on c437c0c (docs/GATES.md, the 2026-10-14 Phase 1 entry):
 
 Size: about 400 lines. Goldens unchanged.
 
+**Done, 2026-10-15** (branch `claude/gracious-edison-jcsvzm`, 0dc0ee1, after the owner guard 1e1f55d). Each item, as
+built:
+- **Date parts.** EXTRACT, DATE_TRUNC, DATE_DIFF, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL and TIME_BUCKET now take a typed
+  `SqlExpr.DatePartLit` (`sql.DatePart`). The census named only `"to_days"`; the part names (`'isodow'`, `'doy'`)
+  were DuckDB's too, so all of them went.
+  - Every dialect spells a part with an exhaustive switch.
+  - MariaDB's and SQLite's private `Part` enums are gone, and so is every map keyed by `to_X`.
+  - The base renderer refuses to write a part as a value.
+- **Join keywords.** `Join.Kind` no longer carries its SQL. The renderer writes `joinKeyword(kind)`: the ANSI
+  keywords in the base, the engine text's lower-case ones in `EngineStyleH2`.
+- **JSON kinds and type names.** JSON_TYPE's answer is compared with a typed `SqlExpr.JsonKindLit` (`sql.JsonKind`),
+  and TYPEOF's with a `SqlExpr.TypeNameLit`. Each dialect names a kind as its own JSON_TYPE answers it. Every
+  emulation still answers DuckDB's names, so the SQL is unchanged, but each dialect now says so in its own table and
+  can drop its emulation for its native names when it chooses. A typed predicate was weighed and not taken: the
+  comparisons appear as `=` and `<>` inside CASEs and ORs, and keeping them byte-identical needed the operand typed,
+  not the comparison replaced.
+- **Aggregate names.** Phase 1b had already done this. The last remnant was BigQuery writing its
+  SQRT/EXP/LN/LOG10/MD5/SHA1/SHA256 arms by the enum's name; they spell their names now.
+- **Date formats (D3).** The IR's formats were already typed (`DateFmt`, remediation T3.2). Lowering's engine-format
+  tokens now map straight to the parts, no longer through DuckDB's strftime codes.
+- **Not moved: `RawSql`'s splitter and classifier.** Their rules are ANSI SQL's (single-quote strings; SELECT, WITH,
+  VALUES, TABLE, SHOW, DESCRIBE) and name no database. The type checker that reads them may not depend on a dialect
+  (`ArchitectureTest.compileSideLayersAreDialectBlind`). A database whose raw text needs its own splitting (MySQL's
+  backslash escapes, Postgres's dollar quotes) adds it as that database's input language (D11) when a case needs it.
+
 ### Phase 3: SQL composed outside the dialect (product)
 
 - **`StatementExecutor.dropAndCreateSchemaInDb`**: render the existing `SqlDdl.CreateSchema` through the session's
@@ -772,6 +797,55 @@ the dialect.
   H2 `byte[]` JSON decoding** move into each dialect's `normalize`.
 
 Size: about 400 lines.
+
+**Done, 2026-10-15** (b6cc917).
+- **The census names no database.** Each database's reading is its dialect's:
+  - `SqlDialect.wireTypeName` reads the driver's type names into the wire vocabulary. The synonyms every driver
+    shares are folded in `WireNames`, which names no database.
+  - `SqlDialect.deliversOwn` holds the database's carrier conventions.
+  - `SqlDialect.opensFailedResultsWithoutColumns` is Trino's empty-result quirk.
+
+  The executor hands the census those answers as a `WireReading` value, so exec's references into the plan side do
+  not grow (`execsReachIntoPlanningOnlyShrinks`).
+- **Defect 2 is fixed.** The pivot, grid and PCT-probe columns are typed through the dialect's `wireTypeName`.
+  - `WireTypeNamesTest` covers each of the 11 databases' own names, and the defect's three: Postgres's `int8`,
+    ClickHouse's `Nullable(Int64)` and BigQuery's `INT64`.
+  - It does this through `wireTypeName` rather than the `java.sql.Types` code the plan suggested: one reading, the
+    one the census already proves on every lane.
+  - BigQuery's `BIGNUMERIC` still has no Pure type in that table. The census treats it as BigQuery's own exact
+    decimal carrier; a pivot over one is the next case to measure.
+- **H2's `byte[]`** for a JSON-carried list is read by `H2.normalize`; the executor used to decode it itself.
+- **Not moved: `DynamicPivot`'s `BigInteger` and `BigDecimal` arms.** They decode Java classes and name no database:
+  any driver that hands one back is read the same way.
+- **The audit of Phases 2 and 4 (2026-10-15), and what it changed:**
+  - **Snowflake's integers were typed Decimal.** The census reads Snowflake's `NUMBER` as a decimal, which the
+    column's precision and scale size, and an integer label accepts `DECIMAL(p,0)`. Typing a pivot, grid or PCT-probe
+    column by that reading made every Snowflake integer column a Decimal: a guess, which invariant 4 forbids. Typing
+    has its own reading now. `SqlDialect.typingWireName` is the census's reading, or null where the name alone does
+    not say the type. Snowflake's `NUMBER` is the one such name, so those columns are typed as they were before
+    Phase 4: a grid's column as Any, and a pivot's refused, naming the driver's type.
+    - Typing a `NUMBER` by its scale, as the Snowflake driver's own type code does, is still to do. It needs the
+      probe to carry the column's scale, and a Snowflake measurement.
+    - `NUMBER` moved out of `WireNames` into `Snowflake.wireTypeName`. `WireNames` holds only names that say one
+      type whichever driver gives them; its javadoc had claimed "every driver shares" them, which was not true.
+  - **`EngineStyleH2` had lost the reading of H2's `byte[]` list text.** It runs on H2 but is not `H2`'s subclass.
+    It reads those bytes in its own `normalize` now.
+  - **The owner guard read a dialect's parent from the raw source.** A comment, or a nested class extending another
+    dialect, named that dialect's database for the whole file. It now reads `class <File> extends <Parent>` in code
+    only, and a test pins this.
+  - **Two more guard holes, closed in `DialectOwnerExclusivityTest`:**
+    - Vocabulary code could pick one database by a literal, `DatabaseType.valueOf("H2")`, which the check stripped as
+      a name read from the model. A literal argument is flagged now; a name read from the model still passes.
+    - A dialect could be decided by asking which class it is: `instanceof EngineStyleComposite`, or
+      `getSimpleName().equals("Postgres")`. No name in either says a database, so no check saw them. Main code may
+      now neither `instanceof` nor `.class` a dialect class, nor compare a simple name; nothing does today. The
+      test was checked by planting `instanceof Postgres` in `PctProbe`.
+  - **The PCT probe no longer falls back to the driver's name.** 299295f kept a refused column's driver name in the
+    probe's map, and that is safe only while the platform's table does not know the name; SQLite's `NUMERIC` would
+    have typed Decimal behind its dialect's back. A refused column is now absent, and `PlanProbe.typeName` refuses it
+    by name.
+  - SQLite's `NUMERIC`, which its driver gives a column whose first value is NULL, now types nothing. Before Phase 4
+    it typed Decimal, which was also a guess. Lanes 1b measure whether any test moved.
 
 ### Phase 5: the connector interface (execution side)
 
@@ -906,6 +980,9 @@ Decided by the user, 2026-10-13. The recommendation each row first carried is ke
 | **D7** | Land phase by phase on the branch, each green, then pause for review after P1 (the most visible restructuring)? | **Agreed.** |
 | **D8** | Which case does a store's bare name have on Postgres? The engine emits it unquoted, so Postgres folds it to lower case; the corpus's setup text assumes that. Main's `#SQL{...}#` Postgres fixture and DataCube's `infer.test.ts` assume the opposite: the name is kept as declared and quoted. Folding was tried and reverted on 2026-10-12 (neema2/legend-lite#30's CI). | **Decided: fold**, as legend-engine does (more correct for a drop-in replacement: most Postgres tables are created unquoted). Decide it once, as the dialect's own rule (P1). The two kinds of test then follow whichever rule is chosen. Folding matches the engine and the corpus; keeping case matches `#SQL{...}#`. If folding returns, the PR's independent review named two prerequisites: `CatalogModel.ident` must quote a mixed-case catalog name (or a Postgres table `"Orders"` is read as `orders`), and a star-expanded column's label must take the spelling its references take (`Stars.java:54`). |
 | **P1b** | The base renderer's shape. | **Decided: an exhaustive switch per concrete dialect, families included**, a base with no spellings, a guard that enforces it, and a capability matrix generated from the code (Phase 1b). |
+| **D9** | The connection grammar, the protocol and the model name every database (`type: Postgres;`, `PSnowflakeSpec`, the `DatabaseType` enum), because the user's model language does. Are they leaks? | **Decided (the user, 2026-10-15): they are vocabulary owners.** They may parse and carry a database's name and never decide anything by it. A guard holds both halves: their dependency allowlists already keep them from reaching a dialect, a connection or `Databases` (`ArchitectureTest`, invariants 6j and 7a to 7c); and in their code a database is named only as the vocabulary's own identifiers, never as a specific `DatabaseType` constant, a dialect class, a driver, a JDBC URL or a product-name call (`DialectOwnerExclusivityTest`). The alternative, each database's parsing in its own classes, would split the grammar across eleven places. |
+| **D10** | `builtin/DynaFn` (175 lines) is legend-engine's own table of which database supports which dynaFunction, across 17 databases, several of which this platform does not run. | **Decided (the user, 2026-10-15): split it.** The engine's table stays as reference data, generated from or verified against the engine source (spec by verification, the reference-checkout tenet). Our databases' answers come from each dialect's capability, so the capability matrix and `DynaFn` cannot disagree. `builtin/` is the compiler line's: this program does not edit it; the decision is posted to that line (`docs/IN_FLIGHT.md`, the ninth line) for it to schedule. |
+| **D11** | The SQL input dialects (`protocol/sql/`: `#SQL{...}#`'s Postgres, `#IQ{...}#`'s IQ) name a database because they read its language. Owners? | **Decided (the user, 2026-10-15): yes, each the owner of its own input language, under the same exclusivity guard.** `PostgresDialect` and `PostgresDateTime` name only Postgres, the `iq` package only IQ. The translator they share (`SqlToPure`, `InputDialect`) is no owner: the Postgres rules still inside it (`postgresBinary`, `postgresName` and the rest, 47 lines) are counted by the leak ratchet, to move into `PostgresDialect` with the seventh and tenth lines, whose code it is. |
 
 
 ## 7. The misses (leaks the patterns could not see; each slice's reviewers found them by reading)
