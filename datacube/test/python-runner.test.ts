@@ -1,11 +1,13 @@
 // A PAGE ON PYTHON, PLANNED BY PYTHON (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15): the page's runner asks Python
-// alone -- its plan-and-run -- with the token, and reads the plan Python answers as the tab reads its own planner's. A
-// Python host plans in process, on its one plane (the program's §1.1, the user's ruling of 2026-10-15): one that says
-// another is refused, never followed.
+// alone, with the token -- its plan-and-run, its dry run (plan.json), and its questions about the Pure query on
+// legend-engine's own routes (pure/v1), never the tab's worker messages carried over HTTP (§15.2, as amended
+// 2026-10-15) -- and reads what Python answers as the tab reads its own planner's. A Python host plans in process, on
+// its one plane (the program's §1.1, the user's ruling of 2026-10-15): one that says another is refused, never followed.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { col, element, fn, lambda, type Lambda } from '../../pure-protocol/src/index.ts';
+import type { LitePlanner } from '../src/lite-planner.ts';
 import { askedOffers, pythonRunner, type PythonLink } from '../src/services/python-host.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
@@ -50,6 +52,33 @@ describe('a page on Python, planned by Python', () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0]!.path, '/plan-and-run.json');
     assert.equal(calls[0]!.auth, 'Bearer t0ken');
+  });
+
+  it("asks a question about the Pure query on legend-engine's own route, with the token", async () => {
+    const type = { columns: [{ name: 'desk', genericType: { rawType: { _type: 'packageableType', fullPath: 'String' } } }] };
+    const { link, calls } = python(() => json(type));
+    assert.deepEqual(await pythonRunner(link, MODEL, RUNTIME).relationType(QUERY), [{ name: 'desk', type: 'String' }]);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]!.path, '/api/pure/v1/compilation/lambdaRelationType');
+    assert.equal(calls[0]!.auth, 'Bearer t0ken');
+  });
+
+  it("dry-runs on the host's compute, plan-and-run's planning half, the model by its text and the token", async () => {
+    const { link, calls } = python(() => json({ plan: 'OK\n{"sql":"SELECT 1","type":{"columns":[]}}' }));
+    await pythonRunner(link, MODEL, RUNTIME).compile(QUERY, { epoch: 1 } as CubeSnapshot);
+    assert.equal(calls.length, 1, 'the model is held in the page: only the dry run is sent');
+    assert.equal(calls[0]!.path, '/plan.json');
+    assert.equal(calls[0]!.auth, 'Bearer t0ken');
+    const sent = JSON.parse(calls[0]!.body) as { lambda: string; model: string; runtime: string };
+    assert.deepEqual([sent.model, sent.runtime], [MODEL, RUNTIME]);
+    assert.equal(typeof sent.lambda, 'string');
+  });
+
+  it("refuses in the page, by name, what the tab's worker answers for its own database: nothing is sent", async () => {
+    const { link, calls } = python(() => json({}));
+    const planner = pythonRunner(link, MODEL, RUNTIME).host.planner as LitePlanner;
+    await assert.rejects(planner.sessionSetup('DuckDB'), /sessionSetup is not asked of a Python host: a session's setup/);
+    assert.equal(calls.length, 0);
   });
 
   it('takes the one plane a Python host plans on, its own', async () => {

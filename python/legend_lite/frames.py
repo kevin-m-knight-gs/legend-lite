@@ -338,7 +338,7 @@ class Frames:
 
     def held_for(self, model: str) -> compiler.HeldModel | None:
         """The model held for the frame or page file whose model is exactly this text -- what a page's plan is made
-        against (the engine's plan-and-run.json, planner.json) -- or None: no model this engine serves. Asked inside
+        against (the engine's plan-and-run.json, plan.json) -- or None: no model this engine serves. Asked inside
         ``serving``, the frames held still."""
         with self._lock:
             for table in self._tables.values():

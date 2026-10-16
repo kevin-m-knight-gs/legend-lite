@@ -32,10 +32,13 @@ the DataCube + Python line before CI (the BUILD edits by the Compiler Rewrite li
 - **4, type families.** `TypeFacts.java` writes Python's copy of the type table (`python/legend_lite/_type_facts.py`,
   diff-tested); `_types.py` reads it -- `plain_type` and the predicates refuse an unknown name -- and no other module
   spells a type's name (test_frames' `TypeNamesAreReadHere`). A server's `Int`/`BigInt` column is now an Integer.
-- **10, the planner protocol's side lists.** `planner-protocol.ts` `HELD_KINDS` and `PAGE_KINDS`, each from a Record
-  over the protocol's kinds; Python's copies held equal by DataCube's vocabulary test. `PAGE_KINDS` narrowed, by
-  measuring what a page sends, to `plan`, `relationType`, `planJson`, `pureV1`.
-- **8, the snap's limit.** `engine.py _MAX_SNAP_ROWS` held equal to `snap.ts MAX_SNAP_ROWS`.
+- **10, the planner protocol's side lists -- no twins at all** (2026-10-15). They existed because a page on Python
+  carried the tab's worker requests over HTTP (`planner.json`), which needed an allowlist and a handle translation on
+  both sides. The user's step back retired that: a page asks Python on legend-engine's own routes (`pure/v1`) and the
+  host's compute (`plan-and-run.json`, and its dry run `plan.json`; the one-app design §15.10), so neither list exists,
+  in Python or TypeScript.
+- **8, the snap's limit -- Python's own** (2026-10-15): a fact of the database a copy lands in (this machine's, the
+  tab's browser memory), so the two need not agree; no pin.
 - **3, layout editing.** `headless/layout.ts` over `bands.ts` `add`, `remove`, `arrange` and the new `stackTiles`
   (built from `drop`); Python's band editors deleted. Found on the way: `arrange` took any preset name on a page of
   one place or none -- it now checks first.

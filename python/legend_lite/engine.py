@@ -55,7 +55,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc
 
-from . import _host, _json, _planner, compiler, warehouse
+from . import _host, _json, compiler, warehouse
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
@@ -79,8 +79,9 @@ _SETTINGS = '/settings.json'
 # a warehouse table on a page (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3): Python signs in as the person running it,
 # lists what they may read, and writes and holds each opened table's model; the token never reaches the page
 _WAREHOUSE = '/warehouse.json'
-# the most rows a Snap copies (engine-client/src/snap.ts MAX_SNAP_ROWS, the tab's, held equal by DataCube's
-# python-vocabulary test): a page's memory budget there, a person's machine's here
+# the most rows a Snap copies into Python's DuckDB: Python's own limit, a fact of the database the copy lands in (this
+# machine's), as the tab's (snap.ts MAX_SNAP_ROWS) is of its own (the browser's memory) -- the two need not agree (the
+# user and the DataCube + Python line, 2026-10-15)
 _MAX_SNAP_ROWS = 10_000_000
 # PYTHON'S MODEL HOME (B3): the SDLC's API and the Depot's, as the model home's server mounts them, answered by the
 # native library's SDLC over this user's git repository of projects
@@ -92,8 +93,10 @@ _QUERIES, _QUERY_USER = '/api/pure/v1/query', THIS_USER
 # the server's and the page's, over this user's folder (B6); their caller the same user
 _CUBES = _QUERIES + '/dataCube'
 # PLANANDRUN (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15): a page's grid planned against the model Python holds and
-# run on its DuckDB, in one call; and the planner protocol's other requests, answered as the tab's worker answers them
-_PLAN_AND_RUN, _PLANNER = '/plan-and-run.json', '/planner.json'
+# run on its DuckDB, in one call; and its dry run, plan-and-run's planning half (the page's compile check) -- the host's
+# compute (§15.2 as amended 2026-10-15). A question about the Pure query alone is legend-engine's own route (_API), as
+# every Legend server answers it
+_PLAN_AND_RUN, _PLAN = '/plan-and-run.json', '/plan.json'
 # QUERY AND STUDIO SERVED BY PYTHON (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md E): each app's site at /<app>/ (its page
 # /<app>/demo/index.html, its tree as built), on this engine's SDLC, Depot, saved queries and pure/v1; and the cookie the
 # link's token is exchanged for on the app's first load, which every call of its page then carries (its clients send
@@ -102,10 +105,6 @@ _PLAN_AND_RUN, _PLANNER = '/plan-and-run.json', '/planner.json'
 _APPS = ('query', 'studio')
 _CURRENT_USER = '/api/server/v1/currentUser'
 _LITE_API = '/api/lite/v1/'
-# the planner protocol's kinds a page on Python sends to planner.json (DataCube's LitePlanner): planner-protocol.ts
-# PAGE_KINDS, which says why each is or is not one, held equal by DataCube's python-vocabulary test; the held kinds plan
-# over the models Python serves only
-_PAGE_KINDS = frozenset({'plan', 'relationType', 'planJson', 'pureV1'})
 # the planner's answer to the plan a page's rows are of, in their Arrow schema's metadata
 _PLAN_KEY = b'legend.plan'
 # the only places a page's remote file may be read from (remote.json), each as DuckDB's httpfs names it: never this
@@ -231,7 +230,7 @@ def private(path: str) -> bool:
     token. The site's files are the page's own and carry no secret."""
     return path.startswith('/api/') or _model_home(path) or path in (
         '/cube.json', '/version.json', '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _SERVICES,
-        _PLAN_AND_RUN, _PLANNER, _WAREHOUSE)
+        _PLAN_AND_RUN, _PLAN, _WAREHOUSE)
 
 
 def _saved_query(path: str) -> bool:
@@ -464,8 +463,8 @@ class Engine:
                     # a warehouse table's plan runs there: its HTTP on the caller's thread, holding no compiler thread
                     return _answered(lambda b: self._warehouse_plan_and_run(table, b), body or '')
                 return _workers().submit(_answered, self._plan_and_run, body or '').result()
-            if path == _PLANNER:
-                return _workers().submit(_answered, self._planner, body or '').result()
+            if path == _PLAN:
+                return _workers().submit(_answered, self._plan, body or '').result()
             if path == _WAREHOUSE:
                 # on the caller's thread: the warehouse's HTTP holds no compiler thread, and only the library's calls go
                 # to one; never a dropped call
@@ -853,7 +852,7 @@ class Engine:
         it), its model written and held. A model's text names a plan's table by itself, so one table of that text is
         open at a time: the same table and columns from another warehouse or catalog, or as another person, is refused
         while the first is open. Nothing waits on the compiler's threads while this engine's warehouse lock is held:
-        the compiler's threads take that lock (``_planner``)."""
+        the compiler's threads take that lock (``_plan``)."""
         if not all(isinstance(asked.get(k), str) for k in ('catalog', 'schema', 'name')):
             return _said(400, 'a table is {"catalog", "schema", "name"}, each a string')
         catalog, schema, name = asked['catalog'], asked['schema'], asked['name']
@@ -1104,42 +1103,33 @@ class Engine:
                 return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
         return _arrow_rows(rows, planned)
 
-    def _planner(self, body: str) -> Answer:
-        """The planner protocol's requests (engine-client/src/legend/planner-protocol.ts) a page on Python sends,
-        answered by the native library as the tab's worker answers them (legend_lite._planner): a held kind names its
-        model by its text, never a handle (no handle crosses hosts, §15.3), and is answered against the model Python
-        holds of that text. ``hold`` and ``release`` are the page's own, and the kinds a page's planner never sends here
-        (an unheld plan, execute's halves, a warm: Query's and the tab's) are refused; the held kinds plan over the
-        models Python serves only. None of these runs SQL."""
+    def _plan(self, body: str) -> Answer:
+        """THE DRY RUN of a plan-and-run (§15.2 as amended 2026-10-15; the page's compile check, CubeController.compile):
+        ``{"lambda", "model", "runtime"}``, as plan-and-run takes it, planned by the same planner function against the
+        model Python holds of that text -- a page's frame or file, a warehouse table, a project's model with Data rows
+        (C5): only the models this engine serves (R4) -- and never run. JSON: ``{"plan"}``, the planner's answer, a
+        refusal too, as plan-and-run carries it (``legend.plan``)."""
         try:
             asked = json.loads(body)
         except ValueError:
-            return _said(400, 'a planner request is its JSON')
-        kind = asked.get('kind') if isinstance(asked, dict) else None
-        if not isinstance(kind, str) or kind not in _PAGE_KINDS:
-            return _said(400, f'this engine answers the planner requests {sorted(_PAGE_KINDS)}')
-        if kind in _planner.HELD:
-            model = asked.pop('model', None)
-            with self.frames.serving() as models:
-                self._noted(models)
-                held = self.frames.model_for(model) if isinstance(model, str) else None
-                if held is None and isinstance(model, str):
-                    with self._warehouse_lock:
-                        table = self._warehouse_tables.get(model)
-                    held = table.held if table is not None else None
-                if held is not None:
-                    said = _planner.answer(library(), {**asked, 'handle': held.handle})
-                elif isinstance(model, str):
-                    # a project's model with Data rows (a saved query on Python's page: C5), held beside its database
-                    with self.projects.using(model) as project:
-                        said = (_planner.answer(library(), {**asked, 'handle': project.held.handle}) if project is not None
-                                else {'ok': True, 'answer': 'ERR\nMODEL\nthis engine serves no source of that model'})
-                else:
-                    said = {'ok': True, 'answer': 'ERR\nMODEL\nthis engine serves no source of that model'}
-        else:
-            said = _planner.answer(library(), asked)
-        said.pop('id', None)
-        return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
+            return _said(400, 'a plan is {"lambda", "model", "runtime"}, as JSON')
+        if not (isinstance(asked, dict) and all(isinstance(asked.get(k), str) for k in ('lambda', 'model', 'runtime'))):
+            return _said(400, 'a plan is {"lambda", "model", "runtime"}, each a string')
+        refused = self.planner.refused_plan('this engine plans only over the tables it serves: a page\'s frames and '
+                                            'files, a model that reads only them, and a project\'s model with Data rows')
+        with self.frames.serving() as models:
+            self._noted(models)
+            held = self.frames.model_for(asked['model'])
+            if held is None:
+                with self._warehouse_lock:
+                    table = self._warehouse_tables.get(asked['model'])
+                held = table.held if table is not None else None
+            if held is not None:
+                return _planned({'plan': self.planner.plan(asked['lambda'], held, asked['runtime'])})
+            with self.projects.using(asked['model']) as project:
+                if project is None:
+                    return _planned({'plan': refused})
+                return _planned({'plan': self.planner.plan(asked['lambda'], project.held, asked['runtime'])})
 
     def _execute(self, body: str) -> Answer:
         """execute in upstream's Arrow format: the compiler plans over the frames' models, DuckDB runs its SQL,
@@ -1521,7 +1511,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         # the API, an open page saying what it is now (page.json: Python's page.read()), a page's file in or out, the
         # saved pages, the page's settings, and PlanAndRun's calls
         if not (url.path.startswith(_API) or url.path.startswith(_LITE_API) or _model_home(url.path) or url.path in (
-                '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _PLAN_AND_RUN, _PLANNER, _WAREHOUSE)):
+                '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _PLAN_AND_RUN, _PLAN, _WAREHOUSE)):
             self._refuse_unread(404, f'no such path: {url.path}')
             return
         if not self._admitted(url.path):

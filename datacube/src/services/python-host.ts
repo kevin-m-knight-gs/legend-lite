@@ -5,8 +5,10 @@
 //
 // - THE ROWS ARE PYTHON'S (R4): the page sends Pure, never SQL. Each grid is one PlanAndRun (§15): the page's own
 //   planner asks Python for the plan, which Python makes against the model it holds and runs on its DuckDB in the same
-//   call (`plan-and-run.json`), and the page reads the rows typed by that plan, as the tab reads its own. A grid's
-//   columns, a query's print, are the planner protocol's answers, made by Python's native library (`planner.json`).
+//   call (`plan-and-run.json`), and the page reads the rows typed by that plan, as the tab reads its own; its dry run
+//   (the compile check) is that call's planning half (`plan.json`). A question about the Pure query alone -- a grid's
+//   columns, a parse, a print -- is legend-engine's own route (`/api/pure/v1/...`), which Python answers as every Legend
+//   server does (§15.2, as amended 2026-10-15: no worker messages carried over HTTP).
 // - THE DATA IN is Python's frames: each a model Python wrote when the frame was registered (`cube.json?table=`).
 // - PYTHON IS ANOTHER EDITOR of what the page shows (§5): it changes the page (`ll.Page`) and its frames, the page
 //   follows their versions (`version.json`, or the widget's), and it says what it is now, for `page.read()`
@@ -37,7 +39,7 @@ import type { ResultTable } from '../../../engine-client/src/result.ts';
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { type ModelOptions } from '../planner.ts';
-import type { PlannerWorker, Request, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
+import type { PlannerWorker, Request, RequestKind, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { ExactNumber, fromJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { base64 } from '../headless/web.ts';
 import { CubeStoreClient } from '../cube-store.ts';
@@ -158,11 +160,29 @@ async function asked(link: PythonLink, path: string): Promise<string> {
   return answer.text();
 }
 
+/** The tab's worker's requests a Python host is not asked, each with why: the tab's own, or no page's. */
+const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pureV1' | 'planJson'>, string>> = {
+  plan: "a page plans a query's protocol tree (planJson), not its text",
+  relationType: "a page types a query on legend-engine's route (lambdaRelationType), not its text",
+  planModel: "an unheld plan is Query's, in its tab",
+  tableModel: "a table's model is the tab's own database's",
+  catalogColumnsSql: "a catalog's reading is the tab's own database's",
+  executePlan: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
+  executeAnswer: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
+  testData: "a model's test data is the tab's own database's",
+  sessionSetup: "a session's setup is the tab's own database's",
+  projectData: "a project's Data rows are held by Python itself (C5)",
+  hostOperations: "a host's operations are the tab's own database's",
+  warm: "warming the planner is the tab's",
+};
+
 /**
- * THE PLANNER'S WORKER, ANSWERED BY PYTHON (§15.2): the planner protocol's requests -- the ones the tab's worker answers --
- * carried to Python's native library, which answers them as it answers headless's (`planner.json`). No handle crosses
- * the hosts (§15.3): a `hold` is kept here, its model's text by the handle this gives, and a held model's request sends
- * that text in the handle's place, Python planning against the model it holds of that text.
+ * THE PLANNER'S WORKER ON A PYTHON HOST (§15.2, as amended 2026-10-15): the page's planner asks a Python host as it asks
+ * any host -- a question about the Pure query on legend-engine's own route (`pure/v1`: Python answers it as every Legend
+ * server does, and the tab's worker in process), and its dry run on the host's compute (`plan.json`, plan-and-run's
+ * planning half). Nothing else is sent: the worker's other requests are the tab's own, refused here by name. No handle
+ * crosses the hosts (§15.3): a `hold` is kept here, its model's text by the handle this gives, and the dry run sends
+ * that text, Python planning against the model it holds of that text.
  */
 function pythonWorker(link: PythonLink): PlannerWorker {
   const held = new Map<number, string>();
@@ -174,44 +194,52 @@ function pythonWorker(link: PythonLink): PlannerWorker {
     postMessage(message: Request): void {
       const reply = (response: Response): void => { if (alive) worker.onmessage?.({ data: response }); };
       const { id, base: _base, ...body } = message;
-      if (body.kind === 'hold') {
-        const handle = next++;
-        held.set(handle, body.model);
-        reply({ id, ok: true, answer: `OK\n${handle}` });
-        return;
-      }
-      if (body.kind === 'release') {
-        held.delete(body.handle);
-        reply({ id, ok: true, answer: 'OK\n' });
-        return;
-      }
-      let sent: Record<string, unknown> = body;
-      if ('handle' in body) {
-        const { handle, ...rest } = body;
-        const model = held.get(handle);
-        if (model === undefined) {
-          reply({ id, ok: true, answer: `ERR\nMODEL\nno model held as ${handle} on this page` });
+      /** One call to Python, and the worker's answer made of Python's; the call failing is the worker's death, as a
+       *  crashed tab worker's is (the planner starts another). */
+      const call = (path: string, sent: string, answered: (answer: globalThis.Response, text: string) => Response): void => {
+        void link.fetch(`${link.baseUrl}${path}`, {
+          method: 'POST',
+          headers: { ...headers(link), 'Content-Type': 'application/json' },
+          body: sent,
+        }).then(async (answer) => { reply(answered(answer, await answer.text())); }, (e: unknown) => {
+          if (!alive) return;
+          alive = false;
+          worker.onerror?.({ message: `the engine did not answer: ${String(e)}` });
+        });
+      };
+      switch (body.kind) {
+        case 'hold': {
+          const handle = next++;
+          held.set(handle, body.model);
+          reply({ id, ok: true, answer: `OK\n${handle}` });
           return;
         }
-        sent = { ...rest, model };
-      }
-      void link.fetch(`${link.baseUrl}/planner.json`, {
-        method: 'POST',
-        headers: { ...headers(link), 'Content-Type': 'application/json' },
-        body: JSON.stringify(sent),
-      }).then(async (answer) => {
-        const text = await answer.text();
-        if (!answer.ok) {
-          reply({ id, ok: false, error: `the engine answered ${answer.status}: ${text}` });
+        case 'release':
+          held.delete(body.handle);
+          reply({ id, ok: true, answer: 'OK\n' });
+          return;
+        case 'pureV1':
+          // legend-engine's own route, answered as Python answers it: its status, media type and body, as the planner's
+          // route folds them
+          call(`${body.path}${body.query === '' ? '' : `?${body.query}`}`, body.body, (answer, text) =>
+            ({ id, ok: true, answer: `OK\n${answer.status}\n${answer.headers.get('content-type') ?? ''}\n${text}` }));
+          return;
+        case 'planJson': {
+          const model = held.get(body.handle);
+          if (model === undefined) {
+            reply({ id, ok: true, answer: `ERR\nMODEL\nno model held as ${body.handle} on this page` });
+            return;
+          }
+          // the dry run: plan-and-run's planning half, over the model Python holds of that text, never run
+          call('/plan.json', JSON.stringify({ lambda: body.lambda, model, runtime: body.runtime }), (answer, text) =>
+            (answer.ok
+              ? { id, ok: true, answer: (JSON.parse(text) as { plan: string }).plan }
+              : { id, ok: false, error: `the engine answered ${answer.status}: ${text}` }));
           return;
         }
-        reply({ id, ...(JSON.parse(text) as { ok: true; answer: string } | { ok: false; error: string }) });
-      }, (e: unknown) => {
-        // the call itself failed: the worker's death, as a crashed tab worker's is (the planner starts another)
-        if (!alive) return;
-        alive = false;
-        worker.onerror?.({ message: `the engine did not answer: ${String(e)}` });
-      });
+        default:
+          reply({ id, ok: false, error: `${body.kind} is not asked of a Python host: ${NOT_ASKED[body.kind]}` });
+      }
     },
     terminate(): void {
       alive = false;
@@ -543,8 +571,8 @@ export async function askedVersions(link: PythonLink, shows: PythonShows): Promi
 /** Python's services, over its link. */
 export function pythonServices(o: PythonServicesOptions): Services {
   const { link } = o;
-  // Python's native library over the planner protocol (planner.json): it writes a model, and reads a query's text and
-  // a model's elements
+  // Python's compiler on legend-engine's and legend-lite's own routes (pure/v1, lite/v1): it writes a model, and reads a
+  // query's text and a model's elements
   const compiler = new LitePlanner({ model: '', runtime: '', worker: () => pythonWorker(link) });
   return {
     engine: {

@@ -1,28 +1,26 @@
 // What Python's ll.Page writes (python/legend_lite/page.py; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md), in
 // DataCube's own words: its aggregates, sort directions and charts, the page's version, each as DataCube's sources
 // spell them -- so a name added here is one Python offers too, and Python never writes one DataCube does not read
-// (where it places a tile, what a grid's cube holds and what its filter takes, DataCube's own code says, headless).
-// And what Python's engine answers a page with (python/legend_lite/engine.py, _planner.py): the planner protocol's own
-// lists and the tab's snap limit (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 10 and 8). It reads Python's side as
-// text (the two halves are in two languages), and DataCube's types as text, its values as they are.
+// (where it places a tile, what a grid's cube holds and what its filter takes, DataCube's own code says, headless). It
+// reads Python's side as text (the two halves are in two languages), and DataCube's types as text, its values as they
+// are.
 //
 // Pins retired, not loosened (2026-10-15, the twins program, PR neema2/legend-lite#47): each went with the Python copy
 // it held equal, which now asks DataCube's own code headless instead -- BAND_HEIGHT, MAX_COLUMNS and SCREEN_BANDS with
 // page.py's band editors (item 3, headless/layout.ts); CUBE_KIND and CUBE_VERSION with its cube writer (item 2,
 // gridCube); FILTER_OPERATORS with its filter rules (item 6, gridFilter). The page's own kind (PAGE_KIND) has no pin:
 // every page Python saves, writes or shows passes DataCube's reader (headless/page.ts), which refuses another kind.
+// And the engine's planner kinds and snap limit (items 10 and 8), retired 2026-10-15 as no twins at all: a page asks a
+// Python host on legend-engine's own routes and the host's compute (plan-and-run, plan), never by the tab's worker kinds,
+// and the snap limit is Python's own, a fact of the database its copy lands in.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Sources } from '../../tools/js/runfiles.mts';
-import { HELD_KINDS, PAGE_KINDS } from '../../engine-client/src/legend/planner-protocol.ts';
-import { MAX_SNAP_ROWS } from '../../engine-client/src/snap.ts';
 
 // the sources this reads, as the BUILD target declares them (_SCANNED)
 const SOURCES = new Sources('SOURCES', 'datacube');
 const PAGE = '../python/legend_lite/page.py';
-const ENGINE = '../python/legend_lite/engine.py';
-const PLANNER = '../python/legend_lite/_planner.py';
 
 /** The quoted names of a TypeScript union type, `export type Name = 'a' | 'b' ...;`. */
 function union(file: string, name: string): string[] {
@@ -70,22 +68,5 @@ describe('Python writes pages in DataCube\'s own words', () => {
 
   it('its page version is the document\'s (a grid\'s cube document is DataCube\'s own: headless gridCube)', () => {
     assert.equal(pyNumber('PAGE_VERSION'), tsNumber('src/page-document.ts', 'PAGE_VERSION'));
-  });
-});
-
-describe('Python answers a page by DataCube\'s own lists and limits', () => {
-  it('the kinds a page sends it are the protocol\'s PAGE_KINDS', () => {
-    assert.ok(PAGE_KINDS.includes('pureV1'), 'the protocol lists them');
-    assert.deepEqual(python('_PAGE_KINDS', ENGINE), [...PAGE_KINDS].sort());
-  });
-
-  it('the most rows its Snap copies is the tab\'s', () => {
-    assert.ok(MAX_SNAP_ROWS > 0, 'snap.ts declares it');
-    assert.equal(pyNumber('_MAX_SNAP_ROWS', ENGINE), MAX_SNAP_ROWS);
-  });
-
-  it('the kinds it plans against a model held are the protocol\'s HELD_KINDS', () => {
-    assert.ok(HELD_KINDS.length > 0, 'the protocol lists them');
-    assert.deepEqual(python('HELD', PLANNER), [...HELD_KINDS].sort());
   });
 });
