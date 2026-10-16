@@ -9850,6 +9850,22 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-16 — `#Cypher{...}#`: the nineteenth landing — fractional durations, `toString(duration)`, a date inside a node (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the UNION leg; the record is the study's §12.21
+(`docs/CYPHER_STUDY_2026_10_15.md`). The translator and the judge (a temporal text inside a node read as its value).
+
+1. **What lands.** A fractional duration component cascades down the units as Neo4j's does, in the map and the text
+   forms, the database computing the floors and remainders; `toString(duration)` in Neo4j's spelling, every
+   quantity read straight from the slots (a nested quotient blew the container's memory, measured); a date inside
+   a node's JSON as the oracle spells one, read back as that value by the judge.
+2. **The ledger.** DuckDB: 4,179 cases; PASS 2,377 (from 2,351); FAIL 0; BUG 0; ERROR 0; REFUSED 726;
+   BOTH_ERROR 708; SKIP 368. Postgres: PASS 2,029 (from 2,003); FAIL 0; BUG 0; ERROR 0; REFUSED 1,074;
+   BOTH_ERROR 708; SKIP 368. 6 new lite cases in `lite/temporal.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check` clean).
+3. **The runs.** The two lanes in update mode, the oracle's check, `//core:guardrails`, `//core:core_tests_protocol`,
+   `//core:core_tests_integration`. The full CI run on the branch is the user's.
+
 ## 2026-10-16 — `#Cypher{...}#`: the eighteenth landing — UNION, and a MATCH over a model with no class (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after the relationships-as-values leg; the record is the study's §12.20

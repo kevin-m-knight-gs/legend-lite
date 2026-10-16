@@ -657,12 +657,19 @@ public final class CypherValues {
                 + "')";
     }
 
+    /** The oracle's spelling of a temporal value: {@code Date('...')}, {@code DateTime('...')}, ... */
+    private static final java.util.regex.Pattern TEMPORAL_TEXT = java.util.regex.Pattern.compile(
+            "(Date|LocalDateTime|DateTime|LocalTime|Time|Duration)\\('[^']*'\\)");
+
     /** A JSON value as a Cypher value: a number with no fraction an integer, else a float. */
     private static Value ofJson(com.legend.json.Json.Node node) {
         return switch (node) {
             case com.legend.json.Json.Null n -> new Null();
             case com.legend.json.Json.Bool b -> new Bool(b.value());
-            case com.legend.json.Json.Str s -> new Str(s.value());
+            // a temporal value inside a node or map, spelled as the oracle spells one (Date('2015-07-21'), ...): read
+            // back as that value, as a cell of its type is (the study's §12.21)
+            case com.legend.json.Json.Str s -> TEMPORAL_TEXT.matcher(s.value()).matches() ? new Opaque(s.value())
+                    : new Str(s.value());
             case com.legend.json.Json.Num n -> n.isInteger() ? new Int(BigInteger.valueOf(n.longValue()))
                     : new Flt(n.doubleValue());
             case com.legend.json.Json.Arr a -> {

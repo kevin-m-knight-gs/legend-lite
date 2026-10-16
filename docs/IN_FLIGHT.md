@@ -1707,6 +1707,10 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
 - **The UNION and empty-model leg, 2026-10-16, announced here as landed** — the translator (UNION of parts, a
   MATCH over no class), the parser (`UNION ALL` its own keyword), `lite/union.yaml` and `lite/empty.yaml`: no file
   of the database owner's, no guard pin moved. The record: the study's §12.20; GATES "the eighteenth landing".
+- **The temporal remainder's second leg, 2026-10-16, announced here as landed** — the translator (fractional
+  durations, `toString(duration)`, a date inside a node's JSON), the judge (`testcases/CypherValues`: a temporal
+  text inside a node read as its value) and `lite/temporal.yaml`: no file of the database owner's, no guard pin
+  moved. The record: the study's §12.21; GATES "the nineteenth landing".
 - **Announced 2026-10-15, before landing: the cross-area edits of PR1.** One merge of the branch, after one full
   CI run on it.
   - **The island, carried as the SQL and IQ islands are** (the IQ line's choice, so `ValueSpecification`, `Typer`

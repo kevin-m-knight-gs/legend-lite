@@ -2439,3 +2439,35 @@ answer where Neo4j errs as a BUG. `RETURN *` over no variable is Neo4j's error t
 
 6 lite cases in `lite/union.yaml` and 6 in `lite/empty.yaml`, each judged by Neo4j.
 
+### 12.21 The temporal remainder's second leg, 2026-10-16: fractional durations, `toString(duration)`, a date inside a node
+
+- **A fraction cascades down the units** (`duration({months: 0.75})`, `duration('P5M1.5D')`; 9 TCK cases): as
+  Neo4j's does — a month's into days at 30.436875 days a month (Neo4j's average: `P22DT19H51M49.5S` for three
+  quarters of a month, the TCK's example), a day's into seconds, a second's into nanoseconds — the whole parts
+  summed into the slots as Float sums, the floors and the remainders the database's (`durationOfParts`; the
+  all-whole case keeps its exact Integer path). The text form reads its numbers as written (a fraction on the
+  seconds exactly, to the nanosecond; on another unit as a Float literal carried down the same way) and
+  both forms end in the one builder.
+- **`toString(duration)`** (12 TCK cases) is Neo4j's spelling, `P[nY][nM][nD][T[nH][nM][n[.f]S]]`, each unit of a
+  non-zero value and `PT0S` for none: the years and months from the months slot (a quotient toward zero, Java's,
+  so `-14` months is `P-1Y-2M`), the hours, minutes and seconds from the seconds and nanoseconds as one signed
+  count of nanoseconds (so `-60.001` s is `PT-1M-0.001S`), the seconds' fraction trimmed of trailing zeros
+  (`regexpReplace`). The database computes every quotient and spells every number. Two measurements shaped it:
+  a nested quotient (`integerQuotient` of a quotient of a quotient) spelled the duration struct once per copy of
+  its argument — tens of thousands of copies in one SQL, and the container killed the lane (exit 137) — so each
+  quantity reads straight from the slots with a truncating division and a remainder keeping the dividend's
+  sign; and the product of the seconds and a billion folds to 32 bits over a literal-built struct on DuckDB (the
+  slot cast does not widen it), so the total goes through a Float constant and is cast back, exact to 2^53.
+- **A date inside a node** (10 TCK cases, WithOrderBy1/2's node-with-date rows): the node's JSON spells it as the
+  oracle spells one, `Date('1910-05-06')`, and the judge reads a JSON string of that grammar back as the opaque
+  value a cell of that type is (`CypherValues.TEMPORAL_TEXT`), so a node holding a date compares as Neo4j's does.
+
+#### 12.21.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4,179 | 2,377 (from 2,351) | 0 | 0 | 0 | 726 | 708 | 368 |
+| Postgres | 4,179 | 2,029 (from 2,003) | 0 | 0 | 0 | 1,074 | 708 | 368 |
+
+6 new lite cases in `lite/temporal.yaml` (and two refusal cases turned into passing ones), each judged by Neo4j.
+

@@ -254,6 +254,9 @@ public final class CypherToPure {
                     thunk(call("toString", v)), thunk(plus(call("toString", v), new CString(".0"))));
             case STRING -> plus(new CString("\""), call("replace", call("replace", v, new CString("\\"),
                     new CString("\\\\")), new CString("\""), new CString("\\\"")), new CString("\""));
+            // a date as the oracle's spelling of one, Date('yyyy-MM-dd'), which the judge reads back as that value
+            // (the study's §12.21)
+            case DATE -> plus(new CString("\"Date('"), call("toString", v), new CString("')\""));
             default -> throw CypherErrors.unsupported("a node holding a " + cypherType(kind) + " property (" + name
                     + "), as a value, is not supported yet (the Variant spells it as text)", pos);
         };
@@ -3562,7 +3565,8 @@ public final class CypherToPure {
                     Kind.STRING, List.of(t), x -> call("toString", x.get(0))));
             case DATETIME -> throw CypherErrors.unsupported("toString of a DateTime (Neo4j spells it as Java does,"
                     + " the database its own way) is not supported yet", c.pos());
-            case TIME, ZONED, ZONED_TIME, DURATION -> throw CypherErrors.unsupported("toString of a "
+            case DURATION -> scalar(durationText(t));
+            case TIME, ZONED, ZONED_TIME -> throw CypherErrors.unsupported("toString of a "
                     + cypherType(t.kind())
                     + " (Neo4j spells it as Java does, the database its own way) is not supported yet", c.pos());
             default -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind()) + " is not supported"
@@ -5117,28 +5121,53 @@ public final class CypherToPure {
             if (t.kind() == Kind.NULL) {
                 return nullValue();
             }
-            if (t.kind() != Kind.INTEGER) {
-                if (t.kind().numeric()) {
-                    throw CypherErrors.unsupported("a fractional duration component (" + e.getKey() + ": Neo4j"
-                            + " carries the fraction down the units) is not supported yet", c.pos());
-                }
+            if (!t.kind().numeric()) {
                 throw CypherErrors.invalid("Type mismatch: " + e.getKey() + " must be a number but was "
                         + cypherType(t.kind()), c.pos());
             }
             parts.put(u, t);
         }
-        List<Tx> inputs = new ArrayList<>(parts.values());
-        List<DurationUnit> keys = new ArrayList<>(parts.keySet());
-        Tx ns = parts.get(DurationUnit.NANOSECONDS);
-        boolean fine = ns != null && ns.vs() instanceof CInteger n && n.value().longValue() % 1000 != 0;
-        return scalar(withNanos(SqlToPure.strict(Kind.DURATION, inputs, v -> {
-            ValueSpecification[] slots = {lit(0), lit(0), lit(0), lit(0)};
+        return scalar(durationOfParts(cls, new ArrayList<>(parts.keySet()), new ArrayList<>(parts.values())));
+    }
+
+    /** A duration from its components, each a number: whole components sum into their slots; a fraction
+     *  cascades down the units as Neo4j's does (the study's §12.21) -- a month's into days (30.436875 days a
+     *  month, Neo4j's average), a day's into seconds, a second's into nanoseconds -- the database computing the
+     *  sums, the floors and the remainders. A nanoseconds component finer than a microsecond makes the duration of
+     *  nanosecond precision. */
+    private Tx durationOfParts(String cls, List<DurationUnit> keys, List<Tx> inputs) {
+        boolean fraction = inputs.stream().anyMatch(t -> t.kind() != Kind.INTEGER);
+        if (!fraction) {
+            Tx ns = keys.contains(DurationUnit.NANOSECONDS) ? inputs.get(keys.indexOf(DurationUnit.NANOSECONDS))
+                    : null;
+            boolean fine = ns != null && ns.vs() instanceof CInteger n && n.value().longValue() % 1000 != 0;
+            return withNanos(SqlToPure.strict(Kind.DURATION, inputs, v -> {
+                ValueSpecification[] slots = {lit(0), lit(0), lit(0), lit(0)};
+                for (int i = 0; i < keys.size(); i++) {
+                    DurationUnit u = keys.get(i);
+                    slots[u.slot] = plus(slots[u.slot], times(u.factor, v.get(i)));
+                }
+                return normalized(cls, slots[0], slots[1], slots[2], slots[3]);
+            }), fine);
+        }
+        return withNanos(SqlToPure.strict(Kind.DURATION, inputs, v -> {
+            ValueSpecification[] slots = {new CFloat(0.0), new CFloat(0.0), new CFloat(0.0), new CFloat(0.0)};
             for (int i = 0; i < keys.size(); i++) {
                 DurationUnit u = keys.get(i);
-                slots[u.slot] = plus(slots[u.slot], times(u.factor, v.get(i)));
+                slots[u.slot] = plus(slots[u.slot], AppliedFunction.infixRun("times", List.of(new CFloat(
+                        (double) u.factor), call("toFloat", v.get(i)))));
             }
-            return normalized(cls, slots[0], slots[1], slots[2], slots[3]);
-        }), fine));
+            ValueSpecification months = call("floor", slots[0]);
+            ValueSpecification daysF = plus(slots[1], AppliedFunction.infixRun("times", List.of(new CFloat(30.436875),
+                    minus(slots[0], months))));
+            ValueSpecification days = call("floor", daysF);
+            ValueSpecification secondsF = plus(slots[2], AppliedFunction.infixRun("times", List.of(new CFloat(86400.0),
+                    minus(daysF, days))));
+            ValueSpecification seconds = call("floor", secondsF);
+            ValueSpecification nanosF = plus(slots[3], AppliedFunction.infixRun("times", List.of(new CFloat(1.0e9),
+                    minus(secondsF, seconds))));
+            return normalized(cls, integer(months), integer(days), integer(seconds), integer(call("round", nanosF)));
+        }), false);
     }
 
     /** {@code duration('P1Y2M3DT4H5M6.007S')}: the unit form, each number whole but the seconds, which may carry a
@@ -5155,7 +5184,8 @@ public final class CypherToPure {
         if (!body.startsWith("P") && !body.startsWith("p")) {
             throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
         }
-        long[] slots = new long[4];
+        List<DurationUnit> keys = new ArrayList<>();
+        List<Tx> values = new ArrayList<>();
         int i = 1;
         boolean time = false;
         boolean any = false;
@@ -5195,52 +5225,48 @@ public final class CypherToPure {
             }
             char unit = Character.toUpperCase(body.charAt(i++));
             long n = Long.parseLong(whole.startsWith("+") ? whole.substring(1) : whole);
-            if (!fraction.isEmpty() && !(time && unit == 'S')) {
-                throw CypherErrors.unsupported("a fractional duration component (" + text + ": Neo4j carries the"
-                        + " fraction down the units) is not supported yet", c.pos());
+            if (negated) {
+                n = -n;
             }
             any = true;
-            switch (unit) {
-                case 'Y' -> slots[0] += 12 * n;
-                case 'M' -> {
-                    if (time) {
-                        slots[2] += 60 * n;
-                    } else {
-                        slots[0] += n;
-                    }
-                }
-                case 'W' -> slots[1] += 7 * n;
-                case 'D' -> slots[1] += n;
-                case 'H' -> slots[2] += 3600 * n;
-                case 'S' -> {
-                    slots[2] += n;
-                    if (!fraction.isEmpty()) {
-                        if (fraction.length() > 9) {
-                            throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
-                        }
-                        long nanos = Long.parseLong((fraction + "000000000").substring(0, 9));
-                        slots[3] += whole.startsWith("-") ? -nanos : nanos;
-                    }
-                }
+            DurationUnit du = switch (unit) {
+                case 'Y' -> DurationUnit.YEARS;
+                case 'M' -> time ? DurationUnit.MINUTES : DurationUnit.MONTHS;
+                case 'W' -> DurationUnit.WEEKS;
+                case 'D' -> DurationUnit.DAYS;
+                case 'H' -> DurationUnit.HOURS;
+                case 'S' -> DurationUnit.SECONDS;
                 default -> throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
-            }
+            };
             if (time && (unit == 'Y' || unit == 'W' || unit == 'D') || !time && (unit == 'H' || unit == 'S')) {
                 throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
+            }
+            if (fraction.isEmpty()) {
+                keys.add(du);
+                values.add(Tx.value(lit(n), Kind.INTEGER, false));
+            } else if (unit == 'S') {
+                // the seconds' fraction read exactly, to the nanosecond
+                if (fraction.length() > 9) {
+                    throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
+                }
+                long nanos = Long.parseLong((fraction + "000000000").substring(0, 9));
+                keys.add(DurationUnit.SECONDS);
+                values.add(Tx.value(lit(n), Kind.INTEGER, false));
+                keys.add(DurationUnit.NANOSECONDS);
+                values.add(Tx.value(lit(whole.startsWith("-") != negated ? -nanos : nanos), Kind.INTEGER, false));
+            } else {
+                // a fraction on another unit: the number read as written, carried down the units as a map's is
+                double value = Double.parseDouble(whole + "." + fraction);
+                keys.add(du);
+                values.add(Tx.value(new CFloat(negated ? -value : value), Kind.FLOAT, false));
             }
         }
         if (!any) {
             throw CypherErrors.invalid("Text cannot be parsed to a Duration", c.pos());
         }
-        if (negated) {
-            for (int k = 0; k < 4; k++) {
-                slots[k] = -slots[k];
-            }
-        }
-        // the text's numbers, read as written (a sign, digits): the sums above are the reading of a literal, as a
-        // date's year is; the normalisation of the nanoseconds is the database's; a fraction finer than a
-        // microsecond makes the duration of nanosecond precision
-        return scalar(withNanos(Tx.value(normalized(cls, lit(slots[0]), lit(slots[1]), lit(slots[2]),
-                lit(slots[3])), Kind.DURATION, false), slots[3] % 1000 != 0));
+        // the text's numbers, read as written (a sign, digits): the reading of a literal, as a date's year is; the
+        // sums and the normalisation are the database's
+        return scalar(durationOfParts(cls, keys, values));
     }
 
     /** A field of a duration ({@code d.minutesOfHour}), by its Cypher name (case-sensitive, as properties are). */
@@ -6795,6 +6821,61 @@ public final class CypherToPure {
 
     private static Tx field(Tx t, java.util.function.Function<ValueSpecification, ValueSpecification> read) {
         return SqlToPure.strict(Kind.INTEGER, List.of(t), x -> read.apply(x.get(0)));
+    }
+
+    /** {@code toString(duration)}, Neo4j's spelling (the study's §12.21): {@code P[nY][nM][nD][T[nH][nM][n[.f]S]]},
+     *  each unit of a non-zero value ({@code PT0S} for none); the years and months from the months slot (the
+     *  quotient toward zero, Java's), the hours, minutes and seconds from the seconds and nanoseconds as one signed
+     *  count of nanoseconds (so -60.001 s is {@code -1M-0.001S}), the seconds' fraction trimmed of trailing zeros.
+     *  The database computes every quotient and spells every number. */
+    private static Tx durationText(Tx t) {
+        return SqlToPure.strict(Kind.STRING, List.of(t), x -> {
+            // each quantity read straight from the slots (a quotient toward zero, a remainder keeping the
+            // dividend's sign), never from another quantity: a nested quotient would spell the struct once per
+            // copy of its argument, and that grew past the container's memory, measured
+            ValueSpecification d = x.get(0);
+            ValueSpecification months = slot(d, "months");
+            ValueSpecification years = truncQuotient(months, 12);
+            ValueSpecification monthsLeft = call("rem", months, lit(12));
+            // (the seconds times a billion through a Float: a literal-built slot is 32 bits on DuckDB and the
+            // product of two of them overflows, measured; the Float product cast back is exact to 2^53)
+            ValueSpecification total = plus(integer(AppliedFunction.infixRun("times", List.of(new CFloat(1.0e9),
+                    slot(d, "seconds")))), slot(d, "nanoseconds"));
+            ValueSpecification hours = truncQuotient(total, 3600 * NANOS);
+            ValueSpecification minutes = truncQuotient(call("rem", total, lit(3600 * NANOS)), 60 * NANOS);
+            ValueSpecification secNanos = call("rem", total, lit(60 * NANOS));
+            ValueSpecification magnitude = call("abs", secNanos);
+            ValueSpecification secWhole = integer(call("floor", call("divide", magnitude, lit(NANOS))));
+            ValueSpecification frac = call("rem", magnitude, lit(NANOS));
+            // the fraction's nine digits (a leading 1 keeps the zeros, then dropped), the trailing zeros trimmed
+            ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(frac,
+                    lit(NANOS))), new CInteger(2L)), new CString("0+$"), new CString(""), new CBoolean(true));
+            ValueSpecification secText = call("if", call("equal", frac, lit(0)), thunk(call("toString", secWhole)),
+                    thunk(plus(call("toString", secWhole), new CString("."), digits)));
+            ValueSpecification secSigned = call("if", call("lessThan", secNanos, lit(0)),
+                    thunk(plus(new CString("-"), secText)), thunk(secText));
+            ValueSpecification datePart = plus(unitText(years, "Y"), unitText(monthsLeft, "M"),
+                    unitText(slot(d, "days"), "D"));
+            ValueSpecification timePart = plus(unitText(hours, "H"), unitText(minutes, "M"),
+                    call("if", call("equal", secNanos, lit(0)), thunk(new CString("")),
+                            thunk(plus(secSigned, new CString("S")))));
+            ValueSpecification text = plus(new CString("P"), datePart, call("if", call("equal", timePart,
+                    new CString("")), thunk(new CString("")), thunk(plus(new CString("T"), timePart))));
+            return call("if", call("equal", text, new CString("P")), thunk(new CString("PT0S")), thunk(text));
+        });
+    }
+
+    /** {@code a / b} toward zero, an Integer: the floor of a positive quotient, the ceiling of a negative one. */
+    private static ValueSpecification truncQuotient(ValueSpecification a, long b) {
+        ValueSpecification q = call("divide", a, lit(b));
+        return integer(call("if", call("greaterThanEqual", a, lit(0)), thunk(call("floor", q)),
+                thunk(call("ceiling", q))));
+    }
+
+    /** A duration unit's text: the count and its letter, empty for none. */
+    private static ValueSpecification unitText(ValueSpecification count, String letter) {
+        return call("if", call("equal", count, lit(0)), thunk(new CString("")),
+                thunk(plus(call("toString", count), new CString(letter))));
     }
 
     /** The Thursday of a date's ISO week (whose year is the week-year). */

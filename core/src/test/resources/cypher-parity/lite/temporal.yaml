@@ -54,7 +54,7 @@ tests:
       CREATE (:Val {name: 'a', d: date('1984-10-11')}),
              (:Val {name: 'b', d: date('2015-06-24')})
     cypher: "MATCH (v:Val) RETURN v.name AS name, v.d + duration({months: 1}) AS m, duration.between(v.d, date('2020-01-01')).months AS mo, duration.between(v.d, date('2020-01-01')) AS dur ORDER BY name"
-  - id: duration_fraction_refused_by_name
+  - id: duration_fraction_cascades
     cypher: "RETURN duration({days: 1.5}) AS d"
   - id: duration_of_a_date_is_neo4js_error
     cypher: "RETURN duration(date('1984-10-11')) AS d"
@@ -64,7 +64,7 @@ tests:
     cypher: "RETURN duration('nope') AS d"
   - id: duration_order_refused_by_name
     cypher: "RETURN duration({days: 1}) < duration({days: 2}) AS lt"
-  - id: duration_to_string_refused_by_name
+  - id: duration_to_string
     cypher: "RETURN toString(duration({days: 1})) AS s"
   - id: duration_date_time_text_form_refused_by_name
     cypher: "RETURN duration('P2012-02-02T14:37:21.545') AS d"
@@ -284,3 +284,17 @@ tests:
     cypher: "WITH duration({seconds: 1, nanoseconds: 1}) AS d RETURN d.nanoseconds, d.nanosecondsOfSecond, d.microsecondsOfSecond, duration('PT1.000000001S') = d AS eq, duration.between(localdatetime('1984-10-11T12:31:14.645876123'), localdatetime('1984-10-11T12:31:14.645876124')).nanosecondsOfSecond AS one"
   - id: nanos_component_of_the_row_refused_by_name
     cypher: "UNWIND [1] AS i RETURN localtime({hour: 12, minute: 0, second: 0, nanosecond: i}) AS t"
+  - id: duration_fraction_of_a_month_cascades
+    cypher: "RETURN duration({months: 0.75}) AS d, toString(duration({months: 0.75})) AS t"
+  - id: duration_fraction_of_days_and_weeks
+    cypher: "RETURN toString(duration({months: 5, days: 1.5})) AS a, toString(duration({weeks: 2.5})) AS b, toString(duration({minutes: 1.5, seconds: 1})) AS c"
+  - id: duration_fraction_in_text
+    cypher: "RETURN toString(duration('P5M1.5D')) AS a, toString(duration('P0.75M')) AS b, toString(duration('PT0.75M')) AS c, toString(duration('P2.5W')) AS d"
+  - id: duration_to_string_whole_units
+    cypher: "RETURN toString(duration({years: 12, months: 5, days: 14, hours: 16, minutes: 12, seconds: 70})) AS a, toString(duration({days: 14, seconds: 70, milliseconds: 1})) AS b, toString(duration({seconds: 0})) AS c"
+  - id: duration_to_string_negative_and_fractions
+    cypher: "RETURN toString(duration({seconds: -2, milliseconds: 1})) AS a, toString(duration({seconds: -60, milliseconds: -1})) AS b, toString(duration({days: 1, milliseconds: -1})) AS c, toString(duration({months: -14, days: -3})) AS d"
+  - id: date_property_inside_a_node
+    graph: |
+      CREATE (:A {name: 'a', date: date({year: 1910, month: 5, day: 6})}), (:B {name: 'b', date: date({year: 1980, month: 12, day: 24})})
+    cypher: "MATCH (n) WITH n ORDER BY n.date LIMIT 1 RETURN n, n.date AS d"

@@ -101,8 +101,10 @@ fractional durations, a stored time. Then OPTIONAL MATCH (§12.18): optional hop
 DuckDB PASS 2,305, Postgres PASS 1,957, 0 FAIL, 0 BUG, 0 ERROR on both. Then relationships as values (§12.19):
 `r` as its type, `type(r)`, optional relationships, the harness's edge-property skip; DuckDB PASS 2,328, Postgres
 PASS 1,980, 0 FAIL, 0 BUG, 0 ERROR on both. Then UNION and the empty model (§12.20); DuckDB PASS 2,351, Postgres
-PASS 2,003, 0 FAIL, 0 BUG, 0 ERROR on both. Then the full CI run on the branch, the merge; an OPTIONAL MATCH's
-WHERE, an edge class, and `collect` (the database owner's aggregate) wait.
+PASS 2,003, 0 FAIL, 0 BUG, 0 ERROR on both. Then the temporal remainder's second leg (§12.21): fractional durations,
+`toString(duration)`, a date inside a node; DuckDB PASS 2,377, Postgres PASS 2,029, 0 FAIL, 0 BUG, 0 ERROR on
+both. Then the full CI run on the branch, the merge; an OPTIONAL MATCH's WHERE, an edge class, `toString` of the
+other temporal values, and `collect` (the database owner's aggregate) wait.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

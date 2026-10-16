@@ -950,11 +950,11 @@ tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected fro
 tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected from a node property in ascending order #3	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy1/[32] Sort by a list variable projected from a node property in descending order #1	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy1/[32] Sort by a list variable projected from a node property in descending order #2	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy1/[33] Sort by a date variable projected from a node property in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[33] Sort by a date variable projected from a node property in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[33] Sort by a date variable projected from a node property in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[34] Sort by a date variable projected from a node property in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[34] Sort by a date variable projected from a node property in descending order #2	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[33] Sort by a date variable projected from a node property in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[33] Sort by a date variable projected from a node property in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[33] Sort by a date variable projected from a node property in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[34] Sort by a date variable projected from a node property in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[34] Sort by a date variable projected from a node property in descending order #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[35] Sort by a local time variable projected from a node property in ascending order #1	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy1/[35] Sort by a local time variable projected from a node property in ascending order #2	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy1/[35] Sort by a local time variable projected from a node property in ascending order #3	SKIP	SKIP
@@ -1024,11 +1024,11 @@ tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending
 tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending order #3	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[10] Sort by a list expression in descending order #1	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[10] Sort by a list expression in descending order #2	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy2/[11] Sort by a date expression in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[11] Sort by a date expression in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[11] Sort by a date expression in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[12] Sort by a date expression in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[12] Sort by a date expression in descending order #2	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[11] Sort by a date expression in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[11] Sort by a date expression in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[11] Sort by a date expression in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[12] Sort by a date expression in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[12] Sort by a date expression in descending order #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy2/[13] Sort by a local time expression in ascending order #1	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[13] Sort by a local time expression in ascending order #2	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[13] Sort by a local time expression in ascending order #3	SKIP	SKIP
@@ -2995,14 +2995,14 @@ tck/expressions/temporal/Temporal1/[10] Should construct date time with named ti
 tck/expressions/temporal/Temporal1/[10] Should construct date time with named time zone #29	PASS	PASS
 tck/expressions/temporal/Temporal1/[11] Should construct date time from epoch	PASS	REFUSED
 tck/expressions/temporal/Temporal1/[12] Should construct duration #1	PASS	PASS
-tck/expressions/temporal/Temporal1/[12] Should construct duration #2	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[12] Should construct duration #3	REFUSED	REFUSED
-tck/expressions/temporal/Temporal1/[12] Should construct duration #4	REFUSED	REFUSED
+tck/expressions/temporal/Temporal1/[12] Should construct duration #2	PASS	PASS
+tck/expressions/temporal/Temporal1/[12] Should construct duration #3	PASS	PASS
+tck/expressions/temporal/Temporal1/[12] Should construct duration #4	PASS	PASS
 tck/expressions/temporal/Temporal1/[12] Should construct duration #5	PASS	PASS
 tck/expressions/temporal/Temporal1/[12] Should construct duration #6	PASS	PASS
 tck/expressions/temporal/Temporal1/[12] Should construct duration #7	PASS	PASS
 tck/expressions/temporal/Temporal1/[12] Should construct duration #8	PASS	PASS
-tck/expressions/temporal/Temporal1/[12] Should construct duration #9	REFUSED	REFUSED
+tck/expressions/temporal/Temporal1/[12] Should construct duration #9	PASS	PASS
 tck/expressions/temporal/Temporal1/[13] Should construct temporal with time offset with second precision #1	PASS	PASS
 tck/expressions/temporal/Temporal1/[13] Should construct temporal with time offset with second precision #2	PASS	PASS
 tck/expressions/temporal/Temporal1/[13] Should construct temporal with time offset with second precision #3	PASS	PASS
@@ -3185,10 +3185,10 @@ tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zo
 tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #4	PASS	PASS
 tck/expressions/temporal/Temporal2/[6] Should parse date time with named time zone from string #5	PASS	PASS
 tck/expressions/temporal/Temporal2/[7] Should parse duration from string #1	PASS	PASS
-tck/expressions/temporal/Temporal2/[7] Should parse duration from string #2	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[7] Should parse duration from string #3	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[7] Should parse duration from string #4	REFUSED	REFUSED
-tck/expressions/temporal/Temporal2/[7] Should parse duration from string #5	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[7] Should parse duration from string #2	PASS	PASS
+tck/expressions/temporal/Temporal2/[7] Should parse duration from string #3	PASS	PASS
+tck/expressions/temporal/Temporal2/[7] Should parse duration from string #4	PASS	PASS
+tck/expressions/temporal/Temporal2/[7] Should parse duration from string #5	PASS	PASS
 tck/expressions/temporal/Temporal2/[7] Should parse duration from string #6	PASS	PASS
 tck/expressions/temporal/Temporal2/[7] Should parse duration from string #7	REFUSED	REFUSED
 tck/expressions/temporal/Temporal3/[1] Should select date #1	PASS	PASS
@@ -4027,12 +4027,12 @@ lite/temporal/duration_between	PASS	PASS
 lite/temporal/duration_equality	PASS	PASS
 lite/temporal/duration_null_propagation	PASS	PASS
 lite/temporal/stored_dates_with_durations	PASS	PASS
-lite/temporal/duration_fraction_refused_by_name	REFUSED	REFUSED
+lite/temporal/duration_fraction_cascades	PASS	PASS
 lite/temporal/duration_of_a_date_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_unknown_field_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_order_refused_by_name	REFUSED	REFUSED
-lite/temporal/duration_to_string_refused_by_name	REFUSED	REFUSED
+lite/temporal/duration_to_string	PASS	PASS
 lite/temporal/duration_date_time_text_form_refused_by_name	REFUSED	REFUSED
 lite/temporal/duration_divided_refused_by_name	REFUSED	REFUSED
 lite/temporal/time_from_text	PASS	PASS
@@ -4139,6 +4139,12 @@ lite/temporal/nanos_time_of_a_named_zone_datetime_refused_by_name	REFUSED	REFUSE
 lite/temporal/nanos_year_outside_the_range_refused_by_name	REFUSED	REFUSED
 lite/temporal/nanos_duration_fields	PASS	REFUSED
 lite/temporal/nanos_component_of_the_row_refused_by_name	REFUSED	REFUSED
+lite/temporal/duration_fraction_of_a_month_cascades	PASS	PASS
+lite/temporal/duration_fraction_of_days_and_weeks	PASS	PASS
+lite/temporal/duration_fraction_in_text	PASS	PASS
+lite/temporal/duration_to_string_whole_units	PASS	PASS
+lite/temporal/duration_to_string_negative_and_fractions	PASS	PASS
+lite/temporal/date_property_inside_a_node	PASS	PASS
 lite/union/union_distinct	PASS	PASS
 lite/union/union_all	PASS	PASS
 lite/union/union_over_matches	PASS	PASS
