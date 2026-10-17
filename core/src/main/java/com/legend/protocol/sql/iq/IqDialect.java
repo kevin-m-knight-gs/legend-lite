@@ -4909,7 +4909,7 @@ public final class IqDialect implements InputDialect {
                     case PLUS -> AppliedFunction.infixRun("plus", v);
                     case MINUS -> AppliedFunction.infixRun("minus", v);
                     case TIMES -> AppliedFunction.infixRun("times", v);
-                    case DIVIDE -> SqlToPure.integerQuotient(v.get(0), v.get(1));
+                    case DIVIDE -> SqlToPure.wholeQuotient(v.get(0), v.get(1));
                     // Pure's rem is a Number: the integer it is, as one
                     default -> SqlToPure.call("cast", SqlToPure.call("rem", v.get(0), v.get(1)),
                             SqlToPure.typeArg("Integer"));
@@ -5070,7 +5070,7 @@ public final class IqDialect implements InputDialect {
     static Tx bounded(Tx t, SqlAst.Expr node) {
         long size = written(t);
         if (size > LARGEST && size > RATIO * sqlSize(node)) {
-            throw tooLarge(node.pos());
+            throw tooLarge(node.pos(), size);
         }
         return t;
     }
@@ -5102,17 +5102,18 @@ public final class IqDialect implements InputDialect {
     /** {@code t}, unless its Pure written out exceeds {@link #LARGEST} nodes: refused by name (where no SQL node is at
      *  hand to measure against). */
     static Tx bounded(Tx t, SqlAst.Pos pos) {
-        if (written(t) > LARGEST) {
-            throw tooLarge(pos);
+        long size = written(t);
+        if (size > LARGEST) {
+            throw tooLarge(pos, size);
         }
         return t;
     }
 
-    private static SqlTranslationException tooLarge(SqlAst.Pos pos) {
+    private static SqlTranslationException tooLarge(SqlAst.Pos pos, long size) {
         return SqlTranslationException.unsupported("this expression nests too many operations IQ checks for overflow"
-                + " or a zero divisor to be translated: each repeats its operands in lite's SQL, which would hold more"
-                + " than " + LARGEST + " nodes; split it into fewer operations (or compute it over BIGINT values, which"
-                + " need no check)", pos);
+                + " or a zero divisor to be translated: each repeats its operands in lite's SQL, which would hold "
+                + size + " nodes, more than " + LARGEST + "; split it into fewer operations (or compute it over BIGINT"
+                + " values, which need no check)", pos);
     }
 
     /** The nodes of {@code vs} written out: a node shared by several parents counts once for each. */

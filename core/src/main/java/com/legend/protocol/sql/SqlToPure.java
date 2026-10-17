@@ -294,6 +294,13 @@ public final class SqlToPure {
      *  divide computes it in double precision, within 2^-52 of it; shrunk by 2^-50 and truncated, the estimate is never
      *  beyond the quotient, so {@code A - q0 * b} (exact integer arithmetic, never beyond A) is a small multiple of the
      *  divisor, divided once more and added. A divisor of zero is Postgres's error and rem's. */
+    /** {@code a / b} of two Integers, cut toward zero: lite's {@code quotient}, the database's integer division (IQ
+     *  island, 2026-10-17: {@link #integerQuotient}'s estimate reads each operand about fourteen times, which
+     *  nested divisions multiply). The divisor's zero is the caller's to test. */
+    public static ValueSpecification wholeQuotient(ValueSpecification a, ValueSpecification b) {
+        return call("meta::legend::lite::quotient", a, b);
+    }
+
     public static ValueSpecification integerQuotient(ValueSpecification a, ValueSpecification b) {
         ValueSpecification whole = AppliedFunction.infixRun("minus", List.of(a, call("rem", a, b)));
         ValueSpecification shrunk = AppliedFunction.infixRun("times", List.of(call("divide", whole, b),
@@ -4776,7 +4783,7 @@ public final class SqlToPure {
                             + " which divide differently (cast it: sum(x)::bigint / n or sum(x)::numeric / n)", b.pos());
                 }
                 if (l.kind() == Kind.INTEGER && r.kind() == Kind.INTEGER) {
-                    return strict(Kind.INTEGER, List.of(l, r), v -> integerQuotient(v.get(0), v.get(1)));
+                    return strict(Kind.INTEGER, List.of(l, r), v -> wholeQuotient(v.get(0), v.get(1)));
                 }
                 // a double's quotient is a double, in Postgres too; a numeric's is exact there, a Float here
                 boolean doubles = (l.kind() == Kind.FLOAT || r.kind() == Kind.FLOAT) && l.kind() != Kind.INEXACT

@@ -109,7 +109,13 @@ class NativeCatalogGovernanceTest {
         // (InlineViewChecker; ClassSources' extent rule) and erased: SQL computes such windows before the enclosing
         // WHERE, which Pure's relation composition folds under them. Within the ceiling: merged with the Cypher
         // island's four (2026-10-16), whose 21 counted from the ceiling 17, the count is 16 + 4 + 1 = 21.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 21,
+        // +1 2026-10-17 (the IQ island's scale, docs/IQ_CENSUS_CHECKLIST.md "the refusals the live IQ answers"):
+        // quotient — an integer quotient cut toward zero, the database's own integer division (MIR's INT_DIVIDE,
+        // every dialect's arm). legend-pure's divide of integers is a Float and upstream has no integer division,
+        // so the SQL islands wrote one as a Float estimate corrected by remainders, reading each operand about
+        // fourteen times; nested quotients made statements of megabytes (44 corpus queries refused by the
+        // translation-size bound). Emitted by the SQL islands only, by FQN. 21 -> 22.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 22,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

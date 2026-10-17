@@ -736,13 +736,10 @@ class SqlToPureTest {
         assertEquals("#>{s::DB.T}#->groupBy(~[dept], ~[n:r|if($r.age->isNotEmpty() && ($r.age->toOne() > 30), |1, |[])"
                 + ":y|$y->count(), s:r|$r.age:y|$y->distinct()->sum()])->select(~[dept, n, s])", pure("select dept, count(*) filter (where age > 30) as n, sum(distinct age) as s"
                 + " from tb('s::DB.T') group by dept"));
-        assertEquals("#>{s::DB.T}#->extend(~[q:r|if($r.age->isEmpty(), |[], |if((($r.age->toOne() - $r.age->toOne()->rem(7"
-                + ")) / 7) * 0.9999999999999991 >= 0, |floor((($r.age->toOne() - $r.age->toOne()->rem(7)) / 7) * 0.9999"
-                + "999999999991), |ceiling((($r.age->toOne() - $r.age->toOne()->rem(7)) / 7) * 0.9999999999999991)) + r"
-                + "ound((($r.age->toOne() - $r.age->toOne()->rem(7)) - (if((($r.age->toOne() - $r.age->toOne()->rem(7))"
-                + " / 7) * 0.9999999999999991 >= 0, |floor((($r.age->toOne() - $r.age->toOne()->rem(7)) / 7) * 0.999999"
-                + "9999999991), |ceiling((($r.age->toOne() - $r.age->toOne()->rem(7)) / 7) * 0.9999999999999991)) * 7))"
-                + " / 7))])->select(~[q])",
+        // IQ island, 2026-10-17: an integer quotient is lite's own, the database's integer division (it was a Float
+        // estimate corrected by remainders, each operand read about fourteen times)
+        assertEquals("#>{s::DB.T}#->extend(~[q:r|if($r.age->isEmpty(), |[], |$r.age->toOne()->meta::legend::lite"
+                + "::quotient(7))])->select(~[q])",
                 pure("select age / 7 as q from tb('s::DB.T')"));
         assertEquals("FILTER specified, but upper is not an aggregate function",
                 refusal("select upper(name) filter (where age > 1) from tb('s::DB.T')").getMessage());

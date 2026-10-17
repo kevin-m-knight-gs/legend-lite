@@ -159,7 +159,13 @@ island's reason, those IQ answers, and what became of them:
   of a wide NUMERIC (53, IQ's NUMERIC(127,59): '9.83333...' to 59 places), a NUMERIC quotient or product past 38
   digits (46), CAST of a NUMERIC to more places (8). IQ answers them exactly; DuckDB holds no decimal past 38 digits
   (Postgres's numeric would), so lite refuses by name rather than answer other digits;
-- not built yet: an expression nesting too many checked operations (39 of 44, a scale bound); the name IQ gives an
+- an expression nesting too many checked operations (39 of 44, a scale bound): an integer quotient is lite's own
+  native now (`meta::legend::lite::quotient`, the database's integer division), where the islands' Float estimate read
+  each operand about fourteen times (`CONVERT(int, LEN(x) * (1 + y) / 1000)`: 30 KB of SQL to 600 bytes); 5 more
+  answer. The rest repeat a scalar subquery or a long operand through DOUBLE division's zero test and NULL tests (35k
+  nodes at the median, 330k at most; lifted, 34 of 44 answer in DuckDB but with megabytes of SQL). Open: bind such an
+  operand once (a column computed before the item), where it is read on every path;
+- not built yet: the name IQ gives an
   unaliased expression it spells with its own rules (32: tables qualified, `count()`, an inner alias kept); RAND (8,
   in ORDER BY: no answer to judge); DATEADD's counts that may pass 32 bits (10); STR, LOG and LOG10 of an UNSIGNED
   number (13); CONVERT's styles to other lengths (5).

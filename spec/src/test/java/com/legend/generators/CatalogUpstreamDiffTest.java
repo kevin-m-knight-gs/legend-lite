@@ -199,8 +199,11 @@ class CatalogUpstreamDiffTest {
      *  four meta::legend::lite natives (timeOf, atTime, instantIn, localIn -- the time-of-day and the zoned date-time
      *  legs, docs/CYPHER_STUDY_2026_10_15.md), declared by Pure.Lite: ours alone by design, never upstream's. 48 on
      *  2026-10-16 (the user's decision, the SQL islands' inline views): meta::legend::lite::inlineView, a lite-internal
-     *  desugar native (NativeCatalogGovernanceTest's INTERNAL_DESUGAR, docs/LITE_INVENTION_CENSUS.md). */
-    private static final int NOT_UPSTREAM_MAX = 48;
+     *  desugar native (NativeCatalogGovernanceTest's INTERNAL_DESUGAR, docs/LITE_INVENTION_CENSUS.md). 49 on 2026-10-17
+     *  (the IQ island's scale, docs/IQ_CENSUS_CHECKLIST.md): meta::legend::lite::quotient, an integer quotient cut
+     *  toward zero, the database's own integer division -- upstream has none (legend-pure's divide of integers is a
+     *  Float). */
+    private static final int NOT_UPSTREAM_MAX = 49;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

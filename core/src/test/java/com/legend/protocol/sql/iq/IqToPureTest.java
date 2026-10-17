@@ -257,8 +257,8 @@ class IqToPureTest {
         // a BIGINT result is never checked: the database computes it in 64 bits and raises its own overflow first
         String wide = saNumbers("SELECT i + bg AS n FROM " + T);
         assertFalse(wide.contains("9223372036854775807") || wide.contains("cast(@Integer)->toOne()"), wide);
-        // / truncates toward zero (the shared exact quotient); % is rem
-        assertTrue(saNumbers("SELECT i / 2 AS q FROM " + T).contains("->rem("));
+        // / truncates toward zero (lite's quotient, the database's integer division: 2026-10-17); % is rem
+        assertTrue(saNumbers("SELECT i / 2 AS q FROM " + T).contains("quotient(2)"));
         assertTrue(saNumbers("SELECT i % 2 AS r FROM " + T).contains("->rem(2)->cast(@Integer)"));
         // a minus before a column is checked in its type; before a constant it is a constant typed by its value
         assertTrue(saNumbers("SELECT -sm AS n FROM " + T).contains("> 32767"));
@@ -312,8 +312,9 @@ class IqToPureTest {
                 () -> saNumbersRefusal("SELECT " + twelve + " AS n FROM " + T));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind());
         assertTrue(e.getMessage().contains("nests too many operations"), e.getMessage());
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, saNumbersRefusal("SELECT i / 2 / 2 / 2 AS n FROM " + T)
-                .kind());
+        // IQ island, 2026-10-17: a quotient reads each operand once now (lite's quotient), so nested ones stay small
+        String quotients = saNumbers("SELECT i / 2 / 2 / 2 AS n FROM " + T);
+        assertTrue(quotients.length() < 20_000, "" + quotients.length());
         String chain = numbers("SELECT " + String.join(" + ", java.util.Collections.nCopies(200, "sm")) + " AS n FROM "
                 + T);
         assertTrue(chain.length() < 20_000, "" + chain.length());

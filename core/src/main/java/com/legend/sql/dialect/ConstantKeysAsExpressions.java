@@ -27,7 +27,8 @@ import java.util.List;
  *
  * <p>DuckDB reads an integer GROUP BY key as a position too ({@code GROUP BY 2} names the second
  * output: IQ island, 2026-10-17, IQ's {@code GROUP BY 2}, a constant there): its dialect runs
- * this pass over GROUP BY alone ({@link #groupByOnly}), where its ORDER BY keeps what it says.
+ * this pass over GROUP BY's integers alone ({@link #groupByOnly}), where any other constant key and
+ * its ORDER BY keep what they say.
  */
 final class ConstantKeysAsExpressions extends SqlRewriter {
 
@@ -52,7 +53,8 @@ final class ConstantKeysAsExpressions extends SqlRewriter {
         List<SqlExpr> g = new ArrayList<>(group.size());
         boolean changed = false;
         for (SqlExpr e : group) {
-            SqlExpr k = typedKey(e, "GROUP BY");
+            // DuckDB's mode: only an integer is a position there; any other constant key stays as it is
+            SqlExpr k = orderToo || e instanceof SqlExpr.IntLit ? typedKey(e, "GROUP BY") : e;
             changed |= k != e;
             g.add(k);
         }
