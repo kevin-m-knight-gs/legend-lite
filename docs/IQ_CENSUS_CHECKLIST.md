@@ -228,8 +228,28 @@ island's reason, those IQ answers, and what became of them:
     join that it then is (`u.id > 0`, IS NOT NULL, IN, BETWEEN, LIKE of its column; not IS NULL, an OR or a
     COALESCE). Built for the WHERE of the join's own query, read as an INNER JOIN; not built where an enclosing
     query's join rejects them through a grouped common table expression (SQLStorm's 11558): IQ's error here;
-  - not built: FORMAT in a derived table's column the outer query never reads (4). IQ resolves no function of a
-    column no one reads (FORMAT alone is its -265), where lite refuses every unknown function as it parses;
+  - not built: FORMAT in a derived table's column the outer query never reads (4). Measured on IQ 17.1: IQ drops
+    a derived table's or a common table expression's columns no one reads before it plans them, so nothing in them
+    raises (an unknown function's -265, a subquery's -1001030, a CAST's -157, a division by zero), but names still
+    bind there (an unknown column is -143), and a DISTINCT or a `*` reads every column. Lite refuses an unknown
+    function as it parses, and translates every column: pruning the unread ones first (where every column they
+    read is known) would read these, the parser's function checks moved after it;
+- a derived table's select-list subquery, reworked (2026-10-17): the lane's 154 such refusals sent to IQ 17.1, which
+  answered 5 and raised -1001030 or -1005004 for the rest, then 20 shapes more measured. A column holding a subquery
+  that no one reads is dropped by IQ, through nested derived tables, so it raises nothing. All 5 answers were such
+  columns.
+  - A read column is -1001030 in a grouped, aggregating or DISTINCT derived table (`*` reads every column), and in
+    WHERE, GROUP BY, HAVING or a join's ON.
+  - It is -1005004 read qualified (`d.n`; another column qualified is fine), or ordered by with no select item
+    reading it.
+  - Read in the select list it answers: beside a join, beside the outer query's own subquery, and through nested
+    derived tables (`n + 1` shown and read above).
+  - Refused by name: one read inside the outer query's own subquery (IQ's -1001030 in the case measured), or in a
+    window;
+- other dialects' syntax, IQ's syntax error -131 now (2026-10-17, measured; the syntax research's `reject` cases):
+  CAST to DATETIME2 or INTERVAL (other dialects' type names, unless a user-defined domain holds the name; 54
+  queries), an aggregate's `FILTER (WHERE ...)` (12), TRIM's ANSI forms `TRIM(BOTH '<>' FROM Tags)` (14). FOR XML
+  PATH and FOR JSON are -131 too, but the research reads FOR XML's other forms: still refused by name;
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's
   server rejects every one (-131, measured), while an ODBC client that processes escapes translates them before it
   sends (the syntax research's `accept-with-option:client_escapes`). Whether an island reads them as such a client
@@ -297,6 +317,16 @@ scale (D-N3, 12); none unexplained. The BUGs are IQ's defects and limits (its in
 BY, three times; its Cartesian-product limit -1005015, four) and one table alias `limit` IQ reads as its clause.
 One more IQ defect found: rows tied on the ORDER BY can carry each other's columns in IQ's answer (sqlstorm-10142:
 user 508's latest post is 2011-01-27 in the data, lite's answer; IQ's row gives user 50's 2011-01-06).
+
+Judged again later on 2026-10-17 (the follow-on branch, after this file's later rounds), coverage rerun first:
+- SEDE's answered queries rose from 6,756 to 6,889, SQLStorm's from 5,780 to 5,807.
+- The regrown SE suite (12,696 queries, IQ asked for its 161 new ones): PASS 10,763, PASS_UNORDERED 1,526, FAIL 366,
+  BOTH_ERROR 18, BUG 11. The moves into FAIL are tied rows again (ROW_NUMBER or RANK over equal keys, a
+  `Rank <= 5` filter keeping other tied rows: 61 rows against 60).
+- Of the 3 new BUGs, 1 is IQ's internal error -1006001. The other 2 are a string of literals compared with a date,
+  which IQ folds and raises over no rows: read as the literal it spells now.
+- The refused suite: PASS 158 and PASS_UNORDERED 17 (from 145 and 16), REFUSED 404 (from 418).
+- BIRD unchanged: 349 PASS, 132 BOTH_ERROR.
 
 BIRD's answers judged too (2026-10-16). BIRD's 11 databases were sampled consistently by their foreign keys: parents
 first, a child keeping the rows that reach kept parents, then filled to 600 rows a table (32,206 rows; the scratchpad's

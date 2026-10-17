@@ -1121,3 +1121,64 @@ tests:
   # lane's IQ_ERROR claims: IQ 17.1 answers it, as Postgres does)
   - id: distinct_star_ordered_by_a_column_it_shows
     sql: "SELECT DISTINCT u.* FROM t JOIN u ON u.t_id = t.id ORDER BY u.label"
+
+  # ---- a derived table's select-list subquery, reworked (IQ island, 2026-10-17; the corpus lane's 154 refusals sent
+  # to IQ 17.1, and 20 shapes more measured): a column no one reads raises nothing; one read is IQ's -1001030 in a
+  # grouped derived table, its -1005004 read qualified or ordered by alone; read in the select list it answers, beside
+  # a join, beside a subquery of the outer query's own, through nested derived tables
+  - id: derived_subquery_column_unread
+    sql: "SELECT tid FROM (SELECT tid, n FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d) e ORDER BY tid"
+    profile: iq17-default
+  - id: derived_subquery_column_unread_in_a_grouped_table
+    sql: "SELECT d.tid FROM (SELECT t.id AS tid, COUNT(*) AS c, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t GROUP BY t.id) d ORDER BY d.tid"
+    profile: iq17-default
+  - id: derived_subquery_column_beside_a_join
+    sql: "SELECT k.id, n FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d JOIN t k ON k.id = d.tid ORDER BY k.id"
+    profile: iq17-default
+  - id: derived_subquery_column_beside_an_outer_subquery
+    sql: "SELECT tid, n, (SELECT MAX(k.id) FROM t k) AS m FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d ORDER BY tid"
+    profile: iq17-default
+  - id: derived_subquery_column_through_a_nested_table
+    sql: "SELECT m FROM (SELECT tid, n + 1 AS m FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d) e ORDER BY m"
+    profile: iq17-default
+  - id: derived_subquery_column_of_a_grouped_table_is_iqs_error
+    sql: "SELECT tid, n FROM (SELECT t.id AS tid, COUNT(*) AS c, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t GROUP BY t.id) d ORDER BY tid"
+    profile: iq17-default
+  - id: derived_subquery_column_ordered_by_alone_is_iqs_error
+    sql: "SELECT tid FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d ORDER BY n, tid"
+    profile: iq17-default
+  - id: derived_subquery_column_in_a_join_on_is_iqs_error
+    sql: "SELECT tid, k.id FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d JOIN t k ON k.id = n ORDER BY tid"
+    profile: iq17-default
+  - id: derived_subquery_column_read_qualified_through_a_nested_table_is_iqs_error
+    sql: "SELECT e.n FROM (SELECT tid, n FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d) e ORDER BY 1"
+    profile: iq17-default
+  - id: derived_subquery_column_beside_another_read_qualified
+    sql: "SELECT d.tid, n FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d WHERE d.tid > 0 ORDER BY 1"
+    profile: iq17-default
+  - id: derived_subquery_column_under_a_star
+    sql: "SELECT d.* FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d ORDER BY 1"
+    profile: iq17-default
+
+  # ---- other dialects' syntax IQ raises its syntax error for (IQ island, 2026-10-17; the corpus lane's CAST(x AS
+  # DATETIME2), COUNT(*) FILTER (WHERE ...) and TRIM(BOTH '<>' FROM Tags), measured on IQ 17.1): -131
+  - id: cast_to_datetime2_is_iqs_syntax_error
+    sql: "SELECT CAST(dt AS DATETIME2) AS a FROM t"
+  - id: cast_to_interval_is_iqs_syntax_error
+    sql: "SELECT CAST('1' AS INTERVAL) AS a"
+    engine: sa
+  - id: an_aggregates_filter_is_iqs_syntax_error
+    sql: "SELECT COUNT(*) FILTER (WHERE id > 3) AS n FROM t"
+  - id: trim_both_from_is_iqs_syntax_error
+    sql: "SELECT TRIM(BOTH 'x' FROM vc) AS a FROM t"
+  - id: trim_from_is_iqs_syntax_error
+    sql: "SELECT TRIM('x' FROM vc) AS a FROM t"
+  - id: an_alias_named_filter_and_a_column_named_both
+    sql: "SELECT COUNT(*) filter, TRIM(both) AS b FROM (SELECT vc AS both FROM t) d GROUP BY both ORDER BY b"
+  # IQ folds a string of literals as it plans: one that spells no date is its error over no rows too
+  - id: comparing_a_date_with_literals_that_spell_no_date_is_refused
+    sql: "SELECT id FROM t WHERE ts > 'x' + '-' + 'x' + 'T00:00:00.000' AND vc LIKE 'nothing%'"
+    profile: iq17-default
+  - id: comparing_a_date_with_literals_that_spell_one
+    sql: "SELECT id FROM t WHERE ts > '2026' + '-' + '03-04' + ' 05:06:07' ORDER BY id"
+    profile: iq17-default

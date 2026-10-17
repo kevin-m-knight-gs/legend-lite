@@ -2020,6 +2020,17 @@ public final class IqParser {
     /** {@code name(value, ...)}: a scalar function's call, which the dialect's catalog reads (or refuses by name). An
      *  owner-qualified name, an aggregate, {@code DISTINCT} or {@code *} in the call, and a window ({@code OVER}) are
      *  refused by name. */
+    /** TRIM and its one-sided forms ({@link #ansiTrim}). */
+    private static final Set<String> TRIMS = Set.of("trim", "ltrim", "rtrim");
+
+    /** IQ island, 2026-10-17 (the corpus lane's TRIM(BOTH '<>' FROM Tags); measured on IQ 17.1): the ANSI forms of
+     *  TRIM -- BOTH, LEADING or TRAILING, a FROM -- are no syntax of IQ's (TRIM(s), TRIM(s, set) are), its syntax error
+     *  at {@code at}. */
+    private static SqlSyntaxException ansiTrim(IqLexer.Token at) {
+        return new SqlSyntaxException("TRIM's ANSI forms (BOTH, LEADING, TRAILING, FROM) are no syntax of IQ's, which"
+                + " reads TRIM(s) and TRIM(s, set)" + IqDialect.syntaxCode(), at.pos());
+    }
+
     private SqlAst.Expr call(List<SqlAst.Ident> parts, IqLexer.Token first) {
         String name = parts.get(parts.size() - 1).text();
         if (parts.size() > 1) {
@@ -2084,12 +2095,20 @@ public final class IqParser {
                 return new SqlAst.FunctionCall(parts, args, false, false, first.pos());
             }
         }
+        boolean trims = TRIMS.contains(IqLexer.lower(name));
+        if (trims && (peek().isWord("both") || peek().isWord("leading") || peek().isWord("trailing"))
+                && !peek(1).isOp(",") && !peek(1).isOp(")")) {
+            throw ansiTrim(peek(1));
+        }
         if (!empty && !peek().isOp(")")) {
             do {
                 noNamedArgument();
                 SqlAst.Expr a = expression();
                 value(a, "a function's arguments");
                 args.add(a);
+                if (trims && peek().is("from")) {
+                    throw ansiTrim(peek());
+                }
             } while (takeOp(","));
         }
         expectOp(")");
@@ -2192,6 +2211,12 @@ public final class IqParser {
         SqlAst.FunctionCall call = new SqlAst.FunctionCall(parts, args, distinct, star, orderBy, within, null,
                 first.pos());
         spans.put(call, text.substring(tokens.get(start - 1).start(), tokens.get(at - 1).end()));
+        if (peek().isWord("filter") && peek(1).isOp("(")) {
+            // IQ island, 2026-10-17 (the corpus lane's COUNT(*) FILTER (WHERE ...); measured on IQ 17.1): no clause of
+            // IQ's, its syntax error
+            throw new SqlSyntaxException("an aggregate's FILTER (WHERE ...) is no clause of IQ's"
+                    + IqDialect.syntaxCode(), peek().pos());
+        }
         if (peek().is("over") && percentile) {
             // measured on IQ 17.1: a percentile takes no OVER
             throw new SqlSyntaxException("a percentile takes no OVER" + IqDialect.syntaxCode(), peek().pos());
@@ -2572,6 +2597,9 @@ public final class IqParser {
      * binary, national and other types by their own names (refused when translated). A size outside its type's range
      * is IQ's syntax error; any other name (a domain) is refused by name.
      */
+    /** Other dialects' type names IQ raises its syntax error for (IQ island, 2026-10-17, measured on IQ 17.1). */
+    private static final Set<String> FOREIGN_TYPES = Set.of("datetime2", "interval");
+
     private SqlAst.TypeName dataType() {
         IqLexer.Token first = peek();
         if (first.kind() != IqLexer.Kind.KEYWORD && first.kind() != IqLexer.Kind.WORD) {
@@ -2697,8 +2725,16 @@ public final class IqParser {
                 }
                 throw notRead(w.toUpperCase(java.util.Locale.ROOT), pos);
             }
-            default -> throw SqlSyntaxException.unsupported("the data type '" + first.text() + "' is not supported"
-                    + " (a user-defined domain, or a type the #IQ{...}# island does not read)", pos);
+            default -> {
+                if (FOREIGN_TYPES.contains(w)) {
+                    // IQ island, 2026-10-17 (the corpus lane's CAST(x AS DATETIME2); measured on IQ 17.1): no type of
+                    // IQ's, its syntax error (an unknown type's name is -131 there: foobar, datetime3)
+                    throw new SqlSyntaxException("the data type '" + first.text() + "' is no type of IQ's, its syntax"
+                            + " error unless a user-defined domain holds the name" + IqDialect.syntaxCode(), pos);
+                }
+                throw SqlSyntaxException.unsupported("the data type '" + first.text() + "' is not supported (a"
+                        + " user-defined domain, or a type the #IQ{...}# island does not read)", pos);
+            }
         }
     }
 

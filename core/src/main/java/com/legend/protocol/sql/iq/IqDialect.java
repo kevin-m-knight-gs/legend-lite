@@ -157,6 +157,9 @@ public final class IqDialect implements InputDialect {
     /** IQ island, 2026-10-17: the outer joins IQ's engine reads as inner ones ({@link #nullRejected}), by identity,
      *  for {@link #joinType}. */
     private final Set<SqlAst.Join> innerJoins = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** IQ island, 2026-10-17: the text each concatenation of string literals alone spells, by its value's identity
+     *  ({@link #dateOf}). */
+    private final Map<ValueSpecification, String> literalJoins = new IdentityHashMap<>();
     /** IQ island, 2026-10-14 (the third landing): the aliases (lower case) each unaliased select item reads
      *  ({@link IqAliases}), by identity: its name shows them as written. */
     private final Map<SqlAst.SelectExpr, Set<String>> aliasesRead = new IdentityHashMap<>();
@@ -2574,51 +2577,90 @@ public final class IqDialect implements InputDialect {
     }
 
     /**
-     * IQ island, 2026-10-16 (the corpus lane: 182 queries; measured on IQ 17.1 over 40 shapes): whether IQ's engine
-     * reads the scalar subqueries of {@code ds}, a derived table's (or a common table expression's) SELECT, as its outer
-     * query {@code outer} reads them -- as if each were written where its column is read. A column of {@code d} read
-     * qualified ({@code d.c}, any of its columns) is IQ's -1005004; a column holding a subquery read in WHERE, GROUP BY
-     * or HAVING, or inside a conditional expression or an aggregate, is its -1001030 (each refused here, naming it). Read in the select
-     * list (in arithmetic and functions too), ORDER BY, DISTINCT, TOP and a set operation's branch, IQ answers. Not read
-     * here, so refused by name (false): an outer query that is no statement's own SELECT, that joins {@code d} to
-     * another item, or that reads such a column in a window; an item of a subquery without a name.
+     * IQ island, 2026-10-16 (the corpus lane: 182 queries; measured on IQ 17.1 over 40 shapes), reworked 2026-10-17
+     * (the lane's 154 refusals sent to IQ 17.1, which answered 5 and raised these for the rest, and 20 shapes more
+     * measured): whether IQ's engine reads the scalar subqueries of {@code ds}, a derived table's (or a common table
+     * expression's) SELECT, as its outer query {@code outer} reads them. A column of {@code ds} holds a subquery when its
+     * item has one, or reads, unqualified, such a column of a derived table of its own ({@link #heldColumns}). IQ drops a
+     * column no one reads before it plans it: one the outer query does not read raises nothing, its item's subqueries
+     * left unchecked ({@code unread}). A column read is IQ's -1001030 where {@code ds} groups, aggregates or is DISTINCT
+     * ({@code *} reads every column), or where it is read in WHERE, GROUP BY, HAVING or a join's ON, or inside a
+     * conditional expression or an aggregate; its -1005004 where the outer query reads a held column qualified
+     * ({@code d.n}; another column qualified, {@code *} and {@code d.*} are read), or orders by a held column no
+     * select item reads (each refused here, naming it). Read in
+     * the select list (in arithmetic and functions too, beside a join, beside a subquery of the outer query's own,
+     * through nested derived tables), IQ answers. Refused by name (false): a held column read inside a subquery of the
+     * outer query, or in a window; an item holding a subquery without a name.
      */
     private static boolean derivedSubqueriesRead(SqlAst.Select ds, SqlAst.Select outer, SqlAst.SubqueryFrom d,
-            Set<SqlAst.Select> top) {
-        Set<String> held = new java.util.HashSet<>();
-        for (int i = 0; i < ds.items().size(); i++) {
-            if (!(ds.items().get(i) instanceof SqlAst.SelectExpr x) || !holdsSubquery(x.expr())) {
-                continue;
-            }
-            SqlAst.Ident name = i < d.columnAliases().size() ? d.columnAliases().get(i) : x.alias() != null
-                    ? x.alias() : x.expr() instanceof SqlAst.ColumnRef r ? r.parts().get(r.parts().size() - 1) : null;
-            if (name == null) {
-                return false;
-            }
-            held.add(IqLexer.lower(name.text()));
-        }
-        if (held.isEmpty() || !top.contains(outer) || outer.from().size() != 1 || !(outer.from().get(0) == d)) {
-            return held.isEmpty();
-        }
-        // not read here (2026-10-16, the landing's review: shapes the measured cases do not cover): a derived SELECT
-        // that groups, is DISTINCT or aggregates, and an outer query with a subquery of its own (a column read in it
-        // escaped the rules below)
-        if (ds.distinct() || !ds.groupBy().isEmpty() || expressions(ds).stream().anyMatch(IqDialect::hasAggregate)
-                || expressions(outer).stream().anyMatch(IqDialect::readsQuery)) {
+            Map<SqlAst.Select, Set<String>> heldOf, Set<SqlAst.SelectExpr> unread) {
+        Set<String> held = heldColumns(ds, d.columnAliases(), heldOf);
+        if (held == null) {
             return false;
         }
+        if (held.isEmpty()) {
+            return true;
+        }
         String alias = d.alias() == null ? null : IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text());
+        Set<String> read = new java.util.HashSet<>();
+        for (SqlAst.SelectItem i : outer.items()) {
+            if (i instanceof SqlAst.AllColumns a && (a.qualifier() == null || alias != null
+                    && IqLexer.lower(java.util.Objects.requireNonNull(a.qualifier()).text()).equals(alias))) {
+                read.addAll(held);
+            }
+        }
+        // what the outer query reads: its expressions, but its own items no one reads (IQ drops them too)
+        List<SqlAst.Expr> live = new ArrayList<>();
+        for (SqlAst.SelectItem i : outer.items()) {
+            if (i instanceof SqlAst.SelectExpr x && !unread.contains(x)) {
+                live.add(x.expr());
+            }
+        }
         for (SqlAst.Expr e : expressions(outer)) {
+            if (outer.items().stream().noneMatch(i -> i instanceof SqlAst.SelectExpr x && x.expr() == e)) {
+                live.add(e);
+            }
+        }
+        SqlAst.ColumnRef qualified = null;
+        for (SqlAst.Expr e : live) {
             List<SqlAst.ColumnRef> refs = new ArrayList<>();
             columnRefs(e, refs);
             for (SqlAst.ColumnRef r : refs) {
-                if (r.parts().size() >= 2 && IqLexer.lower(r.parts().get(r.parts().size() - 2).text()).equals(alias)) {
-                    throw SqlTranslationException.unsupported("a column of a derived table whose select list holds a"
-                            + " subquery, read qualified, is IQ's error -1005004 under its engine (subqueries are"
-                            + " allowed only as arguments to comparisons, IN and EXISTS), refused before translating",
-                            r.pos());
+                String name = IqLexer.lower(r.parts().get(r.parts().size() - 1).text());
+                boolean ofD = r.parts().size() >= 2 && IqLexer.lower(r.parts().get(r.parts().size() - 2).text())
+                        .equals(alias);
+                if (ofD && qualified == null && held.contains(name)) {
+                    qualified = r;
+                }
+                if ((ofD || r.parts().size() == 1) && held.contains(name)) {
+                    read.add(name);
                 }
             }
+        }
+        boolean inSubquery = live.stream().anyMatch(e -> heldInSubquery(e, held, alias));
+        if (read.isEmpty() && !inSubquery) {
+            for (int i = 0; i < ds.items().size(); i++) {
+                if (ds.items().get(i) instanceof SqlAst.SelectExpr x && held.contains(itemName(ds, i, d
+                        .columnAliases()))) {
+                    unread.add(x);
+                }
+            }
+            return true;
+        }
+        if (ds.distinct() || !ds.groupBy().isEmpty() || expressions(ds).stream().anyMatch(IqDialect::hasAggregate)) {
+            throw SqlTranslationException.unsupported("a column of a grouped, aggregating or DISTINCT derived table"
+                    + " that holds a subquery, read by its outer query, is IQ's error -1001030 under its engine (a"
+                    + " scalar value subquery outside of a top level SELECT list), refused before translating",
+                    d.pos());
+        }
+        if (qualified != null) {
+            throw SqlTranslationException.unsupported("a column of a derived table that holds a subquery, read"
+                    + " qualified, is IQ's error -1005004 under its engine (subqueries are"
+                    + " allowed only as arguments to comparisons, IN and EXISTS), refused before translating",
+                    qualified.pos());
+        }
+        if (inSubquery) {
+            return false;
         }
         List<SqlAst.Expr> conditions = new ArrayList<>(outer.groupBy());
         if (outer.where() != null) {
@@ -2627,25 +2669,55 @@ public final class IqDialect implements InputDialect {
         if (outer.having() != null) {
             conditions.add(java.util.Objects.requireNonNull(outer.having()));
         }
+        for (SqlAst.FromItem f : outer.from()) {
+            List<SqlAst.Join> joins = new ArrayList<>();
+            joins(f, joins);
+            for (SqlAst.Join j : joins) {
+                if (j.on() != null) {
+                    conditions.add(java.util.Objects.requireNonNull(j.on()));
+                }
+            }
+        }
         for (SqlAst.Expr e : conditions) {
             List<SqlAst.ColumnRef> refs = new ArrayList<>();
             columnRefs(e, refs);
             for (SqlAst.ColumnRef r : refs) {
-                if (held.contains(IqLexer.lower(r.parts().get(0).text()))) {
+                if (r.parts().size() == 1 && held.contains(IqLexer.lower(r.parts().get(0).text()))) {
                     throw SqlTranslationException.unsupported("a column of a derived table that holds a subquery, read"
-                            + " in a WHERE, a GROUP BY or a HAVING, is IQ's error -1001030 under its engine (a reference"
-                            + " containing a scalar value subquery outside of a top level SELECT list or ORDER BY),"
-                            + " refused before translating", r.pos());
+                            + " in a WHERE, a GROUP BY, a HAVING or a join's ON, is IQ's error -1001030 under its"
+                            + " engine (a reference containing a scalar value subquery outside of a top level SELECT"
+                            + " list or ORDER BY), refused before translating", r.pos());
                 }
             }
         }
+        Set<String> listed = new java.util.HashSet<>();
         List<SqlAst.Expr> shown = new ArrayList<>();
         outer.items().forEach(i -> {
-            if (i instanceof SqlAst.SelectExpr x) {
+            if (i instanceof SqlAst.SelectExpr x && !unread.contains(x)) {
                 shown.add(x.expr());
+                List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                columnRefs(x.expr(), refs);
+                refs.forEach(r -> listed.add(IqLexer.lower(r.parts().get(r.parts().size() - 1).text())));
+            } else if (i instanceof SqlAst.AllColumns) {
+                listed.addAll(held);
             }
         });
-        outer.orderBy().forEach(o -> shown.add(o.expr()));
+        for (SqlAst.SortItem o : outer.orderBy()) {
+            shown.add(o.expr());
+            List<SqlAst.ColumnRef> refs = new ArrayList<>();
+            columnRefs(o.expr(), refs);
+            for (SqlAst.ColumnRef r : refs) {
+                String name = IqLexer.lower(r.parts().get(0).text());
+                if (r.parts().size() == 1 && held.contains(name) && !listed.contains(name)
+                        && outer.items().stream().noneMatch(i -> i instanceof SqlAst.SelectExpr x && x.alias() != null
+                        && IqLexer.lower(java.util.Objects.requireNonNull(x.alias()).text()).equals(name))) {
+                    throw SqlTranslationException.unsupported("a column of a derived table that holds a subquery,"
+                            + " ordered by and read by no select item, is IQ's error -1005004 under its engine"
+                            + " (subqueries are allowed only as arguments to comparisons, IN and EXISTS), refused"
+                            + " before translating", r.pos());
+                }
+            }
+        }
         for (SqlAst.Expr e : shown) {
             String where = heldInside(e, held, false);
             if (where != null) {
@@ -2659,6 +2731,88 @@ public final class IqDialect implements InputDialect {
             }
         }
         return true;
+    }
+
+    /** The name a derived table shows its {@code i}-th item as: its column list's, its alias, its column's; null for
+     *  none. */
+    private static @com.legend.base.Nullable String itemName(SqlAst.Select ds, int i, List<SqlAst.Ident> columns) {
+        if (!(ds.items().get(i) instanceof SqlAst.SelectExpr x)) {
+            return null;
+        }
+        SqlAst.Ident name = i < columns.size() ? columns.get(i) : x.alias() != null ? x.alias()
+                : x.expr() instanceof SqlAst.ColumnRef r ? r.parts().get(r.parts().size() - 1) : null;
+        return name == null ? null : IqLexer.lower(name.text());
+    }
+
+    /** The columns of {@code ds} (named by {@code columns} where given) that hold a subquery: an item with one, or
+     *  one reading, unqualified, such a column of a derived table of its own FROM ({@link #derivedSubqueriesRead});
+     *  null where such an item has no name. */
+    private static @com.legend.base.Nullable Set<String> heldColumns(SqlAst.Select ds, List<SqlAst.Ident> columns,
+            Map<SqlAst.Select, Set<String>> heldOf) {
+        Set<String> inner = new java.util.HashSet<>();
+        for (SqlAst.FromItem f : ds.from()) {
+            for (SqlAst.FromItem leaf : leaves(f)) {
+                if (leaf instanceof SqlAst.SubqueryFrom d && d.query() instanceof SqlAst.Select below) {
+                    Set<String> h = heldOf.containsKey(below) ? heldOf.get(below)
+                            : heldColumns(below, d.columnAliases(), heldOf);
+                    if (h != null) {
+                        inner.addAll(h);
+                    }
+                }
+            }
+        }
+        Set<String> held = new java.util.HashSet<>();
+        for (int i = 0; i < ds.items().size(); i++) {
+            if (!(ds.items().get(i) instanceof SqlAst.SelectExpr x)) {
+                continue;
+            }
+            boolean holds = holdsSubquery(x.expr());
+            if (!holds && !inner.isEmpty()) {
+                List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                columnRefs(x.expr(), refs);
+                holds = refs.stream().anyMatch(r -> r.parts().size() == 1 && inner.contains(IqLexer.lower(
+                        r.parts().get(0).text())));
+            }
+            if (holds) {
+                String name = itemName(ds, i, columns);
+                if (name == null) {
+                    heldOf.put(ds, null);
+                    return null;
+                }
+                held.add(name);
+            }
+        }
+        heldOf.put(ds, held);
+        return held;
+    }
+
+    /** Whether a subquery inside {@code e} reads {@code held}'s columns: unqualified, or qualified by {@code alias}. */
+    private static boolean heldInSubquery(SqlAst.Expr e, Set<String> held, @com.legend.base.Nullable String alias) {
+        SqlAst.Statement q = subqueryOf(e);
+        if (q != null) {
+            for (SqlAst.Statement inner : queries(q)) {
+                if (inner instanceof SqlAst.Select s) {
+                    for (SqlAst.Expr x : expressions(s)) {
+                        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                        columnRefs(x, refs);
+                        for (SqlAst.ColumnRef r : refs) {
+                            String name = IqLexer.lower(r.parts().get(r.parts().size() - 1).text());
+                            boolean ofD = r.parts().size() >= 2 && IqLexer.lower(r.parts().get(r.parts().size() - 2)
+                                    .text()).equals(alias);
+                            if (held.contains(name) && (ofD || r.parts().size() == 1)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for (SqlAst.Expr child : children(e)) {
+            if (heldInSubquery(child, held, alias)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Where in {@code e} a column of {@code held} is read inside a conditional expression, an aggregate or a window:
@@ -2694,6 +2848,9 @@ public final class IqDialect implements InputDialect {
         Set<SqlAst.Select> inDerived = Collections.newSetFromMap(new IdentityHashMap<>());
         // a derived table's own SELECT, read as its outer query reads it ({@link #derivedSubqueriesRead})
         Set<SqlAst.Select> readable = Collections.newSetFromMap(new IdentityHashMap<>());
+        Map<SqlAst.Select, Set<String>> heldOf = new IdentityHashMap<>();
+        // a derived table's items whose columns no one reads: IQ drops them before it plans them
+        Set<SqlAst.SelectExpr> unread = Collections.newSetFromMap(new IdentityHashMap<>());
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
                 for (SqlAst.FromItem f : s.from()) {
@@ -2704,7 +2861,8 @@ public final class IqDialect implements InputDialect {
                                     inDerived.add(ds);
                                 }
                             });
-                            if (d.query() instanceof SqlAst.Select ds && derivedSubqueriesRead(ds, s, d, top)) {
+                            if (d.query() instanceof SqlAst.Select ds && derivedSubqueriesRead(ds, s, d, heldOf,
+                                    unread)) {
                                 readable.add(ds);
                             }
                         }
@@ -2718,6 +2876,10 @@ public final class IqDialect implements InputDialect {
             }
             for (SqlAst.SelectItem item : s.items()) {
                 if (item instanceof SqlAst.SelectExpr x) {
+                    if (unread.contains(x)) {
+                        // IQ island, 2026-10-17 (measured on IQ 17.1): a column no one reads, which IQ never plans
+                        continue;
+                    }
                     if (readable.contains(s)) {
                         // IQ island, 2026-10-16 (measured on IQ 17.1): as the outer query's own select list's
                         shownSubqueries(x.expr());
@@ -4274,6 +4436,12 @@ public final class IqDialect implements InputDialect {
         }
         ValueSpecification joined = texts.size() == 1 ? texts.get(0) : AppliedFunction.infixRun("plus", texts);
         if (!nullable) {
+            if (leaves.stream().allMatch(l -> l instanceof SqlAst.StringLit)) {
+                // IQ island, 2026-10-17: the text a concatenation of literals alone spells, which IQ folds as it plans
+                // (dateOf reads it so)
+                literalJoins.put(joined, String.join("", leaves.stream().map(l -> ((SqlAst.StringLit) l).value())
+                        .toList()));
+            }
             return Tx.value(joined, Kind.STRING, false, text);
         }
         return Tx.value(ifThen(java.util.Objects.requireNonNull(allNull), SqlToPure.empty(), joined), Kind.STRING,
@@ -5642,6 +5810,13 @@ public final class IqDialect implements InputDialect {
                 if (reads == READS_QUERY) {
                     throw SqlTranslationException.unsupported("comparing a date with a string a subquery computes is"
                             + " not supported yet", pos);
+                }
+                String folded = literalJoins.get(text.vs());
+                if (folded != null) {
+                    // IQ island, 2026-10-17 (the corpus lane's 'x' + '-' + 'x' + ... + 'T00:00:00.000', IQ's -1009145
+                    // over no rows): IQ folds a string of literals as it plans, so it is read as the literal it is
+                    return dateOf(Tx.value(new CString(folded), Kind.STRING, false, IqTypes.ofString(folded)), date,
+                            pos);
                 }
                 return new IqFunctions(this).compared(text, date.kind() == Kind.DATE);
             }
