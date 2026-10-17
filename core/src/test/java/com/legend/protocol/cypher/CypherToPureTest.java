@@ -1006,8 +1006,18 @@ class CypherToPureTest {
         assertTrue(keyed.contains("->groupBy(") && keyed.contains("'p.age'"), keyed);
         String projected = pure("MATCH (p:Person) WITH p.age AS age, p WITH age, age + count(p.name) AS agg RETURN *");
         assertTrue(projected.contains("->groupBy(") && projected.contains("agg"), projected);
-        // a value of the row that is no item stays Neo4j's implicit-grouping error
+        // a value of the row that is no item stays Neo4j's implicit-grouping error; a property of a key is no key
         invalid("MATCH (p:Person) RETURN p.name, p.age + count(*)", "implicit grouping expressions");
+        invalid("MATCH (p:Person) WITH p.age AS age, p RETURN age, age + p.age + count(*)",
+                "implicit grouping expressions (p.age in");
+        invalid("MATCH (p:Person) RETURN p.age + 1, p.age + 1 + 2 + count(*)", "implicit grouping expressions");
+    }
+
+    @Test
+    void aPatternNavigatingMoreThanTwoAssociationStepsIsRefusedByName() {
+        // the resolver's nested navigation reads no association end past a second step (IN_FLIGHT, W9)
+        unsupported("MATCH (f:Firm)-[:employees]->(p)-[:firm]->(g)-[:hq]->(c) RETURN c.name AS n",
+                "more than two association steps");
     }
 
     @Test
@@ -1089,7 +1099,7 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person) RETURN p ORDER BY p", "ORDER BY a node (p");
         unsupported("MATCH (p:Person) RETURN p, count(*) AS c", "a node among the grouping keys (p");
         unsupported("MATCH (p:Person:Firm) RETURN p.name", "several labels");
-        invalid("MATCH (p:Person) RETURN p.age + count(*)", "implicit grouping expressions (p in p.age + count(*))");
+        invalid("MATCH (p:Person) RETURN p.age + count(*)", "implicit grouping expressions (p.age in p.age + count(*))");
         unsupported("RETURN 1e308 AS x", "a float literal beyond 1e15");
         unsupported("RETURN 1e-20 AS x", "a float literal beyond 1e15");
     }

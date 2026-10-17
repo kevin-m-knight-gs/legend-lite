@@ -3300,9 +3300,15 @@ scenarios pass (With4, Comparison1).
   wrong reason; and an expression around aggregates may read a grouping key, Neo4j's rule that any other item of
   the projection is one (`RETURN me.age, me.age + count(you.age)`, `WITH age, age + count(you.age) AS agg`,
   `{foo: a.name = 'Andres', kids: collect(child.name)}` beside `a.name`: Return6, With6), the key's spelling read
-  as its column after the grouping (`KeyedScope`); a value of the row that is no item stays the implicit-grouping
-  error in Neo4j's words. The `NoWay` sentinel is a null graph from `pattern()`, not an exception: the
-  catch-that-returns-a-value guardrail (`ErrorShapeGuardrailTest`) holds at its pin.
+  as its column after the grouping (`KeyedScope`); a key is a variable or a property of one (Neo4j's leaf keys:
+  `me.age + you.age` projected beside `me.age + you.age + count(*)` is still its
+  `AmbiguousAggregationExpression`, Return6/[21], With6/[9]), a property of a key is no key, and a value of the
+  row that is no key stays the implicit-grouping error in Neo4j's words. The incoming-hop reading reaches the
+  resolver's limit on MatchWhere2 and WithWhere2 (`ADV_HAS_PRODUCT.AP_HAS_VALUE.AA_HAS_VALUE_in`: "property
+  'AA_HAS_VALUE_in' of nested navigation ... is not mapped"), so a pattern navigating more than two association
+  steps from its root is refused by name, as the variable-length unroll already was (W9 of the TCK-to-zero plan).
+  The no-way sentinel is a null graph from `pattern()`, not an exception: the catch-that-returns-a-value guardrail
+  (`ErrorShapeGuardrailTest`) holds at its pin.
 
 #### 12.45.1 The ledger
 

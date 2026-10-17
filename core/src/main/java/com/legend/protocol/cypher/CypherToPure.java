@@ -2425,6 +2425,12 @@ public final class CypherToPure {
             }
             List<String> path = new ArrayList<>(current.path());
             path.addAll(hop.steps());
+            if (path.size() > 2 && hop.edge() == null) {
+                // (the resolver's nested navigation reads no association end past a second step: IN_FLIGHT, the
+                // W9 item of the TCK-to-zero plan; a variable-length unroll is limited likewise)
+                throw CypherErrors.unsupported("a pattern navigating more than two association steps from its root"
+                        + " (" + String.join(".", path) + ") is not supported yet", rel.pos());
+            }
             boolean optional = current.optional() || hop.optional();
             boolean fanning = current.fanning() || hop.many();
             Binding target = new Binding(true, hop.target(), List.copyOf(path), optional, fanning);
@@ -3392,7 +3398,9 @@ public final class CypherToPure {
         Map<String, String> keyTexts = new LinkedHashMap<>();
         for (Item item : items) {
             Expr e = item.expr();
-            if (e != null && !isAggregate(e) && !containsAggregate(e)) {
+            // (a variable or a property of one: Neo4j's leaf keys; `me.age + you.age` projected beside
+            // `me.age + you.age + count(*)` is still its AmbiguousAggregationExpression, Return6/[21])
+            if (e instanceof CypherAst.Var || e instanceof CypherAst.Prop pr && pr.target() instanceof CypherAst.Var) {
                 keyTexts.put(text(e), item.alias() != null ? item.alias() : item.text());
             }
         }
@@ -3566,6 +3574,11 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Aggregation column contains implicit grouping expressions (" + v.name()
                     + " in " + item.text() + "): extract them into a preceding WITH", item.pos());
         }
+        if (e instanceof CypherAst.Prop pr && pr.target() instanceof CypherAst.Var v) {
+            // (a property of a key is no key: Neo4j's AmbiguousAggregationExpression, Return6/[21], With6/[9])
+            throw CypherErrors.invalid("Aggregation column contains implicit grouping expressions (" + v.name() + "."
+                    + pr.name() + " in " + item.text() + "): extract them into a preceding WITH", item.pos());
+        }
         for (Expr child : children(e)) {
             refuseImplicitGrouping(child, keyTexts, item);
         }
@@ -3580,28 +3593,6 @@ public final class CypherToPure {
         }
         for (Expr child : children(e)) {
             aggregatesIn(child, out);
-        }
-    }
-
-    /** The variables {@code e} reads, inside its aggregates too when {@code intoAggregates} (a list predicate's or
-     *  comprehension's own are not looked into). */
-    private static List<CypherAst.Var> variablesIn(Expr e, boolean intoAggregates) {
-        List<CypherAst.Var> out = new ArrayList<>();
-        variablesIn(e, intoAggregates, out);
-        return out;
-    }
-
-    private static void variablesIn(Expr e, boolean intoAggregates, List<CypherAst.Var> out) {
-        if (e instanceof CypherAst.Quantifier || e instanceof CypherAst.ListComprehension
-                || !intoAggregates && isAggregate(e)) {
-            return;
-        }
-        if (e instanceof CypherAst.Var v) {
-            out.add(v);
-            return;
-        }
-        for (Expr child : children(e)) {
-            variablesIn(child, intoAggregates, out);
         }
     }
 
