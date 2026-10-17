@@ -145,9 +145,9 @@ class IqParserTest {
                 // IQ island, 2026-10-15: WITH reads now (each CTE inlined as a derived table); RECURSIVE does not
                 {"WITH RECURSIVE q AS (SELECT 1) SELECT * FROM q", "RECURSIVE"},
                 {"SELECT id INTO x FROM t", "INTO"},
-                // IQ island, 2026-10-15 (the corpus lane): a trailing separator reads now (below); a second statement
-                // does not
-                {"SELECT id FROM t; SELECT 1", "separator"},
+                // IQ island, 2026-10-15 (the corpus lane): a trailing separator reads now (below); 2026-10-17, a batch's
+                // later statements too (aBatchAnswersItsFirstStatement); a later one that is no SELECT does not
+                {"SELECT id FROM t; INSERT INTO t VALUES (1)", "no SELECT"},
                 {"SELECT TOP @n id FROM t", "variable"},
                 {"SELECT @v = id FROM t", "assignment"},
                 {"SELECT id '' FROM t", "empty"},
@@ -169,7 +169,21 @@ class IqParserTest {
     void aStatementsTrailingSeparatorIsRead() {
         assertEquals(1, select("SELECT id FROM t ORDER BY id;").orderBy().size());
         assertEquals(1, select("SELECT id FROM t ORDER BY id ;  -- done\n").orderBy().size());
-        assertTrue(error("SELECT id FROM t;;").unsupported());
+        // IQ island, 2026-10-17 (measured on IQ 17.1): separators in a row are read too
+        assertEquals(1, select("SELECT id FROM t ORDER BY id;;").orderBy().size());
+    }
+
+    @Test
+    void aBatchAnswersItsFirstStatement() {
+        // IQ island, 2026-10-17 (measured on IQ 17.1): a batch's later statements, separated by ';' or not, are read
+        // for their syntax; the first is the answer
+        assertEquals(1, select("SELECT id FROM t ORDER BY id SELECT vc FROM t; SELECT 2").orderBy().size());
+        assertEquals(1, select("SELECT id FROM t ORDER BY id; WITH r AS (SELECT id FROM r) SELECT id FROM r").orderBy()
+                .size());
+        // one that does not parse fails the batch, IQ's syntax error
+        SqlSyntaxException e = error("SELECT id FROM t; SELECT id FROM t LIMIT 5");
+        assertFalse(e.unsupported());
+        assertTrue(e.getMessage().contains("SQLCODE -131"), e.getMessage());
     }
 
     // ------------------------------------------------------------------ M1a: predicates

@@ -404,6 +404,9 @@ public final class IqDialect implements InputDialect {
                 throw com.legend.protocol.sql.SqlSyntaxException.unsupported(refusal, cast.pos());
             }
         }
+        for (SqlAst.Statement later : read.later()) {
+            laterStatement(later);
+        }
         if (!read.laterals().isEmpty()) {
             // IQ island, 2026-10-17 (the corpus lane's 4; measured on IQ 17.1): a lateral derived table is its engine's
             // -1001030; SQL Anywhere's front end reads one, which the island does not yet
@@ -1174,6 +1177,27 @@ public final class IqDialect implements InputDialect {
     private static SqlTranslationException orderRefused(SqlAst.Expr e) {
         return SqlTranslationException.invalid("a set operation's ORDER BY takes a position or a name of its first"
                 + " branch's columns" + code(-152, "53005"), e.pos());
+    }
+
+    /** IQ island, 2026-10-17 (measured on IQ 17.1): a later statement of a batch ({@link IqParser}'s laterStatements)
+     *  whose call has a wrong number of arguments fails the batch to parse, IQ's -131 (alone, its -154); one of a
+     *  function the island does not know refuses the batch by name. */
+    private void laterStatement(SqlAst.Statement later) {
+        for (SqlAst.Statement q : queries(later)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : expressions(s)) {
+                    try {
+                        knownFunctions(e);
+                    } catch (SqlTranslationException x) {
+                        if (x.kind() == SqlTranslationException.Kind.UNSUPPORTED) {
+                            throw x;
+                        }
+                        throw new com.legend.protocol.sql.SqlSyntaxException("a later statement of this batch does"
+                                + " not parse, which fails the batch" + syntaxCode(), s.pos());
+                    }
+                }
+            }
+        }
     }
 
     /** Every call under {@code e} names a function of the catalog ({@link #function}), with as many arguments as

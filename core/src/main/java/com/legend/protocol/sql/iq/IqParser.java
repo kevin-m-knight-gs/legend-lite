@@ -126,6 +126,9 @@ public final class IqParser {
     /** IQ island, 2026-10-17: where LATERAL (query) is written ({@link #fromItem}), which IqDialect names IQ's engine's
      *  -1001030 for. */
     private final List<SqlAst.Pos> laterals = new ArrayList<>();
+    /** IQ island, 2026-10-17: the batch's statements after the first ({@link #laterStatements}), read for their syntax
+     *  (IqDialect counts their calls' arguments, as IQ does as it parses). */
+    private final List<SqlAst.Statement> later = new ArrayList<>();
     /** IQ island, 2026-10-15 (checklist 0.5): each CAST or CONVERT of a constant only one engine cannot convert
      *  ({@link IqFunctions#constantCast}), with its refusals' texts. */
     private final List<EngineCast> engineCasts = new ArrayList<>();
@@ -185,7 +188,8 @@ public final class IqParser {
     /** A statement as read ({@link #parsed}): its tree, and the text of each GROUP BY item and each aggregate's call
      *  in it, as written (by identity). */
     public record Parsed(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans,
-            List<SqlAst.Pos> droppedOrderKeys, List<EngineCast> engineCasts, List<SqlAst.Pos> laterals) {
+            List<SqlAst.Pos> droppedOrderKeys, List<EngineCast> engineCasts, List<SqlAst.Pos> laterals,
+            List<SqlAst.Statement> later) {
     }
 
     /** A CAST or CONVERT of a constant only one engine cannot convert: where, and the refusal under each engine (null
@@ -213,7 +217,7 @@ public final class IqParser {
             throw e;
         }
         return new Parsed(statement, java.util.Collections.unmodifiableMap(p.spans), List.copyOf(p.droppedOrderKeys),
-                List.copyOf(p.engineCasts), List.copyOf(p.laterals));
+                List.copyOf(p.engineCasts), List.copyOf(p.laterals), List.copyOf(p.later));
     }
 
     /** The statement, the whole text. */
@@ -383,13 +387,83 @@ public final class IqParser {
         return n;
     }
 
-    /** A statement: a query expression ({@link #queryBlock}), with the tail clauses IQ reads after it refused. */
+    /** A statement: a query expression ({@link #queryBlock}), with the tail clauses IQ reads after it refused, and the
+     *  statements of its batch after it ({@link #laterStatements}). */
     private SqlAst.Statement statement() {
         IqLexer.Token first = peek();
         if (!first.is("with") && !first.is("select") && !first.isOp("(")) {
             throw SqlSyntaxException.unsupported("only a SELECT is read in an #IQ{...}# island, not '" + first.text()
                     + "'", first.pos());
         }
+        SqlAst.Statement query = oneStatement();
+        laterStatements();
+        return query;
+    }
+
+    /**
+     * IQ island, 2026-10-17 (the corpus lane's SEDE batches, 134 queries, 85 and more of them IQ answers; measured on IQ
+     * 17.1, separated by ';' or not): the statements after the first are a batch's, of which a client reading one
+     * result -- as an island does -- gets the first statement's answer, or its error. A later statement that does not
+     * parse fails the batch, IQ's syntax error -131 (any error IQ raises as it parses: LIMIT, IN (), a date part's
+     * argument count, DATETIME2), and nothing else a later statement holds is raised (a missing column, a function of
+     * no name of IQ's, a grouping, a conversion, a CTE naming itself). Each is read for its syntax; one holding what
+     * the reader does not read, or no SELECT, refuses the batch by name.
+     */
+    private void laterStatements() {
+        while (true) {
+            boolean separated = false;
+            while (peek().isOp(";")) {
+                take();
+                separated = true;
+            }
+            IqLexer.Token t = peek();
+            if (t.kind() == IqLexer.Kind.EOF) {
+                return;
+            }
+            if (t.is("with") && !separated) {
+                // measured on IQ 17.1: WITH begins a later statement only after a ';' (SELECT 1 WITH c AS (...) ... is
+                // its -131 near WITH)
+                throw new SqlSyntaxException("WITH begins a batch's later statement only after a ';'"
+                        + IqDialect.syntaxCode(), t.pos());
+            }
+            if (!t.is("with") && !t.is("select") && !(t.isOp("(") && separated)) {
+                throw SqlSyntaxException.unsupported("a later statement of a batch that is no SELECT ('" + t.text()
+                        + "') is not read in an #IQ{...}# island: IQ runs it after the first statement's answer",
+                        t.pos());
+            }
+            int start = at;
+            try {
+                later.add(oneStatement());
+            } catch (SqlSyntaxException e) {
+                if (!afterReadingErrors.contains(e)) {
+                    throw batchError(e, t);
+                }
+                // an error IQ raises once it has read the statement: read on past it, for the syntax alone
+                IqParser past = new IqParser(text, tokens, settings, true);
+                past.at = start;
+                try {
+                    later.add(past.oneStatement());
+                } catch (SqlSyntaxException again) {
+                    throw batchError(again, t);
+                }
+                at = past.at;
+            }
+        }
+    }
+
+    /** {@code e}, met reading a later statement of the batch that {@code t} heads: a refusal as it is; any other error,
+     *  IQ's syntax error -131 for the batch (measured on IQ 17.1, where the statement alone raises -154 too). */
+    private static SqlSyntaxException batchError(SqlSyntaxException e, IqLexer.Token t) {
+        if (e.unsupported()) {
+            return e;
+        }
+        return new SqlSyntaxException("a later statement of this batch does not parse, which fails the batch"
+                + IqDialect.syntaxCode(), t.pos());
+    }
+
+    /** One statement of the batch: its query and its tail clauses. */
+    private SqlAst.Statement oneStatement() {
+        IqLexer.Token first = peek();
         SqlAst.Statement query = first.is("with") ? with() : queryBlock();
         if (peek().is("for") && peek(1).isWord("xml") && peek(2).isWord("path")) {
             throw unexpected(peek());
@@ -416,20 +490,11 @@ public final class IqParser {
             throw limit(peek());
         }
         // IQ island, 2026-10-15 (the corpus lane: 1,691 of SEDE's 11,708 queries end so; measured on IQ 17.1): a
-        // statement's one trailing separator is read, as IQ reads it; a second statement after it is refused
-        if (peek().isOp(";") && peek(1).kind() == IqLexer.Kind.EOF) {
-            take();
+        // statement's trailing separators are read, as IQ reads them; what follows is the batch's (laterStatements)
+        if (!peek().isOp(";") && peek().kind() != IqLexer.Kind.EOF && !peek().is("select") && !peek().is("with")) {
+            throw unexpected(peek());
         }
-        if (peek().isOp(";")) {
-            throw SqlSyntaxException.unsupported("a second statement, after a separator (;), is not read in an"
-                    + " #IQ{...}# island", peek().pos());
-        }
-        if (peek().isWord("select") || peek().isWord("with")) {
-            // IQ island, 2026-10-17 (the corpus lane: 108 of SEDE's queries, 85 of them IQ answers): IQ reads a
-            // statement after another without a separator as a batch's next one, as T-SQL does
-            throw SqlSyntaxException.unsupported("a second statement, after the first without a separator, is not"
-                    + " read in an #IQ{...}# island: IQ runs it as a batch's next statement", peek().pos());
-        }
+        // (a WITH after a statement with no ';' between is IQ's syntax error: laterStatements)
         return query;
     }
 
@@ -756,6 +821,11 @@ public final class IqParser {
             do {
                 from.add(tableExpression());
             } while (takeOp(","));
+        } else if (items.stream().anyMatch(i -> i instanceof SqlAst.AllColumns)) {
+            // IQ island, 2026-10-17 (the corpus lane's SELECT * SELECT COUNT(ID) ...; measured on IQ 17.1): a SELECT with
+            // no FROM reads SYS.DUMMY's one row, so * shows its dummy_col
+            SqlAst.Pos at = peek().pos();
+            from.add(new SqlAst.TableName(List.of(new SqlAst.Ident("DUMMY", false, at)), null, List.of(), at));
         }
         SqlAst.Expr where = null;
         if (peek().is("where")) {

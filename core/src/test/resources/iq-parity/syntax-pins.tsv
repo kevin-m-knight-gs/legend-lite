@@ -181,15 +181,19 @@
 # IQ island, 2026-10-17 (a closing parenthesis no opening one matches is IQ's -131, measured; LATERAL (SELECT ...)
 # read, its engine's -1001030 and its front end's refusal named in IqDialect): reject REJECTED 1,029 -> 1,031
 # (REFUSED 755 -> 753). Reject-parsed and accept-rejected unchanged; LATERAL's other forms stay refused.
-accept	parsed	3206
-accept	refused	1743
+# IQ island, 2026-10-17 (measured on IQ 17.1 and SQL Anywhere 17, with the user's approval to measure ';'): a batch's
+# later statements, separated by ';' or not, are read for their syntax, the first the answer, and one that does not
+# parse is the batch's -131: accept PARSED 3,206 -> 3,208 (REFUSED 1,743 -> 1,741), reject REJECTED 1,031 -> 1,033
+# (REFUSED 753 -> 751). Reject-parsed and accept-rejected unchanged.
+accept	parsed	3208
+accept	refused	1741
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	81
 flag	refused	53
 reject	parsed	25
-reject	refused	753
-reject	rejected	1031
+reject	refused	751
+reject	rejected	1033
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609

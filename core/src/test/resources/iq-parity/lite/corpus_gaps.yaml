@@ -1704,3 +1704,34 @@ tests:
   - id: no_rejection_by_a_join_into_a_grouped_table_under_a_window
     sql: "SELECT m.id, m.bid, m.r FROM (SELECT x.id, x.bid, COUNT(*) OVER (ORDER BY x.id) AS r FROM (SELECT a.id, b.id AS bid, COUNT(*) AS n FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id > 0 GROUP BY a.id, b.id) x) m JOIN u z ON z.id = m.bid ORDER BY m.id, m.bid"
     profile: iq17-default
+
+  # ---- batches (the corpus lane's SEDE, 134 queries; measured on IQ 17.1, 2026-10-17, with the user's approval to
+  # measure ';'): a client reading one result gets the first statement's answer, or its error; a later statement that
+  # does not parse fails the batch (-131); nothing else a later statement holds is raised
+  - id: batch_answers_its_first_statement
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id SELECT vc FROM t"
+  - id: batch_with_a_separator_answers_its_first_statement
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id; SELECT vc FROM t"
+  - id: batch_of_three_answers_its_first_statement
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id SELECT 2 AS b; SELECT 3 AS c;"
+  - id: batch_later_missing_column_is_no_error
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id; SELECT nosuch FROM t"
+  - id: batch_later_unknown_function_is_no_error
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id; SELECT FORMAT(dt, 'yyyy') AS f FROM t"
+  - id: batch_later_cte_naming_itself_is_no_error
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id; WITH r AS (SELECT id FROM r) SELECT id FROM r"
+  - id: batch_later_syntax_error_fails_it
+    sql: "SELECT id FROM t; SELECT id FROM t LIMIT 5"
+  - id: batch_later_argument_count_fails_it
+    sql: "SELECT id FROM t; SELECT DATEDIFF(day, ts) AS d FROM t"
+  - id: batch_later_charindex_start_fails_it
+    sql: "SELECT id FROM t; SELECT CHARINDEX('a', vc, 1) AS c FROM t"
+    profile: iq17-default
+  - id: batch_first_error_is_its_error
+    sql: "SELECT nosuch FROM t; SELECT id FROM t"
+  - id: batch_later_with_without_a_separator_is_iqs_131
+    sql: "SELECT id FROM t WITH c AS (SELECT 2 AS b) SELECT b FROM c"
+  - id: a_star_with_no_from_reads_dummy
+    sql: "SELECT *"
+  - id: a_star_with_no_from_beside_a_constant
+    sql: "SELECT *, 1 AS x"

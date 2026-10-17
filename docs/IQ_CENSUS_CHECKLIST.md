@@ -340,6 +340,12 @@ island's reason, those IQ answers, and what became of them:
   -265 before a held error; ORDER BY's -1005004 for a scalar subquery outside a conditional only (CASE WHEN EXISTS
   is -1001030: refused); an enclosing query's column beside a GROUP BY expression is no -149; TO_CHAR of a string is
   a LONG VARCHAR;
+- batches (the corpus lane's SEDE, 155 queries; measured on IQ 17.1 and SQL Anywhere 17, 2026-10-17, with the
+  user's approval to measure ';'): a client reading one result gets the first statement's answer, or its error,
+  separated by ';' or not; a later statement that does not parse fails the batch, -131 (an argument count, IQ's -154
+  alone, too), and nothing else a later statement holds is raised; WITH begins a later statement only after a ';'.
+  Read so now (refused before without a measurement: the island reads one result). A SELECT with no FROM reads
+  SYS.DUMMY's row, so * shows dummy_col. The 155 judged: 114 IQ's rows, 37 both errors, 4 refused otherwise;
 - LATERAL (SELECT ...) in FROM (the lane's 4; measured on IQ 17.1): its engine's -1001030 (the front end reads it:
   refused by name). A closing parenthesis no opening one matches is -131. Not built, recorded: CAST of a timestamp to FLOAT (IQ's engine a REAL count of microseconds, a
   date's of days; the front end's days; SEDE's 4, T-SQL's date truncation through a float, which means nothing
