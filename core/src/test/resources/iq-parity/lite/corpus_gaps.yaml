@@ -1081,3 +1081,43 @@ tests:
     engine: sa
   - id: round_with_a_third_argument_is_iqs_error
     sql: "SELECT ROUND(nm, 1, 1) AS a FROM t"
+
+  # ---- a window over a grouped query's GROUP BY expressions (IQ island, 2026-10-17; found by verifying the corpus
+  # lane's IQ_ERROR claims against IQ 17.1, which answers PARTITION BY YEAR(CreationDate) beside GROUP BY
+  # YEAR(CreationDate)): read, a column no GROUP BY item is still -149
+  - id: window_over_group_expressions
+    sql: "SELECT YEAR(dt) AS y, COUNT(*) AS n, RANK() OVER (PARTITION BY YEAR(dt) + 1 ORDER BY COUNT(*) DESC) AS r FROM t GROUP BY YEAR(dt) ORDER BY y"
+  # (a SUM over the window is IQ's engine's NUMERIC(21,0), SQL Anywhere 17's INTEGER: iq17 alone)
+  - id: window_sum_over_group_expressions
+    sql: "SELECT YEAR(dt) AS y, SUM(COUNT(*)) OVER (ORDER BY YEAR(dt)) AS s FROM t GROUP BY YEAR(dt) ORDER BY y"
+    profile: iq17-default
+  - id: window_over_an_ungrouped_column_is_iqs_error
+    sql: "SELECT YEAR(dt) AS y, RANK() OVER (ORDER BY dt) AS r FROM t GROUP BY YEAR(dt)"
+
+  # ---- words SQL Anywhere 17 reserves that IQ 17.1 reads as names (IQ island, 2026-10-17; the corpus lane's AS row,
+  # measured on IQ 17.1 in every place a name stands): array, json, row, rowtype, unnest, varray
+  - id: reserved_words_iq_reads_as_names
+    sql: "SELECT row.id AS row, row.sm AS json, array.vc array FROM t AS row JOIN t array ON array.id = row.id WHERE row.id = 1"
+    profile: iq17-default
+  - id: reserved_words_iq_reads_as_names_in_a_derived_table
+    sql: "SELECT d.rowtype, unnest, varray, SUM(rowtype) OVER (ORDER BY rowtype ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS s FROM (SELECT id AS rowtype, sm AS unnest, vc varray FROM t) d ORDER BY rowtype"
+    profile: iq17-default
+  # (SQL Anywhere 17, the iq16 profiles' judge, raises its syntax error -131 for it)
+  - id: reserved_word_row_as_an_alias
+    sql: "SELECT id AS row FROM t"
+
+  # ---- an outer join's ON subquery under a WHERE rejecting its null-supplying side's NULLs (IQ island, 2026-10-17;
+  # found by verifying the corpus lane's IQ_ERROR claims, measured on IQ 17.1): the inner join it is, which IQ's engine
+  # reads; IS NULL, an OR or a COALESCE keeps the outer join and IQ's -1001047
+  - id: outer_join_subquery_under_a_null_rejecting_where
+    sql: "SELECT t.id, u.id AS uid, u.label FROM t LEFT JOIN u ON u.t_id = t.id AND u.id = (SELECT MAX(u2.id) FROM u u2 WHERE u2.t_id = t.id) WHERE u.id > 0 ORDER BY t.id"
+  - id: outer_join_subquery_under_null_rejecting_predicates
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND u.id = (SELECT MAX(u2.id) FROM u u2 WHERE u2.t_id = t.id) WHERE u.label IN ('uno', 'three') AND u.id IS NOT NULL ORDER BY t.id"
+  - id: outer_join_subquery_under_a_where_keeping_nulls_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND u.id = (SELECT MAX(u2.id) FROM u u2 WHERE u2.t_id = t.id) WHERE u.id IS NULL ORDER BY t.id"
+    profile: iq17-default
+
+  # ---- SELECT DISTINCT t.* ordered by a column the * shows (IQ island, 2026-10-17; found by verifying the corpus
+  # lane's IQ_ERROR claims: IQ 17.1 answers it, as Postgres does)
+  - id: distinct_star_ordered_by_a_column_it_shows
+    sql: "SELECT DISTINCT u.* FROM t JOIN u ON u.t_id = t.id ORDER BY u.label"

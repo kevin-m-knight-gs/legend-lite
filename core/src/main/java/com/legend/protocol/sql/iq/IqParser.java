@@ -2377,7 +2377,12 @@ public final class IqParser {
         }
         if (t.is("current")) {
             take();
-            expectSyntax("row", "CURRENT needs ROW");
+            // a word in the iq17 profiles (IqLexer.IQ_NAMES), a keyword elsewhere
+            if (!peek().isWord("row")) {
+                throw new SqlSyntaxException("CURRENT needs ROW, not '" + peek().text() + "'"
+                        + IqDialect.syntaxCode(), peek().pos());
+            }
+            take();
             return new SqlAst.FrameBound(SqlAst.BoundKind.CURRENT_ROW, null);
         }
         SqlAst.Expr offset = concatenation();

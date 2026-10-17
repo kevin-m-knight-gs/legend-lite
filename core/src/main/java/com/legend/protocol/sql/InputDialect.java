@@ -51,6 +51,12 @@ public interface InputDialect {
     /** The output name of a select item written without an alias. */
     String defaultName(SqlAst.SelectExpr item);
 
+    /** The join {@code join} is read as: its own type; a dialect may read an outer join as the inner one it is (IQ
+     *  island, 2026-10-17: IQ's engine, under a WHERE that rejects the null-supplying side's NULLs). */
+    default SqlAst.JoinType joinType(SqlAst.Join join) {
+        return join.type();
+    }
+
     /** The output name of a select item written without an alias, where {@code tables} says which FROM item of the
      *  item's query each of its column references reads: {@link #defaultName(SqlAst.SelectExpr)} unless the dialect
      *  names an item by the tables it reads (Postgres's does not). */

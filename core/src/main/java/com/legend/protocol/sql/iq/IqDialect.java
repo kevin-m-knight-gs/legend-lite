@@ -154,6 +154,9 @@ public final class IqDialect implements InputDialect {
     /** IQ island, 2026-10-14 (the third landing): the names inside a subquery that an enclosing SELECT's alias may be
      *  ({@link IqAliases}), by identity: read as their own query's columns only ({@link #columnNotHere}). */
     private final Set<SqlAst.ColumnRef> outerReads = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** IQ island, 2026-10-17: the outer joins IQ's engine reads as inner ones ({@link #nullRejected}), by identity,
+     *  for {@link #joinType}. */
+    private final Set<SqlAst.Join> innerJoins = Collections.newSetFromMap(new IdentityHashMap<>());
     /** IQ island, 2026-10-14 (the third landing): the aliases (lower case) each unaliased select item reads
      *  ({@link IqAliases}), by identity: its name shows them as written. */
     private final Map<SqlAst.SelectExpr, Set<String>> aliasesRead = new IdentityHashMap<>();
@@ -1292,9 +1295,10 @@ public final class IqDialect implements InputDialect {
         }
         shown(first(statement), shownHere);
         Engine chosen = engine != null ? engine : engineOf(statement, settings);
+        Set<SqlAst.Join> innerHere = Collections.newSetFromMap(new IdentityHashMap<>());
         if (chosen == Engine.IQ) {
             appliedQueries(statement);
-            subqueryPlaces(statement);
+            subqueryPlaces(statement, innerHere);
             iqEngineRestrictions(statement);
         }
         // IQ island, 2026-10-14 (the third landing; measured on SQL Anywhere 17): a row limit in a subquery or a
@@ -1394,6 +1398,7 @@ public final class IqDialect implements InputDialect {
                 lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere,
                 innerSetsHere, chainedHere, filtersHere);
         read.outerLazy.addAll(outerAggregates(statement));
+        read.innerJoins.addAll(innerHere);
         read.outerReads.addAll(outerReads);
         read.aliasesRead.putAll(aliasesRead);
         read.innerNames.putAll(innerNames);
@@ -2683,7 +2688,7 @@ public final class IqDialect implements InputDialect {
         return null;
     }
 
-    private static void subqueryPlaces(SqlAst.Statement statement) {
+    private static void subqueryPlaces(SqlAst.Statement statement, Set<SqlAst.Join> innerJoins) {
         Set<SqlAst.Select> top = Collections.newSetFromMap(new IdentityHashMap<>());
         topBranches(statement, top);
         Set<SqlAst.Select> inDerived = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -2745,7 +2750,12 @@ public final class IqDialect implements InputDialect {
                 joins(f, joins);
                 for (SqlAst.Join j : joins) {
                     if (j.on() != null && j.type() != SqlAst.JoinType.INNER) {
-                        outerJoinSubqueries(j, java.util.Objects.requireNonNull(j.on()));
+                        SqlAst.Expr on = java.util.Objects.requireNonNull(j.on());
+                        if (holdsSubquery(on) && nullRejected(s.where(), j)) {
+                            innerJoins.add(j);
+                        } else {
+                            outerJoinSubqueries(j, on);
+                        }
                     }
                     if (j.on() != null) {
                         // IQ island, 2026-10-15 (measured on IQ 17.1): an ON takes them as a WHERE does
@@ -2925,6 +2935,74 @@ public final class IqDialect implements InputDialect {
                         + " DuckDB lowering cannot plan it (write it as a LEFT JOIN)", c.pos());
             }
         }
+    }
+
+    /**
+     * IQ island, 2026-10-17 (found by verifying the corpus lane's IQ_ERROR claims: SQLStorm's LEFT JOIN ph ON ... AND
+     * ph.CreationDate = (SELECT MAX(...)) WHERE ph.PostHistoryTypeId = 10; measured on IQ 17.1): whether {@code where}
+     * rejects the NULLs of {@code j}'s null-supplying side, so that IQ's engine reads the outer join as the inner one it
+     * then is, a subquery in its ON taken as in any join's. A conjunct of the WHERE's top AND that is a comparison with
+     * a column of that side, qualified, as one operand or in its arithmetic ({@code u.id > 0}, {@code u.id + 1 > 0},
+     * {@code u.id >= t.id}), {@code IS NOT NULL}, {@code [NOT] IN} a list, {@code [NOT] BETWEEN} or {@code [NOT] LIKE}
+     * of such a column; no NULL constant beside it (under ansinull Off {@code = NULL} is IS NULL). Not one: IS NULL,
+     * an OR, a COALESCE (IQ raises -1001047 under each: measured). A FULL JOIN has no such side here.
+     */
+    private static boolean nullRejected(SqlAst.@com.legend.base.Nullable Expr where, SqlAst.Join j) {
+        if (where == null || j.type() == SqlAst.JoinType.FULL) {
+            return false;
+        }
+        Set<String> side = new java.util.HashSet<>();
+        for (SqlAst.FromItem leaf : leaves(j.type() == SqlAst.JoinType.LEFT ? j.right() : j.left())) {
+            SqlAst.Ident name = correlation(leaf);
+            if (name == null) {
+                return false;
+            }
+            side.add(IqLexer.lower(name.text()));
+        }
+        List<SqlAst.Expr> conjuncts = new ArrayList<>();
+        andConjuncts(where, conjuncts);
+        for (SqlAst.Expr c : conjuncts) {
+            boolean rejects = switch (c) {
+                case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.EQ || b.op() == SqlAst.BinaryOp.NE
+                        || b.op() == SqlAst.BinaryOp.LT || b.op() == SqlAst.BinaryOp.LE
+                        || b.op() == SqlAst.BinaryOp.GT || b.op() == SqlAst.BinaryOp.GE ->
+                        !(b.left() instanceof SqlAst.NullLit) && !(b.right() instanceof SqlAst.NullLit)
+                                && (strictOf(b.left(), side) || strictOf(b.right(), side));
+                case SqlAst.IsNull n -> n.negated() && sideColumn(n.operand(), side);
+                case SqlAst.InList in -> sideColumn(in.operand(), side)
+                        && in.values().stream().noneMatch(v -> v instanceof SqlAst.NullLit);
+                case SqlAst.Between b -> sideColumn(b.operand(), side);
+                case SqlAst.Like l -> sideColumn(l.operand(), side);
+                default -> false;
+            };
+            if (rejects) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code e} is a qualified column of one of the tables {@code side} names. */
+    private static boolean sideColumn(SqlAst.Expr e, Set<String> side) {
+        return e instanceof SqlAst.ColumnRef r && r.parts().size() == 2
+                && side.contains(IqLexer.lower(r.parts().get(0).text()));
+    }
+
+    /** Whether {@code e} is NULL wherever such a column is: the column, or arithmetic of it and no NULL constant. */
+    private static boolean strictOf(SqlAst.Expr e, Set<String> side) {
+        if (sideColumn(e, side)) {
+            return true;
+        }
+        return e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS
+                || b.op() == SqlAst.BinaryOp.TIMES || b.op() == SqlAst.BinaryOp.DIVIDE)
+                && !(b.left() instanceof SqlAst.NullLit) && !(b.right() instanceof SqlAst.NullLit)
+                && (strictOf(b.left(), side) || strictOf(b.right(), side));
+    }
+
+    /** IQ island, 2026-10-17: an outer join IQ's engine reads as an inner one ({@link #nullRejected}) as INNER. */
+    @Override
+    public SqlAst.JoinType joinType(SqlAst.Join join) {
+        return innerJoins.contains(join) ? SqlAst.JoinType.INNER : join.type();
     }
 
     /** Whether {@code e} holds a subquery anywhere in it. */

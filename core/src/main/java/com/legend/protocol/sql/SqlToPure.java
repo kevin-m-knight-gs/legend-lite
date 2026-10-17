@@ -466,6 +466,14 @@ public final class SqlToPure {
 
         /** The clause an aggregate would be refused in, or null where aggregates have been collected. */
         @com.legend.base.Nullable String noAggregatesIn();
+
+        /** Whether {@code ref} reads an enclosing query's column. IQ island, 2026-10-17 (the corpus lane's
+         *  {@code PARTITION BY YEAR(CreationDate)} beside {@code GROUP BY YEAR(CreationDate)}, which IQ 17.1 reads):
+         *  asked of a column under any expression, so a grouped scope answers it without requiring a group key. */
+        default boolean enclosing(SqlAst.ColumnRef ref) {
+            Col c = columnOrNull(ref);
+            return c != null && c.var() != null;
+        }
     }
 
     /** Where an expression is translated: the scope its names are read in, and the lambda parameter its row is in. A
@@ -680,8 +688,7 @@ public final class SqlToPure {
 
         /** Whether {@code ref} reads an enclosing query's column (a correlated reference). */
         public boolean enclosing(SqlAst.ColumnRef ref) {
-            Col c = scope.columnOrNull(ref);
-            return c != null && c.var() != null;
+            return scope.enclosing(ref);
         }
 
         /** The window's ORDER BY keys' translations (as the keys the window sorts by: a dialect's collation key in a
@@ -1046,6 +1053,12 @@ public final class SqlToPure {
                 return null;
             }
             return byCanon.get(canon(e, input));
+        }
+
+        @Override
+        public boolean enclosing(SqlAst.ColumnRef ref) {
+            Col source = input.columnOrNull(ref);
+            return source != null && source.var() != null;
         }
 
         @Override
@@ -1441,8 +1454,8 @@ public final class SqlToPure {
             }
             case SqlAst.Join j when lateral(j.right()) && j.using().isEmpty() && !j.natural() ->
                     lateralJoin(from(j.left()), j.right(), j.type(), j.on(), j.pos());
-            case SqlAst.Join j -> join(from(j.left()), from(j.right()), j.type(), j.on(), j.using(), j.natural(),
-                    j.pos());
+            case SqlAst.Join j -> join(from(j.left()), from(j.right()), dialect.joinType(j), j.on(), j.using(),
+                    j.natural(), j.pos());
         };
     }
 
@@ -2657,6 +2670,11 @@ public final class SqlToPure {
         public @com.legend.base.Nullable Col grouped(SqlAst.Expr e) {
             Col c = e instanceof SqlAst.Window w ? calls.get(w) : null;
             return c != null ? c : base.grouped(e);
+        }
+
+        @Override
+        public boolean enclosing(SqlAst.ColumnRef ref) {
+            return base.enclosing(ref);
         }
 
         @Override
@@ -3926,6 +3944,21 @@ public final class SqlToPure {
                 if (oe != null && canon(oe, inputScope(inputs)).equals(canon)) {
                     notJsonKey(o.kind(), "ORDER BY", e.pos());
                     return sortedBy(o, s, e.pos(), computed, present, afterDistinct);
+                }
+            }
+            if (e instanceof SqlAst.ColumnRef ref) {
+                // IQ island, 2026-10-17 (found by verifying the corpus lane's IQ_ERROR claims: IQ 17.1 answers SELECT
+                // DISTINCT u.* ... ORDER BY u.displayname): a column a * shows is one of the items, as Postgres reads it
+                Col source = inputs.columnOrNull(ref);
+                if (source != null && source.var() == null) {
+                    for (Output o : outputs) {
+                        if (o.expr() == null && (o.value() == null ? o.internal().equals(source.name())
+                                : o.value() instanceof AppliedProperty p && p.receiver() instanceof Variable v
+                                && v.name().equals(row) && p.property().equals(source.name()))) {
+                            notJsonKey(o.kind(), "ORDER BY", e.pos());
+                            return sortedBy(o, s, e.pos(), computed, present, afterDistinct);
+                        }
+                    }
                 }
             }
             throw SqlTranslationException.invalid(dialect.message(Problem.DISTINCT_ORDER_KEY), e.pos());

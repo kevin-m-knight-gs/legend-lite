@@ -110,6 +110,13 @@ public final class IqLexer {
      *  17, and SQL Anywhere's are SQL Anywhere's. */
     static final Set<String> IQ_RESERVED = Set.of("aes_decrypt", "clear", "iq", "timeline");
 
+    /** IQ island, 2026-10-17 (the corpus lane's {@code AS row}; measured on IQ 17.1): words SQL Anywhere 17 reserves
+     *  that IQ 17.1 reads as names everywhere -- an alias with AS or without, a column read alone or after a dot, a
+     *  table's alias -- though its sa_reserved_words() lists them (array, json, row, rowtype, unnest and varray of its
+     *  sixteen alias-able words; the other ten are names to SQL Anywhere too). The iq17 presets' names; IQ 16's
+     *  stand-in, SQL Anywhere 17, reserves them. */
+    static final Set<String> IQ_NAMES = Set.of("array", "json", "row", "rowtype", "unnest", "varray");
+
     /** IQ island, 2026-10-17 (BIRD's THEN TRUE ELSE FALSE; measured on IQ 17.1): TRUE and FALSE, IQ 17.1's
      *  constants 1 and 0 (SMALLINTs, as the literals are; TRUE + 1 is 2), no name; in IQ 16's stand-in, SQL Anywhere
      *  17, names. */
@@ -194,8 +201,10 @@ public final class IqLexer {
                 advance(1);
             }
             String word = text.substring(start, at);
-            boolean keyword = reserved(word) || settings.base() == IqSettings.Base.IQ16 && !settings.latin1()
-                    && (IQ_RESERVED.contains(lower(word)) || IQ_CONSTANTS.contains(lower(word)));
+            boolean iq17 = settings.base() == IqSettings.Base.IQ16 && !settings.latin1();
+            String lowered = lower(word);
+            boolean keyword = reserved(word) && !(iq17 && IQ_NAMES.contains(lowered))
+                    || iq17 && (IQ_RESERVED.contains(lowered) || IQ_CONSTANTS.contains(lowered));
             return new Token(keyword ? Kind.KEYWORD : Kind.WORD, word, pos, start, at);
         }
         for (String op : OPERATORS) {
