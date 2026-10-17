@@ -1350,42 +1350,72 @@ License), kept outside the repository and named by `-Dsql.corpus.regress`. The r
   statement names, read from the catalog and declared as a `###Relational` database of their modeled columns; the
   statement as `#SQL{...}#` over that database, run on the same session (`QueryService.execute`); `SqlParity`'s
   verdict.
-- Statuses beyond `SqlParity`'s: NAMES (the values agree, a column's name does not), UNMODELED (a table or column of a
-  type the model cannot declare: oid, the geometric types, arrays, ranges), CATALOG (a read of `pg_*` or
-  `information_schema`), HARNESS (the harness itself failed).
+- Statuses beyond `SqlParity`'s:
+  - NAMES: the values agree, a column's name does not.
+  - UNMODELED: a table or column of a type the model cannot declare (oid, the geometric types, arrays, ranges).
+  - CATALOG: a read of `pg_*` or `information_schema`.
+  - REGISTERED: a difference the register rules (S49).
+  - KNOWN: a wrong answer the harness's ledger names, with why.
+  - HARNESS: the harness itself failed.
+- A wrong answer's report row carries the SQL legend-lite ran.
 
-**The first full run** (15,714 statements, 208 s):
+**The first full run** (15,714 statements, 208 s) found 41 FAIL, 48 BUG and 86 NAMES. Each was traced:
+
+- **The harness's own reads (15 FAIL, 15 BUG).** The reference read Postgres's dates and timestamps through
+  `java.sql.Date` and `Timestamp`, so a BC year lost its era and `infinity` became a date in the year 292278994; and
+  the script's `SET datestyle TO ymd` changed how Postgres read a date's text, where the island reads Postgres's
+  default (ISO, MDY, §9.4). `SqlParity.grid` now reads a Postgres date or timestamp as its java.time value, and under
+  a DateStyle the script set, the judge's reference is Postgres's answer under the default.
+- **The executor (3 FAIL).** It read a DATE cell through `java.sql.Date` too, so a BC date came back as the AD date:
+  re-fetched as `LocalDate`, as timestamps already were.
+- **Constant integer arithmetic (28 BUG).** `(-32768)::int2 * (-1)::int2` and
+  `'9223372036854775800'::int8 + '9223372036854775800'::int8` answered, because the planner folds constants exactly
+  where Postgres raises past the type. The island now holds integer arithmetic over constants to the Postgres type it
+  has (int2 with int2 is int2, else the wider; a constant is int4 where it fits, a minus before one is its value).
+  The test is written once, at the outermost arithmetic of constants, and only where the constants as written could
+  reach past the range, so `1 + 2` gains nothing. One gap stays: an intermediate result past the range that the next
+  operator brings back answers, where Postgres raises. Two folds wrapped on their own: `StaticFold`'s long sum and
+  difference, and the lowering's negation of the least long. Both now decline, or answer exactly.
+- **Smaller faults (11).** A float8 constant past a double's range (`'10e-400'::float8`) is Postgres's error. Two
+  WINDOW definitions of one name are an error. A `char(n)` cast to `text` or `varchar` drops its padding. A string
+  compared with a `real` is refused by name: Postgres reads the string as a float4, which Pure's Float is not.
+- **Names (86 NAMES, 13 more inside FAILs).** The island follows FigureColname's strengths. A cast's type or `case`
+  names an item only where what it holds has no name of its own. So `'1'::float8::int2` is `int2`, `date '...'` is
+  `date`, `CASE ... ELSE b END` is `b`, and `(SELECT max(x) ...)` is `max`. Type names are the grammar's: `int4`,
+  `float8`, `bpchar`.
+- **Ruled or left to the plan (10).** Six are register S49's ruled difference: a `json` value's object or array is
+  written as `jsonb` writes it, and Postgres's `json` keeps the text as written. The judge counts them REGISTERED.
+  Four are named in the harness's KNOWN ledger, each with its reason:
+  - a LIMIT that cuts through rows whose ORDER BY key ties;
+  - `last_value` over a partition with no window ORDER BY;
+  - Postgres folding a branch's constant `1/0` that no row reaches (its documented caveat, and the suite's own
+    comment);
+  - USING over an int and a bigint column, whose merged column is a cast Postgres's GROUP BY tells apart.
+
+The run after the fixes:
 
 | Status | n |
 |---|---|
-| PASS | 2,509 |
-| NAMES | 86 |
-| FAIL | 41 |
-| BUG | 48 |
-| REFUSED | 7,306 |
-| ERROR | 518 |
+| PASS | 2,636 |
+| NAMES | 0 |
+| FAIL | 0 |
+| BUG | 0 |
+| KNOWN | 4 |
+| REGISTERED | 6 |
+| REFUSED | 7,310 |
+| ERROR | 511 |
 | UNMODELED | 1,452 |
-| CATALOG | 1,240 |
-| BOTH_ERROR | 2,269 |
-| NONDETERMINISTIC | 236 |
+| CATALOG | 1,238 |
+| BOTH_ERROR | 2,310 |
+| NONDETERMINISTIC | 238 |
 | SKIP | 7 |
 | HARNESS | 2 |
 
-Of the 10,460 statements Postgres answers and the model can declare (PASS, NAMES, FAIL, REFUSED, ERROR), 2,509 (24.0%)
-answer Postgres's rows, and 86 more its values under other column names. The suite tests Postgres's own types and
-catalogs more than ordinary queries do, so the real-world corpora (step 4) are the measure of everyday SQL; this one is
-the measure of breadth.
-
-**Wrong answers (FAIL 41, BUG 48), the next work:**
-- Overflow is not an error: `bigint`, `integer` and `smallint` arithmetic past the type's range (28), and `float8` past
-  its range (2), answer rows where Postgres raises.
-- Dates: a field out of range answers a date (15); a date literal under DateStyle YMD reads in the wrong order.
-- A `char(n)` cast to `text` or `varchar` keeps its padding (Postgres drops it).
-- Smaller cases in `float4`, `timestamp`, `horology`, `limit` and `window`; one GROUP BY rule, one duplicate WINDOW
-  name, and one division by zero under `CASE` that Postgres reaches and the island does not.
-
-**Names (86):** a chain of casts is named by its last cast (`'1'::float8::int2` is `int2`), and a typed literal by
-its type (`date '...'` is `date`, not `?column?`).
+Of the 10,467 statements the island is judged on (PASS, KNOWN, REGISTERED, REFUSED, ERROR: a model declares their
+tables, and Postgres does not reject them where the island does too), 2,636 (25.2%) answer Postgres's rows, and none
+answers wrong. The suite tests Postgres's own types and
+catalogs more than ordinary queries do, so the real-world corpora (step 4) will measure everyday SQL. This suite
+measures breadth.
 
 **The largest refusals:** functions in FROM (`generate_series` and others, 635), VALUES lists (315), jsonpath (about
 450), a duplicate output name (155), jsonb read out of a jsonb constant (150), text search (`@@` and the ts functions,
