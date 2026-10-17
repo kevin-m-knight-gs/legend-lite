@@ -201,6 +201,83 @@ SKIP/LIMIT expressions, `STARTS WITH` on non-strings (null), temporal texts of t
 7. **W9, W10:** this line may change the lowering, the resolver and the dialects under their own guards, or
    hands the four findings to the database owner? (Proposed: this line, one leg each, each with its guard.)
 
+### 3.1 The decisions weighed (2026-10-17, on the user's ask)
+
+**1. Schema-optional reads (W1, 56 cases).** For: Neo4j's rule, which a Cypher user expects; the island already reads
+a property an arm's class lacks as the known null, so the change is one step wider and one leg. Against: a typo in a
+property name (`p.nmae`) answers nulls where today it fails at compile time; that guard was the reason for C4 and is
+in the spirit of "no fallbacks". Cost: one leg; S58 rewritten. Alternatives: (a) keep the compile error by default
+and take Neo4j's semantics under a per-query option the harness sets, which keeps the guard for users at the price of
+two behaviours to test and a TCK that certifies the option, not the default; (b) a middle rule, no rows for an
+unknown label (schema-optional) but an error for a property no class of the whole model declares (the true typo
+signal), which keeps 10 of the 56 cases refused. Recommended: Neo4j's rule, one behaviour; (a) if the guard matters
+more than one behaviour.
+
+**2. Identity through hidden keys (W2, ~100 cases, S74 and S75).** For: identity is what Neo4j's node is, and the
+pieces exist (the harness's `id` columns, the platform's `<<equality.Key>>` resolution); nothing is approximated by
+comparing properties; writes need a minted identity anyway. Against: a user model must declare a key per class to
+get identity-dependent queries (a keyless class keeps today's refusals); a hidden-key stereotype is one more lite-only
+meaning on the graph profile; parallel relationships as edge classes make every hop over them two steps and meet the
+resolver's depth limit (W9) on chains. Cost: three to four legs plus harness and register. Alternatives: (a) the
+lowering's own row identity (a class instance's mapped primary key, exposed to the island as an expression): no model
+change, works for any class with a mapped key, but it is the database owner's line and a class mapped without a key
+has none; (b) identity by row address (`rowid`, `ctid`): unstable across joins and unions, no; (c) identity by all
+properties: an approximation, two equal nodes merge, no. Recommended: the hidden key property now, with (a) as the
+later migration if the owner provides it.
+
+**3. `rand()` and the clock as the database's (W3, 50 cases).** For: the TCK's invariants hold for any draw or
+instant; every dialect has a random and a clock; one leg. Against: a query's rows can differ run to run, so lite's
+own cases may pin only invariants (`rand() >= 0`, `date() = date()`); the clock forms differ (Neo4j's
+`.statement`/`.transaction` are one instant per statement, `.realtime` per call): Postgres's `now()` is per
+transaction and `clock_timestamp()` per call, DuckDB's `now()` per transaction. Cost: one leg. Alternative: seed the
+database's random per lite case (`setseed`, both databases have it) so a lite case can pin a drawn value; a
+nicety, not needed for the TCK. Recommended: adopt.
+
+**4. Stored times of day: a `TIME` column type, or an existing type under a marker (W5, 72 cases).** (a) Add `TIME`
+(and a nanosecond timestamp) to lite's relational store grammar: honest typing, each dialect's DDL; but a model using
+it no longer compiles in legend-engine or Studio, which the graph profile was careful to keep. (b) Keep the grammar:
+a time of day as a `TIMESTAMP` on the epoch day under a `graph.timeOfDay` marker (the convention the nanosecond leg
+and the judge already use for computed times), a duration as the `g::Duration` Variant the harness already declares,
+a zoned date-time as its instant plus an offset column, a sub-microsecond date-time as `BIGINT` epoch nanoseconds
+under a marker; the island reads each by its marker. (c) Texts in `VARCHAR` with a transform: orders only when every
+value has one precision, and writes must format. Cost: (a) about two legs, (b) one to two, (c) two. Recommended: (b),
+reversing the proposal above: the same markers-give-meaning approach as the graph profile, and no grammar divergence.
+
+**5. Nodes with several labels (W6, 18 cases).** (a) A class per label set, `A_B extends A, B`, `MATCH (n:A)` reading
+`A` and its subclasses: Pure-native, `labels(n)` the class's set, `n:B` a subtype test; but every label set must be a
+class before the query runs (a `SET n:B` on a node of `A` alone moves its row to `A_B`, which the model must already
+hold), the subclass tables multiply, and whether the relational mapping reads subclasses through `A.all()` is to be
+verified first. (b) A class per label and a node's row in each of its labels' tables under one hidden id (decision
+2): `MATCH (n:A)` reads `A`, `labels(n)` is the id's presence across the label tables, `SET n:B` inserts a row and
+`REMOVE n:B` deletes one; but a property of a node with two labels must live in one table and be found from the other,
+so the harness declares it on every class the node carries (duplicated columns) or the island reads across tables by
+id. Cost: two legs either way. Recommended: (a) for reads now; (b) is the better shape once writes land, so decide
+with decision 6 in view.
+
+**6. Writes in their own PR after F1, judged by side effects (W4, 274 cases).** (a) F1 first: Pure's `write` and the
+DML the MIR lacks (`Update`, `DeleteWhere`, `InsertSelect`), each dialect, one transaction per statement; the island's
+clauses on top: one compiler, and the ETL sinks of the BI plan get it too. (b) The island emitting DML plans of its
+own beside its Pure: faster to start, but a second output path from one island, against the one-compiler tenet.
+Judging: the TCK asserts side-effect counts (`+nodes 1, +properties 2`) and sometimes a control query; a stronger
+lite-only judge compares the whole graph after the write with Neo4j's (nodes by labels and properties, relationships
+by endpoints, type and properties). Cost: F1 is the BI plan's "L"; the island six to ten legs. Recommended: (a),
+side-effect counts first, the whole-graph judge for lite's cases.
+
+**7. Who changes the lowering, resolver and dialects (W9, W10, 74 cases).** The four findings are platform work:
+`project` of a to-many navigation mapped to a constant (lowering, medium), the resolver's nested navigation past a
+second association step (resolver, medium), `rem`'s guard typed as text inside a Postgres lambda (dialect, small), a
+sort key that is not an output column without SKIP or LIMIT (render, small); the recursion native for unbounded
+paths is a feature (a MIR node, every dialect, a depth guard), large. (a) This line takes the four under the
+platform's guards (ArchitectureTest, the PCT suites, the corpus lanes): no waiting, but it touches the one compiler
+every island and PCT runs on, and the heavy lanes run only in CI. (b) The database owner's line takes them: ownership
+kept, at the queue's pace. Recommended: this line takes the two small ones and the fan-out with the owner's review,
+the resolver depth too; the recursion native stays a planned platform item with the owner.
+
+**A cross-cutting alternative, not recommended:** a "Neo4j compatibility mode" switch that turns decisions 1 and 3
+on for the harness and leaves lite's stricter defaults for users. It would keep every present guard, but it doubles
+the behaviours to test and the TCK would then certify the mode rather than the island; the island is Cypher, and
+Cypher's semantics are its contract.
+
 ## 4. The order, and the count it would reach
 
 | phase | workstreams | legs | cases (cumulative agreement of 3880) |
