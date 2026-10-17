@@ -1071,3 +1071,13 @@ tests:
   - id: comparing_a_date_with_a_string_of_a_column_is_refused
     sql: "SELECT id FROM t WHERE ts > vc || '' ORDER BY id"
     profile: iq17-default
+
+  # ---- other dialects' arguments (IQ island, 2026-10-17; the corpus lane's CHARINDEX(x, s, start) and LOG(base, x),
+  # measured on IQ 17.1): IQ's -154 as it plans, over no rows too
+  - id: charindex_with_a_start_is_iqs_error
+    sql: "SELECT CHARINDEX('l', vc, 2) AS a FROM t WHERE 1 = 0"
+  - id: log_with_a_base_is_iqs_error
+    sql: "SELECT LOG(10, 100) AS a"
+    engine: sa
+  - id: round_with_a_third_argument_is_iqs_error
+    sql: "SELECT ROUND(nm, 1, 1) AS a FROM t"

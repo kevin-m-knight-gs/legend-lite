@@ -2543,7 +2543,7 @@ public final class IqParser {
             }
             if (n.value().bitLength() > 31 || !IqFunctions.STYLES.contains(n.value().intValue())) {
                 throw SqlSyntaxException.unsupported("CONVERT style " + n.value() + " is not supported: the island"
-                        + " reads IQ's date styles 0-5, 10-12, 20, 21, 100-108, 110-112, 120 and 121", style.pos());
+                        + " reads IQ's date styles 0-14, 20, 21, 100-114, 120 and 121", style.pos());
             }
             // IQ island, 2026-10-15: a date's text by an IQ style ({@link IqFunctions}'s CONVERT_STYLE, measured on
             // IQ 17.1): the operand, the style and the target's length (-1 for none)

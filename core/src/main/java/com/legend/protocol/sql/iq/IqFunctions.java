@@ -153,11 +153,20 @@ final class IqFunctions {
                 + " function holds the name), refused before translating";
     }
 
+    /** Other dialects' form of {@code fn} with {@code n} arguments, which IQ raises -154 for (measured on IQ 17.1, as
+     *  it plans: over no rows too); null for any other. */
+    private static @com.legend.base.Nullable String foreign(Fn fn, int n) {
+        return fn == Fn.CHARINDEX && n == 3 ? "CHARINDEX's start (other dialects'; IQ's is LOCATE(s, search, start))"
+                : fn == Fn.ROUND && n == 3 ? "ROUND's third argument (other dialects'; IQ's is TRUNCNUM)"
+                : fn == Fn.LOG && n == 2 ? "LOG's base (other dialects'; IQ's LOG is the natural one, LOG10 the"
+                + " decimal)" : null;
+    }
+
     /** How many arguments {@code f} takes, {min, max}, for a function of this catalog ({@link IqDialect}'s parse checks
      *  the count). Refused by name before translation: a delimited name with a space (only the reader writes
-     *  {@code CURRENT DATE}); other dialects' forms IQ raises -154 for (CHARINDEX's start, ROUND's third argument, LOG's
-     *  base); a constant negative SUBSTRING length (IQ's -1090 wherever computed, under ANSI_SUBSTRING On: {@code
-     *  ansiSubstring}). */
+     *  {@code CURRENT DATE}); a constant negative SUBSTRING length (IQ's -1090 wherever computed, under ANSI_SUBSTRING On: {@code
+     *  ansiSubstring}). Other dialects' forms IQ raises -154 for (CHARINDEX's start, ROUND's third argument, LOG's
+     *  base) are refused by name: the syntax research holds some an accepted form, some a rejected one. */
     static int[] arity(SqlAst.FunctionCall f, boolean ansiSubstring) {
         SqlAst.Ident name = f.name().get(f.name().size() - 1);
         Fn fn = Fn.named(name.text());
@@ -169,10 +178,7 @@ final class IqFunctions {
                     f.pos());
         }
         int n = f.args().size();
-        String foreign = fn == Fn.CHARINDEX && n == 3 ? "CHARINDEX's start (other dialects'; IQ's is LOCATE(s, search,"
-                + " start))" : fn == Fn.ROUND && n == 3 ? "ROUND's third argument (other dialects'; IQ's is TRUNCNUM)"
-                : fn == Fn.LOG && n == 2 ? "LOG's base (other dialects'; IQ's LOG is the natural one, LOG10 the"
-                + " decimal)" : null;
+        String foreign = foreign(fn, n);
         if (foreign != null) {
             throw SqlTranslationException.unsupported(foreign + " is not supported: IQ raises its error -154", f.pos());
         }
@@ -1133,13 +1139,13 @@ final class IqFunctions {
      * 5 dd-mm-yy (105), 10 mm-dd-yy (110), 11 yy/mm/dd (111), 12 yymmdd (112); 20 and 120 yyyy-mm-dd and a timestamp's
      * hh:nn:ss, 21 and 121 its hh:nn:ss.sss; 108 a timestamp's hh:nn:ss (a date's yyyy-mm-dd); 0 and 100 mon dd yyyy
      * and a timestamp's hh:nnAM (the hour of twelve), 106 dd mon yyyy, 107 mon dd, yyyy -- the month's abbreviation in
-     * lower case. A date shows no time in any style. Refused by name: another style, another operand, a target too
+     * lower case; 6, 7, 8, 9, 109, 13, 113, 14 and 114 too (2026-10-17, below). A date shows no time in any style. Refused by name: another style, another operand, a target too
      * short for the text, SQL Anywhere's front end (whose styles differ: its month names are capitalized).
      */
     /** The styles {@link #convertStyle} reads; {@link IqParser} refuses another by name (IQ raises -1009145 for some,
      *  "CONVERT format style ... is invalid", and writes others the island does not read). */
-    static final java.util.Set<Integer> STYLES = java.util.Set.of(0, 1, 2, 3, 4, 5, 10, 11, 12, 20, 21, 100, 101, 102,
-            103, 104, 105, 106, 107, 108, 110, 111, 112, 120, 121);
+    static final java.util.Set<Integer> STYLES = java.util.Set.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20,
+            21, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 120, 121);
 
     private Tx convertStyle(SqlAst.FunctionCall f, List<Tx> args) {
         if (engine != IqDialect.Engine.IQ) {
@@ -1183,6 +1189,18 @@ final class IqFunctions {
                     : List.of("MON", " ", "DD", " ", "YYYY");
             case 106 -> List.of("DD", " ", "MON", " ", "YYYY");
             case 107 -> List.of("MON", " ", "DD", ", ", "YYYY");
+            // IQ island, 2026-10-17 (the corpus lane's style 113; measured on IQ 17.1): 6 dd mon yy, 7 mon dd, yy, 8 as
+            // 108; 9 and 109 mon dd yyyy and a timestamp's hh:nn:ss:sss and AM or PM (the hour of twelve), 13 and 113 dd
+            // mon yyyy and its hh:nn:ss:sss, 14 and 114 its hh:nn:ss:sss (a date's yyyy-mm-dd)
+            case 6 -> List.of("DD", " ", "MON", " ", "YY");
+            case 7 -> List.of("MON", " ", "DD", ", ", "YY");
+            case 8 -> ts ? List.of("HH", ":", "NN", ":", "SS") : List.of("YYYY", "-", "MM", "-", "DD");
+            case 9, 109 -> ts ? List.of("MON", " ", "DD", " ", "YYYY", " ", "H12", ":", "NN", ":", "SS", ":", "SSS",
+                    "AMPM") : List.of("MON", " ", "DD", " ", "YYYY");
+            case 13, 113 -> ts ? List.of("DD", " ", "MON", " ", "YYYY", " ", "HH", ":", "NN", ":", "SS", ":", "SSS")
+                    : List.of("DD", " ", "MON", " ", "YYYY");
+            case 14, 114 -> ts ? List.of("HH", ":", "NN", ":", "SS", ":", "SSS") : List.of("YYYY", "-", "MM", "-",
+                    "DD");
             default -> throw SqlTranslationException.unsupported("CONVERT style " + style + " is not supported yet",
                     f.args().get(1).pos());
         };

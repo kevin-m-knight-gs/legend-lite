@@ -210,8 +210,14 @@ island's reason, those IQ answers, and what became of them:
   Anywhere's front end and SQL Anywhere 17 read it as a TIMESTAMP;
 - out: the name IQ gives an unaliased expression (42): IQ prints it after its own rewrite, derived tables merged,
   an inner alias folded in as `x as alias`, generated names (`users_2__`) and spacing (`COUNT( Posts.Id)`), none
-  of which the query's text holds. Not built yet: RAND (8, in ORDER BY: no answer to judge); CONVERT's styles to
-  other lengths (5).
+  of which the query's text holds. Not built yet: RAND (8, in ORDER BY: no answer to judge). CONVERT's styles 6,
+  7, 8, 9, 109, 13, 113, 14 and 114 are read now (`:mmm` milliseconds, the hour of twelve and AM or PM for 9 and
+  109); 22 to 25, 126, 127, 130 and 131 are IQ's engine's -1009145 ("CONVERT format style ... is invalid"),
+  refused by name;
+- open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's
+  server rejects every one (-131, measured), while an ODBC client that processes escapes translates them before it
+  sends (the syntax research's `accept-with-option:client_escapes`). Whether an island reads them as such a client
+  would, a typed constant and the function, is the user's call: refused by name until then.
 
 ### Phase 2: the answers judged (2026-10-16)
 
