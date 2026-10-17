@@ -215,9 +215,11 @@ class IqFunctionsTest {
             assertFalse(pure(sql).isEmpty(), sql);
         }
         assertTrue(pure("SELECT SUBSTRING(vc, bg, 1) AS s FROM " + T).contains("past 32 bits"));
-        // DuckDB's chr takes a 32-bit integer: a computed code stays refused
-        assertTrue(refusal("SELECT CHAR(sm + 1) AS c FROM " + T).getMessage().contains("chr"));
-        assertTrue(refusal("SELECT CHAR(sm) AS c FROM " + T).getMessage().contains("NUL"));
+        // IQ island, 2026-10-17: DuckDB's and Postgres's chr are given a 32-bit integer, so a computed code is read; a
+        // code that may be 0 is refused where a row is 0 (a NUL), a constant 0 before translating
+        assertTrue(pure("SELECT CHAR(sm + 1) AS c FROM " + T).contains("NUL character"));
+        assertTrue(pure("SELECT CHAR(sm) AS c FROM " + T).contains("NUL character"));
+        assertTrue(refusal("SELECT CHAR(0) AS c FROM " + T).getMessage().contains("NUL"));
     }
 
     @Test

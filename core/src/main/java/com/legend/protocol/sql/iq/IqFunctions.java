@@ -2234,20 +2234,37 @@ final class IqFunctions {
 
     /** {@code CHAR(n)}: the character of code n (an ISO-8859-1 database's), NULL outside 0 .. 255. Refused by name: a
      *  code that may be 0 (a NUL, which lite's databases cannot hold), and above 127 in a {@code sqla17} profile's UTF-8
-     *  database (SQL Anywhere answers a lone byte there). */
+     *  database (SQL Anywhere answers a lone byte there). IQ island, 2026-10-17 (the differential fuzzer's fifth round;
+     *  measured on IQ 17.1): under IQ's engine in a UTF-8 database the byte n modulo 256 (CHAR(256) a NUL, CHAR(-1)
+     *  byte 255), refused for a row whose byte is 0 or above 127 (a NUL, a lone byte). */
     private Tx chr(String name, SqlAst.FunctionCall f, List<Tx> args) {
         SqlAst.Expr e = f.args().get(0);
-        if (!(e instanceof SqlAst.ColumnRef) && signedInteger(e) == null && !(e instanceof SqlAst.NullLit)) {
-            throw SqlTranslationException.unsupported(name + " of a computed code is not supported yet: DuckDB's chr"
-                    + " takes a 32-bit integer, which lite's lowering does not cast to yet (a column or a constant is"
-                    + " read)", e.pos());
-        }
         Tx n = count(args.get(0), e, name);
         if (n.kind() == Kind.NULL) {
             return nullString();
         }
+        if (engine == IqDialect.Engine.IQ && !settings.latin1()) {
+            BigInteger constant = signedInteger(e);
+            int b = constant == null ? -1 : constant.mod(BigInteger.valueOf(256)).intValue();
+            if (constant != null && (b == 0 || b > 127)) {
+                throw SqlTranslationException.unsupported(name + " of a code whose byte (modulo 256) is 0 or above 127"
+                        + " is not supported in a UTF-8 database: IQ's engine answers that byte alone", f.pos());
+            }
+            if (constant != null) {
+                long code = b;
+                return strict(Kind.STRING, varchar(), List.of(n), v -> SqlToPure.call("char", integer(code)));
+            }
+            String lone = IqDialect.REFUSED_AT_RUN_TIME + name + " of a code whose byte (modulo 256) is 0 or above 127"
+                    + " is no character of a UTF-8 database: IQ's engine answers that byte alone";
+            return strict(Kind.STRING, varchar(), List.of(n), v -> {
+                ValueSpecification byteOf = SqlToPure.call("mod", v.get(0), integer(256));
+                return refusedPast(SqlToPure.call("or", SqlToPure.call("equal", byteOf, integer(0)), SqlToPure.call(
+                        "greaterThan", byteOf, integer(127))), lone, SqlToPure.call("char", byteOf), SqlToPure.empty());
+            });
+        }
         IqType t = (IqType) java.util.Objects.requireNonNull(n.detail());
-        if (t.lo().signum() <= 0 && t.hi().signum() >= 0) {
+        boolean maybeZero = t.lo().signum() <= 0 && t.hi().signum() >= 0;
+        if (maybeZero && signedInteger(e) != null) {
             throw SqlTranslationException.unsupported(name + " of a code that may be 0 is not supported: CHAR(0) is a"
                     + " NUL character, which lite's databases cannot hold", f.pos());
         }
@@ -2256,9 +2273,17 @@ final class IqFunctions {
                     + settings.spelling() + "'s UTF-8 database: SQL Anywhere answers a lone byte there", f.pos());
         }
         boolean outside = t.lo().signum() < 0 || t.hi().compareTo(BigInteger.valueOf(255)) > 0;
-        Tx r = strict(Kind.STRING, varchar(), List.of(n), v -> outside ? ifThen(SqlToPure.call("or", lt(v.get(0),
-                integer(1)), SqlToPure.call("greaterThan", v.get(0), integer(255))), SqlToPure.empty(),
-                SqlToPure.call("char", v.get(0))) : SqlToPure.call("char", v.get(0)));
+        // IQ island, 2026-10-17 (the differential fuzzer's fifth round: CHAR(65 + MOD(id, 26))): a computed code that
+        // may be 0 is refused for the row that is (a NUL, which lite's databases cannot hold), not before
+        String nul = IqDialect.REFUSED_AT_RUN_TIME + name + " of 0 is a NUL character, which lite's databases cannot"
+                + " hold";
+        Tx r = strict(Kind.STRING, varchar(), List.of(n), v -> {
+            ValueSpecification c = SqlToPure.call("char", v.get(0));
+            ValueSpecification checked = maybeZero ? refusedPast(SqlToPure.call("equal", v.get(0), integer(0)), nul,
+                    c, SqlToPure.empty()) : c;
+            return outside ? ifThen(SqlToPure.call("or", lt(v.get(0), integer(0)), SqlToPure.call("greaterThan",
+                    v.get(0), integer(255))), SqlToPure.empty(), checked) : checked;
+        });
         return outside ? Tx.value(r.vs(), Kind.STRING, true, r.detail()) : r;
     }
 

@@ -545,7 +545,8 @@ public final class DuckDb extends AnsiSqlRenderer {
             case SPLIT_PART -> writer.function("split_part", c.args());
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case ASCII_CODE -> writer.function("ascii", c.args());
-            case CHR -> writer.function("chr", c.args());
+            // chr takes a 32-bit code; a computed Integer is a BIGINT here (IQ island, 2026-10-17: CHAR(65 + MOD(id, 26)))
+            case CHR -> writer.append("chr(CAST(").expr(c.args().get(0), 0).append(" AS INTEGER))");
             case LEVENSHTEIN -> writer.function("levenshtein", c.args());
             case FORMAT -> writer.function("printf", c.args());
             case MD5 -> writer.function("md5", c.args());

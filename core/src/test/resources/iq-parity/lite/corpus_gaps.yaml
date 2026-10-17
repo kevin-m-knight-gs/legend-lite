@@ -2045,6 +2045,12 @@ tests:
     sql: "SELECT id, STUFF(vc, 0, 1, 'Q') AS a, STUFF(vc, 7, 1, 'Q') AS b, STUFF(vc, -1, 1, 'Q') AS c, STUFF(vc, 2, -1, 'Q') AS d, STUFF(vc, 2, 10, 'Q') AS e, STUFF(vc, 2, 32767, 'Q') AS f, STUFF(vc, 2, 32768, 'Q') AS g FROM t ORDER BY id"
     profile: iq17-default
 
+  # ---- CHAR of a computed code (IQ island, 2026-10-17; the differential fuzzer's fifth round, measured on IQ 17.1):
+  # DuckDB's and Postgres's chr take a 32-bit code, cast to it; under IQ's engine the code modulo 256
+  - id: char_of_a_computed_code
+    sql: "SELECT id, CHAR(65 + MOD(id, 26)) AS a, CHAR(id + 96) AS b, CHAR(id + 352) AS c, CHAR(id - 192) AS d FROM t ORDER BY id"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where

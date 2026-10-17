@@ -700,7 +700,8 @@ public final class Postgres extends AnsiSqlRenderer {
             case ATAN -> writer.function("atan", c.args());
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
-            case CHR -> writer.function("chr", c.args());
+            // chr takes a 32-bit code; a computed Integer is a BIGINT here (IQ island, 2026-10-17: CHAR(65 + MOD(id, 26)))
+            case CHR -> writer.append("chr(CAST(").expr(c.args().get(0), 0).append(" AS INTEGER))");
             case COALESCE -> writer.function("coalesce", c.args());
             case COS -> writer.function("cos", c.args());
             case COSH -> writer.function("cosh", c.args());
