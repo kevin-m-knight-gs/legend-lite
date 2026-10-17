@@ -11170,7 +11170,15 @@ only). Branch `claude/loving-euler-gjta59`; the record is `docs/LEGEND_SQL_STUDY
      run ids. The relational corpora's rosters and registers were byte-identical. One red: `pct_clickhouse_essential`,
      whose `testAdjustByDaysBigNumber` pin expected the era-less text. The pin moved in 4a3ab1218, and that lane is
      first re-run on the branch's final commit.
-   - On the second round's last commit, the eleven targets above (pending at this commit; the next records them).
+   - On the second round's last commit, the eleven targets above, all green:
+     - `core_tests_protocol`, `core_tests_compiler`, `core_tests_integration`, `guardrails`;
+     - `postgres_arm_test`, `sql_island_postgres_test`;
+     - `sql_parity_test`, `sql_parity_postgres_test`, `iq_parity_test`, `iq_parity_postgres_test`, `census`.
+
+     Before that commit, three were red. Census read a product-named call (`SqlToPure product-name 47 -> 48`), now
+     the set it reads. The two IQ lanes flagged nine IQ cases the IQ line had pinned REFUSED, which now PASS on
+     both lanes: the FROM-less subqueries this round reads, in an IN list, EXISTS or a count (`lite/m1a`,
+     `lite/m1gaps`, their ids still saying "refused"). Their ledger rows moved.
 9. **Next.** The refusals, ranked:
    - functions in FROM, 635 (mostly functions the suite defines);
    - jsonpath, about 450;

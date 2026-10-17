@@ -1135,7 +1135,7 @@ public final class SqlToPure {
 
     private static boolean anyAggregateCall(SqlAst.Expr e) {
         return e instanceof SqlAst.FunctionCall f && f.name().size() == 1
-                && postgresAggregate(functionName(f.name().get(0)))
+                && AGGREGATES.contains(functionName(f.name().get(0)))
                 || children(e).stream().anyMatch(SqlToPure::anyAggregateCall);
     }
 
