@@ -350,6 +350,22 @@ class SqlToPureTest {
     }
 
     @Test
+    void aTypedConstantIsItsStringCastToTheType() {
+        // int2 '7' is '7'::int2 (2026-10-17, the regression suite's 269 typed constants)
+        assertEquals("#>{s::DB.T}#->extend(~[a:r|7, b:r|true, c:r|toFloat(1.5D), d:r|'x'])->select(~[a, b, c, d])",
+                pure("select int2 '7' as a, bool 't' as b, float8 '1.5' as c, text 'x' as d from tb('s::DB.T')"));
+        assertEquals("value \"40000\" is out of range for type smallint",
+                refusal("select int2 '40000' from tb('s::DB.T')").getMessage());
+        // beside a value, a smallint constant would compute wider in the database than Postgres's smallint does
+        for (String smallint : List.of("age * int2 '2'", "age + 2::int2", "2::smallint - age")) {
+            assertEquals("arithmetic of a smallint constant and a value that is not a constant is not supported yet:"
+                    + " Postgres computes it as a smallint where the value is one",
+                    refusal("select " + smallint + " as a from tb('s::DB.T')").getMessage(), smallint);
+        }
+        assertTrue(pure("select ID * int4 '2' as a from tb('s::DB.T')").contains("$r.ID * 2"));
+    }
+
+    @Test
     void aDoublePrecisionConstantPastADoublesRangeIsAnError() {
         assertEquals("\"10e-400\" is out of range for type double precision",
                 refusal("select '10e-400'::float8 from tb('s::DB.T')").getMessage());

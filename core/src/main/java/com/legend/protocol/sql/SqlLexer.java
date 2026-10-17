@@ -320,10 +320,12 @@ public final class SqlLexer {
             advance(1);
         }
         String word = text.substring(start, at);
+        if (at < text.length() && text.charAt(at) == '\'' && word.equalsIgnoreCase("E")) {
+            return new Token(Kind.STRING, escapeString(pos), pos);
+        }
         if (at < text.length() && text.charAt(at) == '\'') {
             String prefix = word.toUpperCase(java.util.Locale.ROOT);
             String form = switch (prefix) {
-                case "E" -> "escape string constants (E'...')";
                 case "B" -> "bit-string constants (B'...')";
                 case "X" -> "hexadecimal bit-string constants (X'...')";
                 case "N" -> "national character constants (N'...')";
@@ -335,10 +337,193 @@ public final class SqlLexer {
         }
         if (at + 1 < text.length() && text.charAt(at) == '&' && text.charAt(at + 1) == '\''
                 && word.equalsIgnoreCase("U")) {
-            throw SqlSyntaxException.unsupported("Unicode escape string constants (U&'...') are not supported yet",
-                    pos);
+            advance(1);
+            return new Token(Kind.STRING, unicodeString(pos), pos);
         }
         return new Token(Kind.IDENT, word, pos);
+    }
+
+    /** The body of {@code E'...'}, Postgres's escape string (2026-10-17, the regression suite): {@code \b \f \n \r
+     *  \t}, an octal or a hexadecimal byte, <code>&#92;uXXXX</code> and {@code \UXXXXXXXX}, a doubled quote; a backslash
+     *  before any other character is that character. A byte past ASCII, which would be part of a UTF-8 sequence
+     *  written byte by byte, is refused; a zero byte and a lone surrogate are Postgres's errors. */
+    private String escapeString(SqlAst.Pos pos) {
+        StringBuilder value = new StringBuilder();
+        advance(1);
+        while (true) {
+            if (at >= text.length()) {
+                throw new SqlSyntaxException("unterminated quoted string", pos);
+            }
+            char c = text.charAt(at);
+            if (c == '\'') {
+                if (at + 1 < text.length() && text.charAt(at + 1) == '\'') {
+                    value.append('\'');
+                    advance(2);
+                    continue;
+                }
+                advance(1);
+                return value.toString();
+            }
+            if (c != '\\') {
+                value.append(c);
+                advance(1);
+                continue;
+            }
+            if (at + 1 >= text.length()) {
+                throw new SqlSyntaxException("unterminated quoted string", pos);
+            }
+            char e = text.charAt(at + 1);
+            advance(2);
+            switch (e) {
+                case 'b' -> value.append('\b');
+                case 'f' -> value.append('\f');
+                case 'n' -> value.append('\n');
+                case 'r' -> value.append('\r');
+                case 't' -> value.append('\t');
+                case '0', '1', '2', '3', '4', '5', '6', '7' -> value.append(escapedByte(String.valueOf(e)
+                        + escapeDigits(8, 2), 8, pos));
+                case 'x' -> {
+                    String hex = escapeDigits(16, 2);
+                    if (hex.isEmpty()) {
+                        value.append('x');
+                    } else {
+                        value.append(escapedByte(hex, 16, pos));
+                    }
+                }
+                case 'u', 'U' -> codePoint(value, exactly(e == 'u' ? 4 : 8, pos), pos);
+                default -> value.append(e);
+            }
+        }
+    }
+
+    /** Up to {@code max} digits of {@code radix} at the cursor. */
+    private String escapeDigits(int radix, int max) {
+        int start = at;
+        while (at < text.length() && at - start < max && Character.digit(text.charAt(at), radix) >= 0
+                && text.charAt(at) < 0x80) {
+            advance(1);
+        }
+        return text.substring(start, at);
+    }
+
+    /** Exactly {@code n} hexadecimal digits at the cursor: a Unicode escape's code point. */
+    private int exactly(int n, SqlAst.Pos pos) {
+        String hex = escapeDigits(16, n);
+        if (hex.length() != n) {
+            throw new SqlSyntaxException("invalid Unicode escape", pos);
+        }
+        return Integer.parseUnsignedInt(hex, 16);
+    }
+
+    private static char escapedByte(String digits, int radix, SqlAst.Pos pos) {
+        int b = Integer.parseInt(digits, radix) & 0xFF;
+        if (b == 0) {
+            throw new SqlSyntaxException("invalid byte sequence for encoding \"UTF8\": 0x00", pos);
+        }
+        if (b >= 0x80) {
+            throw SqlSyntaxException.unsupported("a byte past ASCII in an escape string constant (E'\\" + digits
+                    + "') is not supported yet: write the character, or \\u", pos);
+        }
+        return (char) b;
+    }
+
+    /** Appends {@code cp}, a Unicode escape's code point; a high surrogate takes the low one after it. */
+    private void codePoint(StringBuilder value, int cp, SqlAst.Pos pos) {
+        if (cp == 0 || cp > 0x10FFFF) {
+            throw new SqlSyntaxException("invalid Unicode escape value", pos);
+        }
+        if (Character.isLowSurrogate((char) cp) && cp <= 0xFFFF) {
+            throw new SqlSyntaxException("invalid Unicode surrogate pair", pos);
+        }
+        if (Character.isHighSurrogate((char) cp) && cp <= 0xFFFF) {
+            boolean small = text.startsWith("\\u", at);
+            if (!small && !text.startsWith("\\U", at)) {
+                throw new SqlSyntaxException("invalid Unicode surrogate pair", pos);
+            }
+            advance(2);
+            int low = exactly(small ? 4 : 8, pos);
+            if (low > 0xFFFF || !Character.isLowSurrogate((char) low)) {
+                throw new SqlSyntaxException("invalid Unicode surrogate pair", pos);
+            }
+            value.appendCodePoint(Character.toCodePoint((char) cp, (char) low));
+            return;
+        }
+        value.appendCodePoint(cp);
+    }
+
+    /** The body of {@code U&'...' [UESCAPE 'c']}, after its {@code U&}: {@code \XXXX} and {@code \+XXXXXX} code
+     *  points, a doubled escape character for itself (the escape character {@code \} unless UESCAPE names one). */
+    private String unicodeString(SqlAst.Pos pos) {
+        String raw = quoted('\'', pos, "quoted string");
+        int save = at;
+        int saveLine = line;
+        int saveColumn = column;
+        char escape = '\\';
+        skipSpaceAndComments();
+        int end = at;
+        while (end < text.length() && isIdentPart(text.charAt(end))) {
+            end++;
+        }
+        if (text.substring(at, end).equalsIgnoreCase("uescape")) {
+            advance(end - at);
+            skipSpaceAndComments();
+            if (at >= text.length() || text.charAt(at) != '\'') {
+                throw new SqlSyntaxException("UESCAPE must be followed by a simple string literal", pos);
+            }
+            String e = quoted('\'', pos, "quoted string");
+            if (e.length() != 1 || "0123456789abcdefABCDEF+'\" \t\n\r\f".indexOf(e.charAt(0)) >= 0) {
+                throw new SqlSyntaxException("invalid Unicode escape character", pos);
+            }
+            escape = e.charAt(0);
+        } else {
+            at = save;
+            line = saveLine;
+            column = saveColumn;
+        }
+        StringBuilder value = new StringBuilder();
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (c != escape) {
+                value.append(c);
+                continue;
+            }
+            if (i + 1 < raw.length() && raw.charAt(i + 1) == escape) {
+                value.append(escape);
+                i++;
+                continue;
+            }
+            boolean wide = i + 1 < raw.length() && raw.charAt(i + 1) == '+';
+            int n = wide ? 6 : 4;
+            int from = i + (wide ? 2 : 1);
+            if (from + n > raw.length() || !raw.substring(from, from + n).chars().allMatch(
+                    ch -> Character.digit(ch, 16) >= 0 && ch < 0x80)) {
+                throw new SqlSyntaxException("invalid Unicode escape", pos);
+            }
+            int cp = Integer.parseInt(raw.substring(from, from + n), 16);
+            i = from + n - 1;
+            if (Character.isHighSurrogate((char) cp) && cp <= 0xFFFF) {
+                int next = i + 1;
+                boolean pair = next < raw.length() && raw.charAt(next) == escape;
+                boolean nextWide = pair && next + 1 < raw.length() && raw.charAt(next + 1) == '+';
+                int lowFrom = next + (nextWide ? 2 : 1);
+                int lowN = nextWide ? 6 : 4;
+                if (!pair || lowFrom + lowN > raw.length()) {
+                    throw new SqlSyntaxException("invalid Unicode surrogate pair", pos);
+                }
+                int low = Integer.parseInt(raw.substring(lowFrom, lowFrom + lowN), 16);
+                if (low > 0xFFFF || !Character.isLowSurrogate((char) low)) {
+                    throw new SqlSyntaxException("invalid Unicode surrogate pair", pos);
+                }
+                value.appendCodePoint(Character.toCodePoint((char) cp, (char) low));
+                i = lowFrom + lowN - 1;
+                continue;
+            }
+            if (cp == 0 || cp > 0x10FFFF || Character.isLowSurrogate((char) cp) && cp <= 0xFFFF) {
+                throw new SqlSyntaxException("invalid Unicode escape value", pos);
+            }
+            value.appendCodePoint(cp);
+        }
+        return value.toString();
     }
 
     private void skipSpaceAndComments() {

@@ -452,27 +452,22 @@ class PgRegressCorpusTest {
             words.add(m.group().toLowerCase(Locale.ROOT));
         }
         Map<String, List<Col>> tables = new LinkedHashMap<>();
-        String q = "SELECT c.relname, a.attname, format_type(a.atttypid, a.atttypmod)"
+        String q = "SELECT c.relname, a.attname, format_type(a.atttypid, a.atttypmod), n.nspname"
                 + " FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace"
                 + " JOIN pg_attribute a ON a.attrelid = c.oid"
                 + " WHERE c.relkind IN ('r', 'v', 'm', 'p', 'f') AND a.attnum > 0 AND NOT a.attisdropped"
                 + " AND n.nspname = ANY (current_schemas(true)) AND n.nspname <> 'pg_catalog'"
                 + " ORDER BY array_position(current_schemas(true), n.nspname), c.relname, a.attnum";
-        Set<String> taken = new java.util.HashSet<>();
-        String current = null;
+        // the relation each name reads: the first on the search path (a temporary table hides the table it is named
+        // after). By schema and name: by name alone, a temporary char_tbl and public's read as one relation of both
+        // their columns (2026-10-17, 41 statements)
+        Map<String, String> owner = new java.util.HashMap<>();
         try (Statement s = conn.createStatement(); ResultSet rs = s.executeQuery(q)) {
             while (rs.next()) {
                 String rel = rs.getString(1);
-                if (!words.contains(rel) || !SIMPLE.matcher(rel).matches()) {
-                    continue;
-                }
-                if (!rel.equals(current)) {
-                    current = rel;
-                    if (!taken.add(rel)) {
-                        current = null; // a name earlier on the search path hides it
-                    }
-                }
-                if (current == null) {
+                String schema = rs.getString(4);
+                if (!words.contains(rel) || !SIMPLE.matcher(rel).matches()
+                        || !owner.computeIfAbsent(rel, k -> schema).equals(schema)) {
                     continue;
                 }
                 String type = rs.getString(3);

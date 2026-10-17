@@ -325,12 +325,24 @@ class SqlParserTest {
     }
 
     @Test
+    void escapeAndUnicodeStringsAreReadAsPostgresReadsThem() {
+        // 2026-10-17, the regression suite: E'...' with its backslash escapes, U&'...' with its code points
+        assertEquals("a\nb\t'c\\A\u00e9\ud83d\ude00",
+                ((SqlAst.StringLit) item("E'a\\nb\\t\\'c\\\\\\101\\u00e9\\U0001F600'")).value());
+        assertEquals("d\u0061t\u0061", ((SqlAst.StringLit) item("U&'d\\0061t\\+000061'")).value());
+        assertEquals("d!at", ((SqlAst.StringLit) item("U&'d!!a!0074' UESCAPE '!'")).value());
+        for (String bad : List.of("E'\\x00'", "E'\\uD83D'", "U&'\\00'", "E'\\xE9'")) {
+            assertThrows(SqlSyntaxException.class, () -> item(bad), bad);
+        }
+    }
+
+    @Test
     void notYetSupportedFormsAreRefusedByName() {
         List<String> forms = List.of(
                 "select a from unnest(x) with ordinality", "WITH ORDINALITY is not supported yet",
                 "values (1)", "VALUES lists are not supported yet",
                 "select a = any(array[1]) from t", "ANY, SOME and ALL over an array are not supported yet",
-                "select E'x'", "escape string constants (E'...') are not supported yet",
+                "select B'101'", "bit-string constants (B'...') are not supported yet",
                 "select a[1:2] from t", "array slices are not supported yet",
                 "select a from t group by rollup (a)", "ROLLUP, CUBE and GROUPING SETS are not supported yet");
         for (int i = 0; i < forms.size(); i += 2) {

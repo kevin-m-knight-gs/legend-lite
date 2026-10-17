@@ -4751,6 +4751,7 @@ public final class SqlToPure {
                 Tx r = lr.get(1);
                 numericOperand(l, b.left());
                 numericOperand(r, b.right());
+                noSmallintConstantBeside(b, l, r);
                 String fn = b.op() == SqlAst.BinaryOp.PLUS ? "plus" : b.op() == SqlAst.BinaryOp.MINUS ? "minus"
                         : "times";
                 return heldToWidth(strict(arithmetic(l.kind(), r.kind()), List.of(l, r),
@@ -4763,6 +4764,7 @@ public final class SqlToPure {
                 Tx r = lr.get(1);
                 numericOperand(l, b.left());
                 numericOperand(r, b.right());
+                noSmallintConstantBeside(b, l, r);
                 if (l.kind() == Kind.WHOLE && (r.kind() == Kind.INTEGER || r.kind() == Kind.WHOLE)
                         || r.kind() == Kind.WHOLE && l.kind() == Kind.INTEGER) {
                     throw SqlTranslationException.unsupported("dividing a sum of integers by an integer is not supported"
@@ -6681,18 +6683,8 @@ public final class SqlToPure {
         // Postgres's error ("integer out of range")
         long[] range = NARROW_INTEGERS.contains(type) ? new long[] {Integer.MIN_VALUE, Integer.MAX_VALUE}
                 : SMALL_INTEGERS.contains(type) ? new long[] {Short.MIN_VALUE, Short.MAX_VALUE} : null;
-        if (c.operand() instanceof SqlAst.StringLit s && target == Kind.JSON) {
-            return jsonConstant(s);
-        }
         if (c.operand() instanceof SqlAst.StringLit s) {
-            Tx read = target == Kind.STRING ? Tx.value(new CString(s.value()), Kind.STRING, false)
-                    : fromString(s, target);
-            if (range != null && read.vs() instanceof CInteger n && (n.value().longValue() > range[1]
-                    || n.value().longValue() < range[0])) {
-                throw SqlTranslationException.invalid("value \"" + s.value() + "\" is out of range for type "
-                        + (SMALL_INTEGERS.contains(type) ? "smallint" : "integer"), s.pos());
-            }
-            return read;
+            return stringAs(s, type, target, range);
         }
         Tx x = tx(c.operand(), scope, row);
         if (x.kind() == Kind.NULL) {
@@ -6858,6 +6850,12 @@ public final class SqlToPure {
                         ? stringMagnitude(str.value()) : magnitude(c.operand());
                 yield operand == null ? type : operand.min(type);
             }
+            case SqlAst.TypedLit t when constantWidth(t) != null -> {
+                int width = java.util.Objects.requireNonNull(castWidth(t.type().name()));
+                java.math.BigInteger type = java.math.BigInteger.ONE.shiftLeft(8 * width - 1);
+                java.math.BigInteger value = stringMagnitude(t.value());
+                yield value == null ? type : value.min(type);
+            }
             case SqlAst.Binary b when ARITHMETIC.contains(b.op()) -> {
                 java.math.BigInteger l = magnitude(b.left());
                 java.math.BigInteger r = magnitude(b.right());
@@ -6879,6 +6877,21 @@ public final class SqlToPure {
         return n == null ? null : new java.math.BigInteger(n).abs();
     }
 
+    /** Refuses integer arithmetic of a constant Postgres types smallint ({@code 2::int2}, {@code int2 '2'}) and a
+     *  value that is not a constant: over a smallint column Postgres computes a smallint, raising past 32767, and the
+     *  island's constant is an integer, so the database would compute wider and answer (2026-10-17, the regression
+     *  suite: {@code i.f1 * int2 '2'}). */
+    private static void noSmallintConstantBeside(SqlAst.Binary b, Tx l, Tx r) {
+        Integer lw = constantWidth(b.left());
+        Integer rw = constantWidth(b.right());
+        if (l.kind() == Kind.INTEGER && r.kind() == Kind.INTEGER
+                && (lw != null && lw == 2 && rw == null || rw != null && rw == 2 && lw == null)) {
+            throw SqlTranslationException.unsupported("arithmetic of a smallint constant and a value that is not a"
+                    + " constant is not supported yet: Postgres computes it as a smallint where the value is one",
+                    b.pos());
+        }
+    }
+
     /** Marks {@code operands} as held by {@code e} when {@code e} is integer arithmetic over constants alone. */
     private void holdsOperands(SqlAst.Expr e, SqlAst.Expr... operands) {
         if (constantWidth(e) != null) {
@@ -6898,6 +6911,8 @@ public final class SqlToPure {
             case SqlAst.Unary u when u.op() != SqlAst.UnaryOp.NOT -> constantWidth(u.operand());
             case SqlAst.Cast c when c.type().modifiers().isEmpty() && constant(c.operand()) ->
                     castWidth(c.type().name());
+            // int2 '1' is '1'::int2
+            case SqlAst.TypedLit t when t.type().modifiers().isEmpty() -> castWidth(t.type().name());
             case SqlAst.Binary b when ARITHMETIC.contains(b.op()) -> {
                 Integer l = constantWidth(b.left());
                 Integer r = constantWidth(b.right());
@@ -6932,6 +6947,7 @@ public final class SqlToPure {
             case SqlAst.IntegerLit n -> true;
             case SqlAst.NumericLit n -> true;
             case SqlAst.StringLit str -> true;
+            case SqlAst.TypedLit t -> true;
             case SqlAst.Unary u -> u.op() != SqlAst.UnaryOp.NOT && constant(u.operand());
             case SqlAst.Cast c -> constant(c.operand());
             case SqlAst.Binary b -> ARITHMETIC.contains(b.op()) && constant(b.left()) && constant(b.right());
@@ -7149,9 +7165,35 @@ public final class SqlToPure {
             case "date" -> dateFromString(new SqlAst.StringLit(lit.value(), lit.pos()), Kind.DATE);
             case "timestamp", "timestamp without time zone" ->
                     dateFromString(new SqlAst.StringLit(lit.value(), lit.pos()), Kind.DATETIME);
-            default -> throw SqlTranslationException.unsupported("constants of type " + lit.type().name() + " are not"
-                    + " supported yet", lit.pos());
+            default -> {
+                // type 'string' is the string cast to the type, as Postgres reads it: int2 '1', bool 't', float8
+                // '1.5' (2026-10-17, the regression suite's 269 such constants)
+                String type = lit.type().name();
+                Kind target = CAST_TYPES.get(type);
+                if (target == null || !lit.type().modifiers().isEmpty()) {
+                    throw SqlTranslationException.unsupported("constants of type " + type + " are not supported yet",
+                            lit.pos());
+                }
+                long[] range = NARROW_INTEGERS.contains(type) ? new long[] {Integer.MIN_VALUE, Integer.MAX_VALUE}
+                        : SMALL_INTEGERS.contains(type) ? new long[] {Short.MIN_VALUE, Short.MAX_VALUE} : null;
+                yield stringAs(new SqlAst.StringLit(lit.value(), lit.pos()), type, target, range);
+            }
         };
+    }
+
+    /** A string constant cast to {@code type}, of kind {@code target}: read by the type's input rules; an integer
+     *  past {@code range} (an integer's or a smallint's) is Postgres's error. */
+    private static Tx stringAs(SqlAst.StringLit s, String type, Kind target, long @com.legend.base.Nullable [] range) {
+        if (target == Kind.JSON) {
+            return jsonConstant(s);
+        }
+        Tx read = target == Kind.STRING ? Tx.value(new CString(s.value()), Kind.STRING, false) : fromString(s, target);
+        if (range != null && read.vs() instanceof CInteger n && (n.value().longValue() > range[1]
+                || n.value().longValue() < range[0])) {
+            throw SqlTranslationException.invalid("value \"" + s.value() + "\" is out of range for type "
+                    + (SMALL_INTEGERS.contains(type) ? "smallint" : "integer"), s.pos());
+        }
+        return read;
     }
 
     /** A string constant read as a date or a timestamp by Postgres's rules ({@link PostgresDateTime}): ISO 8601 and
