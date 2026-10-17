@@ -545,7 +545,8 @@ export async function gridRelation(spec: GridSpec): Promise<string> {
  * the grid's source's and the page's) -- DataCube's own
  * semantics, which Python's `grid.create_class()` asks of DataCube's code before it calls the generic library
  * (legend_lite/model.py; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4). JSON, each query as the protocol writes it; a
- * source that is no table of its own refused in words (`{"refused"}`).
+ * source that is no table of its own refused in words (`{"refused"}`: the window leaves such a grid out of a data
+ * space), a sample it cannot carry in its own (`{"problems"}`: the window refuses the whole action).
  */
 export async function gridClass(spec: GridSpec, named: { readonly source: string; readonly page: string }):
   Promise<string> {
@@ -564,9 +565,10 @@ export async function gridClass(spec: GridSpec, named: { readonly source: string
     try {
       sample = await sampleOf(runner.host, sampleLambda(state.snapshot.source.query));
     } catch (e) {
-      // refused in words, as the window says it (a NaN or an infinity the sample cannot carry)
+      // refused in words, as the window says it (a NaN or an infinity the sample cannot carry): not a grid the window
+      // leaves out, an action it refuses
       if (!(e instanceof SampleRefusal)) throw e;
-      return JSON.stringify({ refused: e.message });
+      return JSON.stringify({ problems: [e.message] });
     }
     return `{"query":${toJson(classLambda(state.snapshot))},"sample":${JSON.stringify(sample)},`
       + `"table":${JSON.stringify(table)},"source":${JSON.stringify(planner.source())},"names":${JSON.stringify(names)}}`;

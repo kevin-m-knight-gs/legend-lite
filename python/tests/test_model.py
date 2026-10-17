@@ -325,6 +325,12 @@ class OnThePage(unittest.TestCase):
         infinite = page.grid(pa.table({'desk': ['FX'], 'rate': pa.array([float('-inf')])}), name='odd_infinite')
         with self.assertRaisesRegex(ValueError, r"the sample's rate in row 1 is -Infinity"):
             infinite.create_class('Odd')
+        # the whole page, as the window makes it: refused, as the window refuses it (model-actions.ts createDataSpaceOf),
+        # never made without the grids whose sample it cannot carry
+        page.grid(pa.table({'desk': ['FX'], 'qty': [1]}), name='fine')
+        with self.assertRaisesRegex(ValueError, r"the sample's rate in row \d is NaN"):
+            page.create_data_space()
+        self.assertEqual(page.model, None, 'nothing written')
 
     def test_the_project_made_is_named_as_asked(self):
         page = _page(self)

@@ -325,7 +325,9 @@ class Grid(Tile):
         with frames.serving():
             asked = _json.loads(engine.call('gridClass', self._spec(frames), {'source': self.frame, 'page': self._page.name}))
         if 'refused' in asked:
-            raise ValueError(f'{self.frame!r} cannot be a class: {asked["refused"]}')
+            raise _NotATable(f'{self.frame!r} cannot be a class: {asked["refused"]}')
+        if 'problems' in asked:
+            raise ValueError(f'{self.frame!r} cannot be a class: {"; ".join(asked["problems"])}')
         cls = {'query': asked['query'], 'source': asked['source'], 'name': name or asked['names']['className'],
                **({'documentation': documentation} if documentation else {}),
                **({'columns': _column_choices(columns)} if columns else {}),
@@ -905,7 +907,8 @@ class Page:
                           associations: Sequence[Any] = (), project: str | None = None, sdlc: Any = None,
                           writer: Any = None) -> str:
         """The whole page in one go, as DataCube's Create a Data Space… makes it: each grid not yet a class made one
-        (named as the window suggests; a grid whose rows cannot be one left out, as the window leaves it), the
+        (named as the window suggests; a grid over no table of its own left out, as the window leaves it; a sample a
+        class cannot hold refuses the whole, as the window refuses it, before anything is written), the
         associations given (as ``create_association`` takes them: pairs of ends, or ``{'name', 'ends'}``) made, and a
         data space over the page's classes -- one revision, the project made with it when the page has none (named
         ``project``, else after the page). ``name``: the data space's (suggested from the page's name). Answers the data
@@ -921,7 +924,7 @@ class Page:
                 continue
             try:
                 cls, asked = grid._class()
-            except ValueError:
+            except _NotATable:
                 continue
             classes.append(cls)
             kept.append((cube, asked['table']['table'], cls['name']))
@@ -1318,6 +1321,10 @@ class Page:
 def _ids(doc: dict[str, Any]) -> set[str]:
     """The ids a page document gives its cubes, views and sheets."""
     return {x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]}
+
+
+class _NotATable(ValueError):
+    """A grid DataCube cannot make a class of, its source no table of its own: Create a Data Space… leaves it out."""
 
 
 class _NoCube(ValueError):
