@@ -911,6 +911,15 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
     envelope around the model's text. Shrinking the protocol toward legend-engine's own `pure/v1` API is the follow-up.
   Still not touched: the SQL plan's ground (`engine.py`'s snap, frames and project-data paths, `_headless._query`,
   `warehouse.py`, `_warehouse_snap`).
+  **Round 3, 2026-10-17 (the user: one implementation of editing a grid, the screen's, in #47 before merge).** The
+  design is `docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md`: a grid's aggregates are its Column Properties, and the
+  screen and Python edit a grid through one module. Announced files: `datacube/src/grid-edits.ts` (new, no DOM),
+  `ui/editor.ts`, `ui/menu.ts`, `ui/panel-kit.ts`, `ui/panel-column.ts`, `ui/panel-dimensions.ts` (their offers moved,
+  not changed), `cube-document.ts` (saved measures converted on open; a grid with measures never written),
+  `page/cube-page.ts` (Open in Grid), `chart-spec.ts` (`firstMeasure`, `followCube`), `examples/charts-dashboard.ts`,
+  `offers.ts`, `headless/grid.ts` (`gridEdit` for `gridQuery`), `headless/entry.ts`, `python/legend_lite/page.py`,
+  their tests, `datacube/test_imports.bzl` (regenerated), `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`. Still not
+  touched: the SQL plan's ground, as above.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
