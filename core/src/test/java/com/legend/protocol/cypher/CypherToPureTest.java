@@ -913,12 +913,18 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person)-[:firm*]->(f) RETURN f.legalName", "without an upper bound");
         unsupported("MATCH (p:Person)-[:firm*1..9]->(f) RETURN f.legalName", "longer than 4");
         unsupported("MATCH (p:Person)-[:firm {since: 1}]->(f) RETURN f.legalName", "properties on a relationship");
-        unsupported("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n", "a MATCH after a WITH");
+        // a MATCH after rows whose pattern names no variable of the rows: the product (the study's §12.44); one that
+        // binds a projected variable again is still refused by name
+        String product = pure("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n, f.legalName AS firm");
+        assertTrue(product.contains("->join(") && product.contains("JoinKind.INNER"), product);
+        unsupported("MATCH (p:Person) WITH p.name AS n MATCH (n)-[:firm]->(f:Firm) RETURN n", "a MATCH after a WITH");
         unsupported("CREATE (p:Person {name: 'x'})", "CREATE is not supported yet");
         // collect: the group's values as the JSON array the database builds (the study's §12.41)
         String collected = pure("MATCH (p:Person) RETURN collect(p.name) AS names");
         assertTrue(collected.contains("->joinStrings(',')"), collected);
         assertTrue(collected.contains("fromJson('[' + "), collected);
+        // (collect(DISTINCT ...) stays refused: the database's order of the distinct values is not Neo4j's, nor
+        // the same twice; the study's §12.44)
         unsupported("MATCH (p:Person) RETURN collect(DISTINCT p.name)", "collect(DISTINCT ...) is not supported yet");
         unsupported("MATCH (p:Person) RETURN count(DISTINCT p.name)", "count(DISTINCT ...)");
         unsupported("MATCH (p:Person) WHERE p.name = $name RETURN p.name", "a parameter ($name)");

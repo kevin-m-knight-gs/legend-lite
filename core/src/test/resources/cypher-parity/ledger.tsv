@@ -1233,7 +1233,7 @@ tck/clauses/with/With2/[1] Forwarding a property to express a join	SKIP	SKIP
 tck/clauses/with/With2/[2] Forwarding a nested map literal	PASS	PASS
 tck/clauses/with/With3/[1] Forwarding multiple node and relationship variables	REFUSED	REFUSED
 tck/clauses/with/With4/[1] Aliasing relationship variable	PASS	PASS
-tck/clauses/with/With4/[2] Aliasing expression to new variable name	REFUSED	REFUSED
+tck/clauses/with/With4/[2] Aliasing expression to new variable name	PASS	PASS
 tck/clauses/with/With4/[3] Aliasing expression to existing variable name	PASS	PASS
 tck/clauses/with/With4/[4] Fail when forwarding multiple aliases with the same name	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With4/[5] Fail when not aliasing expressions in WITH	BOTH_ERROR	BOTH_ERROR
@@ -1437,9 +1437,9 @@ tck/expressions/boolean/Boolean5/[5] Conjunction is distributive over exclusive 
 tck/expressions/boolean/Boolean5/[6] Conjunction is not distributive over exclusive disjunction on null	PASS	PASS
 tck/expressions/boolean/Boolean5/[7] De Morgan's law on non-null: the negation of a disjunction is the conjunction of the negations	PASS	PASS
 tck/expressions/boolean/Boolean5/[8] De Morgan's law on non-null: the negation of a conjunction is the disjunction of the negations	PASS	PASS
-tck/expressions/comparison/Comparison1/[1] Number-typed integer comparison	REFUSED	REFUSED
-tck/expressions/comparison/Comparison1/[2] Number-typed float comparison	REFUSED	REFUSED
-tck/expressions/comparison/Comparison1/[3] Any-typed string comparison	REFUSED	REFUSED
+tck/expressions/comparison/Comparison1/[1] Number-typed integer comparison	PASS	PASS
+tck/expressions/comparison/Comparison1/[2] Number-typed float comparison	PASS	PASS
+tck/expressions/comparison/Comparison1/[3] Any-typed string comparison	PASS	PASS
 tck/expressions/comparison/Comparison1/[4] Comparing nodes to nodes	REFUSED	REFUSED
 tck/expressions/comparison/Comparison1/[5] Comparing relationships to relationships	REFUSED	REFUSED
 tck/expressions/comparison/Comparison1/[6] Comparing lists to lists #1	PASS	PASS
@@ -4215,6 +4215,17 @@ lite/rels/relationship_in_a_list	PASS	PASS
 lite/rels/distinct_relationship_refused_by_name	REFUSED	REFUSED
 lite/rels/relationship_property_refused_by_name	REFUSED	REFUSED
 lite/rels/edge_property_skipped_by_the_harness	PASS	PASS
+lite/rows/a_fresh_match_after_a_projecting_with	PASS	PASS
+lite/rows/a_fresh_match_after_a_projecting_with_returning_the_node	PASS	PASS
+lite/rows/a_fresh_match_after_an_unwind	PASS	PASS
+lite/rows/a_fresh_match_after_a_first_with	PASS	PASS
+lite/rows/a_fresh_label_less_match_after_rows	PASS	PASS
+lite/rows/a_fresh_label_less_match_after_rows_finding_nothing	PASS	PASS
+lite/rows/a_fresh_match_with_a_relationship_after_rows	PASS	PASS
+lite/rows/a_fresh_untyped_match_after_rows_aggregated	PASS	PASS
+lite/rows/a_fresh_match_after_rows_counted	PASS	PASS
+lite/rows/a_fresh_match_after_rows_keeps_no_row_over_no_node	PASS	PASS
+lite/rows/a_match_binding_a_projected_variable_after_rows_refused	BOTH_ERROR	BOTH_ERROR
 lite/shapes/list_of_one_row_value	PASS	PASS
 lite/shapes/list_with_a_null_element	PASS	PASS
 lite/shapes/list_of_mixed_kinds	PASS	PASS

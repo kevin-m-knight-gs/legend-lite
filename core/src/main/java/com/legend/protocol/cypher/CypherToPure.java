@@ -722,6 +722,10 @@ public final class CypherToPure {
             if (hop != null) {
                 return hop;
             }
+            Rows fresh = freshAfterRows(m, rows);
+            if (fresh != null) {
+                return fresh;
+            }
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
         }
@@ -1171,6 +1175,10 @@ public final class CypherToPure {
             Rows hop = absentHop(m, rows);
             if (hop != null) {
                 return hop;
+            }
+            Rows fresh = freshAfterRows(m, rows);
+            if (fresh != null) {
+                return fresh;
             }
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
@@ -1953,6 +1961,33 @@ public final class CypherToPure {
     }
 
     private static final String JOIN_KIND = "meta::pure::functions::relation::JoinKind";
+
+    /** {@code WITH a.num AS property MATCH (b:End) WHERE property = b.num}, {@code UNWIND xs AS x MATCH (n)}: a MATCH
+     *  after rows (a WITH that projected its variables, an UNWIND, a pattern read as rows) whose one pattern names
+     *  no variable of the rows is the product of the rows and the pattern's rows ({@link #cartesian}, the study's
+     *  §12.44), the WHERE read over the pairs. Null when the pattern names a variable of the rows (a continuation
+     *  from a carried node, or a variable of another kind: Neo4j's error, which the island does not spell), or
+     *  when the MATCH has several patterns. */
+    private @com.legend.base.Nullable Rows freshAfterRows(CypherAst.Match m, Rows rows) {
+        if (m.patterns().size() != 1) {
+            return null;
+        }
+        PathPattern p = m.patterns().get(0);
+        Set<String> named = new HashSet<>();
+        if (p.variable() != null) {
+            named.add(p.variable());
+        }
+        for (PatternElement e : p.elements()) {
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v != null) {
+                named.add(v);
+            }
+        }
+        if (rows.columns().stream().anyMatch(c -> named.contains(c.name()))) {
+            return null;
+        }
+        return cartesian(rows, p, m.where(), m.pos());
+    }
 
     /** {@code MATCH (a:A), (b:B)}, a pattern sharing no variable with the graph (the study's §12.28): the graph read
      *  as rows (every node carried, the paths too), the pattern read into its own graph and as rows, every pair of
@@ -3509,6 +3544,8 @@ public final class CypherToPure {
         } else {
             piece = Tx.value(jsonText(SqlToPure.valueOf(arg), arg.kind(), "collect", pos), Kind.STRING, false);
         }
+        // (collect(DISTINCT x) stays refused: the distinct texts joined would come in the database's order, which
+        // is not Neo4j's encounter order and not the same twice; the study's §12.44)
         return new Aggregate(freshName(names), piece, lambda("y", call("joinStrings", new Variable("y"),
                 new CString(","))), Kind.JSON, false, raw -> call("fromJson", plus(new CString("["),
                 call("if", call("isEmpty", raw), thunk(new CString("")), thunk(call("toOne", raw))),

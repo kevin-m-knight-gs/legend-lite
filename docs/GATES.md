@@ -9850,6 +9850,26 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the forty-third landing — a MATCH after rows whose pattern is new
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.44. The translator alone: a MATCH
+after rows (a WITH that projected its variables, an UNWIND) whose one pattern names no variable of the rows is the
+product of the rows and the pattern's rows (§12.28's cartesian machinery), the WHERE over the pairs.
+
+1. **What lands.** `MATCH (a:Begin) WITH a.num AS property MATCH (b:End) WHERE property = b.num RETURN b`,
+   `UNWIND [1, 2] AS i MATCH (p:P) RETURN i, p.name`, `WITH collect([0, 0.0]) AS numbers UNWIND numbers AS arr
+   WITH arr[0] AS expected MATCH (n) WHERE toInteger(n.id) = expected RETURN n`, `WITH 1 AS x MATCH ()-[r]->()
+   RETURN count(r), x`.
+2. **The ledger.** DuckDB: 4484 cases; PASS 2854 (from 2,840); FAIL 0; BUG 0; ERROR 0; REFUSED 720; BOTH_ERROR 729;
+   SKIP 181. Postgres: PASS 2504 (from 2,490); FAIL 0; BUG 0; ERROR 0; REFUSED 1070; BOTH_ERROR 729; SKIP 181. 11
+   lite cases in `lite/rows.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pin that refused a MATCH after a projecting WITH now pins the product's join, and the refusal of a
+   pattern binding a projected variable again.
+4. **Refused by name, recorded.** A MATCH after rows naming a variable of the rows that is not a carried node's
+   continuation (identity, or Neo4j's static error), a MATCH of several patterns after rows; `collect(DISTINCT
+   x)`, tried and withdrawn (the database's order of the distinct values is not Neo4j's, nor the same twice).
+
 ## 2026-10-17 — `#Cypher{...}#`: the forty-second landing — a property or an index of a value the database holds as a Variant
 
 Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.43. The translator alone: a property

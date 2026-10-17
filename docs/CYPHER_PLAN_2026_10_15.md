@@ -135,7 +135,9 @@ database holds read by their element kind (§12.41); DuckDB PASS 2784, Postgres 
 both. Then variable-length relationships with an upper bound, unrolled into the chains of each length (§12.42);
 DuckDB PASS 2802, Postgres PASS 2452, 0 FAIL, 0 BUG, 0 ERROR on both. Then a property or an index of a value the
 database holds as a Variant, the platform's `get` read by type where the Variant's shape says it (§12.43); DuckDB
-PASS 2840, Postgres PASS 2490, 0 FAIL, 0 BUG, 0 ERROR on both. The compact form read from the node side,
+PASS 2840, Postgres PASS 2490, 0 FAIL, 0 BUG, 0 ERROR on both. Then a MATCH after rows whose pattern is new, as the
+product of the rows and the pattern's rows (§12.44); DuckDB PASS 2854, Postgres PASS 2504, 0 FAIL, 0 BUG, 0
+ERROR on both. The compact form read from the node side,
 inheritance (a node with several labels), identity, `USE`, named zones, and the unbounded variable-length
 relationship (the recursion native, §6.3) wait.
 

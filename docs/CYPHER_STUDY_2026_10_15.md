@@ -3228,3 +3228,31 @@ unwinding and collected lists, Aggregation's and Return's `collect`s).
 35 lite cases in `lite/variants.yaml`, each judged by Neo4j (eleven Neo4j's errors, matched). The TCK: 14 more
 scenarios agree (Unwind1, Graph4, Graph6, Graph7, Precedence1; the error scenarios of Graph4, Graph9 and Path3 now
 agree by the type error, not by a refusal).
+
+### 12.44 A MATCH after rows whose pattern is new, 2026-10-17
+
+- **`WITH a.num AS property MATCH (b:End) WHERE property = b.num`, `UNWIND xs AS x MATCH (n)`, `WITH 1 AS x MATCH
+  ()-[r]->()`:** a MATCH after rows (a WITH that projected its variables, an UNWIND, a pattern read as rows) whose
+  one pattern names no variable of the rows is the product of the rows and the pattern's rows, §12.28's cartesian
+  machinery (the pattern read on its own as a first pattern, a graph, a label-less node's arms or rows, then its
+  rows; every pair joined by a condition that always holds), the WHERE read over the pairs, the clauses after
+  reading the rows (the pattern's nodes carried as their columns, so `RETURN b` and `b.name` read them). A pattern
+  naming a variable of the rows stays refused by name: a hop from a carried node after rows is the continuation
+  §12.32 reads where it can, two ends bound is identity (C5), and a variable of another kind (`WITH p.name AS n
+  MATCH (n)`) is Neo4j's static error, which the island does not spell. A MATCH of several patterns after rows is
+  refused by name too.
+- **`collect(DISTINCT x)` stays refused by name, tried and withdrawn:** the distinct texts joined
+  (`distinct()->joinStrings(',')`) answer in the database's order of the distinct values, which is not Neo4j's
+  encounter order and not the same twice (lite's `collect_distinct_is_refused` passed one run as `[1, 2]` and
+  failed the next as `[2, 1]`); a list is an ordered value, so a list in an order the database chooses is a wrong
+  answer, not a difference to register.
+
+#### 12.44.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4484 | 2854 (from 2,840) | 0 | 0 | 0 | 720 | 729 | 181 |
+| Postgres | 4484 | 2504 (from 2,490) | 0 | 0 | 0 | 1070 | 729 | 181 |
+
+11 lite cases in `lite/rows.yaml`, each judged by Neo4j (one refused by name, as Neo4j errors). The TCK: 4 more
+scenarios pass (With4, Comparison1).

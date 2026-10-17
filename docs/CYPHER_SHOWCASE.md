@@ -947,7 +947,7 @@ ORDER BY title
 | 'Speed' | {role: 'Jack'} | 1 | false |
 | 'The Matrix' | {role: 'Neo', year: 1999} | 2 | true |
 
-## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.43)
+## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.44)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
@@ -958,9 +958,9 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 
 | status | cases |
 |---|---|
-| PASS | 2357 |
+| PASS | 2361 |
 | BOTH_ERROR | 670 |
-| REFUSED | 672 |
+| REFUSED | 668 |
 | SKIP | 181 |
 | total | 3880 |
 
@@ -979,13 +979,13 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | clauses/set | 53 | 0 | 2 | 51 | 0 |
 | clauses/union | 12 | 7 | 4 | 1 | 0 |
 | clauses/unwind | 14 | 11 | 0 | 3 | 0 |
-| clauses/with | 29 | 11 | 4 | 13 | 1 |
+| clauses/with | 29 | 12 | 4 | 12 | 1 |
 | clauses/with-orderBy | 292 | 154 | 67 | 31 | 40 |
 | clauses/with-skip-limit | 9 | 3 | 0 | 4 | 2 |
 | clauses/with-where | 19 | 10 | 0 | 9 | 0 |
 | expressions/aggregation | 35 | 15 | 7 | 13 | 0 |
 | expressions/boolean | 150 | 32 | 118 | 0 | 0 |
-| expressions/comparison | 72 | 59 | 1 | 10 | 2 |
+| expressions/comparison | 72 | 62 | 1 | 7 | 2 |
 | expressions/conditional | 13 | 13 | 0 | 0 | 0 |
 | expressions/existentialSubqueries | 10 | 4 | 1 | 5 | 0 |
 | expressions/graph | 61 | 18 | 15 | 17 | 11 |
@@ -1009,12 +1009,12 @@ and `DETACH DELETE` (241, the platform's `write` first: `docs/BI_AND_ETL_PLAN_20
 table lacks, `rand()` and the clock functions among them (50, never reproducible); a label, a property or a
 relationship type the model does not declare (52, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns
 that need node identity, which the values do not carry (a `MATCH` or `OPTIONAL MATCH` after rows, both ends bound, an
-undirected self-association, nodes among grouping keys, nodes compared: 93, the study's C5); variable-length
+undirected self-association, nodes among grouping keys, nodes compared: 88, the study's C5); variable-length
 relationships without an upper bound, past two hops in all, or under a predicate (25); a value the database holds
 as a Variant of no known shape, comprehended, ordered or compared (49: a list comprehension over a Variant list of
 no known element kind, `ORDER BY` a Variant, two Variants compared; a member or an index reads by type where the
 shape travelled, the study's §12.43); a pattern predicate or comprehension over rows, from no bound node or over
 more than one hop, and `COUNT { }` (20); a list holding a value that may be null, read by the database (8); `%`
-inside a comprehension the database computes (8); an untyped relationship in an OPTIONAL MATCH (7); the rest (117)
+inside a comprehension the database computes (8); an untyped relationship in an OPTIONAL MATCH (7); the rest (118)
 is small buckets of one to seven, each named in the
 ledger.
