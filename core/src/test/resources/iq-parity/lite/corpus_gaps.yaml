@@ -2048,3 +2048,16 @@ tests:
   - id: between_the_operand_twice
     sql: "SELECT id FROM t WHERE NOT (sm BETWEEN sm AND sm) ORDER BY id"
     profile: iq17-default
+
+  # ---- a window function in a subquery beside other placements (IQ island, 2026-10-17; the TPC-DS corpus lane,
+  # measured on IQ 17.1): after an outer join's ON's subquery (-1001047) and ORDER BY's (-1005004), before a select
+  # expression's
+  - id: an_outer_join_subquery_before_a_windowed_subquery
+    sql: "SELECT t.id FROM t LEFT JOIN u ON u.t_id = (SELECT MAX(id) FROM g) WHERE t.id IN (SELECT RANK() OVER (ORDER BY id) FROM u)"
+    profile: iq17-default
+  - id: an_order_by_subquery_before_a_windowed_subquery
+    sql: "SELECT id FROM t WHERE id IN (SELECT RANK() OVER (ORDER BY id) FROM u) ORDER BY (SELECT 1)"
+    profile: iq17-default
+  - id: a_windowed_subquery_before_a_select_expression_subquery
+    sql: "SELECT id, (SELECT 1) + 1 AS a FROM t WHERE id IN (SELECT RANK() OVER (ORDER BY id) FROM u)"
+    profile: iq17-default

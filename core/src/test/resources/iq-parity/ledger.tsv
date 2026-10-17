@@ -1183,6 +1183,9 @@ lite/corpus_gaps/between_the_operand_and_null@iq17-default	PASS	PASS
 lite/corpus_gaps/between_the_operand_and_a_string@iq17-default	PASS	PASS
 lite/corpus_gaps/between_the_operand_and_a_column@iq17-default	PASS	PASS
 lite/corpus_gaps/between_the_operand_twice@iq17-default	PASS	PASS
+lite/corpus_gaps/an_outer_join_subquery_before_a_windowed_subquery@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_order_by_subquery_before_a_windowed_subquery@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_windowed_subquery_before_a_select_expression_subquery@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

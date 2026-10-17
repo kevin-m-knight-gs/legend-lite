@@ -6622,11 +6622,32 @@ public final class IqDialect implements InputDialect {
             groupBySubqueries(statement, chosen);
             if (chosen == Engine.IQ) {
                 arrayAggregates(statement, placeheldHere);
-                // IQ island, 2026-10-15 (windows): a window function in a condition's subquery (its -1001030)
-                IqWindows.statement(statement, chosen);
-                appliedQueries(statement);
-                limitedSubqueries(statement);
-                subqueryPlaces(statement, innerHere);
+                // IQ island, 2026-10-15 (windows): a window function in a condition's subquery (its -1001030), after a
+                // subquery in an outer join's ON (-1001047) or in ORDER BY (-1005004), before the other placements
+                // (IQ island, 2026-10-17, the TPC-DS corpus lane; measured on IQ 17.1)
+                SqlTranslationException window = null;
+                try {
+                    IqWindows.statement(statement, chosen);
+                } catch (SqlTranslationException e) {
+                    if (!namesIqsError(e)) {
+                        throw e;
+                    }
+                    window = e;
+                }
+                if (window == null) {
+                    appliedQueries(statement);
+                    limitedSubqueries(statement);
+                }
+                try {
+                    subqueryPlaces(statement, innerHere);
+                } catch (SqlTranslationException e) {
+                    if (window == null || beforeWindows(e)) {
+                        throw e;
+                    }
+                }
+                if (window != null) {
+                    throw window;
+                }
                 iqEngineRestrictions(statement);
             }
         } catch (SqlTranslationException e) {
@@ -6726,6 +6747,14 @@ public final class IqDialect implements InputDialect {
     }
 
     /** Whether {@code e} names IQ's own error, refused before translating (a claim, not a refusal of the island's). */
+    /** Whether a subquery's placement error is one IQ raises before a window function's in a subquery: an outer
+     *  join's ON's (-1001047), ORDER BY's (-1005004; measured on IQ 17.1). */
+    private static boolean beforeWindows(SqlTranslationException e) {
+        String m = java.util.Objects.requireNonNullElse(e.getMessage(), "");
+        int code = codeOf(m);
+        return code == -1001047 || code == -1005004 && m.contains("ORDER BY");
+    }
+
     private static boolean namesIqsError(SqlTranslationException e) {
         String m = java.util.Objects.requireNonNullElse(e.getMessage(), "");
         return m.contains("is IQ's error -") && m.contains("refused before translating") || m.contains("(IQ: SQLCODE -");
