@@ -364,10 +364,19 @@ public final class Psql {
 
     /** What a run of a script tells its caller: each statement as sent, with what the database answered. */
     public interface Listener {
+        /** The caller judges {@code sql}'s answer (the runner then sends it under a savepoint inside a transaction, so
+         *  a statement that fails can still be judged). */
+        default boolean judges(String sql) {
+            return false;
+        }
+
         /** A statement was sent: its text as interpolated, its item, and the database's answer (a statement that
          *  answered no rows answers an empty grid of no columns). */
         void sent(String sql, Sql item, SqlParity.Answer answer);
     }
+
+    /** The SQLSTATE of an answer that the database gave and this harness could not read. */
+    public static final String UNREADABLE = "unreadable";
 
     /** Runs a script's items on a connection, as psql runs them, telling {@code listener} each statement's answer. */
     public static final class Runner {
@@ -474,8 +483,25 @@ public final class Psql {
         }
 
         private void statement(Sql q, Listener listener) throws SQLException {
-            String sql = interpolate(q.text(), vars);
-            SqlParity.Answer answer = q.copyData() != null ? copy(sql, q.copyData()) : send(sql);
+            String sql = driverSettings(interpolate(q.text(), vars));
+            if (sql.isEmpty()) {
+                return;
+            }
+            SqlParity.Answer answer;
+            if (q.copyData() == null && listener.judges(sql) && savepoint("psql_judged")) {
+                // inside the script's transaction: a statement that fails is judged with the transaction as it was
+                // before it, then sent again, so the transaction is aborted as the script means it to be
+                answer = send(sql);
+                if (answer instanceof SqlParity.Rejected) {
+                    send("ROLLBACK TO SAVEPOINT psql_judged");
+                    listener.sent(sql, q, answer);
+                    send(sql);
+                    return;
+                }
+                send("RELEASE SAVEPOINT psql_judged");
+            } else {
+                answer = q.copyData() != null ? copy(sql, q.copyData()) : send(sql);
+            }
             listener.sent(sql, q, answer);
             if (answer instanceof SqlParity.Rows rows) {
                 if (q.end().equals("gset")) {
@@ -491,6 +517,36 @@ public final class Psql {
                 }
             }
         }
+
+        /** A savepoint in the script's transaction: false when there is none (or it is already aborted). */
+        private boolean savepoint(String name) {
+            return send("SAVEPOINT " + name) instanceof SqlParity.Rows;
+        }
+
+        /** {@code sql} with the settings the JDBC driver requires kept: it closes a session whose DateStyle's output
+         *  style is not ISO or whose IntervalStyle is not postgres, or whose client_encoding is not UTF8. A DateStyle's
+         *  field order (how a date literal is read) is kept, its output style made ISO; an IntervalStyle or a
+         *  client_encoding, which only shape text the comparison does not read, is not sent ("" sends nothing). */
+        static String driverSettings(String sql) {
+            Matcher m = SETTING.matcher(sql);
+            if (!m.matches()) {
+                return sql;
+            }
+            String name = m.group(2).toLowerCase(Locale.ROOT);
+            if (!name.equals("datestyle")) {
+                return "";
+            }
+            String value = m.group(3).replace("'", "").replace("\"", "").toLowerCase(Locale.ROOT);
+            String order = value.contains("dmy") || value.contains("european") && !value.contains("noneuropean")
+                    ? "DMY" : value.contains("ymd") ? "YMD" : value.contains("german") ? "DMY" : "MDY";
+            if (value.contains("default")) {
+                return "SET datestyle TO DEFAULT";
+            }
+            return "SET datestyle TO 'ISO, " + order + "'";
+        }
+
+        private static final Pattern SETTING = Pattern.compile(
+                "(?is)\\s*set\\s+(session\\s+|local\\s+)?(datestyle|intervalstyle|client_encoding)\\s*(?:=|\\bto\\b)\\s*(.*?)\\s*");
 
         /** {@code \gset [prefix]}: the one row's columns as variables (a NULL unsets its variable). */
         private void gset(SqlParity.Grid grid, String prefix) {
@@ -520,6 +576,9 @@ public final class Psql {
                 return new SqlParity.Rows(new SqlParity.Grid(List.of(), List.of()));
             } catch (SQLException e) {
                 return rejected(e);
+            } catch (RuntimeException e) {
+                // the answer could not be read as a grid (a JSON value nested past the reader's limit, say)
+                return new SqlParity.Rejected(UNREADABLE, e.getClass().getSimpleName() + ": " + e.getMessage());
             }
         }
 

@@ -42,7 +42,9 @@ import org.junit.jupiter.api.Test;
  * rows ({@link SqlParity#outcome}). The second run and the island run are rolled back (a savepoint inside the script's
  * transaction, else a transaction of their own) under a {@code statement_timeout}, so the script runs on as written.
  *
- * <p>Statuses: SqlParity's (PASS, FAIL, BUG, REFUSED, ERROR, BOTH_ERROR), NONDETERMINISTIC, UNMODELED (the island
+ * <p>Statuses: SqlParity's (PASS, FAIL, BUG, REFUSED, ERROR, BOTH_ERROR), NAMES (the rows are Postgres's, an output
+ * column's name is not), NONDETERMINISTIC, CATALOG (the island failed on a statement that reads a system catalog,
+ * which no Legend model has), UNMODELED (the island
  * failed on a statement that reads a column of a type no Legend column models), and SKIP (the script's transaction was
  * already aborted). FAIL and BUG are wrong answers. The report -- every status counted, per file and in all, each
  * failing status's messages normalized and ranked -- is written to {@code -Dsql.corpus.report}. The suite is not this
@@ -93,7 +95,8 @@ class PgRegressCorpusTest {
             if (!Files.exists(sql)) {
                 continue;
             }
-            List<Psql.Item> items = Psql.parse(Files.readString(sql, StandardCharsets.UTF_8));
+            // decoded leniently: the suite's encoding tests are written in theirs (and skip themselves on UTF8)
+            List<Psql.Item> items = Psql.parse(new String(Files.readAllBytes(sql), StandardCharsets.UTF_8));
             Map<String, String> fileVars = new HashMap<>(vars);
             Connection conn = DriverManager.getConnection(pg.jdbcUrl("regression"));
             List<Connection> opened = new ArrayList<>(List.of(conn));
@@ -107,10 +110,24 @@ class PgRegressCorpusTest {
                 }
             }, timeoutSeconds);
             try {
-                runner.run(items, (text, item, answer) -> {
-                    if (readOnly(text)) {
-                        judged.add(judge(file, item.line(), text, answer, runner.connection(), service,
-                                timeoutSeconds, pg.port()));
+                runner.run(items, new Psql.Listener() {
+                    @Override
+                    public boolean judges(String text) {
+                        return readOnly(text);
+                    }
+
+                    @Override
+                    public void sent(String text, Psql.Sql item, SqlParity.Answer answer) {
+                        if (!readOnly(text)) {
+                            return;
+                        }
+                        try {
+                            judged.add(judge(file, item.line(), text, answer, runner.connection(), service,
+                                    timeoutSeconds, pg.port()));
+                        } catch (RuntimeException | StackOverflowError e) {
+                            judged.add(new Judged(file, item.line(), "HARNESS", 0, e.getClass().getSimpleName()
+                                    + ": " + e.getMessage(), text));
+                        }
                     }
                 });
             } finally {
@@ -205,6 +222,9 @@ class PgRegressCorpusTest {
         if (answer instanceof SqlParity.Rejected r && r.sqlState().equals("25P02")) {
             return new Judged(file, line, "SKIP", 0, "the script's transaction is aborted", sql);
         }
+        if (answer instanceof SqlParity.Rejected r && r.sqlState().equals(Psql.UNREADABLE)) {
+            return new Judged(file, line, "HARNESS", 0, "Postgres's answer is unreadable: " + r.message(), sql);
+        }
         try {
             boolean savepoint = open(conn, timeoutSeconds);
             SqlParity.Answer second = send(conn, sql);
@@ -223,7 +243,13 @@ class PgRegressCorpusTest {
                     island -> service.execute(model, island, SqlParity.RUNTIME, conn));
             close(conn, savepoint);
             String status = o.status().name();
-            if ((status.equals("ERROR") || status.equals("REFUSED")) && readsUnmodeled(sql, tables)
+            if (status.equals("FAIL") && java.util.Arrays.stream(o.detail().split("; "))
+                    .allMatch(d -> d.startsWith("Column name mismatch"))) {
+                status = "NAMES"; // the rows are Postgres's; only an output column's name differs
+            }
+            if ((status.equals("ERROR") || status.equals("REFUSED")) && CATALOG.matcher(sql).find()) {
+                status = "CATALOG"; // a system catalog: no Legend model has one
+            } else if ((status.equals("ERROR") || status.equals("REFUSED")) && readsUnmodeled(sql, tables)
                     || status.equals("FAIL") && o.detail().startsWith("Column count mismatch") && starOverUnmodeled(sql,
                     tables)) {
                 status = "UNMODELED";
@@ -421,6 +447,10 @@ class PgRegressCorpusTest {
         return false;
     }
 
+    /** A system catalog read in a FROM list: {@code pg_*} (or {@code pg_catalog.*}) or {@code information_schema.*}. */
+    private static final Pattern CATALOG = Pattern.compile(
+            "(?i)\\b(from|join|,)\\s*(pg_catalog\\.)?(pg_[a-z_]+|information_schema\\.)");
+
     /** {@code sql} selects {@code *} and a relation it names has a column no Legend column models (the island's
      *  {@code *} has fewer columns than Postgres's). */
     private static boolean starOverUnmodeled(String sql, Map<String, List<Col>> tables) {
@@ -430,8 +460,8 @@ class PgRegressCorpusTest {
 
     // ------------------------------------------------------------------ the report
 
-    private static final List<String> ORDER = List.of("PASS", "FAIL", "BUG", "REFUSED", "UNMODELED", "ERROR",
-            "BOTH_ERROR", "NONDETERMINISTIC", "SKIP", "HARNESS");
+    private static final List<String> ORDER = List.of("PASS", "NAMES", "FAIL", "BUG", "REFUSED", "ERROR",
+            "UNMODELED", "CATALOG", "BOTH_ERROR", "NONDETERMINISTIC", "SKIP", "HARNESS");
 
     private static String counts(List<Judged> judged, String file) {
         Map<String, Integer> n = new TreeMap<>();
@@ -452,7 +482,7 @@ class PgRegressCorpusTest {
         StringBuilder r = new StringBuilder("# #SQL{} over the PostgreSQL regression suite (read-only statements)\n\n");
         r.append("Judged: ").append(judged.size()).append("\n\n| status | n |\n|---|---|\n");
         total.forEach((s, n) -> r.append("| ").append(s).append(" | ").append(n).append(" |\n"));
-        for (String status : List.of("FAIL", "BUG", "ERROR", "REFUSED", "UNMODELED", "HARNESS")) {
+        for (String status : List.of("FAIL", "BUG", "NAMES", "ERROR", "REFUSED", "UNMODELED", "HARNESS")) {
             Map<String, Integer> reasons = new HashMap<>();
             Map<String, String> example = new HashMap<>();
             for (Judged j : judged) {
