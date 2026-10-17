@@ -4,12 +4,11 @@
 package com.legend.exec;
 
 import com.legend.Execution;
-import com.legend.model.ConnectionDefinition.DatabaseType;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import com.legend.testbackend.TestBackend;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.List;
 
@@ -27,36 +26,23 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class MissingValueInComputedColumnTest {
 
-    /** The table's runtime declares the database it executes on (the connection the test opens); one whole model
-     *  per database, so each literal is a model the own-corpus parity lane can read. */
-    private static final String DUCKDB_MODEL = """
-            ###Relational
-            Database h5::db
-            (
-              Table T (ID INTEGER PRIMARY KEY, STR VARCHAR(10), N INTEGER)
-            )
-            ###Connection
-            RelationalDatabaseConnection h5::Conn { store: h5::db; type: DuckDB; specification: DuckDB { }; auth: Test; }
-            ###Runtime
-            Runtime h5::RT { mappings: []; connections: [ h5::db: [ c: h5::Conn ] ]; }
-            """;
-    private static final String H2_MODEL = """
-            ###Relational
-            Database h5::db
-            (
-              Table T (ID INTEGER PRIMARY KEY, STR VARCHAR(10), N INTEGER)
-            )
-            ###Connection
-            RelationalDatabaseConnection h5::Conn { store: h5::db; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
-            ###Runtime
-            Runtime h5::RT { mappings: []; connections: [ h5::db: [ c: h5::Conn ] ]; }
-            """;
-
-    private static String model(DatabaseType type) {
-        return type == DatabaseType.H2 ? H2_MODEL : DUCKDB_MODEL;
+    /** The table's runtime declares the database it executes on: the connection the test opens, on each in-process
+     *  database (the dialect program's Phase 6, 2026-10-16: until then a literal model each for DuckDB and H2). */
+    private static String model(TestBackend backend) {
+        return """
+                ###Relational
+                Database h5::db
+                (
+                  Table T (ID INTEGER PRIMARY KEY, STR VARCHAR(10), N INTEGER)
+                )
+                ###Connection
+                RelationalDatabaseConnection h5::Conn { store: h5::db; %s }
+                ###Runtime
+                Runtime h5::RT { mappings: []; connections: [ h5::db: [ c: h5::Conn ] ]; }
+                """.formatted(backend.connectionBody());
     }
 
-    private static List<Row> run(Connection conn, DatabaseType type, String query) throws Exception {
+    private static List<Row> run(Connection conn, TestBackend type, String query) throws Exception {
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, STR VARCHAR(10), N INTEGER)");
             st.execute("INSERT INTO T VALUES (1, 'a', 5), (2, NULL, NULL)");
@@ -65,9 +51,9 @@ class MissingValueInComputedColumnTest {
         return ((ExecutionResult.Tabular) r).rows();
     }
 
-    private static void probe(Connection conn, DatabaseType type) throws Exception {
+    private static void probe(Connection conn, TestBackend type) throws Exception {
         // a computed column over a missing value: false, legend-pure's own value (the lowering guards the missing
-        // value; plain SQL three-valued logic would give NULL), on both databases
+        // value; plain SQL three-valued logic would give NULL), on every database
         List<Row> rows = run(conn, type, "|#>{h5::db.T}#->extend(~[inA: c|$c.STR->in(['a']), big: c|$c.N > 3])"
                 + "->sort(~ID->ascending())->select(~[ID, inA, big])");
         assertEquals(2, rows.size());
@@ -85,19 +71,11 @@ class MissingValueInComputedColumnTest {
         assertEquals(1L, ((Number) kept.get(0).values().get(0)).longValue());
     }
 
-    @Test
-    @DisplayName("DuckDB: a computed column over a missing value is false; a filter keeps the same rows")
-    void duckdb() throws Exception {
-        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
-            probe(conn, DatabaseType.DuckDB);
-        }
-    }
-
-    @Test
-    @DisplayName("H2: a computed column over a missing value is false; a filter keeps the same rows")
-    void h2() throws Exception {
-        try (Connection conn = DriverManager.getConnection("jdbc:h2:mem:h5probe" + System.nanoTime())) {
-            probe(conn, DatabaseType.H2);
+    @ParameterizedTest(name = "{0}: a computed column over a missing value is false; a filter keeps the same rows")
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
+    void aMissingValueInAComputedColumn(TestBackend backend) throws Exception {
+        try (Connection conn = backend.open()) {
+            probe(conn, backend);
         }
     }
 }

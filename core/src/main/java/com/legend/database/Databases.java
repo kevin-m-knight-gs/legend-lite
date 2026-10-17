@@ -41,6 +41,27 @@ public final class Databases {
                 + "' is not one this platform models " + java.util.Arrays.toString(DatabaseType.values()));
     }
 
+    /** Every database the platform executes on: those {@link #dialect} gives a dialect, in the declared type's order
+     *  (the dialect program's Phase 6, 2026-10-16: tests and tools iterate it instead of listing databases by hand). */
+    public static java.util.List<DatabaseType> implemented() {
+        java.util.List<DatabaseType> out = new java.util.ArrayList<>();
+        for (DatabaseType type : DatabaseType.values()) {
+            if (executes(type)) {
+                out.add(type);
+            }
+        }
+        return java.util.Collections.unmodifiableList(out);
+    }
+
+    /** Whether the platform executes on {@code type}: {@link #dialect} gives it one (a test holds the two together). */
+    private static boolean executes(DatabaseType type) {
+        return switch (type) {
+            case DuckDB, H2, Postgres, Databricks, Snowflake, BigQuery, SQLite, MariaDB, MySQL, Trino, ClickHouse -> true;
+            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
+                 Aurora -> false;
+        };
+    }
+
     /** The dialect a query on {@code type} is planned and executed with. */
     public static SqlDialect dialect(DatabaseType type) {
         return switch (type) {

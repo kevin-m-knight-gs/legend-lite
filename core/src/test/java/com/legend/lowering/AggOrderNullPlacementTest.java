@@ -3,7 +3,8 @@
 
 package com.legend.lowering;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Execution;
@@ -12,7 +13,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -29,8 +29,8 @@ class AggOrderNullPlacementTest {
     @Test
     @DisplayName("DESC NULLS FIRST survives the toString aggregate hoist")
     void descNullsFirstInsideAggregate() throws Exception {
-        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
-            ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+        try (Connection conn = TestBackends.platform().open()) {
+            ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM),
                     "{|#TDS\n"
                     + "  p, o, i\n"
                     + "  200, 1, 10\n"

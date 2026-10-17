@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.server.serial.SerializerRegistry;
 import com.legend.server.OutputFormat;
 import com.legend.server.QueryService;
@@ -13,7 +14,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
@@ -113,7 +113,7 @@ class StreamingIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        connection = DriverManager.getConnection("jdbc:duckdb:");
+        connection = TestBackends.platform().open();
         queryService = new QueryService();
 
         try (Statement stmt = connection.createStatement()) {

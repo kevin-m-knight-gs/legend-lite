@@ -3,7 +3,8 @@
 
 package com.legend.lowering;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
@@ -14,11 +15,9 @@ import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.ExecutionResult;
 import com.legend.sql.SqlQuery;
-import com.legend.sql.dialect.DuckDb;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,8 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 class LowererLetScopeTest {
 
     private static List<String> values(String query) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c);
+        try (Connection c = TestBackends.platform().open()) {
+            ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c);
             if (r instanceof ExecutionResult.Collection col) {
                 return col.values().stream().map(String::valueOf).toList();
             }
@@ -97,7 +96,7 @@ class LowererLetScopeTest {
         Lowerer lw = new Lowerer(t -> ClassLayouts.layoutOf(ctx, t), f -> ctx.findClass(f).isPresent(),
                 ctx.implementations()).bindPlanParam("x", false);
         SqlQuery plan = lw.lower(body);
-        String sql = new DuckDb().render(plan);
+        String sql = TestBackends.platform().dialect().render(plan);
         assertFalse(sql.contains("${x}"), sql);
     }
 }

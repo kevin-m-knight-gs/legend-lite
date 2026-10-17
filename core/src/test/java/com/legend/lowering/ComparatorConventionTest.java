@@ -3,7 +3,8 @@
 
 package com.legend.lowering;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Execution;
@@ -12,7 +13,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -34,8 +34,8 @@ class ComparatorConventionTest {
     private static final String FQ = "meta::pure::functions::";
 
     private static Object one(String q) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            return ((ExecutionResult.Scalar) Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), q, StorelessRuntime.RUNTIME, c))
+        try (Connection c = TestBackends.platform().open()) {
+            return ((ExecutionResult.Scalar) Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), q, StorelessRuntime.RUNTIME, c))
                     .value();
         }
     }

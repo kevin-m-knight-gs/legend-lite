@@ -3,7 +3,8 @@
 
 package com.legend.lowering;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Execution;
@@ -20,7 +21,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -65,7 +65,7 @@ class BurnLaneTest {
         AtomicInteger n = new AtomicInteger();
         SqlSelect out = ExistsJoinForm.rewrite(outer,
                 () -> "x" + n.incrementAndGet(), w -> null);
-        String sql = new com.legend.sql.dialect.DuckDb().render(out);
+        String sql = TestBackends.platform().dialect().render(out);
         // both keys projected (one aliased), and the ON references the
         // DISAMBIGUATED alias — never the same column twice
         assertTrue(sql.contains("NAME_1"),
@@ -105,7 +105,7 @@ class BurnLaneTest {
         Fold.OrderedAggExpr oa = Fold.orderUnionAggregateExpr(base, wrapped);
         assertTrue(oa != null,
                 "the obligation must fire through the CONCAT wrap");
-        String sql = new com.legend.sql.dialect.DuckDb()
+        String sql = TestBackends.platform().dialect()
                 .render(oa.base().withProjections(List.of(
                         new SqlSelect.Projection(oa.expr(), "r",
                                 new OutputCol("r",
@@ -121,7 +121,7 @@ class BurnLaneTest {
     @Test
     @DisplayName("D2: c1-collapsed singletons box by stamp at collection consumers")
     void singletonCollectionOps() throws Exception {
-        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection conn = TestBackends.platform().open()) {
             record P(String q, String want) {
             }
             for (P p : List.of(
@@ -141,7 +141,7 @@ class BurnLaneTest {
                     new P("{|[1,2,3]->isDistinct()}", "true"),
                     new P("{|[1,2,2]->isDistinct()}", "false"),
                     new P("{|[7]->isDistinct()}", "true"))) {
-                ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), p.q(), StorelessRuntime.RUNTIME, conn);
+                ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), p.q(), StorelessRuntime.RUNTIME, conn);
                 Object v = r instanceof ExecutionResult.Scalar s ? s.value()
                         : r instanceof ExecutionResult.Collection c
                                 ? c.values() : r;
@@ -155,7 +155,7 @@ class BurnLaneTest {
     @Test
     @DisplayName("cast: cross-kind primitive casts raise pure's Cast exception")
     void crossKindCastRaises() throws Exception {
-        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection conn = TestBackends.platform().open()) {
             // NOTE: string<->numeric/temporal casts CONVERT — the
             // standing product contract, pinned by
             // TypeConversionCheckerTest (the corpus referee rejected the
@@ -165,14 +165,14 @@ class BurnLaneTest {
                     "{|true->cast(@Float)}",
                     "{|%2014-01-01->cast(@Integer)}"}) {
                 var ex = assertThrows(Exception.class,
-                        () -> Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), q, StorelessRuntime.RUNTIME, conn));
+                        () -> Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), q, StorelessRuntime.RUNTIME, conn));
                 assertTrue(ex.getMessage().contains("Cast exception"),
                         q + " must raise pure's Cast exception, got: "
                                 + ex.getMessage());
             }
             // widening stays an assertion; same-kind narrowing keeps the
             // standing conversion contract
-            ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{|1->cast(@Number)}", StorelessRuntime.RUNTIME, conn);
+            ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), "{|1->cast(@Number)}", StorelessRuntime.RUNTIME, conn);
             assertEquals(1L, ((Number) ((ExecutionResult.Scalar) r).value())
                     .longValue());
         }

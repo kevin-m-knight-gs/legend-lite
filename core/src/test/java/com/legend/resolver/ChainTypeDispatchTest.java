@@ -1,18 +1,17 @@
 package com.legend.resolver;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.lowering.Lowerer;
-import com.legend.sql.dialect.DuckDb;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -63,7 +62,7 @@ class ChainTypeDispatchTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE CAR(ID INTEGER, NAME VARCHAR, ENGINE VARCHAR)");
             st.execute("INSERT INTO CAR VALUES (1,'Sedan','V8'),(3,'Hatch','electric')");
@@ -84,7 +83,7 @@ class ChainTypeDispatchTest {
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(
                 com.legend.testing.Own.spec("|" + chain + "->from(rt::M, rt::RT)")));
-        return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(
+        return TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(
                 new StoreResolver(ctx, specs).resolve(body, null)));
     }
 

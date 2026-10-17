@@ -3,14 +3,14 @@
 
 package com.legend.compiler;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Execution;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -33,7 +33,7 @@ class LeniencyD6Test {
 
     private static String reject(Connection c, String model, String q) {
         Exception e = assertThrows(Exception.class,
-                () -> Execution.execute(StorelessRuntime.with(model, DatabaseType.DuckDB), q, StorelessRuntime.RUNTIME, c));
+                () -> Execution.execute(StorelessRuntime.with(model, Databases.PLATFORM), q, StorelessRuntime.RUNTIME, c));
         assertNotNull(e.getMessage());
         return e.getMessage().split("\n")[0];
     }
@@ -47,7 +47,7 @@ class LeniencyD6Test {
 
     @Test
     void frontendLeniencyBatchRejects() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             // inheritance cycle: previously ACCEPTED, StackOverflow at demand
             expect(c, "Class m::A extends m::B {}\nClass m::B extends m::A {}",
                     "{|1}", "Inheritance cycle: m::A -> m::B -> m::A");
@@ -105,12 +105,12 @@ class LeniencyD6Test {
      * a VALID model with the same shapes still compiles and runs. */
     @Test
     void validNeighborsStillCompile() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             Execution.execute(StorelessRuntime.with("""
                     Class m::B { y: Integer[1]; }
                     Class m::A extends m::B { x: String[0..1]; }
                     Enum m::E { A, B }
-                    """, DatabaseType.DuckDB), "{|1}", StorelessRuntime.RUNTIME, c);
+                    """, Databases.PLATFORM), "{|1}", StorelessRuntime.RUNTIME, c);
         }
     }
 }

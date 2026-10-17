@@ -7,14 +7,15 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
+import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.H2;
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.List;
 
@@ -32,15 +33,17 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * {@code FloatLit(double)}: {@code 3.14f} became
  * {@code 3.140000104904175}, which matches no row. And timestamps went
  * through {@code LocalDateTime.toString()}, which DROPS {@code :00}
- * seconds — a JDK convenience spelling a repr-ruled value.
+ * seconds — a JDK convenience spelling a repr-ruled value. On H2, whose driver
+ * reports a REAL as a {@code Float} (DynamicPivotKeyLiteralTest until the dialect
+ * program's Phase 6, 2026-10-16).
  */
-class DynamicPivotKeyLiteralTest {
+class DynamicPivotKeyLiteralH2Test {
 
     private static Connection conn;
 
     @BeforeAll
     static void open() throws Exception {
-        conn = DriverManager.getConnection("jdbc:h2:mem:pivotkeys");
+        conn = TestBackends.of(DatabaseType.H2).open();
     }
 
     @AfterAll

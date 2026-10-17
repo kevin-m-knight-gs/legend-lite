@@ -3,7 +3,8 @@
 
 package com.legend.lowering;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Execution;
@@ -11,7 +12,6 @@ import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,8 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class EmptyListAggregateTest {
 
     private static String scalar(String query) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c);
+        try (Connection c = TestBackends.platform().open()) {
+            ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c);
             if (r instanceof ExecutionResult.Scalar s) {
                 return String.valueOf(s.value());
             }

@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.error.LegendCompileException;
 import com.legend.exec.ExecutionResult;
 import com.legend.plan.QueryPlan;
@@ -7,7 +8,6 @@ import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
@@ -90,7 +90,7 @@ class UserFunctionIntegrationTest {
 
     @BeforeAll
     static void initDb() throws SQLException {
-        connection = DriverManager.getConnection("jdbc:duckdb:");
+        connection = TestBackends.platform().open();
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
                 CREATE TABLE T_PERSON (

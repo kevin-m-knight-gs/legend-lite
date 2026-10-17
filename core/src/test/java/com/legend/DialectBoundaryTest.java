@@ -106,7 +106,9 @@ class DialectBoundaryTest {
             // 20 -> 12 (2026-10-16, the dialect program's Phase 5): a database's server versions and how its rows load
             // are its dialect's (SqlDialect.serverVersions, loadsRowsInBulk); the IN-list facts, legend-engine's, are
             // EngineText's (7 -> 9)
-            "Databases.java", 12,           // the owner: a declared type's dialect
+            // 12 -> 14 (2026-10-16, the dialect program's Phase 6): which types the platform executes on
+            // (Databases.implemented, which tests and tools iterate instead of listing databases), one arm each way
+            "Databases.java", 14,           // the owner: a declared type's dialect
             // Sessions.java 24 -> 0, row deleted, and StorelessRuntime.java 5 -> 0, row deleted (2026-10-16, the
             // dialect program's Phase 5): each type's product name, URL, opening and storeless declaration are its
             // connector's; Connectors is the registry, one arm per type, as Databases is the dialects'

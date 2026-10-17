@@ -4,12 +4,14 @@ import com.legend.exec.ExecutionResult;
 import com.legend.compiler.element.ModelContext;
 import com.legend.model.ClassDefinition;
 import com.legend.model.DatabaseDefinition;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -30,18 +32,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class SQLiteIntegrationTest extends AbstractDatabaseTest {
 
     @Override
-    protected String getDatabaseType() {
-        return "SQLite";
-    }
-
-    @Override
-    protected String getJdbcUrl() {
-        return "jdbc:sqlite::memory:"; // In-memory SQLite
+    protected TestBackend backend() {
+        return TestBackends.of(DatabaseType.SQLite);
     }
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         setupDatabase();
     }
 

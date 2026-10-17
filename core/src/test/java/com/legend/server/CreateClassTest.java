@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,7 +16,6 @@ import com.legend.test.ServiceTestRunner;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -264,8 +265,8 @@ class CreateClassTest {
                 .filter(e -> e instanceof ServiceDefinition s && s.qualifiedName().equals("trades::Check"))
                 .map(e -> (ServiceDefinition) e).findFirst().orElseThrow();
         List<ServiceTestRunner.Result> results = new ServiceTestRunner(com.legend.Compiler.compileModel(model),
-                () -> DriverManager.getConnection("jdbc:duckdb:"), ServiceTestRunner.Sessions.FRESH_PER_TEST,
-                ConnectionDefinition.DatabaseType.DuckDB).run(service);
+                () -> TestBackends.platform().open(), ServiceTestRunner.Sessions.FRESH_PER_TEST,
+                Databases.PLATFORM).run(service);
         assertEquals(1, results.size(), results.toString());
         assertTrue(results.get(0).pass(), results.toString());
     }

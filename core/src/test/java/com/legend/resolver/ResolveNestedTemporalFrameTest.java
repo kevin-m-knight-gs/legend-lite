@@ -3,6 +3,7 @@
 
 package com.legend.resolver;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
@@ -10,7 +11,6 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
 import com.legend.sql.SqlQuery;
-import com.legend.sql.dialect.DuckDb;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -64,7 +64,7 @@ class ResolveNestedTemporalFrameTest {
         List<TypedSpec> resolved = new StoreResolver(ctx, specs)
                 .resolve(body, "q::RT");
         SqlQuery plan = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved);
-        return new DuckDb().render(plan);
+        return TestBackends.platform().dialect().render(plan);
     }
 
     @Test

@@ -398,6 +398,8 @@ legend_java_library(
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's
             "src/test/java/com/legend/testcases/*.java",
+            # the tests' databases are :test_backends's
+            "src/test/java/com/legend/testbackend/*.java",
             # the toy section grammar and its test are :toy_grammar's and :section_grammar_registry_test's (P3-04)
             "src/test/java/com/legend/parser/SectionGrammarRegistryTest.java",
             "src/test/java/com/legend/parser/ToySectionGrammar.java",
@@ -424,13 +426,14 @@ legend_java_library(
             "src/test/resources/META-INF/services/com.legend.spi.SectionGrammar",
         ],
     ),
-    # :duckdb_load: the bulk-load path RowLoadTest judges, declared, not borrowed from :drivers (P3-02)
+    # :duckdb_load: the bulk-load path RowLoadDuckDbTest judges, declared, not borrowed from :drivers (P3-02)
     runtime_deps = [
         ":duckdb_load",
         ":shadow_binding",
     ],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:com_tngtech_archunit_archunit",
@@ -593,12 +596,12 @@ java_test(
 )
 
 # THE BULK-LOAD PATH, on its own (Bazel workplan P3-02): DuckDB's Appender is found through ServiceLoader
-# (:duckdb_load) and lands exactly the rows the insert text lands; RowLoadTest asserts the Appender ran.
+# (:duckdb_load) and lands exactly the rows the insert text lands; RowLoadDuckDbTest asserts the Appender ran.
 junit_test(
     name = "duckdb_load_test",
     memory_mb = 768,
     size = "small",
-    select = ["--select-class=com.legend.exec.RowLoadTest"],
+    select = ["--select-class=com.legend.exec.RowLoadDuckDbTest"],
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",
@@ -946,6 +949,22 @@ legend_java_library(
     ],
 )
 
+# THE TESTS' DATABASES (the dialect program's Phase 6, 2026-10-16): a TestBackend per database the platform executes on
+# (its session, its storeless runtime, a server's system connection) and TestBackends, the registry -- the harness
+# knowledge every module's tests share instead of naming a database each (core's tests, the PCT lanes, the corpus)
+legend_java_library(
+    name = "test_backends",
+    # not yet written to the null discipline (Bazel workplan P1-20), as core_tests_lib
+    nullaway = False,
+    testonly = True,
+    srcs = glob(["src/test/java/com/legend/testbackend/*.java"]),
+    visibility = ["//pct:__pkg__", "//spec:__pkg__"],
+    deps = [
+        ":core",
+        "//testing",
+    ],
+)
+
 # THE SOURCE CHECKS: tests whose subject is the code, not what it does — the
 # guardrails (a hard rule: file and method size, layer boundaries), the ratchets
 # (a count that may only fall: SQL built as text, JDBC accessor sites) and the
@@ -1095,7 +1114,7 @@ junit_test(
 )
 
 # The stress corpus's measuring tool (StressTool: data overrides, row dumps, one service, a session policy):
-#   bazel run //core:stress_tool -- [--backend duckdb|h2] [--sessions fresh|shared] [--only NAME] [--data F.pure,...]
+#   bazel run //core:stress_tool -- [--backend NAME] [--sessions fresh|shared] [--only NAME] [--data F.pure,...]
 #       [--rows DIR] [--out DIR]
 legend_java_binary(
     name = "stress_tool",

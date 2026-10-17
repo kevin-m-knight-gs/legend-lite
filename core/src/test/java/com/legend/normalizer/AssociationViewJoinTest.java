@@ -3,12 +3,12 @@
 
 package com.legend.normalizer;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Execution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.List;
 
@@ -52,7 +52,7 @@ class AssociationViewJoinTest {
     @Test
     @DisplayName("association joining through a view column navigates")
     void viewJoinNavigates() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE TA (ID INTEGER)");
                 st.execute("CREATE TABLE TB (ID INTEGER, AID INTEGER)");
@@ -76,7 +76,7 @@ class AssociationViewJoinTest {
     @Test
     @DisplayName("view-mapped SOURCE keeps its frame columns (backing-view exemption)")
     void viewMappedSourceNavigates() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE TA (ID INTEGER)");
                 st.execute("CREATE TABLE TB (ID INTEGER, AID INTEGER)");

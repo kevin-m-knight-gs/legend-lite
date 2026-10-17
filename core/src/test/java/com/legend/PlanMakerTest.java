@@ -10,21 +10,20 @@ import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testcases.PlanCases;
 import com.legend.testcases.PlanCases.OptionalCase;
 import com.legend.testcases.PlanCases.Parameterised;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.io.StringWriter;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,14 +33,55 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link Execution} (its connection's declared test data established first, as the server establishes it), and through
  * its plan — the target's session statements, its setup steps, its statement — run here as each step describes itself
  * (the runner is step 3; the cases and the run are {@link PlanCases}'). The texts must be equal, byte for byte.
- * Postgres's case is {@code PostgresArmTest}'s (it needs the embedded Postgres).
+ * Each in-process database answers; Postgres's case is {@code PostgresArmTest}'s (it needs the embedded Postgres). What
+ * one database's plan says (its versions, its session, its bindings) is that database's test, {@code PlanMaker<Db>Test}
+ * (the dialect program's Phase 6, 2026-10-16).
  */
 class PlanMakerTest {
 
-    private static final AtomicInteger H2_NAMES = new AtomicInteger();
+    /** The register of each database's known differences from today's paths, shrink-only: a row is its backend, the
+     *  output, the query (today's form: its values as lets) and a part of the failure's message; lines starting
+     *  {@code #} are its reasons (the dialect program's Phase 6, 2026-10-16, when the cases first ran on SQLite). */
+    private static final String DIFFERENCES_FILE = "plan-maker/differences.tsv";
+
+    private static final java.util.Map<String, String> DIFFERENCES = differences();
+
+    /** The register's rows the cases reached, so that a row no case reaches fails ({@link #everyDifferenceIsACase}). */
+    private static final java.util.Set<String> CONSULTED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private static java.util.Map<String, String> differences() {
+        java.util.Map<String, String> rows = new java.util.LinkedHashMap<>();
+        try (var in = java.util.Objects.requireNonNull(PlanMakerTest.class.getClassLoader()
+                .getResourceAsStream(DIFFERENCES_FILE), DIFFERENCES_FILE)) {
+            for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                if (line.isBlank() || line.startsWith("#")) {
+                    continue;
+                }
+                String[] cells = line.split("\t");
+                if (cells.length != 4) {
+                    throw new IllegalStateException(DIFFERENCES_FILE + ": a row is backend, output, query, failure: "
+                            + line);
+                }
+                rows.put(cells[0] + "\t" + cells[1] + "\t" + cells[2], cells[3]);
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return rows;
+    }
+
+    @org.junit.jupiter.api.AfterAll
+    static void everyDifferenceIsACase() {
+        java.util.Set<String> unreached = new java.util.TreeSet<>(DIFFERENCES.keySet());
+        unreached.removeAll(CONSULTED);
+        assertEquals(java.util.Set.of(), unreached, "rows of " + DIFFERENCES_FILE + " no case reaches: remove them");
+    }
+
+    /** The databases a plan is run on here: every in-process one. */
+    static final List<DatabaseType> IN_PROCESS = TestBackends.inProcess().stream().map(TestBackend::type).toList();
 
     /** A table of three rows, declared as the connection's test data; {@code type} is the connection's database. */
-    private static String model(String type) {
+    static String model(String type) {
         return """
                 Class s::Item { id: Integer[1]; name: String[0..1]; price: Decimal[0..1]; }
                 ###Relational
@@ -71,7 +111,7 @@ class PlanMakerTest {
 
     @Test
     void aRelationsPlanAnswersAsTodaysPaths_everyOutput() throws Exception {
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+        for (DatabaseType type : IN_PROCESS) {
             for (String query : List.of(RELATION, NONE, PROJECT)) {
                 for (TypedQuery.Output output : TypedQuery.Output.values()) {
                     assertAnswersAsToday(type, query, output);
@@ -82,7 +122,7 @@ class PlanMakerTest {
 
     @Test
     void aGraphFetchsPlanAnswersAsTodaysPaths_inJson() throws Exception {
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+        for (DatabaseType type : IN_PROCESS) {
             assertAnswersAsToday(type, GRAPH, TypedQuery.Output.JSON);
             assertAnswersAsToday(type, GRAPH, TypedQuery.Output.STREAMED_JSON);
             var refused = assertThrows(com.legend.error.NotImplementedException.class,
@@ -91,23 +131,15 @@ class PlanMakerTest {
         }
     }
 
+    /** The target names its connection on every database; its versions, session and rows are each database's own
+     *  ({@code PlanMaker<Db>Test}). */
     @Test
-    void theTargetIsWhole_itsDatabaseVersionsSessionAndSetup() {
-        ExecutionPlan.Target duck = target(plan(DatabaseType.DuckDB, RELATION, TypedQuery.Output.JSON));
-        assertEquals("s::Conn", ((ExecutionPlan.Database.Declared) duck.database()).connection().qualifiedName());
-        assertEquals(new ExecutionPlan.Servers.Every(), duck.servers());
-        assertEquals(List.of("SET TimeZone='UTC'"), duck.session());
-        // DuckDB's rows go to its bulk loader: the create, the rows, the copy and the drop
-        ExecutionPlan.SetupStep.Rows rows = (ExecutionPlan.SetupStep.Rows) duck.setup().get(duck.setup().size() - 1);
-        assertEquals(List.of(List.of("1", "a", "1.50"), java.util.Arrays.asList("2", "O'Brien", null),
-                java.util.Arrays.asList("3", null, "3.25")), rows.rows());
-
-        ExecutionPlan.Target h2 = target(plan(DatabaseType.H2, RELATION, TypedQuery.Output.JSON));
-        assertEquals(new ExecutionPlan.Servers.Versions(List.of("2.1", "2.2")), h2.servers());
-        assertEquals(List.of(), h2.session());
-        // H2's rows are one INSERT
-        assertInstanceOf(ExecutionPlan.SetupStep.Statement.class, h2.setup().get(h2.setup().size() - 1));
-        assertTrue(h2.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.SetupStep.Rows), h2.setup().toString());
+    void theTargetNamesItsConnection() {
+        for (DatabaseType type : IN_PROCESS) {
+            ExecutionPlan.Target t = target(plan(type, RELATION, TypedQuery.Output.JSON));
+            assertEquals("s::Conn", ((ExecutionPlan.Database.Declared) t.database()).connection().qualifiedName(),
+                    type.name());
+        }
     }
 
     @Test
@@ -127,8 +159,8 @@ class PlanMakerTest {
         ExecutionPlan.Target t = target(plan);
         assertEquals(new ExecutionPlan.Database.Platform(Databases.PLATFORM), t.database());
         assertEquals(List.of(), t.setup());
-        try (Connection today = DriverManager.getConnection("jdbc:duckdb:");
-             Connection planned = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection today = TestBackends.platform().open();
+             Connection planned = TestBackends.platform().open()) {
             StringWriter out = new StringWriter();
             Execution.executeWire(model, query, "m::RT", today, WireRender.Format.JSON, out);
             assertEquals(out.toString(), PlanCases.run(plan, planned));
@@ -161,7 +193,7 @@ class PlanMakerTest {
 
     @Test
     void anOptionalParametersPlanAnswersAsTheQuery_withItsValueAndWithNone() throws Exception {
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+        for (DatabaseType type : IN_PROCESS) {
             for (OptionalCase q : PlanCases.optionals("T")) {
                 for (TypedQuery.Output output : TypedQuery.Output.values()) {
                     assertAnswersAsToday(type, q.withParameter(), q.withValue(), java.util.Map.of("x", q.value()),
@@ -181,7 +213,7 @@ class PlanMakerTest {
 
     @Test
     void anEnumerationParametersPlanAnswersAsTheQueryWithItsValue() throws Exception {
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+        for (DatabaseType type : IN_PROCESS) {
             for (Parameterised q : PlanCases.enumerations()) {
                 for (TypedQuery.Output output : TypedQuery.Output.values()) {
                     assertAnswersAsToday(enumModel(type), type, q.withParameters(), q.withLets(),
@@ -193,7 +225,7 @@ class PlanMakerTest {
 
     @Test
     void aListParametersPlanAnswersAsTheQueryWithItsValues_everyOutput() throws Exception {
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+        for (DatabaseType type : IN_PROCESS) {
             for (Parameterised q : PlanCases.lists("T")) {
                 for (TypedQuery.Output output : TypedQuery.Output.values()) {
                     assertAnswersAsToday(type, q.withParameters(), q.withLets(), q.values(), output);
@@ -208,13 +240,10 @@ class PlanMakerTest {
         }
     }
 
+    /** A list of decimals is refused by name (a list's one array is each database's: {@code PlanMaker<Db>Test}). */
     @Test
-    void aListIsOneArray_andAListOfDecimalsIsRefusedByName() {
-        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(DatabaseType.H2, PlanCases.lists("T").get(0).withParameters(),
-                TypedQuery.Output.JSON).root()).sql();
-        assertTrue(sql.statement().contains("= ANY(?)"), sql.statement());
-        assertEquals(List.of(new ExecutionPlan.Slot("ns", new ExecutionPlan.Binding.Array("BIGINT"))), sql.slots());
-        var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(DatabaseType.DuckDB,
+    void aListOfDecimalsIsRefusedByName() {
+        var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(Databases.PLATFORM,
                 "{ps: Decimal[*]|#>{s::DB.T}#->filter(r|$r.ID->in($ps))}", TypedQuery.Output.JSON));
         assertTrue(refused.getMessage().contains("PARK-20"), refused.getMessage());
     }
@@ -223,7 +252,7 @@ class PlanMakerTest {
      *  comparison reads the stored column and keeps its index (§9, measured: probes/enum-index-results.txt). */
     @Test
     void anEnumerationParameterIsComparedThroughAValueTable() {
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(enumModel(DatabaseType.DuckDB)),
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(enumModel(Databases.PLATFORM)),
                 PlanCases.enumerations().get(0).withParameters()).executionPlan("s::RT", TypedQuery.Output.JSON);
         String statement = ((ExecutionPlan.TextResult) plan.root()).sql().statement();
         assertTrue(statement.contains("IN (SELECT") && statement.contains("VALUES ('A', 'ACTIVE'), ('X', 'ACTIVE'),"
@@ -233,14 +262,14 @@ class PlanMakerTest {
 
     @Test
     void anOptionalParametersEqualityIsNullSafe() {
-        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(DatabaseType.DuckDB,
+        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(Databases.PLATFORM,
                 PlanCases.optionals("T").get(0).withParameter(), TypedQuery.Output.JSON).root()).sql();
         assertTrue(sql.statement().contains("IS NOT DISTINCT FROM ?"), sql.statement());
     }
 
     @Test
     void aScalarParametersPlanAnswersAsTheQueryWithItsValue_everyOutput() throws Exception {
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+        for (DatabaseType type : IN_PROCESS) {
             for (Parameterised q : SCALARS) {
                 for (TypedQuery.Output output : TypedQuery.Output.values()) {
                     assertAnswersAsToday(type, q.withParameters(), q.withLets(), q.values(), output);
@@ -249,89 +278,37 @@ class PlanMakerTest {
         }
     }
 
-    /** H2 types a parameter when it prepares the statement, and a Float's, a Decimal's, a Date's or a Number's type is
-     *  its value's: H2's plan casts it to a TYPE HOLE the runner fills with the type H2 gives that value's literal
-     *  (probes/value-typed-cast-results.txt); DuckDB's binds it bare, as the database types the value. Every scalar case
-     *  above answers through it on H2. */
+    /** A DateTime parameter is cast to the type of its value's literal on every database (each one's spelling is its
+     *  own test's, {@code PlanMaker<Db>Test}): a type hole, absent a date-time, a null a TIMESTAMP. */
     @Test
-    void aParameterTypedByItsValueIsCastToATypeHoleOnH2() {
-        ExecutionPlan.Sql h2 = ((ExecutionPlan.TextResult) plan(DatabaseType.H2, "{f: Float[1]|#>{s::DB.T}#"
-                + "->extend(~x: r|$r.ID * $f)->select(~[ID, x])}", TypedQuery.Output.JSON).root()).sql();
-        assertEquals(1, h2.slots().size());
-        ExecutionPlan.Binding.One one = (ExecutionPlan.Binding.One) h2.slots().get(0).binding();
-        ExecutionPlan.TypeHole hole = java.util.Objects.requireNonNull(one.hole(), "a type hole");
-        assertEquals("CAST(? AS )", h2.statement().substring(hole.at() - "CAST(? AS ".length(), hole.at() + 1),
-                h2.statement());
-        assertEquals(java.util.Map.of(
-                ExecutionPlan.ValueKind.DECIMAL, new ExecutionPlan.TypeSpelling("NUMERIC",
-                        ExecutionPlan.Digits.PRECISION_AND_SCALE),
-                ExecutionPlan.ValueKind.FLOATING, new ExecutionPlan.TypeSpelling("DECFLOAT",
-                        ExecutionPlan.Digits.PRECISION)), hole.types());
-        assertEquals(ExecutionPlan.ValueKind.DECIMAL, hole.absent());
-        assertEquals("DECIMAL", one.nullType());
-        ExecutionPlan.Sql duck = ((ExecutionPlan.TextResult) plan(DatabaseType.DuckDB, "{f: Float[1]|#>{s::DB.T}#"
-                + "->extend(~x: r|$r.ID * $f)->select(~[ID, x])}", TypedQuery.Output.JSON).root()).sql();
-        assertEquals(List.of(new ExecutionPlan.Slot("f", new ExecutionPlan.Binding.One("DECIMAL", null))),
-                duck.slots());
-    }
-
-    /** A DateTime parameter is cast to the type of its value's literal on every database, and passed as its text: H2's
-     *  keeps nanoseconds (a plain TIMESTAMP keeps six digits and rounds the rest; probes/value-typed-cast-results.txt),
-     *  DuckDB's is a TIMESTAMP_NS only when the value has digits finer than a microsecond, Postgres's keeps six and cuts
-     *  the rest, as each literal writer does (probes/timestamp-results.txt). */
-    @Test
-    void aDateTimeParameterIsCastToItsLiteralsTypeOnEveryDatabase() {
-        String query = "{t: DateTime[1]|#>{s::DB.T}#->extend(~t: r|$t)->select(~[ID, t])}";
-        java.util.Map<DatabaseType, java.util.Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling>> expected =
-                java.util.Map.of(
-                        DatabaseType.H2, java.util.Map.of(
-                                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
-                                        ExecutionPlan.Digits.NONE),
-                                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
-                                        ExecutionPlan.Digits.NONE)),
-                        DatabaseType.DuckDB, java.util.Map.of(
-                                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                                        ExecutionPlan.Digits.NONE),
-                                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP_NS",
-                                        ExecutionPlan.Digits.NONE)),
-                        DatabaseType.Postgres, java.util.Map.of(
-                                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                                        ExecutionPlan.Digits.NONE),
-                                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                                        ExecutionPlan.Digits.NONE, 6)));
-        expected.forEach((type, types) -> {
-            ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(type, query, TypedQuery.Output.JSON).root()).sql();
-            ExecutionPlan.Binding.One one = (ExecutionPlan.Binding.One) sql.slots().get(0).binding();
+    void aDateTimeParameterIsCastToATypeHoleOnEveryDatabase() {
+        for (DatabaseType type : IN_PROCESS) {
+            ExecutionPlan.Binding.One one = dateTimeBinding(type);
             ExecutionPlan.TypeHole hole = java.util.Objects.requireNonNull(one.hole(), type + ": a type hole");
-            assertEquals(types, hole.types(), type.name());
+            assertEquals(java.util.Set.of(ExecutionPlan.ValueKind.DATE_TIME, ExecutionPlan.ValueKind.DATE_TIME_NANOS),
+                    hole.types().keySet(), type.name());
             assertEquals(ExecutionPlan.ValueKind.DATE_TIME, hole.absent(), type.name());
             assertEquals("TIMESTAMP", one.nullType(), type.name());
-        });
+        }
     }
 
-
-    @Test
-    void aScalarParameterIsDeclared_andBoundWhereItIsWritten() {
-        ExecutionPlan plan = plan(DatabaseType.H2, "{n: Integer[1]|#>{s::DB.T}#->filter(r|$r.ID != $n)"
-                + "->extend(~plus: r|$r.ID + $n)->select(~[ID, plus])}", TypedQuery.Output.JSON);
-        assertEquals(List.of(new ExecutionPlan.Parameter("n", "Integer", new ExecutionPlan.Multiplicity(1, 1),
-                List.of())), plan.parameters());
-        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan.root()).sql();
-        ExecutionPlan.Slot n = new ExecutionPlan.Slot("n", new ExecutionPlan.Binding.One("BIGINT", null));
-        assertEquals(List.of(n, n), sql.slots());
-        assertEquals(2, sql.statement().chars().filter(ch -> ch == '?').count(), sql.statement());
+    /** The binding of a DateTime parameter, written as a column's value, on {@code type}. */
+    static ExecutionPlan.Binding.One dateTimeBinding(DatabaseType type) {
+        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(type, "{t: DateTime[1]|#>{s::DB.T}#->extend(~t: r|$t)"
+                + "->select(~[ID, t])}", TypedQuery.Output.JSON).root()).sql();
+        return (ExecutionPlan.Binding.One) sql.slots().get(0).binding();
     }
 
     /** What a plan does not bind yet is refused when the plan is made, by name (PARK-21): a class instance, an
      *  optional enumeration (its absence's answer unmeasured against legend-engine). */
     @Test
     void anUnboundParameterKindIsRefusedByName() {
-        var aClass = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(DatabaseType.DuckDB,
+        var aClass = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(Databases.PLATFORM,
                 "{i: s::Item[1]|#>{s::DB.T}#->filter(r|$r.ID == $i.id)}", TypedQuery.Output.JSON));
         assertTrue(aClass.getMessage().contains("a class instance is not bound") && aClass.getMessage().contains("PARK-21"),
                 aClass.getMessage());
         var optionalEnum = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(
-                Compiler.compileModel(enumModel(DatabaseType.DuckDB)), "{st: s::Status[0..1]|s::Acct.all()"
+                Compiler.compileModel(enumModel(Databases.PLATFORM)), "{st: s::Status[0..1]|s::Acct.all()"
                         + "->filter(a|$a.status == $st)->project(~[id: a|$a.id])}").executionPlan("s::RT", TypedQuery.Output.JSON));
         assertTrue(optionalEnum.getMessage().contains("an optional enumeration's absence")
                 && optionalEnum.getMessage().contains("PARK-21"), optionalEnum.getMessage());
@@ -341,7 +318,7 @@ class PlanMakerTest {
      *  name, never bound as something it is not. */
     @Test
     void aListParameterWrittenWhereOneValueGoesIsRefusedByName() {
-        var refused = assertThrows(com.legend.sql.dialect.DialectCapability.class, () -> plan(DatabaseType.DuckDB,
+        var refused = assertThrows(com.legend.sql.dialect.DialectCapability.class, () -> plan(Databases.PLATFORM,
                 "{ns: Integer[*]|#>{s::DB.T}#->extend(~n: r|$ns->size())->select(~[ID, n])}", TypedQuery.Output.JSON));
         assertTrue(refused.getMessage().contains("is bound only as a whole list"), refused.getMessage());
     }
@@ -350,7 +327,7 @@ class PlanMakerTest {
      *  (no row to stream), as today's paths write it. */
     @Test
     void aValuesPlanAnswersAsTodaysPaths_everyOutput() throws Exception {
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+        for (DatabaseType type : IN_PROCESS) {
             for (String query : List.of("|#>{s::DB.T}#->select(~[ID])->size()",
                     "|s::Item.all()->map(i|$i.id)->sort()")) {
                 for (TypedQuery.Output output : TypedQuery.Output.values()) {
@@ -362,11 +339,11 @@ class PlanMakerTest {
 
     // ---------------------------------------------------------------------------------------------------------------
 
-    private static ExecutionPlan plan(DatabaseType type, String query, TypedQuery.Output output) {
+    static ExecutionPlan plan(DatabaseType type, String query, TypedQuery.Output output) {
         return Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT", output);
     }
 
-    private static ExecutionPlan.Target target(ExecutionPlan plan) {
+    static ExecutionPlan.Target target(ExecutionPlan plan) {
         return ((ExecutionPlan.TextResult) plan.root()).sql().target();
     }
 
@@ -384,6 +361,21 @@ class PlanMakerTest {
     /** {@link #assertAnswersAsToday(DatabaseType, String, String, java.util.Map, TypedQuery.Output)} over
      *  {@code model}, whose runtime is {@code s::RT}. */
     private static void assertAnswersAsToday(String model, DatabaseType type, String withParameters, String query,
+            java.util.Map<String, Object> values, TypedQuery.Output output) throws Exception {
+        String key = TestBackends.of(type).name() + "\t" + output + "\t" + query;
+        String known = DIFFERENCES.get(key);
+        CONSULTED.add(key);
+        if (known == null) {
+            answersAsToday(model, type, withParameters, query, values, output);
+            return;
+        }
+        Throwable failed = assertThrows(Throwable.class,
+                () -> answersAsToday(model, type, withParameters, query, values, output),
+                key + ": answers as today now; remove its row from " + DIFFERENCES_FILE);
+        assertTrue(String.valueOf(failed.getMessage()).contains(known), key + ": " + failed.getMessage());
+    }
+
+    private static void answersAsToday(String model, DatabaseType type, String withParameters, String query,
             java.util.Map<String, Object> values, TypedQuery.Output output) throws Exception {
         String what = type + " " + output + " " + withParameters;
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), withParameters).executionPlan("s::RT", output);
@@ -403,11 +395,6 @@ class PlanMakerTest {
     }
 
     private static Connection fresh(DatabaseType type) throws SQLException {
-        return switch (type) {
-            case DuckDB -> DriverManager.getConnection("jdbc:duckdb:");
-            case H2 -> DriverManager.getConnection("jdbc:h2:mem:planmaker" + H2_NAMES.incrementAndGet()
-                    + com.legend.exec.H2Connector.SETTINGS);
-            default -> throw new IllegalArgumentException(type.name());
-        };
+        return TestBackends.of(type).open();
     }
 }

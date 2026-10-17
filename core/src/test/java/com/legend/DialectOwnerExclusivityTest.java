@@ -52,7 +52,12 @@ class DialectOwnerExclusivityTest {
             // step 2, the engine-H2 row). Whether the engine text should spell them at all is the engine-text work's
             // question, not this guard's.
             new Crossing("core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java", "DuckDB", 9,
-                    "the corpus reads the engine-H2 text on DuckDB: ten DuckDB-only functions spelled DuckDB's way"));
+                    "the corpus reads the engine-H2 text on DuckDB: ten DuckDB-only functions spelled DuckDB's way"),
+            // 2026-10-16 (registered as measured, the dialect program's Phase 6): the warehouse is one DuckDB that
+            // attaches Postgres catalogs (the plan's D4, mixed-engine by design), so its test named for those catalogs
+            // reads the DuckDB side's library and extension flag. The warehouse is Phase 7's.
+            new Crossing("warehouse/src/test/java/com/legend/warehouse/server/PostgresCatalogTest.java", "DuckDB", 2,
+                    "the warehouse's Postgres catalogs are attached to its DuckDB: the test reads DuckDB's flags"));
 
     /** {@code DatabaseType.valueOf} and {@code .values()}: the vocabulary reading a name, deciding nothing. */
     private static final Pattern ANY_TYPE = Pattern.compile("\\bDatabaseType\\s*\\.\\s*(valueOf|values)\\b");
@@ -67,8 +72,10 @@ class DialectOwnerExclusivityTest {
     @Test
     void eachOwnerNamesOnlyItsOwnDatabase() throws IOException {
         Map<String, Integer> crossings = new TreeMap<>();
-        for (Path f : SourceFiles.under(MAIN_ROOTS.get(0), MAIN_ROOTS.subList(1, MAIN_ROOTS.size())
-                .toArray(String[]::new))) {
+        // the tests too (2026-10-16, the dialect program's Phase 6): the test backends, and every test named for a
+        // database, are owners there
+        for (Path f : SourceFiles.under(MAIN_ROOTS.get(0), MAIN_ROOTS.get(1), "core/src/test/java", "pct/src/test/java",
+                "spec/src/test/java", "parser-equivalence/src", "warehouse/src/test/java")) {
             String rel = SourceFiles.path(f);
             if (!rel.endsWith(".java")) {
                 continue;
@@ -83,8 +90,8 @@ class DialectOwnerExclusivityTest {
             List<String> read = new ArrayList<>(lines.code());
             // a connector's strings too (2026-10-16, the dialect program's Phase 5, the audit of the branch): its URLs,
             // its product name and its messages are its own database's, and no census counts them (the leak ratchet
-            // skips an owner, the boundary census skips a connector)
-            if (owner.kind() == DatabaseOwners.Kind.CONNECTOR) {
+            // skips an owner, the boundary census skips a connector); a test backend's alike (Phase 6)
+            if (owner.kind() == DatabaseOwners.Kind.CONNECTOR || owner.kind() == DatabaseOwners.Kind.BACKEND) {
                 read.addAll(lines.strings());
             }
             for (String line : read) {

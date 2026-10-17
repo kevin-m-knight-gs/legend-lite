@@ -2,6 +2,8 @@ package com.legend.integration;
 
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -280,12 +282,17 @@ public abstract class AbstractDatabaseTest {
     // ====================
 
     /**
-     * @return The database type string for this test ("DuckDB" or "SQLite")
+     * The database this test runs on: the platform's own engine, unless a test named for a database says it is that
+     * database's (the dialect program's Phase 6, 2026-10-16).
      */
-    protected abstract String getDatabaseType();
+    protected TestBackend backend() {
+        return TestBackends.platform();
+    }
 
     /**
-     * Builds the Connection Pure definition for this database.
+     * Builds the Connection Pure definition for this database: its type, and the specification and authentication of
+     * the session {@link TestBackend#open} opens (until 2026-10-16 every type declared a DuckDB specification, SQLite's
+     * too: the plan's defect 6).
      */
     protected String getConnectionDefinition() {
         return """
@@ -293,10 +300,9 @@ public abstract class AbstractDatabaseTest {
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: %s;
-                    specification: DuckDB { };
-                    auth: Test;
+                    %s;
                 }
-                """.formatted(getDatabaseType());
+                """.formatted(backend().type(), backend().specificationAndAuth());
     }
 
     /**
@@ -402,13 +408,6 @@ public abstract class AbstractDatabaseTest {
             throw e; // core's compile-error surface reaches callers directly
         }
     }
-
-    // ==================== SQL Dialect ====================
-
-    /**
-     * @return The JDBC URL for the in-memory database
-     */
-    protected abstract String getJdbcUrl();
 
     // ==================== Database Setup ====================
 

@@ -4,6 +4,9 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.exec.ExecutionResult;
 import com.legend.model.ClassMapping;
 import com.legend.model.PropertyMapping;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,18 +35,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
     @Override
-    protected String getDatabaseType() {
-        return "DuckDB";
-    }
-
-    @Override
-    protected String getJdbcUrl() {
-        return "jdbc:duckdb:"; // In-memory DuckDB
+    protected TestBackend backend() {
+        return TestBackends.of(DatabaseType.DuckDB);
     }
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         setupDatabase();
     }
 
