@@ -1400,3 +1400,21 @@ tests:
   - id: a_missing_column_after_a_string_against_a_number
     sql: "SELECT id FROM t WHERE id = '5' AND nosuch = 1"
     profile: iq17-default
+
+  # ---- IQ computes no value of a derived table's column no one reads (measured on IQ 17.1, 2026-10-17): a division by
+  # zero, a conversion that fails, an overflow there raise nothing
+  - id: an_unread_division_by_zero
+    sql: "SELECT d.k FROM (SELECT id AS k, 1 / 0 AS s FROM t) d ORDER BY d.k"
+    profile: iq17-default
+  - id: an_unread_failing_cast
+    sql: "SELECT d.k FROM (SELECT id AS k, CAST('x' AS INT) AS s FROM t) d ORDER BY d.k"
+    profile: iq17-default
+  - id: an_unread_overflow
+    sql: "SELECT d.k FROM (SELECT id AS k, bg * bg AS s FROM t) d ORDER BY d.k"
+    profile: iq17-default
+  - id: an_unread_date_that_is_none
+    sql: "SELECT d.k FROM (SELECT id AS k, CAST('2020-13-45' AS DATE) AS s FROM t) d ORDER BY d.k"
+    profile: iq17-default
+  - id: an_unread_division_by_a_zero_column
+    sql: "SELECT d.k FROM (SELECT id AS k, id / (id - id) AS s FROM t) d ORDER BY d.k"
+    profile: iq17-default

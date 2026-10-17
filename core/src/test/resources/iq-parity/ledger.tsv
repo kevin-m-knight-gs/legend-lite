@@ -988,6 +988,11 @@ lite/corpus_gaps/like_over_an_integer_of_a_pattern_without_a_wildcard@iq17-defau
 lite/corpus_gaps/like_over_an_integer_of_a_pattern_with_a_wildcard@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/like_over_an_integer_before_a_string_that_is_no_number@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_missing_column_after_a_string_against_a_number@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_unread_division_by_zero@iq17-default	PASS	PASS
+lite/corpus_gaps/an_unread_failing_cast@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/an_unread_overflow@iq17-default	PASS	PASS
+lite/corpus_gaps/an_unread_date_that_is_none@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/an_unread_division_by_a_zero_column@iq17-default	PASS	PASS
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS
