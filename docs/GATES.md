@@ -11680,3 +11680,23 @@ join's condition, over the row and the match together.
 4. **Refused by name, recorded.** Such a WHERE holding a pattern or an aggregate of its own; one in a pattern
    predicate or a comprehension over rows. Logged (plan §5): a variable-length relationship beside another in one
    pattern (Match7/[19]).
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-sixth landing — floats that are not finite inside lists, a relationship's label
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W11 and W12 tail); the record is the study's §12.79. A
+float divided by a zero literal inside a list, a map or a `collect` (NaN or an infinity in Neo4j) as the database's
+own Variant of it, ordered as Cypher orders numbers; `r:T` of a relationship; two relationship types differing only
+in case.
+
+1. **What lands.** ReturnOrderBy1/[11], [12], WithOrderBy1/[21], [22] and Graph5/[2] on DuckDB; on Postgres the four
+   NaN rows decided by S60 (Postgres's division raises on a zero divisor) and Graph5/[2]; the 8 cases of
+   `lite/nonfinite.yaml` and the 5 of `lite/rellabels.yaml`. DuckDB PASS 3,827 → 3846, Postgres 3,404 →
+   3423; TCK agreement DuckDB 3564 → 3569, Postgres 3172 → 3177.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS
+   3846 / REFUSED 270 / BOTH_ERROR 750 / SKIP 56; Postgres PASS 3423 / REFUSED 693 /
+   BOTH_ERROR 750 / SKIP 56, of 4922 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol` (the pinned refusal of NaN in a list turned into a translation
+   check; one for a relationship's label), `//core:core_tests_integration`, `//core:guardrails` green.
+4. **The harness.** A DuckDB JSON cell read by the JSON grammar and DuckDB's tokens for a double that is not finite
+   (`DuckJson`, the parity grid's and the judge's); the product's JSON library unchanged. Relationship types
+   differing only in case named apart in SQL (`CypherGraph.RelType.sql`).

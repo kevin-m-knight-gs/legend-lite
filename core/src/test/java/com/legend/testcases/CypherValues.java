@@ -465,7 +465,7 @@ public final class CypherValues {
         // a list or map, as the Variant lite returns (C8): DuckDB's JsonNode, Postgres's json/jsonb PGobject
         String cls = cell.getClass().getName();
         if (cls.equals("org.duckdb.JsonNode")) {
-            return ofJson(com.legend.json.Json.parse(cell.toString()));
+            return ofJson(DuckJson.parse(cell.toString()));
         }
         if (cls.equals("org.postgresql.util.PGobject")) {
             try {

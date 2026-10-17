@@ -705,8 +705,8 @@ tck/clauses/return-orderby/ReturnOrderBy1/[7] ORDER BY should order floats in th
 tck/clauses/return-orderby/ReturnOrderBy1/[8] ORDER BY DESC should order floats in the expected order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy1/[9] ORDER BY should order lists in the expected order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy1/[10] ORDER BY DESC should order lists in the expected order	PASS	PASS
-tck/clauses/return-orderby/ReturnOrderBy1/[11] ORDER BY should order distinct types in the expected order	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy1/[12] ORDER BY DESC should order distinct types in the expected order	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy1/[11] ORDER BY should order distinct types in the expected order	PASS	PASS
+tck/clauses/return-orderby/ReturnOrderBy1/[12] ORDER BY DESC should order distinct types in the expected order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[1] ORDER BY should return results in ascending order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[2] ORDER BY DESC should return results in descending order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[3] Sort on aggregated function	PASS	PASS
@@ -923,8 +923,8 @@ tck/clauses/with-orderBy/WithOrderBy1/[17] Sort local date times in ascending or
 tck/clauses/with-orderBy/WithOrderBy1/[18] Sort local date times in descending order	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[19] Sort date times in ascending order	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[20] Sort date times in descending order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[21] Sort distinct types in ascending order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[22] Sort distinct types in descending order	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[21] Sort distinct types in ascending order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[22] Sort distinct types in descending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[23] Sort by a boolean variable projected from a node property in ascending order #1	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[23] Sort by a boolean variable projected from a node property in ascending order #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[23] Sort by a boolean variable projected from a node property in ascending order #3	PASS	PASS
@@ -1553,7 +1553,7 @@ tck/expressions/graph/Graph4/[6] `type()` failing on invalid arguments #4	BOTH_E
 tck/expressions/graph/Graph4/[6] `type()` failing on invalid arguments #5	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph4/[7] Failing when using `type()` on a node	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph5/[1] Single-labels expression on nodes	PASS	PASS
-tck/expressions/graph/Graph5/[2] Single-labels expression on relationships	SKIP	SKIP
+tck/expressions/graph/Graph5/[2] Single-labels expression on relationships	PASS	PASS
 tck/expressions/graph/Graph5/[3] Conjunctive labels expression on nodes	PASS	PASS
 tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #1	PASS	PASS
 tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #2	PASS	PASS
@@ -4265,6 +4265,14 @@ lite/nodes/distinct_over_nodes	PASS	PASS
 lite/nodes/order_by_a_node_refused_by_name	REFUSED	REFUSED
 lite/nodes/node_as_a_grouping_key	PASS	PASS
 lite/nodes/relationship_as_a_value_refused_by_name	PASS	PASS
+lite/nonfinite/nan_in_a_returned_list	PASS	PASS
+lite/nonfinite/nan_in_a_list_of_floats	PASS	PASS
+lite/nonfinite/infinities_in_a_returned_list	PASS	PASS
+lite/nonfinite/nan_in_a_returned_map	PASS	PASS
+lite/nonfinite/nan_and_infinities_ordered	PASS	PASS
+lite/nonfinite/nan_and_infinities_ordered_descending	PASS	PASS
+lite/nonfinite/collect_of_a_quotient_by_zero	PASS	PASS
+lite/nonfinite/nan_from_a_row_value_in_a_list	PASS	PASS
 lite/odds/to_integer_of_texts	PASS	PASS
 lite/odds/to_float_of_texts	PASS	PASS
 lite/odds/unwind_after_a_match	PASS	PASS
@@ -4464,13 +4472,18 @@ lite/rank/ordering_agrees_with_comparisons_over_lists	PASS	PASS
 lite/rank/two_stored_lists_concatenated	PASS	PASS
 lite/rank/a_computed_list_equal_to_a_range	PASS	PASS
 lite/rank/a_variant_of_no_known_shape_ordered_by_rank_among_numbers	PASS	PASS
-lite/rank/nan_inside_a_list_is_refused	REFUSED	REFUSED
+lite/rank/nan_inside_a_list	PASS	PASS
 lite/rank/a_list_of_dates_read_back_is_refused	PASS	PASS
 lite/rank/a_list_beside_a_variant_concatenates_by_its_kind	PASS	PASS
 lite/rank/a_mixed_spelled_list_read_by_the_database	PASS	PASS
 lite/rank/a_mixed_spelled_list_indexed_by_a_value_of_the_row	PASS	PASS
 lite/rank/a_list_of_the_row_ordered_against_a_spelled_list	PASS	PASS
 lite/rank/a_comprehension_comparing_the_lists_of_the_row	PASS	PASS
+lite/rellabels/a_relationship_s_type_as_a_label	PASS	PASS
+lite/rellabels/two_labels_on_a_relationship_never_hold	PASS	PASS
+lite/rellabels/an_optional_relationship_s_label	PASS	PASS
+lite/rellabels/types_differing_only_in_case	PASS	PASS
+lite/rellabels/types_differing_only_in_case_counted	PASS	PASS
 lite/rels/relationship_as_a_value	PASS	PASS
 lite/rels/type_of_a_relationship	PASS	PASS
 lite/rels/untyped_relationship_as_a_value	PASS	PASS

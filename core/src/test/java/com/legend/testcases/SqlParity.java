@@ -445,7 +445,9 @@ public final class SqlParity {
             // a json or jsonb value, from Postgres (a PGobject) or from DuckDB (its JsonNode): the JSON value it holds
             case Object o when o.getClass().getName().equals("org.postgresql.util.PGobject")
                     && JSON_TYPES.contains(pgObject(o, "getType")) -> JsonValue.of(pgObject(o, "getValue"));
-            case Object o when o.getClass().getName().equals("org.duckdb.JsonNode") -> JsonValue.of(o.toString());
+            // (DuckDB's JSON holds a double that is not finite, NaN or an infinity, as a bare token: DuckJson)
+            case Object o when o.getClass().getName().equals("org.duckdb.JsonNode") -> JsonValue.ofDuckDb(
+                    o.toString());
             case java.sql.Timestamp ts -> timestamp(ts.toLocalDateTime());
             case java.sql.Date d -> d.toLocalDate().toString();
             case java.time.LocalDate d -> d.toString();
@@ -500,6 +502,11 @@ public final class SqlParity {
             return new JsonValue(canonical(Json.parse(text)));
         }
 
+        /** DuckDB's JSON text, which may hold a double that is not finite as DuckDB spells it ({@link DuckJson}). */
+        static JsonValue ofDuckDb(String text) {
+            return new JsonValue(canonical(DuckJson.parse(text)));
+        }
+
         private static String canonical(Json.Node n) {
             return switch (n) {
                 case Json.Obj o -> {
@@ -510,6 +517,9 @@ public final class SqlParity {
                 }
                 case Json.Arr a -> "[" + String.join(",", a.items().stream().map(JsonValue::canonical).toList()) + "]";
                 case Json.Str str -> Json.toCompact(str.value());
+                case Json.Num num when num.decimalValue() == null && num.token() == null
+                        && !Double.isFinite(num.doubleValue()) -> Double.isNaN(num.doubleValue()) ? "NaN"
+                                : num.doubleValue() > 0 ? "Infinity" : "-Infinity";
                 case Json.Num num -> {
                     BigDecimal d = num.decimalValue() != null ? num.decimalValue()
                             : new BigDecimal(num.token() != null ? num.token() : Double.toString(num.doubleValue()));

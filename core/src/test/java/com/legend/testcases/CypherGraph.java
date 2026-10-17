@@ -92,6 +92,9 @@ public final class CypherGraph {
      *  in the order the pairs appear. */
     private static final class RelType {
         final String name;
+        /** The name its tables and columns are spelled by: {@link #name} in lower case (the databases fold an unquoted
+         *  name's case), with a suffix where another type's name differs from it only in case. */
+        final String sql;
         final Cls src;
         final Cls dst;
         final List<CypherAnswers.GraphRel> rels = new ArrayList<>();
@@ -100,8 +103,9 @@ public final class CypherGraph {
         /** 0 for the one pair of its type; 1, 2, ... for a type joining several pairs (always edge classes). */
         int pair;
 
-        RelType(String name, Cls src, Cls dst) {
+        RelType(String name, String sql, Cls src, Cls dst) {
             this.name = name;
+            this.sql = sql;
             this.src = src;
             this.dst = dst;
         }
@@ -121,7 +125,7 @@ public final class CypherGraph {
         }
 
         String table() {
-            return "r_" + stem().toLowerCase(Locale.ROOT);
+            return "r_" + (pair == 0 ? sql : sql + "_" + pair);
         }
 
         String outEnd() {
@@ -242,21 +246,32 @@ public final class CypherGraph {
             }
         }
         Map<String, RelType> types = new TreeMap<>();
-        Map<String, String> typeByLower = new HashMap<>();
+        // (a type's SQL spelling: its name in lower case; one differing from another's only in case, T2 and t2 of
+        // Graph5/[2], two Pure names, takes a suffix no type's lower-case name has)
+        Set<String> lowerNames = new HashSet<>();
+        for (CypherAnswers.GraphRel r : g.rels()) {
+            lowerNames.add(r.type().toLowerCase(Locale.ROOT));
+        }
+        Map<String, String> sqlOfType = new HashMap<>();
+        Set<String> sqlTaken = new HashSet<>();
         for (CypherAnswers.GraphRel r : g.rels()) {
             if (!IDENTIFIER.matcher(r.type()).matches()) {
                 throw new Unsupported("harness: the relationship type " + r.type() + " is not a Pure identifier");
             }
-            String other = typeByLower.putIfAbsent(r.type().toLowerCase(Locale.ROOT), r.type());
-            if (other != null && !other.equals(r.type())) {
-                throw new Unsupported("harness: the relationship types " + other + " and " + r.type() + " differ only"
-                        + " in case");
-            }
+            String sql = sqlOfType.computeIfAbsent(r.type(), k -> {
+                String lower = k.toLowerCase(Locale.ROOT);
+                String name = lower;
+                for (int n = 1; sqlTaken.contains(name) || !name.equals(lower) && lowerNames.contains(name); n++) {
+                    name = lower + "_c" + n;
+                }
+                sqlTaken.add(name);
+                return name;
+            });
             Cls src = classOfNode.get(r.start());
             Cls dst = classOfNode.get(r.end());
             // (one entry per class pair the type joins, in the order the pairs appear)
             RelType t = types.computeIfAbsent(r.type() + "|" + src.name + "|" + dst.name,
-                    k -> new RelType(r.type(), src, dst));
+                    k -> new RelType(r.type(), sql, src, dst));
             t.rels.add(r);
             for (Map.Entry<String, String> p : r.props().entrySet()) {
                 if (!IDENTIFIER.matcher(p.getKey()).matches()) {
@@ -312,7 +327,7 @@ public final class CypherGraph {
                             + ", is a label's or another type's");
                 }
             }
-            String table = t.edge() ? t.table() : "r_" + t.name.toLowerCase(Locale.ROOT);
+            String table = t.edge() ? t.table() : "r_" + t.sql;
             if (!madeTables.add(table)) {
                 throw new Unsupported("harness: the table " + table + ", made up for the relationship type " + t.name
                         + ", is another's");
@@ -414,7 +429,7 @@ public final class CypherGraph {
             int maxIn = inDegree.values().stream().mapToInt(Integer::intValue).max().orElse(0);
             // named apart from the classes: a label may be spelled like a relationship type
             String assoc = "g::R_" + t.name;
-            String column = "r_" + t.name.toLowerCase(Locale.ROOT);
+            String column = "r_" + t.sql;
             String target = src == dst ? "{target}." : dst.table + ".";
             if (maxOut <= 1) {
                 // the start node holds at most one end node: a foreign key on the start class's table

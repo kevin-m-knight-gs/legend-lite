@@ -968,6 +968,10 @@ class CypherToPureTest {
         assertEquals("demo::Person.all()->project(~[a:p|if(!$p.firm->isEmpty() && '[\"Firm\"]'->contains('\"Firm\"'), |true, |if(!$p.firm->isEmpty() && !'[\"Firm\"]'->contains('\"Firm\"'), |false, |[]))])",
                 pure("MATCH (p:Person) OPTIONAL MATCH (p)-[:firm]->(f:Firm) RETURN f:Firm AS a"));
         invalid("RETURN 1:Person AS a", "expected Node or Relationship but was Integer");
+        // a relationship's label expression (the study's §12.79): its type compared with each label written
+        String typed = pure("MATCH (p:Person)-[r:firm]->(f) RETURN r:firm AS a, r:firm:employees AS b");
+        assertTrue(typed.contains("'firm' == 'firm'")
+                && typed.contains("('firm' == 'firm') && ('firm' == 'employees')"), typed);
         // (a type spelled twice is one type: one arm, read as rows)
         String twice = pure("MATCH (p:Person)-[:firm|:firm]->(f) RETURN f.legalName AS l");
         assertTrue(twice.contains("$p.firm.legalName") && !twice.contains("->concatenate("), twice);
@@ -1500,7 +1504,9 @@ class CypherToPureTest {
         // a spelled list of several kinds read by the database: the Variant's elements
         String mixed = pure("MATCH (p:Person) RETURN [x IN [1, 'a', [2], null] WHERE x = p.age] AS some");
         assertTrue(mixed.contains("->toMany(@meta::pure::metamodel::variant::Variant)"), mixed);
-        unsupported("MATCH (p:Person) RETURN [1.5, 0.0 / 0.0] AS l", "a float divided by a zero");
+        // a float divided by a zero literal inside a list (the study's §12.79): the database's own JSON of it
+        String nan = pure("MATCH (p:Person) RETURN [1.5, 0.0 / 0.0] AS l");
+        assertTrue(nan.contains("toVariant(toFloat(0.0) / toFloat(0.0))->toString()"), nan);
     }
 
     @Test

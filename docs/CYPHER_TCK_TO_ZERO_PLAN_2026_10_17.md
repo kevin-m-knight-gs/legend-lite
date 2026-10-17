@@ -312,6 +312,10 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   TCK agreement DuckDB 3562 → 3564, Postgres 3170 → 3172): the WHERE as the left join's condition over the row and the
   match (Match7/[11], MatchWhere6/[5]), a WHERE over a fanning optional hop through the rows, a named optional path.
   Left (§5): a variable-length relationship beside another in one OPTIONAL MATCH's named path (Match7/[19]).
+- Floats that are not finite inside lists LANDED 2026-10-17 (the study's §12.79, GATES' seventy-sixth landing; TCK
+  agreement DuckDB 3564 → 3569, Postgres 3172 → 3177): NaN and the infinities in a list, a map or a
+  `collect` as the database's own Variant, ordered after the numbers (ReturnOrderBy1/[11], [12], WithOrderBy1/[21],
+  [22]; Postgres by S60); a relationship's label as its type, types differing only in case (Graph5/[2]).
 - The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
   UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships
@@ -702,7 +706,7 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   pull the bridge into its own subselect and correlate on the fanned row's key, as the one-step form does. The
   translator routes around it (a second-step hop of a fanning graph is present on the rows, the study's §12.50),
   so no TCK case is held back; the resolver fix belongs to W9 (platform limits), with the depth-two limit.
-- **2026-10-17, W11 — NaN and the infinities inside a Variant.** `UNWIND [..., 0.0 / 0.0, ...]` (ReturnOrderBy1/[11],
+- **2026-10-17, W11 — NaN and the infinities inside a Variant.** RESOLVED 2026-10-17 (§12.79: the database's own Variant on DuckDB, the judge reading its tokens; Postgres's division error by S60). `UNWIND [..., 0.0 / 0.0, ...]` (ReturnOrderBy1/[11],
   [12], WithOrderBy1/[21], [22]): DuckDB computes NaN and its JSON writes the bare token `NaN`, which the
   harness's JSON reader refuses; Postgres's float division raises and its jsonb holds no NaN. The island refuses
   a float divided by a zero literal inside a list or map by name (`NotANumber`). A faithful spelling would carry

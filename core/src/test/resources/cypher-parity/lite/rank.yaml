@@ -64,7 +64,7 @@ cases:
     graph: |
       CREATE (:P {k: 3}), (:Q {k: 1.5}), (:R {k: 'two'}), (:S {k: true})
     cypher: "MATCH (n) WITH collect(n) AS ns UNWIND ns AS m RETURN m.k AS k ORDER BY k"
-  - id: nan_inside_a_list_is_refused
+  - id: nan_inside_a_list
     graph: |
       CREATE (:P {name: 'p'})
     cypher: "UNWIND [1.5, 0.0 / 0.0, 'text'] AS v RETURN v ORDER BY v"

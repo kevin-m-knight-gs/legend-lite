@@ -497,6 +497,14 @@ public final class CypherToPure {
     /** A property value's JSON text, as the database spells it: a number's or a boolean's spelling (a whole float
      *  with its {@code .0}, which Postgres's text drops), a string in quotes with its quotes and backslashes
      *  escaped. */
+    /** A list's or map's element's JSON text, {@code one} the value of {@code t} present: {@link #jsonText}; a
+     *  float divided by a zero literal ({@link NotANumber}) the database's own JSON of it, NaN or an infinity, which
+     *  no JSON number spells (DuckDB's writes {@code NaN}, {@code Infinity}; the study's §12.79). */
+    private static ValueSpecification elementText(ValueSpecification one, Tx t, String name, Pos pos) {
+        return t.detail() instanceof NotANumber ? call("toString", call("toVariant", one))
+                : jsonText(one, t.kind(), nanos(t), name, pos);
+    }
+
     private static ValueSpecification jsonText(ValueSpecification v, Kind kind, boolean nanos, String name,
             Pos pos) {
         return switch (kind) {
@@ -6935,10 +6943,9 @@ public final class CypherToPure {
         } else if (arg.nullable()) {
             ValueSpecification v = SqlToPure.valueOf(arg);
             piece = Tx.value(call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.STRING).vs()),
-                    thunk(jsonText(call("toOne", v), arg.kind(), nanos(arg), "collect", pos))), Kind.STRING, true);
+                    thunk(elementText(call("toOne", v), arg, "collect", pos))), Kind.STRING, true);
         } else {
-            piece = Tx.value(jsonText(SqlToPure.valueOf(arg), arg.kind(), nanos(arg), "collect", pos), Kind.STRING,
-                    false);
+            piece = Tx.value(elementText(SqlToPure.valueOf(arg), arg, "collect", pos), Kind.STRING, false);
         }
         // collect(DISTINCT x): the distinct texts joined, in the database's order (Neo4j's is the encounter
         // order, which the TCK reads ignoring the elements' order; the register's S78) -- tried and withdrawn in
@@ -8918,8 +8925,9 @@ public final class CypherToPure {
         };
     }
 
-    /** The mark of a float divided by a zero literal: NaN or an infinity in Neo4j, which Postgres's division raises
-     *  on and whose JSON holds neither, so a list or map holding it is refused by name. */
+    /** The mark of a float divided by a zero literal: NaN or an infinity in Neo4j. Inside a list or map it is the
+     *  Variant the database builds of it (the study's §12.79): DuckDB's JSON writes {@code NaN}, {@code Infinity},
+     *  {@code -Infinity}, which no JSON number spells; Postgres's division raises first (S60). */
     private record NotANumber() implements com.legend.protocol.sql.InputDialect.TypeDetail {
     }
 
@@ -9018,7 +9026,8 @@ public final class CypherToPure {
 
     /** A number's key: its rank {@code 7} and the text of its millionths offset by 10^18, left-padded to twenty
      *  digits, so the texts order as the numbers do (within ±9e12, to the millionth; S81); beyond the largest
-     *  double (NaN and the infinities, which the databases order beyond every number) {@code 8}; above 9e12 the
+     *  double, {@code 80} for the infinity and {@code 81} for NaN, which the databases order beyond it (Neo4j's
+     *  order: the numbers, Infinity, NaN; the study's §12.79); above 9e12 the
      *  highest text, below -9e12 the lowest (one key each: the millionths would overflow the database's integer
      *  there, S81). */
     private static ValueSpecification numberKey(ValueSpecification number) {
@@ -9029,9 +9038,11 @@ public final class CypherToPure {
         ValueSpecification finite = plus(new CString("7"), call("lpad", call("toString", shifted), new CInteger(20L),
                 new CString("0")));
         ValueSpecification beyond = call("greaterThan", number, new CFloat(Double.MAX_VALUE));
+        ValueSpecification notANumber = call("greaterThan", number, call("parseFloat", new CString("Infinity")));
         ValueSpecification above = call("greaterThan", number, new CFloat(NUMBER_KEY_RANGE));
         ValueSpecification below = call("lessThan", number, new CFloat(-NUMBER_KEY_RANGE));
-        return call("if", beyond, thunk(new CString("8")), thunk(call("if", above,
+        return call("if", beyond, thunk(call("if", notANumber, thunk(new CString("81")), thunk(new CString("80")))),
+                thunk(call("if", above,
                 thunk(new CString("7" + "9".repeat(20))), thunk(call("if", below,
                         thunk(new CString("7" + "0".repeat(20))), thunk(finite))))));
     }
@@ -10446,10 +10457,6 @@ public final class CypherToPure {
         if (t.kind() == Kind.JSON || t.kind() == Kind.NULL) {
             return t;
         }
-        if (t.detail() instanceof NotANumber) {
-            throw CypherErrors.unsupported("a float divided by a zero (NaN or an infinity in Neo4j, which Postgres's"
-                    + " JSON holds neither of) inside a list or map is not supported yet", pos);
-        }
         if (t.kind() != Kind.STRING && t.kind() != Kind.BOOLEAN && !t.kind().numeric()) {
             throw CypherErrors.unsupported("a list or map holding a " + cypherType(t.kind()) + ", as a value, is"
                     + " not supported yet (the Variant spells it as text)", pos);
@@ -10564,10 +10571,6 @@ public final class CypherToPure {
         if (t.kind() == Kind.NULL) {
             return new CString("null");
         }
-        if (t.detail() instanceof NotANumber) {
-            throw CypherErrors.unsupported("a float divided by a zero (NaN or an infinity in Neo4j, which Postgres's"
-                    + " JSON holds neither of) inside a list or map is not supported yet", pos);
-        }
         if (t.kind() == Kind.DURATION || t.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("a list or map holding a " + cypherType(t.kind()) + ", as a value, is"
                     + " not supported yet (the Variant spells it as text)", pos);
@@ -10575,7 +10578,7 @@ public final class CypherToPure {
         ValueSpecification value = SqlToPure.valueOf(t);
         ValueSpecification one = t.nullable() ? call("toOne", value) : value;
         ValueSpecification text = t.kind() == Kind.JSON ? call("toString", one)
-                : jsonText(one, t.kind(), nanos(t), "the element", pos);
+                : elementText(one, t, "the element", pos);
         return t.nullable() ? call("if", call("isEmpty", value), thunk(new CString("null")), thunk(text)) : text;
     }
 
@@ -11290,8 +11293,8 @@ public final class CypherToPure {
 
     /** {@code n:Label}, {@code n:A:B} (the study's §12.35): true when the node carries every label, read from its
      *  labels' JSON text (a spelled constant for a node of a known class, the column carrying it for a node read
-     *  as rows: the database tests the text for each quoted label); null for a node an OPTIONAL MATCH may not
-     *  find, or a null value. */
+     *  as rows: the database tests the text for each quoted label); of a relationship, when its type is each label
+     *  (§12.79); null for a node an OPTIONAL MATCH may not find, or a null value. */
     private Tx labelPredicate(CypherAst.LabelPredicate lp, Scope scope) {
         if (!(lp.target() instanceof CypherAst.Var v)) {
             throw CypherErrors.invalid("Type mismatch: expected Node or Relationship but was "
@@ -11301,6 +11304,25 @@ public final class CypherToPure {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
         NodeParts parts = scope.nodeParts(v);
+        Tx type = parts == null ? scope.relType(v) : null;
+        if (type != null) {
+            // of a relationship (Neo4j's label expression on one, the study's §12.79): true when its type is each
+            // label written (a relationship has one type, so two different labels never hold); null where an
+            // OPTIONAL MATCH did not find it
+            ValueSpecification t = SqlToPure.valueOf(type);
+            ValueSpecification one = type.nullable() ? call("toOne", t) : t;
+            ValueSpecification is = null;
+            for (String label : lp.labels()) {
+                ValueSpecification eq = call("equal", one, new CString(label));
+                is = is == null ? eq : call("and", is, eq);
+            }
+            ValueSpecification typed = java.util.Objects.requireNonNull(is);
+            if (!type.nullable()) {
+                return Tx.condition(typed, call("not", typed), false);
+            }
+            ValueSpecification found = call("isNotEmpty", t);
+            return Tx.condition(call("and", found, typed), call("and", found, call("not", typed)), true);
+        }
         if (parts == null) {
             Val value = scope.variable(v);
             if (isNull(value)) {

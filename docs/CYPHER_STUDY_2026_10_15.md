@@ -5073,3 +5073,40 @@ Match7/[11] and MatchWhere6/[5] move to PASS on both lanes; TCK agreement DuckDB
 The 6 cases of `lite/optrows.yaml` pass on both lanes, and two lite cases named for the refusals this lifts pass,
 renamed (`lite/anchor/an_optional_match_where_reading_the_rows`, `lite/optional_where/where_over_a_fanning_hop`; their
 answers carried to the new keys).
+
+### 12.79 Floats that are not finite inside lists, a relationship's label, types differing only in case (2026-10-17)
+
+- **NaN and the infinities in a list or map** (`CypherToPure.elementText`, `asVariant`): a float divided by a zero
+  literal (`NotANumber`, NaN or an infinity in Neo4j) inside a list, a map or a `collect` is the Variant the
+  database builds of it (`toVariant`), where every other float is spelled as its text: DuckDB's JSON writes `NaN`,
+  `Infinity` and `-Infinity`, which no JSON number spells, and reads them back; the value is the database's, as the
+  scalar's already was (S60). Postgres's float division raises on a zero divisor first, where Neo4j answers: the
+  decided outcome S60 already records for the scalar, now for these (`decisions.tsv`).
+- **Their order** (`numberKey`): the orderability key ranks a number beyond the largest double `80` for the infinity
+  and `81` for NaN (both databases order NaN beyond the infinity, which the database parses from its text), so
+  `-Infinity`, the numbers, `Infinity`, NaN, then null, as Neo4j orders them; `-Infinity` takes the lowest number
+  key (S81).
+- **The judge** (`DuckJson`, the parity grid's and the Cypher judge's): a DuckDB JSON cell read by the JSON grammar
+  and DuckDB's three tokens for a double that is not finite; the product's JSON library, which refuses them as JSON must, is not loosened.
+- **A relationship's label** (`labelPredicate`): `r:T` is true when the relationship's type is T (Neo4j 5's label
+  expression on a relationship), each label written compared with the type (a relationship has one type, so
+  `r:T:U` never holds), null where an OPTIONAL MATCH did not find it.
+- **Types differing only in case** (the harness, `CypherGraph.RelType.sql`): two relationship types spelled alike
+  but for case (`T2` and `t2`, two Pure names) were refused because their tables and columns, named in lower case
+  (the databases fold an unquoted name's case), would be one; the second takes a suffix no type's lower-case name
+  has.
+- **Pinned.** `lite/nonfinite.yaml`'s 8 cases and `lite/rellabels.yaml`'s 5, each judged by Neo4j;
+  ReturnOrderBy1/[11], [12], WithOrderBy1/[21], [22] and Graph5/[2].
+
+#### 12.79.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4922 | 3846 (from 3,827) | 0 | 0 | 0 | 270 (from 275) | 750 | 56 |
+| Postgres | 4922 | 3423 (from 3,404) | 0 | 0 | 0 | 693 (from 698) | 750 | 56 |
+
+ReturnOrderBy1/[11], [12], WithOrderBy1/[21], [22] and Graph5/[2] move to PASS on DuckDB, and on Postgres the four
+NaN rows by the decision S60 (the division's error) and Graph5/[2]; TCK agreement DuckDB 3564 → 3569, Postgres
+3172 → 3177. The 13 cases of `lite/nonfinite.yaml` and `lite/rellabels.yaml` pass on both lanes (the NaN ones
+on Postgres by S60), and `lite/rank/nan_inside_a_list`, named for its refusal before, is renamed (its answer carried
+to the new key).
