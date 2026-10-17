@@ -1104,6 +1104,13 @@ public final class SqlToPure {
         return f.name().size() == 1 && SET_RETURNING.containsKey(functionName(f.name().get(0)));
     }
 
+    /** Whether {@code e} calls a set-returning function anywhere in it (the parser's VALUES rows, where Postgres
+     *  allows none). */
+    static boolean containsSetReturning(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && setReturning(f)
+                || children(e).stream().anyMatch(SqlToPure::containsSetReturning);
+    }
+
     private static void noSetReturning(SqlAst.Expr e) {
         if (e instanceof SqlAst.FunctionCall f && setReturning(f)) {
             throw SqlTranslationException.unsupported("a set-returning function inside an expression is not supported"

@@ -169,12 +169,55 @@ public final class SqlParser {
             return inner;
         }
         if (t.is("values")) {
-            throw unsupported("VALUES lists are");
+            return values();
         }
         if (t.is("table")) {
             throw unsupported("TABLE name queries are");
         }
         return selectCore();
+    }
+
+    /** {@code VALUES (e, ...), (e, ...)}, as Postgres defines it: {@code SELECT e AS column1, ... UNION ALL SELECT
+     *  ...}, its columns named column1 to columnN and typed by UNION's rules (2026-10-17, the regression suite's 364
+     *  VALUES lists). The rows are combined as a balanced tree, of depth log n for the translator and the planner
+     *  (UNION ALL is associative, and the rows keep their order). */
+    private SqlAst.Statement values() {
+        expectWord("values");
+        List<SqlAst.Statement> rows = new ArrayList<>();
+        int width = -1;
+        do {
+            Token open = expect(Kind.LPAREN);
+            List<SqlAst.SelectItem> items = new ArrayList<>();
+            do {
+                if (peek().is("default")) {
+                    throw error("DEFAULT is not allowed in this context");
+                }
+                SqlAst.Expr cell = expr();
+                if (SqlToPure.containsSetReturning(cell)) {
+                    // a VALUES row is no select list: Postgres's 0A000, where a SELECT would expand the rows
+                    throw new SqlSyntaxException("set-returning functions are not allowed in VALUES", cell.pos());
+                }
+                items.add(new SqlAst.SelectExpr(cell, new SqlAst.Ident("column" + (items.size() + 1), false,
+                        cell.pos()), cell.pos()));
+            } while (accept(Kind.COMMA));
+            expect(Kind.RPAREN);
+            if (width >= 0 && items.size() != width) {
+                throw new SqlSyntaxException("VALUES lists must all be the same length", open.pos());
+            }
+            width = items.size();
+            rows.add(new SqlAst.Select(false, items, List.of(), null, List.of(), null, List.of(), List.of(), null,
+                    null, open.pos()));
+        } while (accept(Kind.COMMA));
+        return unionAll(rows, 0, rows.size());
+    }
+
+    private static SqlAst.Statement unionAll(List<SqlAst.Statement> rows, int from, int to) {
+        if (to - from == 1) {
+            return rows.get(from);
+        }
+        int mid = from + (to - from) / 2;
+        return new SqlAst.SetOperation(SqlAst.SetOp.UNION, true, unionAll(rows, from, mid), unionAll(rows, mid, to),
+                List.of(), null, null, rows.get(mid).pos());
     }
 
     /** The sort and the slice after a query, attached to it (Postgres refuses a second ORDER BY or LIMIT). */

@@ -246,6 +246,53 @@ public final class PostgresDialect implements InputDialect {
         return at.postgresBinary(b);
     }
 
+    /** Postgres's resolution of a set operation's column ("UNION, CASE, and Related Constructs"; 2026-10-17, the
+     *  regression suite's VALUES lists, which Postgres defines as UNION ALL): an untyped NULL takes the other side's
+     *  type (a UNION's only: an INTERSECT's or an EXCEPT's row match is refused over it), and an integer or a numeric
+     *  beside a double precision is a double precision. Not a numeric beside an integer, or a numeric beside a NULL:
+     *  the typer unites no two Decimal precisions (2.5D is a Decimal(38,1), toDecimal(1) a Decimal(38,18)), and a
+     *  cast to Decimal is the database's DECIMAL, whose scale is its own (DuckDB's rounded 2.5 to 3, measured
+     *  2026-10-17), so they stay refused. Null where nothing changes. */
+    @Override
+    public SqlToPure.@com.legend.base.Nullable ColumnType setColumn(SqlAst.SetOperation s, int i,
+            SqlToPure.ColumnType left, SqlToPure.ColumnType right) {
+        Kind l = left.kind();
+        Kind r = right.kind();
+        if (l == r) {
+            return null;
+        }
+        if (l == Kind.NULL || r == Kind.NULL) {
+            SqlToPure.ColumnType other = l == Kind.NULL ? right : left;
+            return s.op() != SqlAst.SetOp.UNION || exact(other.kind()) ? null
+                    : new SqlToPure.ColumnType(other.kind(), true, other.detail());
+        }
+        return toDouble(l, r) ? new SqlToPure.ColumnType(Kind.FLOAT, left.nullable() || right.nullable(), null) : null;
+    }
+
+    /** One side's column of a set operation as the column's type ({@link #setColumn}): an untyped NULL as the type's
+     *  NULL, an integer or a numeric as a double precision. */
+    @Override
+    public @com.legend.base.Nullable Tx setValue(SqlAst.SetOperation s, int i, Tx side, SqlToPure.ColumnType other,
+            boolean left) {
+        if (side.kind() == Kind.NULL) {
+            return other.kind() == Kind.NULL || s.op() != SqlAst.SetOp.UNION || exact(other.kind()) ? null
+                    : Tx.value(SqlToPure.nullOf(other.kind()).vs(), other.kind(), true, other.detail());
+        }
+        return side.kind() != Kind.FLOAT && toDouble(side.kind(), other.kind())
+                ? SqlToPure.strict(Kind.FLOAT, List.of(side), v -> SqlToPure.call("toFloat", v.get(0))) : null;
+    }
+
+    /** A numeric's kinds, which a set operation unites with no other (see {@link #setColumn}). */
+    private static boolean exact(Kind k) {
+        return k == Kind.DECIMAL || k == Kind.NUMBER;
+    }
+
+    /** Whether one side is a double precision and the other an integer or a numeric. */
+    private static boolean toDouble(Kind a, Kind b) {
+        java.util.Set<Kind> exact = java.util.Set.of(Kind.INTEGER, Kind.DECIMAL, Kind.NUMBER);
+        return a == Kind.FLOAT && exact.contains(b) || b == Kind.FLOAT && exact.contains(a);
+    }
+
     /** Postgres's resolution of a CASE's results ("UNION, CASE, and Related Constructs"). */
     @Override
     public SqlToPure.Common unify(String what, List<SqlAst.Expr> exprs, List<Tx> values, SqlAst.Pos pos) {

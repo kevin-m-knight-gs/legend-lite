@@ -337,10 +337,38 @@ class SqlParserTest {
     }
 
     @Test
+    void aValuesListIsAUnionAllOfOneRowSelects() {
+        // Postgres's definition (2026-10-17): VALUES (1, 'a'), (2, 'b') is SELECT 1 AS column1, 'a' AS column2 UNION
+        // ALL SELECT 2, 'b'
+        SqlAst.SetOperation u = (SqlAst.SetOperation) SqlParser.parse("values (1, 'a'), (2, 'b') order by 1");
+        assertEquals(SqlAst.SetOp.UNION, u.op());
+        assertTrue(u.all());
+        assertEquals(1, u.orderBy().size());
+        SqlAst.Select first = (SqlAst.Select) u.left();
+        assertTrue(first.from().isEmpty());
+        assertEquals(List.of("column1", "column2"), first.items().stream()
+                .map(i -> java.util.Objects.requireNonNull(((SqlAst.SelectExpr) i).alias()).text()).toList());
+        assertEquals("VALUES lists must all be the same length",
+                assertThrows(SqlSyntaxException.class, () -> SqlParser.parse("values (1, 2), (3)")).getMessage());
+        // a row is no select list: a set-returning function in one is Postgres's error, not more rows
+        assertEquals("set-returning functions are not allowed in VALUES", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("values (1, generate_series(1, 2))")).getMessage());
+        // a long list is a balanced tree: no recursion per row downstream
+        StringBuilder many = new StringBuilder("values (0)");
+        for (int i = 1; i < 1024; i++) {
+            many.append(", (").append(i).append(')');
+        }
+        assertEquals(10, depth(SqlParser.parse(many.toString())));
+    }
+
+    private static int depth(SqlAst.Statement s) {
+        return s instanceof SqlAst.SetOperation o ? 1 + Math.max(depth(o.left()), depth(o.right())) : 0;
+    }
+
+    @Test
     void notYetSupportedFormsAreRefusedByName() {
         List<String> forms = List.of(
                 "select a from unnest(x) with ordinality", "WITH ORDINALITY is not supported yet",
-                "values (1)", "VALUES lists are not supported yet",
                 "select a = any(array[1]) from t", "ANY, SOME and ALL over an array are not supported yet",
                 "select B'101'", "bit-string constants (B'...') are not supported yet",
                 "select a[1:2] from t", "array slices are not supported yet",

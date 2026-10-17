@@ -3,7 +3,9 @@
 
 package com.legend.integration;
 
+import com.legend.protocol.sql.SqlAst;
 import com.legend.protocol.sql.SqlLexer;
+import com.legend.protocol.sql.SqlParser;
 import com.legend.server.QueryService;
 import com.legend.testcases.Psql;
 import com.legend.testcases.SqlParity;
@@ -282,6 +284,13 @@ class PgRegressCorpusTest {
             }
             // NAMES and REGISTERED by the whole grids, not SqlParity's details (it stops at ten, and an ORDER BY's
             // key check waits on the rest: the independent review, 2026-10-17)
+            if (status.equals("FAIL") && reference instanceof SqlParity.Rows rows && lite[0] != null
+                    && !topLevelOrderBy(sql) && SqlParity.compare(false, null, rows.grid(), lite[0]).isEmpty()) {
+                // SqlParity reads any ORDER BY in the text as the result's order; one inside a subquery orders no
+                // result (2026-10-17, select_parallel's right join of a sorted subquery)
+                status = "PASS";
+                detail = "";
+            }
             if (status.equals("FAIL") && reference instanceof SqlParity.Rows rows && lite[0] != null) {
                 SqlParity.Grid pg = rows.grid();
                 if (pg.columns().size() == lite[0].columns().size()
@@ -324,6 +333,25 @@ class PgRegressCorpusTest {
         }
     }
 
+    /** Whether {@code sql}'s own result is ordered: an ORDER BY of the statement itself, not of a subquery inside it
+     *  (true where the island's parser cannot read it, as SqlParity reads the text). */
+    private static boolean topLevelOrderBy(String sql) {
+        SqlAst.Statement s;
+        try {
+            s = SqlParser.parse(sql);
+        } catch (RuntimeException unreadable) {
+            return true;
+        }
+        while (s instanceof SqlAst.With w) {
+            s = w.body();
+        }
+        return switch (s) {
+            case SqlAst.Select q -> !q.orderBy().isEmpty();
+            case SqlAst.SetOperation o -> !o.orderBy().isEmpty();
+            case SqlAst.With w -> true;
+        };
+    }
+
     /** The SQL legend-lite runs for {@code island} over {@code model}, on one line. */
     private static String plannedSql(String model, String island) {
         try {
@@ -354,6 +382,9 @@ class PgRegressCorpusTest {
             new Known("BUG", "division by zero", "Postgres folds a branch's constant 1/0 when it plans the statement,"
                     + " though no row reaches the branch (its documented caveat; the suite's own comment); the island"
                     + " raises for a branch a row reaches"),
+            "SELECT a, generate_series(1,2) FROM (VALUES(1),(2),(3)) r(a) LIMIT 2 OFFSET 2",
+            new Known("FAIL", "column 'a'", "LIMIT and OFFSET with no ORDER BY: which rows they keep is the plan's"
+                    + " choice in SQL"),
             "select t1.f1 from t1 left join t2 using (f1) group by f1",
             new Known("BUG", "must appear in the GROUP BY clause", "USING over an int and a bigint column: Postgres's"
                     + " merged f1 is the bigint cast, which GROUP BY f1 does not make t1.f1; the island's integers"

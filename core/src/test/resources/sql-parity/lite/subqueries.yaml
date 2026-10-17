@@ -117,3 +117,17 @@ tests:
     sql: "SELECT NULL INTERSECT SELECT NULL"
   - id: except_of_two_null_constants
     sql: "SELECT NULL EXCEPT SELECT NULL"
+  # VALUES lists, as Postgres defines them: a UNION ALL of one-row SELECTs, columns column1 to columnN typed by
+  # UNION's rules (2026-10-17, the regression-suite corpus)
+  - id: values_list_as_a_from_item_with_column_aliases
+    sql: "SELECT t.n, t.s, p.name FROM (VALUES (1, 'one'), (2, 'two'), (3, NULL)) AS t(n, s) LEFT JOIN persons p ON p.id = t.n ORDER BY t.n"
+  - id: values_list_as_a_statement_typed_across_its_rows
+    sql: "VALUES (1, 'x', 1.5::float8), (2, '', 2), (NULL, 'z', NULL) ORDER BY 1 NULLS FIRST"
+  - id: values_list_of_an_integer_and_a_numeric_is_refused
+    sql: "VALUES (1), (2.5)"
+  - id: values_list_column_names
+    sql: "SELECT column1 + 1 AS a, column2 AS b FROM (VALUES (10, true), (20, false)) v ORDER BY a"
+  - id: values_list_in_a_set_operation_and_a_cte
+    sql: "WITH w AS (VALUES ('a', 1), ('b', 2)) SELECT * FROM w UNION ALL VALUES ('c', 3) ORDER BY 1"
+  - id: values_lists_of_different_lengths_are_an_error
+    sql: "SELECT * FROM (VALUES (1, 2), (3)) v"

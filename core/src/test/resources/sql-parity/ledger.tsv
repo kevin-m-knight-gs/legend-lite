@@ -1631,7 +1631,7 @@ structural/unions/union_dedup	PASS	PASS
 structural/unions/union_dedup_strings	PASS	PASS
 structural/unions/union_multiple	PASS	PASS
 structural/unions/union_multiple_mixed	PASS	PASS
-structural/unions/union_with_agg	REFUSED	REFUSED
+structural/unions/union_with_agg	PASS	PASS
 structural/unions/union_with_agg_sum	REFUSED	REFUSED
 structural/unions/except_basic	PASS	PASS
 structural/unions/intersect_basic	PASS	PASS
@@ -1639,7 +1639,7 @@ structural/unions/union_all_nulls	PASS	PASS
 structural/unions/union_all_expression	PASS	PASS
 structural/unions/union_with_case	PASS	PASS
 structural/unions/union_all_count	PASS	PASS
-structural/unions/union_dedup_null	REFUSED	REFUSED
+structural/unions/union_dedup_null	PASS	PASS
 structural/where_predicates/where_between_basic	PASS	PASS
 structural/where_predicates/where_not_between	PASS	PASS
 structural/where_predicates/where_between_text	PASS	PASS
@@ -2114,6 +2114,12 @@ lite/subqueries/except_removes_duplicates	PASS	PASS
 lite/subqueries/intersect_all	REFUSED	REFUSED
 lite/subqueries/intersect_of_two_null_constants	PASS	PASS
 lite/subqueries/except_of_two_null_constants	PASS	PASS
+lite/subqueries/values_list_as_a_from_item_with_column_aliases	PASS	PASS
+lite/subqueries/values_list_as_a_statement_typed_across_its_rows	PASS	PASS
+lite/subqueries/values_list_of_an_integer_and_a_numeric_is_refused	REFUSED	REFUSED
+lite/subqueries/values_list_column_names	PASS	PASS
+lite/subqueries/values_list_in_a_set_operation_and_a_cte	PASS	PASS
+lite/subqueries/values_lists_of_different_lengths_are_an_error	BOTH_ERROR	BOTH_ERROR
 lite/text/concat_ws_skips_nulls	PASS	PASS
 lite/text/concat_ws_of_a_null_separator	PASS	PASS
 lite/text/concat_ws_of_numbers_dates_and_booleans	PASS	PASS
