@@ -172,6 +172,9 @@ call yet. Extracting them is the command program's first stage.
 
 Then review, the full local set, CI, merge.
 
+**Stage 1a, the test foundation, first (the user, 2026-10-17: "write that into the homework doc as a part of the
+command refactor"):** see §11. The tests come before the commands they protect, so each command lands against them.
+
 **Stage 1, the command type and a pure page `apply` (about 6–10 files):**
 - A `Command` union and `apply(PageState, Command)`.
 - Its grid half is grid-edits.ts plus the extracted handler rules; its page half takes over §8's rules.
@@ -199,3 +202,41 @@ Each grid call:
 
 A shown page re-serves the whole document on every change. Batching commands into one call (open, type and compile
 once) is the natural fix, and gridEdit already works that way.
+
+## 11. The test foundation: what the suite lacks, and the tests that close it
+
+**Why.** DataCube's suite is broad and thin in one place. It has 129 unit and DOM test files (about 1,900 cases). 114
+of its 127 source modules are reached by them, and the other 13 (the app shell, `app/datacube-app.ts` and
+`app/sources.ts`, and the headless bridge) by the real-Chromium harnesses and Python's suite. But PR
+neema2/legend-lite#47's audit found about twelve real bugs that every one of those tests missed. Nearly all of them
+lived between pieces:
+- the configuration against its copy folded into the query;
+- the screen's glue against the headless glue;
+- a chart's saved values against its grid;
+- a page-level action against a grid's state.
+
+Each piece had its tests; nothing checked that the pieces agree. These four close that gap, in this order:
+
+1. **Parity: the screen and Python, one action, one result.** It is the program's core promise, and no test asserts it
+   today.
+   - **Before commands:** for each grid edit, the cube document the screen writes (its handler through the state owner,
+     then `writeCube`) equals the one headless `gridEdit` writes for the same edit.
+   - **With commands:** the screen's control and Python's call build the identical command value, and `apply` gives
+     the identical page.
+   - It would have caught #47's divergences in open groups, `configure` and the configuration read back
+     (`fromSnapshot`).
+2. **Round trips, as properties.** Random edits through `apply` (a seeded generator, in the spirit of
+   `test/fuzz.test.ts`), then write, read, open and compare: the page comes back identical. Plus the invariants on
+   duplicated representations:
+   - `fromSnapshot(applyToSnapshot(s, c))` changes nothing a query reads (this alone would have caught #47's first
+     blocker);
+   - a chart's selection is in its grid's filter;
+   - a live chart's saved spec is `followCube` of its grid.
+3. **A corpus of real saved pages, one or more per version.** Pages of versions 1–4, with measures lists, pivots, live
+   and frozen charts, sheets and stacks, kept as fixtures. Each opens with its expected notes and its figures, on the
+   screen (a harness) and in Python (`Page.load`). Today the migration is tested on synthetic documents only.
+4. **Line and branch coverage, measured.** Coverage over the Node tests (c8 or Node's own coverage), run once to find
+   the dark corners, then kept as a report rather than a gate. Today nothing is measured.
+
+**The rule from here** (the user's question, 2026-10-17): no fix without a test that fails without it; a fix found by
+an audit or a review names its test in its commit.
