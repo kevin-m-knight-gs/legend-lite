@@ -299,6 +299,12 @@ island's reason, those IQ answers, and what became of them:
   the claims; measured on IQ 17.1, 2026-10-17): IQ drops the column before it resolves its functions and answers;
   read, or under DISTINCT, its -265. Refused by name there (the island does not drop the column yet: the column's
   names still bind, -143, which a drop must keep); open: drop it, binding its names;
+- IQ carries a derived table's column's NULL rejection into it (SQLStorm's CTE whose LEFT JOIN's ON holds a
+  subquery, joined on its column by an inner join; measured on IQ 17.1, 2026-10-17): its outer query's WHERE or inner
+  join over it, through arithmetic, unqualified where it is the one FROM item, grouped or not, nested: the derived
+  LEFT JOIN is read as inner, before a window there numbers its rows (IQ numbers the inner join's rows, where SQL's
+  order numbers the outer join's). An inner join over an outer one rejects as a WHERE does, one under it does not.
+  The three derived-rank FAILs pinned since landing 5 were this, and pass;
 - not built yet: PIVOT (IQ 17.1 reads it, both engines; an IN list of literals, COUNT shown as a NUMERIC(20,0)).
   The corpus's 10 are SQL Server's `IN ([Question], [Answer])`, IQ's -143 (a name) or -1816 (a number);
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's

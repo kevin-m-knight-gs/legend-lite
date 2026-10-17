@@ -1298,3 +1298,37 @@ tests:
   - id: format_in_an_unread_column_of_a_distinct_derived_table_is_iqs_error
     sql: "SELECT n FROM (SELECT DISTINCT id AS n, FORMAT(dt, 'yy-MM') AS f FROM t) d ORDER BY n"
     profile: iq17-default
+
+  # ---- IQ carries a derived table's column's NULL rejection into it (SQLStorm's CTE whose LEFT JOIN's ON holds a
+  # subquery, joined on its column; measured on IQ 17.1, 2026-10-17): the derived LEFT JOIN is inner there, before a
+  # window numbers its rows; an inner join over an outer one rejects as a WHERE does, one under it does not
+  - id: derived_outer_join_with_a_subquery_joined_on_its_column
+    sql: "SELECT d.id FROM (SELECT a.id, b.id AS bid FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = a.id)) d JOIN u x ON x.id = d.bid ORDER BY d.id"
+    profile: iq17-default
+  - id: derived_outer_join_with_a_subquery_filtered_on_its_column
+    sql: "SELECT d.id, d.bid FROM (SELECT a.id, b.id AS bid FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = a.id)) d WHERE d.bid > 0 ORDER BY d.id"
+    profile: iq17-default
+  - id: derived_outer_join_with_a_subquery_filtered_unqualified
+    sql: "SELECT id FROM (SELECT a.id, b.id AS bid FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = a.id)) d WHERE bid + 1 > 0 ORDER BY id"
+    profile: iq17-default
+  - id: grouped_derived_outer_join_with_a_subquery_joined_on_its_column
+    sql: "SELECT d.id, d.n FROM (SELECT a.id, b.id AS bid, COUNT(*) AS n FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = a.id) GROUP BY a.id, b.id) d JOIN u x ON x.id = d.bid ORDER BY d.id"
+    profile: iq17-default
+  - id: derived_outer_join_with_a_subquery_read_whole_is_iqs_error
+    sql: "SELECT d.id FROM (SELECT a.id, b.id AS bid FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = a.id)) d"
+    profile: iq17-default
+  - id: derived_outer_join_with_a_subquery_left_joined_on_its_column_is_iqs_error
+    sql: "SELECT d.id FROM (SELECT a.id, b.id AS bid FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = a.id)) d LEFT JOIN u x ON x.id = d.bid"
+    profile: iq17-default
+  - id: outer_join_with_a_subquery_under_an_inner_join_on_its_side
+    sql: "SELECT a.id FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = a.id) JOIN u x ON x.id = b.id ORDER BY a.id"
+    profile: iq17-default
+  - id: outer_join_with_a_subquery_over_an_inner_join_is_iqs_error
+    sql: "SELECT a.id FROM t a LEFT JOIN (u b JOIN u x ON x.id = b.id) ON b.t_id = a.id AND b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = a.id) ORDER BY a.id"
+    profile: iq17-default
+  - id: derived_window_numbers_the_inner_rows_under_a_rejection
+    sql: "SELECT d.id, d.bid, d.r FROM (SELECT a.id, b.id AS bid, ROW_NUMBER() OVER (ORDER BY a.id, b.id) AS r FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id > 0) d WHERE d.bid > 0 ORDER BY d.r"
+    profile: iq17-default
+  - id: derived_window_numbers_the_outer_rows_under_another_filter
+    sql: "SELECT d.id, d.bid, d.r FROM (SELECT a.id, b.id AS bid, ROW_NUMBER() OVER (ORDER BY a.id, b.id) AS r FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id > 0) d WHERE d.id > 2 ORDER BY d.r"
+    profile: iq17-default

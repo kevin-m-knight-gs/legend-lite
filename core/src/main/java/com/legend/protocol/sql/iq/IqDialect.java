@@ -3044,6 +3044,7 @@ public final class IqDialect implements InputDialect {
     }
 
     private static void subqueryPlaces(SqlAst.Statement statement, Set<SqlAst.Join> innerJoins) {
+        Map<SqlAst.Select, List<SqlAst.Expr>> held = heldNonNull(statement);
         Set<SqlAst.Select> top = Collections.newSetFromMap(new IdentityHashMap<>());
         topBranches(statement, top);
         Set<SqlAst.Select> inDerived = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -3131,7 +3132,8 @@ public final class IqDialect implements InputDialect {
                 for (SqlAst.Join j : joins) {
                     if (j.on() != null && j.type() != SqlAst.JoinType.INNER) {
                         SqlAst.Expr on = java.util.Objects.requireNonNull(j.on());
-                        if (holdsSubquery(on) && nullRejected(s.where(), j)) {
+                        if ((holdsSubquery(on) || expressions(s).stream().anyMatch(IqDialect::hasWindowCall))
+                                && nullRejected(rejecting(s, j), held.getOrDefault(s, List.of()), j)) {
                             innerJoins.add(j);
                         } else {
                             outerJoinSubqueries(j, on);
@@ -3319,16 +3321,18 @@ public final class IqDialect implements InputDialect {
 
     /**
      * IQ island, 2026-10-17 (found by verifying the corpus lane's IQ_ERROR claims: SQLStorm's LEFT JOIN ph ON ... AND
-     * ph.CreationDate = (SELECT MAX(...)) WHERE ph.PostHistoryTypeId = 10; measured on IQ 17.1): whether {@code where}
-     * rejects the NULLs of {@code j}'s null-supplying side, so that IQ's engine reads the outer join as the inner one it
-     * then is, a subquery in its ON taken as in any join's. A conjunct of the WHERE's top AND that is a comparison with
-     * a column of that side, qualified, as one operand or in its arithmetic ({@code u.id > 0}, {@code u.id + 1 > 0},
-     * {@code u.id >= t.id}), {@code IS NOT NULL}, {@code [NOT] IN} a list, {@code [NOT] BETWEEN} or {@code [NOT] LIKE}
-     * of such a column; no NULL constant beside it (under ansinull Off {@code = NULL} is IS NULL). Not one: IS NULL,
-     * an OR, a COALESCE (IQ raises -1001047 under each: measured). A FULL JOIN has no such side here.
+     * ph.CreationDate = (SELECT MAX(...)) WHERE ph.PostHistoryTypeId = 10; measured on IQ 17.1): whether a conjunct of
+     * {@code conjuncts} (the query's WHERE's and its inner joins' ON's, {@link #rejecting}) or an expression its outer
+     * query rejects the NULLs of ({@code held}, {@link #heldNonNull}) rejects the NULLs of {@code j}'s null-supplying
+     * side, so that IQ's engine reads the outer join as the inner one it then is, a subquery in its ON taken as in any
+     * join's. A conjunct that is a comparison with a column of that side, qualified, as one operand or in its arithmetic
+     * ({@code u.id > 0}, {@code u.id + 1 > 0}, {@code u.id >= t.id}), {@code IS NOT NULL}, {@code [NOT] IN} a list,
+     * {@code [NOT] BETWEEN} or {@code [NOT] LIKE} of such a column; no NULL constant beside it (under ansinull Off
+     * {@code = NULL} is IS NULL). Not one: IS NULL, an OR, a COALESCE (IQ raises -1001047 under each: measured). A FULL
+     * JOIN has no such side here.
      */
-    private static boolean nullRejected(SqlAst.@com.legend.base.Nullable Expr where, SqlAst.Join j) {
-        if (where == null || j.type() == SqlAst.JoinType.FULL) {
+    private static boolean nullRejected(List<SqlAst.Expr> conjuncts, List<SqlAst.Expr> held, SqlAst.Join j) {
+        if (j.type() == SqlAst.JoinType.FULL) {
             return false;
         }
         Set<String> side = new java.util.HashSet<>();
@@ -3339,46 +3343,139 @@ public final class IqDialect implements InputDialect {
             }
             side.add(IqLexer.lower(name.text()));
         }
-        List<SqlAst.Expr> conjuncts = new ArrayList<>();
-        andConjuncts(where, conjuncts);
-        for (SqlAst.Expr c : conjuncts) {
-            boolean rejects = switch (c) {
-                case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.EQ || b.op() == SqlAst.BinaryOp.NE
-                        || b.op() == SqlAst.BinaryOp.LT || b.op() == SqlAst.BinaryOp.LE
-                        || b.op() == SqlAst.BinaryOp.GT || b.op() == SqlAst.BinaryOp.GE ->
-                        !(b.left() instanceof SqlAst.NullLit) && !(b.right() instanceof SqlAst.NullLit)
-                                && (strictOf(b.left(), side) || strictOf(b.right(), side));
-                case SqlAst.IsNull n -> n.negated() && sideColumn(n.operand(), side);
-                case SqlAst.InList in -> sideColumn(in.operand(), side)
-                        && in.values().stream().noneMatch(v -> v instanceof SqlAst.NullLit);
-                case SqlAst.Between b -> sideColumn(b.operand(), side);
-                case SqlAst.Like l -> sideColumn(l.operand(), side);
-                default -> false;
-            };
-            if (rejects) {
-                return true;
+        Set<String> rejected = new java.util.HashSet<>();
+        conjuncts.forEach(c -> rejectedColumns(c, side, null, rejected));
+        held.forEach(e -> strictColumns(e, side, null, rejected));
+        return !rejected.isEmpty();
+    }
+
+    /** The conjuncts that see {@code target}'s rows, a join's or a FROM item's, as {@code s} makes them: its WHERE's,
+     *  and the ON's of the inner joins over {@code target} (measured on IQ 17.1: {@code LEFT JOIN u b ON ... JOIN u x
+     *  ON x.id = b.id} rejects b's NULLs as a WHERE does); an inner join under it sees its rows before a join pads
+     *  them. */
+    private static List<SqlAst.Expr> rejecting(SqlAst.Select s, SqlAst.FromItem target) {
+        List<SqlAst.Expr> out = new ArrayList<>();
+        if (s.where() != null) {
+            andConjuncts(java.util.Objects.requireNonNull(s.where()), out);
+        }
+        for (SqlAst.FromItem f : s.from()) {
+            innerJoinsOver(f, target, out);
+        }
+        return out;
+    }
+
+    /** Whether {@code target} is {@code f} or under it; if so, the ON conjuncts of the inner joins on the way, into
+     *  {@code out}. */
+    private static boolean innerJoinsOver(SqlAst.FromItem f, SqlAst.FromItem target, List<SqlAst.Expr> out) {
+        if (f == target) {
+            return true;
+        }
+        if (f instanceof SqlAst.Join j && (innerJoinsOver(j.left(), target, out)
+                || innerJoinsOver(j.right(), target, out))) {
+            if (j.type() == SqlAst.JoinType.INNER && j.on() != null) {
+                andConjuncts(java.util.Objects.requireNonNull(j.on()), out);
             }
+            return true;
         }
         return false;
     }
 
-    /** Whether {@code e} is a qualified column of one of the tables {@code side} names. */
-    private static boolean sideColumn(SqlAst.Expr e, Set<String> side) {
-        return e instanceof SqlAst.ColumnRef r && r.parts().size() == 2
-                && side.contains(IqLexer.lower(r.parts().get(0).text()));
+    /**
+     * IQ island, 2026-10-17 (found by verifying the corpus lane's IQ_ERROR claims: SQLStorm's CTE whose LEFT JOIN's ON
+     * holds a subquery, joined on its column by an inner join; measured on IQ 17.1): IQ's engine carries the rejection
+     * of a derived table's (or a common table expression's) column's NULLs, by its outer query's WHERE or inner join,
+     * into the derived table, grouped or not, through nested ones: there it rejects the NULLs of what the column's item
+     * computes, so a LEFT JOIN there is read as inner -- before a window function there numbers its rows (measured:
+     * {@code ROW_NUMBER()} over the inner join's rows, where SQL's order numbers the outer join's). Per derived SELECT,
+     * the items whose NULLs are so rejected; an unqualified column is the derived table's only where it is the outer
+     * query's one FROM item; a derived table with a row limit is not entered (IQ's -1001030 there).
+     */
+    private static Map<SqlAst.Select, List<SqlAst.Expr>> heldNonNull(SqlAst.Statement statement) {
+        Map<SqlAst.Select, List<SqlAst.Expr>> held = new IdentityHashMap<>();
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s)) {
+                continue;
+            }
+            List<SqlAst.Expr> mine = held.getOrDefault(s, List.of());
+            List<SqlAst.FromItem> all = new ArrayList<>();
+            s.from().forEach(f -> all.addAll(leaves(f)));
+            for (SqlAst.FromItem leaf : all) {
+                if (!(leaf instanceof SqlAst.SubqueryFrom d) || d.alias() == null
+                        || !(d.query() instanceof SqlAst.Select ds) || ds.limit() != null) {
+                    continue;
+                }
+                String alias = IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text());
+                String only = all.size() == 1 ? alias : null;
+                Set<String> columns = new java.util.HashSet<>();
+                rejecting(s, d).forEach(c -> rejectedColumns(c, Set.of(alias), only, columns));
+                mine.forEach(e -> strictColumns(e, Set.of(alias), only, columns));
+                List<SqlAst.Expr> items = new ArrayList<>();
+                for (int i = 0; i < ds.items().size(); i++) {
+                    String name = itemName(ds, i, d.columnAliases());
+                    if (name != null && columns.contains(name) && ds.items().get(i) instanceof SqlAst.SelectExpr x) {
+                        items.add(x.expr());
+                    }
+                }
+                if (!items.isEmpty()) {
+                    held.put(ds, items);
+                }
+            }
+        }
+        return held;
     }
 
-    /** Whether {@code e} is NULL wherever such a column is: the column, or arithmetic of it and no NULL constant. */
-    private static boolean strictOf(SqlAst.Expr e, Set<String> side) {
-        if (sideColumn(e, side)) {
-            return true;
+    /** Into {@code out}, the columns (their names, lower case) of the tables {@code side} names whose NULLs conjunct
+     *  {@code c} rejects ({@link #nullRejected}); an unqualified column is table {@code only}'s, where not null. */
+    private static void rejectedColumns(SqlAst.Expr c, Set<String> side, @com.legend.base.Nullable String only,
+            Set<String> out) {
+        switch (c) {
+            case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.EQ || b.op() == SqlAst.BinaryOp.NE
+                    || b.op() == SqlAst.BinaryOp.LT || b.op() == SqlAst.BinaryOp.LE
+                    || b.op() == SqlAst.BinaryOp.GT || b.op() == SqlAst.BinaryOp.GE -> {
+                if (!(b.left() instanceof SqlAst.NullLit) && !(b.right() instanceof SqlAst.NullLit)) {
+                    strictColumns(b.left(), side, only, out);
+                    strictColumns(b.right(), side, only, out);
+                }
+            }
+            case SqlAst.IsNull n -> {
+                if (n.negated()) {
+                    sideColumn(n.operand(), side, only, out);
+                }
+            }
+            case SqlAst.InList in -> {
+                if (in.values().stream().noneMatch(v -> v instanceof SqlAst.NullLit)) {
+                    sideColumn(in.operand(), side, only, out);
+                }
+            }
+            case SqlAst.Between b -> sideColumn(b.operand(), side, only, out);
+            case SqlAst.Like l -> sideColumn(l.operand(), side, only, out);
+            default -> { }
         }
+    }
+
+    /** Into {@code out}, {@code e}'s name where it is a column of one of the tables {@code side} names: qualified, or
+     *  unqualified where {@code only} is one of them. */
+    private static void sideColumn(SqlAst.Expr e, Set<String> side, @com.legend.base.Nullable String only,
+            Set<String> out) {
+        if (e instanceof SqlAst.ColumnRef r && (r.parts().size() == 2 && side.contains(IqLexer.lower(
+                r.parts().get(0).text())) || r.parts().size() == 1 && only != null && side.contains(only))) {
+            out.add(IqLexer.lower(r.parts().get(r.parts().size() - 1).text()));
+        }
+    }
+
+    /** Into {@code out}, the columns of those tables that make {@code e} NULL where they are: the column, or arithmetic
+     *  of it and no NULL constant. */
+    private static void strictColumns(SqlAst.Expr e, Set<String> side, @com.legend.base.Nullable String only,
+            Set<String> out) {
+        sideColumn(e, side, only, out);
         // a + of strings too, though it concatenates a stored NULL as '' (D-S3): measured on IQ 17.1 (the landing's
         // review, 2026-10-17), b.label + 'x' = 'x' drops the rows the join supplies NULLs for; b.label || 'x' keeps them
-        return e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS
+        if (e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS
                 || b.op() == SqlAst.BinaryOp.TIMES || b.op() == SqlAst.BinaryOp.DIVIDE)
-                && !(b.left() instanceof SqlAst.NullLit) && !(b.right() instanceof SqlAst.NullLit)
-                && (strictOf(b.left(), side) || strictOf(b.right(), side));
+                && !(b.left() instanceof SqlAst.NullLit) && !(b.right() instanceof SqlAst.NullLit)) {
+            strictColumns(b.left(), side, only, out);
+            strictColumns(b.right(), side, only, out);
+        }
     }
 
     /** IQ island, 2026-10-17: an outer join IQ's engine reads as an inner one ({@link #nullRejected}) as INNER. */
