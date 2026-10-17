@@ -1016,8 +1016,8 @@ and where it departs from the list above:
     (`RawGridSchemaDuckDbTest`), and the warehouse's two (D4, Phase 7's). `TestBackends` and its test are EVERY.
 - **PCT:** `PctBackend` takes its lane's backend by name (`LEGENDLITE_PCT_BACKEND`); its lane enum and `CloudLane` are
   gone. `PctCensusGate`'s environment-variable branches are a per-lane table that refuses a lane or suite with none.
-  The lanes other than DuckDB's, H2's and Postgres's carry the ceilings they ran under before, the platform lane's,
-  until they are measured. The channel B suites' `isReference()` branches stay: the reference lane is the platform's
+  Every lane's ceilings are what it measured (2026-10-17, the phase's measurement round): the platform lane's and
+  Postgres's as before, zero on every other lane, where seven lanes had carried the platform lane's numbers. The channel B suites' `isReference()` branches stay: the reference lane is the platform's
   own engine (no database named), and its suites' deeper checks are its own.
 - **Core's tests** open the platform's backend, every in-process backend, or the database they are about.
   - Tests that ran one battery on DuckDB and on H2 by name, or on H2 alone (`FrameQuotedColumn`), run it on every

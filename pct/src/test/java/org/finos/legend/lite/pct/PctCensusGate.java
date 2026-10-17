@@ -203,27 +203,25 @@ public final class PctCensusGate {
 
     private static final Ceilings ZERO = new Ceilings(0, 0);
 
-    /** The platform lane's proven-empty int-or-null ceilings (above), which every lane but Postgres's and H2's ran
-     *  under until 2026-10-16, when each lane's ceilings became its own row: carried on those lanes as they were, a
-     *  ceiling to lower when the lane is measured. */
-    private static final Map<String, Ceilings> PLATFORM_LANE = suites(new Ceilings(0, 20), ZERO, ZERO,
-            new Ceilings(0, 20), new Ceilings(0, 4));
+    private static final Map<String, Ceilings> ALL_ZERO = suites(ZERO, ZERO, ZERO, ZERO, ZERO);
 
     /** Each lane's ceilings, by its test backend's name (the dialect program's Phase 6, 2026-10-16: until then two
-     *  environment-variable branches, Postgres and H2, and every other lane took the platform lane's numbers). */
+     *  environment-variable branches, Postgres and H2, and every other lane took the platform lane's numbers). Measured
+     *  on every lane on 2026-10-17 (the phase's measurement round, e6800ae0): the platform lane's proven-empty
+     *  int-or-null columns and Postgres's structs as jsonb (both above) are each lane's only nonzero counts, so every
+     *  other lane's ceilings are zero. */
     private static final Map<String, Map<String, Ceilings>> CEILINGS = Map.ofEntries(
-            Map.entry("duckdb", PLATFORM_LANE),
-            Map.entry("h2", suites(ZERO, ZERO, ZERO, ZERO, ZERO)),
-            // the wire divergence measured above: a struct as jsonb, by design
+            Map.entry("duckdb", suites(new Ceilings(0, 20), ZERO, ZERO, new Ceilings(0, 20), new Ceilings(0, 4))),
+            Map.entry("h2", ALL_ZERO),
             Map.entry("postgres", suites(new Ceilings(14, 0), new Ceilings(6, 0), ZERO, ZERO, ZERO)),
-            Map.entry("sqlite", PLATFORM_LANE),
-            Map.entry("mariadb", PLATFORM_LANE),
-            Map.entry("mysql", PLATFORM_LANE),
-            Map.entry("trino", PLATFORM_LANE),
-            Map.entry("clickhouse", PLATFORM_LANE),
-            Map.entry("snowflake", PLATFORM_LANE),
-            Map.entry("databricks", PLATFORM_LANE),
-            Map.entry("bigquery", PLATFORM_LANE));
+            Map.entry("sqlite", ALL_ZERO),
+            Map.entry("mariadb", ALL_ZERO),
+            Map.entry("mysql", ALL_ZERO),
+            Map.entry("trino", ALL_ZERO),
+            Map.entry("clickhouse", ALL_ZERO),
+            Map.entry("snowflake", ALL_ZERO),
+            Map.entry("databricks", ALL_ZERO),
+            Map.entry("bigquery", ALL_ZERO));
 
     /** This lane's ceilings for {@code suite}, or the run is refused: a lane is measured before it is judged. */
     private static Ceilings ceilings(String suite) {
