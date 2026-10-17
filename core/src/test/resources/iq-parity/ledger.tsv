@@ -1121,6 +1121,13 @@ lite/corpus_gaps/substring_for_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ER
 lite/corpus_gaps/a_postgres_cast_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/substring_from_for_in_sql_anywhere@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/substring_from_for_in_sql_anywhere@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/regexp_replace_is_no_function_of_iqs@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/date_part_is_no_function_of_iqs@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/random_is_no_function_of_iqs@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/trunc_and_instr_are_no_functions_of_iqs@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/nth_value_is_no_function_of_iqs@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/position_with_a_comma_is_no_function_of_iqs@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_unread_regexp_replace_is_dropped@iq17-default	PASS	PASS
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

@@ -145,7 +145,11 @@ final class IqFunctions {
             // IQ island, 2026-10-17 (the corpus lane's 19; measured on IQ 17.1): SQL Server's, MySQL's and Postgres's
             // too -- DATEDIFF_BIG's part is read as a column there (its -143 for day)
             "var", "varp", "stdevp", "unnest", "substring_index", "splitpart", "parsename", "datediff_big",
-            "split_string");
+            "split_string",
+            // IQ island, 2026-10-17 (the TPC-H, TPC-DS and JOB corpus lane's 450; measured on IQ 17.1): PostgreSQL's,
+            // Oracle's and MySQL's (IQ reads REGEXP as a search condition, and LPAD, RPAD, GREATER and LESSER)
+            "regexp_replace", "regexp_like", "regexp_count", "regexp_instr", "date_part", "random", "array_length",
+            "string_to_array", "trunc", "listagg", "instr", "md5", "chr", "nth_value", "position");
 
     /** The refusal of a call of {@code name}, one of {@link #NO_SUCH_FUNCTION}. */
     static SqlTranslationException noSuchFunction(String name, SqlAst.Pos pos) {

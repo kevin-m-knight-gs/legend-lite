@@ -195,8 +195,12 @@
 # IQ island, 2026-10-17 (the TPC-H corpus lane's SUBSTRING(s FROM 1 FOR 10) and x::text; measured on IQ 17.1 and SQL
 # Anywhere 17): FROM or FOR among a call's arguments, and '::', are IQ's syntax error -131, named now, not refused:
 # reject REJECTED 1,033 -> 1,037 (REFUSED 750 -> 746).
-accept	parsed	3211
-accept	refused	1738
+# IQ island, 2026-10-17 (the TPC-H, TPC-DS and JOB corpus lane; measured on IQ 17.1): REGEXP_REPLACE, REGEXP_LIKE,
+# REGEXP_COUNT, REGEXP_INSTR, DATE_PART, RANDOM, ARRAY_LENGTH, STRING_TO_ARRAY, TRUNC, LISTAGG, INSTR, MD5, CHR,
+# NTH_VALUE and POSITION(a, b) are no functions of IQ's, its -265 while translating: accept PARSED 3,211 -> 3,216
+# (REFUSED 1,738 -> 1,733), z2_redteam-688/693/694/701/704, each SQL Anywhere 17's "other error".
+accept	parsed	3216
+accept	refused	1733
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	81

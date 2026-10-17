@@ -3188,7 +3188,7 @@ public final class IqDialect implements InputDialect {
      *  column holding the call is read nowhere ({@link #unreadUnknownFunctions}). */
     private static final Set<String> STRING_RESULTS = Set.of("string_agg", "concat", "concat_ws", "format",
             "split_part", "json_value", "group_concat", "strftime", "translate", "initcap", "quotename",
-            "substring_index", "splitpart", "parsename");
+            "substring_index", "splitpart", "parsename", "regexp_replace", "md5", "chr");
 
     /** A select's expressions ({@link #expressions}) and its named windows' keys (the landing's review, 2026-10-17: a
      *  WINDOW clause's PARTITION BY reads a derived table's column as an OVER's does). */

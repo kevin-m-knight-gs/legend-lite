@@ -1821,3 +1821,27 @@ tests:
   - id: substring_from_for_in_sql_anywhere
     sql: "SELECT SUBSTRING(vc FROM 1 FOR 2) AS a FROM t WHERE id = 1"
     profile: iq16-default
+
+  # ---- other dialects' functions IQ has no function of (IQ island, 2026-10-17; the TPC-H, TPC-DS and JOB corpus
+  # lane's 450, measured on IQ 17.1): its -265
+  - id: regexp_replace_is_no_function_of_iqs
+    sql: "SELECT REGEXP_REPLACE(vc, 'a', 'b') AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: date_part_is_no_function_of_iqs
+    sql: "SELECT DATE_PART('year', dt) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: random_is_no_function_of_iqs
+    sql: "SELECT id, RANDOM() AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: trunc_and_instr_are_no_functions_of_iqs
+    sql: "SELECT TRUNC(nm) AS a, INSTR(vc, 'a') AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: nth_value_is_no_function_of_iqs
+    sql: "SELECT id, NTH_VALUE(id, 2) OVER (ORDER BY id) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: position_with_a_comma_is_no_function_of_iqs
+    sql: "SELECT POSITION('a', vc) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: an_unread_regexp_replace_is_dropped
+    sql: "SELECT id FROM (SELECT id, REGEXP_REPLACE(vc, 'a', 'b') AS r FROM t) d ORDER BY id"
+    profile: iq17-default
