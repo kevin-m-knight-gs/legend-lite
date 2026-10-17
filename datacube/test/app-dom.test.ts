@@ -731,8 +731,9 @@ describe('the app', () => {
     assert.ok(doc);
     assert.equal(doc.kind, 'datacube.cube');
     assert.deepEqual(doc.query.rows, ['region']);
-    // a grid's aggregates are its Column Properties: a saved cube carries no measures list
-    assert.equal('measures' in doc.query, false);
+    // a grid's aggregates are its Column Properties: a saved cube's measures list is empty (written for a reader from
+    // before 2026-10-17, which asks for one)
+    assert.deepEqual(doc.query.measures, []);
     assert.equal(doc.configuration['maxRows'], 123, 'what the user set');
     assert.equal(doc.configuration['showTitleBar'], undefined, 'a default is not written down');
     assert.equal('source' in doc.query, false, 'the relation is derived from the source on open');

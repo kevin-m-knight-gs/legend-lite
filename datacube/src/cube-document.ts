@@ -35,7 +35,7 @@ import {
 } from '../../pure-protocol/src/index.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { allColumns, measuresAsColumns } from './grid-edits.ts';
-import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, applyToSnapshot, type CubeConfiguration } from './config.ts';
+import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, applyToSnapshot, fromSnapshot, type CubeConfiguration } from './config.ts';
 import type {
   ColumnSpec,
   CubeSnapshot,
@@ -139,7 +139,8 @@ export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSour
 
 /**
  * The cube's definition: a snapshot without its runtime state (source relation, epoch, row window). A cube saved before
- * 2026-10-17 can carry a list of measures, which opening it converts (openCube); one written now never does.
+ * 2026-10-17 can carry a list of measures, which opening it converts (openCube); one written now carries an empty one,
+ * for a reader from before then.
  */
 export type SavedQuery = Omit<CubeSnapshot, 'source' | 'epoch' | 'window'> & { readonly measures?: readonly Measure[] };
 
@@ -184,7 +185,9 @@ export function writeCube(o: WriteOptions): CubeDocument {
     version: CUBE_VERSION,
     name: o.name,
     source: o.source,
-    query,
+    // an empty list: a reader from before 2026-10-17 asks for one (its grid's aggregates were then a list or, empty, the
+    // columns' Aggregation, as they are now), so it opens a cube written now as it is
+    query: { ...query, measures: [] },
     configuration: (difference(o.configuration, DEFAULT_CONFIGURATION) ?? {}) as Record<string, unknown>,
     tree: treeDocument(o.tree),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
@@ -445,7 +448,14 @@ export function openCube(
   };
   const rows = q.rows.filter(using('grouping by'));
   const pivotOn = q.pivotOn.filter(using('pivoting on'));
-  const sorts = q.sorts.filter((s) => using('sorting by')(s.column));
+  // a column sorted by twice (old Python's sort() appended: a notebook cell run twice) sorts by its first; kept, any
+  // later sort of the grid's would be refused for it
+  const sortedBy = new Set<string>();
+  const sorts = q.sorts.filter((s) => using('sorting by')(s.column)).filter((s) => {
+    if (!sortedBy.has(s.column)) return sortedBy.add(s.column);
+    notes.push(`left out sorting by ${s.column} again (sorted by it already)`);
+    return false;
+  });
   const filter = q.filter === undefined ? undefined : pruneFilter(q.filter, gone, notes);
 
   // The source columns: the compiler's, carrying what the cube had set on each.
@@ -477,13 +487,25 @@ export function openCube(
   };
   // a measures list saved before 2026-10-17: the screen's model now, each measure said (or left out, said)
   const savedMeasures = q.measures ?? [];
-  const converted = measuresAsColumns({ snapshot: reconciled, config: configuration }, savedMeasures);
+  // the saved query read back first, as an opener reads one with no list (fromSnapshot: the query wins), so the fold
+  // below keeps what it holds and its configuration does not (a column's Aggregation, the row cap)
+  const converted = measuresAsColumns({
+    snapshot: reconciled, config: savedMeasures.length > 0 ? fromSnapshot(reconciled, configuration) : configuration,
+  }, savedMeasures);
   notes.push(...converted.notes);
-  // a sort of a measure left out names a column the grid has not (unless a column is so named): the flat level would
-  // sort by it, refused
+  if (savedMeasures.length > 0 && rows.length === 0 && pivotOn.length === 0) {
+    notes.push('nothing is grouped: the grid shows its rows, where its measures list showed one total row');
+  }
+  // a measure left out names a column the grid has not (unless a column is so named): a group-level column that reads
+  // it is left out too (every grouped level would read a column it has not), and a sort of either (the flat level would
+  // sort by it, refused)
   const madeNames = new Set(converted.made.map((x) => x.measure.name));
   const has = new Set(allColumns(converted.draft));
-  const lost = savedMeasures.map((m) => m.name).filter((n) => !madeNames.has(n) && !has.has(n));
+  const lostMeasures = savedMeasures.map((m) => m.name).filter((n) => !madeNames.has(n) && !has.has(n));
+  lostMeasures.forEach((n) => gone.add(n));
+  const groupHad = converted.draft.snapshot.groupDerived;
+  const groupKept = groupHad === undefined || lostMeasures.length === 0 ? groupHad : keepDerived(groupHad);
+  const lost = [...lostMeasures, ...(groupHad ?? []).filter((d) => !(groupKept ?? []).includes(d)).map((d) => d.name)];
   const lostSort = (column: string): boolean => lost.some((n) => column === n || column.endsWith(`${PIVOT_SEPARATOR}${n}`));
   const keptSorts = converted.draft.snapshot.sorts.filter((s) => {
     if (!lostSort(s.column)) return true;
@@ -494,7 +516,9 @@ export function openCube(
   // folded when a list was converted: an opener reads the query back over the configuration (app.ts's constructor and
   // the headless grid: fromSnapshot), so the saved query's copy of the old Column Properties would undo the conversion
   const snapshot = savedMeasures.length > 0
-    ? applyToSnapshot({ ...converted.draft.snapshot, sorts: keptSorts }, configuration)
+    ? applyToSnapshot({
+      ...converted.draft.snapshot, sorts: keptSorts, ...(groupKept !== undefined ? { groupDerived: groupKept } : {}),
+    }, configuration)
     : converted.draft.snapshot;
   // The open rows are paths through the saved grouping; a different grouping has none.
   const tree = TreeState.fromPaths(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals);

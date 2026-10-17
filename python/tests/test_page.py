@@ -85,8 +85,9 @@ class Document(Paged):
                          [('region', 'String'), ('desk', 'String'), ('notional', 'Float'), ('pnl', 'Float')])
         query = cube['cube']['query']
         self.assertEqual(query['rows'], ['region'])
-        # a measure is its column's Aggregation, in Column Properties, as the screen sets it: no measures list
-        self.assertNotIn('measures', query)
+        # a measure is its column's Aggregation, in Column Properties, as the screen sets it: the measures list is empty
+        # (written so for a reader from before 2026-10-17, which asks for one)
+        self.assertEqual(query['measures'], [])
         self.assertEqual(cube['cube']['configuration']['columns']['notional'], {'aggregateFn': 'sum'})
         self.assertEqual(query['sorts'], [{'column': 'notional', 'direction': 'desc'}])
         # a list of one condition, in the filter editor's normal form: a group of one is that one, as DataCube writes it
@@ -244,7 +245,7 @@ class Document(Paged):
             'unique',
             'old_counts: measure  total  is now a calculated column of pnl, its Aggregation sum'])
         cube = page.to_dict()['cubes'][0]['cube']
-        self.assertNotIn('measures', cube['query'])
+        self.assertEqual(cube['query']['measures'], [])
         self.assertEqual(cube['configuration']['columns']['notional'], {'aggregateFn': 'average'})
         self.assertEqual([d['name'] for d in cube['query']['derived']], ['total'])
         page.grids[0].measure('pnl', 'average', name='p')
@@ -262,7 +263,7 @@ class Document(Paged):
         page._doc['cubes'][0]['cube']['query']['measures'] = [{'name': 'region', 'column': 'region', 'fn': 'count'}]
         with self.assertWarnsRegex(UserWarning, "again_trades: left out measure region: 'count' is not offered on region"):
             grid.update(trades())
-        self.assertNotIn('measures', page.to_dict()['cubes'][0]['cube']['query'])
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['measures'], [])
 
     def test_a_layout_of_splits_and_sizes_is_kept_as_tiles_come_and_go(self):
         page, grid, chart = self.built()
@@ -625,7 +626,7 @@ class Document(Paged):
         grid.measure('pnl', 'wavg', name='w_pnl', weight='notional').measure('pnl', 'count', name='trades')
         grid.measure('notional', 'max', name=' top_notional ').sort('w_pnl', 'desc')
         cube = page.to_dict()['cubes'][0]['cube']
-        self.assertNotIn('measures', cube['query'])
+        self.assertEqual(cube['query']['measures'], [])
         self.assertEqual(cube['configuration']['columns']['notional'], {'aggregateFn': 'average'})
         self.assertEqual([d['name'] for d in cube['query']['derived']], ['w_pnl', 'trades', 'top_notional'])
         self.assertEqual(cube['configuration']['columns']['w_pnl'],

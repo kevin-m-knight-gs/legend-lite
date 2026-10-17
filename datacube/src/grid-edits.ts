@@ -255,7 +255,7 @@ export function measureAsColumn<D extends GridDraft>(draft: D, m: Measure, taken
   const isKey = draft.snapshot.rows.includes(m.column) || draft.snapshot.pivotOn.includes(m.column);
   if (m.name === m.column && !isKey && !taken.has(m.column)) {
     const dimension = converting && columnKind(draft, m.column) === 'dimension';
-    const d = setColumn(dimension ? setColumn(draft, m.column, { kind: 'measure' }) : draft, m.column, change);
+    const d = setColumn(dimension ? asMeasure(draft, m.column) : draft, m.column, change);
     return {
       draft: d, made: { measure: m, column: m.column },
       note: `measure ${m.name} is now ${m.column}'s Aggregation, ${m.fn}${dimension ? ` (${m.column} is now a measure)` : ''}`,
@@ -270,10 +270,25 @@ export function measureAsColumn<D extends GridDraft>(draft: D, m: Measure, taken
   };
   const d = setColumn({ ...draft, snapshot: { ...draft.snapshot, derived: [...draft.snapshot.derived, copy] } },
     copy.name, change);
+  // a column kept out of the pivot carries its exclusion; a calculated column has none (its editor sets none): a pivot
+  // spreads the copy
+  const keptOut = converting && (columnConfig(draft.config, m.column).excludedFromPivot ?? column.excludedFromPivot) === true;
   return {
     draft: d, made: { measure: m, column: copy.name },
-    note: `measure ${m.name} is now a calculated column of ${m.column}, its Aggregation ${m.fn}`,
+    note: `measure ${m.name} is now a calculated column of ${m.column}, its Aggregation ${m.fn}`
+      + (keptOut ? ` (a pivot spreads it: ${m.column} is kept out of one, a calculated column cannot be)` : ''),
   };
+}
+
+/**
+ * `name` made a measure: a source column as Column Properties makes one (setColumn), a calculated column on its own
+ * entry, as its editor makes one (Column Properties sets no calculated column's kind) -- old Python's calculated
+ * columns carried no kind and no type, and so read as dimensions.
+ */
+function asMeasure<D extends GridDraft>(draft: D, name: string): D {
+  if (!draft.snapshot.derived.some((d) => d.name === name)) return setColumn(draft, name, { kind: 'measure' });
+  const derived = draft.snapshot.derived.map((d) => (d.name === name ? { ...d, kind: 'measure' as const } : d));
+  return { ...draft, snapshot: { ...draft.snapshot, derived } };
 }
 
 /**
