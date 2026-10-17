@@ -9,7 +9,6 @@ import com.legend.testing.EmbeddedPostgres;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -48,9 +47,12 @@ final class PostgresBackend extends ServerBackend {
         return "postgres";
     }
 
+    /** A session as the platform opens one, as the launcher's user. */
     @Override
-    String url() {
-        return EmbeddedPostgres.shared().jdbcUrl(database());
+    Connection session(String database) throws SQLException {
+        java.util.Properties settings = new java.util.Properties();
+        settings.setProperty("user", EmbeddedPostgres.USER);
+        return openedAsThePlatformOpens(database, settings);
     }
 
     @Override
@@ -65,16 +67,15 @@ final class PostgresBackend extends ServerBackend {
 
     @Override
     public synchronized Connection openWorkspace() throws SQLException {
-        EmbeddedPostgres pg = EmbeddedPostgres.shared();
         if (admin == null) {
-            admin = DriverManager.getConnection(pg.jdbcUrl(database()));
+            admin = session(database());
         }
         String ws = "ws_" + workspaceIds.getAndIncrement();
         try (Statement st = admin.createStatement()) {
             com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("CREATE DATABASE " + ws);
         }
-        return closeDrops(DriverManager.getConnection(pg.jdbcUrl(ws)), ws);
+        return closeDrops(session(ws), ws);
     }
 
     /** A SCHEMA aside in the workspace's database, on the workspace itself (Postgres's DDL is transactional, so the

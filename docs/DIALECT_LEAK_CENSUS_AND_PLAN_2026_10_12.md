@@ -1063,6 +1063,50 @@ The ledger after part 1: core's test rows are the SQL, IQ and Cypher islands' an
 they are its owners now), the warehouse its tests' (Phase 7), and main code `DynaFn` (D10) and the SQL translator's three
 files (#43).
 
+**Part 2, 2026-10-17** (the same branch, after part 1 landed as neema2/legend-lite#52): the relational corpus's
+harness, the islands' tests, and what part 1 left. What it did, and where it departs from the list above:
+
+- **The corpus's databases are test backends.** A backend answers the corpus's questions itself:
+  - `openWorkspace()`, a package's session, made in UTC: DuckDB's is an `ATTACH`ed catalog (`DuckDbWorkspaces`, the
+    old `DuckWorkspaces` made per instance), H2's a fresh in-memory database, Postgres's a database of its own,
+    dropped when its session closes.
+  - `setFixtureAside()`, a clashing fixture set apart from the workspace's tables (a `FixtureAside`): a schema on
+    H2 and on Postgres. **Defect 5 is fixed**: a backend that cannot set a fixture aside refuses by name, where
+    Postgres's fixtures ran over the workspace's own tables.
+  - `readerOn()`, a second reader of a session's rows: DuckDB's duplicates the session.
+  - The referee is a kind of backend (`RefereeBackend`, H2's): it opens the referee's database, and replays the
+    fixture's aside and restore. `ReplayReferee` routes by `TestBackends.of(session)` (the session's product name,
+    read by the connectors) and opens its reader with `readerOn`.
+  - The warehouse lane is a backend of its own (`DuckDbWarehouseBackend`, `-Drcorpus.backend=warehouse`), not a
+    second system property.
+  - `MinimalCorpusTest` holds each lane to its own rosters and ceilings (a `Lane` record); a lane with none is held
+    to its fail roster alone. `H2Verify` is `RefereeVerify`: its microsecond floor is a referee rule (it fires on
+    the H2 lane), not a backend's precision fact.
+  - Departures: `openUtc()` is part of `openWorkspace()`; `isolateFixture()` is `setFixtureAside()`;
+    `censusCeilings()` stayed with the test's policy (the `Lane` record), not the backend; `CorpusOne` stays (it runs
+    one test on any named lane) and validates its lane through `TestBackends.named`.
+- **The islands' and lowering tests** run on the platform's backend: the session, the connection a model declares
+  (`connectionBody()`), and the table, rendered by the dialect from the store's declaration
+  (`SqlIslandCases.table(backend)`, `setup.Ddl.createTable`). `SqlIslandIntegrationTest`,
+  `CypherIslandIntegrationTest`, `CorrelatedComputedColumnTest`, `ScaleCostsTest` and `LowerRelationTest`.
+- **The parity lanes' tables are made by the lane's dialect** (`SqlParity.seed(backend, ...)`,
+  `IqParity.seed(backend, ...)`), from the store the cases declare. Departure: the Postgres lanes, where upstream
+  snapped its answers, keep upstream's own fixture verbatim (`PostgresSeed`: its setup, its declared types, `JSON` and
+  `JSONB` apart, as the snapped answers read them). The stress harness is `SqlStressOnPostgres`, named for the
+  database it compares against; its Postgres URL is a required property.
+- **The resolver tests' 26 `sqlOf()` copies** are one harness, `resolver/ResolvedSql`.
+- **Defect 4 is fixed.** `CorpusDifferentialTest` runs each service on the database its runtime declares
+  (`Compiler.executesOn`), with that database's dialect and backend. The seed is data, not DuckDB SQL:
+  `differential.py` writes `diff/seed.json` (each table's columns with the type the seed gives each, and its rows as
+  text), and the test makes each table as its store declares it and fills it through `setup.RowLoad`. The verdict
+  is unchanged: 178 agree, 1 known divergence, 179 services. Every runtime in the corpus declares DuckDB.
+- **`StoreTypesTest`** reads an `OTHER` column on every database `Databases.implemented()` names, each held to its
+  own dialect's stored read.
+- **The server backends' sessions have one route.** Postgres's, MariaDB's and MySQL's sessions open at the URL the
+  product's connector makes from the coordinates their connections declare (`Sessions.openingFor`), with only the
+  launcher's user and settings beside it, so the declared coordinates and the session a test runs on cannot drift
+  apart. Trino's and ClickHouse's keep their launchers' URLs: the product opens no session on them.
+
 ### Phase 7: the other modules
 
 - **Warehouse** (decision D4). It is *mixed-engine*: DuckDB plus Postgres catalogs attached through DuckDB's postgres
