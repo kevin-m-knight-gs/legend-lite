@@ -608,7 +608,7 @@ class IqToPureTest {
         // IQ island, 2026-10-17 (the corpus lane, measured on IQ 17.1): a month and a year are its first day; numbers
         // ending in a four-digit year are IQ's error under DATE_ORDER YMD, -157 beside a DATE column
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt = 'Mar 2026'").contains("%2026-03-01"));
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt > '01/02/2018'").getMessage().contains("SQLCODE -157"));
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt > '01/02/2018'").getMessage().contains("-157 here"));
         SqlAst.Pos at = new SqlAst.Pos(1, 1);
         assertEquals(java.util.Arrays.asList("2026-03-04", "05:06:07.100000"), java.util.Arrays.asList(
                 IqDateTime.read("2026-03-04 05:06:07.1", IqProfile.IQ16_DEFAULT.settings(), at)));
@@ -838,13 +838,16 @@ class IqToPureTest {
         // ANY and IN compare each row as IQ's = does (blank padding)
         assertTrue(pure("SELECT id FROM " + T + " a WHERE vc = ANY (SELECT b.vc FROM " + T + " b)").contains(
                 "startsWith"));
+        // IQ island, 2026-10-17 (the corpus lane's SEDE, measured on IQ 17.1): an IN subquery that is a UNION is read
+        assertTrue(pure("SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY UNION SELECT 2 FROM DUMMY)")
+                .contains("concatenate("));
         // the IQ engine's restrictions, refused by name; SQL Anywhere's front end takes them
         for (String sql : new String[] {"SELECT id FROM " + T + " WHERE id + (SELECT 1 FROM DUMMY) = 2",
                 "SELECT IF id = 1 THEN (SELECT 1 FROM DUMMY) ENDIF AS x FROM " + T,
                 "SELECT COALESCE((SELECT 1 FROM DUMMY), id) AS x FROM " + T,
                 "SELECT SUM((SELECT 1 FROM DUMMY)) AS x FROM " + T,
                 "SELECT id FROM " + T + " ORDER BY (SELECT 1 FROM DUMMY)",
-                "SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY UNION SELECT 2 FROM DUMMY)"}) {
+                "SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY INTERSECT SELECT 2 FROM DUMMY)"}) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): one inside a conditional expression or an aggregate names
             // IQ's error, -1001030
             String m = refusal(sql).getMessage();

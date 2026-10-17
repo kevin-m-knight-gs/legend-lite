@@ -473,7 +473,7 @@ tests:
     sql: "SELECT id FROM t WHERE vc IN (SELECT 'x' FROM DUMMY)"
   - id: in_subquery_of_dummy
     sql: "SELECT id FROM t WHERE id IN (SELECT dummy_col + 1 FROM DUMMY)"
-  - id: in_subquery_of_a_union_is_refused
+  - id: in_subquery_of_a_union
     sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u UNION SELECT 7 FROM DUMMY) ORDER BY 1"
   - id: in_subquery_of_a_union_in_the_front_end
     sql: "SELECT IF 2 IN (SELECT 1 FROM DUMMY UNION ALL SELECT 2 FROM DUMMY) THEN 'T' ELSE 'F' ENDIF AS x"

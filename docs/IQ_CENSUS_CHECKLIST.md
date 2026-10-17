@@ -148,7 +148,14 @@ island's reason, those IQ answers, and what became of them:
 - built this round: a second statement without a separator, named (85 of 108; out: the island reads one SELECT);
   month-first dates, IQ's error (55 of 61) and a year and a month, read (6); a string function's 64-bit count (23);
   LIKE's sets of any member (13 of 17); `*` in a grouped query showing its group keys (7); a GROUP BY of constants
-  only, NULL too (4: IQ 17.1 reads it, where the research's D-R1 held that its engine restricts it);
+  only, NULL too (4: IQ 17.1 reads it, where the research's D-R1 held that its engine restricts it); LOG and LOG10
+  of a COUNT and STR of NTILE, IQ's unsigned results (13); DATEADD by a computed count, refused at run time past
+  SQL Anywhere's bound only (10); NULLIF of a date and a date string (3); an IN subquery that is a UNION (5 of 8:
+  INTERSECT and EXCEPT there are IQ's -1001030). Judged against IQ 17.1's stored answers: 110 PASS where 0 did;
+  the rest are ties of ROW_NUMBER. A CONVERT style to a shorter string stays refused: IQ's engine cuts it in some
+  places and raises -1009145 in others (a styled result compared with a string, CONVERT(CHAR(6), d, 112) ranked);
+- a date string IQ cannot convert names both codes rather than one: which IQ reports is its evaluation order's (a
+  DATEPART of a string's -1001011 may come first; a BETWEEN over a computed DATE in a grouped query is -157);
 - lite's database failing on SEDE's empty sample tables (27 of 40): each answers over the data, PASS; the other 13
   are IQ's errors too (division by zero, the outer join ON rule above);
 - paused, a decision for the user: AVG or SUM of a DOUBLE read for some groups only (39). IQ checks the running

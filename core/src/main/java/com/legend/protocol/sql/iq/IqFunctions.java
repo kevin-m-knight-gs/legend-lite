@@ -794,6 +794,11 @@ final class IqFunctions {
                         + " places is not supported yet: its whole part may exceed 18 digits", f.pos());
             }
             digits = new Digits(whole, ps[1], false);
+        } else if (x.kind() == Kind.INTEGER && x.detail() instanceof IqType u && u.low() == null
+                && (u.spelling().equals("UNSIGNED INT") || u.spelling().equals("UNSIGNED BIGINT"))) {
+            // IQ island, 2026-10-17 (the corpus lane: STR(NTILE(100) OVER (...), 3), 5 queries): an unsigned result
+            // of IQ's engine (NTILE's, a COUNT's), its digits its type's most
+            digits = new Digits(u.spelling().equals("UNSIGNED INT") ? 10 : 20, 0, true);
         } else if (x.kind() == Kind.INTEGER) {
             IqType t = integerType(x, e, "STR");
             int whole = Math.max(t.lo().abs().toString().length(), t.hi().abs().toString().length());
@@ -998,8 +1003,12 @@ final class IqFunctions {
             };
         }
         if (length >= 0 && length < width) {
+            // IQ island, 2026-10-17 (the corpus lane's judge, over IQ 17.1's answers): IQ's engine cuts some
+            // (CONVERT(CHAR(7), d, 102) is 'yyyy.mm') and raises -1009145 for others (CONVERT(CHAR(6), d, 112) in a
+            // ranked common table expression, CONVERT(VARCHAR(10), ts, 120) compared with a string): not read yet
             throw SqlTranslationException.unsupported("CONVERT style " + style + " to a string of " + length + " is"
-                    + " not supported yet: its text has " + width + " characters", f.pos());
+                    + " not supported yet: its text has " + width + " characters, which IQ's engine cuts in some"
+                    + " places and raises its -1009145 for in others", f.pos());
         }
         Tx r = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
             ValueSpecification d = v.get(0);
@@ -2952,9 +2961,16 @@ final class IqFunctions {
             // 2,000,000,000 is 6036-09-01, YEAR -2,147,483,648 leaves the date as it is): its defect, refused by name
             BigInteger bound = WRAPS.get(part);
             if (bound != null && (count.hi().compareTo(bound) > 0 || count.lo().compareTo(bound.negate()) < 0)) {
-                throw SqlTranslationException.unsupported(name + "(" + part + ", n, ...) with a count that may pass "
-                        + bound + " is not supported: SQL Anywhere wraps such a count rather than raising its -158"
-                        + " (its defect)", f.args().get(1).pos());
+                // IQ island, 2026-10-17 (the corpus lane: DATEADD(WEEK, DATEDIFF(WEEK, ...), ...), 10 queries): a
+                // count whose type may pass the bound, a computed one's, is refused by name where the row computes
+                // one past it; its others are read
+                String past = IqDialect.REFUSED_AT_RUN_TIME + name + "(" + part + ", n, ...) with a count past " + bound
+                        + " is not supported: SQL Anywhere wraps such a count rather than raising its -158 (its defect)";
+                Tx checked = SqlToPure.strict(Kind.INTEGER, List.of(n), v -> refusedPast(SqlToPure.call("or",
+                        SqlToPure.call("greaterThan", v.get(0), SqlToPure.integer(bound)), lt(v.get(0),
+                        SqlToPure.integer(bound.negate()))), past, v.get(0), IqDialect.raise()));
+                count = IqType.integer(count.family(), bound.negate(), bound, false);
+                n = Tx.value(checked.vs(), Kind.INTEGER, checked.nullable(), count);
             }
         }
         Tx d = dateArgument(args.get(2), f.args().get(2), name);
@@ -4340,7 +4356,9 @@ final class IqFunctions {
                 throw SqlTranslationException.unsupported(fn + " of a NUMERIC of more than 15 digits is not supported"
                         + " yet: its DOUBLE may round otherwise in lite's databases", e.pos());
             }
-        } else {
+        } else if (!(x.detail() instanceof IqType t && t.spelling().equals("UNSIGNED BIGINT"))) {
+            // IQ island, 2026-10-17 (the corpus lane: LOG10(COUNT(Score)), 8 queries): a COUNT's UNSIGNED BIGINT
+            // under IQ's engine is a DOUBLE as a BIGINT is
             integerType(x, e, fn);
         }
         Tx r = SqlToPure.strict(Kind.FLOAT, List.of(x), v -> SqlToPure.call("toFloat", v.get(0)));

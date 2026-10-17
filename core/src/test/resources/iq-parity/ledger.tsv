@@ -2656,8 +2656,8 @@ lite/m1b/in_subquery_strings_ignore_trailing_blanks@iq16-default	PASS	PASS
 lite/m1b/in_subquery_strings_ignore_trailing_blanks@iq17-default	PASS	PASS
 lite/m1b/in_subquery_of_dummy@iq16-default	PASS	PASS
 lite/m1b/in_subquery_of_dummy@iq17-default	PASS	PASS
-lite/m1b/in_subquery_of_a_union_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1b/in_subquery_of_a_union_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1b/in_subquery_of_a_union@iq16-default	PASS	PASS
+lite/m1b/in_subquery_of_a_union@iq17-default	PASS	PASS
 lite/m1b/in_subquery_of_a_union_in_the_front_end@iq16-default	PASS	PASS
 lite/m1b/in_subquery_of_a_union_in_the_front_end@iq17-default	PASS	PASS
 lite/m1b/in_subquery_in_parentheses@iq16-default	PASS	PASS

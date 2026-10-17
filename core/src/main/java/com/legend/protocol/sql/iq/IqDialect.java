@@ -2774,7 +2774,7 @@ public final class IqDialect implements InputDialect {
             case SqlAst.Exists x -> noSetOperation(x.query(), x.pos());
             case SqlAst.InSubquery in -> {
                 conditionSubquery(in.operand());
-                noSetOperation(in.query(), in.pos());
+                unionOnly(in.query(), in.pos());
             }
             case SqlAst.Quantified q -> {
                 conditionSubquery(q.left());
@@ -2971,6 +2971,20 @@ public final class IqDialect implements InputDialect {
         }
         for (SqlAst.Expr child : children(e)) {
             refuseSubquery(child, refusal);
+        }
+    }
+
+    /** IQ island, 2026-10-17 (the corpus lane's SEDE, measured on IQ 17.1 over 8 queries): an IN subquery that is a
+     *  UNION or a UNION ALL is read under IQ's engine, where the research's flag list held that it restricts it;
+     *  INTERSECT and EXCEPT are its -1001030 there, as at the top. Another subquery's set operation stays refused. */
+    private static void unionOnly(SqlAst.Statement query, SqlAst.Pos pos) {
+        if (query instanceof SqlAst.SetOperation s) {
+            if (s.op() != SqlAst.SetOp.UNION) {
+                throw SqlTranslationException.unsupported(s.op().name() + " is IQ's error -1001030 under its engine (a"
+                        + " query over IQ tables), refused before translating", pos);
+            }
+            unionOnly(s.left(), pos);
+            unionOnly(s.right(), pos);
         }
     }
 
@@ -5472,10 +5486,14 @@ public final class IqDialect implements InputDialect {
             // four-digit year ('01/01/2018') are no date under DATE_ORDER YMD -- in a comparison (BETWEEN and IN
             // too), IQ's engine's -157 beside a DATE column, its -1009145 beside a TIMESTAMP or a computed DATE
             // (CAST(ts AS DATE)); SQL Anywhere's front end's -157
+            // IQ island, 2026-10-17 (the corpus lane's judge): which code IQ reports is its order's -- another error
+            // of the statement may come first (a DATEPART of a string's -1001011), and a BETWEEN over a computed DATE
+            // in a grouped query is -157 -- so the error names both, and claims neither as IQ's
             boolean column = date.kind() == Kind.DATE && date.vs() instanceof com.legend.protocol.spec.AppliedProperty;
-            String code = engine == Engine.IQ && !column ? code(-1009145, "QFA2E") : code(-157, "53018");
+            String likely = engine == Engine.IQ && !column ? "-1009145" : "-157";
             throw SqlTranslationException.invalid("cannot convert '" + s.value() + "' to a " + (date.kind()
-                    == Kind.DATE ? "date" : "timestamp") + " under DATE_ORDER YMD" + code, pos);
+                    == Kind.DATE ? "date" : "timestamp") + " under DATE_ORDER YMD: IQ's error where it converts it ("
+                    + likely + " here as a rule, -157 or -1009145 by the place it converts it)", pos);
         }
         return dateConstant(s.value(), date.kind(), pos, "comparing");
     }
@@ -6760,6 +6778,12 @@ public final class IqDialect implements InputDialect {
                 b = checkedInteger(f, "NULLIF", new IqType(at.family()), bt.lo(), bt.hi(), List.of(b), List.of(bt),
                         constants(List.of(f.args().get(1)), List.of(b)), false, v -> v.get(0));
             }
+        } else if ((a.kind() == Kind.DATE || a.kind() == Kind.DATETIME) && b.kind() == Kind.STRING
+                && b.vs() instanceof CString date && !b.nullable()
+                && IqDateTime.read(date.value(), settings, f.pos()) != null) {
+            // IQ island, 2026-10-17 (the corpus lane's SQLStorm: NULLIF(MAX(CreationDate), '1970-01-01')): a date and a
+            // constant date string, compared as = compares them (dateOf); '' and another string stay refused (IQ
+            // answers NULLIF(d, '') where = raises)
         } else if (a.kind() != b.kind() || a.kind() == Kind.DECIMAL || a.kind() == Kind.NUMBER) {
             throw SqlTranslationException.unsupported("NULLIF of " + kindName(a.kind()) + " and " + kindName(b.kind())
                     + " is not supported yet", f.pos());
