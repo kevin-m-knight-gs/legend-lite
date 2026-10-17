@@ -1106,6 +1106,7 @@ harness, the islands' tests, and what part 1 left. What it did, and where it dep
   product's connector makes from the coordinates their connections declare (`Sessions.openingFor`), with only the
   launcher's user and settings beside it, so the declared coordinates and the session a test runs on cannot drift
   apart. Trino's and ClickHouse's keep their launchers' URLs: the product opens no session on them.
+- **`PostgresArmTest`** runs on Postgres's backend: its sessions, the connection its models declare, its dialect.
 
 ### Phase 7: the other modules
 
