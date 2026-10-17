@@ -18,6 +18,55 @@ import java.util.Set;
  */
 public final class DuckDb extends AnsiSqlRenderer {
 
+    /**
+     * An outer join's ON without the IS NOT NULL tests a comparison beside them already makes (2026-10-17, the IQ
+     * island's TPC-H corpus lane): DuckDB plans a LEFT JOIN whose ON tests a preserved column IS NOT NULL as a nested
+     * loop (BLOCKWISE_NL_JOIN), where the bare equality is a hash join -- 56 s against 0.6 s at TPC-H's scale 0.01.
+     * The two are one condition: an ON matches only where it is TRUE, and a comparison is never TRUE for a NULL.
+     */
+    @Override
+    protected SqlExpr joinCondition(SqlSource.Join.Kind kind, SqlExpr on) {
+        if (kind != SqlSource.Join.Kind.LEFT && kind != SqlSource.Join.Kind.RIGHT && kind != SqlSource.Join.Kind.FULL) {
+            return on;
+        }
+        List<SqlExpr> conjuncts = new java.util.ArrayList<>();
+        conjuncts(on, conjuncts);
+        java.util.Set<SqlExpr> compared = new java.util.HashSet<>();
+        for (SqlExpr c : conjuncts) {
+            if (c instanceof SqlExpr.Call call && COMPARISONS.contains(call.fn())) {
+                compared.addAll(call.args());
+            }
+        }
+        List<SqlExpr> kept = new java.util.ArrayList<>();
+        for (SqlExpr c : conjuncts) {
+            if (!(c instanceof SqlExpr.Call call && call.fn() == SqlFn.IS_NOT_NULL && call.args().size() == 1
+                    && compared.contains(call.args().get(0)))) {
+                kept.add(c);
+            }
+        }
+        if (kept.size() == conjuncts.size()) {
+            return on;
+        }
+        SqlExpr out = kept.get(0);
+        for (int i = 1; i < kept.size(); i++) {
+            out = SqlExpr.Call.of(SqlFn.AND, out, kept.get(i));
+        }
+        return out;
+    }
+
+    /** The comparisons that are never TRUE for a NULL operand. */
+    private static final Set<SqlFn> COMPARISONS = Set.of(SqlFn.EQUAL, SqlFn.NOT_EQUAL, SqlFn.LESS, SqlFn.LESS_EQUAL,
+            SqlFn.GREATER, SqlFn.GREATER_EQUAL);
+
+    /** Into {@code out}, {@code e}'s conjuncts under AND. */
+    private static void conjuncts(SqlExpr e, List<SqlExpr> out) {
+        if (e instanceof SqlExpr.Call call && call.fn() == SqlFn.AND) {
+            call.args().forEach(a -> conjuncts(a, out));
+        } else {
+            out.add(e);
+        }
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override

@@ -396,12 +396,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 nl(writer, depth);
                 writer.append(joinKeyword(j.kind())).append(" ");
                 source(writer, j.right(), depth);
-                if (j.on() != null) {
-                    writer.append(" ON ").expr(j.on(), 0);
+                SqlExpr on = j.on();
+                if (on != null) {
+                    writer.append(" ON ").expr(joinCondition(j.kind(), on), 0);
                 }
                 yield writer;
             }
         };
+    }
+
+    /** A join's ON as the dialect writes it: as it is; a dialect whose planner a form of it defeats writes an
+     *  equivalent one (DuckDB). */
+    protected SqlExpr joinCondition(SqlSource.Join.Kind kind, SqlExpr on) {
+        return on;
     }
 
     /** ANSI row-constructor VALUES with column aliases; SQLite overrides (UNION ALL). */
