@@ -405,6 +405,7 @@ final class IqAggregates {
         Set<String> grouped = new java.util.HashSet<>();
         s.groupBy().forEach(k -> columns(k).forEach(r -> grouped.add(last(r))));
         Set<String> outputs = new java.util.HashSet<>();
+        Set<String> columnOutputs = columnOutputs(s);
         List<SqlAst.Expr> listed = new ArrayList<>();
         for (SqlAst.SelectItem item : s.items()) {
             if (item instanceof SqlAst.SelectExpr x) {
@@ -426,8 +427,7 @@ final class IqAggregates {
         // IQ island, 2026-10-14 (review 7's m2, measured): the ORDER BY's first (-854), then the select list's and
         // HAVING's (-149)
         for (SqlAst.SortItem o : s.orderBy()) {
-            if (o.expr() instanceof SqlAst.IntegerLit || o.expr() instanceof SqlAst.ColumnRef r && r.parts().size() == 1
-                    && outputs.contains(last(r))) {
+            if (o.expr() instanceof SqlAst.IntegerLit || namesOutput(o.expr(), outputs, columnOutputs)) {
                 continue;
             }
             notGrouped(o.expr(), known, own, grouped, -854, "42W65", false);
@@ -461,9 +461,9 @@ final class IqAggregates {
                 }
             }
         }
+        Set<String> columnOutputs = columnOutputs(s);
         for (SqlAst.SortItem o : s.orderBy()) {
-            if (o.expr() instanceof SqlAst.IntegerLit || o.expr() instanceof SqlAst.ColumnRef r && r.parts().size() == 1
-                    && outputs.contains(last(r))) {
+            if (o.expr() instanceof SqlAst.IntegerLit || namesOutput(o.expr(), outputs, columnOutputs)) {
                 continue;
             }
             for (SqlAst.ColumnRef r : columns(o.expr())) {
@@ -473,6 +473,25 @@ final class IqAggregates {
             }
         }
         return false;
+    }
+
+    /** The names of a select list's items that are a column alone (unaliased, qualified or not). */
+    private static Set<String> columnOutputs(SqlAst.Select s) {
+        Set<String> out = new java.util.HashSet<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x && x.alias() == null && x.expr() instanceof SqlAst.ColumnRef r) {
+                out.add(last(r));
+            }
+        }
+        return out;
+    }
+
+    /** Whether an ORDER BY key names an output, as IQ reads it for its grouping errors: a bare name an output's (an
+     *  alias or a column item's), or a qualified column a column item's -- IQ island, 2026-10-17 (BIRD's dev set,
+     *  measured on IQ 17.1: SELECT t.id, sm ... GROUP BY t.id ORDER BY t.sm is -149, the select list's, not -854). */
+    private static boolean namesOutput(SqlAst.Expr e, Set<String> outputs, Set<String> columnOutputs) {
+        return e instanceof SqlAst.ColumnRef r && (r.parts().size() == 1 ? outputs.contains(last(r))
+                : columnOutputs.contains(last(r)));
     }
 
     private static void notGrouped(SqlAst.Expr e, Set<String> known, Set<String> own, Set<String> grouped, int sqlcode,

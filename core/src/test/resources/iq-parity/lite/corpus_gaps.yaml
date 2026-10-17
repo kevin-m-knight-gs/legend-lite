@@ -1913,3 +1913,16 @@ tests:
     sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY 'a', 'b') AS rn FROM t"
     profile: iq17-default
     nondeterministic: "tests an error IQ raises before any row"
+
+  # ---- a grouped query's ORDER BY naming an output by a qualified column (IQ island, 2026-10-17; BIRD's dev set,
+  # measured on IQ 17.1): the select list reports it (-149); an expression of it in the select list leaves ORDER BY's
+  # -854 first
+  - id: a_qualified_order_key_names_a_column_item
+    sql: "SELECT DISTINCT t.id, t.sm FROM t GROUP BY t.id ORDER BY t.sm"
+    profile: iq17-default
+  - id: a_qualified_order_key_names_an_unqualified_column_item
+    sql: "SELECT t.id, sm FROM t GROUP BY t.id ORDER BY t.sm"
+    profile: iq17-default
+  - id: a_qualified_order_key_beside_an_expression_item
+    sql: "SELECT t.id, t.sm + 1 FROM t GROUP BY t.id ORDER BY t.sm"
+    profile: iq17-default
