@@ -1935,3 +1935,12 @@ tests:
   - id: a_union_of_an_integer_and_abs_of_a_bigint
     sql: "SELECT a FROM (SELECT YEAR(dt) AS a FROM g UNION ALL SELECT ABS(bg) FROM t) d ORDER BY a"
     profile: iq17-default
+
+  # ---- constants' arithmetic past 32 bits under IQ's engine (IQ island, 2026-10-17; the differential fuzzer's,
+  # measured on IQ 17.1): a BIGINT, never an overflow
+  - id: constants_multiplied_past_32_bits
+    sql: "SELECT id, (2147483647 * 2) AS a, (2147483647 + 3) AS b, (-2147483647 - 10) AS c FROM t WHERE id = 5"
+    profile: iq17-default
+  - id: constants_past_32_bits_in_a_comparison
+    sql: "SELECT id FROM t WHERE NULLIF((2147483647 + 3), 3) > id ORDER BY id"
+    profile: iq17-default

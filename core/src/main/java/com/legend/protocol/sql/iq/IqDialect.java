@@ -5900,10 +5900,13 @@ public final class IqDialect implements InputDialect {
         boolean check = leaves && (!type.family().equals("BIGINT") || loose);
         boolean wide = false;
         List<Boolean> widen = new ArrayList<>();
+        // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): under IQ's engine 2147483647 * 2 is the
+        // BIGINT 4294967294, so a result past 32 bits widens its constants too (the database types each one by itself)
+        boolean past32 = widened != null && (lo.compareTo(IqType.INTEGER_MIN) < 0 || hi.compareTo(IqType.INTEGER_MAX) > 0);
         for (int i = 0; i < types.size(); i++) {
             IqType t = types.get(i);
             // a constant (one value, never NULL) is written as itself; anything else is widened unless it is wide
-            boolean w = !t.wide() && !(t.exact() && !operands.get(i).nullable());
+            boolean w = !t.wide() && (past32 || !(t.exact() && !operands.get(i).nullable()));
             widen.add(w);
             wide |= w || t.wide();
         }
