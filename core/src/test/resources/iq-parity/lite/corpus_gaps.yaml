@@ -1952,6 +1952,12 @@ tests:
   - id: replace_of_a_zero_width_string_in_a_case
     sql: "SELECT id, CASE WHEN NOT (dt IS NOT NULL) THEN REPLACE('', 'a', '') ELSE 'b' END AS a FROM t ORDER BY id"
     profile: iq17-default
+  - id: replace_of_a_char_cut_to_nothing
+    sql: "SELECT id, REPLACE(LEFT(ch, 0), 'a', 'x') AS a, REPLACE(SUBSTRING(ch, 1, 0), 'a', 'x') AS b, REPLACE(LEFT(UPPER(ch), 0), 'a', 'x') AS c, REPLACE(LEFT(TRIM(ch), 0), 'a', 'x') AS d, REPLACE(LEFT('abc', 0), 'a', 'x') AS e, REPLACE(TRIM(LEFT(ch, 0)), 'a', 'x') AS f, REPLACE(COALESCE(LEFT(ch, 0), ''), 'a', 'x') AS g FROM t ORDER BY id"
+    profile: iq17-default
+  - id: replace_of_a_char_cut_to_nothing_under_top
+    sql: "SELECT TOP 5 t.id, t.dt, REPLACE(LEFT(t.ch, 0), ' ', 'z') AS a FROM t WHERE t.dt BETWEEN CAST('1999-01-01' AS DATE) AND CAST('2026-03-04' AS DATE) ORDER BY t.dt DESC, t.id"
+    profile: iq17-default
   - id: replace_of_a_zero_width_string_in_sql_anywhere
     sql: "SELECT REPLACE('', 'a', 'x') AS a, REPLACE(LEFT('abc', 0), 'a', 'x') AS b"
     profile: iq17-default

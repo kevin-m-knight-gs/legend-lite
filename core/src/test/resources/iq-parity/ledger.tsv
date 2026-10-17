@@ -1158,6 +1158,8 @@ lite/corpus_gaps/replace_of_a_zero_width_string@iq17-default	PASS	PASS
 lite/corpus_gaps/replace_of_a_wider_empty_string@iq17-default	PASS	PASS
 lite/corpus_gaps/replace_of_a_derived_zero_width_column@iq17-default	PASS	PASS
 lite/corpus_gaps/replace_of_a_zero_width_string_in_a_case@iq17-default	PASS	PASS
+lite/corpus_gaps/replace_of_a_char_cut_to_nothing@iq17-default	PASS	PASS
+lite/corpus_gaps/replace_of_a_char_cut_to_nothing_under_top@iq17-default	PASS	PASS
 lite/corpus_gaps/replace_of_a_zero_width_string_in_sql_anywhere@iq17-default	PASS	PASS
 lite/corpus_gaps/greater_in_a_window_partition@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/lesser_in_a_window_order_inside_an_expression@iq17-default	BOTH_ERROR	BOTH_ERROR
