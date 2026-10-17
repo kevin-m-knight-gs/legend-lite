@@ -169,16 +169,21 @@
 # DATEDIFF_BIG are no functions of IQ's, its -265; DATEDIFF_BIG's part a column there): each is read as a call, the
 # dialect naming IQ's error as it translates: accept PARSED 3,206 -> 3,207 (z2_redteam-199, DATEDIFF_BIG(ms, ...);
 # REFUSED 1,742 -> 1,741). Reject-parsed and accept-rejected unchanged.
-accept	parsed	3207
-accept	refused	1741
-accept	rejected	1
+# IQ island, 2026-10-17 (measured on IQ 17.1: a reserved word qualifying a column, top.id or order.id, and a reserved
+# type's name standing as a value, FOO(int), are its -131): reject REJECTED 1,026 -> 1,027 (REFUSED 758 -> 757). A case
+# run under non_keywords is now REFUSED, as the island refuses a database that sets it, as reserved_keywords
+# (2026-10-17, above): accept PARSED 3,207 -> 3,206 (s2_query-416, SELECT limit ..., under non_keywords=LIMIT), and
+# accept REJECTED 1 -> 0 (a1_sa_lang-24 leaves the accept-rejected list; REFUSED 1,741 -> 1,743 with a1_sa_lang-25,
+# merge.a). Reject-parsed unchanged; contains.score (CONTAINS's correlation name) stays refused.
+accept	parsed	3206
+accept	refused	1743
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	81
 flag	refused	53
 reject	parsed	25
-reject	refused	758
-reject	rejected	1026
+reject	refused	757
+reject	rejected	1027
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609
@@ -204,5 +209,4 @@ reject-parsed	c13_olap-302
 reject-parsed	s1_lexical-1164
 reject-parsed	s1_lexical-614
 reject-parsed	s1_lexical-683
-accept-rejected	a1_sa_lang-24
 accept-rejected	z2_redteam-382

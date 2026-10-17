@@ -1008,6 +1008,9 @@ lite/corpus_gaps/a_group_by_expression_read_qualified_by_its_table@iq17-default	
 lite/corpus_gaps/a_qualified_group_by_expression_read_unqualified@iq17-default	PASS	PASS
 lite/corpus_gaps/a_group_by_expression_of_another_tables_column_is_iqs_149@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_group_by_expression_under_an_alias_of_its_column@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_reserved_word_qualifying_a_column_is_iqs_131@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_reserved_type_as_an_argument_is_iqs_131@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_reserved_type_as_a_later_argument_is_iqs_131@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

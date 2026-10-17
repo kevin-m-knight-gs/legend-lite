@@ -1473,3 +1473,15 @@ tests:
   - id: a_group_by_expression_under_an_alias_of_its_column
     sql: "SELECT sm, ISNULL(it, 0) it, COUNT(*) n FROM t GROUP BY sm, ISNULL(it, 0)"
     profile: iq17-default
+
+  # ---- a reserved word qualifying a column, or a reserved type's name as a value (SQLStorm's top.TotalPosts, SEDE's
+  # TRY_CONVERT(int, ...); measured on IQ 17.1, 2026-10-17): IQ's -131; datetime is a name there (-143)
+  - id: a_reserved_word_qualifying_a_column_is_iqs_131
+    sql: "SELECT ISNULL(top.id, 0) AS v FROM t top"
+    profile: iq17-default
+  - id: a_reserved_type_as_an_argument_is_iqs_131
+    sql: "SELECT TRY_CONVERT(int, vc) AS x FROM t"
+    profile: iq17-default
+  - id: a_reserved_type_as_a_later_argument_is_iqs_131
+    sql: "SELECT FOO(1, bigint) AS x FROM t"
+    profile: iq17-default

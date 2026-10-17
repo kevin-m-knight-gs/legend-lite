@@ -1863,6 +1863,16 @@ public final class IqParser {
                     throw new SqlSyntaxException("the reserved word '" + t.text() + "' is no value: a column of its name"
                             + " must be delimited" + IqDialect.syntaxCode(), t.pos());
                 }
+                if (peek(1).isOp(".") && !t.is("contains") || TYPE_WORDS.contains(IqLexer.lower(t.text()))
+                        && (peek(1).isOp(",") || peek(1).isOp(")"))) {
+                    // IQ island, 2026-10-17 (the corpus lane's top.TotalPosts, TRY_CONVERT(int, ...); measured on IQ
+                    // 17.1): a reserved word qualifying a column, or a reserved type's name standing as a value, is
+                    // IQ's -131 (top.id, order.id; FOO(int), FOO(1, bigint)); but CONTAINS, whose clause in FROM is
+                    // a correlation name (contains.score)
+                    throw new SqlSyntaxException("the reserved word '" + t.text() + "' is no value here"
+                            + (peek(1).isOp(".") ? ": a correlation name of its spelling must be delimited" : "")
+                            + IqDialect.syntaxCode(), t.pos());
+                }
                 throw SqlSyntaxException.unsupported("'" + t.text() + "' here (" + keywordForm(t)
                         + ") is not supported yet", t.pos());
             }
@@ -1922,6 +1932,12 @@ public final class IqParser {
     /** Reserved words IQ reads as no value standing alone, measured on IQ 17.1 (SELECT Date FROM ..., Comment, time,
      *  Key: each -131). */
     private static final Set<String> BARE_RESERVED = Set.of("date", "comment", "time", "key");
+
+    /** Reserved words naming a type, which IQ reads as no value before a comma or a closing parenthesis (measured on IQ
+     *  17.1, each -131; timestamp, money and text are names there, a column's -143). */
+    private static final Set<String> TYPE_WORDS = Set.of("int", "integer", "smallint", "tinyint", "bigint", "char",
+            "decimal", "numeric", "float", "double", "real", "bit", "binary", "varbinary", "long", "varchar",
+            "nvarchar", "uniqueidentifier");
 
     /** What a keyword heading a value would begin, for the refusal's message. */
     private static String keywordForm(IqLexer.Token t) {
