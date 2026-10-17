@@ -294,8 +294,12 @@ try {
     await row.locator('.dc-lib-button', { hasText: 'Delete' }).click();
     await page.locator('#cubelib .dc-lib-confirm .dc-lib-button', { hasText: 'Delete' }).click();
     await waitMessage(/deleted/);
+    // the window says it before it reads its list again (cube-library.ts #confirmDelete): the row goes when the list is
+    // read, so wait for that rather than read the rows the moment the message shows (a busy machine read the old list)
+    await page.waitForFunction(() => ![...document.querySelectorAll('#cubelib .dc-lib-row')]
+      .some((r) => (r.textContent ?? '').includes('Sample trades')), undefined, { timeout: 30_000 })
+      .catch(() => { throw new Error('still listed'); });
     const rows = await page.locator('#cubelib .dc-lib-row').allTextContents();
-    if (rows.some((r) => r.includes('Sample trades'))) throw new Error('still listed');
     return `${rows.length} left`;
   });
 
