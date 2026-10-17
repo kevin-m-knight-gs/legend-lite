@@ -2140,3 +2140,15 @@ tests:
   - id: avg_over_a_window_of_a_numeric_17_2
     sql: "SELECT id, AVG(CAST(n AS NUMERIC(17,2))) OVER (PARTITION BY k) AS a FROM g ORDER BY id"
     profile: iq17-default
+
+  # ---- a reserved word where only a name stands, and ARRAY_TO_STRING (IQ island, 2026-10-17; BIRD's Match and JOB's
+  # 11, measured on IQ 17.1): -131 and -265
+  - id: a_reserved_word_as_a_table
+    sql: "SELECT * FROM Match"
+    profile: iq17-default
+  - id: a_reserved_word_as_an_alias
+    sql: "SELECT id FROM t AS Match"
+    profile: iq17-default
+  - id: array_to_string_is_no_function_of_iqs
+    sql: "SELECT ARRAY_TO_STRING(vc, ',') AS a FROM t WHERE id = 1"
+    profile: iq17-default

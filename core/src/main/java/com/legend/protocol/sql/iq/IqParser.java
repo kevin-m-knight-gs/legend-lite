@@ -3377,6 +3377,14 @@ public final class IqParser {
         }
         IqLexer.Token after = at + 1 < tokens.size() && tokens.get(at) == t ? tokens.get(at + 1) : null;
         IqLexer.Token third = after != null && at + 2 < tokens.size() ? tokens.get(at + 2) : null;
+        if (t.kind() == IqLexer.Kind.KEYWORD && before != null && (before.is("from") || before.is("join")
+                || before.is("as")) && (after == null || !after.isOp("("))) {
+            // IQ island, 2026-10-17 (BIRD's table Match, 26 queries; measured on IQ 17.1): a reserved word where only
+            // a name stands (a table's, an alias) is IQ's syntax error, unless delimited; one that opens a call there
+            // (UNNEST(...), a FROM item SQL Anywhere reads) is not claimed
+            return new SqlSyntaxException("the reserved word '" + t.text() + "' cannot stand as a name here: a name of"
+                    + " it must be delimited" + IqDialect.syntaxCode(), t.pos());
+        }
         if (t.isWord("ilike")) {
             // IQ island, 2026-10-17 (the JOB corpus lane's 35; measured on IQ 17.1): PostgreSQL's ILIKE
             return new SqlSyntaxException("ILIKE is no syntax of IQ's (it reads LIKE)" + IqDialect.syntaxCode(),

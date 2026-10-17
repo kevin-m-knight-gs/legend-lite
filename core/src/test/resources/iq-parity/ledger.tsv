@@ -1206,6 +1206,9 @@ lite/corpus_gaps/a_sum_of_a_wide_product@iq17-default	PASS	PASS
 lite/corpus_gaps/a_wide_product_of_a_large_value@iq17-default	PASS	PASS
 lite/corpus_gaps/avg_over_a_window_of_a_numeric_15_2@iq17-default	PASS	PASS
 lite/corpus_gaps/avg_over_a_window_of_a_numeric_17_2@iq17-default	PASS	PASS
+lite/corpus_gaps/a_reserved_word_as_a_table@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_reserved_word_as_an_alias@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/array_to_string_is_no_function_of_iqs@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS
