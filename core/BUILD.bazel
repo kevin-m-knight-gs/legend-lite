@@ -798,6 +798,34 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# THE #SQL{...}# ISLAND OVER THE POSTGRESQL REGRESSION SUITE (the corpus program's first corpus, 2026-10-17, the
+# seventh line): each read-only statement of the suite's files, replayed in schedule order on the embedded Postgres 16,
+# judged live against Postgres (integration/PgRegressCorpusTest.java). Run only where -Dsql.corpus.regress names a
+# src/test/regress directory (the suite is PostgreSQL's: REL_16_STABLE); manual, not a gate:
+#   bazel test //core:pg_regress_corpus_test --strategy=TestRunner=local --test_output=all \
+#     --jvmopt=-Dsql.corpus.regress=<.../src/test/regress> --jvmopt=-Dsql.corpus.report=<report dir>
+junit_test(
+    name = "pg_regress_corpus_test",
+    memory_mb = 4096,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/PgRegressCorpusTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.PgRegressCorpusTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 # the #IQ{...}# island over real-world SQL corpora (IQ island, 2026-10-15): coverage, run only where
 # -Diq.corpus.root names the corpora (their licences and size keep them out of this repository); manual, not a gate:
 #   bazel test //core:iq_corpus_test --strategy=TestRunner=local --test_output=all \

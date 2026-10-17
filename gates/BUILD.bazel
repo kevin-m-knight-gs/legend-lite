@@ -319,6 +319,10 @@ test_suite(
         # the #IQ{...}# island's real-world corpus lane (2026-10-15; core/BUILD.bazel's iq_corpus_test): manual, it
         # names corpora kept out of the repository (-Diq.corpus.root) and fails without them
         "//core:iq_corpus_test",
+        # the #SQL{...}# island over the PostgreSQL regression suite (the corpus program, 2026-10-17;
+        # core/BUILD.bazel's pg_regress_corpus_test): manual, it names a suite kept out of the repository
+        # (-Dsql.corpus.regress) and fails without it
+        "//core:pg_regress_corpus_test",
         "//pct:update_ratchets_test",
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an
