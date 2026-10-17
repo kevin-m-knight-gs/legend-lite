@@ -953,6 +953,8 @@ lite/corpus_gaps/convert_date_styles_20_and_21_of_constants@iq16-default	PASS	PA
 lite/corpus_gaps/convert_date_styles_20_and_21_of_constants@iq17-default	PASS	PASS
 lite/corpus_gaps/trim_of_a_column_of_a_table_named_both@iq16-default	PASS	PASS
 lite/corpus_gaps/trim_of_a_column_of_a_table_named_both@iq17-default	PASS	PASS
+lite/corpus_gaps/group_by_a_subquery_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/group_by_a_correlated_subquery_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

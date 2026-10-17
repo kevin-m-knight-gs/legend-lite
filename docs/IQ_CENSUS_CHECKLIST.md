@@ -293,6 +293,8 @@ island's reason, those IQ answers, and what became of them:
   ANSI form needs a string or FROM after BOTH, LEADING or TRAILING (a column named so is a column). The review's
   claim that a string `+` keeps an outer join outer was measured false: under WHERE, `b.label + 'x' = 'x'` drops the
   rows the join supplies NULLs for, though a stored NULL concatenates as ''; `||` keeps them (both pinned);
+- a subquery in GROUP BY (SQLStorm's 9; measured on IQ 17.1, 2026-10-17): IQ's -1001030 under its engine,
+  correlated or not; the front end's reading is not built;
 - not built yet: PIVOT (IQ 17.1 reads it, both engines; an IN list of literals, COUNT shown as a NUMERIC(20,0)).
   The corpus's 10 are SQL Server's `IN ([Question], [Answer])`, IQ's -143 (a name) or -1816 (a number);
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's

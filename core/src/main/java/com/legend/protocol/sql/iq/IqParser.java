@@ -746,11 +746,8 @@ public final class IqParser {
                     throw SqlSyntaxException.unsupported("an empty grouping, GROUP BY ( ), is not supported yet",
                             t.pos());
                 }
-                if (peek(1).is("select")) {
-                    throw SqlSyntaxException.unsupported("a subquery in GROUP BY is not supported (IQ's engine"
-                            + " restricts it)", t.pos());
-                }
-                if (composite(at)) {
+                // a subquery is read here, and placed by the dialect (IqDialect.groupBySubqueries)
+                if (!peek(1).is("select") && composite(at)) {
                     throw SqlSyntaxException.unsupported("a composite GROUP BY item, (a, b), is not supported yet",
                             t.pos());
                 }

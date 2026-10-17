@@ -1276,3 +1276,12 @@ tests:
     engine: sa
   - id: trim_of_a_column_of_a_table_named_both
     sql: "SELECT TRIM(both.vc) AS a FROM t AS both WHERE both.id = 6"
+
+  # ---- a subquery in GROUP BY (SQLStorm's GROUP BY (SELECT COUNT(*) FROM Posts), ...; measured on IQ 17.1, 2026-10-17):
+  # IQ's -1001030 under its engine, correlated or not
+  - id: group_by_a_subquery_is_iqs_error
+    sql: "SELECT id, COUNT(*) AS n FROM t GROUP BY id, (SELECT COUNT(*) FROM u)"
+    profile: iq17-default
+  - id: group_by_a_correlated_subquery_is_iqs_error
+    sql: "SELECT COUNT(*) AS n FROM t GROUP BY (SELECT MAX(u.id) FROM u WHERE u.t_id = t.id)"
+    profile: iq17-default

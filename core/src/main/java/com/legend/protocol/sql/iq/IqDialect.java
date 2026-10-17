@@ -1320,6 +1320,7 @@ public final class IqDialect implements InputDialect {
         shown(first(statement), shownHere);
         Engine chosen = engine != null ? engine : engineOf(statement, settings);
         Set<SqlAst.Join> innerHere = Collections.newSetFromMap(new IdentityHashMap<>());
+        groupBySubqueries(statement, chosen);
         if (chosen == Engine.IQ) {
             appliedQueries(statement);
             limitedSubqueries(statement);
@@ -2950,6 +2951,22 @@ public final class IqDialect implements InputDialect {
                 throw SqlTranslationException.unsupported("TOP, FIRST or START AT in a subquery or a derived table"
                         + " is IQ's error -1001030 under its engine (TOP/FIRST/LIMIT in a subquery or a view is not"
                         + " supported), refused before translating", java.util.Objects.requireNonNull(at).pos());
+            }
+        }
+    }
+
+    /** IQ island, 2026-10-17 (the corpus lane's SQLStorm, GROUP BY (SELECT COUNT(*) FROM Posts), ...; measured on IQ
+     *  17.1, correlated or not, with or without a FROM): a subquery in a GROUP BY item is IQ's -1001030 under its engine
+     *  (a scalar value subquery outside of a top level SELECT list); the front end's reading is not built. */
+    private static void groupBySubqueries(SqlAst.Statement statement, Engine engine) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr g : s.groupBy()) {
+                    refuseSubquery(g, engine == Engine.IQ ? "a subquery in GROUP BY is IQ's error -1001030 under its"
+                            + " engine (a scalar value subquery outside of a top level SELECT list), refused before"
+                            + " translating" : "a subquery in GROUP BY is not supported yet under SQL Anywhere's front"
+                            + " end (a query over no IQ table)");
+                }
             }
         }
     }

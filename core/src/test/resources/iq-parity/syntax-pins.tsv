@@ -162,13 +162,16 @@
 # (s1_lexical-183, SELECT 1 AS limit, which that option makes an error; REFUSED 54 -> 55), and the two accept-with-option
 # LIMIT cases stay REFUSED. And TO_CHAR now reads (a5_sa_fn3-490 and -493, z2_redteam-678): accept PARSED 3,202 ->
 # 3,205 (REFUSED 1,746 -> 1,743). Reject-parsed and accept-rejected unchanged.
-accept	parsed	3205
-accept	refused	1743
+# IQ island, 2026-10-17 (measured on IQ 17.1: a subquery in GROUP BY is IQ's -1001030 under its engine): the reader
+# reads one, and the dialect places it as it plans: accept PARSED 3,205 -> 3,206 (REFUSED 1,743 -> 1,742), flag PARSED
+# 79 -> 81 (REFUSED 55 -> 53). Reject-parsed and accept-rejected unchanged.
+accept	parsed	3206
+accept	refused	1742
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
-flag	parsed	79
-flag	refused	55
+flag	parsed	81
+flag	refused	53
 reject	parsed	25
 reject	refused	758
 reject	rejected	1026
