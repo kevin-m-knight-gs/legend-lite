@@ -1027,10 +1027,19 @@ public final class MongoDb extends AnsiSqlRenderer {
             case REPEAT_STR -> MongoJson.guarded(writer, a, MongoJson.text("{\"$reduce\": {\"input\": {\"$range\":"
                     + " [0, {\"$max\": [0, " + G1 + "]}]}, \"initialValue\": \"\", \"in\": {\"$concat\": [" + VALUE
                     + ", " + G0 + "]}}}"));
-            case ENCODE_BASE64, DECODE_BASE64 -> throw new DialectCapability(c.fn() + " reached MongoDb, which has"
-                    + " no base64 operator");
-            case LEVENSHTEIN, JARO_WINKLER -> throw new DialectCapability(c.fn() + " reached MongoDb, which has no"
-                    + " string-distance operator");
+            // base64 (8.0's conversions between text and binary data): a text's UTF-8 bytes written as base64; the
+            // reverse reads base64, padded to a multiple of four first (the Pure function takes unpadded text)
+            case ENCODE_BASE64 -> MongoJson.guarded(writer, a, MongoJson.text("{\"$convert\": {\"input\":"
+                    + " {\"$convert\": {\"input\": " + G0 + ", \"to\": \"binData\", \"format\": \"utf8\"}},"
+                    + " \"to\": \"string\", \"format\": \"base64\"}}"));
+            case DECODE_BASE64 -> MongoJson.guarded(writer, a, MongoJson.text("{\"$convert\": {\"input\":"
+                    + " {\"$convert\": {\"input\": {\"$concat\": [" + G0 + ", {\"$substrCP\": [\"==\", 0, {\"$mod\":"
+                    + " [{\"$subtract\": [4, {\"$mod\": [{\"$strLenCP\": " + G0 + "}, 4]}]}, 4]}]}]}, \"to\":"
+                    + " \"binData\", \"format\": \"base64\"}}, \"to\": \"string\", \"format\": \"utf8\"}}"));
+            // no string-distance operator: the distances composed over the characters, as Postgres's and SQLite's
+            // recursive walks and Databricks's aggregates compose them, here as folds
+            case LEVENSHTEIN -> MongoJson.guarded(writer, a, MongoJson.text(levenshtein()));
+            case JARO_WINKLER -> MongoJson.guarded(writer, a, MongoJson.text(jaroWinkler()));
             // no uuid operator: thirty-two random hexadecimal digits ($rand, one per step of a reduce), in a
             // uuid's five groups
             case GUID -> writer.append("{\"$let\": {\"vars\": {\"h\": {\"$reduce\": {\"input\": {\"$range\": [0, 32]},"
@@ -1353,6 +1362,77 @@ public final class MongoDb extends AnsiSqlRenderer {
                     .append(MongoJson.string("0".repeat(digits))).append("]}, 0, ").append(digits).append("]}]}");
         }
         writer.append("}}}}}}");
+    }
+
+    /** The Levenshtein distance of two texts ({@code $$g0}, {@code $$g1}), by characters: the edit-distance table a
+     *  row at a time (Postgres's and SQLite's walk, as folds) -- a fold along the first text whose value is the row
+     *  above ({@code p}; the row for no characters is {@code 0..|b|}), each row a fold along the second text appending
+     *  one cell, the least of a deletion, an insertion and a substitution; the last row's last cell. */
+    private static String levenshtein() {
+        String lb = "{\"$strLenCP\": " + G1 + "}";
+        String charA = "{\"$substrCP\": [" + G0 + ", {\"$subtract\": [\"$$i\", 1]}, 1]}";
+        String charB = "{\"$substrCP\": [" + G1 + ", {\"$subtract\": [\"$$this\", 1]}, 1]}";
+        String cell = "{\"$min\": [{\"$add\": [{\"$arrayElemAt\": [\"$$p\", \"$$this\"]}, 1]}, {\"$add\":"
+                + " [{\"$arrayElemAt\": [" + VALUE + ", {\"$subtract\": [\"$$this\", 1]}]}, 1]}, {\"$add\":"
+                + " [{\"$arrayElemAt\": [\"$$p\", {\"$subtract\": [\"$$this\", 1]}]}, {\"$cond\": [{\"$eq\": [" + charA
+                + ", " + charB + "]}, 0, 1]}]}]}";
+        String row = "{\"$reduce\": {\"input\": {\"$range\": [1, {\"$add\": [" + lb + ", 1]}]}, \"initialValue\":"
+                + " [\"$$i\"], \"in\": {\"$concatArrays\": [" + VALUE + ", [" + cell + "]]}}}";
+        String table = "{\"$reduce\": {\"input\": {\"$range\": [1, {\"$add\": [{\"$strLenCP\": " + G0 + "}, 1]}]},"
+                + " \"initialValue\": {\"$range\": [0, {\"$add\": [" + lb + ", 1]}]}, \"in\": {\"$let\": {\"vars\":"
+                + " {\"p\": " + VALUE + ", \"i\": \"$$this\"}, \"in\": " + row + "}}}}";
+        return "{\"$arrayElemAt\": [" + table + ", " + lb + "]}";
+    }
+
+    /**
+     * Jaro-Winkler similarity of {@code $$g0} and {@code $$g1}, exactly DuckDB's (the algorithm and the order of
+     * operations Postgres's and Databricks's compositions spell): each character of the second text in turn takes the
+     * first unmatched equal character of the first in its window, a fold along the second text ({@code f} flags the
+     * first text's matched characters, {@code tm} is the second's matched ones in order); the transpositions are the
+     * first text's matched characters unequal to {@code tm}'s in the same place, a fold along the first; the score in
+     * doubles, 0 where no character matched; Winkler's prefix bonus above 0.7.
+     */
+    private static String jaroWinkler() {
+        String lp = "{\"$strLenCP\": " + G0 + "}";
+        String lt = "{\"$strLenCP\": " + G1 + "}";
+        String window = "{\"$max\": [0, {\"$subtract\": [{\"$toInt\": {\"$floor\": {\"$divide\": [{\"$max\": [" + lp
+                + ", " + lt + "]}, 2]}}}, 1]}]}";
+        // the flags with the window's character ($$this) set
+        String flagged = "{\"$let\": {\"vars\": {\"m\": \"$$this\", \"fv\": \"$$value.f\"}, \"in\": {\"$map\":"
+                + " {\"input\": {\"$range\": [0, " + lp + "]}, \"in\": {\"$cond\": [{\"$eq\": [\"$$this\", \"$$m\"]}, 1,"
+                + " {\"$arrayElemAt\": [\"$$fv\", \"$$this\"]}]}}}}}";
+        String tChar = "{\"$substrCP\": [" + G1 + ", \"$$j\", 1]}";
+        // one character of the second text (j, its state s): the window's first unmatched equal character taken
+        String take = "{\"$reduce\": {\"input\": {\"$range\": [{\"$max\": [0, {\"$subtract\": [\"$$j\", \"$$b\"]}]},"
+                + " {\"$min\": [" + lp + ", {\"$add\": [\"$$j\", \"$$b\", 1]}]}]}, \"initialValue\": {\"f\": \"$$s.f\","
+                + " \"tm\": \"$$s.tm\", \"k\": false}, \"in\": {\"$cond\": [{\"$and\": [{\"$not\": [\"$$value.k\"]},"
+                + " {\"$eq\": [{\"$arrayElemAt\": [\"$$value.f\", \"$$this\"]}, 0]}, {\"$eq\": [{\"$substrCP\": [" + G0
+                + ", \"$$this\", 1]}, " + tChar + "]}]}, {\"f\": " + flagged + ", \"tm\": {\"$concat\": [\"$$value.tm\", "
+                + tChar + "]}, \"k\": true}, \"$$value\"]}}}";
+        String matched = "{\"$reduce\": {\"input\": {\"$range\": [0, " + lt + "]}, \"initialValue\": {\"f\": {\"$map\":"
+                + " {\"input\": {\"$range\": [0, " + lp + "]}, \"in\": 0}}, \"tm\": \"\"}, \"in\": {\"$let\": {\"vars\":"
+                + " {\"s\": \"$$value\", \"j\": \"$$this\"}, \"in\": " + take + "}}}}";
+        // along the first text: n matched so far, x of them unequal to tm's character in the same place
+        String counted = "{\"$reduce\": {\"input\": {\"$range\": [0, " + lp + "]}, \"initialValue\": {\"n\": 0, \"x\": 0},"
+                + " \"in\": {\"$cond\": [{\"$eq\": [{\"$arrayElemAt\": [\"$$r.f\", \"$$this\"]}, 1]}, {\"n\": {\"$add\":"
+                + " [\"$$value.n\", 1]}, \"x\": {\"$add\": [\"$$value.x\", {\"$cond\": [{\"$eq\": [{\"$substrCP\": [" + G0
+                + ", \"$$this\", 1]}, {\"$substrCP\": [\"$$r.tm\", \"$$value.n\", 1]}]}, 0, 1]}]}}, \"$$value\"]}}}";
+        String m = "{\"$toDouble\": \"$$c.n\"}";
+        String jaro = "{\"$divide\": [{\"$add\": [{\"$add\": [{\"$divide\": [" + m + ", " + lp + "]}, {\"$divide\": [" + m
+                + ", " + lt + "]}]}, {\"$divide\": [{\"$subtract\": [" + m + ", {\"$floor\": {\"$divide\": [\"$$c.x\","
+                + " 2]}}]}, " + m + "]}]}, 3]}";
+        List<String> prefix = new java.util.ArrayList<>();
+        for (int k = 1; k <= 4; k++) {
+            prefix.add("{\"$cond\": [{\"$and\": [{\"$lte\": [" + k + ", {\"$min\": [" + lp + ", " + lt + "]}]}, {\"$eq\":"
+                    + " [{\"$substrCP\": [" + G0 + ", 0, " + k + "]}, {\"$substrCP\": [" + G1 + ", 0, " + k + "]}]}]}, 1, 0]}");
+        }
+        String bonus = "{\"$multiply\": [{\"$multiply\": [{\"$toDouble\": {\"$add\": [" + String.join(", ", prefix)
+                + "]}}, 0.1]}, {\"$subtract\": [1.0, \"$$jw\"]}]}";
+        String score = "{\"$let\": {\"vars\": {\"jw\": " + jaro + "}, \"in\": {\"$cond\": [{\"$gt\": [\"$$jw\", 0.7]},"
+                + " {\"$add\": [\"$$jw\", " + bonus + "]}, \"$$jw\"]}}}";
+        return "{\"$let\": {\"vars\": {\"b\": " + window + "}, \"in\": {\"$let\": {\"vars\": {\"r\": " + matched + "},"
+                + " \"in\": {\"$let\": {\"vars\": {\"c\": " + counted + "}, \"in\": {\"$cond\": [{\"$eq\": [\"$$c.n\", 0]},"
+                + " 0.0, " + score + "]}}}}}}}";
     }
 
     /** One {@code %s} argument's text, by its kind at run time. */

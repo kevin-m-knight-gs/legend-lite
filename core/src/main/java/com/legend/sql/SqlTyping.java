@@ -444,13 +444,24 @@ public final class SqlTyping {
             // written from the 1.5.0 JDBC probe, the executing backend.)
             // The NULL value propagates; H2's DATE delivery rides the
             // TIMESTAMP<-DATE subsumption arm at the wire.
-            case DATE_TRUNC_DAY, DATE_TRUNC -> {
+            case DATE_TRUNC -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
                 }
                 yield a.stream().anyMatch(
                         x -> x.type() instanceof TypeFact.Bottom)
                         ? BOTTOM : T_TIMESTAMP;
+            }
+            // the day's date (datePart; the day comparisons): a DATE, as DuckDb renders it (CAST(x AS DATE)) and
+            // the legacy route reads it; a value root's TDS text prints it date-only (the MongoDB line's burn-down,
+            // 2026-10-17: typed TIMESTAMP, it printed a midnight)
+            case DATE_TRUNC_DAY -> {
+                if (a.isEmpty()) {
+                    yield UNKNOWN;
+                }
+                yield a.stream().anyMatch(
+                        x -> x.type() instanceof TypeFact.Bottom)
+                        ? BOTTOM : T_DATE;
             }
             case TO_VARIANT, JSON_MERGE_PATCH, VARIANT_GET -> T_JSON;
             case VARIANT_ELEMENTS ->

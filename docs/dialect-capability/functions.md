@@ -2361,8 +2361,8 @@ Database types planned with it: MongoDB.
 | `CHR` | emulated | `guarded: {"$cond": [{"$or": [{"$lt": [, , 0]}, {"$gte": [, , 128]}]}, , a code beyond ASCII reached char on,  MongoDb, which has no code-to-character operator, , {"$substrCP": [, , , , 1]}]}` |  | 0 |
 | `UC_FIRST` | emulated | `firstCased: $toUpper` |  | 0 |
 | `LC_FIRST` | emulated | `firstCased: $toLower` |  | 0 |
-| `ENCODE_BASE64` | refused | `reached MongoDb, which has no base64 operator` |  | 0 |
-| `LEVENSHTEIN` | refused | `reached MongoDb, which has no string-distance operator` |  | 0 |
+| `ENCODE_BASE64` | emulated | `guarded: {"$convert": {"input":,  {"$convert": {"input": , , "to": "binData", "format": "utf8"}},,  "to": "string", "format": "base64"}}` |  | 0 |
+| `LEVENSHTEIN` | emulated | `guarded` |  | 0 |
 | `GUID` | emulated | `{"$let": {"vars": {"h": {"$reduce": {"input": {"$range": [0, 32]}, "initialVa...` |  | 0 |
 | `FORMAT` | emulated | `format` |  | 0 |
 | `HASH` | emulated | `hashSigned` |  | 0 |
@@ -2395,8 +2395,8 @@ Database types planned with it: MongoDB.
 | `DEGREES` | emulated | `op1: $radiansToDegrees` |  | 0 |
 | `INT_DIVIDE` | emulated | `intDivide` |  | 0 |
 | `REPEAT_STR` | emulated | `guarded: {"$reduce": {"input": {"$range":,  [0, {"$max": [0, , ]}]}, "initialValue": "", "in": {"$concat": [, , , ]}}}` |  | 0 |
-| `JARO_WINKLER` | refused | `reached MongoDb, which has no string-distance operator` |  | 0 |
-| `DECODE_BASE64` | refused | `reached MongoDb, which has no base64 operator` |  | 0 |
+| `JARO_WINKLER` | emulated | `guarded` |  | 0 |
+| `DECODE_BASE64` | emulated | `guarded: {"$convert": {"input":,  {"$convert": {"input": {"$concat": [, , {"$substrCP": ["==", 0, {"$mod":,  [{"$subtract": [4, {"$mod": [{"$strLenCP": , }, 4]}]}, 4]}]}]}, "to":,  "binData", "format": "base64"}}, "to": "string", "format": "utf8"}}` |  | 0 |
 | `CURRENT_USER_FN` | refused | `currentUserId reached MongoDb, whose pipeline names no user` |  | 0 |
 | `LIST_LENGTH` | emulated | `guardedOp: $size` |  | 0 |
 | `LIST_ZIP` | emulated | `{"$zip": {"inputs": […]}}` | `via MongoDb.listCall` | 0 |

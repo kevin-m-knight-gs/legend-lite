@@ -606,6 +606,18 @@ public final class Render {
                 new SqlExpr.StringLit("+0000"));
     }
 
+    /** A value root's DateTime cell (the one-column relation the value route reads by {@code parseDate}): the
+     *  precision the value has, as the legacy route prints one (the MongoDB line's burn-down, 2026-10-17: 170 of the
+     *  shadow run's value differences were a whole second printed {@code .000}) -- an exact second with no fraction,
+     *  otherwise {@link #dateTimeText}'s three millisecond digits. */
+    private static SqlExpr valueDateTimeText(SqlExpr c) {
+        SqlExpr wholeSecond = SqlExpr.Call.of(SqlFn.EQUAL, c, SqlExpr.Call.of(SqlFn.DATE_TRUNC,
+                new SqlExpr.DatePartLit(com.legend.sql.DatePart.SECOND), c));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(wholeSecond,
+                cat(SqlExpr.Call.of(SqlFn.STRFTIME, c, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
+                        new SqlExpr.StringLit("+0000")))), dateTimeText(c));
+    }
+
     private static SqlExpr strictDateText(SqlExpr c) {
         return SqlExpr.Call.of(SqlFn.STRFTIME, c,
                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
@@ -959,7 +971,7 @@ public final class Render {
             rendered = strictDateText(c);
         } else if (t == Type.Primitive.DATE_TIME
                 || t == Type.Primitive.DATE) {
-            rendered = dateTimeText(c);
+            rendered = quoteStrings ? valueDateTimeText(c) : dateTimeText(c);
         } else if (t == Type.Primitive.FLOAT) {
             rendered = Scalars.pureToString(Type.Primitive.FLOAT, c);
         } else if (t == Type.Primitive.STRING

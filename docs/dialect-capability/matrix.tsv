@@ -2731,8 +2731,8 @@ MongoDb	MongoDB	call	ASCII_CODE	emulated	guarded: {"$let": {"vars": {"c":,  {"$i
 MongoDb	MongoDB	call	CHR	emulated	guarded: {"$cond": [{"$or": [{"$lt": [, , 0]}, {"$gte": [, , 128]}]}, , a code beyond ASCII reached char on,  MongoDb, which has no code-to-character operator, , {"$substrCP": [, , , , 1]}]}		0
 MongoDb	MongoDB	call	UC_FIRST	emulated	firstCased: $toUpper		0
 MongoDb	MongoDB	call	LC_FIRST	emulated	firstCased: $toLower		0
-MongoDb	MongoDB	call	ENCODE_BASE64	refused	reached MongoDb, which has no base64 operator		0
-MongoDb	MongoDB	call	LEVENSHTEIN	refused	reached MongoDb, which has no string-distance operator		0
+MongoDb	MongoDB	call	ENCODE_BASE64	emulated	guarded: {"$convert": {"input":,  {"$convert": {"input": , , "to": "binData", "format": "utf8"}},,  "to": "string", "format": "base64"}}		0
+MongoDb	MongoDB	call	LEVENSHTEIN	emulated	guarded		0
 MongoDb	MongoDB	call	GUID	emulated	{"$let": {"vars": {"h": {"$reduce": {"input": {"$range": [0, 32]}, "initialVa...		0
 MongoDb	MongoDB	call	FORMAT	emulated	format		0
 MongoDb	MongoDB	call	HASH	emulated	hashSigned		0
@@ -2765,8 +2765,8 @@ MongoDb	MongoDB	call	RADIANS	emulated	op1: $degreesToRadians		0
 MongoDb	MongoDB	call	DEGREES	emulated	op1: $radiansToDegrees		0
 MongoDb	MongoDB	call	INT_DIVIDE	emulated	intDivide		0
 MongoDb	MongoDB	call	REPEAT_STR	emulated	guarded: {"$reduce": {"input": {"$range":,  [0, {"$max": [0, , ]}]}, "initialValue": "", "in": {"$concat": [, , , ]}}}		0
-MongoDb	MongoDB	call	JARO_WINKLER	refused	reached MongoDb, which has no string-distance operator		0
-MongoDb	MongoDB	call	DECODE_BASE64	refused	reached MongoDb, which has no base64 operator		0
+MongoDb	MongoDB	call	JARO_WINKLER	emulated	guarded		0
+MongoDb	MongoDB	call	DECODE_BASE64	emulated	guarded: {"$convert": {"input":,  {"$convert": {"input": {"$concat": [, , {"$substrCP": ["==", 0, {"$mod":,  [{"$subtract": [4, {"$mod": [{"$strLenCP": , }, 4]}]}, 4]}]}]}, "to":,  "binData", "format": "base64"}}, "to": "string", "format": "utf8"}}		0
 MongoDb	MongoDB	call	CURRENT_USER_FN	refused	currentUserId reached MongoDb, whose pipeline names no user		0
 MongoDb	MongoDB	call	LIST_LENGTH	emulated	guardedOp: $size		0
 MongoDb	MongoDB	call	LIST_ZIP	emulated	{"$zip": {"inputs": […]}}	via MongoDb.listCall	0

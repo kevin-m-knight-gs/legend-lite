@@ -1336,8 +1336,29 @@ After it the lane stands at 1,121 of 1,249 (89%; 128 pinned: Essential 65, Gramm
 
 **The third pass, the same day** (the differential at 165 EQUAL of 173): the regular-expression replace, which MongoDB has no operator for (`$replaceAll` replaces text), as the matches found and the text spliced -- the stretch before each match kept, the replacement put in its place, a `$N` in it the match's Nth capture, the tail kept; the first match alone without the 'g' option (the three-argument form); `generateGuid` as thirty-two random hexadecimal digits (`$rand`, one per step of a reduce) in a uuid's five groups; `hashCode` as the hashed index key (`$toHashedIndexKey`: the database's own hash, as every lane answers its own -- DuckDB's is not Java's either). The adapter reads a Number cell spelled with the Decimal suffix (`2D`) as a Decimal.
 
+**The cross-lane pass, the same day** (the user: "did you look at how other database do all of these failures to see
+if there is inspiration for us here"; the differential at 182 EQUAL of 190): the 128 pins read against the eleven
+other lanes' pin files. 80 pass on every other lane, 13 are pinned on one to four others, one on seven, 34 on all of
+them (the platform's own). Of the 80, what the other targets COMPOSE without a native operator composes here too:
+Postgres and SQLite walk the Levenshtein table in a recursive CTE and Postgres, Databricks, Snowflake and Trino the
+Jaro-Winkler match, so `MongoDb.levenshtein` and `jaroWinkler` are the same walks as folds (`$reduce` over `$range`,
+the row above and the match flags carried by `$let`; the score in doubles in DuckDB's order of operations, 0.88
+bit-equal to DuckDB's); SQLite composes base64 from hex, and MongoDB 8.0 converts text to binary data and back, so
+base64 is `$convert` (to `binData` reading UTF-8, to `string` writing base64; the reverse padded to a multiple of four
+first, since the Pure function takes unpadded text) -- nine pins. The 17 date pins were the plan path's, not
+MongoDB's: the legacy route prints a date with the precision the value has, the TDS writer three millisecond digits
+(the DuckDB shadow had the same 170 differences, §11.2), so a value root's DateTime cell prints a whole second without
+a fraction now (`Render.valueDateTimeText`: the value equal to its second truncation; shared code, every lane's plan
+path), and the day truncation (`datePart`, the day comparisons) is typed DATE in the MIR (`SqlTyping`), as every
+dialect renders it (DuckDb `CAST(x AS DATE)`, MariaDb `DATE()`, ClickHouse `toDate32`), so `datePart` prints
+date-only. What has no shape anywhere stays: the digests (composed on no lane; SQLite walls them, Postgres pins
+SHA1) and `currentUserId` (a native on every SQL lane; a pipeline names no user). The rest of the 80 is the route's
+(a List, Map, Pair or class instance as text; `Any`-typed values; the Decimal suffix; the dynamic pivots) and
+MongoDB's own (the microsecond unit; `testDatePart`'s seven-digit literal). After it the lane stands at 1,145 of
+1,249 (92%; 104 pinned: Essential 58, Grammar 20, Relation 20, Standard 2, Unclassified 4).
+
 **MongoDB's own, measured and named** (the pins that are the target's): a Variant holding JSON null is BSON null, so
 its cell prints as a null cell where Pure prints `'null'` (five relation tests); dates past year 9999 and the
-microsecond unit (`$dateToString`, `$dateAdd`); a dynamic pivot (the plan path has no probe; a static one has its grouped form); regex replace, hashCode, generateGuid, base64, the string distances and digests (no
-operator); a List, Map or class instance crossing as text (the route's, shared with the DuckDB shadow). The
-date-precision and class-instance pins stay the user's decision (§11.2).
+microsecond unit (`$dateToString`, `$dateAdd`); a dynamic pivot (the plan path has no probe; a static one has its grouped form); the digests and currentUserId (no
+operator; regex replace, hashCode, generateGuid, base64 and the string distances were composed, above); a List, Map or class instance crossing as text (the route's, shared with the DuckDB shadow). The
+class-instance pins stay the user's decision (§11.2); the date-precision pins were the plan path's and are gone.

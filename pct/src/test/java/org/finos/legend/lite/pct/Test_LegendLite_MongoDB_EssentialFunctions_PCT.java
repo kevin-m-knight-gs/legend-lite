@@ -32,6 +32,8 @@ public class Test_LegendLite_MongoDB_EssentialFunctions_PCT extends PCTReportCon
     // Re-measured 2026-10-17 after the burn-down (docs/MONGODB_PLAN_2026_10_16.md §11.4: windows, quantified
     // comparisons, the Variant's JSON text, lateral and as-of joins, the statistics, the long tail; the adapter
     // reading the value relation's cells by the function's return type).
+    // Re-measured 2026-10-17 after the cross-lane pass (§11.4: base64 and the string distances composed, a value
+    // root's date precision, the day truncation typed DATE).
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // THE PLATFORM'S OWN (pinned on the DuckDB lane too, by the same cause)
             one("meta::pure::functions::collection::tests::at::testAtError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 37\""),
@@ -61,14 +63,7 @@ public class Test_LegendLite_MongoDB_EssentialFunctions_PCT extends PCTReportCon
             one("meta::pure::functions::collection::tests::zip::testZipSecondListEmpty_Function_1__Boolean_1_", "\"Type argument mismatch for the class meta::pure::functions::collection::Pair<U,V> (expected 2, got 0): Pair\""),
             // VALUE DIFFERENCES, measured
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
-            one("meta::pure::functions::date::tests::testAdjustByHours_Function_1__Boolean_1_", "\"\nexpected: %2015-04-15T13:12:11+0000\nactual:   %2015-04-15T13:12:11.000+0000\""),
-            one("meta::pure::functions::date::tests::testAdjustByMinutes_Function_1__Boolean_1_", "\"\nexpected: %2015-04-15T13:12:11+0000\nactual:   %2015-04-15T13:12:11.000+0000\""),
-            one("meta::pure::functions::date::tests::testAdjustByMonths_Function_1__Boolean_1_", "\"\nexpected: %2015-02-28T13:55:21+0000\nactual:   %2015-02-28T13:55:21.000+0000\""),
-            one("meta::pure::functions::date::tests::testAdjustBySecondsBigNumber_Function_1__Boolean_1_", "\"\nexpected: %2407-05-19T19:15:12+0000\nactual:   %2407-05-19T19:15:12.000+0000\""),
-            one("meta::pure::functions::date::tests::testAdjustBySeconds_Function_1__Boolean_1_", "\"\nexpected: %2015-04-15T13:11:12+0000\nactual:   %2015-04-15T13:11:12.000+0000\""),
-            one("meta::pure::functions::date::tests::testDateFromSecond_Function_1__Boolean_1_", "\"\nexpected: %1973-11-13T23:09:11+0000\nactual:   %1973-11-13T23:09:11.000+0000\""),
-            one("meta::pure::functions::date::tests::testDatePartTrivial_Function_1__Boolean_1_", "\"\nexpected: %1973-11-05\nactual:   %1973-11-05T00:00:00.000+0000\""),
-            one("meta::pure::functions::date::tests::testDatePart_Function_1__Boolean_1_", "\"\nexpected: %1973-11-05\nactual:   %1973-11-05T00:00:00.000+0000\""),
+            one("meta::pure::functions::date::tests::testDatePart_Function_1__Boolean_1_", "\"a date-time finer than a millisecond (2015-08-29T22:22:22.9914234) has no BSON date: refused, never cut\""),
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             one("meta::pure::functions::math::tests::rem::testRemWithDecimals_Function_1__Boolean_1_", "\"\nexpected: 0.14D\nactual:   0.14\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),

@@ -10678,7 +10678,15 @@ typed at compile time by `PivotChecker`, found under either spelling by `Lowerer
 text plan by `PlanMaker`, shaped as two groups and a projection by `MongoDbPipeline.pivot`; the dialect resolves an
 unqualified column under a select's one alias). The differential: 157 EQUAL of 165. A third pass adds the regular-expression replace (the matches found, the text spliced), `generateGuid` (`$rand`) and `hashCode` (`$toHashedIndexKey`); the differential: 165 EQUAL of 173. The lane: 1,121 pass,
 128 pinned (Essential 65, Grammar 20, Relation 20, Standard 10, Unclassified 13); `//pct:pct_duckdb_relation` and
-`//core:core_tests_compiler` pass with the typing change.
+`//core:core_tests_compiler` pass with the typing change. The cross-lane pass, the same day (the record's "cross-lane
+pass": the user asked whether the other databases held inspiration for the failures): base64 as 8.0's conversion
+through binary data, Levenshtein and Jaro-Winkler as folds (the walks Postgres, SQLite and Databricks compose), a
+value root's DateTime cell printed with the precision the value has (`Render.valueDateTimeText`, shared by every
+lane's plan path) and the day truncation typed DATE (`SqlTyping`, as every dialect renders it). The differential: 182
+EQUAL of 190. The lane: 1,145 pass, 104 pinned (Essential 58, Grammar 20, Relation 20, Standard 2, Unclassified 4).
+What judges this pass: the five MongoDB suites, `//pct:pct_duckdb_essential` (the typing change's and the date
+cell's lane), `//core:mongodb_plan_test`, the census and guardrails, the five core test targets, the matrix test and
+`//pct:pct_discipline`.
 
 What judges it: `//pct:pct_mongodb` -- 1,249 tests, 1,095 pass, 154 pinned (Essential 65, Grammar 21,
 Relation 28, Standard 21, Unclassified 19; the record's table says by what; 82 of the pins are named

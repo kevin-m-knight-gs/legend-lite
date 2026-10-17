@@ -48,7 +48,7 @@ input).
 | SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 136 | 12 | 15 | 32 |
 | MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 51 | 145 | 8 | 15 | 31 |
 | MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 51 | 145 | 8 | 15 | 31 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 190 | 14 | 15 | 190 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 194 | 10 | 15 | 194 |
 | EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 104 | 82 | 18 | 15 | — |
 | EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 106 | 80 | 18 | 15 | — |
 | EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 107 | 79 | 18 | 15 | — |
@@ -158,8 +158,8 @@ input).
 | `CHR` | S | S | S | S | S | S | S | S | S | S | E | E | E· | S | S | S |
 | `UC_FIRST` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
 | `LC_FIRST` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `ENCODE_BASE64` | R | R | E | S | E | E | E | E | S | E | E | E | R | E | E | E |
-| `LEVENSHTEIN` | S | S | E | S | S | S | S | S | E | E | E | E | R | S | S | S |
+| `ENCODE_BASE64` | R | R | E | S | E | E | E | E | S | E | E | E | E· | E | E | E |
+| `LEVENSHTEIN` | S | S | E | S | S | S | S | S | E | E | E | E | E· | S | S | S |
 | `GUID` | E | E | E | S | E | S | S | E | E | E | E | E | E· | E | E | E |
 | `FORMAT` | E | E | E | E | S | E | S | S | E | E | E | E | E· | S | S | S |
 | `HASH` | R | R | E | E | E | E | E | E | E | R | E | E | E· | R | R | R |
@@ -192,8 +192,8 @@ input).
 | `DEGREES` | S | S | S | S | S | E | S | S | S | S | S | S | E· | S | S | S |
 | `INT_DIVIDE` | E | E | E | E | E | E | S | E | E | E | E | E | E· | E | E | E |
 | `REPEAT_STR` | S | S | S | S | E | S | S | S | E | E | E | E | E· | S | S | S |
-| `JARO_WINKLER` | S | S | E | E | E | R | E | S | S | R | R | R | R | S | S | S |
-| `DECODE_BASE64` | R | R | E | S | E | E | E | E | S | E | E | E | R | E | E | E |
+| `JARO_WINKLER` | S | S | E | E | E | R | E | S | S | R | R | R | E· | S | S | S |
+| `DECODE_BASE64` | R | R | E | S | E | E | E | E | S | E | E | E | E· | E | E | E |
 | `CURRENT_USER_FN` | S | S | S | S | S | S | S | S | S | R | E | E | R | S | S | S |
 | `LIST_LENGTH` | S | E | E | S | E | S | E | S | E | S | S | S | E· | S | S | S |
 | `LIST_ZIP` | R | R | R | R | E· | R | R | S· | E· | E· | E· | E· | E· | E | E | E |

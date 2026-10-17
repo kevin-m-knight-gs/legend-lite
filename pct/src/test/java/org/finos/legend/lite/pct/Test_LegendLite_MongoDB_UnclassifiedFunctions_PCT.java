@@ -32,21 +32,14 @@ public class Test_LegendLite_MongoDB_UnclassifiedFunctions_PCT extends PCTReport
     // Re-measured 2026-10-17 after the burn-down (docs/MONGODB_PLAN_2026_10_16.md §11.4: windows, quantified
     // comparisons, the Variant's JSON text, lateral and as-of joins, the statistics, the long tail; the adapter
     // reading the value relation's cells by the function's return type).
+    // Re-measured 2026-10-17 after the cross-lane pass (§11.4: base64 and the string distances composed, a value
+    // root's date precision, the day truncation typed DATE).
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // MONGODB'S OWN, refused by name
             one("meta::pure::functions::hash::tests::testMD5Hash_Function_1__Boolean_1_", "\"MD5 reached MongoDb, which has no digest operator\""),
             one("meta::pure::functions::hash::tests::testSHA1Hash_Function_1__Boolean_1_", "\"SHA1 reached MongoDb, which has no digest operator\""),
             one("meta::pure::functions::hash::tests::testSHA256Hash_Function_1__Boolean_1_", "\"SHA256 reached MongoDb, which has no digest operator\""),
-            one("meta::pure::functions::runtime::currentUserId::testCurrentUserId_Function_1__Boolean_1_", "\"currentUserId reached MongoDb, whose pipeline names no user\""),
-            one("meta::pure::functions::string::tests::base64::testDecodeBase64NoPadding_Function_1__Boolean_1_", "\"DECODE_BASE64 reached MongoDb, which has no base64 operator\""),
-            one("meta::pure::functions::string::tests::base64::testDecodeBase64RoundTrip_Function_1__Boolean_1_", "\"DECODE_BASE64 reached MongoDb, which has no base64 operator\""),
-            one("meta::pure::functions::string::tests::base64::testDecodeBase64_Function_1__Boolean_1_", "\"DECODE_BASE64 reached MongoDb, which has no base64 operator\""),
-            one("meta::pure::functions::string::tests::base64::testEncodeBase64RoundTrip_Function_1__Boolean_1_", "\"ENCODE_BASE64 reached MongoDb, which has no base64 operator\""),
-            one("meta::pure::functions::string::tests::base64::testEncodeBase64_Function_1__Boolean_1_", "\"ENCODE_BASE64 reached MongoDb, which has no base64 operator\""),
-            one("meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityEqual_Function_1__Boolean_1_", "\"JARO_WINKLER reached MongoDb, which has no string-distance operator\""),
-            one("meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityNotEqual_Function_1__Boolean_1_", "\"JARO_WINKLER reached MongoDb, which has no string-distance operator\""),
-            one("meta::pure::functions::string::tests::levenshteinDistance::testLevenshteinDistanceEqual_Function_1__Boolean_1_", "\"LEVENSHTEIN reached MongoDb, which has no string-distance operator\""),
-            one("meta::pure::functions::string::tests::levenshteinDistance::testLevenshteinDistanceNotEqual_Function_1__Boolean_1_", "\"LEVENSHTEIN reached MongoDb, which has no string-distance operator\"")
+            one("meta::pure::functions::runtime::currentUserId::testCurrentUserId_Function_1__Boolean_1_", "\"currentUserId reached MongoDb, whose pipeline names no user\"")
     );
 
     public static Test suite() {
