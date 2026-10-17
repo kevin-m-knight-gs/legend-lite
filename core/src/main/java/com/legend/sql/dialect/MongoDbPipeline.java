@@ -3,9 +3,11 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.base.Nullable;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
@@ -122,19 +124,20 @@ final class MongoDbPipeline {
     // Queries
     // ==================================================================
 
-    private void query(SqlWriter w, SqlQuery q, Stages st) {
-        switch (q) {
+    /** The query's stages; the fields its last projection names, or null when a star carries more than it names. */
+    private @Nullable List<String> query(SqlWriter w, SqlQuery q, Stages st) {
+        return switch (q) {
             case SqlSelect s -> select(w, s, st);
             case SqlUnion u -> union(w, u, st);
             case SqlWith with -> throw new DialectCapability("a WITH (common table expressions) reached MongoDb,"
                     + " which has no shape for one yet");
-        }
+        };
     }
 
     /** A union: the first branch's stages, then each other branch as a {@code $unionWith} over its own base; a
      *  deduplicating union groups the rows afterwards. */
-    private void union(SqlWriter w, SqlUnion u, Stages st) {
-        query(w, u.branches().get(0), st);
+    private @Nullable List<String> union(SqlWriter w, SqlUnion u, Stages st) {
+        List<String> projected = query(w, u.branches().get(0), st);
         for (int i = 1; i < u.branches().size(); i++) {
             SqlQuery branch = u.branches().get(i);
             String base = baseCollection(branch);
@@ -149,6 +152,7 @@ final class MongoDbPipeline {
         if (!u.all()) {
             distinct(w, st);
         }
+        return projected;
     }
 
     /** The rows made distinct: grouped by the whole row, then each group's row. */
@@ -158,25 +162,24 @@ final class MongoDbPipeline {
     }
 
     /** One select, clause by clause, in SQL's order of evaluation. */
-    private void select(SqlWriter w, SqlSelect s, Stages st) {
+    private @Nullable List<String> select(SqlWriter w, SqlSelect s, Stages st) {
         if (s.qualify() != null) {
             throw new DialectCapability("QUALIFY reached MongoDb: windows have no shape yet");
         }
         source(w, s.from(), st, Shape.WRAPPED);
-        if (s.where() != null) {
-            match(w, st, s.where());
+        Clauses clauses = subqueries(w, s, st);
+        if (clauses.where != null) {
+            match(w, st, clauses.where);
         }
-        Grouping g = group(w, s, st);
+        Grouping g = group(w, s.groupBy(), clauses.projections, clauses.having, clauses.orderBy, st);
         if (g.having != null) {
             match(w, st, g.having);
         }
-        List<SortCarry> sorts = sortCarries(w, s, st, g);
-        projection(w, s, st, g, sorts);
+        List<SortCarry> sorts = sortCarries(w, st, g);
+        List<String> projected = projection(w, s, st, g, sorts);
         if (s.distinct()) {
-            if (!sorts.isEmpty()) {
-                throw new DialectCapability("DISTINCT with ORDER BY reached MongoDb: a sort key carried beside a"
-                        + " distinct select's rows is not shaped yet");
-            }
+            // the sort carries are functions of the row's columns, so equal rows carry equal keys: the distinct
+            // groups them with the row and the sort reads them after
             distinct(w, st);
         }
         if (!sorts.isEmpty()) {
@@ -206,6 +209,127 @@ final class MongoDbPipeline {
         if (s.limit() != null) {
             st.begin(w).append("{\"$limit\": ").append(s.limit()).append("}");
         }
+        return projected;
+    }
+
+    // ==================================================================
+    // Subqueries
+    // ==================================================================
+
+    /** A select's clauses with each subquery read through its lookup's marker. */
+    private record Clauses(@com.legend.base.Nullable SqlExpr where, List<SqlSelect.Projection> projections,
+            @com.legend.base.Nullable SqlExpr having, List<SqlSelect.SortKey> orderBy) {
+    }
+
+    /** The subqueries of a select's expressions, each replaced by its marker: a scalar subquery and an EXISTS by a
+     *  marker column; an IN by the needle's membership in the marker's rows. */
+    private static final class Subqueries {
+        final List<SqlExpr> found = new ArrayList<>();
+
+        SqlExpr apply(SqlExpr e) {
+            return switch (e) {
+                case SqlExpr.ScalarSubquery sq -> marker(sq);
+                case SqlExpr.Exists ex -> marker(ex);
+                case SqlExpr.InSubquery in -> new SqlExpr.Membership(apply(in.value()), marker(in));
+                default -> e.mapChildren(this::apply);
+            };
+        }
+
+        private SqlExpr marker(SqlExpr subquery) {
+            found.add(subquery);
+            return SqlExpr.Column.derived(null, MongoDb.SUBQUERY_MARKER + (found.size() - 1));
+        }
+    }
+
+    /**
+     * Each subquery of the select as a {@code $lookup} into a marker field, after the sources and before the clauses
+     * that read it: the row's aliases are the lookup's {@code let} variables, so a correlated subquery reads them as
+     * variables (a reference the lookup does not bind fails on the server by name); the subquery's own pipeline
+     * runs over its base collection, or over its literal rows. A scalar subquery reads its first row's one column
+     * (null over no row, SQL's answer); EXISTS reads whether a row came; IN reads the column of every row.
+     */
+    private Clauses subqueries(SqlWriter w, SqlSelect s, Stages st) {
+        Subqueries sub = new Subqueries();
+        SqlExpr where = s.where() == null ? null : sub.apply(s.where());
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (SqlSelect.Projection p : s.projections()) {
+            SqlExpr e = sub.apply(p.expr());
+            ps.add(e == p.expr() ? p : new SqlSelect.Projection(e, p.alias() != null ? p.alias() : p.outputName(),
+                    p.out()));
+        }
+        SqlExpr having = s.having() == null ? null : sub.apply(s.having());
+        List<SqlSelect.SortKey> keys = new ArrayList<>();
+        for (SqlSelect.SortKey k : s.orderBy()) {
+            keys.add(new SqlSelect.SortKey(sub.apply(k.expr()), k.ascending(), k.nullOrder(), k.outputName()));
+        }
+        if (!sub.found.isEmpty()) {
+            List<String> outer = aliases(s.from());
+            Map<String, SqlWriter.Piece> reads = new LinkedHashMap<>();
+            for (int i = 0; i < sub.found.size(); i++) {
+                String field = MongoDb.SUBQUERY_MARKER + i;
+                SqlQuery inner = switch (sub.found.get(i)) {
+                    case SqlExpr.ScalarSubquery sq -> sq.subquery();
+                    case SqlExpr.Exists ex -> ex.subquery();
+                    case SqlExpr.InSubquery in -> in.subquery();
+                    default -> throw new IllegalStateException("not a subquery: " + sub.found.get(i));
+                };
+                String base = baseCollection(inner);
+                st.begin(w).append("{\"$lookup\": {");
+                if (base != null) {
+                    w.append("\"from\": ").append(MongoJson.string(base)).append(", ");
+                }
+                w.append("\"let\": {");
+                for (int a = 0; a < outer.size(); a++) {
+                    w.append(a > 0 ? ", " : "").append(MongoJson.string(MongoJson.variable(outer.get(a))))
+                            .append(": ").append(MongoJson.path(outer.get(a)));
+                }
+                w.append("}, \"pipeline\": [");
+                dialect.pushLookupScope(outer, null);
+                List<String> projected;
+                try {
+                    projected = query(w, inner, new Stages());
+                } finally {
+                    dialect.popScope();
+                }
+                w.append("], \"as\": ").append(MongoJson.key(field)).append("}}");
+                reads.put(field, subqueryRead(sub.found.get(i), field, inner, projected));
+            }
+            dialect.subqueryReads(reads);
+        }
+        return new Clauses(where, ps, having, keys);
+    }
+
+    private static SqlWriter.Piece subqueryRead(SqlExpr subquery, String field, SqlQuery inner,
+            @Nullable List<String> projected) {
+        String path = MongoJson.string("$" + field);
+        return switch (subquery) {
+            case SqlExpr.ScalarSubquery sq -> MongoJson.text("{\"$let\": {\"vars\": {\"r\": {\"$arrayElemAt\": ["
+                    + path + ", 0]}}, \"in\": " + MongoJson.string("$$r." + readField(inner, projected)) + "}}");
+            case SqlExpr.Exists ex -> MongoJson.text("{\"$gt\": [{\"$size\": " + path + "}, 0]}");
+            case SqlExpr.InSubquery in -> MongoJson.text("{\"$map\": {\"input\": " + path + ", \"in\": "
+                    + MongoJson.string("$$this." + readField(inner, projected)) + "}}");
+            default -> throw new IllegalStateException("not a subquery: " + subquery);
+        };
+    }
+
+    /** The one field a subquery in expression position reads: the field its pipeline's projection stage named (a
+     *  projection without an output column, a bare {@code COUNT(*)}, still has its field); else its one output
+     *  column. */
+    private static String readField(SqlQuery inner, @Nullable List<String> projected) {
+        if (projected != null && projected.size() == 1) {
+            return projected.get(0);
+        }
+        List<OutputCol> outs = inner.outputs();
+        if (outs.size() != 1) {
+            throw new DialectCapability("a subquery of " + outs.size() + " columns reached MongoDb in expression"
+                    + " position: one column is read");
+        }
+        return outs.get(0).name();
+    }
+
+    /** The field the {@code i}th projection becomes: its alias, else its output column's name, else positional. */
+    private static String fieldName(SqlSelect.Projection p, int i) {
+        return p.alias() != null ? p.alias() : p.outputName() != null ? p.outputName() : "_c" + i;
     }
 
     private static void match(SqlWriter w, Stages st, SqlExpr condition) {
@@ -412,35 +536,36 @@ final class MongoDbPipeline {
     }
 
     /** The {@code $group} stage when the select groups or aggregates; the clauses rewritten over its outputs. */
-    private Grouping group(SqlWriter w, SqlSelect s, Stages st) {
-        boolean aggregates = s.projections().stream().anyMatch(p -> SqlAgg.aggregatesSelect(p.expr()))
-                || s.having() != null && SqlAgg.aggregatesSelect(s.having())
-                || s.orderBy().stream().anyMatch(k -> SqlAgg.aggregatesSelect(k.expr()));
-        if (s.groupBy().isEmpty() && !aggregates) {
-            return new Grouping(s.projections(), s.having(), s.orderBy());
+    private Grouping group(SqlWriter w, List<SqlExpr> groupBy, List<SqlSelect.Projection> projections,
+            @com.legend.base.Nullable SqlExpr having0, List<SqlSelect.SortKey> orderBy, Stages st) {
+        boolean aggregates = projections.stream().anyMatch(p -> SqlAgg.aggregatesSelect(p.expr()))
+                || having0 != null && SqlAgg.aggregatesSelect(having0)
+                || orderBy.stream().anyMatch(k -> SqlAgg.aggregatesSelect(k.expr()));
+        if (groupBy.isEmpty() && !aggregates) {
+            return new Grouping(projections, having0, orderBy);
         }
-        Rewrite rewrite = new Rewrite(s.groupBy());
+        Rewrite rewrite = new Rewrite(groupBy);
         List<SqlSelect.Projection> ps = new ArrayList<>();
-        for (SqlSelect.Projection p : s.projections()) {
+        for (SqlSelect.Projection p : projections) {
             // the output keeps its name: a key projected bare reads the group's _id, under the column's own name
             ps.add(new SqlSelect.Projection(rewrite.apply(p.expr()), p.alias() != null ? p.alias() : p.outputName(),
                     p.out()));
         }
-        SqlExpr having = s.having() == null ? null : rewrite.apply(s.having());
+        SqlExpr having = having0 == null ? null : rewrite.apply(having0);
         List<SqlSelect.SortKey> keys = new ArrayList<>();
-        for (SqlSelect.SortKey k : s.orderBy()) {
+        for (SqlSelect.SortKey k : orderBy) {
             keys.add(new SqlSelect.SortKey(rewrite.apply(k.expr()), k.ascending(), k.nullOrder(), k.outputName()));
         }
         st.begin(w).append("{\"$group\": {\"_id\": ");
-        if (s.groupBy().isEmpty()) {
+        if (groupBy.isEmpty()) {
             w.append("null");
         } else {
             w.append("{");
-            for (int i = 0; i < s.groupBy().size(); i++) {
+            for (int i = 0; i < groupBy.size(); i++) {
                 if (i > 0) {
                     w.append(", ");
                 }
-                w.append("\"k").append(i).append("\": ").expr(s.groupBy().get(i), 0);
+                w.append("\"k").append(i).append("\": ").expr(groupBy.get(i), 0);
             }
             w.append("}");
         }
@@ -451,7 +576,7 @@ final class MongoDbPipeline {
             reads.put(field, dialect.accumulator(w, rewrite.aggregates.get(i), field));
         }
         w.append("}}");
-        if (s.groupBy().isEmpty()) {
+        if (groupBy.isEmpty()) {
             // SQL's one row over no input: the group answers none, so the empty row is unioned in and the first of
             // the two (the real one when there is one) kept
             st.begin(w).append("{\"$unionWith\": {\"pipeline\": [{\"$documents\": [{\"_id\": null");
@@ -479,7 +604,7 @@ final class MongoDbPipeline {
     /** Each sort key computed before the projection ({@code $addFields}), with its null flag, so the sort reads
      *  fields and the SQL engine's null placement holds (ascending puts nulls last, descending first, unless the key
      *  says otherwise). */
-    private static List<SortCarry> sortCarries(SqlWriter w, SqlSelect s, Stages st, Grouping g) {
+    private static List<SortCarry> sortCarries(SqlWriter w, Stages st, Grouping g) {
         if (g.orderBy.isEmpty()) {
             return List.of();
         }
@@ -505,11 +630,13 @@ final class MongoDbPipeline {
 
     /** The projection as one {@code $replaceWith}: the outputs by name, a star as the merged source documents, and
      *  the sort carries beside them. */
-    private static void projection(SqlWriter w, SqlSelect s, Stages st, Grouping g, List<SortCarry> sorts) {
+    private static @Nullable List<String> projection(SqlWriter w, SqlSelect s, Stages st, Grouping g,
+            List<SortCarry> sorts) {
         st.begin(w).append("{\"$replaceWith\": ");
         List<SqlWriter.Piece> merged = new ArrayList<>();
         List<String> names = new ArrayList<>();
         List<SqlExpr> exprs = new ArrayList<>();
+        List<String> unnested = new ArrayList<>();
         if (g.projections.isEmpty()) {
             for (String alias : aliases(s.from())) {
                 merged.add(x -> x.append(MongoJson.path(alias)));
@@ -529,9 +656,15 @@ final class MongoDbPipeline {
             } else if (p.expr() instanceof SqlExpr.StarExcept) {
                 throw new DialectCapability("a star with excluded columns reached MongoDb: no shape yet");
             } else {
-                String name = p.alias() != null ? p.alias() : p.outputName() != null ? p.outputName() : "_c" + i;
+                String name = fieldName(p, i);
                 names.add(name);
-                exprs.add(p.expr());
+                if (p.expr() instanceof SqlExpr.Call call && call.fn() == SqlFn.UNNEST) {
+                    // the list is projected whole and exploded after ($unwind): a collection result's rows
+                    unnested.add(name);
+                    exprs.add(call.args().get(0));
+                } else {
+                    exprs.add(p.expr());
+                }
             }
         }
         SqlWriter.Piece fields = x -> {
@@ -558,5 +691,34 @@ final class MongoDbPipeline {
             MongoJson.opOf(w, "$mergeObjects", merged);
         }
         w.append("}");
+        unwind(w, st, unnested);
+        return merged.isEmpty() ? names : null;
+    }
+
+    /** The exploded lists of a projection: one list unwound (a null or empty list gives no row, as UNNEST does);
+     *  several zipped by position to the longest, null-padded (the select-list UNNEST's positional rule), unwound,
+     *  and read back into their columns. */
+    private static void unwind(SqlWriter w, Stages st, List<String> unnested) {
+        if (unnested.isEmpty()) {
+            return;
+        }
+        if (unnested.size() == 1) {
+            st.begin(w).append("{\"$unwind\": ").append(MongoJson.path(unnested.get(0))).append("}");
+            return;
+        }
+        st.begin(w).append("{\"$addFields\": {\"__zip\": {\"$zip\": {\"inputs\": [");
+        for (int i = 0; i < unnested.size(); i++) {
+            w.append(i > 0 ? ", " : "").append("{\"$ifNull\": [").append(MongoJson.path(unnested.get(i)))
+                    .append(", []]}");
+        }
+        w.append("], \"useLongestLength\": true}}}}");
+        st.begin(w).append("{\"$unwind\": \"$__zip\"}");
+        st.begin(w).append("{\"$addFields\": {");
+        for (int i = 0; i < unnested.size(); i++) {
+            w.append(i > 0 ? ", " : "").append(MongoJson.key(unnested.get(i))).append(": {\"$arrayElemAt\": [\"$__zip\", ")
+                    .append(i).append("]}");
+        }
+        w.append("}}");
+        st.begin(w).append("{\"$unset\": \"__zip\"}");
     }
 }

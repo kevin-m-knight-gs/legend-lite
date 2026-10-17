@@ -16,6 +16,8 @@ import java.util.Map;
  * <ul>
  *   <li>{@code dump-sql}: print every statement the executor sends (the execution census's input)</li>
  *   <li>{@code pct-cases}: record each PCT case's model and expression (the render census's input)</li>
+ *   <li>{@code pct-shapes}: record each PCT case's result shape -- its kind, Pure type and value classes (the MongoDB
+ *       line's homework, 2026-10-17: which shapes a lane's result route must carry)</li>
  *   <li>{@code corpus-trace}, {@code detach-trace}, {@code progress}, {@code timing}: the corpus runner's traces</li>
  *   <li>{@code corpus-containing=TEXT}: parser-equivalence's corpus, only the sources containing TEXT (iteration)</li>
  *   <li>{@code chb-only=TEXT}: Channel B, only the PCT tests whose name contains TEXT (iteration; no pins)</li>
@@ -29,7 +31,7 @@ public final class Diagnostics {
 
     /** The vocabulary: the switches that exist. */
     public static final List<String> NAMES = List.of(
-            "dump-sql", "pct-cases", "corpus-trace", "detach-trace", "progress", "timing",
+            "dump-sql", "pct-cases", "pct-shapes", "corpus-trace", "detach-trace", "progress", "timing",
             "corpus-containing", "chb-only", "primitives");
 
     private static final Map<String, String> ON = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(parse(System.getProperty("legend.diagnostics", ""))));

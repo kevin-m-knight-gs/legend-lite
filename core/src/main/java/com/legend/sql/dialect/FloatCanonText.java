@@ -69,7 +69,21 @@ final class FloatCanonText {
 
     /** Pure's literal spelling of the double {@code v}, as SQL over its text. */
     static SqlExpr of(SqlExpr v) {
-        SqlExpr base = new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+        return ofText(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR));
+    }
+
+    /** The exponent unfolded to fixed point where the text {@code base} carries one, else the text as it is: a
+     *  database whose text of a number is scientific past some magnitude (MongoDB's {@code $toString} of a double, a
+     *  Decimal128's own form) reads its number through this (the MongoDB line's homework 3, 2026-10-17). */
+    static SqlExpr fixedPoint(SqlExpr base) {
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR, has(base, "e"), has(base, "E")),
+                        exponentUnfold(base))),
+                base);
+    }
+
+    /** Pure's literal spelling of a double over {@code base}, the database's text of it. */
+    static SqlExpr ofText(SqlExpr base) {
         SqlExpr unfolded = exponentUnfold(base);
         return new SqlExpr.Case(List.of(
                 // ZEROS UNIFY (spec §3, witness parseFloat('-000.000')):

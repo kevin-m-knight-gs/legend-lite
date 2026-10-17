@@ -95,7 +95,11 @@ class JavaEvalLedgerTest {
             // 105 -> 106 (2026-10-11, the system database on a server engine, a9c83ec): the adapter hands the platform
             // the lane's system connection (.withSystemConnections(PctBackend.systemConnections())), one option of the
             // execution it already orchestrates; nothing evaluated in Java
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 106),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
+            // 106 -> 108 (2026-10-17, the MongoDB line's homework 1, docs/MONGODB_PLAN_2026_10_16.md §11.2): the shape
+            // census -- two recorder calls (PctCaseRecorder.recordShape, recordShapeError) that write each case's
+            // result kind to the outputs under -Dlegend.diagnostics=pct-shapes; a measurement beside the result,
+            // nothing evaluated in Java
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 108),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation

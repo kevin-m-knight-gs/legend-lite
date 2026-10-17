@@ -164,6 +164,7 @@ public class PctExecuteNative extends NativeFunction {
                                     .CORRECT_SQL_SUBSTRING_INDEXING))
                     // a server lane's system connection: where a metamodel-reading query runs (PctBackend)
                     .withSystemConnections(PctBackend.systemConnections()));
+            PctCaseRecorder.recordShape(pureExpression, result);   // the shape census: -Dlegend.diagnostics=pct-shapes
             return switch (result) {
                 case ExecutionResult.TdsText t -> {
                     System.out.println("[LegendLite PCT] TDS: "
@@ -178,6 +179,7 @@ public class PctExecuteNative extends NativeFunction {
                 case Graph g -> bridge.graphString(g.json(), processorSupport);
             };
         } catch (Exception e) {
+            PctCaseRecorder.recordShapeError(pureExpression, e);
             // the error's SOURCE INFO must point at the TEST's own call
             // site (assertError checks line/column). B5 (truthfulness
             // burn): the criterion is POSITIVE — the adapter's own

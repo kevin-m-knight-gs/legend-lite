@@ -10653,6 +10653,41 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-17 — MongoDB: the homework before the PCT lane (a differential in miniature, the shape census, the bounds)
+
+The plan: `docs/MONGODB_PLAN_2026_10_16.md` §11.2 (the record) and §9 (the measurements it settled). The line:
+`docs/IN_FLIGHT.md`, the twelfth line. The user's word: "do it; I don't think upstream very useful except for
+spec/syntax."
+
+What changed:
+1. **The differential in miniature**: `core/src/test/.../exec/MongoDbDifferentialTest` joins `//core:mongodb_plan_test`
+   -- 55 storeless Pure expressions planned to the CSV wire (two to the JSON wire) on DuckDB and on MongoDB, run on
+   both, the texts compared; the verdicts written to the test's outputs and printed. It measures; it fails only when
+   the reference does not run. The last run: 51 EQUAL, 2 DIFFERENT (both the DuckDB side's: a bare float literal
+   typed `DECIMAL`, the JSON wire's date text), 2 REFUSED by name (pivot, window).
+2. **The target, from what the differential exposed** (`sql/dialect/MongoDb`, `MongoDbPipeline`): a `HUGEINT` cast
+   as Decimal128; `UNNEST` through `$unwind` (`$zip` for several); a subquery in expression position as a `$lookup`
+   into a marker field, read by the field its pipeline projected; `DISTINCT` with `ORDER BY`; an ordered aggregate's
+   pushed values carrying each key's null flag; `SUM` with a count beside it; a number's text spelled through the
+   platform's portable form (`FloatCanonText.ofText`, `fixedPoint`) over `$toString`'s text, in the cast to text
+   and the JSON wire's cells -- so `2.0`, `100000000000000000000.0`, `0.000000015` and `0.30000000000000004` read as
+   Pure spells them. `docs/SEMANTICS_REGISTER.md` S72 to S74 were these defects and are gone; S75 is recast as the
+   SQL side's.
+3. **The server's facts, as tests**: `MongoDbPlanTest.theServersNumberTexts` (what `$toString` and a Decimal128
+   spell, raw, and what the target makes of them) and `theWholeTextWiresAreBoundedBySixteenMegabytes` (error 16493
+   at 16,777,216 bytes; the quadratic row join).
+4. **The shape census**: the diagnostics switch `pct-shapes` (`Diagnostics.NAMES`; `PctCaseRecorder.recordShape`,
+   `recordShapeError`, called from `PctExecuteNative`) writes each PCT case's result kind, Pure type and value
+   classes to `pct-shapes.tsv` in the suite's outputs. Measured on the five DuckDB suites: 2,655 cases, 73% scalar,
+   20% TDS text, 6% collection (the breakdown in the plan's §11.2).
+
+What judges it: `//core:mongodb_plan_test` (manual, `//gates:heavy`; 9 tests, all green on MongoDB 8.0.17);
+`//core:guardrails`, `//core:census`, `//core:core_tests_sql`, `//core:core_tests_exec`,
+`//docs:update_dialect_capability_test`, `//tools/deps:core_closure_test`, `//tools/deps:core_layering_test` pass;
+`//pct:pct_tests_lib` builds; the five `//pct:pct_duckdb_*` suites pass with the census switch on (their pins
+unchanged: the recorder writes beside the result and decides nothing). Not run here: the spec lanes and the
+parser-equivalence lanes (the pinned upstream checkouts, `docs/CLOUD_SESSIONS.md`) and the Windows jobs -- CI's.
+
 ## 2026-10-17 — MongoDB v0: the first non-SQL database, end to end on the embedded MongoDB 8.0
 
 The plan: `docs/MONGODB_PLAN_2026_10_16.md` (the user's fourteen decisions, 2026-10-16; the record of what landed in

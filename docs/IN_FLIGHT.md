@@ -1985,6 +1985,12 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `MongoDBConnection` and `###MongoDB` store read into the model), the target, the connector, the embedded server, the
   seam, and the end-to-end proof on MongoDB 8.0.17; every guard green with dated pins; the capability matrix
   regenerated with the MongoDb column.
+- **The homework before the PCT lane, 2026-10-17 (the user: "do it"; the plan's §11.2)**: the shape census of
+  channel A on DuckDB (`-Dlegend.diagnostics=pct-shapes`, `PctCaseRecorder`), the differential in miniature
+  (`MongoDbDifferentialTest`, in `//core:mongodb_plan_test`: the same Pure expressions planned and run on DuckDB and
+  on MongoDB, the CSV and JSON texts compared), the 16 MB bound of the whole-text wires, channel B's statement count.
+  What the differential exposed is fixed in the target (the register's S72 to S74 were defects, not decisions, and are
+  gone); what it exposed on the DuckDB side is recorded for the platform (§11.2).
 - **Announced to the ninth line (the dialect program), 2026-10-17 -- its Phase 5's shape, landed for one database
   first:** `exec/Statements` (what a session does with a plan's text), `exec/JdbcStatements` (the runner's JDBC, moved
   whole), `exec/DatabaseConnector` and `exec/Connectors` (a connector beside the drivers, found by `ServiceLoader`),

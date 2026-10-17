@@ -34,8 +34,15 @@ core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	47
 # 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D4: the storeless runtime on a MongoDB server (onMongo: the engine's own MongoDBConnection form, since a RelationalDatabaseConnection never declares MongoDB) and its refusal in the relational form; 6 -> 8.
 core/src/main/java/com/legend/test/StorelessRuntime.java	product-name	8
 # 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md §11: the v0 end-to-end test on the embedded MongoDB names its server, its store section and its connection (8 lines), and writes its own documents through the driver (2 lines).
+# 2026-10-17 (the MongoDB line's homework 3, docs/MONGODB_PLAN_2026_10_16.md §11.2): the differential in miniature
+# names its two sides -- DuckDB (the reference) and MongoDB (the target) -- by their types, and the plan test probes
+# the target's own number texts through its dialect class; both are measurements of the named database, nothing is
+# decided by the name
+core/src/test/java/com/legend/exec/MongoDbDifferentialTest.java	database-type	1
+core/src/test/java/com/legend/exec/MongoDbDifferentialTest.java	product-name	8
+core/src/test/java/com/legend/exec/MongoDbPlanTest.java	dialect-class	1
 core/src/test/java/com/legend/exec/MongoDbPlanTest.java	driver	2
-core/src/test/java/com/legend/exec/MongoDbPlanTest.java	product-name	8
+core/src/test/java/com/legend/exec/MongoDbPlanTest.java	product-name	14
 core/src/test/java/com/legend/ArchitectureTest.java	dialect-class	5
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/test/java/com/legend/ArchitectureTest.java	product-name	3

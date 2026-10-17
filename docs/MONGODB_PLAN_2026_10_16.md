@@ -914,6 +914,48 @@ is a pure move proven by the lane dumps; PR2 to PR6 add Mongo's own files and th
 13. **Size**: a pipeline is more text per IR shape than SQL; PR3's estimate is the widest. The capability matrix keeps
     the count honest: every arm is decided, spelled or refused, and the pages show which.
 
+**Measured, 2026-10-17 (the homework before the PCT lane, §11.2; MongoDB 8.0.17 from `@embedded_mongodb`, in
+`//core:mongodb_plan_test`), each with where it is read back:**
+
+- *3, the 16 MB limit* (`MongoDbPlanTest.theWholeTextWiresAreBoundedBySixteenMegabytes`): a CSV wire of 100 rows x
+  100 KB (10,000,495 characters) passes in about 1.3 s; 200 rows x 100 KB fails in the server with error 16493
+  (`Location16493`): `PlanExecutor error during aggregation :: caused by :: RCString too large. Requires
+  size=16800896 < limit=16777216`. The wall is named; the runner carries the server's message. A second finding: the
+  wire's row join is `$reduce` over `$concat`, quadratic in the text (2,000 rows of 100 B in 139 ms; 8,000 in
+  1,829 ms), so a large whole-text result is slow before it is too big. `STREAMED_JSON` (a document a row) is the
+  form for both; the whole-text wires are the PCT harness's (`TdsText`, one text) and the product's snapshot forms.
+- *4, text forms* (`MongoDbPlanTest.theServersNumberTexts`, the raw operators then the target's spelling): `$toString`
+  of a double is the shortest round-trip text (`0.1+0.2` is `0.30000000000000004`, as Pure prints it) but in
+  scientific notation from 1e16 up (`1e+16`, `1e+20`; `1e15` is plain) and below 1e-4 (`1.5e-08`), and without a
+  fraction when integral (`2.0` is `2`); a Decimal128's text is its own scientific form (`$convert` of 1e20 is
+  `1.00000000000000E+20`, 15 significant digits; of 2.0 `2.00000000000000`; 1.5e-8 rounded at 18 `1.5000000000E-8`);
+  `$convert` of `"+20"` to long is 20; `$type` of a double literal is `double`. The target's answer: a number's text is
+  `$toString`'s bound once, and the platform's portable spelling (`FloatCanonText`: the exponent unfolded as text, a
+  fraction digit kept) is written over it -- a double gets Pure's whole Float spelling, a decimal its exponent
+  unfolded, a HUGEINT its digits alone -- in the cast to text and in the JSON wire's cells. After it: `2.0`,
+  `100000000000000000000.0`, `0.000000015`, `0.30000000000000004`, as Pure and DuckDB spell them. Dates:
+  `$dateToString` with `%L` carries the millisecond and the `+0000` text is literal; a Date spells `%Y-%m-%d`.
+- *5, null and type order*: a select's `$sort` carries each key's null flag (`__nullN`, D7), so nulls place as the
+  key's `NULLS FIRST/LAST` says, and an ordered aggregate's pushed values carry the flag too (`pushedWithKeys`); the
+  differential's `extend_if_null`, `group_join_strings` and `sum_all_null` cases are EQUAL to DuckDB. BSON's order
+  across types is not reached: every comparison is typed by the lowering.
+- *8, the raise envelope*: a `$convert` to `int` of the message between the platform's U+001F sentinels, concatenated
+  with an empty text that depends on the row (`UNFOLDED`): measured, the server's optimizer folds a constant
+  conversion in a branch not taken and fails the pipeline before any row (`Failed to optimize pipeline`), so no raise
+  may be a constant; with the row dependency the message arrives whole in the command error and the connector unwraps
+  it into the platform's `DataError`.
+- *9, `$documents` with `let` at the database level*: `aggregate: 1` with a `$documents` stage runs the storeless
+  expressions (every scalar case of the differential); a `$lookup` under it takes `let` variables and a `from` where
+  the inner reads a collection, none where it is literal.
+- *10, the authentication block*: the engine's `MongoDBConnection` grammar has no "none" form; the lane makes the
+  user (`EmbeddedMongoDb`: a root administrator through the localhost exception, then the user `pct` with `dbOwner`
+  on its database) and the connection names it with a `SystemPropertiesSecret` password, so no lite extension of the
+  grammar is needed.
+- *2, the ordered `$push`*: not measured in bulk yet (the 10,000-row repetition); the differential's ordered
+  aggregates are EQUAL on three rows. Open until the PCT lane's ordered cases run.
+- *6, 7, 11, 12, 13*: open; 6 (Decimal128) is partly answered by item 4's texts (15 significant digits through
+  `$convert` from a double; a Pure Decimal literal keeps its own digits).
+
 ---
 
 ## 10. Sources
@@ -1043,7 +1085,8 @@ and `ArchitectureTest` (the driver's packages funnelled as a driver's), `CoreClo
 `DatabaseOwners` (the connector's source set an owner), `CodeShapeGuardrailTest` (the pipeline's stage counter).
 `//core:core_tests` (27 lanes), `//core:guardrails`, `//core:census`, `//docs:update_dialect_capability_test`,
 `//tools/deps:core_closure_test` and `core_layering_test` pass; `//pct:pct_tests_lib` builds. The differences from
-SQL that v0 keeps are `docs/SEMANTICS_REGISTER.md` S72 to S75.
+SQL that v0 kept were `docs/SEMANTICS_REGISTER.md` S72 to S75; the homework's differential (§11.2) showed S72 to S74
+to be defects of the target and they are fixed and gone, and S75 to be the SQL side's (a platform item, kept).
 
 **What v0 leaves, in order.** (1) **The PCT lane**: the harness's channel A hands a `java.sql.Connection` to
 `QueryService.execute` (`PctExecuteNative`), the legacy route; the Mongo lane needs §6's plan route (`PCT_TDS` as a
@@ -1053,3 +1096,67 @@ not yet measured on the server; windows (`$setWindowFields`), pivots, as-of and 
 expression position, CTEs, raw text as a source, catalog grids, `DISTINCT` with `ORDER BY`, and a star with exclusions
 are refused by name. (3) The server's resolver (`ConnectionResolver`) and the system database refuse MongoDB by name:
 the product opens no Mongo session yet. (4) The class mapping and `~binding`, the corpus, the metamodel store (D13).
+
+### 11.2 The homework before the PCT lane, 2026-10-17
+
+**The ask (the user, 2026-10-17): "should we do homework before we go down this path and get stuck?" -- "do it; I
+don't think upstream very useful except for spec/syntax."** Five measurements before the lane is built, each with its
+command and its answer; the sixth (what upstream's MongoDB support does) dropped by the user's word. Every answer
+is a fact the lane's design rests on, not a promise.
+
+1. **The shape census of channel A on DuckDB** (`-Dlegend.diagnostics=pct-shapes`; `PctCaseRecorder.recordShape`
+   writes `pct-shapes.tsv` into each suite's outputs; run: `bazel test //pct:pct_duckdb_essential
+   //pct:pct_duckdb_grammar //pct:pct_duckdb_relation //pct:pct_duckdb_standard //pct:pct_duckdb_unclassified
+   --jvmopt=-Dlegend.diagnostics=pct-shapes`, 372 s; read with a 40-line script). 2,655 cases executed: 1,935
+   `Scalar` (73%), 524 `TdsText` (20%: the whole Relation suite but 14, and 64 of Standard), 162 `Collection`
+   (6%), 34 errors before a result (17 `DataError`, 8 `ModelException`, 3 each `ResolutionException` and
+   `TypeInferenceException`, 2 `NumberFormatException`, 1 `NotImplementedException`). The scalar values by Java
+   class: 581 `Boolean`, 292 `String`, 275 `Double`, 237 `Long`, 154 `Integer`, 108 `StrictDate`, 104
+   `DateWithSubsecond`, 54 `DateWithSecond`, 43 null, 43 `BigDecimal`, 16 `LinkedHashMap` (class instances and
+   `Map`s), 8 `BigInteger`, 7 `Year`, 6 `YearMonth`, 3 `ArrayList` (a `List` value), 2 each `DateWithHour` and
+   `DateWithMinute`. The collection values: 39 `String`, 38 `Integer`, 30 `Long`, 35 empty (typed `Nil`,
+   `Integer`, `String`, `Pair`...), 10 mixed `Long|String` (an `Any[*]`), 9 `LinkedHashMap` (class instances,
+   `Pair`s), 1 `Double|Long` (a `Number[*]`). What this says for a lane whose results cross as one text: the
+   text route must carry every primitive with its precision (six date precisions, `BigDecimal`, `BigInteger`),
+   null, class instances, `List`, `Map`, `Pair`, enumeration values (4 `DayOfWeek`), a `Type` (4), and a
+   collection with a declared element type when empty -- the `TDSResult` form carries all of it today for 20% of
+   the cases, and the scalar and collection forms are the `value` relation of the same text (§6's one representation).
+2. **The TDS text as a plan output, and the shadow run** (the rename of the harness-named wrap, `Output.TDS_TEXT`
+   with feature flags on the plan path, the DuckDB lane run both ways and compared): not yet; the next step, after this
+   record lands.
+3. **The differential in miniature** (`MongoDbDifferentialTest`, in `//core:mongodb_plan_test`; the verdicts in
+   `mongodb-differential.tsv` under the test's outputs and on its standard output): 55 storeless cases shaped like the
+   suites', planned to the CSV wire (two to the JSON wire) on DuckDB and on MongoDB, run on both, the texts compared.
+   The first run (40 cases): 23 EQUAL, 1 DIFFERENT, 14 REFUSED, 2 the reference's. What it exposed, and what each
+   became: (a) a `HUGEINT` cast refused -- now a Decimal128 (`scalarTypeName`); (b) `UNNEST` of a collection root
+   refused -- now the list projected whole and exploded after (`$unwind`; several in step through `$zip`); (c) a
+   subquery in expression position refused -- now a `$lookup` under `let` variables into a `__sqN` field, read as
+   the first document's one field (`ScalarSubquery`), its size (`Exists`) or its values (`InSubquery`), the field
+   named as the pipeline's projection stage named it (a bare `COUNT(*)` has one); (d) `DISTINCT` with `ORDER BY`
+   refused -- allowed, the sort carries being functions of the row; (e) an ordered aggregate placing nulls first
+   (S73) -- the pushed values carry each key's null flag; (f) `SUM` over an all-null group answering 0 (S72) -- a
+   count rides beside the sum; (g) an integral double printing as `2` and a big or small one in scientific notation
+   (S74 and the §9 item 4 measurement) -- a number's text is spelled through the platform's portable form over
+   `$toString`'s text. The last run: 51 EQUAL, 2 DIFFERENT, 2 REFUSED (a pivot and a window function, named later
+   landings). The two differences are the DuckDB side's, recorded for the platform and not Mongo's to fix:
+   `(0.1 + 0.2)->toString()` prints `0.3` on DuckDB's plan path (the NUMERIC CHARTER's bare float literal is typed
+   `DECIMAL` by DuckDB, so the sum is exact decimal arithmetic) where Pure and MongoDB print `0.30000000000000004`;
+   and the JSON wire's date-time text is each database's JSON writer's (`2020-01-15 11:20:30` on DuckDB) where Pure
+   and the MongoDb target spell `2020-01-15T11:20:30.000+0000` (S75, recast). A third finding of the same kind, found
+   and removed from the cases: a list of float literals (`[1.5, -2.0]`) is typed `DECIMAL(3,2)` by DuckDB and prints
+   `1.50`; a mixed `Number[*]` list unifies to `DOUBLE` and prints an Integer element as `10.0`. Each is the
+   reference's deviation from Pure's one answer, to be fixed on the SQL side (a literal list's element type, a
+   Float literal's own type) -- a measurement for the DuckDB lane's plan path, outside this line's files.
+4. **The 16 MB bound** (`MongoDbPlanTest.theWholeTextWiresAreBoundedBySixteenMegabytes`): §9 item 3's record --
+   16,777,216 bytes is the wall, the server names it (error 16493), 10 MB passes in about 1.3 s, and the row join
+   is quadratic (`$reduce` over `$concat`). The lane's whole-text results are small (a PCT case's TDS is rows);
+   the product streams.
+5. **Channel B's bodies** (the PCT `.pure` sources under `meta::pure::functions::*::tests`, read for the statement
+   count of each `<<PCT.test>>` function body): 920 of 921 are one statement (`|expr` or a single `let`-free
+   expression); the one with more, `meta::pure::test::surveyor::runPCTTests` (12 statements), is the surveyor's
+   driver, not a case. So channel B on Mongo needs no `Sequence` plan: every case is one statement, one command.
+
+What the homework changes in the plan: §6's channel A route is confirmed as one text per case in Pure's own TDS form
+(item 1: the forms are three, the text is one); the differential stays in `//core:mongodb_plan_test` as the line's
+standing measurement, grown with each landing (item 3); the lane's size estimate is unchanged. The measurements
+that remain open are §9's items 2, 6, 7, 11, 12 and 13.

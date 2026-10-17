@@ -413,8 +413,10 @@ legend_java_library(
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
-            # MongoDbPlanTest is :mongodb_plan_test's alone: the embedded MongoDB and its driver (2026-10-17)
+            # MongoDbPlanTest and MongoDbDifferentialTest are :mongodb_plan_test's alone: the embedded MongoDB and
+            # its driver (2026-10-17)
             "src/test/java/com/legend/exec/MongoDbPlanTest.java",
+            "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
@@ -667,13 +669,20 @@ junit_test(
     name = "mongodb_plan_test",
     memory_mb = 1024,
     size = "medium",
-    srcs = ["src/test/java/com/legend/exec/MongoDbPlanTest.java"],
+    srcs = [
+        "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
+        "src/test/java/com/legend/exec/MongoDbPlanTest.java",
+    ],
     data = [
         "@embedded_mongodb//:mongodb",
         "@embedded_mongodb//:mongodb/MONGODB_ROOT",
     ],
     jvm_flags = ["-Dembedded.mongodb.root=$(rlocationpath @embedded_mongodb//:mongodb/MONGODB_ROOT)"],
-    select = ["--select-class=com.legend.exec.MongoDbPlanTest"],
+    select = [
+        "--select-class=com.legend.exec.MongoDbPlanTest",
+        # the differential in miniature (the MongoDB line's homework 3): a measurement, written to the outputs
+        "--select-class=com.legend.exec.MongoDbDifferentialTest",
+    ],
     tags = ["manual"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_MONGODB_COMPATIBLE,
