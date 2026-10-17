@@ -3010,15 +3010,14 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("OPTIONAL MATCH of several patterns is not supported yet", m.pos());
         }
         PathPattern p = m.patterns().get(0);
-        if (p.variable() != null) {
-            throw CypherErrors.unsupported("a named path (" + p.variable() + " = ...) is not supported yet", p.pos());
-        }
         List<PatternElement> elements = new ArrayList<>(p.elements());
         if (elements.size() == 1) {
             throw CypherErrors.unsupported("an OPTIONAL MATCH of a single node (a cartesian product) is not"
                     + " supported yet", p.pos());
         }
-        boolean viaRows = false;   // what the optional hop does not read, re-anchoring over the graph's rows does
+        // what the optional hop does not read, re-anchoring over the graph's rows does (a named path among it: read
+        // as written there, §12.70, its value null where the pattern finds nothing, §12.78)
+        boolean viaRows = p.variable() != null;
         for (PatternElement e : elements) {
             if (e instanceof RelPattern r) {
                 // (a variable-length relationship: the pattern read as a MATCH of its own, §12.42's unroll or
@@ -3069,8 +3068,16 @@ public final class CypherToPure {
                 elements.set(i, new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos()));
             }
         }
-        boolean fanning = false;
         Expr where = m.where();
+        if (where != null && arms.stream().anyMatch(g -> optionalFans(elements, g))) {
+            // a WHERE over a hop that fans out (the study's §12.78): the graph materialized, the pattern re-anchored
+            // over its rows, the WHERE over the pattern's rows or, reading a value of the rows, the join's
+            Rows anchored = reanchor(m, rowsOf(state, m.pos()));
+            if (anchored != null) {
+                return anchored;
+            }
+        }
+        boolean fanning = false;
         for (Graph g : arms) {
             Set<String> before = new HashSet<>(g.bindings().keySet());
             fanning |= optionalExtend(elements, g);
@@ -3164,6 +3171,28 @@ public final class CypherToPure {
             at += 2;
         }
         return fanning;
+    }
+
+    /** Whether an OPTIONAL MATCH's hops from the graph's bound node fan out (a to-many hop among them), read as
+     *  {@link #optionalExtend} reads them, nothing bound. */
+    private boolean optionalFans(List<PatternElement> elements, Graph g) {
+        String firstVar = ((NodePattern) elements.get(0)).variable();
+        Binding current = firstVar == null ? null : g.bindings().get(firstVar);
+        if (current == null || !current.node() || current.absent()) {
+            return false;
+        }
+        String cls = current.classPath();
+        for (int at = 0; at + 2 < elements.size() && cls != null; at += 2) {
+            Hop hop = optionalHop(cls, (RelPattern) elements.get(at + 1), (NodePattern) elements.get(at + 2));
+            if (hop == null) {
+                return false;
+            }
+            if (hop.many()) {
+                return true;
+            }
+            cls = hop.target();
+        }
+        return false;
     }
 
     /** The hop an OPTIONAL MATCH's relationship pattern spells from {@code from}, or null when its type names no
@@ -3656,6 +3685,19 @@ public final class CypherToPure {
                 cond = cond == null ? eq : call("and", cond, eq);
             }
         }
+        if (a.joinWhere() != null) {
+            // (the OPTIONAL MATCH's WHERE over the row and the match: the pattern's own variables read from the
+            // match, every other from the row, the same nodes by the join, §12.78)
+            Set<String> own = new HashSet<>();
+            for (PatternElement e : p.elements()) {
+                String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                if (v != null && !a.renamed().containsValue(v)) {
+                    own.add(v);
+                }
+            }
+            JoinScope both = new JoinScope(new RowScope(rows, "l"), new RowScope(right, "r"), own);
+            cond = call("and", java.util.Objects.requireNonNull(cond), condition(a.joinWhere(), both, "WHERE"));
+        }
         ValueSpecification vs = call("join", rows.vs(), right.vs(), new EnumValue(JOIN_KIND, m.optional() ? "LEFT"
                 : "INNER"), new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
                 List.of(java.util.Objects.requireNonNull(cond))));
@@ -3781,9 +3823,20 @@ public final class CypherToPure {
             variablesIn(where, read);
             read.removeAll(patternVars);
             if (!read.isEmpty()) {
-                throw CypherErrors.unsupported("an OPTIONAL MATCH's WHERE reading a value of the rows beside its"
-                        + " pattern (" + String.join(", ", new java.util.TreeSet<>(read)) + ") is not supported yet",
-                        where.pos());
+                // a WHERE reading a value of the rows beside the pattern (`OPTIONAL MATCH (b)-[r2]-(c) WHERE r <> r2`,
+                // the study's §12.78): the join's condition, over the row and the match together, so a row no
+                // match of which holds keeps its nulls (Cypher's OPTIONAL MATCH); one holding a pattern of its own
+                // or an aggregate is refused by name
+                List<Expr> nested = new ArrayList<>();
+                patternPredicatesIn(where, nested);
+                List<CypherAst.PatternComprehension> lists = new ArrayList<>();
+                comprehensionsIn(where, lists);
+                if (!nested.isEmpty() || !lists.isEmpty() || containsAggregate(where)) {
+                    throw CypherErrors.unsupported("an OPTIONAL MATCH's WHERE reading a value of the rows beside its"
+                            + " pattern (" + String.join(", ", new java.util.TreeSet<>(read)) + ") and a pattern or an"
+                            + " aggregate of its own is not supported yet", where.pos());
+                }
+                return new Anchored(right, renamed, p, where);
             }
             List<Col> aliased = new ArrayList<>(right.columns());
             for (Map.Entry<String, String> r : renamed.entrySet()) {
@@ -3880,7 +3933,7 @@ public final class CypherToPure {
                 }
             }
             Anchored a = anchored(new CypherAst.Match(true, List.of(pattern), inner, predicate.pos()), out);
-            if (a == null) {
+            if (a == null || a.joinWhere() != null) {
                 continue;
             }
             // (a node the rows hold as a value joins on the identity its JSON carries, the study's §12.71)
@@ -3955,6 +4008,10 @@ public final class CypherToPure {
             Anchored a = anchored(new CypherAst.Match(true, List.of(pc.pattern()), pc.where(), pc.pos()), out);
             if (a == null) {
                 continue;
+            }
+            if (a.joinWhere() != null) {
+                throw CypherErrors.unsupported("a pattern comprehension's WHERE reading a value of the rows beside its"
+                        + " pattern is not supported yet", pc.pos());
             }
             // (a node the rows hold as a value joins on the identity its JSON carries, the study's §12.71)
             Rows held = withValueIdentities(out, a.renamed().values());
@@ -4200,7 +4257,14 @@ public final class CypherToPure {
 
     /** A pattern read as its own graph from the rows' carried node, its rows, and the pattern's copies of the
      *  rows' variables (the copy's fresh name to the rows' own), to join back on. */
-    private record Anchored(Rows right, Map<String, String> renamed, PathPattern pattern) {
+    private record Anchored(Rows right, Map<String, String> renamed, PathPattern pattern,
+            /** an OPTIONAL MATCH's WHERE reading a value of the rows beside its pattern: the join's to read, over
+             *  both sides (the study's §12.78); null when there is none, or the WHERE was read over the pattern's
+             *  rows */
+            @com.legend.base.Nullable Expr joinWhere) {
+        Anchored(Rows right, Map<String, String> renamed, PathPattern pattern) {
+            this(right, renamed, pattern, null);
+        }
     }
 
     /** Whether the anchored pattern's copy of a variable the rows hold is absent: the pattern, read as a MATCH of its
@@ -7955,13 +8019,21 @@ public final class CypherToPure {
             return null;
         }
 
+        /** The name its rows' lambda reads a row by: {@code r}, or a join condition's side ({@link JoinScope}). */
+        private final String rowName;
+
         RowScope(Rows rows) {
+            this(rows, "r");
+        }
+
+        RowScope(Rows rows, String rowName) {
             this.rows = rows;
+            this.rowName = rowName;
         }
 
         @Override
         public String row() {
-            return "r";
+            return rowName;
         }
 
         @Override
@@ -8233,6 +8305,80 @@ public final class CypherToPure {
         @Override
         public boolean binds(String name) {
             return column(name) != null;
+        }
+    }
+
+    /** A join condition's scope (the study's §12.78): the variables {@code own} read from the right side's rows (the
+     *  pattern's match), every other from the left's (the row); a condition over the pair builds no lambda of its
+     *  own over a row. */
+    private final class JoinScope implements Scope {
+        private final RowScope left;
+        private final RowScope right;
+        private final Set<String> own;
+
+        JoinScope(RowScope left, RowScope right, Set<String> own) {
+            this.left = left;
+            this.right = right;
+            this.own = own;
+        }
+
+        private Scope side(String name) {
+            return own.contains(name) ? right : left;
+        }
+
+        @Override
+        public String row() {
+            throw new IllegalStateException("a join condition reads the row and the match, no row of its own");
+        }
+
+        @Override
+        public Val variable(CypherAst.Var v) {
+            return side(v.name()).variable(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable NodeParts nodeParts(CypherAst.Var v) {
+            return side(v.name()).nodeParts(v);
+        }
+
+        @Override
+        public boolean isAbsentNode(CypherAst.Var v) {
+            return side(v.name()).isAbsentNode(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable Tx identity(CypherAst.Var v) {
+            return side(v.name()).identity(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable Tx relType(CypherAst.Var v) {
+            return side(v.name()).relType(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable NodeParts relParts(CypherAst.Var v) {
+            return side(v.name()).relParts(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable PathSpec path(CypherAst.Var v) {
+            return side(v.name()).path(v);
+        }
+
+        @Override
+        public Val property(CypherAst.Prop p) {
+            return p.target() instanceof CypherAst.Var v ? side(v.name()).property(p) : left.property(p);
+        }
+
+        @Override
+        public boolean isPatternVariable(String name) {
+            return side(name).isPatternVariable(name);
+        }
+
+        @Override
+        public boolean binds(String name) {
+            return own.contains(name) ? right.binds(name) : left.binds(name);
         }
     }
 

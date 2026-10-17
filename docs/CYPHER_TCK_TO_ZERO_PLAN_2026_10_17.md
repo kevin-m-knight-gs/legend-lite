@@ -308,6 +308,10 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   pattern binds), a multi-hop EXISTS in a MATCH's WHERE over the pattern's rows, a counted EXISTS as its
   comprehension's size (ExistentialSubquery3/[1]-[3], ExistentialSubquery2/[2]). Next: an OPTIONAL MATCH's WHERE
   reading a value of the rows (Match7/[11], MatchWhere6/[5]).
+- An OPTIONAL MATCH whose WHERE reads the rows LANDED 2026-10-17 (the study's §12.78, GATES' seventy-fifth landing;
+  TCK agreement DuckDB 3562 → 3564, Postgres 3170 → 3172): the WHERE as the left join's condition over the row and the
+  match (Match7/[11], MatchWhere6/[5]), a WHERE over a fanning optional hop through the rows, a named optional path.
+  Left (§5): a variable-length relationship beside another in one OPTIONAL MATCH's named path (Match7/[19]).
 - The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
   UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships
@@ -647,7 +651,7 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   date('+999999999-12-31'))` (Temporal10/[9], [10]): DuckDB's dates end near year 5,881,580, Postgres's near
   5,874,897; Neo4j's years reach 999,999,999. Physically out of reach of the databases' date types.
 
-- **2026-10-17, W12 (§12.70) — an OPTIONAL MATCH whose WHERE reads the rows beside its pattern.** `MATCH (a1)-[r]->()
+- **2026-10-17, W12 (§12.70) — an OPTIONAL MATCH whose WHERE reads the rows beside its pattern.** RESOLVED 2026-10-17 (§12.78: the WHERE is the left join's condition, each variable read off its side). `MATCH (a1)-[r]->()
   WITH r, a1 LIMIT 1 OPTIONAL MATCH (a2)<-[r]-(b2) WHERE a1 = a2` (MatchWhere6/[5]); `MATCH (a)-[r {name: 'r1'}]-(b)
   OPTIONAL MATCH (b)-[r2]-(c) WHERE r <> r2` (Match7/[11]). The re-anchored pattern's WHERE is read over the
   pattern's own rows before the left join; one reading a value of the rows beside the pattern belongs in the left
@@ -655,6 +659,17 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   one variable); spelling it over the join's two needs either a scope reading each column off its side, or the
   rows' values the WHERE reads joined into the pattern's rows first (on the shared identities) and the left join
   matched on them too. Two TCK rows.
+- **2026-10-17, W10 (§12.78) — a variable-length relationship beside another relationship in one pattern.** `MATCH
+  (a {name: 'A'}) OPTIONAL MATCH p = (a)-->(b)-[*]->(c) RETURN p` (Match7/[19]): the walk (§12.68) reads a pattern
+  of one variable-length relationship between two nodes; beside a single relationship, the pattern is cut at the
+  walk (each part its rows, met on the shared node's identity), and two things are unspelled there. Relationship
+  uniqueness between the single relationship and the walk's list: the single one is carried as its JSON, with no
+  identity column of its own past the cut, where the walk compares identities (S75), so the cut's uniqueness check
+  has nothing to compare (the experiment reached "relationship uniqueness across a deep pattern's cut ... over a
+  relationship carried without an identity of its own"). And the named path across a walk segment: the walk's path
+  parts (its carried texts) joined to the single hop's (§12.56's assembly over the rows reads fixed-length segments
+  only). Both are the walk carrying, past the cut, the identities and the path parts it already builds inside its
+  recursion; one TCK row (no lite case reaches it).
 - **2026-10-17, W10 leg 2b — a variable-length relationship bound to a list of relationships.** RESOLVED 2026-10-17 (the study's §12.71: the values carry their identities). `MATCH ()-[r1]->()
   -[r2]->() WITH [r1, r2] AS rs LIMIT 1 MATCH (first)-[rs*]->(second)` (Match4/[8], Match9/[6], [7]): Neo4j walks
   only the paths whose relationships are the list's, in order. The rows carry `rs` as the Variant list of the

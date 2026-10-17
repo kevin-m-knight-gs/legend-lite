@@ -202,7 +202,7 @@ tck/clauses/match-where/MatchWhere6/[1] Filter node with node label predicate on
 tck/clauses/match-where/MatchWhere6/[2] Filter node with false node label predicate after OPTIONAL MATCH	PASS	PASS
 tck/clauses/match-where/MatchWhere6/[3] Filter node with property predicate on multi variables with multiple bindings after OPTIONAL MATCH	PASS	PASS
 tck/clauses/match-where/MatchWhere6/[4] Do not fail when predicates on optionally matched and missed nodes are invalid	PASS	PASS
-tck/clauses/match-where/MatchWhere6/[5] Matching and optionally matching with unbound nodes and equality predicate in reverse direction	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere6/[5] Matching and optionally matching with unbound nodes and equality predicate in reverse direction	PASS	PASS
 tck/clauses/match-where/MatchWhere6/[6] Join nodes on non-equality of properties – OPTIONAL MATCH and WHERE	PASS	PASS
 tck/clauses/match-where/MatchWhere6/[7] Join nodes on non-equality of properties – OPTIONAL MATCH on two relationships and WHERE	PASS	PASS
 tck/clauses/match-where/MatchWhere6/[8] Join nodes on non-equality of properties – Two OPTIONAL MATCH clauses and WHERE	PASS	PASS
@@ -554,7 +554,7 @@ tck/clauses/match/Match7/[7] MATCH with OPTIONAL MATCH in longer pattern	PASS	PA
 tck/clauses/match/Match7/[8] Longer pattern with bound nodes without matches	PASS	PASS
 tck/clauses/match/Match7/[9] Longer pattern with bound nodes	PASS	PASS
 tck/clauses/match/Match7/[10] Optionally matching from null nodes should return null	PASS	PASS
-tck/clauses/match/Match7/[11] Return two subgraphs with bound undirected relationship and optional relationship	REFUSED	REFUSED
+tck/clauses/match/Match7/[11] Return two subgraphs with bound undirected relationship and optional relationship	PASS	PASS
 tck/clauses/match/Match7/[12] Variable length optional relationships	PASS	PASS
 tck/clauses/match/Match7/[13] Variable length optional relationships with bound nodes	PASS	PASS
 tck/clauses/match/Match7/[14] Variable length optional relationships with length predicates	PASS	PASS
@@ -3923,7 +3923,7 @@ lite/anchor/re_anchored_twice	PASS	PASS
 lite/anchor/a_fan_out_to_a_class_without_a_property	PASS	PASS
 lite/anchor/nodes_without_properties_returned_after_a_fan_out	PASS	PASS
 lite/anchor/an_optional_match_from_a_node_of_several_classes_refused	PASS	PASS
-lite/anchor/an_optional_match_where_reading_the_rows_refused	REFUSED	REFUSED
+lite/anchor/an_optional_match_where_reading_the_rows	PASS	PASS
 lite/basics/match_return_property	PASS	PASS
 lite/basics/where_comparison_null_is_not_true	PASS	PASS
 lite/basics/where_not_null_is_null	PASS	PASS
@@ -4324,7 +4324,13 @@ lite/optional_where/where_over_both_ends	PASS	PASS
 lite/optional_where/two_hops_with_a_where	PASS	PASS
 lite/optional_where/second_optional_match_with_a_where	PASS	PASS
 lite/optional_where/where_and_the_relationship	PASS	PASS
-lite/optional_where/where_over_a_fanning_hop_refused	REFUSED	REFUSED
+lite/optional_where/where_over_a_fanning_hop	PASS	PASS
+lite/optrows/a_relationship_other_than_the_row_s	PASS	PASS
+lite/optrows/a_node_equal_to_the_row_s	PASS	PASS
+lite/optrows/a_property_against_the_row_s	PASS	PASS
+lite/optrows/two_rows_of_one_node	PASS	PASS
+lite/optrows/none_holds_keeps_the_row	PASS	PASS
+lite/optrows/a_value_carried_by_a_with	PASS	PASS
 lite/ordering/lists_order_by_their_first_differing_element	PASS	PASS
 lite/ordering/a_longer_list_is_greater_after_an_equal_prefix	PASS	PASS
 lite/ordering/a_null_or_unordered_pair_is_null	PASS	PASS

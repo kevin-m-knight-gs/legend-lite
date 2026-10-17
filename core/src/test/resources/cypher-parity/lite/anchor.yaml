@@ -57,7 +57,7 @@ tests:
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:B {name: 'c'})
     cypher: "MATCH (n) WITH n, n.name AS x OPTIONAL MATCH (n)-[:T]->(m) RETURN x, m.name AS mn ORDER BY x"
-  - id: an_optional_match_where_reading_the_rows_refused
+  - id: an_optional_match_where_reading_the_rows
     graph: |
       CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'})
     cypher: "MATCH (a:A) WITH a, a.name AS n OPTIONAL MATCH (a)-[:T]->(b:B) WHERE b.name <> n RETURN n, b.name AS bn"

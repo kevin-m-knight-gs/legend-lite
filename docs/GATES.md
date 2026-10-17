@@ -11660,3 +11660,23 @@ subquery nested in another, of more than one hop, or counting its matches.
    no second). The judge compares two local date-times by value (`CypherValues.sameLocalDateTime`).
 5. **Refused by name, recorded.** `collect(DISTINCT ...)` of a zoned value; a duration inside a list or map; an
    EXISTS subquery's WITH other than its scope's variables and one `count(*)`.
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-fifth landing — an OPTIONAL MATCH whose WHERE reads the rows
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 tail); the record is the study's §12.78. An OPTIONAL
+MATCH re-anchored over the rows whose WHERE reads a value of the rows beside its pattern: the WHERE is the left
+join's condition, over the row and the match together.
+
+1. **What lands.** Match7/[11] and MatchWhere6/[5] on both lanes; the 6 cases of `lite/optrows.yaml`; a WHERE over
+   a fanning optional hop read through the rows; a named optional path. DuckDB PASS 3,817 → 3827, Postgres 3,394 →
+   3404; TCK agreement DuckDB 3562 → 3564, Postgres 3170 → 3172.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3827
+   / REFUSED 275 / BOTH_ERROR 750 / SKIP 57; Postgres PASS 3404 / REFUSED 698 / BOTH_ERROR 750 / SKIP 57, of 4909
+   cases); the oracle check 0 problems. Two lite cases named for the lifted refusals renamed (their answers carried
+   to the new keys).
+3. **The guards.** `//core:core_tests_protocol` (the pinned refusal of a WHERE over a fanning optional hop turned
+   into translation checks, one more for the join's condition), `//core:core_tests_integration`,
+   `//core:guardrails` green.
+4. **Refused by name, recorded.** Such a WHERE holding a pattern or an aggregate of its own; one in a pattern
+   predicate or a comprehension over rows. Logged (plan §5): a variable-length relationship beside another in one
+   pattern (Match7/[19]).

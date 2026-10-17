@@ -1102,8 +1102,17 @@ class CypherToPureTest {
         assertEquals("demo::Person.all()->project(~[n:p|$p.name, l:p|if($p.firm->isEmpty() || !($p.firm.legalName->isNotEmpty() && ($p.firm.legalName->toOne() == 'x')), |[]->cast(@String), |$p.firm.legalName), f:p|if($p.firm->isEmpty() || !($p.firm.legalName->isNotEmpty() && ($p.firm.legalName->toOne() == 'x')), |[]->cast(@meta::pure::metamodel::variant::Variant), |fromJson((('{\"@labels\":' + '[\"Firm\"]') + if(if($p.firm->isEmpty() || !($p.firm.legalName->isNotEmpty() && ($p.firm.legalName->toOne() == 'x')), |[]->cast(@String), |$p.firm->meta::legend::lite::elementId())->isEmpty(), |'', |',\"@id\":' + ('\"' + if($p.firm->isEmpty() || !($p.firm.legalName->isNotEmpty() && ($p.firm.legalName->toOne() == 'x')), |[]->cast(@String), |$p.firm->meta::legend::lite::elementId())->toOne()->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + if(if($p.firm->isEmpty() || !($p.firm.legalName->isNotEmpty() && ($p.firm.legalName->toOne() == 'x')), |[]->cast(@String), |$p.firm.legalName)->isEmpty(), |'', |',\"legalName\":' + ('\"' + if($p.firm->isEmpty() || !($p.firm.legalName->isNotEmpty() && ($p.firm.legalName->toOne() == 'x')), |[]->cast(@String), |$p.firm.legalName)->toOne()->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"')) + '}'))])",
                 pure("MATCH (p:Person) OPTIONAL MATCH (p)-[:firm]->(f:Firm) WHERE f.legalName = 'x'"
                         + " RETURN p.name AS n, f.legalName AS l, f"));
-        unsupported("MATCH (f:Firm) OPTIONAL MATCH (f)-[:employees]->(p:Person) WHERE p.age > 1 RETURN p.name",
-                "OPTIONAL MATCH with a WHERE over a hop that fans out");
+        // a WHERE over a hop that fans out (the study's §12.78): the pattern re-anchored over the rows, its WHERE over
+        // the pattern's rows before the left join, so a start no match of which holds keeps its row
+        String fanned = pure("MATCH (f:Firm) OPTIONAL MATCH (f)-[:employees]->(p:Person) WHERE p.age > 1"
+                + " RETURN p.name");
+        assertTrue(fanned.contains("JoinKind.LEFT") && fanned.contains("> 1"), fanned);
+        // one reading a value of the rows beside the pattern: the left join's condition, the pattern's variables
+        // read from the match's side (r), the row's from the row's (l)
+        String joined = pure("MATCH (f:Firm) OPTIONAL MATCH (f)-[:employees]->(p:Person) WHERE p.name = f.legalName"
+                + " RETURN p.name");
+        assertTrue(joined.contains("JoinKind.LEFT, {l, r|") && joined.contains("$l.") && joined.contains("$r."),
+                joined);
     }
 
     @Test

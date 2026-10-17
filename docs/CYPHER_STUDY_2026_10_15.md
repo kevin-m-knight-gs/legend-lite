@@ -5040,3 +5040,36 @@ named are renamed with the next leg.
 On DuckDB WithOrderBy1/[45] #6 to #8, ExistentialSubquery3/[1], [2], [3] and ExistentialSubquery2/[2] move to PASS;
 on Postgres WithOrderBy1/[45] #6 and the four EXISTS rows. TCK agreement DuckDB 3555 → 3562, Postgres 3165 → 3170.
 The 25 lite cases of the two new files pass on both lanes (the nanosecond ones refused by name on Postgres).
+
+### 12.78 An OPTIONAL MATCH whose WHERE reads the rows (2026-10-17)
+
+- **The join's condition** (`CypherToPure.anchored`, `reanchor`, `JoinScope`): an OPTIONAL MATCH re-anchored over
+  the rows (§12.49) whose WHERE reads a value of the rows beside its pattern (`OPTIONAL MATCH (b)-[r2]-(c) WHERE r
+  <> r2`, `... WHERE a1 = a2`, `... WHERE y.w > x.v`) is the left join's condition, ANDed to the identities the join
+  meets on: a row keeps its nulls where no match holds of it, as Cypher's OPTIONAL MATCH does, which a filter
+  before the join (the pattern's rows alone) or after it (dropping the row) would not. The condition reads the
+  pattern's own variables from the match's side and every other from the row's (`JoinScope`, two `RowScope`s
+  naming their side `l` and `r`); the comparison is the island's own (identity for nodes and relationships, §12.46;
+  Cypher's null rules for values), nothing computed. A WHERE holding a pattern or an aggregate of its own, and such
+  a WHERE in a pattern predicate or a comprehension over rows, is refused by name.
+- **A WHERE over a fanning hop** (`optionalFans`): an OPTIONAL MATCH's WHERE over a hop that fans out (a to-many
+  step) reads as rows first, the re-anchored pattern's WHERE over its rows or the join's, so `MATCH (x:X) OPTIONAL
+  MATCH (x)-[:T]->(y:Y) WHERE y.w > x.v` keeps the matches that hold and the row where none does; a to-one hop keeps
+  the guard of §12.29.
+- **A named optional path** (`p = (a)-[:T]->(b)` in an OPTIONAL MATCH) reads through the re-anchoring as a named
+  path after rows (§12.70), its value null where the pattern finds nothing.
+- **Left** (plan §5): a variable-length relationship beside other relationships in one pattern (Match7/[19]); a
+  pattern comprehension per element of a list comprehension (Pattern2/[7]).
+- **Pinned.** `lite/optrows.yaml`'s 6 cases, each judged by Neo4j; Match7/[11] and MatchWhere6/[5] on both lanes.
+
+#### 12.78.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4909 | 3827 (from 3,817) | 0 | 0 | 0 | 275 (from 279) | 750 | 57 |
+| Postgres | 4909 | 3404 (from 3,394) | 0 | 0 | 0 | 698 (from 702) | 750 | 57 |
+
+Match7/[11] and MatchWhere6/[5] move to PASS on both lanes; TCK agreement DuckDB 3562 → 3564, Postgres 3170 → 3172.
+The 6 cases of `lite/optrows.yaml` pass on both lanes, and two lite cases named for the refusals this lifts pass,
+renamed (`lite/anchor/an_optional_match_where_reading_the_rows`, `lite/optional_where/where_over_a_fanning_hop`; their
+answers carried to the new keys).
