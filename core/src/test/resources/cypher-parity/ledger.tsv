@@ -298,7 +298,7 @@ tck/clauses/match/Match2/[3] Matching a self-loop with an undirected relationshi
 tck/clauses/match/Match2/[4] Matching a self-loop with a directed relationship pattern	PASS	PASS
 tck/clauses/match/Match2/[5] Match relationship with inline property value	REFUSED	REFUSED
 tck/clauses/match/Match2/[6] Match relationships with multiple types	PASS	PASS
-tck/clauses/match/Match2/[7] Matching twice with conflicting relationship types on same relationship	REFUSED	REFUSED
+tck/clauses/match/Match2/[7] Matching twice with conflicting relationship types on same relationship	PASS	PASS
 tck/clauses/match/Match2/[8] Fail when using parameter as relationship predicate in MATCH	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match2/[9] Fail when a node has the same variable in a preceding MATCH #1	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match2/[9] Fail when a node has the same variable in a preceding MATCH #2	BOTH_ERROR	BOTH_ERROR
@@ -402,10 +402,10 @@ tck/clauses/match/Match3/[21] Three bound nodes pointing to the same node with e
 tck/clauses/match/Match3/[22] Returning bound nodes that are not part of the pattern	REFUSED	REFUSED
 tck/clauses/match/Match3/[23] Matching disconnected patterns	REFUSED	REFUSED
 tck/clauses/match/Match3/[24] Matching twice with duplicate relationship types on same relationship	REFUSED	REFUSED
-tck/clauses/match/Match3/[25] Matching twice with an additional node label	REFUSED	REFUSED
+tck/clauses/match/Match3/[25] Matching twice with an additional node label	PASS	PASS
 tck/clauses/match/Match3/[26] Matching twice with a duplicate predicate	SKIP	SKIP
 tck/clauses/match/Match3/[27] Matching from null nodes should return no results owing to finding no matches	PASS	PASS
-tck/clauses/match/Match3/[28] Matching from null nodes should return no results owing to matches being filtered out	REFUSED	REFUSED
+tck/clauses/match/Match3/[28] Matching from null nodes should return no results owing to matches being filtered out	PASS	PASS
 tck/clauses/match/Match3/[29] Fail when re-using a relationship in the same pattern	REFUSED	REFUSED
 tck/clauses/match/Match3/[30] Fail when using a list or nodes as a node	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match4/[1] Handling fixed-length variable length pattern	PASS	PASS
@@ -418,35 +418,35 @@ tck/clauses/match/Match4/[7] Matching variable length patterns including a bound
 tck/clauses/match/Match4/[8] Matching relationships into a list and matching variable length using the list	REFUSED	REFUSED
 tck/clauses/match/Match4/[9] Fail when asterisk operator is missing	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match4/[10] Fail on negative bound	BOTH_ERROR	BOTH_ERROR
-tck/clauses/match/Match5/[1] Handling unbounded variable length match	REFUSED	REFUSED
-tck/clauses/match/Match5/[2] Handling explicitly unbounded variable length match	REFUSED	REFUSED
-tck/clauses/match/Match5/[3] Handling single bounded variable length match 1	REFUSED	REFUSED
-tck/clauses/match/Match5/[4] Handling single bounded variable length match 2	REFUSED	REFUSED
-tck/clauses/match/Match5/[5] Handling single bounded variable length match 3	REFUSED	REFUSED
-tck/clauses/match/Match5/[6] Handling upper and lower bounded variable length match 1	REFUSED	REFUSED
-tck/clauses/match/Match5/[7] Handling upper and lower bounded variable length match 2	REFUSED	REFUSED
-tck/clauses/match/Match5/[8] Handling symmetrically bounded variable length match, bounds are zero	REFUSED	REFUSED
-tck/clauses/match/Match5/[9] Handling symmetrically bounded variable length match, bounds are one	REFUSED	REFUSED
-tck/clauses/match/Match5/[10] Handling symmetrically bounded variable length match, bounds are two	REFUSED	REFUSED
-tck/clauses/match/Match5/[11] Handling upper and lower bounded variable length match, empty interval 1	REFUSED	REFUSED
-tck/clauses/match/Match5/[12] Handling upper and lower bounded variable length match, empty interval 2	REFUSED	REFUSED
-tck/clauses/match/Match5/[13] Handling upper bounded variable length match, empty interval	REFUSED	REFUSED
-tck/clauses/match/Match5/[14] Handling upper bounded variable length match 1	REFUSED	REFUSED
-tck/clauses/match/Match5/[15] Handling upper bounded variable length match 2	REFUSED	REFUSED
-tck/clauses/match/Match5/[16] Handling lower bounded variable length match 1	REFUSED	REFUSED
-tck/clauses/match/Match5/[17] Handling lower bounded variable length match 2	REFUSED	REFUSED
-tck/clauses/match/Match5/[18] Handling lower bounded variable length match 3	REFUSED	REFUSED
-tck/clauses/match/Match5/[19] Handling a variable length relationship and a standard relationship in chain, zero length 1	REFUSED	REFUSED
-tck/clauses/match/Match5/[20] Handling a variable length relationship and a standard relationship in chain, zero length 2	REFUSED	REFUSED
-tck/clauses/match/Match5/[21] Handling a variable length relationship and a standard relationship in chain, single length 1	REFUSED	REFUSED
-tck/clauses/match/Match5/[22] Handling a variable length relationship and a standard relationship in chain, single length 2	REFUSED	REFUSED
-tck/clauses/match/Match5/[23] Handling a variable length relationship and a standard relationship in chain, longer 1	REFUSED	REFUSED
-tck/clauses/match/Match5/[24] Handling a variable length relationship and a standard relationship in chain, longer 2	REFUSED	REFUSED
-tck/clauses/match/Match5/[25] Handling a variable length relationship and a standard relationship in chain, longer 3	REFUSED	REFUSED
-tck/clauses/match/Match5/[26] Handling mixed relationship patterns and directions 1	REFUSED	REFUSED
-tck/clauses/match/Match5/[27] Handling mixed relationship patterns and directions 2	REFUSED	REFUSED
-tck/clauses/match/Match5/[28] Handling mixed relationship patterns 1	REFUSED	REFUSED
-tck/clauses/match/Match5/[29] Handling mixed relationship patterns 2	REFUSED	REFUSED
+tck/clauses/match/Match5/[1] Handling unbounded variable length match	PASS	PASS
+tck/clauses/match/Match5/[2] Handling explicitly unbounded variable length match	PASS	PASS
+tck/clauses/match/Match5/[3] Handling single bounded variable length match 1	PASS	PASS
+tck/clauses/match/Match5/[4] Handling single bounded variable length match 2	PASS	PASS
+tck/clauses/match/Match5/[5] Handling single bounded variable length match 3	PASS	PASS
+tck/clauses/match/Match5/[6] Handling upper and lower bounded variable length match 1	PASS	PASS
+tck/clauses/match/Match5/[7] Handling upper and lower bounded variable length match 2	PASS	PASS
+tck/clauses/match/Match5/[8] Handling symmetrically bounded variable length match, bounds are zero	PASS	PASS
+tck/clauses/match/Match5/[9] Handling symmetrically bounded variable length match, bounds are one	PASS	PASS
+tck/clauses/match/Match5/[10] Handling symmetrically bounded variable length match, bounds are two	PASS	PASS
+tck/clauses/match/Match5/[11] Handling upper and lower bounded variable length match, empty interval 1	PASS	PASS
+tck/clauses/match/Match5/[12] Handling upper and lower bounded variable length match, empty interval 2	PASS	PASS
+tck/clauses/match/Match5/[13] Handling upper bounded variable length match, empty interval	PASS	PASS
+tck/clauses/match/Match5/[14] Handling upper bounded variable length match 1	PASS	PASS
+tck/clauses/match/Match5/[15] Handling upper bounded variable length match 2	PASS	PASS
+tck/clauses/match/Match5/[16] Handling lower bounded variable length match 1	PASS	PASS
+tck/clauses/match/Match5/[17] Handling lower bounded variable length match 2	PASS	PASS
+tck/clauses/match/Match5/[18] Handling lower bounded variable length match 3	PASS	PASS
+tck/clauses/match/Match5/[19] Handling a variable length relationship and a standard relationship in chain, zero length 1	PASS	PASS
+tck/clauses/match/Match5/[20] Handling a variable length relationship and a standard relationship in chain, zero length 2	PASS	PASS
+tck/clauses/match/Match5/[21] Handling a variable length relationship and a standard relationship in chain, single length 1	PASS	PASS
+tck/clauses/match/Match5/[22] Handling a variable length relationship and a standard relationship in chain, single length 2	PASS	PASS
+tck/clauses/match/Match5/[23] Handling a variable length relationship and a standard relationship in chain, longer 1	PASS	PASS
+tck/clauses/match/Match5/[24] Handling a variable length relationship and a standard relationship in chain, longer 2	PASS	PASS
+tck/clauses/match/Match5/[25] Handling a variable length relationship and a standard relationship in chain, longer 3	PASS	PASS
+tck/clauses/match/Match5/[26] Handling mixed relationship patterns and directions 1	PASS	PASS
+tck/clauses/match/Match5/[27] Handling mixed relationship patterns and directions 2	PASS	PASS
+tck/clauses/match/Match5/[28] Handling mixed relationship patterns 1	PASS	PASS
+tck/clauses/match/Match5/[29] Handling mixed relationship patterns 2	PASS	PASS
 tck/clauses/match/Match6/[1] Zero-length named path	PASS	PASS
 tck/clauses/match/Match6/[2] Return a simple path	PASS	PASS
 tck/clauses/match/Match6/[3] Return a three node path	REFUSED	REFUSED
@@ -558,22 +558,22 @@ tck/clauses/match/Match7/[11] Return two subgraphs with bound undirected relatio
 tck/clauses/match/Match7/[12] Variable length optional relationships	REFUSED	REFUSED
 tck/clauses/match/Match7/[13] Variable length optional relationships with bound nodes	REFUSED	REFUSED
 tck/clauses/match/Match7/[14] Variable length optional relationships with length predicates	REFUSED	REFUSED
-tck/clauses/match/Match7/[15] Variable length patterns and nulls	REFUSED	REFUSED
-tck/clauses/match/Match7/[16] Optionally matching named paths - null result	REFUSED	REFUSED
+tck/clauses/match/Match7/[15] Variable length patterns and nulls	PASS	PASS
+tck/clauses/match/Match7/[16] Optionally matching named paths - null result	PASS	PASS
 tck/clauses/match/Match7/[17] Optionally matching named paths - existing result	REFUSED	REFUSED
-tck/clauses/match/Match7/[18] Named paths inside optional matches with node predicates	REFUSED	REFUSED
+tck/clauses/match/Match7/[18] Named paths inside optional matches with node predicates	PASS	PASS
 tck/clauses/match/Match7/[19] Optionally matching named paths with single and variable length patterns	REFUSED	REFUSED
 tck/clauses/match/Match7/[20] Variable length optional relationships with bound nodes, no matches	REFUSED	REFUSED
-tck/clauses/match/Match7/[21] Handling optional matches between nulls	REFUSED	REFUSED
+tck/clauses/match/Match7/[21] Handling optional matches between nulls	PASS	PASS
 tck/clauses/match/Match7/[22] MATCH after OPTIONAL MATCH	REFUSED	REFUSED
 tck/clauses/match/Match7/[23] OPTIONAL MATCH with labels on the optional end node	SKIP	SKIP
 tck/clauses/match/Match7/[24] Optionally matching self-loops	REFUSED	REFUSED
 tck/clauses/match/Match7/[25] Optionally matching self-loops without matches	REFUSED	REFUSED
 tck/clauses/match/Match7/[26] Handling correlated optional matches; first does not match implies second does not match	REFUSED	REFUSED
-tck/clauses/match/Match7/[27] Handling optional matches between optionally matched entities	REFUSED	REFUSED
-tck/clauses/match/Match7/[28] Handling optional matches with inline label predicate	REFUSED	REFUSED
+tck/clauses/match/Match7/[27] Handling optional matches between optionally matched entities	PASS	PASS
+tck/clauses/match/Match7/[28] Handling optional matches with inline label predicate	PASS	PASS
 tck/clauses/match/Match7/[29] Satisfies the open world assumption, relationships between same nodes	REFUSED	REFUSED
-tck/clauses/match/Match7/[30] Satisfies the open world assumption, single relationship	REFUSED	REFUSED
+tck/clauses/match/Match7/[30] Satisfies the open world assumption, single relationship	PASS	PASS
 tck/clauses/match/Match7/[31] Satisfies the open world assumption, relationships between different nodes	REFUSED	REFUSED
 tck/clauses/match/Match8/[1] Pattern independent of bound variables results in cross product	PASS	PASS
 tck/clauses/match/Match8/[2] Counting rows after MATCH, MERGE, OPTIONAL MATCH	REFUSED	REFUSED
@@ -726,10 +726,10 @@ tck/clauses/return-orderby/ReturnOrderBy4/[1] ORDER BY of a column introduced in
 tck/clauses/return-orderby/ReturnOrderBy4/[2] Handle projections with ORDER BY	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy5/[1] Renaming columns before ORDER BY should return results in ascending order	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy6/[1] Handle constants and parameters inside an order by item which contains an aggregation expression	PASS	PASS
-tck/clauses/return-orderby/ReturnOrderBy6/[2] Handle returned aliases inside an order by item which contains an aggregation expression	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy6/[3] Handle returned property accesses inside an order by item which contains an aggregation expression	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy6/[2] Handle returned aliases inside an order by item which contains an aggregation expression	PASS	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy6/[3] Handle returned property accesses inside an order by item which contains an aggregation expression	PASS	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy6/[4] Fail if not returned variables are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return-orderby/ReturnOrderBy6/[5] Fail if more complex expressions, even if returned, are used inside an order by item which contains an aggregation expression	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy6/[5] Fail if more complex expressions, even if returned, are used inside an order by item which contains an aggregation expression	PASS	REFUSED
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[1] Start the result from the second row	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[2] Start the result from the second row by param	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[3] SKIP with an expression that does not depend on variables	REFUSED	REFUSED
@@ -745,7 +745,7 @@ tck/clauses/return-skip-limit/ReturnSkipLimit2/[1] Limit to two hits	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[2] Limit to two hits with explicit order	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[3] LIMIT 0 should return an empty result	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[4] Handle ORDER BY with LIMIT 1	PASS	PASS
-tck/clauses/return-skip-limit/ReturnSkipLimit2/[5] ORDER BY with LIMIT 0 should not generate errors	REFUSED	REFUSED
+tck/clauses/return-skip-limit/ReturnSkipLimit2/[5] ORDER BY with LIMIT 0 should not generate errors	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[6] LIMIT with an expression that does not depend on variables	REFUSED	REFUSED
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[7] Limit to more rows than actual results 1	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[8] Limit to more rows than actual results 2	REFUSED	REFUSED
@@ -765,7 +765,7 @@ tck/clauses/return/Return1/[1] Returning a list property	PASS	PASS
 tck/clauses/return/Return1/[2] Fail when returning an undefined variable	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return2/[1] Arithmetic expressions should propagate null values	PASS	PASS
 tck/clauses/return/Return2/[2] Returning a node property value	PASS	PASS
-tck/clauses/return/Return2/[3] Missing node property should become null	REFUSED	REFUSED
+tck/clauses/return/Return2/[3] Missing node property should become null	PASS	PASS
 tck/clauses/return/Return2/[4] Returning a relationship property value	REFUSED	REFUSED
 tck/clauses/return/Return2/[5] Missing relationship property should become null	REFUSED	REFUSED
 tck/clauses/return/Return2/[6] Adding a property and a literal in projection	PASS	PASS
@@ -781,7 +781,7 @@ tck/clauses/return/Return2/[15] Fail when returning properties of deleted nodes	
 tck/clauses/return/Return2/[16] Fail when returning labels of deleted nodes	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return2/[17] Fail when returning properties of deleted relationships	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return2/[18] Fail on projecting a non-existent function	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return/Return3/[1] Returning multiple expressions	REFUSED	REFUSED
+tck/clauses/return/Return3/[1] Returning multiple expressions	PASS	PASS
 tck/clauses/return/Return3/[2] Returning multiple node property values	PASS	PASS
 tck/clauses/return/Return3/[3] Projecting nodes and relationships	PASS	PASS
 tck/clauses/return/Return4/[1] Honour the column name for RETURN items	PASS	PASS
@@ -792,7 +792,7 @@ tck/clauses/return/Return4/[5] Keeping used expression 2	PASS	PASS
 tck/clauses/return/Return4/[6] Keeping used expression 3	REFUSED	REFUSED
 tck/clauses/return/Return4/[7] Keeping used expression 4	PASS	PASS
 tck/clauses/return/Return4/[8] Support column renaming for aggregations	PASS	PASS
-tck/clauses/return/Return4/[9] Handle subexpression in aggregation also occurring as standalone expression with nested aggregation in a literal map	REFUSED	REFUSED
+tck/clauses/return/Return4/[9] Handle subexpression in aggregation also occurring as standalone expression with nested aggregation in a literal map	PASS	PASS
 tck/clauses/return/Return4/[10] Fail when returning multiple columns with same name	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return4/[11] Reusing variable names in RETURN	REFUSED	REFUSED
 tck/clauses/return/Return5/[1] DISTINCT inside aggregation should work with lists in maps	REFUSED	REFUSED
@@ -802,10 +802,10 @@ tck/clauses/return/Return5/[4] DISTINCT inside aggregation should work with nest
 tck/clauses/return/Return5/[5] Aggregate on list values	PASS	PASS
 tck/clauses/return/Return6/[1] Return count aggregation over nodes	PASS	PASS
 tck/clauses/return/Return6/[2] Projecting an arithmetic expression with aggregation	REFUSED	REFUSED
-tck/clauses/return/Return6/[3] Aggregating by a list property has a correct definition of equality	REFUSED	REFUSED
+tck/clauses/return/Return6/[3] Aggregating by a list property has a correct definition of equality	PASS	REFUSED
 tck/clauses/return/Return6/[4] Support multiple divisions in aggregate function	PASS	PASS
 tck/clauses/return/Return6/[5] Aggregates inside normal functions	PASS	PASS
-tck/clauses/return/Return6/[6] Handle aggregates inside non-aggregate expressions	REFUSED	REFUSED
+tck/clauses/return/Return6/[6] Handle aggregates inside non-aggregate expressions	PASS	REFUSED
 tck/clauses/return/Return6/[7] Aggregate on property	PASS	PASS
 tck/clauses/return/Return6/[8] Handle aggregation on functions	REFUSED	REFUSED
 tck/clauses/return/Return6/[9] Aggregates with arithmetics	PASS	PASS
@@ -817,8 +817,8 @@ tck/clauses/return/Return6/[14] Aggregates in aggregates	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[15] Using `rand()` in aggregations	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[16] Aggregation on complex expressions	REFUSED	REFUSED
 tck/clauses/return/Return6/[17] Handle constants and parameters inside an expression which contains an aggregation expression	PASS	PASS
-tck/clauses/return/Return6/[18] Handle returned variables inside an expression which contains an aggregation expression	REFUSED	REFUSED
-tck/clauses/return/Return6/[19] Handle returned property accesses inside an expression which contains an aggregation expression	REFUSED	REFUSED
+tck/clauses/return/Return6/[18] Handle returned variables inside an expression which contains an aggregation expression	PASS	REFUSED
+tck/clauses/return/Return6/[19] Handle returned property accesses inside an expression which contains an aggregation expression	PASS	REFUSED
 tck/clauses/return/Return6/[20] Fail if not returned variables are used inside an expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[21] Fail if more complex expressions, even if returned, are used inside expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return7/[1] Return all variables	PASS	PASS
@@ -1191,8 +1191,8 @@ tck/clauses/with-orderBy/WithOrderBy4/[13] Fail on sorting by a non-projected ag
 tck/clauses/with-orderBy/WithOrderBy4/[14] Fail on sorting by a non-projected aggregation on an expression	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[15] Sort by an aliased aggregate projection does allow subsequent matching	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy4/[16] Handle constants and parameters inside an order by item which contains an aggregation expression	PASS	PASS
-tck/clauses/with-orderBy/WithOrderBy4/[17] Handle projected variables inside an order by item which contains an aggregation expression	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy4/[18]  Handle projected property accesses inside an order by item which contains an aggregation expression	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy4/[17] Handle projected variables inside an order by item which contains an aggregation expression	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy4/[18]  Handle projected property accesses inside an order by item which contains an aggregation expression	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy4/[19] Fail if not projected variables are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy4/[20] Fail if more complex expressions, even if projected, are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-skip-limit/WithSkipLimit1/[1] Handle dependencies across WITH with SKIP	SKIP	SKIP
@@ -1246,8 +1246,8 @@ tck/clauses/with/With6/[2] Implicit grouping with single relationship variable a
 tck/clauses/with/With6/[3] Implicit grouping with multiple node and relationship variables as grouping key and single aggregation	REFUSED	REFUSED
 tck/clauses/with/With6/[4] Implicit grouping with single path variable as grouping key and single aggregation	REFUSED	REFUSED
 tck/clauses/with/With6/[5] Handle constants and parameters inside an expression which contains an aggregation expression	PASS	PASS
-tck/clauses/with/With6/[6] Handle projected variables inside an expression which contains an aggregation expression	REFUSED	REFUSED
-tck/clauses/with/With6/[7] Handle projected property accesses inside an expression which contains an aggregation expression	REFUSED	REFUSED
+tck/clauses/with/With6/[6] Handle projected variables inside an expression which contains an aggregation expression	PASS	REFUSED
+tck/clauses/with/With6/[7] Handle projected property accesses inside an expression which contains an aggregation expression	PASS	REFUSED
 tck/clauses/with/With6/[8] Fail if not projected variables are used inside an expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With6/[9] Fail if more complex expression, even if projected, are used inside expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With7/[1] A simple pattern with one bound endpoint	REFUSED	REFUSED
@@ -1523,7 +1523,7 @@ tck/expressions/conditional/Conditional2/[1] Simple cases over integers #10	PASS
 tck/expressions/conditional/Conditional2/[1] Simple cases over integers #11	PASS	PASS
 tck/expressions/conditional/Conditional2/[1] Simple cases over integers #12	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery1/[1] Simple subquery without WHERE clause	PASS	PASS
-tck/expressions/existentialSubqueries/ExistentialSubquery1/[2] Simple subquery with WHERE clause	REFUSED	REFUSED
+tck/expressions/existentialSubqueries/ExistentialSubquery1/[2] Simple subquery with WHERE clause	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery1/[3] Simple subquery without WHERE clause, not existing pattern	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery1/[4] Simple subquery with WHERE clause, not existing pattern	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery2/[1] Full existential subquery	PASS	PASS
@@ -1560,9 +1560,9 @@ tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with var
 tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #3	SKIP	SKIP
 tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #4	SKIP	SKIP
 tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #5	SKIP	SKIP
-tck/expressions/graph/Graph5/[5] Label expression on null	REFUSED	REFUSED
-tck/expressions/graph/Graph6/[1] Statically access a property of a non-null node	REFUSED	REFUSED
-tck/expressions/graph/Graph6/[2] Statically access a property of a optional non-null node	REFUSED	REFUSED
+tck/expressions/graph/Graph5/[5] Label expression on null	PASS	PASS
+tck/expressions/graph/Graph6/[1] Statically access a property of a non-null node	PASS	PASS
+tck/expressions/graph/Graph6/[2] Statically access a property of a optional non-null node	PASS	PASS
 tck/expressions/graph/Graph6/[3] Statically access a property of a null node	PASS	PASS
 tck/expressions/graph/Graph6/[4] Statically access a property of a node resulting from an expression	PASS	PASS
 tck/expressions/graph/Graph6/[5] Statically access a property of a non-null relationship	REFUSED	REFUSED
@@ -1959,8 +1959,8 @@ tck/expressions/mathematical/Mathematical2/[1] Allow addition	PASS	PASS
 tck/expressions/mathematical/Mathematical3/[1] Fail for invalid Unicode hyphen in subtraction	BOTH_ERROR	BOTH_ERROR
 tck/expressions/mathematical/Mathematical8/[1] Arithmetic precedence test	PASS	PASS
 tck/expressions/mathematical/Mathematical8/[2] Arithmetic precedence with parenthesis test	PASS	PASS
-tck/expressions/null/Null1/[1] Property null check on non-null node	REFUSED	REFUSED
-tck/expressions/null/Null1/[2] Property null check on optional non-null node	REFUSED	REFUSED
+tck/expressions/null/Null1/[1] Property null check on non-null node	PASS	PASS
+tck/expressions/null/Null1/[2] Property null check on optional non-null node	PASS	PASS
 tck/expressions/null/Null1/[3] Property null check on null node	PASS	PASS
 tck/expressions/null/Null1/[4] A literal null IS null	PASS	PASS
 tck/expressions/null/Null1/[5] IS NULL on a map #1	PASS	PASS
@@ -1976,8 +1976,8 @@ tck/expressions/null/Null1/[5] IS NULL on a map #10	PASS	PASS
 tck/expressions/null/Null1/[5] IS NULL on a map #11	PASS	PASS
 tck/expressions/null/Null1/[5] IS NULL on a map #12	PASS	PASS
 tck/expressions/null/Null1/[6] IS NULL is case insensitive	PASS	PASS
-tck/expressions/null/Null2/[1] Property not null check on non-null node	REFUSED	REFUSED
-tck/expressions/null/Null2/[2] Property not null check on optional non-null node	REFUSED	REFUSED
+tck/expressions/null/Null2/[1] Property not null check on non-null node	PASS	PASS
+tck/expressions/null/Null2/[2] Property not null check on optional non-null node	PASS	PASS
 tck/expressions/null/Null2/[3] Property not null check on null node	PASS	PASS
 tck/expressions/null/Null2/[4] A literal null is not IS NOT null	PASS	PASS
 tck/expressions/null/Null2/[5] IS NOT NULL on a map #1	PASS	PASS
@@ -4070,7 +4070,7 @@ lite/labelless/distinct_over_the_whole	PASS	PASS
 lite/labelless/with_where_then_return	PASS	PASS
 lite/labelless/projected_with_then_return	PASS	PASS
 lite/labelless/expression_order_without_item	PASS	PASS
-lite/labelless/property_declared_nowhere_is_refused_by_name	REFUSED	REFUSED
+lite/labelless/property_declared_nowhere_is_refused_by_name	PASS	PASS
 lite/labelless/node_as_a_value_refused_by_name	PASS	PASS
 lite/labelless/second_match_refused_by_name	PASS	PASS
 lite/labelless/property_typed_differently_refused_by_name	REFUSED	REFUSED
@@ -4110,6 +4110,35 @@ lite/odds/unwind_after_a_match	PASS	PASS
 lite/odds/unwind_after_a_label_less_match	PASS	PASS
 lite/odds/list_indexed_by_a_row_value	PASS	PASS
 lite/odds/duration_round_trip	PASS	PASS
+lite/open/a_label_no_node_carries	PASS	PASS
+lite/open/a_label_no_node_carries_counted	PASS	PASS
+lite/open/an_optional_match_of_a_label_no_node_carries	PASS	PASS
+lite/open/a_label_no_node_carries_after_a_match	PASS	PASS
+lite/open/an_optional_label_no_node_carries_after_a_match	PASS	PASS
+lite/open/a_label_no_node_carries_after_a_with	PASS	PASS
+lite/open/an_optional_label_no_node_carries_after_a_with	PASS	PASS
+lite/open/a_cartesian_product_with_a_label_no_node_carries	PASS	PASS
+lite/open/a_relationship_type_no_relationship_has	PASS	PASS
+lite/open/a_relationship_type_no_relationship_has_counted	PASS	PASS
+lite/open/an_optional_relationship_type_no_relationship_has	PASS	PASS
+lite/open/a_relationship_type_from_a_label_that_never_has_it	PASS	PASS
+lite/open/an_optional_relationship_type_from_a_label_that_never_has_it	PASS	PASS
+lite/open/a_property_no_node_has	PASS	PASS
+lite/open/a_property_no_node_has_in_a_where	PASS	PASS
+lite/open/a_property_no_node_has_in_a_where_is_null	PASS	PASS
+lite/open/a_property_no_node_has_in_a_property_map	PASS	PASS
+lite/open/a_property_no_node_has_coalesced	PASS	PASS
+lite/open/a_property_no_node_has_after_a_with	PASS	PASS
+lite/open/a_property_no_node_has_as_a_sort_key	PASS	PASS
+lite/open/a_property_no_node_has_in_arithmetic	PASS	PASS
+lite/open/a_property_no_node_has_on_a_label_less_node	PASS	PASS
+lite/open/a_property_no_relationship_has	PASS	PASS
+lite/open/a_label_predicate_no_node_carries	PASS	PASS
+lite/open/a_pattern_comprehension_over_a_type_no_relationship_has	PASS	PASS
+lite/open/a_pattern_predicate_over_a_type_no_relationship_has	PASS	PASS
+lite/open/exists_over_a_label_no_node_carries	PASS	PASS
+lite/open/a_union_with_a_label_no_node_carries	PASS	PASS
+lite/open/a_variable_not_defined_is_still_an_error	BOTH_ERROR	BOTH_ERROR
 lite/optional/optional_to_one_hop	PASS	PASS
 lite/optional/optional_node_as_value	PASS	PASS
 lite/optional/optional_null_checks	PASS	PASS
