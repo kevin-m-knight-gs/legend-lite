@@ -201,7 +201,7 @@ public final class IqLexer {
                 advance(1);
             }
             String word = text.substring(start, at);
-            boolean iq17 = settings.base() == IqSettings.Base.IQ16 && !settings.latin1();
+            boolean iq17 = settings.iq17();
             String lowered = lower(word);
             boolean keyword = reserved(word) && !(iq17 && IQ_NAMES.contains(lowered))
                     || iq17 && (IQ_RESERVED.contains(lowered) || IQ_CONSTANTS.contains(lowered));

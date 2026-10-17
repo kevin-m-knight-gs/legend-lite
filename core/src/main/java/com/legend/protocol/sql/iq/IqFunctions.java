@@ -167,8 +167,10 @@ final class IqFunctions {
      *  the count). Refused by name before translation: a delimited name with a space (only the reader writes
      *  {@code CURRENT DATE}); a constant negative SUBSTRING length (IQ's -1090 wherever computed, under ANSI_SUBSTRING On: {@code
      *  ansiSubstring}). Other dialects' forms IQ raises -154 for (CHARINDEX's start, ROUND's third argument, LOG's
-     *  base) are refused by name: the syntax research holds some an accepted form, some a rejected one. */
-    static int[] arity(SqlAst.FunctionCall f, boolean ansiSubstring) {
+     *  base) are refused by name: the syntax research holds some an accepted form, some a rejected one. IQ island,
+     *  2026-10-17 (the corpus lane's 21; measured on IQ 17.1): under the {@code iq17} presets each is IQ's -154, before
+     *  a missing column's -143, a conversion's -157 and a grouping's -149. */
+    static int[] arity(SqlAst.FunctionCall f, boolean ansiSubstring, boolean iq17) {
         SqlAst.Ident name = f.name().get(f.name().size() - 1);
         Fn fn = Fn.named(name.text());
         if (fn == null || name.quoted() && name.text().indexOf(' ') >= 0) {
@@ -178,6 +180,10 @@ final class IqFunctions {
         int n = f.args().size();
         String foreign = foreign(fn, n);
         if (foreign != null) {
+            if (iq17) {
+                throw SqlTranslationException.invalid("wrong number of arguments to " + name.text().toUpperCase(
+                        java.util.Locale.ROOT) + ": " + foreign + IqDialect.code(-154, "37505"), f.pos());
+            }
             throw SqlTranslationException.unsupported(foreign + " is not supported: IQ raises its error -154", f.pos());
         }
         if ((fn == Fn.SUBSTRING || fn == Fn.SUBSTR) && n == 3 && ansiSubstring

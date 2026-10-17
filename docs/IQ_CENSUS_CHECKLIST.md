@@ -301,6 +301,15 @@ island's reason, those IQ answers, and what became of them:
   and a grouped table's columns are still checked (-149); read, or under DISTINCT, its -265. Where the column is the
   call alone, of a string's result, read nowhere, the island reads the call as a NULL string (its arguments
   translated, so -143 and -149 stand); otherwise refused by name. Open: dropping any unread column, values and all;
+- other dialects' argument forms (CHARINDEX's start, ROUND's third argument, LOG's base; the corpus lane's 21;
+  measured on IQ 17.1, 2026-10-17): IQ's -154 under the iq17 presets, before a missing column's -143, a conversion's
+  -157 and a grouping's -149; the iq16 presets keep the refusal (the SA research holds some accepted);
+- open, error order (the claim verification's residue, 2026-10-17: 34 of 879 claims name another code than IQ's):
+  where a query holds two errors, IQ raises the one of its earlier phase -- syntax, then -154, names (-143, -142,
+  -144), grouping (-149, -150), function names (-265), then conversions and type checks (-157, -1001013, -1009145)
+  -- and lite raises the first it meets as it translates. Built for -157 before -1001013 (held, InputDialect
+  .translated) and for a syntax error after a CTE's recursion or a decorated unknown call; the general form would
+  hold each claim with its phase and raise the earliest's, one or two queries per pair;
 - IQ carries a derived table's column's NULL rejection into it (SQLStorm's CTE whose LEFT JOIN's ON holds a
   subquery, joined on its column by an inner join; measured on IQ 17.1, 2026-10-17): its outer query's WHERE or inner
   join over it, through arithmetic, unqualified where it is the one FROM item, grouped or not, nested: the derived

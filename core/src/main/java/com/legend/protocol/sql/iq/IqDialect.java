@@ -1182,7 +1182,8 @@ public final class IqDialect implements InputDialect {
             int n = f.args().size();
             Catalog fn = Catalog.named(name);
             // IQ island, 2026-10-14 (M1d): the rest of the catalog is IqFunctions'
-            int[] arity = fn != null ? new int[] {fn.min, fn.max} : IqFunctions.arity(f, settings.ansiSubstring());
+            int[] arity = fn != null ? new int[] {fn.min, fn.max} : IqFunctions.arity(f, settings.ansiSubstring(),
+                    settings.iq17());
             if (n < arity[0] || n > arity[1]) {
                 throw SqlTranslationException.invalid("wrong number of arguments to " + name.toUpperCase(
                         java.util.Locale.ROOT) + code(-154, "37505"), f.pos());

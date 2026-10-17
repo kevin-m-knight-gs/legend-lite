@@ -1418,3 +1418,21 @@ tests:
   - id: an_unread_division_by_a_zero_column
     sql: "SELECT d.k FROM (SELECT id AS k, id / (id - id) AS s FROM t) d ORDER BY d.k"
     profile: iq17-default
+
+  # ---- other dialects' argument forms (SEDE's CHARINDEX(s, t, start), LOG(base, x); measured on IQ 17.1, 2026-10-17):
+  # IQ's -154, before a missing column's -143, a conversion's -157 and a grouping's -149
+  - id: charindex_with_a_start_is_iqs_154
+    sql: "SELECT CHARINDEX('a', vc, 1) AS x FROM t"
+    profile: iq17-default
+  - id: round_with_a_third_argument_is_iqs_154
+    sql: "SELECT ROUND(nm, 1, 1) AS x FROM t"
+    profile: iq17-default
+  - id: log_with_a_base_is_iqs_154
+    sql: "SELECT LOG(10, dbl) AS x FROM t"
+    profile: iq17-default
+  - id: charindex_with_a_start_before_a_missing_column
+    sql: "SELECT CHARINDEX('a', vc, 1) AS x FROM t WHERE nosuch = 1"
+    profile: iq17-default
+  - id: charindex_with_a_start_before_a_grouping_error
+    sql: "SELECT id, CHARINDEX('a', vc, 1) AS x FROM t GROUP BY vc"
+    profile: iq17-default
