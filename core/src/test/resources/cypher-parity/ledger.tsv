@@ -409,10 +409,10 @@ tck/clauses/match/Match3/[28] Matching from null nodes should return no results 
 tck/clauses/match/Match3/[29] Fail when re-using a relationship in the same pattern	REFUSED	REFUSED
 tck/clauses/match/Match3/[30] Fail when using a list or nodes as a node	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match4/[1] Handling fixed-length variable length pattern	PASS	PASS
-tck/clauses/match/Match4/[2] Simple variable length pattern	REFUSED	REFUSED
+tck/clauses/match/Match4/[2] Simple variable length pattern	PASS	PASS
 tck/clauses/match/Match4/[3] Zero-length variable length pattern in the middle of the pattern	PASS	PASS
-tck/clauses/match/Match4/[4] Matching longer variable length paths	REFUSED	REFUSED
-tck/clauses/match/Match4/[5] Matching variable length pattern with property predicate	REFUSED	REFUSED
+tck/clauses/match/Match4/[4] Matching longer variable length paths	PASS	PASS
+tck/clauses/match/Match4/[5] Matching variable length pattern with property predicate	PASS	PASS
 tck/clauses/match/Match4/[6] Matching variable length patterns from a bound node	REFUSED	REFUSED
 tck/clauses/match/Match4/[7] Matching variable length patterns including a bound relationship	REFUSED	REFUSED
 tck/clauses/match/Match4/[8] Matching relationships into a list and matching variable length using the list	REFUSED	REFUSED
@@ -461,12 +461,12 @@ tck/clauses/match/Match6/[11] Named path with multiple alternating directed/undi
 tck/clauses/match/Match6/[12] Matching path with multiple bidirectional relationships	PASS	PASS
 tck/clauses/match/Match6/[13] Matching path with both directions should respect other directions	PASS	PASS
 tck/clauses/match/Match6/[14] Named path with undirected fixed variable length pattern	PASS	PASS
-tck/clauses/match/Match6/[15] Variable-length named path	REFUSED	REFUSED
+tck/clauses/match/Match6/[15] Variable-length named path	PASS	PASS
 tck/clauses/match/Match6/[16] Return a var length path	PASS	PASS
 tck/clauses/match/Match6/[17] Return a named var length path of length zero	PASS	PASS
 tck/clauses/match/Match6/[18] Undirected named path	PASS	PASS
 tck/clauses/match/Match6/[19] Variable length relationship without lower bound	PASS	PASS
-tck/clauses/match/Match6/[20] Variable length relationship without bounds	REFUSED	REFUSED
+tck/clauses/match/Match6/[20] Variable length relationship without bounds	PASS	PASS
 tck/clauses/match/Match6/[21] Fail when a node has the same variable in a preceding MATCH #1	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match6/[21] Fail when a node has the same variable in a preceding MATCH #2	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match6/[21] Fail when a node has the same variable in a preceding MATCH #3	BOTH_ERROR	BOTH_ERROR
@@ -555,8 +555,8 @@ tck/clauses/match/Match7/[8] Longer pattern with bound nodes without matches	REF
 tck/clauses/match/Match7/[9] Longer pattern with bound nodes	PASS	PASS
 tck/clauses/match/Match7/[10] Optionally matching from null nodes should return null	PASS	PASS
 tck/clauses/match/Match7/[11] Return two subgraphs with bound undirected relationship and optional relationship	REFUSED	REFUSED
-tck/clauses/match/Match7/[12] Variable length optional relationships	REFUSED	REFUSED
-tck/clauses/match/Match7/[13] Variable length optional relationships with bound nodes	REFUSED	REFUSED
+tck/clauses/match/Match7/[12] Variable length optional relationships	PASS	PASS
+tck/clauses/match/Match7/[13] Variable length optional relationships with bound nodes	PASS	PASS
 tck/clauses/match/Match7/[14] Variable length optional relationships with length predicates	REFUSED	REFUSED
 tck/clauses/match/Match7/[15] Variable length patterns and nulls	PASS	PASS
 tck/clauses/match/Match7/[16] Optionally matching named paths - null result	PASS	PASS
@@ -582,10 +582,10 @@ tck/clauses/match/Match9/[1] Variable length relationship variables are lists of
 tck/clauses/match/Match9/[2] Return relationships by collecting them as a list - directed, one way	PASS	PASS
 tck/clauses/match/Match9/[3] Return relationships by collecting them as a list - undirected, starting from two extremes	PASS	PASS
 tck/clauses/match/Match9/[4] Return relationships by collecting them as a list - undirected, starting from one extreme	PASS	PASS
-tck/clauses/match/Match9/[5] Variable length pattern with label predicate on both sides	REFUSED	REFUSED
+tck/clauses/match/Match9/[5] Variable length pattern with label predicate on both sides	PASS	PASS
 tck/clauses/match/Match9/[6] Matching relationships into a list and matching variable length using the list, with bound nodes	REFUSED	REFUSED
 tck/clauses/match/Match9/[7] Matching relationships into a list and matching variable length using the list, with bound nodes, wrong direction	REFUSED	REFUSED
-tck/clauses/match/Match9/[8] Variable length relationship in OPTIONAL MATCH	REFUSED	REFUSED
+tck/clauses/match/Match9/[8] Variable length relationship in OPTIONAL MATCH	PASS	PASS
 tck/clauses/match/Match9/[9] Optionally matching named paths with variable length patterns	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[1] Merge node when no nodes exist	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[2] Merge node with label	REFUSED	REFUSED
@@ -718,7 +718,7 @@ tck/clauses/return-orderby/ReturnOrderBy2/[8] Returning all variables with order
 tck/clauses/return-orderby/ReturnOrderBy2/[9] Using aliased DISTINCT expression in ORDER BY	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[10] Returned columns do not change from using ORDER BY	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[11] Aggregates ordered by arithmetics	PASS	PASS
-tck/clauses/return-orderby/ReturnOrderBy2/[12] Aggregation of named paths	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy2/[12] Aggregation of named paths	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[13] Fail when sorting on variable removed by DISTINCT	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-orderby/ReturnOrderBy2/[14] Fail on aggregation in ORDER BY after RETURN	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-orderby/ReturnOrderBy3/[1] Sort on aggregate function and normal property	PASS	PASS
@@ -807,12 +807,12 @@ tck/clauses/return/Return6/[4] Support multiple divisions in aggregate function	
 tck/clauses/return/Return6/[5] Aggregates inside normal functions	PASS	PASS
 tck/clauses/return/Return6/[6] Handle aggregates inside non-aggregate expressions	PASS	REFUSED
 tck/clauses/return/Return6/[7] Aggregate on property	PASS	PASS
-tck/clauses/return/Return6/[8] Handle aggregation on functions	REFUSED	REFUSED
+tck/clauses/return/Return6/[8] Handle aggregation on functions	PASS	PASS
 tck/clauses/return/Return6/[9] Aggregates with arithmetics	PASS	PASS
 tck/clauses/return/Return6/[10] Multiple aggregates on same variable	PASS	PASS
 tck/clauses/return/Return6/[11] Counting matches	PASS	PASS
 tck/clauses/return/Return6/[12] Counting matches per group	PASS	PASS
-tck/clauses/return/Return6/[13] Returning the minimum length of paths	REFUSED	REFUSED
+tck/clauses/return/Return6/[13] Returning the minimum length of paths	PASS	PASS
 tck/clauses/return/Return6/[14] Aggregates in aggregates	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[15] Using `rand()` in aggregations	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[16] Aggregation on complex expressions	PASS	PASS
@@ -1244,7 +1244,7 @@ tck/clauses/with/With5/[2] Handling DISTINCT with lists in maps	PASS	PASS
 tck/clauses/with/With6/[1] Implicit grouping with single expression as grouping key and single aggregation	PASS	PASS
 tck/clauses/with/With6/[2] Implicit grouping with single relationship variable as grouping key and single aggregation	PASS	PASS
 tck/clauses/with/With6/[3] Implicit grouping with multiple node and relationship variables as grouping key and single aggregation	PASS	PASS
-tck/clauses/with/With6/[4] Implicit grouping with single path variable as grouping key and single aggregation	REFUSED	REFUSED
+tck/clauses/with/With6/[4] Implicit grouping with single path variable as grouping key and single aggregation	PASS	PASS
 tck/clauses/with/With6/[5] Handle constants and parameters inside an expression which contains an aggregation expression	PASS	PASS
 tck/clauses/with/With6/[6] Handle projected variables inside an expression which contains an aggregation expression	PASS	REFUSED
 tck/clauses/with/With6/[7] Handle projected property accesses inside an expression which contains an aggregation expression	PASS	REFUSED
@@ -1686,8 +1686,8 @@ tck/expressions/list/List11/[5] Fail on invalid argument types for `range()` #22
 tck/expressions/list/List12/[1] Collect and extract using a list comprehension	REFUSED	REFUSED
 tck/expressions/list/List12/[2] Collect and filter using a list comprehension	REFUSED	REFUSED
 tck/expressions/list/List12/[3] Size of list comprehension	PASS	PASS
-tck/expressions/list/List12/[4] Returning a list comprehension	REFUSED	REFUSED
-tck/expressions/list/List12/[5] Using a list comprehension in a WITH	REFUSED	REFUSED
+tck/expressions/list/List12/[4] Returning a list comprehension	PASS	PASS
+tck/expressions/list/List12/[5] Using a list comprehension in a WITH	PASS	PASS
 tck/expressions/list/List12/[6] Using a list comprehension in a WHERE	PASS	PASS
 tck/expressions/list/List12/[7] Fail when using aggregation in list comprehension	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List2/[1] List slice	PASS	PASS
@@ -2040,8 +2040,8 @@ tck/expressions/pattern/Pattern1/[12] Matching two nodes on a single directed co
 tck/expressions/pattern/Pattern1/[13] Fail on matching two nodes on a single undirected connection between them	REFUSED	REFUSED
 tck/expressions/pattern/Pattern1/[14] Matching two nodes on a specific type of single outgoing directed connection	PASS	PASS
 tck/expressions/pattern/Pattern1/[15] Matching two nodes on a specific type of single undirected connection	PASS	PASS
-tck/expressions/pattern/Pattern1/[16] Matching two nodes on a specific type of a variable length outgoing directed connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[17] Matching two nodes on a specific type of variable length undirected connection	REFUSED	REFUSED
+tck/expressions/pattern/Pattern1/[16] Matching two nodes on a specific type of a variable length outgoing directed connection	PASS	PASS
+tck/expressions/pattern/Pattern1/[17] Matching two nodes on a specific type of variable length undirected connection	PASS	PASS
 tck/expressions/pattern/Pattern1/[18] Matching two nodes on a specific type of undirected connection with length 2	PASS	PASS
 tck/expressions/pattern/Pattern1/[19] Using a negated existential pattern predicate	PASS	PASS
 tck/expressions/pattern/Pattern1/[20] Using two existential pattern predicates in a conjunction	PASS	PASS
@@ -4761,7 +4761,27 @@ lite/varlen/a_variable_length_from_a_labelless_start	PASS	PASS
 lite/varlen/a_variable_length_in_the_middle	PASS	PASS
 lite/varlen/a_variable_length_unrolling_past_two_hops	PASS	PASS
 lite/varlen/a_missing_lower_bound_is_one	PASS	PASS
-lite/varlen/an_unbounded_variable_length_is_refused	REFUSED	REFUSED
+lite/varlen/an_unbounded_variable_length_walks	PASS	PASS
+lite/varlen/an_unbounded_walk_with_a_lower_bound	PASS	PASS
+lite/varlen/an_unbounded_walk_from_zero	PASS	PASS
+lite/varlen/a_bound_past_the_unroll_walks	PASS	PASS
+lite/varlen/a_bound_past_the_unroll_stops_at_it	PASS	PASS
+lite/varlen/an_unbounded_walk_round_a_cycle_takes_no_relationship_twice	PASS	PASS
+lite/varlen/an_undirected_unbounded_walk	PASS	PASS
+lite/varlen/an_incoming_unbounded_walk	PASS	PASS
+lite/varlen/an_untyped_unbounded_walk	PASS	PASS
+lite/varlen/an_unbounded_walk_to_a_far_label	PASS	PASS
+lite/varlen/the_relationship_list_of_an_unbounded_walk	PASS	PASS
+lite/varlen/a_named_path_over_an_unbounded_walk	PASS	PASS
+lite/varlen/a_path_over_an_unbounded_walk_through_a_with	PASS	PASS
+lite/varlen/an_unbounded_walk_with_a_where	PASS	PASS
+lite/varlen/an_unbounded_walk_over_a_property_map	PASS	PASS
+lite/varlen/an_unbounded_walk_after_rows	PASS	PASS
+lite/varlen/an_unbounded_walk_in_an_optional_match	PASS	PASS
+lite/varlen/an_unbounded_walk_between_bound_nodes	PASS	PASS
+lite/varlen/an_unbounded_walk_as_a_pattern_predicate	PASS	PASS
+lite/varlen/an_unbounded_walk_no_way_reads	PASS	PASS
+lite/varlen/an_unbounded_walk_in_a_pattern_of_other_relationships_is_refused	REFUSED	REFUSED
 lite/varlen/a_variable_length_round_a_cycle	PASS	PASS
 lite/varlen/a_variable_length_from_a_labelless_start_over_several_types	PASS	PASS
 lite/varlen/a_property_map_on_a_variable_length_is_refused	REFUSED	REFUSED

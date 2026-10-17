@@ -4595,3 +4595,74 @@ the database's recursive common table expression. legend-pure has no function fo
 
 No lite case and no TCK row moves: the native alone, pinned by the lowering's test. TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK
 rows) DuckDB 3470 → 3470, Postgres 3091 → 3091.
+
+### 12.68 The walk the data bounds: an unbounded variable-length relationship as lite's recursion (W10 leg 2b, 2026-10-17)
+
+- **`MATCH (a {name: 'A'})-[*]->(x)`, `(n)-[:T*]->(m)` over twenty-one hops, `(a)-[:T*2..]->(x)`, `p = ()-[*0..]->()`,
+  `(a:Blue)-[r*]->(b:Green) RETURN count(r)`, `(a:Artist)-[:WORKED_WITH* {year: 1988}]->(b)`, `(a)-[:T*..7]->(x)`:** a
+  variable-length relationship without an upper bound, or with one past the unroll's (§12.42: beyond 4), is the walk
+  the data bounds, spelled as lite's recursion (§12.67's `recurse`) over the relationship's hop read as rows
+  (`CypherToPure.walk`). Three readings feed it, each the island's own machinery: the start node alone as a MATCH of
+  its own (a label-less one every class's arms, §12.13), the far node alone likewise, and the hop as a segment-named
+  pattern between two label-less nodes (`(s)-[:T]->(d)`, §12.56's segment: its relationship carries its identity,
+  an edge's own or the ordered pair of its ends', S74, and its stored direction), each carried with its identity.
+  The hop's rows narrow to six columns: the source's identity, the target's, the relationship's, and the JSON texts
+  of the relationship, the target node and the stored direction. The walk's rows carry the start node's identity,
+  the node reached, the depth, the identities walked (each between bars) and the JSON texts of the relationships,
+  the nodes, the path's elements and the directions walked (comma-separated bodies): its base is every start node
+  at depth zero (distinct), its step the previous round's rows joined to the hop on the node reached, those whose
+  relationship the row has walked dropped (**Neo4j's relationship uniqueness, spelled at every step** — S75 revised:
+  a two-node cycle is walked round once, a self-loop once), the depth under the upper bound where there is one, the
+  texts extended. The start node's rows join the walk on its identity, the far node's on the node reached (a zero
+  lower bound binds the far node to the start at depth zero: its labels and property map hold as the join's), the
+  depth at least the lower bound (Neo4j's missing lower bound is 1); the relationship's variable is the list of the
+  relationships walked (`fromJson('[' + body + ']')`, a Variant of relationship values); a named path is assembled
+  from the texts as §12.27's shape (`{"@path": [start, rel, node, ...], "@dirs": [...]}`, the directions the hop's
+  own for a directed pattern, the segment's column for an undirected one), its length the depth, its nodes and
+  relationships the lists, under §12.42's `PATH_PART` names. The WHERE is read over the rows. The walk's own columns
+  are dropped: the rows are the pattern's variables.
+- **After rows, in an OPTIONAL MATCH, as a pattern predicate:** the walk is the re-anchored pattern's own (§12.49):
+  `MATCH (a:Single), (x:C) OPTIONAL MATCH (a)-[*]->(x)`, `MATCH (a:A) WITH a MATCH (a)-[:T*]->(x)`, `MATCH (n), (m)
+  WHERE (n)-[:REL1*]-(m)` read the pattern from the rows' node as a MATCH of its own (the walk above, from every
+  node of that class) and join back by identity, a left join for the OPTIONAL MATCH (its WHERE over the pattern's
+  rows before it, §12.49's rule). An OPTIONAL MATCH over a graph with a variable-length relationship (bounded or
+  not) takes this route too (`viaRows`), where it was refused by name.
+- **A path through a WITH carries its parts** (`WITH count(*) AS c, p AS p RETURN nodes(p)`, With6/[4]): a WITH
+  projecting a path projects beside it its length, nodes and relationships under the `PATH_PART` names a
+  materialized path carries them under (§12.42), so the clauses after read columns and a grouping by the path keys on
+  them too: Postgres reads no grouped expression inside a subquery ("subquery uses ungrouped column"), which reading
+  into the grouped path's JSON would ask of it. `materialize` relies on the projection for them (it listed them
+  itself before). Where no parts ride beside a path carried as its value, `nodes(p)`, `relationships(p)` and
+  `length(p)` read its JSON by the database: its `@path` list's elements, the nodes those carrying labels, the
+  relationships those carrying a type, the length the relationships' count (`toMany`, `get`, `filter`, `size`); the
+  path functions of a path an OPTIONAL MATCH may not find stay refused by name.
+- **A hop no way of the model reads** (`p = ()-[*0..]->()` over a model with no association, Match6/[15]): the walk
+  is its base alone, the far node the start at depth zero (nothing under a lower bound).
+- **The resolver** (`StoreResolver`, 2026-10-17): a `TypedRecurse` resolves its base as the relation chain it is and
+  its step's body too — the step's parameter is a relation, no chain of a store, so what the body joins resolves as
+  any relation expression above a class chain does, never as a lambda's data (which left the hop's class chain
+  unresolved: "store resolution left getAll(...) unresolved").
+- **Compare, never compute**: the translator spells the walk's shape and the texts' concatenation; the database
+  walks, concatenates, compares the identities and builds the lists.
+- **Refused by name:** other relationships in the pattern beside the walk (`(a)-[:T*]->(x)-[:U]->(y)`; a later
+  slice cuts the pattern around it, §12.57's cut), the pattern's two ends one node, an OPTIONAL MATCH as the first
+  clause, a MATCH after rows carrying neither end, a variable-length relationship bound to a list of relationships
+  (`WITH [r1, r2] AS rs MATCH (first)-[rs*]->(second)`: Match4/[8], Match9/[6], [7]; the plan's §5), the path
+  functions of a nullable carried path.
+- **Pinned.** `CypherToPureTest` (the walk's recursion, the uniqueness filter, the depth bounds, the list and the
+  path beside, after rows, the left join of an OPTIONAL MATCH, the refusals); `lite/varlen.yaml`'s 21 new cases
+  (the walk with a lower bound, from zero, past the unroll's bound, round a cycle, undirected, incoming, untyped,
+  to a far label, its relationship list, a named path and one through a WITH, a WHERE, a property map, after rows,
+  in an OPTIONAL MATCH, between bound nodes, as a pattern predicate, over no way, and the refusal), each judged by
+  Neo4j; the TCK rows that move: Match4/[2], Match4/[4], Match4/[5], Match6/[15], Match6/[20], Match7/[12], Match7/[13], Match9/[5], Match9/[8], ReturnOrderBy2/[12], Return6/[13], Return6/[8], With6/[4], List12/[4], List12/[5], Pattern1/[16], Pattern1/[17].
+
+#### 12.68.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4789 | 3610 (from 3,573) | 0 | 0 | 0 | 375 (from 392) | 747 (from 747) | 57 (from 57) |
+| Postgres | 4789 | 3208 (from 3,171) | 0 | 0 | 0 | 777 (from 794) | 747 (from 747) | 57 (from 57) |
+
+The 17 TCK rows that move (DuckDB REFUSED → PASS; Postgres the same): Match4/[2], Match4/[4], Match4/[5], Match6/[15], Match6/[20], Match7/[12], Match7/[13], Match9/[5], Match9/[8], ReturnOrderBy2/[12], Return6/[13], Return6/[8], With6/[4], List12/[4], List12/[5], Pattern1/[16], Pattern1/[17]; the 21 new lite
+cases PASS on both lanes but the refusal, REFUSED on both. TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB
+3470 → 3487, Postgres 3091 → 3108.

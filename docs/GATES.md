@@ -9932,6 +9932,31 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the sixty-sixth landing — the walk the data bounds (W10 leg 2b)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, leg 2b); the record is the study's §12.68. A
+variable-length relationship without an upper bound (or with one past the unroll's) spelled as lite's recursion over
+the hop's rows: the start node's rows joined to the walk on its identity, the far node's on the node reached, the
+depth within the bounds, relationship uniqueness spelled at every step (S75 revised), the relationship's list and a
+named path assembled from the texts the walk carries; after rows, in an OPTIONAL MATCH and as a pattern predicate
+through the re-anchoring; the path functions of a path carried as its value; the resolver's `TypedRecurse` arm.
+
+1. **What lands.** Match4/[2], Match4/[4], Match4/[5], Match6/[15], Match6/[20], Match7/[12], Match7/[13], Match9/[5], Match9/[8], ReturnOrderBy2/[12], Return6/[13], Return6/[8], With6/[4], List12/[4], List12/[5], Pattern1/[16], Pattern1/[17] (17 TCK rows, the unbounded variable-length refusal lifted);
+   the 21 new cases of `lite/varlen.yaml`; DuckDB PASS 3,573 → 3610, Postgres 3,171 → 3208; TCK
+   agreement DuckDB 3470 → 3487, Postgres 3091 → 3108.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3610 / REFUSED 375 / BOTH_ERROR
+   747 / SKIP 57; Postgres PASS 3208 / REFUSED 777 / BOTH_ERROR 747 / SKIP
+   57, of 4789 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `//core:core_tests_resolver`, `//core:core_tests_compiler`, `//core:core_tests_lowering` green before it
+   (the resolver's new arm); `CypherToPureTest` pins the walk's spelling and its refusals; the oracle check 0
+   problems over the lite cases snapped (`tools/neo4j-oracle/snap.sh --write --only 'lite/varlen/*'`; the answer of
+   the case the leg renamed, `an_unbounded_variable_length_is_refused`, removed). `PlatformNamesGuardrailTest`'s
+   function-FQN literal ceiling 331 → 332 with its dated justification (the translator spells lite's `recurse`).
+4. **Refused by name, recorded.** A variable-length relationship bound to a list of relationships (Match4/[8],
+   Match9/[6], [7]; the plan's §5); other relationships beside the walk in one pattern; an OPTIONAL MATCH over the
+   walk as the first clause; the path functions of a nullable carried path.
+
 ## 2026-10-17 — `#Cypher{...}#`: the sixty-fifth landing — the recursion native (W10 leg 2a)
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, leg 2a); the record is the study's §12.67. The

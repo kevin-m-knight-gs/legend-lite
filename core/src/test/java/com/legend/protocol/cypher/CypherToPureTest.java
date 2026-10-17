@@ -613,11 +613,12 @@ class CypherToPureTest {
         invalid("MATCH (x:Person)-[*]->() UNWIND [1] AS x RETURN x", "Variable `x` already declared");
         // a value never conflicts statically (an expression may well be a node), and a node named again as a node
         // is a bound one: the clauses read on, to their own checks
-        unsupported("MATCH (a:Person) WITH head(collect(a)) AS n MATCH (n)-[*]->() RETURN n", "a variable-length relationship");
-        unsupported("MATCH (a:Person)-[:firm]->(f) MATCH (a)-[*]->() RETURN f", "a variable-length relationship");
+        unsupported("MATCH (a:Person) WITH head(collect(a)) AS n MATCH (n)-[*]->() RETURN n",
+                "naming n, which the rows hold as a value of another kind");
+        assertTrue(pure("MATCH (a:Person)-[:firm]->(f) MATCH (a)-[*]->() RETURN f.legalName AS f").contains("recurse("));
         // a list of variables is a value too (it may list relationships: Match4/[8]'s), a list of literals a literal
         unsupported("MATCH ()-[r1]->()-[r2]->() WITH [r1, r2] AS rs LIMIT 1 MATCH (first)-[rs*]->(second) RETURN first",
-                "a variable-length relationship");
+                "naming rs, which the rows hold as a value of another kind");
         invalid("WITH [[1], 'x'] AS rs MATCH ()-[rs*]->() RETURN rs", "Type mismatch: rs defined with conflicting type");
     }
 
@@ -1522,8 +1523,26 @@ class CypherToPureTest {
         assertTrue(chains.contains("$p.firm.legalName"), chains);
         String zero = pure("MATCH (p:Person)-[:firm*0..1]->(x) RETURN x.name AS name");
         assertTrue(zero.contains("->concatenate("), zero);
-        unsupported("MATCH (p:Person)-[:firm*]->(f) RETURN f.legalName", "without an upper bound");
-        unsupported("MATCH (p:Person)-[:firm*1..9]->(f) RETURN f.legalName", "longer than 4");
+        // without an upper bound, or with one past the unroll's, it is the walk the data bounds (the study's
+        // §12.68): lite's recursion over the hop's rows, the start node's rows joined on its identity, the far
+        // node's on the node reached, the depth within the bounds; the relationship's list and the path beside
+        String walk = pure("MATCH (p:Person)-[:firm*]->(f) RETURN f.legalName AS firm");
+        assertTrue(walk.contains("->meta::legend::lite::recurse(w|$w->join("), walk);
+        assertTrue(walk.contains("->filter(r|!$r._cypher_walk_rels->contains('|' + $r._cypher_edge_rel + '|'))"), walk);
+        assertTrue(walk.contains("->filter(r|$r._cypher_walk_depth >= 1)"), walk);
+        String bounded = pure("MATCH (p:Person)-[:firm*2..9]->(f) RETURN f.legalName AS firm");
+        assertTrue(bounded.contains("&& ($r._cypher_walk_depth < 9))") && bounded.contains("_cypher_walk_depth >= 2)"),
+                bounded);
+        String listed = pure("MATCH q = (p:Person)-[r:firm*0..]->(f) RETURN r, length(q) AS n, nodes(q) AS ns");
+        assertTrue(listed.contains("r:r|fromJson('[' + $r._cypher_walk_relsj + ']')"), listed);
+        assertTrue(listed.contains("_cypher_path_length_q:r|$r._cypher_walk_depth") && !listed.contains(">= 0)"), listed);
+        unsupported("MATCH (p:Person)-[:firm*]->(f)-[:firm]->(g) RETURN g.legalName", "other relationships");
+        unsupported("MATCH (p:Person)-[:firm*]->(p) RETURN p.name", "back to itself");
+        // after rows, the walk is the re-anchored pattern's own (§12.49): read from the rows' node, joined back
+        String after = pure("MATCH (p:Person) WITH p MATCH (p)-[:firm*]->(f) RETURN f.legalName AS firm");
+        assertTrue(after.contains("recurse(") && after.contains("JoinKind.INNER, {l, r|$l._cypher_"), after);
+        String optional = pure("MATCH (p:Person) OPTIONAL MATCH (p)-[:firm*]->(f) RETURN f.legalName AS firm");
+        assertTrue(optional.contains("recurse(") && optional.contains("JoinKind.LEFT"), optional);
         unsupported("MATCH (p:Person)-[:firm {since: 1}]->(f) RETURN f.legalName", "properties on a relationship");
         // a MATCH after rows whose pattern names no variable of the rows: the product (the study's §12.44); one that
         // binds a projected variable again is still refused by name

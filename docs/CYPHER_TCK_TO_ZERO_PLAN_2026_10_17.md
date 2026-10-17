@@ -278,9 +278,15 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   refusal; `lite/varkinds.yaml`. No TCK row moves (the error scenarios agreed by the refusal; now by the error).
 - Leg 2a LANDED 2026-10-17 (the study's §12.67, GATES' sixty-fifth landing; TCK agreement DuckDB 3470 → 3470, Postgres 3091 → 3091; DuckDB PASS 3,573 → 3573, Postgres 3,171 → 3171): the recursion native
   (`meta::legend::lite::recurse`, typed generically, lowered to `WITH RECURSIVE` as a derived table, executed on
-  DuckDB). Leg 2b: the island spelling an unbounded pattern as the recursion over the association's identities with
-  relationship uniqueness, the far node re-anchored by identity, the path's length, nodes and relationships from the
-  walk's carried texts.
+  DuckDB).
+- Leg 2b LANDED 2026-10-17 (the study's §12.68, GATES' sixty-sixth landing; TCK agreement DuckDB 3470 → 3487, Postgres 3091 → 3108; DuckDB PASS 3,573 → 3610, Postgres 3,171 → 3208): the island spelling an
+  unbounded pattern (or one bounded past the unroll's 4) as the recursion over the hop's rows (identities, JSON
+  texts, stored directions), relationship uniqueness at every step (S75 revised), the far node joined by identity,
+  the relationship's list and the named path (its length, nodes and relationships) from the walk's carried texts;
+  after rows, in an OPTIONAL MATCH and as a pattern predicate through the re-anchoring; the path functions of a
+  path carried as its value; the resolver resolving a recursion's step. Left (the §5 log): a variable-length
+  relationship bound to a list of relationships (Match4/[8], Match9/[6], [7]); other relationships beside the walk
+  in one pattern (no TCK row).
 
 ### W11. Variants of no known shape
 
@@ -589,6 +595,14 @@ questions, no PRs; a blocker is logged in §5 and the line moves to the next ite
 
 What got stuck, where, and why, for later; each entry names the cases it holds back.
 
+- **2026-10-17, W10 leg 2b — a variable-length relationship bound to a list of relationships.** `MATCH ()-[r1]->()
+  -[r2]->() WITH [r1, r2] AS rs LIMIT 1 MATCH (first)-[rs*]->(second)` (Match4/[8], Match9/[6], [7]): Neo4j walks
+  only the paths whose relationships are the list's, in order. The rows carry `rs` as the Variant list of the
+  relationships' JSON values (`{"@type": "Y"}`), which holds no identity; the walk compares identities (the ordered
+  pair of an association relationship's ends, S74). A faithful spelling carries the identities' text beside such a
+  list when a WITH projects it (as a path's parts ride beside it) and joins the walk's identities-walked text to it
+  (the re-anchoring's `joinKeys` pairing the two); comparing the JSON texts instead would equate two parallel
+  relationships of one type, which C5 forbids. Three TCK rows; the next W10 slice.
 - **2026-10-17, W2 leg 1 — the engine's key precedence, unverified.** The claim that legend-engine's relational
   mapping defaults an instance's identity to the main table's `PRIMARY KEY` when `~primaryKey` is absent (the
   design's step 3) is implemented from memory of the engine's `PrimaryKey` inference; no reference checkout is on

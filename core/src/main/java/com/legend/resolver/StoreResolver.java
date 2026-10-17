@@ -548,6 +548,15 @@ public final class StoreResolver {
                     when anchored(pa.source())
                     && Type.schemaView(pa.source().info().type()) != null ->
                     structural(pa, context);
+            // a recursion (lite's recurse, the Cypher island's walk the data bounds, 2026-10-17): its base
+            // resolves as the relation chain it is, and so does its step's body: the step's parameter is a
+            // relation (no chain of a store), so what the body joins, filters and projects over resolves as any
+            // relation expression above a class chain does, never as a lambda's data (which would leave a class
+            // chain the step joins unresolved)
+            case com.legend.compiler.spec.typed.TypedRecurse r -> new com.legend.compiler.spec.typed.TypedRecurse(
+                    resolveNode(r.source(), context), new TypedLambda(r.step().parameters(),
+                    r.step().body().stream().map(b -> resolveNode(b, context)).toList(), r.step().info(),
+                    r.step().quoted()), r.info());
             // every RELATION OPERATOR above a resolved class chain is a
             // relation-space wrapper, rebuilt over its resolved source — named
             // once (TypedRelationOp), so none can be missed (TypedPivot was)
