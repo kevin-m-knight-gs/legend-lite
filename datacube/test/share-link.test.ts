@@ -41,12 +41,8 @@ function page(n: number, o: { inList?: number; title?: string } = {}): PageDocum
     ],
     rows: ['region', 'desk'],
     pivotOn: ['currency'],
-    measures: [
-      { name: 'Notional', column: 'notional', fn: 'sum' },
-      { name: 'PnL', column: 'pnl', fn: 'sum' },
-      { name: 'Avg price', column: 'price', fn: 'average' },
-    ],
-    sorts: [{ column: 'PnL', direction: 'desc' }],
+    // its aggregates its columns' Aggregation (Column Properties, below)
+    sorts: [{ column: 'pnl', direction: 'desc' }],
     filter: { kind: 'and', children: [
       { kind: 'condition', column: 'status', operator: 'equal', value: 'LIVE' },
       { kind: 'condition', column: 'trade_date', operator: 'greaterThan', value: '2026-07-01' },
@@ -59,9 +55,9 @@ function page(n: number, o: { inList?: number; title?: string } = {}): PageDocum
     ...DEFAULT_CONFIGURATION,
     reportTitle: o.title ?? 'Rates book, Q3 by desk',
     columns: {
-      notional: { format: { kind: 'number', decimals: 0 } },
-      pnl: { format: { kind: 'number', decimals: 0 }, pinned: 'left' },
-      price: { format: { kind: 'number', decimals: 4 } },
+      notional: { aggregateFn: 'sum', format: { kind: 'number', decimals: 0 } },
+      pnl: { aggregateFn: 'sum', format: { kind: 'number', decimals: 0 }, pinned: 'left' },
+      price: { aggregateFn: 'average', format: { kind: 'number', decimals: 4 } },
       comment: { hidden: true },
     },
   };
@@ -96,8 +92,8 @@ describe('the p1 dictionary is FROZEN', () => {
 
 /**
  * A LINK SHARED BEFORE BANDS, frozen (2026-10-09): a version 1 page -- its layout tiles on a 12-column grid, the grid
- * 8 wide beside a chart 4 wide, 6 rows of 24 -- deflated against p1, as links were made until then. It must open
- * forever: as the page it was, its arrangement read as bands.
+ * 8 wide beside a chart 4 wide, 6 rows of 24 -- deflated against p1, as links were made until then. No older page is
+ * read (the user, 2026-10-17): its cube is version 1, from before a grid's aggregates were its columns' Aggregation.
  */
 const V1_LINK = 'p1.1VvJbsIwEP2ViDNQZyUcOeRQCaRCpV4qZNlZeqCliNBWHPrvHTvBSewEskr0FqJxPPZ4mXnv0ZRZ9IEvgoGwxzyNwq60T2YOY' +
   '2IUjGCgMs4JJqHIIzEG47BvYC9zLOwFpCbc57IvwLUr96iQJhtIe2INVIC7sbY2NXrWYM53uXqlgi-paFfBoqSNTkcShDjJKSqTt' +
@@ -108,16 +104,9 @@ const V1_LINK = 'p1.1VvJbsIwEP2ViDNQZyUcOeRQCaRCpV4qZNlZeqCliNBWHPrvHTvBSewEskr0
   'PJtmwRIt4lJIyvSqUERdQ3DD3Q7cHzdpihCiCBXQHGWa5iW7cxURO515K28BUQjfRiPnn8IbBr2YrHyNqPt_8LsLlawwCf0PEnz-' +
   'WvwXWURMACoV_SqJb6XShdFpcrryQHrVLk4Tb2XClTpRCnUqLCrs6Js-_sH';
 
-describe('a link made before bands still opens', () => {
-  it('as its page, its 12-column layout read as one sheet of bands, written back as version 4', () => {
-    const got = readPageFragment(V1_LINK);
-    assert.equal(got.version, 4);
-    assert.equal(got.name, 'Rates book, Q3 by desk');
-    assert.deepEqual(got.views.map((v) => v.id), ['grid', 'pnl-by-desk']);
-    assert.deepEqual(got.sheets, oneSheet({ kind: 'bands', fit: false, bands: [{ height: 0.25, node: { split: 'row', parts: [
-      { node: { tile: 'grid' }, size: 8 / 12 }, { node: { tile: 'pnl-by-desk' }, size: 4 / 12 },
-    ] } }] }));
-    same(got, readPageFragment(pageFragment(got)));
+describe('a link made before 2026-10-17 is refused, saying why', () => {
+  it('its cube is version 1: no longer read', () => {
+    assert.throws(() => readPageFragment(V1_LINK), /older version \(1 < 2\).*no longer read/);
   });
 });
 

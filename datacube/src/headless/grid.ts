@@ -116,9 +116,8 @@ export interface FrameSpec extends Omit<GridSpec, 'cube'> {
  * titled `label`, capped at the row limit when it is not its page's only grid (cube-document.ts gridCapped, the app's
  * own rule, of `gridsOnPage`: the page's grids counting this one; rebuilt reads it only for a new cube). With one (a
  * cube document, JSON): that cube rebuilt over the frame as it is now -- a new column hidden, a gone one left out of
- * everything that read it, a saved measures list made Column Properties (a measure its column's type is not offered
- * left out), the open groups dropped when the grouping changed -- said in `notes`, and `changed` when a part was left
- * out or a list converted (openCube's). `name` is its page's (a page's cubes carry the page's name). JSON: `{cube, notes, changed}`, the
+ * everything that read it, the open groups dropped when the grouping changed -- said in `notes`, and `changed` when a
+ * part was left out (openCube's). `name` is its page's (a page's cubes carry the page's name). JSON: `{cube, notes, changed}`, the
  * cube document as its text (its numbers exact).
  */
 export async function gridCube(spec: FrameSpec, saved: string | null, name: string, label: string,

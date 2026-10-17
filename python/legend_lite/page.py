@@ -1283,8 +1283,7 @@ class Page:
 
     def _reopened(self, c: dict[str, Any], stacklevel: int) -> bool:
         """The page's cube ``c`` as DataCube opens it over its frame as the compiler types it now (``_frame_cube``:
-        cube-document.ts rebuilt -- a new column hidden; a gone one left out; a saved measures list made Column
-        Properties, a measure its column's type is not offered left out; the open groups dropped when the grouping
+        cube-document.ts rebuilt -- a new column hidden; a gone one left out; the open groups dropped when the grouping
         changed), taken when it is
         not the cube held -- the frame's columns moved, or DataCube left a part out -- each note warned once, in
         DataCube's words. So the page holds the cube every headless call opens, and no later call sends a part DataCube

@@ -229,10 +229,10 @@ export interface MeasureMade {
  * Properties would); any other a calculated column of its own name reading its column (the column editor's own steps:
  * column-draft.ts newDraft, draftColumn; its name by calc.ts nameProblem), with that Aggregation -- each by setColumn's
  * rules. Refused in their words (CubeRefusal): a column the grid has not, a name taken, an aggregate its column's type
- * is not offered (a count of text: "Show leaf count" counts a group's rows). Python's grid.measure(), a cube saved with
- * a measures list (openCube) and a chart's values opened in a grid (Open in Grid) are made the grid's by this one rule.
- * Only `converting` (a saved list, a chart's values: what was there already) makes a dimension a measure; asked of a
- * grid (Python's measure()), a dimension's Aggregation is refused, as Column Properties refuses it.
+ * is not offered (a count of text: "Show leaf count" counts a group's rows). Python's grid.measure() and a chart's
+ * values opened in a grid (Open in Grid) are made the grid's by this one rule. Only `converting` (a chart's values:
+ * what was there already) makes a dimension a measure; asked of a grid (Python's measure()), a dimension's
+ * Aggregation is refused, as Column Properties refuses it.
  */
 export function measureAsColumn<D extends GridDraft>(draft: D, m: Measure, taken: ReadonlySet<string> = new Set(),
   converting = false): {
@@ -282,8 +282,8 @@ export function measureAsColumn<D extends GridDraft>(draft: D, m: Measure, taken
 
 /**
  * `name` made a measure: a source column as Column Properties makes one (setColumn), a calculated column on its own
- * entry, as its editor makes one (Column Properties sets no calculated column's kind) -- old Python's calculated
- * columns carried no kind and no type, and so read as dimensions.
+ * entry, as its editor makes one (Column Properties sets no calculated column's kind): a chart's value of a
+ * calculated column not yet typed, which reads as a dimension.
  */
 function asMeasure<D extends GridDraft>(draft: D, name: string): D {
   if (!draft.snapshot.derived.some((d) => d.name === name)) return setColumn(draft, name, { kind: 'measure' });
@@ -294,8 +294,7 @@ function asMeasure<D extends GridDraft>(draft: D, name: string): D {
 /**
  * A LIST OF MEASURES AS THE SCREEN'S MODEL: each by measureAsColumn, in order, against what the ones before it made (a
  * column given an Aggregation once is taken: another measure of it is a calculated column). One it cannot be is left
- * out, said, the rest made: a cube saved with a measures list opens (cube-document.ts openCube), and Open in Grid makes
- * what it can of a chart's values.
+ * out, said, the rest made: Open in Grid makes what it can of a chart's values.
  */
 export function measuresAsColumns<D extends GridDraft>(draft: D, measures: readonly Measure[]): {
   readonly draft: D;

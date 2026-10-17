@@ -85,9 +85,8 @@ class Document(Paged):
                          [('region', 'String'), ('desk', 'String'), ('notional', 'Float'), ('pnl', 'Float')])
         query = cube['cube']['query']
         self.assertEqual(query['rows'], ['region'])
-        # a measure is its column's Aggregation, in Column Properties, as the screen sets it: the measures list is empty
-        # (written so for a reader from before 2026-10-17, which asks for one)
-        self.assertEqual(query['measures'], [])
+        # a measure is its column's Aggregation, in Column Properties, as the screen sets it: no measures list
+        self.assertNotIn('measures', query)
         self.assertEqual(cube['cube']['configuration']['columns']['notional'], {'aggregateFn': 'sum'})
         self.assertEqual(query['sorts'], [{'column': 'notional', 'direction': 'desc'}])
         # a list of one condition, in the filter editor's normal form: a group of one is that one, as DataCube writes it
@@ -221,49 +220,20 @@ class Document(Paged):
         self.assertEqual([c['name'] for c in cube['source']['columns']], ['region', 'notional', 'pnl', 'book'])
         ll.Page.load(page.to_dict(), frames={'changed_trades': trades().drop(columns=['desk']).assign(book='B1')})
 
-    def test_a_page_saved_with_a_measures_list_opens_as_column_properties_and_says_so(self):
-        # a page saved before 2026-10-17 kept a grid's measures as a list no panel showed: DataCube opens it as Column
-        # Properties (cube-document.ts openCube: grid-edits.ts measuresAsColumns), each measure its column's Aggregation
-        # or a calculated column of its own, saying so; one the screen's model cannot hold left out, saying why -- old
-        # Python's grid.group('region').measure('region', 'count'), a sum of text. The loaded page takes the cube DataCube
-        # opens, so it holds no list, and is saved without one
+    def test_a_page_saved_before_a_grids_aggregates_were_its_columns_is_refused_in_datacubes_words(self):
+        # no older page is read (the user, 2026-10-17): a version 1 cube -- every cube saved before a grid's aggregates
+        # became its columns' Aggregation -- is refused by its version, and a measures list in a cube of this one by
+        # name; never converted, never opened showing other numbers than it showed
         saved = ll.Page('counts')
         saved.grid(trades(), name='old_counts', rows=['region'])
-        doc = saved.to_dict()
-        doc['cubes'][0]['cube']['query']['measures'] = [{'name': 'notional', 'column': 'notional', 'fn': 'average'},
-                                                        {'name': 'region', 'column': 'region', 'fn': 'count'},
-                                                        {'name': 's', 'column': 'desk', 'fn': 'sum'},
-                                                        {'name': ' total ', 'column': 'pnl', 'fn': 'sum'}]
-        with warnings.catch_warnings(record=True) as said:
-            warnings.simplefilter('always')
-            page = ll.Page.load(doc, frames={'old_counts': trades()})
-        self.assertEqual([str(w.message) for w in said], [
-            "old_counts: measure notional is now notional's Aggregation, average",
-            "old_counts: left out measure region: 'count' is not offered on region, a String column: min, max, "
-            "joinStrings, unique (Show leaf count counts a group's rows)",
-            "old_counts: left out measure s: 'sum' is not offered on desk, a String column: min, max, joinStrings, "
-            'unique',
-            'old_counts: measure  total  is now a calculated column of pnl, its Aggregation sum'])
-        cube = page.to_dict()['cubes'][0]['cube']
-        self.assertEqual(cube['query']['measures'], [])
-        self.assertEqual(cube['configuration']['columns']['notional'], {'aggregateFn': 'average'})
-        self.assertEqual([d['name'] for d in cube['query']['derived']], ['total'])
-        page.grids[0].measure('pnl', 'average', name='p')
-        self.assertEqual([d['name'] for d in page.to_dict()['cubes'][0]['cube']['query']['derived']], ['total', 'p'])
-        with warnings.catch_warnings(record=True) as again:
-            warnings.simplefilter('always')
-            ll.Page.load(page.to_dict(), frames={'old_counts': trades()})
-        self.assertEqual(again, [], 'saved again, it opens as it was saved')
-
-    def test_a_frame_served_again_takes_the_cube_datacube_opens_when_opening_changed_it(self):
-        # its columns as they were, but a measures list DataCube converts: the cube is taken all the same (page.py
-        # _reopened's test is "nothing changed and the same source", not the source alone)
-        page = ll.Page('served again')
-        grid = page.grid(trades(), name='again_trades', rows=['region'], measures={'notional': 'sum'})
-        page._doc['cubes'][0]['cube']['query']['measures'] = [{'name': 'region', 'column': 'region', 'fn': 'count'}]
-        with self.assertWarnsRegex(UserWarning, "again_trades: left out measure region: 'count' is not offered on region"):
-            grid.update(trades())
-        self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['measures'], [])
+        old = saved.to_dict()
+        old['cubes'][0]['cube']['version'] = 1
+        with self.assertRaisesRegex(ValueError, r'saved by an older version \(1 < 2\)'):
+            ll.Page.load(old, frames={'old_counts': trades()})
+        listed = saved.to_dict()
+        listed['cubes'][0]['cube']['query']['measures'] = [{'name': 'notional', 'column': 'notional', 'fn': 'average'}]
+        with self.assertRaisesRegex(ValueError, "'query.measures': a grid carries no measures list"):
+            ll.Page.load(listed, frames={'old_counts': trades()})
 
     def test_a_layout_of_splits_and_sizes_is_kept_as_tiles_come_and_go(self):
         page, grid, chart = self.built()
@@ -635,7 +605,7 @@ class Document(Paged):
         grid.measure('pnl', 'wavg', name='w_pnl', weight='notional').measure('pnl', 'count', name='trades')
         grid.measure('notional', 'max', name=' top_notional ').sort('w_pnl', 'desc')
         cube = page.to_dict()['cubes'][0]['cube']
-        self.assertEqual(cube['query']['measures'], [])
+        self.assertNotIn('measures', cube['query'])
         self.assertEqual(cube['configuration']['columns']['notional'], {'aggregateFn': 'average'})
         self.assertEqual([d['name'] for d in cube['query']['derived']], ['w_pnl', 'trades', 'top_notional'])
         self.assertEqual(cube['configuration']['columns']['w_pnl'],

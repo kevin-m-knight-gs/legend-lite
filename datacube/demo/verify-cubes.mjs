@@ -733,8 +733,8 @@ try {
     return `${two} stacked on ${one}; saved and reopened as the stack, on ${one}`;
   });
 
-  await check('a page file saved with a measures list (before 2026-10-17) opens with it as Column Properties, said, the figures the same', async () => {
-    // a grid's aggregates are its columns' Aggregation now: a saved list is made them on open (cube-document.ts openCube)
+  await check('a page file saved before a grid\'s aggregates were its columns\' (cube version 1) is refused, said, the grid as it was', async () => {
+    // no older page is read (the user, 2026-10-17: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md): Open… says why
     // one answer to any question ("open over unsaved changes?" -- yes): earlier checks' one-shot answers that never fired
     // are taken off first, so no question is answered twice
     page.removeAllListeners('dialog');
@@ -742,24 +742,22 @@ try {
     page.on('dialog', answer);
     try {
       await load();
-      let before = await statusNow();
+      const before = await statusNow();
       await pickSample('trades', 500);
       await landed(before);
       await shape();
       const want = await typed();
-      // Export > Page File (JSON), as a person keeps one -- then written as before: notional's sum a measures list
+      // Export > Page File (JSON), as a person keeps one -- then marked as written before: its cube version 1
       const [download] = await Promise.all([page.waitForEvent('download'), burger('Page File (JSON)')]);
       const doc = JSON.parse(await readFile(await download.path(), 'utf8'));
-      doc.cubes[0].cube.query.measures = [{ name: 'notional', column: 'notional', fn: 'sum' }];
-      const legacy = join(dir, 'legacy-measures.page.json');
+      doc.cubes[0].cube.version = 1;
+      const legacy = join(dir, 'legacy-version.page.json');
       await writeFile(legacy, JSON.stringify(doc));
       await showWin('cubeswin', 'Open\u2026');
-      before = await statusNow();
       await page.setInputFiles('#cubelib .dc-lib-import', legacy);
-      await landed(before);
-      const message = await waitMessage(/measure notional is now notional's Aggregation, sum/);
+      const message = await waitMessage(/no longer read/);
       const got = await typed();
-      if (stamp(got) !== stamp(want)) throw new Error(`the figures changed: ${differs(want, got)}`);
+      if (stamp(got) !== stamp(want)) throw new Error(`the grid shown changed: ${differs(want, got)}`);
       return message.replace(/\s+/g, ' ').slice(0, 160);
     } finally {
       page.off('dialog', answer);
