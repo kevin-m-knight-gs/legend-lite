@@ -22,13 +22,20 @@ to the database or is refused by name.
 | R4 | The lossless text carrier for a non-primitive value is Pure's own literal grammar, spelled by the database and parsed by Pure. JSON is not required anywhere the engine's API does not demand it. | §4 |
 | R5 | The lite plan's representation stays JSON (the decision and its reasons: §2). | §2 |
 | R6 | Nothing in this program computes a value outside the database. The database executes, the runner carries, the judges judge. | everywhere |
+| R7 | The order: types first, the text carrier second (the audit of 2026-10-17). | §7 |
+| R8 | Deletion is mandatory: the legacy executor, the legacy PCT route, the shadow plan and the Java struct-to-instance rebuild all go. A referee overlap -- the old path kept beside the new until the new is proven -- is allowed, and MUST end in deletion. | §7 |
+| R9 | The corpus rule and the PCT rule are the same: no roster row and no pin moves unless a verdict genuinely changed, and both judges must agree for a pass to count. | §6, §7 |
+| R10 | The engine-compatible plan is as compatible as it can be made: where the engine carries a fact (a column's declared type), ours carries the same fact, read from the plan, never spelled from a table. | §3 |
+| R11 | A `let` lives in the database or nowhere (§5): dissolved by the compiler, or a temporary table in the body's workspace; never a value Java holds between statements. | §5 |
 
 ## 1. Where we are (measured 2026-10-17)
 
 **Landed.** The planner makes lite plans (`PlanMaker`, `ExecutionPlan`, `PlanJson`; step 2 of the boundary program,
 2026-10-09). The runner runs a plan with no model (`exec.PlanRunner`; step 3, 2026-10-10): its values are typed and
 checked in the plan's own words, parameters bind through the plan's slots, the one designed hole (a placeholder's type
-written by the runner at a recorded place) is `TypeHole`. The server's `PureV1Api` plans. The MongoDB lane runs PCT
+written by the runner at a recorded place) is `TypeHole`. The server's `executionPlan` endpoint renders the
+engine-compatible plan shape; its `execute` still binds parameters through `PureV1Api.boundParameters` and runs the
+legacy path (step 7's work). The MongoDB lane runs PCT
 channel A end to end through the plan path (`PctPlanRoute`, `TypedQuery.Output.TDS_TEXT`, 2026-10-17): 1,145 of
 1,249 tests, every pin named. A differential answers the same query through today's path and through a plan on DuckDB,
 H2 and Postgres.
@@ -90,7 +97,7 @@ serialisation, a textual DSL of our own):
    the lite plan; one carrier for both keeps the projection a function, not a translation.
 
 **What makes it bulletproof is content and a gate, not a format**: the typed SQL tree written into the lite JSON (§3,
-format version 4), and a round-trip gate -- every plan the tests make, written to JSON, read back, and rendered again,
+format version 5; the lite JSON is at 4 today), and a round-trip gate -- every plan the tests make, written to JSON, read back, and rendered again,
 must render the same SQL on every dialect and run the same in the runner. The gate is the bulletproofing; a binary
 format would not add to it.
 
@@ -115,16 +122,21 @@ provenance" comment goes.
 
 **Parameters** already carry theirs (Pure type, multiplicity, enum values, bind type, hole spellings).
 
-**The typed SQL tree in the lite JSON** (format version 4): the MIR (`SqlQuery`, `SqlSource`, `SqlExpr`, `SqlAgg`,
+**The typed SQL tree in the lite JSON** (format version 5): the MIR (`SqlQuery`, `SqlSource`, `SqlExpr`, `SqlAgg`,
 `SqlType`, `DateFmt`, `TypeFact`) written as JSON, every variant its own `_type`, read back by exhaustive switches. A
 plan read back is then fully typed: re-renderable for another dialect, diffable, inspectable, and the engine protocol
 renderer becomes a projection of the lite plan (the boundary program's §8, "the lite JSON carries ... the typed SQL
 tree"). The gate: §2's round trip.
 
-**Dynamic pivots** fall out of the same move: a pivot column whose name is known only once the database is asked
-carries, in the plan, the template column its values share (`pure`, `slot`, `store` of the aggregate); the runner reads
-the names from the database's result header and the types from the template. Nothing is guessed; today's refusal
-("a pivot's columns are known only once the database is asked") retires with the mode.
+**Dynamic pivots** need one more piece than the types, because on a text wire the database writes the header line
+itself and a single static statement cannot name columns it does not know. The shape is a two-plan sequence: a PROBE
+plan that asks the database for the distinct pivot values, then the main plan with an IDENTIFIER HOLE the runner fills
+from the probe's rows -- the mechanism the type hole already uses (the dialect writes nothing at a place the writer
+records; the runner writes there, before it prepares the statement, what the plan says). The pivot columns' types are
+the template column the plan carries (`pure`, `slot`, `store` of the aggregate). The database computes every value;
+the runner writes names where the plan recorded a hole. Today's refusal ("a pivot's columns are known only once the
+database is asked") retires with the sequence. (Corrected in the audit of 2026-10-17: "names from the result" alone
+is not enough.)
 
 ## 4. The text carrier for non-primitive values (R4)
 
@@ -154,15 +166,35 @@ the same tests, and they stay pinned by name on every lane with that evidence. T
 mismatch for the class Pair") is a typer defect about an empty list's type arguments, fixed in the compiler, not a
 carriage question.
 
-## 5. Lets in the database (the corpus's hard part)
+## 5. A `let` lives in the database or nowhere (R11)
 
 A Pure test body is not one expression: setups, `let`s, several asserts. On the plan path a body is a SEQUENCE of
 plans (the `Sequence` node exists): the setups as DDL and DML plans (`SqlDdl`, `SqlDml`, the session tables and
-`SetupStep`s already there), then one plan per statement. A `let` whose value feeds a later statement must stay in the
-database: a temporary table or a CTE the next plan reads, in the body's private workspace (bodies with inline CSV seeds
-already get one). This is the deferred-execution charter's problem (`docs/DEFERRED_TEST_EXECUTION.md`) and what the
-channel B homework sized (`docs/MONGODB_PLAN_2026_10_16.md` §9: single- against multi-statement bodies). The host judge
-and the database judge do not care who ran the sides; they care what they are handed.
+`SetupStep`s already there), then the statements. A `let` is a name for a value, and the only question is where that
+value lives between statements. The tenet allows two answers:
+
+1. **Nowhere: the compiler dissolved it.** `let x = <expr>;` then `assert($x->size() == 3)` becomes
+   `assert(<expr>->size() == 3)`: the expression substituted into every statement that uses the name, the database
+   computing it where it is used (G½'s β-inlining, applied to statement lets). Inside one statement the uses share a
+   CTE; across statements the database recomputes, which is correct for anything deterministic. The default.
+2. **In the database: materialized.** The let's own plan runs `CREATE TEMPORARY TABLE __let_x AS <expr>` in the body's
+   private workspace (bodies with inline CSV seeds already get one), and every later plan reads it. The value never
+   leaves the database. Required when the value must be computed exactly once (a `now()`, a `generateGuid()`, a side
+   effect); chosen by the planner when a relation is reused by many statements and recomputing would be wasteful --
+   a plan-time choice, which is planning, not Java doing work.
+
+**Never in Java.** No value is fetched after one statement and bound into the next (legend-engine's allocation node
+does exactly that; it is a carriage site and we do not build one). The runner runs the sequence and carries nothing
+but the final result. A let that can be neither dissolved nor materialized is refused by name; none is known.
+
+**Plan-time lets** are a different thing: a body that writes `let plan = executionPlan(...)` and asserts on the plan's
+SQL text binds a value the PLANNER produces (a plan, a SQL text, a type), read only by plan-time verdicts
+(`SqlTextVerdicts`). Those live in the planner, as they do today; they are not runtime carriage.
+
+The planner picks between 1 and 2 from two facts it has: whether the expression is deterministic, and how many
+statements read the name. The judges (§6) do not care which was chosen; they care what they are handed. This is what
+the channel B homework sized (`docs/MONGODB_PLAN_2026_10_16.md` §9: single- against multi-statement bodies) and what
+`docs/DEFERRED_TEST_EXECUTION.md` charters.
 
 ## 6. Both judges on plans (R2)
 
@@ -181,13 +213,13 @@ in-query computation World 2's, neither reimplements the other. Both judges stay
 ## 7. The callers (R1): the order, and what is deleted
 
 1. **Types in the plan** (§3): the three facts per column, the engine renderer on `store`, the typed tree in the lite
-   JSON (format 4), the round-trip gate. Lands first because every later step reads it.
+   JSON (format 5), the round-trip gate. Lands first because every later step reads it.
 2. **Printed values** (PARK-24, the boundary program's step 3b): Float arithmetic in decimal, a whole Float's `.0`, a
    Decimal literal's scale, a DateTime's text. The user's ruling (2026-10-10): an answer is Pure's value, its text the
    served API's. The value root's date precision (2026-10-17) was the first slice.
 3. **The text carrier** (§4): the forms, the adapter's reader, a differential case per form on DuckDB against MongoDB.
 4. **Dynamic pivots** (§3's last paragraph): names from the result, types from the template.
-5. **Lets in the database** (§5).
+5. **A `let` in the database or nowhere** (§5): dissolve or materialize, never carry.
 6. **Both judges on plans** (§6), the agreement gate.
 7. **The query service**: the wire and streaming paths plan and run; `Execution.executeWire` / `executeStreaming`,
    `Execution`'s `wireOn` / `streamOn`, `PureV1Api.boundParameters` and `ConnectionResolver`'s reading of the compiled
@@ -222,3 +254,7 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 - **2026-10-17** -- the program written (this document), the rulings R1 to R6 recorded, the representation decided
   (JSON stays, §2). Step 1 announced: types in the plan.
+- **2026-10-17, the audit with the user** -- R7 to R11 recorded; four corrections (the server's `execute` is still on
+  the legacy path; the lite JSON's next version is 5; a dynamic pivot is a probe plan and an identifier hole; a `let`
+  is dissolved or materialized, never carried). Step 1a starts: the three facts per column, the engine renderer on the
+  store's declared type.
