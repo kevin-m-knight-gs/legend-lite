@@ -1481,7 +1481,32 @@ pause for the user's review after Phase 1.
 
   A branch that calls `Sessions.openNamed`, `openKept` or `joinKept`, or that builds an `Opening`, now passes the
   opening. A branch that reads `H2Settings.SETTINGS` reads `H2Connector.SETTINGS`.
-- **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move after #43 and #48 land** (D11:
+- **Announced 2026-10-16, Phase 6 part 1: the tests' databases are test backends** (branch
+  `claude/gracious-edison-jcsvzm`, after Phase 5 landed as #51; the plan's Phase 6 and its record there). Test code only,
+  plus `Databases.implemented()` in main. No product behaviour changes.
+  - New: `core/src/test/java/com/legend/testbackend/` (`//core:test_backends`, one backend per database and the
+    `TestBackends` registry), and the tests named for a database that took one database's assertions out of a shared
+    test (`PlanMaker<Db>Test`, `PlanRunner<Db>Test`, `RowLoad<Db>Test`, `StoreTypes<Db>Test`,
+    `SqlCanonConformanceH2Test`, `ConnectionLeaseH2Test`, `model/ConnectionWireTest`).
+  - Renamed: `RowLoadTest` to `RowLoadDuckDbTest` (`//core:duckdb_load_test` selects it), `ExecuteInDbTest`,
+    `RawGridSchemaTest` (each to `...DuckDbTest`), `DynamicPivotKeyLiteralTest`, `DeclaredQuotedTableTest` (each to
+    `...H2Test`); `setup/SeedSpellingTest` moved to `sql/dialect/`.
+  - `pct/`: `PctBackend` reads its lane's backend; `CloudLane` is deleted; `PctCensusGate` is a per-lane table;
+    `ChannelBEssentialTest`'s engine exclusions renamed.
+  - About 150 of core's test files open the platform's or every in-process backend instead of a JDBC URL;
+    `AbstractDatabaseTest` and its 28 subclasses take a `backend()` in place of `getDatabaseType()`/`getJdbcUrl()`.
+  - `StressSuites.Config` takes a backend; `StressTool --backend` takes a backend's name. `tools/census/RenderCensus`
+    renders with every implemented database's dialect, each named by its declared type. One comment in main code
+    (`ConnectionLets.java`, a renamed test).
+  - Guards: `DatabaseOwners` (BACKEND and NAMED_TEST kinds; the vocabulary's tests), `DialectOwnerExclusivityTest`
+    (walks the tests), `DialectBoundaryTest`, the ledger; parser-equivalence's `ratchets.tsv` (own corpus 2862 ->
+    2847).
+
+  A branch that subclasses `AbstractDatabaseTest` overrides `backend()`, if anything. A branch that opens
+  `jdbc:duckdb:` in a new core test opens `TestBackends.platform()`. **Part 2** (the corpus harness:
+  `MinimalCorpus`, `MinimalCorpusTest`, `ReplayReferee`, `DuckWorkspaces`, `ServerWorkspaces`; and the SQL, IQ and Cypher
+  islands' tests) is next: #43 and #50, which it waited for, landed on 2026-10-17.
+- **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move: #43 and #48 have landed** (D11:
   "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
   lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate
   fallback, dates, jsonb, and `postgresName`'s type names in messages). They move to Postgres-owned files in

@@ -3,17 +3,10 @@
 
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
+import com.legend.database.Databases;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.SqlQuery;
-import com.legend.sql.dialect.DuckDb;
 import com.legend.sql.dialect.EngineStyleH2;
-import com.legend.sql.dialect.H2;
-import com.legend.sql.dialect.MariaDb;
-import com.legend.sql.dialect.BigQuery;
-import com.legend.sql.dialect.Databricks;
-import com.legend.sql.dialect.Postgres;
-import com.legend.sql.dialect.SQLite;
-import com.legend.sql.dialect.Snowflake;
 import com.legend.sql.dialect.SqlDialect;
 import com.legend.test.StorelessRuntime;
 
@@ -52,16 +45,13 @@ public final class RenderCensus {
         for (int i = 1; i < args.length; i++) {
             cases.addAll(Files.readAllLines(arg(args[i])));
         }
+        // every database the platform executes on, by its declared type (the dialect program's Phase 6, 2026-10-16:
+        // until then nine dialects by hand, three missing), and legend-engine's text, a render target of its own
         Map<String, Supplier<SqlDialect>> dialects = new LinkedHashMap<>();
-        dialects.put("DuckDb", DuckDb::new);
-        dialects.put("H2", H2::new);
+        for (DatabaseType type : Databases.implemented()) {
+            dialects.put(type.name(), () -> Databases.dialect(type));
+        }
         dialects.put("EngineStyleH2", EngineStyleH2::new);
-        dialects.put("Postgres", Postgres::new);
-        dialects.put("Databricks", Databricks::new);
-        dialects.put("Snowflake", Snowflake::new);
-        dialects.put("BigQuery", BigQuery::new);
-        dialects.put("SQLite", SQLite::new);
-        dialects.put("MariaDb", MariaDb::new);
         Map<String, Object> models = new HashMap<>();
         StringBuilder out = new StringBuilder();
         int n = 0;
@@ -76,7 +66,7 @@ public final class RenderCensus {
                     try {
                         // a model that declares the storeless runtime itself keeps its own
                         return Compiler.compileModel(m.contains("Runtime " + StorelessRuntime.RUNTIME) ? m
-                                : StorelessRuntime.with(m, DatabaseType.DuckDB));
+                                : StorelessRuntime.with(m, Databases.PLATFORM));
                     } catch (RuntimeException e) {
                         return e;
                     }

@@ -21,12 +21,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * A row load lands the SAME rows on DuckDB's bulk path (its Appender, cells
  * staged as text and cast by one INSERT ... SELECT) as on the text path (one
- * multi-row insert of quoted literals): the database types every cell on both.
+ * multi-row insert of quoted literals): the database types every cell on both. A database without a bulk loader is
+ * {@code RowLoadH2Test}'s (both were {@code RowLoadTest} until the dialect program's Phase 6, 2026-10-16).
  */
 // reads process-wide counters (CanonicalDivergence, Census) that every query bumps: runs alone if JUnit ever runs
 // classes in parallel, so no other test's calls land between its before and after reads (Bazel workplan P3-04, A9)
 @org.junit.jupiter.api.parallel.Isolated
-class RowLoadTest {
+class RowLoadDuckDbTest {
 
     private static final com.legend.sql.dialect.SqlDialect DUCK = new com.legend.sql.dialect.DuckDb();
 
@@ -124,55 +125,6 @@ class RowLoadTest {
             assertEquals("dbInc", ((ExecutionResult.Scalar) r).value());
             assertTrue(Census.count(Census.Key.BULK_LOADS) > before,
                     "the seed's rows must take DuckDB's Appender");
-        }
-    }
-
-    @Test
-    @DisplayName("a connection's declared CSV test data loads on its own database, rows exact")
-    void declaredCsvTestDataLoadsOnItsDatabase() throws Exception {
-        String model = """
-                Class x::Firm { name: String[1]; since: StrictDate[0..1]; size: Integer[0..1]; }
-                ###Relational
-                Database x::DB ( Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(32), SINCE DATE, SIZE INTEGER) )
-                ###Mapping
-                Mapping x::M ( *x::Firm: Relational { ~mainTable [x::DB] FIRM
-                    name: [x::DB] FIRM.NAME, since: [x::DB] FIRM.SINCE, size: [x::DB] FIRM.SIZE } )
-                ###Connection
-                RelationalDatabaseConnection x::Conn
-                {
-                    store: x::DB;
-                    type: H2;
-                    specification: LocalH2 { testDataSetupCSV: 'default\\nFIRM\\nID,NAME,SINCE,SIZE\\n1,Acme,2020-01-02,10\\n2,O\\'Brien,,---null---\\n'; };
-                    auth: DefaultH2;
-                }
-                ###Runtime
-                Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ env: x::Conn ] ]; }
-                """;
-        // declared test data is a LocalH2 connection's (as legend-engine's): it loads on the H2 session its
-        // runtime declares -- the server opens one for it (ConnectionResolver) -- which takes the insert
-        // text; DuckDB's bulk path is systemSeedIsBulk's
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:declaredcsv" + H2Connector.SETTINGS)) {
-            long before = Census.count(Census.Key.BULK_LOADS);
-            var r = com.legend.Execution.execute(model, "|x::Firm.all()->project(~[name: f|$f.name,"
-                    + " since: f|$f.since, size: f|$f.size])->sort(~name->ascending())", "x::RT", c);
-            assertEquals(List.of("Acme|2020-01-02|10", "O'Brien|null|null"), r.rows().stream()
-                    .map(row -> row.get(0) + "|" + row.get(1) + "|" + row.get(2)).toList());
-            assertEquals(before, Census.count(Census.Key.BULK_LOADS), "H2 has no bulk loader");
-        }
-    }
-
-    @Test
-    @DisplayName("an engine without a bulk loader takes the insert text")
-    void h2TakesText() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:rowload")) {
-            try (Statement st = c.createStatement()) {
-                st.execute("CREATE SCHEMA s");
-                st.execute(DDL.replace("DOUBLE", "DOUBLE PRECISION"));
-            }
-            long before = Census.count(Census.Key.BULK_LOADS);
-            Executor.load(c, new com.legend.sql.dialect.H2Modern(), new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i", "v"), java.util.Set.of(), 2, List.of(List.of("1", "a"))));
-            assertEquals(before, Census.count(Census.Key.BULK_LOADS));
-            assertEquals(List.of("1|a|null|null|null|null|null"), contents(c));
         }
     }
 }

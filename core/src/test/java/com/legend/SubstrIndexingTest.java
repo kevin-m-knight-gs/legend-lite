@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.platform.Feature;
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
@@ -10,7 +11,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,7 +55,7 @@ class SubstrIndexingTest {
     @Test
     @DisplayName("substr is corrected with no flag; substring only under the flag")
     void substrAlwaysCorrected() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             QueryService qs = new QueryService();
             // the PCT's own example: 'the quick brown fox'->substr(4, 9) == 'quick'
             assertEquals("quick", scalar(qs.execute(MODEL,

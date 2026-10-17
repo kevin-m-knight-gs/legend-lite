@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.database.Databases;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -7,7 +8,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -27,12 +27,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class FoldCheckerTest extends AbstractDatabaseTest {
 
-    @Override
-    protected String getDatabaseType() { return "DuckDB"; }
-
-    @Override
-    protected String getJdbcUrl() { return "jdbc:duckdb:"; }
-
     private static final String FOLD = "meta::pure::functions::collection::fold";
     private static final String ADD  = "meta::pure::functions::collection::add";
     private static final String CAST = "meta::pure::functions::lang::cast";
@@ -45,7 +39,7 @@ public class FoldCheckerTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         setupDatabase();
     }
 
@@ -65,7 +59,7 @@ public class FoldCheckerTest extends AbstractDatabaseTest {
         // ("a scalar query has no row scope for $p.lastName"). CLOSED
         // strategy lambdas make the walker's own α-hygiene reach them.
         String model = "Class my::P { firstName: String[1]; lastName: String[1]; }";
-        var r = com.legend.Execution.execute(com.legend.test.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
+        var r = com.legend.Execution.execute(com.legend.test.StorelessRuntime.with(model, Databases.PLATFORM),
                 "{|let people = [^my::P(firstName='Pierre', lastName='Doe'),"
                         + " ^my::P(firstName='Kevin', lastName='RoeDoe')];"
                         + " $people->fold({p, s | $s + '; ' + $p.lastName->at(0)"

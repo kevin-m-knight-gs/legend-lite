@@ -11,12 +11,13 @@ import com.legend.test.PureTestRunner;
 import com.legend.test.PureTests;
 import com.legend.test.TestObserver;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Set;
-import org.junit.jupiter.api.Test;
+import com.legend.testbackend.TestBackend;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * A column the store declared QUOTED keeps its spelling when a class extent is read through a
@@ -52,21 +53,23 @@ class FrameQuotedColumnTest {
                 name: T."name" }
             )
             ###Connection
-            RelationalDatabaseConnection l::Conn { store: l::DB; type: H2;
-              specification: LocalH2 { }; auth: DefaultH2; }
+            RelationalDatabaseConnection l::Conn { store: l::DB; CONNECTION }
             ###Runtime
             Runtime l::RT { mappings: [l::M]; connections: [ l::DB: [ c1: l::Conn ] ]; }
             """;
 
-    @Test
-    void aQuotedColumnReadThroughAPlannedClassFrameKeepsItsSpelling() throws Exception {
+    /** On each in-process database (the dialect program's Phase 6, 2026-10-16: until then on H2, whose identifiers are
+     *  case-sensitive, so a lost spelling reads another column). */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
+    void aQuotedColumnReadThroughAPlannedClassFrameKeepsItsSpelling(TestBackend backend) throws Exception {
         Compiler.ParsedModule parsed = Compiler.parseSources(
-                List.of(new Compiler.ModelSource("frame.pure", MODEL)));
+                List.of(new Compiler.ModelSource("frame.pure", MODEL.replace("CONNECTION", backend.connectionBody()))));
         ModelContext ctx = Compiler.buildModule(parsed.model()).context();
         PureTests.Discovery found = PureTests.discover(parsed.model(), Set.of());
         PureTests.TestCase test = found.tests().stream()
                 .filter(t -> t.fqn().equals("l::classLetManyReaders")).findFirst().orElseThrow();
-        try (PureTestRunner runner = new PureTestRunner(ctx, "l::RT", FrameQuotedColumnTest::freshH2,
+        try (PureTestRunner runner = new PureTestRunner(ctx, "l::RT", () -> fresh(backend),
                 List.of(), found.setupsByPackage(), TestObserver.NONE,
                 com.legend.ExecuteOptions.JudgeMode.DATABASE)) {
             PureTestRunner.Result r = runner.run(test);
@@ -74,9 +77,9 @@ class FrameQuotedColumnTest {
         }
     }
 
-    private static Connection freshH2() {
+    private static Connection fresh(TestBackend backend) {
         try {
-            Connection c = DriverManager.getConnection("jdbc:h2:mem:frame" + System.nanoTime());
+            Connection c = backend.open();
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, \"name\" VARCHAR(50))");
                 st.execute("INSERT INTO T VALUES (1, 'a'), (2, 'b'), (3, 'c')");

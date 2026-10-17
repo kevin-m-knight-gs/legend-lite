@@ -1,10 +1,11 @@
 package com.legend.integration;
 
 import com.legend.test.ServiceTestRunner;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -34,7 +35,7 @@ final class StressSuites {
      * @param rowsDir every test's computed answer, one JSON file per test, whatever the verdict, or null
      * @param outDir where the pass, fail, skipped and progress ledgers go
      */
-    record Config(boolean h2, ServiceTestRunner.Sessions sessions, String only, List<Path> overrides,
+    record Config(TestBackend backend, ServiceTestRunner.Sessions sessions, String only, List<Path> overrides,
             Path rowsDir, Path outDir) {}
 
     /** The verdicts, one line per test ({@code service / suite / test :: reason}). */
@@ -69,11 +70,11 @@ final class StressSuites {
         }
 
         String only = c.only();
-        boolean h2 = c.h2();
+        TestBackend backend = c.backend();
         // TWO LANES, two purposes (user ruling 2026-09-16):
-        //   H2     = the engine-faithful reference: a fresh, freshly seeded session
-        //            per test, exactly the engine's shape (~1.9 min; the engine ~1 h);
-        //   DuckDB = the fast gate: one seeded session per distinct provisioning,
+        //   the referee's database (H2) = the engine-faithful reference: a fresh, freshly
+        //            seeded session per test, exactly the engine's shape (~1.9 min; the engine ~1 h);
+        //   every other (the platform's, DuckDB) = the fast gate: one seeded session per distinct provisioning,
         //            SHARED across the tests that declare it. Isolation is by write
         //            detection — a session that executed a statement with an effect
         //            is re-seeded before the next test — so a read-only corpus sees
@@ -82,13 +83,14 @@ final class StressSuites {
         //            fresh took 27 min, shared ~30 s).
         // //core:stress_tool --sessions overrides either lane's default.
         ServiceTestRunner.Sessions policy = c.sessions() != null ? c.sessions()
-                : h2 ? ServiceTestRunner.Sessions.FRESH_PER_TEST : ServiceTestRunner.Sessions.SHARED;
-        // both: a private in-memory database per session; H2 carries the engine's own
+                : backend == TestBackends.referee() ? ServiceTestRunner.Sessions.FRESH_PER_TEST
+                        : ServiceTestRunner.Sessions.SHARED;
+        // each: a private in-memory database per session, as the backend opens it; H2's carries the engine's own
         // session settings (H2Connector.SETTINGS: NON_KEYWORDS incl VALUE/YEAR, MODE=LEGACY), as the
-        // engine's test connection does — a bare jdbc:h2:mem: refused ESG_METRIC.VALUE
-        String jdbcUrl = h2 ? "jdbc:h2:mem:" + com.legend.exec.H2Connector.SETTINGS : "jdbc:duckdb:";
-        var sessionType = h2 ? com.legend.model.ConnectionDefinition.DatabaseType.H2
-                : com.legend.model.ConnectionDefinition.DatabaseType.DuckDB;
+        // engine's test connection does — a bare in-memory H2 refused ESG_METRIC.VALUE
+        var sessionType = backend.type();
+        // the ledgers' names: the platform's lane bare, any other suffixed with its backend's name
+        String suffix = backend == TestBackends.platform() ? "" : "-" + backend.name();
         System.out.println("[suites] sessions: " + policy + " on " + sessionType);
         List<String> pass = new ArrayList<>(), fail = new ArrayList<>(), skipped = new ArrayList<>();
         Map<String, Integer> failBuckets = new TreeMap<>();
@@ -96,7 +98,7 @@ final class StressSuites {
         List<ServiceTestRunner.Result> slow = new ArrayList<>();
         Files.createDirectories(c.outDir());
         // per-test progress, flushed as it happens
-        Path progressPath = c.outDir().resolve("stress-suites-progress" + (h2 ? "-h2" : "") + ".txt");
+        Path progressPath = c.outDir().resolve("stress-suites-progress" + suffix + ".txt");
         int done = 0;
         long lastReport = System.nanoTime();
         java.util.function.Consumer<ServiceTestRunner.Rows> sink = rowsDir == null ? null : rows -> {
@@ -109,7 +111,7 @@ final class StressSuites {
             }
         };
         try (var runner = new ServiceTestRunner(ctx,
-                () -> DriverManager.getConnection(jdbcUrl), policy, sessionType, sink);
+                backend::open, policy, sessionType, sink);
              var progress = Files.newBufferedWriter(progressPath)) {
             for (var svc : services) {
                 if (!only.isEmpty() && !svc.qualifiedName().contains(only)) {
@@ -144,9 +146,9 @@ final class StressSuites {
             }
             System.out.printf("[suites] sessions opened: %d%n", runner.sessions().size());
         }
-        Files.write(c.outDir().resolve("stress-suites-pass" + (h2 ? "-h2" : "") + ".txt"), pass);
-        Files.write(c.outDir().resolve("stress-suites-fail" + (h2 ? "-h2" : "") + ".txt"), fail);
-        Files.write(c.outDir().resolve("stress-suites-skipped" + (h2 ? "-h2" : "") + ".txt"), skipped);
+        Files.write(c.outDir().resolve("stress-suites-pass" + suffix + ".txt"), pass);
+        Files.write(c.outDir().resolve("stress-suites-fail" + suffix + ".txt"), fail);
+        Files.write(c.outDir().resolve("stress-suites-skipped" + suffix + ".txt"), skipped);
         System.out.printf("[suites] pass=%d fail=%d skipped=%d of %d tests in %d ms (execution)"
                 + " — %d ms wall%n", pass.size(), fail.size(), skipped.size(),
                 pass.size() + fail.size() + skipped.size(), execNs / 1_000_000,

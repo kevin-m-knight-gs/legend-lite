@@ -3,6 +3,7 @@
 
 package com.legend.resolver;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.compiler.NameResolver;
@@ -14,7 +15,6 @@ import com.legend.testing.Own;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,7 +69,7 @@ class NestedExistsCorrelationStampTest {
 
     /** Nul has a NULL id; the VW has a NULL owner key: under '=' they are not related. */
     private static List<String> rows(String query) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE F (ID INTEGER, LEGAL VARCHAR)");
                 st.execute("INSERT INTO F VALUES (1, 'ACME'), (2, 'BETA')");

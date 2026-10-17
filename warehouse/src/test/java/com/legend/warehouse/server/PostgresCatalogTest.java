@@ -50,7 +50,7 @@ class PostgresCatalogTest {
                 new String[] {"--postgres", "sales", "--duckdb-extensions", "/x"},          // no DSN
                 new String[] {"--postgres", "sales=", "--duckdb-extensions", "/x"},
                 new String[] {"--postgres", "Sales=host=db", "--duckdb-extensions", "/x"},  // a bad name
-                new String[] {"--postgres", "a=host=db", "--postgres", "a=host=db2", "--duckdb-extensions", "/x"},
+                new String[] {"--postgres", "a=host=db", "--postgres", "a=host=other", "--duckdb-extensions", "/x"},
                 new String[] {"--catalog", "a", "--postgres", "a=host=db", "--duckdb-extensions", "/x"},
                 new String[] {"--postgres", "main=host=db", "--duckdb-extensions", "/x"},  // main is made
                 new String[] {"--postgres", "a=host=db"},   // on the JVM the extension's directory is required

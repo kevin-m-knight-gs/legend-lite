@@ -6,11 +6,12 @@ package com.legend.integration;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.setup.Ddl;
+import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.EngineStyleH2;
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
@@ -25,8 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * audit (2026-10-14) found each consumer that read the name broken: the engine text's alias ({@code ""items"_0"}),
  * the plan text's table lookup (a crash), the column lineage's (a refusal), and the engine's setup text and DDL
  * natives (half the statements quoted). The name is its text; the declaration is data ({@code sql.NameQuoting}).
+ * Legend-engine's H2 text, run on H2 (DeclaredQuotedTableTest until the dialect program's Phase 6, 2026-10-16); the
+ * DDL natives on the platform's engine.
  */
-class DeclaredQuotedTableTest {
+class DeclaredQuotedTableH2Test {
 
     private static final String MODEL = """
             ###Relational
@@ -38,7 +41,7 @@ class DeclaredQuotedTableTest {
             ###Mapping
             Mapping q::M ( )
             ###Connection
-            RelationalDatabaseConnection q::Conn { store: q::DB; type: H2; specification: DuckDB { }; auth: Test; }
+            RelationalDatabaseConnection q::Conn { store: q::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
             ###Runtime
             Runtime q::RT { mappings: [q::M]; connections: [ q::DB: [ c1: q::Conn ] ]; }
             """;
@@ -69,7 +72,7 @@ class DeclaredQuotedTableTest {
         String csv = String.join("\n", "Sales", "Orders", "id,Amt,name", "1,10,a", "2,20,b");
         List<String> setup = Ddl.setUpDataSqlsText(csv, db, ctx::findDatabase, new EngineStyleH2());
         String query = engineText(new EngineStyleH2(), "#>{q::DB.Sales.Orders}#->select(~[id, Amt])");
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:quoted" + System.nanoTime());
+        try (Connection c = TestBackends.of(DatabaseType.H2).open();
              Statement s = c.createStatement()) {
             for (String st : setup) {
                 if (!st.endsWith(" default;") && !st.endsWith(" default cascade;")) {
@@ -87,9 +90,8 @@ class DeclaredQuotedTableTest {
     }
 
     private static String execute(String body) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            var r = com.legend.Execution.execute(com.legend.test.StorelessRuntime.with(MODEL,
-                    com.legend.model.ConnectionDefinition.DatabaseType.DuckDB), body,
+        try (Connection c = TestBackends.platform().open()) {
+            var r = com.legend.Execution.execute(TestBackends.platform().withStorelessRuntime(MODEL), body,
                     com.legend.test.StorelessRuntime.RUNTIME, c);
             return String.valueOf(((com.legend.exec.ExecutionResult.Scalar) r).value());
         }

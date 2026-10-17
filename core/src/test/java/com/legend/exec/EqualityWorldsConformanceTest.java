@@ -3,7 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Execution;
@@ -13,7 +14,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -33,7 +33,7 @@ class EqualityWorldsConformanceTest {
 
     @BeforeAll
     static void open() throws Exception {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
     }
 
     @AfterAll
@@ -45,7 +45,7 @@ class EqualityWorldsConformanceTest {
      * verdict may be NULL (SQL three-valued logic) — returned as null. */
     private static @com.legend.base.Nullable Object world2(String a, String b)
             throws Exception {
-        var r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{|" + a + " == " + b + "}", StorelessRuntime.RUNTIME, conn);
+        var r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), "{|" + a + " == " + b + "}", StorelessRuntime.RUNTIME, conn);
         return ((ExecutionResult.Scalar) r).value();
     }
 

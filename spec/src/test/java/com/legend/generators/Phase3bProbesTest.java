@@ -75,8 +75,8 @@ class Phase3bProbesTest {
             }
         }
 
-        StringBuilder h1 = new StringBuilder("name\tside\tfunction id\tparameter spellings\tsame id as a system version\tsame spellings\tfile\tparameter names\tsame names as the system version with this id\treturn spelling\n");
-        StringBuilder h2 = new StringBuilder("name\tsystem versions\tupstream versions\tupstream version id\ttwin of a system version\tfile\n");
+        StringBuilder twinRows = new StringBuilder("name\tside\tfunction id\tparameter spellings\tsame id as a system version\tsame spellings\tfile\tparameter names\tsame names as the system version with this id\treturn spelling\n");
+        StringBuilder versionRows = new StringBuilder("name\tsystem versions\tupstream versions\tupstream version id\ttwin of a system version\tfile\n");
         int names = 0;
         int twinsById = 0;
         int twinsBySpelling = 0;
@@ -89,7 +89,7 @@ class Phase3bProbesTest {
             }
             names++;
             for (FunctionDefinition s : ours) {
-                h1.append(name).append("\tsystem\t").append(FunctionId.of(s).qualified()).append('\t')
+                twinRows.append(name).append("\tsystem\t").append(FunctionId.of(s).qualified()).append('\t')
                         .append(spellings(s)).append("\t-\t-\tSystemMetamodel\t").append(names(s)).append("\t-\t")
                         .append(spelling(s.returnType())).append('\n');
             }
@@ -106,25 +106,25 @@ class Phase3bProbesTest {
                 // item 1b's merge takes upstream's declaration with the system version's body: the body binds the
                 // system version's parameter NAMES, so the names must agree (measured here, 2026-10-09)
                 boolean sameNames = ours.stream().anyMatch(s -> FunctionId.of(s).equals(uid) && names(s).equals(names(u)));
-                h1.append(name).append("\tupstream\t").append(uid.qualified()).append('\t').append(spellings(u))
+                twinRows.append(name).append("\tupstream\t").append(uid.qualified()).append('\t').append(spellings(u))
                         .append('\t').append(sameId).append('\t').append(sameSpelling).append('\t')
                         .append(fileOf.getOrDefault(uid.qualified(), "?")).append('\t').append(names(u)).append('\t')
                         .append(sameId ? String.valueOf(sameNames) : "-").append('\t').append(spelling(u.returnType()))
                         .append('\n');
-                h2.append(name).append('\t').append(ours.size()).append('\t').append(theirs.size()).append('\t')
+                versionRows.append(name).append('\t').append(ours.size()).append('\t').append(theirs.size()).append('\t')
                         .append(uid.qualified()).append('\t').append(sameId).append('\t')
                         .append(fileOf.getOrDefault(uid.qualified(), "?")).append('\n');
             }
         }
         String out = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         if (out != null) {
-            Files.writeString(Path.of(out, "phase3b-h1-twins.tsv"), h1, StandardCharsets.UTF_8);
-            Files.writeString(Path.of(out, "phase3b-h2-versions.tsv"), h2, StandardCharsets.UTF_8);
+            Files.writeString(Path.of(out, "phase3b-h1-twins.tsv"), twinRows, StandardCharsets.UTF_8);
+            Files.writeString(Path.of(out, "phase3b-h2-versions.tsv"), versionRows, StandardCharsets.UTF_8);
         }
         System.out.println("[phase3b] names the system metamodel and the closure both declare: " + names
                 + "; upstream versions with a system twin by id: " + twinsById
                 + "; of those, with the same parameter spellings (so shadows() sees them): " + twinsBySpelling);
-        System.out.print(h1);
+        System.out.print(twinRows);
     }
 
     /** H4 — item 5b's blast radius: full names with overloads declared in more than one file whose files' import

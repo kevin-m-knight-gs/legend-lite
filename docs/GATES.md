@@ -27,7 +27,7 @@ PCT, the stress corpus, parser equivalence, Channel B, the native image's tests)
 | `pct_channel_b` | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites, one target per class (`//pct:pct_channel_b_<suite>`; P3-09) |
 | (heavy) | 9 | `//pct:pct_channel_b_<lane>` | Channel B on each other database (h2, postgres, sqlite, mariadb, mysql, databricks, snowflake, bigquery, trino, clickhouse), judged against that lane's own channel A ledger (2026-10-11, `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §16); manual, in `//gates:heavy` |
 | `parser_equivalence` | 8 | `//parser-equivalence:parser_parity`, `//parser-equivalence:round_trip_proof`, `//wasm:round_trip_test` | byte parity with legend-engine's parser; text to JSON to text to JSON over the corpus, lite's projects and the upstream showcase projects, in the JVM and in the tab (the WebAssembly build held to the JVM's answers; the protocol program's leg 5) |
-| `stress` | 10 | `//core:stress_suites`, `//core:stress_suites_h2` | the stress corpus, on DuckDB (shared sessions, MIN_PASS) and on H2 (a fresh session per test, the engine's shape, MIN_PASS_H2; enforced since 2026-10-05, Bazel workplan P3-12); its measuring knobs are `bazel run //core:stress_tool` |
+| `stress` | 10 | `//core:stress_suites`, `//core:stress_suites_h2` | the stress corpus, on DuckDB (shared sessions, MIN_PASS) and on H2 (a fresh session per test, the engine's shape, `StressServiceSuitesH2Test.MIN_PASS`, `StressServiceSuitesTest.MIN_PASS_H2` until 2026-10-16; enforced since 2026-10-05, Bazel workplan P3-12); its measuring knobs are `bazel run //core:stress_tool` |
 | `warehouse` (also Linux arm64) | — | `//warehouse:tests`, `//warehouse:sqlapi_wasm_build_test`, `//warehouse:tests_native`, `//warehouse:postgres_live`, `//warehouse:postgres_live_native` | the warehouse's suite on the JVM, and its SQL API compiled to WebAssembly (P3-24); the suite against the native binary, on Linux, macOS and Windows x64 (since 2026-10-02) and Linux arm64 (since 2026-10-04, P1-13), linked on Linux by the hermetic LLVM toolchain (P1-09); the launchers and their test went with the build rebuild's L1c (2026-10-07: the server runs as built, nothing of Bazel in it; the app as a plain folder is `//datacube:verify_app_test`'s, in `datacube`); the two tests against a live Postgres, in a lane for the first time on 2026-10-07. On Windows the lane runs in Eastern time, not the runners' UTC, so a test that reads the machine's zone shows (since 2026-10-03; the warehouse's reference session) |
 | `datacube` | — | `//datacube:tests`, `//datacube:verify_app_test`, `//datacube:package_test`, `//datacube:verify_smoke_test`, `//wasm:differential_test`, `//wasm:zone_test` | DataCube's suite and typecheck, with every cube case live on the native warehouse and snapped into DuckDB-WASM, the answers compared (`live_snap_test`, plus receipts, sign-in again, token refresh); the single-user app against Postgres 16 in the pinned Chromium, on every platform (`verify_app_test`, since 2026-10-04, Bazel workplan P1-14b: its own Postgres from the pinned binaries, no psql); the smoke harness as a test on the pinned Chromium (since 2026-10-04, P1-14); the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database. The other harnesses (features, page, charts, cubes, real data, upload, remote, wasm-browser, stress) join as tests in the next landing (L1b); until then the transitional `browser` suite and the workflow's `bazel run` loop run them, Linux only |
 | `ui` | — | `//studio:tests`, `//query:tests`, `//query-store:wasm_test`, `//query-store:share_test`, `//query-store:lite_test` | Studio's and Query's suites and typechecks; the saved-query store's one suite against the page's own store and against legend-lite's server (started by the test), and a saved query's share link round trip. Their browser harnesses (`//studio:verify_test`, `//query:verify`, `//site:verify`) join in L1b |
@@ -10956,3 +10956,69 @@ change is intended.
     59b547a, in 8 of those 60 lanes. The moves are #48's (the Cypher island), and every test still passes:
     - Postgres casts a string literal to VARCHAR before parsing it: ec902e07, "numbers from texts".
     - DuckDB casts a struct's integer field to BIGINT under a BIGINT slot: 6852139b, the duration leg.
+
+## 2026-10-17 — The dialect program's Phase 6, part 1: the tests' databases are test backends (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main 6f2a0f8 (#51); PR neema2/legend-lite#52. Commits:
+- 29acb386, the backends and core's tests;
+- 53cebdfc, PCT's census ceilings per lane and the record;
+- e6800ae0, the independent review's findings;
+- c5c73749, the layering guard's line;
+- the ceilings measured, below.
+
+The record: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 6, "Done in two parts"). Test code only, plus
+`Databases.implemented()` in main. No product behaviour change is intended, and none was measured.
+- **What moved:**
+  - Each database is a test backend (`core/src/test/java/com/legend/testbackend`, `//core:test_backends`), and
+    `TestBackends` is the registry.
+  - PCT's lanes look up their backend by name. `CloudLane` is gone, and a cloud backend holds one session per cloud.
+  - Core's tests open the platform's backend, every in-process backend, or the database they are about. One
+    database's assertions moved into a test named for it.
+  - `AbstractDatabaseTest` takes a `backend()`, which fixes the plan's defect 6.
+  - The stress harness takes a backend. H2's floor is `StressServiceSuitesH2Test.MIN_PASS`, the same 4676.
+  - The dialect-leak ledger loses about 440 test rows. Core's test rows left are in files open in #43 and #50
+    (part 2).
+- **Found on the way (defect 11):** `PlanMakerTest` now runs on SQLite too, and SQLite's plan path answers
+  differently from today's path in 31 cases.
+  - 24 cases: a list parameter's plan is refused by name ("binds no array").
+  - 7 cases: a Decimal comes back `2.500000000000000000` in CSV and `"2.50"` in JSON, and a Date or DateTime with
+    nine fraction digits.
+  - No lane runs SQLite's plans. Each case is pinned exactly in `plan-maker/differences.tsv`, at most 31 rows.
+- **Guards:**
+  - DatabaseOwners NAMED_TEST: a test source named for a database owns it, held to it in its code and its strings.
+    Four crossings are registered, each with its reason.
+  - The vocabulary's own tests are vocabulary owners, and `ArchitectureTest` is a guard owner.
+  - `PctCensusGate` holds a per-lane table and refuses a lane with none. Each lane's ceilings are now what it
+    measured: duckdb's int-null-empty 20/20/4 and postgres's diverge 14/6, as before; every other lane's are zero,
+    where seven lanes had carried the platform lane's numbers.
+  - `//core:test_backends` is named among core's non-layers.
+  - parser-equivalence `own_corpus.matched` went 2862 → 2847: four literal test models became
+    backend-parameterised.
+- **The independent review of 53cebdfc**, by an agent that wrote none of it. Its findings were fixed in e6800ae0.
+  - Blocking: `PlanOnJavaBase` had lost Postgres's checks; every dialect is now held to its own read of the table
+    and its QUALIFY. A test named for a database had not been held in its strings.
+  - Should-fix:
+    - two output file names a rename changed;
+    - the SQLite register matched a substring, and now matches the exact answer, with a ceiling;
+    - the shared cloud session;
+    - a loop that could check nothing;
+    - LocalH2's runner coverage;
+    - the record's omissions.
+- **Proof:**
+  - `bazel test //core:all //spec:corpus_h2 //spec:corpus_duckdb` (root container): 84 of 84 on 53cebdfc.
+  - `bazel build //...` (`--jobs=2`): green on 53cebdfc.
+  - `bazel test //gates:local`, less the four targets the container cannot run: 369 of 369 on c5c73749.
+- **The measurement round, 6f2a0f8 (main) against e6800ae0, every target with `dump-sql`:** nothing moved on any
+  database, and the baseline equals Phase 5's 01cf198 on every lane.
+  - Snowflake, Databricks and BigQuery (10 targets each): all pass on both commits. Digests, census lines and
+    channel B are byte-identical, and the sessions open through `CloudBackend` from the same properties file.
+  - DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres (60 lanes): all pass, and the 60 digests, the census
+    lines and the 25 channel B lines are identical. Every one of the 60 test logs is line-for-line identical after
+    normalization, so the server lanes' session URLs, storeless runtimes, system connections and raise texts are
+    unchanged.
+  - Trino, H2 and the corpus (12 + 12): all pass with identical digests and channel B. The rosters and registers
+    are byte-identical, and the judge logs' failures agree test by test (host H2 359, host DuckDB 108, database H2
+    353, database DuckDB 108).
+  - Stress: `//core:stress_suites` 4705 and `//core:stress_suites_h2` 4676 on both commits, with identical fail
+    buckets and the same ledger names.
+  - Each lane's per-suite census counts on the head are the ceilings above.

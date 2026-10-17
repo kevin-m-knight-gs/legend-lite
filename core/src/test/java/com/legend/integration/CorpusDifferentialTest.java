@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.*;
 
 import java.nio.file.*;
@@ -43,7 +44,7 @@ class CorpusDifferentialTest {
         String model = StressCorpus.model();
         StressCorpus.reportExclusions();
         var ctx = com.legend.Compiler.compileModel(model);
-        var dialect = new com.legend.sql.dialect.DuckDb();
+        var dialect = TestBackends.platform().dialect();
 
         // Services whose disagreement with the reference is already understood and
         // recorded in docs/UPSTREAM_FINDINGS.md. Reported, not tolerated silently — and a
@@ -60,7 +61,7 @@ class CorpusDifferentialTest {
 
         List<String> agree = new ArrayList<>(), disagree = new ArrayList<>(),
                 knownFail = new ArrayList<>(), fixed = new ArrayList<>();
-        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection conn = TestBackends.platform().open()) {
             seed(conn);
             for (var el : com.legend.testing.Own.model(model).elements()) {
                 if (!(el instanceof com.legend.model.ServiceDefinition svc)) continue;

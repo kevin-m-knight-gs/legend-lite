@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * dynamic-pivot model), and everything then rides the ordinary
  * pipeline — the database does the work.
  */
-class RawGridSchemaTest {
+class RawGridSchemaDuckDbTest {
 
     /** The database each test's session runs on. */
     private static final DatabaseType SESSION = DatabaseType.DuckDB;

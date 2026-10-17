@@ -1,13 +1,13 @@
 package com.legend;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -48,8 +48,8 @@ class AuditRound5Test {
             """;
 
     private static Object scalar(String query) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            return Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
+        try (Connection c = TestBackends.platform().open()) {
+            return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
         }
     }
 
@@ -136,7 +136,7 @@ class AuditRound5Test {
         assertEquals(false, scalar("|test::GT.CITY == 1"));
         // ...but an Any operand is undecided: the lowering must not fold it
         // (LOUD or genuinely compared are both acceptable; false-by-fiat is not)
-        String sql = Compiler.query(Compiler.compileModel(com.legend.test.StorelessRuntime.with(MODEL, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB)), "|[test::GT.CITY, 'x']->first() == test::GT.CITY").plan(com.legend.test.StorelessRuntime.RUNTIME).sql();
+        String sql = Compiler.query(Compiler.compileModel(com.legend.test.StorelessRuntime.with(MODEL, Databases.PLATFORM)), "|[test::GT.CITY, 'x']->first() == test::GT.CITY").plan(com.legend.test.StorelessRuntime.RUNTIME).sql();
         assertTrue(!sql.contains("SELECT FALSE") && !sql.contains("SELECT false"),
                 "enum-vs-Any must not constant-fold: " + sql);
     }

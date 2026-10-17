@@ -1,12 +1,15 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.setup;
+package com.legend.sql.dialect;
 
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
+import com.legend.database.Databases;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.setup.CsvSeed;
+import com.legend.setup.RowLoad;
 import com.legend.sql.NameQuoting;
-import com.legend.sql.dialect.SqlDialect;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -21,7 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ({@code SqlDialect.storedName}, C3c): the seeded table and the query read one name. It used the union of
  * DuckDB's and H2's reserved words, whatever the session — Postgres, which folds a bare name to lowercase,
  * was not in it. The names stay their text in the load, with which the store declared quoted as data
- * ({@link NameQuoting}, the quoted columns), and the dialect spells each once, when it writes the insert.
+ * ({@link NameQuoting}, the quoted columns), and the dialect spells each once, when it writes the insert. A dialect
+ * test since the dialect program's Phase 6 (2026-10-16; until then {@code com.legend.setup}'s): each assertion is a
+ * dialect's spelling.
  */
 class SeedSpellingTest {
 
@@ -88,10 +93,9 @@ class SeedSpellingTest {
     @Test
     void theSeedAndTheQueryNameOneTableAndOneColumn() {
         String csv = String.join("\n", "default", "Orders", "id,Amt,name", "1,10,a");
-        for (String type : List.of("DuckDB", "H2", "Postgres", "SQLite", "MariaDB", "MySQL", "Trino", "ClickHouse",
-                "Snowflake", "Databricks", "BigQuery")) {
-            ModelContext ctx = Compiler.compileModel(MODEL.replace("TYPE", type));
-            SqlDialect d = com.legend.database.Databases.dialect(com.legend.database.Databases.named(type));
+        for (DatabaseType type : Databases.implemented()) {
+            ModelContext ctx = Compiler.compileModel(MODEL.replace("TYPE", type.name()));
+            SqlDialect d = Databases.dialect(type);
             String table = d.storedName("Orders", true);
             String amt = d.storedName("Amt", true);
             List<String> seed = CsvSeed.steps(csv, "q::DB", ctx, d).stream().map(s -> s.text(d)).toList();

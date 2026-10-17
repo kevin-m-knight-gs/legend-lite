@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (keyword column quoting, {@code CURRENT_TIMESTAMP()}), any other run as
  * written.
  */
-class ExecuteInDbTest {
+class ExecuteInDbDuckDbTest {
 
     /** The database each test's session runs on. */
     private static final DatabaseType SESSION = DatabaseType.DuckDB;

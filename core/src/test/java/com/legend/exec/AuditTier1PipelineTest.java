@@ -3,7 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
@@ -14,7 +15,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -39,13 +39,13 @@ class AuditTier1PipelineTest {
 
     private static final String CONN_LET =
             "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
-                    + "type=meta::relational::runtime::DatabaseType.DuckDB);\n";
+                    + "type=meta::relational::runtime::DatabaseType." + Databases.PLATFORM.name() + ");\n";
 
     private static Connection conn;
 
     @BeforeAll
     static void open() throws Exception {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
     }
 
     @AfterAll
@@ -56,7 +56,7 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("B: a NULL grid cell through ->toString() is EMPTY, not the text \"null\"")
     void nullCellToStringIsEmpty() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select null as X', $c, 0, 1000)"
                 + ".rows->at(0).value('X')->toString();}", StorelessRuntime.RUNTIME, conn);
@@ -68,7 +68,7 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("B control: a real cell through ->toString() still reads its text")
     void realCellToStringReads() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select \\'hi\\' as X', $c, 0, 1000)"
                 + ".rows->at(0).value('X')->toString();}", StorelessRuntime.RUNTIME, conn);
@@ -82,7 +82,7 @@ class AuditTier1PipelineTest {
         // in the emitted SQL (tenet #1 — the database raises, with
         // pure's own message), replacing the old egress-side wall.
         Exception e = assertThrows(Exception.class,
-                () -> Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+                () -> Execution.execute(StorelessRuntime.with("", Databases.PLATFORM),
                         "{|[1, 2, 3]->filter(x | $x > 10)->toOneMany();}", StorelessRuntime.RUNTIME,
                         conn));
         assertTrue(String.valueOf(e.getMessage())
@@ -94,7 +94,7 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("F control: a satisfied [1..*] collection still flows")
     void satisfiedLowerBoundFlows() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM),
                 "{|[1, 2, 3]->filter(x | $x > 2)->toOneMany();}", StorelessRuntime.RUNTIME, conn);
         java.util.List<Object> values =
                 ((ExecutionResult.Collection) r).values();

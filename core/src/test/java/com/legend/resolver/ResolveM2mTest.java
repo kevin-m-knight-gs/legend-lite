@@ -1,5 +1,6 @@
 package com.legend.resolver;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.compiler.NameResolver;
@@ -8,14 +9,12 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.ExecutionResult;
 import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
-import com.legend.sql.dialect.DuckDb;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -60,7 +59,7 @@ class ResolveM2mTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE R (FIRST VARCHAR, LAST VARCHAR, AGE INTEGER)");
             st.execute("INSERT INTO R VALUES ('Ann', 'Ash', 30), ('Bob', 'Bay', 40)");
@@ -78,7 +77,7 @@ class ResolveM2mTest {
         List<TypedSpec> body = specs.typeQueryBody(
                 NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, "m::RT");
-        return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
+        return TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
     }
 
     private List<String> exec(String sql) throws SQLException {
@@ -145,7 +144,7 @@ class ResolveM2mTest {
         List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(
                 com.legend.testing.Own.spec("m::Person.all()->project(~[full: p|$p.fullName])")));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, "m::RT");
-        String sql = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
+        String sql = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
         assertEquals(1, count(sql, "SELECT"), sql);
         assertEquals(List.of("Bob Bay"), exec(sql),
                 "the mapping's ~filter composes through the upstream bindings");
@@ -172,7 +171,7 @@ class ResolveM2mTest {
                 Runtime m::RT1 { mappings: [m::M2M, m::BaseA]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
                 Runtime m::RT2 { mappings: [m::M2M, m::BaseB]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
                 """;
-        try (java.sql.Connection c = java.sql.DriverManager.getConnection("jdbc:duckdb:")) {
+        try (java.sql.Connection c = TestBackends.platform().open()) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE A (NAME VARCHAR)");
                 st.execute("INSERT INTO A VALUES ('fromA')");
@@ -184,9 +183,9 @@ class ResolveM2mTest {
             StoreResolver one = new StoreResolver(ctx, specs);
             String q = "m::Person.all()->project(~[l: p|$p.label])";
             var b1 = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(q)));
-            String sql1 = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(one.resolve(b1, "m::RT1")));
+            String sql1 = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(one.resolve(b1, "m::RT1")));
             var b2 = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(q)));
-            String sql2 = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(one.resolve(b2, "m::RT2")));
+            String sql2 = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(one.resolve(b2, "m::RT2")));
             assertTrue(sql1.contains("FROM A"), sql1);
             assertTrue(sql2.contains("FROM B"),
                     "the SAME resolver instance under a different runtime must"

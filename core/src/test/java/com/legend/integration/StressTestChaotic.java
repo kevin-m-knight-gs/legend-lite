@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -40,7 +41,7 @@ class StressTestChaotic {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
     }
 
     @AfterEach
@@ -330,7 +331,7 @@ class StressTestChaotic {
         System.out.println("Implied build cost:  " + Math.max(0, compileMs - parseOnlyMs) + " ms");
         System.out.println("Parse fraction:      " + (compileMs > 0 ? (100 * parseOnlyMs / compileMs) + "%" : "N/A"));
 
-        var dialect = new com.legend.sql.dialect.DuckDb();
+        var dialect = TestBackends.platform().dialect();
 
         // ---- 200 chaotic queries ----
         var queries = new ArrayList<String>(NUM_QUERIES);

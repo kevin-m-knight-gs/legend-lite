@@ -3,12 +3,13 @@
 
 package com.legend.test;
 
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
-import java.sql.DriverManager;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,7 +50,7 @@ class PureTestRunnerTest {
     void discoversAndRunsAUsersTests() throws Exception {
         Compiler.ParsedModule parsed = Compiler.parseSources(
                 List.of(new Compiler.ModelSource("t.pure", MODEL), new Compiler.ModelSource("storeless.pure",
-                        com.legend.test.StorelessRuntime.declaration(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB))));
+                        com.legend.test.StorelessRuntime.declaration(Databases.PLATFORM))));
         ModelContext ctx = Compiler.buildModule(parsed.model()).context();
         PureTests.Discovery found = PureTests.discover(parsed.model(), Set.of());
         assertEquals(List.of("t::fails", "t::later", "t::passes"),
@@ -59,7 +60,7 @@ class PureTestRunnerTest {
                 "ToFix is REPORTED, and the caller (here: the runnable view) skips it");
         assertEquals(Map.of("t", List.of("t::setUp")), found.setupsByPackage());
         try (PureTestRunner runner = new PureTestRunner(ctx, com.legend.test.StorelessRuntime.RUNTIME,
-                () -> DriverManager.getConnection("jdbc:duckdb:"),
+                () -> TestBackends.platform().open(),
                 List.of(), found.setupsByPackage(), TestObserver.NONE)) {
             PureTestRunner.Result fails = runner.run(found.runnable().get(0));
             PureTestRunner.Result passes = runner.run(found.runnable().get(1));
