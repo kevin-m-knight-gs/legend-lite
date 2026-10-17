@@ -565,3 +565,11 @@ The user asked for real queries that push the island hard. Their corpora, data a
     lite's range check, where IQ answers (both D-N3).
   - An uncorrelated scalar subquery of many rows over an empty outer side: IQ never computes it, DuckDB raises.
   - CAST of a column string to REAL or DOUBLE (26 JOB queries): IQ's string-to-float rules, not measured.
+  - A / IQ's engine types at a scale no one step holds: TPC-H's Q8 and Q14 (SUM / SUM of NUMERIC(32,4)s, scale 33),
+    and about 50 corpus queries. The long division works, with the divisor bound to 18 digits and refused past them
+    at run time, but its plan repeats each chunk's rest. It is 91,571 nodes even with one-estimate chunks, past the
+    20,000-node limit. It needs intermediate values bound once (columns computed before the projection, as
+    `Windowing.computed` does for windows), which the translator's select items do not have yet.
+- **The canonical queries, judged over the data:** TPC-H's 22 give 19 PASS and Q22's -131. Q8 and Q14 are refused
+  (above). TPC-DS's 99 give 62 PASS and 19 matching error codes; 4 differ only in decimal places IQ derives from the
+  data (D-N3: its window SUM is NUMERIC(10,2) over the parity tables, wider over TPC-DS's), and 14 are refused.
