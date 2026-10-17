@@ -840,3 +840,21 @@ tests:
   - id: an_outer_joins_on_subquery_beside_a_condition_of_the_other_side
     sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON t.id > 2 AND u.id = (SELECT MAX(id) FROM u) ORDER BY 1, 2"
     profile: iq17-default
+
+  # ---- a string function's count or position computed in 64 bits, or a BIGINT (IQ island, 2026-10-17; the corpus
+  # lane: SUBSTRING(Tags, 2, LEN(Tags) - 2), measured on IQ 17.1): Postgres's lane narrows it to its 32-bit integer
+  - id: a_substring_of_a_computed_length
+    sql: "SELECT id, SUBSTRING(vc, 2, LEN(vc) - 2) AS a, LEFT(vc, LEN(vc) - 1) AS b, RIGHT(vc, LEN(vc) / 2) AS c FROM t WHERE id <> 5 ORDER BY id"
+    profile: iq17-default
+  - id: a_substring_of_a_computed_position
+    sql: "SELECT id, SUBSTRING(vc, CHARINDEX('l', vc) + 1, 2) AS a, REPEAT('ab', LEN(ch) - 1) AS b FROM t WHERE id <> 5 ORDER BY id"
+    profile: iq17-default
+  - id: a_left_of_a_bigint_count
+    sql: "SELECT id, LEFT(vc, bg) AS a, SUBSTRING(vc, 1, bg) AS b, RIGHT(vc, bg) AS c FROM t WHERE id IN (3, 4, 6) ORDER BY id"
+    profile: iq17-default
+  - id: a_left_of_a_bigint_count_past_32_bits_is_refused
+    sql: "SELECT id, LEFT(vc, bg) AS a FROM t WHERE bg >= 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_substring_of_a_null_count
+    sql: "SELECT id, SUBSTRING(vc, 1, bg) AS a, LEFT(vc, it) AS b FROM t WHERE id = 5"
+    profile: iq17-default

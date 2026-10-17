@@ -304,6 +304,12 @@ public final class IqParser {
             throw SqlSyntaxException.unsupported("a second statement, after a separator (;), is not read in an"
                     + " #IQ{...}# island", peek().pos());
         }
+        if (peek().isWord("select") || peek().isWord("with")) {
+            // IQ island, 2026-10-17 (the corpus lane: 108 of SEDE's queries, 85 of them IQ answers): IQ reads a
+            // statement after another without a separator as a batch's next one, as T-SQL does
+            throw SqlSyntaxException.unsupported("a second statement, after the first without a separator, is not"
+                    + " read in an #IQ{...}# island: IQ runs it as a batch's next statement", peek().pos());
+        }
         return query;
     }
 

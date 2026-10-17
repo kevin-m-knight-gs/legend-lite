@@ -227,7 +227,7 @@ public final class Postgres extends AnsiSqlRenderer {
 
     /** The portable carrier strategies (static pivot, as-of emulation; FULL OUTER
      * stays native), the substring start clamp (Postgres counts empties before 1,
-     * like DuckDB), averages delivered as DOUBLE ({@code avg(int)} is numeric here),
+     * like DuckDB), string functions' 64-bit counts as its 32-bit integer, averages delivered as DOUBLE ({@code avg(int)} is numeric here),
      * QUALIFY as a wrapping subselect (Postgres has no QUALIFY), and a constant GROUP BY or
      * ORDER BY key as a typed expression (Postgres reads a bare one as a position, or refuses
      * it). */
@@ -236,7 +236,8 @@ public final class Postgres extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS),
                 new StarExceptToColumns(),
                 new WholePartitionOrderedSets(),
-                new SubstringClamp(), new AggregatesDeliverDouble(DOUBLE_AGGREGATES), new QualifyToSubselect(true),
+                new SubstringClamp(), new StringCountsAsInt(), new AggregatesDeliverDouble(DOUBLE_AGGREGATES),
+                new QualifyToSubselect(true),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 

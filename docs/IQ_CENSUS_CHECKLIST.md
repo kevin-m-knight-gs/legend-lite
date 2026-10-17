@@ -110,6 +110,7 @@ Measured on the live IQ 17.1 and built (parity cases: `lite/corpus_gaps.yaml`):
 - DATALENGTH: a string's bytes, and a column's storage width under IQ's engine;
 - a table's `WITH (NOLOCK)` and `WITH (READUNCOMMITTED)`, read and dropped. After a derived table or a FROM function a hint is IQ's -131;
 - a constant date string beside a DATE or a TIMESTAMP in COALESCE, ISNULL or CASE, read as one. `COALESCE(ts, '1900-01-01')` is a TIMESTAMP.
+- a string function's count or position computed in 64 bits or a BIGINT (2026-10-17, 23 queries, `SUBSTRING(Tags, 2, LEN(Tags) - 2)`): read. Postgres's dialect narrows it to the 32-bit integer its substr, left, right, repeat, lpad and rpad take (`StringCountsAsInt`). A value past 32 bits is refused by name where the row computes it: IQ raises for a computed one and gives `''` for a BIGINT column's extremes. CHAR of a computed code stays refused (DuckDB's chr).
 - a year alone, or a year and a month, as a date (2026-10-17): the month's first day. `'2010'`, `'2010-05'`, `'2010/5'`, `'2010 May'` and `'May 2010'` are read in comparisons, CAST and CONVERT, with a time after them or not.
 
 Measured to be IQ's own errors, raised or named by the island:
@@ -138,7 +139,7 @@ Open, ranked by the corpora:
     database compute it for every row first. Both lanes answer every measured case.
   - Postgres differs: it computes a cheap item (a division) for every row before its sort, so the Postgres island
     keeps that order;
-- the outer join ON shapes IQ reads but DuckDB cannot plan: a subquery in a RIGHT JOIN's ON (refused by name); an uncorrelated scalar subquery in a LEFT JOIN's ON beside a column's condition (`ON u.t_id > 0 AND u.id = (SELECT MAX(id) FROM u)`: DuckDB's error, Postgres answers; no corpus query). The fix is to apply such a conjunct, which reads the null-supplying side alone, as a filter of that side before the join. SQLStorm's 6 queries once listed here are IQ's -1001047 (above);
+- the outer join ON shapes IQ reads but DuckDB cannot plan: a subquery in a RIGHT JOIN's ON (refused by name). Built 2026-10-17: a LEFT JOIN's ON conjunct holding a scalar subquery and reading the null-supplying side alone (`ON u.t_id > 0 AND u.id = (SELECT MAX(id) FROM u)`) filters that side before the join in DuckDB's dialect (`OuterJoinSubqueryFilters`), which DuckDB cannot plan otherwise. SQLStorm's 6 queries once listed here are IQ's -1001047 (above);
 - CROSS APPLY (676), which this round measured only as IQ's internal error on one correlated shape (2.16c).
 
 ### Phase 2: the answers judged (2026-10-16)

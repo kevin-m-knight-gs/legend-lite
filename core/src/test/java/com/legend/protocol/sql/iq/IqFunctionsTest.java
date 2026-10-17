@@ -184,13 +184,17 @@ class IqFunctionsTest {
     }
 
     @Test
-    void countsLiteSComputesIn64BitsAreRefusedByName() {
-        // Postgres's substr, left, right, repeat and chr take a 32-bit integer
+    void countsLiteComputesIn64BitsAreReadAndCheckedAtRunTime() {
+        // IQ island, 2026-10-17 (the corpus lane; measured on IQ 17.1): a count or a position computed in 64 bits, or
+        // a BIGINT, is read; one past 32 bits is refused by name where the row computes it (IQ is not consistent
+        // there), and Postgres's dialect narrows it to its substr's, left's, right's and repeat's 32-bit integer
         for (String sql : List.of("SELECT SUBSTRING(vc, bg, 1) AS s FROM " + T,
                 "SELECT LEFT(vc, sm + 1) AS s FROM " + T, "SELECT REPEAT(vc, id * 2) AS s FROM " + T,
                 "SELECT LEFT('abc', row_num) AS s FROM sa_rowgenerator(1, 3)")) {
-            assertTrue(refusal(sql).getMessage().contains("32-bit"), sql);
+            assertFalse(pure(sql).isEmpty(), sql);
         }
+        assertTrue(pure("SELECT SUBSTRING(vc, bg, 1) AS s FROM " + T).contains("past 32 bits"));
+        // DuckDB's chr takes a 32-bit integer: a computed code stays refused
         assertTrue(refusal("SELECT CHAR(sm + 1) AS c FROM " + T).getMessage().contains("chr"));
         assertTrue(refusal("SELECT CHAR(sm) AS c FROM " + T).getMessage().contains("NUL"));
     }

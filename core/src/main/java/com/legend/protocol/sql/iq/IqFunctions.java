@@ -4248,10 +4248,13 @@ final class IqFunctions {
     }
 
     /**
-     * A count or a position argument: an integer that lite's SQL computes in 32 bits (a SMALLINT, an INTEGER, a BIT, a
-     * constant), or a NULL. A BIGINT, or an integer the translation computes in 64 bits, is refused by name: Postgres's
-     * substr, left, right, repeat and chr take a 32-bit integer, and lite's lowering does not cast one to it yet. A
-     * value IQ converts (a NUMERIC truncated, a string read) is refused too.
+     * A count or a position argument: an integer (a SMALLINT, an INTEGER, a BIGINT, a BIT, a constant, one computed in
+     * 64 bits), or a NULL. IQ island, 2026-10-17 (the corpus lane: 23 queries, {@code SUBSTRING(Tags, 2, LEN(Tags) -
+     * 2)}; measured on IQ 17.1): IQ takes a 32-bit one. Past its range IQ is not consistent -- a constant's or a
+     * computed value's is its error (-1009145 under its engine, -1001014 in SUBSTRING, -158 in its front end), a BIGINT
+     * column's extremes give '' -- so the island refuses such a value by name where the row computes it. Postgres's
+     * string functions take a 32-bit integer too, which its dialect narrows a 64-bit one to
+     * ({@code StringCountsAsInt}). A value IQ converts (a NUMERIC truncated, a string read) is refused.
      */
     private Tx count(Tx t, SqlAst.Expr e, String fn) {
         if (t.kind() == Kind.NULL) {
@@ -4259,9 +4262,13 @@ final class IqFunctions {
         }
         if (t.kind() == Kind.INTEGER && t.detail() instanceof IqType type && type.isInteger()) {
             if (type.family().equals("BIGINT") || type.wide() && !type.exact()) {
-                throw SqlTranslationException.unsupported(fn + " with a count or position that is a BIGINT, or"
-                        + " computed in 64 bits, is not supported yet: Postgres's string functions take a 32-bit"
-                        + " integer, which lite's lowering does not cast to yet", e.pos());
+                String past = IqDialect.REFUSED_AT_RUN_TIME + fn + " with a count or position past 32 bits is not"
+                        + " supported: IQ raises its error for a computed one, and reads a BIGINT column's otherwise";
+                Tx checked = SqlToPure.strict(Kind.INTEGER, List.of(t), v -> refusedPast(SqlToPure.call("or",
+                        SqlToPure.call("greaterThan", v.get(0), integer(Integer.MAX_VALUE)), SqlToPure.call("lessThan",
+                        v.get(0), integer(Integer.MIN_VALUE))), past, v.get(0), IqDialect.raise()));
+                return Tx.value(checked.vs(), Kind.INTEGER, checked.nullable(), IqType.integer("INTEGER",
+                        BigInteger.valueOf(Integer.MIN_VALUE), BigInteger.valueOf(Integer.MAX_VALUE), false));
             }
             return t;
         }
