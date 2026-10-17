@@ -126,7 +126,10 @@ final class DatabaseOwners {
         if (EVERY.stream().anyMatch(rel::startsWith)) {
             return new Owner(Kind.EVERY, DATABASES.keySet());
         }
-        if (rel.startsWith(MAIN + "sql/dialect/") || rel.startsWith("core/src/main/duckdb/")) {
+        // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12): the MongoDB connector's source set, beside the drivers as
+        // the DuckDB-only sources are, owns its database as its dialect does
+        if (rel.startsWith(MAIN + "sql/dialect/") || rel.startsWith("core/src/main/duckdb/")
+                || rel.startsWith("core/src/main/mongodb/")) {
             Set<String> own = new LinkedHashSet<>(named(className(rel)));
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
             // the file's own class's parent, read in code (2026-10-15, the audit of the guard: a comment or a nested

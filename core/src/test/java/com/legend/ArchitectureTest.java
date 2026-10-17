@@ -90,7 +90,9 @@ final class ArchitectureTest {
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
             java.util.Map.entry("server_lib", "com.legend.server.QueryService"),
-            java.util.Map.entry("duckdb_load", "com.legend.exec.DuckDbAppenderLoad"));
+            java.util.Map.entry("duckdb_load", "com.legend.exec.DuckDbAppenderLoad"),
+            // MongoDB's connector, beside the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12)
+            java.util.Map.entry("mongodb_connector", "com.legend.exec.MongoDbConnector"));
 
     /**
      * Every rule here judges {@link #CORE_PROD_CLASSES}; a product library missing from it is a library
@@ -652,7 +654,9 @@ final class ArchitectureTest {
      *  H2's only, blind to the nine drivers added since; docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md). */
     private static final String[] JDBC_AND_DRIVERS = {"java.sql..", "javax.sql..", "org.duckdb..", "org.h2..",
             "org.postgresql..", "org.sqlite..", "org.mariadb..", "com.mysql..", "com.clickhouse..", "io.trino..",
-            "net.snowflake..", "com.databricks..", "com.simba..", "com.google.cloud.bigquery.."};
+            "net.snowflake..", "com.databricks..", "com.simba..", "com.google.cloud.bigquery..",
+            // MongoDB's driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a client library, funnelled as a driver
+            "com.mongodb..", "org.bson.."};
 
     @Test
     void javaSqlIsFunnelledToTheCharteredSeam() {

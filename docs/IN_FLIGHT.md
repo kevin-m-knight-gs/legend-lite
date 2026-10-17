@@ -1970,3 +1970,32 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   against its profile (`<<graph.Edgee>>`, undeclared, compiles with zero errors; legend-engine refuses it: "Can't
   find stereotype 'Edgee' in profile 'graph'"), and `docs/LENIENCY_CATALOG.md` does not list the leniency. The
   compiler line's; this line validates the graph profile's own references in its reader (PR3).
+
+## A twelfth line, 2026-10-16: MongoDB as a first-class database (the user's ask, rule 5)
+
+- **The plan**: `docs/MONGODB_PLAN_2026_10_16.md` (the study, the fourteen decisions the user ruled on 2026-10-16, the
+  design, the landings); its §11.1 is the record of what landed. Built to the ninth line's end state (one class per
+  database in `sql/dialect/`, a connector beside the drivers, an embedded server for the lane), so Mongo lands in the
+  program's shape and moves with it.
+- **Files this line owns**: `sql/dialect/MongoDb.java`, `MongoDbPipeline.java`, `MongoJson.java`;
+  `core/src/main/mongodb/` (the connector; `//core:mongodb_connector`); `model/MongoDeclarations.java`;
+  `tools/mongodb/`; `testing/EmbeddedMongoDb.java`; `core/src/test/.../exec/MongoDbPlanTest.java`
+  (`//core:mongodb_plan_test`) and `sql/dialect/MongoDbDialectTest.java`.
+- **Landed on the branch, 2026-10-17 (v0, the plan's §11.1)**: the vocabulary (`DatabaseType.MongoDB`, the engine's
+  `MongoDBConnection` and `###MongoDB` store read into the model), the target, the connector, the embedded server, the
+  seam, and the end-to-end proof on MongoDB 8.0.17; every guard green with dated pins; the capability matrix
+  regenerated with the MongoDb column.
+- **Announced to the ninth line (the dialect program), 2026-10-17 -- its Phase 5's shape, landed for one database
+  first:** `exec/Statements` (what a session does with a plan's text), `exec/JdbcStatements` (the runner's JDBC, moved
+  whole), `exec/DatabaseConnector` and `exec/Connectors` (a connector beside the drivers, found by `ServiceLoader`),
+  `Sessions.Session.statements()`, `PlanRunner` through the session's statements, `PlanSessions.openShared` asking the
+  connectors first. The JDBC databases' sessions are unchanged (their statements are `JdbcStatements` by default); when
+  Phase 5 moves each database's opening into its connector, `Sessions.openingFor`'s switches shrink into
+  `DatabaseConnector` implementations behind the same seam. `DatabaseOwners` counts `core/src/main/mongodb/` as an
+  owner, as it counts `core/src/main/duckdb/`; the leak ledger, `DialectBoundaryTest`, `JdbcSurfaceCensusTest`,
+  `JavaEvalLedgerTest`, `TenetRatchetTest`, `ArchitectureTest` and `CoreClosureTest` carry the dated pins.
+- **Next**: the PCT lane through the plan route (the plan's §6: `PCT_TDS` as a plan output, the bridge through
+  `PlanRunner`; the harness's channel A hands a `java.sql.Connection` today, so no lane is scaffolded that could not
+  run), then the measurements of joins, unions and the ordered aggregates on the server, then the function table's
+  burn-down (the plan's §7 PR3 and PR4).
+

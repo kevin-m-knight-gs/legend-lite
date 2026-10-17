@@ -17,6 +17,7 @@ What each dialect does with each function of the SQL IR. The legend, the method 
 - [SQLite](#sqlite)
 - [MariaDb](#mariadb)
 - [MySql](#mysql)
+- [MongoDb](#mongodb)
 - [EngineStyleH2](#enginestyleh2)
 - [EngineStyleDB2](#enginestyledb2)
 - [EngineStyleComposite](#enginestylecomposite)
@@ -2252,6 +2253,192 @@ Database types planned with it: MySQL.
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` | `as MariaDb` | 1 |
 | `JSON_ARRAY_LENGTH` | spelled | `JSON_LENGTH` | `as MariaDb` | 0 |
 | `JSON_PRETTY` | spelled | `JSON_DETAILED` | `as MariaDb` | 0 |
+
+## MongoDb
+
+Database types planned with it: MongoDB.
+
+| function | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `AND` | emulated | `$and` |  | 0 |
+| `OR` | emulated | `$or` |  | 0 |
+| `NOT` | emulated | `guardedOp: $not` |  | 0 |
+| `EQUAL` | emulated | `guardedOp: $eq` |  | 0 |
+| `NOT_EQUAL` | emulated | `guardedOp: $ne` |  | 0 |
+| `LESS` | emulated | `guardedOp: $lt` |  | 0 |
+| `LESS_EQUAL` | emulated | `guardedOp: $lte` |  | 0 |
+| `GREATER` | emulated | `guardedOp: $gt` |  | 0 |
+| `GREATER_EQUAL` | emulated | `guardedOp: $gte` |  | 0 |
+| `PLUS` | emulated | `$add` |  | 0 |
+| `MINUS` | emulated | `$subtract` |  | 0 |
+| `TIMES` | emulated | `$multiply` |  | 0 |
+| `DIVIDE` | emulated | `$divide` |  | 0 |
+| `MOD` | emulated | `flooredMod` |  | 0 |
+| `REM` | emulated | `$mod` |  | 0 |
+| `NEGATE` | emulated | `negated` |  | 0 |
+| `ABS` | emulated | `op1: $abs` |  | 0 |
+| `IS_NULL` | emulated | `nullTest: $eq` |  | 0 |
+| `IS_NOT_NULL` | emulated | `nullTest: $ne` |  | 0 |
+| `IN` | emulated | `inList` |  | 0 |
+| `COALESCE` | emulated | `coalesce` |  | 0 |
+| `PARSE_INT` | emulated | `op1: $toLong` |  | 0 |
+| `CONCAT` | emulated | `concatSkippingNull` |  | 0 |
+| `LENGTH` | emulated | `length` |  | 0 |
+| `UPPER` | emulated | `guardedOp: $toUpper` |  | 0 |
+| `LOWER` | emulated | `guardedOp: $toLower` |  | 0 |
+| `GREATEST` | emulated | `$max` |  | 0 |
+| `LEAST` | emulated | `$min` |  | 0 |
+| `CONCAT_JOIN` | emulated | `$concat` |  | 0 |
+| `LIST_FILTER` | emulated | `listFilter` |  | 0 |
+| `LIST_TRANSFORM` | emulated | `listMap` |  | 0 |
+| `LIST_CONCAT` | emulated | `$concatArrays` |  | 0 |
+| `LIST_GET` | emulated | `{"$arrayElemAt": […, {"$subtract": […, 1]}]}` |  | 0 |
+| `LIST_POSITION` | emulated | `listPosition` |  | 0 |
+| `LIST_EXISTS` | emulated | `listExists` |  | 0 |
+| `LIST_FOR_ALL` | emulated | `listForAll` |  | 0 |
+| `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
+| `UNNEST` | refused | `an unnest reached MongoDb in expression position: an $unwind stage is not placed yet` | `via MongoDb.unnestProjection` | 0 |
+| `LIST_FLATTEN` | emulated | `{"$reduce": {"input": …, "initialValue": [], "in": {"$concatArrays": [, ]}}}` |  | 0 |
+| `JSON_MERGE_PATCH` | emulated | `mergePatch` |  | 0 |
+| `SQRT` | emulated | `op1: $sqrt` |  | 0 |
+| `CBRT` | emulated | `cubeRoot` |  | 0 |
+| `EXP` | emulated | `op1: $exp` |  | 0 |
+| `LN` | emulated | `op1: $ln` |  | 0 |
+| `LOG10` | emulated | `op1: $log10` |  | 0 |
+| `POW` | emulated | `$pow` |  | 0 |
+| `PI` | emulated | `{"$numberDouble": "3.141592653589793"}` |  | 0 |
+| `SIN` | emulated | `op1: $sin` |  | 0 |
+| `COS` | emulated | `op1: $cos` |  | 0 |
+| `TAN` | emulated | `op1: $tan` |  | 0 |
+| `ASIN` | emulated | `domainGuarded: $asin` |  | 0 |
+| `ACOS` | emulated | `domainGuarded: $acos` |  | 0 |
+| `ATAN` | emulated | `op1: $atan` |  | 0 |
+| `ATAN2` | emulated | `$atan2` |  | 0 |
+| `SINH` | emulated | `op1: $sinh` |  | 0 |
+| `COSH` | emulated | `op1: $cosh` |  | 0 |
+| `TANH` | emulated | `op1: $tanh` |  | 0 |
+| `CEILING` | emulated | `longOf: $ceil` |  | 0 |
+| `FLOOR` | emulated | `longOf: $floor` |  | 0 |
+| `ROUND` | emulated | `roundHalfEven` |  | 0 |
+| `SIGN` | emulated | `sign` |  | 0 |
+| `XOR` | emulated | `guardedOp: $ne` |  | 0 |
+| `BIT_AND` | emulated | `$bitAnd` | `via MongoDb.bitOp` | 0 |
+| `BIT_OR` | emulated | `$bitOr` | `via MongoDb.bitOp` | 0 |
+| `BIT_XOR` | emulated | `$bitXor` | `via MongoDb.bitOp` | 0 |
+| `BIT_SHIFT_LEFT` | refused | `reached MongoDb, which has no bit-shift operator` | `via MongoDb.bitOp` | 0 |
+| `BIT_SHIFT_RIGHT` | refused | `reached MongoDb, which has no bit-shift operator` | `via MongoDb.bitOp` | 0 |
+| `BIT_NOT` | emulated | `op1: $bitNot` |  | 0 |
+| `REGEXP_EXTRACT` | emulated | `regexExtract` |  | 0 |
+| `REGEXP_EXTRACT_ALL` | emulated | `regexExtractAll` |  | 0 |
+| `REGEXP_REPLACE` | refused | `a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)` |  | 0 |
+| `REGEXP_FULL_MATCH` | emulated | `regexMatch` |  | 0 |
+| `MAP_FROM_LISTS` | emulated | `{"$arrayToObject": {"$zip": {"inputs": […]}}}` |  | 0 |
+| `MAP_FROM_ENTRIES` | refused | `a map from entries reached MongoDb: the entry shape is not mapped yet` |  | 0 |
+| `MAP_EMPTY` | emulated | `{"$literal": {}}` |  | 0 |
+| `MAP_EXTRACT` | emulated | `mapExtract` |  | 0 |
+| `MAP_KEYS` | emulated | `mapSide: k` |  | 0 |
+| `MAP_VALUES` | emulated | `mapSide: v` |  | 0 |
+| `MAP_CONCAT` | emulated | `$mergeObjects` |  | 0 |
+| `SUBSTRING` | emulated | `substring` |  | 0 |
+| `STRPOS` | emulated | `guarded: {"$add": [{"$indexOfCP": [, , , ]}, 1]}` |  | 0 |
+| `STARTS_WITH` | emulated | `guarded: {"$eq": [{"$indexOfCP": [, , , ]}, 0]}` |  | 0 |
+| `ENDS_WITH` | emulated | `endsWith` |  | 0 |
+| `MATCHES` | emulated | `regexMatch` |  | 0 |
+| `LEFT` | emulated | `guarded: {"$substrCP": [, , 0, {"$max":,  [0, {"$min": [, , {"$strLenCP": , }]}]}]}` |  | 0 |
+| `RIGHT` | emulated | `rightChars` |  | 0 |
+| `LPAD` | emulated | `pad` |  | 0 |
+| `RPAD` | emulated | `pad` |  | 0 |
+| `TRIM` | emulated | `trim: $trim` |  | 0 |
+| `LTRIM` | emulated | `trim: $ltrim` |  | 0 |
+| `RTRIM` | emulated | `trim: $rtrim` |  | 0 |
+| `REPLACE` | emulated | `replace` |  | 0 |
+| `SPLIT` | emulated | `$split` |  | 0 |
+| `SPLIT_PART` | emulated | `splitPart` |  | 0 |
+| `TRANSLATE` | refused | `translate reached MongoDb, which has no character-map operator` |  | 0 |
+| `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 0 |
+| `REVERSE_STRING` | emulated | `guarded: {"$reduce": {"input":,  {"$range": [0, {"$strLenCP": , }]}, "initialValue": "", "in":,  {"$concat": [{"$substrCP": [, , , , 1]}, , ]}}}` |  | 0 |
+| `ASCII_CODE` | refused | `ascii reached MongoDb, which has no character-code operator` |  | 0 |
+| `CHR` | refused | `char reached MongoDb, which has no code-to-character operator` |  | 0 |
+| `UC_FIRST` | emulated | `firstCased: $toUpper` |  | 0 |
+| `LC_FIRST` | emulated | `firstCased: $toLower` |  | 0 |
+| `ENCODE_BASE64` | refused | `reached MongoDb, which has no base64 operator` |  | 0 |
+| `LEVENSHTEIN` | refused | `reached MongoDb, which has no string-distance operator` |  | 0 |
+| `GUID` | refused | `generateGuid reached MongoDb, whose pipeline has no uuid operator` |  | 0 |
+| `FORMAT` | refused | `format reached MongoDb, which has no printf operator` |  | 0 |
+| `HASH` | refused | `hashCode reached MongoDb: its hashed index key is not Pure's hash` | `via MongoDb.hashSigned` | 0 |
+| `MD5` | refused | `reached MongoDb, which has no digest operator` |  | 0 |
+| `SHA1` | refused | `reached MongoDb, which has no digest operator` |  | 0 |
+| `SHA256` | refused | `reached MongoDb, which has no digest operator` |  | 0 |
+| `EXTRACT` | emulated | `extract` |  | 0 |
+| `TODAY` | emulated | `{"$dateTrunc": {"date": "$$NOW", "unit": "day"}}` |  | 0 |
+| `NOW` | emulated | `"$$NOW"` |  | 0 |
+| `DATE_TRUNC_DAY` | emulated | `dateTrunc` |  | 0 |
+| `MAKE_DATE` | emulated | `dateFromParts` |  | 0 |
+| `MAKE_TIMESTAMP` | emulated | `dateFromParts` |  | 0 |
+| `DATE_TRUNC` | emulated | `dateTrunc` |  | 0 |
+| `ADD_INTERVAL` | emulated | `dateAdd` |  | 0 |
+| `DATE_DIFF` | emulated | `dateDiff` |  | 0 |
+| `TIME_BUCKET` | refused | `timeBucket reached MongoDb: $dateTrunc's bin size is not mapped to the engine's bucket origin yet` |  | 0 |
+| `TIMEZONE` | refused | `a time zone conversion reached MongoDb: not shaped yet` |  | 0 |
+| `DATE_AT_TIME` | refused | `a date at a time of day reached MongoDb, which has no time type` |  | 0 |
+| `EPOCH_NS` | refused | `reached MongoDb, whose date holds milliseconds` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `reached MongoDb, whose date holds milliseconds` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `dateAdd` |  | 0 |
+| `EPOCH_SECONDS` | emulated | `{"$divide": [{"$toLong": …}, 1000]}` |  | 0 |
+| `EPOCH_MS` | emulated | `op1: $toLong` |  | 0 |
+| `FROM_EPOCH_SECONDS` | emulated | `{"$toDate": {"$multiply": […, 1000]}}` |  | 0 |
+| `FROM_EPOCH_MS` | emulated | `op1: $toDate` |  | 0 |
+| `DAYNAME` | emulated | `calendarName: $dayOfWeek` |  | 0 |
+| `MONTHNAME` | emulated | `calendarName: $month` |  | 0 |
+| `COT` | emulated | `cotangent` |  | 0 |
+| `RADIANS` | emulated | `op1: $degreesToRadians` |  | 0 |
+| `DEGREES` | emulated | `op1: $radiansToDegrees` |  | 0 |
+| `INT_DIVIDE` | emulated | `intDivide` |  | 0 |
+| `REPEAT_STR` | emulated | `guarded: {"$reduce": {"input": {"$range":,  [0, {"$max": [0, , ]}]}, "initialValue": "", "in": {"$concat": [, , , ]}}}` |  | 0 |
+| `JARO_WINKLER` | refused | `reached MongoDb, which has no string-distance operator` |  | 0 |
+| `DECODE_BASE64` | refused | `reached MongoDb, which has no base64 operator` |  | 0 |
+| `CURRENT_USER_FN` | refused | `currentUserId reached MongoDb, whose pipeline names no user` |  | 0 |
+| `LIST_LENGTH` | emulated | `guardedOp: $size` |  | 0 |
+| `LIST_ZIP` | emulated | `{"$zip": {"inputs": […]}}` | `via MongoDb.listCall` | 0 |
+| `LIST_DISTINCT` | emulated | `{"$setUnion": […]}` | `via MongoDb.listCall` | 0 |
+| `LIST_APPEND` | emulated | `{"$concatArrays": […, […]]}` | `via MongoDb.listCall` | 0 |
+| `LIST_SUM` | emulated | `op1: $sum` | `via MongoDb.listCall` | 0 |
+| `LIST_MIN` | emulated | `op1: $min` | `via MongoDb.listCall` | 0 |
+| `LIST_MAX` | emulated | `op1: $max` | `via MongoDb.listCall` | 0 |
+| `LIST_AVG` | emulated | `op1: $avg` | `via MongoDb.listCall` | 0 |
+| `LIST_MEDIAN` | emulated | `arrayReduction` | `via MongoDb.listCall` | 0 |
+| `LIST_MODE` | refused | `a list's mode reached MongoDb: not shaped yet` | `via MongoDb.listCall` | 0 |
+| `LIST_SORT` | emulated | `{"$sortArray": {"input": …, "sortBy": 1}}` | `via MongoDb.listCall` | 0 |
+| `LIST_SORT_DESC` | emulated | `{"$sortArray": {"input": …, "sortBy": -1}}` | `via MongoDb.listCall` | 0 |
+| `LIST_TAIL` | emulated | `guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 1, {"$subtract": [{"$size": , }, 1]}]}, []]}` | `via MongoDb.listCall` | 0 |
+| `LIST_INIT` | emulated | `guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 0, {"$subtract": [{"$size": , }, 1]}]}, []]}` | `via MongoDb.listCall` | 0 |
+| `RANGE_FN` | emulated | `$range` | `via MongoDb.listCall` | 0 |
+| `LIST_PRODUCT` | emulated | `{"$reduce": {"input": …, "initialValue": 1, "in": {"$multiply": [, ]}}}` | `via MongoDb.listCall` | 0 |
+| `LIST_REDUCE` | emulated | `listReduce` | `via MongoDb.listCall` | 0 |
+| `LIST_SLICE` | refused | `a list slice reached MongoDb: its bounds are not mapped yet` | `via MongoDb.listCall` | 0 |
+| `REPEAT_VALUE` | emulated | `{"$map": {"input": {"$range": [0, …]}, "in": …}}` | `via MongoDb.listCall` | 0 |
+| `LIST_BOOL_AND` | emulated | `{"$allElementsTrue": […]}` | `via MongoDb.listCall` | 0 |
+| `LIST_BOOL_OR` | emulated | `{"$anyElementTrue": […]}` | `via MongoDb.listCall` | 0 |
+| `IS_DISTINCT_FROM` | emulated | `$ne` |  | 0 |
+| `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
+| `NULL_SAFE_EQUAL` | emulated | `$eq` |  | 0 |
+| `NULL_SAFE_NOT_EQUAL` | emulated | `$ne` |  | 0 |
+| `STRFTIME` | emulated | `{"$dateToString": {"date": …, "format": …}}` |  | 0 |
+| `STRPTIME` | emulated | `{"$dateFromString": {"dateString": …, "format": …}}` |  | 0 |
+| `PARSE_DATE` | emulated | `{"$dateFromString": {"dateString": …}}` |  | 0 |
+| `LIST_REVERSE` | emulated | `op1: $reverseArray` | `via MongoDb.listCall` | 0 |
+| `TYPEOF` | emulated | `op1: $type` | `via MongoDb.listCall` | 0 |
+| `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 0 |
+| `ERROR` | emulated | `raise` |  | 0 |
+| `FLOOR_RAW` | emulated | `op1: $floor` |  | 0 |
+| `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |
+| `BOOL_TO_TEXT` | emulated | `op1: $toString` |  | 0 |
+| `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
+| `VARIANT_GET` | emulated | `variantGet` |  | 0 |
+| `JSON_TYPE` | emulated | `jsonType` |  | 0 |
+| `JSON_ARRAY_LENGTH` | emulated | `guardedOp: $size` |  | 0 |
+| `JSON_PRETTY` | refused | `a pretty-printed JSON text reached MongoDb, which has no JSON text operator` |  | 0 |
 
 ## EngineStyleH2
 

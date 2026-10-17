@@ -59,6 +59,8 @@ public final class Databases {
             case Trino -> new com.legend.sql.dialect.Trino();
             // docs/CLOUD_BACKENDS_PCT_2026_10_11.md §19
             case ClickHouse -> new com.legend.sql.dialect.ClickHouse();
+            // docs/MONGODB_PLAN_2026_10_16.md (D1, D2): the aggregation pipeline as the one compiler's target
+            case MongoDB -> new com.legend.sql.dialect.MongoDb();
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto,
                  Redshift, Spanner, Athena, Oracle, Aurora ->
                     throw new com.legend.error.NotImplementedException(
@@ -72,7 +74,8 @@ public final class Databases {
     public static com.legend.executionplan.ExecutionPlan.Servers servers(DatabaseType type) {
         return switch (type) {
             case H2 -> new com.legend.executionplan.ExecutionPlan.Servers.Versions(com.legend.sql.dialect.H2.SERVERS);
-            case DuckDB, Postgres, SQLite, Databricks, Snowflake, BigQuery, MariaDB, MySQL, Trino, ClickHouse ->
+            case DuckDB, Postgres, SQLite, Databricks, Snowflake, BigQuery, MariaDB, MySQL, Trino, ClickHouse,
+                 MongoDB ->
                     new com.legend.executionplan.ExecutionPlan.Servers.Every();
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto,
                  Redshift, Spanner, Athena, Oracle, Aurora ->
@@ -87,7 +90,7 @@ public final class Databases {
     public static boolean loadsRowsInBulk(DatabaseType type) {
         return switch (type) {
             case DuckDB -> true;
-            case H2, Postgres, SQLite, Databricks, Snowflake, BigQuery, MariaDB, MySQL, Trino, ClickHouse -> false;
+            case H2, Postgres, SQLite, Databricks, Snowflake, BigQuery, MariaDB, MySQL, Trino, ClickHouse, MongoDB -> false;
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto,
                  Redshift, Spanner, Athena, Oracle, Aurora ->
                     throw new com.legend.error.NotImplementedException(
@@ -104,7 +107,8 @@ public final class Databases {
         return switch (type) {
             case DB2 -> new InListTempTables("SESSION.tempTableForIn_", 32767);
             case H2, DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto,
-                 Trino, BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL ->
+                 Trino, BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL,
+                 MongoDB ->
                     new InListTempTables("tempTableForIn_", null);
         };
     }

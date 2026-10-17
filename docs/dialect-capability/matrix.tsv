@@ -2630,6 +2630,225 @@ MySql	MySQL	reducer	LEAD	not_here	is a window function: windowCall writes it	as 
 MySql	MySQL	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it	as MariaDb	0
 MySql	MySQL	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it	as MariaDb	0
 MySql	MySQL	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it	as MariaDb	0
+MongoDb	MongoDB	call	AND	emulated	$and		0
+MongoDb	MongoDB	call	OR	emulated	$or		0
+MongoDb	MongoDB	call	NOT	emulated	guardedOp: $not		0
+MongoDb	MongoDB	call	EQUAL	emulated	guardedOp: $eq		0
+MongoDb	MongoDB	call	NOT_EQUAL	emulated	guardedOp: $ne		0
+MongoDb	MongoDB	call	LESS	emulated	guardedOp: $lt		0
+MongoDb	MongoDB	call	LESS_EQUAL	emulated	guardedOp: $lte		0
+MongoDb	MongoDB	call	GREATER	emulated	guardedOp: $gt		0
+MongoDb	MongoDB	call	GREATER_EQUAL	emulated	guardedOp: $gte		0
+MongoDb	MongoDB	call	PLUS	emulated	$add		0
+MongoDb	MongoDB	call	MINUS	emulated	$subtract		0
+MongoDb	MongoDB	call	TIMES	emulated	$multiply		0
+MongoDb	MongoDB	call	DIVIDE	emulated	$divide		0
+MongoDb	MongoDB	call	MOD	emulated	flooredMod		0
+MongoDb	MongoDB	call	REM	emulated	$mod		0
+MongoDb	MongoDB	call	NEGATE	emulated	negated		0
+MongoDb	MongoDB	call	ABS	emulated	op1: $abs		0
+MongoDb	MongoDB	call	IS_NULL	emulated	nullTest: $eq		0
+MongoDb	MongoDB	call	IS_NOT_NULL	emulated	nullTest: $ne		0
+MongoDb	MongoDB	call	IN	emulated	inList		0
+MongoDb	MongoDB	call	COALESCE	emulated	coalesce		0
+MongoDb	MongoDB	call	PARSE_INT	emulated	op1: $toLong		0
+MongoDb	MongoDB	call	CONCAT	emulated	concatSkippingNull		0
+MongoDb	MongoDB	call	LENGTH	emulated	length		0
+MongoDb	MongoDB	call	UPPER	emulated	guardedOp: $toUpper		0
+MongoDb	MongoDB	call	LOWER	emulated	guardedOp: $toLower		0
+MongoDb	MongoDB	call	GREATEST	emulated	$max		0
+MongoDb	MongoDB	call	LEAST	emulated	$min		0
+MongoDb	MongoDB	call	CONCAT_JOIN	emulated	$concat		0
+MongoDb	MongoDB	call	LIST_FILTER	emulated	listFilter		0
+MongoDb	MongoDB	call	LIST_TRANSFORM	emulated	listMap		0
+MongoDb	MongoDB	call	LIST_CONCAT	emulated	$concatArrays		0
+MongoDb	MongoDB	call	LIST_GET	emulated	{"$arrayElemAt": […, {"$subtract": […, 1]}]}		0
+MongoDb	MongoDB	call	LIST_POSITION	emulated	listPosition		0
+MongoDb	MongoDB	call	LIST_EXISTS	emulated	listExists		0
+MongoDb	MongoDB	call	LIST_FOR_ALL	emulated	listForAll		0
+MongoDb	MongoDB	call	STRUCT_INSERT	emulated	structInsert		0
+MongoDb	MongoDB	call	UNNEST	refused	an unnest reached MongoDb in expression position: an $unwind stage is not placed yet	via MongoDb.unnestProjection	0
+MongoDb	MongoDB	call	LIST_FLATTEN	emulated	{"$reduce": {"input": …, "initialValue": [], "in": {"$concatArrays": [, ]}}}		0
+MongoDb	MongoDB	call	JSON_MERGE_PATCH	emulated	mergePatch		0
+MongoDb	MongoDB	call	SQRT	emulated	op1: $sqrt		0
+MongoDb	MongoDB	call	CBRT	emulated	cubeRoot		0
+MongoDb	MongoDB	call	EXP	emulated	op1: $exp		0
+MongoDb	MongoDB	call	LN	emulated	op1: $ln		0
+MongoDb	MongoDB	call	LOG10	emulated	op1: $log10		0
+MongoDb	MongoDB	call	POW	emulated	$pow		0
+MongoDb	MongoDB	call	PI	emulated	{"$numberDouble": "3.141592653589793"}		0
+MongoDb	MongoDB	call	SIN	emulated	op1: $sin		0
+MongoDb	MongoDB	call	COS	emulated	op1: $cos		0
+MongoDb	MongoDB	call	TAN	emulated	op1: $tan		0
+MongoDb	MongoDB	call	ASIN	emulated	domainGuarded: $asin		0
+MongoDb	MongoDB	call	ACOS	emulated	domainGuarded: $acos		0
+MongoDb	MongoDB	call	ATAN	emulated	op1: $atan		0
+MongoDb	MongoDB	call	ATAN2	emulated	$atan2		0
+MongoDb	MongoDB	call	SINH	emulated	op1: $sinh		0
+MongoDb	MongoDB	call	COSH	emulated	op1: $cosh		0
+MongoDb	MongoDB	call	TANH	emulated	op1: $tanh		0
+MongoDb	MongoDB	call	CEILING	emulated	longOf: $ceil		0
+MongoDb	MongoDB	call	FLOOR	emulated	longOf: $floor		0
+MongoDb	MongoDB	call	ROUND	emulated	roundHalfEven		0
+MongoDb	MongoDB	call	SIGN	emulated	sign		0
+MongoDb	MongoDB	call	XOR	emulated	guardedOp: $ne		0
+MongoDb	MongoDB	call	BIT_AND	emulated	$bitAnd	via MongoDb.bitOp	0
+MongoDb	MongoDB	call	BIT_OR	emulated	$bitOr	via MongoDb.bitOp	0
+MongoDb	MongoDB	call	BIT_XOR	emulated	$bitXor	via MongoDb.bitOp	0
+MongoDb	MongoDB	call	BIT_SHIFT_LEFT	refused	reached MongoDb, which has no bit-shift operator	via MongoDb.bitOp	0
+MongoDb	MongoDB	call	BIT_SHIFT_RIGHT	refused	reached MongoDb, which has no bit-shift operator	via MongoDb.bitOp	0
+MongoDb	MongoDB	call	BIT_NOT	emulated	op1: $bitNot		0
+MongoDb	MongoDB	call	REGEXP_EXTRACT	emulated	regexExtract		0
+MongoDb	MongoDB	call	REGEXP_EXTRACT_ALL	emulated	regexExtractAll		0
+MongoDb	MongoDB	call	REGEXP_REPLACE	refused	a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)		0
+MongoDb	MongoDB	call	REGEXP_FULL_MATCH	emulated	regexMatch		0
+MongoDb	MongoDB	call	MAP_FROM_LISTS	emulated	{"$arrayToObject": {"$zip": {"inputs": […]}}}		0
+MongoDb	MongoDB	call	MAP_FROM_ENTRIES	refused	a map from entries reached MongoDb: the entry shape is not mapped yet		0
+MongoDb	MongoDB	call	MAP_EMPTY	emulated	{"$literal": {}}		0
+MongoDb	MongoDB	call	MAP_EXTRACT	emulated	mapExtract		0
+MongoDb	MongoDB	call	MAP_KEYS	emulated	mapSide: k		0
+MongoDb	MongoDB	call	MAP_VALUES	emulated	mapSide: v		0
+MongoDb	MongoDB	call	MAP_CONCAT	emulated	$mergeObjects		0
+MongoDb	MongoDB	call	SUBSTRING	emulated	substring		0
+MongoDb	MongoDB	call	STRPOS	emulated	guarded: {"$add": [{"$indexOfCP": [, , , ]}, 1]}		0
+MongoDb	MongoDB	call	STARTS_WITH	emulated	guarded: {"$eq": [{"$indexOfCP": [, , , ]}, 0]}		0
+MongoDb	MongoDB	call	ENDS_WITH	emulated	endsWith		0
+MongoDb	MongoDB	call	MATCHES	emulated	regexMatch		0
+MongoDb	MongoDB	call	LEFT	emulated	guarded: {"$substrCP": [, , 0, {"$max":,  [0, {"$min": [, , {"$strLenCP": , }]}]}]}		0
+MongoDb	MongoDB	call	RIGHT	emulated	rightChars		0
+MongoDb	MongoDB	call	LPAD	emulated	pad		0
+MongoDb	MongoDB	call	RPAD	emulated	pad		0
+MongoDb	MongoDB	call	TRIM	emulated	trim: $trim		0
+MongoDb	MongoDB	call	LTRIM	emulated	trim: $ltrim		0
+MongoDb	MongoDB	call	RTRIM	emulated	trim: $rtrim		0
+MongoDb	MongoDB	call	REPLACE	emulated	replace		0
+MongoDb	MongoDB	call	SPLIT	emulated	$split		0
+MongoDb	MongoDB	call	SPLIT_PART	emulated	splitPart		0
+MongoDb	MongoDB	call	TRANSLATE	refused	translate reached MongoDb, which has no character-map operator		0
+MongoDb	MongoDB	call	PURE_SPLIT_PART	emulated	splitPartCall		0
+MongoDb	MongoDB	call	REVERSE_STRING	emulated	guarded: {"$reduce": {"input":,  {"$range": [0, {"$strLenCP": , }]}, "initialValue": "", "in":,  {"$concat": [{"$substrCP": [, , , , 1]}, , ]}}}		0
+MongoDb	MongoDB	call	ASCII_CODE	refused	ascii reached MongoDb, which has no character-code operator		0
+MongoDb	MongoDB	call	CHR	refused	char reached MongoDb, which has no code-to-character operator		0
+MongoDb	MongoDB	call	UC_FIRST	emulated	firstCased: $toUpper		0
+MongoDb	MongoDB	call	LC_FIRST	emulated	firstCased: $toLower		0
+MongoDb	MongoDB	call	ENCODE_BASE64	refused	reached MongoDb, which has no base64 operator		0
+MongoDb	MongoDB	call	LEVENSHTEIN	refused	reached MongoDb, which has no string-distance operator		0
+MongoDb	MongoDB	call	GUID	refused	generateGuid reached MongoDb, whose pipeline has no uuid operator		0
+MongoDb	MongoDB	call	FORMAT	refused	format reached MongoDb, which has no printf operator		0
+MongoDb	MongoDB	call	HASH	refused	hashCode reached MongoDb: its hashed index key is not Pure's hash	via MongoDb.hashSigned	0
+MongoDb	MongoDB	call	MD5	refused	reached MongoDb, which has no digest operator		0
+MongoDb	MongoDB	call	SHA1	refused	reached MongoDb, which has no digest operator		0
+MongoDb	MongoDB	call	SHA256	refused	reached MongoDb, which has no digest operator		0
+MongoDb	MongoDB	call	EXTRACT	emulated	extract		0
+MongoDb	MongoDB	call	TODAY	emulated	{"$dateTrunc": {"date": "$$NOW", "unit": "day"}}		0
+MongoDb	MongoDB	call	NOW	emulated	"$$NOW"		0
+MongoDb	MongoDB	call	DATE_TRUNC_DAY	emulated	dateTrunc		0
+MongoDb	MongoDB	call	MAKE_DATE	emulated	dateFromParts		0
+MongoDb	MongoDB	call	MAKE_TIMESTAMP	emulated	dateFromParts		0
+MongoDb	MongoDB	call	DATE_TRUNC	emulated	dateTrunc		0
+MongoDb	MongoDB	call	ADD_INTERVAL	emulated	dateAdd		0
+MongoDb	MongoDB	call	DATE_DIFF	emulated	dateDiff		0
+MongoDb	MongoDB	call	TIME_BUCKET	refused	timeBucket reached MongoDb: $dateTrunc's bin size is not mapped to the engine's bucket origin yet		0
+MongoDb	MongoDB	call	TIMEZONE	refused	a time zone conversion reached MongoDb: not shaped yet		0
+MongoDb	MongoDB	call	DATE_AT_TIME	refused	a date at a time of day reached MongoDb, which has no time type		0
+MongoDb	MongoDB	call	EPOCH_NS	refused	reached MongoDb, whose date holds milliseconds		0
+MongoDb	MongoDB	call	FROM_EPOCH_NS	refused	reached MongoDb, whose date holds milliseconds		0
+MongoDb	MongoDB	call	ADD_INTERVAL_TEMPORAL	emulated	dateAdd		0
+MongoDb	MongoDB	call	EPOCH_SECONDS	emulated	{"$divide": [{"$toLong": …}, 1000]}		0
+MongoDb	MongoDB	call	EPOCH_MS	emulated	op1: $toLong		0
+MongoDb	MongoDB	call	FROM_EPOCH_SECONDS	emulated	{"$toDate": {"$multiply": […, 1000]}}		0
+MongoDb	MongoDB	call	FROM_EPOCH_MS	emulated	op1: $toDate		0
+MongoDb	MongoDB	call	DAYNAME	emulated	calendarName: $dayOfWeek		0
+MongoDb	MongoDB	call	MONTHNAME	emulated	calendarName: $month		0
+MongoDb	MongoDB	call	COT	emulated	cotangent		0
+MongoDb	MongoDB	call	RADIANS	emulated	op1: $degreesToRadians		0
+MongoDb	MongoDB	call	DEGREES	emulated	op1: $radiansToDegrees		0
+MongoDb	MongoDB	call	INT_DIVIDE	emulated	intDivide		0
+MongoDb	MongoDB	call	REPEAT_STR	emulated	guarded: {"$reduce": {"input": {"$range":,  [0, {"$max": [0, , ]}]}, "initialValue": "", "in": {"$concat": [, , , ]}}}		0
+MongoDb	MongoDB	call	JARO_WINKLER	refused	reached MongoDb, which has no string-distance operator		0
+MongoDb	MongoDB	call	DECODE_BASE64	refused	reached MongoDb, which has no base64 operator		0
+MongoDb	MongoDB	call	CURRENT_USER_FN	refused	currentUserId reached MongoDb, whose pipeline names no user		0
+MongoDb	MongoDB	call	LIST_LENGTH	emulated	guardedOp: $size		0
+MongoDb	MongoDB	call	LIST_ZIP	emulated	{"$zip": {"inputs": […]}}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_DISTINCT	emulated	{"$setUnion": […]}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_APPEND	emulated	{"$concatArrays": […, […]]}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_SUM	emulated	op1: $sum	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_MIN	emulated	op1: $min	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_MAX	emulated	op1: $max	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_AVG	emulated	op1: $avg	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_MEDIAN	emulated	arrayReduction	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_MODE	refused	a list's mode reached MongoDb: not shaped yet	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_SORT	emulated	{"$sortArray": {"input": …, "sortBy": 1}}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_SORT_DESC	emulated	{"$sortArray": {"input": …, "sortBy": -1}}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_TAIL	emulated	guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 1, {"$subtract": [{"$size": , }, 1]}]}, []]}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_INIT	emulated	guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 0, {"$subtract": [{"$size": , }, 1]}]}, []]}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	RANGE_FN	emulated	$range	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_PRODUCT	emulated	{"$reduce": {"input": …, "initialValue": 1, "in": {"$multiply": [, ]}}}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_REDUCE	emulated	listReduce	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_SLICE	refused	a list slice reached MongoDb: its bounds are not mapped yet	via MongoDb.listCall	0
+MongoDb	MongoDB	call	REPEAT_VALUE	emulated	{"$map": {"input": {"$range": [0, …]}, "in": …}}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_BOOL_AND	emulated	{"$allElementsTrue": […]}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	LIST_BOOL_OR	emulated	{"$anyElementTrue": […]}	via MongoDb.listCall	0
+MongoDb	MongoDB	call	IS_DISTINCT_FROM	emulated	$ne		0
+MongoDb	MongoDB	call	ALL_DISTINCT	emulated	allDistinct		0
+MongoDb	MongoDB	call	NULL_SAFE_EQUAL	emulated	$eq		0
+MongoDb	MongoDB	call	NULL_SAFE_NOT_EQUAL	emulated	$ne		0
+MongoDb	MongoDB	call	STRFTIME	emulated	{"$dateToString": {"date": …, "format": …}}		0
+MongoDb	MongoDB	call	STRPTIME	emulated	{"$dateFromString": {"dateString": …, "format": …}}		0
+MongoDb	MongoDB	call	PARSE_DATE	emulated	{"$dateFromString": {"dateString": …}}		0
+MongoDb	MongoDB	call	LIST_REVERSE	emulated	op1: $reverseArray	via MongoDb.listCall	0
+MongoDb	MongoDB	call	TYPEOF	emulated	op1: $type	via MongoDb.listCall	0
+MongoDb	MongoDB	call	ROUND_HALF_UP	emulated	roundHalfUp		0
+MongoDb	MongoDB	call	ERROR	emulated	raise		0
+MongoDb	MongoDB	call	FLOOR_RAW	emulated	op1: $floor		0
+MongoDb	MongoDB	call	TO_VARIANT	emulated	variantConstruct		0
+MongoDb	MongoDB	call	BOOL_TO_TEXT	emulated	op1: $toString		0
+MongoDb	MongoDB	call	FLOAT_CANON	emulated	floatCanonByText		0
+MongoDb	MongoDB	call	VARIANT_ELEMENTS	emulated	variantElements		0
+MongoDb	MongoDB	call	VARIANT_GET	emulated	variantGet		0
+MongoDb	MongoDB	call	JSON_TYPE	emulated	jsonType		0
+MongoDb	MongoDB	call	JSON_ARRAY_LENGTH	emulated	guardedOp: $size		0
+MongoDb	MongoDB	call	JSON_PRETTY	refused	a pretty-printed JSON text reached MongoDb, which has no JSON text operator		0
+MongoDb	MongoDB	reducer	SUM	emulated	accumulate: $sum		0
+MongoDb	MongoDB	reducer	COUNT	emulated	countAccumulator		0
+MongoDb	MongoDB	reducer	AVG	emulated	accumulate: $avg		0
+MongoDb	MongoDB	reducer	MIN	emulated	accumulate: $min		0
+MongoDb	MongoDB	reducer	MAX	emulated	accumulate: $max		0
+MongoDb	MongoDB	reducer	ANY_VALUE	emulated	accumulate: $first		0
+MongoDb	MongoDB	reducer	STDDEV_SAMP	emulated	accumulate: $stdDevSamp		0
+MongoDb	MongoDB	reducer	STDDEV_POP	emulated	accumulate: $stdDevPop		0
+MongoDb	MongoDB	reducer	VAR_SAMP	emulated	pushed		0
+MongoDb	MongoDB	reducer	VAR_POP	emulated	pushed		0
+MongoDb	MongoDB	reducer	MEDIAN	emulated	pushed		0
+MongoDb	MongoDB	reducer	MODE	refused	mode reached MongoDb: not shaped yet		0
+MongoDb	MongoDB	reducer	STRING_AGG	emulated	pushed		0
+MongoDb	MongoDB	reducer	LIST	emulated	accumulate: $push		0
+MongoDb	MongoDB	reducer	QUANTILE_CONT	emulated	pushed		0
+MongoDb	MongoDB	reducer	QUANTILE_DISC	emulated	pushed		0
+MongoDb	MongoDB	reducer	CORR	refused	reached MongoDb: a two-column statistic is not shaped yet		0
+MongoDb	MongoDB	reducer	COVAR_SAMP	refused	reached MongoDb: a two-column statistic is not shaped yet		0
+MongoDb	MongoDB	reducer	COVAR_POP	refused	reached MongoDb: a two-column statistic is not shaped yet		0
+MongoDb	MongoDB	reducer	ARG_MAX	refused	reached MongoDb: not shaped yet		0
+MongoDb	MongoDB	reducer	ARG_MIN	refused	reached MongoDb: not shaped yet		0
+MongoDb	MongoDB	reducer	WAVG	not_here	lowering marker reached the renderer		0
+MongoDb	MongoDB	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
+MongoDb	MongoDB	reducer	BOOL_AND	emulated	accumulate: $min		0
+MongoDb	MongoDB	reducer	BOOL_OR	emulated	accumulate: $max		0
+MongoDb	MongoDB	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
+MongoDb	MongoDB	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
+MongoDb	MongoDB	reducer	VARIANCE	emulated	pushed		0
+MongoDb	MongoDB	reducer	STDDEV	emulated	accumulate: $stdDevSamp		0
+MongoDb	MongoDB	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
+MongoDb	MongoDB	reducer	RANK	not_here	is a window function: windowCall writes it		0
+MongoDb	MongoDB	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
+MongoDb	MongoDB	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		0
+MongoDb	MongoDB	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		0
+MongoDb	MongoDB	reducer	NTILE	not_here	is a window function: windowCall writes it		0
+MongoDb	MongoDB	reducer	LAG	not_here	is a window function: windowCall writes it		0
+MongoDb	MongoDB	reducer	LEAD	not_here	is a window function: windowCall writes it		0
+MongoDb	MongoDB	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
+MongoDb	MongoDB	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
+MongoDb	MongoDB	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
 EngineStyleH2	-	call	AND	spelled	an operator (infix)		-
 EngineStyleH2	-	call	OR	spelled	an operator (infix)		-
 EngineStyleH2	-	call	NOT	spelled	an operator (notPrefix)		-

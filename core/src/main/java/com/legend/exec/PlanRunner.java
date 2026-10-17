@@ -8,11 +8,6 @@ import com.legend.executionplan.ExecutionPlan;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.io.Writer;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -52,81 +47,58 @@ public final class PlanRunner {
     private static void text(ExecutionPlan.TextResult text, Map<String, PlanParameters.Checked> checked,
             PlanSessions.Source sessions, Writer out) throws IOException {
         ExecutionPlan.Sql sql = text.sql();
+        // every null type checked before any session is opened: a plan whose null is of no type is refused whole
         for (ExecutionPlan.Slot slot : sql.slots()) {
             if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
                 nullType(one, slot);
             }
         }
+        List<PlanParameters.Checked> values = new java.util.ArrayList<>(sql.slots().size());
+        for (int i = 0; i < sql.slots().size(); i++) {
+            values.add(value(checked, sql.slots().get(i), i + 1));
+        }
+        // the session's own statements (JDBC's, or a connector's: Statements), 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md
+        // D12: the runner holds the plan and the punctuation; the session carries text in and text out
         try (Sessions.Session session = sessions.open(sql.target())) {
-            Connection c = session.connection();
-            check(c, sql.target());
-            try (var origin = StatementOrigin.enter(StatementOrigin.SESSION); Statement st = c.createStatement()) {
+            Statements st = session.statements();
+            st.check(sql.target());
+            try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
                 for (String s : sql.target().session()) {
                     StatementOrigin.sent(s);
                     st.execute(s);
                 }
             }
             String statement = statement(sql, checked);
-            try (PreparedStatement st = c.prepareStatement(statement)) {
-                List<ExecutionPlan.Slot> slots = sql.slots();
-                for (int i = 0; i < slots.size(); i++) {
-                    bind(c, st, i + 1, slots.get(i), value(checked, slots.get(i), i + 1));
-                }
-                StatementOrigin.sent(statement);
-                try (ResultSet rs = st.executeQuery()) {
-                    switch (text.format()) {
-                        case CSV, JSON -> {
-                            if (!rs.next()) {
-                                throw new IllegalStateException("the plan's statement wrote no text: no row");
-                            }
-                            String whole = text(rs);
-                            out.write(whole == null ? "" : whole);
+            StatementOrigin.sent(statement);
+            switch (text.format()) {
+                case CSV, JSON -> {
+                    boolean[] written = {false};
+                    st.query(statement, sql.slots(), values, row -> {
+                        if (!written[0]) {
+                            written[0] = true;
+                            out.write(row == null ? "" : row);
                         }
-                        case JSON_PER_ROW -> {
-                            // one JSON object per row: the array's brackets and commas are the runner's
-                            out.write('[');
-                            boolean first = true;
-                            while (rs.next()) {
-                                if (!first) {
-                                    out.write(',');
-                                }
-                                first = false;
-                                String row = text(rs);
-                                out.write(row != null ? row : "null");
-                                out.flush();
-                            }
-                            out.write(']');
-                        }
+                    });
+                    if (!written[0]) {
+                        throw new IllegalStateException("the plan's statement wrote no text: no row");
                     }
-                    out.flush();
+                }
+                case JSON_PER_ROW -> {
+                    // one JSON object per row: the array's brackets and commas are the runner's
+                    out.write('[');
+                    boolean[] first = {true};
+                    st.query(statement, sql.slots(), values, row -> {
+                        if (!first[0]) {
+                            out.write(',');
+                        }
+                        first[0] = false;
+                        out.write(row != null ? row : "null");
+                        out.flush();
+                    });
+                    out.write(']');
                 }
             }
-        } catch (SQLException e) {
-            throw PlanSessions.dataError(e);
-        }
-    }
-
-    /** The text the database wrote in the row's one column: carried, never read as a value (Charter C1.2). */
-    private static @com.legend.base.Nullable String text(ResultSet rs) throws SQLException {
-        return rs.getString(1);
-    }
-
-    /** The session is the database the statement is written for, and — where the statement's spelling depends on the
-     *  server's version — of a version it is written for; anything else is refused by name, never run. */
-    private static void check(Connection c, ExecutionPlan.Target target) {
-        Sessions.check(c, target.database().type());
-        switch (target.servers()) {
-            case ExecutionPlan.Servers.Every every -> {
-                // the spelling depends on no version
-            }
-            case ExecutionPlan.Servers.Versions versions -> {
-                String version = Sessions.version(c);
-                if (versions.prefixes().stream().noneMatch(version::startsWith)) {
-                    throw new com.legend.error.NotImplementedException("the plan's statements are written for "
-                            + target.database().type() + " " + versions.prefixes() + ", and the session is "
-                            + target.database().type() + " " + version + ": not run");
-                }
-            }
+            out.flush();
         }
     }
 
@@ -180,7 +152,7 @@ public final class PlanRunner {
         };
     }
 
-    private static ExecutionPlan.TypeSpelling spelling(ExecutionPlan.TypeHole hole, ExecutionPlan.ValueKind kind,
+    static ExecutionPlan.TypeSpelling spelling(ExecutionPlan.TypeHole hole, ExecutionPlan.ValueKind kind,
             ExecutionPlan.Slot slot) {
         ExecutionPlan.TypeSpelling spelling = hole.types().get(kind);
         if (spelling == null) {
@@ -195,7 +167,7 @@ public final class PlanRunner {
 
     /** {@code t} as the text its cast reads: to the nanosecond, or to {@code fraction} digits of a second, the finer ones
      *  cut, as its literal's are. */
-    private static String dateTimeText(LocalDateTime t, @com.legend.base.Nullable Integer fraction) {
+    static String dateTimeText(LocalDateTime t, @com.legend.base.Nullable Integer fraction) {
         int unit = 1;
         for (int digits = fraction == null ? 9 : fraction; digits < 9; digits++) {
             unit *= 10;
@@ -211,8 +183,19 @@ public final class PlanRunner {
         return digits;
     }
 
+    /** The JDBC type number of {@code one}'s null: the plan's null types are {@code java.sql.JDBCType} names (the
+     *  plan format's own vocabulary, which every session reads), or the plan is refused by name. */
+    static int nullType(ExecutionPlan.Binding.One one, ExecutionPlan.Slot slot) {
+        try {
+            return java.sql.JDBCType.valueOf(one.nullType()).getVendorTypeNumber();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("slot of '" + slot.parameter() + "': its null type '" + one.nullType()
+                    + "' is no JDBC type", e);
+        }
+    }
+
     /** The kind of a checked value (one {@link PlanParameters} makes). */
-    private static ExecutionPlan.ValueKind kindOf(Object v, ExecutionPlan.Slot slot) {
+    static ExecutionPlan.ValueKind kindOf(Object v, ExecutionPlan.Slot slot) {
         return switch (v) {
             case Long l -> ExecutionPlan.ValueKind.INTEGER;
             case BigDecimal d -> ExecutionPlan.ValueKind.DECIMAL;
@@ -223,56 +206,5 @@ public final class PlanRunner {
             default -> throw new IllegalStateException("slot of '" + slot.parameter() + "' is typed by its value,"
                     + " given " + v.getClass().getSimpleName() + ", which is of no value kind");
         };
-    }
-
-    /** Slot {@code index} bound to its parameter's checked value, as the slot says: one value (an absent one a null of
-     *  the slot's type), or a list as one array of the slot's element type (an absent one an empty array). */
-    private static void bind(Connection c, PreparedStatement st, int index, ExecutionPlan.Slot slot,
-            PlanParameters.Checked value) throws SQLException {
-        switch (slot.binding()) {
-            case ExecutionPlan.Binding.Array array -> {
-                List<Object> items = switch (value) {
-                    case PlanParameters.Many many -> many.values();
-                    case PlanParameters.None none -> List.of();
-                    case PlanParameters.One one -> List.of(one.value());
-                };
-                st.setArray(index, c.createArrayOf(array.elementSqlType(),
-                        items.stream().map(PlanRunner::arrayElement).toArray()));
-            }
-            case ExecutionPlan.Binding.One one -> {
-                switch (value) {
-                    case PlanParameters.One v -> {
-                        ExecutionPlan.TypeHole hole = one.hole();
-                        if (hole != null && v.value() instanceof LocalDateTime t) {
-                            // a date-time in a cast is passed as its text: the drivers pass no digit finer than a
-                            // microsecond alike (DuckDB's cuts it, Postgres's rounds it; probes/timestamp-results.txt)
-                            st.setString(index, dateTimeText(t, spelling(hole, kindOf(t, slot), slot).fraction()));
-                        } else {
-                            st.setObject(index, v.value());
-                        }
-                    }
-                    case PlanParameters.None none -> st.setNull(index, nullType(one, slot));
-                    case PlanParameters.Many many -> throw new IllegalStateException("slot " + index + " binds one"
-                            + " value of '" + slot.parameter() + "', given a list");
-                }
-            }
-        }
-    }
-
-    /** The JDBC type number of {@code one}'s null: its type's name is a {@code java.sql.JDBCType}'s, or the plan is refused
-     *  by name (checked for every slot before any session is opened). */
-    private static int nullType(ExecutionPlan.Binding.One one, ExecutionPlan.Slot slot) {
-        try {
-            return java.sql.JDBCType.valueOf(one.nullType()).getVendorTypeNumber();
-        } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("slot of '" + slot.parameter() + "': its null type '" + one.nullType()
-                    + "' is no JDBC type", e);
-        }
-    }
-
-        /** An array element as the drivers take it: a timestamp as {@code java.sql.Timestamp} (measured,
-     *  probes/list-results.txt), every other value as it is. */
-    private static Object arrayElement(Object v) {
-        return v instanceof LocalDateTime t ? java.sql.Timestamp.valueOf(t) : v;
     }
 }

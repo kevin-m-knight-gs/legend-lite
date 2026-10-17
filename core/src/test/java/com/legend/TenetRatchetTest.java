@@ -75,7 +75,9 @@ class TenetRatchetTest {
 
     private static final List<String> DRIVERS = List.of("org.duckdb", "org.h2.", "org.sqlite", "org.postgresql",
             "org.mariadb", "com.mysql", "com.clickhouse", "io.trino", "net.snowflake", "com.databricks", "com.simba",
-            "com.google.cloud.bigquery");
+            "com.google.cloud.bigquery",
+            // MongoDB's driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): its connector's source set is walked
+            "com.mongodb", "org.bson");
 
     private static final Pattern ACCESSOR = Pattern.compile(
             "\\.get(String|Object|Int|Long|Double|Boolean|BigDecimal"
@@ -90,7 +92,7 @@ class TenetRatchetTest {
         int scanned = 0;
         // core's main sources: src/main/java and the DuckDB-only src/main/duckdb (Bazel workplan P3-27, CT-N10)
         String root = "core/src/main/java";
-        try (Stream<Path> files = SourceFiles.under(root, "core/src/main/duckdb").stream()) {
+        try (Stream<Path> files = SourceFiles.under(root, "core/src/main/duckdb", "core/src/main/mongodb").stream()) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java"))
                     .toList()) {
                 scanned++;

@@ -32,7 +32,7 @@ PCT, the stress corpus, parser equivalence, Channel B, the native image's tests)
 | `datacube` | — | `//datacube:tests`, `//datacube:verify_app_test`, `//datacube:package_test`, `//datacube:verify_smoke_test`, `//wasm:differential_test`, `//wasm:zone_test` | DataCube's suite and typecheck, with every cube case live on the native warehouse and snapped into DuckDB-WASM, the answers compared (`live_snap_test`, plus receipts, sign-in again, token refresh); the single-user app against Postgres 16 in the pinned Chromium, on every platform (`verify_app_test`, since 2026-10-04, Bazel workplan P1-14b: its own Postgres from the pinned binaries, no psql); the smoke harness as a test on the pinned Chromium (since 2026-10-04, P1-14); the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database. The other harnesses (features, page, charts, cubes, real data, upload, remote, wasm-browser, stress) join as tests in the next landing (L1b); until then the transitional `browser` suite and the workflow's `bazel run` loop run them, Linux only |
 | `ui` | — | `//studio:tests`, `//query:tests`, `//query-store:wasm_test`, `//query-store:share_test`, `//query-store:lite_test` | Studio's and Query's suites and typechecks; the saved-query store's one suite against the page's own store and against legend-lite's server (started by the test), and a saved query's share link round trip. Their browser harnesses (`//studio:verify_test`, `//query:verify`, `//site:verify`) join in L1b |
 | `sdlc` | — | `//sdlc-server:git_repository_test`, `//sdlc-client:tests`, `//depot-client:tests` | the model home (`docs/STUDIO_DESIGN_2026_10_02.md`): the SDLC and Depot suites, each run on the page's WebAssembly module and on the server over git |
-| `heavy` (manual; no per-push lane) | — | `//spec:reference_lane`, `//spec:update_reference_lane_test`, `//spec:corpus_warehouse_verdict`, `//spec:manifest_world_census`, `//parser-equivalence:diagnostics`, `//pct:update_ratchets_test`, `//tools/python:requirements.test` | the reference lane (about 8 GB), the warehouse corpus passes (they build the GraalVM server), the manifest-world census, the parser-equivalence diagnostics battery, PCT's ratchet re-measure, the Python requirements test: a landing runs the ones it needs by hand (`docs/build-inventory/program/START_HERE.md` §5); a scheduled run is PHASE_8.md Test-11 |
+| `heavy` (manual; no per-push lane) | — | `//spec:reference_lane`, `//spec:update_reference_lane_test`, `//spec:corpus_warehouse_verdict`, `//spec:manifest_world_census`, `//parser-equivalence:diagnostics`, `//pct:update_ratchets_test`, `//tools/python:requirements.test`, `//core:mongodb_plan_test` (the MongoDB v0 end to end on the embedded MongoDB 8.0, 2026-10-17; Linux x86_64) | the reference lane (about 8 GB), the warehouse corpus passes (they build the GraalVM server), the manifest-world census, the parser-equivalence diagnostics battery, PCT's ratchet re-measure, the Python requirements test: a landing runs the ones it needs by hand (`docs/build-inventory/program/START_HERE.md` §5); a scheduled run is PHASE_8.md Test-11 |
 
 **The Postgres lanes in a root container** (2026-10-11). The embedded Postgres refuses root (`initdb` does), so a
 session that runs as root (a cloud container) runs a Postgres test as an unprivileged user, outside the sandbox:
@@ -10652,3 +10652,41 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
   - Recorded, not changed: Postgres refuses a catalog grid. The compiler's old text excluded `pg_catalog`, but no
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
+
+## 2026-10-17 — MongoDB v0: the first non-SQL database, end to end on the embedded MongoDB 8.0
+
+The plan: `docs/MONGODB_PLAN_2026_10_16.md` (the user's fourteen decisions, 2026-10-16; the record of what landed in
+its §11.1). The line: `docs/IN_FLIGHT.md`, the twelfth line.
+
+What changed:
+1. **The vocabulary**: `DatabaseType.MongoDB`; legend-engine's `MongoDBConnection` and `###MongoDB` store read into
+   the model (`model/MongoDeclarations`: collections as tables, columns from the declared schema, nothing inferred);
+   `StorelessRuntime.onMongo`; every type switch exhaustive, each refusal by name.
+2. **The target**: `sql/dialect/MongoDb` with `MongoDbPipeline` and `MongoJson` -- the one compiler's render target
+   whose text is an `aggregate` command in Extended JSON (the stages, the null guard, the markers for parameters, the
+   raise envelope, the JSON wire written as text by the pipeline). The capability matrix regenerated with its column.
+3. **The seam**: `exec/Statements`, `JdbcStatements`, `DatabaseConnector`, `Connectors`; `PlanRunner` through the
+   session's statements; `PlanSessions` asking the connectors first. The legacy executor untouched.
+4. **The connector and the server**: `core/src/main/mongodb` (`//core:mongodb_connector`, with `//core:drivers`), the
+   driver 5.13.0 (four jars, `tools/deps/jars_table.bzl`), `tools/mongodb/` (MongoDB 8.0.17 pinned by sha256,
+   `@embedded_mongodb`), `testing/EmbeddedMongoDb` (access control on; the user made through the localhost
+   exception).
+
+What judges it: `//core:mongodb_plan_test` (manual, `//gates:heavy`): six cases green on the real server (a
+filtered, sorted select streamed; an absent field as null; a bound parameter; a group; the JSON and CSV wires; a
+storeless expression). `MongoDbDialectTest` in `//core:core_tests`. Measured on the branch in a cloud container
+(root, behind the proxy): `//core:core_tests` (27 lanes), `//core:guardrails`, `//core:census`,
+`//docs:update_dialect_capability_test`, `//tools/deps:core_closure_test`, `//tools/deps:core_layering_test`,
+`//core:mongodb_plan_test` all pass; `//pct:pct_tests_lib` builds. Not run here: the spec lanes and the parser
+equivalence lanes that need the pinned upstream checkouts (GitHub archives refused by the proxy, `docs/CLOUD_SESSIONS.md`)
+and the Windows jobs -- CI's. One measured fact of the server's: its optimizer folds a constant `$convert` in a branch
+not taken and fails the pipeline before any row, so every raise the target writes depends on the row.
+
+Pins moved, each with its dated reason: `DialectBoundaryTest` (Databases 11 -> 12 constructions, 20 -> 21 arms;
+Sessions 24 -> 26 arms; StorelessRuntime 5 -> 6; MappingProtocolParser's wire discriminator now counted), the leak
+ledger (Sessions 65 -> 69, StorelessRuntime 6 -> 8, the end-to-end test's rows), `JdbcSurfaceCensusTest` and
+`JavaEvalLedgerTest` (the seam's classes, the connector's), `TenetRatchetTest` (the driver's packages, the connector's
+source set walked; the accessor count unchanged at 15), `ArchitectureTest` (the connector a product library; the
+driver funnelled), `CoreClosureTest` (the four jars), `CodeShapeGuardrailTest` (the pipeline's stage counter),
+`DatabaseOwners` (the connector's source set an owner). The semantics register: S72 to S75.
+

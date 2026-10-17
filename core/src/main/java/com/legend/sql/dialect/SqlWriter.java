@@ -109,6 +109,20 @@ final class SqlWriter {
         return this;
     }
 
+    /** Writes {@code placeholder} as this parameter's place and records the bind, as {@link #bind} does with {@code ?}:
+     *  a target whose statement is not SQL spells a placeholder in its own language (MongoDb's marker document, which
+     *  names the bind's index; 2026-10-16, docs/MONGODB_PLAN_2026_10_16.md D5). */
+    SqlWriter bind(String placeholder, RenderedStatement.Bind bind) {
+        sql.append(placeholder);
+        binds.add(bind);
+        return this;
+    }
+
+    /** How many parameters are bound so far: the index the next placeholder takes. */
+    int bound() {
+        return binds.size();
+    }
+
     /** The placeholder bound last is typed by its value, its type written HERE when the value is known: records the
      *  hole at this place in the statement, with the spelling of each kind of value. */
     SqlWriter typeHole(java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types,

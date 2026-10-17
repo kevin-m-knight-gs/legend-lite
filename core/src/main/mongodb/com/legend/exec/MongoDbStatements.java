@@ -1,0 +1,217 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.exec;
+
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.model.ConnectionDefinition;
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
+import org.bson.BsonArray;
+import org.bson.BsonBoolean;
+import org.bson.BsonDateTime;
+import org.bson.BsonDecimal128;
+import org.bson.BsonDocument;
+import org.bson.BsonDouble;
+import org.bson.BsonInt32;
+import org.bson.BsonInt64;
+import org.bson.BsonNull;
+import org.bson.BsonString;
+import org.bson.BsonValue;
+import org.bson.types.Decimal128;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * A MongoDB session's {@link Statements} (docs/MONGODB_PLAN_2026_10_16.md §5.1 and §5.2): the plan's statement is a
+ * command in Extended JSON, as the MongoDb dialect writes it; a plan parameter is the marker document
+ * {@code {"$legendParam": n}} at its place, replaced in place by the n-th slot's bound value (decision D5, the driver's
+ * own encoding of each value); an {@code aggregate} command runs through the driver's cursor, and each row's one
+ * field is the text the pipeline wrote (D10): carried, never read as a value. A raise the pipeline wrote (a
+ * conversion of a message between the platform's sentinels) comes back as the platform's own text, as a SQL raise
+ * does through the executor's funnel.
+ */
+final class MongoDbStatements implements Statements {
+
+    private static final String PARAMETER_MARKER = "$legendParam";
+
+    private final MongoDatabase database;
+
+    MongoDbStatements(MongoDatabase database) {
+        this.database = database;
+    }
+
+    @Override
+    public void check(ExecutionPlan.Target target) {
+        if (!(target.database() instanceof ExecutionPlan.Database.Declared d)
+                || d.connection().databaseType() != ConnectionDefinition.DatabaseType.MongoDB) {
+            throw new com.legend.error.NotImplementedException("the query executes on " + target.database().type()
+                    + " but the session is MongoDB — dialect/connection mismatch");
+        }
+        switch (target.servers()) {
+            case ExecutionPlan.Servers.Every every -> {
+                // the spelling depends on no version
+            }
+            case ExecutionPlan.Servers.Versions versions -> {
+                String version = run(new BsonDocument("buildInfo", new BsonInt32(1))).get("version", BsonNull.VALUE)
+                        .asString().getValue();
+                if (versions.prefixes().stream().noneMatch(version::startsWith)) {
+                    throw new com.legend.error.NotImplementedException("the plan's statements are written for MongoDB "
+                            + versions.prefixes() + ", and the session is MongoDB " + version + ": not run");
+                }
+            }
+        }
+    }
+
+    @Override
+    public void execute(String statement) {
+        run(command(statement));
+    }
+
+    @Override
+    public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            Rows rows) throws IOException {
+        BsonDocument command = bound(command(statement), slots, values).asDocument();
+        BsonValue aggregate = command.get("aggregate");
+        BsonValue pipeline = command.get("pipeline");
+        if (aggregate == null || pipeline == null || !pipeline.isArray()) {
+            throw new IllegalStateException("the plan's statement is not an aggregate command: " + command.keySet());
+        }
+        List<BsonDocument> stages = new ArrayList<>();
+        for (BsonValue stage : pipeline.asArray()) {
+            stages.add(stage.asDocument());
+        }
+        try (MongoCursor<BsonDocument> cursor = (aggregate.isString()
+                ? database.getCollection(aggregate.asString().getValue(), BsonDocument.class).aggregate(stages)
+                : database.aggregate(stages, BsonDocument.class)).iterator()) {
+            while (cursor.hasNext()) {
+                rows.row(text(cursor.next()));
+            }
+        } catch (MongoException e) {
+            throw failure(e);
+        }
+    }
+
+    /** The row's one text: its one field, a string or null; anything else is not text, refused by name. */
+    private static @com.legend.base.Nullable String text(BsonDocument row) {
+        if (row.size() != 1) {
+            throw new IllegalStateException("the plan's statement wrote a row of " + row.size()
+                    + " fields, not one text: " + row.keySet());
+        }
+        BsonValue v = row.values().iterator().next();
+        if (v.isNull()) {
+            return null;
+        }
+        if (v.isString()) {
+            return v.asString().getValue();
+        }
+        throw new IllegalStateException("the plan's statement wrote a " + v.getBsonType() + ", not text");
+    }
+
+    private static BsonDocument command(String statement) {
+        try {
+            return BsonDocument.parse(statement);
+        } catch (org.bson.json.JsonParseException | org.bson.BsonInvalidOperationException e) {
+            throw new IllegalStateException("the plan's statement is not a MongoDB command: " + e.getMessage(), e);
+        }
+    }
+
+    private BsonDocument run(BsonDocument command) {
+        try {
+            return database.runCommand(command, BsonDocument.class);
+        } catch (MongoException e) {
+            throw failure(e);
+        }
+    }
+
+    /** The server's failure as the platform's data error: a raise's message unwrapped from the server's text. */
+    private static com.legend.error.DataError failure(MongoException e) {
+        String unwrapped = RaisedErrors.unwrap(e.getMessage());
+        return new com.legend.error.DataError(unwrapped == null ? String.valueOf(e.getMessage()) : unwrapped, e);
+    }
+
+    /** {@code v} with each parameter marker replaced by its slot's bound value, in place. */
+    private static BsonValue bound(BsonValue v, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+        if (v.isDocument()) {
+            BsonDocument d = v.asDocument();
+            BsonValue marker = d.get(PARAMETER_MARKER);
+            if (marker != null && d.size() == 1) {
+                int n = marker.asNumber().intValue();
+                if (n < 0 || n >= slots.size()) {
+                    throw new IllegalStateException("the plan's statement names parameter marker " + n + ", and the"
+                            + " plan has " + slots.size() + " slots");
+                }
+                return value(slots.get(n), values.get(n), n + 1);
+            }
+            BsonDocument out = new BsonDocument();
+            for (Map.Entry<String, BsonValue> e : d.entrySet()) {
+                out.append(e.getKey(), bound(e.getValue(), slots, values));
+            }
+            return out;
+        }
+        if (v.isArray()) {
+            BsonArray out = new BsonArray();
+            for (BsonValue e : v.asArray()) {
+                out.add(bound(e, slots, values));
+            }
+            return out;
+        }
+        return v;
+    }
+
+    /** A slot's value as BSON, as the slot says: one value (an absent one a null), or a list as one array (an absent
+     *  one an empty array). */
+    private static BsonValue value(ExecutionPlan.Slot slot, PlanParameters.Checked checked, int index) {
+        return switch (slot.binding()) {
+            case ExecutionPlan.Binding.Array array -> {
+                List<Object> items = switch (checked) {
+                    case PlanParameters.Many many -> many.values();
+                    case PlanParameters.None none -> List.of();
+                    case PlanParameters.One one -> List.of(one.value());
+                };
+                BsonArray out = new BsonArray();
+                for (Object item : items) {
+                    out.add(bson(item, slot));
+                }
+                yield out;
+            }
+            case ExecutionPlan.Binding.One one -> switch (checked) {
+                case PlanParameters.One v -> bson(v.value(), slot);
+                case PlanParameters.None none -> BsonNull.VALUE;
+                case PlanParameters.Many many -> throw new IllegalStateException("slot " + index + " binds one value"
+                        + " of '" + slot.parameter() + "', given a list");
+            };
+        };
+    }
+
+    /** A checked value's BSON: the driver's own encoding of each kind; a date-time finer than a millisecond is
+     *  refused, never cut (BSON's date holds milliseconds). */
+    private static BsonValue bson(Object v, ExecutionPlan.Slot slot) {
+        return switch (v) {
+            case Long l -> new BsonInt64(l);
+            case Integer i -> new BsonInt64(i);
+            case Double d -> new BsonDouble(d);
+            case BigDecimal d -> new BsonDecimal128(new Decimal128(d));
+            case String s -> new BsonString(s);
+            case Boolean b -> new BsonBoolean(b);
+            case LocalDate d -> new BsonDateTime(d.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli());
+            case LocalDateTime t -> {
+                if (t.getNano() % 1_000_000 != 0) {
+                    throw new com.legend.error.NotImplementedException("slot of '" + slot.parameter() + "' is given a"
+                            + " date-time finer than a millisecond (" + t + "), which a BSON date does not hold");
+                }
+                yield new BsonDateTime(t.toInstant(ZoneOffset.UTC).toEpochMilli());
+            }
+            default -> throw new IllegalStateException("slot of '" + slot.parameter() + "' is given a "
+                    + v.getClass().getSimpleName() + ", which no BSON value encodes");
+        };
+    }
+}

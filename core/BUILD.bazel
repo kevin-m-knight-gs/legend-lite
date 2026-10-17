@@ -9,6 +9,7 @@ load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/mongodb:defs.bzl", "EMBEDDED_MONGODB_COMPATIBLE")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/jars:defs.bzl", "file_list", "java_jars")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -316,12 +317,37 @@ legend_java_library(
     name = "drivers",
     runtime_deps = [
         ":duckdb_load",
+        # MongoDB's connector rides with the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a running core
+        # is given its connectors as it is given its drivers, by ServiceLoader
+        ":mongodb_connector",
         "@duckdb_jdbc//jar",
         "@h2//jar",
         "@postgresql//jar",
         "@sqlite_jdbc//jar",
     ],
     visibility = ["//datacube:__pkg__", "//pct:__pkg__", "//spec:__pkg__"],
+)
+
+# MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and
+# the statements that run the pipelines the MongoDb dialect writes, behind core's DatabaseConnector seam, found by
+# ServiceLoader as the bulk loader is. The one source set that compiles against the MongoDB driver: core compiles
+# against no client library.
+legend_java_library(
+    name = "mongodb_connector",
+    srcs = glob(["src/main/mongodb/**/*.java"]),
+    resources = glob(["src/main/mongodb/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/mongodb",
+    deps = [
+        "//base",
+        ":error",
+        ":exec",
+        ":execution_plan",
+        ":model",
+        "@bson//jar",
+        "@mongodb_driver_core//jar",
+        "@mongodb_driver_sync//jar",
+    ],
+    runtime_deps = ["@bson_record_codec//jar"],
 )
 
 # DuckDB's bulk load (its Appender) behind core's BulkLoad seam, found by
@@ -387,6 +413,8 @@ legend_java_library(
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
+            # MongoDbPlanTest is :mongodb_plan_test's alone: the embedded MongoDB and its driver (2026-10-17)
+            "src/test/java/com/legend/exec/MongoDbPlanTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
@@ -627,6 +655,35 @@ junit_test(
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE MONGODB END-TO-END (docs/MONGODB_PLAN_2026_10_16.md §11, 2026-10-17): a model with a ###MongoDB store and a
+# MongoDBConnection planned by the one compiler and run by the plan runner on a real MongoDB 8.0 this JVM starts from
+# the pinned server Bazel unpacked (@embedded_mongodb, //testing EmbeddedMongoDb). Manual, in //gates:heavy, until a
+# per-push lane for it is the user's call (Linux x86_64 only: the build pinned).
+junit_test(
+    name = "mongodb_plan_test",
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/exec/MongoDbPlanTest.java"],
+    data = [
+        "@embedded_mongodb//:mongodb",
+        "@embedded_mongodb//:mongodb/MONGODB_ROOT",
+    ],
+    jvm_flags = ["-Dembedded.mongodb.root=$(rlocationpath @embedded_mongodb//:mongodb/MONGODB_ROOT)"],
+    select = ["--select-class=com.legend.exec.MongoDbPlanTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_MONGODB_COMPATIBLE,
+    deps = [
+        ":core",
+        "//testing",
+        "@bson//jar",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@mongodb_driver_core//jar",
+        "@mongodb_driver_sync//jar",
     ],
     visibility = ["//gates:__pkg__"],
 )
@@ -983,6 +1040,7 @@ junit_test(
     runtime_deps = [
         ":core_tests_lib",
         ":duckdb_load",
+        ":mongodb_connector",
     ],
     visibility = ["//gates:__pkg__"],
 )
@@ -994,7 +1052,7 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = _CORE_TARGETS + [":duckdb_load"],
+    deps = _CORE_TARGETS + [":duckdb_load", ":mongodb_connector"],
 )
 
 # core's test classes, for the one rule that checks them too (ArchitectureTest.upstreamJavaNeverEntersCore)
@@ -1368,6 +1426,7 @@ core_layer_queries(not_layers = {
     "core_tests_lib": "the tests' library, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_load": "the drivers' bulk loader, beside the layers",
+    "mongodb_connector": "MongoDB's connector, beside the drivers (docs/MONGODB_PLAN_2026_10_16.md D12)",
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
     "scale_lib": "the scale benchmark's launcher (//core:scale), not product code",
     "shadow_binding": "a test-lane ServiceLoader resource",

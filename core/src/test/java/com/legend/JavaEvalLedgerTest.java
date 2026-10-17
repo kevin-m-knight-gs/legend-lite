@@ -1033,6 +1033,12 @@ class JavaEvalLedgerTest {
                     // sessions by the plan's target and runs its setup once; BulkLoads finds an
                     // engine's loader. No value is computed or compared: the database executes
                     "PlanRunner.java", "PlanParameters.java", "PlanSessions.java", "BulkLoads.java",
+                    // the Statements seam (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): what a session does
+                    // with a plan's text -- JdbcStatements is the runner's JDBC moved whole (prepare, bind, run,
+                    // the one getString: carriage); DatabaseConnector is the seam a database with no JDBC joins
+                    // through, beside the drivers, Connectors finding them as BulkLoads finds the loaders. No value
+                    // is computed or compared: the database executes
+                    "Statements.java", "JdbcStatements.java", "DatabaseConnector.java", "Connectors.java",
                     "DynamicPivot.java",
                     "ExecutionResult.java", "Executor.java",
                     // leg 3.4 (2026-09-20): the body's DEFERRED verdict

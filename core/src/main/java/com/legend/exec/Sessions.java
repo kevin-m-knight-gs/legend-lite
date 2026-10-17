@@ -38,6 +38,13 @@ public final class Sessions {
     public interface Session extends AutoCloseable {
         Connection connection();
 
+        /** The statements this session runs for the plan runner ({@link Statements}): JDBC's, over
+         *  {@link #connection()}, unless the session's database speaks none -- a connector's session gives its own
+         *  (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12). */
+        default Statements statements() {
+            return new JdbcStatements(connection());
+        }
+
         @Override
         void close();
     }
@@ -62,7 +69,8 @@ public final class Sessions {
         return switch (type) {
             case H2, DuckDB, SQLite -> true;
             case Postgres, DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino,
-                 BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL -> false;
+                 BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL,
+                 MongoDB -> false;
         };
     }
 
@@ -104,6 +112,10 @@ public final class Sessions {
             case Trino -> "Trino";
             // the ClickHouse JDBC driver (measured, clickhouse-jdbc 0.10.0 on 25.8)
             case ClickHouse -> "ClickHouse";
+            // 2026-10-16 (docs/MONGODB_PLAN_2026_10_16.md, D12 and D14): no JDBC product; its connector opens and checks
+            // its sessions, and a JDBC session handed for it is refused here by name
+            case MongoDB -> throw new com.legend.error.NotImplementedException("sessions on MongoDB are not JDBC:"
+                    + " its connector (core/src/main/mongodb) opens them, through the plan runner");
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto,
                  Redshift, Spanner, Athena, Oracle, Aurora ->
                     throw new com.legend.error.NotImplementedException(
@@ -243,6 +255,10 @@ public final class Sessions {
                 case ConnectionSpecification.Databricks x -> refused(def);
                 case ConnectionSpecification.BigQuery x -> refused(def);
             };
+            // 2026-10-16 (docs/MONGODB_PLAN_2026_10_16.md, D12): opened by its connector, never by a JDBC URL
+            case MongoDB -> throw new com.legend.error.NotImplementedException("connection '" + def.qualifiedName()
+                    + "' declares MongoDB, which no JDBC opening reaches: its connector opens it, through the plan"
+                    + " runner");
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
                  Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora ->
                     throw new com.legend.error.NotImplementedException("connections to database type '"
@@ -322,7 +338,8 @@ public final class Sessions {
             case DuckDB -> DriverManager.getConnection("jdbc:duckdb:");
             case SQLite -> DriverManager.getConnection("jdbc:sqlite::memory:");
             case Postgres, DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino,
-                 BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL ->
+                 BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL,
+                 MongoDB ->
                     throw new com.legend.error.NotImplementedException(
                             "no in-memory instance of database type '" + type + "'");
         };

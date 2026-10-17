@@ -67,6 +67,8 @@ class JdbcSurfaceCensusTest {
             // every driver's packages (2026-10-13, the dialect program's Phase 0: DuckDB, H2 and SQLite only before)
             "java\\.sql|javax\\.sql|org\\.duckdb|org\\.h2\\.|org\\.sqlite|org\\.postgresql|org\\.mariadb|com\\.mysql"
             + "|com\\.clickhouse|io\\.trino|net\\.snowflake|com\\.databricks|com\\.simba|com\\.google\\.cloud\\.bigquery"
+            // MongoDB's driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a client library, counted as a driver
+            + "|com\\.mongodb|org\\.bson"
             + "|prepareStatement|createStatement|executeQuery");
 
     /** Every module source root the census walks (repo-relative). A
@@ -105,6 +107,15 @@ class JdbcSurfaceCensusTest {
             // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: run() is exec.SetupRunner's; CsvSeed (now setup/)
             // holds no JDBC
             "core/src/main/java/com/legend/exec/SetupRunner.java",
+            // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12, the Statements seam): the plan runner's JDBC moved
+            // here whole -- prepare, bind, execute, the one getString of the plan path (carriage, C1.2) -- so the
+            // runner holds a plan and a session's Statements, never a connection; a connector's session gives its own
+            "core/src/main/java/com/legend/exec/JdbcStatements.java",
+            // 2026-10-17 (D12): MongoDB's connector answers Session.connection() with a refusal (it names the JDBC
+            // type to refuse it: a MongoDB session has none); its statements run the pipeline through the driver's
+            // cursor and carry each row's one text, as the JDBC statements carry getString's
+            "core/src/main/mongodb/com/legend/exec/MongoDbConnector.java",
+            "core/src/main/mongodb/com/legend/exec/MongoDbStatements.java",
             // the execution side's ONE session owner (C3b, 2026-10-04; it absorbed JdbcMetadata, the
             // driver's one metadata read kept out of Compiler so the plan surface needs no java.sql):
             // the product/version read a handed session is checked by, and opening a declared

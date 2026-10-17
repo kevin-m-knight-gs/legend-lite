@@ -20,7 +20,8 @@ core/src/main/java/com/legend/exec/Sessions.java	database-type	3
 core/src/main/java/com/legend/exec/Sessions.java	jdbc-url	10
 core/src/main/java/com/legend/exec/Sessions.java	product-call	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/exec/Sessions.java	product-name	65
+# 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D4 and D12: Sessions names MongoDB on four more lines, each a refusal by name (no in-process instance, no JDBC product, no JDBC opening: its connector opens it through the plan runner); 65 -> 69.
+core/src/main/java/com/legend/exec/Sessions.java	product-name	69
 core/src/main/java/com/legend/executionplan/PlanJson.java	database-type	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/main/java/com/legend/executionplan/PlanJson.java	product-name	27
@@ -30,7 +31,11 @@ core/src/main/java/com/legend/protocol/sql/InputDialect.java	product-name	6
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 # 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
 core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	47
-core/src/main/java/com/legend/test/StorelessRuntime.java	product-name	6
+# 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D4: the storeless runtime on a MongoDB server (onMongo: the engine's own MongoDBConnection form, since a RelationalDatabaseConnection never declares MongoDB) and its refusal in the relational form; 6 -> 8.
+core/src/main/java/com/legend/test/StorelessRuntime.java	product-name	8
+# 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md §11: the v0 end-to-end test on the embedded MongoDB names its server, its store section and its connection (8 lines), and writes its own documents through the driver (2 lines).
+core/src/test/java/com/legend/exec/MongoDbPlanTest.java	driver	2
+core/src/test/java/com/legend/exec/MongoDbPlanTest.java	product-name	8
 core/src/test/java/com/legend/ArchitectureTest.java	dialect-class	5
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/test/java/com/legend/ArchitectureTest.java	product-name	3

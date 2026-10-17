@@ -975,3 +975,81 @@ in its final place:
 What v0 leaves for the landings of §7: the class mapping and `~binding` (PR5), the corpus (PR6), windows, pivots and
 as-of joins (PR4), the full function table's burn-down (PR3), the metamodel store (D13). The record of what landed, with
 its judges, is kept here as each piece lands.
+
+### 11.1 What landed, 2026-10-17 (branch `claude/upbeat-johnson-l4hogx`)
+
+v0 is real end to end: a model with a `###MongoDB` store and a `MongoDBConnection` is planned by the one compiler into
+an `aggregate` command and run by the plan runner through the MongoDB connector on a real MongoDB 8.0.17, which the
+test JVM starts from the pinned server Bazel unpacked. Every piece is in its final place (§5), none in the legacy
+executor.
+
+**The vocabulary (D3, D4, D6).** `DatabaseType.MongoDB` (`model/ConnectionDefinition`), carried by the engine's own
+`MongoDBConnection` form and never writable in a `RelationalDatabaseConnection` (the grammar's lite types are untouched).
+`model/MongoDeclarations` reads the connection (its one server as a static datasource; a user name with the vault
+reference its password names, `systemproperties:<name>`; a replica-set list, Kerberos-only, API-key, EPK, PSK and GCP
+authentications and an AWS secret refused by name) and the store (each collection a table; its columns the declared
+schema's top-level properties by `bsonType` -- string, long, int, bool, double, a nested object or array as a Variant,
+an objectId as text; `_id` the key where declared; `required` is NOT NULL; a decimal refused by name; nothing inferred
+from documents). `StorelessRuntime.onMongo` writes the storeless runtime in that form; `Databases`, `Sessions`,
+`EngineText` and `PlanJson` take the type (every switch exhaustive; the refusals by name).
+
+**The target (D1, D2, D5, D7, D10, D11).** `sql/dialect/MongoDb` (the dialect class, its whole vocabulary decided:
+the function table, the aggregate table, the scalar names, the date formats, the DDL and DML as commands),
+`MongoDbPipeline` (the stages: scan with `$ifNull` per declared column, `$documents` for literal relations and the
+database-level `aggregate: 1`, `$match` with `$expr`, `$group` with its accumulators read back through markers and the
+one-row-over-no-input union, sort carries with their null flags, `$replaceWith` projections, `$skip`/`$limit`,
+`$unionWith`, `$lookup` with `let` variables for inner, left and cross joins) and `MongoJson` (the text helpers and
+D7's null guard: a `$let` binding each operand once, null when a nullable operand is null). Parameters are
+`{"$legendParam": n}` markers in binding order. A raise is a `$convert` to `int` of the message between the platform's
+U+001F sentinels, concatenated with an empty text that depends on the row: **measured on 8.0.17, the server's
+optimizer folds a constant conversion in a branch not taken and fails the whole pipeline before any row** ("Failed to
+optimize pipeline"), so no raise may be a constant. The JSON wire is written by the pipeline as text (D10): the
+`CAST(json_object(...) AS VARCHAR)` the wire builds becomes a `$concat` of each key's text and each value's text by its
+kind at run time (null, a string escaped and quoted, a date in its format, a number or a boolean by `$toString`; a
+nested document raised by name), since MongoDB has no JSON writer for a value. The capability matrix's MongoDb row
+(regenerated): 171 functions and aggregates decided through MongoDB's operators (the matrix reads each as an emulation,
+every arm composing JSON through a helper), 33 refused by name, 15 lowering markers; no PCT lane reaches it yet.
+
+**The seam (D14's constraints).** `exec/Statements` is what a session does with a plan's text (`check`, `execute`,
+`query` with the slots bound and each row's one text carried); `exec/JdbcStatements` is the runner's JDBC moved whole;
+`Sessions.Session.statements()` answers JDBC's by default; `exec/DatabaseConnector` is the seam a database with no
+JDBC joins through, found by `ServiceLoader` as the bulk loaders are (`exec/Connectors`); `PlanRunner` runs through the
+session's statements and holds the plan and the punctuation alone; `PlanSessions.openShared` asks the connectors first
+for a declared connection (a database its connector opens is the user's: a plan with setup for it is refused).
+`Executor` and `Execution` are untouched: the legacy path refuses MongoDB by name (`Sessions.openingFor`).
+
+**The connector (D12).** `core/src/main/mongodb/com/legend/exec/MongoDbConnector` (a `MongoClient` from the
+connection, the password read from the system property the vault reference names) and `MongoDbStatements` (the markers
+replaced in place by the driver's own encoding of each bound value -- Int64, Double, Decimal128, String, Boolean, a
+date at UTC midnight, a date-time to the millisecond, finer refused; the `aggregate` command through the driver's
+cursor; each row's one field a string or null, anything else refused; a server failure as the platform's `DataError`
+with a raise's text unwrapped). `//core:mongodb_connector` compiles against the driver (5.13.0: sync, core, bson and
+bson-record-codec, `tools/deps/jars_table.bzl`) and rides with `//core:drivers`; core compiles against none of it.
+
+**The server (D8, D9).** `tools/mongodb/` pins MongoDB 8.0.17's Ubuntu 22.04 x86_64 Community tarball by sha256
+(`@embedded_mongodb`, the server binary and its licence kept; SSPL test input in Bazel's cache, never redistributed);
+`testing/EmbeddedMongoDb` starts it on a free loopback port with access control on and makes the user `pct` on the
+database `pct` through the localhost exception (a root administrator first, then the user with its leave).
+
+**The proof.** `//core:mongodb_plan_test` (manual, in `//gates:heavy`; Linux x86_64): six cases on the real server,
+all green -- a filtered, projected, sorted select streamed as JSON rows; an absent field read as null; a parameter
+bound in place; a group counting and sorting; the whole result as the JSON wire and as the CSV wire; a storeless
+expression on the database alone. `MongoDbDialectTest` (in `//core:core_tests`) pins the rendered command's shape,
+the marker, the group stage and a refusal by name. Every guard is green with its pins moved by dated reason:
+`DialectBoundaryTest` (Databases' construction and arm, Sessions' two refusals, the storeless runtime's one, the
+mapping parser's wire discriminator now counted), the leak ledger (Sessions, StorelessRuntime, the end-to-end test),
+`JdbcSurfaceCensusTest` and `JavaEvalLedgerTest` (the seam's four classes and the connector's two), `TenetRatchetTest`
+and `ArchitectureTest` (the driver's packages funnelled as a driver's), `CoreClosureTest` (the four jars),
+`DatabaseOwners` (the connector's source set an owner), `CodeShapeGuardrailTest` (the pipeline's stage counter).
+`//core:core_tests` (27 lanes), `//core:guardrails`, `//core:census`, `//docs:update_dialect_capability_test`,
+`//tools/deps:core_closure_test` and `core_layering_test` pass; `//pct:pct_tests_lib` builds. The differences from
+SQL that v0 keeps are `docs/SEMANTICS_REGISTER.md` S72 to S75.
+
+**What v0 leaves, in order.** (1) **The PCT lane**: the harness's channel A hands a `java.sql.Connection` to
+`QueryService.execute` (`PctExecuteNative`), the legacy route; the Mongo lane needs §6's plan route (`PCT_TDS` as a
+plan output, the bridge through `PlanRunner`), which is the next landing -- so no `PctBackend.Lane.MONGODB` is
+scaffolded that could not run. (2) Joins, unions and the ordered and distinct aggregates are written and rendered but
+not yet measured on the server; windows (`$setWindowFields`), pivots, as-of and lateral joins, subqueries in
+expression position, CTEs, raw text as a source, catalog grids, `DISTINCT` with `ORDER BY`, and a star with exclusions
+are refused by name. (3) The server's resolver (`ConnectionResolver`) and the system database refuse MongoDB by name:
+the product opens no Mongo session yet. (4) The class mapping and `~binding`, the corpus, the metamodel store (D13).

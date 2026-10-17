@@ -213,6 +213,10 @@ class CodeShapeGuardrailTest {
             "Snowflake.fresh", "ExplosionMarkers.next",
             // render mode toggle + import memo
             "AnsiSqlRenderer.inlineMode", "ModelOrchestrator.cachedImports",
+            // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md §5.1): the MongoDb pipeline writer's stage counter -- Stages
+            // IS the frame object, one per pipeline level, scoped to one render() as the renderer's cursor is: it
+            // puts the comma before every stage but the first
+            "MongoDbPipeline.written",
             // normalizer emission frame: Pipeline IS the frame object; expr
             // is the accumulating pipeline AST
             "Pipeline.expr",
