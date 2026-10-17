@@ -181,7 +181,10 @@ island's reason, those IQ answers, and what became of them:
 - out, the 38 digits of lite's DuckDB decimals: CAST to DECIMAL without a precision (64, IQ's NUMERIC(126,38)), AVG
   of a wide NUMERIC (53, IQ's NUMERIC(127,59): '9.83333...' to 59 places), a NUMERIC quotient or product past 38
   digits (46), CAST of a NUMERIC to more places (8). IQ answers them exactly; DuckDB holds no decimal past 38 digits
-  (Postgres's numeric would), so lite refuses by name rather than answer other digits;
+  (Postgres's numeric would), so lite refuses by name rather than answer other digits. Decided, the user (2026-10-17):
+  the targets' ceiling decides it -- Snowflake's NUMBER holds 38 digits (scale 0-37), as DuckDB's DECIMAL does, so no
+  target but Postgres could hold IQ's answer, and a rounded one is a wrong one: refused by name, not built for
+  Postgres alone;
 - an expression nesting too many checked operations (39 of 44, a scale bound): an integer quotient is lite's own
   native now (`meta::legend::lite::quotient`, the database's integer division), where the islands' Float estimate read
   each operand about fourteen times (`CONVERT(int, LEN(x) * (1 + y) / 1000)`: 30 KB of SQL to 600 bytes); 5 more
