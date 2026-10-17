@@ -87,8 +87,8 @@ const HOVER_EXTRAS: ReadonlySet<ChartMark> = new Set([
 ]);
 
 /**
- * The spec's version (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.1). 2: a slot per role -- every field it adds is
- * optional, so a version 1 spec IS a version 2 spec and is read unchanged but for its number. 1: x, y, split, options.
+ * The spec's version (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.1). 2: a slot per role. 1: x, y, split, options. Only
+ * 2 is read (the user, 2026-10-17: no older chart is read forward).
  */
 export const CHART_VERSION = 2;
 
@@ -337,8 +337,8 @@ function measureProblem(m: unknown, what: string): string | null {
  */
 export function specProblem(spec: unknown, marks: readonly string[]): string | null {
   if (!isRecord(spec)) return 'it is not a chart';
-  if (spec['version'] !== 1 && spec['version'] !== CHART_VERSION) {
-    return `its version ${JSON.stringify(spec['version'] ?? null)} is not one this DataCube reads (1 to ${CHART_VERSION})`;
+  if (spec['version'] !== CHART_VERSION) {
+    return `its version ${JSON.stringify(spec['version'] ?? null)} is not one this DataCube reads (${CHART_VERSION})`;
   }
   if (!marks.includes(spec['mark'] as string)) return `its kind ${JSON.stringify(spec['mark'] ?? null)} is not one this DataCube draws`;
   if (spec['y'] === undefined) return 'it plots nothing (no y)';
@@ -449,9 +449,8 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
 }
 
 /**
- * A saved chart as a page reads it (page-document.ts), or what stops it from being read, in words (specProblem). A
- * version 1 spec IS a version 2 spec (every field 2 adds is optional): only its number moves. An option it leaves out
- * is the chart's own default. Python's charts are read the same, headless (headless/grid.ts gridChart): one reader --
+ * A saved chart as a page reads it (page-document.ts), or what stops it from being read, in words (specProblem). An
+ * option it leaves out is the chart's own default. Python's charts are read the same, headless (headless/grid.ts gridChart): one reader --
  * as the Python pages design's §3 has it, Python adds no second set of rules.
  */
 export function readChart(spec: unknown): ChartSpec | string {

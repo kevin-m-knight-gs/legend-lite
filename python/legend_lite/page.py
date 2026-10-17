@@ -1133,8 +1133,8 @@ class Page:
     @classmethod
     def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any], *, mode: str = LIVE) -> Page:
         """A page document (a file, or its dict) as a page again, its grids over ``frames`` by their frame names (each
-        cube's ``{"_type": "frame", "name": ...}``), served ``mode``: the document as DataCube reads it (any version it
-        reads, brought to its own; refused in its words when DataCube would not open it), each cube as DataCube opens it
+        cube's ``{"_type": "frame", "name": ...}``), served ``mode``: the document as DataCube reads it (its own version
+        only; refused in its words when DataCube would not open it), each cube as DataCube opens it
         over its frame as it is now -- what DataCube leaves out of it warned, in its words."""
         from .datacube import _current
         # read on the session the page will be made on (Page() takes the current one)
@@ -1333,8 +1333,8 @@ class _NoCube(ValueError):
 
 def _read_page(doc: Any, session: Any) -> dict[str, Any]:
     """``doc`` (a page document, or its JSON text as it is) as DataCube reads a page document and would write it again
-    (page-document.ts readPage and pageToJson, asked headless, on ``session``'s engine: the page's own): of any version
-    DataCube reads, migrated to its own, every rule of its reader held, and refused in its words otherwise -- Python
+    (page-document.ts readPage and pageToJson, asked headless, on ``session``'s engine: the page's own): of DataCube's
+    own version, every rule of its reader held, and refused in its words otherwise -- Python
     keeps no second copy of them. Then what a page in Python adds: each cube over a frame."""
     said = json.loads(session.headless().call('pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
     if 'problems' in said:

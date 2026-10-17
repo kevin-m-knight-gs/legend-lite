@@ -70,7 +70,7 @@ const AVERAGED: CubeSnapshot = {
 };
 
 const BAR: ChartSpec = {
-  version: 1,
+  version: 2,
   mark: 'bar',
   x: 'region',
   y: [{ column: 'notional', fn: 'sum' }],

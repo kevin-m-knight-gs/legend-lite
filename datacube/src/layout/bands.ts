@@ -949,56 +949,6 @@ export function cells(layout: Bands, cols = 24, rows = 24): { readonly cols: num
   return { cols: width, rows: y, tiles: out };
 }
 
-/**
- * A PAGE SAVED BEFORE BANDS (tiles on a grid `cols` wide, `rows` to a screenful), read as bands: cut where no tile
- * crosses -- across the page into bands, then inside each band down into columns or across into parts, as often as a
- * straight cut divides what is left -- each part's share its span. Tiles no straight cut divides (four round a middle)
- * are read side by side, in order across, each its width's share. Every tile is kept; the page scrolls, as it did.
- */
-export function fromCells(tiles: readonly Cell[], rows: number): Bands {
-  /** `rects` in groups no line across `axis` crosses, in order along it. */
-  const cut = (rects: readonly Cell[], axis: 'x' | 'y'): Cell[][] => {
-    const size = axis === 'x' ? 'w' : 'h';
-    const sorted = [...rects].sort((a, b) => a[axis] - b[axis] || a.id.localeCompare(b.id));
-    const groups: Cell[][] = [];
-    let end = -Infinity;
-    // in order along the axis, the furthest any rect so far reaches: one starting at or past it starts a new group
-    for (const rect of sorted) {
-      if (rect[axis] >= end) groups.push([rect]);
-      else groups[groups.length - 1]!.push(rect);
-      end = Math.max(end, rect[axis] + rect[size]);
-    }
-    return groups;
-  };
-  const span = (rects: readonly Cell[], axis: 'x' | 'y'): number => {
-    const size = axis === 'x' ? 'w' : 'h';
-    return Math.max(...rects.map((r) => r[axis] + r[size])) - Math.min(...rects.map((r) => r[axis]));
-  };
-  const nodeOf = (rects: readonly Cell[]): Node => {
-    if (rects.length === 1) return { tile: rects[0]!.id };
-    for (const [axis, direction] of [['x', 'row'], ['y', 'column']] as const) {
-      const groups = cut(rects, axis);
-      if (groups.length > 1) {
-        const spans = groups.map((g) => span(g, axis));
-        const sum = spans.reduce((a, b) => a + b, 0);
-        return split(direction, groups.map(nodeOf), spans.map((s) => s / sum));
-      }
-    }
-    const across = [...rects].sort((a, b) => a.x - b.x || a.y - b.y || a.id.localeCompare(b.id));
-    const sum = across.reduce((a, r) => a + r.w, 0);
-    return split('row', across.map((r) => ({ tile: r.id })), across.map((r) => r.w / sum));
-  };
-  const unique = tiles.filter((t, i) => tiles.findIndex((u) => u.id === t.id) === i);
-  if (unique.length === 0) return EMPTY;
-  return {
-    fit: false,
-    bands: cut(unique, 'y').map((group) => ({
-      height: Math.max(MIN_BAND_HEIGHT, span(group, 'y') / Math.max(1, rows)),
-      node: nodeOf(group),
-    })),
-  };
-}
-
 /** Where a divider snaps, as a share of its split: quarters, thirds and the half (§3.3). */
 export const SNAPS: readonly number[] = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
 

@@ -113,12 +113,10 @@ describe('a saved page', () => {
     assert.equal(pageDefinitionText(back), pageDefinitionText(page()));
   });
 
-  it('reads a version 1 chart as version 2: every field 2 adds is optional, so only its number moves', () => {
+  it('refuses a version 1 chart: no older chart is read (the user, 2026-10-17)', () => {
     const raw = JSON.parse(pageToJson(page()));
     raw.views = raw.views.map((v: Record<string, unknown>) => (v['kind'] === 'chart' ? { ...v, spec: { ...(v['spec'] as object), version: 1 } } : v));
-    const chart = readPage(JSON.stringify(raw)).views.find((v) => v.id === 'chart-1');
-    assert.ok(chart && chart.kind === 'chart');
-    assert.deepEqual(chart.spec, SPEC);
+    assert.throws(() => readPage(JSON.stringify(raw)), /its version 1 is not one this DataCube reads \(2\)/);
   });
 
   it('keeps every version 2 slot it reads', () => {
@@ -207,7 +205,7 @@ describe('a saved page', () => {
     assert.throws(bad({ cubes: [...cubes, ...cubes] }), /two cubes share an id/);
     assert.throws(bad({ views: [{ id: 'x', kind: 'map', cube: 'cube' }] }), /unknown kind "map"/);
     assert.throws(bad({ views: [{ id: 'x', kind: 'grid', cube: 'elsewhere' }] }), /shows no cube of this page/);
-    assert.throws(bad({ views: [{ id: 'c', kind: 'chart', cube: 'cube', title: 'c', spec: { version: 1, mark: 'violin', y: [], options: {} } }] }),
+    assert.throws(bad({ views: [{ id: 'c', kind: 'chart', cube: 'cube', title: 'c', spec: { version: 2, mark: 'violin', y: [], options: {} } }] }),
       /no chart it can draw/);
     // version 2's slots (chart-spec.ts §3.1): a word this DataCube does not know is refused by name, never drawn as
     // something else
@@ -301,35 +299,12 @@ describe('a saved page', () => {
     /a stack of 1 tile/);
   });
 
-  it('opens a page saved as version 2 (one layout) as one sheet, and writes it back as version 4', () => {
-    const raw = JSON.parse(pageToJson(page()));
-    const { sheets: _sheets, ...rest } = raw;
-    const v2 = { ...rest, version: 2, layout: LAYOUT };
-    const back = readPage(JSON.stringify(v2));
-    assert.equal(back.version, 4);
-    assert.deepEqual(back.sheets, [{ id: FIRST_SHEET, layout: LAYOUT }]);
-    const written = JSON.parse(pageToJson(back));
-    assert.equal(written.version, 4);
-    assert.equal(written.layout, undefined, 'its layout is in its one sheet, not beside it');
-  });
-
-  it('opens a page saved as version 1 (tiles on a 12-column grid) as one sheet of bands, and writes it back as version 4', () => {
+  it('refuses a page saved by an older version, by its version: no older page is read (the user, 2026-10-17)', () => {
     const { sheets: _sheets, ...raw } = JSON.parse(pageToJson(page()));
-    const v1 = { ...raw, version: 1, layout: { kind: 'grid', cols: 12, arranged: true, tiles: [
-      { id: 'grid', x: 0, y: 0, w: 8, h: 14 },
-      { id: 'chart-1', x: 8, y: 0, w: 4, h: 14 },
-      { id: 'chart-2', x: 0, y: 14, w: 12, h: 10 },
-    ] } };
-    const back = readPage(JSON.stringify(v1));
-    assert.equal(back.version, 4);
-    assert.deepEqual(back.sheets, oneSheet({ kind: 'bands', fit: false, bands: [
-      { height: 14 / 24, node: { split: 'row', parts: [{ node: { tile: 'grid' }, size: 8 / 12 }, { node: { tile: 'chart-1' }, size: 4 / 12 }] } },
-      { height: 10 / 24, node: { tile: 'chart-2' } },
-    ] }));
-    assert.equal(JSON.parse(pageToJson(back)).version, 4);
-    // a version 1 page's grid that is wrong is still refused by name
-    assert.throws(() => readPage(JSON.stringify({ ...v1, layout: { ...v1.layout, tiles: [{ id: 'grid', x: -1, y: 0, w: 1, h: 1 }] } })),
-      /not an id and a place/);
+    for (const version of [1, 2, 3]) {
+      assert.throws(() => readPage(JSON.stringify({ ...raw, version, layout: LAYOUT })),
+        new RegExp(`saved by an older version \\(${version} < 4\\): it is no longer read`));
+    }
   });
 });
 

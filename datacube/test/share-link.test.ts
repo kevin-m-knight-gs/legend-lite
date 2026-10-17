@@ -93,7 +93,8 @@ describe('the p1 dictionary is FROZEN', () => {
 /**
  * A LINK SHARED BEFORE BANDS, frozen (2026-10-09): a version 1 page -- its layout tiles on a 12-column grid, the grid
  * 8 wide beside a chart 4 wide, 6 rows of 24 -- deflated against p1, as links were made until then. No older page is
- * read (the user, 2026-10-17): its cube is version 1, from before a grid's aggregates were its columns' Aggregation.
+ * read (the user, 2026-10-17): the page is version 1, and its cube too (from before a grid's aggregates were its
+ * columns' Aggregation).
  */
 const V1_LINK = 'p1.1VvJbsIwEP2ViDNQZyUcOeRQCaRCpV4qZNlZeqCliNBWHPrvHTvBSewEskr0FqJxPPZ4mXnv0ZRZ9IEvgoGwxzyNwq60T2YOY' +
   '2IUjGCgMs4JJqHIIzEG47BvYC9zLOwFpCbc57IvwLUr96iQJhtIe2INVIC7sbY2NXrWYM53uXqlgi-paFfBoqSNTkcShDjJKSqTt' +
@@ -105,8 +106,8 @@ const V1_LINK = 'p1.1VvJbsIwEP2ViDNQZyUcOeRQCaRCpV4qZNlZeqCliNBWHPrvHTvBSewEskr0
   'WvwXWURMACoV_SqJb6XShdFpcrryQHrVLk4Tb2XClTpRCnUqLCrs6Js-_sH';
 
 describe('a link made before 2026-10-17 is refused, saying why', () => {
-  it('its cube is version 1: no longer read', () => {
-    assert.throws(() => readPageFragment(V1_LINK), /older version \(1 < 2\).*no longer read/);
+  it('its page is version 1: no longer read', () => {
+    assert.throws(() => readPageFragment(V1_LINK), /older version \(1 < 4\): it is no longer read/);
   });
 });
 

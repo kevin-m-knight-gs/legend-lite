@@ -13,7 +13,7 @@
 
 import { col, fn, lambda, lit, toJson } from '../../../pure-protocol/src/index.ts';
 import { CALC_FUNCTIONS } from '../../src/calc.ts';
-import { CHART_MARKS, type ChartSpec } from '../../src/chart-spec.ts';
+import { CHART_MARKS, CHART_VERSION, type ChartSpec } from '../../src/chart-spec.ts';
 import { DEFAULT_CONFIGURATION, type ColumnConfiguration, type CubeConfiguration } from '../../src/config.ts';
 import type { ColumnFormat } from '../../src/format.ts';
 import { writeCube, type FileSource } from '../../src/cube-document.ts';
@@ -67,7 +67,7 @@ function templatePage(): string {
   const source: FileSource = { _type: 'file', name: '', format: 'csv', size: 0, sha256: '', columns: types.map((type) => ({ name: '', type })) };
   const cube = writeCube({ name: '', source, snapshot, configuration, tree: TreeState.empty().withExpandTo(1) });
   const chart = (mark: ChartSpec['mark']): ChartSpec => ({
-    version: 1, mark, x: '', y: [{ column: '', fn: 'sum' }], split: '',
+    version: CHART_VERSION, mark, x: '', y: [{ column: '', fn: 'sum' }], split: '',
     options: { orientation: 'vertical', stack: 'none', sort: { by: 'y', direction: 'desc' }, limit: 20, labels: true, legend: 'bottom' },
   });
   const views: PageViews = {

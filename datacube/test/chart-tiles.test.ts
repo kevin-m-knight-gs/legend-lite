@@ -506,7 +506,7 @@ describe('a KPI tile (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () =
       label: (v) => `$${String(v)}`,
       onPick: () => {},
       initial: {
-        version: 1, mark: 'kpi', x: 'region', y: [{ column: 'notional', fn: 'sum' }],
+        version: 2, mark: 'kpi', x: 'region', y: [{ column: 'notional', fn: 'sum' }],
         options: { orientation: 'vertical', stack: 'none', sort: { by: 'y', direction: 'desc' }, limit: 50, labels: false,
           legend: 'top', target: 1000 },
       },

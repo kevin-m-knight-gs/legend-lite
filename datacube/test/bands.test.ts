@@ -35,7 +35,6 @@ import {
   evenAll,
   evenOut,
   fitted,
-  fromCells,
   layoutsFor,
   neighbour,
   problems,
@@ -377,12 +376,9 @@ describe('a fuzz of gestures keeps every rule', () => {
         assert.deepEqual(problems(layout), [], `seed ${seed}, step ${step}, gesture ${gesture}`);
         // a gesture moves tiles, never loses or makes one (but add and remove)
         if (gesture >= 3) assert.deepEqual([...tiles(layout)].sort(), [...ids].sort());
-        // now and then: the page in whole cells covers it exactly, and reads back as bands with every tile
+        // now and then: the page in whole cells covers it exactly
         if (step % 50 === 0) {
           exactCover(layout, `seed ${seed}, step ${step}`);
-          const back = fromCells(cells(layout).tiles, 24);
-          assert.deepEqual(problems(back), [], `seed ${seed}, step ${step}: read back`);
-          assert.deepEqual([...tiles(back)].sort(), [...places(layout)].sort());
           // as a page saves it: the same tiles, every rule kept, each stack on its first tab
           const saved = asSaved(layout);
           assert.deepEqual(problems(saved), []);
@@ -608,51 +604,6 @@ describe('the page in whole cells (an export)', () => {
     layout = drop(add(layout, 'c'), 'c', { onto: 'b', edge: 'right' });
     for (let i = 0; i < 20; i += 1) layout = resize(layout, [0], 1, 0.5);
     exactCover(layout, 'squeezed');
-  });
-});
-
-describe('a page saved before bands, read as bands', () => {
-  it('the grid on top and charts in a row below: two bands', () => {
-    const layout = fromCells([
-      { id: 'grid', x: 0, y: 0, w: 12, h: 14 },
-      { id: 'chart-1', x: 0, y: 14, w: 6, h: 10 },
-      { id: 'chart-2', x: 6, y: 14, w: 6, h: 10 },
-    ], 24);
-    assert.deepEqual(layout, { fit: false, bands: [
-      { height: 14 / 24, node: { tile: 'grid' } },
-      { height: 10 / 24, node: { split: 'row', parts: [{ node: { tile: 'chart-1' }, size: 0.5 }, { node: { tile: 'chart-2' }, size: 0.5 }] } },
-    ] });
-  });
-  it('one big on the left and two stacked on the right: one band, its right column divided', () => {
-    const layout = fromCells([
-      { id: 'grid', x: 0, y: 0, w: 7, h: 16 },
-      { id: 'top', x: 7, y: 0, w: 5, h: 8 },
-      { id: 'bottom', x: 7, y: 8, w: 5, h: 8 },
-    ], 24);
-    assert.equal(layout.bands.length, 1);
-    assert.deepEqual(layout.bands[0]!.node, { split: 'row', parts: [
-      { node: { tile: 'grid' }, size: 7 / 12 },
-      { node: { split: 'column', parts: [{ node: { tile: 'top' }, size: 0.5 }, { node: { tile: 'bottom' }, size: 0.5 }] }, size: 5 / 12 },
-    ] });
-  });
-  it('four round a middle (no straight cut divides them): side by side, every tile kept', () => {
-    const layout = fromCells([
-      { id: 'n', x: 0, y: 0, w: 8, h: 4 },
-      { id: 'e', x: 8, y: 0, w: 4, h: 8 },
-      { id: 's', x: 4, y: 8, w: 8, h: 4 },
-      { id: 'w', x: 0, y: 4, w: 4, h: 8 },
-      { id: 'm', x: 4, y: 4, w: 4, h: 4 },
-    ], 24);
-    assert.deepEqual(problems(layout), []);
-    assert.deepEqual(tiles(layout), ['n', 'w', 'm', 's', 'e']);
-  });
-  it('every preset read back from its own cells keeps its shape', () => {
-    for (const { id } of layoutsFor(5)) {
-      const layout = arrange(EMPTY, id, ['a', 'b', 'c', 'd', 'e']);
-      const back = fromCells(cells(layout).tiles, 24);
-      assert.deepEqual(tiles(back), tiles(layout), id);
-      assert.equal(back.bands.length, layout.bands.length, id);
-    }
   });
 });
 

@@ -38,7 +38,7 @@ export { classDuplicate, pageModelKept, pageModelNames };
  *  places arranged, tiles stacked -- what Python's pages ask, so they place nothing by rules of their own. */
 export { layoutAdd, layoutArrange, layoutNew, layoutRemove, layoutStack };
 
-/** A page document read as DataCube reads it (any version, migrated, every rule held) and written as DataCube writes
+/** A page document read as DataCube reads it (its own version, every rule held) and written as DataCube writes
  *  it: what Python's pages ask when one is loaded, read back, laid out or saved. And a new page as DataCube starts one:
  *  what Python's ll.Page() asks. */
 export { pageNew, pageRead };

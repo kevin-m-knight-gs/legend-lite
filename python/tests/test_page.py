@@ -894,8 +894,9 @@ class Document(Paged):
         listed['views'][0]['cube'] = ['grid-1']
         with self.assertRaisesRegex(ValueError, 'shows no cube of this page'):
             ll.Page.load(listed, frames={'trades': trades()})
-        # an older page DataCube reads is read, brought to DataCube's own version
-        self.assertEqual(ll.Page.load({**doc, 'version': 3}, frames={'trades': trades()}).to_dict()['version'], 4)
+        # an older page is not read (the user, 2026-10-17), in DataCube's words
+        with self.assertRaisesRegex(ValueError, r'saved by an older version \(3 < 4\): it is no longer read'):
+            ll.Page.load({**doc, 'version': 3}, frames={'trades': trades()})
         # and what Python adds: a page in Python is over frames
         elsewhere = copy.deepcopy(doc)
         elsewhere['cubes'][0]['cube']['source'] = {'_type': 'remoteFile', 'name': 'trades.parquet',
@@ -995,7 +996,7 @@ class Live(Paged):
         page.read()
         again = copy.deepcopy(open_now)
         again['views'].append({**page.to_dict()['views'][0], 'id': chart.id, 'kind': 'chart', 'title': 'new there',
-                               'spec': {'version': 1, 'mark': 'pie', 'y': [{'column': 'notional', 'fn': 'sum'}], 'options': {}}})
+                               'spec': {'version': 2, 'mark': 'pie', 'y': [{'column': 'notional', 'fn': 'sum'}], 'options': {}}})
         again['sheets'][0]['layout']['bands'].append({'height': 0.5, 'node': {'tile': chart.id}})
         self.assertEqual(self.said(page, again), 204)
         page.read()
