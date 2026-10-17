@@ -3451,3 +3451,60 @@ among the keys, `count(a) + 3`, counting per group), Return5 (3: `count(DISTINCT
 ReturnOrderBy2 (4: sort and distinct, ordering by a property after distinct, count star in scope, the columns
 under ORDER BY), Aggregation5 and Aggregation8 (3: `collect()` filtering nulls beside a node, `count(DISTINCT a)`
 on an unbound node, on null), WithWhere6 (1: filtering a single aggregate); no case lost.
+
+### 12.48 A relationship over an association is the ordered pair of its ends, and no relationship is walked twice, 2026-10-17
+
+- **The frame (the plan's W2, leg 3; S74 and S75 revisited):** a relationship over a plain `Association` or a
+  class-typed property has no row of its own, so §12.46 gave it no identity, and §12.47 refused DISTINCT and a
+  grouping over it; S75 recorded that relationship uniqueness (Neo4j binds the relationship variables of one
+  MATCH to different relationships, and walks none twice along a chain) was not spelled. The link IS
+  identifiable: its type and the ordered pair of its ends' identities in its stored direction,
+  `'<type>:<source>><target>'`, which is one text per link (an association holds one link per pair, S74), and
+  what Neo4j's own id of such a relationship distinguishes.
+- **The reading:** a relationship binding carries the hop's stored direction (`Binding.forward`: true when the
+  node before holds the node after, the direction `Hop` already knew for a path's `@dirs`). Over to-one hops the
+  identity is spelled in the graph scope (`GraphScope.identityOf`: `pairIdentity` over the near and the far
+  node's `elementId`, read as one inside the gate that makes the whole null where a hop finds no node, since the
+  concatenation would skip an empty operand); over a to-many hop the pair's two columns ride the materialized
+  rows (`carryRel`: the source's and the target's identities, `RelShape.source`/`target`, exploded one row per
+  link with the far node's columns) and the text is rebuilt over them (`RowScope.relIdentity`), as a node's
+  identity rides its column. Everything of §12.46 and §12.47 then holds for such relationships: `r = s`, `r <>
+  s`, `r = r` (null for an absent one), `RETURN DISTINCT r`, `WITH r, count(*)`, `count(DISTINCT r)`, the
+  comparison after a WITH (Comparison1/[5]).
+- **Uniqueness (S75 overturned for one MATCH):** the MATCH's patterns are pre-scanned for the types their
+  relationships repeat (`MatchFrame.scan`; an untyped relationship beside another counts as every type); an
+  unnamed relationship of a repeated type is named (a fresh name, as one with a property map already was), and
+  each relationship read registers against the earlier ones of its type (`relationshipRead`): the pairwise
+  `r1 <> r2` conditions are conjoined to the MATCH's WHERE (`withUniqueness`, at each of the four readers: the
+  single graph, the label-less and the untyped arms, the variable-length arms' base), so they land in the
+  graph's conditions over to-one hops and in the deferred WHERE over materialized rows otherwise, and across
+  the patterns of one MATCH the product's filter (§12.46) now reads the pair identities too, of the
+  relationships this MATCH read (a second MATCH clause joins an earlier MATCH's graph freely: the same
+  relationship may bind in both, as in Neo4j; the chain's first run caught the product applying it across
+  clauses), the second pattern read under the whole MATCH's pre-scan (an unnamed relationship of a type repeated
+  across the patterns is named). A self-loop walked
+  twice (`(a)-[:T]->(b)-[:T]->(c)` over `(n)-[:T]->(n)`), a chain back and forth over one relationship, a
+  two-node cycle walked round and back: none, as in Neo4j; two relationships of different types may share their
+  ends. A relationship alone in its MATCH is named by nothing (nothing to tell it from).
+- **Still unspelled, recorded:** uniqueness along a variable-length chain (the unroll's hidden relationships,
+  §12.42: `(x)-[:T*3]->(z)` over a two-node cycle still walks a relationship twice, the lite case says so), and
+  within an OPTIONAL MATCH's chain (two of one type stay refused there by name).
+- **Found on the way:** the guardrail against mutable instance fields moved the per-MATCH bookkeeping into one
+  frame object (`MatchFrame`); a graph-scope relationship value over an association had carried no identity at
+  all (`relValue`), only the edge class's did.
+
+#### 12.48.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4562 | 3020 (from 2,997) | 0 | 0 | 0 | 631 | 730 | 181 |
+| Postgres | 4562 | 2659 (from 2,636) | 0 | 0 | 0 | 992 | 730 | 181 |
+
+16 lite cases in `lite/uniqueness.yaml`, each judged by Neo4j (15 PASS; the variable-length chain over a cycle
+stays REFUSED by name, the unroll past two hops); the three association refusal cases of `lite/identity.yaml`
+and `lite/grouping.yaml` renamed as positive ones. The TCK: agreement 3115 of 3880 (from 3,112): 3 more
+scenarios, Comparison1/[5] (relationships compared after WITH), Match2/[3] (a self-loop with an undirected
+pattern), Graph (the uniqueness feature); no case lost. Most uniqueness cases of the TCK run over association
+graphs the harness already read correctly where the data walked no relationship twice, which is why the gain
+is small and the correctness gain large (the chain's first run flagged the product applying uniqueness across
+clauses).

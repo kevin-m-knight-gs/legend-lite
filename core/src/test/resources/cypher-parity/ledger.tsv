@@ -455,7 +455,7 @@ tck/clauses/match/Match6/[5] Path query should return results in written order	P
 tck/clauses/match/Match6/[6] Handling direction of named paths	PASS	PASS
 tck/clauses/match/Match6/[7] Respecting direction when matching existing path	PASS	PASS
 tck/clauses/match/Match6/[8] Respecting direction when matching non-existent path with multiple directions	REFUSED	REFUSED
-tck/clauses/match/Match6/[9] Longer path query should return results in written order	REFUSED	REFUSED
+tck/clauses/match/Match6/[9] Longer path query should return results in written order	PASS	PASS
 tck/clauses/match/Match6/[10] Named path with alternating directed/undirected relationships	REFUSED	REFUSED
 tck/clauses/match/Match6/[11] Named path with multiple alternating directed/undirected relationships	REFUSED	REFUSED
 tck/clauses/match/Match6/[12] Matching path with multiple bidirectional relationships	REFUSED	REFUSED
@@ -1441,7 +1441,7 @@ tck/expressions/comparison/Comparison1/[1] Number-typed integer comparison	PASS	
 tck/expressions/comparison/Comparison1/[2] Number-typed float comparison	PASS	PASS
 tck/expressions/comparison/Comparison1/[3] Any-typed string comparison	PASS	PASS
 tck/expressions/comparison/Comparison1/[4] Comparing nodes to nodes	PASS	PASS
-tck/expressions/comparison/Comparison1/[5] Comparing relationships to relationships	REFUSED	REFUSED
+tck/expressions/comparison/Comparison1/[5] Comparing relationships to relationships	PASS	PASS
 tck/expressions/comparison/Comparison1/[6] Comparing lists to lists #1	PASS	PASS
 tck/expressions/comparison/Comparison1/[6] Comparing lists to lists #2	PASS	PASS
 tck/expressions/comparison/Comparison1/[6] Comparing lists to lists #3	PASS	PASS
@@ -1542,7 +1542,7 @@ tck/expressions/graph/Graph3/[7] `labels()` on null node	PASS	PASS
 tck/expressions/graph/Graph3/[8] `labels()` failing on a path	SKIP	SKIP
 tck/expressions/graph/Graph3/[9] `labels()` failing on invalid arguments	SKIP	SKIP
 tck/expressions/graph/Graph4/[1] `type()`	PASS	PASS
-tck/expressions/graph/Graph4/[2] `type()` on two relationships	REFUSED	REFUSED
+tck/expressions/graph/Graph4/[2] `type()` on two relationships	PASS	PASS
 tck/expressions/graph/Graph4/[3] `type()` on null relationship	PASS	PASS
 tck/expressions/graph/Graph4/[4] `type()` on mixed null and non-null relationships	PASS	PASS
 tck/expressions/graph/Graph4/[5] `type()` handling Any type	PASS	PASS
@@ -3941,7 +3941,7 @@ lite/basics/review_order_by_unreturned_expression_under_limit	PASS	PASS
 lite/basics/review_less_than_negative	PASS	PASS
 lite/basics/review_end_as_a_name	PASS	PASS
 lite/basics/review_parenthesised_variable	PASS	PASS
-lite/basics/review_relationship_uniqueness_refused	REFUSED	REFUSED
+lite/basics/review_relationship_uniqueness_refused	PASS	PASS
 lite/basics/review_leading_zero_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/basics/showcase_easy	PASS	PASS
 lite/basics/showcase_hard	PASS	PASS
@@ -4044,8 +4044,8 @@ lite/grouping/count_distinct_nodes	PASS	PASS
 lite/grouping/count_distinct_of_absent_nodes	PASS	PASS
 lite/grouping/distinct_edge_relationships	PASS	PASS
 lite/grouping/an_edge_relationship_among_the_keys	PASS	PASS
-lite/grouping/distinct_association_relationship_refused	REFUSED	REFUSED
-lite/grouping/grouping_by_an_association_relationship_refused	REFUSED	REFUSED
+lite/grouping/distinct_association_relationships	PASS	PASS
+lite/grouping/grouping_by_an_association_relationship	PASS	PASS
 lite/grouping/collect_distinct_stays_refused	REFUSED	REFUSED
 lite/identity/two_nodes_equal	PASS	PASS
 lite/identity/two_nodes_unequal	PASS	PASS
@@ -4058,7 +4058,7 @@ lite/identity/identity_after_a_with_of_both	PASS	PASS
 lite/identity/a_hopped_node_joined_by_identity	PASS	PASS
 lite/identity/two_hops_sharing_a_node	PASS	PASS
 lite/identity/a_label_less_node_compared_to_itself	PASS	PASS
-lite/identity/comparing_relationships_over_an_association_refused	REFUSED	REFUSED
+lite/identity/comparing_relationships_over_an_association	PASS	PASS
 lite/identity/comparing_relationships_of_an_edge_class	PASS	PASS
 lite/identity/an_absent_node_is_neither_equal_nor_unequal	PASS	PASS
 lite/identity/a_carried_relationship_of_an_edge_class_compared	PASS	PASS
@@ -4274,7 +4274,7 @@ lite/rels/relationship_through_with	PASS	PASS
 lite/rels/optional_relationship_through_with	PASS	PASS
 lite/rels/count_of_relationships	PASS	PASS
 lite/rels/relationship_in_a_list	PASS	PASS
-lite/rels/distinct_relationship_refused_by_name	REFUSED	REFUSED
+lite/rels/distinct_relationship_refused_by_name	PASS	PASS
 lite/rels/relationship_property_refused_by_name	REFUSED	REFUSED
 lite/rels/edge_property_skipped_by_the_harness	PASS	PASS
 lite/rows/a_fresh_match_after_a_projecting_with	PASS	PASS
@@ -4462,6 +4462,22 @@ lite/union/union_over_matches	PASS	PASS
 lite/union/union_all_of_nodes	PASS	PASS
 lite/union/union_distinct_of_nodes_refused_by_name	REFUSED	REFUSED
 lite/union/union_with_different_names_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/uniqueness/a_chain_over_a_self_loop_finds_nothing	PASS	PASS
+lite/uniqueness/a_chain_round_a_two_node_cycle_walks_no_relationship_twice	PASS	PASS
+lite/uniqueness/a_chain_back_and_forth_over_one_relationship_finds_nothing	PASS	PASS
+lite/uniqueness/two_named_relationships_of_one_type_are_distinct	PASS	PASS
+lite/uniqueness/two_relationships_of_different_types_may_share_nothing	PASS	PASS
+lite/uniqueness/untyped_relationships_in_a_chain_are_distinct	PASS	PASS
+lite/uniqueness/uniqueness_across_the_patterns_of_one_match	PASS	PASS
+lite/uniqueness/uniqueness_across_the_patterns_of_one_match_compared	PASS	PASS
+lite/uniqueness/the_same_relationship_in_two_matches	PASS	PASS
+lite/uniqueness/two_relationships_from_one_node_are_distinct	PASS	PASS
+lite/uniqueness/an_association_relationship_compared_after_a_with	PASS	PASS
+lite/uniqueness/an_association_relationship_equals_itself	PASS	PASS
+lite/uniqueness/an_absent_association_relationship_has_no_identity	PASS	PASS
+lite/uniqueness/count_distinct_association_relationships	PASS	PASS
+lite/uniqueness/a_variable_length_chain_still_walks_a_relationship_twice	REFUSED	REFUSED
+lite/uniqueness/unnamed_relationships_across_the_patterns_of_one_match	PASS	PASS
 lite/values/with_first_literal_list	PASS	PASS
 lite/values/quantifiers_three_valued	PASS	PASS
 lite/values/quantifier_over_a_property	PASS	PASS

@@ -172,9 +172,20 @@ public final class CypherToPure {
     /** A node carried through a projection as its columns (the study's §12.14): the column specs that compute them
      *  over the row before the projection, the columns they are after it, and the shape the node's own (virtual)
      *  column carries. */
-    private record NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns, boolean relationship) {
+    private record NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns, boolean relationship,
+            /** a carried relationship's shape (its type column, its properties, its identity or its pair) */
+            @com.legend.base.Nullable RelShape rel) {
         NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns) {
-            this(shape, specs, columns, false);
+            this(shape, specs, columns, false, null);
+        }
+
+        NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns, boolean relationship) {
+            this(shape, specs, columns, relationship, null);
+        }
+
+        /** The relationship's shape: its own, else one from the node shape's columns. */
+        RelShape relShape() {
+            return rel != null ? rel : new RelShape(shape.labels(), shape.props(), shape.identity());
         }
     }
 
@@ -206,14 +217,16 @@ public final class CypherToPure {
                             null, null));
                     columns.add(new Col(p.column(), p.kind(), p.nullable()));
                 }
-                if (rel.identity() != null) {
-                    Col identity = java.util.Objects.requireNonNull(rs.column(rel.identity()));
-                    specs.add(new ColSpec(rel.identity(), lambda("r", new AppliedProperty(new Variable("r"),
-                            rel.identity())), null, null));
-                    columns.add(new Col(rel.identity(), Kind.STRING, identity.nullable()));
+                for (String id : new String[] {rel.identity(), rel.source(), rel.target()}) {
+                    if (id != null) {
+                        Col c2 = java.util.Objects.requireNonNull(rs.column(id));
+                        specs.add(new ColSpec(id, lambda("r", new AppliedProperty(new Variable("r"), id)), null,
+                                null));
+                        columns.add(new Col(id, Kind.STRING, c2.nullable()));
+                    }
                 }
                 return new NodeCarry(new NodeShape(rel.type(), rel.props(), false, rel.identity()), specs, columns,
-                        true);
+                        true, rel);
             }
             if (c == null || !(c.detail() instanceof NodeShape shape)) {
                 return null;
@@ -473,7 +486,106 @@ public final class CypherToPure {
     /** The relationship types the MATCH clause being read has hops of: Neo4j binds two relationship slots of one
      *  MATCH to different relationships (relationship uniqueness), which needs identity (C5, PR3); until then a
      *  second hop of a type already hopped in the same MATCH is refused by name. */
-    private final Set<String> typesInThisMatch = new HashSet<>();
+    /** The relationship bookkeeping of the MATCH being read (the study's §12.48): the types read so far, the named
+     *  relationship variables of each type and the pairwise {@code r1 <> r2} conditions Neo4j's relationship
+     *  uniqueness adds to its WHERE, and the pre-scan of its patterns: the types its relationships repeat (an
+     *  untyped relationship among them, every type), so an unnamed relationship of such a type is named for
+     *  uniqueness to tell it from the others. */
+    private static final class MatchFrame {
+        final Set<String> types = new HashSet<>();
+        final Map<String, List<String>> namedRels = new HashMap<>();
+        final List<Expr> uniqueness = new ArrayList<>();
+        final Set<String> repeatedTypes = new HashSet<>();
+        boolean untyped;
+        int relationships;
+        /** Reading a pattern of the MATCH in hand as a MATCH of its own (the product's second pattern): its
+         *  pre-scan is the whole MATCH's, kept. */
+        boolean nested;
+
+        /** The relationship variables read so far (the named ones, the fresh-named among them). */
+        Set<String> relationships() {
+            Set<String> out = new HashSet<>();
+            namedRels.values().forEach(out::addAll);
+            return out;
+        }
+
+        void clear() {
+            types.clear();
+            namedRels.clear();
+            uniqueness.clear();
+        }
+
+        /** The pre-scan of a MATCH's patterns for the types its relationships repeat. */
+        void scan(CypherAst.Match m) {
+            repeatedTypes.clear();
+            untyped = false;
+            relationships = 0;
+            Set<String> seen = new HashSet<>();
+            for (PathPattern p : m.patterns()) {
+                for (PatternElement e : p.elements()) {
+                    if (!(e instanceof RelPattern r) || hidden(r.variable()) || r.lengthRange() != null) {
+                        continue;
+                    }
+                    relationships++;
+                    if (r.types().size() != 1) {
+                        untyped = true;
+                        continue;
+                    }
+                    if (!seen.add(r.types().get(0))) {
+                        repeatedTypes.add(r.types().get(0));
+                    }
+                }
+            }
+        }
+
+        boolean repeated(String type) {
+            // (one relationship alone is distinct from nothing: nothing to name)
+            return relationships >= 2 && (untyped || repeatedTypes.contains(type));
+        }
+    }
+
+    private final MatchFrame matchFrame = new MatchFrame();
+    private final Set<String> typesInThisMatch = matchFrame.types;
+
+    /** A MATCH's WHERE with relationship uniqueness conjoined: the named relationships of one type pairwise
+     *  distinct, by identity ({@code r1 <> r2}, the study's §12.48). */
+    private @com.legend.base.Nullable Expr withUniqueness(@com.legend.base.Nullable Expr where, Pos pos) {
+        for (Expr u : matchFrame.uniqueness) {
+            where = where == null ? u : new CypherAst.Binary(BinaryOp.AND, where, u, pos);
+        }
+        return where;
+    }
+
+    /** Relationship uniqueness bookkeeping, per MATCH. */
+    private void clearMatch() {
+        matchFrame.clear();
+    }
+
+    /** A relationship pattern read into the MATCH in hand: a second named relationship of a type already read is
+     *  distinct from each earlier one by identity (Neo4j binds the relationship variables of one MATCH to different
+     *  relationships: {@code r1 <> r2} added to the WHERE); an unnamed one beside another of its type is refused by
+     *  name (nothing names it to tell it apart). */
+    private void relationshipRead(RelPattern rel, @com.legend.base.Nullable String var) {
+        String type = rel.types().get(0);
+        if (hidden(var)) {
+            return;
+        }
+        boolean seen = !typesInThisMatch.add(type);
+        if (var == null || seen && !matchFrame.namedRels.containsKey(type)) {
+            if (seen) {
+                throw CypherErrors.unsupported("two relationships of the type " + type + " in one MATCH, one of them"
+                        + " unnamed (Neo4j binds them to different relationships: relationship uniqueness, spelled"
+                        + " over named relationships) are not supported yet", rel.pos());
+            }
+            return;
+        }
+        List<String> earlier = matchFrame.namedRels.computeIfAbsent(type, k -> new ArrayList<>());
+        for (String e : earlier) {
+            matchFrame.uniqueness.add(new CypherAst.Binary(BinaryOp.NE, new CypherAst.Var(e, rel.pos()),
+                    new CypherAst.Var(var, rel.pos()), rel.pos()));
+        }
+        earlier.add(var);
+    }
 
     /** The nodes bound at the far end of a hop over an edge class (the study's §12.38): a hop from one of them is
      *  refused by name, since the resolver's nested navigation does not read an association end past the edge's end
@@ -564,7 +676,16 @@ public final class CypherToPure {
      *  its own). */
     private record Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path,
             boolean optional, boolean fanning, boolean absent, boolean maybeAbsent,
-            @com.legend.base.Nullable String type, @com.legend.base.Nullable ValueSpecification guard) {
+            @com.legend.base.Nullable String type, @com.legend.base.Nullable ValueSpecification guard,
+            /** a relationship's stored direction along its hop: true when the node before holds the node after
+             *  (its identity over a property or association is the ordered pair of its ends', S74) */
+            @com.legend.base.Nullable Boolean forward) {
+        Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path, boolean optional,
+                boolean fanning, boolean absent, boolean maybeAbsent, @com.legend.base.Nullable String type,
+                @com.legend.base.Nullable ValueSpecification guard) {
+            this(node, classPath, path, optional, fanning, absent, maybeAbsent, type, guard, null);
+        }
+
         Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path, boolean optional) {
             this(node, classPath, path, optional, false, false, false, null, null);
         }
@@ -577,7 +698,7 @@ public final class CypherToPure {
         /** This binding, absent too where {@code guard} (an OPTIONAL MATCH's WHERE over the graph, the study's
          *  §12.29) does not hold. */
         Binding withGuard(ValueSpecification guard) {
-            return new Binding(node, classPath, path, optional, fanning, absent, maybeAbsent, type, guard);
+            return new Binding(node, classPath, path, optional, fanning, absent, maybeAbsent, type, guard, forward);
         }
 
         /** A node an OPTIONAL MATCH never finds (its relationship's type names nothing of the model, or a label
@@ -602,8 +723,8 @@ public final class CypherToPure {
         /** A relationship over an edge class ({@code edge}, null for one over a property or association): its
          *  path reaches the edge instance, whose properties are the relationship's. */
         static Binding relationship(List<String> path, boolean optional, boolean fanning, String type,
-                boolean maybeAbsent, @com.legend.base.Nullable String edge) {
-            return new Binding(false, edge, path, optional, fanning, false, maybeAbsent, type, null);
+                boolean maybeAbsent, @com.legend.base.Nullable String edge, boolean forward) {
+            return new Binding(false, edge, path, optional, fanning, false, maybeAbsent, type, null, forward);
         }
 
         /** A relationship an OPTIONAL MATCH never finds: null. */
@@ -903,6 +1024,9 @@ public final class CypherToPure {
     /** A MATCH's pattern read as required; {@code m.optional()} only when {@link #optionalMatch} reads an OPTIONAL
      *  MATCH as the first clause this way (a pattern no way reads is then one null row, {@link #noWay}). */
     private State matchPattern(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        if (!matchFrame.nested) {
+            matchFrame.scan(m);
+        }
         if (state instanceof Rows rows) {
             Rows hop = absentHop(m, rows);
             if (hop != null) {
@@ -934,7 +1058,7 @@ public final class CypherToPure {
             return untypedArms(m, state);
         }
         Graph g = state instanceof Graph existing ? existing : null;
-        typesInThisMatch.clear();
+        clearMatch();
         List<PathPattern> patterns = m.patterns();
         State arms = state instanceof Arms a ? a : null;
         for (int i = 0; i < patterns.size(); i++) {
@@ -958,8 +1082,10 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("a pattern sharing no variable with the first, followed by another"
                             + " pattern in the same MATCH, is not supported yet", p.pos());
                 }
-                return cartesian(g != null ? g : java.util.Objects.requireNonNull(arms), named, m.where(), m.pos(),
-                        true);
+                // (the MATCH's uniqueness so far rides its WHERE over the product's rows; the relationships read
+                // so far are this MATCH's, distinct from the second pattern's)
+                return cartesian(g != null ? g : java.util.Objects.requireNonNull(arms), named,
+                        withUniqueness(m.where(), m.pos()), m.pos(), matchFrame.relationships());
             }
             if (arms != null) {
                 throw CypherErrors.unsupported("a MATCH after a label-less pattern (every class of the model) is not"
@@ -975,7 +1101,7 @@ public final class CypherToPure {
             }
         }
         Graph graph = java.util.Objects.requireNonNull(g);
-        Expr where = m.where();
+        Expr where = withUniqueness(m.where(), m.pos());
         if (where != null) {
             if (graph.fanning()) {
                 graph.deferredWhere().add(where);
@@ -1067,7 +1193,7 @@ public final class CypherToPure {
         }));
         List<Graph> graphs = new ArrayList<>();
         for (List<PatternElement> arm : arms) {
-            typesInThisMatch.clear();
+            clearMatch();
             // (the property maps lenient across every class the arms read, as the WHERE below is)
             Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
             if (g == null) {
@@ -1080,7 +1206,7 @@ public final class CypherToPure {
             // (the WHERE read against the arm's own classes; C4 lenient across every class an arm reads)
             g = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
                     g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists());
-            Expr where = m.where();
+            Expr where = withUniqueness(m.where(), m.pos());
             if (where != null) {
                 if (g.fanning()) {
                     g.deferredWhere().add(where);
@@ -1261,7 +1387,7 @@ public final class CypherToPure {
         for (int a = 0; a < arms.size(); a++) {
             List<PatternElement> arm = arms.get(a);
             Chain chain = armChains.get(a);
-            typesInThisMatch.clear();
+            clearMatch();
             Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
             if (g == null) {
                 // (an arm is assigned from the ways the model has: none has no way; kept for the type's sake)
@@ -1276,7 +1402,7 @@ public final class CypherToPure {
             g.lists().putAll(chain.lists());
             Graph read = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
                     g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists());
-            Expr where = m.where();
+            Expr where = withUniqueness(m.where(), m.pos());
             if (where != null) {
                 if (read.fanning()) {
                     read.deferredWhere().add(where);
@@ -1463,7 +1589,7 @@ public final class CypherToPure {
             List<List<PatternElement>> arms = new ArrayList<>();
             assign(ordered, 2, cls, head, arms);
             for (List<PatternElement> arm : arms) {
-                typesInThisMatch.clear();
+                clearMatch();
                 // (a fanning graph: the hop may find many, one row per node reached when the arms materialize)
                 Graph copy = new Graph(base.rootClass(), base.row(), new LinkedHashMap<>(base.bindings()),
                         new ArrayList<>(base.conditions()), base.candidates(), true,
@@ -1475,8 +1601,9 @@ public final class CypherToPure {
                     // (an arm is assigned from the ways the model has: none has no way; kept for the type's sake)
                     continue;
                 }
-                if (m.where() != null) {
-                    g.deferredWhere().add(m.where());
+                Expr where = withUniqueness(m.where(), m.pos());
+                if (where != null) {
+                    g.deferredWhere().add(where);
                 }
                 graphs.add(g);
             }
@@ -1762,7 +1889,7 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a property map on the bound node of an OPTIONAL MATCH (a filter of the"
                     + " optional pattern) is not supported yet", first.pos());
         }
-        typesInThisMatch.clear();
+        clearMatch();
         Binding current = java.util.Objects.requireNonNull(g.bindings().get(firstVar));
         if (!current.node()) {
             throw CypherErrors.unsupported("an OPTIONAL MATCH from a relationship variable is not supported yet",
@@ -1803,7 +1930,7 @@ public final class CypherToPure {
                     boolean many = current.fanning() || hop.many();
                     target = Binding.optionalNode(hop.target(), List.copyOf(path), many);
                     relationship = Binding.relationship(List.copyOf(relPath(current, hop)), true, many,
-                            rel.types().get(0), true, hop.edge());
+                            rel.types().get(0), true, hop.edge(), hop.forward());
                     if (hop.edge() != null) {
                         reachedThroughEdge.add(nextVar);
                     }
@@ -1891,7 +2018,8 @@ public final class CypherToPure {
                                 shape.identity())));
             } else if (c.detail() instanceof RelShape rel && rel.props().values().stream().anyMatch(NodeProp::absent)) {
                 out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
-                        new RelShape(rel.type(), withoutAbsentMarks(rel.props()), rel.identity())));
+                        new RelShape(rel.type(), withoutAbsentMarks(rel.props()), rel.identity(), rel.source(),
+                                rel.target())));
             } else {
                 out.add(c);
             }
@@ -2190,7 +2318,7 @@ public final class CypherToPure {
         if (rows.columns().stream().anyMatch(c -> named.contains(c.name()))) {
             return null;
         }
-        return cartesian(rows, p, m.where(), m.pos(), false);
+        return cartesian(rows, p, m.where(), m.pos(), Set.of());
     }
 
     /** {@code MATCH (a:A), (b:B)}, a pattern sharing no variable with the graph (the study's §12.28): the graph read
@@ -2198,11 +2326,19 @@ public final class CypherToPure {
      *  rows joined (Pure's join, a condition that always holds); the WHERE over the pairs. The clauses after read
      *  the rows. */
     private Rows cartesian(State first, PathPattern second, @com.legend.base.Nullable Expr where, Pos pos,
-            boolean oneMatch) {
+            Set<String> thisMatchRels) {
         Rows left = rowsOf(first, pos);
-        typesInThisMatch.clear();
+        clearMatch();
         // the second pattern read as a first pattern is (a graph, a label-less node's arms, or rows), then its rows
-        Rows right = rowsOf(match(new CypherAst.Match(false, List.of(second), null, second.pos()), null), pos);
+        // (under the MATCH's own pre-scan: a relationship of a type the MATCH repeats across its patterns is named)
+        Rows right;
+        boolean nestedBefore = matchFrame.nested;
+        matchFrame.nested = !thisMatchRels.isEmpty() || nestedBefore;
+        try {
+            right = rowsOf(match(new CypherAst.Match(false, List.of(second), null, second.pos()), null), pos);
+        } finally {
+            matchFrame.nested = nestedBefore;
+        }
         List<Col> columns = new ArrayList<>(left.columns());
         for (Col c : right.columns()) {
             if (columns.stream().anyMatch(l -> l.name().equals(c.name()))) {
@@ -2218,17 +2354,18 @@ public final class CypherToPure {
         // §12.46) are distinct by it; one over an association has none yet (S75)
         Tx distinct = null;
         RowScope joined = new RowScope(rows);
-        // (uniqueness holds within one MATCH, not across clauses: a MATCH after rows joins freely)
-        for (Col l : oneMatch ? left.columns() : List.<Col>of()) {
-            if (!(l.detail() instanceof RelShape ls) || ls.identity() == null) {
+        // (uniqueness holds within one MATCH, not across clauses: a MATCH after rows or after an earlier MATCH's
+        // graph joins freely; only the relationships this MATCH read so far are distinct from the second pattern's)
+        for (Col l : left.columns()) {
+            if (!thisMatchRels.contains(l.name()) || !(l.detail() instanceof RelShape ls) || !ls.identified()) {
                 continue;
             }
             for (Col r : right.columns()) {
-                if (!(r.detail() instanceof RelShape rs) || rs.identity() == null) {
+                if (!(r.detail() instanceof RelShape rs) || !rs.identified()) {
                     continue;
                 }
-                Tx li = joined.identityColumn(ls.identity());
-                Tx ri = joined.identityColumn(rs.identity());
+                Tx li = java.util.Objects.requireNonNull(joined.relIdentity(ls));
+                Tx ri = java.util.Objects.requireNonNull(joined.relIdentity(rs));
                 Tx differ = SqlToPure.not(equal(li, ri, pos));
                 distinct = distinct == null ? differ : and3(distinct, differ);
             }
@@ -2494,11 +2631,6 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("properties on a relationship pattern over a property or association"
                         + " (no edge class, the study's §5.6) are not supported yet", rel.pos());
             }
-            if (!hidden(rel.variable()) && !typesInThisMatch.add(rel.types().get(0))) {
-                throw CypherErrors.unsupported("two relationships of the type " + rel.types().get(0) + " in one MATCH"
-                        + " (Neo4j binds them to different relationships: relationship uniqueness) are not supported"
-                        + " yet", rel.pos());
-            }
             List<String> path = new ArrayList<>(current.path());
             path.addAll(hop.steps());
             if (path.size() > 2 && hop.edge() == null) {
@@ -2515,12 +2647,14 @@ public final class CypherToPure {
                 g.conditions().add(call("isNotEmpty", navigate(g.row(), path)));
             }
             String relVar = rel.variable();
-            if (relVar == null && !rel.properties().isEmpty()) {
-                // (the edge's property map is read over the materialized rows, where the relationship is a column)
+            if (relVar == null && (!rel.properties().isEmpty() || matchFrame.repeated(rel.types().get(0)))) {
+                // (the edge's property map is read over the materialized rows, where the relationship is a column;
+                // a relationship of a type the MATCH repeats is named so uniqueness tells it from the others)
                 relVar = freshName(new HashSet<>(g.bindings().keySet()));
             }
+            relationshipRead(rel, relVar);
             Binding relationship = Binding.relationship(List.copyOf(relPath(current, hop)), optional, fanning,
-                    rel.types().get(0), false, hop.edge());
+                    rel.types().get(0), false, hop.edge(), hop.forward());
             bind(g, relVar, relationship, rel.pos());
             if (relVar != null) {
                 // the relationship's stored direction, in the pattern's written order (a path prints it)
@@ -3254,7 +3388,7 @@ public final class CypherToPure {
             // a relationship told apart needs an identity: an edge class's row has one, a property's or an
             // association's link has none yet (S74)
             for (Map.Entry<String, NodeCarry> n : nodes.entrySet()) {
-                if (n.getValue().relationship() && n.getValue().shape().identity() == null) {
+                if (n.getValue().relationship() && !n.getValue().relShape().identified()) {
                     throw CypherErrors.unsupported((grouped ? "grouping by" : "DISTINCT over") + " a relationship ("
                             + n.getKey() + ") with no identity of its own (one over a property or an association)"
                             + " is not supported yet", pos);
@@ -3407,8 +3541,7 @@ public final class CypherToPure {
                     // shape is its type column)
                     specs.addAll(node.specs());
                     columns.addAll(node.columns());
-                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship()
-                            ? new RelShape(node.shape().labels(), node.shape().props(), node.shape().identity())
+                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship() ? node.relShape()
                             : node.shape()));
                     continue;
                 }
@@ -3458,8 +3591,7 @@ public final class CypherToPure {
                     specs.addAll(node.specs());
                     node.columns().forEach(c -> keys.add(new ColSpec(c.name(), null, null, null)));
                     columns.addAll(node.columns());
-                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship()
-                            ? new RelShape(node.shape().labels(), node.shape().props(), node.shape().identity())
+                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship() ? node.relShape()
                             : node.shape()));
                 } else if (out.agg() == null) {
                     Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
@@ -4280,7 +4412,9 @@ public final class CypherToPure {
                     json = call("if", absent(b),
                             thunk(SqlToPure.nullOf(Kind.JSON).vs()), thunk(json));
                 }
-                return new Tx(json, Kind.JSON, b.maybeAbsent(), null, new RelValue(type), null, null);
+                // (its identity over a property or association: the pair of its ends', S74, where the hops are
+                // to-one; a fanning one's rides the materialized rows)
+                return new Tx(json, Kind.JSON, b.maybeAbsent(), null, new RelValue(type, identityOf(b)), null, null);
             }
             NodeParts parts = relParts(b, pos);
             return new Tx(present(parts, call("fromJson", nodeJsonText(parts, pos))), Kind.JSON,
@@ -4342,7 +4476,17 @@ public final class CypherToPure {
                 return SqlToPure.nullOf(Kind.STRING);
             }
             if (b.classPath() == null) {
-                return null;
+                if (b.node() || b.type() == null || b.forward() == null || b.fanning() || b.path().isEmpty()) {
+                    // (a relationship over a to-many hop: its ends' identities pair only over the materialized
+                    // rows, carryRel; one of no hop, none)
+                    return null;
+                }
+                // a relationship over a property or association (S74): the ordered pair of its ends' identities in
+                // its stored direction, '<type>:<source>><target>', null where the hop finds no node
+                Tx near = nodeIdentityAt(b.path().subList(0, b.path().size() - 1));
+                Tx far = nodeIdentityAt(b.path());
+                return pairIdentity(b.type(), b.forward() ? near : far, b.forward() ? far : near,
+                        b.guard() != null || b.maybeAbsent() ? absent(b) : null);
             }
             ValueSpecification id = call(ELEMENT_ID, b.path().isEmpty() ? new Variable(g.row())
                     : navigate(g.row(), b.path()));
@@ -4358,6 +4502,12 @@ public final class CypherToPure {
         public @com.legend.base.Nullable Tx identity(CypherAst.Var v) {
             Binding b = g.bindings().get(v.name());
             return b == null ? null : identityOf(b);
+        }
+
+        /** The identity of the node a navigation from the root reaches (the root's for the empty path). */
+        private Tx nodeIdentityAt(List<String> path) {
+            return Tx.value(call(ELEMENT_ID, path.isEmpty() ? new Variable(g.row()) : navigate(g.row(), path)),
+                    Kind.STRING, !path.isEmpty());
         }
 
         /** A bound node's parts: its class's label, its properties navigated from the root instance; a node an
@@ -4485,6 +4635,28 @@ public final class CypherToPure {
                 identity = freshName(names);
                 specs.add(new ColSpec(identity, lambda(g.row(), SqlToPure.valueOf(id)), null, null));
                 columns.add(new Col(identity, Kind.STRING, id.nullable() || nullable));
+            }
+            if (b.classPath() == null && !b.absent() && b.type() != null && b.forward() != null
+                    && !b.path().isEmpty() && acrossArms.isEmpty()) {
+                // over a property or association (S74, the study's §12.48): its source's and its target's
+                // identities, two columns the rows pair one row per link (a to-many hop explodes them with the far
+                // node's columns), its identity the text over them after
+                Tx near = nodeIdentityAt(b.path().subList(0, b.path().size() - 1));
+                Tx far = nodeIdentityAt(b.path());
+                if (b.guard() != null || b.maybeAbsent()) {
+                    far = Tx.value(call("if", absent(b), thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(far.vs())),
+                            Kind.STRING, true);
+                }
+                String source = freshName(names);
+                String target = freshName(names);
+                Tx src = b.forward() ? near : far;
+                Tx dst = b.forward() ? far : near;
+                specs.add(new ColSpec(source, lambda(g.row(), SqlToPure.valueOf(src)), null, null));
+                columns.add(new Col(source, Kind.STRING, src.nullable() || nullable));
+                specs.add(new ColSpec(target, lambda(g.row(), SqlToPure.valueOf(dst)), null, null));
+                columns.add(new Col(target, Kind.STRING, dst.nullable() || nullable));
+                return new NodeCarry(new NodeShape(column, props, false, null), specs, columns, true,
+                        new RelShape(column, props, null, source, target));
             }
             return new NodeCarry(new NodeShape(column, props, false, identity), specs, columns, true);
         }
@@ -4790,12 +4962,9 @@ public final class CypherToPure {
                             json = call("if", call("isEmpty", read), thunk(SqlToPure.nullOf(Kind.JSON).vs()),
                                     thunk(json));
                         }
-                        // (an edge class without a property: its identity column still rides along)
-                        Tx identity = rel.identity() == null ? null : Tx.value(new AppliedProperty(
-                                new Variable(row()), rel.identity()), Kind.STRING,
-                                java.util.Objects.requireNonNull(column(rel.identity())).nullable());
-                        return scalar(new Tx(json, Kind.JSON, type.nullable(), null, new RelValue(null, identity),
-                                null, null));
+                        // (its identity rides along: an edge class's column, or the pair of its ends')
+                        return scalar(new Tx(json, Kind.JSON, type.nullable(), null,
+                                new RelValue(null, relIdentity(rel)), null, null));
                     }
                     if (c.kind() == Kind.NULL) {
                         // a null the query named: null wherever it is read
@@ -4855,15 +5024,26 @@ public final class CypherToPure {
             Col type = java.util.Objects.requireNonNull(column(shape.type()));
             ValueSpecification read = new AppliedProperty(new Variable(row()), shape.type());
             // its identity: an edge class's relationship carries its column (the study's §12.46); one over a
-            // property or an association has none
-            Tx identity = null;
-            if (shape.identity() != null) {
-                Col c = java.util.Objects.requireNonNull(column(shape.identity()));
-                identity = Tx.value(new AppliedProperty(new Variable(row()), shape.identity()), Kind.STRING,
-                        c.nullable());
-            }
+            // property or an association the pair of its ends' (S74)
             return NodeParts.rel(jsonText(call("toOne", read), Kind.STRING, shape.type(), pos), props,
-                    type.nullable() ? call("isEmpty", read) : null, identity);
+                    type.nullable() ? call("isEmpty", read) : null, relIdentity(shape));
+        }
+
+        /** A carried relationship's identity (the study's §12.46, §12.48): its identity column, else the text over
+         *  its type's, its source's and its target's columns; null when the rows carry neither. */
+        @com.legend.base.Nullable Tx relIdentity(RelShape shape) {
+            if (shape.identity() != null) {
+                return identityColumn(shape.identity());
+            }
+            if (shape.source() == null || shape.target() == null) {
+                return null;
+            }
+            Col type = java.util.Objects.requireNonNull(column(shape.type()));
+            ValueSpecification typeRead = new AppliedProperty(new Variable(row()), shape.type());
+            Tx source = identityColumn(shape.source());
+            Tx target = identityColumn(shape.target());
+            return pairIdentity(call("toOne", typeRead), source, target, type.nullable() ? call("isEmpty", typeRead)
+                    : null);
         }
 
         @Override
@@ -7255,7 +7435,8 @@ public final class CypherToPure {
             String rel = relName(taken);
             sub.bindings().put(end, new Binding(true, way.hop().target(), edge != null
                     ? List.of(java.util.Objects.requireNonNull(way.hop().far())) : List.of(), false));
-            sub.bindings().put(rel, Binding.relationship(List.of(), false, false, way.type(), false, edge));
+            sub.bindings().put(rel, Binding.relationship(List.of(), false, false, way.type(), false, edge,
+                    way.hop().forward()));
             sub.forward().put(rel, way.hop().forward());
             PathSpec path = pathVar == null ? null : new PathSpec(List.of(startVar, end), List.of(rel));
             return outer.overlay(outer.sub(sub), pathVar, path);
@@ -7277,7 +7458,7 @@ public final class CypherToPure {
             path.addAll(way.hop().steps());
             ext.bindings().put(end, new Binding(true, way.hop().target(), List.copyOf(path), false));
             ext.bindings().put(rel, Binding.relationship(List.copyOf(relPath(from, way.hop())), false, false,
-                    way.type(), false, way.hop().edge()));
+                    way.type(), false, way.hop().edge(), way.hop().forward()));
             ext.forward().put(rel, way.hop().forward());
             if (pathVar != null) {
                 ext.paths().put(pathVar, new PathSpec(List.of(startVar, end), List.of(rel)));
@@ -7895,16 +8076,48 @@ public final class CypherToPure {
     /** A relationship carried through a projection as its type's column (null where an OPTIONAL MATCH found
      *  none); the relationship's own column is virtual, its value rebuilt from the type (the study's §12.19). Arms
      *  concatenated carry each their own type in the one column. */
-    private record RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity)
+    private record RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity,
+            /** over a property or association: the columns of its source's and its target's identities (S74) */
+            @com.legend.base.Nullable String source, @com.legend.base.Nullable String target)
             implements com.legend.protocol.sql.InputDialect.TypeDetail {
         RelShape(String type, Map<String, NodeProp> props) {
-            this(type, props, null);
+            this(type, props, null, null, null);
+        }
+
+        RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity) {
+            this(type, props, identity, null, null);
+        }
+
+        /** Whether the rows tell this relationship apart from another (an identity or a pair of its own). */
+        boolean identified() {
+            return identity != null || source != null;
         }
     }
 
     /** Whether a value is a node's or a relationship's JSON, or a column holding one. */
     private static boolean isNode(@com.legend.base.Nullable Tx t) {
         return t != null && (t.detail() instanceof NodeValue || t.detail() instanceof RelValue);
+    }
+
+    /** A relationship's identity over a property or association (S74, the study's §12.48): its type, its source's
+     *  identity and its target's, '<type>:<source>><target>'; null where either end is absent (the concatenation
+     *  would skip an empty operand) or where {@code absent} holds. */
+    private static Tx pairIdentity(ValueSpecification type, Tx source, Tx target,
+            @com.legend.base.Nullable ValueSpecification absent) {
+        // (an identity types [0..1]: read as one inside the gate, which keeps every operand present)
+        ValueSpecification text = plus(type, new CString(":"), call("toOne", source.vs()), new CString(">"),
+                call("toOne", target.vs()));
+        ValueSpecification none = call("or", call("isEmpty", source.vs()), call("isEmpty", target.vs()));
+        if (absent != null) {
+            none = call("or", absent, none);
+        }
+        return Tx.value(call("if", none, thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(text)), Kind.STRING,
+                source.nullable() || target.nullable() || absent != null);
+    }
+
+    private static Tx pairIdentity(String type, Tx source, Tx target,
+            @com.legend.base.Nullable ValueSpecification absent) {
+        return pairIdentity(new CString(type), source, target, absent);
     }
 
     /** The identity a node's or relationship's value carries (the study's §12.46); null when none. */

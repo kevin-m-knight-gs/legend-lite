@@ -48,7 +48,7 @@ tests:
     graph: |
       CREATE ()
     cypher: "MATCH (a) WITH a MATCH (b) WHERE a = b RETURN count(b) AS c"
-  - id: comparing_relationships_over_an_association_refused
+  - id: comparing_relationships_over_an_association
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
     cypher: "MATCH ()-[a]->() WITH a MATCH ()-[b]->() WHERE a = b RETURN count(b) AS c"

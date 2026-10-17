@@ -950,7 +950,7 @@ ORDER BY title
 | 'Speed' | {role: 'Jack'} | 1 | false |
 | 'The Matrix' | {role: 'Neo', year: 1999} | 2 | true |
 
-## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.47)
+## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.48)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
@@ -961,9 +961,9 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 
 | status | cases |
 |---|---|
-| PASS | 2442 |
+| PASS | 2445 |
 | BOTH_ERROR | 670 |
-| REFUSED | 587 |
+| REFUSED | 584 |
 | SKIP | 181 |
 | total | 3880 |
 
@@ -972,7 +972,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | clauses/call | 52 | 0 | 2 | 0 | 50 |
 | clauses/create | 78 | 0 | 15 | 54 | 9 |
 | clauses/delete | 41 | 0 | 5 | 36 | 0 |
-| clauses/match | 381 | 71 | 240 | 64 | 6 |
+| clauses/match | 381 | 72 | 240 | 63 | 6 |
 | clauses/match-where | 34 | 21 | 2 | 11 | 0 |
 | clauses/merge | 75 | 0 | 13 | 54 | 8 |
 | clauses/remove | 33 | 0 | 0 | 31 | 2 |
@@ -988,10 +988,10 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | clauses/with-where | 19 | 13 | 0 | 6 | 0 |
 | expressions/aggregation | 35 | 18 | 7 | 10 | 0 |
 | expressions/boolean | 150 | 32 | 118 | 0 | 0 |
-| expressions/comparison | 72 | 63 | 1 | 6 | 2 |
+| expressions/comparison | 72 | 64 | 1 | 5 | 2 |
 | expressions/conditional | 13 | 13 | 0 | 0 | 0 |
 | expressions/existentialSubqueries | 10 | 5 | 1 | 4 | 0 |
-| expressions/graph | 61 | 21 | 15 | 14 | 11 |
+| expressions/graph | 61 | 22 | 15 | 13 | 11 |
 | expressions/list | 185 | 117 | 59 | 9 | 0 |
 | expressions/literals | 131 | 100 | 25 | 6 | 0 |
 | expressions/map | 44 | 35 | 9 | 0 | 0 |

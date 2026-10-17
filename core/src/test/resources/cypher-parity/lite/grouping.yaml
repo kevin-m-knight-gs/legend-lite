@@ -64,11 +64,11 @@ tests:
     graph: |
       CREATE (:A {name: 'a'})-[:T {w: 1}]->(:B {name: 'b'}), (:A {name: 'c'})-[:T {w: 1}]->(:B {name: 'd'})
     cypher: "MATCH (:A)-[r:T]->(:B) RETURN r, count(*) AS c"
-  - id: distinct_association_relationship_refused
+  - id: distinct_association_relationships
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:B), (:A {name: 'c'})-[:T]->(:B)
     cypher: "MATCH (:A)-[r:T]->(:B) RETURN DISTINCT r"
-  - id: grouping_by_an_association_relationship_refused
+  - id: grouping_by_an_association_relationship
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:B), (:A {name: 'c'})-[:T]->(:B)
     cypher: "MATCH (:A)-[r:T]->(:B) WITH r, count(*) AS c RETURN c"

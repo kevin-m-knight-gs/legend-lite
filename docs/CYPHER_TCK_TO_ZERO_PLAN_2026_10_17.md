@@ -127,9 +127,13 @@ compared, a composite key. Leg 2 LANDED 2026-10-17 (the study's §12.47, GATES' 
 PASS 2965 → 2997): DISTINCT
 over and grouping by nodes (a returned node carried as its columns, the identity among them, its JSON rebuilt
 last), `count(DISTINCT x)` and `count(DISTINCT n)`, the same over edge-class relationships; a relationship
-without identity stays refused under both until leg 3; ORDER BY a node stays refused (Neo4j's own ids). Next
-legs: S74's ordered pair as an association relationship's identity and uniqueness (leg 3); re-anchoring joins
-(leg 4).
+without identity stays refused under both until leg 3; ORDER BY a node stays refused (Neo4j's own ids). Leg 3
+LANDED 2026-10-17 (the study's §12.48, GATES' forty-seventh landing; TCK agreement 3112 → 3115, DuckDB PASS
+2997 → 3020): an association relationship's identity as
+the ordered pair of its ends' (S74), comparisons, DISTINCT, grouping and `count(DISTINCT r)` over it, and
+relationship uniqueness within one MATCH (S75 overturned there: the relationships of a repeated type pairwise
+distinct, an unnamed one named for it); still unspelled along a variable-length chain and within an OPTIONAL
+MATCH's chain. Next: re-anchoring joins (leg 4).
 
 ### W3. Non-deterministic functions
 

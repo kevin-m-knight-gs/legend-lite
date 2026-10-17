@@ -9932,6 +9932,31 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the forty-seventh landing — a relationship over an association is the pair of its ends; relationship uniqueness
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 3); the record is the study's §12.48. The
+translator alone: a relationship over a property or an association is identified by its type and the ordered
+pair of its ends' identities (S74), spelled in the graph over to-one hops and as two carried columns over
+to-many ones; with it, comparisons, DISTINCT, grouping and `count(DISTINCT r)` over such relationships, and
+Neo4j's relationship uniqueness within one MATCH (S75 overturned there): the relationships of a repeated type
+pairwise distinct, an unnamed one named for it.
+
+1. **What lands.** `MATCH ()-[a]->() WITH a MATCH ()-[b]->() WHERE a = b RETURN count(b)`, `RETURN DISTINCT r`
+   and `WITH r, count(*)` over an association, `count(DISTINCT r)`, `r = r` (null for an absent one), `MATCH
+   (a:A)-[:T]->(b:A)-[:T]->(c:A)` over a self-loop (nothing), a chain back and forth over one relationship
+   (nothing), a two-node cycle walked round and back (nothing), `(x:A)-->(y:B)<--(z:A)`, `(y)<-[:T]-(x)-[:T]->(z)`,
+   two relationships of different types sharing their ends, the product of two patterns of one MATCH.
+2. **The ledger.** DuckDB: 4562 cases; PASS 3020 (from 2,997); FAIL 0; BUG 0; ERROR 0; REFUSED 631; BOTH_ERROR 730;
+   SKIP 181. Postgres: PASS 2659 (from 2,636); FAIL 0; BUG 0; ERROR 0; REFUSED 992; BOTH_ERROR 730; SKIP 181. 16
+   lite cases in `lite/uniqueness.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+   The TCK's agreement 3115 of 3880 (from 3,112); the showcase's §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:guardrails`,
+   `//core:core_tests_integration` green; the unit pins that refused two relationships of one type in one MATCH
+   now pin the uniqueness condition (the graph form over to-one hops, the row form over to-many), and the pins
+   that refused DISTINCT or a grouping over an association relationship now pin the pair's columns among the keys.
+4. **Refused by name, recorded.** Uniqueness along a variable-length chain (the unroll's hidden relationships) and
+   within an OPTIONAL MATCH's chain (two relationships of one type there); `collect(DISTINCT ...)`; ORDER BY a node.
+
 ## 2026-10-17 — `#Cypher{...}#`: the forty-sixth landing — nodes told apart by identity under DISTINCT and grouping
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 2); the record is the study's §12.47. The

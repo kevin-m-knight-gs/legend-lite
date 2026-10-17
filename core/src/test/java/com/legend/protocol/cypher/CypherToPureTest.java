@@ -452,11 +452,21 @@ class CypherToPureTest {
 
     @Test
     void twoRelationshipsOfOneTypeInOneMatchAreRefusedUntilIdentity() {
-        // the review's finding 1: Neo4j binds the two slots to different relationships (relationship uniqueness)
-        unsupported("MATCH (p:Person)-[:firm]->(f:Firm), (p)-[:firm]->(g:Firm) RETURN f.legalName",
-                "two relationships of the type firm in one MATCH");
-        unsupported("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name",
-                "two relationships of the type firm");
+        // the review's finding 1: Neo4j binds the two slots to different relationships (relationship uniqueness),
+        // spelled since the study's §12.48 as the relationships' identities pairwise distinct (over a property or
+        // association, the ordered pair of the ends' identities, S74); an unnamed one of a repeated type is named
+        // (the chain fans out through employees: the pair's columns ride the materialized rows, the identities'
+        // texts compared over them)
+        String chain = pure("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name AS n");
+        assertTrue(chain.contains("$r._cypher_8->toOne() + ':' + $r._cypher_9->toOne() + '>' + $r._cypher_10->toOne()")
+                && chain.contains("->toOne() != if($r._cypher_15->isEmpty()"), chain);
+        // (over to-one hops the pair is spelled in the graph: the identities navigated from the root)
+        String toOne = pure("MATCH (p:Person)-[r:firm]->(f:Firm)-[s:hq]->(c:City) WHERE r = s RETURN c.name AS n");
+        assertTrue(toOne.contains("'firm' + ':' + $p->meta::legend::lite::elementId()->toOne() + '>' + "
+                + "$p.firm->meta::legend::lite::elementId()->toOne()"), toOne);
+        // (two firm relationships from one person, in one MATCH: distinct by identity, so a to-one firm finds none)
+        String fromOne = pure("MATCH (p:Person)-[:firm]->(f:Firm), (p)-[:firm]->(g:Firm) RETURN f.legalName AS l");
+        assertTrue(fromOne.contains("->toOne() != "), fromOne);
         // in two MATCH clauses they may be the same relationship, as in Neo4j
         assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty() && $p.firm->isNotEmpty())"
                         + "->project(~['g.legalName':p|$p.firm.legalName])",
@@ -633,7 +643,7 @@ class CypherToPureTest {
         assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId(), _cypher_6:p|'[\"Firm\"]', _cypher_7:p|$p.firm.legalName, _cypher_8:p|$p.firm->meta::legend::lite::elementId()])->extend(~[n:r|$r._cypher_4, l:r|$r._cypher_7])->select(~[n, l])",
                 pure("MATCH (p:Person) WITH p MATCH (p)-->(x) RETURN p.name AS n, x.legalName AS l"));
         // the relationship's type is the way's (hq, the one end leaving Firm)
-        assertEquals("demo::Firm.all()->filter(f|$f.hq->isNotEmpty())->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName, _cypher_3:f|$f->meta::legend::lite::elementId(), _cypher_4:f|'[\"City\"]', _cypher_5:f|$f.hq.name, _cypher_6:f|$f.hq->meta::legend::lite::elementId(), _cypher_7:f|'hq'])->extend(~[l:r|$r._cypher_2, t:r|$r._cypher_7])->select(~[l, t])",
+        assertEquals("demo::Firm.all()->filter(f|$f.hq->isNotEmpty())->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName, _cypher_3:f|$f->meta::legend::lite::elementId(), _cypher_4:f|'[\"City\"]', _cypher_5:f|$f.hq.name, _cypher_6:f|$f.hq->meta::legend::lite::elementId(), _cypher_7:f|'hq', _cypher_8:f|$f->meta::legend::lite::elementId(), _cypher_9:f|$f.hq->meta::legend::lite::elementId()])->extend(~[l:r|$r._cypher_2, t:r|$r._cypher_7])->select(~[l, t])",
                 pure("MATCH (f:Firm) MATCH (f)-[r]->(x) RETURN f.legalName AS l, type(r) AS t"));
         unsupported("MATCH (f:Firm) WITH f.legalName AS l, f MATCH (f)-->(x) RETURN l",
                 "a MATCH after a WITH that projected its variables");
@@ -785,7 +795,7 @@ class CypherToPureTest {
     void aRelationshipIsItsType() {
         // the study's §12.19: a relationship as a value is its type's JSON (the model holds no relationship
         // property); type(r) its type; carried through WITH as its type's column
-        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId(), _cypher_6:p|'firm'])->sort([~_cypher_4->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)->extend(~[r:r|fromJson('{\"@type\":\"' + $r._cypher_6->toOne() + '\"}'), t:r|$r._cypher_6])->select(~[r, t])",
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId(), _cypher_6:p|'firm', _cypher_7:p|$p->meta::legend::lite::elementId(), _cypher_8:p|$p.firm->meta::legend::lite::elementId()])->sort([~_cypher_4->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)->extend(~[r:r|fromJson('{\"@type\":\"' + $r._cypher_6->toOne() + '\"}'), t:r|$r._cypher_6])->select(~[r, t])",
                 pure("MATCH (p:Person)-[r:firm]->(f:Firm) WITH p, r ORDER BY p.name LIMIT 1 RETURN r, type(r) AS t"));
     }
 
@@ -1074,8 +1084,6 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person) RETURN p.firm", "a node as a value is not supported yet");
         unsupported("MATCH (p:Person) RETURN p.tags", "holds many values (a list)");
         unsupported("MATCH (f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm) RETURN g.legalName", "no inverse");
-        unsupported("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name",
-                "two relationships of the type firm");
         // a variable-length relationship with an upper bound unrolls into the chains of each length (the study's
         // §12.42): one arm per length, concatenated; without one it is a recursion, refused by name
         String chains = pure("MATCH (p:Person)-[:firm*1..2]->(f) RETURN f.legalName AS firm");
@@ -1124,10 +1132,13 @@ class CypherToPureTest {
         assertTrue(groupedNode.contains("->groupBy(~[_cypher_1, _cypher_2, _cypher_3, _cypher_4, _cypher_5], ~[c:x|")
                 && groupedNode.endsWith("->select(~[p, c])"), groupedNode);
         unsupported("MATCH (p:Person) RETURN p ORDER BY p", "ORDER BY a node (p");
-        unsupported("MATCH (p:Person)-[r:firm]->(f:Firm) RETURN DISTINCT r", "DISTINCT over a relationship (r) with no"
-                + " identity of its own");
-        unsupported("MATCH (p:Person)-[r:firm]->(f:Firm) WITH r, count(*) AS c RETURN c", "grouping by a relationship"
-                + " (r) with no identity of its own");
+        // a relationship over a property or association told apart by the pair of its ends' identities (S74, the
+        // study's §12.48): its source's and its target's columns among the distinct columns and the keys
+        String distinctRel = pure("MATCH (p:Person)-[r:firm]->(f:Firm) RETURN DISTINCT r");
+        assertTrue(distinctRel.contains("$p->meta::legend::lite::elementId(), _cypher_3:p|$p.firm->meta::legend::lite"
+                + "::elementId()])->distinct()"), distinctRel);
+        String groupedRel = pure("MATCH (p:Person)-[r:firm]->(f:Firm) WITH r, count(*) AS c RETURN c");
+        assertTrue(groupedRel.contains("->groupBy(~[_cypher_1, _cypher_2, _cypher_3], ~[c:x|"), groupedRel);
         unsupported("MATCH (p:Person:Firm) RETURN p.name", "several labels");
         invalid("MATCH (p:Person) RETURN p.age + count(*)", "implicit grouping expressions (p.age in p.age + count(*))");
         unsupported("RETURN 1e308 AS x", "a float literal beyond 1e15");
