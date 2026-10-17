@@ -287,6 +287,11 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   path carried as its value; the resolver resolving a recursion's step. Left (the §5 log): a variable-length
   relationship bound to a list of relationships (Match4/[8], Match9/[6], [7]); other relationships beside the walk
   in one pattern (no TCK row).
+- The temporal tail, leg 1 LANDED 2026-10-17 (the study's §12.74, GATES' seventy-second landing; TCK agreement DuckDB 3537 → 3542, Postgres 3157 → 3160):
+  a duration multiplied by a float or divided by a number as Neo4j's approximation (Temporal8/[7]); a zoned
+  value's text parsed back in its scope as the value itself (Temporal6/[3], [5], DuckDB). Logged (§5): nanosecond
+  values outside the databases' range, years beyond their dates. Next: a zone whose offset the database reads (a
+  stored zone's, a named zone's at an instant).
 - The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
   UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships
@@ -615,6 +620,17 @@ questions, no PRs; a blocker is logged in §5 and the line moves to the next ite
 
 What got stuck, where, and why, for later; each entry names the cases it holds back.
 
+- **2026-10-17, W5 (§12.74) — nanosecond values outside the databases' nanosecond range.** `localdatetime({year: 1,
+  ..., nanosecond: 1})` and year 9999 beside nanosecond values (WithOrderBy1/[17]-[20], [39]-[42], [45] #9 and #10,
+  WithOrderBy2/[17]-[20]: 6 refusals and 20 harness skips): the island carries a nanosecond date-time as the
+  database's TIMESTAMP_NS (§12.12), which DuckDB holds from 1678 to 2261 and Postgres not at all. Physically out of
+  the native types' reach; an encoding of lite's own would carry them (a microsecond timestamp and the nanoseconds
+  past it, epoch arithmetic in 128-bit integers), every nanosecond operation re-spelled over it: a design decision
+  for the user, not taken here.
+- **2026-10-17, W5 (§12.74) — years beyond the databases' dates.** `duration.between(date('-999999999-01-01'),
+  date('+999999999-12-31'))` (Temporal10/[9], [10]): DuckDB's dates end near year 5,881,580, Postgres's near
+  5,874,897; Neo4j's years reach 999,999,999. Physically out of reach of the databases' date types.
+
 - **2026-10-17, W12 (§12.70) — an OPTIONAL MATCH whose WHERE reads the rows beside its pattern.** `MATCH (a1)-[r]->()
   WITH r, a1 LIMIT 1 OPTIONAL MATCH (a2)<-[r]-(b2) WHERE a1 = a2` (MatchWhere6/[5]); `MATCH (a)-[r {name: 'r1'}]-(b)
   OPTIONAL MATCH (b)-[r2]-(c) WHERE r <> r2` (Match7/[11]). The re-anchored pattern's WHERE is read over the
@@ -623,7 +639,7 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   one variable); spelling it over the join's two needs either a scope reading each column off its side, or the
   rows' values the WHERE reads joined into the pattern's rows first (on the shared identities) and the left join
   matched on them too. Two TCK rows.
-- **2026-10-17, W10 leg 2b — a variable-length relationship bound to a list of relationships.** `MATCH ()-[r1]->()
+- **2026-10-17, W10 leg 2b — a variable-length relationship bound to a list of relationships.** RESOLVED 2026-10-17 (the study's §12.71: the values carry their identities). `MATCH ()-[r1]->()
   -[r2]->() WITH [r1, r2] AS rs LIMIT 1 MATCH (first)-[rs*]->(second)` (Match4/[8], Match9/[6], [7]): Neo4j walks
   only the paths whose relationships are the list's, in order. The rows carry `rs` as the Variant list of the
   relationships' JSON values (`{"@type": "Y"}`), which holds no identity; the walk compares identities (the ordered
@@ -666,7 +682,7 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   oracle's text (`Date('1910-05-06')`, what the judge reads), so `toMany(@StrictDate)` over it fails at runtime;
   refused by name in `asCollection`. The spelling of temporals inside Variants (ISO texts the database reads back,
   the judge mapping them) is W5's; one TCK case, with the lists of times and of year-1 nanosecond values beside it.
-- **2026-10-17, W12 leg 4 — a list of nodes or relationships as a grouping key.** `WITH tail(relationships(p)) AS
+- **2026-10-17, W12 leg 4 — a list of nodes or relationships as a grouping key.** RESOLVED 2026-10-17 (§12.71). `WITH tail(relationships(p)) AS
   relationships, COUNT(*) AS c` (Quantifier1-4/[9]) groups by a list of relationships, equal by identity in Neo4j;
   the island's Variant carries the relationships' JSON (type and properties), so two alike relationships would be
   one key, and the island refuses by name (S79). A faithful spelling would carry each list element's identity
@@ -677,7 +693,7 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   reads", where the typed `-[:employees|firm|hq*3..3]->` reads: the untyped unroll's `assign` finds no way from
   the demo model's associations (the TCK's untyped unrolls read over inferred models, Quantifier1-4/[8] pass). To
   be traced; holds back no TCK case today.
-- **2026-10-17, W12 leg 2 — SKIP and LIMIT with a variable-free expression.** `MATCH (n) WITH n SKIP
+- **2026-10-17, W12 leg 2 — SKIP and LIMIT with a variable-free expression.** RESOLVED 2026-10-17 (§12.73: the rows numbered in the sort's order, the counts computed once over one row). `MATCH (n) WITH n SKIP
   toInteger(rand()*9)` (ReturnSkipLimit1/[3]): the MIR's `limit` and `offset` are constants (`SqlSelect.limit`,
   `ConstBounds.intOf`), so a row count the database computes has no carrier; one TCK case. The MIR would take an
   expression bound (every dialect renders `LIMIT <expr>` for a constant-foldable one); W9.
@@ -686,7 +702,7 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   a named zone's offset at that date is the database's to read (`localIn` minus the instant); a zoned time whose
   offset is a value of the row needs the representation to carry it as a column. Five TCK cases; W8's temporal
   model.
-- **2026-10-17, W12 leg 2 — `toString` of a list, a map, a node.** Neo4j 2026.09 answers texts of its own
+- **2026-10-17, W12 leg 2 — `toString` of a list, a map, a node.** RESOLVED 2026-10-17 (§12.73). Neo4j 2026.09 answers texts of its own
   (TypeConversion4/[10], probed by `lite/tail`'s refused case): a list's elements' texts unquoted and
   comma-separated (`[1, a, [2, true]]`), a map `{a: 1, b: x}`, a node its labels `(:A)`, a relationship `[:T]`,
   a path `()-[:T]->()`. The TCK's five cases expect the error older Neo4j raised; the texts are a spelling the

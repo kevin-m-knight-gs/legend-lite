@@ -4892,3 +4892,32 @@ variable), the nested EXISTS subqueries (ExistentialSubquery3/[1]-[3], Existenti
 ReturnSkipLimit1/[3], ReturnSkipLimit2/[6], Union1/[4], Comparison1/[14], List11/[3] and TypeConversion4/[10]'s five
 examples move to PASS on both lanes, Precedence2/[2]'s three on DuckDB; the 16 lite cases PASS (two BOTH_ERROR, Neo4j's
 errors) on both, `float_remainders` refused on Postgres. TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157.
+
+### 12.74 The temporal tail, leg 1: durations by numbers, zoned texts read back (2026-10-17)
+
+- **A duration multiplied by a float, or divided by a number** (Temporal8/[7]): Neo4j's `DurationValue.approximate`,
+  spelled for the database (`approximated`): each slot scaled as a double; the months' whole kept (truncated toward
+  zero, Java's long cast) and their fraction carried into the days at the average month (2,629,746 seconds), the
+  days' fraction into the seconds at 86,400, the seconds' into the nanoseconds at a billion, each step in doubles in
+  Neo4j's order; the nanoseconds normalized into a second as any duration's. An integer factor stays exact (each
+  slot multiplied); a division by zero raises. The result is of nanosecond precision.
+- **A zoned value's text parsed back** (`time(toString(d)) = d`, Temporal6/[3]; `datetime(toString(d))`, [5]): the
+  text `temporalText` prints for a zoned time or date-time carries the value it prints (`Carried.printedFrom`), and
+  the parse of a text of the row that is such a printing reads the value itself, print then parse being the identity
+  (as a duration's text, §12.21). A column never holds the source (`Col`'s canonical constructor drops it), so a
+  printed text carried through a WITH and parsed after is refused by name, as any zoned text of the row. Both cases
+  are nanosecond values: DuckDB passes, Postgres refuses by name (§12.12).
+- **Physically out of reach, logged (§5).** Nanosecond date-times of the year 1 and of the year 9999 (26 TCK rows: the
+  databases' nanosecond timestamps hold 1678 to 2261); years of ±999,999,999 (2 rows: past the databases' dates).
+- **Pinned.** `lite/temporaltail.yaml`'s 8 cases, each judged by Neo4j (one BOTH_ERROR: a division by zero, one
+  refused by name: a printed text parsed after a WITH).
+
+#### 12.74.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4860 | 3743 (from 3,731) | 0 | 0 | 0 | 310 (from 315) | 750 (from 749) | 57 |
+| Postgres | 4860 | 3337 (from 3,327) | 0 | 0 | 0 | 716 (from 719) | 750 (from 749) | 57 |
+
+Temporal8/[7]'s three examples move to PASS on both lanes, Temporal6/[3] and [5] on DuckDB. TCK agreement DuckDB
+3537 → 3542, Postgres 3157 → 3160.

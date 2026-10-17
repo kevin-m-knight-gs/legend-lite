@@ -889,6 +889,14 @@ public final class CypherToPure {
 
     private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable Val carried,
             com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+        Col {
+            if (detail instanceof Carried c && c.printedFrom() != null) {
+                // (a column holds no expression of the scope it was computed in: a printed value's source stays
+                // behind, §12.74)
+                detail = new Carried(c.zone(), c.nanos());
+            }
+        }
+
         Col(String name, Kind kind, boolean nullable) {
             this(name, kind, nullable, null, null);
         }
@@ -11772,8 +11780,25 @@ public final class CypherToPure {
     /** What a translation carries beside its value: the zone of a zoned value (§12.8, §12.11) and whether it is of
      *  nanosecond precision (§12.12: the database's TIMESTAMP_NS, every operation on it spelled over the nanosecond
      *  epoch, which DuckDB keeps and a microsecond engine refuses by name). */
-    private record Carried(@com.legend.base.Nullable Zone zone, boolean nanos)
-            implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    private record Carried(@com.legend.base.Nullable Zone zone, boolean nanos,
+            /** the zoned value a text is the printing of ({@code toString}), what a parse of the text reads back:
+             *  print then parse is the identity (the study's §12.74); null for any other value */
+            @com.legend.base.Nullable Tx printedFrom) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+        Carried(@com.legend.base.Nullable Zone zone, boolean nanos) {
+            this(zone, nanos, null);
+        }
+    }
+
+    /** A zoned value's text marked with the value it prints ({@link Carried#printedFrom}). */
+    private static Tx printedFrom(Tx text, Tx source) {
+        return new Tx(text.vs(), text.kind(), text.nullable(), text.whenFalse(), new Carried(zoneOf(text), nanos(text),
+                source), text.guard(), text.body());
+    }
+
+    /** The zoned value of {@code kind} a text of the row is the printing of, or null. */
+    private static @com.legend.base.Nullable Tx printedValue(Scalar s, Kind kind) {
+        return s.tx().detail() instanceof Carried c && c.printedFrom() != null && c.printedFrom().kind() == kind
+                ? c.printedFrom() : null;
     }
 
     /** A node carried through a projection as columns (the study's §12.14): its labels' JSON text in one column
@@ -12136,6 +12161,11 @@ public final class CypherToPure {
     /** A zoned time of day from a text: the time forms, then {@code Z} or an offset (none: the default zone, UTC);
      *  a region's name in brackets is Neo4j's error; a text of the row is refused by name. */
     private Val zonedTimeFromText(CypherAst.Call c, Scalar s) {
+        Tx printed = printedValue(s, Kind.ZONED_TIME);
+        if (!s.literal() && printed != null) {
+            // the text a zoned time was printed as: that time (print then parse is the identity, §12.74)
+            return scalar(printed);
+        }
         if (!s.literal()) {
             throw CypherErrors.unsupported("a zoned time text of the row (its offset read by the database) is not"
                     + " supported yet", c.pos());
@@ -12368,6 +12398,56 @@ public final class CypherToPure {
             }
         }
         return classes;
+    }
+
+    /** Neo4j's average month, in nanoseconds (2629746 seconds, a Gregorian year's twelfth). */
+    private static final double AVG_NANOS_PER_MONTH = 2_629_746L * 1_000_000_000.0;
+    /** A day, in nanoseconds. */
+    private static final double NANOS_PER_DAY = 86_400L * 1_000_000_000.0;
+
+    /**
+     * A duration times a float, or divided by a number (the study's §12.74), as Neo4j's {@code DurationValue}
+     * approximates it: each slot scaled as a double, each unit's whole kept (truncated toward zero) and its fraction
+     * carried into the next smaller one -- a month's at the average month, a day's at 86400 seconds, a second's at a
+     * billion nanoseconds -- in that order, the database computing each step in doubles as Neo4j's Java does; the
+     * nanoseconds normalized into a second as any duration's. A division by zero raises (Neo4j's "long overflow").
+     */
+    private ValueSpecification approximated(String cls, ValueSpecification dur, ValueSpecification number,
+            boolean divide) {
+        ValueSpecification by = call("toFloat", number);
+        if (divide) {
+            by = raisingWhere(call("equal", by, new CFloat(0.0)), "long overflow", by);
+        }
+        ValueSpecification factor = by;
+        java.util.function.Function<String, ValueSpecification> scaled = name -> {
+            ValueSpecification x = call("toFloat", slot(dur, name));
+            return divide ? call("divide", x, factor) : AppliedFunction.infixRun("times", List.of(x, factor));
+        };
+        ValueSpecification months = scaled.apply("months");
+        ValueSpecification wholeMonths = truncated(months);
+        ValueSpecification days = AppliedFunction.infixRun("plus", List.of(scaled.apply("days"), call("divide",
+                AppliedFunction.infixRun("times", List.of(new CFloat(AVG_NANOS_PER_MONTH), fraction(months,
+                wholeMonths))), new CFloat(NANOS_PER_DAY))));
+        ValueSpecification wholeDays = truncated(days);
+        ValueSpecification seconds = AppliedFunction.infixRun("plus", List.of(scaled.apply("seconds"), call("divide",
+                AppliedFunction.infixRun("times", List.of(new CFloat(NANOS_PER_DAY), fraction(days, wholeDays))),
+                new CFloat((double) NANOS))));
+        ValueSpecification wholeSeconds = truncated(seconds);
+        ValueSpecification nanos = AppliedFunction.infixRun("plus", List.of(scaled.apply("nanoseconds"),
+                AppliedFunction.infixRun("times", List.of(new CFloat((double) NANOS), fraction(seconds,
+                wholeSeconds)))));
+        return normalized(cls, wholeMonths, wholeDays, wholeSeconds, truncated(nanos));
+    }
+
+    /** A float truncated toward zero, an Integer (Java's long cast, Neo4j's safeDoubleToLong). */
+    private static ValueSpecification truncated(ValueSpecification x) {
+        return call("if", call("greaterThanEqual", x, new CFloat(0.0)), thunk(call("floor", x)),
+                thunk(call("ceiling", x)));
+    }
+
+    /** A float's part beyond its whole, as Neo4j's {@code x - (long) x}. */
+    private static ValueSpecification fraction(ValueSpecification x, ValueSpecification whole) {
+        return minus(x, call("toFloat", whole));
     }
 
     /** The whole seconds of a nanosecond count, floored (Neo4j keeps the nanoseconds in {@code [0, 1e9)}). */
@@ -12776,10 +12856,21 @@ public final class CypherToPure {
                 return normalized(cls, s[0], s[1], s[2], s[3]);
             }), nanos(d));
         }
-        if (op == BinaryOp.TIMES || op == BinaryOp.DIVIDE) {
-            throw CypherErrors.unsupported("a duration " + (op == BinaryOp.TIMES ? "multiplied" : "divided")
-                    + " by a " + cypherType(l.kind() == Kind.DURATION ? r.kind() : l.kind()) + " (Neo4j carries"
-                    + " the fractions down the units) is not supported yet", b.pos());
+        if (op == BinaryOp.TIMES || op == BinaryOp.DIVIDE && l.kind() == Kind.DURATION) {
+            // by a float, or divided by any number (the study's §12.74): Neo4j's approximation, the fractions
+            // carried down the units
+            Tx d = l.kind() == Kind.DURATION ? l : r;
+            Tx k = l.kind() == Kind.DURATION ? r : l;
+            if (!k.kind().numeric()) {
+                throw CypherErrors.invalid("Type mismatch: a duration can be " + (op == BinaryOp.TIMES ? "multiplied"
+                        : "divided") + " by a number, not a " + cypherType(k.kind()), b.pos());
+            }
+            boolean divide = op == BinaryOp.DIVIDE;
+            return withNanos(SqlToPure.strict(Kind.DURATION, List.of(d, k), v -> approximated(cls, v.get(0),
+                    v.get(1), divide)), true);
+        }
+        if (op == BinaryOp.DIVIDE) {
+            throw CypherErrors.invalid("Type mismatch: a number cannot be divided by a duration", b.pos());
         }
         if (op != BinaryOp.PLUS && op != BinaryOp.MINUS || op == BinaryOp.MINUS && l.kind() == Kind.DURATION) {
             throw CypherErrors.invalid("Type mismatch: a duration can be added to a temporal value, or subtracted"
@@ -13197,6 +13288,11 @@ public final class CypherToPure {
      *  Neo4j, the default zone UTC) is Pure's date literal, the instant the database's shift of it; a named zone in
      *  brackets, the other literal forms, and a text of the row are refused by name. */
     private Val zonedFromText(CypherAst.Call c, Scalar s) {
+        Tx printed = printedValue(s, Kind.ZONED);
+        if (!s.literal() && printed != null) {
+            // the text a zoned date-time was printed as: that date-time (print then parse is the identity, §12.74)
+            return scalar(printed);
+        }
         if (!s.literal()) {
             throw CypherErrors.unsupported("a zoned date-time text of the row (its offset read by the database) is"
                     + " not supported yet", c.pos());
@@ -14276,7 +14372,7 @@ public final class CypherToPure {
                 : t.kind() == Kind.ZONED ? localOf(t, java.util.Objects.requireNonNull(zone)) : t;
         String offset = zone == null ? "" : zone.offsetText();
         // (the text of a nanosecond value is marked as one: a parse of it reads the digits past the microsecond)
-        return withNanos(SqlToPure.strict(Kind.STRING, List.of(wall), x -> {
+        Tx printed = withNanos(SqlToPure.strict(Kind.STRING, List.of(wall), x -> {
             ValueSpecification v = x.get(0);
             // the digits of the fraction: the nanoseconds since the second's start (the microseconds a thousandfold
             // when the value keeps microseconds), behind a leading 1 that keeps the zeros, then cut to the three,
@@ -14301,6 +14397,8 @@ public final class CypherToPure {
                     two(call("dayOfMonth", v)));
             return plus(date, new CString("T"), clock);
         }), fine);
+        // (a zoned value's text read back by a parse is the value itself, §12.74)
+        return zone != null ? printedFrom(printed, t) : printed;
     }
 
     /** A text of the row parsed to a date-time ({@code micro} characters hold its microsecond form); a text marked

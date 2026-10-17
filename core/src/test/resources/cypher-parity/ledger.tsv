@@ -3422,9 +3422,9 @@ tck/expressions/temporal/Temporal5/[6] Should provide accessors for date time	RE
 tck/expressions/temporal/Temporal5/[7] Should provide accessors for duration	PASS	PASS
 tck/expressions/temporal/Temporal6/[1] Should serialize date	PASS	PASS
 tck/expressions/temporal/Temporal6/[2] Should serialize local time	PASS	REFUSED
-tck/expressions/temporal/Temporal6/[3] Should serialize time	REFUSED	REFUSED
+tck/expressions/temporal/Temporal6/[3] Should serialize time	PASS	REFUSED
 tck/expressions/temporal/Temporal6/[4] Should serialize local date time	PASS	REFUSED
-tck/expressions/temporal/Temporal6/[5] Should serialize date time	REFUSED	REFUSED
+tck/expressions/temporal/Temporal6/[5] Should serialize date time	PASS	REFUSED
 tck/expressions/temporal/Temporal6/[6] Should serialize duration #1	PASS	PASS
 tck/expressions/temporal/Temporal6/[6] Should serialize duration #2	PASS	PASS
 tck/expressions/temporal/Temporal6/[6] Should serialize duration #3	PASS	PASS
@@ -3479,9 +3479,9 @@ tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #6	PASS	
 tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #7	PASS	PASS
 tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #8	PASS	PASS
 tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #9	PASS	PASS
-tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #1	REFUSED	REFUSED
-tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #2	REFUSED	REFUSED
-tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #3	REFUSED	REFUSED
+tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #1	PASS	PASS
+tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #2	PASS	PASS
+tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #3	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #1	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #2	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #3	PASS	REFUSED
@@ -4573,7 +4573,7 @@ lite/temporal/duration_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_order_refused_by_name	REFUSED	REFUSED
 lite/temporal/duration_to_string	PASS	PASS
 lite/temporal/duration_date_time_text_form_refused_by_name	PASS	PASS
-lite/temporal/duration_divided_refused_by_name	REFUSED	REFUSED
+lite/temporal/duration_divided_refused_by_name	PASS	PASS
 lite/temporal/time_from_text	PASS	PASS
 lite/temporal/datetime_from_components	PASS	PASS
 lite/temporal/datetime_from_text	PASS	PASS
@@ -4689,6 +4689,14 @@ lite/temporal/datetime_to_string_with_offsets	PASS	PASS
 lite/temporal/times_to_string	PASS	PASS
 lite/temporal/to_string_in_a_named_zone_refused_by_name	REFUSED	REFUSED
 lite/temporal/a_date_moved_by_a_duration_of_more_than_a_day	PASS	PASS
+lite/temporaltail/a_second_in_thirds	PASS	PASS
+lite/temporaltail/months_in_fractions	PASS	PASS
+lite/temporaltail/negative_factors	PASS	PASS
+lite/temporaltail/of_the_row	PASS	PASS
+lite/temporaltail/divided_by_zero	BOTH_ERROR	BOTH_ERROR
+lite/temporaltail/a_zoned_time_printed_and_parsed	PASS	PASS
+lite/temporaltail/a_zoned_date_time_printed_and_parsed	PASS	PASS
+lite/temporaltail/a_printed_text_parsed_after_a_with_refused	REFUSED	REFUSED
 lite/twoways/a_property_typed_two_ways_on_one_label	PASS	PASS
 lite/twoways/compared_with_a_string	PASS	PASS
 lite/twoways/compared_with_a_number	PASS	PASS

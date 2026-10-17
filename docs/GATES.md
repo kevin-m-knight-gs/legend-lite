@@ -9932,6 +9932,22 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the seventy-second landing — the temporal tail, leg 1
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5 tail); the record is the study's §12.74. A duration
+multiplied by a float or divided by a number, Neo4j's approximation spelled for the database; a zoned value's text
+parsed back in its scope as the value itself.
+
+1. **What lands.** Temporal8/[7] (three examples) on both lanes, Temporal6/[3] and [5] on DuckDB (nanosecond values,
+   which Postgres refuses by name); the 8 cases of `lite/temporaltail.yaml`; DuckDB PASS 3,731 → 3743, Postgres
+   3,327 → 3337; TCK agreement DuckDB 3537 → 3542, Postgres 3157 → 3160.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3743
+   / REFUSED 310 / BOTH_ERROR 750 / SKIP 57; Postgres PASS 3337 / REFUSED 716 / BOTH_ERROR 750 / SKIP 57, of 4860
+   cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green.
+4. **Refused by name, recorded.** A printed zoned text parsed after a WITH; logged as out of the databases' reach
+   (§5): nanosecond values outside 1678-2261, years beyond the databases' dates.
+
 ## 2026-10-17 — `#Cypher{...}#`: the seventy-first landing — the expression tail
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the expression tail); the record is the study's
