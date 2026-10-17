@@ -27,10 +27,11 @@ import java.util.regex.Pattern;
  *   <li>a <b>test backend</b> (a database as the tests run on it, {@code testbackend/*Backend.java} in core's tests,
  *       the program's Phase 6, 2026-10-16): the same as a connector; {@code TestBackend} and the shared bases
  *       ({@code InProcessBackend}, {@code ServerBackend}, {@code CloudBackend}) name none;</li>
- *   <li>a <b>test named for a database</b> (any test source whose class is named for one, {@code DuckDbRenderTest},
- *       {@code PostgresArmTest}, a PCT lane's {@code Test_LegendLite_Postgres_*}; Phase 6, 2026-10-16): that database
- *       and its parent class's, as a dialect is held to its own. A test that is about no one database names none: it
- *       runs on the platform's engine or on every database ({@code testbackend.TestBackends});</li>
+ *   <li>a <b>test named for a database</b> (any test source whose class is named for one: a test, {@code
+ *       DuckDbRenderTest}, {@code PostgresArmTest}, a PCT lane's {@code Test_LegendLite_Postgres_*}, or a harness,
+ *       {@code H2Verify}; Phase 6, 2026-10-16): that database and its parent class's, in its code and its strings, as a
+ *       connector is held to its own. A test that is about no one database names none: it runs on the platform's
+ *       engine or on every database ({@code testbackend.TestBackends});</li>
  *   <li>an <b>input language</b> (the SQL a user writes, {@code protocol/sql/}, D11): {@code PostgresDialect} and
  *       {@code PostgresDateTime} Postgres's, the {@code iq} package IQ's (Sybase's); the translator they share is no
  *       owner;</li>

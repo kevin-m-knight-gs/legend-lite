@@ -7,7 +7,8 @@ import com.legend.model.ConnectionDefinition.DatabaseType;
 
 import java.util.Properties;
 
-/** Databricks's sessions: a real account's SQL warehouse ({@link CloudBackend}): its {@code hostname} and {@code httpPath} declared. */
+/** Databricks's sessions: a real account's SQL warehouse ({@link CloudBackend}): its {@code hostname} and
+ *  {@code httpPath} declared. */
 final class DatabricksBackend extends CloudBackend {
 
     static final DatabricksBackend INSTANCE = new DatabricksBackend();

@@ -7,7 +7,9 @@ import com.legend.model.ConnectionDefinition.DatabaseType;
 
 import java.util.Properties;
 
-/** BigQuery's sessions: a real account's project ({@link CloudBackend}): its {@code projectId} and {@code defaultDataset} declared; the system connection's {@code EnableSession}, without which it makes no temporary table. */
+/** BigQuery's sessions: a real account's project ({@link CloudBackend}): its {@code projectId} and
+ *  {@code defaultDataset} declared; the system connection's {@code EnableSession}, without which it makes no temporary
+ *  table. */
 final class BigQueryBackend extends CloudBackend {
 
     static final BigQueryBackend INSTANCE = new BigQueryBackend();

@@ -1495,7 +1495,9 @@ pause for the user's review after Phase 1.
     `ChannelBEssentialTest`'s engine exclusions renamed.
   - About 150 of core's test files open the platform's or every in-process backend instead of a JDBC URL;
     `AbstractDatabaseTest` and its 28 subclasses take a `backend()` in place of `getDatabaseType()`/`getJdbcUrl()`.
-  - `StressSuites.Config` takes a backend; `StressTool --backend` takes a backend's name.
+  - `StressSuites.Config` takes a backend; `StressTool --backend` takes a backend's name. `tools/census/RenderCensus`
+    renders with every implemented database's dialect, each named by its declared type. One comment in main code
+    (`ConnectionLets.java`, a renamed test).
   - Guards: `DatabaseOwners` (BACKEND and NAMED_TEST kinds; the vocabulary's tests), `DialectOwnerExclusivityTest`
     (walks the tests), `DialectBoundaryTest`, the ledger; parser-equivalence's `ratchets.tsv` (own corpus 2862 ->
     2847).

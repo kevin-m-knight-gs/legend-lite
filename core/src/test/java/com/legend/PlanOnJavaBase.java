@@ -50,9 +50,14 @@ public final class PlanOnJavaBase {
             String planned = Compiler.query(Compiler.compileModel(declared), "#>{x::DB.FIRM}#->filter(r|$r.SIZE > 10)"
                     + "->extend(over(~NAME, ~ID->ascending()), ~[rn:{p,w,r|$p->rowNumber($r)}])"
                     + "->filter(r|$r.rn == 1)->groupBy(~[NAME], ~[t: r|$r.SIZE : y|$y->plus()])").plan("x::DbRT").sql();
-            System.out.println(type + ": " + planned);
+            System.out.println(type + ": " + planned.replace('\n', ' '));
             check(planned.toUpperCase(java.util.Locale.ROOT).startsWith("SELECT"), "no " + type + " SQL planned: "
                     + planned);
+            // the table read as the dialect stores the name (Postgres folds a bare one, decision D8), and the window's
+            // filter a QUALIFY or the select that wraps it
+            String table = com.legend.database.Databases.dialect(type).storedName("FIRM", false);
+            check(planned.contains("FROM " + table), "no " + type + " read of " + table + ": " + planned);
+            check(planned.contains("QUALIFY") || planned.contains("qualify_src"), "no " + type + " QUALIFY: " + planned);
         }
         System.out.println("the planner runs on java.base alone");
     }

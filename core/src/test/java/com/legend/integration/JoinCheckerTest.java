@@ -31,7 +31,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class JoinCheckerTest extends AbstractDatabaseTest {
 
-
     @Test
     @Timeout(value = 60, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @DisplayName("a chain of 40 joins types each input once (it typed the innermost 2^40 times)")

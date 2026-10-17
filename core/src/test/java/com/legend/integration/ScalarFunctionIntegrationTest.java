@@ -16,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class ScalarFunctionIntegrationTest extends AbstractDatabaseTest {
 
-
     @BeforeEach
     void setUp() throws SQLException {
         connection = backend().open();

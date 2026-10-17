@@ -53,11 +53,21 @@ class DialectOwnerExclusivityTest {
             // question, not this guard's.
             new Crossing("core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java", "DuckDB", 9,
                     "the corpus reads the engine-H2 text on DuckDB: ten DuckDB-only functions spelled DuckDB's way"),
-            // 2026-10-16 (registered as measured, the dialect program's Phase 6): the warehouse is one DuckDB that
-            // attaches Postgres catalogs (the plan's D4, mixed-engine by design), so its test named for those catalogs
-            // reads the DuckDB side's library and extension flag. The warehouse is Phase 7's.
-            new Crossing("warehouse/src/test/java/com/legend/warehouse/server/PostgresCatalogTest.java", "DuckDB", 2,
-                    "the warehouse's Postgres catalogs are attached to its DuckDB: the test reads DuckDB's flags"));
+            // 2026-10-16 (registered as measured, the dialect program's Phase 6; its strings counted since the audit
+            // of the branch): the warehouse is one DuckDB that attaches Postgres catalogs (the plan's D4, mixed-engine
+            // by design), so its tests named for those catalogs read the DuckDB side's library and extension flag, and
+            // send DuckDB's SQL to Postgres to see it refused. The warehouse is Phase 7's.
+            new Crossing("warehouse/src/test/java/com/legend/warehouse/server/PostgresCatalogTest.java", "DuckDB", 13,
+                    "the warehouse's Postgres catalogs are attached to its DuckDB: the test reads DuckDB's flags"),
+            new Crossing("warehouse/src/test/java/com/legend/warehouse/WarehousePostgresLiveTest.java", "DuckDB", 3,
+                    "DuckDB's SQL, sent to the warehouse's Postgres catalog, is refused there"),
+            // 2026-10-16 (registered as measured, the dialect program's Phase 6, the audit of the branch): two DuckDB
+            // session tests whose subject is another database's text on that session: legend-engine's H2 SQL in an
+            // executeInDb, translated for DuckDB (D2), and a connection helper whose overloads declare H2 and DuckDB
+            new Crossing("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java", "H2", 6,
+                    "legend-engine's H2 text run on a DuckDB session, translated (D2)"),
+            new Crossing("core/src/test/java/com/legend/exec/RawGridSchemaDuckDbTest.java", "H2", 4,
+                    "a connection helper's overloads declaring H2 and DuckDB: neither is guessed"));
 
     /** {@code DatabaseType.valueOf} and {@code .values()}: the vocabulary reading a name, deciding nothing. */
     private static final Pattern ANY_TYPE = Pattern.compile("\\bDatabaseType\\s*\\.\\s*(valueOf|values)\\b");
@@ -90,8 +100,11 @@ class DialectOwnerExclusivityTest {
             List<String> read = new ArrayList<>(lines.code());
             // a connector's strings too (2026-10-16, the dialect program's Phase 5, the audit of the branch): its URLs,
             // its product name and its messages are its own database's, and no census counts them (the leak ratchet
-            // skips an owner, the boundary census skips a connector); a test backend's alike (Phase 6)
-            if (owner.kind() == DatabaseOwners.Kind.CONNECTOR || owner.kind() == DatabaseOwners.Kind.BACKEND) {
+            // skips an owner, the boundary census skips a connector); a test backend's alike, and a test named for a
+            // database (Phase 6, the audit of the branch: its JDBC URLs and its models are its own database's, and the
+            // leak ratchet's jdbc-url count no longer reaches them)
+            if (owner.kind() == DatabaseOwners.Kind.CONNECTOR || owner.kind() == DatabaseOwners.Kind.BACKEND
+                    || owner.kind() == DatabaseOwners.Kind.NAMED_TEST) {
                 read.addAll(lines.strings());
             }
             for (String line : read) {

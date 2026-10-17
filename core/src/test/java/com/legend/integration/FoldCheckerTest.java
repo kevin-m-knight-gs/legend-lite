@@ -27,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class FoldCheckerTest extends AbstractDatabaseTest {
 
-
     private static final String FOLD = "meta::pure::functions::collection::fold";
     private static final String ADD  = "meta::pure::functions::collection::add";
     private static final String CAST = "meta::pure::functions::lang::cast";

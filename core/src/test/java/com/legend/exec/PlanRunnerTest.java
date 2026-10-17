@@ -291,10 +291,12 @@ class PlanRunnerTest {
      *  way again: the refusal, a runtime error, closed what was opened, and nothing was kept. */
     @Test
     void aSetupRefusedForWantOfABulkLoaderFailsTheSameWayAgain() {
+        int checked = 0;
         for (var connection : inMemoryConnections()) {
             if (Databases.dialect(connection.databaseType()).loadsRowsInBulk()) {
                 continue;
             }
+            checked++;
             ExecutionPlan p = plan(ExecutionPlan.Format.JSON, "SELECT 'never'",
                     target(new ExecutionPlan.Database.Declared(connection), servers(connection.databaseType()),
                             statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(List.of("a", "b"))));
@@ -304,6 +306,7 @@ class PlanRunnerTest {
                         + connection.databaseType() + ")", refused.getMessage(), "attempt " + attempt);
             }
         }
+        assertTrue(checked > 0, "no in-process database without a bulk loader: the refusal went unchecked");
     }
 
     /** A database reached by a URL is the user's: a plan with setup for it is refused, and it is never opened (only an

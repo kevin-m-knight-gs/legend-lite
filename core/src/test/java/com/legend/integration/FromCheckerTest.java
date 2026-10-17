@@ -30,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class FromCheckerTest extends AbstractDatabaseTest {
 
-
     @BeforeEach
     void setUp() throws SQLException {
         connection = backend().open();

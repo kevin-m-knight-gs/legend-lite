@@ -56,7 +56,8 @@ public final class Databases {
     /** Whether the platform executes on {@code type}: {@link #dialect} gives it one (a test holds the two together). */
     private static boolean executes(DatabaseType type) {
         return switch (type) {
-            case DuckDB, H2, Postgres, Databricks, Snowflake, BigQuery, SQLite, MariaDB, MySQL, Trino, ClickHouse -> true;
+            case DuckDB, H2, Postgres, Databricks, Snowflake, BigQuery, SQLite, MariaDB, MySQL, Trino,
+                 ClickHouse -> true;
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
                  Aurora -> false;
         };

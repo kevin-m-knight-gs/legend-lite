@@ -411,7 +411,7 @@ public final class H2Verify {
             // cost four flips and an M1 verify; the select-list
             // datediff scan is the precise notion).
             throw new Unverifiable(
-                    "datediff-to-now golden: oracle replay and our execution"
+                    "datediff-to-now golden: referee replay and our execution"
                     + " are two instants — row verdict non-reproducible", null);
         }
         return ours instanceof ExecutionResult.Graph g

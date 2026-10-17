@@ -291,9 +291,9 @@ class ChannelBEssentialTest {
     }
 
     /** The engine's relational essential manifest exclusions (its relational
-     * executor's frontier on the reference lane's database: the pinned release's,
-     * from @legend_engine_src; names carry the reference suffix — stripped to
-     * plain FQNs). */
+     * executor's frontier on the reference lane's database, legend-engine's
+     * relational-DuckDB manifest: the pinned release's, from @legend_engine_src;
+     * names carry the reference suffix — stripped to plain FQNs). */
     private static java.util.Set<String> engineRelationalExclusions()
             throws java.io.IOException {
         Path manifest = com.legend.testing.Runfile.property("pct.oracle.Essential");

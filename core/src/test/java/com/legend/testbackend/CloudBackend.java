@@ -28,8 +28,9 @@ import java.util.Properties;
  *       platform's system database for the engine, {@link #openSystem}).</li>
  * </ul>
  *
- * A missing file or key is refused by name, never defaulted. One session per test JVM, opened at the first test and
- * held for the suite (a login costs a second or more): the expressions are storeless, so no test leaves state behind.
+ * A missing file or key is refused by name, never defaulted. One session per cloud per test JVM, opened at the first
+ * test and held for the suite (a login costs a second or more): the expressions are storeless, so no test leaves state
+ * behind.
  */
 abstract class CloudBackend implements TestBackend {
 
@@ -37,8 +38,10 @@ abstract class CloudBackend implements TestBackend {
     static final String PROPERTIES = "LEGENDLITE_PCT_CLOUD_PROPERTIES";
 
     private static Properties properties;
-    private static Connection session;
-    private static IllegalStateException failed;
+    /** Each cloud's one session and its one failed login, by its name (the audit of the branch, 2026-10-16: one field
+     *  for every cloud was safe while a JVM ran one lane, not behind a registry of every backend). */
+    private static final java.util.Map<String, Connection> SESSIONS = new java.util.HashMap<>();
+    private static final java.util.Map<String, IllegalStateException> FAILED = new java.util.HashMap<>();
 
     /** The runtime's connection declaration: the coordinates as they are, the credential by reference. */
     abstract String specificationAndAuth(Properties p);
@@ -70,9 +73,11 @@ abstract class CloudBackend implements TestBackend {
     @Override
     public final Connection open() throws SQLException {
         synchronized (CloudBackend.class) {
+            IllegalStateException failed = FAILED.get(name());
             if (failed != null) {
                 throw failed;
             }
+            Connection session = SESSIONS.get(name());
             if (session == null || session.isClosed()) {
                 Properties p = properties();
                 Properties driver = driverProperties(p, name() + ".property.", new Properties());
@@ -83,6 +88,7 @@ abstract class CloudBackend implements TestBackend {
                     // one login attempt per suite: every later test fails with the first one's reason, at once
                     failed = new IllegalStateException("opening the " + name() + " session failed: " + e.getMessage(),
                             e);
+                    FAILED.put(name(), failed);
                     throw failed;
                 }
                 Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -93,6 +99,7 @@ abstract class CloudBackend implements TestBackend {
                     }
                 }));
                 session = opened;
+                SESSIONS.put(name(), opened);
             }
             Connection held = session;
             return (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
@@ -156,7 +163,8 @@ abstract class CloudBackend implements TestBackend {
     private static String required(Properties p, String name) {
         String value = p.getProperty(name);
         if (value == null || value.isEmpty()) {
-            throw new IllegalStateException(PROPERTIES + " has no " + name + " (docs/CLOUD_BACKENDS_PCT_2026_10_11.md)");
+            throw new IllegalStateException(PROPERTIES + " has no " + name
+                    + " (docs/CLOUD_BACKENDS_PCT_2026_10_11.md)");
         }
         return value;
     }

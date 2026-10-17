@@ -21,8 +21,8 @@ import java.util.Map;
  * suite's own ceiling, measured on its own target. A suite's verdict no longer depends on which suites shared its JVM
  * (until 2026-10-05 the ceilings were whole-JVM, measured on the five-suite composite lane). Never-happens invariants
  * ({@code mismatch == 0} — a label lie escaped reconciliation) hold everywhere; the ceilings ratchet DOWN as families
- * burn; each lane ({@code LEGENDLITE_PCT_BACKEND}, its test backend's name) has its own numbers ({@link #CEILINGS}), and
- * a lane or suite with none is refused.
+ * burn; each lane ({@code LEGENDLITE_PCT_BACKEND}, its test backend's name) has its own numbers ({@link #CEILINGS}),
+ * and a lane or suite with none is refused.
  */
 public final class PctCensusGate {
 
@@ -203,9 +203,9 @@ public final class PctCensusGate {
 
     private static final Ceilings ZERO = new Ceilings(0, 0);
 
-    /** The platform lane's proven-empty int-or-null ceilings (above), which every lane but Postgres's and H2's ran under
-     *  until 2026-10-16, when each lane's ceilings became its own row: carried on those lanes as they were, a ceiling
-     *  to lower when the lane is measured. */
+    /** The platform lane's proven-empty int-or-null ceilings (above), which every lane but Postgres's and H2's ran
+     *  under until 2026-10-16, when each lane's ceilings became its own row: carried on those lanes as they were, a
+     *  ceiling to lower when the lane is measured. */
     private static final Map<String, Ceilings> PLATFORM_LANE = suites(new Ceilings(0, 20), ZERO, ZERO,
             new Ceilings(0, 20), new Ceilings(0, 4));
 

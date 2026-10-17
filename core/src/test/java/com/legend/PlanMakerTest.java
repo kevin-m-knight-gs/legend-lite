@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,8 +41,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PlanMakerTest {
 
     /** The register of each database's known differences from today's paths, shrink-only: a row is its backend, the
-     *  output, the query (today's form: its values as lets) and a part of the failure's message; lines starting
-     *  {@code #} are its reasons (the dialect program's Phase 6, 2026-10-16, when the cases first ran on SQLite). */
+     *  output, the query (today's form: its values as lets) and the plan's own answer, exactly, or its refusal
+     *  ({@code refused: } and its message), escaped to one line; lines starting {@code #} are its reasons (the dialect
+     *  program's Phase 6, 2026-10-16, when the cases first ran on SQLite; exact since the audit of the branch). */
     private static final String DIFFERENCES_FILE = "plan-maker/differences.tsv";
 
     private static final java.util.Map<String, String> DIFFERENCES = differences();
@@ -59,7 +61,7 @@ class PlanMakerTest {
                 }
                 String[] cells = line.split("\t");
                 if (cells.length != 4) {
-                    throw new IllegalStateException(DIFFERENCES_FILE + ": a row is backend, output, query, failure: "
+                    throw new IllegalStateException(DIFFERENCES_FILE + ": a row is backend, output, query, answer: "
                             + line);
                 }
                 rows.put(cells[0] + "\t" + cells[1] + "\t" + cells[2], cells[3]);
@@ -70,8 +72,27 @@ class PlanMakerTest {
         return rows;
     }
 
+    /** The register's rows, at most: 31 measured 2026-10-16, when the cases first ran on SQLite (the dialect
+     *  program's Phase 6). Lowered with the rows; raised only with a dated reason. */
+    private static final int MAX_DIFFERENCES = 31;
+
+    /** The test methods run in this class, so that unreached rows are judged on a whole run only. */
+    private static final java.util.concurrent.atomic.AtomicInteger RAN = new java.util.concurrent.atomic.AtomicInteger();
+
+    @org.junit.jupiter.api.AfterEach
+    void ran() {
+        RAN.incrementAndGet();
+    }
+
     @org.junit.jupiter.api.AfterAll
     static void everyDifferenceIsACase() {
+        assertTrue(DIFFERENCES.size() <= MAX_DIFFERENCES, DIFFERENCES_FILE + " has " + DIFFERENCES.size()
+                + " rows, above its ceiling " + MAX_DIFFERENCES + ": a row is added only with a dated reason");
+        long declared = java.util.Arrays.stream(PlanMakerTest.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(Test.class)).count();
+        if (RAN.get() < declared) {
+            return;   // a run of some of the methods reaches some of the rows
+        }
         java.util.Set<String> unreached = new java.util.TreeSet<>(DIFFERENCES.keySet());
         unreached.removeAll(CONSULTED);
         assertEquals(java.util.Set.of(), unreached, "rows of " + DIFFERENCES_FILE + " no case reaches: remove them");
@@ -365,19 +386,34 @@ class PlanMakerTest {
         String key = TestBackends.of(type).name() + "\t" + output + "\t" + query;
         String known = DIFFERENCES.get(key);
         CONSULTED.add(key);
-        if (known == null) {
-            answersAsToday(model, type, withParameters, query, values, output);
+        String what = type + " " + output + " " + withParameters;
+        String[] answers;
+        try {
+            answers = answers(model, type, withParameters, query, values, output);
+        } catch (RuntimeException refused) {
+            if (known == null) {
+                throw refused;
+            }
+            assertEquals(known, escaped("refused: " + refused.getMessage()), key + ": the plan's refusal moved");
             return;
         }
-        Throwable failed = assertThrows(Throwable.class,
-                () -> answersAsToday(model, type, withParameters, query, values, output),
-                key + ": answers as today now; remove its row from " + DIFFERENCES_FILE);
-        assertTrue(String.valueOf(failed.getMessage()).contains(known), key + ": " + failed.getMessage());
+        if (known == null) {
+            assertEquals(answers[0], answers[1], what);
+            return;
+        }
+        assertNotEquals(answers[0], answers[1], key + ": answers as today now; remove its row from " + DIFFERENCES_FILE);
+        assertEquals(known, escaped(answers[1]), key + ": the plan's answer moved");
     }
 
-    private static void answersAsToday(String model, DatabaseType type, String withParameters, String query,
+    /** {@code s} on one register line: its backslashes, tabs, returns and new lines escaped. */
+    private static String escaped(String s) {
+        return s.replace("\\", "\\\\").replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n");
+    }
+
+    /** Today's path's answer to {@code query} and the plan's to {@code withParameters} with {@code values}, each on a
+     *  fresh database of {@code type}; a plan refused when it is made throws. */
+    private static String[] answers(String model, DatabaseType type, String withParameters, String query,
             java.util.Map<String, Object> values, TypedQuery.Output output) throws Exception {
-        String what = type + " " + output + " " + withParameters;
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), withParameters).executionPlan("s::RT", output);
         try (Connection today = fresh(type); Connection planned = fresh(type)) {
             var ctx = Compiler.compileModel(model);
@@ -390,7 +426,7 @@ class PlanMakerTest {
                 case JSON -> Execution.executeWire(model, query, "s::RT", today, WireRender.Format.JSON, out);
                 case STREAMED_JSON -> Execution.executeStreaming(model, query, "s::RT", today, out);
             }
-            assertEquals(out.toString(), PlanCases.run(plan, planned, values), what);
+            return new String[] {out.toString(), PlanCases.run(plan, planned, values)};
         }
     }
 

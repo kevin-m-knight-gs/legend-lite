@@ -57,6 +57,18 @@ class PlanRunnerH2Test {
         }
     }
 
+    /** A LocalH2 target (legend-engine's own H2 specification) is shared and set up once, as every in-process
+     *  database's in-memory target is ({@link PlanRunnerTest}, which declares {@code InMemory}). */
+    @Test
+    void aLocalH2TargetIsSharedAndSetUpOnce() throws Exception {
+        ExecutionPlan plan = counting(inMemory("s::H2", H2, new ConnectionSpecification.LocalH2(null)), "LOCAL_T",
+                H2_SERVERS);
+        long before = setupStatements();
+        assertEquals("1", run(plan, PlanSessions.shared()));
+        assertEquals("1", run(plan, PlanSessions.shared()));
+        assertEquals(2, setupStatements() - before, "set up once");
+    }
+
     /** The H2 versions its plans are written for. */
     private static final ExecutionPlan.Servers H2_SERVERS = new ExecutionPlan.Servers.Versions(List.of("2.1", "2.2"));
 

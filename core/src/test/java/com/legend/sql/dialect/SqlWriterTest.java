@@ -70,10 +70,11 @@ class SqlWriterTest {
 
     @Test
     void aQueryWithNoParametersRendersTheSameTextEitherWay() {
-        for (SqlDialect d : List.of(new DuckDb(), new H2(), new Postgres())) {
+        for (com.legend.model.ConnectionDefinition.DatabaseType type : com.legend.database.Databases.implemented()) {
+            SqlDialect d = com.legend.database.Databases.dialect(type);
             RenderedStatement s = d.renderStatement(QUERY);
-            assertEquals(d.render(QUERY), s.sql(), d.getClass().getSimpleName());
-            assertEquals(List.of(), s.binds(), d.getClass().getSimpleName());
+            assertEquals(d.render(QUERY), s.sql(), type.name());
+            assertEquals(List.of(), s.binds(), type.name());
         }
     }
 

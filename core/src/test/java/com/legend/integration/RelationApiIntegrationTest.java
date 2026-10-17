@@ -29,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Relation API E2E Integration Tests")
 class RelationApiIntegrationTest extends AbstractDatabaseTest {
 
-
     @BeforeEach
     void setUp() throws SQLException {
         connection = backend().open();

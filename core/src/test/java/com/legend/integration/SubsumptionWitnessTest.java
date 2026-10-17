@@ -24,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 public class SubsumptionWitnessTest extends AbstractDatabaseTest {
 
-
         @BeforeEach
         void setUp() throws SQLException {
                 connection = backend().open();

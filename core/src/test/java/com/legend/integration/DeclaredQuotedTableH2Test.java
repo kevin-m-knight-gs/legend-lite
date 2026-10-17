@@ -41,7 +41,7 @@ class DeclaredQuotedTableH2Test {
             ###Mapping
             Mapping q::M ( )
             ###Connection
-            RelationalDatabaseConnection q::Conn { store: q::DB; type: H2; specification: DuckDB { }; auth: Test; }
+            RelationalDatabaseConnection q::Conn { store: q::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
             ###Runtime
             Runtime q::RT { mappings: [q::M]; connections: [ q::DB: [ c1: q::Conn ] ]; }
             """;

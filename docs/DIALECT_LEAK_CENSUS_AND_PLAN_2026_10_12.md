@@ -1009,24 +1009,36 @@ and where it departs from the list above:
   - Not built in part 1, because no part-1 caller needs them: `openUtc()`, `openWorkspace()`, `isolateFixture()`,
     `readerOn()`, `seed()` and `censusCeilings()`. They are part 2's (the corpus) and are added with their callers. The
     five embedded servers keep their own launchers (`//testing`); the backends call them.
-  - The owner guard: a BACKEND kind (`testbackend/<Db>Backend.java`, held to its own database in code and strings) and
-    a NAMED_TEST kind (a test whose class is named for a database owns it). `TestBackends` and its test are EVERY.
+  - The owner guard: a BACKEND kind (`testbackend/<Db>Backend.java`) and a NAMED_TEST kind (a test source whose class
+    is named for a database, a test or its harness: `RowLoadDuckDbTest`, `H2Verify`), each held to its own database
+    in its code and its strings, its JDBC URLs included. Four crossings are registered with their reasons: legend-
+    engine's H2 text on a DuckDB session (`ExecuteInDbDuckDbTest`, D2), a helper whose overloads declare H2 and DuckDB
+    (`RawGridSchemaDuckDbTest`), and the warehouse's two (D4, Phase 7's). `TestBackends` and its test are EVERY.
 - **PCT:** `PctBackend` takes its lane's backend by name (`LEGENDLITE_PCT_BACKEND`); its lane enum and `CloudLane` are
   gone. `PctCensusGate`'s environment-variable branches are a per-lane table that refuses a lane or suite with none.
   The lanes other than DuckDB's, H2's and Postgres's carry the ceilings they ran under before, the platform lane's,
   until they are measured. The channel B suites' `isReference()` branches stay: the reference lane is the platform's
   own engine (no database named), and its suites' deeper checks are its own.
 - **Core's tests** open the platform's backend, every in-process backend, or the database they are about.
-  - Tests that ran one battery on DuckDB and on H2 by name run it on every in-process backend (`ReservedNamesSeed`,
-    `WireTypes`, `MissingValueInComputedColumn`, `QuotedColumnName`, `FrameQuotedColumn`, and `PlanMakerTest`'s and
-    `PlanRunnerTest`'s runs). SQLite joined them. It passes all but the plan path's: **SQLite's plans differ from
-    today's path in 31 cases** (a list parameter refused by name, a Decimal, Date or DateTime answered in another
-    spelling), registered shrink-only in `plan-maker/differences.tsv`. That is defect 11 in §3.
+  - Tests that ran one battery on DuckDB and on H2 by name, or on H2 alone (`FrameQuotedColumn`), run it on every
+    in-process backend (`ReservedNamesSeed`, `WireTypes`, `MissingValueInComputedColumn`, `QuotedColumnName`,
+    `FrameQuotedColumn`, and `PlanMakerTest`'s and `PlanRunnerTest`'s runs). SQLite joined them. It passes all but the
+    plan path's: **SQLite's plans differ from today's path in 31 cases** (a list parameter refused by name, a Decimal,
+    Date or DateTime answered in another spelling), registered in `plan-maker/differences.tsv` with the plan's exact
+    answer or refusal, at most 31 rows (`PlanMakerTest.MAX_DIFFERENCES`). That is defect 11 in §3.
   - A test of one database's own answers moved into a test named for it: `PlanMaker<Db>Test`, `PlanRunner<Db>Test`,
     `RowLoad<Db>Test`, `StoreTypes<Db>Test`, `SqlCanonConformanceH2Test`, `ConnectionLeaseH2Test`. Tests whose session
     is one database by construction were renamed for it: `ExecuteInDbDuckDbTest`, `RawGridSchemaDuckDbTest`,
     `DynamicPivotKeyLiteralH2Test`, `DeclaredQuotedTableH2Test`. `SeedSpellingTest` is a dialect test now
-    (`sql/dialect`, over `Databases.implemented()`), and `PlanOnJavaBase` plans on every dialect.
+    (`sql/dialect`, over `Databases.implemented()`); `SqlWriterTest` and `tools/census/RenderCensus` iterate
+    `Databases.implemented()`. `PlanOnJavaBase` plans on every dialect and holds each to its own reading of the table
+    and its QUALIFY (Postgres's folded name and wrapping select, as before, and every other's).
+  - Sessions that changed, none weaker: the H2 sessions that were a bare `jdbc:h2:mem:` (WireTypes,
+    MissingValueInComputedColumn, QuotedColumnName, ReservedNamesSeed, RowLoad, SqlCanonConformance, DynamicPivotKey,
+    FrameQuotedColumn, DeclaredQuotedTable) are H2's backend's, a private instance with the engine's settings
+    (`H2Connector.SETTINGS`); PCT's and the stress harness's H2 sessions are a named private instance where they were
+    anonymous. `PlanRunnerTest`'s shared in-memory targets declare `InMemory` on every database; LocalH2's is
+    `PlanRunnerH2Test`'s. A cloud backend holds one session per cloud.
   - `AbstractDatabaseTest` takes a `backend()`, and its connection declares the backend's specification, which fixes
     defect 6.
   - The stress harness takes a backend (`StressTool --backend NAME`): the referee's lane keeps its fresh session per
@@ -1038,8 +1050,14 @@ and where it departs from the list above:
   - parser-equivalence's `own_corpus.matched` fell 2862 -> 2847: 15 elements of four literal models that became
     backend-parameterised.
 
-The ledger after part 1: core's test rows are only the SQL, IQ and Cypher islands' (part 2). spec keeps the corpus
-harness's rows (part 2), the warehouse its tests' (Phase 7), and main code `DynaFn` (D10) and the SQL translator's three
+Left for part 2, with the corpus: the 26 resolver `sqlOf()` copies (one harness); `CorpusDifferentialTest`, which
+renders every service with the platform's dialect, not its runtime's (defect 4, still open); `StoreTypesTest`'s
+three-dialect list; `PostgresArmTest`; `scripts/corpus/differential.py`; and the list's `openUtc()`,
+`openWorkspace()`, `isolateFixture()`, `readerOn()`, `seed()` and `censusCeilings()`.
+
+The ledger after part 1: core's test rows are the SQL, IQ and Cypher islands' and `LowerRelationTest`'s, each open in
+#43 or #50 (part 2). spec keeps the corpus harness's rows but `H2Verify`'s and `H2ExtensionFunctions`' (named for H2,
+they are its owners now), the warehouse its tests' (Phase 7), and main code `DynaFn` (D10) and the SQL translator's three
 files (#43).
 
 ### Phase 7: the other modules

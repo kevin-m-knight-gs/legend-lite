@@ -118,8 +118,8 @@ class Phase3bProbesTest {
         }
         String out = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         if (out != null) {
-            Files.writeString(Path.of(out, "phase3b-twinRows-twins.tsv"), twinRows, StandardCharsets.UTF_8);
-            Files.writeString(Path.of(out, "phase3b-versionRows-versions.tsv"), versionRows, StandardCharsets.UTF_8);
+            Files.writeString(Path.of(out, "phase3b-h1-twins.tsv"), twinRows, StandardCharsets.UTF_8);
+            Files.writeString(Path.of(out, "phase3b-h2-versions.tsv"), versionRows, StandardCharsets.UTF_8);
         }
         System.out.println("[phase3b] names the system metamodel and the closure both declare: " + names
                 + "; upstream versions with a system twin by id: " + twinsById

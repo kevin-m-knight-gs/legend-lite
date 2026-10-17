@@ -5,7 +5,8 @@ package com.legend.testbackend;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
 
-/** H2's sessions: a private in-memory instance each, with the engine's session settings ({@code H2Connector.SETTINGS}). */
+/** H2's sessions: a private in-memory instance each, with the engine's session settings
+ *  ({@code H2Connector.SETTINGS}). */
 final class H2Backend extends InProcessBackend {
 
     static final H2Backend INSTANCE = new H2Backend();

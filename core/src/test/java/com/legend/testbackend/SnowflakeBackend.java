@@ -7,7 +7,9 @@ import com.legend.model.ConnectionDefinition.DatabaseType;
 
 import java.util.Properties;
 
-/** Snowflake's sessions: a real account's warehouse ({@link CloudBackend}): its {@code account}, {@code warehouse}, {@code region} and {@code database} declared; the system connection's {@code schema}, where its temporary tables live. */
+/** Snowflake's sessions: a real account's warehouse ({@link CloudBackend}): its {@code account}, {@code warehouse},
+ *  {@code region} and {@code database} declared; the system connection's {@code schema}, where its temporary tables
+ *  live. */
 final class SnowflakeBackend extends CloudBackend {
 
     static final SnowflakeBackend INSTANCE = new SnowflakeBackend();
