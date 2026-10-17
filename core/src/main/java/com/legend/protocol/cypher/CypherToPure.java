@@ -442,6 +442,8 @@ public final class CypherToPure {
     private final Model model;
     /** The graph is open ({@link Model#open()}): the readings of the study's §12.45. */
     private final boolean open;
+    /** The leading {@code USE}, which the caller resolved to {@link #model} ({@link #leadingUse}); null when none. */
+    private CypherAst.@com.legend.base.Nullable Use leading;
     private int fresh;
 
     /** How many lambdas the database computes (a comprehension's or predicate's over a collection it computes)
@@ -468,8 +470,29 @@ public final class CypherToPure {
     /** The Pure Relation expression {@code cypher} means over {@code model}'s classes; a refusal is a
      *  {@link com.legend.protocol.sql.SqlTranslationException} of the kind the seam maps. */
     public static ValueSpecification translate(String cypher, Model model) {
-        CypherAst.Statement statement = CypherParser.parse(cypher);
-        return new CypherToPure(model).statement(statement);
+        return translate(CypherParser.parse(cypher), model);
+    }
+
+    /** {@link #translate(String, Model)} over a parsed statement: the seam parses first to read the graph a leading
+     *  {@code USE} names ({@link #leadingUse}) and builds {@code model} for that graph, so the leading USE is read
+     *  here as done. */
+    public static ValueSpecification translate(CypherAst.Statement statement, Model model) {
+        CypherToPure t = new CypherToPure(model);
+        t.leading = leadingUse(statement);
+        return t.statement(statement);
+    }
+
+    /** The refusal of a {@code USE} naming no DataSpace of the model (the seam's, at the clause's place). */
+    public static com.legend.protocol.sql.SqlTranslationException noSuchGraph(CypherAst.Use use) {
+        return CypherErrors.invalid("USE " + use.graph() + ": no DataSpace of the model at that path (a Cypher"
+                + " island's graph is a DataSpace: its elements the labels, <<graph::graph.Open>> the open reading)",
+                use.pos());
+    }
+
+    /** The {@code USE} clause a statement opens with, naming the graph it reads (the study's §12.45: a DataSpace,
+     *  by its path, {@code USE g::Graph}); null when the statement names none (the whole model). */
+    public static @com.legend.base.Nullable CypherAst.Use leadingUse(CypherAst.Statement statement) {
+        return !statement.clauses().isEmpty() && statement.clauses().get(0) instanceof CypherAst.Use u ? u : null;
     }
 
     // ------------------------------------------------------------------ the pipeline of clauses
@@ -646,7 +669,10 @@ public final class CypherToPure {
         parts.add(part);
         Rows out = null;
         for (List<Clause> p : parts) {
-            Rows rows = new CypherToPure(model).clausesRows(p, s.pos());
+            CypherToPure reader = new CypherToPure(model);
+            // (the statement's leading USE is the first part's: read as done there, the study's §12.45)
+            reader.leading = leading;
+            Rows rows = reader.clausesRows(p, s.pos());
             if (out == null) {
                 out = rows;
                 continue;
@@ -705,9 +731,14 @@ public final class CypherToPure {
             Clause c = clauses.get(i);
             boolean last = i == clauses.size() - 1;
             switch (c) {
-                case CypherAst.Use u -> throw CypherErrors.unsupported("USE (selecting the graph by its data space)"
-                        + " is not supported yet: name the mapping and runtime with ->from(...) after the island",
-                        u.pos());
+                case CypherAst.Use u -> {
+                    // the graph the statement reads (the study's §12.45): a DataSpace the seam resolved into the
+                    // model before translating; read here as done. USE anywhere else is Neo4j's error
+                    if (u != leading) {
+                        throw CypherErrors.invalid("USE clause must be either the first clause in a (sub-)query or"
+                                + " preceded by an importing WITH clause", u.pos());
+                    }
+                }
                 case CypherAst.OtherClause o -> throw CypherErrors.unsupported(o.keyword() + " is not supported yet",
                         o.pos());
                 case CypherAst.Match m -> state = match(m, state);

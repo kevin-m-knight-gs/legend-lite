@@ -304,7 +304,10 @@ its openness from its caller: the parity harness builds its model from a scenari
 island embedded in Pure source (`#Cypher{...}#`) is CLOSED. The one open point: a model-side spelling of openness
 (a graph element, which the writes of W4 may want anyway as the thing `CREATE` writes into, or a tag of the graph
 profile) when a user wants an open graph; not needed for the TCK. Cost: one leg, the closed pins kept and the open
-reading pinned beside them; S58 rewritten as the two readings.
+reading pinned beside them; S58 rewritten as the two readings. **Addendum (the user, later the same day): the graph
+is declared with Cypher's own `USE`, naming a DataSpace (GQL's graph: its elements the labels, its execution context
+the store), open by `<<graph.Open>>` on the DataSpace; neither a class stereotype (static, one way per model) nor
+an island prefix (invented syntax). Landed so (the study's §12.45).**
 
 **Q2. The identity problem, and the right thing on the Legend side.** What Neo4j does: every node and relationship
 has an identity of its own (an element id the store mints), independent of its labels and properties. Two nodes

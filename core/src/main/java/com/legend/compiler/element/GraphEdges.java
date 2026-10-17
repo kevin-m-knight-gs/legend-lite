@@ -364,8 +364,8 @@ public record GraphEdges(List<Edge> edges) {
     }
 
     /** The stereotypes the profile declares, and no tag: {@code Edge}, {@code from}, {@code to}, {@code type} (the
-     *  edge classes, §5.6) and {@code Open} (2026-10-17, §12.45: a class of an open graph, which the Cypher seam
-     *  reads; this reader only checks the declaration). */
+     *  edge classes, §5.6) and {@code Open} (2026-10-17, §12.45: on a DataSpace, the graph a Cypher island's
+     *  {@code USE} names, open; the Cypher seam reads it, this reader only checks the declaration). */
     public static final List<String> STEREOTYPES = List.of("Edge", "Open", "from", "to", "type");
 
     /** The profile at its path, declaring exactly the five stereotypes and no tag: checked for each edge class

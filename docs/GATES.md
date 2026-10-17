@@ -9950,7 +9950,11 @@ graph (no stereotype) keeps C4's compile errors. The parity harness's graphs are
    TCK's agreement 3093 of 3880 (from 3,031); the showcase's pinned model carries the stereotype.
 3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:guardrails`,
    `//core:core_tests_integration` green; a unit test pins the open readings beside the closed pins.
-4. **Decided.** `docs/SEMANTICS_REGISTER.md` S58 rewritten as the two readings.
+4. **Decided.** `docs/SEMANTICS_REGISTER.md` S58 rewritten as the two readings. The declaration site moved on the
+   user's direction after step 1 (the study's §12.45): the graph a Cypher island reads is the DataSpace its leading
+   `USE` names (`USE g::Graph MATCH ...`), open by `<<graph::graph.Open>>` on the DataSpace, not on the classes;
+   `ModelContext.findDataSpace`, `DataSpaceDefinition.stereotypes`, `CypherIslands.graphOf`; the integration test
+   `theGraphAUseNamesIsADataSpaceOpenByItsStereotype`.
 
 ## 2026-10-17 — `#Cypher{...}#`: the forty-third landing — a MATCH after rows whose pattern is new
 

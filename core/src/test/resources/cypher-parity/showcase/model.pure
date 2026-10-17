@@ -1,25 +1,29 @@
 ###Pure
-Class <<graph::graph.Open>> g::Duration
+Class g::Duration
 {
     months: Integer[1];
     days: Integer[1];
     seconds: Integer[1];
     nanoseconds: Integer[1];
 }
-Class <<graph::graph.Open>> g::City
+Class g::City
 {
     name: String[0..1];
 }
-Class <<graph::graph.Open>> g::Firm
+Class g::Firm
 {
     founded: Integer[0..1];
     legalName: String[0..1];
 }
-Class <<graph::graph.Open>> g::Person
+Class g::Person
 {
     active: Boolean[0..1];
     age: Integer[0..1];
     name: String[0..1];
+}
+Profile graph::graph
+{
+    stereotypes: [Edge, Open, from, to, type];
 }
 Association g::R_HQ
 {
@@ -64,3 +68,16 @@ Mapping g::Map
     g::R_HQ: Relational { AssociationMapping ( HQ: [g::DB]@HQ, HQ_in: [g::DB]@HQ ) }
     g::R_WORKS_AT: Relational { AssociationMapping ( WORKS_AT: [g::DB]@WORKS_AT, WORKS_AT_in: [g::DB]@WORKS_AT ) }
 )
+###DataSpace
+DataSpace <<graph::graph.Open>> g::Graph
+{
+  executionContexts:
+  [
+    {
+      name: 'default';
+      mapping: g::Map;
+    }
+  ];
+  defaultExecutionContext: 'default';
+  elements: [ g::City, g::Duration, g::Firm, g::Person ];
+}

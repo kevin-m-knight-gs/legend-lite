@@ -73,6 +73,10 @@ public final class CypherParity {
             if (version != null && !PREFIX.matcher(q).lookingAt()) {
                 q = "CYPHER " + version + " " + q;
             }
+            // the graph: the harness's DataSpace, named after the version prefix (the study's §12.45)
+            java.util.regex.Matcher m = PREFIX.matcher(q);
+            q = m.lookingAt() ? q.substring(0, m.end()) + " USE " + CypherGraph.DATASPACE + q.substring(m.end())
+                    : "USE " + CypherGraph.DATASPACE + " " + q;
             return "#Cypher{" + q + "}#";
         }
 
@@ -445,9 +449,9 @@ public final class CypherParity {
         if (e instanceof com.legend.compiler.spec.TypeInferenceException) {
             // C4 (docs/SEMANTICS_REGISTER.md S58): over a CLOSED graph a label, property or relationship type the
             // model does not declare is lite's compile error where Neo4j answers no rows or null -- a decided
-            // refusal, by name. The harness's graphs are OPEN (every class <<graph::graph.Open>>, the study's
-            // §12.45), so the lanes read Neo4j's answers; the classification stays for a reading the open graph
-            // does not cover yet
+            // refusal, by name. The harness's graphs are OPEN (the island's USE names its DataSpace, marked
+            // <<graph::graph.Open>>, the study's §12.45), so the lanes read Neo4j's answers; the classification
+            // stays for a reading the open graph does not cover yet
             boolean c4 = String.valueOf(e.getMessage()).contains("the graph is the model");
             return a.error() != null ? new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR, oneLine(e))
                     : new SqlParity.Outcome(c4 ? SqlParity.Status.REFUSED : SqlParity.Status.ERROR, oneLine(e));

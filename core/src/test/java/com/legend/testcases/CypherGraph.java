@@ -40,6 +40,9 @@ public final class CypherGraph {
     public static final String DATABASE = "g::DB";
     public static final String MAPPING = "g::Map";
     public static final String RUNTIME = "g::RT";
+    /** The graph a lane's island reads with {@code USE} (the study's §12.45): the DataSpace of every class the
+     *  dump implies, marked {@code <<graph::graph.Open>>} (a Neo4j graph is open). */
+    public static final String DATASPACE = "g::Graph";
 
     /** A graph the harness cannot model yet, and why. */
     public static final class Unsupported extends Exception {
@@ -277,6 +280,7 @@ public final class CypherGraph {
         StringBuilder joins = new StringBuilder();
         StringBuilder associationMappings = new StringBuilder();
         StringBuilder edgeClasses = new StringBuilder();
+        List<String> scope = new ArrayList<>();
         StringBuilder edgeMappings = new StringBuilder();
         List<SqlParity.Table> junctions = new ArrayList<>();
         List<String> edgeTypes = new ArrayList<>();
@@ -298,7 +302,8 @@ public final class CypherGraph {
                     edgeTypes.add(t.name);
                 }
                 String edge = t.edgeClass();
-                edgeClasses.append("Class <<graph::graph.Edge, graph::graph.Open>> ").append(edge).append("\n{\n")
+                scope.add(edge);
+                edgeClasses.append("Class <<graph::graph.Edge>> ").append(edge).append("\n{\n")
                         .append("    <<graph::graph.type>> type() { ").append(RELATIONSHIP_TYPE).append('.')
                         .append(t.name).append(" }: ").append(RELATIONSHIP_TYPE).append("[1];\n");
                 List<SqlParity.Column> columns = new ArrayList<>();
@@ -438,13 +443,14 @@ public final class CypherGraph {
         // the classes, the tables and the mapping; the Duration class the island carries a duration as (the study's
         // §12.9: a class of the model, not a platform type)
         StringBuilder pure = new StringBuilder("###Pure\n");
-        pure.append("Class <<graph::graph.Open>> g::Duration\n{\n    months: Integer[1];\n    days: Integer[1];\n    seconds: Integer[1];\n"
+        pure.append("Class g::Duration\n{\n    months: Integer[1];\n    days: Integer[1];\n    seconds: Integer[1];\n"
                 + "    nanoseconds: Integer[1];\n}\n");
         StringBuilder tablesDdl = new StringBuilder();
         StringBuilder mapping = new StringBuilder();
         List<SqlParity.Table> tables = new ArrayList<>();
         for (Cls c : classes.values()) {
-            pure.append("Class <<graph::graph.Open>> g::").append(c.name).append("\n{\n");
+            pure.append("Class g::").append(c.name).append("\n{\n");
+            scope.add("g::" + c.name);
             List<SqlParity.Column> columns = new ArrayList<>();
             columns.add(new SqlParity.Column("id", "BIGINT"));
             StringBuilder ddl = new StringBuilder("    Table " + c.table + " (id BIGINT PRIMARY KEY");
@@ -512,13 +518,21 @@ public final class CypherGraph {
             }
             tables.add(j);
         }
+        // (the profile always: the DataSpace below carries its Open stereotype)
+        pure.append(GRAPH_PROFILE);
         if (!edgeTypes.isEmpty()) {
-            pure.append(GRAPH_PROFILE).append("Enum ").append(RELATIONSHIP_TYPE).append("\n{\n    ")
+            pure.append("Enum ").append(RELATIONSHIP_TYPE).append("\n{\n    ")
                     .append(String.join(", ", edgeTypes)).append("\n}\n").append(edgeClasses);
         }
+        scope.add("g::Duration");
+        java.util.Collections.sort(scope);
         String model = pure + associations.toString() + "###Relational\nDatabase " + DATABASE + "\n(\n" + tablesDdl
                 + joins + ")\n###Mapping\nMapping " + MAPPING + "\n(\n" + mapping + edgeMappings
-                + associationMappings + ")\n";
+                + associationMappings + ")\n"
+                // the graph (the study's §12.45): a DataSpace of every class, open as a Neo4j graph is
+                + "###DataSpace\nDataSpace <<graph::graph.Open>> " + DATASPACE + "\n{\n  executionContexts:\n  [\n"
+                + "    {\n      name: 'default';\n      mapping: " + MAPPING + ";\n    }\n  ];\n"
+                + "  defaultExecutionContext: 'default';\n  elements: [ " + String.join(", ", scope) + " ];\n}\n";
         return new Inferred(model, tables, graphKey(g));
     }
 

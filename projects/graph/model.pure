@@ -15,12 +15,12 @@
 //   to    likewise: the end node
 //   type  on a derived property of the edge class whose body is one spelled enumeration value: the relationship type's
 //         name (without it, the class's simple name)
-//   Open  on a class (2026-10-17, docs/CYPHER_STUDY_2026_10_15.md §12.45): the class is a type of an OPEN graph, in
-//         GQL's words a graph no graph type constrains (ISO/IEC 39075: a graph with a constraining graph type is
-//         CLOSED). A Cypher query reads an open class's node or relationship as Neo4j reads one: a property the
-//         class does not declare is null. When every class of the model is open, the graph is open: a label or a
-//         relationship type naming nothing of the model reads no rows. Without it, the model is the graph's type and
-//         a name the model lacks is a compile error (the closed reading, docs/SEMANTICS_REGISTER.md S58).
+//   Open  on a DataSpace (2026-10-17, docs/CYPHER_STUDY_2026_10_15.md §12.45): the DataSpace is a GRAPH a Cypher
+//         island reads (`USE g::Graph MATCH ...`: its elements the labels, its execution context the store), and an
+//         OPEN one, in GQL's words a graph no graph type constrains (ISO/IEC 39075: a graph with a constraining graph
+//         type is CLOSED): a label or a relationship type naming nothing of the graph reads no rows and a property no
+//         class declares reads null, as Neo4j reads them. Without it, the model is the graph's type and a name the
+//         model lacks is a compile error (the closed reading, docs/SEMANTICS_REGISTER.md S58).
 Profile graph::graph
 {
    stereotypes: [Edge, Open, from, to, type];

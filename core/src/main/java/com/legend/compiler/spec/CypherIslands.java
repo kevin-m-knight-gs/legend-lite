@@ -45,7 +45,9 @@ public final class CypherIslands {
      *  before resolution): what the showcase dump prints. */
     public static ValueSpecification translate(SqlIsland island, ModelContext model) {
         try {
-            return CypherToPure.translate(island.sql(), new Graph(model));
+            com.legend.protocol.cypher.CypherAst.Statement statement =
+                    com.legend.protocol.cypher.CypherParser.parse(island.sql());
+            return CypherToPure.translate(statement, new Graph(model, graphOf(statement, model)));
         } catch (SqlTranslationException e) {
             String message = island.opening() + "...}# at " + SqlIslands.position(island, e.line(), e.column()) + ": "
                     + e.getMessage();
@@ -54,33 +56,6 @@ public final class CypherIslands {
                 case UNSUPPORTED -> new com.legend.error.NotImplementedException(message);
                 case INVALID -> new TypeInferenceException(message);
             };
-        }
-    }
-
-    /** Whether the model's graph is open (the study's §12.45), computed once per model: every class of the model
-     *  (the user's, nodes and edges alike; the platform's declarations are never nodes) carries
-     *  {@code <<graph.Open>>}; vacuously over a model with no class. */
-    record Openness(boolean open) {
-
-        static Openness of(ModelContext model) {
-            for (String fqn : new java.util.TreeSet<>(model.elementFqns())) {
-                if (com.legend.compiler.NameResolver.platformFqns().contains(fqn)
-                        || com.legend.builtin.SystemMetamodel.elementFqns().contains(fqn)) {
-                    continue;
-                }
-                com.legend.model.ClassDefinition cd = model.findClassDefinition(fqn).filter(c -> !c.isNative())
-                        .orElse(null);
-                if (cd == null) {
-                    continue;
-                }
-                boolean marked = cd.stereotypes().stream().anyMatch(st -> com.legend.compiler.element.type
-                        .PlatformTypes.isProfile(st.profileName(), com.legend.compiler.element.type.PlatformTypes
-                        .GRAPH_PROFILE) && "Open".equals(st.stereotypeName()));
-                if (!marked) {
-                    return new Openness(false);
-                }
-            }
-            return new Openness(true);
         }
     }
 
@@ -131,22 +106,63 @@ public final class CypherIslands {
         }
     }
 
-    /** The model as the translator reads it. */
+    /** The graph a statement's leading {@code USE} names (the study's §12.45; GQL's graph): a DataSpace of the
+     *  model, by its path, whose {@code elements} are the labels the island reads and whose {@code <<graph.Open>>}
+     *  declares the open reading; null when the statement names none (the whole model, closed). */
+    private static com.legend.model.@com.legend.base.Nullable DataSpaceDefinition graphOf(
+            com.legend.protocol.cypher.CypherAst.Statement statement, ModelContext model) {
+        com.legend.protocol.cypher.CypherAst.Use use = CypherToPure.leadingUse(statement);
+        if (use == null) {
+            return null;
+        }
+        return model.findDataSpace(use.graph()).orElseThrow(() -> CypherToPure.noSuchGraph(use));
+    }
+
+    /** The model as the translator reads it: the whole model, or the graph a DataSpace declares ({@link #graphOf}). */
     private static final class Graph implements CypherToPure.Model {
         private final ModelContext model;
+        private final com.legend.model.@com.legend.base.Nullable DataSpaceDefinition graph;
 
-        Graph(ModelContext model) {
+        Graph(ModelContext model, com.legend.model.@com.legend.base.Nullable DataSpaceDefinition graph) {
             this.model = model;
+            this.graph = graph;
+        }
+
+        /** Whether the class at {@code fqn} is of the graph: every class when no DataSpace is named or it lists no
+         *  elements; else one its elements include (a path, or a package the path is under) and none exclude. */
+        private boolean inScope(String fqn) {
+            if (graph == null || graph.elements().isEmpty()) {
+                return true;
+            }
+            boolean included = false;
+            for (String ref : graph.elements()) {
+                boolean exclude = ref.startsWith("-");
+                String path = exclude ? ref.substring(1) : ref;
+                if (fqn.equals(path) || fqn.startsWith(path + "::")) {
+                    if (exclude) {
+                        return false;
+                    }
+                    included = true;
+                }
+            }
+            return included;
+        }
+
+        @Override
+        public boolean open() {
+            return graph != null && graph.stereotypes().stream().anyMatch(st -> com.legend.compiler.element.type
+                    .PlatformTypes.isProfile(st.profileName(), com.legend.compiler.element.type.PlatformTypes
+                    .GRAPH_PROFILE) && "Open".equals(st.stereotypeName()));
         }
 
         @Override
         public List<String> classesOf(String label) {
             // the label as a class's full path first (a backticked `demo::Person`), else as a simple name
             if (model.findClass(label).isPresent()) {
-                return List.of(label);
+                return inScope(label) ? List.of(label) : List.of();
             }
             List<String> classes = model.derived(Labels.class, Labels::of).bySimpleName().get(label);
-            return classes == null ? List.of() : classes;
+            return classes == null ? List.of() : classes.stream().filter(this::inScope).toList();
         }
 
         @Override
@@ -252,11 +268,6 @@ public final class CypherIslands {
         }
 
         @Override
-        public boolean open() {
-            return model.derived(Openness.class, Openness::of).open();
-        }
-
-        @Override
         public List<String> classes() {
             // the model's own classes: the platform's declarations (the resolver's type universe and the system
             // metamodel's elements, by their declared names) are never nodes, nor is an edge class (a relationship
@@ -265,7 +276,8 @@ public final class CypherIslands {
             model.derived(Labels.class, Labels::of).bySimpleName().values().forEach(out::addAll);
             GraphEdges edges = model.derived(GraphEdges.class, GraphEdges::of);
             out.removeIf(c -> com.legend.compiler.NameResolver.platformFqns().contains(c)
-                    || com.legend.builtin.SystemMetamodel.elementFqns().contains(c) || edges.edgeAt(c) != null);
+                    || com.legend.builtin.SystemMetamodel.elementFqns().contains(c) || edges.edgeAt(c) != null
+                    || !inScope(c));
             java.util.Collections.sort(out);
             return List.copyOf(out);
         }
@@ -273,6 +285,9 @@ public final class CypherIslands {
         @Override
         public void edges(CypherToPure.EdgeSink sink) {
             for (GraphEdges.Edge e : model.derived(GraphEdges.class, GraphEdges::of).edges()) {
+                if (!inScope(e.classFqn())) {
+                    continue;
+                }
                 sink.edge(e.classFqn(), e.type(), e.from().property(), e.from().classFqn(), e.from().inverse(),
                         e.from().inverseMany(), e.to().property(), e.to().classFqn(), e.to().inverse(),
                         e.to().inverseMany());

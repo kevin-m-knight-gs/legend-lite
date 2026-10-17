@@ -987,6 +987,19 @@ class CypherToPureTest {
     }
 
     @Test
+    void aLeadingUseIsTheSeamsAndReadsAsDone() {
+        // the study's §12.45: the seam resolves the graph a leading USE names (a DataSpace) into the model before
+        // translating, so the translator reads the clause as done; anywhere else it is Neo4j's error
+        assertEquals(pure("MATCH (p:Person) RETURN p.name AS n"), pure("USE demo::G MATCH (p:Person) RETURN p.name AS n"));
+        invalid("MATCH (p:Person) USE demo::G RETURN p.name AS n", "USE clause must be either the first clause");
+        // a UNION's first part opens with it
+        assertEquals(pure("MATCH (p:Person) RETURN p.name AS n UNION ALL MATCH (f:Firm) RETURN f.legalName AS n"),
+                pure("USE demo::G MATCH (p:Person) RETURN p.name AS n UNION ALL MATCH (f:Firm) RETURN f.legalName AS n"));
+        invalid("MATCH (p:Person) RETURN p.name AS n UNION ALL USE demo::G MATCH (f:Firm) RETURN f.legalName AS n",
+                "USE clause must be either the first clause");
+    }
+
+    @Test
     void anIncomingHopToALabelLessNodeReadsTheOneClassDeclaringTheType() {
         // Person declares firm: Firm, so (f:Firm)<-[:firm]-(p) reads p as a Person through Firm's inverse end
         String p = pure("MATCH (f:Firm)<-[:firm]-(p) RETURN f.legalName AS l, p.name AS n");
@@ -1094,7 +1107,6 @@ class CypherToPureTest {
                 "holding a value of the row (l) among the grouping keys");
         unsupported("MATCH (p:Person) RETURN [localtime('12:00')] AS l", "a list or map holding a LocalTime, as a value");
         invalid("MATCH (p:Person) RETURN all(x IN p.name WHERE x > 1)", "expected List<T> but was String");
-        unsupported("USE demo::Space MATCH (p:Person) RETURN p.name", "USE");
         unsupported("MATCH (p:Person) RETURN DISTINCT p", "RETURN DISTINCT over a node (p");
         unsupported("MATCH (p:Person) RETURN p ORDER BY p", "ORDER BY a node (p");
         unsupported("MATCH (p:Person) RETURN p, count(*) AS c", "a node among the grouping keys (p");

@@ -3271,6 +3271,21 @@ scenarios pass (With4, Comparison1).
   parity harness marks every class it generates open, because a Neo4j fixture is an open graph; a model in a
   user's source is closed unless it says otherwise, so the typo guard (`p.nmae`) stays the default and the TCK
   certifies the open reading of an open graph, which is what it measures on Neo4j.
+- **Where the graph is declared (the user, 2026-10-17, three turns): not on a class ("a static decision on a class
+  means it cannot be configured two ways"), not an island prefix ("a random string or boolean", "weird new syntax"),
+  but Cypher's own `USE` naming a DataSpace ("DataSpace can play the role of Graph").** The leg's first step had put
+  `<<graph.Open>>` on every class; the landing reads it as GQL does: `USE g::Graph MATCH ...` opens the island with
+  the graph it reads, a DataSpace of the model by its path (the island's parser already read `USE` as a Pure path
+  or a backticked name), whose `elements` are the labels (`MATCH (n)` reads them, not every class of the model;
+  a package path includes its classes, a `-` prefix excludes), whose execution context is the store (what a write
+  will write into), and whose `<<graph::graph.Open>>` is the open reading. Without a `USE` the island reads the
+  whole model, closed, as before. The seam (`CypherIslands.graphOf`) parses first, resolves the DataSpace
+  (`ModelContext.findDataSpace`: the typed model now indexes DataSpaces, and `DataSpaceDefinition` carries its
+  stereotypes), builds the translator's model scoped to it, and the translator reads the leading `USE` as done
+  (`CypherToPure.leadingUse`; a `USE` anywhere else is Neo4j's error, "USE clause must be either the first clause
+  in a (sub-)query or preceded by an importing WITH clause"; a `USE` naming no DataSpace is an error at its
+  place). The parity harness emits `DataSpace <<graph::graph.Open>> g::Graph` listing every class the dump implies
+  and opens each island with `USE g::Graph` after the version prefix; the profile is declared on every model.
 - **A name the model has nothing of (`MATCH (n:Nope)`, `MATCH (a:A)-[:NOPE]->(b)`):** read before the MATCH's
   pattern is (`unknownName`): a label naming no class, or a relationship type that is no edge class's type and no
   class's property holding a class, makes the MATCH match nothing (`noneOf`): as the first clause, §12.36's no-row

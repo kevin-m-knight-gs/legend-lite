@@ -106,29 +106,30 @@ the values in the TCK's value grammar: strings, integers, and floats within a re
 The harness infers it from the dump (`CypherGraph`), the lanes compile it, and nothing hand-written is in it: a class
 per label, a property per key typed by its values (every property optional, as a graph's are), each relationship type
 an association (`g::R_<type>`, named apart from the classes) whose ends are named by the type (`WORKS_AT` holds the
-firm, `WORKS_AT_in` the people), realized as a foreign key on the to-one side. Every class carries
-`<<graph::graph.Open>>` (the study's §12.45): the graph is OPEN, as a Neo4j graph is, so a label, a relationship type
-or a property the model lacks reads as Neo4j reads it (no rows, null) rather than as a compile error.
+firm, `WORKS_AT_in` the people), realized as a foreign key on the to-one side. The graph itself is a DataSpace,
+`g::Graph`, listing every class and marked `<<graph::graph.Open>>` (the study's §12.45): each island opens with
+`USE g::Graph`, and the graph is OPEN, as a Neo4j graph is, so a label, a relationship type or a property the graph
+lacks reads as Neo4j reads it (no rows, null) rather than as a compile error.
 
 ```
 ###Pure
-Class <<graph::graph.Open>> g::Duration
+Class g::Duration
 {
     months: Integer[1];
     days: Integer[1];
     seconds: Integer[1];
     nanoseconds: Integer[1];
 }
-Class <<graph::graph.Open>> g::City
+Class g::City
 {
     name: String[0..1];
 }
-Class <<graph::graph.Open>> g::Firm
+Class g::Firm
 {
     founded: Integer[0..1];
     legalName: String[0..1];
 }
-Class <<graph::graph.Open>> g::Person
+Class g::Person
 {
     active: Boolean[0..1];
     age: Integer[0..1];

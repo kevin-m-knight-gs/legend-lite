@@ -712,7 +712,8 @@ public final class FromProtocol {
         };
         return new DataSpaceDefinition(d.qualifiedName(), contexts,
                 d.defaultExecutionContext(), d.title(), d.description(),
-                executables, diagrams, supportInfo, elementScope);
+                executables, diagrams, supportInfo, elementScope,
+                stereotypes(d.stereotypes() == null ? java.util.List.of() : d.stereotypes()));
     }
 
     private static ConnectionDefinition toRelationalConnection(String qualifiedName,

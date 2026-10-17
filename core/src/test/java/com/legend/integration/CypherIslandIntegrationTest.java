@@ -106,6 +106,58 @@ class CypherIslandIntegrationTest {
         return new QueryService().execute(MODEL, "#Cypher{" + cypher + "}#", "test::RT", duckdb);
     }
 
+    /** The model with a graph (the study's §12.45): a DataSpace of Person and Firm, open. */
+    private static final String GRAPH_MODEL = MODEL + """
+            ###Pure
+            Profile graph::graph
+            {
+               stereotypes: [Edge, Open, from, to, type];
+            }
+            ###DataSpace
+            DataSpace <<graph::graph.Open>> test::G
+            {
+              executionContexts:
+              [
+                {
+                  name: 'default';
+                  mapping: test::M;
+                  defaultRuntime: test::RT;
+                }
+              ];
+              defaultExecutionContext: 'default';
+              elements: [ test::Person, test::Firm ];
+            }
+            """;
+
+    private static ExecutionResult runOver(String model, String cypher) throws SQLException {
+        return new QueryService().execute(model, "#Cypher{" + cypher + "}#", "test::RT", duckdb);
+    }
+
+    @Test
+    void theGraphAUseNamesIsADataSpaceOpenByItsStereotype() throws SQLException {
+        // the study's §12.45: USE names the graph, a DataSpace; its elements are the labels (City is outside), its
+        // <<graph::graph.Open>> the open reading (a label no class has: no rows; a property no class declares: null)
+        assertEquals(List.of(), rows(runOver(GRAPH_MODEL, "USE test::G MATCH (p:Nobody) RETURN p.name AS n")));
+        List<String> people = rows(runOver(GRAPH_MODEL, "USE test::G MATCH (p:Person) RETURN p.nam AS x"));
+        assertEquals(rows(run("MATCH (p:Person) RETURN p.name AS n")).size(), people.size());
+        assertTrue(people.stream().allMatch("null"::equals), people.toString());
+        long persons = Long.parseLong(rows(run("MATCH (p:Person) RETURN count(*) AS c")).get(0));
+        long firms = Long.parseLong(rows(run("MATCH (f:Firm) RETURN count(*) AS c")).get(0));
+        assertEquals(List.of(String.valueOf(persons + firms)),
+                rows(runOver(GRAPH_MODEL, "USE test::G MATCH (n) RETURN count(*) AS c")));
+        // without a USE the whole model is the graph, closed: C4 stays (aQueryNeo4jRejectsIsATypeError)
+        LegendCompileException closed = assertThrows(LegendCompileException.class,
+                () -> runOver(GRAPH_MODEL, "MATCH (p:Nobody) RETURN p.name"));
+        assertTrue(closed.getMessage().contains("the label Nobody names no class"), closed.getMessage());
+        // a USE naming no DataSpace, and a USE that is not the first clause, are errors at their place
+        LegendCompileException none = assertThrows(LegendCompileException.class,
+                () -> runOver(GRAPH_MODEL, "USE test::Nope MATCH (p:Person) RETURN p.name"));
+        assertTrue(none.getMessage().contains("USE test::Nope: no DataSpace of the model"), none.getMessage());
+        LegendCompileException late = assertThrows(LegendCompileException.class,
+                () -> runOver(GRAPH_MODEL, "MATCH (p:Person) USE test::G RETURN p.name"));
+        assertTrue(late.getMessage().contains("USE clause must be"), late.getMessage());
+    }
+
     private static List<String> columns(ExecutionResult result) {
         return result.columns().stream().map(c -> c.name()).toList();
     }
