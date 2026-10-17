@@ -1491,7 +1491,6 @@ public final class IqDialect implements InputDialect {
                 limits.put(java.util.Objects.requireNonNull(s.offset()), flags);
             }
         }
-        nullFirstBranches(statement);
         if (chosen != Engine.IQ) {
             // IQ island, 2026-10-15 (the corpus lane: 159 queries; measured on IQ 17.1): under IQ's engine a statement
             // reads one clock -- GETDATE(), NOW() and CURRENT TIMESTAMP equal, and two GETDATE()s, over 117,649 rows
@@ -2625,38 +2624,6 @@ public final class IqDialect implements InputDialect {
             }
         }
         return true;
-    }
-
-    /**
-     * IQ island, 2026-10-14 (the merge of M1b and M1d): a set operation another query reads (a derived table's, a
-     * subquery's), or that orders its rows, whose first branch shows a NULL constant in a column ({@code NULL},
-     * {@code CAST(NULL AS ...)}) is refused by name: the compiler stamps the column of the rows the set operation
-     * concatenates by its first branch's, as always empty, and a test or a key of it then finds no row ({@code x = 'a'}
-     * over {@code (SELECT CAST(NULL AS VARCHAR(3)) AS x UNION ALL SELECT 'a') d} found none), raises, or sorts at random
-     * -- the compiler line's, recorded; a NULL in a later branch is read.
-     */
-    private static void nullFirstBranches(SqlAst.Statement statement) {
-        Set<SqlAst.Statement> top = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (SqlAst.Statement q = statement; q instanceof SqlAst.SetOperation o; q = o.left()) {
-            top.add(q);
-        }
-        boolean ordered = statement instanceof SqlAst.SetOperation so && !so.orderBy().isEmpty();
-        for (SqlAst.Statement q : queries(statement)) {
-            if (!(q instanceof SqlAst.SetOperation o) || top.contains(q) && !ordered) {
-                continue;
-            }
-            boolean read = !top.contains(q);
-            for (SqlAst.SelectItem item : first(o).items()) {
-                // ordered, a string's collation key reads the column (an integer's sort does not)
-                if (item instanceof SqlAst.SelectExpr x && (read && x.expr() instanceof SqlAst.NullLit
-                        || x.expr() instanceof SqlAst.Cast c && c.operand() instanceof SqlAst.NullLit
-                        && (read || c.type().name().toUpperCase(java.util.Locale.ROOT).contains("CHAR")))) {
-                    throw SqlTranslationException.unsupported("a set operation read by another query, or ordered, whose"
-                            + " first branch shows a NULL constant is not supported yet: put the NULL in a later branch",
-                            x.expr().pos());
-                }
-            }
-        }
     }
 
     private static void shown(SqlAst.Select s, Set<SqlAst.SelectExpr> out) {
