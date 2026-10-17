@@ -79,7 +79,7 @@ class DanglingStateGuardTest {
      * was deleted with it); Phase 0.5 rewires both from
      * {@code AssertVerdicts.orderView}, and this register goes to zero. */
     private static final Set<String> KNOWN_DANGLING = Set.of();
-    // (batch 129 registered H2Verify.ORDERED_QUERY / SORT_KEYS — the audit's
+    // (batch 129 registered RefereeVerify.ORDERED_QUERY / SORT_KEYS — the audit's
     // readers without a writer; batch 130 replaced all three referee
     // thread-locals with the ReplayFacts value on the SPI: ZERO.)
 

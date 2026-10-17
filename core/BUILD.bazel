@@ -989,6 +989,8 @@ legend_java_library(
     deps = [
         ":core",
         "//testing",
+        # DuckDB's corpus workspaces duplicate a connection (DuckDbWorkspaces)
+        "@duckdb_jdbc//jar",
     ],
 )
 

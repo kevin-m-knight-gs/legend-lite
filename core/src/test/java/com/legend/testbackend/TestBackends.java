@@ -4,8 +4,11 @@
 package com.legend.testbackend;
 
 import com.legend.database.Databases;
+import com.legend.exec.Sessions;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -44,9 +47,27 @@ public final class TestBackends {
         return of(Databases.PLATFORM);
     }
 
-    /** The database the SQL-text replay referee runs on ({@code Databases.REPLAY_REFEREE}). */
-    public static TestBackend referee() {
-        return of(Databases.REPLAY_REFEREE);
+    /** The database the SQL-text replay referee runs on ({@code Databases.REPLAY_REFEREE}): a backend with the
+     *  referee's own duties. */
+    public static RefereeBackend referee() {
+        if (of(Databases.REPLAY_REFEREE) instanceof RefereeBackend referee) {
+            return referee;
+        }
+        throw new IllegalStateException("the replay referee's database " + Databases.REPLAY_REFEREE
+                + " has no referee backend");
+    }
+
+    /** The backend {@code session} is on: the database whose connector names the product its driver reports
+     *  ({@code exec.Sessions.jdbcProduct}). A session on no database the platform executes on is refused, as an
+     *  {@link SQLException} its reader declines by. */
+    public static TestBackend of(Connection session) throws SQLException {
+        String product = session.getMetaData().getDatabaseProductName();
+        for (DatabaseType type : Databases.implemented()) {
+            if (Sessions.jdbcProduct(type).equals(product)) {
+                return of(type);
+            }
+        }
+        throw new SQLException("no test backend's database reports the product '" + product + "'");
     }
 
     /** Every database the platform executes on ({@code Databases.implemented()}), each one's backend. */
@@ -63,12 +84,20 @@ public final class TestBackends {
     /** The backend a lane names ({@link TestBackend#name}); a name no backend has is refused, listing those there
      *  are. */
     public static TestBackend named(String name) {
-        for (TestBackend b : all()) {
+        for (TestBackend b : lanes()) {
             if (b.name().equals(name)) {
                 return b;
             }
         }
         throw new IllegalStateException("no test backend is named '" + name + "': the backends are "
-                + all().stream().map(TestBackend::name).collect(Collectors.joining(", ")));
+                + lanes().stream().map(TestBackend::name).collect(Collectors.joining(", ")));
+    }
+
+    /** Every backend a lane may name: each database's, and the warehouse's (DuckDB as the warehouse serves it, no
+     *  database type of its own). */
+    private static List<TestBackend> lanes() {
+        List<TestBackend> lanes = new java.util.ArrayList<>(all());
+        lanes.add(DuckDbWarehouseBackend.INSTANCE);
+        return lanes;
     }
 }

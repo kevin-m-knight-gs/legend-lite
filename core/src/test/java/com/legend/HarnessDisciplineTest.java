@@ -37,7 +37,7 @@ class HarnessDisciplineTest {
      *  (the old runner's five sites — makeString split-multiset order
      *  policy, TDS-text unordered compare, graph-triples canon — died
      *  with it in batch 115);
-     *  H2Verify 2 — the replay referee's order-insensitive row multiset
+     *  RefereeVerify 2 — the replay referee's order-insensitive row multiset
      *  (two-sided BY DESIGN, counted by F2.4);
      *  JsonAssertCanon 1 — audit A7 RESOLVED by F6.5 (2026-08-17): the
      *  site re-creates the TEST'S OWN canonicalization idiom
@@ -89,13 +89,13 @@ class HarnessDisciplineTest {
             // side is already sorted at the main compare — two-sided
             // by construction), gated on the COMPILE-TIME
             // extent-subset fact of the typed query chain (the verify
-            // site's caller sets H2Verify.EXTENT_SUBSET).
+            // site's caller sets RefereeVerify.EXTENT_SUBSET).
             // 8 -> 10 (§7 flip, same charter): orderedVerdict's TIE
             // GROUPS — within each run of equal sort-key rows BOTH
             // sides sort before comparing (two-sided by construction;
             // rows tied on the key have no defined relative order on
             // either backend), gated on the COMPILE-TIME sort-key
-            // derivation (H2Verify.SORT_KEYS). Phase 0.4 (2026-09-08):
+            // derivation (RefereeVerify.SORT_KEYS). Phase 0.4 (2026-09-08):
             // the two sort-key sites are DEAD today — ORDERED_QUERY and
             // SORT_KEYS lost their writer in batch 115 and are registered
             // dangling in DanglingStateGuardTest; Phase 0.5 rewires them
@@ -106,7 +106,7 @@ class HarnessDisciplineTest {
             // a two-sided comparison policy gated on the judges' own rule
             // (Equality.withinTwoUlp); the ten-digit normalization it
             // replaces was not a site (it rounded one side at a time).
-            Map.entry("H2Verify.java", 11),
+            Map.entry("RefereeVerify.java", 11),
             // 15 -> 17 (SQLTEXT slice-3 step 0, 2026-09-01): the shape
             // census dump's two sorts — count-descending histogram +
             // name-sorted roster for a DIFFABLE census file (the
@@ -134,8 +134,11 @@ class HarnessDisciplineTest {
             // world's report lines left with //spec:eager_corpus_compile_world2
             Map.entry("EagerCorpusCompileProbe.java", 8),
             // PX.1: TreeSet as a deterministic-iteration REGISTRY
-            // (workspace names), not a result reorder
-            Map.entry("DuckWorkspaces.java", 1),
+            // (workspace names), not a result reorder. Moved with the
+            // corpus's workspaces into the test backends (2026-10-17, the
+            // dialect program's Phase 6: rcorpus/DuckWorkspaces.java ->
+            // testbackend/DuckDbWorkspaces.java), the same one site.
+            Map.entry("DuckDbWorkspaces.java", 1),
             // ---- src/main/com/legend/exec (audit-of-audits #9): the
             // comparison policy MOVED here from the harness and walked
             // out of this guard's scope — the walk now covers it. ----
@@ -226,6 +229,10 @@ class HarnessDisciplineTest {
                 // the spec module; the discipline is theirs wherever they sit
                 "spec/src/test/java/com/legend/harness",
                 "spec/src/test/java/com/legend/rcorpus",
+                // the dialect program's Phase 6 (2026-10-17): the corpus's
+                // workspaces, fixture asides and referee sessions are its
+                // test backends' now
+                "core/src/test/java/com/legend/testbackend",
                 // audit-of-audits #9: the comparison policy lives in
                 // PRODUCTION exec now (TdsCompare/PureAsserts moved
                 // from the harness) — the discipline follows the code

@@ -18,17 +18,18 @@ public final class CorpusOne {
     private CorpusOne() {}
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 2 || args.length > 3 || !args[0].matches("duckdb|h2") || !args[1].matches("host|database")) {
-            throw new IllegalArgumentException("corpus_one <duckdb|h2> <host|database> [<test fqn>]");
+        if (args.length < 2 || args.length > 3 || !args[1].matches("host|database")) {
+            throw new IllegalArgumentException("corpus_one <lane> <host|database> [<test fqn>]: the lane a test"
+                    + " backend's name (TestBackends.named)");
         }
+        // a lane no backend has is refused, listing those there are
+        com.legend.testbackend.TestBackends.named(args[0]);
         if (args[1].equals("database") && args.length == 2) {
             throw new IllegalArgumentException("a whole database pass needs the host pass's outputs: bazel test"
                     + " //spec:corpus_" + args[0] + " (its passes are the actions judge_host_" + args[0]
                     + " and judge_database_" + args[0] + "); corpus_one runs the database judge scoped to a test");
         }
-        if (args[0].equals("h2")) {
-            System.setProperty("rcorpus.backend", "h2");
-        }
+        System.setProperty("rcorpus.backend", args[0]);
         System.setProperty("legend.judge.mode", args[1]);
         System.setProperty("legend.exec.engineScanOrder", "true");
         if (args.length == 3) {
