@@ -130,6 +130,11 @@ public final class SqlLexer {
                     advance(2);
                     return new Token(Kind.OP, "::", pos);
                 }
+                if (at + 1 < text.length() && text.charAt(at + 1) == '=') {
+                    // a named argument's older spelling, f(a := 1) (Postgres's COLON_EQUALS)
+                    advance(2);
+                    return new Token(Kind.OP, ":=", pos);
+                }
                 // an array slice's colon (a[1:2]); no operator level reads one, so anywhere else it is a syntax error
                 advance(1);
                 return new Token(Kind.OP, ":", pos);
@@ -338,7 +343,17 @@ public final class SqlLexer {
         if (at + 1 < text.length() && text.charAt(at) == '&' && text.charAt(at + 1) == '\''
                 && word.equalsIgnoreCase("U")) {
             advance(1);
-            return new Token(Kind.STRING, unicodeString(pos), pos);
+            return new Token(Kind.STRING, unicodeString('\'', pos), pos);
+        }
+        if (at + 1 < text.length() && text.charAt(at) == '&' && text.charAt(at + 1) == '"'
+                && word.equalsIgnoreCase("U")) {
+            // U&"..." [UESCAPE 'c']: a quoted identifier of code points (2026-10-17, the regression suite's strings)
+            advance(1);
+            String name = unicodeString('"', pos);
+            if (name.isEmpty()) {
+                throw new SqlSyntaxException("zero-length delimited identifier", pos);
+            }
+            return new Token(Kind.QUOTED_IDENT, name, pos);
         }
         return new Token(Kind.IDENT, word, pos);
     }
@@ -451,10 +466,11 @@ public final class SqlLexer {
         value.appendCodePoint(cp);
     }
 
-    /** The body of {@code U&'...' [UESCAPE 'c']}, after its {@code U&}: {@code \XXXX} and {@code \+XXXXXX} code
-     *  points, a doubled escape character for itself (the escape character {@code \} unless UESCAPE names one). */
-    private String unicodeString(SqlAst.Pos pos) {
-        String raw = quoted('\'', pos, "quoted string");
+    /** The body of {@code U&'...' [UESCAPE 'c']} or {@code U&"..." [UESCAPE 'c']}, after its {@code U&}:
+     *  {@code \XXXX} and {@code \+XXXXXX} code points, a doubled escape character for itself (the escape character
+     *  {@code \} unless UESCAPE names one). */
+    private String unicodeString(char quote, SqlAst.Pos pos) {
+        String raw = quoted(quote, pos, quote == '"' ? "quoted identifier" : "quoted string");
         int save = at;
         int saveLine = line;
         int saveColumn = column;

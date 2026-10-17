@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -73,6 +74,29 @@ class SqlParityTest {
         assertFalse(SqlParity.agrees(oneCell(-0.46415888336127786), oneCell(-0.4641588833)));
         assertFalse(SqlParity.agrees(oneCell(1.0), oneCell(null)));
         assertFalse(SqlParity.agrees(oneCell(1.0), oneCell("1.0")));
+    }
+
+    @Test
+    void aTableInsideAParenthesizedJoinIsRewrittenToItsSource() {
+        // 2026-10-17, the regression suite: FROM (x LEFT JOIN y ...) left x and y as bare names (15 statements)
+        Set<String> tables = Set.of("x", "y");
+        assertEquals("select * from (tb('e2e::DB.x') AS x left join tb('e2e::DB.y') AS y on (x1 = y1)) left join"
+                + " tb('e2e::DB.x') xx(xx1,xx2) on (x1 = xx1)", SqlParity.rewrite("select * from (x left join y on"
+                + " (x1 = y1)) left join x xx(xx1,xx2) on (x1 = xx1)", tables));
+        assertEquals("select * from ((tb('e2e::DB.x') AS x join tb('e2e::DB.y') AS y on true))",
+                SqlParity.rewrite("select * from ((x join y on true))", tables));
+        // TABLE's name, unaliased; a name's star (its descendants) goes with it
+        assertEquals("select 1 union all TABLE tb('e2e::DB.x')", SqlParity.rewrite("select 1 union all TABLE x",
+                tables));
+        assertEquals("select * from tb('e2e::DB.x') xx, tb('e2e::DB.y') AS y where xx.x1 = 1",
+                SqlParity.rewrite("select * from x* xx, y* where xx.x1 = 1", tables));
+        // another schema's table, where the tables name it so; public's is the search path's
+        assertEquals("select * from tb('e2e::DB.s.x') AS x, tb('e2e::DB.y') AS y, s.y",
+                SqlParity.rewrite("select * from s.x, public.y, s.y", Set.of("s.x", "y")));
+        // a subquery's parenthesis, a function's and an ON's are no join's
+        assertEquals("select * from (select x from tb('e2e::DB.y') AS y) s, tb('e2e::DB.x') AS x"
+                + " where f(x) and (y in (1))", SqlParity.rewrite("select * from (select x from y) s, x"
+                + " where f(x) and (y in (1))", tables));
     }
 
     private static SqlParity.Answer oneCell(Object value) {

@@ -250,7 +250,9 @@ public final class SqlParity {
      *  replaced by its Legend source, {@code tb('e2e::DB.persons')}, aliased by the name as written when no alias
      *  follows (Postgres names an unaliased function in FROM after the function). What is not a schema table there
      *  (a CTE's name, {@code information_schema.tables}, {@code EXTRACT(year FROM o.d)}) is left as it is; text that
-     *  does not lex is returned as it is, for the island to refuse. */
+     *  does not lex is returned as it is, for the island to refuse. A parenthesis opened where a table goes is a
+     *  join's ({@code FROM (x LEFT JOIN y ON ...)}), so a name just inside it is a table too; so is the name of
+     *  {@code TABLE name}, and a name's {@code *} (its descendants) goes with it. */
     public static String rewrite(String sql, Set<String> tables) {
         List<SqlLexer.Token> tokens;
         try {
@@ -263,10 +265,16 @@ public final class SqlParity {
         int copied = 0;
         Deque<Boolean> inFrom = new ArrayDeque<>();
         inFrom.push(false);
+        // the parentheses opened where a table goes (2026-10-17: the regression suite's FROM (x LEFT JOIN y ...) read
+        // its tables as bare names, 15 statements)
+        Set<Integer> joinParens = new java.util.HashSet<>();
         for (int i = 0; i < tokens.size(); i++) {
             SqlLexer.Token t = tokens.get(i);
             switch (t.kind()) {
                 case LPAREN -> {
+                    if (i > 0 && tablePlace(tokens.get(i - 1), i - 1, inFrom, joinParens)) {
+                        joinParens.add(i);
+                    }
                     inFrom.push(false);
                     continue;
                 }
@@ -292,34 +300,53 @@ public final class SqlParity {
             if (i == 0) {
                 continue;
             }
-            SqlLexer.Token prev = tokens.get(i - 1);
-            boolean tablePlace = prev.is("from") || prev.is("join")
-                    || prev.kind() == SqlLexer.Kind.COMMA && Boolean.TRUE.equals(inFrom.peek());
-            if (!tablePlace || !isName(t)) {
+            if (!tablePlace(tokens.get(i - 1), i - 1, inFrom, joinParens) || !isName(t)) {
                 continue;
             }
             int last = i;
-            if (t.kind() == SqlLexer.Kind.IDENT && t.text().equalsIgnoreCase("public") && at(tokens, i + 1).kind()
-                    == SqlLexer.Kind.DOT && isName(at(tokens, i + 2))) {
+            boolean dotted = at(tokens, i + 1).kind() == SqlLexer.Kind.DOT && isName(at(tokens, i + 2));
+            // a table of another schema, named "schema.name" among the tables (2026-10-17, the regression suite)
+            String qualified = dotted ? folded(t) + "." + folded(at(tokens, i + 2)) : null;
+            if (qualified != null && tables.contains(qualified)
+                    || dotted && t.kind() == SqlLexer.Kind.IDENT && t.text().equalsIgnoreCase("public")) {
                 last = i + 2;
             }
             SqlLexer.Token name = tokens.get(last);
             SqlLexer.Token after = at(tokens, last + 1);
-            if (!tables.contains(folded(name)) || after.kind() == SqlLexer.Kind.DOT
+            String table = last > i && tables.contains(qualified) ? qualified : folded(name);
+            if (!tables.contains(table) || after.kind() == SqlLexer.Kind.DOT
                     || after.kind() == SqlLexer.Kind.LPAREN) {
                 continue;
             }
             int start = offset(lineStarts, t);
             int end = offset(lineStarts, name) + sourceLength(sql, offset(lineStarts, name), name);
-            out.append(sql, copied, start).append("tb('").append(DATABASE).append('.').append(folded(name))
-                    .append("')");
-            if (!hasAlias(after)) {
+            SqlLexer.Token star = after;
+            if (after.isOp("*") && last + 1 < tokens.size() - 1) {
+                // FROM a_star*: the table's descendants too, which its source reads anyway
+                after = at(tokens, last + 2);
+            }
+            out.append(sql, copied, start).append("tb('").append(DATABASE).append('.').append(table).append("')");
+            if (!hasAlias(after) && !prev(tokens, i).is("table")) {
                 out.append(" AS ").append(sql, offset(lineStarts, name), end);
             }
             copied = end;
+            if (star != after) {
+                copied = offset(lineStarts, star) + 1;
+                last++;
+            }
             i = last;
         }
         return out.append(sql, copied, sql.length()).toString();
+    }
+
+    /** Whether the token after {@code prev} (at {@code index}) is where a FROM list's table goes. */
+    private static boolean tablePlace(SqlLexer.Token prev, int index, Deque<Boolean> inFrom, Set<Integer> joinParens) {
+        return prev.is("from") || prev.is("join") || prev.is("table") || joinParens.contains(index)
+                || prev.kind() == SqlLexer.Kind.COMMA && Boolean.TRUE.equals(inFrom.peek());
+    }
+
+    private static SqlLexer.Token prev(List<SqlLexer.Token> tokens, int i) {
+        return tokens.get(i - 1);
     }
 
     private static SqlLexer.Token at(List<SqlLexer.Token> tokens, int i) {

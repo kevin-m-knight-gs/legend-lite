@@ -331,9 +331,15 @@ class SqlParserTest {
                 ((SqlAst.StringLit) item("E'a\\nb\\t\\'c\\\\\\101\\u00e9\\U0001F600'")).value());
         assertEquals("d\u0061t\u0061", ((SqlAst.StringLit) item("U&'d\\0061t\\+000061'")).value());
         assertEquals("d!at", ((SqlAst.StringLit) item("U&'d!!a!0074' UESCAPE '!'")).value());
-        for (String bad : List.of("E'\\x00'", "E'\\uD83D'", "U&'\\00'", "E'\\xE9'")) {
+        for (String bad : List.of("E'\\x00'", "E'\\uD83D'", "U&'\\00'", "E'\\xE9'", "1 AS U&\"\"")) {
             assertThrows(SqlSyntaxException.class, () -> item(bad), bad);
         }
+        // U&"..." is a quoted identifier of code points, not folded
+        SqlAst.SelectExpr named = (SqlAst.SelectExpr) ((SqlAst.Select) SqlParser.parse(
+                "select 1 AS U&\"D\\0061t\\+000061\", 2 AS U&\"d*0061t\\+000061\" UESCAPE '*'")).items().get(1);
+        assertEquals("dat\\+000061", java.util.Objects.requireNonNull(named.alias()).text());
+        assertEquals("Data", java.util.Objects.requireNonNull(((SqlAst.SelectExpr) ((SqlAst.Select) SqlParser.parse(
+                "select 1 AS U&\"D\\0061t\\+000061\"")).items().get(0)).alias()).text());
     }
 
     @Test
@@ -366,13 +372,46 @@ class SqlParserTest {
     }
 
     @Test
+    void tableNameIsSelectStarFromIt() {
+        // 2026-10-17: TABLE t is SELECT * FROM t, the name a table's or the island's source function
+        SqlAst.Select s = (SqlAst.Select) SqlParser.parse("table s.t");
+        assertInstanceOf(SqlAst.AllColumns.class, s.items().get(0));
+        assertEquals(List.of("s", "t"), ((SqlAst.TableName) s.from().get(0)).name().stream()
+                .map(SqlAst.Ident::text).toList());
+        assertInstanceOf(SqlAst.TableFunction.class,
+                ((SqlAst.Select) SqlParser.parse("TABLE tb('pkg::Db.t')")).from().get(0));
+        SqlAst.SetOperation u = (SqlAst.SetOperation) SqlParser.parse("select 1 union all table t*");
+        assertInstanceOf(SqlAst.TableName.class, ((SqlAst.Select) u.right()).from().get(0));
+        assertEquals("syntax error at or near \"(\"", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("table generate_series(1, 2)")).getMessage());
+        assertEquals("TABLE ONLY is not supported yet", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("table only t")).getMessage());
+    }
+
+    @Test
+    void aTableNamesStarIsTheTable() {
+        // FROM t* reads t and its descendants, which a table read includes anyway
+        SqlAst.Select s = (SqlAst.Select) SqlParser.parse("select * from a* x, b* where x.k = 1");
+        assertEquals(2, s.from().size());
+        SqlAst.TableName a = (SqlAst.TableName) s.from().get(0);
+        assertEquals("x", java.util.Objects.requireNonNull(a.alias()).text());
+        assertNull(((SqlAst.TableName) s.from().get(1)).alias());
+    }
+
+    @Test
     void notYetSupportedFormsAreRefusedByName() {
         List<String> forms = List.of(
                 "select a from unnest(x) with ordinality", "WITH ORDINALITY is not supported yet",
                 "select a = any(array[1]) from t", "ANY, SOME and ALL over an array are not supported yet",
                 "select B'101'", "bit-string constants (B'...') are not supported yet",
                 "select a[1:2] from t", "array slices are not supported yet",
-                "select a from t group by rollup (a)", "ROLLUP, CUBE and GROUPING SETS are not supported yet");
+                "select a from t group by rollup (a)", "ROLLUP, CUBE and GROUPING SETS are not supported yet",
+                "select make_interval(years := 2)", "named arguments to scalar functions are not supported yet",
+                "select concat_ws(',', variadic array[1])", "VARIADIC arguments are not supported yet",
+                "select session_user, current_user", "SESSION_USER is not supported yet",
+                "select current_schema", "CURRENT_SCHEMA is not supported yet",
+                "select id from t AS x tablesample system (50)", "TABLESAMPLE is not supported yet",
+                "select id from tb('d.t') x tablesample bernoulli (5)", "TABLESAMPLE is not supported yet");
         for (int i = 0; i < forms.size(); i += 2) {
             String sql = forms.get(i);
             SqlSyntaxException e = assertThrows(SqlSyntaxException.class, () -> SqlParser.parse(sql), sql);

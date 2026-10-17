@@ -1136,10 +1136,6 @@ public final class SqlToPure {
         if (s.items().isEmpty()) {
             throw SqlTranslationException.unsupported("a select list with no columns is not supported yet", s.pos());
         }
-        if (s.from().isEmpty() && env.outer() != null) {
-            // legend-lite cannot yet lower a row of an enclosing query read by a one-row relation of its own
-            throw SqlTranslationException.unsupported("a subquery without FROM is not supported yet", s.pos());
-        }
         if (s.from().isEmpty() && s.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns)) {
             throw SqlTranslationException.invalid("with no tables specified, SELECT * is not valid", s.pos());
         }
@@ -1735,7 +1731,8 @@ public final class SqlToPure {
                 || item instanceof SqlAst.SubqueryFrom q && q.lateral();
     }
 
-    private static boolean isSourceFunction(SqlAst.TableFunction f) {
+    /** Whether {@code f} is the island's source function, {@code tb('pkg::Database.table')}. */
+    static boolean isSourceFunction(SqlAst.TableFunction f) {
         return f.name().size() == 1 && TABLE_FUNCTION.equals(functionName(f.name().get(0)));
     }
 

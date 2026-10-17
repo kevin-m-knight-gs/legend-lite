@@ -501,13 +501,39 @@ class PgRegressCorpusTest {
                         || !owner.computeIfAbsent(rel, k -> schema).equals(schema)) {
                     continue;
                 }
-                String type = rs.getString(3);
-                String col = rs.getString(2);
-                tables.computeIfAbsent(rel, k -> new ArrayList<>()).add(new Col(col, type,
-                        SIMPLE.matcher(col).matches() ? legendType(type) : null));
+                tables.computeIfAbsent(rel, k -> new ArrayList<>()).add(col(rs));
+            }
+        }
+        // a relation named by its schema (testschema.amv), as "schema.name": any schema but public (read as the
+        // search path's, above) and the system's (2026-10-17, the regression suite's 20)
+        String named = "SELECT c.relname, a.attname, format_type(a.atttypid, a.atttypmod), n.nspname"
+                + " FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace"
+                + " JOIN pg_attribute a ON a.attrelid = c.oid"
+                + " WHERE c.relkind IN ('r', 'v', 'm', 'p', 'f') AND a.attnum > 0 AND NOT a.attisdropped"
+                + " AND n.nspname NOT IN ('public', 'pg_catalog', 'information_schema')"
+                + " AND n.nspname NOT LIKE 'pg\\_to%' AND n.nspname NOT LIKE 'pg\\_temp%'"
+                + " ORDER BY n.nspname, c.relname, a.attnum";
+        String lower = sql.toLowerCase(Locale.ROOT);
+        try (Statement s = conn.createStatement(); ResultSet rs = s.executeQuery(named)) {
+            while (rs.next()) {
+                String rel = rs.getString(1);
+                String schema = rs.getString(4);
+                if (!words.contains(rel) || !words.contains(schema) || !SIMPLE.matcher(rel).matches()
+                        || !SIMPLE.matcher(schema).matches() || !Pattern.compile("\\b" + schema + "\\s*\\.\\s*"
+                        + rel + "\\b").matcher(lower).find()) {
+                    continue;
+                }
+                tables.computeIfAbsent(schema + "." + rel, k -> new ArrayList<>()).add(col(rs));
             }
         }
         return tables;
+    }
+
+    /** The column a catalog row ({@code relname, attname, format_type, nspname}) describes. */
+    private static Col col(ResultSet rs) throws SQLException {
+        String col = rs.getString(2);
+        String type = rs.getString(3);
+        return new Col(col, type, SIMPLE.matcher(col).matches() ? legendType(type) : null);
     }
 
     private static final Pattern SIZED = Pattern.compile("(character varying|character|numeric)\\((\\d+)(?:,(\\d+))?\\)");
@@ -546,18 +572,24 @@ class PgRegressCorpusTest {
      *  the caller's own connection, the judged session). */
     private static String model(Map<String, List<Col>> tables, int port) {
         StringBuilder m = new StringBuilder("###Relational\nDatabase " + SqlParity.DATABASE + "\n(\n");
+        Map<String, StringBuilder> schemas = new LinkedHashMap<>();
         for (Map.Entry<String, List<Col>> t : tables.entrySet()) {
             List<Col> cols = t.getValue().stream().filter(c -> c.legendType() != null).toList();
             if (cols.isEmpty()) {
                 continue;
             }
-            m.append("    Table ").append(t.getKey()).append("\n    (\n");
+            int dot = t.getKey().indexOf('.');
+            StringBuilder into = dot < 0 ? m : schemas.computeIfAbsent(t.getKey().substring(0, dot),
+                    k -> new StringBuilder());
+            into.append("    Table ").append(t.getKey().substring(dot + 1)).append("\n    (\n");
             for (int i = 0; i < cols.size(); i++) {
-                m.append("        ").append(cols.get(i).name()).append(' ').append(cols.get(i).legendType())
+                into.append("        ").append(cols.get(i).name()).append(' ').append(cols.get(i).legendType())
                         .append(i + 1 < cols.size() ? ",\n" : "\n");
             }
-            m.append("    )\n");
+            into.append("    )\n");
         }
+        schemas.forEach((schema, body) -> m.append("    Schema ").append(schema).append("\n    (\n").append(body)
+                .append("    )\n"));
         if (tables.values().stream().allMatch(cols -> cols.stream().allMatch(c -> c.legendType() == null))) {
             m.append("    Table corpus_none\n    (\n        x INTEGER\n    )\n");
         }

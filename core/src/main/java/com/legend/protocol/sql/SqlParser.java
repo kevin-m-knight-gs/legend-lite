@@ -51,11 +51,15 @@ public final class SqlParser {
 
     /** The operators the levels below {@code Op} read themselves; Postgres reads every other one at {@code Op}. */
     private static final Set<String> OWN_LEVEL_OPERATORS = Set.of(":", "+", "-", "*", "/", "%", "^", "<", ">", "=", "<=",
-            ">=", "<>", "!=", "::", "=>");
+            ">=", "<>", "!=", "::", "=>", ":=");
 
     /** The SQL value functions written without parentheses (Postgres §9.9.5): read as calls with no arguments. */
     private static final Set<String> VALUE_FUNCTIONS = Set.of("current_date", "current_time", "current_timestamp",
             "localtime", "localtimestamp");
+
+    /** The SQL value functions of the session's identity (Postgres §9.27, "Session Information Functions"). */
+    private static final Set<String> SESSION_VALUES = Set.of("current_user", "current_role", "session_user", "user",
+            "system_user", "current_catalog", "current_schema");
 
     private final List<Token> tokens;
     private int at;
@@ -172,9 +176,57 @@ public final class SqlParser {
             return values();
         }
         if (t.is("table")) {
-            throw unsupported("TABLE name queries are");
+            return table();
         }
         return selectCore();
+    }
+
+    /** {@code TABLE name}: Postgres's {@code SELECT * FROM name} (2026-10-17, the regression suite's 25). The name
+     *  may be the island's source function, {@code TABLE tb('pkg::Database.table')}, as a FROM list's may. */
+    private SqlAst.Statement table() {
+        Token t = expectWord("table");
+        if (peek().is("only")) {
+            throw unsupported("TABLE ONLY is");
+        }
+        Token first = peek();
+        List<SqlAst.Ident> name = qualifiedName();
+        SqlAst.FromItem item;
+        if (peek().kind() == Kind.LPAREN) {
+            Token open = next();
+            List<SqlAst.Arg> args = new ArrayList<>();
+            if (!accept(Kind.RPAREN)) {
+                do {
+                    args.add(arg());
+                } while (accept(Kind.COMMA));
+                expect(Kind.RPAREN);
+            }
+            SqlAst.TableFunction source = new SqlAst.TableFunction(name, args, null, List.of(), first.pos());
+            if (!SqlToPure.isSourceFunction(source)) {
+                throw new SqlSyntaxException("syntax error at or near \"(\"", open.pos());
+            }
+            item = source;
+        } else {
+            descendants();
+            item = new SqlAst.TableName(name, null, List.of(), first.pos());
+        }
+        return new SqlAst.Select(false, List.of(new SqlAst.AllColumns(null, t.pos())), List.of(item), null,
+                List.of(), null, List.of(), List.of(), null, null, t.pos());
+    }
+
+    /** A table's {@code TABLESAMPLE}, after its alias (Postgres's {@code relation_expr opt_alias_clause
+     *  tablesample_clause}; 2026-10-17, the regression suite's 17); refused by name. */
+    private void tablesample() {
+        if (peek().is("tablesample")) {
+            throw unsupported("TABLESAMPLE is");
+        }
+    }
+
+    /** A table name's {@code *}: its descendants too, which a table read includes anyway (Postgres's
+     *  {@code relation_expr}; 2026-10-17, the regression suite's {@code FROM a_star*}). */
+    private void descendants() {
+        if (peek().isOp("*")) {
+            at++;
+        }
     }
 
     /** {@code VALUES (e, ...), (e, ...)}, as Postgres defines it: {@code SELECT e AS column1, ... UNION ALL SELECT
@@ -511,12 +563,16 @@ public final class SqlParser {
                 throw unsupported("WITH ORDINALITY is");
             }
             Alias alias = alias();
-            return new SqlAst.TableFunction(name, args, alias.name(), alias.columns(), t.pos());
+            SqlAst.TableFunction f = new SqlAst.TableFunction(name, args, alias.name(), alias.columns(), t.pos());
+            if (SqlToPure.isSourceFunction(f)) {
+                tablesample();
+            }
+            return f;
         }
-        if (peek().is("tablesample")) {
-            throw unsupported("TABLESAMPLE is");
-        }
+        descendants();
+        tablesample();
         Alias alias = alias();
+        tablesample();
         return new SqlAst.TableName(name, alias.name(), alias.columns(), t.pos());
     }
 
@@ -530,8 +586,13 @@ public final class SqlParser {
         return t.is("select") || t.is("with") || t.is("values") || t.is("table");
     }
 
+    /** Whether a named argument begins here: {@code name => value}, or {@code name := value}, its older spelling. */
+    private boolean named() {
+        return isName(peek()) && (peekAt(1).isOp("=>") || peekAt(1).isOp(":="));
+    }
+
     private SqlAst.Arg arg() {
-        if (isName(peek()) && peekAt(1).isOp("=>")) {
+        if (named()) {
             SqlAst.Ident name = ident(next());
             at++;
             return new SqlAst.Arg(name, expr());
@@ -1009,6 +1070,10 @@ public final class SqlParser {
             default -> {
             }
         }
+        if (SESSION_VALUES.contains(word) && !(word.equals("current_schema") && peekAt(1).kind() == Kind.LPAREN)) {
+            // the session's role, database or schema: the server's own state (2026-10-17, the regression suite's 22)
+            throw unsupported(word.toUpperCase(Locale.ROOT) + " is");
+        }
         if (VALUE_FUNCTIONS.contains(word)) {
             at++;
             if (peek().kind() == Kind.LPAREN) {
@@ -1212,11 +1277,12 @@ public final class SqlParser {
             } else {
                 acceptWord("all");
             }
-            if (peek().is("variadic")) {
-                throw unsupported("VARIADIC arguments are");
-            }
             do {
-                if (isName(peek()) && peekAt(1).isOp("=>")) {
+                // VARIADIC marks the last argument (2026-10-17: the regression suite's concat(1, VARIADIC ...))
+                if (peek().is("variadic")) {
+                    throw unsupported("VARIADIC arguments are");
+                }
+                if (named()) {
                     throw unsupported("named arguments to scalar functions are");
                 }
                 args.add(expr());
