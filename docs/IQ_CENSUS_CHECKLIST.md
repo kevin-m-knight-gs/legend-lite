@@ -348,6 +348,10 @@ island's reason, those IQ answers, and what became of them:
   a windowed derived table's -1001030 before an outer qualified read's -1005004; a subquery in a window's key is
   -156; STRING_AGG's DISTINCT, ORDER BY and WITHIN GROUP read as its arguments under the iq17 presets (-149 for an
   ungrouped column, else -265);
+- LIKE over a date of a pattern IQ's engine converts to one, its trailing %s dropped ('2019-06%', '2019%', '2019_06%';
+  measured on IQ 17.1, 2026-10-17): its -1001013; one it cannot ('%2019%', '2019-06-%'), -1009145. An aggregate of
+  the outer query's columns in a subquery's WHERE is the outer query's, not -150 (IQ's engine raises -1005009 for
+  it, or its subquery's TOP's -1001030 first; refused by name). Third verification: 1,135 of 1,169 claims IQ's code;
 - IQ carries a derived table's column's NULL rejection into it (SQLStorm's CTE whose LEFT JOIN's ON holds a
   subquery, joined on its column by an inner join; measured on IQ 17.1, 2026-10-17): its outer query's WHERE or inner
   join over it, through arithmetic, unqualified where it is the one FROM item, grouped or not, nested: the derived

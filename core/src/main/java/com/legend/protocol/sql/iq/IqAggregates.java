@@ -118,8 +118,26 @@ final class IqAggregates {
         for (SqlAst.FromItem f : s.from()) {
             onConditions(f, placed);
         }
+        Set<String> own = new java.util.HashSet<>();
+        for (SqlAst.FromItem f : s.from()) {
+            for (SqlAst.FromItem leaf : IqDialect.leaves(f)) {
+                SqlAst.Ident name = IqDialect.correlation(leaf);
+                if (name != null) {
+                    own.add(IqLexer.lower(name.text()));
+                }
+            }
+        }
         for (SqlAst.Expr e : placed) {
-            List<SqlAst.FunctionCall> misplaced = aggregateCalls(e);
+            List<SqlAst.FunctionCall> misplaced = new ArrayList<>(aggregateCalls(e));
+            // IQ island, 2026-10-17 (the claim verification's SEDE (SELECT TOP 1 Id FROM Posts WHERE ViewCount =
+            // max(p.ViewCount)), p the outer query's): an aggregate of the outer query's columns alone, qualified by its
+            // names, is the outer query's (IQ raised its subquery's -1001030 there, not -150)
+            misplaced.removeIf(a -> {
+                List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                columns(a, refs, true);
+                return !refs.isEmpty() && refs.stream().allMatch(r -> r.parts().size() >= 2 && !own.contains(
+                        IqLexer.lower(r.parts().get(r.parts().size() - 2).text())));
+            });
             if (!misplaced.isEmpty()) {
                 throw SqlTranslationException.invalid("an aggregate is not allowed in WHERE, ON or GROUP BY"
                         + code(-150, "42W06"), misplaced.get(0).pos());

@@ -1051,6 +1051,11 @@ lite/corpus_gaps/a_missing_column_before_a_row_limit_in_a_subquery@iq17-default	
 lite/corpus_gaps/a_grouping_error_before_an_outer_join_subquery@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_function_of_no_name_before_a_window_in_a_subquery@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_window_in_a_subquery_alone@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/like_over_a_timestamp_of_a_year_and_month_pattern@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/like_over_a_date_of_a_year_pattern@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/like_over_a_timestamp_of_a_dangling_separator_pattern@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_outer_aggregate_in_a_subquery_where_beside_its_top@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_outer_aggregate_in_a_subquery_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

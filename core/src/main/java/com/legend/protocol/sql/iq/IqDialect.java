@@ -6714,7 +6714,7 @@ public final class IqDialect implements InputDialect {
             // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine LIKE over a number or a date is
             // "Invalid data type comparison in predicate"
             if ((operand.kind() == Kind.DATE || operand.kind() == Kind.DATETIME) && l.pattern() instanceof SqlAst
-                    .StringLit p && IqDateTime.read(p.value(), settings, p.pos()) == null) {
+                    .StringLit p && IqDateTime.read(p.value(), settings, p.pos()) == null && !likeDate(p.value())) {
                 // IQ island, 2026-10-17 (the corpus lane's CreationDate LIKE '%2015%'; measured on IQ 17.1): it
                 // converts the pattern to the date's type first, so a pattern that is no date is its -1009145
                 throw SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " of a pattern"
@@ -6872,6 +6872,45 @@ public final class IqDialect implements InputDialect {
     /** A constant pattern as literal runs between wildcards: run, wildcard, run, ..., run; with {@code escape} (null
      *  for none) a constant of one character, which makes the {@code %}, {@code _}, {@code [} or escape after it
      *  literal. What IQ raises an error for is refused by name, and so is a {@code [set]} class when {@code sets}. */
+    /** IQ island, 2026-10-17 (the claim verification's SEDE CreationDate LIKE '2019-06%'; measured on IQ 17.1): a
+     *  pattern IQ's engine converts to a date before it raises its -1001013 -- its trailing {@code %}s dropped, a year
+     *  of four digits and at most a month and a day after it, each of one or two digits behind a {@code -}, {@code /},
+     *  {@code .} or {@code _} ('2019%', '2019-06%', '2019_06%', '2019-06-01%'); '%2019%' and '2019-06-%' are no date
+     *  there, its -1009145. */
+    private static boolean likeDate(String pattern) {
+        int end = pattern.length();
+        while (end > 0 && pattern.charAt(end - 1) == '%') {
+            end--;
+        }
+        if (end < 4) {
+            return false;
+        }
+        int i = 0;
+        for (; i < 4; i++) {
+            if (!isAsciiDigit(pattern.charAt(i))) {
+                return false;
+            }
+        }
+        for (int part = 0; part < 2 && i < end; part++) {
+            char sep = pattern.charAt(i);
+            if (sep != '-' && sep != '/' && sep != '.' && sep != '_') {
+                return false;
+            }
+            int start = ++i;
+            while (i < end && i - start < 2 && isAsciiDigit(pattern.charAt(i))) {
+                i++;
+            }
+            if (i == start) {
+                return false;
+            }
+        }
+        return i == end;
+    }
+
+    private static boolean isAsciiDigit(char c) {
+        return c >= '0' && c <= '9';
+    }
+
     /** Whether {@code p} holds a {@code [} (not escaped) that no {@code ]} after it closes. */
     private static boolean unclosedSet(String p, SqlAst.@com.legend.base.Nullable Expr esc) {
         char escape = esc instanceof SqlAst.StringLit e && e.value().length() == 1 ? e.value().charAt(0) : 0;

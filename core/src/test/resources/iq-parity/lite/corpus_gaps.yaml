@@ -1638,3 +1638,24 @@ tests:
   - id: a_window_in_a_subquery_alone
     sql: "SELECT id FROM t WHERE id IN (SELECT ROW_NUMBER() OVER (ORDER BY id) FROM t)"
     profile: iq17-default
+
+  # ---- LIKE over a date of a pattern IQ's engine converts to one, its trailing %s dropped (the claim verification's
+  # SEDE CreationDate LIKE '2019-06%'; measured on IQ 17.1, 2026-10-17): its -1001013; one it cannot, -1009145
+  - id: like_over_a_timestamp_of_a_year_and_month_pattern
+    sql: "SELECT id FROM t WHERE ts LIKE '2019-06%'"
+    profile: iq17-default
+  - id: like_over_a_date_of_a_year_pattern
+    sql: "SELECT id FROM t WHERE dt LIKE '2019%'"
+    profile: iq17-default
+  - id: like_over_a_timestamp_of_a_dangling_separator_pattern
+    sql: "SELECT id FROM t WHERE ts LIKE '2019-06-%'"
+    profile: iq17-default
+
+  # ---- an aggregate of the outer query's columns in a subquery's WHERE is the outer query's (the claim verification's
+  # SEDE (SELECT TOP 1 Id FROM Posts WHERE ViewCount = max(p.ViewCount)); measured on IQ 17.1, 2026-10-17)
+  - id: an_outer_aggregate_in_a_subquery_where_beside_its_top
+    sql: "SELECT a.sm, (SELECT TOP 1 u.id FROM u WHERE u.t_id = MAX(a.id) ORDER BY u.id) AS x FROM t a GROUP BY a.sm"
+    profile: iq17-default
+  - id: an_outer_aggregate_in_a_subquery_where
+    sql: "SELECT a.sm, (SELECT MAX(u.id) FROM u WHERE u.t_id = MAX(a.id)) AS x FROM t a GROUP BY a.sm ORDER BY a.sm"
+    profile: iq17-default
