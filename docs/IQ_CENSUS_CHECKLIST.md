@@ -169,9 +169,13 @@ island's reason, those IQ answers, and what became of them:
 - an expression nesting too many checked operations (39 of 44, a scale bound): an integer quotient is lite's own
   native now (`meta::legend::lite::quotient`, the database's integer division), where the islands' Float estimate read
   each operand about fourteen times (`CONVERT(int, LEN(x) * (1 + y) / 1000)`: 30 KB of SQL to 600 bytes); 5 more
-  answer. The rest repeat a scalar subquery or a long operand through DOUBLE division's zero test and NULL tests (35k
-  nodes at the median, 330k at most; lifted, 34 of 44 answer in DuckDB but with megabytes of SQL). Open: bind such an
-  operand once (a column computed before the item), where it is read on every path;
+  answer. A scalar subquery a select item computes on every path is computed once now, a column before the item
+  (`SqlToPure.output`, both SQL islands): a correlated COUNT under a DOUBLE quotient was written 504 times (187 KB,
+  1,520 SELECTs; now 86 KB, 10), and one more answers; the SE judge is unchanged but ties (PASS 9,932 -> 9,935). The
+  rest repeat a long operand through checked operations' NULL and zero tests (35k nodes at the median, 330k at most;
+  lifted, 34 of 44 answer in DuckDB but with megabytes of SQL). Open: the same binding for any long operand, which
+  needs the lowering to keep a column it reads more than once in its own select (Fold inlines a scalar projection
+  into each reader);
 - not built yet: the name IQ gives an
   unaliased expression it spells with its own rules (32: tables qualified, `count()`, an inner alias kept); RAND (8,
   in ORDER BY: no answer to judge); DATEADD's counts that may pass 32 bits (10); STR, LOG and LOG10 of an UNSIGNED

@@ -161,6 +161,9 @@ public final class SqlToPure {
     /** This query level's lambda parameters: a row, a group, a join's two sides, a subquery's row. Each level has
      *  its own, so a correlated subquery's lambdas can reach the enclosing query's row. */
     private final String row;
+    /** IQ island, 2026-10-17: the scalar subqueries the item being translated computes once ({@link #output}), by
+     *  node, each the column computed before it. */
+    private final Map<SqlAst.ScalarSubquery, Col> hoisted = new java.util.IdentityHashMap<>();
     private final String group;
     private final String leftRow;
     private final String rightRow;
@@ -3429,7 +3432,18 @@ public final class SqlToPure {
     /** An output column: the name the query shows, the column that holds it, and its value when it is computed. */
     private record Output(String name, String internal, @com.legend.base.Nullable ValueSpecification value,
             SqlAst.@com.legend.base.Nullable Expr expr, Kind kind, boolean nullable,
-            InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            InputDialect.@com.legend.base.Nullable TypeDetail detail, List<ColSpec> pre) {
+
+        Output {
+            pre = List.copyOf(pre);
+        }
+
+        /** An output computed from the row alone: no column computed before it. */
+        Output(String name, String internal, @com.legend.base.Nullable ValueSpecification value,
+                SqlAst.@com.legend.base.Nullable Expr expr, Kind kind, boolean nullable,
+                InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            this(name, internal, value, expr, kind, nullable, detail, List.of());
+        }
     }
 
     private Output output(SqlAst.SelectExpr x, Scope scope, Set<String> passed, Set<String> present) {
@@ -3446,11 +3460,66 @@ public final class SqlToPure {
             Output o = passthrough(col, name, passed, present, scope);
             return new Output(o.name(), o.internal(), o.value(), x.expr(), o.kind(), o.nullable(), o.detail());
         }
-        Tx t = tx(x.expr(), scope, row);
+        // IQ island, 2026-10-17 (the corpus lane's scale: a quotient of a correlated COUNT subquery repeated it 504
+        // times, each check of a checked operation reading its operand again): a scalar subquery the item computes for
+        // every row it is computed for is computed once, a column of the row before it (assemble), and read as one
+        List<ColSpec> pre = new ArrayList<>();
+        List<SqlAst.ScalarSubquery> mine = new ArrayList<>();
+        for (SqlAst.ScalarSubquery q : x.expr() instanceof SqlAst.ScalarSubquery ? List.<SqlAst.ScalarSubquery>of()
+                : eagerSubqueries(x.expr())) {
+            Tx sq = scalarSubquery(q, scope);
+            if (sq.kind() == Kind.BOOLEAN) {
+                continue;
+            }
+            String column = fresh(present);
+            pre.add(new ColSpec(column, lambda(row, valueOf(sq)), null, null));
+            hoisted.put(q, Col.of(column, sq.kind(), true, sq.detail()));
+            mine.add(q);
+        }
+        Tx t;
+        try {
+            t = tx(x.expr(), scope, row);
+        } finally {
+            mine.forEach(hoisted::remove);
+        }
         String name = alias != null ? alias.text() : dialect.defaultName(x, ref -> tableOf(scope, ref));
         return new Output(name, internalFor(name, present), valueOf(t), x.expr(), t.kind(), t.nullable(),
-                t.detail());
+                t.detail(), pre);
     }
+
+    /** The scalar subqueries of {@code e} that it computes whenever it is computed ({@link #output}): reached through
+     *  operators, casts and the arguments of functions that read each, not through a CASE, AND, OR, a NULL-reading
+     *  function's later arguments, an aggregate or a window. */
+    private List<SqlAst.ScalarSubquery> eagerSubqueries(SqlAst.Expr e) {
+        List<SqlAst.ScalarSubquery> out = new ArrayList<>();
+        eagerSubqueries(e, out);
+        return out;
+    }
+
+    private void eagerSubqueries(SqlAst.Expr e, List<SqlAst.ScalarSubquery> out) {
+        switch (e) {
+            case SqlAst.ScalarSubquery q -> out.add(q);
+            case SqlAst.Binary b when b.op() != SqlAst.BinaryOp.AND && b.op() != SqlAst.BinaryOp.OR -> {
+                eagerSubqueries(b.left(), out);
+                eagerSubqueries(b.right(), out);
+            }
+            case SqlAst.Unary u -> eagerSubqueries(u.operand(), out);
+            case SqlAst.Cast c -> eagerSubqueries(c.operand(), out);
+            case SqlAst.FunctionCall f when !isAggregate(f) && f.filter() == null && f.orderBy().isEmpty()
+                    && f.withinGroup().isEmpty() -> {
+                String fn = f.name().get(f.name().size() - 1).text().toLowerCase(Locale.ROOT);
+                List<SqlAst.Expr> read = LAZY_ARGUMENTS.contains(fn) ? f.args().subList(0, Math.min(1,
+                        f.args().size())) : f.args();
+                read.forEach(a -> eagerSubqueries(a, out));
+            }
+            default -> {
+            }
+        }
+    }
+
+    /** The functions that read their later arguments for some rows only. */
+    private static final Set<String> LAZY_ARGUMENTS = Set.of("coalesce", "isnull", "ifnull", "nvl", "argn", "if",
+            "iif", "choose", "decode", "nullif", "greatest", "least");
 
     /** A column shown as itself once; shown again, or under another name, it is a computed copy. */
     private Output passthrough(Col c, String name, Set<String> passed, Set<String> present, Scope scope) {
@@ -3530,7 +3599,7 @@ public final class SqlToPure {
                 // IQ island, 2026-10-14 (the third landing): a name no one reads (an EXISTS subquery's, a set
                 // operation's later branch's) goes by a name of its own (the callers' lists are their own)
                 outputs.set(i, new Output(fresh(present), o.internal(), o.value(), o.expr(), o.kind(), o.nullable(),
-                        o.detail()));
+                        o.detail(), o.pre()));
             }
         }
         // a DISTINCT's keys: the values themselves, or a dialect's key whose group shows one of its values (IQ island,
@@ -3546,15 +3615,17 @@ public final class SqlToPure {
                 distinctKeys.add(key);
                 if (key != null) {
                     outputs.set(i, new Output(o.name(), o.internal(), o.value(), o.expr(), o.kind(), true,
-                            o.detail()));
+                            o.detail(), o.pre()));
                 }
             }
         }
         List<ColSpec> computed = new ArrayList<>();
+        Map<String, List<ColSpec>> preOf = new HashMap<>();
         for (Output o : outputs) {
             ValueSpecification v = o.value();
             if (v != null) {
                 computed.add(new ColSpec(o.internal(), lambda(row, v), null, null));
+                preOf.put(o.internal(), o.pre());
             }
         }
         // the sort keys: an ordinal or an output name means that output; anything else is computed for the sort (a
@@ -3593,6 +3664,11 @@ public final class SqlToPure {
                 // nothing to compute after the limit: the limit as written
                 limited = InputDialect.RowLimitItems.EVERY_ROW;
             }
+        }
+        List<ColSpec> earlyPre = new ArrayList<>();
+        computed.forEach(c -> earlyPre.addAll(preOf.getOrDefault(c.name(), List.of())));
+        if (!earlyPre.isEmpty()) {
+            relation = call("extend", relation, new ColSpecArray(earlyPre));
         }
         if (!computed.isEmpty()) {
             relation = call("extend", relation, new ColSpecArray(computed));
@@ -3636,6 +3712,11 @@ public final class SqlToPure {
             }
             if (limited != InputDialect.RowLimitItems.EVERY_ROW) {
                 relation = rowsComputed(relation, s, limited);
+                List<ColSpec> latePre = new ArrayList<>();
+                late.forEach(c -> latePre.addAll(preOf.getOrDefault(c.name(), List.of())));
+                if (!latePre.isEmpty()) {
+                    relation = call("extend", relation, new ColSpecArray(latePre));
+                }
                 if (!late.isEmpty()) {
                     relation = call("extend", relation, new ColSpecArray(late));
                 }
@@ -4661,7 +4742,10 @@ public final class SqlToPure {
             case SqlAst.Case c -> caseExpr(c, scope, row);
             case SqlAst.FunctionCall f -> function(f, scope, row);
             case SqlAst.Cast c -> dialect.cast(c, new At(scope, row));
-            case SqlAst.ScalarSubquery q -> scalarSubquery(q, scope);
+            case SqlAst.ScalarSubquery q -> {
+                Col h = hoisted.get(q);
+                yield h != null ? columnValue(row, h) : scalarSubquery(q, scope);
+            }
             case SqlAst.Exists q -> {
                 // never NULL: a row or none
                 ValueSpecification found = call("exists", subquery(q.query(), scope).vs(),
