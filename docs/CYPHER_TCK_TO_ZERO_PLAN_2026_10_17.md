@@ -153,7 +153,10 @@ uniqueness along variable-length chains (the unroll's hidden relationships) and 
 their `.transaction`/`.statement`/`.realtime` forms the same (one clock per statement is what the TCK asserts:
 `duration.inSeconds(datetime(), datetime())` is `PT0S`; the island reads the clock once per statement and reuses
 it, as Neo4j's `statement` clock does). The lite cases pin only predicates (`rand() >= 0`, `date() = date()`).
-One leg.
+One leg. LANDED 2026-10-17 (the study's §12.51, GATES' fiftieth landing; TCK agreement 3181 → 3201, DuckDB PASS
+3110 → 3141): the lite native `random()`, `SqlFn.RANDOM` in every dialect, the lowering's once-per-row rule for a
+non-deterministic projection (`Fold.nondeterministic`), the clocks as `today()`/`now()` (S77), `randomUUID()`;
+the Quantifier9-12 cases now stop at the Variant list comprehension (W12).
 
 ### W4. Writes (the largest)
 

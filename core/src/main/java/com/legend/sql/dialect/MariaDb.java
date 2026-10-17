@@ -1885,6 +1885,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case JARO_WINKLER -> throw wall(c.fn(), product() + " has no string-distance function");
             // UUID() is of the UUID type (11.x): its text
             case GUID -> writer.append("CAST(UUID() AS CHAR)");
+            case RANDOM -> writer.append("RAND()");
             case FORMAT -> format(writer, a);
             case CURRENT_USER_FN -> writer.append("SUBSTRING_INDEX(CURRENT_USER(), '@', 1)");
 

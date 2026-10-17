@@ -1480,6 +1480,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case SHA1 -> writer.append("TO_HEX(SHA1(").piece(asText(a.get(0))).append("))");
             case SHA256 -> writer.append("TO_HEX(SHA256(").piece(asText(a.get(0))).append("))");
             case GUID -> writer.append("GENERATE_UUID()");
+            case RANDOM -> writer.append("RAND()");
             // printf-like as DuckDB's: %d takes an INT64, %s a STRING on both (measured)
             case FORMAT -> format(writer, a);
             case JARO_WINKLER -> throw wall(c.fn(), "BigQuery has no Jaro-Winkler similarity");

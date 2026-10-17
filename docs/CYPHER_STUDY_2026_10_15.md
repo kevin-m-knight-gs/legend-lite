@@ -3617,3 +3617,46 @@ run had 4 FAIL and 5 ERROR: the per-arm reset wiping the cycle conditions and th
 renaming (both fixed, the frame's `cycles` and `patternOrder`), Match3/[19] erroring in the resolver (the two-step
 existence past a bridge-table step, now said over the rows), and Match9/[1] refusing `last(r)` over the arms' list
 (now read as `r[-1]`, the arms' list shapes merged).
+
+### 12.51 rand() and the statement clocks, 2026-10-17
+
+- **The frame (the plan's W3):** the functions whose value is the call's, not the data's: `rand()` and
+  `randomUUID()`, and the clocks `date()`, `localtime()`, `time()`, `localdatetime()`, `datetime()` with no
+  argument, with their `.transaction`, `.statement` and `.realtime` forms (the TCK's Temporal4/[13] nulls and
+  Temporal10/[12] zero durations, Return6/[15]'s error; `rand()` itself is the gate of the Quantifier9-12 cases,
+  which then need a list comprehension over a Variant list, W12).
+- **`rand()` is one lite native, `meta::legend::lite::random(): Float[1]`**, the database's random float in
+  `[0, 1)`: legend-pure has no random native (its platform functions are pure), so it is lite's own, under the
+  governance ceiling (22 → 23, `NativeCatalogGovernanceTest`; the census's row), lowered to `SqlFn.RANDOM` with
+  one render arm per dialect (`random()` on DuckDB, Postgres and Trino, `RAND()` on H2, MariaDB and BigQuery,
+  `rand()` on Databricks and the engine's H2 text, `randCanonical()` on ClickHouse, `UNIFORM(0::FLOAT, 1::FLOAT,
+  RANDOM())` on Snowflake, SQLite's signed 64-bit `random()` shifted and scaled). `randomUUID()` is Pure's
+  `generateGuid()`, the database's uuid as text (`SqlFn.GUID`, which every dialect already spelled).
+- **Once per row, never per place:** `WITH rand() AS r RETURN r = r` answered false: the lowering substituted the
+  projection's expression into the consumer (`random() = random()`). A non-deterministic call draws afresh at
+  every place it is written, so `Fold.nondeterministic` (RANDOM, GUID) now isolates the projection as a window
+  or a reducer does (`scalarInlineable`, `whereSafe`): the value is computed once, in its own select, and the
+  consumer reads the column. The clocks need none of it: `now()` and `today()` are one value per statement on
+  every database.
+- **The clocks are the statement's:** `date()` is Pure's `today()`, `localdatetime()` its `now()`, `localtime()`
+  the time of day of `now()` (`timeOf`), `datetime()` the instant `now()` in UTC (the session's zone, pinned;
+  Neo4j's default), `time()` that time of day in UTC; the three named clocks are the same reads (Neo4j's
+  `realtime` differs by its microseconds within a statement, a register row, S77); a null argument is null
+  (Temporal4/[13]); a time zone argument is refused by name (no TCK scenario spells one). `count(rand())` is
+  Neo4j's error ("Can't use non-deterministic (random) functions inside of aggregate functions", Return6/[15]).
+- **Still refused by name, recorded:** `timestamp()` (the epoch milliseconds of now: no TCK scenario), a clock
+  with a time zone.
+
+#### 12.51.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4598 | 3141 (from 3,110) | 0 | 0 | 0 | 545 | 731 | 181 |
+| Postgres | 4598 | 2780 (from 2,749) | 0 | 0 | 0 | 906 | 731 | 181 |
+
+12 lite cases in `lite/clock.yaml`, each judged by Neo4j (11 PASS, `count(rand())` BOTH_ERROR as Neo4j's error). The
+TCK: agreement 3201 of 3880 (from 3,181): 20 more scenarios, Temporal4 (15: the clocks' `.transaction`, `.statement`
+and `.realtime` forms of null), Temporal10 (5: `duration.inSeconds` of a clock with itself); no case lost. The lite
+cases found two things the TCK does not reach: `WITH rand() AS r RETURN r = r` false until the lowering stopped
+substituting a non-deterministic projection, and Neo4j's `realtime` clock differing from its `statement` clock within
+one statement (S77; the case pins the near-equality).

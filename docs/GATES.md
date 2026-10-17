@@ -9932,6 +9932,25 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the fiftieth landing — rand() and the statement clocks
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W3); the record is the study's §12.51. A lite native
+`random()` (the governance ceiling 22 → 23, the census's row), `SqlFn.RANDOM` with a render arm in every dialect,
+the lowering's rule that a projection holding a non-deterministic call is computed once (`Fold.nondeterministic`),
+and the translator's `rand()`, `randomUUID()` and the statement clocks (`date()`, `localtime()`, `time()`,
+`localdatetime()`, `datetime()`, their `.transaction`/`.statement`/`.realtime` forms; register row S77).
+
+1. **What lands.** `rand()` in a WHERE, a WITH and a RETURN; `WITH rand() AS r RETURN r = r` true; `count(rand())`
+   Neo4j's error; `duration.inSeconds(datetime(), datetime())` `PT0S` (Temporal10/[12]); `date.realtime(null)` null
+   (Temporal4/[13]).
+2. **The ledger.** DuckDB PASS 3,110 → 3,141 (REFUSED 565 → 545; FAIL, BUG, ERROR 0), Postgres PASS 2,749 → 2,780 (REFUSED
+   926 → 906); TCK agreement 3,181 → 3,201 of 3,880 (Temporal4 15, Temporal10 5); 12 lite cases in
+   `lite/clock.yaml`, 11 PASS and one BOTH_ERROR (Neo4j's error, matched), judged by Neo4j (`snap.sh --check`: 0
+   problems); `docs/CYPHER_SHOWCASE.md` §20 and `docs/dialect-capability/` regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails` (`NativeCatalogGovernanceTest` 23,
+   `PlatformNamesGuardrailTest` 326, each with its dated justification), `//core:core_tests_integration` green.
+4. **Refused by name, recorded.** `timestamp()`; a clock with a time zone argument.
+
 ## 2026-10-17 — `#Cypher{...}#`: the forty-ninth landing — cycles, the optional fallbacks, the undirected self-association
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 5); the record is the study's §12.50. The

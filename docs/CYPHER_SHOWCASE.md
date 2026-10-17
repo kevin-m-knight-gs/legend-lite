@@ -950,7 +950,7 @@ ORDER BY title
 | 'Speed' | {role: 'Jack'} | 1 | false |
 | 'The Matrix' | {role: 'Neo', year: 1999} | 2 | true |
 
-## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.50)
+## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.51)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
@@ -961,9 +961,9 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 
 | status | cases |
 |---|---|
-| PASS | 2511 |
+| PASS | 2531 |
 | BOTH_ERROR | 670 |
-| REFUSED | 518 |
+| REFUSED | 498 |
 | SKIP | 181 |
 | total | 3880 |
 
@@ -1002,7 +1002,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | expressions/precedence | 104 | 102 | 0 | 2 | 0 |
 | expressions/quantifier | 604 | 513 | 12 | 79 | 0 |
 | expressions/string | 32 | 29 | 0 | 3 | 0 |
-| expressions/temporal | 1004 | 923 | 0 | 31 | 50 |
+| expressions/temporal | 1004 | 943 | 0 | 11 | 50 |
 | expressions/typeConversion | 47 | 25 | 17 | 5 | 0 |
 | useCases/countingSubgraphMatches | 11 | 11 | 0 | 0 | 0 |
 | useCases/triadicSelection | 19 | 10 | 0 | 9 | 0 |

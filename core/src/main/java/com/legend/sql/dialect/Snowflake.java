@@ -1425,6 +1425,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case STRPOS -> writer.append("CHARINDEX(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
             case SHA256 -> writer.append("SHA2(").expr(a.get(0), 0).append(", 256)");
             case GUID -> writer.append("UUID_STRING()");
+            case RANDOM -> writer.append("UNIFORM(0::FLOAT, 1::FLOAT, RANDOM())");
             case FORMAT -> writer.piece(format(a));
             case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             case CURRENT_USER_FN -> writer.append("CURRENT_USER()");

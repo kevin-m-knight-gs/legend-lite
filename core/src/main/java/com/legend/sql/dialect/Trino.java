@@ -948,6 +948,7 @@ public final class Trino extends AnsiSqlRenderer {
             case SHA1 -> writer.append("lower(to_hex(sha1(to_utf8(").expr(a.get(0), 0).append("))))");
             case SHA256 -> writer.append("lower(to_hex(sha256(to_utf8(").expr(a.get(0), 0).append("))))");
             case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
+            case RANDOM -> writer.append("random()");
             case FORMAT -> writer.append("format(").list(a).append(")");
             case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             case CURRENT_USER_FN -> writer.append("current_user");

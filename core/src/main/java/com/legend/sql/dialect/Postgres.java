@@ -790,6 +790,7 @@ public final class Postgres extends AnsiSqlRenderer {
             // sha256 is bytea here; the reference is lowercase hex text
             case SHA256 -> writer.append("encode(sha256(convert_to(").expr(a.get(0), 0).append(", 'UTF8')), 'hex')");
             case GUID -> writer.append("CAST(gen_random_uuid() AS VARCHAR)");
+            case RANDOM -> writer.append("random()");
 
             // ---- temporal
             case NOW -> writer.append("(now() AT TIME ZONE 'UTC')");

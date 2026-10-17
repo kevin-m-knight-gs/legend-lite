@@ -4226,6 +4226,19 @@ public final class CypherToPure {
                 || e instanceof CypherAst.Call c && AGGREGATES.contains(c.name().toLowerCase(Locale.ROOT));
     }
 
+    /** Whether {@code e} calls the function {@code name} (lower case) anywhere. */
+    private static boolean containsCall(Expr e, String name) {
+        if (e instanceof CypherAst.Call c && c.name().toLowerCase(Locale.ROOT).equals(name)) {
+            return true;
+        }
+        for (Expr child : children(e)) {
+            if (containsCall(child, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean containsAggregate(Expr e) {
         if (isAggregate(e)) {
             return true;
@@ -4357,6 +4370,10 @@ public final class CypherToPure {
         Expr argExpr = c.args().get(0);
         if (containsAggregate(argExpr)) {
             throw CypherErrors.invalid("Can't use aggregate functions inside of aggregate functions.", c.pos());
+        }
+        if (containsCall(argExpr, "rand")) {
+            throw CypherErrors.invalid("Can't use non-deterministic (random) functions inside of aggregate functions.",
+                    c.pos());
         }
         if (c.distinct() && !fn.equals("count")) {
             throw CypherErrors.unsupported(c.name() + "(DISTINCT ...) is not supported yet", c.pos());
@@ -6399,7 +6416,11 @@ public final class CypherToPure {
             case LEFT, RIGHT -> scalar(string(c, arity(c, args, 2), java.util.Objects.requireNonNull(pure), 1));
             case REPLACE -> scalar(string(c, arity(c, args, 3), java.util.Objects.requireNonNull(pure), 3));
             case SUBSTRING -> scalar(substring(c, args));
-            case RAND, RANDOM_UUID, TIMESTAMP -> throw CypherErrors.unsupported("the function " + c.name()
+            // the database's random float in [0, 1) and its uuid as text (the study's §12.51): values of the call,
+            // read once per row they are spelled in
+            case RAND -> scalar(Tx.value(call(RANDOM), Kind.FLOAT, false));
+            case RANDOM_UUID -> scalar(Tx.value(call("generateGuid"), Kind.STRING, false));
+            case TIMESTAMP -> throw CypherErrors.unsupported("the function " + c.name()
                     + "() (a value of the call, not of the data) is not supported yet", c.pos());
         };
     }
@@ -8327,6 +8348,9 @@ public final class CypherToPure {
      *  layer reads no catalog, AGENTS invariant 7b, so their names are spelled here): the time of day of a date-time,
      *  and the date-time at a time of a date. */
     private static final String TIME_OF = "meta::legend::lite::timeOf";
+    /** The database's random float in [0, 1) (lite's {@code random}, the plan's W3): Cypher's {@code rand()}, a
+     *  value of the call, not of the data, read once per row it is spelled in. */
+    private static final String RANDOM = "meta::legend::lite::random";
     /** The identity of a node or an edge-class relationship (the study's §12.46): lite's elementId of the instance,
      *  its class's primary key as text; what Cypher compares nodes by. */
     private static final String ELEMENT_ID = "meta::legend::lite::elementId";
@@ -8750,8 +8774,8 @@ public final class CypherToPure {
      *  time. */
     private Val zonedTimeFrom(CypherAst.Call c, Scope scope) {
         if (c.args().isEmpty()) {
-            throw CypherErrors.unsupported("the function " + c.name() + "() (the current time: a value of the call,"
-                    + " not of the data) is not supported yet", c.pos());
+            // the statement's clock (the study's §12.51): the time of day of the database's now, in UTC
+            return scalar(zonedTimeOf(timeOf(now()), Zone.UTC));
         }
         if (c.args().size() > 1) {
             throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
@@ -9575,17 +9599,42 @@ public final class CypherToPure {
                 }
                 yield fromEpoch(c, member == TemporalMember.FROM_EPOCH_MILLIS, scope);
             }
-            case REALTIME, STATEMENT, TRANSACTION -> throw CypherErrors.unsupported("the function " + c.name()
-                    + "() (the current date or time: a value of the call, not of the data) is not supported yet",
-                    c.pos());
+            case REALTIME, STATEMENT, TRANSACTION -> {
+                // the three clocks are the statement's one (the database's now, read once per statement:
+                // docs/SEMANTICS_REGISTER.md S77); a null argument, null; a time zone argument is not spelled
+                if (c.args().size() > 1) {
+                    throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
+                }
+                if (!c.args().isEmpty()) {
+                    Val a = val(c.args().get(0), scope);
+                    if (a instanceof Scalar s && s.tx().kind() == Kind.NULL) {
+                        yield nullValue();
+                    }
+                    throw CypherErrors.unsupported("the function " + c.name() + "(...) with an argument (a time zone"
+                            + " for the clock) is not supported yet", c.pos());
+                }
+                CypherAst.Call bare = new CypherAst.Call(c.name(), false, List.of(), c.pos());
+                yield switch (family) {
+                    case LOCALTIME -> timeFrom(bare, scope);
+                    case TIME -> zonedTimeFrom(bare, scope);
+                    case DATETIME -> zonedFrom(bare, scope);
+                    default -> temporalFrom(bare, withTime, scope);
+                };
+            }
         };
+    }
+
+    /** The statement's clock: the database's now, a date-time (Pure's {@code now()}, SQL's transaction or statement
+     *  start on every database: one value per statement, however often it is read, the study's §12.51). */
+    private static Tx now() {
+        return Tx.value(call("now"), Kind.DATETIME, false);
     }
 
     /** {@code date(x)}, {@code localdatetime(x)}: from a map of components, an ISO text, or another temporal value. */
     private Val temporalFrom(CypherAst.Call c, boolean withTime, Scope scope) {
         if (c.args().isEmpty()) {
-            throw CypherErrors.unsupported("the function " + c.name() + "() (the current date or time: a value of the"
-                    + " call, not of the data) is not supported yet", c.pos());
+            // the statement's clock (the study's §12.51): the database's today and now
+            return scalar(withTime ? now() : Tx.value(call("today"), Kind.DATE, false));
         }
         if (c.args().size() > 1) {
             throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
@@ -9615,8 +9664,9 @@ public final class CypherToPure {
      *  date-time (the default zone, UTC), or another zoned date-time. */
     private Val zonedFrom(CypherAst.Call c, Scope scope) {
         if (c.args().isEmpty()) {
-            throw CypherErrors.unsupported("the function " + c.name() + "() (the current date-time: a value of the"
-                    + " call, not of the data) is not supported yet", c.pos());
+            // the statement's clock (the study's §12.51): the database's now, an instant, in UTC (the session's
+            // zone, pinned; Neo4j's default)
+            return scalar(zoned(now(), Zone.UTC));
         }
         if (c.args().size() > 1) {
             throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
@@ -9807,8 +9857,8 @@ public final class CypherToPure {
     /** {@code localtime(x)}: from a map of components, an ISO text, or a date-time or time of day. */
     private Val timeFrom(CypherAst.Call c, Scope scope) {
         if (c.args().isEmpty()) {
-            throw CypherErrors.unsupported("the function " + c.name() + "() (the current time: a value of the call,"
-                    + " not of the data) is not supported yet", c.pos());
+            // the statement's clock (the study's §12.51): the time of day of the database's now
+            return scalar(timeOf(now()));
         }
         if (c.args().size() > 1) {
             throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());

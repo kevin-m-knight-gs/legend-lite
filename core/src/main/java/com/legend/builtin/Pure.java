@@ -419,6 +419,9 @@ public final class Pure {
         public static final String TIME_OF = PKG + "timeOf";
         /** The identity of a mapped instance as a value (the Cypher island's, 2026-10-17). */
         public static final String ELEMENT_ID = PKG + "elementId";
+        /** The database's random float in [0, 1) (the Cypher island's {@code rand()}, 2026-10-17): a value of the
+         *  call, not of the data, which Pure has no native for. */
+        public static final String RANDOM = PKG + "random";
         public static final String AT_TIME = PKG + "atTime";
         /** A named zone, read by the database (2026-10-16, the Cypher island's zoned date-time leg):
          *  {@code instantIn(local, zone)} the instant a wall time names in the zone, {@code localIn(instant, zone)}
@@ -549,7 +552,7 @@ public final class Pure {
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE, Lite.INLINE_VIEW, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN, Lite.LOCAL_IN,
-                    Lite.ELEMENT_ID)
+                    Lite.ELEMENT_ID, Lite.RANDOM)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -974,6 +977,9 @@ public final class Pure {
      *  as a call: lite's own, no upstream counterpart. */
     public static final NativeFunctionDefinition ELEMENT_ID__ANY_0_1 = signature("native function meta::legend::lite::elementId(instance:meta::pure::metamodel::type::Any[0..1]):meta::pure::metamodel::type::String[0..1];");
     public static final NativeFunctionDefinition ELEMENT_ID__ANY_MANY = signature("native function meta::legend::lite::elementId(instances:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[*];");
+    /** The database's random float in [0, 1) ({@link Lite#RANDOM}; the Cypher island's {@code rand()}): every
+     *  dialect has one; lite's own, no upstream counterpart. */
+    public static final NativeFunctionDefinition RANDOM = signature("native function meta::legend::lite::random():meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition TIME_OF__DATE_1 = signature("native function meta::legend::lite::timeOf(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictTime[1];");
     public static final NativeFunctionDefinition AT_TIME__DATE_1__STRICT_TIME_1 = signature("native function meta::legend::lite::atTime(d:meta::pure::metamodel::type::Date[1], t:meta::pure::metamodel::type::StrictTime[1]):meta::pure::metamodel::type::DateTime[1];");
     /** A named time zone, read by the database (the Cypher island's zoned date-time leg, 2026-10-16,
@@ -2412,6 +2418,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RANDOM = com.legend.model.FunctionId.ofAll(RANDOM);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TRUST_ONE = com.legend.model.FunctionId.ofAll(TRUST_ONE__T_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TUPLE = com.legend.model.FunctionId.ofAll(TUPLE__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);

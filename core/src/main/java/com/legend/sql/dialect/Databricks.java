@@ -1095,6 +1095,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case DECODE_BASE64 -> writer.append("CAST(unbase64(").expr(a.get(0), 0).append(") AS STRING)");
             case SHA256 -> writer.append("sha2(").expr(a.get(0), 0).append(", 256)");
             case GUID -> writer.append("uuid()");
+            case RANDOM -> writer.append("rand()");
             case FORMAT -> writer.append("format_string(").list(a).append(")");
             case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             case CURRENT_USER_FN -> writer.append("current_user()");

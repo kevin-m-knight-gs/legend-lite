@@ -1683,6 +1683,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case SHA1 -> writer.append("lower(hex(SHA1(").expr(a.get(0), 0).append(")))");
             case SHA256 -> writer.append("lower(hex(SHA256(").expr(a.get(0), 0).append(")))");
             case GUID -> writer.append("toString(generateUUIDv4())");
+            case RANDOM -> writer.append("randCanonical()");
             // printf takes native numbers and strings (a Decimal is refused, measured)
             // printf takes a Float64 for %f and only a String for %s: a Float under %s is its Pure text
             case FORMAT -> formatCall(writer, c);

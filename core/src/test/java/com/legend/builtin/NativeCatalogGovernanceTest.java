@@ -114,7 +114,11 @@ class NativeCatalogGovernanceTest {
         // precedence, as text), what Cypher's elementId(n) and id(n) answer and node comparisons, DISTINCT and
         // grouping use; Pure has no expression for it. Resolved by the store resolver through the primary-key
         // pseudo-binding; emitted by the Cypher translator only, by FQN. 21 -> 22.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 22,
+        // +1 2026-10-17 (the Cypher island's rand-and-clocks leg, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W3):
+        // random — the database's random float in [0, 1), what Cypher's rand() answers: a value of the call, not
+        // of the data. legend-pure has no random native (its platform functions are pure); every dialect has one
+        // (SqlFn.RANDOM, one render arm each). Emitted by the Cypher translator only, by FQN. 22 -> 23.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 23,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

@@ -540,6 +540,7 @@ final class Scalars {
                 Map.entry(Pure.AT_FLOW_COALESCE, SqlFn.COALESCE),
                 // Temporal
                 Map.entry(Pure.AT_DATE_TODAY, SqlFn.TODAY), Map.entry(Pure.AT_DATE_NOW, SqlFn.NOW),
+                Map.entry(Pure.AT_LEGEND_LITE_RANDOM, SqlFn.RANDOM),
 
                 // Lists / collections
 

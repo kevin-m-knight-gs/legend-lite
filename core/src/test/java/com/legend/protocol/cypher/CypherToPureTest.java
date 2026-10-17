@@ -1325,4 +1325,25 @@ class CypherToPureTest {
         String head = pure("MATCH (p:Person) WITH collect(p.name) AS names RETURN head(names) AS h");
         assertTrue(head.contains("->get(0)"), head);
     }
+
+    @Test
+    void randAndTheClocksAreTheDatabasesValuesOfTheCall() {
+        // (the study's §12.51) rand() is lite's random, the database's float in [0, 1); randomUUID() its uuid
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[r:r|meta::legend::lite::random(), u:r|generateGuid()])->select(~[r, u])",
+                pure("RETURN rand() AS r, randomUUID() AS u"));
+        // the statement's clock: today and now, the time of day of now, the instant in UTC
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[d:r|today(), ldt:r|now(), lt:r|now()->meta::legend::lite::timeOf()])->select(~[d, ldt, lt])",
+                pure("RETURN date() AS d, localdatetime() AS ldt, localtime() AS lt"));
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[z:r|now(), t:r|%1970-01-01->meta::legend::lite::atTime(now()->meta::legend::lite::timeOf())])->select(~[z, t])",
+                pure("RETURN datetime() AS z, time() AS t"));
+        // a null argument is null
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[d:r|[]])->select(~[d])",
+                pure("RETURN datetime.statement(null) AS d"));
+        // the three clocks are the statement's
+        assertEquals(pure("RETURN date() AS d"), pure("RETURN date.realtime() AS d"));
+        assertEquals(pure("RETURN localdatetime() AS d"), pure("RETURN localdatetime.transaction() AS d"));
+        // Neo4j's errors: rand() inside an aggregate, a clock with a time zone refused by name
+        invalid("RETURN count(rand())", "Can't use non-deterministic (random) functions inside of aggregate");
+        unsupported("RETURN date.statement({timezone: 'Europe/Stockholm'})", "with an argument (a time zone");
+    }
 }

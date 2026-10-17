@@ -1549,6 +1549,9 @@ public final class SQLite extends AnsiSqlRenderer {
             case MD5, SHA1, SHA256 -> throw wall(c.fn(), "SQLite has no digest function");
             case LEVENSHTEIN -> writer.piece(levenshtein(a.get(0), a.get(1)));
             case JARO_WINKLER -> throw wall(c.fn(), "SQLite has no string-distance function");
+            // random() is a signed 64-bit integer: shifted and scaled into [0, 1) (the shift's literal is a REAL,
+            // beyond the integer range, so the sum never overflows)
+            case RANDOM -> writer.append("((random() + 9223372036854775808) / 18446744073709551616.0)");
             case GUID -> writer.append("lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' ||"
                     + " substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) ||"
                     + " substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))");
