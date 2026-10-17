@@ -1287,10 +1287,25 @@ tests:
     profile: iq17-default
 
   # ---- a function of no name of IQ's in a derived table's column no one reads (SEDE's FORMAT(d.CreationDate, 'yy-MM');
-  # measured on IQ 17.1, 2026-10-17): IQ drops the column before it resolves its functions and answers (refused by
-  # name: the island does not drop it yet); read, or under DISTINCT, its -265
-  - id: format_in_an_unread_derived_column_is_refused
+  # measured on IQ 17.1, 2026-10-17): IQ drops the column before it resolves its functions and answers, its names
+  # still bound (-143) and its grouping checked (-149); read, or under DISTINCT, its -265
+  - id: format_in_an_unread_derived_column_is_dropped
     sql: "SELECT n, COUNT(*) AS c FROM (SELECT id AS n, FORMAT(dt, 'yy-MM') AS f FROM t) d GROUP BY n ORDER BY n"
+    profile: iq17-default
+  - id: string_agg_in_an_unread_derived_column_is_dropped
+    sql: "SELECT d.k FROM (SELECT id AS k, STRING_AGG(vc, ',') AS s FROM t) d ORDER BY d.k"
+    profile: iq17-default
+  - id: string_agg_of_a_group_key_in_an_unread_column_is_dropped
+    sql: "SELECT d.k FROM (SELECT vc AS k, STRING_AGG(vc, ',') AS s FROM t GROUP BY vc) d ORDER BY d.k"
+    profile: iq17-default
+  - id: string_agg_of_an_ungrouped_column_unread_is_iqs_error
+    sql: "SELECT d.k FROM (SELECT id AS k, STRING_AGG(vc, ',') AS s FROM t GROUP BY id) d ORDER BY d.k"
+    profile: iq17-default
+  - id: format_of_a_missing_column_unread_is_iqs_error
+    sql: "SELECT d.k FROM (SELECT id AS k, FORMAT(nosuch, 'x') AS s FROM t) d ORDER BY d.k"
+    profile: iq17-default
+  - id: format_in_a_column_read_by_a_subquery_is_refused
+    sql: "SELECT d.k FROM (SELECT id AS k, FORMAT(dt, 'yy') AS s FROM t) d WHERE EXISTS (SELECT 1 FROM u WHERE u.label = d.s) ORDER BY d.k"
     profile: iq17-default
   - id: format_in_a_read_derived_column_is_iqs_error
     sql: "SELECT f FROM (SELECT id AS n, FORMAT(dt, 'yy-MM') AS f FROM t) d"

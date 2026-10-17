@@ -295,10 +295,12 @@ island's reason, those IQ answers, and what became of them:
   rows the join supplies NULLs for, though a stored NULL concatenates as ''; `||` keeps them (both pinned);
 - a subquery in GROUP BY (SQLStorm's 9; measured on IQ 17.1, 2026-10-17): IQ's -1001030 under its engine,
   correlated or not; the front end's reading is not built;
-- a function of no name of IQ's (FORMAT, ...) in a derived table's column no one reads (SEDE's 4, found by verifying
-  the claims; measured on IQ 17.1, 2026-10-17): IQ drops the column before it resolves its functions and answers;
-  read, or under DISTINCT, its -265. Refused by name there (the island does not drop the column yet: the column's
-  names still bind, -143, which a drop must keep); open: drop it, binding its names;
+- a function of no name of IQ's (FORMAT, STRING_AGG, ...) in a derived table's column no one reads (SEDE's 4, found
+  by verifying the claims, and 23 more; measured on IQ 17.1, 2026-10-17): IQ drops the column before it resolves its
+  functions or computes its values (1 / 0, CAST('x' AS INT) raise nothing) and answers; its names still bind (-143)
+  and a grouped table's columns are still checked (-149); read, or under DISTINCT, its -265. Where the column is the
+  call alone, of a string's result, read nowhere, the island reads the call as a NULL string (its arguments
+  translated, so -143 and -149 stand); otherwise refused by name. Open: dropping any unread column, values and all;
 - IQ carries a derived table's column's NULL rejection into it (SQLStorm's CTE whose LEFT JOIN's ON holds a
   subquery, joined on its column by an inner join; measured on IQ 17.1, 2026-10-17): its outer query's WHERE or inner
   join over it, through arithmetic, unqualified where it is the one FROM item, grouped or not, nested: the derived
