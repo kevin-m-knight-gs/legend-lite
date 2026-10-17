@@ -462,7 +462,7 @@ public final class Render {
                     Type t = schema.pivotColumnType(name);
                     // downstream-rebuilt schemas drop the pivot
                     // templates (filter/select over the pivot) — the
-                    // probe's SQL type decodes, the PctTdsWrap pattern
+                    // probe's SQL type decodes, the TdsTextWrap pattern
                     return t != null ? t
                             : sqlTypeToPure.apply(p.typeName(name));
                 });
@@ -609,6 +609,18 @@ public final class Render {
     private static SqlExpr strictDateText(SqlExpr c) {
         return SqlExpr.Call.of(SqlFn.STRFTIME, c,
                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
+    }
+
+    /** The DATE family: StrictDate, Date, DateTime, LatestDate. */
+    private static boolean dateKind(Type t) {
+        return t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE || t == Type.Primitive.DATE_TIME
+                || t == Type.Primitive.LATEST_DATE;
+    }
+
+    /** A slot that carries text: VARCHAR, a literal's spelling, a temporal's text. */
+    private static boolean textSlot(@com.legend.base.Nullable SqlType slot) {
+        return slot == SqlType.Scalar.VARCHAR || slot == SqlType.Scalar.LITERAL
+                || slot == SqlType.Scalar.TEMPORAL_TEXT;
     }
 
     /** Whether the DATE-family value prints date-only (a DATE slot) or
@@ -797,8 +809,8 @@ public final class Render {
     /** THE RFC4180 escape rule ({@code escapeCSVString}), spelled once:
      *  quote when the text contains comma, quote, LF or CR; embedded
      *  quotes double. */
-    /** E1: the PCT wire TDS text (the deleted
-     *  the PCT bridge's deleted formatAsTds, spelled by the DATABASE).
+    /** Pure's TDS text (E1: the PCT bridge's deleted formatAsTds, spelled by the DATABASE; the form legend-pure's
+     *  {@code stringToTDS} reads -- named for what it is, 2026-10-17).
      *  Header = a compile-time constant from the TYPED schema (name
      *  quoting incl. pivot identities, pure type names — Variant FQN —
      *  and data-independent multiplicity); rows '\n'-PREFIXED (no
@@ -808,7 +820,7 @@ public final class Render {
      *  Variant = always-quoted JSON with doubled quotes, SQL NULL =
      *  bare {@code null}, strings quote only when they carry
      *  comma/quote/newline. */
-    public static SqlSelect pctTds(SqlSelect inner, List<Type.Column> typedCols,
+    public static SqlSelect tdsText(SqlSelect inner, List<Type.Column> typedCols,
             String rowAlias) {
         List<OutputCol> cols = inner.outputs();
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
@@ -823,20 +835,20 @@ public final class Render {
         List<Type.Column> relCols = cols.stream().map(oc -> {
             Type.Column t = byName.get(oc.name());
             if (t == null) {
-                throw new IllegalStateException("pctTds: output column '"
+                throw new IllegalStateException("tdsText: output column '"
                         + oc.name() + "' has no typed relation column");
             }
             return t;
         }).toList();
         if (cols.isEmpty()) {
-            throw new IllegalStateException("pctTds over a zero-column relation");
+            throw new IllegalStateException("tdsText over a zero-column relation");
         }
         String aggAlias = rowAlias + "_a";
-        SqlExpr line = pctCell(SqlExpr.Column.of(rowAlias, cols.get(0)),
+        SqlExpr line = tdsTextCell(SqlExpr.Column.of(rowAlias, cols.get(0)),
                 relCols.get(0), cols.get(0).type());
         for (int i = 1; i < cols.size(); i++) {
             line = cat(line, new SqlExpr.StringLit(","),
-                    pctCell(SqlExpr.Column.of(rowAlias, cols.get(i)),
+                    tdsTextCell(SqlExpr.Column.of(rowAlias, cols.get(i)),
                             relCols.get(i), cols.get(i).type()));
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
@@ -850,7 +862,7 @@ public final class Render {
                         List.of(SqlExpr.Column.of(aggAlias, "_pct_line", SqlType.Scalar.VARCHAR, false, com.legend.sql.OutputCol.Origin.DERIVED), nl),
                         false, aggOrder)),
                 new SqlExpr.StringLit(""));
-        SqlExpr text = cat(new SqlExpr.StringLit(pctHeader(relCols)),
+        SqlExpr text = cat(new SqlExpr.StringLit(tdsHeader(relCols)),
                 rowsJoined);
         SqlSelect rows = SqlSelect.starOf(
                         new SqlSource.Subselect(inner, rowAlias, null))
@@ -863,7 +875,7 @@ public final class Render {
     /** The header line — a COMPILE-TIME constant from the typed schema
      *  (Java building a SQL literal is orchestration; every printed
      *  fact is a typed plan fact). */
-    static String pctHeader(List<Type.Column> relCols) {
+    static String tdsHeader(List<Type.Column> relCols) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < relCols.size(); i++) {
             if (i > 0) {
@@ -881,13 +893,13 @@ public final class Render {
             var m = col.multiplicity();
             boolean optional = m instanceof com.legend.compiler.element
                     .type.Multiplicity.Bounded b && b.lower() == 0;
-            sb.append(colName).append(':').append(pctTypeName(col.type()))
+            sb.append(colName).append(':').append(tdsTypeName(col.type()))
                     .append(optional ? "[0..1]" : "[1]");
         }
         return sb.toString();
     }
 
-    private static String pctTypeName(Type t) {
+    private static String tdsTypeName(Type t) {
         if (t instanceof Type.Primitive p) {
             return p.typeName();
         }
@@ -899,7 +911,7 @@ public final class Render {
         return t.typeName();
     }
 
-    /** One PCT cell: typed print form, SQL NULL = bare 'null'.
+    /** One TDS text cell: typed print form, SQL NULL = bare 'null'.
      *
      *  <p>QUOTING is the reader's rule, and the reader is upstream's
      *  {@code stringToTDS} (legend-pure m2-dsl-tds {@code TDSExtension
@@ -912,12 +924,18 @@ public final class Render {
      *  their commas under the 5.92.0 reader ("Row 2 has too many
      *  columns" — 28 variant tests, batch 1 of the upstream boundary
      *  program, 2026-09-10). */
-    private static SqlExpr pctCell(SqlExpr c, Type.Column col, SqlType slot) {
+    private static SqlExpr tdsTextCell(SqlExpr c, Type.Column col, SqlType slot) {
         Type t = col.type();
         SqlExpr rendered;
         if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
             // pure prints VARIANT cells ALWAYS quoted
             rendered = pureQuoted(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+        } else if (dateKind(t) && textSlot(slot)) {
+            // a date carried as its own text (a value root: the lowering spells a date value in Pure's literal form,
+            // with the precision the value has -- a year, a month, a microsecond -- which no DATE or TIMESTAMP slot
+            // holds): the text is the cell, as the legacy route reads it (the MongoDB line's homework 2, 2026-10-17:
+            // the shadow run's 114 strftime errors and 69 precision differences over date values)
+            rendered = c;
         } else if (dateOnly(t, slot)) {
             rendered = strictDateText(c);
         } else if (t == Type.Primitive.DATE_TIME
@@ -927,7 +945,7 @@ public final class Render {
             rendered = Scalars.pureToString(Type.Primitive.FLOAT, c);
         } else if (t == Type.Primitive.STRING
                 || t instanceof Type.EnumType) {
-            rendered = pctEscape(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+            rendered = tdsTextEscape(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
         } else {
             // Integer/Boolean/Decimal/Number print via the DB's plain
             // VARCHAR cast (NUMBER columns carry mixed-identity print
@@ -943,11 +961,11 @@ public final class Render {
                 new SqlExpr.StringLit("null"))), rendered);
     }
 
-    /** PCT string cell quoting: only when the value carries a comma, a
+    /** TDS text string cell quoting: only when the value carries a comma, a
      *  single quote, a backslash, or a line break — the characters the
      *  5.92.0 reader ({@code quote('\'')}, {@code escape('\\')}) would
      *  otherwise read as structure. */
-    private static SqlExpr pctEscape(SqlExpr s) {
+    private static SqlExpr tdsTextEscape(SqlExpr s) {
         SqlExpr needs = or(or(contains(s, ","), contains(s, "'")),
                 or(contains(s, "\\"), or(contains(s, "\n"), contains(s, "\r"))));
         return new SqlExpr.Case(

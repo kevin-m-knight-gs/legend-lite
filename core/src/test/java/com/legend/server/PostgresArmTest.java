@@ -126,6 +126,11 @@ class PostgresArmTest {
                     assertEquals(new com.legend.executionplan.ExecutionPlan.Servers.Every(), target.servers());
                     assertEquals(java.util.List.of("SET TimeZone='UTC'"), target.session());
                     assertEquals(java.util.List.of(), target.setup());
+                    if (output == com.legend.TypedQuery.Output.TDS_TEXT) {
+                        com.legend.testcases.PlanCases.assertTdsTextAnswersAsToday(model, query, "s::RT", c, plan, c,
+                                java.util.Map.of(), output + " " + query);
+                        continue;
+                    }
                     java.io.StringWriter today = new java.io.StringWriter();
                     switch (output) {
                         case CSV -> com.legend.Execution.executeWire(model, query, "s::RT", c,
@@ -133,6 +138,7 @@ class PostgresArmTest {
                         case JSON -> com.legend.Execution.executeWire(model, query, "s::RT", c,
                                 com.legend.lowering.WireRender.Format.JSON, today);
                         case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, query, "s::RT", c, today);
+                        case TDS_TEXT -> throw new IllegalStateException("judged above");
                     }
                     assertEquals(today.toString(), com.legend.testcases.PlanCases.run(plan, c), output + " " + query);
                 }
@@ -171,6 +177,12 @@ class PostgresArmTest {
                             .executionPlan("s::RT", output);
                     for (boolean present : new boolean[]{true, false}) {
                         String query = present ? q.withValue() : q.withNone();
+                        if (output == com.legend.TypedQuery.Output.TDS_TEXT) {
+                            com.legend.testcases.PlanCases.assertTdsTextAnswersAsToday(model, query, "s::RT", c, plan,
+                                    c, java.util.Collections.singletonMap("x", present ? q.value() : null),
+                                    output + " " + query);
+                            continue;
+                        }
                         java.io.StringWriter today = new java.io.StringWriter();
                         switch (output) {
                             case CSV -> com.legend.Execution.executeWire(model, query, "s::RT", c,
@@ -179,6 +191,7 @@ class PostgresArmTest {
                                     com.legend.lowering.WireRender.Format.JSON, today);
                             case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, query, "s::RT", c,
                                     today);
+                            case TDS_TEXT -> throw new IllegalStateException("judged above");
                         }
                         assertEquals(today.toString(), com.legend.testcases.PlanCases.run(plan, c,
                                 java.util.Collections.singletonMap("x", present ? q.value() : null)),
@@ -196,6 +209,11 @@ class PostgresArmTest {
         for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
             com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, q.withParameters())
                     .executionPlan("s::RT", output);
+            if (output == com.legend.TypedQuery.Output.TDS_TEXT) {
+                com.legend.testcases.PlanCases.assertTdsTextAnswersAsToday(model, q.withLets(), "s::RT", c, plan, c,
+                        q.values(), output + " " + q.withParameters());
+                continue;
+            }
             java.io.StringWriter today = new java.io.StringWriter();
             switch (output) {
                 case CSV -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
@@ -203,6 +221,7 @@ class PostgresArmTest {
                 case JSON -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
                         com.legend.lowering.WireRender.Format.JSON, today);
                 case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, q.withLets(), "s::RT", c, today);
+                case TDS_TEXT -> throw new IllegalStateException("judged above");
             }
             assertEquals(today.toString(), com.legend.testcases.PlanCases.run(plan, c, q.values()),
                     output + " " + q.withParameters());

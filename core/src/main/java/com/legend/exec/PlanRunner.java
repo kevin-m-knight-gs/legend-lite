@@ -71,7 +71,7 @@ public final class PlanRunner {
             String statement = statement(sql, checked);
             StatementOrigin.sent(statement);
             switch (text.format()) {
-                case CSV, JSON -> {
+                case CSV, JSON, TDS_TEXT -> {
                     boolean[] written = {false};
                     st.query(statement, sql.slots(), values, row -> {
                         if (!written[0]) {

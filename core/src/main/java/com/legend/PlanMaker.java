@@ -32,16 +32,17 @@ final class PlanMaker {
     private PlanMaker() {
     }
 
-    /** {@code query}'s plan on {@code runtime}, its text in the form {@code output} asks for; each declared parameter
-     *  a value the statement binds where it is used. */
-    static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime, TypedQuery.Output output) {
+    /** {@code query}'s plan on {@code runtime}, its text in the form {@code output} asks for, lowered under the
+     *  feature flags {@code features}; each declared parameter a value the statement binds where it is used. */
+    static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime, TypedQuery.Output output,
+            java.util.Set<com.legend.platform.Feature> features) {
         List<QueryParameters.Declared> declared = query.parameters();
         List<com.legend.sql.SqlExpr.PlanParam> slots = new ArrayList<>(declared.size());
         for (QueryParameters.Declared p : declared) {
             // one value, an optional one's absence, or a list as one array (Declared.slot)
             slots.add(p.slot());
         }
-        Compiler.LoweredQuery l = query.lower(runtime, output == TypedQuery.Output.STREAMED_JSON, slots);
+        Compiler.LoweredQuery l = query.lower(runtime, output == TypedQuery.Output.STREAMED_JSON, slots, features);
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
@@ -52,6 +53,7 @@ final class PlanMaker {
         ExecutionPlan.Node node = switch (com.legend.plan.ResultShape.of(l.root())) {
             case GRAPH -> switch (output) {
                 case CSV -> throw new com.legend.error.NotImplementedException("graph results have no CSV wire");
+                case TDS_TEXT -> throw new com.legend.error.NotImplementedException("graph results have no TDS text");
                 case JSON -> text(ExecutionPlan.Format.JSON, objects(root), lowered, dialect, target);
                 case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, objects(root), lowered, dialect, target);
             };
@@ -60,14 +62,47 @@ final class PlanMaker {
                 case JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
                 case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, relation(WireRender.schema(root)),
                         WireRender.rows(lowered), dialect, target);
+                case TDS_TEXT -> tdsText(lowered, root, dialect, target);
             };
             // a value's text is the one-column relation `value`, whole: no row to stream
             case SCALAR, COLLECTION -> switch (output) {
                 case CSV -> wire(WireRender.Format.CSV, lowered, root, dialect, target);
                 case JSON, STREAMED_JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
+                case TDS_TEXT -> tdsText(lowered, root, dialect, target);
             };
         };
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(), node);
+    }
+
+    /**
+     * The whole result as Pure's TDS text (the MongoDB line's homework 2, 2026-10-17: the harness's form on the plan
+     * path, docs/MONGODB_PLAN_2026_10_16.md §6): a relation's own columns, typed by the query; a value's the one-column
+     * relation {@code value}, its column optional only when the value is. A pivot's concrete columns exist only once
+     * the database is asked (the legacy executor's probe, ColumnProbe), so a plan with one is refused by name.
+     */
+    private static ExecutionPlan.TextResult tdsText(SqlQuery lowered, ExprType root, SqlDialect dialect,
+            ExecutionPlan.Target target) {
+        if (!com.legend.lowering.TdsTextWrap.pivots(lowered).isEmpty()) {
+            throw new com.legend.error.NotImplementedException("a pivot's columns are known only once the database is"
+                    + " asked: no TDS text plan for it yet");
+        }
+        Type.RelationType own = Type.schemaView(root.type());
+        Type.RelationType schema;
+        if (own != null) {
+            schema = own;
+        } else {
+            var m = root.multiplicity();
+            boolean optional = m instanceof com.legend.compiler.element.type.Multiplicity.Bounded b && b.lower() == 0
+                    && Integer.valueOf(1).equals(b.upper());
+            schema = new Type.RelationType(List.of(new Type.Column("value", root.type(), optional
+                    ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE
+                    : com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+        }
+        SqlQuery wrapped = com.legend.lowering.TdsTextWrap.wrap(lowered, schema, null, sqlType -> {
+            throw new IllegalStateException("TDS text: an output column outside the query's typed schema (SQL type "
+                    + sqlType + "): the lowering's typed slot is missing");
+        });
+        return text(ExecutionPlan.Format.TDS_TEXT, relation(schema), wrapped, dialect, target);
     }
 
     /** The whole result as one text of {@code format}: the lowered query, of {@code root}'s type, wrapped by the wire. */

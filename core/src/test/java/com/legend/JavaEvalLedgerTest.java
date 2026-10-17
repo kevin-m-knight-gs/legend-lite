@@ -99,7 +99,9 @@ class JavaEvalLedgerTest {
             // census -- two recorder calls (PctCaseRecorder.recordShape, recordShapeError) that write each case's
             // result kind to the outputs under -Dlegend.diagnostics=pct-shapes; a measurement beside the result,
             // nothing evaluated in Java
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 108),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
+            // 108 -> 109 (2026-10-17, the MongoDB line's homework 2, §11.2 of the same plan): the shadow run's one call
+            // (PctShadowPlan.record) beside the result under -Dlegend.diagnostics=pct-shadow-plan; a measurement
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 109),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
@@ -672,7 +674,7 @@ class JavaEvalLedgerTest {
             // planning and sequencing, no value evaluated
             // +12 (leg 3.4 step 2): the declared-columns guard on a planned frame
             // 2332 (leg 3.4 step 2, 2026-09-20): the executor renders each statement with the batch's
-            // frame definitions attached (renderFor) and executePctTds takes the env
+            // frame definitions attached (renderFor) and executeTdsText takes the env
             // 2332 -> 2345 (2026-09-20, lean ladder): a let's frame is not RUN at the let
             // under a verdict batch (one statement per body) — the resultNeeded
             // overload and the reserved activity comment; sequencing, no evaluation
@@ -1108,14 +1110,14 @@ class JavaEvalLedgerTest {
                     // two produced sides and never produces a value.
                     "Equality.java",
                     "H2Settings.java",
-                    "PctProbe.java",
+                    "ColumnProbe.java",   // ColumnProbe, renamed for what it does (2026-10-17)
                     // leg 3.3 (2026-09-19): the wire-decided kinds of a
                     // store-reading verdict side are the DATABASE's — one
                     // prepare (no row fetched), the reported type cast
                     // onto the projection so the canon spells the wire's
                     // kind (the engine types a cell by result-set metadata,
                     // never by the store's declaration; §4t). A schema read
-                    // at the execution seam, PctProbe's own pattern; no
+                    // at the execution seam, ColumnProbe's own pattern; no
                     // value a verdict reads is computed here.
                     "WireTypes.java",
                     // batch 83 (2026-09-06): the engine's execution-trace

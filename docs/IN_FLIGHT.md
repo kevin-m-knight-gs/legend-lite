@@ -1991,6 +1991,13 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   on MongoDB, the CSV and JSON texts compared), the 16 MB bound of the whole-text wires, channel B's statement count.
   What the differential exposed is fixed in the target (the register's S72 to S74 were defects, not decisions, and are
   gone); what it exposed on the DuckDB side is recorded for the platform (§11.2).
+- **Homework 2, 2026-10-17 (the plan's §11.2 item 2)**: the harness-named product code renamed for what it is --
+  `lowering/TdsTextWrap` (was `PctTdsWrap`), `Render.tdsText` (was `pctTds`), `exec/ColumnProbe` (was `PctProbe`),
+  `ExecuteOptions.TDS_TEXT` (was `PCT_RENDER`); the plan path gains `TypedQuery.Output.TDS_TEXT`
+  (`ExecutionPlan.Format.TDS_TEXT`: Pure's TDS text, a value's as the `value` relation, a pivot refused by name) and
+  `executionPlan(runtime, output, features)` for the engine's feature flags; the shadow run
+  (`-Dlegend.diagnostics=pct-shadow-plan`, `PctShadowPlan`) plans every PCT case the same way beside the legacy
+  route and records whether the two agree. A plan is never named for a harness: the plan's forms are Pure's.
 - **Announced to the ninth line (the dialect program), 2026-10-17 -- its Phase 5's shape, landed for one database
   first:** `exec/Statements` (what a session does with a plan's text), `exec/JdbcStatements` (the runner's JDBC, moved
   whole), `exec/DatabaseConnector` and `exec/Connectors` (a connector beside the drivers, found by `ServiceLoader`),

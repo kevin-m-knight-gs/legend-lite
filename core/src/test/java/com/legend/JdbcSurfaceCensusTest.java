@@ -160,7 +160,7 @@ class JdbcSurfaceCensusTest {
             // the wire's self-description, zero queries, zero decode;
             // the CanonicalDivergence pattern with a java.sql import
             "core/src/main/java/com/legend/exec/SqlTypeCensus.java",
-            "core/src/main/java/com/legend/exec/PctProbe.java",
+            "core/src/main/java/com/legend/exec/ColumnProbe.java",   // PctProbe, renamed for what it does (2026-10-17)
             // leg 3.3: the wire-decided kinds read from the prepared statement's metadata
             "core/src/main/java/com/legend/exec/WireTypes.java",
             // SQLTEXT charter §2: the replay-oracle SPI — a pure

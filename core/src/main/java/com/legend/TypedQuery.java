@@ -102,14 +102,14 @@ public final class TypedQuery {
      *  checked against its connections, lowered (I) — every planning step, no database. {@code streaming}: the
      *  streaming graph root (one json_object per row). */
     public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming) {
-        return lower(runtime, streaming, List.of());
+        return lower(runtime, streaming, List.of(), java.util.Set.of());
     }
 
     /** {@link #lower(String, boolean)} with the query's declared parameters as {@code slots}: each {@code $name} of a
      *  slot lowers to it, a value the statement binds (a plan's parameters, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
      *  §9, step 2's landing 2). */
     Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
-            List<com.legend.sql.SqlExpr.PlanParam> slots) {
+            List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
         List<TypedSpec> b = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(
                 new java.util.ArrayList<>(body()));   // Phase G½
         boolean temporalRoot = com.legend.compiler.element.Temporal.anyTemporalGetAll(b, ctx);
@@ -127,6 +127,9 @@ public final class TypedQuery {
         }
         if (streaming) {
             planLw = planLw.withStreamingGraphRoot();
+        }
+        if (!features.isEmpty()) {
+            planLw = planLw.withFeatures(features);
         }
         for (com.legend.sql.SqlExpr.PlanParam slot : slots) {
             planLw.bindPlanParam(slot);
@@ -147,13 +150,24 @@ public final class TypedQuery {
 
     /** The text a caller asks a plan for: CSV, JSON, or JSON whose rows stream as the database answers them (a
      *  relation's rows, a graph fetch's objects; a value's text is whole). */
-    public enum Output { CSV, JSON, STREAMED_JSON }
+    /** The form a plan's text takes: CSV, JSON (the whole result), one JSON object per row, or Pure's TDS text
+     *  (TDS_TEXT: a header of {@code name:Type[multiplicity]} and a row per line in Pure's print forms -- the form
+     *  legend-pure's {@code stringToTDS} reads, so the PCT harness's; a value's is the one-column relation
+     *  {@code value}; 2026-10-17). */
+    public enum Output { CSV, JSON, STREAMED_JSON, TDS_TEXT }
 
     /** The query's execution plan for {@code runtime} (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the text the
      *  database writes in the form {@code output} asks for, final for its target, run by a model-free runner. */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
             Output output) {
-        return PlanMaker.plan(this, runtime, output);
+        return PlanMaker.plan(this, runtime, output, java.util.Set.of());
+    }
+
+    /** {@link #executionPlan(String, Output)} under the engine's execution feature flags ({@code features}: a lowering
+     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name). */
+    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
+            Output output, java.util.Set<com.legend.platform.Feature> features) {
+        return PlanMaker.plan(this, runtime, output, features);
     }
 
     /**

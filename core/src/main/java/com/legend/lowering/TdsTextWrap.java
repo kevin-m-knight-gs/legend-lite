@@ -18,20 +18,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * E1 (JAVA_EVICTION_PLAN): compose the PCT wire-render wrapper around an
- * already-staticized plan — the PLAN emits the wire TDS text
- * ({@link Render#pctTds}). Pure SQL composition (no connection): the
- * caller passes the LIMIT-0 metadata probe's result for pivot plans,
- * whose concrete output columns only exist post-staticize.
+ * Pure's TDS text as a plan projection (E1, JAVA_EVICTION_PLAN; named for what it is, not for the harness that reads
+ * it, 2026-10-17): the wrapper composed around an already-staticized plan, so the PLAN emits the TDS text
+ * ({@link Render#tdsText}) -- the form legend-pure's own {@code stringToTDS} reads, which is why the PCT harness
+ * reads it. Pure SQL composition (no connection): the caller passes the LIMIT-0 metadata probe's result for pivot
+ * plans, whose concrete output columns only exist post-staticize.
  *
  * <p>Pivot column TYPES come from the plan's own TEMPLATE outputs
  * (typed at lowering — backend-independent), never from the probe's
  * aggregate type: the G7 H2 ledger caught the fallback typing SUM
  * columns Decimal on H2 and Integer on DuckDB.
  */
-public final class PctTdsWrap {
+public final class TdsTextWrap {
 
-    private PctTdsWrap() {
+    private TdsTextWrap() {
     }
 
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
@@ -55,7 +55,7 @@ public final class PctTdsWrap {
                         new SqlSource.Subselect(inner0, alias, null))
                 .withOutputs(outs)
                 .withOrderBy(lift.remapped());
-        return Render.pctTds(inner, typedCols, "_pct1");
+        return Render.tdsText(inner, typedCols, "_pct1");
     }
 
     /** Per-output pure types: static schema by name → the plan's pivot
@@ -99,7 +99,7 @@ public final class PctTdsWrap {
                 continue;
             }
             if (!templates.isEmpty()) {
-                throw new IllegalStateException("PCT render: pivot column '"
+                throw new IllegalStateException("TDS text: pivot column '"
                         + oc.name() + "' matches " + hits.size()
                         + " using aliases " + templates.stream()
                                 .map(SqlSource.Pivot.Using::alias).toList()
@@ -149,7 +149,7 @@ public final class PctTdsWrap {
             if (!(inner0 instanceof SqlSelect ps2)
                     || ps2.projections().isEmpty()) {
                 throw new com.legend.error.NotImplementedException(
-                        "PCT render: a non-output sort key over a"
+                        "TDS text: a non-output sort key over a"
                         + " star-projected plan cannot hoist");
             }
             String hn = "_pct_ord" + ord++;
@@ -205,7 +205,7 @@ public final class PctTdsWrap {
         // `: "VARCHAR"` — the banned default->"String" shape respelled
         // as a ternary, invisible to the fallback guard. An untyped
         // slot is an upstream typed-slot gap and WALLS
-        throw new IllegalStateException("PCT render: output column"
+        throw new IllegalStateException("TDS text: output column"
                 + " carries no scalar SqlType (" + t + ") — fix the"
                 + " typed slot upstream; never a silent VARCHAR");
     }

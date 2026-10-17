@@ -1616,8 +1616,12 @@ public final class MongoDb extends AnsiSqlRenderer {
                     case HOUR2 -> "%H";
                     case MIN2 -> "%M";
                     case SEC2 -> "%S";
-                    case SUBSEC_MICRO, SUBSEC_NANO, SUBSEC_MIN -> throw new DialectCapability("a date format with a"
-                            + " " + part + " part reached MongoDb, whose date holds milliseconds (%L)");
+                    // a BSON date holds milliseconds, so its microsecond and nanosecond digits are zeros: the text
+                    // is exact (the TDS text's DateTime cell reads the first three of six, 2026-10-17)
+                    case SUBSEC_MICRO -> "%L000";
+                    case SUBSEC_NANO -> "%L000000";
+                    case SUBSEC_MIN -> throw new DialectCapability("a date format with a " + part + " part reached"
+                            + " MongoDb, whose date holds milliseconds (%L)");
                     case MONTH_ABBREV, MONTH_NAME, WEEKDAY_NAME, HOUR12, HOUR12_NOPAD, AMPM -> throw
                             new DialectCapability("a date format with a " + part + " part reached MongoDb, whose"
                                     + " $dateToString has no code for it");

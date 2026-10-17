@@ -10653,6 +10653,37 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-17 — Pure's TDS text as a plan output; the harness-named product code renamed; the PCT shadow run
+
+The plan: `docs/MONGODB_PLAN_2026_10_16.md` §11.2 item 2 (the record). The line: `docs/IN_FLIGHT.md`, the twelfth
+line. The user's word (2026-10-17): a plan never references a test harness; the forms are Pure's.
+
+What changed:
+1. **The rename**: `lowering/TdsTextWrap` (was `PctTdsWrap`), `Render.tdsText` and its cell helpers (were `pctTds`,
+   `pctCell`, `pctHeader`...), `exec/ColumnProbe` (was `PctProbe`), `ExecuteOptions.TDS_TEXT` and its `tdsText`
+   component (were `PCT_RENDER`, `pctRender`), `StatementExecutor.executeTdsText`. The SQL aliases inside the text
+   are unchanged: every lane's SQL is byte-identical. The guards' allowlists carry the new names (`ArchitectureTest`,
+   `JavaEvalLedgerTest`, `JdbcSurfaceCensusTest`: a rename, not a pin).
+2. **The plan output**: `TypedQuery.Output.TDS_TEXT`, `ExecutionPlan.Format.TDS_TEXT` (the runner passes the one
+   text), `PlanMaker.tdsText` (a relation's own columns; a value's the `value` relation; a pivot refused by name),
+   `TypedQuery.executionPlan(runtime, output, features)` and `lower(..., features)` for the engine's feature flags.
+   `Render.tdsTextCell` prints a text-carried date (a value root's) as its text.
+3. **The shadow run**: the diagnostics switch `pct-shadow-plan` and `PctShadowPlan` in the PCT harness, writing
+   `pct-shadow-plan.tsv` per suite. Measured on the five DuckDB suites: 2,621 cases, 81% agree as is; the rest is
+   row order (230), the reader's quoting and empty forms (62), and two named gaps -- a Date value's precision (170)
+   and class instances (16) -- for the user to rule on (the plan's §11.2 item 2).
+4. **The MongoDB differential** gains TDS text cases (`tds_*`: a relation, a group, a float value, a quoted
+   collection, dates, an empty relation, null cells), and the target spells the microsecond and nanosecond
+   format parts exactly (`%L000`, `%L000000`: a BSON date holds milliseconds, so the finer digits are zeros)
+   where it refused them, since the TDS text's DateTime cell reads the first three of six.
+
+What judges it: `//core:core_tests_root` (`PlanMakerTest`: every output form, `TDS_TEXT` included, against today's
+path on DuckDB and H2; a declared parameter's wider type judged by the plan's own header), `//core:core_tests_sql`,
+`//core:core_tests_exec`, `//core:core_tests_lowering`, `//core:census` (the Java-evaluation ledger's PctExecuteNative
+pin 108 -> 109, the shadow call), `//core:guardrails`, `//docs:update_dialect_capability_test` pass; the five
+`//pct:pct_duckdb_*` suites pass with the shadow switch on and off; `//core:mongodb_plan_test` on the embedded
+MongoDB. `PostgresArmTest` (manual) carries the same arm, not run here.
+
 ## 2026-10-17 — MongoDB: the homework before the PCT lane (a differential in miniature, the shape census, the bounds)
 
 The plan: `docs/MONGODB_PLAN_2026_10_16.md` §11.2 (the record) and §9 (the measurements it settled). The line:

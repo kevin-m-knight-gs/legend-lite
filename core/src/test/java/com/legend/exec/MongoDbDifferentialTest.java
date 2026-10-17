@@ -104,6 +104,20 @@ class MongoDbDifferentialTest {
             new Case("json_dates", PEOPLE + "->extend(~d: x | %2020-01-15->adjust($x.id, DurationUnit.DAYS))"
                     + "->extend(~t: x | %2020-01-15T10:20:30->adjust($x.id, DurationUnit.HOURS))->select(~[name, d, t])"
                     + "->sort(~name->ascending())", TypedQuery.Output.JSON),
+            // Pure's TDS text (TypedQuery.Output.TDS_TEXT, the PCT harness's form on the plan path, 2026-10-17)
+            new Case("tds_relation", PEOPLE + "->filter(x | $x.age > 30)->select(~[name, age, city])"
+                    + "->sort(~name->ascending())", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_group", PEOPLE + "->groupBy(~city, ~[n: x | $x.name : y | $y->count(), a: x | $x.age : y | $y->average()])"
+                    + "->sort(~city->ascending())", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_scalar_float", "7 / 2", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_collection", "['a,b', 'c\\'d', 'e']", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_dates", PEOPLE + "->extend(~d: x | %2020-01-15->adjust($x.id, DurationUnit.DAYS))"
+                    + "->extend(~t: x | %2020-01-15T10:20:30->adjust($x.id, DurationUnit.HOURS))->select(~[name, d, t])"
+                    + "->sort(~name->ascending())", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_date_value", "%2020-01-15T10:20:30.123->adjust(1, DurationUnit.MINUTES)", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_empty", PEOPLE + "->filter(x | $x.age > 100)->select(~[name])", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_null_cells", PEOPLE + "->extend(~n: x | if($x.age > 30, |$x.age, |[]))->select(~[name, n])"
+                    + "->sort(~name->ascending())", TypedQuery.Output.TDS_TEXT),
             new Case("distinct", PEOPLE + "->select(~city)->distinct()->sort(~city->ascending())"),
             new Case("inner_join", PEOPLE + "->join(" + CITIES + ", JoinKind.INNER, {a, b | $a.city == $b.town})"
                     + "->select(~[name, country])->sort(~name->ascending())"),

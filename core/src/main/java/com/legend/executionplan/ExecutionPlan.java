@@ -97,7 +97,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         /** the whole result as one JSON text */
         JSON,
         /** one JSON object per row; the runner writes the array's brackets and commas */
-        JSON_PER_ROW
+        JSON_PER_ROW,
+        /** the whole result as Pure's TDS text: a header of {@code name:Type[multiplicity]}, each row on its own
+         *  line, cells in Pure's print forms (the form legend-pure's {@code stringToTDS} reads; 2026-10-17) */
+        TDS_TEXT
     }
 
     /** What a {@link TextResult} is of: a relation's columns, or a value's type and multiplicity. */

@@ -766,7 +766,7 @@ final class ArchitectureTest {
             java.util.Map.entry("ExecutionResult", 2),
             java.util.Map.entry("Executor", 7),
             java.util.Map.entry("GridProbe", 3),
-            java.util.Map.entry("PctProbe", 1),
+            java.util.Map.entry("ColumnProbe", 1),   // PctProbe, renamed for what it does (2026-10-17)
             java.util.Map.entry("PureAsserts", 1),
             java.util.Map.entry("Sessions", 2),
             java.util.Map.entry("SetupRunner", 3),

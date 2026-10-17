@@ -392,11 +392,16 @@ class PlanMakerTest {
             var dialect = Databases.dialect(type);
             com.legend.exec.SetupRunner.run(com.legend.setup.CsvSeed.declaredSteps("s::RT", ctx, dialect), today,
                     dialect, null);
+            if (output == TypedQuery.Output.TDS_TEXT) {
+                PlanCases.assertTdsTextAnswersAsToday(model, query, "s::RT", today, plan, planned, values, what);
+                return;
+            }
             StringWriter out = new StringWriter();
             switch (output) {
                 case CSV -> Execution.executeWire(model, query, "s::RT", today, WireRender.Format.CSV, out);
                 case JSON -> Execution.executeWire(model, query, "s::RT", today, WireRender.Format.JSON, out);
                 case STREAMED_JSON -> Execution.executeStreaming(model, query, "s::RT", today, out);
+                case TDS_TEXT -> throw new IllegalStateException("judged above");
             }
             assertEquals(out.toString(), PlanCases.run(plan, planned, values), what);
         }

@@ -159,12 +159,13 @@ public class PctExecuteNative extends NativeFunction {
             // one flag selects between them.
             // a storeless expression executes on the lane's declared runtime, as the engine's PCT
             // adapter gives it one (StorelessRuntime)
-            ExecutionResult result = new QueryService().execute(PctBackend.withStorelessRuntime(model), pureExpression, com.legend.test.StorelessRuntime.RUNTIME, connection, com.legend.ExecuteOptions.PCT_RENDER.withFeatures(
+            ExecutionResult result = new QueryService().execute(PctBackend.withStorelessRuntime(model), pureExpression, com.legend.test.StorelessRuntime.RUNTIME, connection, com.legend.ExecuteOptions.TDS_TEXT.withFeatures(
                             java.util.Set.of(com.legend.platform.Feature
                                     .CORRECT_SQL_SUBSTRING_INDEXING))
                     // a server lane's system connection: where a metamodel-reading query runs (PctBackend)
                     .withSystemConnections(PctBackend.systemConnections()));
             PctCaseRecorder.recordShape(pureExpression, result);   // the shape census: -Dlegend.diagnostics=pct-shapes
+            PctShadowPlan.record(model, pureExpression, result);   // the plan path beside it: -Dlegend.diagnostics=pct-shadow-plan
             return switch (result) {
                 case ExecutionResult.TdsText t -> {
                     System.out.println("[LegendLite PCT] TDS: "

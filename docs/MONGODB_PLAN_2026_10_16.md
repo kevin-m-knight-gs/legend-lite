@@ -109,11 +109,11 @@ Facts the plan stands on, each read in the tree:
   (`setObject`, `setNull`, `createArrayOf`), and carries the one text column the database wrote. The legacy path
   (`StatementExecutor`, `exec/Executor` with its 24 `ResultSet` sites, `Execution.execute*`) still serves the server, the
   corpus and PCT channel A (`PctExecuteNative` → `QueryService.execute(model, query, runtime, Connection,
-  ExecuteOptions.PCT_RENDER)`); the database owner's line is deleting it ("step 4: the callers switch, the old paths
+  ExecuteOptions.TDS_TEXT)`, `PCT_RENDER` until 2026-10-17); the database owner's line is deleting it ("step 4: the callers switch, the old paths
   deleted", `docs/IN_FLIGHT.md` line 3).
 - **The wire is written by the database**, never assembled in Java: `lowering/WireRender.wrap` composes the CSV or JSON
   text of the whole result as one SQL value (`Render.csvWire`, `jsonWire`, `jsonWireRows`), and PCT's TDS text the same
-  way (`Render.pctTds`: header from the typed schema, rows newline-prefixed, cells in Pure's print forms). The runner
+  way (`Render.tdsText`: header from the typed schema, rows newline-prefixed, cells in Pure's print forms). The runner
   carries a string (Charter C1.2). Parameters never touch text (`EXECUTION_PLAN_BOUNDARY` P3: "JDBC bind parameters for
   SQL; a command document's values for a future Mongo-like store").
 - **The harness.** `PctBackend.Lane` (an enum, one arm per database: `open()`, `openSystem()`, the storeless runtime's
@@ -249,7 +249,7 @@ as stage records first and written once (a dialect-private intermediate, as the 
 nodes), which keeps each stage testable; the MIR itself does not change.
 - Pros: invariant 3a holds ("new dialect = one class; MIR does not change"); the Lowerer, the resolver, the mappings,
   the folds, the windows and the carriers are reused whole; the vocabulary guard, the capability matrix and the reach
-  measurement apply with no edit; the wire wraps (`csvWire`, `jsonWire`, `pctTds`) are IR compositions, so they are
+  measurement apply with no edit; the wire wraps (`csvWire`, `jsonWire`, `tdsText`) are IR compositions, so they are
   rendered by the target like any select; PCT's storeless path reaches it; Elasticsearch later takes the same seam.
 - Cons: the IR is SQL-shaped (one select with FROM, JOIN, WHERE, GROUP BY; subselects as the one nesting) and a
   pipeline is linear, so joins, correlated subqueries and exists tests are emulations (`$lookup` with `let`, then
@@ -532,7 +532,7 @@ arms it lacks (`$median`, `$percentile`, the bitwise operators).
 **What is decided.** Who turns a result into the CSV, JSON or PCT TDS text a consumer receives.
 
 **Option A, the pipeline writes the whole text, as SQL does (recommended for PCT and whole results).** The IR wraps
-(`csvWire`, `jsonWire`, `pctTds`) are compositions over the lowered query, so the target renders them like any select:
+(`csvWire`, `jsonWire`, `tdsText`) are compositions over the lowered query, so the target renders them like any select:
 each cell to text (`$toString`, `$dateToString`, the Float and Decimal forms emulated where `$toString` differs from
 `Scalars.floatRepr`), rows joined in order, the whole as one string in one document's one field, carried by the
 connector.
@@ -706,7 +706,7 @@ driver's own `BsonDocument.parse`.
 | `DateLit`, `TimestampLit`, date parts and formats | `{"$date": ...}` literals, `$dateAdd`, `$dateDiff`, `$dateTrunc`, `$dateToString` with the format the `formatText` switch spells, `$year`.. `$isoWeek`, `$dayOfWeek` |
 | `RawSql` (written for Mongo) | the text is a pipeline array written by the user, run as written (D2); the engine's H2 text refused by name |
 | `Catalog` | `listCollections` is a command, not a stage: refused as a grid in the first landings (Postgres refuses it too today); DataCube's catalog goes through `catalogType` (D6) |
-| the wires (`csvWire`, `jsonWire`, `pctTds`) | the same composition, in `$project`/`$setWindowFields`/`$group`/`$reduce` (D10) |
+| the wires (`csvWire`, `jsonWire`, `tdsText`) | the same composition, in `$project`/`$setWindowFields`/`$group`/`$reduce` (D10) |
 
 **The vocabulary**: `call` is one switch over `SqlFn` (206), `reducer` one over `SqlAgg.Fn` (21), each arm one
 expression: spelled (`$abs`, `$ceil`, `$floor`, `$round`, `$trunc`, `$sqrt`, `$pow`, `$exp`, `$ln`, `$log10`, `$mod`,
@@ -814,14 +814,14 @@ the funnel rule sees them, and `DialectBoundaryTest`'s driver census names the d
 
 - **Channel A** (`PctExecuteNative`): the expression and its injected model execute on the lane's storeless runtime.
   Today the bridge hands a `java.sql.Connection` to `QueryService.execute` and the result comes back through the
-  legacy executor (`ExecutionResult.TdsText` under `PCT_RENDER`). On Mongo the bridge hands the connector's session,
-  and the result comes through the plan path: `TypedQuery.executionPlan` gains a `PCT_TDS` output (the plan emits
-  `Render.pctTds`'s text, the E1 precedent) and `PlanRunner.run` carries it. That is the database owner's step 4 ("the
+  legacy executor (`ExecutionResult.TdsText` under `ExecuteOptions.TDS_TEXT`, named `PCT_RENDER` until 2026-10-17). On Mongo the bridge hands the connector's session,
+  and the result comes through the plan path: `TypedQuery.executionPlan` gains a `TDS_TEXT` output (the plan emits
+  `Render.tdsText`'s text, the E1 precedent; landed 2026-10-17, §11.2) and `PlanRunner.run` carries it. That is the database owner's step 4 ("the
   callers switch") applied to one caller first (§8.2); it also means the Mongo lane never touches the 24 `ResultSet`
   sites of `Executor`.
 - **Channel B** (`ChannelB`): lite's own compiler runs the PCT sources on the lane's database; nothing Mongo-specific
   beyond the session.
-- **The census** (`SqlTypeCensus`, `PctCensusGate`): the wire is one text, as it is on every lane under `PCT_RENDER`;
+- **The census** (`SqlTypeCensus`, `PctCensusGate`): the wire is one text, as it is on every lane under the TDS text option;
   the lane's ceilings are measured on its own target.
 - **What to expect** (from the shape of the other lanes, to be measured, never promised): lists, structs, maps and
   Variant are native, so the H2-class refusals (48) do not appear; dates carry milliseconds (microsecond cases pin,
@@ -869,7 +869,7 @@ is a pure move proven by the lane dumps; PR2 to PR6 add Mongo's own files and th
    `QueryTarget` supertype in Phase 5 (recommended, D2) or Mongo implements `SqlDialect` whole as a first cut is the
    program's call to make with the user; either way `Databases` keeps one exhaustive switch per fact. This program
    owns every file under `sql/dialect/`: Mongo's files there are announced in its section and merged between its phases.
-2. **To the fourth line (the database owner), for step 4.** A `PCT_TDS` output of the plan path (`TypedQuery.Output`,
+2. **To the fourth line (the database owner), for step 4.** A `TDS_TEXT` output of the plan path (`TypedQuery.Output`,
    `PlanMaker`), so PCT channel A can run through `PlanRunner` on a lane with no JDBC session; and the order in which
    the old executor paths go, so Mongo never gains a `ResultSet` reader of its own. The plan's text format and the
    runner's dispatch on a statement's language are its files (`executionplan/ExecutionPlan`, `exec/PlanRunner`,
@@ -977,7 +977,7 @@ Read in this tree at 59b547a (main, 2026-10-16), each cited above by path:
   `DialectCapability.java`; `sql/SqlSource.java`, `SqlSelect.java`, `SqlExpr.java`, `SqlFn.java`, `SqlAgg.java`;
   `database/Databases.java`, `Target.java`; `model/ConnectionDefinition.java`; `exec/Sessions.java`, `Executor.java`,
   `PlanRunner.java`, `BulkLoad.java`; `executionplan/ExecutionPlan.java`; `PlanMaker.java`; `Compiler.java`
-  (`dialectOf`, `executesOn`); `lowering/WireRender.java`, `Render.java` (`pctTds`), `PctTdsWrap.java`;
+  (`dialectOf`, `executesOn`); `lowering/WireRender.java`, `Render.java` (`tdsText`), `TdsTextWrap.java`;
   `test/StorelessRuntime.java`; `parser/section/MongoDBSectionGrammar.java`, `MappingProtocolParser.java`,
   `protocol/Protocol.java`, `ConnectionReader.java`, `model/FromProtocol.java`, `MappingFromProtocol.java`;
   `core/src/test/java/com/legend/ArchitectureTest.java` (`JDBC_AND_DRIVERS`, the funnel rules), `DatabaseOwners.java`;
@@ -1089,7 +1089,7 @@ SQL that v0 kept were `docs/SEMANTICS_REGISTER.md` S72 to S75; the homework's di
 to be defects of the target and they are fixed and gone, and S75 to be the SQL side's (a platform item, kept).
 
 **What v0 leaves, in order.** (1) **The PCT lane**: the harness's channel A hands a `java.sql.Connection` to
-`QueryService.execute` (`PctExecuteNative`), the legacy route; the Mongo lane needs §6's plan route (`PCT_TDS` as a
+`QueryService.execute` (`PctExecuteNative`), the legacy route; the Mongo lane needs §6's plan route (`TDS_TEXT` as a
 plan output, the bridge through `PlanRunner`), which is the next landing -- so no `PctBackend.Lane.MONGODB` is
 scaffolded that could not run. (2) Joins, unions and the ordered and distinct aggregates are written and rendered but
 not yet measured on the server; windows (`$setWindowFields`), pivots, as-of and lateral joins, subqueries in
@@ -1121,9 +1121,39 @@ is a fact the lane's design rests on, not a promise.
    null, class instances, `List`, `Map`, `Pair`, enumeration values (4 `DayOfWeek`), a `Type` (4), and a
    collection with a declared element type when empty -- the `TDSResult` form carries all of it today for 20% of
    the cases, and the scalar and collection forms are the `value` relation of the same text (§6's one representation).
-2. **The TDS text as a plan output, and the shadow run** (the rename of the harness-named wrap, `Output.TDS_TEXT`
-   with feature flags on the plan path, the DuckDB lane run both ways and compared): not yet; the next step, after this
-   record lands.
+2. **The TDS text as a plan output, and the shadow run.** (a) *The rename* (the user, 2026-10-17: "why would a plan
+   have a reference to a test harness?"): the product code is named for what it is -- `lowering/TdsTextWrap` (was
+   `PctTdsWrap`), `Render.tdsText` (was `pctTds`), `exec/ColumnProbe` (was `PctProbe`), `ExecuteOptions.TDS_TEXT` (was
+   `PCT_RENDER`); the SQL aliases inside the text (`_pct0`, `_pct_line`, the `pctTds` column) are unchanged, so every
+   lane's SQL is byte-identical. (b) *The plan output*: `TypedQuery.Output.TDS_TEXT` and `ExecutionPlan.Format.TDS_TEXT`
+   -- Pure's TDS text as the plan's text, a relation's own columns, a value's the one-column relation `value` (its
+   column optional only when the value is), a pivot refused by name (its columns exist only once the database is
+   asked: the legacy executor's probe); `executionPlan(runtime, output, features)` carries the engine's feature flags
+   to the lowering (`CORRECT_SQL_SUBSTRING_INDEXING`, the PCT's). `PlanMakerTest` judges the form against today's path
+   on DuckDB and H2 for every case it has (a let-bound literal types its column more precisely than a declared
+   parameter -- `Decimal(38,2)` against `Decimal`, `StrictDate` against `Date` -- so those are judged by the plan's own
+   header). (c) *The shadow run* (`-Dlegend.diagnostics=pct-shadow-plan`; `PctShadowPlan` beside `PctExecuteNative`:
+   each case planned to `TDS_TEXT` under the same flags, run by `PlanRunner` on the lane's storeless runtime, compared
+   with the legacy route's result; `pct-shadow-plan.tsv` in each suite's outputs; the run:
+   `bazel test //pct:pct_duckdb_{essential,grammar,relation,standard,unclassified}
+   --jvmopt=-Dlegend.diagnostics=pct-shadow-plan`, about 7 minutes, the suites' own pins untouched). 2,621 cases
+   shadowed (the 34 that error before a result are not). **Agree: 2,121 (81%)** -- 273 relation texts equal whole,
+   1,848 values equal row for row. **Relation texts, 251**: 230 differ in row order alone (no `ORDER BY` in the query;
+   the database's order for the two paths' different SQL shapes), 1 by design (`generateGuid`), 20 refused (the
+   pivots). **Values, 248**: 170 dates -- a Date value through the legacy route prints with the precision the value
+   has (`2015-04-15T13:12:11+0000`; `.338001` after a microsecond adjust), the TDS text with three millisecond digits
+   (`T13:12:11.000+0000`; `.338`) as the engine's TDS writer spells a `TIMESTAMP` column, since a SQL slot carries an
+   instant and not a precision (the first run also had 114 strftime errors over date values carried as text, fixed:
+   `Render.tdsTextCell` prints a text-carried date as its text); 35 empty collections (the text is the header and a
+   newline, the legacy no values: the same to the reader); 27 strings in an `Any[*]` quoted by the TDS cell (`'a'`,
+   which the reader unquotes); 16 class instances and maps (the TDS text has no form for them; the legacy route hands a
+   map, the Pure side an instance). **What this settles for the lane**: one text per case carries 81% as is, the row
+   order and the quoting are the reader's, and the two gaps are named -- a Date value's PRECISION (Pure's value
+   semantics, which the legacy route infers from the instant's zero fraction and the TDS text cannot carry over a
+   `TIMESTAMP` slot: either the lowering spells a date value as Pure's own literal text, with its precision, or the
+   lane pins the date-precision cases as upstream's relational adapters do) and class instances (16 + 9 cases: the
+   graph route). Both are the user's decision before the Mongo lane's channel A is wired; the measurement is recorded,
+   the route is built.
 3. **The differential in miniature** (`MongoDbDifferentialTest`, in `//core:mongodb_plan_test`; the verdicts in
    `mongodb-differential.tsv` under the test's outputs and on its standard output): 55 storeless cases shaped like the
    suites', planned to the CSV wire (two to the JSON wire) on DuckDB and on MongoDB, run on both, the texts compared.
@@ -1137,8 +1167,8 @@ is a fact the lane's design rests on, not a promise.
    (S73) -- the pushed values carry each key's null flag; (f) `SUM` over an all-null group answering 0 (S72) -- a
    count rides beside the sum; (g) an integral double printing as `2` and a big or small one in scientific notation
    (S74 and the §9 item 4 measurement) -- a number's text is spelled through the platform's portable form over
-   `$toString`'s text. The last run: 51 EQUAL, 2 DIFFERENT, 2 REFUSED (a pivot and a window function, named later
-   landings). The two differences are the DuckDB side's, recorded for the platform and not Mongo's to fix:
+   `$toString`'s text. The last run (63 cases, the eight TDS text cases of item 2 included): 59 EQUAL, 2 DIFFERENT, 2 REFUSED (a pivot
+   and a window function, named later landings). The two differences are the DuckDB side's, recorded for the platform and not Mongo's to fix:
    `(0.1 + 0.2)->toString()` prints `0.3` on DuckDB's plan path (the NUMERIC CHARTER's bare float literal is typed
    `DECIMAL` by DuckDB, so the sum is exact decimal arithmetic) where Pure and MongoDB print `0.30000000000000004`;
    and the JSON wire's date-time text is each database's JSON writer's (`2020-01-15 11:20:30` on DuckDB) where Pure
@@ -1157,6 +1187,8 @@ is a fact the lane's design rests on, not a promise.
    driver, not a case. So channel B on Mongo needs no `Sequence` plan: every case is one statement, one command.
 
 What the homework changes in the plan: §6's channel A route is confirmed as one text per case in Pure's own TDS form
-(item 1: the forms are three, the text is one); the differential stays in `//core:mongodb_plan_test` as the line's
-standing measurement, grown with each landing (item 3); the lane's size estimate is unchanged. The measurements
-that remain open are §9's items 2, 6, 7, 11, 12 and 13.
+(item 1: the forms are three, the text is one), built as `Output.TDS_TEXT` and measured by the shadow run (item 2:
+81% carried as is, two named gaps for the user to rule on -- a Date value's precision, class instances); the
+differential stays in `//core:mongodb_plan_test` as the line's standing measurement, grown with each landing (item 3,
+now with TDS text cases); the lane's size estimate is unchanged. The measurements that remain open are §9's items 2,
+6, 7, 11, 12 and 13.
