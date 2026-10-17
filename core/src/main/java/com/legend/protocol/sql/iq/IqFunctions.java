@@ -2166,15 +2166,12 @@ final class IqFunctions {
     /**
      * {@code STUFF(s, start, length, replacement)}: s with its length characters from start replaced; a NULL
      * replacement deletes them. NULL when s, start or length is NULL, start is below 1 or beyond the string's length
-     * plus 1, or length is negative (measured: start = length + 1 appends). IQ's manual answers NULL for start = length
-     * + 1 (the research's D-F3, not yet verified): refused under the IQ engine.
+     * plus 1, or length is negative (measured: start = length + 1 appends). IQ island, 2026-10-17 (the differential
+     * fuzzer's fifth round; measured on IQ 17.1, the research's D-F3): IQ's engine appends at start = length + 1 too,
+     * where its manual says NULL, and a length past 32,767 is NULL there.
      */
     private Tx stuff(String name, SqlAst.FunctionCall f, List<Tx> args) {
-        if (engine == IqDialect.Engine.IQ) {
-            throw SqlTranslationException.unsupported(name + " is not supported under the IQ engine yet: at a start"
-                    + " just past the string SQL Anywhere appends, IQ's manual answers NULL (the research's D-F3, not"
-                    + " yet verified)", f.pos());
-        }
+        boolean iq = engine == IqDialect.Engine.IQ;
         Tx s = text(args.get(0), f.args().get(0), name);
         Tx start = count(args.get(1), f.args().get(1), name);
         Tx len = count(args.get(2), f.args().get(2), name);
@@ -2189,6 +2186,9 @@ final class IqFunctions {
                     SqlToPure.call("greaterThanEqual", p, integer(1)), SqlToPure.call("greaterThanEqual", n,
                             integer(0))), SqlToPure.call("lessThanEqual", p, AppliedFunction.infixRun("plus",
                     List.of(SqlToPure.call("length", str), integer(1)))));
+            if (iq) {
+                valid = SqlToPure.call("and", valid, SqlToPure.call("lessThanEqual", n, integer(32767)));
+            }
             ValueSpecification value = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("left", str,
                     AppliedFunction.infixRun("minus", List.of(p, integer(1)))), replacement,
                     SqlToPure.call("substring", str, AppliedFunction.infixRun("plus", List.of(p, n)))));

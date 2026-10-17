@@ -1181,6 +1181,8 @@ lite/corpus_gaps/days_and_weeks_from_year_zero@iq17-default	PASS	PASS
 lite/corpus_gaps/hours_minutes_and_seconds_from_year_zero@iq17-default	PASS	PASS
 lite/corpus_gaps/days_from_year_zero_at_the_calendar_s_edges@iq17-default	PASS	PASS
 lite/corpus_gaps/days_of_one_date_in_sql_anywhere@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/stuff_under_iqs_engine@iq17-default	PASS	PASS
+lite/corpus_gaps/stuff_at_its_edges_under_iqs_engine@iq17-default	PASS	PASS
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR
@@ -4070,8 +4072,8 @@ lite/m1d/stuff_nulls_and_negatives@iq16-default	PASS	PASS
 lite/m1d/stuff_nulls_and_negatives@iq17-default	PASS	PASS
 lite/m1d/stuff_of_column_starts@sqla17-default	PASS	PASS
 lite/m1d/stuff_in_sql_anywhere@sqla17-default	PASS	PASS
-lite/m1d/stuff_under_the_iq_engine_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1d/stuff_under_the_iq_engine_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1d/stuff_under_the_iq_engine_is_refused@iq16-default	PASS	PASS
+lite/m1d/stuff_under_the_iq_engine_is_refused@iq17-default	PASS	PASS
 lite/m1d/ascii_constants@iq16-default	PASS	PASS
 lite/m1d/ascii_constants@iq17-default	PASS	PASS
 lite/m1d/char_codes@iq16-default	PASS	PASS

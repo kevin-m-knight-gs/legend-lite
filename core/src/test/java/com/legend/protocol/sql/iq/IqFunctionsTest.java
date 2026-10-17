@@ -309,12 +309,14 @@ class IqFunctionsTest {
     @Test
     void whatTheIqEngineTypesOrComputesOtherwiseIsRefusedByItsDecision() {
         String[][] decided = {
-                {"SELECT STUFF(vc, 1, 1, 'x') AS s FROM " + T, "D-F3"},
                 {"SELECT PATINDEX('%', vc) AS p FROM " + T, "D-F6"},
         };
         for (String[] d : decided) {
             assertTrue(refusal(d[0]).getMessage().contains(d[1]), d[0]);
         }
+        // IQ island, 2026-10-17 (D-F3, measured on IQ 17.1): STUFF appends at a start just past the string under IQ's
+        // engine too, and a length past 32,767 is NULL there
+        assertTrue(pure("SELECT STUFF(vc, 1, 1, 'x') AS s FROM " + T).contains("32767"));
         // IQ island, 2026-10-15 (checklist 0.5; D-C2, D-N6, D-C1, measured on IQ 17.1): under IQ's engine a longer
         // string is cut to the target's bytes (characters in ISO-8859-1, whole characters in UTF-8), a DOUBLE to a
         // NUMERIC is its DOUBLE product cut toward zero, a NUMERIC whose text is too long raises for that row

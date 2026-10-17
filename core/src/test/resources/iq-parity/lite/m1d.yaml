@@ -372,6 +372,8 @@ tests:
   - id: stuff_in_sql_anywhere
     sql: "SELECT id, STUFF(vc, 2, 1, '#') AS s FROM t ORDER BY id"
     profile: sqla17-default
+  # IQ island, 2026-10-17 (D-F3, measured on IQ 17.1): read under IQ's engine too (stuff_under_iqs_engine in
+  # corpus_gaps), the id kept from when it was refused
   - id: stuff_under_the_iq_engine_is_refused
     sql: "SELECT STUFF(vc, 2, 1, '#') AS s FROM t WHERE id = 1"
 

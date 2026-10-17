@@ -2036,6 +2036,15 @@ tests:
     sql: "SELECT DAYS(CAST('2020-01-15' AS DATE)) AS a"
     profile: iq17-default
 
+  # ---- STUFF under IQ's engine (IQ island, 2026-10-17; the differential fuzzer's fifth round, measured on IQ 17.1, the
+  # research's D-F3): a start just past the string appends, as in SQL Anywhere's front end; a length past 32,767 is NULL
+  - id: stuff_under_iqs_engine
+    sql: "SELECT id, STUFF(vc, 2, 1, 'Q') AS a, STUFF(vc, 3, 2, '') AS b, STUFF(vc, LENGTH(vc), 1, 'Z') AS c, STUFF(vc, LENGTH(vc) + 1, 0, 'Z') AS d, STUFF(ch, 6, 0, 'Q') AS e, STUFF(vc, 2, 1, NULL) AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: stuff_at_its_edges_under_iqs_engine
+    sql: "SELECT id, STUFF(vc, 0, 1, 'Q') AS a, STUFF(vc, 7, 1, 'Q') AS b, STUFF(vc, -1, 1, 'Q') AS c, STUFF(vc, 2, -1, 'Q') AS d, STUFF(vc, 2, 10, 'Q') AS e, STUFF(vc, 2, 32767, 'Q') AS f, STUFF(vc, 2, 32768, 'Q') AS g FROM t ORDER BY id"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where
