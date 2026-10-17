@@ -332,8 +332,8 @@ island's reason, those IQ answers, and what became of them:
   RECOMPILE: IQ's OPTION sets options, name = value); SPLIT_STRING is its -265;
 - a LIKE pattern whose [ no ] closes (the lane's 5; measured on IQ 17.1): its engine's -1001047, over no rows too;
   its front end matches nothing by one (not built: refused);
-- not built, recorded: LATERAL in FROM (IQ's engine's -1001030; the front end reads it; the lane's 4: its marker
-  would need telling it from APPLY's), CAST of a timestamp to FLOAT (IQ's engine a REAL count of microseconds, a
+- LATERAL (SELECT ...) in FROM (the lane's 4; measured on IQ 17.1): its engine's -1001030 (the front end reads it:
+  refused by name). A closing parenthesis no opening one matches is -131. Not built, recorded: CAST of a timestamp to FLOAT (IQ's engine a REAL count of microseconds, a
   date's of days; the front end's days; SEDE's 4, T-SQL's date truncation through a float, which means nothing
   there);
 - open, error order (the claim verification's residue, 2026-10-17: 34 of 879 claims name another code than IQ's):

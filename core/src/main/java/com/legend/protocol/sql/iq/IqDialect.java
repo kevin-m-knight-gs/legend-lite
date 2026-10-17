@@ -404,6 +404,13 @@ public final class IqDialect implements InputDialect {
                 throw com.legend.protocol.sql.SqlSyntaxException.unsupported(refusal, cast.pos());
             }
         }
+        if (!read.laterals().isEmpty()) {
+            // IQ island, 2026-10-17 (the corpus lane's 4; measured on IQ 17.1): a lateral derived table is its engine's
+            // -1001030; SQL Anywhere's front end reads one, which the island does not yet
+            throw SqlTranslationException.unsupported(statementEngine == Engine.IQ ? "LATERAL in FROM is IQ's error"
+                    + " -1001030 under its engine (a lateral derived table is not supported), refused before translating"
+                    : "LATERAL in FROM is not supported yet under SQL Anywhere's front end", read.laterals().get(0));
+        }
         if (!read.droppedOrderKeys().isEmpty() && statementEngine == Engine.IQ) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine ORDER BY (1) is the first column's
             // position, where SQL Anywhere's front end orders by nothing

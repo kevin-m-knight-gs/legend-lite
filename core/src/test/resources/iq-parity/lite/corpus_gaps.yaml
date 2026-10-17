@@ -1659,3 +1659,13 @@ tests:
   - id: an_outer_aggregate_in_a_subquery_where
     sql: "SELECT a.sm, (SELECT MAX(u.id) FROM u WHERE u.t_id = MAX(a.id)) AS x FROM t a GROUP BY a.sm ORDER BY a.sm"
     profile: iq17-default
+
+  # ---- a closing parenthesis no opening one matches (the corpus lane's SQLStorm STRING_SPLIT(...))): IQ's -131
+  - id: an_unopened_parenthesis_is_iqs_131
+    sql: "SELECT t.id FROM t LEFT JOIN (SELECT id FROM u)) d ON d.id = t.id"
+    profile: iq17-default
+
+  # ---- LATERAL in FROM (the corpus lane's 4; measured on IQ 17.1, 2026-10-17): IQ's engine's -1001030
+  - id: lateral_is_iqs_error_under_its_engine
+    sql: "SELECT a.id, x.n FROM t a, LATERAL (SELECT COUNT(*) AS n FROM u WHERE u.t_id = a.id) x ORDER BY a.id"
+    profile: iq17-default

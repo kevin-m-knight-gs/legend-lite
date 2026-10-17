@@ -123,6 +123,9 @@ public final class IqParser {
     /** IQ island, 2026-10-15: where ORDER BY dropped a parenthesized integer constant ({@code (1)}), a constant that
      *  orders nothing in SQL Anywhere's front end and a position under IQ's engine (measured on IQ 17.1). */
     private final List<SqlAst.Pos> droppedOrderKeys = new ArrayList<>();
+    /** IQ island, 2026-10-17: where LATERAL (query) is written ({@link #fromItem}), which IqDialect names IQ's engine's
+     *  -1001030 for. */
+    private final List<SqlAst.Pos> laterals = new ArrayList<>();
     /** IQ island, 2026-10-15 (checklist 0.5): each CAST or CONVERT of a constant only one engine cannot convert
      *  ({@link IqFunctions#constantCast}), with its refusals' texts. */
     private final List<EngineCast> engineCasts = new ArrayList<>();
@@ -182,7 +185,7 @@ public final class IqParser {
     /** A statement as read ({@link #parsed}): its tree, and the text of each GROUP BY item and each aggregate's call
      *  in it, as written (by identity). */
     public record Parsed(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans,
-            List<SqlAst.Pos> droppedOrderKeys, List<EngineCast> engineCasts) {
+            List<SqlAst.Pos> droppedOrderKeys, List<EngineCast> engineCasts, List<SqlAst.Pos> laterals) {
     }
 
     /** A CAST or CONVERT of a constant only one engine cannot convert: where, and the refusal under each engine (null
@@ -210,7 +213,7 @@ public final class IqParser {
             throw e;
         }
         return new Parsed(statement, java.util.Collections.unmodifiableMap(p.spans), List.copyOf(p.droppedOrderKeys),
-                List.copyOf(p.engineCasts));
+                List.copyOf(p.engineCasts), List.copyOf(p.laterals));
     }
 
     /** The statement, the whole text. */
@@ -1368,6 +1371,17 @@ public final class IqParser {
 
     private SqlAst.FromItem fromItem() {
         IqLexer.Token first = peek();
+        if (first.is("lateral") && peek(1).isOp("(") && (peek(2).is("select") || peek(2).is("with"))) {
+            // IQ island, 2026-10-17 (the corpus lane's 4; measured on IQ 17.1): read, the island naming its engine's
+            // -1001030 for it and refusing it in its front end (IqDialect.parse)
+            take();
+            laterals.add(first.pos());
+            SqlAst.FromItem item = tableFactor();
+            if (item instanceof SqlAst.SubqueryFrom d) {
+                return new SqlAst.SubqueryFrom(d.query(), d.alias(), d.columnAliases(), true, d.pos());
+            }
+            throw SqlSyntaxException.unsupported("LATERAL of no derived table is not supported yet", first.pos());
+        }
         if (first.is("lateral") || first.isWord("apply") || first.is("openstring") || first.is("openxml")) {
             throw SqlSyntaxException.unsupported(first.text() + " in FROM is not supported yet", first.pos());
         }
@@ -3250,6 +3264,11 @@ public final class IqParser {
             return new SqlSyntaxException("'" + before.text() + " '...'' is no typed constant of IQ's (it reads"
                     + " CAST('...' AS type))" + IqDialect.syntaxCode(), t.pos());
         }
+        if (t.isOp(")") && tokens.get(at) == t && unopened(at)) {
+            // IQ island, 2026-10-17 (the corpus lane's SQLStorm STRING_SPLIT(...) ...)) AS value): a closing
+            // parenthesis no opening one before it matches is a syntax error wherever it stands
+            return new SqlSyntaxException("this ')' closes no '('" + IqDialect.syntaxCode(), t.pos());
+        }
         if (t.isWord("limit") || before != null && before.isWord("limit") && t.kind() == IqLexer.Kind.NUMBER) {
             // IQ island, 2026-10-17 (the corpus lane's subqueries' ORDER BY x LIMIT 1 and FROM t LIMIT 5; measured on
             // IQ 17.1): LIMIT is a name under the reserved_keywords option's default, so a row limit spelled so is its
@@ -3257,6 +3276,19 @@ public final class IqParser {
             return limit(t);
         }
         return SqlSyntaxException.unsupported("'" + t.text() + "' here is not supported", t.pos());
+    }
+
+    /** Whether the {@code )} at token {@code i} has no {@code (} before it left open. */
+    private boolean unopened(int i) {
+        int depth = 0;
+        for (int k = 0; k < i; k++) {
+            if (tokens.get(k).isOp("(")) {
+                depth++;
+            } else if (tokens.get(k).isOp(")")) {
+                depth--;
+            }
+        }
+        return depth <= 0;
     }
 
     /** The date parts IQ raises its syntax error for after a value ({@link #unexpected}; measured on IQ 17.1). */

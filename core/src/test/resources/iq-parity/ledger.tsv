@@ -1056,6 +1056,8 @@ lite/corpus_gaps/like_over_a_date_of_a_year_pattern@iq17-default	BOTH_ERROR	BOTH
 lite/corpus_gaps/like_over_a_timestamp_of_a_dangling_separator_pattern@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/an_outer_aggregate_in_a_subquery_where_beside_its_top@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/an_outer_aggregate_in_a_subquery_where@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_unopened_parenthesis_is_iqs_131@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/lateral_is_iqs_error_under_its_engine@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS
