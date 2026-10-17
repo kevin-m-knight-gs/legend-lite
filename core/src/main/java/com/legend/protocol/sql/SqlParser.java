@@ -261,9 +261,8 @@ public final class SqlParser {
             cells.add(row);
             opens.add(open.pos());
         } while (accept(Kind.COMMA));
-        // a column of NULLs alone is text, as Postgres types one (its rows are typed together, where a UNION ALL's
-        // are typed a pair at a time: VALUES (NULL) UNION ALL SELECT 1 is its error, and the island's rule for an
-        // untyped NULL reads a set operation's own branches only)
+        // a column of NULLs alone is text, as Postgres types one (VALUES (NULL) UNION ALL SELECT 1 is its error);
+        // a NULL beside a value takes the column's type, the rows typed together (SqlAst.SetOperation#values)
         int width = cells.get(0).size();
         for (int k = 0; k < width; k++) {
             int column = k;
@@ -294,7 +293,7 @@ public final class SqlParser {
         }
         int mid = from + (to - from) / 2;
         return new SqlAst.SetOperation(SqlAst.SetOp.UNION, true, unionAll(rows, from, mid), unionAll(rows, mid, to),
-                List.of(), null, null, rows.get(mid).pos());
+                List.of(), null, null, rows.get(mid).pos(), true);
     }
 
     /** The sort and the slice after a query, attached to it (Postgres refuses a second ORDER BY or LIMIT). */
@@ -370,7 +369,7 @@ public final class SqlParser {
                 }
                 yield new SqlAst.SetOperation(q.op(), q.all(), q.left(), q.right(),
                         orderBy.isEmpty() ? q.orderBy() : orderBy, sawLimit ? limit : q.limit(),
-                        sawOffset ? offset : q.offset(), q.pos());
+                        sawOffset ? offset : q.offset(), q.pos(), q.values());
             }
             case SqlAst.With w -> throw unsupported("ORDER BY or LIMIT after a parenthesized WITH query is");
         };

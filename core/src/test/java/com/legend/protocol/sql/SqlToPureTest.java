@@ -414,6 +414,12 @@ class SqlToPureTest {
         }
         // a boolean's NULL is a condition's (it threw)
         assertTrue(pure("values (true), (null)").contains("concatenate"));
+        // a VALUES list's rows are typed together: NULLs beside a value take its type, though a pair of rows of them
+        // is a branch of their own; the same shape written as a UNION ALL is typed a pair at a time
+        assertTrue(pure("select i, v from (values (1, 1), (2, 2), (3, null), (4, null)) t(i, v)")
+                .contains("concatenate"));
+        assertThrows(SqlTranslationException.class,
+                () -> pure("select 1 as a union all select 2 union all (select null union all select null)"));
     }
 
     @Test

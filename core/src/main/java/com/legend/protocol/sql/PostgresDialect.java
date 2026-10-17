@@ -314,10 +314,17 @@ public final class PostgresDialect implements InputDialect {
      *  has resolved as text first: a subquery's, a WITH query's, a nested operation's, a DISTINCT's (the review of
      *  2026-10-17: SELECT NULL UNION SELECT NULL UNION SELECT 1 is its error). */
     private static boolean untypedNull(SqlAst.Statement side, int i) {
-        return side instanceof SqlAst.Select q && !q.distinct() && q.groupBy().isEmpty() && q.having() == null
-                && q.windows().isEmpty() && q.orderBy().isEmpty() && q.limit() == null && q.offset() == null
-                && q.items().stream().noneMatch(item -> item instanceof SqlAst.AllColumns) && i < q.items().size()
-                && q.items().get(i) instanceof SqlAst.SelectExpr x && x.expr() instanceof SqlAst.NullLit;
+        return switch (side) {
+            case SqlAst.Select q -> !q.distinct() && q.groupBy().isEmpty() && q.having() == null
+                    && q.windows().isEmpty() && q.orderBy().isEmpty() && q.limit() == null && q.offset() == null
+                    && q.items().stream().noneMatch(item -> item instanceof SqlAst.AllColumns) && i < q.items().size()
+                    && q.items().get(i) instanceof SqlAst.SelectExpr x && x.expr() instanceof SqlAst.NullLit;
+            // a VALUES list's rows of NULLs in this column: its rows are typed together, NULLs beside its values
+            // taking theirs (2026-10-17: VALUES (1, 1), (2, 2), (3, NULL), (4, NULL) is an integer column)
+            case SqlAst.SetOperation o -> o.values() && o.orderBy().isEmpty() && o.limit() == null
+                    && o.offset() == null && untypedNull(o.left(), i) && untypedNull(o.right(), i);
+            case SqlAst.With w -> false;
+        };
     }
 
     /** A subquery's or a WITH query's untyped NULL is text to the query reading it: Postgres resolves the untyped

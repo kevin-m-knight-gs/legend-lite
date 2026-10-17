@@ -355,6 +355,9 @@ class SqlParserTest {
         assertEquals(SqlAst.SetOp.UNION, u.op());
         assertTrue(u.all());
         assertEquals(1, u.orderBy().size());
+        // marked as a VALUES list's, the sort attached too; a written UNION ALL is not
+        assertTrue(u.values());
+        assertFalse(((SqlAst.SetOperation) SqlParser.parse("select 1 union all select 2")).values());
         SqlAst.Select first = (SqlAst.Select) u.left();
         assertTrue(first.from().isEmpty());
         assertEquals(List.of("column1", "column2"), first.items().stream()
