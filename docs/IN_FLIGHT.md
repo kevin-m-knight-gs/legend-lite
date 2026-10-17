@@ -1727,6 +1727,9 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
       IQ island's, under a WHERE that rejects the null-supplying side's NULLs).
     - `protocol/sql/InputDialect.java`, also: `Problem.NESTED_AGGREGATE`, whose wording is the dialect's (Postgres's
       unchanged; the IQ island's its -156); the shared translator's seven nested-aggregate refusals read it.
+    - `protocol/sql/InputDialect.java`, `protocol/sql/SqlToPure.java`: `translated()`, called once a statement is
+      translated, where a dialect raises an error it held while translating (the IQ island's -1001013 for a string
+      compared with a number, which IQ raises after any -157 of the statement and after a missing column's -143).
     - `core/BUILD.bazel`: `//core:iq_parity_test` and `//core:iq_parity_postgres_test` sized `large`. The first ran 43 s
       alone but past `medium`'s 300 s in `//gates:local`.
 

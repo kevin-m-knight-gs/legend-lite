@@ -29,6 +29,13 @@ public interface InputDialect {
         return this;
     }
 
+    /** The statement {@link #reading} was given is translated, before its relation is returned: a dialect raises here
+     *  an error it held while translating, which an error met later in the statement comes before (IQ island,
+     *  2026-10-17: IQ's -157 for a string an integer column cannot be, before its -1001013 for comparing a string with
+     *  a number, wherever each stands in the WHERE). */
+    default void translated() {
+    }
+
     // ------------------------------------------------------------------ names
 
     /** The name an unquoted identifier declares ({@code AS x}, a WITH query's name): Postgres folds it to lower

@@ -308,6 +308,12 @@ island's reason, those IQ answers, and what became of them:
 - IQ raises a CTE's recursion (-938, -914) and a decorated call of no function of its (STRING_AGG(...) WITHIN GROUP,
   DISTINCT, OVER; -265) once it has read the whole statement (SQLStorm's 6, found by verifying the claims; measured on
   IQ 17.1, 2026-10-17): a syntax error after either is its first. The reader reads on past them for one;
+- a string constant against an integer column (SEDE's Reputation >= 'x', found by verifying the claims; measured on
+  IQ 17.1 over 40 spellings and every number type, 2026-10-17): IQ's engine converts it first, so one that is no number
+  by its grammar (spaces, a sign, digits and a point, an exponent: '', '+', '.', 'e5' are numbers; '5e', '- 5', a tab,
+  a comma are not) is its -157, before any -1001013 of the statement and after a missing column's -143. Against a
+  NUMERIC or DOUBLE column, or an expression, -1001013. LIKE over an integer converts a pattern without a wildcard;
+  the -1001013 is held until the statement is translated (InputDialect.translated);
 - not built yet: PIVOT (IQ 17.1 reads it, both engines; an IN list of literals, COUNT shown as a NUMERIC(20,0)).
   The corpus's 10 are SQL Server's `IN ([Question], [Answer])`, IQ's -143 (a name) or -1816 (a number);
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's

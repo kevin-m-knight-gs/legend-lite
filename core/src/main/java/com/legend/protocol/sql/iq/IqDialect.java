@@ -157,6 +157,8 @@ public final class IqDialect implements InputDialect {
     /** IQ island, 2026-10-17: the outer joins IQ's engine reads as inner ones ({@link #nullRejected}), by identity,
      *  for {@link #joinType}. */
     private final Set<SqlAst.Join> innerJoins = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** The error held while the statement is translated ({@link #hold}), raised once it is ({@link #translated}). */
+    private final SqlTranslationException[] held = {null};
     /** IQ island, 2026-10-17: the text each concatenation of string literals alone spells, by its value's identity
      *  ({@link #dateOf}). */
     private final Map<ValueSpecification, String> literalJoins = new IdentityHashMap<>();
@@ -6004,9 +6006,12 @@ public final class IqDialect implements InputDialect {
      */
     private Tx numberOf(Tx text, Kind other, Tx number, SqlAst.Pos pos) {
         if (engine == Engine.IQ) {
-            throw SqlTranslationException.unsupported("comparing a string with a number is IQ's error -1001013 under"
-                    + " its engine (an invalid data type comparison in a predicate; a string that is no number is -157"
-                    + " first), refused before translating", pos);
+            if (text.vs() instanceof CString s) {
+                unconvertible(s.value(), number, pos);
+            }
+            hold(SqlTranslationException.unsupported("comparing a string with a number is IQ's error -1001013 under"
+                    + " its engine (an invalid data type comparison in a predicate), refused before translating", pos));
+            return number;
         }
         if (other == Kind.FLOAT) {
             throw SqlTranslationException.unsupported("comparing a string with a DOUBLE is not supported yet: IQ"
@@ -6044,6 +6049,77 @@ public final class IqDialect implements InputDialect {
                     + " as a value of the column's NUMERIC first, rounded, which is not read here", pos);
         }
         return Tx.value(new CDecimal(d), Kind.DECIMAL, false, IqTypes.ofNumericConstant(d));
+    }
+
+    /** IQ island, 2026-10-17 (found by verifying the corpus lane's IQ_ERROR claims: SEDE's Reputation >= 'x';
+     *  measured on IQ 17.1 over 40 spellings and every number type): under IQ's engine a string constant compared with
+     *  a column of an integer type (BIT, SMALLINT, INTEGER, BIGINT) is converted to a number first, so one that is no
+     *  number ({@link #iqNumber}) is its -157 -- before any -1001013 of the statement, wherever each stands. Compared
+     *  with a NUMERIC or DOUBLE column, or with an expression, it is not converted: -1001013. */
+    private static void unconvertible(String value, Tx number, SqlAst.Pos pos) {
+        if (!iqNumber(value) && number.vs() instanceof com.legend.protocol.spec.AppliedProperty
+                && number.detail() instanceof IqType t && t.isInteger()) {
+            throw SqlTranslationException.unsupported("comparing the string '" + value + "' with an integer column is"
+                    + " IQ's error -157 under its engine (it cannot convert the string to a number), refused before"
+                    + " translating" + code(-157, "53018"), pos);
+        }
+    }
+
+    /** Whether IQ's engine converts {@code text} to a number (measured on IQ 17.1): spaces around it, an optional
+     *  sign, digits with an optional point (none needed on either side: '', '+', '.' and '-' are numbers), an optional
+     *  exponent of {@code e} and digits with an optional sign ('e5' is one, '5e' is not); nothing else (a tab, a sign
+     *  apart from its digits, a comma, a second point). */
+    static boolean iqNumber(String text) {
+        int i = 0;
+        int n = text.length();
+        while (i < n && text.charAt(i) == ' ') {
+            i++;
+        }
+        while (n > i && text.charAt(n - 1) == ' ') {
+            n--;
+        }
+        if (i < n && (text.charAt(i) == '+' || text.charAt(i) == '-')) {
+            i++;
+        }
+        while (i < n && Character.isDigit(text.charAt(i)) && text.charAt(i) < 128) {
+            i++;
+        }
+        if (i < n && text.charAt(i) == '.') {
+            i++;
+            while (i < n && Character.isDigit(text.charAt(i)) && text.charAt(i) < 128) {
+                i++;
+            }
+        }
+        if (i < n && (text.charAt(i) == 'e' || text.charAt(i) == 'E')) {
+            i++;
+            if (i < n && (text.charAt(i) == '+' || text.charAt(i) == '-')) {
+                i++;
+            }
+            int digits = i;
+            while (i < n && Character.isDigit(text.charAt(i)) && text.charAt(i) < 128) {
+                i++;
+            }
+            if (i == digits) {
+                return false;
+            }
+        }
+        return i == n;
+    }
+
+    /** IQ island, 2026-10-17: an error IQ raises after any -157 of the statement ({@link #unconvertible}), held until
+     *  the statement is translated ({@link #translated}); the first held is raised. */
+    private void hold(SqlTranslationException e) {
+        if (held[0] == null) {
+            held[0] = e;
+        }
+    }
+
+    @Override
+    public void translated() {
+        SqlTranslationException e = held[0];
+        if (e != null) {
+            throw e;
+        }
     }
 
     /** A string's NUMERIC value as SQL Anywhere's front end reads one in a comparison (measured): spaces around it
@@ -6424,9 +6500,16 @@ public final class IqDialect implements InputDialect {
                         + " that is no date is IQ's error -1009145 under its engine (the pattern converted to the"
                         + " date's type), refused before translating", l.pattern().pos());
             }
-            throw SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " is IQ's error"
+            if (l.pattern() instanceof SqlAst.StringLit p && p.value().indexOf('%') < 0 && p.value().indexOf('_') < 0
+                    && p.value().indexOf('[') < 0) {
+                // IQ island, 2026-10-17 (measured on IQ 17.1): a pattern without a wildcard is converted as an
+                // equality's string is ({@link #unconvertible}: LIKE '2.....' is its -157, LIKE 'x%' its -1001013)
+                unconvertible(p.value(), operand, p.pos());
+            }
+            hold(SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " is IQ's error"
                     + " -1001013 under its engine (an invalid comparison), refused before translating",
-                    l.operand().pos());
+                    l.operand().pos()));
+            return unknown;
         }
         // IQ island, 2026-10-14 (M1e): a date or a timestamp is matched as its text in the profile's format (measured)
         if (operand.kind() == Kind.DATE || operand.kind() == Kind.DATETIME) {

@@ -250,10 +250,13 @@ public final class SqlToPure {
             throw new SqlTranslationException(e.unsupported() ? SqlTranslationException.Kind.UNSUPPORTED
                     : SqlTranslationException.Kind.SYNTAX, e.reason(), e.line(), e.column());
         }
-        SqlToPure translation = new SqlToPure(sources, dialect.reading(statement), new Env(Map.of(), null, null, 0));
+        InputDialect reading = dialect.reading(statement);
+        SqlToPure translation = new SqlToPure(sources, reading, new Env(Map.of(), null, null, 0));
+        Rel translated = translation.statement(statement);
+        reading.translated();
         // the island's own result is an inline view too (2026-10-16, the landing's review): its windows are computed
         // over all of its rows before a Pure step after the island (a filter) reads them
-        return translation.inlineView(translation.statement(statement), statement).vs();
+        return translation.inlineView(translated, statement).vs();
     }
 
     private Rel statement(SqlAst.Statement statement) {

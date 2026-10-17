@@ -1351,3 +1351,37 @@ tests:
   - id: string_agg_within_group_before_no_syntax_error
     sql: "SELECT STRING_AGG(vc, ',') WITHIN GROUP (ORDER BY vc) AS s FROM t"
     profile: iq17-default
+
+  # ---- a string constant against an integer column (SEDE's Reputation >= 'x'; measured on IQ 17.1, 2026-10-17): IQ's
+  # engine converts it first, so one that is no number is its -157, before any -1001013 of the WHERE; against NUMERIC,
+  # DOUBLE or an expression, -1001013; LIKE converts a pattern without a wildcard
+  - id: an_integer_column_against_a_string_that_is_no_number
+    sql: "SELECT id FROM t WHERE id >= 'x'"
+    profile: iq17-default
+  - id: an_integer_column_against_a_string_that_is_a_number
+    sql: "SELECT id FROM t WHERE id = ' +5.e2 '"
+    profile: iq17-default
+  - id: a_bigint_column_against_a_string_with_a_comma
+    sql: "SELECT id FROM t WHERE bg = '1,000'"
+    profile: iq17-default
+  - id: a_numeric_column_against_a_string_that_is_no_number
+    sql: "SELECT id FROM t WHERE nm = 'x'"
+    profile: iq17-default
+  - id: an_integer_expression_against_a_string_that_is_no_number
+    sql: "SELECT id FROM t WHERE id + 1 = 'x'"
+    profile: iq17-default
+  - id: a_string_that_is_no_number_after_one_that_is
+    sql: "SELECT id FROM t WHERE id = '5' AND sm > 'e'"
+    profile: iq17-default
+  - id: like_over_an_integer_of_a_pattern_without_a_wildcard
+    sql: "SELECT id FROM t WHERE id LIKE '2.....'"
+    profile: iq17-default
+  - id: like_over_an_integer_of_a_pattern_with_a_wildcard
+    sql: "SELECT id FROM t WHERE id LIKE 'x%'"
+    profile: iq17-default
+  - id: like_over_an_integer_before_a_string_that_is_no_number
+    sql: "SELECT id FROM t WHERE id LIKE 'x%' AND id = 'y'"
+    profile: iq17-default
+  - id: a_missing_column_after_a_string_against_a_number
+    sql: "SELECT id FROM t WHERE id = '5' AND nosuch = 1"
+    profile: iq17-default
