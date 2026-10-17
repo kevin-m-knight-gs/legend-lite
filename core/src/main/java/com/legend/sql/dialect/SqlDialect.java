@@ -58,6 +58,22 @@ public interface SqlDialect {
         return this;
     }
 
+    /** The server versions this dialect's text is written for ({@link #forServer} keeps it for these and takes another
+     *  dialect for any other), which a plan names so its runner refuses another; null when its text depends on no
+     *  server's version (the dialect program's Phase 5, 2026-10-16: until then {@code Databases.servers} listed each
+     *  database). */
+    default @com.legend.base.Nullable java.util.List<String> serverVersions() {
+        return null;
+    }
+
+    /** Whether a target on this database loads its declared rows through the database's own bulk loader (a plan's
+     *  {@code SetupStep.Rows}, the statements that stage them this dialect's) rather than one INSERT
+     *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, "setup at plan time, one form per database"; the dialect
+     *  program's Phase 5, 2026-10-16: until then {@code Databases.loadsRowsInBulk} listed each database). */
+    default boolean loadsRowsInBulk() {
+        return false;
+    }
+
     /** Whether this dialect's driver re-fetches a timestamp cell as {@code java.time.LocalDateTime} (the
      *  BC-faithful carrier the executor reads every timestamp as). Default: it does, and a refusal fails loudly. */
     default boolean refetchesTimestampAsJavaTime() {

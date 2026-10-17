@@ -143,8 +143,10 @@ final class PlanMaker {
             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
             case com.legend.database.Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
         };
-        return new ExecutionPlan.Target(database, Databases.servers(decided.type()), dialect.sessionSetup(),
-                setup(CsvSeed.declaredSteps(runtime, l.ctx(), dialect), decided.type(), dialect));
+        List<String> versions = dialect.serverVersions();
+        return new ExecutionPlan.Target(database, versions == null ? new ExecutionPlan.Servers.Every()
+                : new ExecutionPlan.Servers.Versions(versions), dialect.sessionSetup(),
+                setup(CsvSeed.declaredSteps(runtime, l.ctx(), dialect), dialect));
     }
 
     /** The one definition a declared target opens: its connections may differ in name, not in database —
@@ -165,12 +167,11 @@ final class PlanMaker {
     /**
      * A target's setup as the plan's steps, final for {@code type}: each statement of a connection's SQL (written in
      * H2's spelling, as legend-engine's test data is) adapted to the database, and each table's rows either for the
-     * database's bulk loader ({@link Databases#loadsRowsInBulk}) with the statements that stage them, or as the one
+     * database's bulk loader ({@link SqlDialect#loadsRowsInBulk}) with the statements that stage them, or as the one
      * INSERT the database runs. A table of no rows is no step.
      */
-    private static List<ExecutionPlan.SetupStep> setup(List<CsvSeed.Step> steps, ConnectionDefinition.DatabaseType type,
-            SqlDialect dialect) {
-        boolean bulk = Databases.loadsRowsInBulk(type);
+    private static List<ExecutionPlan.SetupStep> setup(List<CsvSeed.Step> steps, SqlDialect dialect) {
+        boolean bulk = dialect.loadsRowsInBulk();
         List<ExecutionPlan.SetupStep> out = new ArrayList<>(steps.size());
         for (CsvSeed.Step step : steps) {
             switch (step) {

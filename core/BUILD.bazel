@@ -129,13 +129,13 @@ legend_java_library(
 )
 
 # THE plan-side owner of every per-database decision (C3 of
-# docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a declared DatabaseType -> its dialect,
-# legend-engine's text for it, its plan facts. No JDBC: the browser planner carries it.
+# docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a declared DatabaseType -> its dialect, which
+# answers its plan facts (the dialect program's Phase 5, 2026-10-16). No JDBC: the browser planner carries it.
 legend_java_library(
     name = "database",
     srcs = glob(["src/main/java/com/legend/database/*.java"]),
     visibility = ["//datacube:__pkg__"],
-    deps = ["//base", ":error", ":execution_plan", ":model", ":sql_dialect"],
+    deps = ["//base", ":error", ":model", ":sql_dialect"],
 )
 
 # the compiler quartet: resolver-of-names, element compiler, typer, typed tree
@@ -170,7 +170,7 @@ legend_java_library(
     name = "plan",
     visibility = ["//datacube:__pkg__"],
     srcs = glob(["src/main/java/com/legend/plan/*.java"]),
-    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":database", ":error", ":lineage", ":model", ":sql"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lineage", ":model", ":sql"],
 )
 legend_java_library(
     name = "resolver",

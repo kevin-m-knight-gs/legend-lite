@@ -110,6 +110,23 @@ class JdbcSurfaceCensusTest {
             // the product/version read a handed session is checked by, and opening a declared
             // connection or a private in-memory database. It opens sessions; it executes nothing
             "core/src/main/java/com/legend/exec/Sessions.java",
+            // the dialect program's Phase 5 (2026-10-16): each database's sessions in its connector -- the URL a
+            // declared connection opens, its private in-memory instance, the raise its session holds (MariaDB's) --
+            // and Connectors the one read of which database a session is on (its driver's product name). They open
+            // sessions and read a session's state; none executes a query of the user's or computes a value
+            // (every connector: each answers its session's held raise, a Connection in)
+            "core/src/main/java/com/legend/exec/BigQueryConnector.java",
+            "core/src/main/java/com/legend/exec/ClickHouseConnector.java",
+            "core/src/main/java/com/legend/exec/Connectors.java",
+            "core/src/main/java/com/legend/exec/DatabaseConnector.java",
+            "core/src/main/java/com/legend/exec/DatabricksConnector.java",
+            "core/src/main/java/com/legend/exec/DuckDbConnector.java",
+            "core/src/main/java/com/legend/exec/H2Connector.java",
+            "core/src/main/java/com/legend/exec/MariaDbConnector.java",
+            "core/src/main/java/com/legend/exec/PostgresConnector.java",
+            "core/src/main/java/com/legend/exec/SnowflakeConnector.java",
+            "core/src/main/java/com/legend/exec/SqliteConnector.java",
+            "core/src/main/java/com/legend/exec/TrinoConnector.java",
             // 2026-10-09, execution plan step 3 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the runner -- a
             // plan's own statement, its slots bound, the database's text carried out unread (PlanRunner); the sessions
             // a plan's target names, its setup run once (PlanSessions); an engine's bulk loader found (BulkLoads).

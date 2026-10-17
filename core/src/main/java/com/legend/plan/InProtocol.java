@@ -63,12 +63,10 @@ public final class InProtocol {
 
     /** Scan-and-rewrite; null when no site triggers. */
     public static @com.legend.base.Nullable Result apply(SqlQuery plan,
-            @com.legend.base.Nullable Integer threshold,
-            com.legend.model.ConnectionDefinition.DatabaseType dbType) {
+            @com.legend.base.Nullable Integer threshold, String tempPrefix) {
         if (threshold == null) {
             return null;
         }
-        String tempPrefix = com.legend.database.Databases.inListTempTables(dbType).tablePrefix();
         List<Site> sites = new ArrayList<>();
         int[] mixedId = {MIXED_SUFFIX_BASE};
         SqlRewriter rw = new SqlRewriter() {
@@ -120,15 +118,16 @@ public final class InProtocol {
         return sites.isEmpty() ? null : new Result(rewritten, sites);
     }
 
-    /** The engine threshold rule (see class doc). */
+    /** The engine threshold rule (see class doc): {@code databaseThreshold} is the database's own (the engine
+     *  text's registry, {@code EngineText.inListTempTables}). */
     public static @com.legend.base.Nullable Integer thresholdFor(
             @com.legend.base.Nullable String connName,
-            com.legend.model.ConnectionDefinition.DatabaseType dbType) {
+            @com.legend.base.Nullable Integer databaseThreshold) {
         if (connName != null
                 && connName.startsWith("TestDatabaseConnection")) {
             return 50;
         }
-        return com.legend.database.Databases.inListTempTables(dbType).threshold();
+        return databaseThreshold;
     }
 
     /** Every site's node texts in emission order — the caller-facing
@@ -136,13 +135,13 @@ public final class InProtocol {
      * threshold rule only fires with one). */
     public static List<String> allNodeTexts(Result inp,
             @com.legend.base.Nullable String connName,
-            com.legend.model.ConnectionDefinition.DatabaseType dbType,
+            @com.legend.base.Nullable Integer databaseThreshold,
             java.util.function.Function<SqlExpr.PlanParam, String> splice,
             java.util.function.UnaryOperator<String> tempSelect) {
         String conn = java.util.Objects.requireNonNull(connName,
                 "in-protocol threshold without a connection spelling");
         Integer th = java.util.Objects.requireNonNull(
-                thresholdFor(connName, dbType));
+                thresholdFor(connName, databaseThreshold));
         boolean isTest = conn.startsWith("TestDatabaseConnection");
         List<String> out = new ArrayList<>();
         for (Site site : inp.sites()) {

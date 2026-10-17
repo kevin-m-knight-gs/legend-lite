@@ -66,7 +66,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * its session variable, the database's own text passed on unread (C1.2's carriage): a
  * MariaDB SELECT can raise no error of its own text (SIGNAL runs only in a stored
  * program; every run-time error's text is fixed, measured), so the raise keeps it in
- * the session and fails on a fixed error.)
+ * the session and fails on a fixed error. The site is MariaDbConnector.raisedMessage's since
+ * 2026-10-16, the dialect program's Phase 5: the same one getString, moved with the read.)
  */
 @Tag("guardrail")
 class TenetRatchetTest {

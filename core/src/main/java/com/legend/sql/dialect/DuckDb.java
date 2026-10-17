@@ -53,6 +53,13 @@ public final class DuckDb extends AnsiSqlRenderer {
         return strftimeText(fl);
     }
 
+    /** {@inheritDoc} DuckDB's: one giant INSERT cost most of a 61 s first query (its loader, the Appender, stages the
+     *  rows as text, and one INSERT ... SELECT casts them). */
+    @Override
+    public boolean loadsRowsInBulk() {
+        return true;
+    }
+
     /** {@inheritDoc} Written beside this dialect ({@code DuckDbHostOperations}). */
     @Override
     public HostOperations hostOperations() {

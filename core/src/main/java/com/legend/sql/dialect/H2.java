@@ -382,6 +382,12 @@ public class H2 extends AnsiSqlRenderer {
         return SERVERS.stream().anyMatch(version::startsWith) ? this : new H2Modern();
     }
 
+    /** {@inheritDoc} {@link #SERVERS}: another server's H2 takes {@link H2Modern} ({@link #forServer}). */
+    @Override
+    public java.util.List<String> serverVersions() {
+        return SERVERS;
+    }
+
     /** Native QUALIFY (probed capability note above) — the clause
      * renders like DuckDB's; the base default walls, which stranded
      * the one PCT qualify test despite supportsQualify(). */

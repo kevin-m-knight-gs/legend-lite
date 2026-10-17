@@ -40,6 +40,23 @@ final class EngineText {
         };
     }
 
+    /** legend-engine's IN-list-to-temp-table facts for a database: the temp table's name prefix and the list size past
+     *  which the engine uses one (null: never, for this database). */
+    record InListTempTables(String tablePrefix, @com.legend.base.Nullable Integer threshold) {
+    }
+
+    /** legend-engine's IN-list-to-temp-table facts for {@code type} (the dialect program's Phase 5, 2026-10-16: moved
+     *  here from {@code database.Databases}, which writes none of the engine's text; they are per declared type, not
+     *  per engine-text dialect, as Composite's plan text is DB2's and its IN lists are not). */
+    static InListTempTables inListTempTables(DatabaseType type) {
+        return switch (type) {
+            case DB2 -> new InListTempTables("SESSION.tempTableForIn_", 32767);
+            case H2, DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto,
+                 Trino, BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL ->
+                    new InListTempTables("tempTableForIn_", null);
+        };
+    }
+
     /** legend-engine's exact PLAN text for {@code type}: the plan goldens pin Composite to the DB2-family spelling
      *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
     static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
