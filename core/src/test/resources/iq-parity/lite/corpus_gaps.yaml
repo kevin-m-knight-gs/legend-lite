@@ -1987,6 +1987,12 @@ tests:
     sql: "SELECT id, ROW_NUMBER() OVER (PARTITION BY GREATER(sm, 0) ORDER BY nosuch, id) AS a FROM t"
     profile: iq17-default
 
+  # ---- a BIGINT plus a difference that keeps it in range (IQ island, 2026-10-17; the differential fuzzer's fifth round):
+  # the database adds the difference, not its first operand (w + 2000 overflowed where w - 20 fits)
+  - id: a_bigint_plus_a_difference_of_years
+    sql: "SELECT a FROM (SELECT CAST('0' AS INTEGER) AS a FROM t UNION ALL SELECT (w + DATEDIFF(year, CAST('2020-01-15' AS DATE), CAST('2000-02-29' AS DATE))) FROM g) d ORDER BY a"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where

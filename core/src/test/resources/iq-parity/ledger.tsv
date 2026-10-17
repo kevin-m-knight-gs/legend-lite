@@ -1168,6 +1168,7 @@ lite/corpus_gaps/greater_through_a_distinct_derived_table_in_a_window_order@iq17
 lite/corpus_gaps/greater_in_order_by_group_by_and_a_window_argument@iq17-default	PASS	PASS
 lite/corpus_gaps/greater_in_a_window_argument@iq17-default	PASS	PASS
 lite/corpus_gaps/greater_in_a_window_key_beside_a_name_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_bigint_plus_a_difference_of_years@iq17-default	PASS	PASS
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR
