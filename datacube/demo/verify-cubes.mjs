@@ -733,6 +733,39 @@ try {
     return `${two} stacked on ${one}; saved and reopened as the stack, on ${one}`;
   });
 
+  await check('a page file saved with a measures list (before 2026-10-17) opens with it as Column Properties, said, the figures the same', async () => {
+    // a grid's aggregates are its columns' Aggregation now: a saved list is made them on open (cube-document.ts openCube)
+    // one answer to any question ("open over unsaved changes?" -- yes): earlier checks' one-shot answers that never fired
+    // are taken off first, so no question is answered twice
+    page.removeAllListeners('dialog');
+    const answer = (d) => { void d.accept(); };
+    page.on('dialog', answer);
+    try {
+      await load();
+      let before = await statusNow();
+      await pickSample('trades', 500);
+      await landed(before);
+      await shape();
+      const want = await typed();
+      // Export > Page File (JSON), as a person keeps one -- then written as before: notional's sum a measures list
+      const [download] = await Promise.all([page.waitForEvent('download'), burger('Page File (JSON)')]);
+      const doc = JSON.parse(await readFile(await download.path(), 'utf8'));
+      doc.cubes[0].cube.query.measures = [{ name: 'notional', column: 'notional', fn: 'sum' }];
+      const legacy = join(dir, 'legacy-measures.page.json');
+      await writeFile(legacy, JSON.stringify(doc));
+      await showWin('cubeswin', 'Open\u2026');
+      before = await statusNow();
+      await page.setInputFiles('#cubelib .dc-lib-import', legacy);
+      await landed(before);
+      const message = await waitMessage(/measure notional is now notional's Aggregation, sum/);
+      const got = await typed();
+      if (stamp(got) !== stamp(want)) throw new Error(`the figures changed: ${differs(want, got)}`);
+      return message.replace(/\s+/g, ' ').slice(0, 160);
+    } finally {
+      page.off('dialog', answer);
+    }
+  });
+
   await check('no page errors', async () => {
     if (pageErrors.length) throw new Error(pageErrors.slice(0, 2).join(' | '));
   });
