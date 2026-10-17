@@ -234,6 +234,26 @@ class Document(Paged):
         listed['cubes'][0]['cube']['query']['measures'] = [{'name': 'notional', 'column': 'notional', 'fn': 'average'}]
         with self.assertRaisesRegex(ValueError, "'query.measures': a grid carries no measures list"):
             ll.Page.load(listed, frames={'old_counts': trades()})
+        # a calculated column whose lambda the protocol cannot read: refused as the page it is in (a ValueError), never
+        # a JavaScript exception
+        saved.grids[0].calculate('twice', '$x.notional->toOne() * 2')
+        broken = saved.to_dict()
+        broken['cubes'][0]['cube']['query']['derived'][0]['lambda']['body'] = 'oops'
+        with self.assertRaisesRegex(ValueError, 'calculated column "twice"\'s lambda'):
+            ll.Page.load(broken, frames={'old_counts': trades()})
+
+    def test_a_live_frame_changed_in_place_is_the_cube_a_filter_a_column_and_a_chart_are_checked_against(self):
+        # a Live frame's column deleted in place: the next filter takes the cube DataCube opens over the frame now (its
+        # calculated column that read the gone column left out, said), so a column of that name can be made again, once
+        frame = trades()
+        page = ll.Page('in place')
+        grid = page.grid(frame, name='in_place', rows=['region'])
+        grid.calculate('twice', '$x.notional->toOne() * 2')
+        del frame['notional']
+        with self.assertWarnsRegex(UserWarning, r'in_place: left out calculated column twice \(it uses notional\)'):
+            grid.filter(('desk', 'equal', 'FX'))
+        grid.calculate('twice', '$x.pnl->toOne() * 2')
+        self.assertEqual([d['name'] for d in page.to_dict()['cubes'][0]['cube']['query']['derived']], ['twice'])
 
     def test_a_layout_of_splits_and_sizes_is_kept_as_tiles_come_and_go(self):
         page, grid, chart = self.built()
@@ -571,6 +591,9 @@ class Document(Paged):
             grid.measure('pnl', 'sum', name='desk')
         with self.assertRaisesRegex(ValueError, "'nope' is not a column of the grid"):
             grid.measure('nope', 'count', name='n')
+        # no Aggregation is assumed for a measure (DataCube's default is its type's: column(name, kind='measure'))
+        with self.assertRaises(TypeError):
+            grid.measure('pnl')
         # Column Properties' own rules: a calculated column's kind is its editor's; a dimension takes no Aggregation
         with self.assertRaisesRegex(ValueError, "'region' is a dimension, and only a measure takes an Aggregation"):
             grid.column('region', aggregate='unique')

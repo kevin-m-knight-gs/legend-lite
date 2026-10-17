@@ -295,6 +295,13 @@ describe('opening a cube over its file as it is now', () => {
   // NO OLDER CUBE IS READ (the user, 2026-10-17): a version 1 cube -- every cube saved before a grid's aggregates became
   // its columns' Aggregation (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md) -- is refused by its version, and a
   // measures list in a cube of this one by name: never converted, never opened showing other numbers than it showed
+  it('refuses a calculated column whose lambda the protocol cannot read, as the document it is in', () => {
+    const broken = JSON.parse(cubeToJson(doc()));
+    broken.query.derived[0].lambda.body = 'oops';
+    assert.throws(() => readCube(broken), (e: unknown) => e instanceof CubeDocumentError
+      && /calculated column "scaled"'s lambda: .*body/.test(e.message));
+  });
+
   it('refuses a cube saved before a grid\'s aggregates were its columns\' Aggregation, and a measures list', () => {
     assert.throws(() => readCube(cubeToJson({ ...doc(), version: 1 })), /an older version \(1 < 2\).*no longer read/);
     const listed = JSON.parse(cubeToJson(doc()));

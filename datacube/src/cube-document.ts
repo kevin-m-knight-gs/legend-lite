@@ -26,6 +26,7 @@
 
 import {
   ExactNumber,
+  ProtocolError,
   fromJson,
   readLambda,
   toJson as protocolJson,
@@ -368,7 +369,14 @@ function calculated(raw: unknown, field: string): DerivedColumn[] {
     if (!isObject(item)) throw new CubeDocumentError(`an entry of 'query.${field}' is not an object`);
     const { lambda, ...rest } = item;
     const fields = plain(rest) as Omit<DerivedColumn, 'lambda'>;
-    return lambda === undefined ? fields : { ...fields, lambda: readLambda(lambda) };
+    if (lambda === undefined) return fields;
+    try {
+      return { ...fields, lambda: readLambda(lambda) };
+    } catch (e) {
+      // the protocol's refusal, said as the document's: a page that cannot be read fails as one, in its words
+      if (!(e instanceof ProtocolError)) throw e;
+      throw new CubeDocumentError(`calculated column ${JSON.stringify(fields.name ?? null)}'s lambda: ${e.message}`);
+    }
   });
 }
 

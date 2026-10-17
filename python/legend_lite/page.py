@@ -395,12 +395,13 @@ class Grid(Tile):
                   **({'weight': weight} if weight is not _KEEP else {})}
         return self._edit({'columns': {name: change}})
 
-    def measure(self, column: str, fn: str = 'sum', name: str | None = None, *, weight: str | None = None) -> Grid:
-        """``column`` aggregated by ``fn`` when the grid groups (one Aggregation offers for its type; ``wavg`` takes a
-        ``weight`` column, and only it does): ``column``'s own Aggregation, as Column Properties sets it -- replacing
-        the one it had; a measure's, as the panel refuses a dimension's (``column(name, kind='measure')`` makes one) --
-        unless ``name`` names another column, or ``column`` is grouped: then a calculated column of that name reading
-        ``column``, with that Aggregation, as the screen would add one."""
+    def measure(self, column: str, fn: str, name: str | None = None, *, weight: str | None = None) -> Grid:
+        """``column`` aggregated by ``fn`` when the grid groups (one Aggregation offers for its type, and none is assumed:
+        ``column(name, kind='measure')`` makes a measure at the one DataCube gives its type; ``wavg`` takes a ``weight``
+        column, and only it does): ``column``'s own Aggregation, as Column Properties sets it -- replacing the one it
+        had; a measure's, as the panel refuses a dimension's (``column(name, kind='measure')`` makes one) -- unless
+        ``name`` names another column: then a calculated column of that name reading ``column``, with that Aggregation,
+        as the screen would add one. A grouped ``column`` takes no Aggregation of its own: give the measure a ``name``."""
         measure = {'name': column if name is None else name, 'column': column, 'fn': fn,
                    **({'weight': weight} if weight is not None else {})}
         return self._edit({'measures': [measure]})
@@ -412,6 +413,7 @@ class Grid(Tile):
         column), one a column of its type is offered, the grid with it compiled, in the editor's normal form (a group of
         one is that one, an empty one none: ``[]`` takes the filter off, as ``None`` does); ``None`` for none."""
         if condition is not None:
+            self._page._current(self._view['cube'], 4)
             engine, frames = self._headless()
             with frames.serving():
                 said = json.loads(engine.call('gridFilter', self._spec(frames), _json.dumps(_given_filter(condition))))
@@ -440,6 +442,7 @@ class Grid(Tile):
         A mistake fails at this line, in DataCube's and the compiler's words."""
         if not isinstance(name, str) or not isinstance(expression, str):
             raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
+        self._page._current(self._view['cube'], 4)
         engine, frames = self._headless()
         with frames.serving():
             said = json.loads(engine.call('gridCalculate', self._spec(frames), name, f'x|{expression}', kind))
@@ -543,6 +546,7 @@ def _made(page: Page, cube: str, given: Mapping[str, Any], before: Mapping[str, 
     gridChart; chart-spec.ts chartFrom, followCube and chartProblems). The chart rules are written once, there: what
     DataCube would refuse to draw is refused here, in its words, and nothing is kept. A frozen chart whose grid was
     removed is asked against its cube, which stays with it. (V8 is the datacube extra's, as this module is: _extra.py.)"""
+    page._current(cube, 5)
     session = page._session
     engine, frames = session.headless(), session.frames
     with frames.serving():
@@ -1287,8 +1291,9 @@ class Page:
         changed), taken when it is
         not the cube held -- the frame's columns moved, or DataCube left a part out -- each note warned once, in
         DataCube's words. So the page holds the cube every headless call opens, and no later call sends a part DataCube
-        leaves out (a measure of a page saved before the naming rule, refused beside a new one). Whether it was taken.
-        Asked when a page is loaded (``load``: its frames served) and when a frame is served again (``_update``)."""
+        leaves out. Whether it was taken. Asked when a page is loaded (``load``: its frames served), when a frame is
+        served again (``_update``), and before a filter, a calculated column or a chart is checked against it
+        (``_current``: a Live frame changed in place)."""
         frame = c['cube']['source']['name']
         cube, notes, changed = self._frame_cube(frame, len(self._doc['cubes']), c['cube'])
         # the frame's columns as they were, nothing left out: the cube stands as it is (opened again, the same)
@@ -1298,6 +1303,12 @@ class Page:
             warnings.warn(f'{frame}: {note}', stacklevel=stacklevel)
         c['cube'] = cube
         return True
+
+    def _current(self, cube: str, stacklevel: int) -> None:
+        """The cube ``cube`` (its id) as DataCube opens it over its frame now, taken and said (``_reopened``) before a
+        call checks a change against it and writes the change into it: a Live frame changed in place (a column gone, a
+        calculated column that read it left out) is the cube DataCube checks, never the one held before."""
+        self._reopened(next(c for c in self._doc['cubes'] if c['id'] == cube), stacklevel + 1)
 
     def _frame_cube(self, frame: str, grids_on_page: int,
                     saved: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str], bool]:
