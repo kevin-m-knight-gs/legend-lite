@@ -3158,6 +3158,21 @@ public final class IqDialect implements InputDialect {
                     for (int i = 0; i < ds.items().size(); i++) {
                         String name = itemName(ds, i, d.columnAliases());
                         if (name != null && !read.contains(name) && ds.items().get(i) instanceof SqlAst.SelectExpr x) {
+                            List<SqlAst.FunctionCall> arrays = new ArrayList<>();
+                            arrayAggregates(x.expr(), arrays);
+                            if (!arrays.isEmpty()) {
+                                // IQ island, 2026-10-17 (measured on IQ 17.1): an ARRAY_AGG in a column no one reads
+                                // is dropped with it, the derived table grouping still
+                                if (x.expr() == arrays.get(0) && !matched && !readDeep.contains(name)
+                                        && !ds.groupBy().isEmpty()) {
+                                    placeheld.add(arrays.get(0));
+                                    continue;
+                                }
+                                throw SqlTranslationException.unsupported("ARRAY_AGG in derived table column '" + name
+                                        + "', read nowhere, is not supported here: IQ 17.1 drops a column no one reads"
+                                        + " (it answers), and the island reads that only for a whole item of a grouped"
+                                        + " derived table", arrays.get(0).pos());
+                            }
                             SqlAst.FunctionCall unknown = unknownCall(x.expr());
                             if (unknown == null) {
                                 continue;
@@ -6567,6 +6582,13 @@ public final class IqDialect implements InputDialect {
             throw r.error();
         }
         SqlTranslationException p = placement[0];
+        SqlTranslationException h = held[0];
+        if (p != null && h != null && codeOf(java.util.Objects.requireNonNullElse(h.getMessage(), "")) == -157
+                && !limitInView(p)) {
+            // IQ island, 2026-10-17 (measured on IQ 17.1): a conversion's -157 before a subquery's placement and
+            // ARRAY_AGG's -1001030, after a row limit's in a derived table
+            throw h;
+        }
         if ((p != null || held[0] != null) && !unknownCalls.isEmpty()) {
             // the landing's review (2026-10-17): a call of no function of IQ's is -265 before either
             SqlAst.FunctionCall unknown = unknownCalls.get(0);
@@ -6599,6 +6621,7 @@ public final class IqDialect implements InputDialect {
         try {
             groupBySubqueries(statement, chosen);
             if (chosen == Engine.IQ) {
+                arrayAggregates(statement, placeheldHere);
                 // IQ island, 2026-10-15 (windows): a window function in a condition's subquery (its -1001030)
                 IqWindows.statement(statement, chosen);
                 appliedQueries(statement);
@@ -6613,6 +6636,40 @@ public final class IqDialect implements InputDialect {
             held = e;
         }
         return held;
+    }
+
+    /**
+     * IQ island, 2026-10-17 (the JOB corpus lane's 553; measured on IQ 17.1): ARRAY_AGG under IQ's engine is its
+     * -1001030 (an aggregate it does not support), raised after the names (-143), argument counts (-154), grouping
+     * (-149) and conversions (-157), and before a subquery's placement (-1005004); not where a column no one reads
+     * holds it ({@code placeheld}, {@link #unreadUnknownFunctions}).
+     */
+    private static void arrayAggregates(SqlAst.Statement statement, Set<SqlAst.FunctionCall> placeheld) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : readExpressions(s)) {
+                    List<SqlAst.FunctionCall> arrays = new ArrayList<>();
+                    arrayAggregates(e, arrays);
+                    for (SqlAst.FunctionCall a : arrays) {
+                        if (!placeheld.contains(a)) {
+                            throw SqlTranslationException.invalid("ARRAY_AGG is an aggregate IQ's engine does not"
+                                    + " support" + code(-1001030, "QFA2A"), a.pos());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Into {@code out}, the ARRAY_AGG calls in {@code e}, outside its subqueries. */
+    private static void arrayAggregates(SqlAst.Expr e, List<SqlAst.FunctionCall> out) {
+        if (e instanceof SqlAst.FunctionCall f && f.name().size() == 1
+                && IqLexer.lower(f.name().get(0).text()).equals("array_agg")) {
+            out.add(f);
+        }
+        for (SqlAst.Expr child : children(e)) {
+            arrayAggregates(child, out);
+        }
     }
 
     /** IQ island, 2026-10-17: a call of no function of IQ's in the statement (not one read as a NULL string,
@@ -6636,7 +6693,18 @@ public final class IqDialect implements InputDialect {
             return IqFunctions.noSuchFunction(unknown.name().get(unknown.name().size() - 1).text(), unknown.pos());
         }
         SqlTranslationException p = placement[0];
+        if (code == -157 && p != null && !limitInView(p)) {
+            // IQ island, 2026-10-17 (measured on IQ 17.1): see translated()
+            return e;
+        }
         return p != null ? p : e;
+    }
+
+    /** Whether a held placement error is a row limit's in a subquery or a derived table ({@link #limitedSubqueries}),
+     *  which IQ raises before a conversion's -157 (the other placements after it: measured on IQ 17.1). */
+    private static boolean limitInView(SqlTranslationException p) {
+        return java.util.Objects.requireNonNullElse(p.getMessage(), "").contains("TOP, FIRST or START AT in a"
+                + " subquery or a derived table");
     }
 
     /** The IQ code a message names ("(IQ: SQLCODE -n", "is IQ's error -n"); 0 for none. */

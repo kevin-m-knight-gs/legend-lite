@@ -1987,3 +1987,43 @@ tests:
   - id: grouped_derived_subquery_under_a_true_on
     sql: "SELECT t.id, d.c FROM t LEFT JOIN (SELECT t_id, COUNT(*) AS c FROM u WHERE qty = (SELECT MAX(qty) FROM u) GROUP BY t_id) d ON 1 = 1 ORDER BY t.id, d.c"
     profile: iq17-default
+
+  # ---- ARRAY_AGG under IQ's engine (IQ island, 2026-10-17; the JOB corpus lane's 553, measured on IQ 17.1): its
+  # -1001030, after names, argument counts, grouping and conversions, before a subquery's placement; dropped with a
+  # column no one reads
+  - id: array_agg_distinct
+    sql: "SELECT ARRAY_AGG(DISTINCT vc) AS a FROM t"
+    profile: iq17-default
+  - id: array_agg_ordered
+    sql: "SELECT ARRAY_AGG(vc ORDER BY id) AS a FROM t"
+    profile: iq17-default
+  - id: array_agg_in_having
+    sql: "SELECT COUNT(*) AS c FROM t GROUP BY id HAVING ARRAY_AGG(vc) IS NOT NULL"
+    profile: iq17-default
+  - id: array_agg_after_a_grouping_error
+    sql: "SELECT id, sm, ARRAY_AGG(vc) AS a FROM t GROUP BY id"
+    profile: iq17-default
+  - id: array_agg_after_a_conversion_error
+    sql: "SELECT ARRAY_AGG(vc) AS a FROM t WHERE id = 'abc'"
+    profile: iq17-default
+  - id: array_agg_before_a_subquery_placement
+    sql: "SELECT ARRAY_AGG(vc) AS a FROM t ORDER BY (SELECT 1)"
+    profile: iq17-default
+  - id: array_agg_after_a_missing_column
+    sql: "SELECT ARRAY_AGG(nosuch) AS a FROM t"
+    profile: iq17-default
+  - id: array_agg_after_a_wrong_count
+    sql: "SELECT ARRAY_AGG(vc, 1) AS a FROM t"
+    profile: iq17-default
+  - id: array_agg_in_a_column_no_one_reads
+    sql: "SELECT id FROM (SELECT id, ARRAY_AGG(vc) AS a FROM t GROUP BY id) d ORDER BY id"
+    profile: iq17-default
+  - id: a_conversion_before_a_subquery_in_order_by
+    sql: "SELECT id FROM t WHERE id = 'abc' ORDER BY (SELECT 1)"
+    profile: iq17-default
+  - id: a_conversion_before_a_subquery_in_an_outer_join
+    sql: "SELECT t.id FROM t LEFT JOIN u ON u.t_id = (SELECT MAX(id) FROM g) WHERE t.id = 'abc'"
+    profile: iq17-default
+  - id: a_row_limit_in_a_derived_table_before_a_conversion
+    sql: "SELECT TOP 2 id FROM (SELECT TOP 3 id FROM t ORDER BY id) d WHERE id = 'abc' ORDER BY id"
+    profile: iq17-default

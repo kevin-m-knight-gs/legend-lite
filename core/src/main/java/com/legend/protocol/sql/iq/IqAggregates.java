@@ -86,7 +86,7 @@ final class IqAggregates {
 
     /** The aggregates the island reads ({@link IqParser#READ_AGGREGATES}). */
     private enum Fn {
-        COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST, PERCENTILE_CONT, PERCENTILE_DISC;
+        COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST, PERCENTILE_CONT, PERCENTILE_DISC, ARRAY_AGG;
 
         static Fn of(SqlAst.FunctionCall f) {
             return valueOf(IqLexer.lower(f.name().get(0).text()).toUpperCase(java.util.Locale.ROOT));
@@ -189,7 +189,7 @@ final class IqAggregates {
                 throw SqlTranslationException.invalid("wrong number of arguments to " + f.name().get(0).text()
                         .toUpperCase(java.util.Locale.ROOT) + code(-154, "37505"), f.pos());
             }
-            if (!f.orderBy().isEmpty() && !fn.equals("list")) {
+            if (!f.orderBy().isEmpty() && !fn.equals("list") && !fn.equals("array_agg")) {
                 throw SqlTranslationException.invalid("ORDER BY is not allowed in " + f.name().get(0).text()
                         + "(...): only LIST orders its values" + code(-949, "42WA5"), f.orderBy().get(0).pos());
             }
@@ -1380,6 +1380,7 @@ final class IqAggregates {
             case MEDIAN -> median(f, at, x, type, values);
             case LIST -> list(f, at, x, type, dialect);
             case PERCENTILE_CONT, PERCENTILE_DISC -> percentile(f, at, x, type, values);
+            case ARRAY_AGG -> arrayAgg(f, at, x, engine);
         };
     }
 
@@ -1666,6 +1667,27 @@ final class IqAggregates {
                 IqDialect.wide(v.get(0)), s1, whole1, SqlToPure.call("toDecimal", v.get(1)), scale));
         return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(quotient.vs()), null, null),
                 Kind.DECIMAL, true, new IqType(spelling));
+    }
+
+    /**
+     * ARRAY_AGG (IQ island, 2026-10-17; the JOB corpus lane's 553, measured on IQ 17.1): under IQ's engine its -1001030
+     * (an aggregate it does not support), which the dialect holds before translating ({@code IqDialect}'s placements)
+     * and raises after the names, the grouping and the conversions; here, an aggregate that reads its argument and
+     * shows a NULL string, which no answer ever carries. In SQL Anywhere's front end an array is no value a client
+     * reads (its -1599 in a select list): refused by name.
+     */
+    private static SqlToPure.Aggregation arrayAgg(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
+            IqDialect.Engine engine) {
+        if (engine != IqDialect.Engine.IQ) {
+            throw SqlTranslationException.unsupported("ARRAY_AGG is not supported in SQL Anywhere's front end: its"
+                    + " array is no value a client reads (its -1599 in a select list)", f.pos());
+        }
+        String read = at.fresh();
+        ColSpec count = new ColSpec(read, at.overRow(SqlToPure.valueOf(x)), at.overGroup(SqlToPure.call("count",
+                at.values())), null);
+        ColSpec shown = new ColSpec(at.name(), at.overRow(SqlToPure.call("cast", SqlToPure.empty(),
+                SqlToPure.typeArg("String"))), null, null);
+        return new SqlToPure.Aggregation(List.of(count), shown, Kind.STRING, true, new IqType("LONG VARCHAR"));
     }
 
     /** IQ island, 2026-10-15: the IQ engine's SUM and AVG types were measured on IQ 17.1 at its PUBLIC PRECISION 126

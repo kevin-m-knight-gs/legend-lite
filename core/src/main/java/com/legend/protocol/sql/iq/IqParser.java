@@ -77,7 +77,7 @@ public final class IqParser {
      *  {@code *} (or nothing), LIST's delimiter, and an ORDER BY inside the call (IQ's syntax in any call; the dialect
      *  takes it in LIST's only). */
     static final Set<String> READ_AGGREGATES = Set.of("count", "sum", "avg", "min", "max", "median", "list",
-            "percentile_cont", "percentile_disc");
+            "percentile_cont", "percentile_disc", "array_agg");
 
     /** IQ's statistical aggregates: SQL Anywhere computes them by a formula that loses precision (the research's
      *  TYPING §7: three equal values of 9999999999999999.9999 give a STDDEV of 134217728), which lite's databases do
