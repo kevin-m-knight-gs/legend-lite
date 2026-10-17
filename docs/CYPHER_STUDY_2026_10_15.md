@@ -4804,3 +4804,46 @@ both. TCK agreement DuckDB 3494 → 3513, Postgres 3115 → 3134.
 The 9 TCK rows move to PASS on both lanes; the 7 lite cases PASS on both. TCK agreement DuckDB
 3513 → 3520, Postgres 3134 → 3141.
 
+### 12.72 Pattern comprehensions over rows, and a first OPTIONAL MATCH's null row (2026-10-17)
+
+- **A comprehension read as a list column of the rows** (`MATCH (n) RETURN [p = (n)-->() | p]`, Pattern2/[1], [2];
+  `MATCH (a:A), (b:B) RETURN [p = (a)-->(b) | p]`, [3]; `WITH [p = (n)-->() | p] AS ps, count(b) AS c`, [8];
+  `WITH [p = (a)-[*]->(b) | p] AS paths, count(a) AS c`, [9]; `RETURN [p = (liker)--() | p] ORDER BY liker.time`,
+  [11]): before the projection, `withPatternLists` reads every comprehension whose pattern names a node or
+  relationship the rows carry with its identity, and whose expression and WHERE read the pattern's variables alone
+  (`listable`), as a column of the rows. The pattern is read as its own rows (the re-anchoring of §12.49,
+  `anchored`; its WHERE over them), each match's value of the expression is its JSON text (the rows' variables read
+  from the pattern's copies, the same nodes by the join), the texts are grouped by the copies' identities and joined
+  with commas, left-joined back on those identities, and read as a Variant between brackets: `[]` where the pattern
+  matches nothing, a row whose node an OPTIONAL MATCH did not find among them (Neo4j's `[]` for a comprehension
+  from a null). `size(...)` of one
+  is the list's size. The list's elements come in the database's order (S86).
+- **Over a graph, where the navigations do not read it** (`throughRows`): more than one hop, a variable-length
+  relationship, a bound end or relationship, a start not bound while another node is, a named path (its start is the
+  graph's node, which the navigation's map does not read beside the navigated instance), or an expression reading a
+  node outside the pattern; and any comprehension in an ORDER BY (its key reads it beside the projected items). The
+  graph is read as its rows first. The navigations of §12.31 keep every other comprehension. Since §12.71 a node's
+  value carries its identity, so a path's text reads its start node's: Pattern2/[1] and [2], which §12.31 read as
+  navigations, read this way now.
+- **A first OPTIONAL MATCH that finds nothing is one row of nulls** (`OPTIONAL MATCH (a:A {name: 'zz'}) RETURN a`):
+  it read as a MATCH over a model with classes, so it answered no row where Neo4j answers one (`orNullRow`: a
+  one-row relation left-joined to the pattern's rows on nothing, their variables optional). The TCK's first
+  OPTIONAL MATCHes read labels the model lacks, which §12.20 and §12.45 already answered; `lite/optional.yaml`'s
+  new cases pin it. `keys(n)` of a node or relationship an OPTIONAL MATCH may not find is null where it is absent
+  (`absentOr`, Graph8/[4], [7], which read through the graph before).
+- **Pinned.** `CypherToPureTest` (the comprehensions the navigations do not read: grouped, joined with commas,
+  left-joined back); `lite/patternlists.yaml`'s 15 cases and `lite/optional.yaml`'s 7 new ones, each judged by
+  Neo4j; `lite/patterns.yaml`'s five cases named for their refusal renamed for what they read now.
+
+#### 12.72.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4836 | 3704 (from 3,671) | 0 | 0 | 0 | 328 (from 339) | 747 | 57 |
+| Postgres | 4836 | 3302 (from 3,269) | 0 | 0 | 0 | 730 (from 741) | 747 | 57 |
+
+Pattern2/[1], [2], [3], [8], [9], [11] move to PASS on both lanes (Pattern2/[1] and [2] had left PASS with
+§12.71's identities, for the refusal of an outer read inside a navigation's map; the rows read them now); the 15
+cases of `lite/patternlists.yaml` and the 7 new ones of `lite/optional.yaml` PASS on both. TCK agreement DuckDB
+3520 → 3526, Postgres 3141 → 3147. Left: Pattern2/[7] (a comprehension inside a list comprehension, reading its
+variable), the nested EXISTS subqueries (ExistentialSubquery3/[1]-[3], ExistentialSubquery2/[2]).

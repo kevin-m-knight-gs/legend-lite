@@ -451,6 +451,13 @@ public final class CypherToPure {
         return new Coll(call("toMany", call("fromJson", text), SqlToPure.typeArg("String")), Kind.STRING, false);
     }
 
+    /** A node's or relationship's keys where it may be absent: null where {@code absent} holds, the keys' list
+     *  where not, held as a Variant of strings. */
+    private static Scalar absentOr(ValueSpecification absent, Coll keys) {
+        return scalar(Tx.value(call("if", absent, thunk(SqlToPure.nullOf(Kind.JSON).vs()), thunk(call("toVariant",
+                keys.vs()))), Kind.JSON, true, new ListOf(Kind.STRING)));
+    }
+
     /** No key: the empty JSON array read as strings, as a node's keys are (a typed empty collection,
      *  {@code []->cast(@String)}, folds to a list of no element type, which Postgres cannot size). */
     private static Coll noKeys() {
@@ -670,6 +677,8 @@ public final class CypherToPure {
      *  joined back by identity (a left join to the distinct identities it matches, a constant beside them), so the
      *  predicate is the constant's presence on the row. Keyed by the predicate's own node (identity). */
     private final Map<Expr, String> patternFlags = new java.util.IdentityHashMap<>();
+    /** The list columns {@link #withPatternLists} read pattern comprehensions over rows into, by the comprehension. */
+    private final Map<Expr, String> patternLists = new java.util.IdentityHashMap<>();
     private final Set<String> typesInThisMatch = matchFrame.types;
 
     /** A MATCH's WHERE with relationship uniqueness conjoined: the named relationships of one type pairwise
@@ -2920,6 +2929,24 @@ public final class CypherToPure {
      *  as §12.16's and the arms are read as rows (lite's outer join keeps one row for a root with no leaf); a type the
      *  model declares nowhere, or a label the hop does not reach, binds an absent node (null everywhere). As the
      *  first clause, a MATCH (the model has classes, so there are rows). */
+    /** A first OPTIONAL MATCH's rows (the study's §12.72): the pattern's, or one row of nulls where it finds nothing
+     *  (Neo4j's: an OPTIONAL MATCH keeps the row it starts from, and the first starts from one) -- the one row a
+     *  query over no pattern starts from, left-joined to the pattern's rows on nothing, their variables optional. */
+    private Rows orNullRow(State found, Pos pos) {
+        Rows rows = rowsOf(found, pos);
+        // (its one column under a name the pattern's rows do not hold: a pattern no way reads is itself one row)
+        Set<String> names = new HashSet<>();
+        rows.columns().forEach(c -> names.add(c.name()));
+        String name = freshName(names);
+        String one = "\n" + name + "\n1\n";
+        ValueSpecification vs = call("join", com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
+                rows.vs(), new EnumValue(JOIN_KIND, "LEFT"), new LambdaFunction(List.of(new Variable("l"),
+                new Variable("r")), List.of(new CBoolean(true))));
+        List<Col> columns = new ArrayList<>(List.of(new Col(name, Kind.INTEGER, false)));
+        rows.columns().forEach(c -> columns.add(optionalColumn(c)));
+        return new Rows(vs, columns);
+    }
+
     private State optionalMatch(CypherAst.Match m, @com.legend.base.Nullable State state) {
         if (state == null) {
             List<String> classes = new ArrayList<>(model.classes());
@@ -2936,7 +2963,7 @@ public final class CypherToPure {
                         ((NodePattern) m.patterns().get(0).elements().get(0)).variable());
             }
             // (a pattern no way of the model reads answers one null row here, not no row: noWay reads m.optional())
-            return matchPattern(m, null);
+            return orNullRow(matchPattern(m, null), m.pos());
         }
         if (state instanceof Rows rows) {
             Rows hop = absentHop(m, rows);
@@ -3624,7 +3651,7 @@ public final class CypherToPure {
     /** {@code rows} filtered by {@code where} read over them (a MATCH's or a WITH's WHERE over rows): the pattern
      *  predicates it holds answered by flag columns first ({@link #withPatternFlags}), dropped after. */
     private Rows filtered(Rows rows, Expr where) {
-        Rows flagged = withPatternFlags(rows, where);
+        Rows flagged = withPatternFlags(withPatternLists(rows, List.of(where)), where);
         RowScope scope = new RowScope(flagged);
         Rows out = new Rows(call("filter", flagged.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
                 flagged.columns());
@@ -3869,6 +3896,198 @@ public final class CypherToPure {
             out = new Rows(vs, columns);
         }
         return out;
+    }
+
+    /**
+     * {@code MATCH (n) RETURN [p = (n)-->() | p]}, {@code WITH a RETURN [(a)-[:T]->(x) WHERE x.v > 1 | x.name]} over
+     * rows (the study's §12.72): every pattern comprehension of {@code exprs} that reads over these rows
+     * ({@link #listable}) is read before the projection as a list column of the rows: the pattern read as its own
+     * rows (the re-anchoring of §12.49, {@link #anchored}, its WHERE over them), each match's value of the expression
+     * as its JSON text (the rows' variables read from the pattern's copies of them, the same nodes by the join), the
+     * texts grouped by the identities of the variables the pattern shares with the rows and joined with commas (the
+     * database's string aggregate, in its order: the register's S86), left-joined back on those identities, and read
+     * as a Variant between brackets, {@code []} on a row the pattern does not match. The comprehensions registered in
+     * {@link #patternLists}; one that does not read over these rows keeps its own reading.
+     */
+    private Rows withPatternLists(Rows rows, List<Expr> exprs) {
+        List<CypherAst.PatternComprehension> found = new ArrayList<>();
+        exprs.forEach(e -> comprehensionsIn(e, found));
+        Rows out = rows;
+        for (CypherAst.PatternComprehension pc : found) {
+            if (patternLists.containsKey(pc) || !listable(pc, out)) {
+                continue;
+            }
+            Anchored a = anchored(new CypherAst.Match(true, List.of(pc.pattern()), pc.where(), pc.pos()), out);
+            if (a == null) {
+                continue;
+            }
+            // (a node the rows hold as a value joins on the identity its JSON carries, the study's §12.71)
+            Rows held = withValueIdentities(out, a.renamed().values());
+            Set<String> names = new HashSet<>();
+            held.columns().forEach(c -> names.add(c.name()));
+            a.right().columns().forEach(c -> names.add(c.name()));
+            String list = freshName(names);
+            if (absentCopy(a)) {
+                // (a pattern that finds nothing anywhere, §12.70: the empty list on every row)
+                out = new Rows(call("extend", out.vs(), new ColSpecArray(List.of(new ColSpec(list, lambda("r",
+                        call("fromJson", new CString("[]"))), null, null)))), with(out.columns(),
+                        new Col(list, Kind.JSON, false)));
+                patternLists.put(pc, list);
+                continue;
+            }
+            // each match's value as its JSON text, over the pattern's rows, the rows' variables read from its copies
+            List<Col> aliased = new ArrayList<>(a.right().columns());
+            for (Map.Entry<String, String> r : a.renamed().entrySet()) {
+                Col c = java.util.Objects.requireNonNull(column(a.right(), r.getKey()));
+                aliased.add(new Col(r.getValue(), c.kind(), c.nullable(), c.carried(), c.detail()));
+            }
+            RowScope scope = new RowScope(new Rows(a.right().vs(), aliased));
+            Val element = val(pc.map(), scope);
+            String piece = freshName(names);
+            ValueSpecification matches = call("extend", a.right().vs(), new ColSpecArray(List.of(new ColSpec(piece,
+                    lambda(scope.row(), jsonTextOf(element, pc.pos())), null, null))));
+            // the texts grouped by the copies' identities, joined back to the rows on them
+            List<ColSpec> keys = new ArrayList<>();
+            List<Col> keyColumns = new ArrayList<>();
+            ValueSpecification cond = null;
+            for (Map.Entry<String, String> r : a.renamed().entrySet()) {
+                Col left = java.util.Objects.requireNonNull(column(held, r.getValue()));
+                Col copy = java.util.Objects.requireNonNull(column(a.right(), r.getKey()));
+                for (String[] key : joinKeys(left, copy, r.getValue(), pc.pos())) {
+                    if (keyColumns.stream().noneMatch(c -> c.name().equals(key[1]))) {
+                        keyColumns.add(java.util.Objects.requireNonNull(column(a.right(), key[1])));
+                        keys.add(new ColSpec(key[1], null, null, null));
+                    }
+                    ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), key[0]),
+                            new AppliedProperty(new Variable("r"), key[1]));
+                    cond = cond == null ? eq : call("and", cond, eq);
+                }
+            }
+            String raw = freshName(names);
+            ValueSpecification grouped = call("groupBy", matches, new ColSpecArray(keys), new ColSpecArray(List.of(
+                    new ColSpec(raw, lambda("x", new AppliedProperty(new Variable("x"), piece)), lambda("y",
+                            call("joinStrings", new Variable("y"), new CString(","))), null))));
+            ValueSpecification vs = call("join", held.vs(), grouped, new EnumValue(JOIN_KIND, "LEFT"),
+                    new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
+                            List.of(java.util.Objects.requireNonNull(cond))));
+            ValueSpecification read = new AppliedProperty(new Variable("r"), raw);
+            vs = call("extend", vs, new ColSpecArray(List.of(new ColSpec(list, lambda("r", call("fromJson", plus(
+                    new CString("["), call("if", call("isEmpty", read), thunk(new CString("")), thunk(call("toOne",
+                    read))), new CString("]")))), null, null))));
+            List<Col> columns = new ArrayList<>(unheld(held.columns()));
+            for (Col k : keyColumns) {
+                // (the copy's identity columns and the joined texts ride along unnamed by any variable)
+                columns.add(new Col(k.name(), k.kind(), true, k.carried(), null));
+            }
+            columns.add(new Col(raw, Kind.STRING, true));
+            columns.add(new Col(list, Kind.JSON, false, null, listMark(element)));
+            patternLists.put(pc, list);
+            out = new Rows(vs, columns);
+        }
+        return out;
+    }
+
+    /** Whether a pattern comprehension reads over these rows as a list column ({@link #withPatternLists}): its
+     *  pattern names a node or relationship the rows carry with its identity (a node held as a value among them,
+     *  §12.71) and no other value of the rows, and its expression and WHERE read its own variables alone. */
+    private static boolean listable(CypherAst.PatternComprehension pc, Rows rows) {
+        Set<String> own = new HashSet<>();
+        boolean carried = false;
+        for (PatternElement e : pc.pattern().elements()) {
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v == null) {
+                continue;
+            }
+            own.add(v);
+            Col c = column(rows, v);
+            if (c == null) {
+                continue;
+            }
+            if (c.detail() instanceof NodeShape shape && shape.identity() != null && !shape.absent()
+                    || c.detail() instanceof RelShape rel && rel.identified()
+                    || c.carried() == null && c.kind() == Kind.JSON && c.detail() instanceof NodeValue) {
+                carried = true;
+            } else {
+                return false;
+            }
+        }
+        String path = pc.pattern().variable();
+        if (path != null) {
+            if (column(rows, path) != null) {
+                return false;
+            }
+            own.add(path);
+        }
+        return carried && !readsRow(pc.map(), own) && (pc.where() == null || !readsRow(pc.where(), own));
+    }
+
+    /** Whether a pattern comprehension over a graph reads through the graph's rows ({@link #withPatternLists}) rather
+     *  than as navigations from its start node (the study's §12.31): a pattern the navigations do not read (more
+     *  than one hop, a variable-length relationship, a bound end or relationship, a start not bound while another of
+     *  its nodes is), or a value a navigation's map does not read beside the navigated instance (a named path, whose
+     *  start is the graph's node; a node outside the pattern, its start among them). */
+    private static boolean throughRows(CypherAst.PatternComprehension pc, Graph g) {
+        List<PatternElement> elements = pc.pattern().elements();
+        Set<String> inner = new HashSet<>();
+        boolean bound = false;
+        for (int i = 0; i < elements.size(); i++) {
+            PatternElement e = elements.get(i);
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v == null) {
+                continue;
+            }
+            if (g.bindings().containsKey(v) || g.paths().containsKey(v)) {
+                bound = true;
+                if (i > 0) {
+                    return true;
+                }
+            } else if (i > 0) {
+                inner.add(v);
+            }
+        }
+        if (!bound) {
+            return false;
+        }
+        NodePattern start = (NodePattern) elements.get(0);
+        if (start.variable() == null || !g.bindings().containsKey(start.variable()) || elements.size() != 3
+                || ((RelPattern) elements.get(1)).lengthRange() != null || pc.pattern().variable() != null) {
+            return true;
+        }
+        return readsRow(pc.map(), inner);
+    }
+
+    /** Whether any pattern comprehension of {@code exprs} reads through the graph's rows ({@link #throughRows}). */
+    private static boolean throughRows(List<Expr> exprs, Graph g) {
+        List<CypherAst.PatternComprehension> found = new ArrayList<>();
+        exprs.forEach(e -> comprehensionsIn(e, found));
+        return found.stream().anyMatch(pc -> throughRows(pc, g));
+    }
+
+    /** The pattern comprehensions {@code e} holds, outside any lambda that binds a variable (a quantifier's, a list
+     *  comprehension's: one inside may read the lambda's variable) and outside each other. */
+    private static void comprehensionsIn(Expr e, List<CypherAst.PatternComprehension> out) {
+        if (e instanceof CypherAst.PatternComprehension pc) {
+            out.add(pc);
+            return;
+        }
+        if (e instanceof CypherAst.Quantifier || e instanceof CypherAst.ListComprehension) {
+            return;
+        }
+        for (Expr child : children(e)) {
+            comprehensionsIn(child, out);
+        }
+    }
+
+    /** A comprehension's list's mark: its elements' kind where the Variant reads them back by it (a scalar never
+     *  null), or their shape (a node's, a path's, a Variant's). */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail listMark(Val v) {
+        if (v instanceof Scalar s) {
+            if (s.tx().kind() == Kind.JSON) {
+                return new ListOf(Kind.JSON, s.tx().detail());
+            }
+            return !s.tx().nullable() && elementType(s.tx().kind()) != null ? new ListOf(s.tx().kind()) : null;
+        }
+        return new ListOf(Kind.JSON, shapeOf(v));
     }
 
     /** The pattern predicates and EXISTS subqueries {@code e} holds, outside any lambda that binds a variable (a
@@ -5596,6 +5815,21 @@ public final class CypherToPure {
             }
         }
         items = expanded;
+        // a pattern comprehension read as a list column of the rows (the study's §12.72): over a graph whose
+        // navigations do not read it (or in an ORDER BY, whose key reads it beside the projected items), over the
+        // graph's rows
+        List<Expr> listed = new ArrayList<>();
+        items.forEach(i -> listed.add(java.util.Objects.requireNonNull(i.expr())));
+        List<CypherAst.PatternComprehension> sorted = new ArrayList<>();
+        orderBy.forEach(o -> comprehensionsIn(o.expr(), sorted));
+        Graph graph = state instanceof Arms a ? a.arms().get(0) : state instanceof Graph g ? g : null;
+        if (graph != null && (throughRows(listed, graph) || !sorted.isEmpty())) {
+            state = rowsOf(state, pos);
+        }
+        orderBy.forEach(o -> listed.add(o.expr()));
+        if (state instanceof Rows rows) {
+            state = withPatternLists(rows, listed);
+        }
         // a label-less pattern's arms (one graph per class) are each projected to the same columns and
         // concatenated; the grouping, the sort, the SKIP and the LIMIT then read the whole (the study's §12.13)
         List<State> arms = state instanceof Arms a ? new ArrayList<>(a.arms()) : List.of(state);
@@ -8774,7 +9008,8 @@ public final class CypherToPure {
                         thunk(empty)), Kind.JSON, true));
             }
         }
-        if (fn.equals("size") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.PatternComprehension pc) {
+        if (fn.equals("size") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.PatternComprehension pc
+                && !patternLists.containsKey(pc)) {
             // the matches of the hop, counted by the database (the study's §12.31)
             return patternSize(pc, scope);
         }
@@ -8834,21 +9069,20 @@ public final class CypherToPure {
             NodeParts parts = scope.nodeParts(v);
             if (parts != null) {
                 if (parts.absent() != null) {
-                    throw CypherErrors.unsupported("keys of a node an OPTIONAL MATCH may not find is not supported"
-                            + " yet", c.pos());
+                    // (of a node an OPTIONAL MATCH may not find: null where it is absent, Neo4j's keys(null), the
+                    // keys where it is there, held as a Variant; the study's §12.72)
+                    return absentOr(parts.absent(), nodeKeys(parts));
                 }
                 return nodeKeys(parts);
             }
             Tx type = scope.relType(v);
             if (type != null) {
-                if (type.nullable()) {
-                    throw CypherErrors.unsupported("keys of a relationship an OPTIONAL MATCH may not find is not"
-                            + " supported yet", c.pos());
-                }
                 // (an edge class's properties that hold a value, the study's §5.6; none over a property or
                 // association)
                 NodeParts rel = scope.relParts(v);
-                return rel != null ? nodeKeys(rel) : noKeys();
+                Coll keys = rel != null ? nodeKeys(rel) : noKeys();
+                // (of a relationship an OPTIONAL MATCH may not find: null where it is absent, its type with it)
+                return type.nullable() ? absentOr(call("isEmpty", SqlToPure.valueOf(type)), keys) : keys;
             }
         }
         if ((fn.equals("type") || fn.equals("labels") || fn.equals("properties") || fn.equals("length"))
@@ -10473,6 +10707,11 @@ public final class CypherToPure {
      * (the values joined, §12.25). A named path inside is the path the hop makes.
      */
     private Val patternComprehension(CypherAst.PatternComprehension pc, Scope scope) {
+        String listed = patternLists.get(pc);
+        if (listed != null) {
+            // (read over the rows as a list column, the study's §12.72)
+            return scope.variable(new CypherAst.Var(listed, pc.pos()));
+        }
         Hopped h = hopped(pc, scope);
         List<ValueSpecification> pieces = new ArrayList<>();
         Coll one = null;

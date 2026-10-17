@@ -2049,17 +2049,17 @@ tck/expressions/pattern/Pattern1/[21] Using two existential pattern predicates i
 tck/expressions/pattern/Pattern1/[22] Fail on using pattern in RETURN projection	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[23] Fail on using pattern in WITH projection	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[24] Fail on using pattern in right-hand side of SET	BOTH_ERROR	BOTH_ERROR
-tck/expressions/pattern/Pattern2/[1] Return a pattern comprehension	REFUSED	REFUSED
-tck/expressions/pattern/Pattern2/[2] Return a pattern comprehension with label predicate	REFUSED	REFUSED
-tck/expressions/pattern/Pattern2/[3] Return a pattern comprehension with bound nodes	REFUSED	REFUSED
+tck/expressions/pattern/Pattern2/[1] Return a pattern comprehension	PASS	PASS
+tck/expressions/pattern/Pattern2/[2] Return a pattern comprehension with label predicate	PASS	PASS
+tck/expressions/pattern/Pattern2/[3] Return a pattern comprehension with bound nodes	PASS	PASS
 tck/expressions/pattern/Pattern2/[4] Introduce a new node variable in pattern comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[5] Introduce a new relationship variable in pattern comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[6] Aggregate on a pattern comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[7] Use a pattern comprehension inside a list comprehension	REFUSED	REFUSED
-tck/expressions/pattern/Pattern2/[8] Use a pattern comprehension in WITH	REFUSED	REFUSED
-tck/expressions/pattern/Pattern2/[9] Use a variable-length pattern comprehension in WITH	REFUSED	REFUSED
+tck/expressions/pattern/Pattern2/[8] Use a pattern comprehension in WITH	PASS	PASS
+tck/expressions/pattern/Pattern2/[9] Use a variable-length pattern comprehension in WITH	PASS	PASS
 tck/expressions/pattern/Pattern2/[10] Use a pattern comprehension in RETURN	PASS	PASS
-tck/expressions/pattern/Pattern2/[11] Use a pattern comprehension and ORDER BY	REFUSED	REFUSED
+tck/expressions/pattern/Pattern2/[11] Use a pattern comprehension and ORDER BY	PASS	PASS
 tck/expressions/precedence/Precedence1/[1] Exclusive disjunction takes precedence over inclusive disjunction	PASS	PASS
 tck/expressions/precedence/Precedence1/[2] Conjunction disjunction takes precedence over exclusive disjunction	PASS	PASS
 tck/expressions/precedence/Precedence1/[3] Conjunction disjunction takes precedence over inclusive disjunction	PASS	PASS
@@ -4285,6 +4285,13 @@ lite/optional/optional_to_many_node_as_value	PASS	PASS
 lite/optional/optional_through_with	PASS	PASS
 lite/optional/optional_two_hops	PASS	PASS
 lite/optional/optional_with_where	PASS	PASS
+lite/optional/optional_first_finding_nothing	PASS	PASS
+lite/optional/optional_first_finding_one	PASS	PASS
+lite/optional/optional_first_counted	PASS	PASS
+lite/optional/optional_first_hop_finding_nothing	PASS	PASS
+lite/optional/optional_first_then_with	PASS	PASS
+lite/optional/optional_first_keys_of_nothing	PASS	PASS
+lite/optional/optional_first_keys_of_a_relationship	PASS	PASS
 lite/optional_where/optional_hop_filtered_by_a_where	PASS	PASS
 lite/optional_where/where_over_both_ends	PASS	PASS
 lite/optional_where/two_hops_with_a_where	PASS	PASS
@@ -4333,6 +4340,21 @@ lite/paths/two_hop_path	PASS	PASS
 lite/paths/path_length_in_a_where	PASS	PASS
 lite/paths/return_star_with_a_path	PASS	PASS
 lite/paths/fanning_path	PASS	PASS
+lite/patternlists/a_named_path_over_a_graph	PASS	PASS
+lite/patternlists/the_path_itself	PASS	PASS
+lite/patternlists/the_start_read_inside	PASS	PASS
+lite/patternlists/after_a_with	PASS	PASS
+lite/patternlists/a_size_after_a_with	PASS	PASS
+lite/patternlists/a_where_after_a_with	PASS	PASS
+lite/patternlists/both_ends_bound	PASS	PASS
+lite/patternlists/in_a_where_over_rows	PASS	PASS
+lite/patternlists/a_grouping_key	PASS	PASS
+lite/patternlists/a_node_inside	PASS	PASS
+lite/patternlists/a_variable_length_size	PASS	PASS
+lite/patternlists/two_hops	PASS	PASS
+lite/patternlists/from_a_null	PASS	PASS
+lite/patternlists/in_order_by	PASS	PASS
+lite/patternlists/nothing_matches	PASS	PASS
 lite/patterns/size_of_a_typed_hop	PASS	PASS
 lite/patterns/size_of_an_untyped_hop	PASS	PASS
 lite/patterns/size_of_two_types	PASS	PASS
@@ -4348,12 +4370,12 @@ lite/patterns/the_relationship_of_a_hop	PASS	PASS
 lite/patterns/a_path_of_a_hop	PASS	PASS
 lite/patterns/a_path_of_a_hop_with_a_label	PASS	PASS
 lite/patterns/a_path_of_a_hop_backwards	PASS	PASS
-lite/patterns/a_path_over_a_relationship_holding_many_refused	REFUSED	REFUSED
-lite/patterns/an_outer_node_in_the_expression_refused	REFUSED	REFUSED
+lite/patterns/a_path_over_a_relationship_holding_many	PASS	PASS
+lite/patterns/an_outer_node_in_the_expression	PASS	PASS
 lite/patterns/count_of_a_comprehension	PASS	PASS
-lite/patterns/a_comprehension_over_rows_refused	REFUSED	REFUSED
-lite/patterns/a_comprehension_with_both_ends_bound_refused	REFUSED	REFUSED
-lite/patterns/a_comprehension_over_two_hops_refused	REFUSED	REFUSED
+lite/patterns/a_comprehension_over_rows	PASS	PASS
+lite/patterns/a_comprehension_with_both_ends_bound	PASS	PASS
+lite/patterns/a_comprehension_over_two_hops	PASS	PASS
 lite/predicates/a_pattern_predicate_in_a_where	PASS	PASS
 lite/predicates/a_negated_pattern_predicate	PASS	PASS
 lite/predicates/a_pattern_predicate_over_a_labelless_node	PASS	PASS

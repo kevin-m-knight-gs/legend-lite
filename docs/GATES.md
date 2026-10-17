@@ -9932,6 +9932,28 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the seventieth landing — pattern comprehensions over rows
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the comprehension bucket); the record is the
+study's §12.72. A pattern comprehension the navigations do not read (over rows; over a graph with a named path, an
+outer node in the expression, a bound end, more than one hop, a variable-length relationship; in an ORDER BY) is a
+list column of the rows: the pattern read as its own rows, each match's text grouped by the identities it shares
+with them and left-joined back (register S86). A first OPTIONAL MATCH that finds nothing is one row of nulls (it
+answered no row over a model with classes), and `keys()` of what it may not find is null there.
+
+1. **What lands.** Pattern2/[1], Pattern2/[2], Pattern2/[3], Pattern2/[8], Pattern2/[9], Pattern2/[11] (6 TCK rows,
+   [1] and [2] back after the sixty-ninth landing's identities sent them to a refusal); the 15 cases of
+   `lite/patternlists.yaml`, 7 new cases of `lite/optional.yaml`; DuckDB PASS 3,671 → 3704, Postgres 3,269 → 3302;
+   TCK agreement DuckDB 3520 → 3526, Postgres 3141 → 3147.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3704
+   / REFUSED 328 / BOTH_ERROR 747 / SKIP 57; Postgres PASS 3302 / REFUSED 730 / BOTH_ERROR 747 / SKIP 57, of 4836
+   cases); the oracle check 0 problems. (A first run had three ERRORs, the null row's one column named as a no-way
+   pattern's one row already names it, now fresh; a second lost Graph8/[4] and [7] to a refusal of `keys()` of an
+   optional node, now spelled.)
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green.
+4. **Refused by name, recorded.** Pattern2/[7] (a comprehension inside a list comprehension reading its variable)
+   keeps its refusal; the nested EXISTS subqueries stay W12's.
+
 ## 2026-10-17 — `#Cypher{...}#`: the sixty-ninth landing — identities in values
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the MATCH-after-rows bucket's second half); the

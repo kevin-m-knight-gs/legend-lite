@@ -1073,16 +1073,19 @@ class CypherToPureTest {
                 pure("MATCH (f:Firm) RETURN size([(f)--() | 1]) AS c"));
         unsupported("MATCH (f:Firm) WITH f.legalName AS n RETURN [(f)-[:employees]->() | 1] AS l",
                 "a pattern comprehension over rows");
-        unsupported("MATCH (f:Firm)-[:employees]->(p:Person) RETURN [(f)-[:employees]->(p) | 1] AS l",
-                "whose two ends are both bound");
-        unsupported("MATCH (f:Firm) RETURN [(f)-[:employees]->()-[:firm]->() | 1] AS l",
-                "over more than one hop");
-        unsupported("MATCH (f:Firm) RETURN [(f)-[:employees*1..2]->() | 1] AS l", "variable-length");
-        // the lowering maps the navigated instances alone: over a relationship holding many, the expression (or
-        // the path, whose start is the graph's node) may not read a node outside the pattern
-        unsupported("MATCH (f:Firm) RETURN [(f)-[:employees]->(e) | f.legalName + e.name] AS l",
-                "reads a node outside its pattern");
-        unsupported("MATCH (f:Firm) RETURN [p = (f)-[:employees]->(e) | p] AS l", "reads a node outside its pattern");
+        // what the navigations do not read (two bound ends, more than one hop, a variable-length relationship; the
+        // lowering maps the navigated instances alone, so a node outside the pattern or a named path, whose start
+        // is the graph's node) reads through the graph's rows (the study's §12.72): the pattern read as its own
+        // rows, each match's value's text grouped by the identities it shares with the rows, joined back
+        for (String q : List.of("MATCH (f:Firm)-[:employees]->(p:Person) RETURN [(f)-[:employees]->(p) | 1] AS l",
+                "MATCH (f:Firm) RETURN [(f)-[:employees]->()-[:firm]->() | 1] AS l",
+                "MATCH (f:Firm) RETURN [(f)-[:employees*1..2]->() | 1] AS l",
+                "MATCH (f:Firm) RETURN [(f)-[:employees]->(e) | f.legalName + e.name] AS l",
+                "MATCH (f:Firm) RETURN [p = (f)-[:employees]->(e) | p] AS l")) {
+            String translated = pure(q);
+            assertTrue(translated.contains("->groupBy(") && translated.contains("->joinStrings(',')")
+                    && translated.contains("JoinKind.LEFT"), translated);
+        }
     }
 
     @Test
