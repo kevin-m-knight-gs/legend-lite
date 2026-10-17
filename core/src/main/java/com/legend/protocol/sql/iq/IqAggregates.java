@@ -33,8 +33,8 @@ import java.util.Set;
  * <ul>
  *   <li><b>GROUP BY and HAVING</b> read a select-list alias before a column of its name, anywhere in them (in an
  *       aggregate's argument too); an integer constant there is a constant, never a position ({@code SELECT k, COUNT(*)
- *       ... GROUP BY 1} is IQ's error -149). A GROUP BY of constants only is refused under the IQ engine, which
- *       restricts it (the research's D-R1); SQL Anywhere groups all rows by it. Strings group by IQ's collation
+ *       ... GROUP BY 1} is IQ's error -149). A GROUP BY of constants only groups all rows (IQ island, 2026-10-17,
+ *       measured on IQ 17.1, where the research's D-R1 held that IQ's engine restricts it). Strings group by IQ's collation
  *       ({@code 'a'} and {@code 'a '} are one group in IQ, {@code 'A'} and {@code 'a'} in a {@code sqla17} profile;
  *       IQ island, 2026-10-14, {@link IqKeys}): a key the query shows only where each value is its own key.</li>
  *   <li><b>COUNT</b> ({@code *}, a value, DISTINCT -- of strings, the distinct collation keys) counts as everywhere; its type is SQL Anywhere's INTEGER in its
@@ -123,11 +123,6 @@ final class IqAggregates {
             if (!misplaced.isEmpty()) {
                 throw SqlTranslationException.invalid("an aggregate is not allowed in WHERE, ON or GROUP BY"
                         + code(-150, "42W06"), misplaced.get(0).pos());
-            }
-        }
-        for (SqlAst.Expr key : s.groupBy()) {
-            if (key instanceof SqlAst.NullLit) {
-                throw SqlTranslationException.unsupported("GROUP BY NULL is not supported", key.pos());
             }
         }
         SqlAst.Select read = grouping(s);
@@ -683,8 +678,7 @@ final class IqAggregates {
      *   <li>an expression of a column that is part of a GROUP BY expression, outside that expression and not grouped by
      *       itself ({@code SELECT 1 + k ... GROUP BY k + 1}): IQ may read it as the GROUP BY expression (measured: it
      *       does for {@code 1 + k}, it raises -149 for {@code k * 3});</li>
-     *   <li>a GROUP BY of constants only (when no column outside an aggregate makes it IQ's -149 first: lite's
-     *       databases read an integer there as a position); and two LISTs ordered differently (the research's D-A1),
+     *   <li>two LISTs ordered differently (the research's D-A1),
      *       which SQL Anywhere's front end rejects (-904). IQ island, 2026-10-15 (the corpus lane; measured on IQ
      *       17.1): an aggregate's DISTINCT over an expression, and one in a SELECT DISTINCT, are read under IQ's engine
      *       too -- the research's D-R1 held that it restricts them; IQ 17.1 answers COUNT(DISTINCT CASE ... END),
@@ -854,9 +848,10 @@ final class IqAggregates {
     }
 
     /** A GROUP BY of constants only: IQ's error -149 when the select list reads a column outside an aggregate (it
-     *  groups by the constant, not by a select-list position: measured); else refused, under the IQ engine because it
-     *  restricts it (the research's D-R1), in SQL Anywhere's front end because lite's databases read an integer there
-     *  as a position. */
+     *  groups by the constant, not by a select-list position: measured); else every row is one group. IQ island,
+     *  2026-10-17 (the corpus lane's SQLStorm, measured on IQ 17.1): IQ's engine reads it too ({@code GROUP BY 'Total
+     *  Posts'}, {@code GROUP BY 1}, {@code GROUP BY NULL}), where the research's D-R1 held that it restricts it; the
+     *  key is computed as a column, which lite's databases never read as a position. */
     private static void constantKeys(SqlAst.Select s, IqDialect.Engine engine) {
         if (s.groupBy().isEmpty() || !s.groupBy().stream().allMatch(IqAggregates::constant)) {
             return;
@@ -869,9 +864,6 @@ final class IqAggregates {
                         + " select-list position; name the columns" + code(-149, "53003"), r.pos());
             }
         }
-        throw SqlTranslationException.unsupported("a GROUP BY of constants only is not supported" + (engine
-                == IqDialect.Engine.IQ ? " under IQ's engine, which restricts it (the research's D-R1)"
-                : ": lite's databases read an integer there as a select-list position"), s.groupBy().get(0).pos());
     }
 
     // ------------------------------------------------------------------ one expression as another

@@ -689,7 +689,17 @@ class IqToPureTest {
         // IQ island, 2026-10-15 (the corpus lane, measured on IQ 17.1): a set of ASCII members reads now; an
         // unclosed one, an empty one, a dash at its edge do not
         assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE '%[^a-z]%'").contains("[^a-z]"));
-        for (String like : new String[] {"vc LIKE 'a[b'", "vc LIKE '[]a'", "vc LIKE '[e-]'", "vc LIKE 'a' ESCAPE '!!'",
+        // IQ island, 2026-10-17 (the corpus lane, measured on IQ 17.1): every character a member as itself, a dash at
+        // a set's edge too, ranges by code point; a range that descends and a character past U+FFFF are not read
+        for (String like : new String[] {"vc LIKE '[e-]'", "vc LIKE '[-+]1%'", "vc LIKE '%[%_]'", "vc LIKE '%[é-ÿ]%'",
+                "vc LIKE '[[(\\]%'", "vc LIKE 'x[, ][:,-]%'"}) {
+            assertTrue(pure("SELECT id FROM " + T + " WHERE " + like).contains("matches("), like);
+        }
+        // a UTF-8 database's characters past ISO-8859-1's
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE '%[あ-ん]%'", IqProfile.IQ17_DEFAULT.settings(), COLUMNS)
+                .contains("matches("));
+        for (String like : new String[] {"vc LIKE 'a[b'", "vc LIKE '[]a'", "vc LIKE '[z-a]'", "vc LIKE '[\uD83D\uDE00]'",
+                "vc LIKE 'a' ESCAPE '!!'",
                 "vc LIKE 'a' ESCAPE ''", "vc LIKE '!a' ESCAPE '!'", "vc LIKE 'a!' ESCAPE '!'",
                 "vc LIKE '" + "a".repeat(127) + "'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE " + like)
@@ -888,10 +898,12 @@ class IqToPureTest {
         String byAlias = pure("SELECT sm AS id, COUNT(*) AS n FROM " + T + " GROUP BY id HAVING n > 1");
         assertTrue(byAlias.contains("groupBy(~[sm]"), byAlias);
         assertTrue(byAlias.contains("> 1"), byAlias);
-        // an integer is a constant: IQ's -149 for a column it does not group, else refused
+        // an integer is a constant: IQ's -149 for a column it does not group; else every row one group (IQ island,
+        // 2026-10-17, measured on IQ 17.1: GROUP BY 1, 'Total' and NULL), its key a computed column
         assertTrue(refusal("SELECT sm, COUNT(*) FROM " + T + " GROUP BY 1").getMessage().contains("-149"));
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT COUNT(*) FROM " + T + " GROUP BY 1")
-                .kind());
+        for (String key : new String[] {"1", "2", "'Total'", "NULL"}) {
+            assertTrue(pure("SELECT COUNT(*) FROM " + T + " GROUP BY " + key).contains("groupBy("), key);
+        }
         // a constant beside another key divides no group
         assertTrue(pure("SELECT sm FROM " + T + " GROUP BY sm, 1").contains("distinct()"));
         // a string key shown shows one value of its group (IQ island, 2026-10-15); a column of a GROUP BY expression

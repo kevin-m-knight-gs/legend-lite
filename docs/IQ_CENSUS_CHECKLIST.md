@@ -142,6 +142,28 @@ Open, ranked by the corpora:
 - the outer join ON shapes IQ reads but DuckDB cannot plan: a subquery in a RIGHT JOIN's ON (refused by name). Built 2026-10-17: a LEFT JOIN's ON conjunct holding a scalar subquery and reading the null-supplying side alone (`ON u.t_id > 0 AND u.id = (SELECT MAX(id) FROM u)`) filters that side before the join in DuckDB's dialect (`OuterJoinSubqueryFilters`), which DuckDB cannot plan otherwise. SQLStorm's 6 queries once listed here are IQ's -1001047 (above);
 - CROSS APPLY (676), which this round measured only as IQ's internal error on one correlated shape (2.16c).
 
+The refusals the live IQ answers (2026-10-17): every query the island refused, or that lite's database failed, over
+the dba.stackexchange sample was sent to the live IQ (`refused_suite`, 1,599 queries; IQ answers 582). By the
+island's reason, those IQ answers, and what became of them:
+- built this round: a second statement without a separator, named (85 of 108; out: the island reads one SELECT);
+  month-first dates, IQ's error (55 of 61) and a year and a month, read (6); a string function's 64-bit count (23);
+  LIKE's sets of any member (13 of 17); `*` in a grouped query showing its group keys (7); a GROUP BY of constants
+  only, NULL too (4: IQ 17.1 reads it, where the research's D-R1 held that its engine restricts it);
+- lite's database failing on SEDE's empty sample tables (27 of 40): each answers over the data, PASS; the other 13
+  are IQ's errors too (division by zero, the outer join ON rule above);
+- paused, a decision for the user: AVG or SUM of a DOUBLE read for some groups only (39). IQ checks the running
+  total for overflow in every group (D-E3), lite where the value is read; a check computed for every group needs the
+  finish kept apart from the lowering's folds and filters, so that DuckDB cannot skip it. For a DOUBLE it guards only a
+  sum past 1.8 × 10^308, so the alternative is a registered divergence for DOUBLEs;
+- out, the 38 digits of lite's DuckDB decimals: CAST to DECIMAL without a precision (64, IQ's NUMERIC(126,38)), AVG
+  of a wide NUMERIC (53, IQ's NUMERIC(127,59): '9.83333...' to 59 places), a NUMERIC quotient or product past 38
+  digits (46), CAST of a NUMERIC to more places (8). IQ answers them exactly; DuckDB holds no decimal past 38 digits
+  (Postgres's numeric would), so lite refuses by name rather than answer other digits;
+- not built yet: an expression nesting too many checked operations (39 of 44, a scale bound); the name IQ gives an
+  unaliased expression it spells with its own rules (32: tables qualified, `count()`, an inner alias kept); RAND (8,
+  in ORDER BY: no answer to judge); DATEADD's counts that may pass 32 bits (10); STR, LOG and LOG10 of an UNSIGNED
+  number (13); CONVERT's styles to other lengths (5).
+
 ### Phase 2: the answers judged (2026-10-16)
 
 The data is a sample of dba.stackexchange's (29 tables), loaded into the live IQ as `ll_*` tables and into each lane's

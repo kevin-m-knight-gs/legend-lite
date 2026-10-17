@@ -577,7 +577,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                         new QuantileOrder(),
                         new UnqualifyPivotArgs(), new FoldToListReduce(),
                         new CheckedDefectsToLists(),
-                        new SubstringClamp(),
+                        new SubstringClamp(), ConstantKeysAsExpressions.groupByOnly(),
                         // IQ island, 2026-10-17: a LEFT JOIN condition's scalar subquery of the null-supplying side,
                         // which DuckDB cannot plan, filters that side before the join
                         new OuterJoinSubqueryFilters()));

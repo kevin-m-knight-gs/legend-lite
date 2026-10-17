@@ -2505,8 +2505,6 @@ public final class SqlToPure {
         for (SqlAst.SelectItem item : s.items()) {
             if (item instanceof SqlAst.SelectExpr x) {
                 scanned.add(x.expr());
-            } else {
-                throw SqlTranslationException.unsupported("\"*\" in a grouped query is not supported yet", item.pos());
             }
         }
         SqlAst.Expr having = s.having();
@@ -2554,9 +2552,34 @@ public final class SqlToPure {
         List<Output> outputs = new ArrayList<>();
         Set<String> passed = new HashSet<>();
         for (SqlAst.SelectItem item : s.items()) {
-            outputs.add(output((SqlAst.SelectExpr) item, windowed.scope(), passed, present));
+            switch (item) {
+                case SqlAst.SelectExpr x -> outputs.add(output(x, windowed.scope(), passed, present));
+                case SqlAst.AllColumns all -> {
+                    // IQ island, 2026-10-17 (the corpus lane; measured on IQ 17.1): a star in a grouped query shows
+                    // its columns, each a group key (SELECT * FROM (...) d GROUP BY id); another is not grouped
+                    for (Col c : starColumns(all, in)) {
+                        Col key = g.key(c, new SqlAst.ColumnRef(all.qualifier() == null
+                                ? List.of(new SqlAst.Ident(c.label(), true, all.pos()))
+                                : List.of(all.qualifier(), new SqlAst.Ident(c.label(), true, all.pos())), all.pos()));
+                        outputs.add(passthrough(key, c.label(), passed, present, windowed.scope()));
+                    }
+                }
+            }
         }
         return assemble(s, windowed.scope(), windowed.relation(), present, outputs);
+    }
+
+    /** The columns a star shows: the FROM items' all, or one item's. */
+    private List<Col> starColumns(SqlAst.AllColumns all, Input in) {
+        SqlAst.Ident q = all.qualifier();
+        if (q == null) {
+            return in.star;
+        }
+        Binding b = in.binding(q);
+        if (b == null) {
+            throw SqlTranslationException.invalid(dialect.message(Problem.NO_SUCH_TABLE, q.text()), q.pos());
+        }
+        return b.columns().stream().map(BCol::col).toList();
     }
 
     // ------------------------------------------------------------------ windows

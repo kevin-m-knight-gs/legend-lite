@@ -1204,7 +1204,7 @@ public final class IqDialect implements InputDialect {
     private static void likePatterns(SqlAst.Expr e) {
         if (e instanceof SqlAst.Like l && l.pattern() instanceof SqlAst.StringLit pattern
                 && !(l.escape() instanceof SqlAst.NullLit)) {
-            likeParts(pattern, l.escape(), false);
+            likeParts(pattern, l.escape(), false, false);
         }
         for (SqlAst.Expr child : children(e)) {
             likePatterns(child);
@@ -5757,7 +5757,7 @@ public final class IqDialect implements InputDialect {
                     integer ? SqlToPure.call("toString", v.get(0)) : v.get(0), v.get(1), escape)), l);
             return l.negated() ? SqlToPure.not(result) : result;
         }
-        List<String> parts = likeParts(pattern, l.escape(), true);
+        List<String> parts = likeParts(pattern, l.escape(), true, settings.latin1());
         boolean caseless = !settings.caseSensitive();
         for (int i = 1; caseless && i < parts.size(); i += 2) {
             if (parts.get(i).startsWith("[")) {
@@ -5872,7 +5872,7 @@ public final class IqDialect implements InputDialect {
      *  for none) a constant of one character, which makes the {@code %}, {@code _}, {@code [} or escape after it
      *  literal. What IQ raises an error for is refused by name, and so is a {@code [set]} class when {@code sets}. */
     private static List<String> likeParts(SqlAst.StringLit pattern, SqlAst.@com.legend.base.Nullable Expr esc,
-            boolean sets) {
+            boolean sets, boolean latin1) {
         char escape = 0;
         if (esc != null) {
             if (!(esc instanceof SqlAst.StringLit e) || e.value().length() != 1) {
@@ -5914,11 +5914,11 @@ public final class IqDialect implements InputDialect {
                 // IQ island, 2026-10-15 (the corpus lane: '%[^0-9]%' and kin in 39 queries; measured on IQ 17.1):
                 // a set of one character, a wildcard part of its own, as the regular expression's class it is
                 int close = p.indexOf(']', i + 1);
-                String set = close < 0 ? null : likeSet(p.substring(i + 1, close), escape);
+                String set = close < 0 ? null : likeSet(p.substring(i + 1, close), escape, latin1);
                 if (set == null) {
-                    throw SqlTranslationException.unsupported("this LIKE [set] is not supported yet: a set of ASCII"
-                            + " letters, digits, blanks and plain marks, ranges of them and a leading ^ are read",
-                            pattern.pos());
+                    throw SqlTranslationException.unsupported("this LIKE [set] is not supported yet: an empty set, a"
+                            + " range that descends, the escape inside a set, and a character past U+FFFF (or past"
+                            + " U+00FF in an ISO-8859-1 database) are not read", pattern.pos());
                 }
                 parts.add(run.toString());
                 parts.add(set);
@@ -5932,36 +5932,49 @@ public final class IqDialect implements InputDialect {
         return parts;
     }
 
-    /** The marks a LIKE set reads as themselves, in a regular expression's class too. */
-    private static final String SET_MARKS = " .,:;!?@#&*/+=<>'\"~$";
-
-    /** A LIKE set's members ({@code abc}, {@code a-z}, {@code ^0-9}) as a regular expression's class, or null where
-     *  they are not read: a non-ASCII character, a mark of a class's own or a wildcard, the escape, an empty set, a
-     *  range not ascending or of a mark. */
-    private static @com.legend.base.Nullable String likeSet(String members, char escape) {
+    /**
+     * A LIKE set's members ({@code abc}, {@code a-z}, {@code ^0-9}) as a regular expression's class, or null where
+     * they are not read. IQ island, 2026-10-17 (the corpus lane: 13 queries; measured on IQ 17.1, its engine's and its
+     * front end's alike, CaseSensitive On, UTF8BIN): every character is a member as itself -- {@code %}, {@code _},
+     * {@code [}, a backslash and every mark too -- but a {@code ^} first, which negates the set, and {@code a-b}, the
+     * characters from a to b by their code points ({@code [あ-ん]}, {@code [é-ÿ]}, {@code [*-<]}); a {@code -} first
+     * (after the {@code ^}) or last is itself ({@code [-+]}, {@code [a-z-]}). Not read: an empty set, a range that
+     * descends (IQ's is empty), the escape, a character past U+FFFF, and one past U+00FF in an ISO-8859-1 database.
+     */
+    private static @com.legend.base.Nullable String likeSet(String members, char escape, boolean latin1) {
         int from = members.startsWith("^") ? 1 : 0;
         if (members.length() == from) {
             return null;
         }
         StringBuilder out = new StringBuilder(from == 1 ? "[^" : "[");
+        int last = members.length() - 1;
         for (int k = from; k < members.length(); k++) {
             char c = members.charAt(k);
-            boolean plain = c < 0x80 && (Character.isLetterOrDigit(c) || SET_MARKS.indexOf(c) >= 0) && c != escape;
-            if (!plain) {
+            if (!member(c, escape, latin1)) {
                 return null;
             }
-            if (k + 2 < members.length() && members.charAt(k + 1) == '-') {
+            if (k + 2 <= last && members.charAt(k + 1) == '-' && (k > from || c != '-')) {
                 char to = members.charAt(k + 2);
-                if (!(to < 0x80 && Character.isLetterOrDigit(to) && Character.isLetterOrDigit(c)) || to < c) {
+                if (!member(to, escape, latin1) || to < c) {
                     return null;
                 }
-                out.append(c).append('-').append(to);
+                out.append(classChar(c)).append('-').append(classChar(to));
                 k += 2;
             } else {
-                out.append(c);
+                out.append(classChar(c));
             }
         }
         return out.append(']').toString();
+    }
+
+    /** Whether {@code c} is a LIKE set's member lite reads ({@link #likeSet}). */
+    private static boolean member(char c, char escape, boolean latin1) {
+        return c != escape && !Character.isSurrogate(c) && c >= ' ' && (!latin1 || c <= 0xFF);
+    }
+
+    /** {@code c} as itself in a regular expression's class: the class's own marks escaped. */
+    private static String classChar(char c) {
+        return "\\]^-[".indexOf(c) >= 0 ? "\\" + c : String.valueOf(c);
     }
 
     /** A pattern's test, by its shape: no wildcard is equality; a trailing, leading or enclosing {@code %} alone is
