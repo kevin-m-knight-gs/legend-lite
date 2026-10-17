@@ -304,6 +304,9 @@ island's reason, those IQ answers, and what became of them:
 - other dialects' argument forms (CHARINDEX's start, ROUND's third argument, LOG's base; the corpus lane's 21;
   measured on IQ 17.1, 2026-10-17): IQ's -154 under the iq17 presets, before a missing column's -143, a conversion's
   -157 and a grouping's -149; the iq16 presets keep the refusal (the SA research holds some accepted);
+- more names of no function of IQ's (VAR, VARP, STDEVP, UNNEST, SUBSTRING_INDEX, SPLITPART, PARSENAME,
+  DATEDIFF_BIG; the corpus lane's 19; measured on IQ 17.1, 2026-10-17): its -265 (DATEDIFF_BIG's part a column, -143);
+  DB_NAME() answers the server's own name and COUNT_BIG is its -1001030 under its engine (both left refused);
 - open, error order (the claim verification's residue, 2026-10-17: 34 of 879 claims name another code than IQ's):
   where a query holds two errors, IQ raises the one of its earlier phase -- syntax, then -154, names (-143, -142,
   -144), grouping (-149, -150), function names (-265), then conversions and type checks (-157, -1001013, -1009145)

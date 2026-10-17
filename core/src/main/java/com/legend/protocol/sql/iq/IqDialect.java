@@ -3054,7 +3054,8 @@ public final class IqDialect implements InputDialect {
     /** The names of no function of IQ's whose call is a string (other dialects'), read as a NULL string where the
      *  column holding the call is read nowhere ({@link #unreadUnknownFunctions}). */
     private static final Set<String> STRING_RESULTS = Set.of("string_agg", "concat", "concat_ws", "format",
-            "split_part", "json_value", "group_concat", "strftime", "translate", "initcap", "quotename");
+            "split_part", "json_value", "group_concat", "strftime", "translate", "initcap", "quotename",
+            "substring_index", "splitpart", "parsename");
 
     /** Into {@code out}, the names (lower case) of the columns {@code e} reads, outside its subqueries, qualified by
      *  {@code alias} or not qualified. */

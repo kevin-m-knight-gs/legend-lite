@@ -1436,3 +1436,21 @@ tests:
   - id: charindex_with_a_start_before_a_grouping_error
     sql: "SELECT id, CHARINDEX('a', vc, 1) AS x FROM t GROUP BY vc"
     profile: iq17-default
+
+  # ---- more names of no function of IQ's (the corpus lane's VAR, UNNEST, SUBSTRING_INDEX, ...; measured on IQ 17.1,
+  # 2026-10-17): its -265; DATEDIFF_BIG's part is a column there (-143 for day)
+  - id: var_is_iqs_265
+    sql: "SELECT VAR(dbl) AS x FROM t"
+    profile: iq17-default
+  - id: var_of_a_missing_column_is_iqs_143
+    sql: "SELECT VAR(nosuch) AS x FROM t"
+    profile: iq17-default
+  - id: substring_index_is_iqs_265
+    sql: "SELECT SUBSTRING_INDEX(vc, 'a', 1) AS x FROM t"
+    profile: iq17-default
+  - id: unnest_is_iqs_265
+    sql: "SELECT UNNEST(id) AS x FROM t"
+    profile: iq17-default
+  - id: datediff_big_reads_its_part_as_a_column
+    sql: "SELECT DATEDIFF_BIG(day, ts, ts) AS x FROM t"
+    profile: iq17-default

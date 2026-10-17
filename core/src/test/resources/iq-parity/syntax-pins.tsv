@@ -165,8 +165,12 @@
 # IQ island, 2026-10-17 (measured on IQ 17.1: a subquery in GROUP BY is IQ's -1001030 under its engine): the reader
 # reads one, and the dialect places it as it plans: accept PARSED 3,205 -> 3,206 (REFUSED 1,743 -> 1,742), flag PARSED
 # 79 -> 81 (REFUSED 55 -> 53). Reject-parsed and accept-rejected unchanged.
-accept	parsed	3206
-accept	refused	1742
+# IQ island, 2026-10-17 (measured on IQ 17.1: VAR, VARP, STDEVP, UNNEST, SUBSTRING_INDEX, SPLITPART, PARSENAME and
+# DATEDIFF_BIG are no functions of IQ's, its -265; DATEDIFF_BIG's part a column there): each is read as a call, the
+# dialect naming IQ's error as it translates: accept PARSED 3,206 -> 3,207 (z2_redteam-199, DATEDIFF_BIG(ms, ...);
+# REFUSED 1,742 -> 1,741). Reject-parsed and accept-rejected unchanged.
+accept	parsed	3207
+accept	refused	1741
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1

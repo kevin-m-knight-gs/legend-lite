@@ -141,7 +141,10 @@ final class IqFunctions {
     static final java.util.Set<String> NO_SUCH_FUNCTION = java.util.Set.of("string_agg", "concat", "concat_ws", "eomonth", "format",
             "choose", "datefromparts", "date_trunc", "split_part", "age", "getutcdate", "sysdatetime", "json_value",
             "last_day", "nvl", "group_concat", "stdev", "strftime", "translate", "initcap", "quotename", "decode",
-            "greatest", "least", "to_date", "string_split");
+            "greatest", "least", "to_date", "string_split",
+            // IQ island, 2026-10-17 (the corpus lane's 19; measured on IQ 17.1): SQL Server's, MySQL's and Postgres's
+            // too -- DATEDIFF_BIG's part is read as a column there (its -143 for day)
+            "var", "varp", "stdevp", "unnest", "substring_index", "splitpart", "parsename", "datediff_big");
 
     /** The refusal of a call of {@code name}, one of {@link #NO_SUCH_FUNCTION}. */
     static SqlTranslationException noSuchFunction(String name, SqlAst.Pos pos) {

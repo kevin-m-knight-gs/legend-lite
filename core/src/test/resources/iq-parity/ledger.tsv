@@ -998,6 +998,11 @@ lite/corpus_gaps/round_with_a_third_argument_is_iqs_154@iq17-default	BOTH_ERROR	
 lite/corpus_gaps/log_with_a_base_is_iqs_154@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/charindex_with_a_start_before_a_missing_column@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/charindex_with_a_start_before_a_grouping_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/var_is_iqs_265@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/var_of_a_missing_column_is_iqs_143@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/substring_index_is_iqs_265@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/unnest_is_iqs_265@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/datediff_big_reads_its_part_as_a_column@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS
