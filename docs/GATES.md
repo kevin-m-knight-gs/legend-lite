@@ -11067,7 +11067,8 @@ product behaviour change was intended, and none was measured.
   - The Postgres corpus lane (`bazel run //spec:corpus_on_postgres`) on its one on-demand fixture's test: the
     fixture runs in `aside_0`, and the test passes.
 - **The measurement round, main 86bbe71e against d12474f5, every target with `dump-sql`:**
-  - BigQuery and Snowflake (10 targets each): all pass on both commits, every digest the same, census and channel B
-    lines identical; sessions open through `CloudBackend` from the same properties file. The only differing log
-    lines are the container's proxy port, one unordered result's row order and fresh UUIDs. (Snowflake's digests
-    moved between e6800ae0 and 86bbe71e on main itself: a nested `CASE` now flattened.)
+  - Snowflake, Databricks and BigQuery (10 targets each): all pass on both commits, every digest the same, census and
+    channel B lines identical; sessions open through `CloudBackend` from the same properties file. BigQuery's only
+    differing log lines are the container's proxy port, one unordered result's row order and fresh UUIDs.
+    (Snowflake's and Databricks' essential and relation digests moved between e6800ae0 and 86bbe71e on main itself:
+    a nested `CASE` in an `ELSE` is now one `CASE`, six equivalent statements.)
