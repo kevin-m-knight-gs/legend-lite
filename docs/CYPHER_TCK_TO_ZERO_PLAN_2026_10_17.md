@@ -319,6 +319,11 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
 - A comprehension over a path's parts LANDED 2026-10-17 (the study's §12.80, GATES' seventy-seventh landing; TCK
   agreement DuckDB 3569 → 3570, Postgres 3177 → 3178): a list comprehension over a fixed-length named
   path's nodes or relationships read per part (Pattern2/[7]); EXISTS among a projection's items over rows.
+- The spec guards' repair LANDED 2026-10-17 (the study's §12.81, GATES' seventy-eighth landing; the lanes unchanged):
+  `//spec:spec_tests` and the generated files' diff tests, red since earlier legs, green again -- the store's Time
+  and TimestampNs declared in the system metamodel, the prelude regenerated, elementId claimed as a resolver form,
+  rand() as legend-pure's own `math::random` (lite's twin left), the pins moved with dated reasons; the per-leg
+  chain runs those suites and the IQ and SQL lanes from now on.
 - The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
   UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships

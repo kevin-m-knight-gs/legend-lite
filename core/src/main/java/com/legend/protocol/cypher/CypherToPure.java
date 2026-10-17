@@ -12274,9 +12274,9 @@ public final class CypherToPure {
      *  layer reads no catalog, AGENTS invariant 7b, so their names are spelled here): the time of day of a date-time,
      *  and the date-time at a time of a date. */
     private static final String TIME_OF = "meta::legend::lite::timeOf";
-    /** The database's random float in [0, 1) (lite's {@code random}, the plan's W3): Cypher's {@code rand()}, a
-     *  value of the call, not of the data, read once per row it is spelled in. */
-    private static final String RANDOM = "meta::legend::lite::random";
+    /** The database's random float in [0, 1) (Pure's {@code random}, legend-pure's essential/math/random.pure; the
+     *  plan's W3): Cypher's {@code rand()}, a value of the call, not of the data, read once per row it is spelled in. */
+    private static final String RANDOM = "meta::pure::functions::math::random";
     private static final String IS_KIND = "meta::legend::lite::isKind";
     /** The platform's unguarded to-one conformance ({@code Pure.Lite.TRUST_ONE}, the lowering's identity): the
      *  island spells it where its own test proves the value present (the orderability key's places, §12.58). */

@@ -876,6 +876,19 @@ public final class SystemMetamodel {
             )
 
             ###Pure
+            // A time of day: lite's extension of the store grammar (RelationalDataType.Time, the Cypher island's stored
+            // times of day; legend-engine's grammar has no TIME column type, docs/SEMANTICS_REGISTER.md S64). Declared
+            // here, the platform's own elements, not in the generated prelude (2026-10-17, the spec guards' repair).
+            Class meta::relational::metamodel::datatype::Time extends meta::relational::metamodel::datatype::CoreDataType
+            {
+            }
+
+            // A date-time of nanosecond precision: lite's extension of the store grammar (RelationalDataType.TimestampNs,
+            // the Cypher island's stored nanosecond times and date-times; legend-engine's grammar has no TIMESTAMP_NS).
+            Class meta::relational::metamodel::datatype::TimestampNs extends meta::relational::metamodel::datatype::CoreDataType
+            {
+            }
+
             Class meta::lite::metamodel::MappingVisibility
             {
                 includeRank: Integer[1];

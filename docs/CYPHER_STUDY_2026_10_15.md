@@ -3625,9 +3625,11 @@ existence past a bridge-table step, now said over the rows), and Match9/[1] refu
   argument, with their `.transaction`, `.statement` and `.realtime` forms (the TCK's Temporal4/[13] nulls and
   Temporal10/[12] zero durations, Return6/[15]'s error; `rand()` itself is the gate of the Quantifier9-12 cases,
   which then need a list comprehension over a Variant list, W12).
-- **`rand()` is one lite native, `meta::legend::lite::random(): Float[1]`**, the database's random float in
-  `[0, 1)`: legend-pure has no random native (its platform functions are pure), so it is lite's own, under the
-  governance ceiling (22 → 23, `NativeCatalogGovernanceTest`; the census's row), lowered to `SqlFn.RANDOM` with
+- **`rand()` is Pure's `meta::pure::functions::math::random(): Float[1]`**, the database's random float in
+  `[0, 1)` (corrected 2026-10-17, the spec guards' repair, §12.81: the leg landed it as a lite native,
+  `meta::legend::lite::random`, on the claim that legend-pure has no random native; legend-pure declares one, in
+  `essential/math/random.pure`, which the regenerated prelude showed, so the platform implements upstream's and
+  lite's twin left the governance ceiling and the census), lowered to `SqlFn.RANDOM` with
   one render arm per dialect (`random()` on DuckDB, Postgres and Trino, `RAND()` on H2, MariaDB and BigQuery,
   `rand()` on Databricks and the engine's H2 text, `randCanonical()` on ClickHouse, `UNIFORM(0::FLOAT, 1::FLOAT,
   RANDOM())` on Snowflake, SQLite's signed 64-bit `random()` shifted and scaled). `randomUUID()` is Pure's
@@ -5144,3 +5146,29 @@ to the new key).
 
 Pattern2/[7] moves to PASS on both lanes; TCK agreement DuckDB 3569 → 3570, Postgres 3177 → 3178. The 8 cases of
 `lite/pathunroll.yaml` pass on both lanes.
+
+### 12.81 The spec guards' repair (2026-10-17)
+
+- **What was red.** `//spec:spec_tests` and four of the generated files' diff tests, on the branch since the W2, W3,
+  W5, W10 and W11 legs; the per-leg chain ran the Cypher lanes and three core suites, never these. Four causes:
+  lite natives landed without moving the catalog's NOT_UPSTREAM pin (`CatalogUpstreamDiffTest`), elementId with no
+  claim (`native-claims.tsv` UNCLAIMED, a ceiling of zero), the implementation table's measured kinds not
+  re-measured (`ratchets.tsv`), and the generated prelude edited by hand (the two store data types of W5 written
+  into it, which also dropped the file's carriage returns, kept byte for byte by `.gitattributes`).
+- **The store data types are the platform's own elements.** `meta::relational::metamodel::datatype::Time` and
+  `TimestampNs` (lite's extension of the store grammar, S64) are declared in the system metamodel
+  (`SystemMetamodel`'s Pure section), where `PlatformNamesSpellingTest` reads the platform's own names; the prelude
+  is the generator's again, byte for byte.
+- **elementId is claimed as a resolver form** (`NativeFn.ResolverForm.ELEMENT_ID`): the store resolver rewrites it to
+  the read of the instance's primary key (`StoreResolver.elementIdRead`), so it is a form of that layer, as
+  `tdsContains` and Variant's `get` are; the resolver dispatches on the form, not on the name.
+- **rand() is upstream's native.** The regenerated prelude dropped legend-pure's `essential/math/random.pure`: the
+  claimed bare name `random` (lite's twin) made upstream's a platform-owned name. §12.51's premise was wrong:
+  legend-pure declares `meta::pure::functions::math::random(): Float[1]`. The platform now implements upstream's
+  declaration (`native-membership.tsv`, its signature generated verbatim; `Scalars`' RANDOM rule moved to it), the
+  translator emits it, and lite's `meta::legend::lite::random` left: the INTERNAL_DESUGAR ceiling 27 → 26
+  (`NativeCatalogGovernanceTest`), the census's row, the implementation table's Unimplemented 71 → 70.
+- **The pins moved, dated.** NOT_UPSTREAM 48 → 54 (elementId's two overloads, recurse, isKind, minBy, maxBy);
+  `ratchets.tsv` re-measured (Form 218 → 219, Intrinsic 702 → 708, Unimplemented 71 → 70).
+- **The chain from now on** runs `//core:core_tests`, `//spec:spec_tests`, the generated files' and ratchets' diff
+  tests, and the IQ and SQL parity lanes on both databases, besides the Cypher lanes.

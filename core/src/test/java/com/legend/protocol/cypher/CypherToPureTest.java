@@ -1826,8 +1826,8 @@ class CypherToPureTest {
 
     @Test
     void randAndTheClocksAreTheDatabasesValuesOfTheCall() {
-        // (the study's §12.51) rand() is lite's random, the database's float in [0, 1); randomUUID() its uuid
-        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[r:r|meta::legend::lite::random(), u:r|generateGuid()])->select(~[r, u])",
+        // (the study's §12.51) rand() is Pure's random, the database's float in [0, 1); randomUUID() its uuid
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[r:r|meta::pure::functions::math::random(), u:r|generateGuid()])->select(~[r, u])",
                 pure("RETURN rand() AS r, randomUUID() AS u"));
         // the statement's clock: today and now, the time of day of now, the instant in UTC
         assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[d:r|today(), ldt:r|now(), lt:r|now()->meta::legend::lite::timeOf()])->select(~[d, ldt, lt])",

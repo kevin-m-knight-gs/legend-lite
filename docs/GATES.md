@@ -11718,3 +11718,23 @@ comprehension over a fixed-length named path's parts read per part; EXISTS among
 5. **Found, not this leg's.** The same run found `//spec:spec_tests` red on the branch's last commit (a8ef726),
    from earlier legs (lite natives without a claim or a ratchet line, two store types hand-written into the
    generated prelude); the next leg repairs it, and the chain runs the spec and parity suites from now on.
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-eighth landing — the spec guards' repair
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, W3, W5, W10 and W11 legs, repaired); the record is
+the study's §12.81. `//spec:spec_tests` and the generated files' diff tests green again, after earlier legs left
+them red unnoticed.
+
+1. **What lands.** Time and TimestampNs (the store's data types, S64) declared in the system metamodel, the prelude
+   the generator's again byte for byte (its carriage returns restored); elementId claimed as a resolver form
+   (`NativeFn.ResolverForm.ELEMENT_ID`), the resolver dispatching on it; rand() as upstream's
+   `meta::pure::functions::math::random` (legend-pure declares it; lite's twin left, INTERNAL_DESUGAR 27 → 26); the
+   pins moved with dated reasons (NOT_UPSTREAM 48 → 54) and the ratchets re-measured.
+2. **The ledger.** Both Cypher lanes in update mode (the showcase too), unchanged: FAIL/BUG/ERROR at zero (DuckDB
+   PASS 3855 / REFUSED 269 / BOTH_ERROR 750 / SKIP 56; Postgres PASS 3432 / REFUSED 692 / BOTH_ERROR 750 / SKIP 56,
+   of 4930 cases); TCK agreement DuckDB 3570, Postgres 3178 of 3880; the oracle check 0 problems.
+3. **The guards.** `//core:core_tests`, `//core:guardrails`, `//spec:spec_tests`, `//core:update_generated_tests`,
+   `//spec:update_ratchets_tests`, the IQ and SQL parity lanes on DuckDB and on Postgres,
+   `//core:iq_syntax_cases_test` and `//core:corpus_differential_test` green (40 targets).
+4. **The chain from now on** runs `//core:core_tests`, `//spec:spec_tests`, the generated files' and the ratchets'
+   diff tests, and the IQ and SQL parity lanes on both databases, besides the Cypher lanes.

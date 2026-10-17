@@ -115,9 +115,11 @@ class NativeCatalogGovernanceTest {
         // grouping use; Pure has no expression for it. Resolved by the store resolver through the primary-key
         // pseudo-binding; emitted by the Cypher translator only, by FQN. 21 -> 22.
         // +1 2026-10-17 (the Cypher island's rand-and-clocks leg, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W3):
-        // random — the database's random float in [0, 1), what Cypher's rand() answers: a value of the call, not
-        // of the data. legend-pure has no random native (its platform functions are pure); every dialect has one
-        // (SqlFn.RANDOM, one render arm each). Emitted by the Cypher translator only, by FQN. 22 -> 23.
+        // random — the database's random float in [0, 1), what Cypher's rand() answers. 22 -> 23; and -1 the same
+        // day (the spec guards' repair, which regenerated the prelude): legend-pure DOES declare it
+        // (essential/math/random.pure, meta::pure::functions::math::random():Float[1]), which the leg had missed,
+        // so the platform implements upstream's native (native-membership.tsv, Scalars' RANDOM rule) and lite's
+        // twin left. The counts below are as landed; the ceiling is one lower.
         // +1 2026-10-17 (the Cypher island's tail leg 2, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W12): isKind — the
         // database's reading of a Variant's JSON kind (SqlFn.JSON_TYPE, which every dialect spells, against the
         // dialect's own kind name, SqlExpr.JsonKindLit), what Cypher's predicates over a value the rows hold as a
@@ -133,8 +135,8 @@ class NativeCatalogGovernanceTest {
         // UNION ALL step)), the step reading the previous round's rows through its parameter until a round yields
         // none; what Cypher's unbounded variable-length pattern walks. legend-pure has no recursion over a relation
         // (its Pure functions recurse in the host, which the execution tenet forbids). Emitted by the Cypher
-        // translator only, by FQN. 26 -> 27.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 27,
+        // translator only, by FQN. 26 -> 27; 27 -> 26 for random (above).
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 26,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

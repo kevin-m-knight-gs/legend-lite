@@ -419,9 +419,6 @@ public final class Pure {
         public static final String TIME_OF = PKG + "timeOf";
         /** The identity of a mapped instance as a value (the Cypher island's, 2026-10-17). */
         public static final String ELEMENT_ID = PKG + "elementId";
-        /** The database's random float in [0, 1) (the Cypher island's {@code rand()}, 2026-10-17): a value of the
-         *  call, not of the data, which Pure has no native for. */
-        public static final String RANDOM = PKG + "random";
         /** Whether a Variant holds a value of a JSON kind, named as Cypher names them ({@code string},
          *  {@code number}, {@code boolean}, {@code list}, {@code map}, {@code null}): the database's reading of
          *  the kind, which Pure's Variant has no function for (the Cypher island's predicates over values the
@@ -570,7 +567,7 @@ public final class Pure {
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN,
                     Lite.LOCAL_IN,
-                    Lite.ELEMENT_ID, Lite.RANDOM, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY)
+                    Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -998,9 +995,6 @@ public final class Pure {
      *  as a call: lite's own, no upstream counterpart. */
     public static final NativeFunctionDefinition ELEMENT_ID__ANY_0_1 = signature("native function meta::legend::lite::elementId(instance:meta::pure::metamodel::type::Any[0..1]):meta::pure::metamodel::type::String[0..1];");
     public static final NativeFunctionDefinition ELEMENT_ID__ANY_MANY = signature("native function meta::legend::lite::elementId(instances:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[*];");
-    /** The database's random float in [0, 1) ({@link Lite#RANDOM}; the Cypher island's {@code rand()}): every
-     *  dialect has one; lite's own, no upstream counterpart. */
-    public static final NativeFunctionDefinition RANDOM = signature("native function meta::legend::lite::random():meta::pure::metamodel::type::Float[1];");
     /** Whether a Variant holds a value of a JSON kind ({@link Lite#IS_KIND}: the kind named as Cypher names them,
      *  the lowering's JSON_TYPE test, {@code SqlExpr.JsonKindLit}); null of a null Variant. */
     public static final NativeFunctionDefinition IS_KIND__VARIANT_0_1__STRING_1 = signature("native function meta::legend::lite::isKind(variant:meta::pure::metamodel::variant::Variant[0..1], kind:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[0..1];");
@@ -1993,6 +1987,7 @@ public final class Pure {
     public static final NativeFunctionDefinition PERCENTILE__NUMBER_MANY__FLOAT_1__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::math::percentile(numbers:meta::pure::metamodel::type::Number[*], percentile:meta::pure::metamodel::type::Float[1], ascending:meta::pure::metamodel::type::Boolean[1], continuous:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Number[0..1];");
     public static final NativeFunctionDefinition PERCENT_RANK__RELATION_1__WINDOW_1__T_1 = signature("native function meta::pure::functions::relation::percentRank<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition PI = signature("native function meta::pure::functions::math::pi():meta::pure::metamodel::type::Float[1];");
+    public static final NativeFunctionDefinition RANDOM = signature("native function meta::pure::functions::math::random():meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     public static final NativeFunctionDefinition PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     public static final NativeFunctionDefinition PIVOT__RELATION_1__COL_SPEC_1__ANY_1_MANY__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], values:meta::pure::metamodel::type::Any[1..*], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
@@ -2421,6 +2416,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_TIME_ZONE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DIVIDE_ROUND = com.legend.model.FunctionId.ofAll(DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN = com.legend.model.FunctionId.ofAll(GREATER_THAN_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN_EQUAL = com.legend.model.FunctionId.ofAll(GREATER_THAN_EQUAL_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_COMPUTED_KEYS = com.legend.model.FunctionId.ofAll(GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);
@@ -2428,6 +2424,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_INLINE_VIEW = com.legend.model.FunctionId.ofAll(INLINE_VIEW__RELATION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_INSTANT_IN = com.legend.model.FunctionId.ofAll(INSTANT_IN__DATE_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_DISTINCT_FROM = com.legend.model.FunctionId.ofAll(IS_DISTINCT_FROM__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_KIND = com.legend.model.FunctionId.ofAll(IS_KIND__VARIANT_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_NUMERIC = com.legend.model.FunctionId.ofAll(IS_NUMERIC__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_JOIN_SLOT = com.legend.model.FunctionId.ofAll(JOIN_SLOT__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_JOIN_WITH_PREFIX = com.legend.model.FunctionId.ofAll(JOIN_WITH_PREFIX__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1__STRING_1);
@@ -2437,19 +2434,17 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LESS_THAN = com.legend.model.FunctionId.ofAll(LESS_THAN_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LESS_THAN_EQUAL = com.legend.model.FunctionId.ofAll(LESS_THAN_EQUAL_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LOCAL_IN = com.legend.model.FunctionId.ofAll(LOCAL_IN__DATE_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MAX_BY = com.legend.model.FunctionId.ofAll(LITE_MAX_BY__ROW_MAPPER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MIN_BY = com.legend.model.FunctionId.ofAll(LITE_MIN_BY__ROW_MAPPER_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NAVIGATE = com.legend.model.FunctionId.ofAll(NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1, NAVIGATE__C_MANY__FUNC_COL_SPEC_1__FUNCTION_1, NAVIGATE__T_MANY__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NOT_EQUAL_ANSI = com.legend.model.FunctionId.ofAll(NOT_EQUAL_ANSI__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_OTHERWISE = com.legend.model.FunctionId.ofAll(OTHERWISE__T_1__T_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_PARSE_DATE_FORMAT = com.legend.model.FunctionId.ofAll(PARSE_DATE_FORMAT__STRING_0_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RECURSE = com.legend.model.FunctionId.ofAll(RECURSE__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
-    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
-    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RANDOM = com.legend.model.FunctionId.ofAll(RANDOM);
-    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_KIND = com.legend.model.FunctionId.ofAll(IS_KIND__VARIANT_0_1__STRING_1);
-    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MIN_BY = com.legend.model.FunctionId.ofAll(LITE_MIN_BY__ROW_MAPPER_MANY);
-    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MAX_BY = com.legend.model.FunctionId.ofAll(LITE_MAX_BY__ROW_MAPPER_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TRUST_ONE = com.legend.model.FunctionId.ofAll(TRUST_ONE__T_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TUPLE = com.legend.model.FunctionId.ofAll(TUPLE__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);
@@ -2690,6 +2685,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_MATH_PI = com.legend.model.FunctionId.ofAll(PI);
     public static final List<com.legend.model.FunctionId> AT_MATH_PLUS = com.legend.model.FunctionId.ofAll(PLUS__DECIMAL_MANY, PLUS__FLOAT_MANY, PLUS__NUMBER_MANY, PLUS__INTEGER_MANY);
     public static final List<com.legend.model.FunctionId> AT_MATH_POW = com.legend.model.FunctionId.ofAll(POW__NUMBER_1__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_RANDOM = com.legend.model.FunctionId.ofAll(RANDOM);
     public static final List<com.legend.model.FunctionId> AT_MATH_REM = com.legend.model.FunctionId.ofAll(REM__NUMBER_1__NUMBER_1);
     public static final List<com.legend.model.FunctionId> AT_MATH_ROUND = com.legend.model.FunctionId.ofAll(ROUND__DECIMAL_1__INTEGER_1, ROUND__FLOAT_1__INTEGER_1, ROUND__NUMBER_1);
     public static final List<com.legend.model.FunctionId> AT_MATH_SIGN = com.legend.model.FunctionId.ofAll(SIGN__NUMBER_1);

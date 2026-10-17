@@ -600,7 +600,8 @@ public final class StoreResolver {
             // (the mapping's ~primaryKey, else the main table's PRIMARY KEY: ClassSources.pseudoBindings) read as
             // text through the ordinary property funnel
             case TypedNativeCall nc
-                    when com.legend.builtin.Pure.Lite.ELEMENT_ID.equals(nc.callee().qualifiedName())
+                    when com.legend.builtin.NativeFn.ResolverForm.of(nc.callee().id()).orElse(null)
+                            == com.legend.builtin.NativeFn.ResolverForm.ELEMENT_ID
                     && nc.args().size() == 1 && objectSpace(nc.args().get(0)) ->
                     resolveNode(elementIdRead(nc, context), context);
             // scalar/relation NATIVES over chains bottoming at a getAll:
@@ -1275,7 +1276,8 @@ public final class StoreResolver {
     private TypedSpec identityReads(TypedSpec n, Context context) {
         TypedSpec rw = n.mapChildren(k -> identityReads(k, context));
         if (rw instanceof TypedNativeCall nc
-                && com.legend.builtin.Pure.Lite.ELEMENT_ID.equals(nc.callee().qualifiedName())
+                && com.legend.builtin.NativeFn.ResolverForm.of(nc.callee().id()).orElse(null)
+                        == com.legend.builtin.NativeFn.ResolverForm.ELEMENT_ID
                 && nc.args().size() == 1) {
             return elementIdRead(nc, context);
         }
