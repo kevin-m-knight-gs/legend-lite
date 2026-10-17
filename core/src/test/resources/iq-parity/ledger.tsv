@@ -1058,6 +1058,14 @@ lite/corpus_gaps/an_outer_aggregate_in_a_subquery_where_beside_its_top@iq17-defa
 lite/corpus_gaps/an_outer_aggregate_in_a_subquery_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/an_unopened_parenthesis_is_iqs_131@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/lateral_is_iqs_error_under_its_engine@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_named_window_reads_a_derived_column@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/not_like_null_rejects_no_outer_join_row@iq17-default	PASS	PASS
+lite/corpus_gaps/a_delimited_name_like_the_readers_own_call@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_enclosing_column_beside_a_group_by_expression@iq17-default	PASS	PASS
+lite/corpus_gaps/a_missing_column_before_a_string_that_is_no_number@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/order_by_exists_inside_a_case_is_refused@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_rejection_through_a_windowed_middle_table@iq17-default	PASS	PASS
+lite/corpus_gaps/a_missing_column_before_a_convert_style_of_no_engine@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

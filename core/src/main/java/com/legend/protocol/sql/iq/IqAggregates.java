@@ -797,12 +797,22 @@ final class IqAggregates {
                 bare.add(last(r));
             }
         }
+        Set<String> own = new java.util.HashSet<>();
+        for (SqlAst.FromItem f : s.from()) {
+            for (SqlAst.FromItem leaf : IqDialect.leaves(f)) {
+                SqlAst.Ident name = IqDialect.correlation(leaf);
+                if (name != null) {
+                    own.add(IqLexer.lower(name.text()));
+                }
+            }
+        }
         for (SqlAst.Expr e : groupedExpressions(s)) {
-            keyMatch(e, keys, inKeys, bare);
+            keyMatch(e, keys, inKeys, bare, own);
         }
     }
 
-    private static void keyMatch(SqlAst.Expr e, List<SqlAst.Expr> keys, Set<String> inKeys, Set<String> bare) {
+    private static void keyMatch(SqlAst.Expr e, List<SqlAst.Expr> keys, Set<String> inKeys, Set<String> bare,
+            Set<String> own) {
         if (e instanceof SqlAst.FunctionCall f && named(f)) {
             return;
         }
@@ -823,7 +833,10 @@ final class IqAggregates {
                         + " as GROUP BY does", e.pos());
             }
         }
-        if (e instanceof SqlAst.ColumnRef r && inKeys.contains(last(r)) && !bare.contains(last(r))) {
+        // the landing's review (2026-10-17): an enclosing query's column, qualified by none of this query's names, is
+        // no column of its groups
+        if (e instanceof SqlAst.ColumnRef r && inKeys.contains(last(r)) && !bare.contains(last(r))
+                && (r.parts().size() < 2 || own.contains(IqLexer.lower(r.parts().get(r.parts().size() - 2).text())))) {
             // IQ island, 2026-10-17 (the corpus lane's 20 such queries sent to IQ 17.1: 4 answered once a column
             // qualified or not was read as one, and the other 15 raised -149): IQ's -149 where no expression around
             // the column is a key written otherwise
@@ -832,7 +845,7 @@ final class IqAggregates {
                     + " itself" + IqDialect.code(-149, "53003"), r.pos());
         }
         for (SqlAst.Expr child : IqDialect.children(e)) {
-            keyMatch(child, keys, inKeys, bare);
+            keyMatch(child, keys, inKeys, bare, own);
         }
     }
 

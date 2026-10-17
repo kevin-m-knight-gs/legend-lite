@@ -2716,7 +2716,7 @@ public final class IqDialect implements InputDialect {
                 live.add(x.expr());
             }
         }
-        for (SqlAst.Expr e : expressions(outer)) {
+        for (SqlAst.Expr e : readExpressions(outer)) {
             if (outer.items().stream().noneMatch(i -> i instanceof SqlAst.SelectExpr x && x.expr() == e)) {
                 live.add(e);
             }
@@ -3024,21 +3024,21 @@ public final class IqDialect implements InputDialect {
                     }
                     Set<String> read = new java.util.HashSet<>();
                     Set<String> readDeep = new java.util.HashSet<>();
-                    for (SqlAst.Expr e : expressions(outer)) {
+                    for (SqlAst.Expr e : readExpressions(outer)) {
                         namesRead(e, alias, read);
                         List<SqlAst.Statement> subs = new ArrayList<>();
                         subqueries(e, subs);
                         for (SqlAst.Statement sub : subs) {
                             for (SqlAst.Statement inner : queries(sub)) {
                                 if (inner instanceof SqlAst.Select is) {
-                                    expressions(is).forEach(x -> namesRead(x, alias, readDeep));
+                                    readExpressions(is).forEach(x -> namesRead(x, alias, readDeep));
                                 }
                             }
                         }
                     }
                     readDeep.addAll(read);
                     // the derived table's own clauses, which may name an item by its alias
-                    for (SqlAst.Expr e : expressions(ds)) {
+                    for (SqlAst.Expr e : readExpressions(ds)) {
                         if (ds.items().stream().noneMatch(i -> i instanceof SqlAst.SelectExpr x && x.expr() == e)) {
                             namesRead(e, null, readDeep);
                         }
@@ -3077,6 +3077,17 @@ public final class IqDialect implements InputDialect {
     private static final Set<String> STRING_RESULTS = Set.of("string_agg", "concat", "concat_ws", "format",
             "split_part", "json_value", "group_concat", "strftime", "translate", "initcap", "quotename",
             "substring_index", "splitpart", "parsename");
+
+    /** A select's expressions ({@link #expressions}) and its named windows' keys (the landing's review, 2026-10-17: a
+     *  WINDOW clause's PARTITION BY reads a derived table's column as an OVER's does). */
+    private static List<SqlAst.Expr> readExpressions(SqlAst.Select s) {
+        List<SqlAst.Expr> all = new ArrayList<>(expressions(s));
+        for (SqlAst.NamedWindow w : s.windows()) {
+            all.addAll(w.spec().partitionBy());
+            w.spec().orderBy().forEach(o -> all.add(o.expr()));
+        }
+        return all;
+    }
 
     /** Into {@code out}, the names (lower case) of the columns {@code e} reads, outside its subqueries, qualified by
      *  {@code alias} or not qualified. */
@@ -3118,6 +3129,29 @@ public final class IqDialect implements InputDialect {
         return null;
     }
 
+    /** Whether every subquery in {@code e} is a scalar one outside a conditional expression (the landing's review,
+     *  2026-10-17: ORDER BY CASE WHEN EXISTS (...) is IQ's -1001030, a scalar subquery's -1005004). */
+    private static boolean scalarOutsideConditionals(SqlAst.Expr e) {
+        if (e instanceof SqlAst.Exists || e instanceof SqlAst.InSubquery || e instanceof SqlAst.Quantified) {
+            return false;
+        }
+        if ((e instanceof SqlAst.Case || e instanceof SqlAst.FunctionCall f && CONDITIONALS.contains(IqLexer.lower(
+                f.name().get(f.name().size() - 1).text()))) && subqueryIn(e)) {
+            return false;
+        }
+        for (SqlAst.Expr child : children(e)) {
+            if (!scalarOutsideConditionals(child)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether a subquery stands in {@code e} (outside its subqueries' own expressions). */
+    private static boolean subqueryIn(SqlAst.Expr e) {
+        return subqueryOf(e) != null || children(e).stream().anyMatch(IqDialect::subqueryIn);
+    }
+
     /** IQ island, 2026-10-17: a CONVERT style of IQ's engine's only (36-40, 136-140, 365) or of neither's, under SQL
      *  Anywhere's front end (a query over no IQ table), refused by name as the reader did before its engine's styles
      *  were read (the front end's styles differ; it raises its own error for some: style 365, the syntax research's
@@ -3133,8 +3167,9 @@ public final class IqDialect implements InputDialect {
     }
 
     private static void frontEndStyle(SqlAst.Expr e) {
-        if (e instanceof SqlAst.FunctionCall f && f.name().size() == 1 && f.name().get(0).text().equals(
-                IqParser.CONVERT_STYLE) && f.args().get(1) instanceof SqlAst.IntegerLit n
+        if (e instanceof SqlAst.FunctionCall f && f.name().size() == 1 && !f.name().get(0).quoted()
+                && f.name().get(0).text().equals(IqParser.CONVERT_STYLE) && f.args().size() == 3
+                && f.args().get(1) instanceof SqlAst.IntegerLit n
                 && !FRONT_END_STYLES.contains(n.value().intValue())) {
             throw com.legend.protocol.sql.SqlSyntaxException.unsupported("CONVERT style " + n.value() + " is not"
                     + " supported under SQL Anywhere's front end (a query over no IQ table): the island reads its"
@@ -3250,7 +3285,7 @@ public final class IqDialect implements InputDialect {
             }
             s.groupBy().forEach(k -> noSubquery(k, "GROUP BY"));
             for (SqlAst.SortItem o : s.orderBy()) {
-                if (top.contains(s)) {
+                if (top.contains(s) && scalarOutsideConditionals(o.expr())) {
                     // IQ island, 2026-10-17 (the corpus lane's 4; measured on IQ 17.1, correlated or not, shown as an
                     // item or not, in arithmetic too): IQ's -1005004
                     refuseSubquery(o.expr(), "a subquery in ORDER BY is IQ's error -1005004 under its engine (subqueries"
@@ -3266,8 +3301,10 @@ public final class IqDialect implements InputDialect {
                 for (SqlAst.Join j : joins) {
                     if (j.on() != null && j.type() != SqlAst.JoinType.INNER) {
                         SqlAst.Expr on = java.util.Objects.requireNonNull(j.on());
-                        if ((holdsSubquery(on) || expressions(s).stream().anyMatch(IqDialect::hasWindowCall))
-                                && nullRejected(rejecting(s, j), held.getOrDefault(s, List.of()), j)) {
+                        // the landing's review (2026-10-17, measured on IQ 17.1): IQ reads a rejected outer join as
+                        // inner, a window over it -- here or in a derived table between -- numbering the inner rows;
+                        // where no window reads its rows, the inner join's rows are the outer one's
+                        if (nullRejected(rejecting(s, j), held.getOrDefault(s, List.of()), j)) {
                             innerJoins.add(j);
                         } else {
                             outerJoinSubqueries(j, on);
@@ -3584,8 +3621,17 @@ public final class IqDialect implements InputDialect {
                     sideColumn(in.operand(), side, only, out);
                 }
             }
-            case SqlAst.Between b -> sideColumn(b.operand(), side, only, out);
-            case SqlAst.Like l -> sideColumn(l.operand(), side, only, out);
+            case SqlAst.Between b -> {
+                if (!(b.low() instanceof SqlAst.NullLit) && !(b.high() instanceof SqlAst.NullLit)) {
+                    sideColumn(b.operand(), side, only, out);
+                }
+            }
+            // the landing's review (2026-10-17): under ansinull Off NOT LIKE NULL holds for a NULL too (like)
+            case SqlAst.Like l -> {
+                if (!(l.pattern() instanceof SqlAst.NullLit) && !(l.escape() instanceof SqlAst.NullLit)) {
+                    sideColumn(l.operand(), side, only, out);
+                }
+            }
             default -> { }
         }
     }
@@ -6150,10 +6196,8 @@ public final class IqDialect implements InputDialect {
      */
     private Tx numberOf(Tx text, Kind other, Tx number, SqlAst.Pos pos) {
         if (engine == Engine.IQ) {
-            if (text.vs() instanceof CString s) {
-                unconvertible(s.value(), number, pos);
-            }
-            hold(SqlTranslationException.unsupported("comparing a string with a number is IQ's error -1001013 under"
+            SqlTranslationException e = text.vs() instanceof CString s ? unconvertible(s.value(), number, pos) : null;
+            hold(e != null ? e : SqlTranslationException.unsupported("comparing a string with a number is IQ's error -1001013 under"
                     + " its engine (an invalid data type comparison in a predicate), refused before translating", pos));
             return number;
         }
@@ -6200,13 +6244,15 @@ public final class IqDialect implements InputDialect {
      *  a column of an integer type (BIT, SMALLINT, INTEGER, BIGINT) is converted to a number first, so one that is no
      *  number ({@link #iqNumber}) is its -157 -- before any -1001013 of the statement, wherever each stands. Compared
      *  with a NUMERIC or DOUBLE column, or with an expression, it is not converted: -1001013. */
-    private static void unconvertible(String value, Tx number, SqlAst.Pos pos) {
+    private static @com.legend.base.Nullable SqlTranslationException unconvertible(String value, Tx number,
+            SqlAst.Pos pos) {
         if (!iqNumber(value) && number.vs() instanceof com.legend.protocol.spec.AppliedProperty
                 && number.detail() instanceof IqType t && t.isInteger()) {
-            throw SqlTranslationException.unsupported("comparing the string '" + value + "' with an integer column is"
+            return SqlTranslationException.unsupported("comparing the string '" + value + "' with an integer column is"
                     + " IQ's error -157 under its engine (it cannot convert the string to a number), refused before"
                     + " translating" + code(-157, "53018"), pos);
         }
+        return null;
     }
 
     /** Whether IQ's engine converts {@code text} to a number (measured on IQ 17.1): spaces around it, an optional
@@ -6252,8 +6298,11 @@ public final class IqDialect implements InputDialect {
 
     /** IQ island, 2026-10-17: an error IQ raises after any -157 of the statement ({@link #unconvertible}), held until
      *  the statement is translated ({@link #translated}); the first held is raised. */
-    private void hold(SqlTranslationException e) {
-        if (held[0] == null) {
+    void hold(SqlTranslationException e) {
+        SqlTranslationException first = held[0];
+        // -157 comes before -1001013 wherever each stands (measured on IQ 17.1)
+        if (first == null || codeOf(String.valueOf(e.getMessage())) == -157
+                && codeOf(String.valueOf(first.getMessage())) != -157) {
             held[0] = e;
         }
     }
@@ -6261,6 +6310,11 @@ public final class IqDialect implements InputDialect {
     @Override
     public void translated() {
         SqlTranslationException p = placement[0];
+        if ((p != null || held[0] != null) && !unknownCalls.isEmpty()) {
+            // the landing's review (2026-10-17): a call of no function of IQ's is -265 before either
+            SqlAst.FunctionCall unknown = unknownCalls.get(0);
+            throw IqFunctions.noSuchFunction(unknown.name().get(unknown.name().size() - 1).text(), unknown.pos());
+        }
         if (p != null) {
             throw p;
         }
@@ -6277,11 +6331,14 @@ public final class IqDialect implements InputDialect {
      *  it fails otherwise or once it is translated. */
     private static @com.legend.base.Nullable SqlTranslationException placements(SqlAst.Statement statement,
             Engine chosen, Set<SqlAst.Join> innerHere, Set<SqlAst.FunctionCall> placeheldHere) {
+        if (chosen == Engine.IQ) {
+            // its refusals are no claims; the calls it reads as NULL strings are known before any claim is held
+            unreadUnknownFunctions(statement, placeheldHere);
+        }
         SqlTranslationException held = null;
         try {
             groupBySubqueries(statement, chosen);
             if (chosen == Engine.IQ) {
-                unreadUnknownFunctions(statement, placeheldHere);
                 // IQ island, 2026-10-15 (windows): a window function in a condition's subquery (its -1001030)
                 IqWindows.statement(statement, chosen);
                 appliedQueries(statement);
@@ -6305,9 +6362,9 @@ public final class IqDialect implements InputDialect {
     @Override
     public SqlTranslationException failed(SqlTranslationException e) {
         int code = codeOf(java.util.Objects.requireNonNullElse(e.getMessage(), ""));
-        if (code == 0 || code == -142 || code == -143 || code == -144 || code == -149 || code == -150
-                || code == -154 || code == -265) {
-            return placement[0] != null && code == 0 ? java.util.Objects.requireNonNull(placement[0]) : e;
+        if (code == -142 || code == -143 || code == -144 || code == -149 || code == -150 || code == -154
+                || code == -265 || code == 0 && placement[0] == null) {
+            return e;
         }
         SqlAst.FunctionCall unknown = unknownCalls.isEmpty() ? null : unknownCalls.get(0);
         if (unknown != null) {
@@ -6724,17 +6781,17 @@ public final class IqDialect implements InputDialect {
                     .StringLit p && IqDateTime.read(p.value(), settings, p.pos()) == null && !likeDate(p.value())) {
                 // IQ island, 2026-10-17 (the corpus lane's CreationDate LIKE '%2015%'; measured on IQ 17.1): it
                 // converts the pattern to the date's type first, so a pattern that is no date is its -1009145
-                throw SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " of a pattern"
+                hold(SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " of a pattern"
                         + " that is no date is IQ's error -1009145 under its engine (the pattern converted to the"
-                        + " date's type), refused before translating", l.pattern().pos());
+                        + " date's type), refused before translating", l.pattern().pos()));
+                return unknown;
             }
-            if (l.pattern() instanceof SqlAst.StringLit p && p.value().indexOf('%') < 0 && p.value().indexOf('_') < 0
-                    && p.value().indexOf('[') < 0) {
-                // IQ island, 2026-10-17 (measured on IQ 17.1): a pattern without a wildcard is converted as an
-                // equality's string is ({@link #unconvertible}: LIKE '2.....' is its -157, LIKE 'x%' its -1001013)
-                unconvertible(p.value(), operand, p.pos());
-            }
-            hold(SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " is IQ's error"
+            SqlTranslationException e = l.pattern() instanceof SqlAst.StringLit p && p.value().indexOf('%') < 0
+                    && p.value().indexOf('_') < 0 && p.value().indexOf('[') < 0 ? unconvertible(p.value(), operand,
+                    p.pos()) : null;
+            // IQ island, 2026-10-17 (measured on IQ 17.1): a pattern without a wildcard is converted as an
+            // equality's string is ({@link #unconvertible}: LIKE '2.....' is its -157, LIKE 'x%' its -1001013)
+            hold(e != null ? e : SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " is IQ's error"
                     + " -1001013 under its engine (an invalid comparison), refused before translating",
                     l.operand().pos()));
             return unknown;
@@ -6876,9 +6933,6 @@ public final class IqDialect implements InputDialect {
      *  pattern, up to 4095). */
     static final int LONGEST_PATTERN = 126;
 
-    /** A constant pattern as literal runs between wildcards: run, wildcard, run, ..., run; with {@code escape} (null
-     *  for none) a constant of one character, which makes the {@code %}, {@code _}, {@code [} or escape after it
-     *  literal. What IQ raises an error for is refused by name, and so is a {@code [set]} class when {@code sets}. */
     /** IQ island, 2026-10-17 (the claim verification's SEDE CreationDate LIKE '2019-06%'; measured on IQ 17.1): a
      *  pattern IQ's engine converts to a date before it raises its -1001013 -- its trailing {@code %}s dropped, a year
      *  of four digits and at most a month and a day after it, each of one or two digits behind a {@code -}, {@code /},
@@ -6936,6 +6990,9 @@ public final class IqDialect implements InputDialect {
         return false;
     }
 
+    /** A constant pattern as literal runs between wildcards: run, wildcard, run, ..., run; with {@code escape} (null
+     *  for none) a constant of one character, which makes the {@code %}, {@code _}, {@code [} or escape after it
+     *  literal. What IQ raises an error for is refused by name, and so is a {@code [set]} class when {@code sets}. */
     static List<String> likeParts(SqlAst.StringLit pattern, SqlAst.@com.legend.base.Nullable Expr esc,
             boolean sets, boolean latin1) {
         char escape = 0;

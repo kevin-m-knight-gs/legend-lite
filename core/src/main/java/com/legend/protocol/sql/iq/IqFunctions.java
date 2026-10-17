@@ -1183,8 +1183,10 @@ final class IqFunctions {
         int style = ((SqlAst.IntegerLit) f.args().get(1)).value().intValue();
         int length = ((SqlAst.IntegerLit) f.args().get(2)).value().intValue();
         if (engineRejects(style)) {
-            throw SqlTranslationException.invalid("CONVERT format style " + style + " is invalid for " + kindName(
-                    x.kind()) + " under IQ's engine" + IqDialect.code(-1009145, "QFA2E"), f.args().get(1).pos());
+            // held: IQ raises it after the statement's names (measured on IQ 17.1, WHERE nosuch = 1 its -143)
+            dialect.hold(SqlTranslationException.invalid("CONVERT format style " + style + " is invalid for " + kindName(
+                    x.kind()) + " under IQ's engine" + IqDialect.code(-1009145, "QFA2E"), f.args().get(1).pos()));
+            return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, new IqType("VARCHAR"));
         }
         List<Object> spec = switch (style) {
             case 1 -> List.of("MM", "/", "DD", "/", "YY");
@@ -2822,12 +2824,16 @@ final class IqFunctions {
     private Tx toChar(String name, SqlAst.FunctionCall f, List<Tx> args) {
         Tx x = args.get(0);
         if (x.kind() == Kind.DATE || x.kind() == Kind.DATETIME) {
-            throw SqlTranslationException.invalid("cannot convert " + kindName(x.kind()) + " to long binary: " + name
-                    + " converts a binary string by a character set, not by a format" + code(-157, "53018"), f.pos());
+            // held: IQ raises it as it plans, after the statement's names
+            dialect.hold(SqlTranslationException.invalid("cannot convert " + kindName(x.kind()) + " to long binary: "
+                    + name + " converts a binary string by a character set, not by a format" + code(-157, "53018"),
+                    f.pos()));
+            return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, new IqType("LONG VARCHAR"));
         }
         if (args.size() == 1 && (x.kind() == Kind.STRING || x.kind() == Kind.NULL)) {
+            // a LONG VARCHAR (measured on IQ 17.1: TO_CHAR('abc'))
             return x.kind() == Kind.NULL ? nullString() : Tx.value(x.vs(), Kind.STRING, x.nullable(),
-                    new IqType("VARCHAR"));
+                    new IqType("LONG VARCHAR"));
         }
         throw SqlTranslationException.unsupported(name + " of " + kindName(x.kind()) + (args.size() > 1 ? " by a"
                 + " character set" : "") + " is not supported yet: SQL Anywhere's conversion of a binary string",

@@ -332,6 +332,13 @@ island's reason, those IQ answers, and what became of them:
   RECOMPILE: IQ's OPTION sets options, name = value); SPLIT_STRING is its -265;
 - a LIKE pattern whose [ no ] closes (the lane's 5; measured on IQ 17.1): its engine's -1001047, over no rows too;
   its front end matches nothing by one (not built: refused);
+- the landing's second review (2026-10-17; each measured on IQ 17.1): a rejected outer join is read as inner
+  always (IQ's plan: a window over it, or in a derived table between, numbers the inner rows; COUNT(*) OVER through a
+  windowed middle table measured); a named WINDOW's keys read a derived column; NOT LIKE NULL and BETWEEN NULL
+  reject nothing; -157, TO_CHAR's -157 and CONVERT's -1009145 are held behind the statement's names (-143 first),
+  -265 before a held error; ORDER BY's -1005004 for a scalar subquery outside a conditional only (CASE WHEN EXISTS
+  is -1001030: refused); an enclosing query's column beside a GROUP BY expression is no -149; TO_CHAR of a string is
+  a LONG VARCHAR;
 - LATERAL (SELECT ...) in FROM (the lane's 4; measured on IQ 17.1): its engine's -1001030 (the front end reads it:
   refused by name). A closing parenthesis no opening one matches is -131. Not built, recorded: CAST of a timestamp to FLOAT (IQ's engine a REAL count of microseconds, a
   date's of days; the front end's days; SEDE's 4, T-SQL's date truncation through a float, which means nothing
