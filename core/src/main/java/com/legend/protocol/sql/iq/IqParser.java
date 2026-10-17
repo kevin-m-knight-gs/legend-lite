@@ -152,16 +152,26 @@ public final class IqParser {
     /** The tokens read again for CTEs so far ({@link CteDef#read}), bounded by {@link #REREAD_LARGEST} and
      *  {@link #REREAD_RATIO}. */
     private final long[] reread = {0};
+    /** IQ island, 2026-10-17 (found by verifying the corpus lane's IQ_ERROR claims: SQLStorm's recursive CTE and
+     *  STRING_AGG(...) WITHIN GROUP before an OFFSET; measured on IQ 17.1): the errors IQ raises after it has read the
+     *  whole statement that this reader finds as it reads ({@link #afterReading}); a syntax error later in the text is
+     *  IQ's first. */
+    private final Set<SqlSyntaxException> afterReadingErrors = java.util.Collections.newSetFromMap(
+            new IdentityHashMap<>());
+    /** Whether this reading only looks for a syntax error after such an error ({@link #parsed}): the error's site reads
+     *  on past it. */
+    private final boolean pastAnError;
     /** A statement's CTEs are read again where each is named, so one named twice in each of a chain of CTEs doubles
      *  with each link: the tokens read again are refused past both this many and {@link #REREAD_RATIO} times the
      *  statement's (IQ island, 2026-10-15, the scale suite's bound for the island's other expansions). */
     private static final long REREAD_LARGEST = 20_000;
     private static final long REREAD_RATIO = 50;
 
-    private IqParser(String text, List<IqLexer.Token> tokens, IqSettings settings) {
+    private IqParser(String text, List<IqLexer.Token> tokens, IqSettings settings, boolean pastAnError) {
         this.text = text;
         this.tokens = tokens;
         this.settings = settings;
+        this.pastAnError = pastAnError;
     }
 
     /** The query {@code sql} is, read under {@code settings}'s options. */
@@ -182,17 +192,84 @@ public final class IqParser {
 
     /** The query {@code sql} is, read under {@code settings}'s options, with the texts the tree does not keep. */
     public static Parsed parsed(String sql, IqSettings settings) {
-        IqParser p = new IqParser(sql, IqLexer.tokenize(sql, settings), settings);
+        List<IqLexer.Token> tokens = IqLexer.tokenize(sql, settings);
+        IqParser p = new IqParser(sql, tokens, settings, false);
         if (p.peek().kind() == IqLexer.Kind.EOF) {
             throw new SqlSyntaxException("no statement" + IqDialect.syntaxCode(), p.peek().pos());
         }
-        SqlAst.Statement statement = p.statement();
-        IqLexer.Token end = p.peek();
-        if (end.kind() != IqLexer.Kind.EOF) {
-            throw p.unexpected(end);
+        SqlAst.Statement statement;
+        try {
+            statement = p.whole();
+        } catch (SqlSyntaxException e) {
+            if (!p.afterReadingErrors.contains(e)) {
+                throw e;
+            }
+            // an error IQ raises once it has read the statement: a syntax error after it is IQ's first, and a form
+            // after it the reader refuses may be one (refused, naming it)
+            new IqParser(sql, tokens, settings, true).whole();
+            throw e;
         }
         return new Parsed(statement, java.util.Collections.unmodifiableMap(p.spans), List.copyOf(p.droppedOrderKeys),
                 List.copyOf(p.engineCasts));
+    }
+
+    /** The statement, the whole text. */
+    private SqlAst.Statement whole() {
+        SqlAst.Statement statement = statement();
+        IqLexer.Token end = peek();
+        if (end.kind() != IqLexer.Kind.EOF) {
+            throw unexpected(end);
+        }
+        return statement;
+    }
+
+    /** {@code e}, an error IQ raises once it has read the whole statement, met as this reader reads it: thrown on a
+     *  first reading, to be raised unless the text has a syntax error after it ({@link #parsed}); null on the reading
+     *  past it, where the site reads on. */
+    private @com.legend.base.Nullable SqlSyntaxException afterReading(SqlSyntaxException e) {
+        if (pastAnError) {
+            return null;
+        }
+        afterReadingErrors.add(e);
+        return e;
+    }
+
+    /** On the reading past an error ({@link #afterReading}): the rest of a call from inside its parentheses -- to its
+     *  closing one -- and a WITHIN GROUP (...) or OVER after it, read for their parentheses only. */
+    private SqlAst.Expr pastCall(List<SqlAst.Ident> parts, IqLexer.Token first, boolean inside) {
+        if (inside) {
+            skipToClose();
+        }
+        while (peek().is("within") || peek().is("over")) {
+            boolean within = peek().is("within");
+            take();
+            if (within) {
+                expectKeyword("group");
+            }
+            if (peek().isOp("(")) {
+                take();
+                skipToClose();
+            } else if (!within) {
+                take();
+            }
+        }
+        return new SqlAst.FunctionCall(parts, List.of(), false, false, first.pos());
+    }
+
+    /** Past the closing parenthesis of the one open before the next token. */
+    private void skipToClose() {
+        int depth = 1;
+        while (depth > 0) {
+            IqLexer.Token t = take();
+            if (t.kind() == IqLexer.Kind.EOF) {
+                throw new SqlSyntaxException("a parenthesis is not closed" + IqDialect.syntaxCode(), t.pos());
+            }
+            if (t.isOp("(")) {
+                depth++;
+            } else if (t.isOp(")")) {
+                depth--;
+            }
+        }
     }
 
     /** An expression as it was written ({@link #written}): its tree, and what the tree does not keep -- the parentheses
@@ -237,7 +314,7 @@ public final class IqParser {
      *  is no expression. */
     public static Written written(String text, IqSettings settings) {
         List<IqLexer.Token> tokens = IqLexer.tokenize(text, settings);
-        IqParser p = new IqParser(text, tokens, settings);
+        IqParser p = new IqParser(text, tokens, settings, false);
         SqlAst.Expr e = p.expression();
         if (p.peek().kind() != IqLexer.Kind.EOF) {
             throw p.unexpected(p.peek());
@@ -415,12 +492,18 @@ public final class IqParser {
             int here = p.reading.indexOf(this);
             if (here >= 0) {
                 // IQ's error, refused by name naming it: the syntax cases call the form accept in one case and reject
-                // in others (z2_redteam-763; a6_sa_query-92, c09_statements-70, s2_query-346), as M1b's pins note
-                throw SqlSyntaxException.unsupported(here == p.reading.size() - 1
+                // in others (z2_redteam-763; a6_sa_query-92, c09_statements-70, s2_query-346), as M1b's pins note;
+                // raised once the statement is read (afterReading)
+                SqlSyntaxException e = p.afterReading(SqlSyntaxException.unsupported(here == p.reading.size() - 1
                         ? "the common table expression '" + name.text() + "' names itself: recursion is not allowed"
                                 + " without the RECURSIVE keyword" + IqDialect.code(-938, "42WA0")
                         : "the common table expressions from '" + name.text() + "' name each other in a cycle"
-                                + IqDialect.code(-914, "42W93"), pos);
+                                + IqDialect.code(-914, "42W93"), pos));
+                if (e != null) {
+                    throw e;
+                }
+                return new SqlAst.SubqueryFrom(new SqlAst.Select(false, List.of(), List.of(), null, List.of(), null,
+                        List.of(), List.of(), null, null, pos), alias, columns, false, pos);
             }
             p.reread[0] += end - start;
             if (p.reread[0] > REREAD_LARGEST && p.reread[0] > REREAD_RATIO * p.tokens.size()) {
@@ -2080,7 +2163,12 @@ public final class IqParser {
             return new SqlAst.FunctionCall(parts, List.of(), false, true, List.of(), List.of(), null, first.pos());
         } else if (peek().is("distinct") || peek().is("all") || peek().isOp("*")) {
             if (noSuch) {
-                throw SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name), first.pos());
+                SqlSyntaxException e = afterReading(SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name),
+                        first.pos()));
+                if (e != null) {
+                    throw e;
+                }
+                return pastCall(parts, first, true);
             }
             throw SqlSyntaxException.unsupported("'" + peek().text() + "' in a call (an aggregate's form) is not"
                     + " supported yet", peek().pos());
@@ -2123,13 +2211,23 @@ public final class IqParser {
                     throw ansiTrim(peek());
                 }
                 if (noSuch && peek().is("order")) {
-                    throw SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name), first.pos());
+                    SqlSyntaxException e = afterReading(SqlSyntaxException.unsupported(
+                            IqFunctions.noSuchFunctionText(name), first.pos()));
+                    if (e != null) {
+                        throw e;
+                    }
+                    return pastCall(parts, first, true);
                 }
             } while (takeOp(","));
         }
         expectOp(")");
         if (noSuch && (peek().is("over") || peek().is("within"))) {
-            throw SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name), first.pos());
+            SqlSyntaxException e = afterReading(SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name),
+                    first.pos()));
+            if (e != null) {
+                throw e;
+            }
+            return pastCall(parts, first, false);
         }
         if (peek().is("over") || peek().is("within")) {
             // IQ island, 2026-10-15 (windows): a scalar function is no window function (SQL Anywhere's -131 after one

@@ -1332,3 +1332,22 @@ tests:
   - id: derived_window_numbers_the_outer_rows_under_another_filter
     sql: "SELECT d.id, d.bid, d.r FROM (SELECT a.id, b.id AS bid, ROW_NUMBER() OVER (ORDER BY a.id, b.id) AS r FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id > 0) d WHERE d.id > 2 ORDER BY d.r"
     profile: iq17-default
+
+  # ---- IQ reads the whole statement before it raises a CTE's recursion or an unknown function's (SQLStorm's recursive
+  # CTE and STRING_AGG(...) WITHIN GROUP before an OFFSET; measured on IQ 17.1, 2026-10-17): a syntax error after
+  # either is its first
+  - id: a_syntax_error_after_a_cte_naming_itself_is_iqs_first
+    sql: "WITH r AS (SELECT id FROM r) SELECT id FROM r ORDER BY id OFFSET 1 ROWS"
+    profile: iq17-default
+  - id: a_syntax_error_after_string_agg_within_group_is_iqs_first
+    sql: "SELECT STRING_AGG(vc, ',') WITHIN GROUP (ORDER BY vc) AS s FROM t ORDER BY 1 OFFSET 1 ROWS"
+    profile: iq17-default
+  - id: a_syntax_error_after_string_agg_distinct_is_iqs_first
+    sql: "SELECT STRING_AGG(DISTINCT vc, ',') AS s FROM t LIMIT 1"
+    profile: iq17-default
+  - id: a_cte_naming_itself_before_no_syntax_error
+    sql: "WITH r AS (SELECT id FROM r) SELECT id FROM r ORDER BY id"
+    profile: iq17-default
+  - id: string_agg_within_group_before_no_syntax_error
+    sql: "SELECT STRING_AGG(vc, ',') WITHIN GROUP (ORDER BY vc) AS s FROM t"
+    profile: iq17-default

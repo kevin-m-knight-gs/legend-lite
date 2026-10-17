@@ -305,6 +305,9 @@ island's reason, those IQ answers, and what became of them:
   LEFT JOIN is read as inner, before a window there numbers its rows (IQ numbers the inner join's rows, where SQL's
   order numbers the outer join's). An inner join over an outer one rejects as a WHERE does, one under it does not.
   The three derived-rank FAILs pinned since landing 5 were this, and pass;
+- IQ raises a CTE's recursion (-938, -914) and a decorated call of no function of its (STRING_AGG(...) WITHIN GROUP,
+  DISTINCT, OVER; -265) once it has read the whole statement (SQLStorm's 6, found by verifying the claims; measured on
+  IQ 17.1, 2026-10-17): a syntax error after either is its first. The reader reads on past them for one;
 - not built yet: PIVOT (IQ 17.1 reads it, both engines; an IN list of literals, COUNT shown as a NUMERIC(20,0)).
   The corpus's 10 are SQL Server's `IN ([Question], [Answer])`, IQ's -143 (a name) or -1816 (a number);
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's
