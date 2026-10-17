@@ -1801,6 +1801,16 @@ public final class Lowerer {
         return resolved;
     }
 
+    /** Whether {@code name} of {@code select} is a computed grouping key typed as a Variant (its expression one of the
+     *  select's GROUP BY items; a plain column read is never one). */
+    private static boolean groupedVariantKey(SqlSelect select, String name, SqlExpr expr) {
+        if (select.groupBy().isEmpty() || expr instanceof SqlExpr.Column || !select.groupBy().contains(expr)) {
+            return false;
+        }
+        return select.outputs().stream().anyMatch(o -> o.name().equals(name)
+                && o.type() == com.legend.sql.SqlType.Scalar.JSON);
+    }
+
     /** {@code read}, made on an enclosing row's behalf (see {@link #correlatedReads}); a flatten's outer reads
      *  (CollectionRelations) come through here too. */
     <T> T correlated(java.util.function.Supplier<T> read) {
@@ -1837,6 +1847,14 @@ public final class Lowerer {
                 // a whole-variable read (no name) spends nothing: isolation could not cure its refusal, the
                 // isolated base having no projection to read whole
                 if (correlatedReads == 0 && name != null) {
+                    if (groupedVariantKey(select, name, o.expr())) {
+                        // a Variant grouping key read into a computation over its grouped select (2026-10-17,
+                        // docs/CYPHER_STUDY_2026_10_15.md §12.71): unfoldable, so the read goes through the isolated
+                        // select by name; a dialect may spell a read into a Variant as a subquery, and a subquery
+                        // over a grouped expression's columns is no grouped value (Postgres: "subquery uses
+                        // ungrouped column")
+                        throw new UnfoldableRef(name);
+                    }
                     budget.spend(name, o.expr());
                 }
                 return o.expr();

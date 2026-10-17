@@ -9932,6 +9932,25 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the sixty-ninth landing — identities in values
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the MATCH-after-rows bucket's second half); the
+record is the study's §12.71. Node and relationship values carry their identities under `"@id"` (register S85), so a
+node read back from a Variant re-anchors, a variable-length relationship bound to a list matches its identities, and
+lists of nodes or relationships group by identity; the lowering keeps a Variant grouping key's grouped select apart
+from a later computation that reads it.
+
+1. **What lands.** Match4/[8], Match7/[22], Match9/[6], Match9/[7], Unwind1/[12], Quantifier1/[9], Quantifier2/[9], Quantifier3/[9], Quantifier4/[9] (9 TCK rows); the 7 cases of `lite/heldvalues.yaml`; DuckDB PASS
+   3,655 → 3671, Postgres 3,253 → 3269; TCK agreement DuckDB 3513 → 3520, Postgres 3134 → 3141.
+2. **The ledger.** Both lanes in update mode (the showcase too), FAIL/BUG/ERROR at zero (DuckDB PASS 3671 / REFUSED
+   339 / BOTH_ERROR 747 / SKIP 57; Postgres PASS 3269 / REFUSED 741 / BOTH_ERROR 747 / SKIP
+   57, of 4814 cases); the oracle check 0 problems. (A first run had one lite FAIL, a tie its ORDER BY left
+   open, now ordered fully, and five Postgres ERRORs, a grouped Variant read through a subquery, now isolated.)
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `//core:core_tests_lowering`, `//core:core_tests_compiler`, `//core:core_tests_root` green before it (the
+   lowering's isolation rule).
+4. **Refused by name, recorded.** Nothing new.
+
 ## 2026-10-17 — `#Cypher{...}#`: the sixty-eighth landing — several patterns joined on identity
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the MATCH-after-rows bucket); the record is the

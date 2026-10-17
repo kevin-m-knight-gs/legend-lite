@@ -287,6 +287,10 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   path carried as its value; the resolver resolving a recursion's step. Left (the §5 log): a variable-length
   relationship bound to a list of relationships (Match4/[8], Match9/[6], [7]); other relationships beside the walk
   in one pattern (no TCK row).
+- Identities in values LANDED 2026-10-17 (the study's §12.71, GATES' sixty-ninth landing; TCK agreement DuckDB 3513 → 3520, Postgres 3134 → 3141):
+  node and relationship JSON carry `"@id"` (S85); held nodes re-anchor, list-bound variable-length relationships
+  match by identities, node and relationship lists group by identity; the lowering isolates a grouped Variant key
+  read into a later computation (Match4/[8], Match7/[22], Match9/[6], Match9/[7], Unwind1/[12], Quantifier1/[9], Quantifier2/[9], Quantifier3/[9], Quantifier4/[9]).
 - Several patterns joined on identity LANDED 2026-10-17 (the study's §12.70, GATES' sixty-eighth landing; TCK agreement DuckDB 3494 → 3513, Postgres 3115 → 3134):
   a MATCH of several patterns as rows joined on shared identities, re-anchored patterns that find nothing,
   named paths re-anchored, a label-less start against its stored way, the static list kind (MatchWhere2/[1], MatchWhere4/[2], Match3/[10], Match3/[20], Match3/[21], Match3/[29], Match4/[7], Match7/[17], Match7/[20], Match7/[26], Match7/[4], Match7/[7], Match7/[8], Match9/[9], WithSkipLimit2/[3], WithWhere2/[1], WithWhere4/[2], With1/[2], Graph8/[5]).

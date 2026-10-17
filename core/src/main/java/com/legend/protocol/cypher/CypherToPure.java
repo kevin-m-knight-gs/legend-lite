@@ -349,12 +349,25 @@ public final class CypherToPure {
                 parts.absent() != null, null, new NodeValue(parts.identity()), null, null);
     }
 
-    /** A node's JSON text, built by the database: its labels array and its properties that hold a value. */
+    /** A node's JSON text, built by the database: its labels array, its identity where known ({@code "@id"}, the
+     *  study's §12.71: what a node or relationship read back from a Variant is told apart and re-anchored by; the
+     *  judge reads past it, Neo4j's values carrying none), and its properties that hold a value. */
     private static ValueSpecification nodeJsonText(NodeParts parts, Pos pos) {
         ValueSpecification text = plus(new CString("{" + com.legend.json.Json.toCompact(parts.key()) + ":"),
                 parts.labels());
+        Tx id = parts.identity();
+        if (id != null) {
+            ValueSpecification v = SqlToPure.valueOf(id);
+            ValueSpecification key = new CString(",\"" + IDENTITY_KEY + "\":");
+            // (read as one inside the gate: an identity types [0..1] wherever it is computed)
+            text = plus(text, call("if", call("isEmpty", v), thunk(new CString("")),
+                    thunk(plus(key, jsonText(call("toOne", v), Kind.STRING, false, IDENTITY_KEY, pos)))));
+        }
         return plus(text, propertyPieces(parts, pos), new CString("}"));
     }
+
+    /** The key of a node's or relationship's identity in its JSON value (the study's §12.71). */
+    private static final String IDENTITY_KEY = "@id";
 
     /** A relationship's JSON text over a property or association: its type, a constant. */
     private static String relTypeJson(String type) {
@@ -3560,6 +3573,17 @@ public final class CypherToPure {
         Rows right = a.right();
         PathPattern p = a.pattern();
         Expr where = m.where();
+        // (a node the rows hold as a value, read back from a Variant -- an element of an unwound collect, a coalesce
+        // of nodes -- joins on the identity its JSON carries, the study's §12.71)
+        rows = withValueIdentities(rows, a.renamed().values());
+        for (Map.Entry<String, String> r : a.renamed().entrySet()) {
+            Col own = java.util.Objects.requireNonNull(column(rows, r.getValue()));
+            Col copy = column(right, r.getKey());
+            if (own.detail() instanceof HeldNode h && relationshipList(h.original()) && copy != null
+                    && relationshipList(copy.detail())) {
+                right = withListIdentity(right, r.getKey());
+            }
+        }
         if (absentCopy(a)) {
             // the pattern read from the rows' node finds nothing anywhere (a hop no way of the model reads, a label
             // the open graph lacks, the study's §12.70): a MATCH reads no row, an OPTIONAL MATCH keeps every row
@@ -3579,7 +3603,7 @@ public final class CypherToPure {
         ValueSpecification vs = call("join", rows.vs(), right.vs(), new EnumValue(JOIN_KIND, m.optional() ? "LEFT"
                 : "INNER"), new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
                 List.of(java.util.Objects.requireNonNull(cond))));
-        List<Col> columns = new ArrayList<>(rows.columns());
+        List<Col> columns = new ArrayList<>(unheld(rows.columns()));
         for (Col c : right.columns()) {
             if (a.renamed().containsKey(c.name())) {
                 // (the rows' own column stands for the variable; the copy's columns ride along unnamed)
@@ -3797,9 +3821,11 @@ public final class CypherToPure {
             if (a == null) {
                 continue;
             }
+            // (a node the rows hold as a value joins on the identity its JSON carries, the study's §12.71)
+            Rows held = withValueIdentities(out, a.renamed().values());
             // the matches narrowed to the shared variables' identities, deduplicated, a constant beside them
             Set<String> names = new HashSet<>();
-            out.columns().forEach(c -> names.add(c.name()));
+            held.columns().forEach(c -> names.add(c.name()));
             a.right().columns().forEach(c -> names.add(c.name()));
             String flag = freshName(names);
             if (absentCopy(a)) {
@@ -3814,7 +3840,7 @@ public final class CypherToPure {
             List<Col> keyColumns = new ArrayList<>();
             ValueSpecification cond = null;
             for (Map.Entry<String, String> r : a.renamed().entrySet()) {
-                Col left = java.util.Objects.requireNonNull(column(out, r.getValue()));
+                Col left = java.util.Objects.requireNonNull(column(held, r.getValue()));
                 Col copy = java.util.Objects.requireNonNull(column(a.right(), r.getKey()));
                 for (String[] key : joinKeys(left, copy, r.getValue(), predicate.pos())) {
                     if (keyColumns.stream().noneMatch(c -> c.name().equals(key[1]))) {
@@ -3830,10 +3856,10 @@ public final class CypherToPure {
             ValueSpecification matches = call("extend", call("distinct", call("select", a.right().vs(),
                     new ColSpecArray(kept))), new ColSpecArray(List.of(new ColSpec(flag, lambda("r",
                     new CInteger(1L)), null, null))));
-            ValueSpecification vs = call("join", out.vs(), matches, new EnumValue(JOIN_KIND, "LEFT"),
+            ValueSpecification vs = call("join", held.vs(), matches, new EnumValue(JOIN_KIND, "LEFT"),
                     new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
                             List.of(java.util.Objects.requireNonNull(cond))));
-            List<Col> columns = new ArrayList<>(out.columns());
+            List<Col> columns = new ArrayList<>(unheld(held.columns()));
             for (Col k : keyColumns) {
                 // (the copy's identity columns ride along unnamed by any variable; the flag is the predicate's)
                 columns.add(new Col(k.name(), k.kind(), true, k.carried(), null));
@@ -3934,10 +3960,108 @@ public final class CypherToPure {
         return null;
     }
 
+    /** {@code rows} with each of {@code variables} the rows hold as a node value read back from a Variant (its JSON
+     *  carrying its identity, the study's §12.71) given an identity column beside it: the identity its JSON carries,
+     *  read by the database; the variable's own column keeps its value. The column's mark ({@link HeldNode}) names
+     *  that identity column for {@link #joinKeys}. */
+    private Rows withValueIdentities(Rows rows, java.util.Collection<String> variables) {
+        List<ColSpec> specs = new ArrayList<>();
+        List<Col> columns = new ArrayList<>(rows.columns());
+        Set<String> names = new HashSet<>();
+        rows.columns().forEach(c -> names.add(c.name()));
+        for (int i = 0; i < columns.size(); i++) {
+            Col c = columns.get(i);
+            if (variables.contains(c.name()) && c.kind() == Kind.JSON && c.carried() == null
+                    && relationshipList(c.detail())) {
+                // a list of relationships (a variable-length relationship bound to it, `[rs*]`): the sequence of
+                // the identities its elements' JSON carries, as text
+                String ids = freshName(names);
+                specs.add(new ColSpec(ids, lambda("r", identitiesText(new AppliedProperty(new Variable("r"),
+                        c.name()))), null, null));
+                columns.add(new Col(ids, Kind.STRING, true));
+                columns.set(i, new Col(c.name(), c.kind(), c.nullable(), null, new HeldNode(ids,
+                        java.util.Objects.requireNonNull(c.detail()))));
+                continue;
+            }
+            if (!variables.contains(c.name()) || c.kind() != Kind.JSON || c.carried() != null
+                    || !(c.detail() instanceof NodeValue)) {
+                continue;
+            }
+            String id = freshName(names);
+            ValueSpecification held = call("to", call("get", new AppliedProperty(new Variable("r"), c.name()),
+                    new CString(IDENTITY_KEY)), SqlToPure.typeArg("String"));
+            specs.add(new ColSpec(id, lambda("r", held), null, null));
+            columns.add(new Col(id, Kind.STRING, true));
+            columns.set(i, new Col(c.name(), c.kind(), c.nullable(), null, new HeldNode(id, c.detail())));
+        }
+        if (specs.isEmpty()) {
+            return rows;
+        }
+        return new Rows(call("extend", rows.vs(), new ColSpecArray(specs)), columns);
+    }
+
+    /** Whether a Variant's mark says it is a list of relationships (its elements' marks relationships'). */
+    private static boolean relationshipList(com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail d) {
+        return d instanceof ListOf l && l.elementDetail() instanceof RelValue
+                || d instanceof TupleOf t && !t.entries().isEmpty()
+                        && t.entries().stream().allMatch(e -> e.detail() instanceof RelValue);
+    }
+
+    /** A list of relationships' identities in order, as text (each its JSON's {@code "@id"}, bar-separated), what a
+     *  variable-length relationship bound to the list is matched on (the study's §12.71). */
+    private static ValueSpecification identitiesText(ValueSpecification list) {
+        return call("joinStrings", call("map", call("toMany", list, SqlToPure.typeArg(VARIANT_TYPE)), lambda("e",
+                call("to", call("get", new Variable("e"), new CString(IDENTITY_KEY)), SqlToPure.typeArg("String")))),
+                new CString("|"));
+    }
+
+    /** {@code rows} with the relationship-list column {@code variable} given its identities' text beside it, marked
+     *  ({@link HeldNode}) for {@link #joinKeys}: the pattern's copy of a list the rows hold. */
+    private Rows withListIdentity(Rows rows, String variable) {
+        Set<String> names = new HashSet<>();
+        rows.columns().forEach(c -> names.add(c.name()));
+        List<Col> columns = new ArrayList<>(rows.columns());
+        String ids = freshName(names);
+        for (int i = 0; i < columns.size(); i++) {
+            Col c = columns.get(i);
+            if (c.name().equals(variable)) {
+                columns.set(i, new Col(c.name(), c.kind(), c.nullable(), c.carried(), new HeldNode(ids,
+                        java.util.Objects.requireNonNull(c.detail()))));
+            }
+        }
+        columns.add(new Col(ids, Kind.STRING, true));
+        return new Rows(call("extend", rows.vs(), new ColSpecArray(List.of(new ColSpec(ids, lambda("r",
+                identitiesText(new AppliedProperty(new Variable("r"), variable))), null, null)))), columns);
+    }
+
+    /** The mark of a node the rows hold as a value read back from a Variant, re-anchored on (the study's §12.71):
+     *  the column of the identity its JSON carries; of a list of relationships, the column of its identities'
+     *  text. */
+    private record HeldNode(String identity, com.legend.protocol.sql.InputDialect.TypeDetail original)
+            implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** {@code columns} with each held node's own mark back (its value's, after the join it keyed). */
+    private static List<Col> unheld(List<Col> columns) {
+        List<Col> out = new ArrayList<>();
+        for (Col c : columns) {
+            out.add(c.detail() instanceof HeldNode h ? new Col(c.name(), c.kind(), c.nullable(), c.carried(),
+                    h.original()) : c);
+        }
+        return out;
+    }
+
     /** The column pairs a re-anchored pattern joins {@code copy} (the pattern's copy of a variable) to {@code own}
      *  (the rows' own) on: a node's identity columns, a relationship's identity columns or the columns of its
      *  type and the pair of its ends'. */
     private static List<String[]> joinKeys(Col own, Col copy, String variable, Pos pos) {
+        if (own.detail() instanceof HeldNode held && copy.detail() instanceof NodeShape r && r.identity() != null) {
+            return List.<String[]>of(new String[] {held.identity(), r.identity()});
+        }
+        if (own.detail() instanceof HeldNode held && copy.detail() instanceof HeldNode theirs) {
+            // (a list of relationships the rows hold, against the pattern's: their identities in order)
+            return List.<String[]>of(new String[] {held.identity(), theirs.identity()});
+        }
         if (own.detail() instanceof NodeShape l && copy.detail() instanceof NodeShape r) {
             if (l.identity() == null || r.identity() == null) {
                 throw CypherErrors.unsupported("a MATCH after rows naming " + variable + ", a node carried without"
@@ -6593,7 +6717,7 @@ public final class CypherToPure {
         /** A bound relationship's JSON text: its type (a constant over a property or association) and, over an edge
          *  class, its properties that hold a value. */
         ValueSpecification relJsonText(Binding b, Pos pos) {
-            if (b.classPath() == null) {
+            if (b.classPath() == null && identityOf(b) == null) {
                 return new CString(relTypeJson(java.util.Objects.requireNonNull(b.type())));
             }
             return nodeJsonText(relParts(b, pos), pos);
@@ -6688,15 +6812,10 @@ public final class CypherToPure {
                     Binding end = java.util.Objects.requireNonNull(hop.g.bindings().get(p.nodes().get(1)));
                     String rel = p.rels().get(0);
                     Binding r = java.util.Objects.requireNonNull(hop.g.bindings().get(rel));
-                    ValueSpecification text = r.classPath() == null
-                            ? plus(new CString("{\"@path\":["), nodeJsonText(outer.parts(start, pos), pos),
-                                    new CString("," + relTypeJson(java.util.Objects.requireNonNull(r.type())) + ","),
-                                    nodeJsonText(hop.parts(end, pos), pos), new CString("],\"@dirs\":["
-                                    + Boolean.TRUE.equals(hop.g.forward().get(rel)) + "]}"))
-                            : plus(new CString("{\"@path\":["), nodeJsonText(outer.parts(start, pos), pos),
-                                    new CString(","), hop.relJsonText(r, pos), new CString(","),
-                                    nodeJsonText(hop.parts(end, pos), pos), new CString("],\"@dirs\":["
-                                    + Boolean.TRUE.equals(hop.g.forward().get(rel)) + "]}"));
+                    ValueSpecification text = plus(new CString("{\"@path\":["),
+                            nodeJsonText(outer.parts(start, pos), pos), new CString(","), hop.relJsonText(r, pos),
+                            new CString(","), nodeJsonText(hop.parts(end, pos), pos), new CString("],\"@dirs\":["
+                            + Boolean.TRUE.equals(hop.g.forward().get(rel)) + "]}"));
                     return new Tx(call("fromJson", text), Kind.JSON, false, null, new PathValue(), null, null);
                 }
             };
@@ -6716,10 +6835,7 @@ public final class CypherToPure {
                         throw CypherErrors.unsupported("a path over a relationship an OPTIONAL MATCH may not find is"
                                 + " not supported yet", pos);
                     }
-                    text = r.classPath() == null
-                            ? plus(text, new CString("," + relTypeJson(java.util.Objects.requireNonNull(r.type()))
-                                    + ","))
-                            : plus(text, new CString(","), relJsonText(r, pos), new CString(","));
+                    text = plus(text, new CString(","), relJsonText(r, pos), new CString(","));
                     dirs.add(String.valueOf(Boolean.TRUE.equals(g.forward().get(rel))));
                 }
                 Binding n = java.util.Objects.requireNonNull(g.bindings().get(path.nodes().get(i)));
@@ -6742,7 +6858,7 @@ public final class CypherToPure {
                         null);
             }
             String type = java.util.Objects.requireNonNull(b.type());
-            if (b.classPath() == null) {
+            if (b.classPath() == null && identityOf(b) == null) {
                 ValueSpecification json = call("fromJson", new CString(relTypeJson(type)));
                 if (b.maybeAbsent()) {
                     json = call("if", absent(b),
@@ -7378,12 +7494,21 @@ public final class CypherToPure {
                     }
                     if (c.detail() instanceof NodeShape shape) {
                         // a carried node as a value: its JSON from its columns; an absent one null
-                        return shape.absent() ? scalar(SqlToPure.nullOf(Kind.JSON))
-                                : scalar(nodeJson(parts(shape), v.pos()));
+                        // (an absent one a node's null, marked as a node: a coalesce of nodes is a node, §12.71)
+                        return shape.absent() ? scalar(new Tx(SqlToPure.nullOf(Kind.JSON).vs(), Kind.JSON, true, null,
+                                new NodeValue(), null, null)) : scalar(nodeJson(parts(shape), v.pos()));
                     }
                     if (c.detail() instanceof RelShape rel && !rel.props().isEmpty()) {
                         // a carried relationship over an edge class as a value: its JSON from its type's column and
                         // its properties' (null where none)
+                        NodeParts parts = relParts(rel, v.pos());
+                        return scalar(new Tx(present(parts, call("fromJson", nodeJsonText(parts, v.pos()))),
+                                Kind.JSON, parts.absent() != null, null, new RelValue(null, parts.identity()), null,
+                                null));
+                    }
+                    if (c.detail() instanceof RelShape rel && relIdentity(rel) != null) {
+                        // a carried relationship with its identity, as a value: its JSON from its type's column and its
+                        // identity (the study's §12.71), null where none
                         NodeParts parts = relParts(rel, v.pos());
                         return scalar(new Tx(present(parts, call("fromJson", nodeJsonText(parts, v.pos()))),
                                 Kind.JSON, parts.absent() != null, null, new RelValue(null, parts.identity()), null,
@@ -9531,6 +9656,10 @@ public final class CypherToPure {
             case MapOf m -> m.entries().values().stream().allMatch(e -> e.kind() == Kind.NULL
                     || e.kind() != Kind.JSON ? e.kind() == Kind.NULL || elementType(e.kind()) != null
                     : scalarShaped(e.detail()));
+            // (a node or relationship: its JSON carries its identity, the study's §12.71, so it is equal as text
+            // where Neo4j's are equal, by identity)
+            case NodeValue n -> true;
+            case RelValue r -> true;
             default -> false;
         };
     }

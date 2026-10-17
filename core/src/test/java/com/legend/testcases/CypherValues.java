@@ -761,9 +761,10 @@ public final class CypherValues {
                 }
                 if (o.fields().get("@type") instanceof com.legend.json.Json.Str type) {
                     // a relationship as lite returns it (the study's §12.19): its type, its properties beside it
+                    // (its identity, "@id", the island's own key, read past: Neo4j's values carry none, §12.71)
                     Map<String, Value> props = new TreeMap<>();
                     o.fields().forEach((k, v) -> {
-                        if (!k.equals("@type")) {
+                        if (!k.equals("@type") && !k.equals("@id")) {
                             props.put(k, ofJson(v));
                         }
                     });
@@ -777,7 +778,7 @@ public final class CypherValues {
                     }
                     Map<String, Value> props = new TreeMap<>();
                     o.fields().forEach((k, v) -> {
-                        if (!k.equals("@labels")) {
+                        if (!k.equals("@labels") && !k.equals("@id")) {
                             props.put(k, ofJson(v));
                         }
                     });

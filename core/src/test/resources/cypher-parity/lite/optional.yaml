@@ -39,7 +39,7 @@ tests:
   - id: optional_to_many_node_as_value
     graph: |
       CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (b2:B {name: 'b2'}), (a1)-[:T]->(b1), (a1)-[:T]->(b2)
-    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS a, b ORDER BY a"
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS a, b ORDER BY a, b.name"
   - id: optional_through_with
     graph: |
       CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)

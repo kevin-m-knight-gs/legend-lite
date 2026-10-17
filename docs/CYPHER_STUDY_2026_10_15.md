@@ -4586,6 +4586,16 @@ the database's recursive common table expression. legend-pure has no function fo
   reads through `Lowerer.recursionSelf`; the guardrail stays at 250. The parked-work ledger's anchor on `new SqlWith(`
   (PARK-2) holds: the lowering builds the expression through `SqlWith.prepend`.
 
+- **The contract, for another island's use** (the SAP IQ / SQL Anywhere island plans to spell SQL's `WITH RECURSIVE`
+  through it; noted 2026-10-17): the signature above, unchanged since its landing; `UNION ALL` only (no distinct
+  form); no depth guard of the platform's (the step's filter ends the walk); the step's parameter lowers to a
+  reference to the expression by name, a fresh alias at each reference, so a step reading its parameter twice (a
+  self-join, or a union of two branches each reading it) renders, though no lite test runs either shape and Postgres
+  refuses more than one recursive reference in a recursive term (the database's error, not the native's); since the
+  W10 leg 2b landing the store resolver resolves a recursion's base and its step's body as relation expressions. It
+  lives on this branch until the Cypher island's work reaches `main`; a change to the signature or the lowering is
+  recorded here and in a GATES landing.
+
 #### 12.67.1 The ledger
 
 | lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
@@ -4752,4 +4762,45 @@ The 7 TCK rows move REFUSED → PASS on both lanes; the 6 new lite cases PASS on
 
 The 19 TCK rows move to PASS on both lanes (Match3/[30] stays BOTH_ERROR); the 12 lite cases PASS on
 both. TCK agreement DuckDB 3494 → 3513, Postgres 3115 → 3134.
+
+### 12.71 Nodes and relationships held as values carry their identities (2026-10-17)
+
+- **The identity in the value.** A node's or relationship's JSON value (§12.14, §12.19) now carries its identity under
+  `"@id"` beside its labels or type: lite's elementId of the instance (`nodeJsonText` spells it wherever the parts
+  know the identity: a graph's node, a carried node's identity column, an edge's row, an association relationship's
+  ordered pair of its ends, S74); an association relationship carried in rows without properties is rebuilt from its
+  parts too, so its pair rides along. The judge (`CypherValues`) reads past `"@id"`, Neo4j's values carrying none
+  (S85).
+- **A node read back from a Variant re-anchors on it** (`WITH a, collect(b1) AS bees UNWIND bees AS b2 MATCH
+  (a)-[:Y]->(b2)`, Unwind1/[12]; `WITH coalesce(b, c) AS x MATCH (x)-->(d)`, Match7/[22]):
+  `withValueIdentities` gives a node the rows hold as a value (its mark a node's) an identity column read from its
+  JSON, marked `HeldNode` for `joinKeys`, its own mark restored after the join (`unheld`); an absent node read from
+  rows is a node's null, so a coalesce of nodes stays a node.
+- **A variable-length relationship bound to a list** (`WITH [r1, r2] AS rs MATCH (first)-[rs*]->(second)`, Match4/[8],
+  Match9/[6], [7]): the list the rows hold and the walk's relationship list (§12.68) are each read as their identities
+  in order (`identitiesText`: each element's `"@id"`, bar-separated) and joined on them: the paths whose relationships
+  are the list's, in its order.
+- **Lists of nodes or relationships as grouping keys** (`WITH tail(relationships(p)) AS relationships, count(*) AS c`,
+  Quantifier1-4/[9]): their text is identity-exact now, so `scalarShaped` admits them.
+- **A Variant grouping key read into a later computation** (the platform, `Lowerer.scopedResolver`): a computed GROUP BY
+  key typed as a Variant is unfoldable into an expression over its grouped select, so the read goes through the
+  isolated select by name. A dialect may spell a read into a Variant as a subquery (Postgres's
+  `jsonb_array_elements`), and a subquery over a grouped expression's columns is no grouped value ("subquery uses
+  ungrouped column"); the isolation keeps the semantics.
+- **Also:** `lite/optional.yaml`'s `optional_to_many_node_as_value` sorts by the node's name after the row's (its tie
+  had passed by the order of the rows); the hard showcase's Pure and SQL spell the identities (pinned again,
+  docs/CYPHER_SHOWCASE.md refreshed).
+- **Pinned.** `CypherToPureTest` (the pins spelling node and relationship JSON regenerated with the identity piece,
+  the held node's re-anchoring, the list's identities, a node list as a key); `lite/heldvalues.yaml`'s 7 cases, each
+  judged by Neo4j; the TCK rows that move: Match4/[8], Match7/[22], Match9/[6], Match9/[7], Unwind1/[12], Quantifier1/[9], Quantifier2/[9], Quantifier3/[9], Quantifier4/[9].
+
+#### 12.71.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4814 | 3671 (from 3,655) | 0 | 0 | 0 | 339 (from 348) | 747 | 57 |
+| Postgres | 4814 | 3269 (from 3,253) | 0 | 0 | 0 | 741 (from 750) | 747 | 57 |
+
+The 9 TCK rows move to PASS on both lanes; the 7 lite cases PASS on both. TCK agreement DuckDB
+3513 → 3520, Postgres 3134 → 3141.
 

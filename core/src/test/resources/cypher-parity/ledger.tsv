@@ -415,7 +415,7 @@ tck/clauses/match/Match4/[4] Matching longer variable length paths	PASS	PASS
 tck/clauses/match/Match4/[5] Matching variable length pattern with property predicate	PASS	PASS
 tck/clauses/match/Match4/[6] Matching variable length patterns from a bound node	PASS	PASS
 tck/clauses/match/Match4/[7] Matching variable length patterns including a bound relationship	PASS	PASS
-tck/clauses/match/Match4/[8] Matching relationships into a list and matching variable length using the list	REFUSED	REFUSED
+tck/clauses/match/Match4/[8] Matching relationships into a list and matching variable length using the list	PASS	PASS
 tck/clauses/match/Match4/[9] Fail when asterisk operator is missing	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match4/[10] Fail on negative bound	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match5/[1] Handling unbounded variable length match	PASS	PASS
@@ -565,7 +565,7 @@ tck/clauses/match/Match7/[18] Named paths inside optional matches with node pred
 tck/clauses/match/Match7/[19] Optionally matching named paths with single and variable length patterns	REFUSED	REFUSED
 tck/clauses/match/Match7/[20] Variable length optional relationships with bound nodes, no matches	PASS	PASS
 tck/clauses/match/Match7/[21] Handling optional matches between nulls	PASS	PASS
-tck/clauses/match/Match7/[22] MATCH after OPTIONAL MATCH	REFUSED	REFUSED
+tck/clauses/match/Match7/[22] MATCH after OPTIONAL MATCH	PASS	PASS
 tck/clauses/match/Match7/[23] OPTIONAL MATCH with labels on the optional end node	PASS	PASS
 tck/clauses/match/Match7/[24] Optionally matching self-loops	PASS	PASS
 tck/clauses/match/Match7/[25] Optionally matching self-loops without matches	PASS	PASS
@@ -583,8 +583,8 @@ tck/clauses/match/Match9/[2] Return relationships by collecting them as a list -
 tck/clauses/match/Match9/[3] Return relationships by collecting them as a list - undirected, starting from two extremes	PASS	PASS
 tck/clauses/match/Match9/[4] Return relationships by collecting them as a list - undirected, starting from one extreme	PASS	PASS
 tck/clauses/match/Match9/[5] Variable length pattern with label predicate on both sides	PASS	PASS
-tck/clauses/match/Match9/[6] Matching relationships into a list and matching variable length using the list, with bound nodes	REFUSED	REFUSED
-tck/clauses/match/Match9/[7] Matching relationships into a list and matching variable length using the list, with bound nodes, wrong direction	REFUSED	REFUSED
+tck/clauses/match/Match9/[6] Matching relationships into a list and matching variable length using the list, with bound nodes	PASS	PASS
+tck/clauses/match/Match9/[7] Matching relationships into a list and matching variable length using the list, with bound nodes, wrong direction	PASS	PASS
 tck/clauses/match/Match9/[8] Variable length relationship in OPTIONAL MATCH	PASS	PASS
 tck/clauses/match/Match9/[9] Optionally matching named paths with variable length patterns	PASS	PASS
 tck/clauses/merge/Merge1/[1] Merge node when no nodes exist	REFUSED	REFUSED
@@ -900,7 +900,7 @@ tck/clauses/unwind/Unwind1/[8] Unwinding the empty list	PASS	PASS
 tck/clauses/unwind/Unwind1/[9] Unwinding null	PASS	PASS
 tck/clauses/unwind/Unwind1/[10] Unwinding list with duplicates	PASS	PASS
 tck/clauses/unwind/Unwind1/[11] Unwind does not prune context	PASS	PASS
-tck/clauses/unwind/Unwind1/[12] Unwind does not remove variables from scope	REFUSED	REFUSED
+tck/clauses/unwind/Unwind1/[12] Unwind does not remove variables from scope	PASS	PASS
 tck/clauses/unwind/Unwind1/[13] Multiple unwinds after each other	PASS	PASS
 tck/clauses/unwind/Unwind1/[14] Unwind with merge	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[1] Sort booleans in ascending order	PASS	PASS
@@ -2049,8 +2049,8 @@ tck/expressions/pattern/Pattern1/[21] Using two existential pattern predicates i
 tck/expressions/pattern/Pattern1/[22] Fail on using pattern in RETURN projection	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[23] Fail on using pattern in WITH projection	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[24] Fail on using pattern in right-hand side of SET	BOTH_ERROR	BOTH_ERROR
-tck/expressions/pattern/Pattern2/[1] Return a pattern comprehension	PASS	PASS
-tck/expressions/pattern/Pattern2/[2] Return a pattern comprehension with label predicate	PASS	PASS
+tck/expressions/pattern/Pattern2/[1] Return a pattern comprehension	REFUSED	REFUSED
+tck/expressions/pattern/Pattern2/[2] Return a pattern comprehension with label predicate	REFUSED	REFUSED
 tck/expressions/pattern/Pattern2/[3] Return a pattern comprehension with bound nodes	REFUSED	REFUSED
 tck/expressions/pattern/Pattern2/[4] Introduce a new node variable in pattern comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[5] Introduce a new relationship variable in pattern comprehension	PASS	PASS
@@ -2231,7 +2231,7 @@ tck/expressions/quantifier/Quantifier1/[7] None quantifier on list literal conta
 tck/expressions/quantifier/Quantifier1/[7] None quantifier on list literal containing maps #8	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[7] None quantifier on list literal containing maps #9	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[8] None quantifier on list containing nodes	PASS	PASS
-tck/expressions/quantifier/Quantifier1/[9] None quantifier on list containing relationships	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier1/[9] None quantifier on list containing relationships	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[10] None quantifier on lists containing nulls #1	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[10] None quantifier on lists containing nulls #2	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[10] None quantifier on lists containing nulls #3	PASS	PASS
@@ -2383,7 +2383,7 @@ tck/expressions/quantifier/Quantifier2/[7] Single quantifier on list literal con
 tck/expressions/quantifier/Quantifier2/[7] Single quantifier on list literal containing maps #8	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[7] Single quantifier on list literal containing maps #9	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[8] Single quantifier on list containing nodes	PASS	PASS
-tck/expressions/quantifier/Quantifier2/[9] Single quantifier on list containing relationships	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier2/[9] Single quantifier on list containing relationships	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[10] Single quantifier on lists containing nulls #1	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[10] Single quantifier on lists containing nulls #2	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[10] Single quantifier on lists containing nulls #3	PASS	PASS
@@ -2489,7 +2489,7 @@ tck/expressions/quantifier/Quantifier3/[7] Any quantifier on list literal contai
 tck/expressions/quantifier/Quantifier3/[7] Any quantifier on list literal containing maps #8	PASS	PASS
 tck/expressions/quantifier/Quantifier3/[7] Any quantifier on list literal containing maps #9	PASS	PASS
 tck/expressions/quantifier/Quantifier3/[8] Any quantifier on list containing nodes	PASS	PASS
-tck/expressions/quantifier/Quantifier3/[9] Any quantifier on list containing relationships	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier3/[9] Any quantifier on list containing relationships	PASS	PASS
 tck/expressions/quantifier/Quantifier3/[10] Any quantifier on lists containing nulls #1	PASS	PASS
 tck/expressions/quantifier/Quantifier3/[10] Any quantifier on lists containing nulls #2	PASS	PASS
 tck/expressions/quantifier/Quantifier3/[10] Any quantifier on lists containing nulls #3	PASS	PASS
@@ -2594,7 +2594,7 @@ tck/expressions/quantifier/Quantifier4/[7] All quantifier on list literal contai
 tck/expressions/quantifier/Quantifier4/[7] All quantifier on list literal containing maps #8	PASS	PASS
 tck/expressions/quantifier/Quantifier4/[7] All quantifier on list literal containing maps #9	PASS	PASS
 tck/expressions/quantifier/Quantifier4/[8] All quantifier on list containing nodes	PASS	PASS
-tck/expressions/quantifier/Quantifier4/[9] All quantifier on list containing relationships	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier4/[9] All quantifier on list containing relationships	PASS	PASS
 tck/expressions/quantifier/Quantifier4/[10] All quantifier on lists containing nulls #1	PASS	PASS
 tck/expressions/quantifier/Quantifier4/[10] All quantifier on lists containing nulls #2	PASS	PASS
 tck/expressions/quantifier/Quantifier4/[10] All quantifier on lists containing nulls #3	PASS	PASS
@@ -4055,7 +4055,7 @@ lite/depth/a_variable_length_past_two_steps_then_a_where_on_the_far_end	PASS	PAS
 lite/depth/the_tail_of_a_deep_paths_nodes_under_a_quantifier	PASS	PASS
 lite/depth/a_list_of_scalars_among_the_grouping_keys	PASS	PASS
 lite/depth/with_distinct_over_a_list_of_scalars	PASS	PASS
-lite/depth/a_list_of_nodes_among_the_grouping_keys_refused	REFUSED	REFUSED
+lite/depth/a_list_of_nodes_among_the_grouping_keys_refused	PASS	PASS
 lite/depth/a_variant_property_equal_to_a_number	PASS	PASS
 lite/edges/a_relationship_property	PASS	PASS
 lite/edges/a_relationship_as_a_value	PASS	PASS
@@ -4112,6 +4112,13 @@ lite/grouping/an_edge_relationship_among_the_keys	PASS	PASS
 lite/grouping/distinct_association_relationships	PASS	PASS
 lite/grouping/grouping_by_an_association_relationship	PASS	PASS
 lite/grouping/collect_distinct_stays_refused	PASS	PASS
+lite/heldvalues/an_unwound_collected_node_re_anchors	PASS	PASS
+lite/heldvalues/a_coalesce_of_nodes_re_anchors	PASS	PASS
+lite/heldvalues/a_variable_length_bound_to_a_list_of_relationships	PASS	PASS
+lite/heldvalues/the_same_list_reversed_matches_nothing	PASS	PASS
+lite/heldvalues/a_list_of_nodes_as_a_grouping_key	PASS	PASS
+lite/heldvalues/a_node_returned_inside_a_list	PASS	PASS
+lite/heldvalues/a_relationship_list_as_a_grouping_key	PASS	PASS
 lite/identity/two_nodes_equal	PASS	PASS
 lite/identity/two_nodes_unequal	PASS	PASS
 lite/identity/nodes_of_different_labels_differ	PASS	PASS
@@ -4759,7 +4766,7 @@ lite/varkinds/an_unwound_literal_named_as_a_node	BOTH_ERROR	BOTH_ERROR
 lite/varkinds/an_unwind_over_a_bound_name	BOTH_ERROR	BOTH_ERROR
 lite/varkinds/a_node_bound_again_as_a_node_reads_it_again	PASS	PASS
 lite/varkinds/a_name_dropped_by_a_with_binds_afresh	PASS	PASS
-lite/varkinds/a_list_of_relationships_named_as_a_variable_length_reads_on	REFUSED	REFUSED
+lite/varkinds/a_list_of_relationships_named_as_a_variable_length_reads_on	PASS	PASS
 lite/varkinds/a_node_carried_through_with_star_conflicts	BOTH_ERROR	BOTH_ERROR
 lite/varlen/a_fixed_length_of_two	PASS	PASS
 lite/varlen/a_length_of_one_to_two	PASS	PASS
