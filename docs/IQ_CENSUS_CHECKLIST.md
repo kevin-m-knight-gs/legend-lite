@@ -513,20 +513,34 @@ The user asked for real queries that push the island hard. Their corpora, data a
 - **A recursion IQ answers** (over no IQ table, or in SQL Anywhere's front end) waits for the Cypher island's
   recursion native to reach main (the island will lower to it).
 - **The differential fuzzer** (`fuzz.py`, private) makes random queries over the parity tables, each ordered by a
-  unique key, and judges them against the live IQ. Its first 2,000:
-  - PASS 1,892, BOTH_ERROR 60, REFUSED 11, ERROR 27, FAIL 10.
-  - Fixed: BETWEEN beside a NULL column bound (three-valued, as IQ is); an empty range of constants (FALSE for a
-    NULL too); an aggregate nested in a select item's aggregate before one in WHERE (-156; -150 where an IN reads
-    it).
+  unique key, and judges them against the live IQ. Three rounds (2,000, 3,000 and 3,000 queries) passed 1,892, 2,743
+  and 2,775. Fixed from them, each measured:
+  - BETWEEN beside a NULL column bound (three-valued); an empty range of constants (FALSE, a NULL x too);
+    `x BETWEEN x AND c` (FALSE for a NULL x);
+  - an aggregate nested in a select item's aggregate before one in WHERE (-156; -150 where an IN reads it);
+  - a ranking function's constant key beside a column key (answered; -1005028 only for constants alone);
+  - a union of a decimal and an integer branch (the compiler's concatenate check);
+  - constants' arithmetic past 32 bits (a BIGINT);
+  - SIGN of a NUMERIC with no digit before its point (-1001014).
+- **From the judged corpora:**
+  - BIRD's full dev set (1,450 judged): 1,047 PASS, 5 PASS_UNORDERED and 389 matching error codes. One fix: a
+    qualified ORDER BY column naming a column item, -149 not -854.
+  - TPC-H over its data (9,427 judged): 9,131 match IQ once ties are broken. The rest are ROW_NUMBER over ties,
+    IQ's Cartesian-product limit, D-N3's places and the 38-digit decision. One fix: a derived table IQ merges into an
+    outer join's ON, -1001047 for its WHERE's subquery.
+  - JOB's error claims: 422 of 423 sampled matched IQ's code over empty tables.
+- **Built from the benchmarks:** ARRAY_AGG under IQ's engine (-1001030, in IQ's order; dropped with a column no one
+  reads), LPAD and RPAD (IQ's engine's own; the front end's -134), and a conversion's -157 before a subquery's
+  placement (a row limit's in a derived table still first).
 - **Measured, not built:**
   - BIGINT arithmetic past 64 bits. IQ's engine answers a NUMERIC(20,0) (`bg + 7` over 2^63 - 1). Lite types from the
     column, so it keeps a BIGINT and the database's overflow raises. That is D-N3: IQ sizes from the data, and
     widening every BIGINT operation would mistype every realistic one.
-  - REPLACE of a zero-length string under IQ's engine is NULL for a constant `''` and for `LEFT(vc, 0)`, but `''` for
-    `TRIM(ch)`, a SUBSTRING past the end, or `CAST('' AS VARCHAR(5))`. The rule is not found.
-  - `NOT (sm BETWEEN sm AND 1)` holds for a NULL sm, though `NOT (sm BETWEEN sm AND sm)` does not: an optimizer
-    rewrite.
-  - ARRAY_AGG (590 queries, mostly JOB's `ARRAY_AGG(DISTINCT ...)`) under IQ's engine is -1001030. It comes after
-    -143, -154, -149 and -157, and before -1005004; in an unread derived column it is dropped. It needs ARRAY_AGG as
-    an aggregate in the grouping checks.
-  - LPAD and RPAD are IQ 17.1's own (38 queries).
+  - REPLACE of a zero-length string under IQ's engine is NULL for a constant `''`, `LEFT(vc, 0)` or `SPACE(0)`, but
+    `''` for `TRIM(ch)`, a SUBSTRING past the end, or `CAST('' AS VARCHAR(5))`. The rule is not found.
+  - GREATER and LESSER: their arguments overflow as SQL Anywhere's front end's (-158 for `1 + it` past 2^31 - 1,
+    where IQ's engine widens), and IQ types `LESSER(1, -32768)` a NUMERIC. Some constant subexpressions take the
+    front end's type (`CEILING(100.00)` a DOUBLE).
+  - IQ's engine refuses some functions in a window's PARTITION BY or ORDER BY (GREATER, LESSER, a CAST of a
+    string: "Function not currently supported").
+  - DATEADD of a constant date is a TIMESTAMP under IQ's engine.
