@@ -1712,6 +1712,23 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
   - `protocol/sql/SqlToPure.java`, also: `*` in a grouped query shows its group keys; a scalar subquery a select item
     reads on every path is computed once, a column before the item (`Output.pre`, in the item's phase), where it was
     written once per check of each checked operation around it.
+  - Later the same day (follow-on branch `claude/iq-island-5-next`, the same landing):
+    - `lowering/Fold.java`, `lowering/Lowerer.java`: a large computed column that later columns read twice is written
+      once in its own select (`Fold.rereadsLarge`).
+    - `protocol/sql/SqlToPure.java`:
+      - an item past the size bound computes its long operands once, a column before it
+        (`SqlTranslationException.pastSizeBound`);
+      - a dialect's group guard (`Aggregation.guard`), each grouping's own;
+      - `Scope.enclosing`, a window's correlated-reference check that no longer asks a grouped scope to resolve a
+        column that is no group key;
+      - `SELECT DISTINCT t.*` ordered by a column the `*` shows;
+      - joins read by `InputDialect.joinType`.
+    - `protocol/sql/InputDialect.java`: `joinType`, a dialect's reading of an outer join as the inner one it is (the
+      IQ island's, under a WHERE that rejects the null-supplying side's NULLs).
+    - `protocol/sql/InputDialect.java`, also: `Problem.NESTED_AGGREGATE`, whose wording is the dialect's (Postgres's
+      unchanged; the IQ island's its -156); the shared translator's seven nested-aggregate refusals read it.
+    - `core/BUILD.bazel`: `//core:iq_parity_test` and `//core:iq_parity_postgres_test` sized `large`. The first ran 43 s
+      alone but past `medium`'s 300 s in `//gates:local`.
 
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
