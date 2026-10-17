@@ -202,4 +202,5 @@ plane: a cube with `%10:30:00` compiles to a relation type (compile-only), but i
 editor refuses it, and since item 5 so does Python (found 2026-10-15, when Python's calculated columns began to be
 checked by DataCube's own compile). Python's chart cases reach a StrictTime column as a page saved where one is lowered
 holds it, loaded, so every case is still asked; a time of day in a source and in the lowering is the compiler line's to
-decide.
+decide. **Lowered since 2026-10-17** (main's 5f7d6ed, the Cypher island's time-of-day leg: StrictTime a SQL `TIME` end to
+end): a calculated `%10:30:00` is Python's and the editor's like any column, and the chart cases calculate it so.
