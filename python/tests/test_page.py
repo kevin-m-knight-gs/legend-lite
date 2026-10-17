@@ -616,6 +616,15 @@ class Document(Paged):
             grid.configure({'columns': {'desk': {'kind': None}}})
         with self.assertRaisesRegex(ValueError, "desk's excludedFromPivot is true or false"):
             grid.configure({'columns': {'desk': {'excludedFromPivot': None}}})
+        # a setting DataCube has not, a column the grid has not, a setting's name misspelt: refused, never kept
+        with self.assertRaisesRegex(ValueError, "'maxRow' is not a grid's setting"):
+            grid.configure({'maxRow': 5})
+        with self.assertRaisesRegex(ValueError, "'notionl' is not a column of the grid"):
+            grid.configure({'columns': {'notionl': {'hidden': True}}})
+        with self.assertRaisesRegex(ValueError, "'aggregatefn' is not a column's setting"):
+            grid.configure({'columns': {'pnl': {'aggregatefn': 'max'}}})
+        with self.assertRaisesRegex(ValueError, "'fontsize' is not an appearance setting"):
+            grid.configure({'appearance': {'fontsize': 14}})
         # an edit of a part DataCube does not know is refused, never ignored
         with self.assertRaisesRegex(ValueError, r"a grid's edit is configuration, columns, .*: not pivot"):
             grid._edit({'pivot': ['desk']})

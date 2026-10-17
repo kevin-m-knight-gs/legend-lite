@@ -31,9 +31,12 @@ import {
 } from '../export-render.ts';
 import { FormatterCache } from '../format.ts';
 import { LitePlanner } from '../lite-planner.ts';
-import { applyToSnapshot, fromSnapshot, withConfiguration, type CubeConfiguration, type Patch } from '../config.ts';
 import {
-  addSort, measureAsColumn, setColumn, setGrouping, setPivot, setSorts, type GridDraft,
+  APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, applyToSnapshot, fromSnapshot, withConfiguration, type CubeConfiguration,
+  type Patch,
+} from '../config.ts';
+import {
+  addSort, allColumns, measureAsColumn, setColumn, setGrouping, setPivot, setSorts, type GridDraft,
 } from '../grid-edits.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
 import { typeColumns } from '../plan.ts';
@@ -436,14 +439,24 @@ function configured(draft: GridDraft, given: unknown): GridDraft {
   const patched = (d: GridDraft, patch: Record<string, unknown>): GridDraft =>
     ({ ...d, config: withConfiguration(d.config, patch as Patch<CubeConfiguration>) });
   const { columns, appearance, ...settings } = given;
+  // a setting DataCube has not (a name misspelt) is refused, never kept where nothing reads it (config.ts's lists)
+  const known = (keys: readonly string[], settings: object, what: string): void => {
+    const odd = keys.find((k) => !Object.hasOwn(settings, k));
+    if (odd !== undefined) throw new CubeRefusal(`'${odd}' is not ${what} (${Object.keys(settings).join(', ')})`);
+  };
+  known(Object.keys(settings), CUBE_SETTINGS, "a grid's setting");
   if (appearance !== undefined && !isObject(appearance)) {
     throw new CubeRefusal("a grid's appearance is its settings by name, each cleared by null, not cleared whole");
   }
+  if (isObject(appearance)) known(Object.keys(appearance), APPEARANCE_SETTINGS, 'an appearance setting');
   let d = patched(draft, { ...cleared(settings), ...(isObject(appearance) ? { appearance: cleared(appearance) } : {}) });
   if (columns === undefined) return d;
   if (!isObject(columns)) throw new CubeRefusal("a grid's columns' settings are by name: {name: {setting: value}}");
   for (const [name, c] of Object.entries(columns)) {
+    const named = allColumns(d);
+    if (!named.includes(name)) throw new CubeRefusal(`'${name}' is not a column of the grid (${named.join(', ')})`);
     if (!isObject(c)) throw new CubeRefusal(`a column's settings are an object, not ${JSON.stringify(c)}`);
+    known(Object.keys(c), COLUMN_SETTINGS, "a column's setting");
     const { kind, aggregateFn, aggregationParameters, excludedFromPivot, ...presentation } = c;
     if (kind === null) {
       throw new CubeRefusal(`${name}'s kind is set, never cleared: 'dimension' or 'measure' (Column Properties > Column Kind)`);

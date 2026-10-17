@@ -267,6 +267,33 @@ export const DEFAULT_MAX_ROWS = 1000;
  * --ag-font-size. The cell font comes from the column's own font
  * configuration and is a point smaller than the chrome around it.
  */
+/**
+ * EVERY SETTING BY NAME: a grid's, a column's and the grid's appearance's -- what a host's patch may set (headless
+ * configure refuses any other, never keeping it). The compiler holds each list to its type, both ways: a setting added
+ * to the type and not here, or a name here the type has not, fails the build.
+ */
+export const CUBE_SETTINGS = {
+  reportTitle: true, showRootAggregation: true, showGroupedColumns: true, showDragZones: true, showTitleBar: true,
+  showLeafCount: true, leafCountMode: true, treeColumnSort: true, initialExpandToLevel: true, maxRows: true,
+  showTruncationWarning: true, appearance: true, showSelectionStats: true, pivotStatisticColumnName: true,
+  pivotStatisticColumnPlacement: true, pivotMeasuresFirst: true, dimensions: true, columns: true, columnOrder: true,
+} as const satisfies Record<keyof CubeConfiguration, true>;
+
+export const COLUMN_SETTINGS = {
+  displayName: true, kind: true, aggregateFn: true, aggregationParameters: true, hidden: true, blurred: true,
+  pinned: true, widthMode: true, width: true, minWidth: true, maxWidth: true, format: true, appearance: true,
+  heatmap: true, excludedFromPivot: true, pivotSortDirection: true, pivotStatisticColumnFunction: true,
+  displayAsLink: true, linkLabelParameter: true,
+} as const satisfies Record<keyof ColumnConfiguration, true>;
+
+export const APPEARANCE_SETTINGS = {
+  fontFamily: true, fontSize: true, bold: true, italic: true, underline: true, strikethrough: true, textAlign: true,
+  fontCase: true, normalForeground: true, negativeForeground: true, zeroForeground: true, errorForeground: true,
+  normalBackground: true, negativeBackground: true, zeroBackground: true, errorBackground: true,
+  showHorizontalGridLines: true, showVerticalGridLines: true, gridLineColor: true, alternateRowsStandardMode: true,
+  alternateRows: true, alternateRowsColor: true, alternateRowsCount: true,
+} as const satisfies Record<keyof GridAppearance, true>;
+
 export const DEFAULT_CONFIGURATION: CubeConfiguration = {
   /*
    * OFF, as theirs is (DataCubeConfiguration.showRootAggregation =
