@@ -851,8 +851,10 @@ public final class NameResolver {
         if (params == dp.parameters() && realization == dp.realization() && type == dp.type()) {
             return dp;
         }
+        // (the annotations and the span ride along: a rebuilt derived property used to drop its stereotypes, so a
+        // <<graph.type>> whose body names an enumeration lost its marker on resolution; 2026-10-16, the edge class)
         return new DerivedPropertyDefinition(dp.name(), params, realization,
-                nn(type), dp.multiplicity());
+                nn(type), dp.multiplicity(), dp.stereotypes(), dp.taggedValues(), dp.pos());
     }
 
     private static ParameterDefinition resolveParameter(
@@ -894,9 +896,10 @@ public final class NameResolver {
     private static AssociationEndDefinition resolveAssocEnd(
             AssociationEndDefinition end, Scope scope) {
         TypeExpression target = resolveType(end.targetClass(), scope);
-        return target == end.targetClass() ? end
+        List<StereotypeApplication> stereotypes = resolveStereotypes(end.stereotypes(), scope);
+        return target == end.targetClass() && stereotypes == end.stereotypes() ? end
                 : new AssociationEndDefinition(end.propertyName(), nn(target),
-                        end.multiplicity());
+                        end.multiplicity(), stereotypes);
     }
 
     private static FunctionDefinition resolveFunction(

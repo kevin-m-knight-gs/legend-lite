@@ -96,8 +96,41 @@ public final class CypherToPure {
         /** Reports the relationships of the class at {@code classPath} read forward, to {@code sink}: its stored
          *  properties holding a class, and the associations whose first end is its (the end a relationship type
          *  names; the inverse end is the other class's); its superclasses' too. What an untyped relationship
-         *  pattern enumerates (the study's §12.17). */
+         *  pattern enumerates (the study's §12.17). An end holding an edge class is the edge's, not reported. */
         void ends(String classPath, PropertySink sink);
+
+        /** Reports every edge class of the model (the study's §5.6: a class carrying {@code <<graph.Edge>>}, a
+         *  relationship type with properties) to {@code sink}, in a fixed order. */
+        void edges(EdgeSink sink);
+    }
+
+    /** Where the model reports an edge class: its path, its relationship type, and its two ends, each the property
+     *  on the edge class holding the node, the node's class, and the inverse end the node class holds when the
+     *  property is an association end (its name, whether it holds many edges; null when the end is the edge class's
+     *  own property, which no node navigates). */
+    public interface EdgeSink {
+        void edge(String classPath, String type, String fromProperty, String fromClass,
+                @com.legend.base.Nullable String fromInverse, boolean fromInverseMany, String toProperty, String toClass,
+                @com.legend.base.Nullable String toInverse, boolean toInverseMany);
+    }
+
+    /** An edge class as the translator reads it, as the model reported it ({@link EdgeSink}). */
+    private record Edge(String classPath, String type, End from, End to) {
+    }
+
+    /** One end of an edge class ({@link EdgeSink}). */
+    private record End(String property, String classPath, @com.legend.base.Nullable String inverse,
+            boolean inverseMany) {
+    }
+
+    /** The model's edge classes, as it reports them. */
+    private List<Edge> edges() {
+        List<Edge> out = new ArrayList<>();
+        model.edges((classPath, type, fromProperty, fromClass, fromInverse, fromInverseMany, toProperty, toClass,
+                toInverse, toInverseMany) -> out.add(new Edge(classPath, type,
+                new End(fromProperty, fromClass, fromInverse, fromInverseMany),
+                new End(toProperty, toClass, toInverse, toInverseMany))));
+        return out;
     }
 
     /** Where the model reports a property: its name, its type's name (a primitive's simple name, a class's or an
@@ -147,18 +180,26 @@ public final class CypherToPure {
                 return null;
             }
             if (!b.node()) {
-                return gs.carryRel(b, names);
+                return gs.carryRel(b, names, v.pos(), gs.g.variableClasses().getOrDefault(v.name(), List.of()));
             }
             return gs.carry(b, v.pos(), names, gs.g.variableClasses().getOrDefault(v.name(), List.of()));
         }
         if (scope instanceof RowScope rs) {
             Col c = rs.column(v.name());
             if (c != null && c.detail() instanceof RelShape rel) {
-                // carried again: the type column kept under its name
+                // carried again: the type column and the properties' columns kept under their names
                 Col type = java.util.Objects.requireNonNull(rs.column(rel.type()));
-                return new NodeCarry(new NodeShape(rel.type(), Map.of()), List.of(new ColSpec(rel.type(),
-                        lambda("r", new AppliedProperty(new Variable("r"), rel.type())), null, null)),
-                        List.of(new Col(rel.type(), Kind.STRING, type.nullable())), true);
+                List<ColSpec> specs = new ArrayList<>();
+                List<Col> columns = new ArrayList<>();
+                specs.add(new ColSpec(rel.type(), lambda("r", new AppliedProperty(new Variable("r"), rel.type())),
+                        null, null));
+                columns.add(new Col(rel.type(), Kind.STRING, type.nullable()));
+                for (NodeProp p : rel.props().values()) {
+                    specs.add(new ColSpec(p.column(), lambda("r", new AppliedProperty(new Variable("r"), p.column())),
+                            null, null));
+                    columns.add(new Col(p.column(), p.kind(), p.nullable()));
+                }
+                return new NodeCarry(new NodeShape(rel.type(), rel.props()), specs, columns, true);
             }
             if (c == null || !(c.detail() instanceof NodeShape shape)) {
                 return null;
@@ -191,12 +232,13 @@ public final class CypherToPure {
 
     /** A node's JSON text, built by the database: its labels array and its properties that hold a value. */
     private static ValueSpecification nodeJsonText(NodeParts parts, Pos pos) {
-        ValueSpecification text = plus(new CString("{\"@labels\":"), parts.labels());
+        ValueSpecification text = plus(new CString("{" + com.legend.json.Json.toCompact(parts.key()) + ":"),
+                parts.labels());
         return plus(text, propertyPieces(parts, pos), new CString("}"));
     }
 
-    /** A relationship's JSON text: its type (the harness's model holds no relationship property). */
-    private static String relJsonText(String type) {
+    /** A relationship's JSON text over a property or association: its type, a constant. */
+    private static String relTypeJson(String type) {
         return "{\"@type\":" + com.legend.json.Json.toCompact(type) + "}";
     }
 
@@ -204,9 +246,21 @@ public final class CypherToPure {
      *  for an OPTIONAL MATCH's node, whether it is absent (its navigation empty or its WHERE not holding; the
      *  labels column null, after a projection), the node then null. */
     private record NodeParts(ValueSpecification labels, List<Map.Entry<String, Tx>> props,
-            @com.legend.base.Nullable ValueSpecification absent) {
+            @com.legend.base.Nullable ValueSpecification absent, String key) {
         NodeParts(ValueSpecification labels, List<Map.Entry<String, Tx>> props) {
-            this(labels, props, null);
+            this(labels, props, null, "@labels");
+        }
+
+        NodeParts(ValueSpecification labels, List<Map.Entry<String, Tx>> props,
+                @com.legend.base.Nullable ValueSpecification absent) {
+            this(labels, props, absent, "@labels");
+        }
+
+        /** A relationship's parts (the study's §5.6): its type's JSON text where a node has its labels', its
+         *  properties those of its edge class (none for a relationship over a property or association). */
+        static NodeParts rel(ValueSpecification type, List<Map.Entry<String, Tx>> props,
+                @com.legend.base.Nullable ValueSpecification absent) {
+            return new NodeParts(type, props, absent, "@type");
         }
     }
 
@@ -227,8 +281,10 @@ public final class CypherToPure {
     /** {@code properties(n)}: the node's properties that hold a value, a map (the pieces each lead with a comma: the
      *  first is dropped). */
     private static Tx nodeProperties(NodeParts parts, Pos pos) {
-        ValueSpecification text = plus(new CString("{"), call("substring", propertyPieces(parts, pos),
-                new CInteger(2L)), new CString("}"));
+        ValueSpecification text = parts.props().stream().allMatch(p -> p.getValue().kind() == Kind.NULL)
+                ? new CString("{}")
+                : plus(new CString("{"), call("substring", propertyPieces(parts, pos), new CInteger(2L)),
+                        new CString("}"));
         return Tx.value(present(parts, call("fromJson", text)), Kind.JSON, parts.absent() != null);
     }
 
@@ -389,6 +445,12 @@ public final class CypherToPure {
      *  second hop of a type already hopped in the same MATCH is refused by name. */
     private final Set<String> typesInThisMatch = new HashSet<>();
 
+    /** The nodes bound at the far end of a hop over an edge class (the study's §12.38): a hop from one of them is
+     *  refused by name, since the resolver's nested navigation does not read an association end past the edge's end
+     *  ({@code $a.ACTED_IN_out.to.MADE_BY}: "property 'MADE_BY' of nested navigation 'ACTED_IN_out.to' is not
+     *  mapped"; reported to the resolver's line in docs/IN_FLIGHT.md). */
+    private final Set<String> reachedThroughEdge = new HashSet<>();
+
     private CypherToPure(Model model) {
         this.model = model;
     }
@@ -418,18 +480,18 @@ public final class CypherToPure {
             List<ValueSpecification> conditions, List<String> candidates, boolean fanning,
             List<NodeConstraint> deferredConstraints, List<Expr> deferredWhere,
             Map<String, List<String>> variableClasses, Map<String, PathSpec> paths,
-            Map<String, Boolean> forward) implements State {
+            Map<String, Boolean> forward, Map<String, List<String>> lists) implements State {
         Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
                 List<String> candidates) {
             this(rootClass, row, bindings, conditions, candidates, false, new ArrayList<>(), new ArrayList<>(),
-                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>());
+                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
         }
 
         Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
                 List<String> candidates, boolean fanning, List<NodeConstraint> deferredConstraints,
                 List<Expr> deferredWhere) {
             this(rootClass, row, bindings, conditions, candidates, fanning, deferredConstraints, deferredWhere,
-                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>());
+                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
         }
     }
 
@@ -445,7 +507,9 @@ public final class CypherToPure {
 
     /** A pattern variable: a node (its class, the properties navigated from the root to reach it, whether that
      *  navigation may find nothing, whether it fans out: a to-many hop on its path, one row per node reached) or a
-     *  relationship (a hop, with no value of its own in PR1). */
+     *  relationship (its type; over an edge class, the navigation to the edge instance and the class whose
+     *  properties are its, the study's §5.6; over a property or association, the hop's navigation and no value of
+     *  its own). */
     private record Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path,
             boolean optional, boolean fanning, boolean absent, boolean maybeAbsent,
             @com.legend.base.Nullable String type, @com.legend.base.Nullable ValueSpecification guard) {
@@ -481,6 +545,13 @@ public final class CypherToPure {
         static Binding relationship(List<String> path, boolean optional, boolean fanning, String type,
                 boolean maybeAbsent) {
             return new Binding(false, null, path, optional, fanning, false, maybeAbsent, type, null);
+        }
+
+        /** A relationship over an edge class ({@code edge}, null for one over a property or association): its
+         *  path reaches the edge instance, whose properties are the relationship's. */
+        static Binding relationship(List<String> path, boolean optional, boolean fanning, String type,
+                boolean maybeAbsent, @com.legend.base.Nullable String edge) {
+            return new Binding(false, edge, path, optional, fanning, false, maybeAbsent, type, null);
         }
 
         /** A relationship an OPTIONAL MATCH never finds: null. */
@@ -651,8 +722,18 @@ public final class CypherToPure {
             if (hop != null) {
                 return hop;
             }
+            Rows fresh = freshAfterRows(m, rows);
+            if (fresh != null) {
+                return fresh;
+            }
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
+        }
+        if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
+                && r.lengthRange() != null))) {
+            // a variable-length relationship: one chain per length within its bounds, read as arms (the study's
+            // §12.42)
+            return variableLength(m, state);
         }
         if (state == null && m.patterns().size() == 1 && m.patterns().get(0).elements().size() == 1
                 && ((NodePattern) m.patterns().get(0).elements().get(0)).labels().isEmpty()) {
@@ -660,8 +741,10 @@ public final class CypherToPure {
             return arms(m);
         }
         if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
-                && r.types().size() != 1))) {
-            // (a relationship of several types too: one arm per type, the study's §12.35)
+                && (r.types().size() != 1 || edgesOf(r.types().get(0)).size() > 1)))) {
+            // (a relationship of several types too: one arm per type, the study's §12.35; and a type naming several
+            // edge classes, one per class pair it joins: one arm per edge class the start node's class allows, the
+            // far node's label choosing, the study's §5.6)
             return untypedArms(m, state);
         }
         Graph g = state instanceof Graph existing ? existing : null;
@@ -748,6 +831,7 @@ public final class CypherToPure {
             }
             order.add(java.util.Objects.requireNonNull(n.variable()));
         }
+        nameRelationshipsWithMaps(elements, taken);
         NodePattern root = (NodePattern) elements.get(0);
         String rootLabel = labelClass(root);
         List<String> rootClasses = rootLabel != null ? List.of(rootLabel) : new ArrayList<>(model.classes());
@@ -793,13 +877,14 @@ public final class CypherToPure {
         List<Graph> graphs = new ArrayList<>();
         for (List<PatternElement> arm : arms) {
             typesInThisMatch.clear();
-            Graph g = pattern(new PathPattern(null, arm, p.pos()), null);
+            // (the property maps lenient across every class the arms read, as the WHERE below is)
+            Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
             if (p.variable() != null) {
                 recordPath(g, new PathPattern(p.variable(), arm, p.pos()));
             }
             // (the WHERE read against the arm's own classes; C4 lenient across every class an arm reads)
             g = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
-                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward());
+                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists());
             Expr where = m.where();
             if (where != null) {
                 if (g.fanning()) {
@@ -813,6 +898,272 @@ public final class CypherToPure {
         return materializeArms(graphs, order, m.pos());
     }
 
+    /** The prefix of the names the unroll of a variable-length relationship makes up for the nodes and
+     *  relationships between a pattern's own: bound in the arm's graph, read by its path and its relationship list,
+     *  never carried as columns of their own (so the arms' columns agree across lengths). */
+    private static final String HIDDEN = SYNTHETIC + "vl_";
+
+    /** The prefix of the columns a materialized path's length, nodes and relationships are carried under
+     *  ({@code <prefix><function>_<path>}): what {@code length(p)}, {@code nodes(p)} and {@code relationships(p)}
+     *  read over rows. */
+    private static final String PATH_PART = SYNTHETIC + "path_";
+
+    private static boolean hidden(@com.legend.base.Nullable String name) {
+        return name != null && name.startsWith(HIDDEN);
+    }
+
+    /** The chains of one length each a variable-length relationship unrolls to, with the lists its variable names
+     *  and the aliases a zero-length hop makes (the far node is the near one). */
+    private record Chain(List<PatternElement> elements, Map<String, List<String>> lists,
+            Map<String, String> aliases) {
+    }
+
+    /**
+     * {@code MATCH (a)-[:T*1..2]->(b)}, {@code (a)-[r:T*2]->(b)}, {@code (a)-[*0..1]->(b)} (the study's §12.42): a
+     * variable-length relationship with an upper bound is the union of the patterns of each length within its
+     * bounds, each a chain of that many hops of the relationship's types and direction through nodes the query
+     * does not name, read as arms (§12.17's machinery: every chain's ways from every class the start node may be),
+     * the arms materialized and concatenated. A zero-length hop binds the far node to the near one (its labels
+     * and property map then the near node's; a far label the near node cannot carry leaves no chain of length
+     * zero). The relationship's variable is the list of the chain's relationships. Neo4j's relationship
+     * uniqueness (a chain never walks one relationship twice) is not spelled: it needs identity (C5), and only a
+     * graph whose data loops a chain back over the same relationship (a self-loop, a two-node cycle walked twice)
+     * can tell the difference (docs/SEMANTICS_REGISTER.md S75). Refused by name: no upper bound (a recursion), a
+     * bound beyond 4, a property map on the relationship, a variable-length relationship after another clause
+     * or beside another pattern, or in an OPTIONAL MATCH.
+     */
+    private State variableLength(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        if (state != null) {
+            throw CypherErrors.unsupported("a variable-length relationship in a MATCH after another clause is not"
+                    + " supported yet", m.pos());
+        }
+        if (m.patterns().size() != 1) {
+            throw CypherErrors.unsupported("a variable-length relationship in a MATCH of several patterns is not"
+                    + " supported yet", m.pos());
+        }
+        if (m.optional()) {
+            throw CypherErrors.unsupported("a variable-length relationship in an OPTIONAL MATCH is not supported"
+                    + " yet", m.pos());
+        }
+        PathPattern p = m.patterns().get(0);
+        if (p.variable() != null) {
+            p = namedPath(p, Set.of());
+        }
+        List<PatternElement> elements = new ArrayList<>(p.elements());
+        List<String> order = new ArrayList<>();
+        Set<String> taken = new HashSet<>();
+        for (PatternElement e : elements) {
+            if (e instanceof NodePattern n && n.variable() != null) {
+                taken.add(n.variable());
+            }
+        }
+        for (int i = 0; i < elements.size(); i += 2) {
+            NodePattern n = (NodePattern) elements.get(i);
+            if (n.variable() == null) {
+                n = new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos());
+                elements.set(i, n);
+            }
+            order.add(java.util.Objects.requireNonNull(n.variable()));
+        }
+        nameRelationshipsWithMaps(elements, taken);
+        int combinations = 1;
+        for (int i = 1; i < elements.size(); i += 2) {
+            RelPattern r = (RelPattern) elements.get(i);
+            CypherAst.LengthRange range = r.lengthRange();
+            if (range == null) {
+                continue;
+            }
+            String spelled = "*" + (range.lower() < 0 ? "" : range.lower()) + ".." + (range.upper() < 0 ? ""
+                    : range.upper());
+            if (range.upper() < 0) {
+                throw CypherErrors.unsupported("a variable-length relationship without an upper bound (" + spelled
+                        + ", a recursion) is not supported yet", r.pos());
+            }
+            if (range.upper() > 4) {
+                throw CypherErrors.unsupported("a variable-length relationship longer than 4 (" + spelled + ") is"
+                        + " not supported yet", r.pos());
+            }
+            int lower = range.lower() < 0 ? 1 : range.lower();
+            if (lower > range.upper()) {
+                throw CypherErrors.invalid("Invalid input '" + spelled + "': the lower bound exceeds the upper",
+                        r.pos());
+            }
+            if (!r.properties().isEmpty()) {
+                throw CypherErrors.unsupported("a property map on a variable-length relationship is not supported"
+                        + " yet", r.pos());
+            }
+            combinations *= range.upper() - lower + 1;
+        }
+        if (combinations > 16) {
+            throw CypherErrors.unsupported("variable-length relationships unrolling to more than 16 chains are not"
+                    + " supported yet", p.pos());
+        }
+        List<Chain> chains = new ArrayList<>();
+        List<PatternElement> head = new ArrayList<>();
+        head.add(elements.get(0));
+        int[] counter = {0};
+        expand(elements, 1, head, new LinkedHashMap<>(), new LinkedHashMap<>(), counter, chains);
+        for (Chain chain : chains) {
+            if (chain.elements().size() > 5) {
+                // (the resolver's nested navigation reads no association end past a second step: IN_FLIGHT,
+                // 2026-10-16, the resolver line's finding)
+                throw CypherErrors.unsupported("a variable-length relationship whose pattern unrolls to more than two"
+                        + " hops in all is not supported yet", p.pos());
+            }
+        }
+        // every chain's arms, from every class the start node may be (as the untyped route reads a pattern)
+        List<List<PatternElement>> arms = new ArrayList<>();
+        List<Chain> armChains = new ArrayList<>();
+        for (Chain chain : chains) {
+            NodePattern root = (NodePattern) chain.elements().get(0);
+            String rootLabel = labelClass(root);
+            List<String> rootClasses = new ArrayList<>(rootLabel != null ? List.of(rootLabel) : model.classes());
+            rootClasses.removeAll(durationClasses());
+            int before = arms.size();
+            for (String cls : rootClasses) {
+                List<PatternElement> start = new ArrayList<>();
+                start.add(new NodePattern(root.variable(), List.of(cls), root.properties(), root.pos()));
+                assign(chain.elements(), 2, cls, start, arms);
+            }
+            for (int i = before; i < arms.size(); i++) {
+                armChains.add(chain);
+            }
+        }
+        if (arms.isEmpty()) {
+            throw CypherErrors.unsupported("a variable-length relationship no way of the model reads is not"
+                    + " supported yet", p.pos());
+        }
+        Map<String, List<String>> variableClasses = new LinkedHashMap<>();
+        for (int a = 0; a < arms.size(); a++) {
+            for (PatternElement e : arms.get(a)) {
+                if (e instanceof NodePattern n && n.variable() != null && !hidden(n.variable())) {
+                    List<String> classes = variableClasses.computeIfAbsent(n.variable(), k -> new ArrayList<>());
+                    if (!classes.contains(n.labels().get(0))) {
+                        classes.add(n.labels().get(0));
+                    }
+                }
+            }
+            for (Map.Entry<String, String> alias : armChains.get(a).aliases().entrySet()) {
+                String cls = ((NodePattern) arms.get(a).get(0)).labels().get(0);
+                for (PatternElement e : arms.get(a)) {
+                    if (e instanceof NodePattern n && alias.getValue().equals(n.variable())) {
+                        cls = n.labels().get(0);
+                    }
+                }
+                List<String> classes = variableClasses.computeIfAbsent(alias.getKey(), k -> new ArrayList<>());
+                if (!classes.contains(cls)) {
+                    classes.add(cls);
+                }
+            }
+        }
+        List<String> everyClass = new ArrayList<>();
+        variableClasses.values().forEach(cs -> cs.forEach(c -> {
+            if (!everyClass.contains(c)) {
+                everyClass.add(c);
+            }
+        }));
+        List<Graph> graphs = new ArrayList<>();
+        for (int a = 0; a < arms.size(); a++) {
+            List<PatternElement> arm = arms.get(a);
+            Chain chain = armChains.get(a);
+            typesInThisMatch.clear();
+            Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
+            if (p.variable() != null) {
+                recordPath(g, new PathPattern(p.variable(), arm, p.pos()));
+            }
+            // a zero-length hop: the far node is the near one
+            chain.aliases().forEach((far, near) -> g.bindings().put(far,
+                    java.util.Objects.requireNonNull(g.bindings().get(near))));
+            g.lists().putAll(chain.lists());
+            Graph read = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
+                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists());
+            Expr where = m.where();
+            if (where != null) {
+                if (read.fanning()) {
+                    read.deferredWhere().add(where);
+                } else {
+                    read.conditions().add(condition(where, new GraphScope(read), "WHERE"));
+                }
+            }
+            graphs.add(read);
+        }
+        return materializeArms(graphs, order, m.pos());
+    }
+
+    /** The chains from {@code at} (a relationship's place in {@code elements}) on: a fixed relationship and its
+     *  node as they are; a variable-length one as each length within its bounds -- zero folding the far node into
+     *  the node before it, k as k hops through k-1 nodes of the unroll's own. */
+    private void expand(List<PatternElement> elements, int at, List<PatternElement> head,
+            Map<String, List<String>> lists, Map<String, String> aliases, int[] counter, List<Chain> out) {
+        if (at >= elements.size()) {
+            out.add(new Chain(List.copyOf(head), new LinkedHashMap<>(lists), new LinkedHashMap<>(aliases)));
+            return;
+        }
+        RelPattern rel = (RelPattern) elements.get(at);
+        NodePattern next = (NodePattern) elements.get(at + 1);
+        CypherAst.LengthRange range = rel.lengthRange();
+        if (range == null) {
+            head.add(rel);
+            head.add(next);
+            expand(elements, at + 2, head, lists, aliases, counter, out);
+            head.remove(head.size() - 1);
+            head.remove(head.size() - 1);
+            return;
+        }
+        int lower = range.lower() < 0 ? 1 : range.lower();
+        for (int k = lower; k <= range.upper(); k++) {
+            if (k == 0) {
+                NodePattern near = (NodePattern) head.get(head.size() - 1);
+                if (!near.labels().isEmpty() && !next.labels().isEmpty() && !near.labels().equals(next.labels())) {
+                    // (the far node would have to be the near one: a label the near node does not carry leaves no
+                    // chain of length zero)
+                    continue;
+                }
+                Map<String, Expr> properties = new LinkedHashMap<>(near.properties());
+                for (Map.Entry<String, Expr> e : next.properties().entrySet()) {
+                    if (properties.containsKey(e.getKey())) {
+                        throw CypherErrors.unsupported("a zero-length relationship between two nodes whose property"
+                                + " maps both name " + e.getKey() + " is not supported yet", next.pos());
+                    }
+                    properties.put(e.getKey(), e.getValue());
+                }
+                NodePattern merged = new NodePattern(near.variable(), near.labels().isEmpty() ? next.labels()
+                        : near.labels(), properties, near.pos());
+                head.set(head.size() - 1, merged);
+                aliases.put(java.util.Objects.requireNonNull(next.variable()),
+                        java.util.Objects.requireNonNull(near.variable()));
+                if (rel.variable() != null) {
+                    lists.put(rel.variable(), List.of());
+                }
+                expand(elements, at + 2, head, lists, aliases, counter, out);
+                if (rel.variable() != null) {
+                    lists.remove(rel.variable());
+                }
+                aliases.remove(next.variable());
+                head.set(head.size() - 1, near);
+                continue;
+            }
+            List<String> names = new ArrayList<>();
+            for (int j = 1; j <= k; j++) {
+                String name = HIDDEN + "r" + counter[0]++;
+                names.add(name);
+                head.add(new RelPattern(name, rel.types(), rel.direction(), Map.of(), null, rel.pos()));
+                head.add(j == k ? next : new NodePattern(HIDDEN + "n" + counter[0]++, List.of(), Map.of(),
+                        next.pos()));
+            }
+            if (rel.variable() != null) {
+                lists.put(rel.variable(), names);
+            }
+            expand(elements, at + 2, head, lists, aliases, counter, out);
+            if (rel.variable() != null) {
+                lists.remove(rel.variable());
+            }
+            for (int j = 0; j < 2 * k; j++) {
+                head.remove(head.size() - 1);
+            }
+        }
+    }
+
     /** {@code MATCH (a:A) WITH a MATCH (a)-->(b)}, {@code MATCH (a:A) MATCH (x)-[r]-(a)}: an untyped relationship
      *  from a node the graph in hand binds (the study's §12.32): one arm per way the model reads the hop from that
      *  node's class (as §12.17 decides a first pattern's arms, from the bound end, the pattern reversed when its
@@ -824,6 +1175,10 @@ public final class CypherToPure {
             Rows hop = absentHop(m, rows);
             if (hop != null) {
                 return hop;
+            }
+            Rows fresh = freshAfterRows(m, rows);
+            if (fresh != null) {
+                return fresh;
             }
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
@@ -883,6 +1238,7 @@ public final class CypherToPure {
             }
             order.add(java.util.Objects.requireNonNull(n.variable()));
         }
+        nameRelationshipsWithMaps(ordered, taken);
         List<Graph> graphs = new ArrayList<>();
         for (Graph base : bases) {
             Binding from = base.bindings().get(startVar);
@@ -901,6 +1257,7 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("a MATCH from a node an OPTIONAL MATCH may not find (" + startVar
                         + ") is not supported yet", start.pos());
             }
+            refuseHopPastEdge(startVar, start.pos());
             String cls = java.util.Objects.requireNonNull(from.classPath());
             List<PatternElement> head = new ArrayList<>();
             head.add(new NodePattern(startVar, List.of(cls), start.properties(), start.pos()));
@@ -913,7 +1270,7 @@ public final class CypherToPure {
                         new ArrayList<>(base.conditions()), base.candidates(), true,
                         new ArrayList<>(base.deferredConstraints()), new ArrayList<>(base.deferredWhere()),
                         base.variableClasses(), new LinkedHashMap<>(base.paths()),
-                        new LinkedHashMap<>(base.forward()));
+                        new LinkedHashMap<>(base.forward()), new LinkedHashMap<>(base.lists()));
                 Graph g = pattern(new PathPattern(null, arm, p.pos()), copy);
                 if (m.where() != null) {
                     g.deferredWhere().add(m.where());
@@ -934,6 +1291,18 @@ public final class CypherToPure {
                     m.pos()), false, p.pos());
         }
         return materializeArms(graphs, order, m.pos());
+    }
+
+    /** A relationship pattern with a property map and no variable is named before the arms are read (as the nodes
+     *  are), so the columns its edge instance is carried as agree across the arms. */
+    private void nameRelationshipsWithMaps(List<PatternElement> elements, Set<String> taken) {
+        for (int i = 1; i < elements.size(); i += 2) {
+            RelPattern r = (RelPattern) elements.get(i);
+            if (r.variable() == null && !r.properties().isEmpty()) {
+                elements.set(i, new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(),
+                        r.lengthRange(), r.pos()));
+            }
+        }
     }
 
     /** The arms from {@code at} on: the hop before {@code at} typed each way the model allows from {@code cls}, the
@@ -966,6 +1335,7 @@ public final class CypherToPure {
                         }
                     }
                 }
+                ways.addAll(edgeWays(cls, type, rel.direction(), rel.pos()));
             }
         } else {
             if (rel.direction() != CypherAst.Direction.IN) {
@@ -982,10 +1352,12 @@ public final class CypherToPure {
                     }
                 }
             }
+            ways.addAll(edgeWays(cls, null, rel.direction(), rel.pos()));
         }
         for (Object[] way : ways) {
             String reached = (String) way[2];
             if (label != null && !label.equals(reached) && !model.isSubclass(reached, label)) {
+                refuseNarrowing(label, reached, (String) way[0], node.pos());
                 continue;
             }
             if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {
@@ -1001,12 +1373,70 @@ public final class CypherToPure {
         }
     }
 
+    /** A far label that is a subclass of the class a way reaches would narrow the way's instances, which the
+     *  translator does not read yet: refused by name (a label of another class leaves the way out, as a label
+     *  the way cannot reach). */
+    private void refuseNarrowing(String label, String reached, String way, Pos pos) {
+        if (model.isSubclass(label, reached)) {
+            throw CypherErrors.unsupported("the label " + label + " is a subclass of " + reached + ", which " + way
+                    + " reaches: a label narrowing a relationship's end is not supported yet", pos);
+        }
+    }
+
     /** The class's relationships read forward, as the model reports them. */
     private List<Property> ends(String classPath) {
         List<Property> out = new ArrayList<>();
         model.ends(classPath, (n, type, classTyped, enumTyped, lower, upper) ->
                 out.add(new Property(n, type, classTyped, enumTyped, lower, upper)));
         return out;
+    }
+
+    /** The ways an edge class of {@code type} (null: of any type) is read from a node of {@code cls} (the study's
+     *  §5.6), as (type, direction, the class reached): outgoing through its from end when the class is the edge's
+     *  from class, incoming through its to end when its to class, as {@code direction} allows; an end the node
+     *  class has no inverse of (the edge's own property) is no way from the node. */
+    private List<Object[]> edgeWays(String cls, @com.legend.base.Nullable String type, CypherAst.Direction direction,
+            Pos pos) {
+        List<Object[]> ways = new ArrayList<>();
+        for (Edge e : edges()) {
+            if (type != null && !e.type().equals(type)) {
+                continue;
+            }
+            if (direction != CypherAst.Direction.IN && model.isSubclass(cls, e.from().classPath())) {
+                if (e.from().inverse() == null) {
+                    throw noInverse(e, e.from(), true, cls, pos);
+                }
+                ways.add(new Object[] {e.type(), CypherAst.Direction.OUT, e.to().classPath()});
+            }
+            if (direction != CypherAst.Direction.OUT && model.isSubclass(cls, e.to().classPath())) {
+                if (e.to().inverse() == null) {
+                    throw noInverse(e, e.to(), false, cls, pos);
+                }
+                ways.add(new Object[] {e.type(), CypherAst.Direction.IN, e.from().classPath()});
+            }
+        }
+        return ways;
+    }
+
+    /** The edge classes of {@code type}. */
+    private List<Edge> edgesOf(String type) {
+        List<Edge> out = new ArrayList<>();
+        for (Edge e : edges()) {
+            if (e.type().equals(type)) {
+                out.add(e);
+            }
+        }
+        return out;
+    }
+
+    /** Whether {@code classPath} is an edge class. */
+    private boolean isEdge(String classPath) {
+        for (Edge e : edges()) {
+            if (e.classPath().equals(classPath)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** OPTIONAL MATCH (the study's §12.18): the pattern extends the graph in hand from a bound node, each hop
@@ -1063,8 +1493,8 @@ public final class CypherToPure {
                             + " yet", r.pos());
                 }
                 if (!r.properties().isEmpty()) {
-                    throw CypherErrors.unsupported("properties on a relationship pattern are not supported yet (an"
-                            + " edge class)", r.pos());
+                    throw CypherErrors.unsupported("properties on a relationship pattern in an OPTIONAL MATCH are not"
+                            + " supported yet", r.pos());
                 }
             }
         }
@@ -1137,6 +1567,7 @@ public final class CypherToPure {
         }
         boolean fanning = false;
         int at = 0;
+        String currentVar = ((NodePattern) elements.get(at)).variable();
         while (at + 2 < elements.size()) {
             RelPattern rel = (RelPattern) elements.get(at + 1);
             NodePattern next = (NodePattern) elements.get(at + 2);
@@ -1145,6 +1576,7 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared"
                         + " by identity) is not supported yet", next.pos());
             }
+            refuseHopPastEdge(currentVar, rel.pos());
             Binding target;
             Binding relationship = Binding.absentRelationship();
             if (current.absent()) {
@@ -1157,22 +1589,27 @@ public final class CypherToPure {
                         && !model.isSubclass(hop.target(), labelled)) {
                     target = Binding.absentNode();
                 } else {
-                    if (!typesInThisMatch.add(rel.types().get(0))) {
+                    if (!hidden(rel.variable()) && !typesInThisMatch.add(rel.types().get(0))) {
                         throw CypherErrors.unsupported("two relationships of the type " + rel.types().get(0)
                                 + " in one MATCH (Neo4j binds them to different relationships: relationship"
                                 + " uniqueness) are not supported yet", rel.pos());
                     }
                     List<String> path = new ArrayList<>(current.path());
-                    path.add(hop.property());
+                    path.addAll(hop.steps());
                     fanning |= hop.many();
                     boolean many = current.fanning() || hop.many();
                     target = Binding.optionalNode(hop.target(), List.copyOf(path), many);
-                    relationship = Binding.relationship(List.copyOf(path), true, many, rel.types().get(0), true);
+                    relationship = Binding.relationship(List.copyOf(relPath(current, hop)), true, many,
+                            rel.types().get(0), true, hop.edge());
+                    if (hop.edge() != null) {
+                        reachedThroughEdge.add(nextVar);
+                    }
                 }
             }
             bind(g, rel.variable(), relationship, rel.pos());
             bind(g, nextVar, target, next.pos());
             current = target;
+            currentVar = nextVar;
             at += 2;
         }
         return fanning;
@@ -1190,7 +1627,8 @@ public final class CypherToPure {
         Property forward = rel.direction() == CypherAst.Direction.IN ? null : property(from, type);
         Property backward = rel.direction() == CypherAst.Direction.OUT || toClass == null ? null
                 : property(toClass, type);
-        boolean known = forward != null && forward.classTyped() || backward != null && backward.classTyped();
+        boolean known = forward != null && forward.classTyped() || backward != null && backward.classTyped()
+                || !edgeWays(from, type, rel.direction(), rel.pos()).isEmpty();
         if (!known) {
             if (rel.direction() != CypherAst.Direction.OUT && toClass == null) {
                 throw CypherErrors.unsupported("an incoming relationship to a label-less node in an OPTIONAL MATCH is"
@@ -1207,8 +1645,10 @@ public final class CypherToPure {
         Map<String, List<String>> variableClasses = new LinkedHashMap<>();
         for (Graph arm : arms) {
             for (Map.Entry<String, Binding> b : arm.bindings().entrySet()) {
+                // (a relationship over an edge class too: its columns are the union of its edge classes'
+                // properties across the arms, as a node's are of its classes')
                 String cls = b.getValue().classPath();
-                if (!b.getValue().node() || cls == null) {
+                if (cls == null) {
                     continue;
                 }
                 List<String> classes = variableClasses.computeIfAbsent(b.getKey(), k -> new ArrayList<>());
@@ -1218,8 +1658,8 @@ public final class CypherToPure {
             }
         }
         List<String> everyClass = new ArrayList<>();
-        variableClasses.values().forEach(cs -> cs.forEach(c -> {
-            if (!everyClass.contains(c)) {
+        variableClasses.forEach((v, cs) -> cs.forEach(c -> {
+            if (!everyClass.contains(c) && !isEdge(c)) {
                 everyClass.add(c);
             }
         }));
@@ -1229,11 +1669,36 @@ public final class CypherToPure {
             fresh = mark;
             Graph g = new Graph(arm.rootClass(), arm.row(), arm.bindings(), arm.conditions(), everyClass,
                     arm.fanning(), arm.deferredConstraints(), arm.deferredWhere(), variableClasses, arm.paths(),
-                    arm.forward());
+                    arm.forward(), arm.lists());
             Rows rows = materialize(g, pos, order);
             out = out == null ? rows : new Rows(call("concatenate", out.vs(), rows.vs()), out.columns());
         }
-        return java.util.Objects.requireNonNull(out);
+        // (the union's columns: a property absent in one arm holds the other arms' values)
+        return new Rows(java.util.Objects.requireNonNull(out).vs(), withoutAbsentMarks(out.columns()));
+    }
+
+    /** {@code columns} with no carried property marked absent ({@link NodeProp#absent}): the columns of the arms'
+     *  union, where a column null in one arm holds the other arms' values. */
+    private static List<Col> withoutAbsentMarks(List<Col> columns) {
+        List<Col> out = new ArrayList<>();
+        for (Col c : columns) {
+            if (c.detail() instanceof NodeShape shape && shape.props().values().stream().anyMatch(NodeProp::absent)) {
+                out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
+                        new NodeShape(shape.labels(), withoutAbsentMarks(shape.props()), shape.absent())));
+            } else if (c.detail() instanceof RelShape rel && rel.props().values().stream().anyMatch(NodeProp::absent)) {
+                out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
+                        new RelShape(rel.type(), withoutAbsentMarks(rel.props()))));
+            } else {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    private static Map<String, NodeProp> withoutAbsentMarks(Map<String, NodeProp> props) {
+        Map<String, NodeProp> out = new LinkedHashMap<>();
+        props.forEach((name, p) -> out.put(name, new NodeProp(p.column(), p.kind(), p.nullable())));
+        return out;
     }
 
     /** A fanning graph as rows (the study's §12.16): every node carried as its columns, one row per match (a
@@ -1250,14 +1715,26 @@ public final class CypherToPure {
         });
         for (String name : names) {
             Binding b = g.bindings().get(name);
-            if (b == null) {
+            if (b == null || hidden(name)) {
+                // (a node or relationship the unroll of a variable-length relationship made up: read by the path
+                // and the relationship list, never a column of its own)
                 continue;
             }
             // (a relationship is carried as its value: a JSON column, its type the column's detail)
             items.add(new Item(new CypherAst.Var(name, pos), name, name, pos));
         }
-        // (a path too: its value, a JSON column)
-        g.paths().keySet().forEach(name -> items.add(new Item(new CypherAst.Var(name, pos), name, name, pos)));
+        // (a path too: its value, a JSON column, and beside it its length, its nodes and its relationships under
+        // the names the row scope reads them by, since a variable-length pattern's arms differ in them; a
+        // variable-length relationship's list likewise)
+        g.paths().keySet().forEach(name -> {
+            items.add(new Item(new CypherAst.Var(name, pos), name, name, pos));
+            for (String fn : List.of("length", "nodes", "relationships")) {
+                String column = PATH_PART + fn + "_" + name;
+                items.add(new Item(new CypherAst.Call(fn, false, List.of(new CypherAst.Var(name, pos)), pos),
+                        column, column, pos));
+            }
+        });
+        g.lists().keySet().forEach(name -> items.add(new Item(new CypherAst.Var(name, pos), name, name, pos)));
         Rows rows = project(items, false, List.of(), null, null, null, g, pos, false);
         RowScope scope = new RowScope(rows);
         ValueSpecification cond = null;
@@ -1398,7 +1875,7 @@ public final class CypherToPure {
                 String type = freshName(names);
                 nulls.add(new ColSpec(type, lambda("r", SqlToPure.nullOf(Kind.STRING).vs()), null, null));
                 columns.add(new Col(type, Kind.STRING, true));
-                columns.add(new Col(var, Kind.JSON, true, null, new RelShape(type)));
+                columns.add(new Col(var, Kind.JSON, true, null, new RelShape(type, Map.of())));
             }
         }
         if (pathVar != null) {
@@ -1485,6 +1962,33 @@ public final class CypherToPure {
 
     private static final String JOIN_KIND = "meta::pure::functions::relation::JoinKind";
 
+    /** {@code WITH a.num AS property MATCH (b:End) WHERE property = b.num}, {@code UNWIND xs AS x MATCH (n)}: a MATCH
+     *  after rows (a WITH that projected its variables, an UNWIND, a pattern read as rows) whose one pattern names
+     *  no variable of the rows is the product of the rows and the pattern's rows ({@link #cartesian}, the study's
+     *  §12.44), the WHERE read over the pairs. Null when the pattern names a variable of the rows (a continuation
+     *  from a carried node, or a variable of another kind: Neo4j's error, which the island does not spell), or
+     *  when the MATCH has several patterns. */
+    private @com.legend.base.Nullable Rows freshAfterRows(CypherAst.Match m, Rows rows) {
+        if (m.patterns().size() != 1) {
+            return null;
+        }
+        PathPattern p = m.patterns().get(0);
+        Set<String> named = new HashSet<>();
+        if (p.variable() != null) {
+            named.add(p.variable());
+        }
+        for (PatternElement e : p.elements()) {
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v != null) {
+                named.add(v);
+            }
+        }
+        if (rows.columns().stream().anyMatch(c -> named.contains(c.name()))) {
+            return null;
+        }
+        return cartesian(rows, p, m.where(), m.pos());
+    }
+
     /** {@code MATCH (a:A), (b:B)}, a pattern sharing no variable with the graph (the study's §12.28): the graph read
      *  as rows (every node carried, the paths too), the pattern read into its own graph and as rows, every pair of
      *  rows joined (Pure's join, a condition that always holds); the WHERE over the pairs. The clauses after read
@@ -1568,6 +2072,13 @@ public final class CypherToPure {
     /** One path pattern read into the graph: the first pattern of a query chooses the root; a later one must start
      *  or end at a node already bound (else it is a cartesian product, which PR1 does not read). */
     private Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g) {
+        return pattern(p, g, List.of());
+    }
+
+    /** {@link #pattern(PathPattern, Graph)} with, for a first pattern, the classes its property maps are lenient
+     *  across ({@code candidates}: an arm's every class, C4 lenient across the classes the arms read, as its
+     *  WHERE is; a property declared on none of them stays an error). */
+    private Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g, List<String> candidates) {
         List<PatternElement> elements = p.elements();
         for (PatternElement e : elements) {
             if (e instanceof RelPattern r && r.lengthRange() != null) {
@@ -1575,7 +2086,7 @@ public final class CypherToPure {
             }
         }
         if (g == null) {
-            return rooted(p);
+            return rooted(p, candidates);
         }
         NodePattern first = (NodePattern) elements.get(0);
         NodePattern last = (NodePattern) elements.get(elements.size() - 1);
@@ -1599,8 +2110,10 @@ public final class CypherToPure {
         return g;
     }
 
-    /** The first pattern: its root is the node from which every hop navigates to at most one node. */
-    private Graph rooted(PathPattern p) {
+    /** The first pattern: its root is the node from which every hop navigates to at most one node. The property
+     *  maps are lenient across {@code candidates} (a class without the property, where one of them declares it,
+     *  reads null: an arm's far node, or a root tried and passed over). */
+    private Graph rooted(PathPattern p, List<String> candidates) {
         List<PatternElement> elements = p.elements();
         for (int rootAt = 0; rootAt < elements.size(); rootAt += 2) {
             NodePattern root = (NodePattern) elements.get(rootAt);
@@ -1609,7 +2122,7 @@ public final class CypherToPure {
                 continue;
             }
             String row = rowName(root.variable());
-            Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>(), List.of());
+            Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>(), candidates);
             Binding rootBinding = new Binding(true, rootClass, List.of(), false);
             bind(g, root.variable(), rootBinding, root.pos());
             nodeConstraints(root, rootBinding, g);
@@ -1632,7 +2145,7 @@ public final class CypherToPure {
             rootClass = startClassOf((RelPattern) elements.get(1), root.pos());
         }
         String row = rowName(root.variable());
-        Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>(), List.of(), true,
+        Graph g = new Graph(rootClass, row, new LinkedHashMap<>(), new ArrayList<>(), candidates, true,
                 new ArrayList<>(), new ArrayList<>());
         Binding rootBinding = new Binding(true, rootClass, List.of(), false);
         bind(g, root.variable(), rootBinding, root.pos());
@@ -1649,9 +2162,11 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a relationship pattern without a type ([] or -->) from a label-less node"
                     + " is not supported yet", rel.pos());
         }
-        if (rel.direction() == CypherAst.Direction.IN) {
-            throw CypherErrors.unsupported("an incoming relationship from a label-less node (<-[:" + rel.types().get(0)
-                    + "]-) is not supported yet", rel.pos());
+        if (rel.direction() != CypherAst.Direction.OUT) {
+            throw CypherErrors.unsupported("an " + (rel.direction() == CypherAst.Direction.IN ? "incoming"
+                    : "undirected") + " relationship from a label-less node (" + (rel.direction()
+                    == CypherAst.Direction.IN ? "<-[:" + rel.types().get(0) + "]-" : "-[:" + rel.types().get(0) + "]-")
+                    + ") is not supported yet", rel.pos());
         }
         String type = rel.types().get(0);
         List<String> declaring = new ArrayList<>();
@@ -1659,6 +2174,12 @@ public final class CypherToPure {
             Property p = property(cls, type);
             if (p != null && p.classTyped()) {
                 declaring.add(cls);
+            }
+        }
+        for (Edge e : edgesOf(type)) {
+            // (an edge class is left from its from class, through the inverse of its from end)
+            if (e.from().inverse() != null && !declaring.contains(e.from().classPath())) {
+                declaring.add(e.from().classPath());
             }
         }
         if (declaring.size() != 1) {
@@ -1703,17 +2224,29 @@ public final class CypherToPure {
         return true;
     }
 
+    /** A hop from a node reached through an edge class, refused by name ({@link #reachedThroughEdge}). */
+    private void refuseHopPastEdge(@com.legend.base.Nullable String variable, Pos pos) {
+        if (variable != null && reachedThroughEdge.contains(variable)) {
+            throw CypherErrors.unsupported("a hop from " + variable + ", a node reached through an edge class, is not"
+                    + " supported yet (the resolver's nested navigation reads no association end past the edge's"
+                    + " end)", pos);
+        }
+    }
+
     /** Binds the nodes after {@code at} in {@code ordered}, each navigated from the one before it. */
     private void extend(List<PatternElement> ordered, int at, Binding from, Graph g, boolean reversed) {
         Binding current = from;
+        String currentVar = ((NodePattern) ordered.get(at)).variable();
         while (at + 2 < ordered.size()) {
             RelPattern rel = (RelPattern) ordered.get(at + 1);
             NodePattern next = (NodePattern) ordered.get(at + 2);
+            refuseHopPastEdge(currentVar, rel.pos());
             String cls = java.util.Objects.requireNonNull(current.classPath());
             Hop hop = java.util.Objects.requireNonNull(hop(cls, rel, next, true, g.fanning()));
             String nextVar = next.variable();
-            if (g.fanning() && nextVar == null) {
-                // every node of a fanning graph is carried by name when the graph is materialized
+            if ((g.fanning() || hop.edge() != null) && nextVar == null) {
+                // every node of a fanning graph is carried by name when the graph is materialized; a node reached
+                // through an edge is named so a hop from it is refused by name
                 nextVar = freshName(new HashSet<>(g.bindings().keySet()));
                 next = new NodePattern(nextVar, next.labels(), next.properties(), next.pos());
             }
@@ -1721,17 +2254,17 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared"
                         + " by identity) is not supported yet", next.pos());
             }
-            if (!rel.properties().isEmpty()) {
-                throw CypherErrors.unsupported("properties on a relationship pattern are not supported yet (an edge"
-                        + " class)", rel.pos());
+            if (!rel.properties().isEmpty() && hop.edge() == null) {
+                throw CypherErrors.unsupported("properties on a relationship pattern over a property or association"
+                        + " (no edge class, the study's §5.6) are not supported yet", rel.pos());
             }
-            if (!typesInThisMatch.add(rel.types().get(0))) {
+            if (!hidden(rel.variable()) && !typesInThisMatch.add(rel.types().get(0))) {
                 throw CypherErrors.unsupported("two relationships of the type " + rel.types().get(0) + " in one MATCH"
                         + " (Neo4j binds them to different relationships: relationship uniqueness) are not supported"
                         + " yet", rel.pos());
             }
             List<String> path = new ArrayList<>(current.path());
-            path.add(hop.property());
+            path.addAll(hop.steps());
             boolean optional = current.optional() || hop.optional();
             boolean fanning = current.fanning() || hop.many();
             Binding target = new Binding(true, hop.target(), List.copyOf(path), optional, fanning);
@@ -1739,23 +2272,72 @@ public final class CypherToPure {
                 // the hop must find a node: a row where it finds none is not a match
                 g.conditions().add(call("isNotEmpty", navigate(g.row(), path)));
             }
-            bind(g, rel.variable(), Binding.relationship(List.copyOf(path), optional, fanning, rel.types().get(0),
-                    false), rel.pos());
-            if (rel.variable() != null) {
+            String relVar = rel.variable();
+            if (relVar == null && !rel.properties().isEmpty()) {
+                // (the edge's property map is read over the materialized rows, where the relationship is a column)
+                relVar = freshName(new HashSet<>(g.bindings().keySet()));
+            }
+            Binding relationship = Binding.relationship(List.copyOf(relPath(current, hop)), optional, fanning,
+                    rel.types().get(0), false, hop.edge());
+            bind(g, relVar, relationship, rel.pos());
+            if (relVar != null) {
                 // the relationship's stored direction, in the pattern's written order (a path prints it)
-                g.forward().put(rel.variable(), hop.forward() != reversed);
+                g.forward().put(relVar, hop.forward() != reversed);
+            }
+            if (!rel.properties().isEmpty()) {
+                // the edge's property map: its properties, as a node's (the study's §5.6)
+                relConstraints(java.util.Objects.requireNonNull(relVar), rel, relationship, g);
             }
             bind(g, nextVar, target, next.pos());
             nodeConstraints(next, target, g);
+            if (hop.edge() != null && nextVar != null) {
+                reachedThroughEdge.add(nextVar);
+            }
             current = target;
+            currentVar = nextVar;
             at += 2;
         }
     }
 
     /** A hop: the property navigated from the node before it, the class it reaches, whether it may find nothing,
      *  whether it may find many (a fanning hop, read only by a fanning graph), and whether it reads the stored
-     *  direction (the node before holds the node after) rather than its inverse. */
-    private record Hop(String property, String target, boolean optional, boolean many, boolean forward) {
+     *  direction (the node before holds the node after) rather than its inverse. A hop over an edge class (the
+     *  study's §5.6) navigates {@code property}, the node's inverse end, to the edge instance (of class
+     *  {@code edge}), then {@code far}, the edge's other end, to the node reached. */
+    private record Hop(String property, String target, boolean optional, boolean many, boolean forward,
+            @com.legend.base.Nullable String edge, @com.legend.base.Nullable String far) {
+        Hop(String property, String target, boolean optional, boolean many, boolean forward) {
+            this(property, target, optional, many, forward, null, null);
+        }
+
+        /** The properties navigated from the node before to the node after. */
+        List<String> steps() {
+            return far == null ? List.of(property) : List.of(property, far);
+        }
+    }
+
+    /** The navigation that binds a relationship: to the edge instance over an edge class, the hop's own over a
+     *  property or association. */
+    private static List<String> relPath(Binding from, Hop hop) {
+        List<String> path = new ArrayList<>(from.path());
+        path.add(hop.property());
+        return path;
+    }
+
+    /** A relationship pattern's property map over an edge class: each property of the edge instance equal to the
+     *  value written, read over the materialized rows when the graph fans out (as a node's, {@link #nodeConstraints}). */
+    private void relConstraints(String variable, RelPattern rel, Binding b, Graph g) {
+        if (b.fanning() || g.fanning()) {
+            g.deferredConstraints().add(new NodeConstraint(variable, rel.properties(), rel.pos()));
+            return;
+        }
+        GraphScope scope = new GraphScope(g);
+        for (Map.Entry<String, Expr> e : rel.properties().entrySet()) {
+            Tx value = scope.propertyOf(b, e.getKey(), rel.pos());
+            Tx wanted = tx(e.getValue(), scope);
+            g.conditions().add(SqlToPure.truth(equal(value, wanted, e.getValue().pos()), "a property map", rel.pos())
+                    .vs());
+        }
     }
 
     /**
@@ -1789,6 +2371,21 @@ public final class CypherToPure {
             backward = null;
         } else if (rel.direction() == CypherAst.Direction.IN) {
             forward = null;
+        }
+        List<Edge> edges = edgesOf(type);
+        if (!edges.isEmpty()) {
+            if (forward != null || backward != null) {
+                throw CypherErrors.invalid("the relationship type " + type + " names both an edge class ("
+                        + edges.get(0).classPath() + ") and a property of " + (forward != null ? from : toClass)
+                        + ": a relationship type is one or the other (the graph is the model)", rel.pos());
+            }
+            return edgeHop(from, type, edges, rel, toClass, to, refuse, allowMany);
+        }
+        if (forward != null && isEdge(forward.type()) || backward != null && isEdge(backward.type())) {
+            throw CypherErrors.invalid("the relationship type " + type + " names an end holding the edge class "
+                    + (forward != null ? forward.type() : java.util.Objects.requireNonNull(backward).type())
+                    + ": an edge is reached by its type, never by an end's name (the study's §5.6; the graph is the"
+                    + " model)", rel.pos());
         }
         if (forward == null && backward == null) {
             throw CypherErrors.invalid("the relationship type " + type + " names no property or association end of "
@@ -1851,6 +2448,81 @@ public final class CypherToPure {
         return new Hop(inverse.name(), toCls, inverse.optional(), false, false);
     }
 
+    /**
+     * The hop a relationship pattern of {@code type}, an edge class's (the study's §5.6), spells from a node of class
+     * {@code from}: outgoing, the node's inverse of the edge's from end to the edge instance, then the edge's to end
+     * to the node after; incoming, the inverse of the to end, then the from end; undirected, whichever of the two
+     * the node's class allows (both, a loop, is refused by name). The far node's label picks among the edge classes
+     * of the type, else must be the far end's class or one of its superclasses. Null when the hop fans out and
+     * {@code allowMany} is false without {@code refuse}, as a to-many property's hop is.
+     */
+    private @com.legend.base.Nullable Hop edgeHop(String from, String type, List<Edge> edges, RelPattern rel,
+            @com.legend.base.Nullable String toClass, NodePattern to, boolean refuse, boolean allowMany) {
+        List<Hop> ways = new ArrayList<>();
+        List<String> narrowed = new ArrayList<>();
+        for (Edge e : edges) {
+            boolean out = rel.direction() != CypherAst.Direction.IN && model.isSubclass(from, e.from().classPath());
+            boolean in = rel.direction() != CypherAst.Direction.OUT && model.isSubclass(from, e.to().classPath());
+            if (out && in) {
+                throw CypherErrors.unsupported("an undirected relationship over the edge class " + e.classPath()
+                        + ", whose two ends are both " + from + " (a loop matches once in Neo4j, which needs identity),"
+                        + " is not supported yet", rel.pos());
+            }
+            if (!out && !in) {
+                continue;
+            }
+            End near = out ? e.from() : e.to();
+            End far = out ? e.to() : e.from();
+            if (toClass != null && !toClass.equals(far.classPath()) && !model.isSubclass(far.classPath(), toClass)) {
+                narrowed.add(e.classPath() + " (" + far.classPath() + ")");
+                continue;
+            }
+            if (near.inverse() == null) {
+                throw noInverse(e, near, out, from, rel.pos());
+            }
+            // (a to-one inverse may hold no edge: the hop is optional, so a row with none is no match)
+            ways.add(new Hop(near.inverse(), far.classPath(), !near.inverseMany(), near.inverseMany(), out,
+                    e.classPath(), far.property()));
+        }
+        if (ways.isEmpty()) {
+            if (!narrowed.isEmpty()) {
+                throw CypherErrors.unsupported("the label " + toClass + " is not the class the edge "
+                        + String.join(", ", narrowed) + " of type " + type + " reaches nor one of its superclasses: a"
+                        + " label narrowing an edge's end is not supported yet", to.pos());
+            }
+            throw CypherErrors.invalid("the relationship type " + type + " names the edge class "
+                    + edges.get(0).classPath() + " from " + edges.get(0).from().classPath() + " to "
+                    + edges.get(0).to().classPath() + ", which no pattern from " + from + " reads"
+                    + (rel.direction() == CypherAst.Direction.OUT ? " outgoing" : rel.direction()
+                    == CypherAst.Direction.IN ? " incoming" : "") + " (the graph is the model)", rel.pos());
+        }
+        if (ways.size() > 1) {
+            throw CypherErrors.unsupported("the relationship type " + type + " names " + ways.size() + " edge classes"
+                    + " read from " + from + ": a type joining several class pairs is not supported yet", rel.pos());
+        }
+        Hop hop = ways.get(0);
+        if (hop.many() && !allowMany) {
+            if (refuse) {
+                throw CypherErrors.unsupported("the relationship " + type + " (the edge class " + hop.edge()
+                        + ") reaches many " + hop.target() + " per " + from + ": a pattern that fans out is not"
+                        + " supported yet", rel.pos());
+            }
+            return null;
+        }
+        return hop;
+    }
+
+    /** An edge whose end the node class cannot navigate to (the end is the edge's own property, or an association
+     *  end declared for a superclass of the edge): refused by name wherever the edge is a way. */
+    private static com.legend.protocol.sql.SqlTranslationException noInverse(Edge e, End near, boolean out,
+            String from, Pos pos) {
+        return CypherErrors.unsupported("the edge class " + e.classPath() + " holds its " + (out ? "from" : "to")
+                + " end " + near.property() + " with no inverse end on " + near.classPath() + " reaching it"
+                + " (the end is its own property, or declared for a superclass): a pattern over it from the "
+                + from + " side is not supported yet (an association declared for the edge class gives the"
+                + " node its navigation)", pos);
+    }
+
     /** The class a node pattern's labels name: one label's class (PR1 reads one label); null for a label-less node. */
     private @com.legend.base.Nullable String labelClass(NodePattern n) {
         if (n.labels().isEmpty()) {
@@ -1869,6 +2541,11 @@ public final class CypherToPure {
         if (classes.size() > 1) {
             throw CypherErrors.invalid("the label " + label + " names " + classes.size() + " classes ("
                     + String.join(", ", classes) + "): write the class's full path in backticks", n.pos());
+        }
+        if (isEdge(classes.get(0))) {
+            throw CypherErrors.invalid("the label " + label + " names the edge class " + classes.get(0) + " (a"
+                    + " relationship type, not a node label; the graph is the model): a pattern reaches it by its"
+                    + " type", n.pos());
         }
         return classes.get(0);
     }
@@ -1980,7 +2657,8 @@ public final class CypherToPure {
                 kept.put(alias, b);
             }
             Graph next = new Graph(g.rootClass(), g.row(), kept, g.conditions(), g.candidates(), g.fanning(),
-                    g.deferredConstraints(), g.deferredWhere(), g.variableClasses(), keptPaths, g.forward());
+                    g.deferredConstraints(), g.deferredWhere(), g.variableClasses(), keptPaths, g.forward(),
+                    new LinkedHashMap<>());
             Expr where = w.where();
             if (where != null) {
                 next.conditions().add(condition(where, new GraphScope(next), "WHERE"));
@@ -2042,7 +2720,40 @@ public final class CypherToPure {
      *  values, what its result is, and a finish computed after the grouping over the raw result's read, when one is
      *  needed (a sum of nothing is 0; an average of a null column is null). */
     private record Aggregate(String argColumn, Tx arg, LambdaFunction reduce, Kind kind, boolean nullable,
-            java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish) {
+            java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+        Aggregate(String argColumn, Tx arg, LambdaFunction reduce, Kind kind, boolean nullable,
+                java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish) {
+            this(argColumn, arg, reduce, kind, nullable, finish, null);
+        }
+    }
+
+    /** The mark of a list the database holds as a Variant whose elements are all of one kind (a collected column,
+     *  a spelled list of such lists): what UNWIND reads back as that kind (the study's §12.41), with the elements'
+     *  own shape when they are Variants (collected nodes, lists or maps; the study's §12.43). */
+    private record ListOf(Kind element, com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail
+            elementDetail) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+        ListOf(Kind element) {
+            this(element, null);
+        }
+    }
+
+    /** The mark of a spelled list of values of several kinds the database holds as a Variant ({@code [r, 1]}
+     *  carried through WITH): each place's kind and shape, what an index by a spelled place reads its element by
+     *  (the study's §12.43). */
+    private record TupleOf(List<Entry> entries) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** The mark of a map the database holds as a Variant whose entries are known (a spelled map of row values
+     *  carried through WITH, the maps of one shape an UNWIND reads): what a navigation into it reads an entry by
+     *  (the study's §12.43). */
+    private record MapOf(Map<String, Entry> entries) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** A known map's entry: its kind, whether it may be null (a null the Variant spells, which no typed read
+     *  survives), and its own shape when it is a list or map. */
+    private record Entry(Kind kind, boolean nullable,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
     }
 
     /** Cypher's sum of no values: 0 where the database's is null. */
@@ -2242,9 +2953,14 @@ public final class CypherToPure {
                 scalars.put(out.name(), s.tx());
             } else if (returning) {
                 scalars.put(out.name(), variant(v, pos));
+            } else if (!rowFree(v) && !grouped) {
+                // a list or map holding a value of the row, carried through WITH: the Variant the database builds
+                // (the study's §12.41), marked with its shape where its spelling says it (its elements' one kind, a
+                // map's entries), so what reads it after reads into it by type (the study's §12.43)
+                scalars.put(out.name(), variant(v, pos));
             } else if (!rowFree(v)) {
-                throw CypherErrors.unsupported("a list or map holding a value of the row (" + out.name() + "),"
-                        + " carried through WITH, is not supported yet", pos);
+                throw CypherErrors.unsupported("a list or map holding a value of the row (" + out.name() + ") among"
+                        + " the grouping keys is not supported yet", pos);
             } else if (grouped) {
                 throw CypherErrors.unsupported("a list or map (" + out.name() + ") among the grouping keys is not"
                         + " supported yet", pos);
@@ -2378,10 +3094,8 @@ public final class CypherToPure {
                     // shape is its type column)
                     specs.addAll(node.specs());
                     columns.addAll(node.columns());
-                    boolean rel = node.shape().props().isEmpty() && node.columns().size() == 1
-                            && node.shape().labels().equals(node.columns().get(0).name()) && node.relationship();
-                    columns.add(new Col(out.name(), Kind.JSON, false, null, rel ? new RelShape(node.shape().labels())
-                            : node.shape()));
+                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship()
+                            ? new RelShape(node.shape().labels(), node.shape().props()) : node.shape()));
                     continue;
                 }
                 Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
@@ -2457,7 +3171,7 @@ public final class CypherToPure {
             finishes.add(new ColSpec(out.name(), lambda("r", agg.finish().apply(new AppliedProperty(
                     new Variable("r"), computed))), null, null));
         }
-        columns.add(new Col(out.name(), agg.kind(), agg.nullable()));
+        columns.add(new Col(out.name(), agg.kind(), agg.nullable(), null, agg.detail()));
     }
 
     private record SortKey(String column, boolean descending, boolean hidden) {
@@ -2696,6 +3410,8 @@ public final class CypherToPure {
                 all.add(pc.map());
                 yield all;
             }
+            case CypherAst.PatternPredicate pp -> List.of();
+            case CypherAst.ExistsSubquery ex -> ex.where() == null ? List.of() : List.of(ex.where());
             case CypherAst.ListComprehension lc -> {
                 List<Expr> all = new ArrayList<>();
                 all.add(lc.list());
@@ -2790,9 +3506,89 @@ public final class CypherToPure {
             if (arg.kind() == Kind.BOOLEAN || arg.kind() == Kind.NULL || arg.kind() == Kind.OTHER) {
                 throw CypherErrors.unsupported(c.name() + " of this value is not supported yet", c.pos());
             }
+            if (arg.kind() == Kind.JSON) {
+                throw CypherErrors.unsupported(c.name() + " over lists, maps or values of several kinds (Neo4j ranks"
+                        + " them by type) is not supported yet", c.pos());
+            }
             return new Aggregate(freshName(names), arg, lambda("y", call(fn, values)), arg.kind(), true, null);
         }
+        if (fn.equals("collect")) {
+            return collect(arg, names, c.pos());
+        }
         throw CypherErrors.unsupported(c.name() + "(...) is not supported yet", c.pos());
+    }
+
+    /** {@code collect(x)} (the study's §12.41): the group's values as a list the database builds -- each value's
+     *  JSON text ({@link #scalarJsonText}: a number, a boolean, a string, a date, a node's or a list's Variant text),
+     *  a null contributing nothing (Neo4j's {@code collect} skips nulls), joined with commas (Pure's
+     *  {@code joinStrings}, the database's string aggregate) and read as a Variant between brackets; {@code []} over
+     *  no value. The elements' order is the database's, as the TCK's "ignoring element order for lists" allows. */
+    private Aggregate collect(Tx arg, Set<String> names, Pos pos) {
+        if (arg.kind() == Kind.DATETIME || arg.kind() == Kind.TIME || arg.kind() == Kind.ZONED
+                || arg.kind() == Kind.ZONED_TIME || arg.kind() == Kind.DURATION || arg.kind() == Kind.OTHER) {
+            throw CypherErrors.unsupported("collect of a " + cypherType(arg.kind()) + " is not supported yet (the"
+                    + " Variant spells it as text)", pos);
+        }
+        Tx piece;
+        if (arg.kind() == Kind.NULL) {
+            piece = SqlToPure.nullOf(Kind.STRING);
+        } else if (arg.kind() == Kind.BOOLEAN) {
+            // (a boolean's condition form: TRUE, FALSE, or neither -- its text where it is known)
+            ValueSpecification known = call("or", arg.vs(), arg.falseWhen());
+            piece = Tx.value(call("if", known, thunk(call("if", arg.vs(), thunk(new CString("true")),
+                    thunk(new CString("false")))), thunk(SqlToPure.nullOf(Kind.STRING).vs())), Kind.STRING, true);
+        } else if (arg.nullable()) {
+            ValueSpecification v = SqlToPure.valueOf(arg);
+            piece = Tx.value(call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.STRING).vs()),
+                    thunk(jsonText(call("toOne", v), arg.kind(), "collect", pos))), Kind.STRING, true);
+        } else {
+            piece = Tx.value(jsonText(SqlToPure.valueOf(arg), arg.kind(), "collect", pos), Kind.STRING, false);
+        }
+        // (collect(DISTINCT x) stays refused: the distinct texts joined would come in the database's order, which
+        // is not Neo4j's encounter order and not the same twice; the study's §12.44)
+        return new Aggregate(freshName(names), piece, lambda("y", call("joinStrings", new Variable("y"),
+                new CString(","))), Kind.JSON, false, raw -> call("fromJson", plus(new CString("["),
+                call("if", call("isEmpty", raw), thunk(new CString("")), thunk(call("toOne", raw))),
+                new CString("]"))), arg.kind() == Kind.JSON && arg.detail() != null
+                        ? new ListOf(Kind.JSON, arg.detail())
+                        : elementType(arg.kind()) == null ? null : new ListOf(arg.kind()));
+    }
+
+    /** The Pure type a list's elements of this kind are read back as ({@code toMany}), or null for a kind the
+     *  Variant does not read back by type (a Variant element, a null, a temporal the text spells). */
+    private static @com.legend.base.Nullable String elementType(Kind kind) {
+        return switch (kind) {
+            case INTEGER, WHOLE -> "Integer";
+            case FLOAT, INEXACT -> "Float";
+            case DECIMAL, NUMBER -> "Decimal";
+            case STRING -> "String";
+            case BOOLEAN -> "Boolean";
+            case DATE -> "StrictDate";
+            default -> null;
+        };
+    }
+
+    /** The one scalar kind a spelled list's elements share (nulls aside), or null: what a Variant of it reads back
+     *  by element. */
+    private static @com.legend.base.Nullable Kind elementKind(Val v) {
+        if (!(v instanceof ListVal l) || l.elements().isEmpty()) {
+            return null;
+        }
+        Kind kind = null;
+        for (Val e : l.elements()) {
+            if (!(e instanceof Scalar s)) {
+                return null;
+            }
+            if (s.tx().kind() == Kind.NULL) {
+                continue;
+            }
+            if (kind == null) {
+                kind = s.tx().kind();
+            } else if (kind != s.tx().kind()) {
+                return null;
+            }
+        }
+        return kind != null && elementType(kind) != null ? kind : null;
     }
 
     /** {@code percentileDisc(x, p)}, {@code percentileCont(x, p)} (the study's §12.30): Pure's percentile aggregate
@@ -2881,6 +3677,13 @@ public final class CypherToPure {
             return null;
         }
 
+        /** The parts of the relationship {@code v} names (the study's §5.6): its type's JSON text, its edge class's
+         *  properties (none over a property or association), whether it is absent; null when {@code v} names no
+         *  relationship, or one an OPTIONAL MATCH never finds (null everywhere). */
+        default @com.legend.base.Nullable NodeParts relParts(CypherAst.Var v) {
+            return null;
+        }
+
         /** The path {@code v} names over a pattern (the study's §12.27); null when it names none. */
         default @com.legend.base.Nullable PathSpec path(CypherAst.Var v) {
             return null;
@@ -2891,6 +3694,10 @@ public final class CypherToPure {
 
         /** Whether {@code name} is a node or relationship variable of a pattern. */
         boolean isPatternVariable(String name);
+
+        /** Whether {@code name} is bound at all: a pattern's variable, a path, a projected column, a value bound
+         *  around an expression. */
+        boolean binds(String name);
     }
 
     private final class GraphScope implements Scope {
@@ -2911,17 +3718,59 @@ public final class CypherToPure {
             if (path != null) {
                 return scalar(pathJson(path, v.pos()));
             }
+            List<String> rels = g.lists().get(v.name());
+            if (rels != null) {
+                // a variable-length relationship's variable: the list of the relationships the arm's chain holds,
+                // as the Variant the database builds (the same column in every arm, the empty chain's included)
+                List<Val> values = new ArrayList<>();
+                for (String r : rels) {
+                    values.add(scalar(relValue(java.util.Objects.requireNonNull(g.bindings().get(r)), v.pos())));
+                }
+                return scalar(variant(new ListVal(values), v.pos()));
+            }
             Binding b = g.bindings().get(v.name());
             if (b == null) {
                 throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
             }
             if (!b.node()) {
-                return scalar(relValue(b));
+                return scalar(relValue(b, v.pos()));
             }
             if (b.absent()) {
                 return scalar(absentNodeValue());
             }
             return scalar(nodeJson(parts(b, v.pos()), v.pos()));
+        }
+
+        @Override
+        public @com.legend.base.Nullable NodeParts relParts(CypherAst.Var v) {
+            Binding b = g.bindings().get(v.name());
+            return b == null || b.node() || b.absent() ? null : relParts(b, v.pos());
+        }
+
+        /** A bound relationship's parts (the study's §5.6): its type's JSON text, its edge class's properties
+         *  navigated to the edge instance (none over a property or association), absent where an OPTIONAL MATCH's
+         *  hop finds no node. */
+        NodeParts relParts(Binding b, Pos pos) {
+            List<Map.Entry<String, Tx>> props = new ArrayList<>();
+            if (b.classPath() != null) {
+                for (Property p : properties(b.classPath())) {
+                    if (!p.classTyped() && !p.enumTyped() && !p.many()) {
+                        props.add(Map.entry(p.name(), propertyOf(b, p.name(), pos)));
+                    }
+                }
+            }
+            ValueSpecification absent = b.maybeAbsent() ? absent(b) : null;
+            return NodeParts.rel(new CString(com.legend.json.Json.toCompact(java.util.Objects.requireNonNull(
+                    b.type()))), props, absent);
+        }
+
+        /** A bound relationship's JSON text: its type (a constant over a property or association) and, over an edge
+         *  class, its properties that hold a value. */
+        ValueSpecification relJsonText(Binding b, Pos pos) {
+            if (b.classPath() == null) {
+                return new CString(relTypeJson(java.util.Objects.requireNonNull(b.type())));
+            }
+            return nodeJsonText(relParts(b, pos), pos);
         }
 
         @Override
@@ -2979,6 +3828,11 @@ public final class CypherToPure {
                 }
 
                 @Override
+                public @com.legend.base.Nullable NodeParts relParts(CypherAst.Var v) {
+                    return hops(v.name()) ? hop.relParts(v) : isPath(v.name()) ? null : outer.relParts(v);
+                }
+
+                @Override
                 public @com.legend.base.Nullable PathSpec path(CypherAst.Var v) {
                     return isPath(v.name()) ? path : hops(v.name()) ? null : outer.path(v);
                 }
@@ -2996,6 +3850,11 @@ public final class CypherToPure {
                     return hops(name) || !isPath(name) && outer.isPatternVariable(name);
                 }
 
+                @Override
+                public boolean binds(String name) {
+                    return hops(name) || isPath(name) || outer.binds(name);
+                }
+
                 /** The path's JSON (§12.27's shape): its start node read here, its end node and relationship
                  *  read in the hop's graph. */
                 private Tx pathJson(PathSpec p, Pos pos) {
@@ -3003,10 +3862,15 @@ public final class CypherToPure {
                     Binding end = java.util.Objects.requireNonNull(hop.g.bindings().get(p.nodes().get(1)));
                     String rel = p.rels().get(0);
                     Binding r = java.util.Objects.requireNonNull(hop.g.bindings().get(rel));
-                    ValueSpecification text = plus(new CString("{\"@path\":["), nodeJsonText(outer.parts(start,
-                            pos), pos), new CString("," + relJsonText(java.util.Objects.requireNonNull(r.type()))
-                            + ","), nodeJsonText(hop.parts(end, pos), pos), new CString("],\"@dirs\":["
-                            + Boolean.TRUE.equals(hop.g.forward().get(rel)) + "]}"));
+                    ValueSpecification text = r.classPath() == null
+                            ? plus(new CString("{\"@path\":["), nodeJsonText(outer.parts(start, pos), pos),
+                                    new CString("," + relTypeJson(java.util.Objects.requireNonNull(r.type())) + ","),
+                                    nodeJsonText(hop.parts(end, pos), pos), new CString("],\"@dirs\":["
+                                    + Boolean.TRUE.equals(hop.g.forward().get(rel)) + "]}"))
+                            : plus(new CString("{\"@path\":["), nodeJsonText(outer.parts(start, pos), pos),
+                                    new CString(","), hop.relJsonText(r, pos), new CString(","),
+                                    nodeJsonText(hop.parts(end, pos), pos), new CString("],\"@dirs\":["
+                                    + Boolean.TRUE.equals(hop.g.forward().get(rel)) + "]}"));
                     return new Tx(call("fromJson", text), Kind.JSON, false, null, new PathValue(), null, null);
                 }
             };
@@ -3022,8 +3886,14 @@ public final class CypherToPure {
                 if (i > 0) {
                     String rel = path.rels().get(i - 1);
                     Binding r = java.util.Objects.requireNonNull(g.bindings().get(rel));
-                    text = plus(text, new CString("," + relJsonText(java.util.Objects.requireNonNull(r.type()))
-                            + ","));
+                    if (r.maybeAbsent()) {
+                        throw CypherErrors.unsupported("a path over a relationship an OPTIONAL MATCH may not find is"
+                                + " not supported yet", pos);
+                    }
+                    text = r.classPath() == null
+                            ? plus(text, new CString("," + relTypeJson(java.util.Objects.requireNonNull(r.type()))
+                                    + ","))
+                            : plus(text, new CString(","), relJsonText(r, pos), new CString(","));
                     dirs.add(String.valueOf(Boolean.TRUE.equals(g.forward().get(rel))));
                 }
                 Binding n = java.util.Objects.requireNonNull(g.bindings().get(path.nodes().get(i)));
@@ -3037,21 +3907,26 @@ public final class CypherToPure {
             return new Tx(call("fromJson", text), Kind.JSON, false, null, new PathValue(), null, null);
         }
 
-        /** A relationship as a value (the study's §12.19): the JSON the judge reads as a relationship, its type
-         *  (the harness's model holds no relationship property); an OPTIONAL MATCH's where its hop finds a node, an
-         *  absent one null. */
-        Tx relValue(Binding b) {
+        /** A relationship as a value (the study's §12.19): the JSON the judge reads as a relationship, its type and,
+         *  over an edge class, its properties that hold a value (the study's §5.6), built as text by the database;
+         *  an OPTIONAL MATCH's where its hop finds a node, an absent one null. */
+        Tx relValue(Binding b, Pos pos) {
             if (b.absent()) {
                 return new Tx(SqlToPure.nullOf(Kind.JSON).vs(), Kind.JSON, true, null, new RelValue(null), null,
                         null);
             }
             String type = java.util.Objects.requireNonNull(b.type());
-            ValueSpecification json = call("fromJson", new CString(relJsonText(type)));
-            if (b.maybeAbsent()) {
-                json = call("if", absent(b),
-                        thunk(SqlToPure.nullOf(Kind.JSON).vs()), thunk(json));
+            if (b.classPath() == null) {
+                ValueSpecification json = call("fromJson", new CString(relTypeJson(type)));
+                if (b.maybeAbsent()) {
+                    json = call("if", absent(b),
+                            thunk(SqlToPure.nullOf(Kind.JSON).vs()), thunk(json));
+                }
+                return new Tx(json, Kind.JSON, b.maybeAbsent(), null, new RelValue(type), null, null);
             }
-            return new Tx(json, Kind.JSON, b.maybeAbsent(), null, new RelValue(type), null, null);
+            NodeParts parts = relParts(b, pos);
+            return new Tx(present(parts, call("fromJson", nodeJsonText(parts, pos))), Kind.JSON,
+                    parts.absent() != null, null, new RelValue(type), null, null);
         }
 
         @Override
@@ -3131,7 +4006,7 @@ public final class CypherToPure {
                     String column = freshName(names);
                     specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.nullOf(k.getValue()).vs()), null, null));
                     columns.add(new Col(column, k.getValue(), true));
-                    props.put(k.getKey(), new NodeProp(column, k.getValue(), true));
+                    props.put(k.getKey(), new NodeProp(column, k.getValue(), true, true));
                 }
                 return new NodeCarry(new NodeShape(labels, props, true), specs, columns);
             }
@@ -3159,19 +4034,22 @@ public final class CypherToPure {
             Map<String, NodeProp> props = new LinkedHashMap<>();
             for (Map.Entry<String, Kind> k : kinds.entrySet()) {
                 String column = freshName(names);
-                Tx t = CypherToPure.this.property(cls, k.getKey()) != null ? propertyOf(b, k.getKey(), pos)
-                        : SqlToPure.nullOf(k.getValue());
+                boolean lacks = CypherToPure.this.property(cls, k.getKey()) == null;
+                Tx t = lacks ? SqlToPure.nullOf(k.getValue()) : propertyOf(b, k.getKey(), pos);
                 boolean nullable = classes.size() > 1 || t.nullable() || optional;
                 specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
                 columns.add(new Col(column, k.getValue(), nullable));
-                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable));
+                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, lacks));
             }
             return new NodeCarry(new NodeShape(labels, props), specs, columns);
         }
 
         /** A relationship carried through a projection: its type's column (a constant; null where an OPTIONAL
-         *  MATCH's hop finds no node, or always for an absent one). */
-        NodeCarry carryRel(Binding b, Set<String> names) {
+         *  MATCH's hop finds no node, or always for an absent one) and, over an edge class, its properties as
+         *  columns (the study's §5.6), as a node's are carried -- of every edge class the relationship is over
+         *  across a pattern's arms ({@code acrossArms}: the columns agree, null where an edge class lacks the
+         *  property). */
+        NodeCarry carryRel(Binding b, Set<String> names, Pos pos, List<String> acrossArms) {
             String column = freshName(names);
             ValueSpecification type;
             boolean nullable;
@@ -3186,8 +4064,26 @@ public final class CypherToPure {
                 type = new CString(java.util.Objects.requireNonNull(b.type()));
                 nullable = false;
             }
-            return new NodeCarry(new NodeShape(column, Map.of()), List.of(new ColSpec(column, lambda(g.row(), type),
-                    null, null)), List.of(new Col(column, Kind.STRING, nullable)), true);
+            List<ColSpec> specs = new ArrayList<>();
+            List<Col> columns = new ArrayList<>();
+            specs.add(new ColSpec(column, lambda(g.row(), type), null, null));
+            columns.add(new Col(column, Kind.STRING, nullable));
+            Map<String, NodeProp> props = new LinkedHashMap<>();
+            if (!acrossArms.isEmpty() || b.classPath() != null && !b.absent()) {
+                List<String> classes = !acrossArms.isEmpty() ? acrossArms
+                        : List.of(java.util.Objects.requireNonNull(b.classPath()));
+                String edge = b.absent() ? null : b.classPath();
+                for (Map.Entry<String, Kind> k : unionKinds(classes, pos).entrySet()) {
+                    String col = freshName(names);
+                    boolean lacks = edge == null || CypherToPure.this.property(edge, k.getKey()) == null;
+                    Tx t = lacks ? SqlToPure.nullOf(k.getValue()) : propertyOf(b, k.getKey(), pos);
+                    boolean nullableHere = classes.size() > 1 || t.nullable() || nullable;
+                    specs.add(new ColSpec(col, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
+                    columns.add(new Col(col, k.getValue(), nullableHere));
+                    props.put(k.getKey(), new NodeProp(col, k.getValue(), nullableHere, lacks));
+                }
+            }
+            return new NodeCarry(new NodeShape(column, props), specs, columns, true);
         }
 
         /** The labels array's JSON text of a class: its label. */
@@ -3236,6 +4132,11 @@ public final class CypherToPure {
             return g.bindings().containsKey(name);
         }
 
+        @Override
+        public boolean binds(String name) {
+            return g.bindings().containsKey(name) || g.paths().containsKey(name) || g.lists().containsKey(name);
+        }
+
         /** A bound node's property: the class's, navigated from the root instance (C4: a property the class does not
          *  declare is an error, not null). */
         /** Whether an OPTIONAL MATCH's binding found nothing: its navigation empty, or its WHERE (the guard, the
@@ -3246,25 +4147,27 @@ public final class CypherToPure {
         }
 
         Tx propertyOf(Binding b, String name, Pos pos) {
-            if (!b.node()) {
-                throw CypherErrors.unsupported("a property of a relationship is not supported yet (an edge class)",
-                        pos);
+            if (!b.node() && b.classPath() == null) {
+                throw CypherErrors.unsupported("a property of a relationship over a property or association (no edge"
+                        + " class, the study's §5.6) is not supported yet", pos);
             }
+            // (a relationship over an edge class: the edge instance's property, navigated as a node's)
             String cls = java.util.Objects.requireNonNull(b.classPath());
             // the outer class's lookup: this scope's own property(Prop) shadows its name
             Property prop = CypherToPure.this.property(cls, name);
             if (prop == null) {
                 // a label-less node of a class without the property: null (Neo4j's heterogeneous nodes), typed as
                 // the property is where a class declares it
-                for (String other : g.candidates()) {
+                for (String other : b.node() ? g.candidates() : List.<String>of()) {
                     Property elsewhere = CypherToPure.this.property(other, name);
                     if (elsewhere != null && !elsewhere.classTyped() && !elsewhere.enumTyped()
                             && !elsewhere.many()) {
                         return SqlToPure.nullOf(kindOf(elsewhere.type(), name, pos));
                     }
                 }
-                throw CypherErrors.invalid("the class " + cls + " has no property " + name + " (the"
-                        + " graph is the model: a property a class does not declare is an error, not null)", pos);
+                throw CypherErrors.invalid("the " + (b.node() ? "class " : "edge class ") + cls + " has no property "
+                        + name + " (the graph is the model: a property a class does not declare is an error, not"
+                        + " null)", pos);
             }
             if (prop.classTyped()) {
                 throw CypherErrors.unsupported("the property " + name + " holds instances of " + prop.type()
@@ -3330,6 +4233,11 @@ public final class CypherToPure {
         }
 
         @Override
+        public @com.legend.base.Nullable NodeParts relParts(CypherAst.Var v) {
+            return projected.containsKey(v.name()) ? null : inner.relParts(v);
+        }
+
+        @Override
         public Val property(CypherAst.Prop p) {
             if (p.target() instanceof CypherAst.Var v && projected.containsKey(v.name())) {
                 Val value = projected.get(v.name());
@@ -3346,6 +4254,11 @@ public final class CypherToPure {
         @Override
         public boolean isPatternVariable(String name) {
             return !projected.containsKey(name) && inner.isPatternVariable(name);
+        }
+
+        @Override
+        public boolean binds(String name) {
+            return projected.containsKey(name) || inner.binds(name);
         }
     }
 
@@ -3406,6 +4319,11 @@ public final class CypherToPure {
         public boolean isPatternVariable(String name) {
             return false;
         }
+
+        @Override
+        public boolean binds(String name) {
+            return inner.binds(name);
+        }
     }
 
     private final class RowScope implements Scope {
@@ -3446,6 +4364,13 @@ public final class CypherToPure {
                         // a carried node as a value: its JSON from its columns; an absent one null
                         return shape.absent() ? scalar(SqlToPure.nullOf(Kind.JSON))
                                 : scalar(nodeJson(parts(shape), v.pos()));
+                    }
+                    if (c.detail() instanceof RelShape rel && !rel.props().isEmpty()) {
+                        // a carried relationship over an edge class as a value: its JSON from its type's column and
+                        // its properties' (null where none)
+                        NodeParts parts = relParts(rel, v.pos());
+                        return scalar(new Tx(present(parts, call("fromJson", nodeJsonText(parts, v.pos()))),
+                                Kind.JSON, parts.absent() != null, null, new RelValue(null), null, null));
                     }
                     if (c.detail() instanceof RelShape rel) {
                         // a carried relationship as a value: its JSON from its type's column (null where none)
@@ -3505,6 +4430,27 @@ public final class CypherToPure {
             return Tx.value(type, Kind.STRING, false);
         }
 
+        /** A carried relationship's parts, read from its columns: its type's column (its JSON text spelled as a
+         *  string's), its edge class's properties' columns; present where the type column holds a value. */
+        NodeParts relParts(RelShape shape, Pos pos) {
+            List<Map.Entry<String, Tx>> props = new ArrayList<>();
+            for (Map.Entry<String, NodeProp> p : shape.props().entrySet()) {
+                NodeProp np = p.getValue();
+                props.add(Map.entry(p.getKey(), columnLike(new AppliedProperty(new Variable(row()), np.column()),
+                        np.kind(), np.nullable())));
+            }
+            Col type = java.util.Objects.requireNonNull(column(shape.type()));
+            ValueSpecification read = new AppliedProperty(new Variable(row()), shape.type());
+            return NodeParts.rel(jsonText(call("toOne", read), Kind.STRING, shape.type(), pos), props,
+                    type.nullable() ? call("isEmpty", read) : null);
+        }
+
+        @Override
+        public @com.legend.base.Nullable NodeParts relParts(CypherAst.Var v) {
+            Col c = column(v.name());
+            return c != null && c.detail() instanceof RelShape shape ? relParts(shape, v.pos()) : null;
+        }
+
         /** A carried node's parts, read from its columns: present where its labels column holds a value (an
          *  OPTIONAL MATCH's node carries null there when its hop found none). */
         NodeParts parts(NodeShape shape) {
@@ -3548,24 +4494,46 @@ public final class CypherToPure {
                     throw CypherErrors.invalid("the node " + v.name() + " has no property " + p.name() + " (the"
                             + " graph is the model: a property no class declares is an error, not null)", p.pos());
                 }
+                if (np.absent()) {
+                    // (the class this arm reads lacks it: the known null, which a comparison folds)
+                    return scalar(SqlToPure.nullOf(np.kind()));
+                }
                 return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
                         np.nullable()));
             }
-            if (found.detail() instanceof RelShape) {
-                // a relationship's property: the harness's model holds none, so null (Neo4j's for a property the
-                // relationship lacks); of one an OPTIONAL MATCH never found, null too
-                return nullValue();
+            if (found.detail() instanceof RelShape rel) {
+                // a carried relationship's property: its edge class's column (the study's §5.6); of a relationship
+                // over a property or association, which holds none, null (Neo4j's for a property the relationship
+                // lacks); of one an OPTIONAL MATCH never found, null too
+                NodeProp np = rel.props().get(p.name());
+                if (np == null) {
+                    if (!rel.props().isEmpty()) {
+                        throw CypherErrors.invalid("the relationship " + v.name() + " has no property " + p.name()
+                                + " (the graph is the model: a property its edge class does not declare is an error,"
+                                + " not null)", p.pos());
+                    }
+                    return nullValue();
+                }
+                if (np.absent()) {
+                    // (the edge class this arm reads lacks it: the known null, which a comparison folds)
+                    return scalar(SqlToPure.nullOf(np.kind()));
+                }
+                return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
+                        np.nullable()));
             }
-            if (found.kind() == Kind.JSON) {
-                throw CypherErrors.unsupported("a property of a projected value (a node or map carried through WITH)"
-                        + " is not supported yet", p.pos());
-            }
+            // (a value the database holds as a Variant, a node or map carried through WITH or read by an UNWIND:
+            // the entry the platform's get reads, the study's §12.43)
             return member(variable(v), p.name(), p.pos());
         }
 
         @Override
         public boolean isPatternVariable(String name) {
             return false;
+        }
+
+        @Override
+        public boolean binds(String name) {
+            return column(name) != null;
         }
     }
 
@@ -3603,6 +4571,11 @@ public final class CypherToPure {
         @Override
         public boolean isPatternVariable(String n) {
             return !n.equals(name) && inner.isPatternVariable(n);
+        }
+
+        @Override
+        public boolean binds(String n) {
+            return n.equals(name) || inner.binds(n);
         }
     }
 
@@ -3653,11 +4626,32 @@ public final class CypherToPure {
 
     /** A condition: the rows where {@code e} is true (null and false alike are not). */
     private ValueSpecification condition(Expr e, Scope scope, String clause) {
+        markBooleanContext(e);
         Tx t = tx(e, scope);
         if (t.kind() != Kind.BOOLEAN && t.kind() != Kind.NULL) {
             throw CypherErrors.invalid("Type mismatch: expected Boolean but was " + cypherType(t.kind()), e.pos());
         }
         return SqlToPure.truth(t, clause, e.pos()).vs();
+    }
+
+    /** The pattern predicates standing where a boolean is tested (a WHERE, a CASE's test, a quantifier's or
+     *  comprehension's predicate, and the operands of NOT, AND, OR and XOR under one): Neo4j allows a pattern
+     *  expression there and nowhere else (inside a function's argument, a comparison, a RETURN item), and so does
+     *  the island. Decided by the expression's structure, each node by identity. */
+    private final Set<Expr> booleanPatterns = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    private void markBooleanContext(Expr e) {
+        switch (e) {
+            case CypherAst.PatternPredicate pp -> booleanPatterns.add(pp);
+            case CypherAst.Paren p -> markBooleanContext(p.inner());
+            case CypherAst.Unary u when u.op() == CypherAst.UnaryOp.NOT -> markBooleanContext(u.operand());
+            case CypherAst.Binary b when b.op() == BinaryOp.AND || b.op() == BinaryOp.OR || b.op() == BinaryOp.XOR -> {
+                markBooleanContext(b.left());
+                markBooleanContext(b.right());
+            }
+            default -> {
+            }
+        }
     }
 
     /** An expression's value over a scope: a scalar, or a list or map of known shape. */
@@ -3702,6 +4696,29 @@ public final class CypherToPure {
             case CypherAst.ListComprehension lc -> comprehension(lc, scope);
             case CypherAst.PatternComprehension pc -> patternComprehension(pc, scope);
             case CypherAst.LabelPredicate lp -> scalar(labelPredicate(lp, scope));
+            case CypherAst.PatternPredicate pp -> {
+                if (!booleanPatterns.contains(pp)) {
+                    // (Neo4j's rule, its words: a pattern expression stands where a boolean is tested)
+                    throw CypherErrors.invalid("A pattern expression should only be used in order to test the"
+                            + " existence of a pattern. It should therefore only be used in contexts that evaluate to"
+                            + " a boolean, e.g. inside the function exists() or in a WHERE-clause.", pp.pos());
+                }
+                // (Neo4j's rule, its words: a pattern expression binds no new variable; an EXISTS subquery may)
+                for (PatternElement el : pp.pattern().elements()) {
+                    String v = el instanceof NodePattern n ? n.variable() : ((RelPattern) el).variable();
+                    if (v != null && !scope.binds(v)) {
+                        throw CypherErrors.invalid("PatternExpressions are not allowed to introduce new variables: '"
+                                + v + "'.", pp.pos());
+                    }
+                }
+                if (pp.pattern().variable() != null && !scope.binds(pp.pattern().variable())) {
+                    throw CypherErrors.invalid("PatternExpressions are not allowed to introduce new variables: '"
+                            + pp.pattern().variable() + "'.", pp.pos());
+                }
+                yield scalar(patternExists(pp.pattern(), null, List.of(), pp.pos(), scope));
+            }
+            case CypherAst.ExistsSubquery ex -> scalar(patternExists(ex.pattern(), ex.where(), ex.items(), ex.pos(),
+                    scope));
             case CypherAst.Index ix -> index(ix, scope);
             case CypherAst.Slice sl -> slice(sl, scope);
         };
@@ -3749,7 +4766,8 @@ public final class CypherToPure {
                 return scalar(constant(!isNull));
             }
             Tx t = s.tx();
-            if (t.kind() == Kind.NULL) {
+            if (t.kind() == Kind.NULL || SqlToPure.isNullConstant(t)) {
+                // (a null the query names, or a typed one: a property the arm's class lacks)
                 return scalar(constant(isNull));
             }
             if (!t.nullable()) {
@@ -3895,6 +4913,7 @@ public final class CypherToPure {
 
     /** A boolean operand: a condition, or null (Cypher's unknown). */
     private Tx booleanOperand(Expr e, Scope scope) {
+        markBooleanContext(e);
         Tx t = tx(e, scope);
         if (t.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
@@ -4103,7 +5122,7 @@ public final class CypherToPure {
      *  shape is unrolled into a disjunction of equalities (nulls, nested lists and maps among the members). */
     private Tx in(CypherAst.Binary b, Scope scope) {
         Val l = val(b.left(), scope);
-        Val r = val(b.right(), scope);
+        Val r = asCollection(val(b.right(), scope));
         if (r instanceof Scalar rs) {
             if (rs.tx().kind() == Kind.NULL) {
                 return SqlToPure.nullOf(Kind.BOOLEAN);
@@ -4196,8 +5215,12 @@ public final class CypherToPure {
             }
             Tx type = scope.relType(v);
             if (type != null && fn.equals("properties")) {
-                // of a relationship: the empty map (the harness's model holds no relationship property); of one an
-                // OPTIONAL MATCH never found, null
+                // of a relationship: its edge class's properties that hold a value, a map (the study's §5.6); over
+                // a property or association, the empty map; of one an OPTIONAL MATCH never found, null
+                NodeParts rel = scope.relParts(v);
+                if (rel != null) {
+                    return scalar(nodeProperties(rel, c.pos()));
+                }
                 ValueSpecification empty = call("fromJson", new CString("{}"));
                 if (!type.nullable()) {
                     return scalar(Tx.value(empty, Kind.JSON, false));
@@ -4224,6 +5247,12 @@ public final class CypherToPure {
                 out.add(scope.variable(new CypherAst.Var(name, c.pos())));
             }
             return new ListVal(out);
+        }
+        if ((fn.equals("length") || fn.equals("nodes") || fn.equals("relationships")) && c.args().size() == 1
+                && c.args().get(0) instanceof CypherAst.Var v && scope instanceof RowScope rs
+                && rs.has(PATH_PART + fn + "_" + v.name())) {
+            // of a materialized path (a variable-length pattern's arms, §12.42): the column carried beside it
+            return rs.variable(new CypherAst.Var(PATH_PART + fn + "_" + v.name(), v.pos()));
         }
         if ((fn.equals("length") || fn.equals("nodes") || fn.equals("relationships")) && c.args().size() == 1
                 && (c.args().get(0) instanceof CypherAst.Var || c.args().get(0) instanceof CypherAst.NullLit)) {
@@ -4253,19 +5282,18 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("keys of a relationship an OPTIONAL MATCH may not find is not"
                             + " supported yet", c.pos());
                 }
-                return noKeys();
+                // (an edge class's properties that hold a value, the study's §5.6; none over a property or
+                // association)
+                NodeParts rel = scope.relParts(v);
+                return rel != null ? nodeKeys(rel) : noKeys();
             }
         }
-        if ((fn.equals("type") || fn.equals("labels") || fn.equals("properties")) && c.args().size() == 1
-                && !(c.args().get(0) instanceof CypherAst.Var)) {
-            // of a null, null (the study's §12.24); properties of a map, the map
-            Val a = val(c.args().get(0), scope);
-            if (a instanceof Scalar s && s.tx().kind() == Kind.NULL) {
-                return scalar(SqlToPure.nullOf(fn.equals("type") ? Kind.STRING : Kind.JSON));
-            }
-            if (fn.equals("properties") && a instanceof MapVal) {
-                return a;
-            }
+        if ((fn.equals("type") || fn.equals("labels") || fn.equals("properties") || fn.equals("length"))
+                && c.args().size() == 1) {
+            // of a value: of a null, null (the study's §12.24); properties of a map, the map; of a value the
+            // database holds as a Variant, the entry its JSON carries (a relationship's type, a node's labels; the
+            // study's §12.43); of a value of another kind, Neo4j's type error
+            return graphFunction(fn, val(c.args().get(0), scope), c.pos());
         }
         Function f = FUNCTIONS_BY_NAME.get(fn);
         if (f == null) {
@@ -4339,8 +5367,21 @@ public final class CypherToPure {
                 case NULL -> scalar(SqlToPure.nullOf(Kind.INTEGER));
                 case STRING -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(s.tx()), x -> call("length",
                         x.get(0))));
-                case JSON -> throw CypherErrors.unsupported("size of a list the database holds as a Variant is not"
-                        + " supported yet", c.pos());
+                case JSON -> {
+                    if (isNode(s.tx()) || s.tx().detail() instanceof PathValue) {
+                        throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was "
+                                + (s.tx().detail() instanceof PathValue ? "Path" : "Node"), c.pos());
+                    }
+                    // (the elements as a collection the database counts: a JSON array's length; a list that may be
+                    // null is tested, never read as one: Postgres plans a FROM function's argument eagerly, and
+                    // toOne's raise inside it fires before any row is read)
+                    ValueSpecification held = SqlToPure.valueOf(s.tx());
+                    ValueSpecification counted = call("size", call("toMany", held,
+                            SqlToPure.typeArg("meta::pure::metamodel::variant::Variant")));
+                    yield scalar(s.tx().nullable() ? Tx.value(call("if", call("isEmpty", held),
+                            thunk(SqlToPure.nullOf(Kind.INTEGER).vs()), thunk(counted)), Kind.INTEGER, true)
+                            : Tx.value(counted, Kind.INTEGER, false));
+                }
                 default -> throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was "
                         + cypherType(s.tx().kind()), c.pos());
             };
@@ -4806,6 +5847,20 @@ public final class CypherToPure {
     private record Coll(ValueSpecification vs, Kind kind, boolean rowFree) implements Val {
     }
 
+    /** A list the database holds as a Variant whose elements are of one known kind ({@link ListOf}: a collected
+     *  column, a spelled list of such lists) as the collection of them the database reads back ({@code toMany} by
+     *  that kind), so that a list predicate, IN, an index or a comprehension reads it as it reads any collection the
+     *  database computes; any other value as it is. */
+    private static Val asCollection(Val v) {
+        if (v instanceof Scalar s && s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape
+                && elementType(shape.element()) != null) {
+            return new Coll(call("toMany", SqlToPure.valueOf(s.tx()),
+                    SqlToPure.typeArg(java.util.Objects.requireNonNull(elementType(shape.element())))),
+                    shape.element(), false);
+        }
+        return v;
+    }
+
     private static Scalar scalar(Tx tx) {
         return new Scalar(tx, false, null);
     }
@@ -4869,14 +5924,52 @@ public final class CypherToPure {
      */
     private Tx variant(Val v, Pos pos) {
         if (isLiteral(v)) {
-            return Tx.value(call("fromJson", new CString(json(v))), Kind.JSON, false);
+            return Tx.value(call("fromJson", new CString(json(v))), Kind.JSON, false, shapeOf(v));
         }
         return switch (v) {
             case Scalar s -> s.tx();
-            case Coll c -> Tx.value(call("toVariant", c.vs()), Kind.JSON, false);
-            case ListVal l -> Tx.value(call("fromJson", jsonTextOf(l, pos)), Kind.JSON, false);
-            case MapVal m -> Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false);
+            case Coll c -> Tx.value(call("toVariant", c.vs()), Kind.JSON, false, shapeOf(c));
+            case ListVal l -> Tx.value(call("fromJson", jsonTextOf(l, pos)), Kind.JSON, false, shapeOf(l));
+            case MapVal m -> Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false, shapeOf(m));
         };
+    }
+
+    /** The shape of a value the database holds as a Variant, where its spelling says it (the study's §12.43): a
+     *  list whose elements are scalars of one kind the Variant reads back by type ({@link #elementType}),
+     *  {@link ListOf} that kind; a list of several kinds, {@link TupleOf} each place's; a map, {@link MapOf} its
+     *  entries' kinds and shapes; a collection the database computes, {@link ListOf} its kind; a scalar, its own
+     *  mark (a node's, a relationship's), null when it has none. What a navigation into the Variant reads its
+     *  result by. */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail shapeOf(Val v) {
+        return switch (v) {
+            case Scalar s -> s.tx().detail();
+            case Coll c -> elementType(c.kind()) == null ? null : new ListOf(c.kind());
+            case ListVal l -> {
+                Kind k = elementKind(l);
+                if (k != null && elementType(k) != null) {
+                    yield new ListOf(k);
+                }
+                List<Entry> entries = new ArrayList<>();
+                for (Val e : l.elements()) {
+                    entries.add(entryOf(e));
+                }
+                yield new TupleOf(entries);
+            }
+            case MapVal m -> {
+                Map<String, Entry> entries = new LinkedHashMap<>();
+                for (Map.Entry<String, Val> e : m.entries().entrySet()) {
+                    entries.put(e.getKey(), entryOf(e.getValue()));
+                }
+                yield new MapOf(entries);
+            }
+        };
+    }
+
+    /** A spelled list's or map's element as a known entry: a scalar's kind, nullability and mark; a list, map or
+     *  collection, a Variant of its shape. */
+    private static Entry entryOf(Val v) {
+        return v instanceof Scalar s ? new Entry(s.tx().kind(), s.tx().nullable(), s.tx().detail())
+                : new Entry(Kind.JSON, false, shapeOf(v));
     }
 
     /** A value's JSON text, built by the database: a scalar by its kind ({@link #jsonText}; an empty one
@@ -4937,8 +6030,7 @@ public final class CypherToPure {
                     || s.tx().kind() == Kind.TIME || s.tx().kind() == Kind.ZONED || s.tx().kind() == Kind.ZONED_TIME ->
                     scalar(temporalField(s.tx(), name, pos));
             case Scalar s when s.tx().kind() == Kind.DURATION -> scalar(durationField(s.tx(), name, pos));
-            case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("a property of a value"
-                    + " the database holds as a Variant is not supported yet", pos);
+            case Scalar s when s.tx().kind() == Kind.JSON -> variantMember(s.tx(), name, pos);
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point,"
                     + " Duration, Date, Time, LocalTime, LocalDateTime or DateTime but was "
                     + cypherType(s.tx().kind()), pos);
@@ -5057,7 +6149,8 @@ public final class CypherToPure {
     /** {@code target[index]}: a known list's element by a spelled index (from the end when negative; null beyond
      *  either end), a known map's entry by a spelled key, a computed list's element by the database. */
     private Val index(CypherAst.Index ix, Scope scope) {
-        Val target = val(ix.target(), scope);
+        Val raw = val(ix.target(), scope);
+        Val target = asCollection(raw);
         Val idx = val(ix.index(), scope);
         if (isNull(target) || isNull(idx)) {
             return nullValue();
@@ -5153,6 +6246,10 @@ public final class CypherToPure {
                 }
                 Long n = integerLiteral(is);
                 if (n == null || n < 0) {
+                    if (raw instanceof Scalar rs && rs.tx().kind() == Kind.JSON) {
+                        // a list the database holds: its element at the place, by the platform's get (§12.43)
+                        yield variantIndex(rs.tx(), is, ix);
+                    }
                     throw CypherErrors.unsupported("indexing a list the database computes by a value that is not a"
                             + " literal, or from its end, is not supported yet", ix.pos());
                 }
@@ -5160,13 +6257,196 @@ public final class CypherToPure {
             }
             case Scalar s -> {
                 if (s.tx().kind() == Kind.JSON) {
-                    throw CypherErrors.unsupported("indexing a value the database holds as a Variant is not supported"
-                            + " yet", ix.pos());
+                    yield variantIndex(s.tx(), is, ix);
                 }
                 throw CypherErrors.invalid("Type mismatch: expected List<T> or Map but was "
                         + cypherType(s.tx().kind()), ix.target().pos());
             }
         };
+    }
+
+    /**
+     * {@code type}, {@code labels}, {@code properties} and {@code length} of a value: of a null, null (the study's
+     * §12.24); properties of a map, the map; of a value the database holds as a Variant (the study's §12.43), the
+     * entry its JSON carries where its mark says the function applies ({@code type} of a relationship's
+     * {@code "@type"}, {@code labels} of a node's {@code "@labels"}); of one whose mark the island does not know, a
+     * refusal by name (Neo4j raises for a value of the wrong kind, which the island could not); of a value the
+     * function does not apply to, Neo4j's type error.
+     */
+    private Val graphFunction(String fn, Val a, Pos pos) {
+        String expected = switch (fn) {
+            case "type" -> "Relationship";
+            case "labels" -> "Node";
+            case "properties" -> "Map, Node or Relationship";
+            case "length" -> "Path";
+            default -> throw new IllegalStateException("not a graph function: " + fn);
+        };
+        if (a instanceof Scalar s && s.tx().kind() == Kind.NULL) {
+            return scalar(SqlToPure.nullOf(fn.equals("type") ? Kind.STRING : fn.equals("length") ? Kind.INTEGER
+                    : Kind.JSON));
+        }
+        if (fn.equals("properties") && a instanceof MapVal) {
+            return a;
+        }
+        if (a instanceof Scalar s && s.tx().kind() == Kind.JSON) {
+            Tx v = s.tx();
+            if (fn.equals("length") && v.detail() instanceof AbsentPath) {
+                // a path a hop from an absent node never found (the study's §12.36)
+                return scalar(SqlToPure.nullOf(Kind.INTEGER));
+            }
+            if (v.detail() == null) {
+                throw CypherErrors.unsupported(fn + " of a value the database holds as a Variant, of a kind the"
+                        + " island does not know, is not supported yet", pos);
+            }
+            boolean applies = switch (fn) {
+                case "type" -> v.detail() instanceof RelValue;
+                case "labels" -> v.detail() instanceof NodeValue;
+                case "properties" -> v.detail() instanceof NodeValue || v.detail() instanceof RelValue
+                        || v.detail() instanceof MapOf;
+                default -> v.detail() instanceof PathValue;
+            };
+            if (!applies) {
+                throw CypherErrors.invalid("Type mismatch: expected " + expected + " but was " + variantType(v), pos);
+            }
+            switch (fn) {
+                case "type" -> {
+                    if (v.detail() instanceof RelValue rel && rel.type() != null && !v.nullable()) {
+                        return literal(Tx.value(new CString(rel.type()), Kind.STRING, false), rel.type());
+                    }
+                    return scalar(columnLike(call("to", call("get", SqlToPure.valueOf(v), new CString("@type")),
+                            SqlToPure.typeArg("String")), Kind.STRING, true));
+                }
+                case "labels" -> {
+                    return scalar(Tx.value(call("get", SqlToPure.valueOf(v), new CString("@labels")), Kind.JSON, true,
+                            new ListOf(Kind.STRING)));
+                }
+                case "properties" -> {
+                    if (v.detail() instanceof MapOf) {
+                        return a;
+                    }
+                    throw CypherErrors.unsupported("properties of a node or relationship the database holds as a"
+                            + " Variant is not supported yet", pos);
+                }
+                default -> throw CypherErrors.unsupported("length of a path the database holds as a Variant is not"
+                        + " supported yet", pos);
+            }
+        }
+        String was = switch (a) {
+            case Scalar s -> cypherType(s.tx().kind());
+            case ListVal l -> "List<T>";
+            case Coll c -> "List<T>";
+            case MapVal m -> "Map";
+        };
+        throw CypherErrors.invalid("Type mismatch: expected " + expected + " but was " + was, pos);
+    }
+
+    /**
+     * {@code v[i]} over a value the database holds as a Variant (the study's §12.43): a list's element at a place
+     * (counted from the end when negative, null beyond either end: the platform's {@code get} by an Integer, on
+     * which the databases agree), read by the elements' kind where the shape says it ({@link ListOf}); a map's, a
+     * node's or a relationship's entry by a key, as {@link #variantMember} reads it, a key of the row read as a
+     * Variant. A null place or key is null. A list indexed by a key, a map by a place, is Neo4j's type error.
+     */
+    private Val variantIndex(Tx v, Scalar index, CypherAst.Index ix) {
+        Tx i = index.tx();
+        boolean list = v.detail() instanceof ListOf || v.detail() instanceof TupleOf;
+        boolean map = v.detail() instanceof MapOf || isNode(v);
+        if (i.kind() == Kind.INTEGER) {
+            if (map || v.detail() instanceof PathValue || v.detail() instanceof AbsentPath) {
+                throw CypherErrors.invalid("Type mismatch: expected List<T> but was " + variantType(v),
+                        ix.target().pos());
+            }
+            Long n = integerLiteral(index);
+            if (v.detail() instanceof TupleOf tuple && n != null) {
+                // the place's own kind and shape; none beyond either end
+                long at = n < 0 ? n + tuple.entries().size() : n;
+                if (at < 0 || at >= tuple.entries().size()) {
+                    return nullValue();
+                }
+                Entry e = tuple.entries().get((int) at);
+                return e.kind() == Kind.NULL ? nullValue() : scalar(entryRead(navigation(v, i), e));
+            }
+            ValueSpecification got = navigation(v, i);
+            return scalar(v.detail() instanceof ListOf shape
+                    ? entryRead(got, new Entry(shape.element(), true, shape.elementDetail()))
+                    : Tx.value(got, Kind.JSON, true));
+        }
+        if (i.kind() == Kind.STRING) {
+            if (list || v.detail() instanceof PathValue || v.detail() instanceof AbsentPath) {
+                throw CypherErrors.invalid("Type mismatch: expected Map but was " + variantType(v),
+                        ix.target().pos());
+            }
+            if (index.literal()) {
+                return variantMember(v, (String) java.util.Objects.requireNonNull(index.constant()), ix.pos());
+            }
+            return scalar(Tx.value(navigation(v, i), Kind.JSON, true));
+        }
+        throw CypherErrors.invalid("Type mismatch: expected " + (list ? "Integer" : map ? "String"
+                : "Integer or String") + " but was " + cypherType(i.kind()), ix.index().pos());
+    }
+
+    /** Cypher's name for what a Variant holds, by its mark: for a type error's message. */
+    private static String variantType(Tx v) {
+        if (v.detail() instanceof NodeValue) {
+            return "Node";
+        }
+        if (v.detail() instanceof RelValue) {
+            return "Relationship";
+        }
+        if (v.detail() instanceof PathValue || v.detail() instanceof AbsentPath) {
+            return "Path";
+        }
+        return v.detail() instanceof ListOf || v.detail() instanceof TupleOf ? "List<T>" : "Map";
+    }
+
+    /** The platform's {@code get} of a Variant by a place or a key (a literal, or a value of the row: null for a
+     *  null one). */
+    private static ValueSpecification navigation(Tx v, Tx key) {
+        ValueSpecification source = SqlToPure.valueOf(v);
+        ValueSpecification k = SqlToPure.valueOf(key);
+        if (!key.nullable()) {
+            return call("get", source, k);
+        }
+        return call("if", call("isEmpty", k), thunk(SqlToPure.nullOf(Kind.JSON).vs()),
+                thunk(call("get", source, call("toOne", k))));
+    }
+
+    /**
+     * {@code v.name} over a value the database holds as a Variant (the study's §12.43): the entry the platform's
+     * {@code get} reads, null for a key the value lacks (Neo4j's null for a property a node, a relationship or a
+     * map lacks), read by its kind where the Variant's shape says it ({@link MapOf}: an entry that is never null),
+     * else as a Variant, which a RETURN writes and the judge reads as the value it holds. A list and a path have no
+     * entries (Neo4j's type error).
+     */
+    private Val variantMember(Tx v, String name, Pos pos) {
+        if (v.detail() instanceof ListOf || v.detail() instanceof TupleOf || v.detail() instanceof PathValue
+                || v.detail() instanceof AbsentPath) {
+            throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point, Duration, Date,"
+                    + " Time, LocalTime, LocalDateTime or DateTime but was " + variantType(v), pos);
+        }
+        ValueSpecification got = call("get", SqlToPure.valueOf(v), new CString(name));
+        if (v.detail() instanceof MapOf m) {
+            Entry e = m.entries().get(name);
+            return e == null || e.kind() == Kind.NULL ? nullValue() : scalar(entryRead(got, e));
+        }
+        return scalar(Tx.value(got, Kind.JSON, true));
+    }
+
+    /** A navigation's result (the platform's {@code get}: a Variant, or none) read by the entry's kind through the
+     *  platform's {@code to}, where its kind reads back by type ({@link #elementType}); else as a Variant carrying
+     *  the entry's shape (a nested list's or map's). An entry that may be null is read only where its text is not
+     *  the JSON null (a null the Variant spells, which Postgres's cast refuses and DuckDB's reads as none). */
+    private static Tx entryRead(ValueSpecification got, Entry e) {
+        String type = e.kind() == Kind.JSON ? null : elementType(e.kind());
+        if (type == null) {
+            return Tx.value(got, Kind.JSON, true, e.kind() == Kind.JSON ? e.detail() : null);
+        }
+        ValueSpecification read = call("to", got, SqlToPure.typeArg(type));
+        if (e.nullable()) {
+            read = call("if", call("or", call("isEmpty", got), call("equal", call("toString", call("toOne", got)),
+                    new CString("null"))), thunk(SqlToPure.nullOf(e.kind()).vs()), thunk(read));
+        }
+        return columnLike(read, e.kind(), true);
     }
 
     /** {@code target[from..to]}: a known list's slice by spelled bounds (from the end when negative, clamped to the
@@ -5220,7 +6500,7 @@ public final class CypherToPure {
     private Tx quantifier(CypherAst.Quantifier q, Scope scope) {
         Quantifier name = java.util.Objects.requireNonNull(QUANTIFIERS.get(q.name().toLowerCase(Locale.ROOT)),
                 q.name());
-        Val list = val(q.list(), scope);
+        Val list = asCollection(val(q.list(), scope));
         if (isNull(list)) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
@@ -5438,6 +6718,49 @@ public final class CypherToPure {
         return scalar(Tx.value(total == null ? new CInteger(0L) : total, Kind.INTEGER, false));
     }
 
+    /** A pattern as a predicate, or an EXISTS subquery (the study's §12.40): whether the hop from the bound node
+     *  finds a match, each way the model reads it (§12.31) as the navigation's non-emptiness (filtered by the WHERE
+     *  over the hop's node), the ways or-ed; no way, false. Built over the pattern comprehension's hop resolution,
+     *  which refuses by name what it does not read (a hop from no bound node, both ends bound, a property map,
+     *  more than one hop, a pattern over rows). */
+    private Tx patternExists(PathPattern pattern, @com.legend.base.Nullable Expr where, List<Expr> items, Pos pos,
+            Scope scope) {
+        CypherAst.PatternComprehension pc = new CypherAst.PatternComprehension(pattern, where,
+                new CypherAst.BoolLit(true, pos), pos);
+        Hopped h = hopped(pc, scope);
+        ValueSpecification any = null;
+        for (Way way : h.ways()) {
+            ValueSpecification found;
+            if (!way.hop().many()) {
+                Scope inner = h.innerOne(way, null);
+                found = call("isNotEmpty", h.navigation(way));
+                if (where != null) {
+                    found = call("and", found, condition(where, inner, "WHERE"));
+                }
+                // (an EXISTS subquery's RETURN items are read for their static errors, a variable not defined
+                // among them; a row's existence is what counts)
+                for (Expr item : items) {
+                    val(item, inner);
+                }
+            } else {
+                ValueSpecification coll = h.navigation(way);
+                String var = freshName(new HashSet<>(h.outer().g.bindings().keySet()));
+                Scope inner = h.inner(way, var, null);
+                if (where != null) {
+                    coll = call("filter", coll, lambda(var, condition(where, inner, "WHERE")));
+                }
+                for (Expr item : items) {
+                    val(item, inner);
+                }
+                found = call("isNotEmpty", coll);
+            }
+            any = any == null ? found : call("or", any, found);
+        }
+        // (a condition, with its false case: a NOT, an AND or an OR around it reads both)
+        ValueSpecification test = any == null ? new CBoolean(false) : any;
+        return Tx.condition(test, any == null ? new CBoolean(true) : call("not", test), false);
+    }
+
     /** A pattern comprehension's hop, resolved: the graph's scope it starts from, the start node's variable and
      *  binding, the ways the model reads the hop, the end and relationship variables. */
     private record Hopped(GraphScope outer, String startVar, Binding from, List<Way> ways,
@@ -5462,14 +6785,18 @@ public final class CypherToPure {
          *  the relationship its type, a named path the path the hop makes (its start the graph's node, its end and
          *  relationship the hop's); every other variable the graph's. */
         Scope inner(Way way, String var, @com.legend.base.Nullable String pathVar) {
-            Graph sub = new Graph(way.hop().target(), var, new LinkedHashMap<>(), new ArrayList<>(), List.of());
+            // (over an edge class, the navigated instance is the edge, its far end the hop's node)
+            String edge = way.hop().edge();
+            Graph sub = new Graph(edge != null ? edge : way.hop().target(), var, new LinkedHashMap<>(),
+                    new ArrayList<>(), List.of());
             Set<String> taken = new HashSet<>(outer.g.bindings().keySet());
             taken.add(var);
             String end = endName(taken);
             taken.add(end);
             String rel = relName(taken);
-            sub.bindings().put(end, new Binding(true, way.hop().target(), List.of(), false));
-            sub.bindings().put(rel, Binding.relationship(List.of(), false, false, way.type(), false));
+            sub.bindings().put(end, new Binding(true, way.hop().target(), edge != null
+                    ? List.of(java.util.Objects.requireNonNull(way.hop().far())) : List.of(), false));
+            sub.bindings().put(rel, Binding.relationship(List.of(), false, false, way.type(), false, edge));
             sub.forward().put(rel, way.hop().forward());
             PathSpec path = pathVar == null ? null : new PathSpec(List.of(startVar, end), List.of(rel));
             return outer.overlay(outer.sub(sub), pathVar, path);
@@ -5481,16 +6808,17 @@ public final class CypherToPure {
             Graph g = outer.g;
             Graph ext = new Graph(g.rootClass(), g.row(), new LinkedHashMap<>(g.bindings()), g.conditions(),
                     g.candidates(), g.fanning(), g.deferredConstraints(), g.deferredWhere(), g.variableClasses(),
-                    new LinkedHashMap<>(g.paths()), new LinkedHashMap<>(g.forward()));
+                    new LinkedHashMap<>(g.paths()), new LinkedHashMap<>(g.forward()), new LinkedHashMap<>(g.lists()));
             Set<String> taken = new HashSet<>(g.bindings().keySet());
             taken.addAll(g.paths().keySet());
             String end = endName(taken);
             taken.add(end);
             String rel = relName(taken);
             List<String> path = new ArrayList<>(from.path());
-            path.add(way.hop().property());
+            path.addAll(way.hop().steps());
             ext.bindings().put(end, new Binding(true, way.hop().target(), List.copyOf(path), false));
-            ext.bindings().put(rel, Binding.relationship(List.copyOf(path), false, false, way.type(), false));
+            ext.bindings().put(rel, Binding.relationship(List.copyOf(relPath(from, way.hop())), false, false,
+                    way.type(), false, way.hop().edge()));
             ext.forward().put(rel, way.hop().forward());
             if (pathVar != null) {
                 ext.paths().put(pathVar, new PathSpec(List.of(startVar, end), List.of(rel)));
@@ -5538,7 +6866,19 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a relationship bound twice (" + rel.variable() + ", compared by identity)"
                     + " is not supported yet", rel.pos());
         }
+        refuseHopPastEdge(start.variable(), rel.pos());
         String cls = java.util.Objects.requireNonNull(from.classPath());
+        String startLabel = labelClass(start);
+        if (startLabel != null && !model.isSubclass(cls, startLabel)) {
+            if (model.isSubclass(startLabel, cls)) {
+                throw CypherErrors.unsupported("the label " + startLabel + " on " + start.variable() + " (a subclass of"
+                        + " its class " + cls + ") in a pattern comprehension or predicate is not supported yet",
+                        start.pos());
+            }
+            // a label the bound node's class does not carry: the pattern matches nothing
+            return new Hopped(gs, java.util.Objects.requireNonNull(start.variable()), from, List.of(),
+                    end.variable(), rel.variable(), this::freshName);
+        }
         String label = labelClass(end);
         // the ways: (type, direction, the class reached), as an untyped pattern's arms are decided (§12.17)
         List<Object[]> candidates = new ArrayList<>();
@@ -5558,6 +6898,7 @@ public final class CypherToPure {
                         }
                     }
                 }
+                candidates.addAll(edgeWays(cls, type, rel.direction(), rel.pos()));
             }
         } else {
             if (rel.direction() != CypherAst.Direction.IN) {
@@ -5574,11 +6915,13 @@ public final class CypherToPure {
                     }
                 }
             }
+            candidates.addAll(edgeWays(cls, null, rel.direction(), rel.pos()));
         }
         List<Way> ways = new ArrayList<>();
         for (Object[] way : candidates) {
             String reached = (String) way[2];
             if (label != null && !label.equals(reached) && !model.isSubclass(reached, label)) {
+                refuseNarrowing(label, reached, (String) way[0], end.pos());
                 continue;
             }
             if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {
@@ -5593,6 +6936,9 @@ public final class CypherToPure {
             if (hop != null) {
                 ways.add(new Way((String) way[0], hop));
             }
+        }
+        if (end.variable() != null && ways.stream().anyMatch(w -> w.hop().edge() != null)) {
+            reachedThroughEdge.add(end.variable());
         }
         return new Hopped(gs, java.util.Objects.requireNonNull(start.variable()), from, ways, end.variable(),
                 rel.variable(), this::freshName);
@@ -5652,7 +6998,7 @@ public final class CypherToPure {
      * and the list stays known; with one, the database filters (and maps) a collection of one kind.
      */
     private Val comprehension(CypherAst.ListComprehension lc, Scope scope) {
-        Val list = val(lc.list(), scope);
+        Val list = asCollection(val(lc.list(), scope));
         if (isNull(list)) {
             return nullValue();
         }
@@ -5761,6 +7107,8 @@ public final class CypherToPure {
             case CypherAst.Quantifier q -> readsRow(q.list(), bound) || readsRow(q.where(), with(bound,
                     q.variable()));
             case CypherAst.PatternComprehension pc -> true;
+            case CypherAst.PatternPredicate pp -> true;
+            case CypherAst.ExistsSubquery ex -> true;
             case CypherAst.LabelPredicate lp -> readsRow(lp.target(), bound);
             case CypherAst.ListComprehension lc -> readsRow(lc.list(), bound)
                     || lc.where() != null && readsRow(lc.where(), with(bound, lc.variable()))
@@ -6032,8 +7380,16 @@ public final class CypherToPure {
         }
     }
 
-    /** One property of a carried node: its column, its kind, whether it may be null. */
-    private record NodeProp(String column, Kind kind, boolean nullable) {
+    /** One property of a carried node (or of a carried relationship over an edge class): its column, its kind,
+     *  whether it may be null, and whether the column holds null everywhere in the rows in hand ({@code absent}: the
+     *  class the arm reads lacks the property, the column is one the other arms have; cleared on the arms' union,
+     *  where the column holds the other arms' values). A property map or a WHERE read within the arm compares the
+     *  property as the known null it is (the comparison folds to null, as a label-less node's own does), never the
+     *  column: Postgres types a null constant navigated to one as text. */
+    private record NodeProp(String column, Kind kind, boolean nullable, boolean absent) {
+        NodeProp(String column, Kind kind, boolean nullable) {
+            this(column, kind, nullable, false);
+        }
     }
 
     /** The mark of a node's JSON value ({@link #nodeJson}): what DISTINCT, ORDER BY and a grouping refuse by name
@@ -6061,7 +7417,8 @@ public final class CypherToPure {
     /** A relationship carried through a projection as its type's column (null where an OPTIONAL MATCH found
      *  none); the relationship's own column is virtual, its value rebuilt from the type (the study's §12.19). Arms
      *  concatenated carry each their own type in the one column. */
-    private record RelShape(String type) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    private record RelShape(String type, Map<String, NodeProp> props)
+            implements com.legend.protocol.sql.InputDialect.TypeDetail {
     }
 
     /** Whether a value is a node's or a relationship's JSON, or a column holding one. */
@@ -8623,8 +9980,22 @@ public final class CypherToPure {
                 rel = noRows(x);
                 col = new Col(x, Kind.STRING, true);
             }
-            case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("UNWIND over a list the"
-                    + " database holds as a Variant is not supported yet", u.pos());
+            case Scalar s when s.tx().kind() == Kind.JSON -> {
+                // a list the database holds as a Variant (a stored list, a collected one, a list of lists carried
+                // through WITH): its elements, each a Variant, as rows (the study's §12.41)
+                if (isNode(s.tx()) || s.tx().detail() instanceof PathValue) {
+                    throw CypherErrors.unsupported("UNWIND of a node, a relationship or a path (one row in Neo4j) is"
+                            + " not supported yet", u.pos());
+                }
+                ListOf shape = s.tx().detail() instanceof ListOf l ? l : null;
+                Kind element = shape == null || elementType(shape.element()) == null ? null : shape.element();
+                String type = element == null ? "meta::pure::metamodel::variant::Variant"
+                        : java.util.Objects.requireNonNull(elementType(element));
+                rel = call("flatten", call("toMany", SqlToPure.valueOf(s.tx()), SqlToPure.typeArg(type)),
+                        new ColSpec(x, null, null, null));
+                col = new Col(x, element == null ? Kind.JSON : element, true, null,
+                        shape == null ? null : shape.elementDetail());
+            }
             case Scalar s -> throw CypherErrors.unsupported("UNWIND of a value that is not a list (one row in Neo4j)"
                     + " is not supported yet", u.pos());
             case MapVal m -> throw CypherErrors.unsupported("UNWIND of a map (one row in Neo4j) is not supported"
@@ -8642,10 +10013,12 @@ public final class CypherToPure {
                 List<Tx> elements = new ArrayList<>();
                 Kind kind = null;
                 boolean nulls = false;
+                boolean variants = false;
                 for (Val e : l.elements()) {
                     if (!(e instanceof Scalar s)) {
-                        throw CypherErrors.unsupported("UNWIND over a list of lists or maps is not supported yet",
-                                u.pos());
+                        // a list or a map among the elements: every element a Variant (the study's §12.41)
+                        variants = true;
+                        continue;
                     }
                     Tx t = s.tx();
                     if (t.kind() == Kind.NULL) {
@@ -8655,11 +10028,34 @@ public final class CypherToPure {
                         if (kind == null) {
                             kind = t.kind();
                         } else if (kind != t.kind()) {
-                            throw CypherErrors.unsupported("UNWIND over a list holding values of different types is"
-                                    + " not supported yet", u.pos());
+                            // values of several kinds: each element a Variant, read back by its own kind
+                            variants = true;
                         }
                     }
                     elements.add(t);
+                }
+                com.legend.protocol.sql.InputDialect.TypeDetail shape = null;
+                if (variants) {
+                    // (the elements of one shape -- lists of one kind, maps of one shape, nodes -- read back by it,
+                    // the study's §12.43; a list spelling no element of a kind agrees with any list's)
+                    elements = new ArrayList<>();
+                    com.legend.protocol.sql.InputDialect.TypeDetail common = null;
+                    boolean agree = true;
+                    for (Val e : l.elements()) {
+                        if (e instanceof Scalar s && s.tx().kind() == Kind.NULL) {
+                            elements.add(s.tx());
+                            continue;
+                        }
+                        elements.add(variant(e, u.pos()));
+                        if (e instanceof ListVal le && le.elements().stream().allMatch(CypherToPure::isNull)) {
+                            continue;
+                        }
+                        com.legend.protocol.sql.InputDialect.TypeDetail d = shapeOf(e);
+                        agree &= d != null && (common == null || common.equals(d));
+                        common = common == null ? d : common;
+                    }
+                    kind = Kind.JSON;
+                    shape = agree ? common : null;
                 }
                 // a list holding a temporal value of nanosecond precision: every element at that precision (a
                 // time of day as the date-time at it on the epoch day), the column of it
@@ -8673,7 +10069,7 @@ public final class CypherToPure {
                     elements = moved;
                     carrier = Kind.DATETIME;
                 }
-                com.legend.protocol.sql.InputDialect.TypeDetail detail = fine ? new Carried(null, true) : null;
+                com.legend.protocol.sql.InputDialect.TypeDetail detail = fine ? new Carried(null, true) : shape;
                 if (kind == null) {
                     // every element null
                     rel = places(elements.size(), x, Kind.STRING, elements);
@@ -8781,6 +10177,9 @@ public final class CypherToPure {
             case CypherAst.LabelPredicate lp -> text(lp.target()) + ":" + String.join(":", lp.labels());
             case CypherAst.PatternComprehension pc -> "[" + text(pc.pattern())
                     + (pc.where() == null ? "" : " WHERE " + text(pc.where())) + " | " + text(pc.map()) + "]";
+            case CypherAst.PatternPredicate pp -> text(pp.pattern());
+            case CypherAst.ExistsSubquery ex -> "EXISTS { " + text(ex.pattern())
+                    + (ex.where() == null ? "" : " WHERE " + text(ex.where())) + " }";
             case CypherAst.ListComprehension lc -> "[" + lc.variable() + " IN " + text(lc.list())
                     + (lc.where() == null ? "" : " WHERE " + text(lc.where()))
                     + (lc.map() == null ? "" : " | " + text(lc.map())) + "]";

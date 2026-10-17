@@ -45,7 +45,7 @@ Abbreviations used in "runs TODAY":
 |---|---|---|
 | WIRING | 91 | 56 `_legend_sources`, 11 used `<p>_files`, `//projects:{tests,contract_files}`, 15 `all_files`, `//:generated`, `//:module_files`, `//gates:local`, `//tools/guards:{repository_files,markdown_reports,classpath_reports}`, `//tools/python:requirements` |
 | CHECK-GUARD | 116 | 106 guard reports (53 packages × 2), `//projects:contract_test`, 4 `//tools/deps` tests, 4 `//tools/guards` tests, `//tools/python:lock_matches_requirements` |
-| TEST-CORPUS | 57 | 56 `<p>_test`, `//projects:graph_test` |
+| TEST-CORPUS | 57 | 56 `<p>_test`, `//projects:graph_test` (renamed `every_project_test` 2026-10-16, when the `graph` project arrived) |
 | DEAD | 49 | 45 unused `<p>_files`, `//projects:srcs`, `//tools/guards:{guard_markdown,guard_classpaths}`, `//tools/python:requirements_test` |
 | GEN-BUILD | 6 | 4 `//tools/deps` genqueries, `//tools/java_run:pins`, `//tools:oracle_pins` |
 | TOOL | 5 | `//tools/nullaway:nullaway`, `//tools/legend:compiles_test_lib`, `//tools/junit:{junit,compare_testcases}`, `//tools/java_run:print_pins` |

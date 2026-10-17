@@ -9863,7 +9863,7 @@ refused and why, and each review's findings.
    - **IQ's own `SET [TEMPORARY] OPTION …;`** and the T-SQL SET forms before a SELECT, read by the island's IQ reader.
      There is no Legend syntax (the user's ruling); settings will come from Pure tagged values in a later landing.
    - **A determinism lint over every IQ case:** TOP/FIRST must reach a unique ordering, and LIST must be ordered.
-   - Declared in `docs/SEMANTICS_REGISTER.md`: S51, S53, S56 extended; S72 new (S57 when it was written; renumbered 2026-10-16, the merge with the Cypher island's S57 to S71).
+   - Declared in `docs/SEMANTICS_REGISTER.md`: S51, S53, S56 extended; S74 new (S57 when it was written; renumbered 2026-10-16, the merge with the Cypher island's S57 to S71).
 2. **The seam's judge.**
    - The Postgres generated-Pure dump of 2,394 cases is byte-identical to main's own (sha256 `8041208c…`; main's
      changed with PR #41, and this landing adds nothing to it).
@@ -9931,6 +9931,166 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
 3. **Next.** PR1b: `tools/neo4j-oracle/` (Neo4j Community, local only, through the Apache 2.0 Python driver), the
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
+
+## 2026-10-17 — `#Cypher{...}#`: the forty-third landing — a MATCH after rows whose pattern is new
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.44. The translator alone: a MATCH
+after rows (a WITH that projected its variables, an UNWIND) whose one pattern names no variable of the rows is the
+product of the rows and the pattern's rows (§12.28's cartesian machinery), the WHERE over the pairs.
+
+1. **What lands.** `MATCH (a:Begin) WITH a.num AS property MATCH (b:End) WHERE property = b.num RETURN b`,
+   `UNWIND [1, 2] AS i MATCH (p:P) RETURN i, p.name`, `WITH collect([0, 0.0]) AS numbers UNWIND numbers AS arr
+   WITH arr[0] AS expected MATCH (n) WHERE toInteger(n.id) = expected RETURN n`, `WITH 1 AS x MATCH ()-[r]->()
+   RETURN count(r), x`.
+2. **The ledger.** DuckDB: 4484 cases; PASS 2854 (from 2,840); FAIL 0; BUG 0; ERROR 0; REFUSED 720; BOTH_ERROR 729;
+   SKIP 181. Postgres: PASS 2504 (from 2,490); FAIL 0; BUG 0; ERROR 0; REFUSED 1070; BOTH_ERROR 729; SKIP 181. 11
+   lite cases in `lite/rows.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pin that refused a MATCH after a projecting WITH now pins the product's join, and the refusal of a
+   pattern binding a projected variable again.
+4. **Refused by name, recorded.** A MATCH after rows naming a variable of the rows that is not a carried node's
+   continuation (identity, or Neo4j's static error), a MATCH of several patterns after rows; `collect(DISTINCT
+   x)`, tried and withdrawn (the database's order of the distinct values is not Neo4j's, nor the same twice).
+
+## 2026-10-17 — `#Cypher{...}#`: the forty-second landing — a property or an index of a value the database holds as a Variant
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.43. The translator alone: a property
+or an index of a value the database holds as a Variant is the platform's `get` by the key or the place, read by
+type through `to(@T)` where the Variant's shape says it (a spelled map's entries, a list of one kind's elements, a
+spelled list of several kinds' places), else a Variant the judge reads as the value it holds; the shape travels as
+the Variant's mark through WITH, `collect` and UNWIND; `type`, `labels`, `properties` and `length` over values
+raise Neo4j's type errors in Neo4j's words.
+
+1. **What lands.** `UNWIND [{a: 1, b: 'x'}] AS m RETURN m.a, m.b`, `m['b']`, `m[k]`, `l[-1]`, `l[i]`,
+   `(list[1]).name`, `n['na' + 'me']`, `WITH [r, 1] AS l RETURN type(l[0])`, a collected node's property and
+   labels, `size(m.l)` on Postgres; `type(n)` of a node, `length(r)`, `properties(1)` as Neo4j's errors.
+2. **The ledger.** DuckDB: 4473 cases; PASS 2840 (from 2,802); FAIL 0; BUG 0; ERROR 0; REFUSED 724; BOTH_ERROR 728;
+   SKIP 181. Postgres: PASS 2490 (from 2,452); FAIL 0; BUG 0; ERROR 0; REFUSED 1074; BOTH_ERROR 728; SKIP 181. 35
+   lite cases in `lite/variants.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; two
+   unit tests pin the `get`/`to` spellings, the tuple's places, the type errors and the unknown-mark refusal.
+4. **Found and recorded.** Postgres plans a FROM function's argument before any row is read, so `toOne`'s raise
+   inside `jsonb_array_elements(...)` fires for a row that holds a value (`docs/IN_FLIGHT.md`, the ninth line); the
+   island's `size` of a Variant that may be null tests it instead of reading it as one.
+5. **Refused by name, recorded.** A comprehension or predicate over a Variant list of no known element kind, `ORDER
+   BY` a Variant, two Variants compared, `properties` of a Variant node or relationship, `type`/`labels` of a
+   Variant of no known mark.
+
+## 2026-10-16 — `#Cypher{...}#`: the forty-first landing — variable-length relationships with an upper bound
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.42. The translator alone: a
+variable-length relationship with an upper bound unrolled into the chains of each length, read as arms by the
+pattern machinery, the unroll's own nodes and relationships hidden from the carried columns, a zero-length hop
+binding the far node to the near one, the relationship's variable the list of the chain's relationships, a path's
+length, nodes and relationships carried beside it over rows.
+
+1. **What lands.** `MATCH (a)-[:T*1..2]->(b)`, `(a)-[r:T*2]->(b) RETURN r`, `(a)-[*0..1]->(b)`,
+   `p = (a)-[:KNOWS*0..1]->(b)-[:FRIEND*0..1]->(c) RETURN p`, `length(p)` over the arms; Neo4j's missing lower
+   bound is 1.
+2. **The ledger.** DuckDB: 4438 cases; PASS 2802 (from 2,784); FAIL 0; BUG 0; ERROR 0; REFUSED 738; BOTH_ERROR 717;
+   SKIP 181. Postgres: PASS 2452 (from 2,434); FAIL 0; BUG 0; ERROR 0; REFUSED 1088; BOTH_ERROR 717; SKIP 181. 16
+   lite cases in `lite/varlen.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pin that refused a bounded variable-length relationship now pins its unroll and the two refusals.
+4. **Declared.** `docs/SEMANTICS_REGISTER.md` S75: relationship uniqueness along a chain is not spelled (identity,
+   C5); a graph that loops a chain back over one relationship answers rows Neo4j does not.
+5. **Refused by name, recorded.** No upper bound, a bound beyond 4, more than 16 chains, a property map on the
+   relationship, more than two hops in all, after another clause, beside another pattern, in an OPTIONAL MATCH.
+
+## 2026-10-16 — `#Cypher{...}#`: the fortieth landing — `collect`, and lists the database holds
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.41. The translator alone: `collect(x)`
+as the JSON array the database builds (each value's JSON text joined by `joinStrings`, read as a Variant), the
+element kind travelling with a list (a mark on the Variant), UNWIND over a Variant list and over spelled lists of
+lists, maps or mixed kinds, a known-kind list read as the collection the database computes wherever a collection
+already is (a list predicate, `IN`, an index, a comprehension), `size` of a Variant list.
+
+1. **What lands.** `MATCH (p:Person) RETURN p.name, collect(m.title)`, `WITH collect(x) AS xs UNWIND xs AS y`,
+   `all(x IN collected WHERE x)`, `UNWIND [[1, 2], [3]] AS l`, `UNWIND [1, 'a', true] AS v`, `size(collect(x))`.
+2. **The ledger.** DuckDB: 4422 cases; PASS 2784 (from 2,718); FAIL 0; BUG 0; ERROR 0; REFUSED 740; BOTH_ERROR 717;
+   SKIP 181. Postgres: PASS 2434 (from 2,368); FAIL 0; BUG 0; ERROR 0; REFUSED 1090; BOTH_ERROR 717; SKIP 181. 22
+   lite cases in `lite/collect.yaml` and 5 in `lite/withlists.yaml` (a list or map of row values through WITH),
+   each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pin that refused `collect` now pins its spelling.
+4. **Refused by name, recorded.** `min`/`max` over Variants, `UNWIND` of a node or path, `ORDER BY` a Variant,
+   `single` over a computed collection, `collect(DISTINCT x)`, `collect` of a time or a duration.
+5. **Withdrawn.** The ask to the database owner for a collection-valued aggregate (IN_FLIGHT, 2026-10-16): the island
+   spells `collect` with the string aggregate it has.
+
+## 2026-10-16 — `#Cypher{...}#`: the thirty-ninth landing — a pattern as a predicate, `EXISTS { ... }`
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.40. The parser (two expression nodes) and the
+translator (the hop's existence over the pattern comprehension's resolution, gated to conditions as Neo4j gates it).
+
+1. **What lands.** `WHERE (n)-[:T]->()`, `NOT (n)<-[]-(:B)`, `(n)-[:T|U]->() AND ...`, and `EXISTS { [MATCH] pattern
+   [WHERE ...] [RETURN ...] }` over one hop from a bound node; a pattern expression outside a condition errors with
+   Neo4j's words.
+2. **The ledger.** DuckDB: 4381 cases; PASS 2712 (from 2,690); FAIL 0; BUG 0; ERROR 0; REFUSED 774; BOTH_ERROR 714;
+   SKIP 181. Postgres: PASS 2362 (from 2,340); FAIL 0; BUG 0; ERROR 0; REFUSED 1124; BOTH_ERROR 714; SKIP 181. 12 lite
+   cases in `lite/predicates.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+   After the review (item 5): DuckDB 4395 cases, PASS 2718, REFUSED 779, BOTH_ERROR 717, SKIP 181; Postgres PASS 2368,
+   REFUSED 1129, BOTH_ERROR 717, SKIP 181; FAIL, BUG and ERROR 0 on both.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:guardrails`,
+   `//core:core_tests_integration`, `//projects:every_project_test` green. The PR's CI (`checks` lane) caught one
+   ratchet the three landings moved: `//parser-equivalence:update_ratchets_test`, `own_corpus.matched` 2856 to 2891,
+   the landings' test snippets (`GraphEdgesTest`'s models, the harness's edge-class text in `CypherGraph`, the
+   integration test's) 35 more own-corpus elements the oracle matches; regenerated with
+   `bazel run //parser-equivalence:update_ratchets`. After the merge of main (#49, whose own move was 2856 to 2862)
+   the regeneration on the merged tree reads 2897, main's 2862 plus this branch's 35 (commit 17df891).
+4. **Refused by name, recorded.** A pattern predicate over rows, with both ends bound, with a property map, over
+   more than one hop; an EXISTS subquery with several patterns or further clauses; `COUNT { }`, `COLLECT { }`.
+5. **The review.** Two independent reviews of the three landings (the study's §12.40.2): nine findings in the reader,
+   twelve in the translator, parser and harness, five of them wrong answers, every one verified by a probe and fixed
+   (commits 294a783 and 0bca012), then the Postgres lane's one catch after them (a property an arm's class lacks,
+   read as its column where the known null folds) and the gap beside it (a tried root's property map read against no
+   candidate class; the study's §12.40.2); 14 lite cases and 28 unit tests pin them.
+
+## 2026-10-16 — `#Cypher{...}#`: the thirty-eighth landing — a relationship type joining several class pairs (PR3, step 2)
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.39. The harness (`CypherGraph`: one edge class
+per class pair a type joins) and the translator (a type naming several edge classes read as arms, a relationship
+carried across arms as the union of its edge classes' properties).
+
+1. **What lands.** `(:A)-[:T]->(:B)` and `(:D)-[:T]->(:B)` in one graph are two edge classes of the type `T`; a
+   pattern `(a:A)-[:T]->(x)` reads one arm per edge class the start class allows, the far label choosing; the
+   harness's largest SKIP bucket (117 cases) runs.
+2. **The ledger.** DuckDB: 4369 cases; PASS 2690 (from 2,671); FAIL 0; BUG 0; ERROR 0; REFUSED 785; BOTH_ERROR 713;
+   SKIP 181 (from 298). Postgres: PASS 2340 (from 2,321); FAIL 0; BUG 0; ERROR 0; REFUSED 1135; BOTH_ERROR 713;
+   SKIP 181. 6 more lite cases in `lite/edges.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`:
+   0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green.
+4. **Refused by name, recorded.** A type naming several edge classes in an OPTIONAL MATCH's hop or a pattern
+   comprehension's (the ways stay several outside the arms).
+
+## 2026-10-16 — `#Cypher{...}#`: the thirty-seventh landing — the edge class, a relationship type with properties (PR3, step 1; the twelfth line)
+
+Branch `claude/keen-noether-v5mis0`, after PR #48 merged; the record is the study's §12.38 and the design its §5.6
+(`docs/CYPHER_STUDY_2026_10_15.md`). The library project `projects/graph` (one profile), `PlatformTypes.GRAPH_PROFILE`,
+the phase-F reader `compiler/element/GraphEdges` (run by `ModelIntegrity`), the association end's stereotypes on the
+model record, the resolver keeping a rebuilt derived property's annotations, the island's model adapter
+(`CypherIslands`), the translator, and the harness (`CypherGraph`, `CypherParity`).
+
+1. **What lands.** A class carrying `<<graph.Edge>>` with one `<<graph.from>>` and one `<<graph.to>>` end (own,
+   inherited or association-injected, each `[1]` and class-typed) and a `<<graph.type>>` enumeration value is a
+   relationship type with properties; phase F refuses a misdeclared one under the class's name. A pattern over it
+   navigates the start node's inverse end to the edge instance and the edge's far end on; `r.prop`, `r` as a value,
+   `properties(r)`, `keys(r)`, a property map on the relationship, a relationship carried through `WITH`, a path's
+   relationship and a pattern comprehension's hop read the edge instance. The harness declares the association form
+   for every relationship type whose relationships carry properties, over a bridge table, and its SKIP for those
+   cases is gone.
+2. **The ledger.** DuckDB: 4363 cases; PASS 2671 (from 2,649); FAIL 0; BUG 0; ERROR 0; REFUSED 683; BOTH_ERROR 711;
+   SKIP 298 (from 348: the relationship-property skips lifted). Postgres: PASS 2321 (from 2,299); FAIL 0; BUG 0;
+   ERROR 0; REFUSED 1033; BOTH_ERROR 711; SKIP 298. 18 lite cases in `lite/edges.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check`: 0 problems over 4280 cases).
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler` (the reader's `GraphEdgesTest`),
+   `//core:guardrails`, `//core:core_tests_integration`, `//projects:graph_test` and `//projects:every_project_test`
+   (the projects-wide compile, renamed apart from the new project's own test) green.
+4. **Refused by name, recorded.** An edge class as a label; the compact form read from the node side (no inverse end
+   to navigate); an undirected pattern over a self-typed edge; a type naming both an edge class and a property; an
+   end's name used as a type; a hop from a node reached through an edge class (the resolver's nested navigation
+   reads no association end past the edge's end: refused by the translator, the finding reported to the resolver
+   line in `docs/IN_FLIGHT.md`).
 
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-sixth landing — a stored list as a Variant, a parenthesized label predicate, a first-clause OPTIONAL MATCH over no way (the eleventh line)
 

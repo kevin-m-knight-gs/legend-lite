@@ -1,0 +1,149 @@
+# The #Cypher{...}# island's edge-class cases (docs/CYPHER_STUDY_2026_10_15.md §5.6, §12.38): a relationship type
+# whose relationships carry properties is an edge class of the model (the harness declares the association form:
+# the class E_T marked <<graph::graph.Edge>>, its ends two associations, its type an enumeration value); a pattern
+# over it navigates the start node's inverse end to the edge instance and the edge's far end on; r.prop, r as a
+# value, properties(r) and keys(r) read the edge instance. Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/edges/*'), keyed lite/edges/<id>.
+tests:
+  - id: a_relationship_property
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (n:Movie {title: 'Speed'}),
+             (a)-[:ACTED_IN {role: 'Neo'}]->(m), (a)-[:ACTED_IN {role: 'Jack'}]->(n)
+    cypher: "MATCH (a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN a.name AS actor, r.role AS role, m.title AS title ORDER BY role"
+  - id: a_relationship_as_a_value
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}),
+             (a)-[:ACTED_IN {role: 'Neo', year: 1999}]->(m)
+    cypher: "MATCH (:Actor)-[r:ACTED_IN]->(:Movie) RETURN r"
+  - id: properties_and_keys_of_a_relationship
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (n:Movie {title: 'Speed'}),
+             (a)-[:ACTED_IN {role: 'Neo', year: 1999}]->(m), (a)-[:ACTED_IN {role: 'Jack'}]->(n)
+    cypher: "MATCH (:Actor)-[r:ACTED_IN]->(m:Movie) RETURN m.title AS title, properties(r) AS props, size(keys(r)) AS n, 'year' IN keys(r) AS hasYear ORDER BY title"
+  - id: type_of_an_edge_relationship
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (a)-[:ACTED_IN {role: 'Neo'}]->(m)
+    cypher: "MATCH (:Actor)-[r:ACTED_IN]->(:Movie) RETURN type(r) AS type"
+  - id: an_incoming_edge
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (b:Actor {name: 'Carrie'}), (m:Movie {title: 'The Matrix'}),
+             (a)-[:ACTED_IN {role: 'Neo'}]->(m), (b)-[:ACTED_IN {role: 'Trinity'}]->(m)
+    cypher: "MATCH (m:Movie)<-[r:ACTED_IN]-(a:Actor) RETURN m.title AS title, a.name AS actor, r.role AS role ORDER BY actor"
+  - id: an_undirected_edge_from_its_from_side
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (a)-[:ACTED_IN {role: 'Neo'}]->(m)
+    cypher: "MATCH (a:Actor)-[r:ACTED_IN]-(m:Movie) RETURN a.name AS actor, r.role AS role, m.title AS title"
+  - id: a_property_map_on_an_edge
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (n:Movie {title: 'Speed'}),
+             (a)-[:ACTED_IN {role: 'Neo'}]->(m), (a)-[:ACTED_IN {role: 'Jack'}]->(n)
+    cypher: "MATCH (a:Actor)-[:ACTED_IN {role: 'Neo'}]->(m:Movie) RETURN a.name AS actor, m.title AS title"
+  - id: a_where_over_an_edge_property
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (n:Movie {title: 'Speed'}),
+             (a)-[:ACTED_IN {role: 'Neo', year: 1999}]->(m), (a)-[:ACTED_IN {role: 'Jack', year: 1994}]->(n)
+    cypher: "MATCH (a:Actor)-[r:ACTED_IN]->(m:Movie) WHERE r.year > 1995 RETURN m.title AS title, r.year AS year"
+  - id: an_edge_carried_through_with
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (n:Movie {title: 'Speed'}),
+             (a)-[:ACTED_IN {role: 'Neo', year: 1999}]->(m), (a)-[:ACTED_IN {role: 'Jack'}]->(n)
+    cypher: "MATCH (:Actor)-[r:ACTED_IN]->(m:Movie) WITH r, m.title AS title ORDER BY title RETURN title, r.role AS role, r.year AS year, r AS rel, properties(r) AS props, size(keys(r)) AS n"
+  - id: an_optional_edge
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (b:Actor {name: 'Idle'}), (m:Movie {title: 'The Matrix'}),
+             (a)-[:ACTED_IN {role: 'Neo'}]->(m)
+    cypher: "MATCH (a:Actor) OPTIONAL MATCH (a)-[r:ACTED_IN]->(m:Movie) RETURN a.name AS actor, r.role AS role, r AS rel, m.title AS title ORDER BY actor"
+  - id: an_untyped_hop_over_an_edge_and_an_association
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (s:Studio {name: 'WB'}),
+             (a)-[:ACTED_IN {role: 'Neo'}]->(m), (m)-[:MADE_BY]->(s)
+    cypher: "MATCH (a:Actor)-->(x) RETURN a.name AS actor, labels(x) AS labels ORDER BY actor"
+  - id: a_path_over_an_edge
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (a)-[:ACTED_IN {role: 'Neo'}]->(m)
+    cypher: "MATCH p = (:Actor)-[:ACTED_IN]->(:Movie) RETURN p"
+  - id: a_pattern_comprehension_over_an_edge
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (b:Actor {name: 'Carrie'}), (m:Movie {title: 'The Matrix'}), (n:Movie {title: 'Speed'}),
+             (a)-[:ACTED_IN {role: 'Neo'}]->(m), (a)-[:ACTED_IN {role: 'Jack'}]->(n), (b)-[:ACTED_IN {role: 'Trinity'}]->(m)
+    cypher: "MATCH (a:Actor) RETURN a.name AS actor, size([(a)-[r:ACTED_IN]->(m) | r.role]) AS n, [(a)-[r:ACTED_IN]->(m) WHERE r.role = 'Trinity' | r.role + ' in ' + m.title] AS trinity ORDER BY actor"
+  - id: a_self_typed_edge
+    graph: |
+      CREATE (a:Person {name: 'Ann'}), (b:Person {name: 'Bob'}), (c:Person {name: 'Cy'}),
+             (a)-[:KNOWS {since: 2001}]->(b), (b)-[:KNOWS {since: 2005}]->(c)
+    cypher: "MATCH (p:Person)-[r:KNOWS]->(q:Person) RETURN p.name AS p, r.since AS since, q.name AS q ORDER BY since"
+  - id: an_edge_then_an_association
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (s:Studio {name: 'WB'}),
+             (a)-[:ACTED_IN {role: 'Neo'}]->(m), (m)-[:MADE_BY]->(s)
+    cypher: "MATCH (a:Actor)-[r:ACTED_IN]->(m:Movie)-[:MADE_BY]->(s:Studio) RETURN a.name AS actor, r.role AS role, s.name AS studio"
+  - id: a_labelless_pattern_over_an_edge
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (a)-[:ACTED_IN {role: 'Neo'}]->(m)
+    cypher: "MATCH (x)-[r:ACTED_IN]->(y) RETURN x.name AS actor, r.role AS role, y.title AS title"
+  - id: an_aggregate_over_an_edge_property
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (n:Movie {title: 'Speed'}),
+             (a)-[:ACTED_IN {role: 'Neo', pay: 10}]->(m), (a)-[:ACTED_IN {role: 'Jack', pay: 5}]->(n)
+    cypher: "MATCH (a:Actor)-[r:ACTED_IN]->(:Movie) RETURN a.name AS actor, sum(r.pay) AS pay, count(r) AS roles ORDER BY actor"
+  - id: a_missing_property_on_some_relationships
+    graph: |
+      CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (n:Movie {title: 'Speed'}),
+             (a)-[:ACTED_IN {role: 'Neo', year: 1999}]->(m), (a)-[:ACTED_IN {role: 'Jack'}]->(n)
+    cypher: "MATCH (:Actor)-[r:ACTED_IN]->(m:Movie) RETURN m.title AS title, r.year AS year, r.year IS NULL AS missing ORDER BY title"
+  - id: a_type_joining_several_class_pairs
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'}),
+             (:D {name: 'd1'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (a:A)-[:T]->(x) RETURN a.name AS a, labels(x) AS labels, x.name AS x ORDER BY a"
+  - id: a_type_joining_several_class_pairs_with_the_far_label
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'}),
+             (:D {name: 'd1'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (a:A)-[r:T]->(b:B) RETURN a.name AS a, type(r) AS type, b.name AS b"
+  - id: a_type_joining_several_class_pairs_from_a_labelless_start
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'}),
+             (:D {name: 'd1'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (x)-[r:T]->(y) RETURN x.name AS x, y.name AS y ORDER BY x"
+  - id: a_type_joining_several_class_pairs_incoming
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'}),
+             (:D {name: 'd1'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (b:B)<-[r:T]-(x) RETURN b.name AS b, x.name AS x, r AS rel ORDER BY b"
+  - id: a_type_joining_several_class_pairs_with_properties_on_one
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'})
+    cypher: "MATCH (a:A)-[r:T]->(x) RETURN a.name AS a, r.w AS w, properties(r) AS props ORDER BY a"
+  - id: a_type_joining_several_class_pairs_in_an_optional_match
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(x) RETURN a.name AS a, x.name AS x ORDER BY a"
+  - id: an_undirected_typed_pattern_from_a_labelless_start_is_refused
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'})
+    cypher: "MATCH (x)-[r:T]-(y) RETURN x.name AS x, y.name AS y ORDER BY x"
+  - id: an_edge_in_one_arm_and_an_association_in_another
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:K]->(:B {name: 'b1'}), (a)-[:L {w: 1}]->(:C {name: 'c1'})
+    cypher: "MATCH (a:A)-[r]->(x) RETURN type(r) AS type, x.name AS x ORDER BY type"
+  - id: an_optional_edge_from_labelless_arms
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:L {w: 1}]->(:C {name: 'c1'}), (:B {name: 'b1'})
+    cypher: "MATCH (n) OPTIONAL MATCH (n)-[r:L]->(m) RETURN n.name AS name, r AS rel, m.name AS m ORDER BY name"
+  - id: an_unnamed_property_map_over_a_type_of_several_pairs
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T {v: 2}]->(:C {name: 'c1'})
+    cypher: "MATCH (x)-[:T {w: 1}]->(b) RETURN x.name AS x, b.name AS b"
+  - id: a_nodes_property_map_in_an_arm_whose_class_lacks_it
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T]->(:B {name: 'b1', num: 5}), (:A {name: 'a2'})-[:T]->(:C {name: 'c1'})
+    cypher: "MATCH (x)-[:T]->(n {num: 5}) RETURN x.name AS x, n.name AS n"
+  - id: a_where_over_an_edge_property_one_arm_lacks
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T {v: 2}]->(:C {name: 'c1'})
+    cypher: "MATCH (x)-[r:T]->(b) WHERE r.w IS NULL OR r.w = 1 RETURN x.name AS x, b.name AS b ORDER BY x"
+  - id: an_edge_property_one_arm_lacks_read_after_the_union
+    graph: |
+      CREATE (:A {name: 'a1'})-[:T {w: 1}]->(:B {name: 'b1'}), (:A {name: 'a2'})-[:T {v: 2}]->(:C {name: 'c1'})
+    cypher: "MATCH (x)-[r:T]->(b) WITH x, r RETURN x.name AS x, r.w AS w, r.v AS v ORDER BY x"

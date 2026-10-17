@@ -1625,7 +1625,7 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     settings).
   - **Build:** `core/BUILD.bazel`, the IQ case glob reads `lite/**/*.yaml`.
   - **The tenth line's own test harness and docs:** `testcases/IqParity.java`, `IqAnswers.java`, the two Iq parity
-    tests, the study's §9.16–§9.17, `SEMANTICS_REGISTER.md` S51 and S72 (S57 when it was written).
+    tests, the study's §9.16–§9.17, `SEMANTICS_REGISTER.md` S51 and S74 (S57 when it was written).
 - **Next (landing 4): conformance to real SAP IQ 17.1.** The user now has a real IQ (a HANA Cloud data lake), reached
   locally through a session the user opens. Plan:
   - It becomes the oracle for the IQ profiles; CI still judges from the committed answers.
@@ -1757,6 +1757,15 @@ repros will be in the study's §9.
     uncast.
   - Postgres folds every branch of a CASE over constants, so an untaken branch that would raise (a DOUBLE underflow
     guard, or an overflow check over an outer column in a correlated subquery's comparison) raises at plan time.
+  - Postgres plans a FROM function's argument before any row is read: `toOne`'s raise inside
+    `jsonb_array_elements(CASE WHEN x IS NULL THEN <raise> ELSE x END)` fires for a row whose `x` holds a value
+    (the Cypher island's `size` of a Variant list that may be null, 2026-10-17; the island now tests the list and
+    reads it as a collection without `toOne`).
+  - `project` of a to-many navigation mapped to a constant (`~[c: a | $a.friends->map(f | 1)]`) stays one row
+    per root where Pure's semantics give one value per element; the rows multiply only through a navigated
+    column. The Cypher island refuses by name a pattern that fans out to a node of a class without a property
+    (21 TCK scenarios, the study's §12.16 and §12.44; measured 2026-10-15, recorded 2026-10-17): with a column of
+    the far table read the join fans out, with none the lowering drops the join.
   - `times(times(x,a),times(y,b))` lowers as one left-to-right chain, `x*a*y*b`, which changes a DOUBLE's
     intermediate overflow and underflow.
 - **The compiler and stamp program:**
@@ -2089,16 +2098,34 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (`strftime(make_timestamp(...))` concatenated), so a comparison or `date_part` over it fails ("Cannot compare values
   of type TIMESTAMP and type VARCHAR"); a date-time literal with a fraction and `adjust(..., MILLISECONDS)` are
   TIMESTAMPs. The Cypher translator writes whole seconds and adds the fraction by `adjust`.
-- **Announced to the database owner, 2026-10-16 (for `collect`, the Cypher island's PR2b):** a collection-valued
-  relation aggregate — `->aggregate(~[xs: x|$x.a : y|$y])` with the reduce returning `T[*]` (the database's
-  `array_agg` / `list`), which the typer refuses today ("multiplicity [*] is not compatible with result [0..1]"), or
-  `toVariant` registered as an aggregate lowering. Cypher's `collect(x)` (30 TCK cases, plus Precedence1's 15 over
-  the collected list) waits on it; the translator refuses it by name.
+- **Withdrawn, 2026-10-16 (the Cypher island's §12.41):** the ask to the database owner for a collection-valued
+  relation aggregate (`->aggregate(~[xs: x|$x.a : y|$y])` with a `T[*]` reduce, or `toVariant` as an aggregate
+  lowering), announced earlier the same day for `collect`. The island spells `collect(x)` with the string aggregate
+  it has: each value's JSON text joined by `joinStrings`, read as a Variant between brackets; the element kind
+  travels with the list as a mark, so an unwound or quantified collected list reads its elements by type.
 - **Not touched by PR1 to PR4:** `lowering/`, `sql/dialect/`, `builtin/`, `Typer.java`, `NameResolver.java`,
   `SqlToPure.java`, `InputDialect.java`. **Announced to the database owner for PR3:** the identity half of
   `lowering/InstanceEquality` (the minted `__id` from a mapping's primary key) on the product lane, which Cypher's
   identity over keyless classes needs (the study's C5). **For PR5:** the recursion native, `meta::legend::lite::recurse`,
   in the database owner's files, after its design is agreed (the study's §6.3).
+- **Announced, 2026-10-16 (the Cypher island's PR3, step 1: the edge class, the study's §5.6):** four edits outside the
+  island. `AssociationDefinition.AssociationEndDefinition` gains the end's stereotypes (the parser read them, the
+  record dropped them; `FromProtocol` and `NameResolver.resolveAssocEnd` carry them). `NameResolver.resolveDerivedProperty`
+  kept a rebuilt derived property's stereotypes, tagged values and span (it rebuilt with the five-argument constructor
+  and dropped them, so a `<<graph.type>>` whose body names an enumeration lost its marker). Phase F runs
+  `compiler/element/GraphEdges` (`ModelIntegrity.check`: the property-graph profile's rule over the edge classes, an
+  error under the class's name). The library project `projects/graph` (one profile) joins `PROJECT_DEPS` at layer 0,
+  and the projects-wide compile test is `//projects:every_project_test` (its old name, `graph_test`, is the new
+  project's own).
+- **Found by this line in the resolver, 2026-10-16 (the edge class leg):** the resolver's nested navigation does not
+  read an association end past a second association step on two shapes: a to-one chain of three association ends
+  rooted at the first node, `MATCH (a:A)-[:T]->(b:B)-[:U]->(c:C)-[:V]->(d:D) RETURN d.name` over the harness's
+  model (`$a.T.U.V.name`: "property 'V' of nested navigation 'T.U' is not mapped in mapping 'g::Map'"; the same
+  pattern with `T` to-many passes), and a hop after a hop over an edge class, `(a:Actor)-[:ACTED_IN]->(m:Movie)-[:MADE_BY]->(s:Studio)`
+  (`$a.ACTED_IN_out.to.MADE_BY.name`: "property 'MADE_BY' of nested navigation 'ACTED_IN_out.to' is not mapped";
+  the edge's `to` end is `[1]`, the association form's ends `[0..1]`, which may be the difference). The island
+  refuses the edge shape by name (`CypherToPure.reachedThroughEdge`); the to-one chain no TCK case spells. The
+  resolver line's (`AssociationJoins.collectTargetTails`, `Substitution.rewriteMultiHop`).
 - **Found by this line in other lines' code, 2026-10-15:** lite does not check a stereotype or profile reference
   against its profile (`<<graph.Edgee>>`, undeclared, compiles with zero errors; legend-engine refuses it: "Can't
   find stereotype 'Edgee' in profile 'graph'"), and `docs/LENIENCY_CATALOG.md` does not list the leniency. The
