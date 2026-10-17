@@ -555,6 +555,12 @@ The user asked for real queries that push the island hard. Their corpora, data a
     `0 + x` is no key of a select item or a HAVING written the same way, so IQ raises -149.
   - REPLACE of a string typed with no width is NULL (`''`, `LEFT(vc, 0)`, `SPACE(0)`, `TRIM('')`, a derived table's
     `''` column). REPLACE of a wider empty string stays `''`.
+  - In fuzz round 5 (2,549 of 3,000 PASS before these fixes): a simple CASE's operand and WHEN of different kinds are
+    -1009145; GREATER and LESSER in a window's keys are -1001025; REPLACE's width follows CHAR and VARCHAR (a CHAR
+    keeps its width under LEFT); and the SQL renderer keeps a trailing `+` or `*` operand's parentheses (DuckDB
+    overflowed `w + 2000 - 2020`).
+  - IQ's own defect, not copied: its window SUM over a ROWS frame of an INTEGER wraps at 32 bits and shows the value
+    unsigned (18446744069414584319 where the frame's sum is -1).
   - Measured, not built: `1 + v = v + 1` is two-valued too (IQ reads the sum in either order), and lite keeps it
     three-valued.
 - **Judged with ties broken:** TPC-H 9,131 of 9,427 match IQ; TPC-DS 8,403 of 8,647; JOB 4,554 of 4,811. What is
@@ -564,11 +570,14 @@ The user asked for real queries that push the island hard. Their corpora, data a
   - BIGINT arithmetic past 64 bits. IQ's engine answers a NUMERIC(20,0) (`bg + 7` over 2^63 - 1). Lite types from the
     column, so it keeps a BIGINT and the database's overflow raises. That is D-N3: IQ sizes from the data, and
     widening every BIGINT operation would mistype every realistic one.
-  - GREATER and LESSER: their arguments overflow as SQL Anywhere's front end's (-158 for `1 + it` past 2^31 - 1,
-    where IQ's engine widens), and IQ types `LESSER(1, -32768)` a NUMERIC. Some constant subexpressions take the
-    front end's type (`CEILING(100.00)` a DOUBLE).
-  - IQ's engine refuses some functions in a window's PARTITION BY or ORDER BY (GREATER, LESSER, a CAST of a
-    string: "Function not currently supported").
+  - GREATER and LESSER: a statement over IQ tables that reads either one anywhere (select list, WHERE, ORDER BY, a
+    subquery) runs in SQL Anywhere's front end, whole. Measured 2026-10-17 (fuzz round 5): beside one, `CEILING(nm)`
+    is a DOUBLE (alone a NUMERIC(11,2)), `it + 1` past 2^31 - 1 is -158, an INTEGER SUM past its range is -158, and
+    `ROUND(nm, -1)` past NUMERIC(10,2) is -158 (alone IQ answers a NUMERIC(11,2)). A derived table's column no one
+    reads does not count, since IQ drops it first; in a window's keys they are -1001025 (built). Routing such
+    statements to lite's front-end reading is the fix, but that reading refuses a CASE of a NUMERIC (D-N1, not
+    verified on SQL Anywhere), so `GREATER(nm, sm)`, which passes now, would be refused. It waits on SQL Anywhere's
+    NUMERIC unification being measured.
   - DATEADD of a constant date is a TIMESTAMP under IQ's engine.
   - A sum far past its declared type (a triple join's fan-out, 2e20) defeats lite's type-sized division steps, and the
     database raises; IQ answers. A ROUND of a quotient whose declared type is narrower than IQ's data-sized one raises
