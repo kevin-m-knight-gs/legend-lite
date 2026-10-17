@@ -141,12 +141,16 @@ async function waitMessage(re) {
     document.querySelector('#cubelib .dc-lib-message')?.textContent ?? ''), re.source, { timeout: 60_000 });
   return libMessage();
 }
-/** Shape the cube: grouped by region, notional summed. Setup only -- what is tested is the save. */
+/** Shape the cube: grouped by region, the largest notional first -- a part that names notional, so a file that loses
+ *  the column loses a part of the cube (a grid's aggregates are its Column Properties: summed by default, named by
+ *  nothing). Setup only -- what is tested is the save. */
 async function shape() {
   const before = await statusNow();
   await page.evaluate(async () => {
     const app = window.__dataCube;
-    await app.change((s) => ({ ...s, snapshot: { ...s.snapshot, rows: ['region'], measures: [{ name: 'notional', column: 'notional', fn: 'sum' }] } }));
+    await app.change((s) => ({
+      ...s, snapshot: { ...s.snapshot, rows: ['region'], sorts: [{ column: 'notional', direction: 'desc' }] },
+    }));
   });
   await landed(before);
 }
