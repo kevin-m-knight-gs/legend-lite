@@ -1,7 +1,7 @@
 # MongoDB as a first-class database of legend-lite: the study and the plan (2026-10-16)
 
-**Status: research and proposals (2026-10-16). Nothing is scheduled or announced in `docs/IN_FLIGHT.md`; the
-decisions of §4 are proposals for the user.** The ask (the user, 2026-10-16): learn what backends legend-lite supports
+**Status: decided and in execution (2026-10-16). The user ruled on every decision of §4 (D1 to D14) and asked for a
+viable v0 (§11); the line's announcement in `docs/IN_FLIGHT.md` is part of v0's first landing.** The ask (the user, 2026-10-16): learn what backends legend-lite supports
 today (all SQL), then plan MongoDB as a first-class database, PCT lanes included, built "the pristine way": the way the
 dialect consolidation program (the ninth line, `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`) lays out the end
 state, so that Mongo is done right the first time rather than consolidated later. That program names MongoDB as out of
@@ -211,7 +211,7 @@ database's name and decide nothing by it), parsed and composed since the parser 
 
 ## 4. Decisions for the user
 
-Each decision below says what is being decided, every option worth taking with its pros, cons, cost and complexity,
+**Every decision below was ruled by the user on 2026-10-16 (the "Decided" line under each heading); the options are kept as the record of what was weighed.** Each decision below says what is being decided, every option worth taking with its pros, cons, cost and complexity,
 the recommendation and why, and what reversing it later would cost. The scale: **cost** S is under 300 lines in one
 line's own files; M is 300 to 1,500 lines, or one landing another line must co-sign; L is 1,500 to 6,000 lines; XL is a
 program of its own. **Complexity** names what makes the option hard, not how long it takes. **Reversal** is the price of
@@ -220,7 +220,7 @@ changing the decision after it has landed.
 | # | decision | recommendation | cost | reversal |
 |---|---|---|---|---|
 | D1 | the compiler's shape | a target over the `SqlQuery` IR | L (the target itself) | XL: a second lowering |
-| D2 | the seam's type | split a `QueryTarget` above `SqlDialect`, with Phase 5 | M, co-signed | M: the split is the same edit later |
+| D2 | the seam's type | `MongoDb implements SqlDialect` whole; no split now (decided) | S | M: the split, if the refusal list grows |
 | D3 | the model surface first | the Relation surface, the class mapping on it | M | none: order only |
 | D4 | how the registries name Mongo | `DatabaseType.MongoDB`, a lite extension | S to M | M: a second enum re-keys every registry |
 | D5 | parameters | the command's `let` variables | S | S |
@@ -232,9 +232,11 @@ changing the decision after it has landed.
 | D11 | server-side JavaScript | never | none | none |
 | D12 | where the connector lives | `core/src/main/mongodb`, found by `ServiceLoader` | S | M |
 | D13 | the metamodel store on Mongo | refused by name first; seeded collections in the burn-down | S, then M | none |
-| D14 | the line and its order | a twelfth line; the translator starts now, the seam lands with Phase 5 | coordination | none |
+| D14 | the line and its order | start everything now, under three constraints (decided) | coordination | none |
 
 ### D1. The compiler's shape: a target over the IR, or a lowering of Mongo's own
+
+**Decided (the user, 2026-10-16): a target over the `SqlQuery` IR.**
 
 **What is decided.** Whether Mongo's pipeline is produced from the Lowerer's output (the `SqlQuery` IR, phase I),
 by a class that decides each IR node as the SQL dialects do, or from the typed Pure (phase G½/H) by a lowering written
@@ -275,6 +277,8 @@ already names.
 
 ### D2. The seam's type: implement `SqlDialect` whole, or split a `QueryTarget` above it
 
+**Decided (the user, 2026-10-16): **Mongo implements `SqlDialect` whole; no split now.** A re-read of the interface showed nearly every member has a Mongo meaning once "SQL text" is read as "the text the connector runs": DDL is a `create` with a validator, DML an `insertMany`, `sessionSetup` and `sessionTable` commands, `raw` a user's pipeline run as written, `storedName` a field path, `catalogType` the collection's validator. The members with no meaning are `fromEngineText` and `copySelectList` (already refusals on most SQL dialects) and three JDBC cell conventions a non-JDBC runner never calls. No `Language` field either: the plan's target carries `DatabaseType.MongoDB`, and the connector registered for that type runs its text. The split is reconsidered only if the refusal list grows past that. Atlas SQL (the `mongosql` dialect, Atlas-only) and the deprecated BI Connector are not reusable: SQL text in, Atlas endpoints only, a compiler of its own; their existence is evidence that MQL emulates SQL well.**
+
 **What is decided.** What type a non-SQL target has, and what the plan records and the runner switch on.
 
 **Option A, split (recommended, with the dialect program's Phase 5).** `QueryTarget` holds what every target has
@@ -313,6 +317,8 @@ into `ExecutionPlan.Sql`, and `PlanRunner` switches on it with no default.
 
 ### D3. The model surface first: the Relation surface, or legend-engine's class mapping
 
+**Decided (the user, 2026-10-16): **the Relation surface first, under one rule: the document is a Variant, and typed columns are views on it.** A collection with no schema is `(_id, document: Variant)`, the shape the IR already has for `sourceUrl` and the Variant navigation the typer does for jsonb; a declared schema adds typed top-level columns, nested objects staying Variant; a class mapping types what it maps, a to-one nested object as an embedded property mapping into the same document at a deeper path, a nested array as an explosion (the lateral join `flatten` uses); `graphFetch` over a Mongo-mapped class is a `$project` of the subdocument. The engine's `~binding` schema says the same thing in the engine's words and is read when the class mapping lands.**
+
 **What is decided.** Which way a user's query reaches a collection first.
 
 **Option A, the Relation surface first (recommended).** A `###MongoDB` collection with a JSON schema is a relation:
@@ -337,6 +343,8 @@ each property the same-named field.
 **Reversal.** None: this is order, not exclusion; both land in PR5.
 
 ### D4. How the registries name Mongo: `DatabaseType.MongoDB`, a wider engine enum, or no enum
+
+**Decided (the user, 2026-10-16): `DatabaseType.MongoDB`, a declared lite extension, as SQLite, MariaDB and MySQL are.**
 
 **What is decided.** The key every registry, `Target`, `ExecutionPlan.Target.Database`, `StorelessRuntime`,
 `PctBackend.Lane` and the owner guard switch on.
@@ -369,6 +377,8 @@ auth)` with one new `ConnectionSpecification` variant.
 
 ### D5. Parameters: the command's `let` variables, or literals in the text
 
+**Decided (the user, 2026-10-16): **the SQL pattern exactly**: placeholders in the text, typed slots in order, the driver binds the values. The marker's spelling is PR0's measurement, between a `let` variable the pipeline references and a marker document the connector replaces in place before sending; the in-place form renders a comparison with a field as a plain `$match` (index use), takes a `$limit`, and needs no 5.0.**
+
 **What is decided.** How a plan's declared parameters reach the server.
 
 **Option A, `let` variables (recommended).** The writer writes `"$$p<n>"` where the SQL writer writes `?`, in the same
@@ -392,6 +402,8 @@ bind order; the connector builds `let: {p0: v0, ...}` from the plan's slots; a l
 **Reversal.** S either way; the connector and one writer arm.
 
 ### D6. Typing a collection: its declared JSON schema, a lite column grammar, or inference
+
+**Decided (the user, 2026-10-16): **the document is a Variant**; a declared JSON schema types the top-level columns; a class mapping types what it maps; no sampling, ever.**
 
 **What is decided.** Where a collection's columns and their Pure types come from.
 
@@ -422,6 +434,8 @@ Variant, once a cube needs it: dotted names collide with the quoting rules, and 
 **Reversal.** S: B can be added over A without moving A.
 
 ### D7. The null model: SQL's semantics emulated, or Mongo's own
+
+**Decided (the user, 2026-10-16): **SQL's semantics.** A declared column exists for every document, so there is never a missing column; an absent field reads as NULL, as Postgres's jsonb reads an absent key; a field of the wrong type is a loud error on read; BSON's total comparisons are emulated as SQL's three-valued ones where an operand may be null, which the IR's nullability stamps say.**
 
 **What is decided.** What a comparison, a boolean and a sort do when a field is `null` or missing. BSON distinguishes
 missing from `null`, compares totally (`null` sorts first, then numbers, then strings, by BSON type order), and a
@@ -454,6 +468,8 @@ of two non-null operands needs no guard.
 **Recommendation.** A first, C as the optimisation once the lanes are green. Reversal from A to C is additive.
 
 ### D8. The lane's server: a pinned `mongod`, Docker, FerretDB, or Atlas
+
+**Decided (the user, 2026-10-16): **a pinned Community `mongod`, Bazel-downloaded, for the lane** (flapdoodle's and `mongodb-memory-server`'s model, done by the build and checksummed); users bring their own server, as for every other database.**
 
 **What is decided.** What the PCT lane runs against, and the licence posture.
 
@@ -488,6 +504,8 @@ on a free loopback port (`EmbeddedMongoDb`), Linux x86_64 first. Only the Apache
 
 ### D9. The version floor
 
+**Decided (the user, 2026-10-16): pin 8.0 for the lane; floor 7.0 unless PR0 finds an 8.0-only need.**
+
 **What is decided.** The oldest server the connector accepts, and the server the lane pins.
 
 **Option A, pin 8.0 LTS for the lane; floor 7.0 unless PR0 finds an 8.0-only need (recommended).** What the plan uses
@@ -508,6 +526,8 @@ arms it lacks (`$median`, `$percentile`, the bitwise operators).
 **Reversal.** S either way.
 
 ### D10. The wire text: written by the pipeline, or formatted by the connector
+
+**Decided (the user, 2026-10-16): **stream by default**: one document per row, the connector writes the punctuation, exactly as the JDBC runner does over a `ResultSet`; the whole-text form for PCT's TDS text and small results; the connector sets `allowDiskUse`.**
 
 **What is decided.** Who turns a result into the CSV, JSON or PCT TDS text a consumer receives.
 
@@ -543,6 +563,8 @@ are the two forms the runner already distinguishes. Reversal: none, they coexist
 
 ### D11. Server-side JavaScript: never
 
+**Decided (the user, 2026-10-16): never. The JavaScript in question would be the dialect's own, authored and maintained in Java.**
+
 **What is decided.** Whether the target may ever write `$function`, `$accumulator` or `$where`, or use `mapReduce`.
 
 **Option A, never (recommended).**
@@ -560,6 +582,8 @@ are the two forms the runner already distinguishes. Reversal: none, they coexist
 - Cost: S, and a rule broken. Not recommended.
 
 ### D12. Where the connector lives: a `core/src/main/mongodb` source set, a module of its own, or in core
+
+**Decided (the user, 2026-10-16): **`core/src/main/mongodb`, bundled with `//core:drivers`**: the same place the driver-specific JDBC code (`core/src/main/duckdb`) sits; found through `ServiceLoader`.**
 
 **What is decided.** Where the one class that imports the driver (`com.mongodb`, `org.bson`) compiles.
 
@@ -585,6 +609,8 @@ connector the same way (a `DatabaseConnector` service), or directly if that regi
 **Reversal.** M: moving a class between source sets and re-pointing the service.
 
 ### D13. The metamodel store on Mongo: refused by name, or seeded as collections
+
+**Decided (the user, 2026-10-16): refused by name now. Follow-up, recorded: a document-shaped metamodel store (one document per class, its properties nested), which fits Mongo better than row tables.**
 
 **What is decided.** What a query that reads the platform's system tables (`meta::...` metamodel reads, `getAll`'s
 `testBasic`) does on a Mongo runtime. On a server engine today, `SystemDatabase.routeFor` seeds every metamodel table
@@ -613,6 +639,8 @@ Java's.
 **Reversal.** None: A then B is the normal burn-down order.
 
 ### D14. The line and its order: when the Mongo work starts, and what it waits for
+
+**Decided (the user, 2026-10-16): **start everything now**, with three constraints that keep it from being a fork: (1) Mongo executes only through `PlanRunner`; the session type gains a sealed variant and the runner one arm; no reader is added to the legacy `ResultSet` executor; (2) PCT channel A on Mongo takes the plan path, which gains a PCT TDS output (the database owner's files, announced); (3) the dialect class in `sql/dialect/` is announced in the ninth line's section and merged between its phases. The seam then reaches Phase 5 with a real second transport in hand.**
 
 **What is decided.** Whether Mongo is a line of its own, what it owns, and how it is sequenced against the dialect
 program's Phase 5 and 6 and the eighth line's corpus harness.
@@ -919,3 +947,31 @@ Read in this tree at 59b547a (main, 2026-10-16), each cited above by path:
   §4 D9; `let` on `aggregate`; `$documents`; `$setWindowFields`; Decimal128; the 16 MB document limit; PCRE2; no
   digest or recursion operators in the expression language; `$function` as server-side JavaScript. Nothing from
   MongoDB's documentation or code enters the repository.
+
+---
+
+## 11. v0: the first viable implementation (started 2026-10-16)
+
+**The ask (the user, 2026-10-16): "write this all down and then execute; don't stop until we have a viable v0
+implemented that works."** v0 is the smallest thing that is real end to end, built to the decisions above, each piece
+in its final place:
+
+1. **The vocabulary**: `DatabaseType.MongoDB` (D4), its grammar arm and register row; `MongoDBConnection` read into a
+   `ConnectionDefinition` with a Mongo specification; a `###MongoDB` database read as a store whose collections are
+   tables, their columns from the declared schema, else `(_id, document: Variant)` (D3, D6).
+2. **The target**, `sql/dialect/MongoDb.java` (D1, D2): an `aggregate` command as Extended JSON for a collection scan
+   and a literal relation (`$documents`), `$match`, `$project`, `$group` with the common aggregates, `$sort`, `$skip`,
+   `$limit`, `$unionWith`, `$lookup` for inner and left equality joins, the wire wraps, parameters as markers (D5);
+   every function and aggregate decided by name, the rest refused with `DialectCapability`.
+3. **The connector**, `core/src/main/mongodb` (D12): opens a `MongoClient` from the connection, runs the command with
+   its bound values, carries the text; the embedded `mongod` for tests (D8, D9) under `tools/mongodb/` and
+   `testing/EmbeddedMongoDb`.
+4. **The seam** (D14's constraints): the runner executes through the session, the session type gains the Mongo
+   variant, nothing is added to the legacy executor.
+5. **The proof**: end-to-end tests on the embedded server (a literal relation, a collection scan with filter,
+   projection, group and sort, a join, the wires, a bound parameter), green in the Bazel build with the guards; then
+   the PCT lane scaffold and the first measurement as far as the session reaches.
+
+What v0 leaves for the landings of §7: the class mapping and `~binding` (PR5), the corpus (PR6), windows, pivots and
+as-of joins (PR4), the full function table's burn-down (PR3), the metamodel store (D13). The record of what landed, with
+its judges, is kept here as each piece lands.
