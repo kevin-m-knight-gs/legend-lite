@@ -154,6 +154,14 @@ island's reason, those IQ answers, and what became of them:
   INTERSECT and EXCEPT there are IQ's -1001030). Judged against IQ 17.1's stored answers: 110 PASS where 0 did;
   the rest are ties of ROW_NUMBER. A CONVERT style to a shorter string stays refused: IQ's engine cuts it in some
   places and raises -1009145 in others (a styled result compared with a string, CONVERT(CHAR(6), d, 112) ranked);
+- measured once the live IQ returned (2026-10-17): IQ 17.1 reserves four words SQL Anywhere 17 does not, as no name
+  anywhere (`aes_decrypt`, `clear`, `iq`, `timeline`: SEDE's `AS Timeline`), now the iq17 profiles' keywords; its other
+  extra words of sa_reserved_words() are names (true and false only as values). A CONVERT style's text longer than
+  its string is IQ's error for each row computing it (-1009145 under its engine, -638 in its front end; none over no
+  rows), raised so, where the corpus's earlier PASS were queries no row reached. IQ's engine reads a DOUBLE from a
+  17-digit string one unit off in 6 of 267 Tableau-style constants (its front end exactly), so such a CAST stays
+  refused: an equality filter on it may match no row in IQ. A DOUBLE sum's overflow is its engine's -1001010 in every
+  group, those TOP drops too (the paused AVG decision, measured);
 - a date string IQ cannot convert names both codes rather than one: which IQ reports is its evaluation order's (a
   DATEPART of a string's -1001011 may come first; a BETWEEN over a computed DATE in a grouped query is -157);
 - lite's database failing on SEDE's empty sample tables (27 of 40): each answers over the data, PASS; the other 13

@@ -1003,12 +1003,16 @@ final class IqFunctions {
             };
         }
         if (length >= 0 && length < width) {
-            // IQ island, 2026-10-17 (the corpus lane's judge, over IQ 17.1's answers): IQ's engine cuts some
-            // (CONVERT(CHAR(7), d, 102) is 'yyyy.mm') and raises -1009145 for others (CONVERT(CHAR(6), d, 112) in a
-            // ranked common table expression, CONVERT(VARCHAR(10), ts, 120) compared with a string): not read yet
-            throw SqlTranslationException.unsupported("CONVERT style " + style + " to a string of " + length + " is"
-                    + " not supported yet: its text has " + width + " characters, which IQ's engine cuts in some"
-                    + " places and raises its -1009145 for in others", f.pos());
+            // IQ island, 2026-10-17 (the corpus lane; measured on IQ 17.1): a style's text longer than the string it
+            // is converted to is IQ's error for each row that computes it -- -1009145 under its engine (in a select
+            // list, a WHERE, a GROUP BY, a ranked derived table alike; none over no rows), -638 in its front end; NULL
+            // stays NULL
+            String error = "the text of CONVERT style " + style + " has " + width + " characters, more than the"
+                    + " string of " + length + " it is converted to: IQ's error (-1009145 under its engine, -638 in SQL"
+                    + " Anywhere's front end)";
+            Tx raised = SqlToPure.strict(Kind.STRING, List.of(x), v -> refusedPast(SqlToPure.call("isNotEmpty",
+                    v.get(0)), error, new CString(""), new CString("")));
+            return Tx.value(raised.vs(), Kind.STRING, raised.nullable(), new IqType("VARCHAR(" + length + ")"));
         }
         Tx r = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
             ValueSpecification d = v.get(0);

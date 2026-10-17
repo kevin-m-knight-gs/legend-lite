@@ -102,6 +102,14 @@ public final class IqLexer {
             "varchar", "variable", "varray", "varying", "view", "wait", "waitfor", "when", "where", "while", "window",
             "with", "within", "work", "writetext", "xml");
 
+    /** IQ island, 2026-10-17 (the corpus lane's SEDE: {@code AS Timeline}; measured on IQ 17.1, its
+     *  sa_reserved_words() against SQL Anywhere 17's): the words IQ reserves beyond SQL Anywhere's that it reads as no
+     *  name anywhere -- an alias, a table's alias, a column read (-131). Its other extra words (true, false,
+     *  current_database_schema as an alias only; dynamic, limit, no, out, timestamp ... nowhere) are names here. The
+     *  words of an IQ profile of IQ 17.1's UTF-8 database (the iq17 presets); IQ 16's, whose stand-in is SQL Anywhere
+     *  17, and SQL Anywhere's are SQL Anywhere's. */
+    static final Set<String> IQ_RESERVED = Set.of("aes_decrypt", "clear", "iq", "timeline");
+
     /** IQ's two- and one-character operators, longest first where one begins another. */
     private static final List<String> OPERATORS = List.of("<>", "<=", ">=", "!=", "!<", "!>", "*=", "=*", "||", "=",
             "<", ">", "+", "-", "*", "/", "%", "&", "|", "^", "~", "(", ")", ",", ".", ";", "?", ":", "{", "}");
@@ -181,7 +189,9 @@ public final class IqLexer {
                 advance(1);
             }
             String word = text.substring(start, at);
-            return new Token(reserved(word) ? Kind.KEYWORD : Kind.WORD, word, pos, start, at);
+            boolean keyword = reserved(word) || settings.base() == IqSettings.Base.IQ16 && !settings.latin1()
+                    && IQ_RESERVED.contains(lower(word));
+            return new Token(keyword ? Kind.KEYWORD : Kind.WORD, word, pos, start, at);
         }
         for (String op : OPERATORS) {
             if (text.startsWith(op, at)) {

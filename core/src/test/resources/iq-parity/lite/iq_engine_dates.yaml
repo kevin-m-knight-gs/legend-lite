@@ -157,7 +157,7 @@ tests:
   - id: convert_style_107
     sql: "SELECT id, CONVERT(VARCHAR(40), dt, 107) AS a, CONVERT(VARCHAR(40), ts, 107) AS b FROM t ORDER BY id"
     profile: iq17-default
-  - id: convert_style_into_a_too_short_string_is_refused
+  - id: convert_style_into_a_too_short_string_is_iqs_error
     sql: "SELECT CONVERT(VARCHAR(5), dt, 101) AS a FROM t WHERE id = 1"
     profile: iq17-default
   - id: convert_style_iq_rejects_is_refused
