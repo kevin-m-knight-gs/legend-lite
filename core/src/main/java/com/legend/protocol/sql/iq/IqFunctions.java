@@ -92,7 +92,7 @@ final class IqFunctions {
     private enum Fn {
         LENGTH(1, 1), LEN(1, 1), CHAR_LENGTH(1, 1), SUBSTRING(2, 3), SUBSTR(2, 3), LEFT(2, 2), RIGHT(2, 2),
         TRIM(1, 2), LTRIM(1, 2), RTRIM(1, 2), REPLACE(3, 3), REPEAT(2, 2), REPLICATE(2, 2), SPACE(1, 1),
-        CHARINDEX(2, 2), LOCATE(2, 3), PATINDEX(2, 2), STUFF(4, 4), ASCII(1, 1), CHAR(1, 1),
+        CHARINDEX(2, 2), LOCATE(2, 3), PATINDEX(2, 2), STUFF(4, 4), ASCII(1, 1), CHAR(1, 1), LPAD(2, 3), RPAD(2, 3),
         STRING(1, Integer.MAX_VALUE), UPPER(1, 1), LOWER(1, 1), UCASE(1, 1), LCASE(1, 1),
         ABS(1, 1), SIGN(1, 1), CEILING(1, 1), CEIL(1, 1), FLOOR(1, 1), ROUND(2, 2), TRUNCNUM(2, 2), MOD(2, 2),
         REMAINDER(2, 2), SQRT(1, 1), EXP(1, 1), LN(1, 1), LOG(1, 1), LOG10(1, 1), POWER(2, 2), SQUARE(1, 1), PI(0, 0),
@@ -374,6 +374,7 @@ final class IqFunctions {
                     args.size() == 3 ? args.get(2) : null, args.size() == 3 ? f.args().get(2) : null);
             case PATINDEX -> patindex(name, f, args);
             case STUFF -> stuff(name, f, args);
+            case LPAD, RPAD -> pad(fn == Fn.LPAD, name, f, args);
             case ASCII -> ascii(name, f, args);
             case CHAR -> chr(name, f, args);
             case STRING -> string(f, args);
@@ -1708,6 +1709,37 @@ final class IqFunctions {
             return guard ? ifThen(tooLong(v.get(1)), SqlToPure.empty(), value) : value;
         });
         return guard ? Tx.value(r.vs(), Kind.STRING, true, r.detail()) : r;
+    }
+
+    /**
+     * IQ island, 2026-10-17 (the corpus lane's 38; measured on IQ 17.1): {@code LPAD(s, n [, pad])} and RPAD, IQ's
+     * engine's alone (SQL Anywhere's front end raises -134, not implemented): s padded on the left (the right) to n
+     * characters with the pad repeated (a space without one), or cut to its first n; '' for an n below 1; NULL for a
+     * NULL s or n. Refused by name: a pad that is no constant non-empty string (IQ reads a NULL or '' one as none),
+     * and a constant n past 32767 (IQ's -1001005: no string is longer).
+     */
+    private Tx pad(boolean left, String name, SqlAst.FunctionCall f, List<Tx> args) {
+        if (engine != IqDialect.Engine.IQ) {
+            throw SqlTranslationException.invalid("Feature '" + name.toLowerCase(Locale.ROOT) + "' not implemented: "
+                    + name + " is IQ's engine's alone" + code(-134, "0A000"), f.pos());
+        }
+        Tx s = text(args.get(0), f.args().get(0), name);
+        Tx n = count(args.get(1), f.args().get(1), name);
+        String fill = " ";
+        if (args.size() == 3) {
+            if (!(f.args().get(2) instanceof SqlAst.StringLit lit) || lit.value().isEmpty()) {
+                throw SqlTranslationException.unsupported(name + " with a pad that is no constant non-empty string is"
+                        + " not supported yet (IQ reads a NULL or an empty one as none)", f.args().get(2).pos());
+            }
+            fill = lit.value();
+        }
+        if (f.args().get(1) instanceof SqlAst.IntegerLit width && width.value().compareTo(BigInteger.valueOf(32767)) > 0) {
+            throw SqlTranslationException.unsupported(name + " to more than 32767 characters is IQ's error -1001005 (a"
+                    + " string length error) where a row computes it, which is not supported", f.args().get(1).pos());
+        }
+        String padding = fill;
+        return strict(Kind.STRING, varchar(), List.of(s, n), v -> ifThen(lt(v.get(1), integer(1)), new CString(""),
+                SqlToPure.call(left ? "lpad" : "rpad", v.get(0), v.get(1), new CString(padding))));
     }
 
     /** Whether {@code c} is one of the 26 ASCII letters, either case. */

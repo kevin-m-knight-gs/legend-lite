@@ -1139,6 +1139,10 @@ lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/an_aggregate_in_where_before_one_nested_in_having@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/lpad_and_rpad@iq17-default	PASS	PASS
+lite/corpus_gaps/lpad_with_a_repeated_pad_and_a_count_per_row@iq17-default	PASS	PASS
+lite/corpus_gaps/lpad_of_a_char_and_a_number@iq17-default	PASS	PASS
+lite/corpus_gaps/lpad_in_sql_anywhere@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

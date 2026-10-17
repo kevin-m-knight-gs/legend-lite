@@ -1885,3 +1885,18 @@ tests:
   - id: an_aggregate_in_where_before_one_nested_in_having
     sql: "SELECT k, COUNT(*) AS c FROM g WHERE c > 0 GROUP BY k HAVING SUM(COUNT(*)) > 0"
     profile: iq17-default
+
+  # ---- LPAD and RPAD (IQ island, 2026-10-17; the corpus lane's 38, measured on IQ 17.1): IQ's engine's alone (SQL
+  # Anywhere's front end raises -134); the pad repeated, or the string cut to n; '' below 1
+  - id: lpad_and_rpad
+    sql: "SELECT id, LPAD(vc, 8, '*') AS a, RPAD(vc, 8, '-') AS b, LPAD(vc, 3, 'x') AS c, RPAD(vc, 3) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: lpad_with_a_repeated_pad_and_a_count_per_row
+    sql: "SELECT id, LPAD(vc, id, 'ab') AS a, RPAD(vc, id + 4, 'xyz') AS b, LPAD(vc, sm, '.') AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: lpad_of_a_char_and_a_number
+    sql: "SELECT id, LPAD(ch, 7, '.') AS a, LPAD(id, 4, '0') AS b, RPAD('', 3, 'z') AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: lpad_in_sql_anywhere
+    sql: "SELECT LPAD('ab', 5, 'x') AS a"
+    profile: iq17-default

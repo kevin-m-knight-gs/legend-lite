@@ -199,14 +199,19 @@
 # REGEXP_COUNT, REGEXP_INSTR, DATE_PART, RANDOM, ARRAY_LENGTH, STRING_TO_ARRAY, TRUNC, LISTAGG, INSTR, MD5, CHR,
 # NTH_VALUE and POSITION(a, b) are no functions of IQ's, its -265 while translating: accept PARSED 3,211 -> 3,216
 # (REFUSED 1,738 -> 1,733), z2_redteam-688/693/694/701/704, each SQL Anywhere 17's "other error".
-accept	parsed	3216
-accept	refused	1733
+# IQ island, 2026-10-17 (LPAD and RPAD, the corpus lane's 38; measured on IQ 17.1): IQ's engine's own, SQL Anywhere's
+# front end's -134 (not implemented), which the dialect raises while translating. So a5_sa_fn3-688 (SELECT RPAD('abc',
+# 5), no table: the front end's -134, "other error") moves from REFUSED to PARSED: reject PARSED 26 -> 27, its -134
+# pinned by corpus_gaps' lpad_in_sql_anywhere (REFUSED 746 -> 745); accept PARSED 3,216 -> 3,220 (c06_fn_c-70..72,
+# c07_fn_d-58).
+accept	parsed	3220
+accept	refused	1729
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	81
 flag	refused	53
-reject	parsed	26
-reject	refused	746
+reject	parsed	27
+reject	refused	745
 reject	rejected	1037
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
@@ -228,6 +233,7 @@ reject-parsed	a4_sa_fn2-60
 reject-parsed	a4_sa_fn2-645
 reject-parsed	a4_sa_fn2-702
 reject-parsed	a5_sa_fn3-482
+reject-parsed	a5_sa_fn3-688
 reject-parsed	a6_sa_query-695
 reject-parsed	a6_sa_query-91
 reject-parsed	c13_olap-302
