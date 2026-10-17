@@ -3377,6 +3377,19 @@ public final class IqParser {
         }
         IqLexer.Token after = at + 1 < tokens.size() && tokens.get(at) == t ? tokens.get(at + 1) : null;
         IqLexer.Token third = after != null && at + 2 < tokens.size() ? tokens.get(at + 2) : null;
+        IqLexer.Token opener = tokens.get(at) == t ? openedBy(at) : null;
+        if ((t.is("from") || t.is("for")) && opener != null && opener.isName()) {
+            // IQ island, 2026-10-17 (the TPC-H corpus lane's SUBSTRING(s FROM 1 FOR 10), 105 queries; measured on IQ
+            // 17.1): no call of IQ's reads FROM or FOR among its arguments (EXTRACT's is read where it stands), so SQL's
+            // SUBSTRING and SUBSTR forms are its syntax error
+            return new SqlSyntaxException("'" + t.text() + "' among a call's arguments is no syntax of IQ's (it reads"
+                    + " SUBSTRING(s, start, length))" + IqDialect.syntaxCode(), t.pos());
+        }
+        if (t.isOp(":") && after != null && after.isOp(":")) {
+            // IQ island, 2026-10-17 (the TPC-H corpus lane's x::text; measured on IQ 17.1): PostgreSQL's cast
+            return new SqlSyntaxException("'::' is no cast of IQ's (it reads CAST(x AS type))" + IqDialect.syntaxCode(),
+                    t.pos());
+        }
         if (t.is("for") && after != null && after.isWord("xml") && third != null && third.isWord("path")) {
             // IQ island, 2026-10-17 (the corpus lane's FOR XML PATH(''), 15; measured on IQ 17.1): FOR XML RAW, AUTO
             // and EXPLICIT are IQ's, PATH its syntax error
@@ -3409,6 +3422,23 @@ public final class IqParser {
             return limit(t);
         }
         return SqlSyntaxException.unsupported("'" + t.text() + "' here is not supported", t.pos());
+    }
+
+    /** The token before the innermost {@code (} left open before token {@code i}; null where none is open, or it opens
+     *  the statement. */
+    private IqLexer.@com.legend.base.Nullable Token openedBy(int i) {
+        int depth = 0;
+        for (int k = i - 1; k >= 0; k--) {
+            if (tokens.get(k).isOp(")")) {
+                depth++;
+            } else if (tokens.get(k).isOp("(")) {
+                if (depth == 0) {
+                    return k > 0 ? tokens.get(k - 1) : null;
+                }
+                depth--;
+            }
+        }
+        return null;
     }
 
     /** Whether the {@code )} at token {@code i} has no {@code (} before it left open. */

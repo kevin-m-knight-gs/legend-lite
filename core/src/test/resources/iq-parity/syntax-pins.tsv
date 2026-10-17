@@ -192,6 +192,9 @@
 # a6_sa_query-91 (a recursive CTE with no column list, SQL Anywhere's -922, "other error") moves from REFUSED to PARSED:
 # reject PARSED 25 -> 26 (REFUSED 751 -> 750), its -922 pinned by corpus_gaps' recursion_without_a_column_list cases;
 # accept PARSED 3,208 -> 3,211 (REFUSED 1,741 -> 1,738), the accept cases of WITH RECURSIVE.
+# IQ island, 2026-10-17 (the TPC-H corpus lane's SUBSTRING(s FROM 1 FOR 10) and x::text; measured on IQ 17.1 and SQL
+# Anywhere 17): FROM or FOR among a call's arguments, and '::', are IQ's syntax error -131, named now, not refused:
+# reject REJECTED 1,033 -> 1,037 (REFUSED 750 -> 746).
 accept	parsed	3211
 accept	refused	1738
 accept-with-option	refused	90
@@ -199,8 +202,8 @@ accept-with-option	rejected	1
 flag	parsed	81
 flag	refused	53
 reject	parsed	26
-reject	refused	750
-reject	rejected	1033
+reject	refused	746
+reject	rejected	1037
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609
