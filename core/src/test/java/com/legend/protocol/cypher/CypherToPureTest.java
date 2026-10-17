@@ -620,6 +620,12 @@ class CypherToPureTest {
         unsupported("MATCH ()-[r1]->()-[r2]->() WITH [r1, r2] AS rs LIMIT 1 MATCH (first)-[rs*]->(second) RETURN first",
                 "naming rs, which the rows hold as a value of another kind");
         invalid("WITH [[1], 'x'] AS rs MATCH ()-[rs*]->() RETURN rs", "Type mismatch: rs defined with conflicting type");
+        // a list of variables, or a collect, is a list: named as a node it conflicts (Match3/[30]), as a
+        // variable-length relationship's list it reads on (the study's §12.70)
+        invalid("MATCH (n:Person) WITH [n] AS users MATCH (users)-->(m) RETURN m",
+                "Type mismatch: users defined with conflicting type");
+        invalid("MATCH (n:Person) WITH collect(n) AS users MATCH (users)-->(m) RETURN m",
+                "Type mismatch: users defined with conflicting type");
     }
 
     // ------------------------------------------------------------------ stored nanosecond values (the study's §12.64)
@@ -1543,6 +1549,13 @@ class CypherToPureTest {
         String predicate = pure("MATCH (p:Person) WHERE (p)-[:firm*]->() RETURN p.name AS name");
         assertTrue(predicate.contains("recurse(") && predicate.contains("JoinKind.LEFT"), predicate);
         unsupported("MATCH (p:Person)-[:firm*]->(f)-[:firm]->(g) RETURN g.legalName", "other relationships");
+        // a MATCH of several patterns the graph route does not read as one graph: each pattern as rows, joined on the
+        // identities of the variables they share, else their product (the study's §12.70)
+        String three = pure("MATCH (p:Person), (f:Firm), (c:City) RETURN p.name AS p, f.legalName AS f, c.name AS c");
+        assertEquals(2, three.split("->join\\(", -1).length - 1, three);
+        String components = pure("MATCH (p:Person) WITH p MATCH (c:City), (p)-[:firm]->(f) RETURN c.name AS c, f.legalName AS f");
+        assertTrue(components.contains("JoinKind.INNER, {l, r|true}") && components.contains("JoinKind.INNER, {l, r|$l._cypher_"),
+                components);
         unsupported("MATCH (p:Person)-[:firm*]->(p) RETURN p.name", "back to itself");
         // after rows, the walk is the re-anchored pattern's own (§12.49): read from the rows' node, joined back
         String after = pure("MATCH (p:Person) WITH p MATCH (p)-[:firm*]->(f) RETURN f.legalName AS firm");

@@ -9932,6 +9932,24 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the sixty-eighth landing — several patterns joined on identity
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the MATCH-after-rows bucket); the record is the
+study's §12.70. A MATCH of several patterns as rows joined on the identities they share (or their product), with
+relationship uniqueness across them; re-anchored patterns that find nothing; named paths re-anchored after rows; a
+label-less start read against its stored way as arms; the static scan's list kind.
+
+1. **What lands.** MatchWhere2/[1], MatchWhere4/[2], Match3/[10], Match3/[20], Match3/[21], Match3/[29], Match4/[7], Match7/[17], Match7/[20], Match7/[26], Match7/[4], Match7/[7], Match7/[8], Match9/[9], WithSkipLimit2/[3], WithWhere2/[1], WithWhere4/[2], With1/[2], Graph8/[5] (19 TCK rows); the 12 cases of `lite/multipattern.yaml`; DuckDB PASS
+   3,623 → 3655, Postgres 3,221 → 3253; TCK agreement DuckDB 3494 → 3513, Postgres 3115 → 3134.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3655 / REFUSED 348 / BOTH_ERROR
+   747 / SKIP 57; Postgres PASS 3253 / REFUSED 750 / BOTH_ERROR 747 / SKIP 57, of
+   4807 cases); the oracle check 0 problems. (A first run turned Match3/[30] into a BUG: Neo4j's static
+   VariableTypeConflict over a list named as a node, which the static scan's list kind now raises.)
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest` pins the routes and the list conflicts.
+4. **Refused by name, recorded.** An OPTIONAL MATCH whose WHERE reads the rows beside its pattern (MatchWhere6/[5],
+   Match7/[11]; the plan's §5).
+
 ## 2026-10-17 — `#Cypher{...}#`: the sixty-seventh landing — the variable-length remainder
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, its remainder); the record is the study's §12.69. A

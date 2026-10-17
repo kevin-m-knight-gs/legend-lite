@@ -4701,3 +4701,55 @@ cases PASS on both lanes but the refusal, REFUSED on both. TCK agreement (PASS o
 The 7 TCK rows move REFUSED → PASS on both lanes; the 6 new lite cases PASS on both. TCK agreement
 (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB 3487 → 3494, Postgres 3108 → 3115.
 
+### 12.70 A MATCH of several patterns as rows joined on identity, patterns that find nothing, named paths re-anchored (2026-10-17)
+
+- **A MATCH of several patterns the graph route does not read as one graph** (`MATCH (a)--(b)--(c)--(d)--(a), (b)--(d)`,
+  MatchWhere2/[1]; `MATCH (a {name: 'A'}), (b {name: 'B'}), (c {name: 'C'})` then `MATCH (a)-->(x), (b)-->(x),
+  (c)-->(x)`, Match3/[20], [21]; `WITH n LIMIT 1 MATCH (m:B), (n)-->(x:X)`, WithSkipLimit2/[3], With1/[2]):
+  `CypherToPure.joinedPatterns` reads each pattern as rows of its own and joins it to the rows before it, on the
+  identities of the variables it shares with them (the re-anchoring of §12.49), else as their product (§12.28); the
+  MATCH's relationships are pairwise distinct by identity across its patterns (Neo4j's uniqueness within one MATCH,
+  each pattern's own read spelling it within the pattern; an unnamed relationship named for it), then the WHERE
+  over the joined rows. It is the route where the graph route refused: an untyped relationship in a MATCH of
+  several patterns, a pattern sharing no variable with the first followed by another, a MATCH of several patterns
+  after rows.
+- **A re-anchored pattern that finds nothing** (`MATCH (a:A), (c:C) OPTIONAL MATCH (a)-->(b)-->(c)` where no way of
+  the model continues, Match7/[8]; `OPTIONAL MATCH (a1)<-[r]-(b2)` against the stored way, Match7/[4]; a predicate
+  `(a)-[:T*]->(b:MissingLabel)` naming a label the open graph lacks, MatchWhere4/[2]): the pattern, read from the rows'
+  node as a MATCH of its own, has no way (its nodes absent, §12.36, §12.45), so its copies of the rows' nodes carry
+  no identity to join on. Such a pattern matches nothing (`absentCopy`): a MATCH reads no row, an OPTIONAL MATCH keeps
+  every row with the pattern's own variables absent (`noneOf`), a pattern predicate's flag is null on every row.
+- **A named path re-anchored after rows** (`OPTIONAL MATCH p = (a)-->(x)` after a cartesian product, Match7/[17];
+  `OPTIONAL MATCH p = (a)-[*]->(b)`, Match7/[20], Match9/[9]): the anchored pattern may name its path; it is read as
+  written (never reversed, so the path keeps its order) and the join on identity binds whichever of its nodes the
+  rows carry; the path's value and its parts (§12.68's columns) ride the right side, null where the OPTIONAL MATCH
+  found nothing.
+- **A label-less start against the stored way** (`MATCH ()-[r:KNOWS]-()`, Graph8/[5]): the graph route reads a
+  label-less start's class from its outgoing relationship's declaring class; an undirected or incoming one is the
+  arms' (one arm per way of the type, each end of its class: `againstTheStoredWay`); an OPTIONAL MATCH over a graph
+  whose relationship runs against the stored way to a label-less node goes through the rows likewise.
+- **A type an OPTIONAL MATCH's pattern repeats** (`OPTIONAL MATCH (a)-[:KNOWS]->()-[:KNOWS]->(foo)`, Match7/[7]): read
+  through the rows, where the first-clause reading names the repeated relationships and spells their uniqueness.
+- **A variable an absent pattern names twice** (`MATCH (a)-[r]->()-[r]->(a)` over a model with no relationship,
+  Match3/[29]): one absent value, no refusal.
+- **A list is statically a list** (`WITH [n] AS users MATCH (users)-->(m)`, Match3/[30]): the static scan of §12.63
+  gains `VarKind.LIST` (a list written out whatever its elements, or a `collect`): named as a node, a relationship or
+  a path it is Neo4j's VariableTypeConflict; as a variable-length relationship's list it reads on. (The scenario had
+  agreed by a refusal; once the MATCH after rows read it, the scan had to say what Neo4j says.)
+- **Also:** an optional column keeps a property's nanosecond mark (`nullableProps`).
+- **Refused by name, left:** an OPTIONAL MATCH whose WHERE reads a value of the rows beside its pattern (MatchWhere6/[5],
+  Match7/[11]: the WHERE belongs in the left join's condition; the plan's §5), a named path over a variable-length
+  relationship among other relationships in an OPTIONAL MATCH over a graph (Match7/[19]).
+- **Pinned.** `CypherToPureTest` (the three-pattern product, the components after a WITH, the list conflicts);
+  `lite/multipattern.yaml`'s 12 cases, each judged by Neo4j; the TCK rows that move: MatchWhere2/[1], MatchWhere4/[2], Match3/[10], Match3/[20], Match3/[21], Match3/[29], Match4/[7], Match7/[17], Match7/[20], Match7/[26], Match7/[4], Match7/[7], Match7/[8], Match9/[9], WithSkipLimit2/[3], WithWhere2/[1], WithWhere4/[2], With1/[2], Graph8/[5].
+
+#### 12.70.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4807 | 3655 (from 3,623) | 0 | 0 | 0 | 348 (from 368) | 747 | 57 |
+| Postgres | 4807 | 3253 (from 3,221) | 0 | 0 | 0 | 750 (from 770) | 747 | 57 |
+
+The 19 TCK rows move to PASS on both lanes (Match3/[30] stays BOTH_ERROR); the 12 lite cases PASS on
+both. TCK agreement DuckDB 3494 → 3513, Postgres 3115 → 3134.
+

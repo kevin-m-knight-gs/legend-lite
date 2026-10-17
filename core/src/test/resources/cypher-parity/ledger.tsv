@@ -187,13 +187,13 @@ tck/clauses/match-where/MatchWhere1/[12] Filter path with path length predicate 
 tck/clauses/match-where/MatchWhere1/[13] Filter path with false path length predicate on multi variables with one binding	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[14] Fail when filtering path with property predicate	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match-where/MatchWhere1/[15] Fail on aggregation in WHERE	BOTH_ERROR	BOTH_ERROR
-tck/clauses/match-where/MatchWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere3/[1] Join between node identities	PASS	PASS
 tck/clauses/match-where/MatchWhere3/[2] Join between node properties of disconnected nodes	PASS	PASS
 tck/clauses/match-where/MatchWhere3/[3] Join between node properties of adjacent nodes	PASS	PASS
 tck/clauses/match-where/MatchWhere4/[1] Join nodes on inequality	PASS	PASS
-tck/clauses/match-where/MatchWhere4/[2] Join with disjunctive multi-part predicates including patterns	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere4/[2] Join with disjunctive multi-part predicates including patterns	PASS	PASS
 tck/clauses/match-where/MatchWhere5/[1] Filter out on null	PASS	PASS
 tck/clauses/match-where/MatchWhere5/[2] Filter out on null if the AND'd predicate evaluates to false	PASS	PASS
 tck/clauses/match-where/MatchWhere5/[3] Filter out on null if the AND'd predicate evaluates to true	PASS	PASS
@@ -387,7 +387,7 @@ tck/clauses/match/Match3/[6] Matching a relationship pattern using a label predi
 tck/clauses/match/Match3/[7] Matching nodes with many labels	PASS	PASS
 tck/clauses/match/Match3/[8] Matching using relationship predicate with multiples of the same type	PASS	PASS
 tck/clauses/match/Match3/[9] Get related to related to	PASS	PASS
-tck/clauses/match/Match3/[10] Matching using self-referencing pattern returns no result	REFUSED	REFUSED
+tck/clauses/match/Match3/[10] Matching using self-referencing pattern returns no result	PASS	PASS
 tck/clauses/match/Match3/[11] Undirected match in self-relationship graph	PASS	PASS
 tck/clauses/match/Match3/[12] Undirected match of self-relationship in self-relationship graph	PASS	PASS
 tck/clauses/match/Match3/[13] Directed match on self-relationship graph	PASS	PASS
@@ -397,8 +397,8 @@ tck/clauses/match/Match3/[16] Mixing directed and undirected pattern parts with 
 tck/clauses/match/Match3/[17] Handling cyclic patterns	PASS	PASS
 tck/clauses/match/Match3/[18] Handling cyclic patterns when separated into two parts	PASS	PASS
 tck/clauses/match/Match3/[19] Two bound nodes pointing to the same node	PASS	PASS
-tck/clauses/match/Match3/[20] Three bound nodes pointing to the same node	REFUSED	REFUSED
-tck/clauses/match/Match3/[21] Three bound nodes pointing to the same node with extra connections	REFUSED	REFUSED
+tck/clauses/match/Match3/[20] Three bound nodes pointing to the same node	PASS	PASS
+tck/clauses/match/Match3/[21] Three bound nodes pointing to the same node with extra connections	PASS	PASS
 tck/clauses/match/Match3/[22] Returning bound nodes that are not part of the pattern	PASS	PASS
 tck/clauses/match/Match3/[23] Matching disconnected patterns	PASS	PASS
 tck/clauses/match/Match3/[24] Matching twice with duplicate relationship types on same relationship	PASS	PASS
@@ -406,7 +406,7 @@ tck/clauses/match/Match3/[25] Matching twice with an additional node label	PASS	
 tck/clauses/match/Match3/[26] Matching twice with a duplicate predicate	PASS	PASS
 tck/clauses/match/Match3/[27] Matching from null nodes should return no results owing to finding no matches	PASS	PASS
 tck/clauses/match/Match3/[28] Matching from null nodes should return no results owing to matches being filtered out	PASS	PASS
-tck/clauses/match/Match3/[29] Fail when re-using a relationship in the same pattern	REFUSED	REFUSED
+tck/clauses/match/Match3/[29] Fail when re-using a relationship in the same pattern	PASS	PASS
 tck/clauses/match/Match3/[30] Fail when using a list or nodes as a node	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match4/[1] Handling fixed-length variable length pattern	PASS	PASS
 tck/clauses/match/Match4/[2] Simple variable length pattern	PASS	PASS
@@ -414,7 +414,7 @@ tck/clauses/match/Match4/[3] Zero-length variable length pattern in the middle o
 tck/clauses/match/Match4/[4] Matching longer variable length paths	PASS	PASS
 tck/clauses/match/Match4/[5] Matching variable length pattern with property predicate	PASS	PASS
 tck/clauses/match/Match4/[6] Matching variable length patterns from a bound node	PASS	PASS
-tck/clauses/match/Match4/[7] Matching variable length patterns including a bound relationship	REFUSED	REFUSED
+tck/clauses/match/Match4/[7] Matching variable length patterns including a bound relationship	PASS	PASS
 tck/clauses/match/Match4/[8] Matching relationships into a list and matching variable length using the list	REFUSED	REFUSED
 tck/clauses/match/Match4/[9] Fail when asterisk operator is missing	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match4/[10] Fail on negative bound	BOTH_ERROR	BOTH_ERROR
@@ -547,11 +547,11 @@ tck/clauses/match/Match6/[25] Fail when matching a path variable bound to a valu
 tck/clauses/match/Match7/[1] Simple OPTIONAL MATCH on empty graph	PASS	PASS
 tck/clauses/match/Match7/[2] OPTIONAL MATCH with previously bound nodes	PASS	PASS
 tck/clauses/match/Match7/[3] OPTIONAL MATCH and bound nodes	PASS	PASS
-tck/clauses/match/Match7/[4] Optionally matching relationship with bound nodes in reverse direction	REFUSED	REFUSED
+tck/clauses/match/Match7/[4] Optionally matching relationship with bound nodes in reverse direction	PASS	PASS
 tck/clauses/match/Match7/[5] Optionally matching relationship with a relationship that is already bound	PASS	PASS
 tck/clauses/match/Match7/[6] Optionally matching relationship with a relationship and node that are both already bound	PASS	PASS
-tck/clauses/match/Match7/[7] MATCH with OPTIONAL MATCH in longer pattern	REFUSED	REFUSED
-tck/clauses/match/Match7/[8] Longer pattern with bound nodes without matches	REFUSED	REFUSED
+tck/clauses/match/Match7/[7] MATCH with OPTIONAL MATCH in longer pattern	PASS	PASS
+tck/clauses/match/Match7/[8] Longer pattern with bound nodes without matches	PASS	PASS
 tck/clauses/match/Match7/[9] Longer pattern with bound nodes	PASS	PASS
 tck/clauses/match/Match7/[10] Optionally matching from null nodes should return null	PASS	PASS
 tck/clauses/match/Match7/[11] Return two subgraphs with bound undirected relationship and optional relationship	REFUSED	REFUSED
@@ -560,16 +560,16 @@ tck/clauses/match/Match7/[13] Variable length optional relationships with bound 
 tck/clauses/match/Match7/[14] Variable length optional relationships with length predicates	PASS	PASS
 tck/clauses/match/Match7/[15] Variable length patterns and nulls	PASS	PASS
 tck/clauses/match/Match7/[16] Optionally matching named paths - null result	PASS	PASS
-tck/clauses/match/Match7/[17] Optionally matching named paths - existing result	REFUSED	REFUSED
+tck/clauses/match/Match7/[17] Optionally matching named paths - existing result	PASS	PASS
 tck/clauses/match/Match7/[18] Named paths inside optional matches with node predicates	PASS	PASS
 tck/clauses/match/Match7/[19] Optionally matching named paths with single and variable length patterns	REFUSED	REFUSED
-tck/clauses/match/Match7/[20] Variable length optional relationships with bound nodes, no matches	REFUSED	REFUSED
+tck/clauses/match/Match7/[20] Variable length optional relationships with bound nodes, no matches	PASS	PASS
 tck/clauses/match/Match7/[21] Handling optional matches between nulls	PASS	PASS
 tck/clauses/match/Match7/[22] MATCH after OPTIONAL MATCH	REFUSED	REFUSED
 tck/clauses/match/Match7/[23] OPTIONAL MATCH with labels on the optional end node	PASS	PASS
 tck/clauses/match/Match7/[24] Optionally matching self-loops	PASS	PASS
 tck/clauses/match/Match7/[25] Optionally matching self-loops without matches	PASS	PASS
-tck/clauses/match/Match7/[26] Handling correlated optional matches; first does not match implies second does not match	REFUSED	REFUSED
+tck/clauses/match/Match7/[26] Handling correlated optional matches; first does not match implies second does not match	PASS	PASS
 tck/clauses/match/Match7/[27] Handling optional matches between optionally matched entities	PASS	PASS
 tck/clauses/match/Match7/[28] Handling optional matches with inline label predicate	PASS	PASS
 tck/clauses/match/Match7/[29] Satisfies the open world assumption, relationships between same nodes	PASS	PASS
@@ -586,7 +586,7 @@ tck/clauses/match/Match9/[5] Variable length pattern with label predicate on bot
 tck/clauses/match/Match9/[6] Matching relationships into a list and matching variable length using the list, with bound nodes	REFUSED	REFUSED
 tck/clauses/match/Match9/[7] Matching relationships into a list and matching variable length using the list, with bound nodes, wrong direction	REFUSED	REFUSED
 tck/clauses/match/Match9/[8] Variable length relationship in OPTIONAL MATCH	PASS	PASS
-tck/clauses/match/Match9/[9] Optionally matching named paths with variable length patterns	REFUSED	REFUSED
+tck/clauses/match/Match9/[9] Optionally matching named paths with variable length patterns	PASS	PASS
 tck/clauses/merge/Merge1/[1] Merge node when no nodes exist	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[2] Merge node with label	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[3] Merge node with label when it exists	REFUSED	REFUSED
@@ -1199,7 +1199,7 @@ tck/clauses/with-skip-limit/WithSkipLimit1/[1] Handle dependencies across WITH w
 tck/clauses/with-skip-limit/WithSkipLimit1/[2] Ordering and skipping on aggregate	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit2/[1] ORDER BY and LIMIT can be used	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit2/[2] Handle dependencies across WITH with LIMIT	SKIP	SKIP
-tck/clauses/with-skip-limit/WithSkipLimit2/[3] Connected components succeeding WITH with LIMIT	REFUSED	REFUSED
+tck/clauses/with-skip-limit/WithSkipLimit2/[3] Connected components succeeding WITH with LIMIT	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit2/[4] Ordering and limiting on aggregate	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit3/[1] Get rows in the middle	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit3/[2] Get rows in the middle by param	PASS	PASS
@@ -1208,13 +1208,13 @@ tck/clauses/with-where/WithWhere1/[1] Filter node with property predicate on a s
 tck/clauses/with-where/WithWhere1/[2] Filter node with property predicate on a single variable with multiple distinct bindings	PASS	PASS
 tck/clauses/with-where/WithWhere1/[3] Filter for an unbound relationship variable	PASS	PASS
 tck/clauses/with-where/WithWhere1/[4] Filter for an unbound node variable	PASS	PASS
-tck/clauses/with-where/WithWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	PASS	PASS
 tck/clauses/with-where/WithWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	PASS	PASS
 tck/clauses/with-where/WithWhere3/[1] Join between node identities	PASS	PASS
 tck/clauses/with-where/WithWhere3/[2] Join between node properties of disconnected nodes	PASS	PASS
 tck/clauses/with-where/WithWhere3/[3] Join between node properties of adjacent nodes	PASS	PASS
 tck/clauses/with-where/WithWhere4/[1] Join nodes on inequality	PASS	PASS
-tck/clauses/with-where/WithWhere4/[2] Join with disjunctive multi-part predicates including patterns	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere4/[2] Join with disjunctive multi-part predicates including patterns	PASS	PASS
 tck/clauses/with-where/WithWhere5/[1] Filter out on null	PASS	PASS
 tck/clauses/with-where/WithWhere5/[2] Filter out on null if the AND'd predicate evaluates to false	PASS	PASS
 tck/clauses/with-where/WithWhere5/[3] Filter out on null if the AND'd predicate evaluates to true	PASS	PASS
@@ -1224,7 +1224,7 @@ tck/clauses/with-where/WithWhere7/[1] WHERE sees a variable bound before but not
 tck/clauses/with-where/WithWhere7/[2] WHERE sees a variable bound after but not before WITH	PASS	PASS
 tck/clauses/with-where/WithWhere7/[3] WHERE sees both, variable bound before but not after WITH and variable bound after but not before WITH	PASS	PASS
 tck/clauses/with/With1/[1] Forwarind a node variable 1	PASS	PASS
-tck/clauses/with/With1/[2] Forwarind a node variable 2	REFUSED	REFUSED
+tck/clauses/with/With1/[2] Forwarind a node variable 2	PASS	PASS
 tck/clauses/with/With1/[3] Forwarding a relationship variable	PASS	PASS
 tck/clauses/with/With1/[4] Forwarding a path variable	PASS	PASS
 tck/clauses/with/With1/[5] Forwarding null	PASS	PASS
@@ -1582,7 +1582,7 @@ tck/expressions/graph/Graph8/[1] Using `keys()` on a single node, non-empty resu
 tck/expressions/graph/Graph8/[2] Using `keys()` on multiple nodes, non-empty result	PASS	PASS
 tck/expressions/graph/Graph8/[3] Using `keys()` on a single node, empty result	PASS	PASS
 tck/expressions/graph/Graph8/[4] Using `keys()` on an optionally matched node	PASS	PASS
-tck/expressions/graph/Graph8/[5] Using `keys()` on a relationship, non-empty result	REFUSED	REFUSED
+tck/expressions/graph/Graph8/[5] Using `keys()` on a relationship, non-empty result	PASS	PASS
 tck/expressions/graph/Graph8/[6] Using `keys()` on a relationship, empty result	PASS	PASS
 tck/expressions/graph/Graph8/[7] Using `keys()` on an optionally matched relationship	PASS	PASS
 tck/expressions/graph/Graph8/[8] Using `keys()` and `IN` to check property existence	PASS	PASS
@@ -4081,7 +4081,7 @@ lite/edges/a_type_joining_several_class_pairs_from_a_labelless_start	PASS	PASS
 lite/edges/a_type_joining_several_class_pairs_incoming	PASS	PASS
 lite/edges/a_type_joining_several_class_pairs_with_properties_on_one	PASS	PASS
 lite/edges/a_type_joining_several_class_pairs_in_an_optional_match	REFUSED	REFUSED
-lite/edges/an_undirected_typed_pattern_from_a_labelless_start_is_refused	REFUSED	REFUSED
+lite/edges/an_undirected_typed_pattern_from_a_labelless_start_is_refused	PASS	PASS
 lite/edges/an_edge_in_one_arm_and_an_association_in_another	PASS	PASS
 lite/edges/an_optional_edge_from_labelless_arms	PASS	PASS
 lite/edges/an_unnamed_property_map_over_a_type_of_several_pairs	PASS	PASS
@@ -4205,6 +4205,18 @@ lite/labelsets/a_property_only_the_two_labelled_nodes_hold	PASS	PASS
 lite/labelsets/a_label_set_class_is_no_label	PASS	PASS
 lite/labelsets/a_count_over_a_label_with_subclasses	PASS	PASS
 lite/labelsets/a_label_set_no_node_carries	PASS	PASS
+lite/multipattern/an_optional_pattern_finding_nothing_after_rows	PASS	PASS
+lite/multipattern/a_pattern_finding_nothing_after_rows	PASS	PASS
+lite/multipattern/a_predicate_over_a_missing_label	PASS	PASS
+lite/multipattern/an_optional_named_path_after_rows	PASS	PASS
+lite/multipattern/two_patterns_after_rows_meeting_at_a_node	PASS	PASS
+lite/multipattern/three_unconnected_patterns	PASS	PASS
+lite/multipattern/an_untyped_cycle_with_a_second_pattern	PASS	PASS
+lite/multipattern/connected_components_after_a_with	PASS	PASS
+lite/multipattern/an_undirected_typed_relationship_from_a_label_less_node	PASS	PASS
+lite/multipattern/an_incoming_typed_relationship_from_a_label_less_node	PASS	PASS
+lite/multipattern/an_optional_pattern_repeating_a_type	PASS	PASS
+lite/multipattern/two_patterns_sharing_a_relationship_type_stay_distinct	PASS	PASS
 lite/nodes/node_of_one_class	PASS	PASS
 lite/nodes/nodes_of_every_class	PASS	PASS
 lite/nodes/node_with_order_and_limit	PASS	PASS

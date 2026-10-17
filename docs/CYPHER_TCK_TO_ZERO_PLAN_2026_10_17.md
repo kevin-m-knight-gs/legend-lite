@@ -287,6 +287,9 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   path carried as its value; the resolver resolving a recursion's step. Left (the §5 log): a variable-length
   relationship bound to a list of relationships (Match4/[8], Match9/[6], [7]); other relationships beside the walk
   in one pattern (no TCK row).
+- Several patterns joined on identity LANDED 2026-10-17 (the study's §12.70, GATES' sixty-eighth landing; TCK agreement DuckDB 3494 → 3513, Postgres 3115 → 3134):
+  a MATCH of several patterns as rows joined on shared identities, re-anchored patterns that find nothing,
+  named paths re-anchored, a label-less start against its stored way, the static list kind (MatchWhere2/[1], MatchWhere4/[2], Match3/[10], Match3/[20], Match3/[21], Match3/[29], Match4/[7], Match7/[17], Match7/[20], Match7/[26], Match7/[4], Match7/[7], Match7/[8], Match9/[9], WithSkipLimit2/[3], WithWhere2/[1], WithWhere4/[2], With1/[2], Graph8/[5]).
 - The remainder LANDED 2026-10-17 (the study's §12.69, GATES' sixty-seventh landing; TCK agreement DuckDB 3487 → 3494, Postgres 3108 → 3115): a bounded
   variable-length relationship after another clause re-anchored, a WHERE's variable-length pattern predicate over
   a graph read over rows, the nodes reached through an edge class scoped to their arm (Match4/[6], Match7/[14], Pattern1/[10], Pattern1/[13], Pattern1/[7], Pattern1/[8], Pattern1/[9]).
@@ -598,6 +601,14 @@ questions, no PRs; a blocker is logged in §5 and the line moves to the next ite
 
 What got stuck, where, and why, for later; each entry names the cases it holds back.
 
+- **2026-10-17, W12 (§12.70) — an OPTIONAL MATCH whose WHERE reads the rows beside its pattern.** `MATCH (a1)-[r]->()
+  WITH r, a1 LIMIT 1 OPTIONAL MATCH (a2)<-[r]-(b2) WHERE a1 = a2` (MatchWhere6/[5]); `MATCH (a)-[r {name: 'r1'}]-(b)
+  OPTIONAL MATCH (b)-[r2]-(c) WHERE r <> r2` (Match7/[11]). The re-anchored pattern's WHERE is read over the
+  pattern's own rows before the left join; one reading a value of the rows beside the pattern belongs in the left
+  join's condition, over both sides. The translator reads a condition over one row (`RowScope`, its columns read off
+  one variable); spelling it over the join's two needs either a scope reading each column off its side, or the
+  rows' values the WHERE reads joined into the pattern's rows first (on the shared identities) and the left join
+  matched on them too. Two TCK rows.
 - **2026-10-17, W10 leg 2b — a variable-length relationship bound to a list of relationships.** `MATCH ()-[r1]->()
   -[r2]->() WITH [r1, r2] AS rs LIMIT 1 MATCH (first)-[rs*]->(second)` (Match4/[8], Match9/[6], [7]): Neo4j walks
   only the paths whose relationships are the list's, in order. The rows carry `rs` as the Variant list of the
