@@ -131,3 +131,30 @@ tests:
     sql: "WITH w AS (VALUES ('a', 1), ('b', 2)) SELECT * FROM w UNION ALL VALUES ('c', 3) ORDER BY 1"
   - id: values_lists_of_different_lengths_are_an_error
     sql: "SELECT * FROM (VALUES (1, 2), (3)) v"
+  # a subquery without FROM: one row, reading the enclosing row where it names a column (2026-10-17, the
+  # regression-suite corpus: refused since 2026-10-12, when the lowering could not read an enclosing row there)
+  - id: subquery_without_from_in_in
+    sql: "SELECT id FROM persons WHERE id IN (SELECT 1 UNION SELECT 3) ORDER BY id"
+  - id: correlated_scalar_subquery_without_from
+    sql: "SELECT id, (SELECT id * 2) AS twice, (SELECT 1 WHERE id > 3) AS late FROM persons ORDER BY id"
+  - id: exists_without_from_reading_the_enclosing_row
+    sql: "SELECT id FROM persons WHERE EXISTS (SELECT 1 WHERE age > 30) ORDER BY id"
+  # TABLE name is SELECT * FROM name; a table's * is its descendants, which its read includes anyway
+  - id: table_statement
+    sql: "TABLE persons ORDER BY 1"
+  - id: table_statement_in_a_union
+    sql: "SELECT * FROM persons WHERE id < 3 UNION ALL TABLE persons ORDER BY 1"
+  - id: table_name_with_its_descendants
+    sql: "SELECT p.name FROM persons* p WHERE p.id < 4 ORDER BY 1"
+  # a parenthesized join's tables
+  - id: parenthesized_join_then_a_join
+    sql: "SELECT p.id, d.id AS d, q.id AS q FROM (persons p LEFT JOIN departments d ON p.dept_id = d.id) JOIN persons q ON q.id = p.id ORDER BY 1"
+  # the review of 2026-10-17: a VALUES row reads no rows, and a NULL Postgres has typed as text is no untyped NULL
+  - id: values_with_an_aggregate_is_an_error
+    sql: "SELECT * FROM (VALUES (count(*))) v"
+  - id: values_column_of_nulls_alone_is_text
+    sql: "VALUES (NULL) UNION ALL SELECT 1"
+  - id: null_typed_by_a_nested_union_is_text
+    sql: "SELECT NULL UNION SELECT NULL UNION SELECT 1"
+  - id: values_of_booleans_and_a_null
+    sql: "SELECT count(*) AS n FROM (VALUES (true), (NULL), (false)) v(x) WHERE x IS NOT TRUE"

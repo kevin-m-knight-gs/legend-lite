@@ -82,3 +82,11 @@ tests:
     sql: "SELECT (32767::int2 + 1::int2) * 0::int2 AS a FROM numbers WHERE id = 1"
   - id: a_double_precision_constant_past_its_range_is_an_error
     sql: "SELECT '10e-400'::float8 AS a FROM numbers WHERE id = 1"
+  # a smallint keeps its width through a VALUES column, abs and a subquery (the review of 2026-10-17): refused where
+  # the database would compute it as a smallint, answered beside a wider constant
+  - id: smallint_column_of_values_read_twice_is_refused
+    sql: "SELECT x * x AS a FROM (VALUES (int2 '300')) v(x)"
+  - id: smallint_through_abs_is_refused
+    sql: "SELECT abs(id::int2) AS a FROM numbers WHERE id = 1"
+  - id: smallint_beside_a_wider_constant
+    sql: "SELECT x::int2 + 1 AS a FROM (VALUES (32767)) v(x)"

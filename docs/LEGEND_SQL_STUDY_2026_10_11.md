@@ -1474,7 +1474,13 @@ which CI does not run). The program's sibling sessions measured base 86bbe71eb a
 compared pass/fail, SQL digests, census and channel B lines, and the whole test logs, masking durations only.
 BigQuery's 10 targets all pass on both, with every digest the same. Three log lines differ: an unordered result's row
 order twice, and generated UUIDs. No DATE cell's text changed, and the re-fetch is exercised there
-(`wire-delivered[BigQuery] TIMESTAMP <- DATE`).
+(`wire-delivered[BigQuery] TIMESTAMP <- DATE`). Siblings 1b and 1a measured the rest:
+- 92 PCT targets: DuckDB, SQLite, MariaDB, MySQL, ClickHouse, Postgres, Trino and H2;
+- both relational corpora.
+
+Every digest, census line and channel B line was the same, and the whole logs differed only in run ids. One target
+went red. ClickHouse's Date32 overflows `testAdjustByDaysBigNumber` to 1474328 BC, which its pin had recorded without
+the era; read as java.time, the cell keeps it (`%-1474327-10-18`), and the pin moved with a dated reason.
 
 **The largest refusals left:**
 - functions in FROM: 635, mostly functions the suite defines;
@@ -1496,6 +1502,52 @@ order twice, and generated UUIDs. No DATE cell's text changed, and the re-fetch 
 The ERRORs are mostly the island's parser (350 syntax errors). Then come Postgres's system columns, which a model does
 not declare (`ctid` 36, `tableoid` 6, `xmin` 3), GROUP BY's functional dependency on a key (22), and untyped strings in
 a VALUES column of numbers (12).
+
+**The second round.** More families from the same ranking:
+- A subquery without FROM (IN, EXISTS, scalar; correlated or not) is no longer refused. It was refused on 2026-10-12,
+  when the lowering could not read an enclosing row through a one-row relation, and it can now.
+- `TABLE name` is `SELECT * FROM name`.
+- A table name's `*` (its descendants, which a table read includes anyway) is read.
+- `U&"..."` identifiers are read.
+- What had been the parser's syntax errors are refused by name: `:=` named arguments, VARIADIC in a later argument,
+  TABLESAMPLE after an alias, and the session's identity values.
+
+Two of the gaps were the harness's own. Its rewrite of table names to `tb('...')` missed the tables inside a
+parenthesized join, and its model held only the search path's relations. A third was the reference, read under the
+script's `standard_conforming_strings = off`, where Postgres refuses `U&'...'`. The island reads strings as the
+default has them, so the judge runs Postgres's answer with it on.
+
+**The independent review** of the first round (713f7a711, f297bcc17), by an agent that wrote none of it, probed 108
+statements on Postgres 16. It found 11 wrong answers and 9 crashes. After the fixes, the same probes give 0 of each.
+- **A smallint's width.** Postgres computes smallint arithmetic as a smallint and raises past 32767; the island's
+  integer is wider. The constant rule saw only a smallint written as an operand, so `f1 + abs(int2 '1')` and a VALUES
+  column of `int2 '30000'` read twice answered. A cast to smallint or an int2 constant is now marked
+  (`InputDialect.narrowInteger`), and so is what keeps its type:
+  - a sign, or abs;
+  - coalesce, greatest, least or CASE of such values;
+  - min, max and the window functions of one;
+  - a scalar subquery of one;
+  - a select item's column, read by a later query.
+
+  Arithmetic the database would compute at that width is refused by name.
+- **VALUES rows.** An aggregate or a window function in a VALUES row is Postgres's error; they had answered.
+- **NULL typing.** An untyped NULL takes the other side's type only as a bare NULL in a plain SELECT branch of the
+  operation. Postgres has already typed every other NULL as text: a subquery's, a nested set operation's, a
+  DISTINCT's, a VALUES column of NULLs alone. Those read as text now, and `x + 1` over them is an error, as in
+  Postgres. A VALUES list's rows are typed together, where a written UNION ALL's are typed a pair at a time, so the
+  parser marks the set operations it builds for one (`SqlAst.SetOperation#values`). The first fix without the mark
+  refused 11 statements the corpus had passed.
+- **Escapes and crashes.** Malformed escapes are rejected: an eight-digit code point past an int, a surrogate pair's
+  low half not checked, an escape character of two bytes. The crashes were a NULL beside a boolean in a set
+  operation, and raw Java exceptions from the lexer.
+
+Left as found: decimals of two scales in one VALUES column fail in the typer rather than being refused by name; a set
+operation's column of a smallint and an integer is refused, though Postgres's is an integer. Fourteen lite parity
+cases were snapped and added to both lanes.
+
+The run after both rounds: PASS 2,905, FAIL 0, BUG 0, NAMES 0, KNOWN 5, REGISTERED 6, REFUSED 7,038, ERROR 420,
+UNMODELED 1,453, CATALOG 1,237, BOTH_ERROR 2,260, NONDETERMINISTIC 160, SKIP 7, HARNESS 2. Of the 10,374 statements
+the island is judged on, 2,905 (28.0%) answer Postgres's rows, and none answers wrong.
 
 ## 10. Sources
 

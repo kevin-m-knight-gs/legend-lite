@@ -11102,7 +11102,48 @@ only). Branch `claude/loving-euler-gjta59`; the record is `docs/LEGEND_SQL_STUDY
    cases were added and snapped. The run after: PASS 2,823 (from 2,637), FAIL 0, BUG 0, NAMES 0, KNOWN 5,
    REGISTERED 6, REFUSED 7,024, ERROR 518, the rest unchanged. Of the 10,376 statements the island is judged on, 27.2%
    answer Postgres's rows and none answers wrong.
-7. **Proof.** In the root container (`tools/postgres/as_unprivileged.sh`):
+7. **The second round, and the review's findings** (60d604f33, 4a3ab1218, d6c7f11b6):
+   - A subquery without FROM (IN, EXISTS, scalar; correlated or not) is no longer refused. It was refused on
+     2026-10-12, when the lowering could not read an enclosing row there.
+   - Read now:
+     - `TABLE name` (or `TABLE tb('...')`);
+     - a table name's `*` (its descendants, which a table read includes anyway);
+     - `U&"..."` identifiers.
+   - Refused by name where the parser had raised a syntax error:
+     - `:=` named arguments;
+     - VARIADIC in a later argument;
+     - TABLESAMPLE after an alias;
+     - CURRENT_USER and the session's other identity values.
+   - The harness:
+     - `SqlParity.rewrite` reads a parenthesized join's tables, TABLE's name and a table's star;
+     - `PgRegressCorpusTest` models another schema's tables;
+     - the judge runs Postgres's reference under `standard_conforming_strings` on, as the island reads strings
+       (`strings.sql` turns it off; the round's two BUGs were that).
+   - The independent review of 713f7a711 and f297bcc17 found 11 wrong answers and 9 crashes on its 108 probes;
+     after the fixes it finds 0 and 0:
+     - **A smallint's width**, lost through abs, coalesce, CASE, min/max, a subquery or a VALUES column.
+       `InputDialect.narrowInteger` marks such a value's column. Integer arithmetic, a negation or abs that the
+       database would compute as a smallint is refused by name.
+     - **VALUES rows.** An aggregate or a window function in a VALUES row is now Postgres's error.
+     - **NULL typing.** An untyped NULL takes a set operation's type only as a bare NULL in a plain SELECT branch.
+       A NULL Postgres had already typed as text now reads as text: a subquery's, a nested set operation's, a
+       DISTINCT's, a VALUES column of NULLs alone (`untypedNullIsText`).
+     - **Escapes.** Malformed ones are rejected: a code point past an int, a surrogate's low half, a UESCAPE
+       character of two bytes.
+     - **Crashes.** A NULL beside a boolean in a set operation, and raw Java exceptions from the lexer.
+
+     The first NULL fix refused 11 statements the corpus had passed. Postgres types a VALUES list's rows together,
+     so the parser now marks a VALUES list's set operations (`SqlAst.SetOperation#values`), and a pair of NULL rows
+     is no branch of its own.
+   - Left as found, recorded:
+     - decimals of two scales in one column fail in the typer, not refused by name (`VALUES (1.5), (2.25)`);
+     - a set operation's column of a smallint and an integer is refused, though Postgres's is an integer.
+   - Parity: 14 lite cases snapped and added to both lanes. Upstream's two `crcs_g5` nested-join cases went
+     REFUSED to PASS. The ClickHouse pin: `testAdjustByDaysBigNumber`'s pinned text keeps the BC era now
+     (`%-1474327-10-18`). The dialect program's siblings 1a and 1b found the lane red on f297bcc17 for it.
+   - The run after (15,493 judged): PASS 2,905, FAIL 0, BUG 0, NAMES 0, KNOWN 5, REGISTERED 6, REFUSED 7,038,
+     ERROR 420. Of the 10,374 statements the island is judged on, 28.0% answer Postgres's rows; none answers wrong.
+8. **Proof.** In the root container (`tools/postgres/as_unprivileged.sh`):
    - `//gates:core //gates:checks //gates:stress` on 303caa078: 180 of 187 pass. The 6 that failed are the breaks
      above (the integration shard, the IQ window, the snapped dates, census, guardrails), and
      `//tools/guards:classpath_test` was skipped (arm64 only).
@@ -11120,7 +11161,17 @@ only). Branch `claude/loving-euler-gjta59`; the record is `docs/LEGEND_SQL_STUDY
      logs with only durations masked. BigQuery's 10 targets: all pass on both, every SQL digest the same, census and
      channel B identical. Three log lines differ: two are an unordered result's row order, one is generated UUIDs. No
      DATE cell's text changed, though the re-fetch is exercised (`wire-delivered[BigQuery] TIMESTAMP <- DATE`).
-8. **Next.** The refusals, ranked:
+   - Siblings 1b and 1a measured the rest of the heavy lanes:
+     - 60 targets for DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres, channels A and B;
+     - 32 for Trino, H2, ClickHouse and Postgres;
+     - `//spec:corpus_duckdb` and `//spec:corpus_h2`.
+
+     Every SQL digest was the same. Census and channel B lines were identical. The whole logs were the same, but for
+     run ids. The relational corpora's rosters and registers were byte-identical. One red: `pct_clickhouse_essential`,
+     whose `testAdjustByDaysBigNumber` pin expected the era-less text. The pin moved in 4a3ab1218, and that lane is
+     first re-run on the branch's final commit.
+   - On the second round's last commit, the eleven targets above (pending at this commit; the next records them).
+9. **Next.** The refusals, ranked:
    - functions in FROM, 635 (mostly functions the suite defines);
    - jsonpath, about 450;
    - text search, about 500;
