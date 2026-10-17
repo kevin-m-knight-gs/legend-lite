@@ -54,9 +54,6 @@ core/src/test/java/com/legend/testcases/SqlIslandCases.java	product-name	3
 core/src/test/java/com/legend/testcases/SqlParity.java	product-name	7
 # 2026-10-15, the merge of neema2/legend-lite#39 into the #SQL stress branch (neema2/legend-lite#41): the stress corpus's hand runner (core/src/test/resources/sql-stress/run.sh) compares the island with the Postgres 16 that answers each query and runs the DuckDB lane in memory, as SqlParityTest does: its two connection URLs (the answering server's default, overridable by -Dstress.pg.url, and DuckDB's in-memory jdbc:duckdb:) are pinned as measured. Its other five lines were moved: the host and port read through java.net.URI, the helper renamed.
 core/src/test/java/com/legend/testcases/SqlStress.java	jdbc-url	2
-pct/src/test/java/org/finos/legend/lite/pct/PctCensusGate.java	product-name	4
-pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelBEssentialTest.java	product-name	2
-spec/src/test/java/com/legend/generators/Phase3bProbesTest.java	product-name	3
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 spec/src/test/java/com/legend/harness/PlanReplay.java	product-name	9
 spec/src/test/java/com/legend/harness/ReplayReferee.java	driver	1
@@ -64,8 +61,6 @@ spec/src/test/java/com/legend/harness/ReplayReferee.java	jdbc-url	1
 spec/src/test/java/com/legend/harness/ReplayReferee.java	product-call	1
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 spec/src/test/java/com/legend/harness/ReplayReferee.java	product-name	61
-spec/src/test/java/com/legend/rcorpus/Corpus.java	dialect-class	1
-spec/src/test/java/com/legend/rcorpus/Corpus.java	product-name	1
 spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	driver	1
 spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	jdbc-url	2
 spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	product-name	2

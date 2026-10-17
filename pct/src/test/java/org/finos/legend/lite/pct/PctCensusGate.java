@@ -6,6 +6,9 @@ package org.finos.legend.lite.pct;
 import com.legend.exec.SqlTypeCensus;
 import junit.extensions.TestSetup;
 import junit.framework.Test;
+import org.finos.legend.lite.pct.extension.PctBackend;
+
+import java.util.Map;
 
 /**
  * M4 §3.4 — THE PCT CENSUS GATE: the G6/G7 JVMs run the same
@@ -18,7 +21,8 @@ import junit.framework.Test;
  * suite's own ceiling, measured on its own target. A suite's verdict no longer depends on which suites shared its JVM
  * (until 2026-10-05 the ceilings were whole-JVM, measured on the five-suite composite lane). Never-happens invariants
  * ({@code mismatch == 0} — a label lie escaped reconciliation) hold everywhere; the ceilings ratchet DOWN as families
- * burn; each backend (DuckDB, H2 {@code LEGENDLITE_PCT_BACKEND=h2}, Postgres) has its own numbers.
+ * burn; each lane ({@code LEGENDLITE_PCT_BACKEND}, its test backend's name) has its own numbers ({@link #CEILINGS}), and
+ * a lane or suite with none is refused.
  */
 public final class PctCensusGate {
 
@@ -121,8 +125,6 @@ public final class PctCensusGate {
     // where sum(bigint) is numeric (8) -- and the Variant carrier delivered as text (STRUCT <- VARCHAR, 3:
     // leg P4). Its driver's own spellings (int8, text, bool ...) are names, not divergence
     // (SqlTypeCensus.normalizeMeta). Every other pin holds at its DuckDB/H2 value on this lane too.
-    private static final boolean POSTGRES = "postgres".equals(System.getenv("LEGENDLITE_PCT_BACKEND"));
-    private static final boolean H2 = "h2".equals(System.getenv("LEGENDLITE_PCT_BACKEND"));
     // 53 -> 57 (2026-10-02, tier 1: multi-column pivots, whole-partition medians, half-even rounding to a
     // scale and calendar buckets now RUN on Postgres): the same classes, more of their plans -- a decimal
     // rounded exactly is a computed numeric with no declared precision
@@ -146,14 +148,7 @@ public final class PctCensusGate {
     // statements, each column a struct as jsonb (STRUCT <- JSON, the by-design class): Essential 13 -> 14, Grammar
     // 5 -> 6. No other class moved.
     private static long maxWireDiverge(String suite) {
-        if (!POSTGRES) {
-            return 0;
-        }
-        return switch (suite) {
-            case "Essential" -> 14;
-            case "Grammar" -> 6;
-            default -> 0;
-        };
+        return ceilings(suite).wireDiverge();
     }
     private static final long MAX_ADOPT_PENDING = 0;
     // THE NULLABILITY LEDGER (§4bZ-V E, 2026-08-26 — §4Z ledger #4):
@@ -192,14 +187,54 @@ public final class PctCensusGate {
     // Essential 20, Standard 20, Unclassified 4 (44 in all; the whole-lane 231 was measured on Maven's one JVM, which
     // also carried channel B's traffic); 0 on H2 and Postgres
     private static long maxIntNullEmpty(String suite) {
-        if (POSTGRES || H2) {
-            return 0;
+        return ceilings(suite).intNullEmpty();
+    }
+
+    /** A suite's ceilings for the two counters that differ by lane; every other ceiling is the same on every lane. */
+    private record Ceilings(long wireDiverge, long intNullEmpty) {
+    }
+
+    /** Ceilings for each of the five suites, in the order Essential, Grammar, Relation, Standard, Unclassified. */
+    private static Map<String, Ceilings> suites(Ceilings essential, Ceilings grammar, Ceilings relation,
+            Ceilings standard, Ceilings unclassified) {
+        return Map.of("Essential", essential, "Grammar", grammar, "Relation", relation, "Standard", standard,
+                "Unclassified", unclassified);
+    }
+
+    private static final Ceilings ZERO = new Ceilings(0, 0);
+
+    /** The platform lane's proven-empty int-or-null ceilings (above), which every lane but Postgres's and H2's ran under
+     *  until 2026-10-16, when each lane's ceilings became its own row: carried on those lanes as they were, a ceiling
+     *  to lower when the lane is measured. */
+    private static final Map<String, Ceilings> PLATFORM_LANE = suites(new Ceilings(0, 20), ZERO, ZERO,
+            new Ceilings(0, 20), new Ceilings(0, 4));
+
+    /** Each lane's ceilings, by its test backend's name (the dialect program's Phase 6, 2026-10-16: until then two
+     *  environment-variable branches, Postgres and H2, and every other lane took the platform lane's numbers). */
+    private static final Map<String, Map<String, Ceilings>> CEILINGS = Map.ofEntries(
+            Map.entry("duckdb", PLATFORM_LANE),
+            Map.entry("h2", suites(ZERO, ZERO, ZERO, ZERO, ZERO)),
+            // the wire divergence measured above: a struct as jsonb, by design
+            Map.entry("postgres", suites(new Ceilings(14, 0), new Ceilings(6, 0), ZERO, ZERO, ZERO)),
+            Map.entry("sqlite", PLATFORM_LANE),
+            Map.entry("mariadb", PLATFORM_LANE),
+            Map.entry("mysql", PLATFORM_LANE),
+            Map.entry("trino", PLATFORM_LANE),
+            Map.entry("clickhouse", PLATFORM_LANE),
+            Map.entry("snowflake", PLATFORM_LANE),
+            Map.entry("databricks", PLATFORM_LANE),
+            Map.entry("bigquery", PLATFORM_LANE));
+
+    /** This lane's ceilings for {@code suite}, or the run is refused: a lane is measured before it is judged. */
+    private static Ceilings ceilings(String suite) {
+        String lane = PctBackend.name();
+        Map<String, Ceilings> lanes = CEILINGS.get(lane);
+        Ceilings c = lanes == null ? null : lanes.get(suite);
+        if (c == null) {
+            throw new AssertionError("[pct-census] no ceilings for " + suite + " on the " + lane
+                    + " lane (PctCensusGate.CEILINGS): measure it, then add its row");
         }
-        return switch (suite) {
-            case "Essential", "Standard" -> 20;
-            case "Unclassified" -> 4;
-            default -> 0;
-        };
+        return c;
     }
     // E2E-audit converse census (TYPE_E2E_AUDIT §3): wire NULL under
     // an always-present label — 49 on this lane (46 HUGEINT
