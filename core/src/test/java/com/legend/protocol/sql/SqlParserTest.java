@@ -325,7 +325,7 @@ class SqlParserTest {
     }
 
     @Test
-    void escapeAndUnicodeStringsAreReadAsPostgresReadsThem() {
+    void escapeAndUnicodeStringsReadTheirEscapes() {
         // 2026-10-17, the regression suite: E'...' with its backslash escapes, U&'...' with its code points
         assertEquals("a\nb\t'c\\A\u00e9\ud83d\ude00",
                 ((SqlAst.StringLit) item("E'a\\nb\\t\\'c\\\\\\101\\u00e9\\U0001F600'")).value());

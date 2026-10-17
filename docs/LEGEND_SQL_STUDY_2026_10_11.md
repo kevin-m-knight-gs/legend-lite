@@ -1411,19 +1411,51 @@ kept outside the repository and named by `-Dsql.corpus.regress`. The run:
 
 The review's tests were added: `StaticFoldTest`, `PostgresArmTest`'s BC date, and nine lite parity cases on both lanes
 (constant overflow and its edges, the part-way refusal, a float8 past its range, two windows of one name, the names).
+The run after the fixes: PASS 2,637, FAIL 0, BUG 0, NAMES 0, KNOWN 4, REFUSED 7,219, ERROR 510.
 
-The run after the fixes:
+**The first easy refusal families** came next. The user: "We should fix the "easy" ones first".
+- **Typed constants (269).** `int2 '7'`, `bool 't'`, `float8 '1.5'` and `text 'x'` are Postgres's string cast to
+  the type, so the island reads them as that cast. A typed integer constant takes its width in the
+  constant-arithmetic rule. The run after them found a new wrong answer: `i.f1 * int2 '2'` answered where Postgres
+  raises. The cause is that Postgres computes a smallint over a smallint column, and the island's constant is an
+  integer. Integer arithmetic of a smallint constant beside a value that is not a constant is now refused by name.
+- **Strings (49).** `E'...'` reads Postgres's escapes: `\b \f \n \r \t`, octal and hex bytes, `\uXXXX`,
+  `\UXXXXXXXX`. `U&'...'` reads its code points and `UESCAPE`. A byte past ASCII is refused by name, since its
+  meaning is the client encoding's. A zero byte and a lone surrogate are Postgres's errors.
+- **VALUES lists (315).** Postgres defines `VALUES (...), (...)` as a `UNION ALL` of one-row SELECTs naming
+  `column1..N`, and the parser builds exactly that. The rows are combined as a balanced tree, so the plan's depth is
+  log n. There is no new AST node, and VALUES goes anywhere a query goes: a FROM item with column aliases, a CTE, a
+  set operation, the statement itself. Rows of different lengths, `DEFAULT` and a set-returning function in a row
+  are Postgres's errors.
+- **UNION's types.** For VALUES to answer, the set operations needed Postgres's resolution (`select_common_type`),
+  added in `PostgresDialect`'s set-operation hooks:
+  - an untyped NULL takes the other side's type (a UNION's only; an INTERSECT or EXCEPT of one stays refused by
+    name);
+  - an integer or a numeric beside a double precision becomes a double precision.
+
+  An integer beside a numeric, and a NULL beside a numeric, stay refused by name. The typer unites no two Decimal
+  precisions, and a cast to Decimal lowers to the database's DECIMAL; DuckDB, measured, rounded 2.5 to 3.
+- **The harness:**
+  - The relation a name reads is tracked by schema. A temporary table and public's of the same name had been read as
+    one relation of both their columns (the 41 "duplicate column" errors).
+  - A statement ordered only inside a subquery is compared unordered.
+  - LIMIT with no ORDER BY is the KNOWN ledger's fifth row.
+
+Six lite VALUES cases were snapped and added to both lanes. Upstream's `union_with_agg` and `union_dedup_null` went
+REFUSED to PASS on both.
+
+The run after:
 
 | Status | n |
 |---|---|
-| PASS | 2,637 |
+| PASS | 2,823 |
 | NAMES | 0 |
 | FAIL | 0 |
 | BUG | 0 |
-| KNOWN | 4 |
+| KNOWN | 5 |
 | REGISTERED | 6 |
-| REFUSED | 7,219 |
-| ERROR | 510 |
+| REFUSED | 7,024 |
+| ERROR | 518 |
 | UNMODELED | 1,452 |
 | CATALOG | 1,237 |
 | BOTH_ERROR | 2,259 |
@@ -1431,20 +1463,39 @@ The run after the fixes:
 | SKIP | 7 |
 | HARNESS | 2 |
 
-15,493 statements were judged; 221 more that write outside their transaction were left to the script alone. Of the
-10,376 statements the island is judged on (PASS, KNOWN, REGISTERED, REFUSED, ERROR: a model declares their tables,
-and Postgres does not reject them where the island does too), 2,637 (25.4%) answer Postgres's rows, and none answers
-wrong. The suite tests Postgres's own types and
-catalogs more than ordinary queries do, so the real-world corpora (step 4) will measure everyday SQL. This suite
-measures breadth.
+15,493 statements were judged. 221 more write outside their transaction and were left to the script alone. The island
+is judged on 10,376 statements: PASS, KNOWN, REGISTERED, REFUSED and ERROR, where a model declares their tables and
+Postgres does not reject them where the island does too. Of these, 2,823 (27.2%) answer Postgres's rows, and none
+answers wrong. The suite tests Postgres's own types and catalogs more than ordinary queries do, so it measures
+breadth. The real-world corpora (step 4) will measure everyday SQL.
 
-**The largest refusals:** functions in FROM (`generate_series` and others, 635), VALUES lists (315), jsonpath (about
-450), a duplicate output name (155), jsonb read out of a jsonb constant (150), text search (`@@` and the ts functions,
-about 500), `pg_input_is_valid` (127), ROW constructors (160), range operators and functions (about 260), arrays beyond
-unnest (173), `timestamptz` casts and constants (140), typed constants (`int2`, `float8`, `interval`, `bool`: 225),
-`to_char` (87), COLLATE (80), regular-expression operators (70), named arguments (64), grouping sets (63), `E''` strings
-(49), bit strings (46), VARIADIC (46), whole-row references (44). The ERRORs are mostly the island's parser (341 syntax
-errors) and a duplicate column (41).
+**The cloud lanes.** The DATE re-fetch and the planner's folds reach the dialect program's lanes (`//gates:heavy`,
+which CI does not run). The program's sibling sessions measured base 86bbe71eb against f297bcc17 lane by lane. They
+compared pass/fail, SQL digests, census and channel B lines, and the whole test logs, masking durations only.
+BigQuery's 10 targets all pass on both, with every digest the same. Three log lines differ: an unordered result's row
+order twice, and generated UUIDs. No DATE cell's text changed, and the re-fetch is exercised there
+(`wire-delivered[BigQuery] TIMESTAMP <- DATE`).
+
+**The largest refusals left:**
+- functions in FROM: 635, mostly functions the suite defines;
+- jsonpath: about 450;
+- text search (`@@` and the ts functions): about 500;
+- ranges: about 260;
+- arrays beyond unnest: 190;
+- ROW constructors: 180;
+- a duplicate output name: 160;
+- jsonb read out of a jsonb constant: 150;
+- `pg_input_is_valid`: 128;
+- `timestamptz` casts and constants: 140;
+- COLLATE: 100;
+- `to_char`: 90;
+- grouping sets: 77;
+- regular-expression operators: 70;
+- named arguments: 64.
+
+The ERRORs are mostly the island's parser (350 syntax errors). Then come Postgres's system columns, which a model does
+not declare (`ctid` 36, `tableoid` 6, `xmin` 3), GROUP BY's functional dependency on a key (22), and untyped strings in
+a VALUES column of numbers (12).
 
 ## 10. Sources
 

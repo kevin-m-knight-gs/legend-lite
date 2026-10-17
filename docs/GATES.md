@@ -11078,7 +11078,31 @@ only). Branch `claude/loving-euler-gjta59`; the record is `docs/LEGEND_SQL_STUDY
 5. **The run after** (15,493 statements judged, 231 s): PASS 2,637 (from 2,509), FAIL 0, BUG 0, NAMES 0, KNOWN 4,
    REGISTERED 6, REFUSED 7,219, ERROR 510, UNMODELED 1,452, CATALOG 1,237, BOTH_ERROR 2,259, NONDETERMINISTIC 160,
    SKIP 7, HARNESS 2.
-6. **Proof.** In the root container (`tools/postgres/as_unprivileged.sh`):
+6. **The first easy refusal families** (713f7a711, f297bcc17):
+   - A typed constant (`int2 '7'`, `bool 't'`, `float8 '1.5'`) is its string cast to the type. A typed integer
+     constant takes its width in the constant-arithmetic rule.
+   - `E'...'` strings read Postgres's escapes, and `U&'...'` its code points and `UESCAPE`. A byte past ASCII is
+     refused by name; a zero byte and a lone surrogate are Postgres's errors.
+   - Integer arithmetic of a smallint constant beside a value that is not a constant is refused by name. Postgres
+     computes a smallint there; the run after typed constants found `i.f1 * int2 '2'` answering where Postgres raises.
+   - `VALUES (...), (...)` is what Postgres defines it as: a `UNION ALL` of one-row SELECTs naming `column1..N`,
+     built as a balanced tree. There is no new AST node. Rows of different lengths, `DEFAULT` and a set-returning
+     function in a row are Postgres's errors.
+   - Postgres's UNION resolution in `PostgresDialect`'s set-operation hooks:
+     - an untyped NULL takes the other side's type (a UNION's only);
+     - an integer or a numeric beside a double precision becomes a double precision;
+     - an integer beside a numeric, and a NULL beside a numeric, stay refused by name. The typer unites no two
+       Decimal precisions, and a cast to Decimal is the database's DECIMAL (measured: DuckDB rounded 2.5 to 3).
+   - The harness:
+     - a temporary table and public's of the same name are two relations (the 41 "duplicate column" errors);
+     - a statement ordered only inside a subquery is compared unordered;
+     - LIMIT with no ORDER BY joins the KNOWN ledger, now five rows.
+
+   Upstream's parity cases `union_with_agg` and `union_dedup_null` went REFUSED to PASS on both lanes. Six lite VALUES
+   cases were added and snapped. The run after: PASS 2,823 (from 2,637), FAIL 0, BUG 0, NAMES 0, KNOWN 5,
+   REGISTERED 6, REFUSED 7,024, ERROR 518, the rest unchanged. Of the 10,376 statements the island is judged on, 27.2%
+   answer Postgres's rows and none answers wrong.
+7. **Proof.** In the root container (`tools/postgres/as_unprivileged.sh`):
    - `//gates:core //gates:checks //gates:stress` on 303caa078: 180 of 187 pass. The 6 that failed are the breaks
      above (the integration shard, the IQ window, the snapped dates, census, guardrails), and
      `//tools/guards:classpath_test` was skipped (arm64 only).
@@ -11088,15 +11112,22 @@ only). Branch `claude/loving-euler-gjta59`; the record is `docs/LEGEND_SQL_STUDY
      `//gates:stress` and `//core:core_tests` (27 of 27).
    - Not run here, so CI's: the relational corpus, PCT, warehouse, DataCube, UI and SDLC lanes. The planner change
      (`StaticFold`, `Scalars`) and the DATE re-fetch reach them.
-7. **Next.** The refusals, ranked:
-   - functions in FROM, 635;
-   - VALUES lists, 315;
+   - On f297bcc17, the same eleven targets: ten pass. `census` failed on the dialect-leak pin
+     (`SqlParserTest product-name 3 -> 4`), a test method named for the product. The next commit renames it, and
+     `census` and `core_tests_protocol` pass.
+   - The cloud lanes (`//gates:heavy`, not CI's): the dialect program's sibling sessions measured base 86bbe71eb
+     against f297bcc17 lane by lane. They compared pass/fail, SQL digests, census and channel B lines, and whole test
+     logs with only durations masked. BigQuery's 10 targets: all pass on both, every SQL digest the same, census and
+     channel B identical. Three log lines differ: two are an unordered result's row order, one is generated UUIDs. No
+     DATE cell's text changed, though the re-fetch is exercised (`wire-delivered[BigQuery] TIMESTAMP <- DATE`).
+8. **Next.** The refusals, ranked:
+   - functions in FROM, 635 (mostly functions the suite defines);
    - jsonpath, about 450;
-   - duplicate output names, 155;
    - text search, about 500;
-   - ROW constructors, 160;
+   - duplicate output names, 160;
+   - ROW constructors, 180;
    - ranges, about 260;
-   - arrays, 173;
-   - typed constants, 225.
+   - arrays, 190;
+   - the island's syntax errors, 350.
 
    Then the corpus program's step 2, sqllogictest.
