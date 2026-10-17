@@ -40,15 +40,10 @@ const EXPECT = fixture ? fixture.expect : JSON.parse(process.env.EXPECT ?? '{}')
 
 /** A Parquet file of the demo's eight columns, and DuckDB's per-region total of notional. */
 async function buildFixture() {
-  const { engineClientRequire } = await import('../../engine-client/src/node-require.ts');
+  const { startNodeDuckDb } = await import('../../engine-client/src/node-require.ts');
+  const { runfilesFromEnv } = await import('../../tools/js/runfiles.mts');
   const path = await import('node:path');
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB({
-    mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-    eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-  }, new duckdb.VoidLogger(), duckdb.NODE_RUNTIME);
-  await db.instantiate();
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   const conn = db.connect();
   // regions the demo never generates, so the grid cannot pass by showing the demo's own rows
   conn.query(`CREATE TABLE t AS SELECT

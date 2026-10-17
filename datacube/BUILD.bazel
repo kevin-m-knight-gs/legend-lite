@@ -1619,6 +1619,12 @@ _HARNESSES = [
     "verify-wasm-browser",
 ]
 
+# the harnesses that start DuckDB in Node (engine-client's startNodeDuckDb)
+_NODE_DUCKDB_HARNESSES = [
+    "verify-real-data",
+    "verify-remote",
+]
+
 # THE MECHANICAL HARNESSES AS TESTS (Bazel workplan P4-02): each against the pinned Chromium, with a result and a
 # timeout; no fixed sleep in any of them (G-11). run-stress is the long one.
 _BROWSER_TESTS = {
@@ -1647,9 +1653,14 @@ _BROWSER_TESTS = {
     ] + (["//fixtures/saved-queries:records"] if h == "verify-features" else []) + (
         # it imports pinned-chromium.mjs first, a no-op under bazel run
         ["//tools/browser:pinned_chromium"] if h in ["verify-smoke", "verify-remote", "verify-real-data", "verify-features"] or h in _BROWSER_TESTS else []
+    ) + (
+        # DuckDB in Node builds their fixture, its extensions the pinned ones (as node_test gives a test that takes it)
+        ["//engine-client:duckdb_extensions"] if h in _NODE_DUCKDB_HARNESSES else []
     ),
     entry_point = "demo/" + h + ".mjs",
-    env = {} if h == "make-sample" else _SITE_ENV | ({"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"} if h == "verify-features" else {}),
+    env = {} if h == "make-sample" else _SITE_ENV | ({"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"} if h == "verify-features" else {}) | (
+        {"DUCKDB_EXTENSIONS": "$(rlocationpaths //engine-client:duckdb_extensions)"} if h in _NODE_DUCKDB_HARNESSES else {}
+    ),
     node_options = [
         "--experimental-strip-types",
         "--experimental-wasm-exnref",

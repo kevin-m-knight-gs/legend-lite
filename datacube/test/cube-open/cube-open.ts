@@ -5,8 +5,7 @@
 // the second app shows must be what the first showed -- typed values, not rendered text.
 
 import assert from 'node:assert/strict';
-import { engineClientRequire } from '../../../engine-client/src/node-require.ts';
-import path from 'node:path';
+import { startNodeDuckDb } from '../../../engine-client/src/node-require.ts';
 import { before, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
@@ -26,7 +25,7 @@ import { TreeState } from '../../src/tree.ts';
 import { ingestFile, type DuckDbFiles } from '../../src/upload.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { col, fn, lambda, lit, times, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
+import { runfileDirUrl, runfilesFromEnv } from '../../../tools/js/runfiles.mts';
 
 const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
@@ -65,13 +64,7 @@ let files: DuckDbFiles;
 let planner: LitePlanner;
 
 before(async () => {
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB({
-    mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-    eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-  }, new duckdb.VoidLogger(), duckdb.NODE_RUNTIME);
-  await db.instantiate();
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   engine = new DuckDbEngine(db.connect() as ArrowishConnection);
   files = {
     registerFileText: async (name, text) => db.registerFileText(name, text),

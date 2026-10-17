@@ -10,6 +10,10 @@ Every node:test file runs with the same settings, so no target spells them itsel
     (preloaded) assigns to TZ: Windows' launcher drops TZ itself;
   * `wasm = True` adds the WebAssembly planner as one directory (//wasm:planner_dir), named in WASM_PLANNER by its
     runfiles path, and the flag Node needs to load it;
+  * a test that takes DuckDB-WASM (`.../node_modules/@duckdb/duckdb-wasm` in data) takes its extensions too, the
+    pinned ones every site serves the tab (//engine-client:duckdb_extensions), named in DUCKDB_EXTENSIONS: DuckDB
+    started by engine-client's startNodeDuckDb answers its extension requests from them, so no test fetches one from
+    extensions.duckdb.org (where the network is closed, DuckDB's own fetch waited forever);
   * //tools/js:runfiles, through which a test finds its inputs (Bazel workplan P1-24): each input the BUILD file
     names in `env` with $(rlocationpath ...), never by `../..` arithmetic or the working directory.
 
@@ -55,10 +59,15 @@ def node_test(name, entry_point, data = [], wasm = False, env = {}, platform_env
     zone = (pinned | env)["TZ"]
     if wasm:
         pinned["WASM_PLANNER"] = "$(rlocationpath //wasm:planner_dir)"
+    duckdb = type(data) == "list" and [d for d in data if str(d).endswith("node_modules/@duckdb/duckdb-wasm")] != []
+    if duckdb:
+        pinned["DUCKDB_EXTENSIONS"] = "$(rlocationpaths //engine-client:duckdb_extensions)"
     js_test(
         name = name,
         entry_point = entry_point,
-        data = data + [Label("//tools/js:runfiles"), Label("//tools/js:strict_reporter"), Label("//tools/js:zone")] + ([Label("//wasm:planner_dir")] if wasm else []),
+        data = data + [Label("//tools/js:runfiles"), Label("//tools/js:strict_reporter"), Label("//tools/js:zone")] + ([Label("//wasm:planner_dir")] if wasm else []) + (
+            [Label("//engine-client:duckdb_extensions")] if duckdb else []
+        ),
         env = pinned | env | {"LEGEND_TZ": zone} | platform_env,
         node_options = options,
         **kwargs

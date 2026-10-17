@@ -930,7 +930,11 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md`: the next program, after #47 merges (the user, 2026-10-17). Then
   the browser harnesses that built a grid with a list (`demo/verify-cubes.mjs`, `demo/verify-calc-vocabulary.mjs`,
   `demo/verify-wasm-browser.mjs`), and the round's audit fixes, in files already declared and `ui/menu.ts` (its Add
-  sort by `grid-edits.ts addSort`) and `cube.ts` (a grid's measures list refused).
+  sort by `grid-edits.ts addSort`) and `cube.ts` (a grid's measures list refused). Then the tests' DuckDB (the user,
+  2026-10-17: every test runs in the container): `tools/js/defs.bzl` (a test that takes DuckDB-WASM takes the pinned
+  extensions too, named in `DUCKDB_EXTENSIONS`: the Compiler Rewrite line's OK asked), `engine-client/src/node-require.ts`
+  (`startNodeDuckDb`), `engine-client/BUILD.bazel` (`node_duckdb_test`), the engine-client tests that start DuckDB
+  (`arrow-ipc`, `model-data`, `snap`), and `datacube/BUILD.bazel` (the two remote harnesses' `bazel run` targets).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

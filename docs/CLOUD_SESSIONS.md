@@ -58,8 +58,15 @@ when it starts. An environment's setup script could also run `tools/cloud-distdi
   allowance, not the machine: "Avail" near zero means it is spent.
 - **Root.** The container runs as root, and the embedded Postgres (`initdb`) refuses root:
   `tools/postgres/as_unprivileged.sh` runs a Postgres test as an unprivileged user (its header says how).
-- **The browser tests** (`//datacube:verify_smoke_test`, `//query:verify_test`, `//site:verify_test`) time out in the
-  container on main too; CI runs them.
+- **DuckDB in a Node test asks nothing of the network** (2026-10-17). With no `XMLHttpRequest`, DuckDB-WASM's Node
+  build fetched an extension it autoloads (ICU for the session's time zone, JSON, Parquet) from extensions.duckdb.org on
+  a worker thread and waited with no timeout; in the sandbox the TLS to the agent proxy failed (no CA bundle), and eight
+  tests ran until Bazel killed them (`//datacube:json_read_test`, the three `typed_values` tests, `upload_test`,
+  `python_execute_test`, `verify_remote_test`, `//engine-client:model_data_test`). A test now starts DuckDB with
+  engine-client's `startNodeDuckDb` (`engine-client/src/node-require.ts`), which answers from the pinned extensions
+  `node_test` gives any test that takes DuckDB-WASM (`DUCKDB_EXTENSIONS`, `tools/js/defs.bzl`);
+  `//engine-client:node_duckdb_test` holds it. The browser tests (`//datacube:verify_smoke_test`, `//query:verify_test`,
+  `//site:verify_test`) pass in the container too (2026-10-17).
 - **`//tools/guards:classpath_test`** reaches an arm64-only target and cannot run on an x86 host.
 - **WebAssembly.** The local core suite compiles no TeaVM target, so a JDK method TeaVM's class library lacks (such
   as `Character.toString(int)`) reaches CI first: after calling a JDK method new to core, build `//sdlc-server:page`

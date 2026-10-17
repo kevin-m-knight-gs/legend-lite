@@ -4,7 +4,6 @@
 // party), written here so each test can make the version it needs.
 
 import assert from 'node:assert/strict';
-import path from 'node:path';
 import { afterEach, before, describe, it } from 'node:test';
 
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
@@ -13,17 +12,13 @@ import { loadPlanner } from './planner.ts';
 import { dataTables, loadDataTables, seeded, type FileSink } from '../src/model-data.ts';
 import { ProjectDatabases, ProjectRunner } from '../src/project-data.ts';
 import { TabTables, type Model } from '../src/tab-data.ts';
-import { engineClientRequire } from '../src/node-require.ts';
+import { startNodeDuckDb, type NodeDuckDb } from '../src/node-require.ts';
+import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 
 type Elements = Parameters<typeof dataTables>[0];
 
 let engine: DuckDbEngine;
-let db: {
-  registerFileBuffer(name: string, bytes: Uint8Array): void;
-  copyFileToBuffer(name: string): Uint8Array;
-  connect(): unknown;
-  instantiate(): Promise<unknown>;
-};
+let db: NodeDuckDb;
 let planner: WasmGrammar;
 const sink = (): FileSink => ({
   registerFileBuffer: async (name, bytes) => db.registerFileBuffer(name, bytes),
@@ -78,17 +73,7 @@ const DESK = 'ID,NAME,COUNTRY\n5,Rates Desk,US\n';
 
 before(async () => {
   planner = await loadPlanner();
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  db = await duckdb.createDuckDB(
-    {
-      mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-      eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-    },
-    new duckdb.VoidLogger(),
-    duckdb.NODE_RUNTIME,
-  );
-  await db.instantiate();
+  db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   engine = new DuckDbEngine(db.connect() as ArrowishConnection);
 });
 

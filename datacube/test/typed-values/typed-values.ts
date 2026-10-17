@@ -6,8 +6,7 @@
 // looking at the answer.
 
 import assert from 'node:assert/strict';
-import { engineClientRequire } from '../../../engine-client/src/node-require.ts';
-import path from 'node:path';
+import { startNodeDuckDb } from '../../../engine-client/src/node-require.ts';
 import { before, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
@@ -27,7 +26,7 @@ import { familyOf } from '../../../engine-client/src/types.ts';
 import { toCsv } from '../../src/export.ts';
 import { selectionStats } from '../../src/selection.ts';
 import { accessor, col, fn, lambda, lit, times, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
+import { runfileDirUrl, runfilesFromEnv } from '../../../tools/js/runfiles.mts';
 
 const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
@@ -151,13 +150,7 @@ const COLUMNS: QuerySnapshot['columns'] = [
 ];
 
 before(async () => {
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB({
-    mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-    eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-  }, new duckdb.VoidLogger(), duckdb.NODE_RUNTIME);
-  await db.instantiate();
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   conn = db.connect() as ArrowishConnection;
   const local = new DuckDbEngine(conn);
   await local.run(`CREATE TABLE T (region VARCHAR(32), qty INTEGER, big BIGINT, amount DECIMAL(10,2),

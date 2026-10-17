@@ -10,8 +10,7 @@
 // generated name, so this judges any way of producing them.
 
 import assert from 'node:assert/strict';
-import { engineClientRequire } from '../../../engine-client/src/node-require.ts';
-import path from 'node:path';
+import { startNodeDuckDb } from '../../../engine-client/src/node-require.ts';
 import { before, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
@@ -27,7 +26,7 @@ import type { QuerySnapshot, Measure, } from '../../src/snapshot.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { MODEL, RUNTIME } from '../wasm-differential/cases.ts';
 import { accessor } from '../../../pure-protocol/src/index.ts';
-import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
+import { runfileDirUrl, runfilesFromEnv } from '../../../tools/js/runfiles.mts';
 
 const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
@@ -225,13 +224,7 @@ Promise<void> {
 /** A fresh in-memory DuckDB holding the seed TRADES: the suite's, and a test's own when it writes (Bazel workplan
  *  P3-10: no test changes rows another test reads). */
 async function seededConnection(): Promise<ArrowishConnection> {
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB({
-    mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-    eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-  }, new duckdb.VoidLogger(), duckdb.NODE_RUNTIME);
-  await db.instantiate();
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   const connection = db.connect() as ArrowishConnection;
   const local = new DuckDbEngine(connection);
   await local.run(`CREATE TABLE TRADES (region VARCHAR(32), desk VARCHAR(32), book VARCHAR(32),
