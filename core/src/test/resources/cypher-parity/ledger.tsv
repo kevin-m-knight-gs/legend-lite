@@ -188,7 +188,7 @@ tck/clauses/match-where/MatchWhere1/[13] Filter path with false path length pred
 tck/clauses/match-where/MatchWhere1/[14] Fail when filtering path with property predicate	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match-where/MatchWhere1/[15] Fail on aggregation in WHERE	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match-where/MatchWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	REFUSED	REFUSED
-tck/clauses/match-where/MatchWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere3/[1] Join between node identities	PASS	PASS
 tck/clauses/match-where/MatchWhere3/[2] Join between node properties of disconnected nodes	PASS	PASS
 tck/clauses/match-where/MatchWhere3/[3] Join between node properties of adjacent nodes	PASS	PASS
@@ -815,7 +815,7 @@ tck/clauses/return/Return6/[12] Counting matches per group	PASS	PASS
 tck/clauses/return/Return6/[13] Returning the minimum length of paths	REFUSED	REFUSED
 tck/clauses/return/Return6/[14] Aggregates in aggregates	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[15] Using `rand()` in aggregations	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return/Return6/[16] Aggregation on complex expressions	REFUSED	REFUSED
+tck/clauses/return/Return6/[16] Aggregation on complex expressions	PASS	PASS
 tck/clauses/return/Return6/[17] Handle constants and parameters inside an expression which contains an aggregation expression	PASS	PASS
 tck/clauses/return/Return6/[18] Handle returned variables inside an expression which contains an aggregation expression	PASS	REFUSED
 tck/clauses/return/Return6/[19] Handle returned property accesses inside an expression which contains an aggregation expression	PASS	REFUSED
@@ -1209,7 +1209,7 @@ tck/clauses/with-where/WithWhere1/[2] Filter node with property predicate on a s
 tck/clauses/with-where/WithWhere1/[3] Filter for an unbound relationship variable	PASS	PASS
 tck/clauses/with-where/WithWhere1/[4] Filter for an unbound node variable	PASS	PASS
 tck/clauses/with-where/WithWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	REFUSED	REFUSED
-tck/clauses/with-where/WithWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	PASS	PASS
 tck/clauses/with-where/WithWhere3/[1] Join between node identities	PASS	PASS
 tck/clauses/with-where/WithWhere3/[2] Join between node properties of disconnected nodes	PASS	PASS
 tck/clauses/with-where/WithWhere3/[3] Join between node properties of adjacent nodes	PASS	PASS
@@ -4028,6 +4028,16 @@ lite/cycles/a_self_loop_undirected_matches_once	PASS	PASS
 lite/cycles/a_self_loop_undirected_untyped	PASS	PASS
 lite/cycles/a_self_loop_undirected_bound_both_ends	PASS	PASS
 lite/cycles/a_looper_in_a_chain	PASS	PASS
+lite/depth/three_hops_over_three_classes	PASS	PASS
+lite/depth/three_hops_of_one_type_with_uniqueness	PASS	PASS
+lite/depth/a_cycle_closing_across_the_cut	PASS	PASS
+lite/depth/a_hop_after_an_edge_hop	PASS	PASS
+lite/depth/four_hops_two_cuts	PASS	PASS
+lite/depth/a_where_over_the_far_end_and_a_property_map_on_it	PASS	PASS
+lite/depth/a_deep_pattern_from_a_carried_node_after_a_with	PASS	PASS
+lite/depth/a_deep_pattern_in_a_second_match_over_the_graph	PASS	PASS
+lite/depth/a_deep_pattern_counted	PASS	PASS
+lite/depth/distinct_relationships_alike_counted_over_rows	PASS	PASS
 lite/edges/a_relationship_property	PASS	PASS
 lite/edges/a_relationship_as_a_value	PASS	PASS
 lite/edges/properties_and_keys_of_a_relationship	PASS	PASS
@@ -4042,7 +4052,7 @@ lite/edges/an_untyped_hop_over_an_edge_and_an_association	PASS	PASS
 lite/edges/a_path_over_an_edge	PASS	PASS
 lite/edges/a_pattern_comprehension_over_an_edge	PASS	PASS
 lite/edges/a_self_typed_edge	PASS	PASS
-lite/edges/an_edge_then_an_association	REFUSED	REFUSED
+lite/edges/an_edge_then_an_association	PASS	PASS
 lite/edges/a_labelless_pattern_over_an_edge	PASS	PASS
 lite/edges/an_aggregate_over_an_edge_property	PASS	PASS
 lite/edges/a_missing_property_on_some_relationships	PASS	PASS

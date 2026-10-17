@@ -1307,7 +1307,7 @@ public final class StoreResolver {
             TypedSpec each = new TypedVariable(v, new ExprType(ct, one));
             return new TypedMap(instance, new TypedLambda(List.of(v),
                     List.of(identityText(each, classFqn, keys.get(0), cs, one)),
-                    new ExprType(Type.Primitive.STRING, one)),
+                    new ExprType(Type.Primitive.STRING, com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE)),
                     new ExprType(Type.Primitive.STRING, mult));
         }
         return identityText(instance, classFqn, keys.get(0), cs, mult);
@@ -1333,19 +1333,22 @@ public final class StoreResolver {
                         new TypedCString(classFqn + ":", new ExprType(Type.Primitive.STRING, one)), text),
                         new ExprType(Type.Primitive.STRING, bound), false)),
                 new ExprType(Type.Primitive.STRING, mult));
-        if (mult instanceof com.legend.compiler.element.type.Multiplicity.Bounded b && b.lower() == 0) {
-            // an absent instance (an optional navigation, a left join's empty side) has NO identity: the
-            // concatenation skips an empty operand (Pure's plus over String[*], the database's concat), so the
-            // key's presence gates it
-            return new TypedIf(new TypedNativeCall(callees.isNotEmpty(), List.of(read),
-                    new ExprType(Type.Primitive.BOOLEAN, one)),
-                    prefixed,
-                    Optional.of(new com.legend.compiler.spec.typed.TypedCollection(List.of(),
-                            new ExprType(Type.Primitive.STRING,
-                                    com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE))),
-                    new ExprType(Type.Primitive.STRING, mult));
-        }
-        return prefixed;
+        // an absent instance has NO identity: the concatenation skips an empty operand (Pure's plus over
+        // String[*], the database's concat), so the key's presence gates it. Every read, not only an optional
+        // instance's (an optional navigation, a left join's empty side): an element of a to-many navigation is
+        // [1] in Pure, yet the database reads it as a null row where the navigation finds none (the far node of a
+        // fanning hop, whose presence the Cypher island tests by its identity, 2026-10-17: ungated, the far node
+        // of an empty second hop read as present under 'cls:' alone)
+        var gated = mult instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.upper() != null && b.upper() == 1
+                ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE : mult;
+        return new TypedIf(new TypedNativeCall(callees.isNotEmpty(), List.of(read),
+                new ExprType(Type.Primitive.BOOLEAN, one)),
+                prefixed,
+                Optional.of(new com.legend.compiler.spec.typed.TypedCollection(List.of(),
+                        new ExprType(Type.Primitive.STRING,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE))),
+                new ExprType(Type.Primitive.STRING, gated));
     }
 
     private TypedSpec classExtentCount(TypedNativeCall nc, Context context) {

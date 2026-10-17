@@ -1051,10 +1051,16 @@ class CypherToPureTest {
     }
 
     @Test
-    void aPatternNavigatingMoreThanTwoAssociationStepsIsRefusedByName() {
-        // the resolver's nested navigation reads no association end past a second step (IN_FLIGHT, W9)
-        unsupported("MATCH (f:Firm)-[:employees]->(p)-[:firm]->(g)-[:hq]->(c) RETURN c.name AS n",
-                "more than two association steps");
+    void aPatternNavigatingMoreThanTwoAssociationStepsIsCutIntoSegmentsJoinedByIdentity() {
+        // the resolver's nested navigation reads no association end past a second step in an existence filter
+        // (W9): the pattern is cut at two steps, the first segment materialized, the next re-anchored on the cut
+        // node by identity (the study's §12.54)
+        String deep = pure("MATCH (f:Firm)-[:employees]->(p)-[:firm]->(g)-[:hq]->(c) RETURN c.name AS n");
+        assertTrue(deep.contains("->join(") && deep.contains(".hq"), deep);
+        // five hops: two cuts, two joins
+        String deeper = pure("MATCH (p:Person)-[:firm]->(f)-[:employees]->(q)-[:firm]->(g)-[:employees]->(r)-[:firm]->(h)"
+                + " RETURN h.legalName AS n");
+        assertEquals(2, deeper.split("->join\\(", -1).length - 1, deeper);
     }
 
     @Test
@@ -1256,8 +1262,10 @@ class CypherToPureTest {
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, compact.kind(), compact.getMessage());
         assertTrue(compact.getMessage().contains("holds its from end director with no inverse end on demo::Person"),
                 compact.getMessage());
-        SqlTranslationException past = edgeRefusal("MATCH (p:Person)-[:ACTED_IN]->(f:Firm)-[:hq]->(c:City) RETURN c");
-        assertTrue(past.getMessage().contains("a hop from f, a node reached through an edge class"), past.getMessage());
+        // a hop from a node reached through an edge class: the edge hop is two steps, so the next hop opens a
+        // segment re-anchored on that node (the study's §12.54; refused by name before)
+        String past = edges("MATCH (p:Person)-[:ACTED_IN]->(f:Firm)-[:hq]->(c:City) RETURN c.name AS n");
+        assertTrue(past.contains("->join(") && past.contains(".hq"), past);
         SqlTranslationException wrongWay = edgeRefusal("MATCH (f:Firm)-[r:ACTED_IN]->(p:Person) RETURN r");
         assertEquals(SqlTranslationException.Kind.INVALID, wrongWay.kind(), wrongWay.getMessage());
         assertTrue(wrongWay.getMessage().contains("which no pattern from demo::Firm reads outgoing"),

@@ -9932,6 +9932,30 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the fifty-third landing — deep patterns cut at two steps
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 leg 3, routing around W9's depth-two limit); the
+record is the study's §12.54. The translator cuts a pattern navigating more than two association steps (an edge
+hop counting two) into segments of at most two, the first read as a graph and materialized, each next one a MATCH
+over the rows re-anchored on the cut node by identity, relationship uniqueness and the WHERE over the whole; the
+resolver gates every instance's identity on its key's presence (an absent far node read as present under its
+class's prefix, `concat` skipping the null key).
+
+1. **What lands.** MatchWhere2/[2], WithWhere2/[2] (three typed hops from a label-less node), Return6/[16] (two edge
+   hops from a label-less node, `count(DISTINCT r)` over rows); the 10 lite cases of `lite/depth.yaml` (three hops
+   over three classes, three of one type with uniqueness, a cycle closing across the cut, a hop after an edge hop,
+   four hops, a WHERE and a property map on the far end, after a WITH, over a first MATCH's graph, counted,
+   distinct relationships alike counted over rows).
+2. **The ledger.** DuckDB PASS 3,259 → 3,273 (REFUSED 455 → 451; FAIL, BUG, ERROR 0), Postgres PASS 2,898 → 2,912 (REFUSED
+   816 → 812); TCK agreement 3,282 → 3,285 of 3,880 on DuckDB and 2,932 → 2,935 on Postgres (none lost); 10 lite
+   cases in `lite/depth.yaml`, all PASS on both lanes, judged by Neo4j (`snap.sh --check`: 0 problems);
+   `docs/CYPHER_SHOWCASE.md` §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_resolver`, `//core:core_tests_lowering`,
+   `//core:core_tests_sql`, `//core:guardrails`, `//core:core_tests_integration` green.
+4. **Refused by name, recorded.** A deep pattern with an untyped hop (the arms' route), a named path over more
+   than two steps, a variable-length chain unrolling past two hops, a deep OPTIONAL MATCH; the resolver's own limit
+   (an existence filter past a second association step) stays W9's.
+
 ## 2026-10-17 — `#Cypher{...}#`: the fifty-second landing — the tail's small shapes
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, leg 2); the record is the study's §12.53. The

@@ -3789,3 +3789,59 @@ problems over 4543 cases). The TCK: agreement 3282 of 3880 (from 3,270): 12 more
 lost: ReturnOrderBy2/[8], ReturnOrderBy4/[1], [2], ReturnOrderBy5/[1] (the hidden sort key), String8/[8],
 String9/[8], String10/[8], Precedence4/[4] (the string predicates by kind), Aggregation5/[2], Aggregation8/[3], [4]
 (`collect(DISTINCT)`), Temporal2/[7] #7 (the duration's date-time text); Postgres 2932 of 3880 (from 2,920).
+
+### 12.54 Deep patterns cut at two steps, and an absent node's identity, 2026-10-17
+
+- **The frame (the plan's W12 leg 3, W9's depth-two limit):** a pattern navigating more than two association
+  steps from its first node was refused by name ("a pattern navigating more than two association steps from its
+  root", 13 cases), as was a hop from a node reached through an edge class (18: an edge hop is two steps, the
+  edge instance and its far end). The limit is the resolver's: a navigation chain past a second association
+  step reads in a projection and in a filter on a leaf property (`$a.T.U.V.name`), but not in an existence
+  filter (`$a.T.U.V->isNotEmpty()`: "property 'V' of nested navigation 'T.U' is not mapped"; past a
+  bridge-table step at two steps already, `UnfoldableRef`, §12.50), and a hop that may find nothing is spelled
+  as that existence. The island does not wait for the resolver: it cuts the pattern.
+- **Segments of at most two steps, met by identity (`segments`, `deep`):** the hops are walked from the first
+  node (its label's class; a label-less first node the class its first relationship's type leaves, as `rooted`
+  reads it), each the steps its navigation spells (`Hop.steps`); where the next hop would pass two, the node
+  before it ends a segment and starts the next, named (freshly where the query did not). The first segment is
+  read as a graph (over the MATCH's graph in hand, where there is one) and materialized; each next segment is a
+  MATCH over the rows so far, re-anchored on the cut node by identity (§12.49's `reanchor`: the segment read as
+  its own graph from the carried node's class, joined on the identity columns), so a cycle closing across a cut
+  (`(x)-[:KNOWS]->(y)-[:KNOWS]->(z)-[:KNOWS]->(x)`) is the join on both ends. The MATCH's WHERE and its
+  property maps on far nodes hold over the final rows; relationship uniqueness holds within a segment by each
+  segment's own reading and across segments by the relationships' identities (an edge's own, or the ordered pair
+  of its ends, S74): a relationship whose type the whole pattern repeats is named before the cut, so the pairs
+  can be spelled. Four hops cut twice; a deep pattern after a WITH or over a first MATCH's graph re-anchors from
+  the carried node first. The routes the cut does not reach yet: a pattern with an untyped hop (the arms' route
+  reads each arm as one graph), a named path (its value spans the segments), a variable-length chain, an OPTIONAL
+  MATCH; recorded in the plan.
+- **An absent node's identity was its class's prefix (the resolver's `identityText`, fixed):** the identity of
+  an instance is `'<class>:' + toString($x.key)`, a run of Pure's `plus` over `String[*]`, which the database
+  spells as `concat`, and `concat` skips a NULL argument on DuckDB and Postgres, so the far node of a fanning hop
+  that found nothing read as present (`'g::P:'`, never null): the two-hop `MATCH (d)-[:KNOWS]->(n)-[:KNOWS]->(w)`
+  returned a row with `w` null, which the cut exposed on four hops (`lite/depth`'s `four_hops_two_cuts`). The
+  resolver gated an optional instance's identity on its key's presence already; it now gates every read, since
+  an element of a to-many navigation is `[1]` in Pure yet reads as a null row where the navigation finds none.
+  The island's presence test (`present`, §12.50) is right again on both lanes.
+- **`count(DISTINCT r)` over rows counts identities (Return6/[16], caught by the cut):** over a graph the count
+  of a pattern variable was its distinct identities (§12.47); over rows (after a WITH, or after a cut) it fell
+  to the generic reading, the relationship's value, which is one for two relationships alike (`{"@type": "ATE",
+  "times": 7}` twice: Peter's bread and veggies), so `count(DISTINCT r2)` undercounted. The row scope now answers
+  a relationship's identity (an edge's own, or the ordered pair of its ends, S74) as it answers a node's, and
+  `count(DISTINCT x)` counts identities wherever the scope has one (lite/depth's
+  `distinct_relationships_alike_counted_over_rows`).
+
+#### 12.54.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4636 | 3273 (from 3,259) | 0 | 0 | 0 | 451 (from 455) | 731 | 181 |
+| Postgres | 4636 | 2912 (from 2,898) | 0 | 0 | 0 | 812 (from 816) | 731 | 181 |
+
+The 10 lite cases of `lite/depth.yaml` PASS on both lanes, judged by Neo4j (`snap.sh --check`: 0 problems over
+4553 cases). The TCK: agreement 3285 of 3880 (from 3,282): 3 more scenarios on each lane, none lost,
+MatchWhere2/[2] and WithWhere2/[2] (`(advertiser)-[:ADV_HAS_PRODUCT]->(out)-[:AP_HAS_VALUE]->(red)<-[:AA_HAS_VALUE]-(a)`,
+three typed hops from a label-less node) and Return6/[16] (two edge hops from a label-less node, `count(DISTINCT r)`
+over the rows); Postgres 2935 of 3880 (from 2,932). The typed cut alone reaches few scenarios: the deep patterns
+the TCK spells mostly carry an untyped hop (the arms' route), a named path or a variable-length relationship, leg
+4's.

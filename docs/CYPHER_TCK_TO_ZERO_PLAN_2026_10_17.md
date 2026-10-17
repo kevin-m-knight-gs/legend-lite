@@ -219,7 +219,13 @@ missing parameter or a yield of nothing. Two legs.
 - `project` of a to-many navigation mapped to a constant keeps one row per root: fix in the lowering so the join
   fans out whenever the navigation is to-many (21 cases).
 - The resolver's nested navigation past a second association step (15 cases): extend the resolver's
-  property-chain rewrite to any depth.
+  property-chain rewrite to any depth. **Measured 2026-10-17 (W12 leg 3):** a chain of three foreign-key
+  association ends projects and filters on a leaf property; what fails is the EXISTENCE of the chain
+  (`$a.T.U.V->isNotEmpty()`: "property 'V' of nested navigation 'T.U' is not mapped"), and past a bridge-table
+  step at two steps already (`$u.KNOWS.KNOWS->isNotEmpty()`: `UnfoldableRef`; its identity read: "multi-hop
+  navigation ... through an embedded/slot head is not supported yet"). The island cuts its patterns at two steps
+  (the study's §12.54), so the resolver fix is no longer on the TCK's path for typed patterns; the probes are
+  `$S/pprobe/abcd_fk.pure` and `knows.pure`.
 - `rem` inside a list lambda on Postgres types its divide-by-zero guard as text (9): the dialect's arm.
 - A sort key that is not an output column without a SKIP or LIMIT (4): the render's subquery form.
 - Four legs, each in the platform's own guards, with the database owner.
@@ -258,7 +264,12 @@ hidden sort output), string predicates on non-strings (null; a Variant by its ki
 `collect(DISTINCT x)` (S78), a duration text in the date-time form. Leg 3, the rest of the tail: a pattern
 comprehension over rows, `toString` of lists, maps and nodes (Neo4j's own texts: `[1, a]`, `{a: 1}`, `(:A)`), an
 untyped relationship in a MATCH of several patterns; ORDER BY and min/max over Variants are W11's (Cypher's type
-rank over JSON kinds, which `isKind` now reads).
+rank over JSON kinds, which `isKind` now reads). Leg 3 LANDED 2026-10-17 (the study's §12.54, GATES'
+fifty-third landing; TCK agreement 3282 → 3285, DuckDB PASS 3259 → 3273, Postgres 2898 → 2912): a pattern deeper than two association steps, or hopping on from an edge-reached
+node, cut into segments of at most two steps met by identity (W9's depth-two limit routed around for typed
+patterns); an absent node's identity null (the resolver's `identityText` gated on the key). Leg 4: the cut under
+the arms' route (untyped hops), named paths over the segments, variable-length chains past two hops; then the
+pattern comprehension over rows and `toString` of lists, maps and nodes.
 
 ## 3. Decisions asked of the user
 

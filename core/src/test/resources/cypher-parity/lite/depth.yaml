@@ -1,0 +1,59 @@
+# The #Cypher{...}# island's deep patterns (docs/CYPHER_STUDY_2026_10_15.md §12.54, the plan's W12 leg 3 and W9): a
+# pattern navigating more than two association steps from its first node, or hopping on from a node reached
+# through an edge class, is cut into segments of at most two steps, the first read as a graph and materialized, each
+# next one re-anchored on the cut node by identity; the MATCH's relationship uniqueness and WHERE hold over the
+# whole. Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/depth/*' snaps them), keyed lite/depth/<id>.
+tests:
+  - id: three_hops_over_three_classes
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(b:B {name: 'b1'})-[:U]->(c:C {name: 'c1'})-[:V]->(d:D {name: 'd1'}),
+             (a2:A {name: 'a2'})-[:T]->(b2:B {name: 'b2'})-[:U]->(c), (c)-[:V]->(:D {name: 'd2'}), (:A {name: 'a3'})
+    cypher: "MATCH (a:A)-[:T]->(b)-[:U]->(c)-[:V]->(d) RETURN a.name AS an, b.name AS bn, d.name AS dn ORDER BY an, dn"
+  - id: three_hops_of_one_type_with_uniqueness
+    graph: |
+      CREATE (a:P {name: 'a'})-[:KNOWS]->(b:P {name: 'b'})-[:KNOWS]->(c:P {name: 'c'})-[:KNOWS]->(d:P {name: 'd'}),
+             (b)-[:KNOWS]->(a), (c)-[:KNOWS]->(a)
+    cypher: "MATCH (x:P)-[:KNOWS]->(y)-[:KNOWS]->(z)-[:KNOWS]->(w) RETURN x.name AS xn, w.name AS wn ORDER BY xn, wn"
+  - id: a_cycle_closing_across_the_cut
+    graph: |
+      CREATE (a:P {name: 'a'})-[:KNOWS]->(b:P {name: 'b'})-[:KNOWS]->(c:P {name: 'c'})-[:KNOWS]->(a),
+             (c)-[:KNOWS]->(:P {name: 'd'})
+    cypher: "MATCH (x:P)-[:KNOWS]->(y)-[:KNOWS]->(z)-[:KNOWS]->(x) RETURN x.name AS xn, z.name AS zn ORDER BY xn"
+  - id: a_hop_after_an_edge_hop
+    graph: |
+      CREATE (a:A {name: 'a'})-[:E {w: 1}]->(b:B {name: 'b'})-[:F]->(c:C {name: 'c'}),
+             (a)-[:E {w: 2}]->(:B {name: 'b2'})-[:F]->(:C {name: 'c2'}), (:A {name: 'a2'})-[:E {w: 3}]->(b)
+    cypher: "MATCH (a:A)-[e:E]->(b)-[:F]->(c) RETURN a.name AS an, e.w AS w, c.name AS cn ORDER BY an, w"
+  - id: four_hops_two_cuts
+    graph: |
+      CREATE (a:P {name: 'a'})-[:KNOWS]->(b:P {name: 'b'})-[:KNOWS]->(c:P {name: 'c'})-[:KNOWS]->(d:P {name: 'd'})-[:KNOWS]->(e:P {name: 'e'}),
+             (d)-[:KNOWS]->(b)
+    cypher: "MATCH (v:P)-[:KNOWS]->()-[:KNOWS]->()-[:KNOWS]->()-[:KNOWS]->(w) RETURN v.name AS vn, w.name AS wn ORDER BY vn, wn"
+  - id: a_where_over_the_far_end_and_a_property_map_on_it
+    graph: |
+      CREATE (a:P {name: 'a'})-[:KNOWS]->(b:P {name: 'b'})-[:KNOWS]->(c:P {name: 'c'})-[:KNOWS]->(d:P {name: 'd', age: 1}),
+             (c)-[:KNOWS]->(:P {name: 'e', age: 2}), (b)-[:KNOWS]->(:P {name: 'f'})-[:KNOWS]->(:P {name: 'g', age: 2})
+    cypher: "MATCH (x:P)-[:KNOWS]->(y)-[:KNOWS]->(z)-[:KNOWS]->(w {age: 2}) WHERE y.name <> 'q' RETURN x.name AS xn, w.name AS wn ORDER BY wn"
+  - id: a_deep_pattern_from_a_carried_node_after_a_with
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(b:B {name: 'b1'})-[:U]->(c:C {name: 'c1'})-[:V]->(d:D {name: 'd1'}),
+             (:A {name: 'a2'})-[:T]->(:B {name: 'b2'})-[:U]->(c)
+    cypher: "MATCH (a:A) WITH a MATCH (a)-[:T]->(b)-[:U]->(c)-[:V]->(d) RETURN a.name AS an, d.name AS dn ORDER BY an"
+  - id: a_deep_pattern_in_a_second_match_over_the_graph
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(b:B {name: 'b1'})-[:U]->(c:C {name: 'c1'})-[:V]->(d:D {name: 'd1'}),
+             (:A {name: 'a2'})-[:T]->(:B {name: 'b2'})-[:U]->(c)
+    cypher: "MATCH (a:A) MATCH (a)-[:T]->(b)-[:U]->(c)-[:V]->(d) RETURN a.name AS an, d.name AS dn ORDER BY an"
+  - id: a_deep_pattern_counted
+    graph: |
+      CREATE (a:P {name: 'a'})-[:KNOWS]->(b:P {name: 'b'})-[:KNOWS]->(c:P {name: 'c'})-[:KNOWS]->(d:P {name: 'd'}),
+             (b)-[:KNOWS]->(a), (c)-[:KNOWS]->(a)
+    cypher: "MATCH (x:P)-[:KNOWS]->()-[:KNOWS]->()-[:KNOWS]->(w) RETURN x.name AS xn, count(w) AS n ORDER BY xn"
+  - id: distinct_relationships_alike_counted_over_rows
+    graph: |
+      CREATE (m:P {name: 'm'}), (y:P {name: 'y'}), (b:F {name: 'b'}), (v:F {name: 'v'}), (t:F {name: 't'}),
+             (m)-[:ATE {times: 4}]->(v), (m)-[:ATE {times: 6}]->(b), (m)-[:ATE {times: 9}]->(t),
+             (y)-[:ATE {times: 7}]->(v), (y)-[:ATE {times: 7}]->(b), (y)-[:ATE {times: 4}]->(t)
+    cypher: "MATCH (me:P {name: 'm'})-[r1:ATE]->()<-[r2:ATE]-(you) WITH me, you, count(DISTINCT r1) AS h1, count(DISTINCT r2) AS h2, count(r2) AS n RETURN you.name AS yn, h1, h2, n"
+
