@@ -1632,7 +1632,7 @@ final class IqAggregates {
             spelling = !counts ? "NUMERIC(36,16)" : type.low() == null ? "NUMERIC(51,16)" : "NUMERIC(45,16)";
         } else if (type != null && numeric && (x.kind() == Kind.DECIMAL || x.kind() == Kind.INTEGER)) {
             int[] ps = numeric(type);
-            if (ps[0] + 22 > 38 || ps[0] + 22 > settings.precision()) {
+            if (ps[0] + 22 > settings.precision() || ps[1] + 21 > 37) {
                 throw SqlTranslationException.unsupported("AVG of a NUMERIC(" + ps[0] + "," + ps[1] + ") is not"
                         + " supported under IQ's engine: its NUMERIC(" + (ps[0] + 22) + "," + (ps[1] + 21) + ") needs"
                         + " more than lite's 38 digits or the profile's PRECISION", f.pos());
@@ -1646,7 +1646,14 @@ final class IqAggregates {
                     : x.kind() == Kind.DATE || x.kind() == Kind.DATETIME ? "a date" : "a value of this type")
                     + " is not supported yet (IQ converts it to a number by its own rules)", f.pos());
         }
-        if (!IqFunctions.truncatedFits(sumScale, sumWhole, scale)) {
+        // IQ island, 2026-10-17: a quotient a single step cannot hold is divided in chunks (IqFunctions.longQuotient),
+        // a value of more digits than lite's decimals hold refused at run time
+        boolean chunked = !IqFunctions.truncatedFits(sumScale, sumWhole, scale) || numeric
+                && numeric(java.util.Objects.requireNonNull(type))[0] + 22 > 38;
+        String past = IqDialect.REFUSED_AT_RUN_TIME + "an AVG of more than " + (38 - scale) + " digits before its point"
+                + " is not supported: its " + spelling + " needs more than the 38 digits lite's decimals hold";
+        if (chunked && IqFunctions.longQuotient(new CDecimal(java.math.BigDecimal.ONE), sumScale, sumWhole,
+                new CDecimal(java.math.BigDecimal.ONE), COUNT_DIGITS, scale, past) == null) {
             throw SqlTranslationException.unsupported("AVG of " + java.util.Objects.requireNonNull(type).spelling()
                     + " under IQ's engine needs a step"
                     + " of more than the 38 digits lite's decimals hold", f.pos());
@@ -1663,8 +1670,11 @@ final class IqAggregates {
         Tx n = Tx.value(at.column(count), Kind.INTEGER, false);
         int s1 = sumScale;
         int whole1 = sumWhole;
-        Tx quotient = SqlToPure.strict(Kind.DECIMAL, List.of(total, n), v -> IqFunctions.truncatedQuotient(
-                IqDialect.wide(v.get(0)), s1, whole1, SqlToPure.call("toDecimal", v.get(1)), scale));
+        Tx quotient = SqlToPure.strict(Kind.DECIMAL, List.of(total, n), v -> chunked
+                ? java.util.Objects.requireNonNull(IqFunctions.longQuotient(IqDialect.wide(v.get(0)), s1, whole1,
+                        SqlToPure.call("toDecimal", v.get(1)), COUNT_DIGITS, scale, past))
+                : IqFunctions.truncatedQuotient(IqDialect.wide(v.get(0)), s1, whole1, SqlToPure.call("toDecimal",
+                        v.get(1)), scale));
         return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(quotient.vs()), null, null),
                 Kind.DECIMAL, true, new IqType(spelling));
     }

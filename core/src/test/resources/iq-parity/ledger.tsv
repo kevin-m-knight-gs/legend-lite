@@ -1295,6 +1295,9 @@ lite/iq_engine_aggregates/avg_of_a_numeric_16_2_grouped@iq17-default	PASS	PASS
 lite/iq_engine_aggregates/avg_of_a_numeric_14_4_repeating@iq17-default	PASS	PASS
 lite/iq_engine_aggregates/avg_of_a_numeric_15_2_negative@iq17-default	PASS	PASS
 lite/iq_engine_aggregates/avg_of_a_numeric_15_2_read_by_arithmetic@iq17-default	PASS	PASS
+lite/iq_engine_aggregates/avg_of_a_numeric_17_2@iq17-default	PASS	PASS
+lite/iq_engine_aggregates/avg_of_a_numeric_20_2_grouped@iq17-default	PASS	PASS
+lite/iq_engine_aggregates/avg_of_a_product_of_numerics@iq17-default	REFUSED	REFUSED
 lite/iq_engine_aggregates/avg_of_a_numeric_15_2_compared_in_having@iq17-default	PASS	PASS
 lite/iq_engine_aggregates/percentiles@iq17-default	PASS	PASS
 lite/iq_engine_aggregates/percentiles_at_the_ends@iq17-default	PASS	PASS

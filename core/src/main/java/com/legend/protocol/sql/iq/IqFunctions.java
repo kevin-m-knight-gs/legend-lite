@@ -2628,6 +2628,40 @@ final class IqFunctions {
         return times(m, ifThen(negative, new CDecimal(unit.negate()), new CDecimal(unit)));
     }
 
+    /**
+     * IQ island, 2026-10-17 (the TPC-H and TPC-DS corpus lanes' 900 AVGs of a NUMERIC whose type IQ's engine makes
+     * wider than 38 digits, NUMERIC(p+22, s+21)): {@code x / y} cut toward zero at scale {@code s} by long division, so
+     * that no step needs more than 38 digits -- the whole quotient of |x| by y ({@link #whole}), then the places in
+     * chunks of at most k digits, each the whole quotient of the rest times 10^k -- with x's sign. x is a decimal of
+     * scale {@code s1} with at most {@code whole1} digits before its point, y a whole decimal above 0 of at most
+     * {@code wholeY}. A quotient of 38 - s digits or more before its point is refused at run time ({@code refusal}):
+     * lite's decimals hold no more, where IQ's type does. Null where a step would still need more than 38 digits.
+     */
+    static @com.legend.base.Nullable ValueSpecification longQuotient(ValueSpecification x, int s1, int whole1,
+            ValueSpecification y, int wholeY, int s, String refusal) {
+        int k = 38 - wholeY - s1 - 1;
+        if (k < 1 || s < s1 || s > 37 || whole1 + s1 > 38) {
+            return null;
+        }
+        ValueSpecification ax = SqlToPure.call("abs", x);
+        ValueSpecification q0 = whole(ax, y, pow10(whole1));
+        ValueSpecification rest = AppliedFunction.infixRun("minus", List.of(ax, times(q0, y)));
+        ValueSpecification result = q0;
+        int done = 0;
+        while (done < s) {
+            int step = Math.min(k, s - done);
+            ValueSpecification a = times(rest, new CDecimal(pow10(step)));
+            ValueSpecification q = whole(a, y, pow10(step));
+            done += step;
+            result = AppliedFunction.infixRun("plus", List.of(result, times(q, new CDecimal(pow10(-done)))));
+            rest = AppliedFunction.infixRun("minus", List.of(a, times(q, y)));
+        }
+        ValueSpecification signed = times(result, ifThen(lt(x, integer(0)), new CDecimal(BigDecimal.ONE.negate()),
+                new CDecimal(BigDecimal.ONE)));
+        return refusedPast(SqlToPure.call("greaterThanEqual", q0, new CDecimal(pow10(38 - s))), refusal, signed,
+                raise("Decimal"));
+    }
+
     /** Whether {@link #truncatedDivision}'s steps fit lite's 38 digits, scales counted. */
     static boolean truncatedDivisionFits(int s1, int whole1, int s2, int whole2, int s) {
         return s <= 38 && whole1 + s + s2 <= 38 && Math.max(whole1 + s + s2, whole2) + 1 + Math.max(s1, s2) <= 38;
