@@ -21,7 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SqlToPureTest {
 
     /** A source column, as the typer reports it. */
-    private record Col(String name, String type, boolean nullable) {
+    private record Col(String name, String type, boolean nullable, @com.legend.base.Nullable String storeType) {
+
+        Col(String name, String type, boolean nullable) {
+            this(name, type, nullable, null);
+        }
     }
 
     /** The source table: ID Integer[1], firstName String[0..1], age Integer[0..1], dept String[1]. */
@@ -37,7 +41,7 @@ class SqlToPureTest {
 
     private static String pure(String sql, List<Col> columns) {
         ValueSpecification vs = SqlToPure.translate(sql, (source, column) -> columns.forEach(
-                c -> column.column(c.name(), c.type(), c.nullable())));
+                c -> column.column(c.name(), c.type(), c.nullable(), c.storeType())));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 
@@ -316,6 +320,77 @@ class SqlToPureTest {
             forty = "cast(" + forty + " as integer)";
         }
         assertTrue(pure("select " + forty + " from tb('s::DB.T')").endsWith("->rename(~_sql_1, ~age)"));
+    }
+
+    @Test
+    void constantIntegerArithmeticIsHeldToItsPostgresType() {
+        // 2026-10-17, the regression suite: the fold of constants answered past the type's range, where Postgres
+        // raises; int2 with int2 is int2, else the wider, a constant int4 where it fits, a minus before one its value
+        String product = pure("select (-32768)::int2 * (-1)::int2 as a from tb('s::DB.T')");
+        assertTrue(product.matches("#>\\{s::DB.T}#->extend\\(~\\[a:r\\|if\\(\\(.* \\* .* < -32768\\)"
+                + " \\|\\| \\(.* > 32767\\), \\|\\[]->cast\\(@Integer\\)->toOne\\(\\), \\|.*\\)]\\)"
+                + "->select\\(~\\[a]\\)"), product);
+        assertTrue(pure("select 2147483647 + 1 as a from tb('s::DB.T')").contains("> 2147483647"));
+        assertTrue(pure("select '9223372036854775800'::int8 + 100 as a from tb('s::DB.T')")
+                .contains("> 9223372036854775807"));
+        assertTrue(pure("select -(-2147483648) as a from tb('s::DB.T')").contains("> 2147483647"));
+        // constants that bound it within the type need no test: 1 + 2 is at most 3
+        assertEquals("#>{s::DB.T}#->extend(~[a:r|1 + 2])->select(~[a])", pure("select 1 + 2 as a from tb('s::DB.T')"));
+        // over a column the database computes in the column's own type: nothing is added
+        assertEquals("#>{s::DB.T}#->extend(~[a:r|$r.ID * 2])->select(~[a])",
+                pure("select ID * 2 as a from tb('s::DB.T')"));
+    }
+
+    @Test
+    void aDoublePrecisionConstantPastADoublesRangeIsAnError() {
+        assertEquals("\"10e-400\" is out of range for type double precision",
+                refusal("select '10e-400'::float8 from tb('s::DB.T')").getMessage());
+        assertEquals("\"1e309\" is out of range for type double precision",
+                refusal("select '1e309'::float8 from tb('s::DB.T')").getMessage());
+        assertTrue(pure("select '0.0'::float8 as z from tb('s::DB.T')").contains("0.0"));
+    }
+
+    @Test
+    void aCharColumnAsTextDropsItsPadding() {
+        List<Col> padded = List.of(new Col("c", "String", false, "CHAR(4)"), new Col("v", "String", false,
+                "VARCHAR(4)"));
+        assertEquals("#>{s::DB.T}#->extend(~[t:r|$r.c->rtrim(), u:r|$r.v])->select(~[t, u])",
+                pure("select c::text as t, v::text as u from tb('s::DB.T')", padded));
+        assertEquals("#>{s::DB.T}#->select(~[c])", pure("select c from tb('s::DB.T')", padded));
+    }
+
+    @Test
+    void aStringComparedWithARealIsRefused() {
+        List<Col> real = List.of(new Col("f", "Float", false, "REAL"), new Col("d", "Float", false, "DOUBLE"));
+        // Postgres reads '1004.3' as a real there, which Pure's Float is not
+        assertEquals("a string compared with a real (float4) value is not supported yet: Postgres reads it as a real",
+                refusal("select f from tb('s::DB.T') where f = '1004.3'", real).getMessage());
+        assertEquals("#>{s::DB.T}#->filter(r|$r.d == toFloat(1004.3D))->select(~[d])",
+                pure("select d from tb('s::DB.T') where d = '1004.3'", real));
+    }
+
+    @Test
+    void twoWindowsOfOneNameAreAnError() {
+        assertEquals("window \"w\" is already defined", refusal("select count(*) over w from tb('s::DB.T')"
+                + " window w as (order by ID), w as (order by ID)").getMessage());
+    }
+
+    @Test
+    void anUnnamedItemIsNamedAsPostgresNamesIt() {
+        // FigureColname's strengths: a cast's type or CASE names an item only where what it holds has no name of its
+        // own (2026-10-17, the regression suite)
+        named("int2", "select '1'::float8::int2 from tb('s::DB.T')");
+        named("int4", "select 1::integer from tb('s::DB.T')");
+        named("age", "select age::smallint::bigint from tb('s::DB.T')");
+        named("date", "select date '2024-01-31' from tb('s::DB.T')");
+        named("dept", "select case when ID > 1 then 'x' else dept end from tb('s::DB.T')");
+        named("case", "select case when ID > 1 then dept end from tb('s::DB.T')");
+        named("max", "select (select max(t.ID) from tb('s::DB.T') t) from tb('s::DB.T')");
+    }
+
+    private static void named(String name, String sql) {
+        String pure = pure(sql);
+        assertTrue(pure.endsWith("->select(~[" + name + "])") || pure.endsWith(", ~" + name + ")"), pure);
     }
 
     @Test

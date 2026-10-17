@@ -472,7 +472,13 @@ final class StaticFold {
                     return sb.toString();
                 }
                 if (args.stream().allMatch(a -> a instanceof Long)) {
-                    return args.stream().mapToLong(a -> (Long) a).sum();
+                    // a sum past a long's range is not folded here (it wrapped: 2026-10-17, the #SQL{} island's
+                    // regression-suite corpus); the exact folds and the database answer it
+                    java.math.BigInteger sum = java.math.BigInteger.ZERO;
+                    for (Object a : args) {
+                        sum = sum.add(java.math.BigInteger.valueOf((Long) a));
+                    }
+                    return sum.bitLength() < 64 ? (Object) sum.longValue() : null;
                 }
                 return null;
             }
@@ -481,14 +487,15 @@ final class StaticFold {
                 if (args == null || !args.stream().allMatch(a -> a instanceof Long)) {
                     return null;
                 }
+                // as PLUS: a difference past a long's range is not folded here (-(-9223372036854775808) wrapped)
+                java.math.BigInteger acc = java.math.BigInteger.valueOf((Long) args.get(0));
                 if (args.size() == 1) {
-                    return -(Long) args.get(0);
+                    acc = acc.negate();
                 }
-                long acc = (Long) args.get(0);
                 for (int i = 1; i < args.size(); i++) {
-                    acc -= (Long) args.get(i);
+                    acc = acc.subtract(java.math.BigInteger.valueOf((Long) args.get(i)));
                 }
-                return acc;
+                return acc.bitLength() < 64 ? (Object) acc.longValue() : null;
             }
             case PAIR -> {
                 List<Object> args = evalAll(ps, scope);

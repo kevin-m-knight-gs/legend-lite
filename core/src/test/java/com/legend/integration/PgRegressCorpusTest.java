@@ -37,18 +37,21 @@ import org.junit.jupiter.api.Test;
  * file of the schedule in order, each in its own session of one database, by {@link Psql}. Each read-only statement
  * ({@code SELECT}, {@code WITH}, {@code VALUES}, {@code TABLE}; not {@code SELECT ... INTO}, not a data-modifying
  * {@code WITH}) is judged where the script reaches it: Postgres's answer is the script's own; Postgres runs it a second
- * time (a different answer is NONDETERMINISTIC, judged no further); then it runs as an island over a Legend model of
- * the tables it names, read from the catalog at that moment, on the same session, and the parity harness judges the
- * rows ({@link SqlParity#outcome}). The second run and the island run are rolled back (a savepoint inside the script's
- * transaction, else a transaction of their own) under a {@code statement_timeout}, so the script runs on as written.
+ * time (a different answer is NONDETERMINISTIC, judged no further; under a DateStyle the script set, the reference is
+ * Postgres's answer under its default, ISO, MDY, as the island reads a date's text); then it runs as an island over a
+ * Legend model of the tables it names, read from the catalog at that moment, on the same session, and the parity
+ * harness judges the rows ({@link SqlParity#outcome}). The second run and the island run are rolled back (a savepoint
+ * inside the script's transaction, else a transaction of their own) under a {@code statement_timeout}, so the script
+ * runs on as written.
  *
  * <p>Statuses: SqlParity's (PASS, FAIL, BUG, REFUSED, ERROR, BOTH_ERROR), NAMES (the rows are Postgres's, an output
- * column's name is not), NONDETERMINISTIC, CATALOG (the island failed on a statement that reads a system catalog,
- * which no Legend model has), UNMODELED (the island
- * failed on a statement that reads a column of a type no Legend column models), and SKIP (the script's transaction was
- * already aborted). FAIL and BUG are wrong answers. The report -- every status counted, per file and in all, each
- * failing status's messages normalized and ranked -- is written to {@code -Dsql.corpus.report}. The suite is not this
- * repository's: the lane runs where the property names it (core/BUILD.bazel's {@code pg_regress_corpus_test}).
+ * column's name is not), KNOWN (a wrong answer the {@link #KNOWN} ledger names, with why), REGISTERED (a difference
+ * docs/SEMANTICS_REGISTER.md rules: S49's jsonb text of a json value), NONDETERMINISTIC, CATALOG (the island failed on
+ * a statement that reads a system catalog, which no Legend model has), UNMODELED (the island failed on a statement that
+ * reads a column of a type no Legend column models), and SKIP (the script's transaction was already aborted). FAIL and
+ * BUG are wrong answers. The report -- every status counted, per file and in all, each failing status's messages
+ * normalized and ranked -- is written to {@code -Dsql.corpus.report}. The suite is not this repository's: the lane runs
+ * where the property names it (core/BUILD.bazel's {@code pg_regress_corpus_test}).
  */
 class PgRegressCorpusTest {
 
@@ -147,7 +150,7 @@ class PgRegressCorpusTest {
             StringBuilder tsv = new StringBuilder("file\tline\tstatus\tms\tdetail\tsql\n");
             for (Judged j : judged) {
                 tsv.append(j.file()).append('\t').append(j.line()).append('\t').append(j.status()).append('\t')
-                        .append(j.millis()).append('\t').append(clean(j.detail(), 400)).append('\t')
+                        .append(j.millis()).append('\t').append(clean(j.detail(), 3000)).append('\t')
                         .append(clean(j.sql(), 600)).append('\n');
             }
             Files.writeString(o.resolve("pg-regress.tsv"), tsv, StandardCharsets.UTF_8);
@@ -226,26 +229,57 @@ class PgRegressCorpusTest {
             return new Judged(file, line, "HARNESS", 0, "Postgres's answer is unreadable: " + r.message(), sql);
         }
         try {
+            boolean defaults = DEFAULT_DATESTYLE.equals(setting(conn, "DateStyle"));
+            SqlParity.Answer reference = answer;
             boolean savepoint = open(conn, timeoutSeconds);
             SqlParity.Answer second = send(conn, sql);
             reset(conn, savepoint, timeoutSeconds);
-            if (answer instanceof SqlParity.Rows && !SqlParity.agrees(answer, second)) {
-                close(conn, savepoint);
-                return new Judged(file, line, "NONDETERMINISTIC", ms(start), "Postgres answered it twice"
-                        + " differently", sql);
+            if (!SqlParity.agrees(answer, second)) {
+                // under the script's own DateStyle a date's text reads otherwise: the island's spec is Postgres's
+                // answer under its default, which the judge runs (twice: it must be one answer)
+                SqlParity.Answer third = defaults ? second : send(conn, sql);
+                reset(conn, savepoint, timeoutSeconds);
+                if (defaults && answer instanceof SqlParity.Rows || !defaults && !SqlParity.agrees(second, third)) {
+                    close(conn, savepoint);
+                    return new Judged(file, line, "NONDETERMINISTIC", ms(start), "Postgres answered it twice"
+                            + " differently", sql);
+                }
+                if (!defaults) {
+                    reference = second;
+                }
             }
             Map<String, List<Col>> tables = tables(conn, sql);
             reset(conn, savepoint, timeoutSeconds);
             String model = model(tables, port);
             Set<String> names = tables.keySet();
             SqlParity.Case c = new SqlParity.Case("pg-regress/" + file, "L" + line, sql, null);
-            SqlParity.Outcome o = SqlParity.outcome(c, answer, names,
-                    island -> service.execute(model, island, SqlParity.RUNTIME, conn));
+            String[] island = new String[1];
+            SqlParity.Outcome o = SqlParity.outcome(c, reference, names, text -> {
+                island[0] = text;
+                return service.execute(model, text, SqlParity.RUNTIME, conn);
+            });
             close(conn, savepoint);
             String status = o.status().name();
+            String detail = o.detail();
+            if ((status.equals("FAIL") || status.equals("BUG")) && island[0] != null) {
+                detail += " [lite's SQL: " + plannedSql(model, island[0]) + "]"; // a wrong answer's triage
+            }
             if (status.equals("FAIL") && java.util.Arrays.stream(o.detail().split("; "))
                     .allMatch(d -> d.startsWith("Column name mismatch"))) {
                 status = "NAMES"; // the rows are Postgres's; only an output column's name differs
+            }
+            if (status.equals("FAIL") && java.util.Arrays.stream(o.detail().split("; ")).allMatch(d -> {
+                java.util.regex.Matcher m = CELL.matcher(d);
+                return m.matches() && SqlParity.sameJsonContainer(m.group(1), m.group(2));
+            })) {
+                status = "REGISTERED";
+                detail = "S49: a json value's object or array is written as jsonb writes it (Postgres's json keeps"
+                        + " the text as written)";
+            }
+            String known = KNOWN.get(sql.strip().replaceAll("\\s+", " "));
+            if ((status.equals("FAIL") || status.equals("BUG")) && known != null) {
+                status = "KNOWN";
+                detail = known;
             }
             if ((status.equals("ERROR") || status.equals("REFUSED")) && CATALOG.matcher(sql).find()) {
                 status = "CATALOG"; // a system catalog: no Legend model has one
@@ -254,12 +288,45 @@ class PgRegressCorpusTest {
                     tables)) {
                 status = "UNMODELED";
             }
-            return new Judged(file, line, status, ms(start), o.detail(), sql);
+            return new Judged(file, line, status, ms(start), detail, sql);
         } catch (SQLException | RuntimeException e) {
             return new Judged(file, line, "HARNESS", ms(start), e.getClass().getSimpleName() + ": "
                     + e.getMessage(), sql);
         }
     }
+
+    /** The SQL legend-lite runs for {@code island} over {@code model}, on one line. */
+    private static String plannedSql(String model, String island) {
+        try {
+            return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), island).plan(SqlParity.RUNTIME)
+                    .sql().replaceAll("\\s+", " ");
+        } catch (RuntimeException e) {
+            return "(no plan: " + e.getMessage() + ")";
+        }
+    }
+
+    /** One cell's difference in SqlParity's words. */
+    private static final java.util.regex.Pattern CELL = java.util.regex.Pattern.compile(
+            "Row \\d+, column '[^']*': expected '(.*)' but got '(.*?)'(?: \\[lite's SQL: .*)?",
+            java.util.regex.Pattern.DOTALL);
+
+    /** Statements whose answer SQL leaves to the plan, or whose difference is named and not fixed here, each with why:
+     *  judged KNOWN, not FAIL or BUG (2026-10-17, the first full run). A statement is its text as the script sends
+     *  it, each run of white space one space. */
+    private static final Map<String, String> KNOWN = Map.of(
+            "select unique1, unique2, generate_series(1,10) from tenk1 order by tenthous limit 7",
+            "LIMIT cuts through rows whose ORDER BY key ties (each tenk1 row's ten series rows share its tenthous):"
+                    + " which seven are kept is the plan's choice in SQL",
+            "SELECT last_value(ten) OVER (PARTITION BY four), ten, four FROM (SELECT * FROM tenk1 WHERE unique2 < 10"
+                    + " ORDER BY four, ten)s ORDER BY four, ten",
+            "last_value over a partition with no window ORDER BY: SQL leaves the order of the partition's rows,"
+                    + " so the last of them, to the plan",
+            "SELECT CASE WHEN i > 100 THEN 1/0 ELSE 0 END FROM case_tbl",
+            "Postgres folds a branch's constant 1/0 when it plans the statement, though no row reaches the branch"
+                    + " (its documented caveat; the suite's own comment); the island raises for a branch a row reaches",
+            "select t1.f1 from t1 left join t2 using (f1) group by f1",
+            "USING over an int and a bigint column: Postgres's merged f1 is the bigint cast, which GROUP BY f1 does"
+                    + " not make t1.f1; the island's integers carry no width, so the merged column is t1.f1");
 
     private static long ms(long start) {
         return (System.nanoTime() - start) / 1_000_000;
@@ -281,13 +348,28 @@ class PgRegressCorpusTest {
                 s.execute("BEGIN");
             }
         }
-        timeout(conn, timeoutSeconds);
+        settings(conn, timeoutSeconds);
         return savepoint;
     }
 
-    private static void timeout(Connection conn, int seconds) throws SQLException {
+    /** The judge's settings, until the rollback: its statement timeout, and Postgres's default DateStyle, under which
+     *  the island reads a date's text (docs/LEGEND_SQL_STUDY_2026_10_11.md §9.4, DecodeDateTime as ISO, MDY). */
+    private static void settings(Connection conn, int seconds) throws SQLException {
         try (Statement s = conn.createStatement()) {
             s.execute("SET LOCAL statement_timeout = '" + seconds + "s'");
+            s.execute("SET LOCAL datestyle TO '" + DEFAULT_DATESTYLE + "'");
+        }
+    }
+
+    private static final String DEFAULT_DATESTYLE = "ISO, MDY";
+
+    private static String setting(Connection conn, String name) throws SQLException {
+        try (var ps = conn.prepareStatement("SELECT current_setting(?)")) {
+            ps.setString(1, name);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getString(1);
+            }
         }
     }
 
@@ -299,7 +381,7 @@ class PgRegressCorpusTest {
                 s.execute("BEGIN");
             }
         }
-        timeout(conn, timeoutSeconds);
+        settings(conn, timeoutSeconds);
     }
 
     private static void close(Connection conn, boolean savepoint) throws SQLException {
@@ -460,8 +542,8 @@ class PgRegressCorpusTest {
 
     // ------------------------------------------------------------------ the report
 
-    private static final List<String> ORDER = List.of("PASS", "NAMES", "FAIL", "BUG", "REFUSED", "ERROR",
-            "UNMODELED", "CATALOG", "BOTH_ERROR", "NONDETERMINISTIC", "SKIP", "HARNESS");
+    private static final List<String> ORDER = List.of("PASS", "NAMES", "FAIL", "BUG", "KNOWN", "REGISTERED", "REFUSED",
+            "ERROR", "UNMODELED", "CATALOG", "BOTH_ERROR", "NONDETERMINISTIC", "SKIP", "HARNESS");
 
     private static String counts(List<Judged> judged, String file) {
         Map<String, Integer> n = new TreeMap<>();
@@ -482,12 +564,14 @@ class PgRegressCorpusTest {
         StringBuilder r = new StringBuilder("# #SQL{} over the PostgreSQL regression suite (read-only statements)\n\n");
         r.append("Judged: ").append(judged.size()).append("\n\n| status | n |\n|---|---|\n");
         total.forEach((s, n) -> r.append("| ").append(s).append(" | ").append(n).append(" |\n"));
-        for (String status : List.of("FAIL", "BUG", "NAMES", "ERROR", "REFUSED", "UNMODELED", "HARNESS")) {
+        for (String status : List.of("FAIL", "BUG", "KNOWN", "REGISTERED", "NAMES", "ERROR", "REFUSED", "UNMODELED",
+                "HARNESS")) {
             Map<String, Integer> reasons = new HashMap<>();
             Map<String, String> example = new HashMap<>();
             for (Judged j : judged) {
                 if (j.status().equals(status)) {
-                    String key = normalized(j.detail());
+                    String key = status.equals("KNOWN") || status.equals("REGISTERED") ? j.detail()
+                            : normalized(j.detail());
                     reasons.merge(key, 1, Integer::sum);
                     example.putIfAbsent(key, j.file() + ":" + j.line());
                 }
@@ -506,8 +590,9 @@ class PgRegressCorpusTest {
 
     /** A message with its particulars (quoted text, numbers) masked, so messages of one kind count together. */
     static String normalized(String detail) {
-        return detail.replaceAll("'[^']*'", "'…'").replaceAll("\"[^\"]*\"", "\"…\"").replaceAll("\\d+", "N")
-                .replaceAll("\\s+", " ").strip();
+        int sql = detail.indexOf(" [lite's SQL: ");
+        return (sql < 0 ? detail : detail.substring(0, sql)).replaceAll("'[^']*'", "'…'")
+                .replaceAll("\"[^\"]*\"", "\"…\"").replaceAll("\\d+", "N").replaceAll("\\s+", " ").strip();
     }
 
     private static String clean(String s, int max) {

@@ -1327,6 +1327,74 @@ Recorded, not fixed:
   `lite/dates.yaml` 44, `lite/windows.yaml` 65): PASS 344, REFUSED 58, BOTH_ERROR 75;
 - 0 FAIL, 0 BUG, 0 ERROR.
 
+### 9.5 The corpus program, step 1: the PostgreSQL regression suite (run 2026-10-17, on the branch)
+
+The user, after the stress corpus: "stick to selects but we should try to do all the compatibility tests and real world
+tests we can". The order (IN_FLIGHT, 2026-10-17): the PostgreSQL regression suite, sqllogictest, TPC-H and TPC-DS,
+SQLStorm's and BIRD's PostgreSQL sets, JOB, a SQLancer-style generator. Each step is one PR; this is the first.
+
+**The harness.** `//core:pg_regress_corpus_test` (manual, in `//gates:heavy`) replays the suite's own scripts on the
+embedded Postgres 16: REL_16_STABLE's `src/test/regress` (`sql/`, `data/`, `parallel_schedule`; the PostgreSQL
+License), kept outside the repository and named by `-Dsql.corpus.regress`. The run:
+- One database, `regression` (UTF8, collation C). The schedule's files run in order, one at a time, each on a fresh
+  session, so each file's setup (`CREATE`, `INSERT`, `COPY ... FROM stdin`, its `\set` variables) is Postgres's.
+- `Psql` (`core/src/test/java/com/legend/testcases/`) splits a script as psql does: quotes, `E''` and dollar quoting,
+  nested comments, `BEGIN ATOMIC` bodies, and the meta-commands that matter here (`\set`, `\unset`, `\getenv`, `\gset`,
+  `\gexec`, `\if`, `\c`). `COPY ... FROM stdin` is sent as a server-side COPY of a temporary file. A `SET` of DateStyle
+  keeps the ISO output pgjdbc needs, so only the input order changes; IntervalStyle and client_encoding are not sent,
+  since pgjdbc closes the session on them.
+- Each read-only statement (a SELECT, WITH, VALUES or TABLE with no INSERT, UPDATE, DELETE, MERGE or INTO) is judged
+  before it is sent as the script means it. It runs under a savepoint, so a statement Postgres rejects is judged and
+  then still aborts the script's transaction.
+- The judge: Postgres's answer, twice (rows that differ between the two runs are NONDETERMINISTIC); the relations the
+  statement names, read from the catalog and declared as a `###Relational` database of their modeled columns; the
+  statement as `#SQL{...}#` over that database, run on the same session (`QueryService.execute`); `SqlParity`'s
+  verdict.
+- Statuses beyond `SqlParity`'s: NAMES (the values agree, a column's name does not), UNMODELED (a table or column of a
+  type the model cannot declare: oid, the geometric types, arrays, ranges), CATALOG (a read of `pg_*` or
+  `information_schema`), HARNESS (the harness itself failed).
+
+**The first full run** (15,714 statements, 208 s):
+
+| Status | n |
+|---|---|
+| PASS | 2,509 |
+| NAMES | 86 |
+| FAIL | 41 |
+| BUG | 48 |
+| REFUSED | 7,306 |
+| ERROR | 518 |
+| UNMODELED | 1,452 |
+| CATALOG | 1,240 |
+| BOTH_ERROR | 2,269 |
+| NONDETERMINISTIC | 236 |
+| SKIP | 7 |
+| HARNESS | 2 |
+
+Of the 10,460 statements Postgres answers and the model can declare (PASS, NAMES, FAIL, REFUSED, ERROR), 2,509 (24.0%)
+answer Postgres's rows, and 86 more its values under other column names. The suite tests Postgres's own types and
+catalogs more than ordinary queries do, so the real-world corpora (step 4) are the measure of everyday SQL; this one is
+the measure of breadth.
+
+**Wrong answers (FAIL 41, BUG 48), the next work:**
+- Overflow is not an error: `bigint`, `integer` and `smallint` arithmetic past the type's range (28), and `float8` past
+  its range (2), answer rows where Postgres raises.
+- Dates: a field out of range answers a date (15); a date literal under DateStyle YMD reads in the wrong order.
+- A `char(n)` cast to `text` or `varchar` keeps its padding (Postgres drops it).
+- Smaller cases in `float4`, `timestamp`, `horology`, `limit` and `window`; one GROUP BY rule, one duplicate WINDOW
+  name, and one division by zero under `CASE` that Postgres reaches and the island does not.
+
+**Names (86):** a chain of casts is named by its last cast (`'1'::float8::int2` is `int2`), and a typed literal by
+its type (`date '...'` is `date`, not `?column?`).
+
+**The largest refusals:** functions in FROM (`generate_series` and others, 635), VALUES lists (315), jsonpath (about
+450), a duplicate output name (155), jsonb read out of a jsonb constant (150), text search (`@@` and the ts functions,
+about 500), `pg_input_is_valid` (127), ROW constructors (160), range operators and functions (about 260), arrays beyond
+unnest (173), `timestamptz` casts and constants (140), typed constants (`int2`, `float8`, `interval`, `bool`: 225),
+`to_char` (87), COLLATE (80), regular-expression operators (70), named arguments (64), grouping sets (63), `E''` strings
+(49), bit strings (46), VARIADIC (46), whole-row references (44). The ERRORs are mostly the island's parser (341 syntax
+errors) and a duplicate column (41).
+
 ## 10. Sources
 
 - **Upstream code:** `finos/legend-engine` `e60ab67a`, sparse checkout of `legend-engine-xts-sql/`,

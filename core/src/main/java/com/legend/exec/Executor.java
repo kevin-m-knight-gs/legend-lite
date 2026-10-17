@@ -664,7 +664,7 @@ public final class Executor {
      * declared layout is a contract violation — loud, never zipped short.
      */
     /**
-     * Typed cell retrieval. TIMESTAMP columns fetch through {@code java.time}:
+     * Typed cell retrieval. TIMESTAMP (and DATE) columns fetch through {@code java.time}:
      * the driver's {@code java.sql.Timestamp} construction DROPS the BC era
      * (year -21457 surfaces as +21458 — irrecoverably, the epoch itself is
      * wrong). Timestamp stays the carrier where it is faithful (AD years);
@@ -709,6 +709,12 @@ public final class Executor {
                     ? java.time.LocalDateTime.class : java.time.LocalTime.class;
             Object t = rs.getObject(i, carrier);
             return t != null ? t : o;
+        }
+        if (o instanceof java.sql.Date && dialect.refetchesTimestampAsJavaTime()) {
+            // a DATE cell as java.time too: java.sql.Date drops a BC date's era as Timestamp does (pgjdbc's 2040-04-10
+            // BC read as 2040-04-10 AD: 2026-10-17, the #SQL{} island's regression-suite corpus)
+            Object d = rs.getObject(i, java.time.LocalDate.class);
+            return d != null ? d : o;
         }
         return o;
     }

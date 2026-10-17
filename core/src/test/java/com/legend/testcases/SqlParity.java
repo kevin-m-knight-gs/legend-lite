@@ -379,7 +379,10 @@ public final class SqlParity {
     public record Grid(List<String> columns, List<List<Object>> rows) {
     }
 
-    /** A JDBC result, as upstream's {@code DirectPostgresRunner} reads one: labels, and {@code getObject} cells. */
+    /** A JDBC result, as upstream's {@code DirectPostgresRunner} reads one: labels, and {@code getObject} cells; a
+     *  Postgres date or timestamp as its java.time value, as legend-lite's executor reads one (2026-10-17, the
+     *  regression suite: through java.sql.Date and Timestamp a BC year lost its era, and 'infinity' was a date in the
+     *  year 292278994). */
     public static Grid grid(ResultSet rs) throws SQLException {
         ResultSetMetaData meta = rs.getMetaData();
         List<String> columns = new ArrayList<>();
@@ -390,7 +393,12 @@ public final class SqlParity {
         while (rs.next()) {
             List<Object> row = new ArrayList<>();
             for (int i = 1; i <= columns.size(); i++) {
-                row.add(cell(rs.getObject(i)));
+                // pgjdbc's type names: a timestamptz has no LocalDateTime, and another driver's names are its own
+                row.add(cell(switch (meta.getColumnTypeName(i)) {
+                    case "date" -> rs.getObject(i, java.time.LocalDate.class);
+                    case "timestamp" -> rs.getObject(i, java.time.LocalDateTime.class);
+                    default -> rs.getObject(i);
+                }));
             }
             rows.add(row);
         }
@@ -456,6 +464,19 @@ public final class SqlParity {
     }
 
     private static final Set<String> JSON_TYPES = Set.of("json", "jsonb");
+
+    /** Whether two texts are one JSON object or array spelled two ways: register S49's difference, where the island
+     *  writes a {@code json} value's object or array as {@code jsonb} does and Postgres keeps the text as written. */
+    public static boolean sameJsonContainer(String a, String b) {
+        if (!jsonContainerText(a) || !jsonContainerText(b)) {
+            return false;
+        }
+        try {
+            return JsonValue.of(a).equals(JsonValue.of(b));
+        } catch (RuntimeException notJson) {
+            return false;
+        }
+    }
 
     private static boolean jsonContainerText(String s) {
         String t = s.strip();

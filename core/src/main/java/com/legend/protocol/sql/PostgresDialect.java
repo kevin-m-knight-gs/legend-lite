@@ -96,31 +96,105 @@ public final class PostgresDialect implements InputDialect {
         return defaultName(item.expr());
     }
 
-    /** Postgres's name for an unnamed select item (its FigureColname): a column's name, a function's name,
-     *  {@code case} for CASE, else {@code ?column?}. */
+    /** Postgres's name for an unnamed select item (its FigureColname, parse_target.c): a column's name, a function's,
+     *  a subquery's column's; else a cast's type or {@code case}, where what they hold has no such name (so the outer
+     *  of two casts names the item: 2026-10-17, the regression suite); else {@code ?column?}. */
     private static String defaultName(SqlAst.Expr e) {
+        Named n = named(e);
+        return n == null ? "?column?" : n.name();
+    }
+
+    /** A name FigureColname gives, and whether it is one an enclosing cast or CASE keeps (its strength 2). */
+    private record Named(String name, boolean strong) {
+    }
+
+    private static @com.legend.base.Nullable Named named(SqlAst.Expr e) {
         return switch (e) {
-            case SqlAst.ColumnRef ref -> ref.parts().get(ref.parts().size() - 1).text();
-            case SqlAst.FunctionCall f -> SqlToPure.functionName(f.name().get(f.name().size() - 1));
-            case SqlAst.Window w -> SqlToPure.functionName(w.call().name().get(w.call().name().size() - 1));
-            case SqlAst.Case c -> "case";
+            case SqlAst.ColumnRef ref -> new Named(ref.parts().get(ref.parts().size() - 1).text(), true);
+            case SqlAst.FunctionCall f -> new Named(SqlToPure.functionName(f.name().get(f.name().size() - 1)), true);
+            case SqlAst.Window w -> new Named(SqlToPure.functionName(w.call().name().get(w.call().name().size() - 1)),
+                    true);
             // a subscripted value keeps its name (Postgres's FigureColname reads through the indirection)
-            case SqlAst.Subscript sub -> defaultName(sub.base());
-            case SqlAst.ArrayConstructor a -> "array";
+            case SqlAst.Subscript sub -> named(sub.base());
+            case SqlAst.ArrayConstructor a -> new Named("array", true);
+            case SqlAst.Exists x -> new Named("exists", true);
+            case SqlAst.ScalarSubquery q -> firstColumn(q.query());
+            // CASE is named by its ELSE's value where that has a name of its own (CASE ... ELSE b END is b)
+            case SqlAst.Case c -> strongOr(c.otherwise() == null ? null : named(c.otherwise()), "case");
             // the operand's name once: twice a level was 2^n for n nested casts
-            case SqlAst.Cast c -> castName(defaultName(c.operand()), c.type().name());
-            default -> "?column?";
+            case SqlAst.Cast c -> strongOr(named(c.operand()), typeName(c.type()));
+            // DATE '...' is a cast of the string, so its type's name
+            case SqlAst.TypedLit t -> new Named(typeName(t.type()), false);
+            default -> null;
         };
     }
 
-    /** A cast's default name: its operand's, or its type's when the operand has none. */
-    private static String castName(String operand, String type) {
-        return operand.equals("?column?") ? type : operand;
+    private static Named strongOr(@com.legend.base.Nullable Named inner, String weak) {
+        return inner != null && inner.strong() ? inner : new Named(weak, false);
+    }
+
+    /** A scalar subquery's name: its first select item's, the leftmost branch's of a set operation; none for a
+     *  {@code *}. */
+    private static @com.legend.base.Nullable Named firstColumn(SqlAst.Statement query) {
+        return switch (query) {
+            case SqlAst.Select s -> s.items().isEmpty() || !(s.items().get(0) instanceof SqlAst.SelectExpr x) ? null
+                    : new Named(x.alias() != null ? x.alias().text() : defaultName(x.expr()), true);
+            case SqlAst.SetOperation op -> firstColumn(op.left());
+            case SqlAst.With w -> firstColumn(w.body());
+        };
+    }
+
+    /** A type's name as Postgres's grammar gives it (gram.y's SystemTypeName for the SQL standard's spellings), the
+     *  last part of a qualified one. */
+    static String typeName(SqlAst.TypeName type) {
+        String name = type.name();
+        return switch (name) {
+            case "int", "integer" -> "int4";
+            case "smallint" -> "int2";
+            case "bigint" -> "int8";
+            case "real" -> "float4";
+            case "double precision" -> "float8";
+            // FLOAT(p): float4 to 24 binary digits, else float8
+            case "float" -> !type.modifiers().isEmpty() && type.modifiers().get(0) <= 24 ? "float4" : "float8";
+            case "decimal", "dec" -> "numeric";
+            case "boolean" -> "bool";
+            case "character", "char", "nchar" -> "bpchar";
+            case "character varying", "char varying" -> "varchar";
+            case "timestamp", "timestamp without time zone" -> "timestamp";
+            case "timestamp with time zone" -> "timestamptz";
+            case "time", "time without time zone" -> "time";
+            case "time with time zone" -> "timetz";
+            default -> name.substring(name.lastIndexOf('.') + 1);
+        };
     }
 
     // ------------------------------------------------------------------ types
 
-    /** A column's kind is its Pure type's: Postgres's translation reads no store type. */
+    /** A column's store type, where the translation reads it beyond the column's kind (2026-10-17, the regression
+     *  suite): a {@code CHAR(n)}, whose padding a cast to text drops, and a {@code REAL}, as which Postgres reads a
+     *  string compared with it. */
+    record Stored(String type) implements InputDialect.TypeDetail {
+
+        /** A blank-padded {@code CHAR(n)}. */
+        boolean padded() {
+            return type.startsWith("CHAR(");
+        }
+
+        /** A single-precision {@code REAL}. */
+        boolean single() {
+            return type.equals("REAL");
+        }
+    }
+
+    @Override
+    public InputDialect.@com.legend.base.Nullable TypeDetail detailOf(String pureType,
+            @com.legend.base.Nullable String storeType) {
+        return storeType != null && (storeType.startsWith("CHAR(") || storeType.equals("REAL")) ? new Stored(storeType)
+                : null;
+    }
+
+    /** A column's kind is its Pure type's: Postgres's translation reads no store type but for its details
+     *  ({@link Stored}). */
     @Override
     public Kind kindOf(String pureType, @com.legend.base.Nullable String storeType) {
         int paren = pureType.indexOf('(');
