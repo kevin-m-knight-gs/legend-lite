@@ -2779,6 +2779,22 @@ final class IqFunctions {
         return AppliedFunction.infixRun("times", List.of(a, b));
     }
 
+    /**
+     * IQ island, 2026-10-17 (the TPC-H corpus lane's 257 comparisons of a sum with a wide AVG): {@code y}, a decimal of
+     * scale {@code sy} with at most {@code wy} digits before its point, at {@code s} places (fewer than sy), rounded up
+     * (toward +infinity) or down, exactly: y less its remainder by 10^-s (toward zero), one step away where the
+     * remainder points so, at scale s. So a comparison with a value of s places needs no decimal holding both scales.
+     */
+    static ValueSpecification placesToward(ValueSpecification y, int sy, int wy, int s, boolean up) {
+        CDecimal unit = new CDecimal(pow10(-s));
+        ValueSpecification r = remainder(y, sy, wy, unit, s, 1);
+        ValueSpecification toward = AppliedFunction.infixRun("minus", List.of(y, r));
+        ValueSpecification step = ifThen(up ? SqlToPure.call("greaterThan", r, integer(0)) : lt(r, integer(0)), unit,
+                new CDecimal(BigDecimal.ZERO));
+        return SqlToPure.call("round", AppliedFunction.infixRun(up ? "plus" : "minus", List.of(toward, step)),
+                integer(s));
+    }
+
     /** {@code MOD(a, b)} and {@code REMAINDER(a, b)}: IQ's {@code a % b} (the same function: the dividend's sign, a
      *  zero divisor IQ's error -628, IQ's types). */
     private Tx mod(String name, SqlAst.FunctionCall f, SqlToPure.At at) {

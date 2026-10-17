@@ -2104,3 +2104,18 @@ tests:
   - id: a_wide_avg_compared_with_a_column
     sql: "SELECT g.id FROM g, (SELECT AVG(CAST(n AS NUMERIC(17,2))) AS a FROM g) d WHERE g.n > d.a ORDER BY g.id"
     profile: iq17-default
+
+  # ---- an ordering of a wide sum against a wide AVG (IQ island, 2026-10-17; the TPC-H corpus lane's 257, measured on
+  # IQ 17.1): compared at the fewer places, the other side rounded up or down by the operator
+  - id: a_wide_sum_ordered_against_a_wide_avg
+    sql: "SELECT k FROM g GROUP BY k HAVING SUM(CAST(n AS NUMERIC(28,4)) * 1) > (SELECT AVG(CAST(n AS NUMERIC(17,2))) FROM g) ORDER BY k"
+    profile: iq17-default
+  - id: a_wide_avg_ordered_against_a_wide_sum
+    sql: "SELECT k FROM g GROUP BY k HAVING (SELECT AVG(CAST(n AS NUMERIC(17,2))) FROM g) >= SUM(CAST(n AS NUMERIC(28,4))) ORDER BY k"
+    profile: iq17-default
+  - id: a_wide_sum_less_than_a_wide_avg
+    sql: "SELECT k FROM g GROUP BY k HAVING SUM(CAST(n AS NUMERIC(28,4))) < (SELECT AVG(CAST(n AS NUMERIC(17,2))) FROM g) ORDER BY k"
+    profile: iq17-default
+  - id: a_wide_sum_at_most_a_wide_avg
+    sql: "SELECT k FROM g GROUP BY k HAVING SUM(CAST(n AS NUMERIC(28,4))) <= (SELECT AVG(CAST(n AS NUMERIC(17,2))) FROM g) ORDER BY k"
+    profile: iq17-default

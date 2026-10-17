@@ -6340,6 +6340,24 @@ public final class IqDialect implements InputDialect {
         int[] left = digits(l);
         int[] right = digits(r);
         if (left != null && right != null && Math.max(left[0], right[0]) + Math.max(left[1], right[1]) > 38) {
+            boolean rightWide = right[1] > left[1];
+            int[] narrow = rightWide ? left : right;
+            int[] wide = rightWide ? right : left;
+            boolean ordering = op == SqlAst.BinaryOp.LT || op == SqlAst.BinaryOp.LE || op == SqlAst.BinaryOp.GT
+                    || op == SqlAst.BinaryOp.GE;
+            if (ordering && Math.max(narrow[0], wide[0] + 1) + narrow[1] <= 38 && wide[0] + wide[1] <= 38) {
+                // IQ island, 2026-10-17 (the TPC-H corpus lane's 257): an ordering against a value of fewer places is
+                // the same against the other at those places, rounded up or down by the side and the operator
+                // (x > y is x > floor(y) for an x of s places), which needs no decimal holding both scales
+                boolean up = rightWide ? op == SqlAst.BinaryOp.GE || op == SqlAst.BinaryOp.LT
+                        : op == SqlAst.BinaryOp.GT || op == SqlAst.BinaryOp.LE;
+                Tx w = rightWide ? r : l;
+                Tx placed = SqlToPure.strict(Kind.DECIMAL, List.of(w), v -> IqFunctions.placesToward(v.get(0), wide[1],
+                        wide[0], narrow[1], up));
+                Tx at = Tx.value(placed.vs(), Kind.DECIMAL, placed.nullable(), new IqType("NUMERIC("
+                        + (wide[0] + 1 + narrow[1]) + "," + narrow[1] + ")"));
+                return SqlToPure.compare(op, rightWide ? l : at, rightWide ? at : r);
+            }
             // the database compares the two as one decimal holding both, which lite's 38 digits cannot
             throw SqlTranslationException.unsupported("comparing these two numbers needs a decimal of more than 38"
                     + " digits, which lite does not hold", pos);

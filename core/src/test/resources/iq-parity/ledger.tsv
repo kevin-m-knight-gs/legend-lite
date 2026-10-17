@@ -1197,6 +1197,10 @@ lite/corpus_gaps/a_null_first_branch_joined@iq17-default	PASS	PASS
 lite/corpus_gaps/a_null_first_branch_grouped@iq17-default	PASS	PASS
 lite/corpus_gaps/a_wide_avg_compared_with_a_constant@iq17-default	PASS	PASS
 lite/corpus_gaps/a_wide_avg_compared_with_a_column@iq17-default	PASS	PASS
+lite/corpus_gaps/a_wide_sum_ordered_against_a_wide_avg@iq17-default	PASS	PASS
+lite/corpus_gaps/a_wide_avg_ordered_against_a_wide_sum@iq17-default	PASS	PASS
+lite/corpus_gaps/a_wide_sum_less_than_a_wide_avg@iq17-default	PASS	PASS
+lite/corpus_gaps/a_wide_sum_at_most_a_wide_avg@iq17-default	PASS	PASS
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS
