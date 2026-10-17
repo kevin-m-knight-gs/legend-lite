@@ -75,13 +75,3 @@ run	lite/windows/window_of_an_alias@iq17-default	D-N3	duckdb,postgres
 # IQ island, 2026-10-15 (landing 4: the census's scale suite, DOUBLE arithmetic linear in size): IQ's engine answers a
 # DOUBLE overflow NULL (measured on IQ 17.1), which the DuckDB lane now answers; Postgres raises on float8 overflow.
 run	lite/m1a/double_overflow@iq17-default	pg-double-overflow	postgres
-# IQ island, 2026-10-16 (the corpus lane's sqlstorm-2642, measured on IQ 17.1): IQ applies a WHERE over a windowed
-# derived table's LEFT JOIN, on its null-supplying side, below the window (RANK 2 and 1 for SQL's 7 and 5); lite
-# computes the window over all of the derived table's rows, as SQL does.
-run	lite/corpus_gaps/a_left_join_and_a_filter_of_a_joined_derived_rank@iq17-default	iq-defect	duckdb,postgres
-# IQ island, 2026-10-16 (the corpus lane's sqlstorm-6989, measured on IQ 17.1): the same, through an outer JOIN's
-# condition on the derived table's null-supplying column (RANK 2, 2, 1 for SQL's 7, 7, 5).
-run	lite/corpus_gaps/a_join_on_the_null_side_of_a_joined_derived_rank@iq17-default	iq-defect	duckdb,postgres
-# IQ island, 2026-10-16 (inline views: lite now computes a derived table's windows over all of its rows): the IQ
-# defect above, with a WHERE alone (IQ ranks the filtered rows: RANK 2 and 1 for SQL's 7 and 5).
-run	lite/corpus_gaps/a_filter_of_a_joined_derived_rank@iq17-default	iq-defect	duckdb,postgres
