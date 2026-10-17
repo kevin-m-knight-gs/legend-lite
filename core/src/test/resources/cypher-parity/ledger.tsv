@@ -568,7 +568,7 @@ tck/clauses/match/Match7/[21] Handling optional matches between nulls	PASS	PASS
 tck/clauses/match/Match7/[22] MATCH after OPTIONAL MATCH	REFUSED	REFUSED
 tck/clauses/match/Match7/[23] OPTIONAL MATCH with labels on the optional end node	SKIP	SKIP
 tck/clauses/match/Match7/[24] Optionally matching self-loops	PASS	PASS
-tck/clauses/match/Match7/[25] Optionally matching self-loops without matches	REFUSED	REFUSED
+tck/clauses/match/Match7/[25] Optionally matching self-loops without matches	PASS	PASS
 tck/clauses/match/Match7/[26] Handling correlated optional matches; first does not match implies second does not match	REFUSED	REFUSED
 tck/clauses/match/Match7/[27] Handling optional matches between optionally matched entities	PASS	PASS
 tck/clauses/match/Match7/[28] Handling optional matches with inline label predicate	PASS	PASS
@@ -1685,10 +1685,10 @@ tck/expressions/list/List11/[5] Fail on invalid argument types for `range()` #21
 tck/expressions/list/List11/[5] Fail on invalid argument types for `range()` #22	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List12/[1] Collect and extract using a list comprehension	REFUSED	REFUSED
 tck/expressions/list/List12/[2] Collect and filter using a list comprehension	REFUSED	REFUSED
-tck/expressions/list/List12/[3] Size of list comprehension	REFUSED	REFUSED
+tck/expressions/list/List12/[3] Size of list comprehension	PASS	PASS
 tck/expressions/list/List12/[4] Returning a list comprehension	REFUSED	REFUSED
 tck/expressions/list/List12/[5] Using a list comprehension in a WITH	REFUSED	REFUSED
-tck/expressions/list/List12/[6] Using a list comprehension in a WHERE	REFUSED	REFUSED
+tck/expressions/list/List12/[6] Using a list comprehension in a WHERE	PASS	PASS
 tck/expressions/list/List12/[7] Fail when using aggregation in list comprehension	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List2/[1] List slice	PASS	PASS
 tck/expressions/list/List2/[2] List slice with implicit end	PASS	PASS
@@ -2036,10 +2036,10 @@ tck/expressions/pattern/Pattern1/[10] Fail on introducing unbounded variables in
 tck/expressions/pattern/Pattern1/[10] Fail on introducing unbounded variables in pattern #14	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[10] Fail on introducing unbounded variables in pattern #15	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[11] Fail on checking self pattern	BOTH_ERROR	BOTH_ERROR
-tck/expressions/pattern/Pattern1/[12] Matching two nodes on a single directed connection between them	REFUSED	REFUSED
+tck/expressions/pattern/Pattern1/[12] Matching two nodes on a single directed connection between them	PASS	PASS
 tck/expressions/pattern/Pattern1/[13] Fail on matching two nodes on a single undirected connection between them	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[14] Matching two nodes on a specific type of single outgoing directed connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[15] Matching two nodes on a specific type of single undirected connection	REFUSED	REFUSED
+tck/expressions/pattern/Pattern1/[14] Matching two nodes on a specific type of single outgoing directed connection	PASS	PASS
+tck/expressions/pattern/Pattern1/[15] Matching two nodes on a specific type of single undirected connection	PASS	PASS
 tck/expressions/pattern/Pattern1/[16] Matching two nodes on a specific type of a variable length outgoing directed connection	REFUSED	REFUSED
 tck/expressions/pattern/Pattern1/[17] Matching two nodes on a specific type of variable length undirected connection	REFUSED	REFUSED
 tck/expressions/pattern/Pattern1/[18] Matching two nodes on a specific type of undirected connection with length 2	REFUSED	REFUSED
@@ -2272,50 +2272,50 @@ tck/expressions/quantifier/Quantifier1/[15] Fail none quantifier on type mismatc
 tck/expressions/quantifier/Quantifier10/[1] Single quantifier is always false if the predicate is statically false and the list is not empty	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier10/[2] Single quantifier is always false if the predicate is statically true and the list has more than one element	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier10/[3] Single quantifier is always true if the predicate is statically true and the list has exactly one non-null element	PASS	PASS
-tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #5	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #1	PASS	PASS
+tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #2	PASS	PASS
+tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #3	PASS	PASS
+tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #4	PASS	PASS
+tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #5	PASS	PASS
 tck/expressions/quantifier/Quantifier11/[1] Any quantifier is always false if the predicate is statically false and the list is not empty	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier11/[2] Any quantifier is always true if the predicate is statically true and the list is not empty	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #5	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[4] Any quantifier is always equal the boolean negative of the none quantifier #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[4] Any quantifier is always equal the boolean negative of the none quantifier #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[4] Any quantifier is always equal the boolean negative of the none quantifier #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[4] Any quantifier is always equal the boolean negative of the none quantifier #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[4] Any quantifier is always equal the boolean negative of the none quantifier #5	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #5	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #5	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #1	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #2	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #3	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #4	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #5	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[4] Any quantifier is always equal the boolean negative of the none quantifier #1	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[4] Any quantifier is always equal the boolean negative of the none quantifier #2	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[4] Any quantifier is always equal the boolean negative of the none quantifier #3	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[4] Any quantifier is always equal the boolean negative of the none quantifier #4	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[4] Any quantifier is always equal the boolean negative of the none quantifier #5	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #1	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #2	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #3	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #4	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #5	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #1	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #2	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #3	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #4	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #5	PASS	PASS
 tck/expressions/quantifier/Quantifier12/[1] All quantifier is always false if the predicate is statically false and the list is not empty	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier12/[2] All quantifier is always true if the predicate is statically true and the list is not empty	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #5	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #5	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #5	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #1	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #2	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #3	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #4	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #5	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #1	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #2	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #3	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #4	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #5	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #1	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #2	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #3	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #4	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #5	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[1] Single quantifier is always false on empty list	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[2] Single quantifier on list literal #1	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[2] Single quantifier on list literal #2	PASS	PASS
@@ -2659,8 +2659,8 @@ tck/expressions/quantifier/Quantifier5/[4] None quantifier is equal the all quan
 tck/expressions/quantifier/Quantifier5/[4] None quantifier is equal the all quantifier on the boolean negative of the predicate #4	PASS	PASS
 tck/expressions/quantifier/Quantifier5/[4] None quantifier is equal the all quantifier on the boolean negative of the predicate #5	PASS	PASS
 tck/expressions/quantifier/Quantifier5/[5] None quantifier is equal whether the size of the list filtered with same the predicate is zero #1	PASS	PASS
-tck/expressions/quantifier/Quantifier5/[5] None quantifier is equal whether the size of the list filtered with same the predicate is zero #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier5/[5] None quantifier is equal whether the size of the list filtered with same the predicate is zero #3	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier5/[5] None quantifier is equal whether the size of the list filtered with same the predicate is zero #2	PASS	PASS
+tck/expressions/quantifier/Quantifier5/[5] None quantifier is equal whether the size of the list filtered with same the predicate is zero #3	PASS	PASS
 tck/expressions/quantifier/Quantifier5/[5] None quantifier is equal whether the size of the list filtered with same the predicate is zero #4	PASS	PASS
 tck/expressions/quantifier/Quantifier5/[5] None quantifier is equal whether the size of the list filtered with same the predicate is zero #5	PASS	PASS
 tck/expressions/quantifier/Quantifier6/[1] Single quantifier can nest itself and other quantifiers on nested lists #1	PASS	PASS
@@ -2680,8 +2680,8 @@ tck/expressions/quantifier/Quantifier6/[2] Single quantifier can nest itself and
 tck/expressions/quantifier/Quantifier6/[2] Single quantifier can nest itself and other quantifiers on the same list #7	PASS	PASS
 tck/expressions/quantifier/Quantifier6/[2] Single quantifier can nest itself and other quantifiers on the same list #8	PASS	PASS
 tck/expressions/quantifier/Quantifier6/[3] Single quantifier is equal whether the size of the list filtered with same the predicate is one #1	PASS	PASS
-tck/expressions/quantifier/Quantifier6/[3] Single quantifier is equal whether the size of the list filtered with same the predicate is one #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier6/[3] Single quantifier is equal whether the size of the list filtered with same the predicate is one #3	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier6/[3] Single quantifier is equal whether the size of the list filtered with same the predicate is one #2	PASS	PASS
+tck/expressions/quantifier/Quantifier6/[3] Single quantifier is equal whether the size of the list filtered with same the predicate is one #3	PASS	PASS
 tck/expressions/quantifier/Quantifier6/[3] Single quantifier is equal whether the size of the list filtered with same the predicate is one #4	PASS	PASS
 tck/expressions/quantifier/Quantifier6/[3] Single quantifier is equal whether the size of the list filtered with same the predicate is one #5	PASS	PASS
 tck/expressions/quantifier/Quantifier7/[1] Any quantifier can nest itself and other quantifiers on nested lists #1	PASS	PASS
@@ -2716,8 +2716,8 @@ tck/expressions/quantifier/Quantifier7/[5] Any quantifier is equal the boolean n
 tck/expressions/quantifier/Quantifier7/[5] Any quantifier is equal the boolean negative of the all quantifier on the boolean negative of the predicate #4	PASS	PASS
 tck/expressions/quantifier/Quantifier7/[5] Any quantifier is equal the boolean negative of the all quantifier on the boolean negative of the predicate #5	PASS	PASS
 tck/expressions/quantifier/Quantifier7/[6] Any quantifier is equal whether the size of the list filtered with same the predicate is grater zero #1	PASS	PASS
-tck/expressions/quantifier/Quantifier7/[6] Any quantifier is equal whether the size of the list filtered with same the predicate is grater zero #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier7/[6] Any quantifier is equal whether the size of the list filtered with same the predicate is grater zero #3	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier7/[6] Any quantifier is equal whether the size of the list filtered with same the predicate is grater zero #2	PASS	PASS
+tck/expressions/quantifier/Quantifier7/[6] Any quantifier is equal whether the size of the list filtered with same the predicate is grater zero #3	PASS	PASS
 tck/expressions/quantifier/Quantifier7/[6] Any quantifier is equal whether the size of the list filtered with same the predicate is grater zero #4	PASS	PASS
 tck/expressions/quantifier/Quantifier7/[6] Any quantifier is equal whether the size of the list filtered with same the predicate is grater zero #5	PASS	PASS
 tck/expressions/quantifier/Quantifier8/[1] All quantifier can nest itself and other quantifiers on nested lists #1	PASS	PASS
@@ -2747,27 +2747,27 @@ tck/expressions/quantifier/Quantifier8/[4] All quantifier is equal the boolean n
 tck/expressions/quantifier/Quantifier8/[4] All quantifier is equal the boolean negative of the any quantifier on the boolean negative of the predicate #4	PASS	PASS
 tck/expressions/quantifier/Quantifier8/[4] All quantifier is equal the boolean negative of the any quantifier on the boolean negative of the predicate #5	PASS	PASS
 tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #1	PASS	PASS
-tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #3	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #2	PASS	PASS
+tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #3	PASS	PASS
 tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #4	PASS	PASS
 tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #5	PASS	PASS
 tck/expressions/quantifier/Quantifier9/[1] None quantifier is always true if the predicate is statically false and the list is not empty	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier9/[2] None quantifier is always false if the predicate is statically true and the list is not empty	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #5	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #5	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #1	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #2	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #3	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #4	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #5	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #1	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #2	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #3	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #4	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #5	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #1	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #2	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #3	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #4	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #5	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #1	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #2	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #3	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #4	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #5	PASS	PASS
 tck/expressions/string/String1/[1] `substring()` with default second argument	PASS	PASS
 tck/expressions/string/String10/[1] Finding exact matches with non-proper substring	PASS	PASS
 tck/expressions/string/String10/[2] Finding substring of string	PASS	PASS
@@ -3922,7 +3922,7 @@ lite/anchor/a_relationship_variable_grouped_then_matched	PASS	PASS
 lite/anchor/re_anchored_twice	PASS	PASS
 lite/anchor/a_fan_out_to_a_class_without_a_property	PASS	PASS
 lite/anchor/nodes_without_properties_returned_after_a_fan_out	PASS	PASS
-lite/anchor/an_optional_match_from_a_node_of_several_classes_refused	REFUSED	REFUSED
+lite/anchor/an_optional_match_from_a_node_of_several_classes_refused	PASS	PASS
 lite/anchor/an_optional_match_where_reading_the_rows_refused	REFUSED	REFUSED
 lite/basics/match_return_property	PASS	PASS
 lite/basics/where_comparison_null_is_not_true	PASS	PASS
@@ -4232,6 +4232,22 @@ lite/ordering/a_null_or_unordered_pair_is_null	PASS	PASS
 lite/ordering/a_list_and_another_type_do_not_order	PASS	PASS
 lite/ordering/lists_of_values_of_the_row	PASS	PASS
 lite/ordering/ordering_nested_lists_refused	REFUSED	REFUSED
+lite/overrows/a_predicate_over_a_product	PASS	PASS
+lite/overrows/an_untyped_predicate_over_label_less_nodes	PASS	PASS
+lite/overrows/an_undirected_predicate_over_a_product	PASS	PASS
+lite/overrows/a_negated_predicate_and_a_disjunction	PASS	PASS
+lite/overrows/a_predicate_in_a_with_where	PASS	PASS
+lite/overrows/a_predicate_in_a_with_where_with_a_grouping	PASS	PASS
+lite/overrows/an_exists_subquery_over_rows_with_its_where	PASS	PASS
+lite/overrows/a_predicate_from_a_far_node_with_an_open_end	PASS	PASS
+lite/overrows/a_predicate_matching_several_times_counts_once	PASS	PASS
+lite/overrows/a_comprehension_over_a_collected_list	PASS	PASS
+lite/overrows/a_comprehension_over_collected_relationships	PASS	PASS
+lite/overrows/list_functions_over_a_variant_list	PASS	PASS
+lite/overrows/a_case_and_a_coalesce_keep_the_lists_shape	PASS	PASS
+lite/overrows/a_list_plus_a_value_that_may_be_null	PASS	PASS
+lite/overrows/a_comprehension_over_labels	PASS	PASS
+lite/overrows/modulo_inside_a_lambda	PASS	PASS
 lite/params/list_lookup_by_parameters	PASS	PASS
 lite/params/skip_and_limit_by_parameter	PASS	PASS
 lite/params/in_with_null_parameters	PASS	PASS
@@ -4283,12 +4299,12 @@ lite/predicates/an_exists_subquery_over_a_pattern	PASS	PASS
 lite/predicates/a_pattern_predicate_of_several_types	PASS	PASS
 lite/predicates/a_pattern_predicate_with_a_conjunct	PASS	PASS
 lite/predicates/a_pattern_predicate_over_a_to_one_hop	PASS	PASS
-lite/predicates/a_pattern_predicate_from_a_fanned_node	REFUSED	REFUSED
-lite/predicates/a_pattern_predicate_with_both_ends_bound	REFUSED	REFUSED
+lite/predicates/a_pattern_predicate_from_a_fanned_node	PASS	PASS
+lite/predicates/a_pattern_predicate_with_both_ends_bound	PASS	PASS
 lite/predicates/a_pattern_predicate_with_a_labelled_start	PASS	PASS
 lite/predicates/a_pattern_predicate_introducing_a_variable_is_refused	BOTH_ERROR	BOTH_ERROR
 lite/predicates/a_pattern_predicate_inside_a_function_is_refused	BOTH_ERROR	BOTH_ERROR
-lite/predicates/a_pattern_predicate_in_a_quantifier	REFUSED	REFUSED
+lite/predicates/a_pattern_predicate_in_a_quantifier	PASS	PASS
 lite/predicates/arithmetic_over_parenthesized_values	PASS	PASS
 lite/predicates/an_exists_subquery_returning_star	PASS	PASS
 lite/predicates/an_exists_subquery_returning_an_undefined_variable_is_refused	BOTH_ERROR	BOTH_ERROR
@@ -4301,7 +4317,7 @@ lite/products/labelless_match_after_a_with	PASS	PASS
 lite/products/with_star_then_a_match	PASS	PASS
 lite/products/with_star_keeps_a_path	PASS	PASS
 lite/products/labelless_product_with_a_count	PASS	PASS
-lite/products/a_match_after_a_labelless_product_refused	REFUSED	REFUSED
+lite/products/a_match_after_a_labelless_product_refused	PASS	PASS
 lite/rels/relationship_as_a_value	PASS	PASS
 lite/rels/type_of_a_relationship	PASS	PASS
 lite/rels/untyped_relationship_as_a_value	PASS	PASS
@@ -4530,7 +4546,7 @@ lite/values/unwind_after_with_over_rows	PASS	PASS
 lite/values/unwind_one_element_and_empty	PASS	PASS
 lite/values/unwind_aggregates	PASS	PASS
 lite/values/comprehension_filter_map	PASS	PASS
-lite/values/comprehension_with_rem_is_refused	REFUSED	REFUSED
+lite/values/comprehension_with_rem_is_refused	PASS	PASS
 lite/values/ranges	PASS	PASS
 lite/values/functions_conversions_and_numbers	PASS	PASS
 lite/values/functions_strings	PASS	PASS

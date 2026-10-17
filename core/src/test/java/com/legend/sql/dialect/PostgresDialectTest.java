@@ -234,4 +234,24 @@ class PostgresDialectTest {
                 FROM trades AS "t0"\
                 """, plan("->extend(~[r: r|$r.f8->toOne()->round()])->select(~[id, r])"));
     }
+
+    @Test
+    void everyUnnestHoldsItsArgumentBehindAScalarSubquery() {
+        // Postgres estimates unnest's rows while planning, evaluating the argument's constant
+        // sub-expressions (a toOne guard's raise among them) after pulling simple subqueries
+        // up, so the argument holds by then the expression of every column it reads; a scalar
+        // subquery reaches the estimate as a parameter it does not open (measured on 16.15,
+        // 2026-10-17: the Cypher island's UNWIND of a CASE whose guard raises)
+        String sql = plan("->extend(~n: r | [1, 2, 3]->filter(e | $e > $r.qty)->size())->select(~[id, n])");
+        assertEquals("""
+                SELECT "t0".id AS "id", coalesce(cardinality((CASE WHEN (CASE WHEN CAST(ARRAY[1, 2, 3] AS BIGINT[]) \
+                IS NULL THEN NULL ELSE ARRAY(SELECT "e" FROM unnest((SELECT CAST(ARRAY[1, 2, 3] AS BIGINT[]))) \
+                WITH ORDINALITY AS __u("e", __o) WHERE ("t0".qty IS NOT NULL AND "e" > "t0".qty) ORDER BY __o) END) \
+                IS NULL THEN NULL ELSE ARRAY(SELECT "x" FROM unnest((SELECT (CASE WHEN CAST(ARRAY[1, 2, 3] AS BIGINT[]) \
+                IS NULL THEN NULL ELSE ARRAY(SELECT "e" FROM unnest((SELECT CAST(ARRAY[1, 2, 3] AS BIGINT[]))) \
+                WITH ORDINALITY AS __u("e", __o) WHERE ("t0".qty IS NOT NULL AND "e" > "t0".qty) ORDER BY __o) END))) \
+                WITH ORDINALITY AS __u("x", __o) WHERE "x" IS NOT NULL ORDER BY __o) END)), 0) AS "n"
+                FROM trades AS "t0\"""", sql);
+        assertFalse(sql.matches("(?s).*unnest\\((?!\\(SELECT ).*"), "an unnest whose argument is not held: " + sql);
+    }
 }

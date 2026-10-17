@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -632,8 +633,9 @@ class CypherToPureTest {
                 .contains("@path"));
         // (re-anchoring after rows reads from the carried node's class, the study's §12.49: a label-less node carried
         // as one of several classes has none to read from)
-        unsupported("MATCH (n), (m) WITH n, m MATCH (n)-->(x) RETURN x", "a node the rows carry as one of several"
-                + " classes");
+        // (a node carried as one of several classes re-anchors from every class, label-less at the pattern's first
+        // node, joined on its identity: the study's §12.52)
+        assertTrue(pure("MATCH (n), (m) WITH n, m MATCH (n)-->(x) RETURN x").contains("->join("));
         // a list comprehension's WHERE keeps an element when its condition is true: null, like false, drops it
         assertEquals("[1, 2, 3]->flatten(~value)->extend(~[x:r|[1, 2, 3]->filter(x|$r.value->isNotEmpty() && ($x < $r.value->toOne()))->size()])->select(~[x])",
                 pure("UNWIND [1, 2, 3] AS value RETURN size([x IN [1, 2, 3] WHERE x < value]) AS x"));
@@ -1226,11 +1228,10 @@ class CypherToPureTest {
                 fresh.getMessage());
         SqlTranslationException value = refusal("MATCH (p:Person) WHERE toString((p)-[:firm]->()) = 'true' RETURN p.name");
         assertTrue(value.getMessage().contains("A pattern expression should only be used"), value.getMessage());
-        // (a quantifier's predicate is a boolean context too: the pattern is allowed there and refused by name only
-        // because the quantifier's scope is not the graph's, never as Neo4j's rejection)
-        SqlTranslationException quantified = refusal("MATCH (p:Person) RETURN any(x IN [1] WHERE (p)-[:firm]->()) AS a");
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, quantified.kind(), quantified.getMessage());
-        assertTrue(quantified.getMessage().contains("over rows"), quantified.getMessage());
+        // (a quantifier's predicate is a boolean context too: the pattern reads from the graph beneath the
+        // quantifier's binding, the study's §12.52)
+        String quantified = pure("MATCH (p:Person) RETURN any(x IN [1] WHERE (p)-[:firm]->()) AS a");
+        assertTrue(quantified.contains("$p.firm->isNotEmpty()"), quantified);
         String negated = pure("MATCH (p:Person) WHERE NOT ((p)-[:firm]->() OR p.age > 1) RETURN p.name");
         assertTrue(negated.contains("$p.firm->isNotEmpty()"), negated);
     }
@@ -1345,5 +1346,35 @@ class CypherToPureTest {
         // Neo4j's errors: rand() inside an aggregate, a clock with a time zone refused by name
         invalid("RETURN count(rand())", "Can't use non-deterministic (random) functions inside of aggregate");
         unsupported("RETURN date.statement({timezone: 'Europe/Stockholm'})", "with an argument (a time zone");
+    }
+
+    @Test
+    void patternPredicatesOverRowsAreFlagsJoinedBackByIdentity() {
+        // (the study's §12.52) a pattern predicate in a WHERE over rows: the pattern read as its own graph, its
+        // matches narrowed to the shared variables' identities and deduplicated, a constant beside them, left-joined
+        // back on the identities; the predicate is the constant's presence, dropped after the filter
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId()])->join(demo::Firm.all()->project(~[_cypher_6:f|'[\"Firm\"]', _cypher_7:f|$f.legalName, _cypher_8:f|$f->meta::legend::lite::elementId()]), meta::pure::functions::relation::JoinKind.INNER, {l, r|true})->join(demo::Person.all()->filter(_cypher_9|$_cypher_9.firm->isNotEmpty())->project(~[_cypher_11:_cypher_9|'[\"Person\"]', _cypher_12:_cypher_9|if($_cypher_9.active->isNotEmpty() && $_cypher_9.active->toOne(), |true, |if($_cypher_9.active->isNotEmpty() && !$_cypher_9.active->toOne(), |false, |[])), _cypher_13:_cypher_9|$_cypher_9.age, _cypher_14:_cypher_9|$_cypher_9.name, _cypher_15:_cypher_9|$_cypher_9->meta::legend::lite::elementId(), _cypher_16:_cypher_9|'[\"Firm\"]', _cypher_17:_cypher_9|$_cypher_9.firm.legalName, _cypher_18:_cypher_9|$_cypher_9.firm->meta::legend::lite::elementId()])->select(~[_cypher_15, _cypher_18])->distinct()->extend(~[_cypher_19:r|1]), meta::pure::functions::relation::JoinKind.LEFT, {l, r|($l._cypher_5 == $r._cypher_15) && ($l._cypher_8 == $r._cypher_18)})->filter(r|$r._cypher_19->isNotEmpty())->select(~[_cypher_1, _cypher_2, _cypher_3, _cypher_4, _cypher_5, _cypher_6, _cypher_7, _cypher_8])->extend(~[n:r|$r._cypher_4])->select(~[n])", pure("MATCH (p:Person), (f:Firm) WHERE (p)-[:firm]->(f) RETURN p.name AS n"));
+        // in a WITH's WHERE, negated and beside another condition
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId()])->join(demo::Firm.all()->project(~[_cypher_6:f|'[\"Firm\"]', _cypher_7:f|$f.legalName, _cypher_8:f|$f->meta::legend::lite::elementId()]), meta::pure::functions::relation::JoinKind.INNER, {l, r|true})->join(demo::Person.all()->filter(_cypher_9|$_cypher_9.firm->isNotEmpty())->project(~[_cypher_11:_cypher_9|'[\"Person\"]', _cypher_12:_cypher_9|if($_cypher_9.active->isNotEmpty() && $_cypher_9.active->toOne(), |true, |if($_cypher_9.active->isNotEmpty() && !$_cypher_9.active->toOne(), |false, |[])), _cypher_13:_cypher_9|$_cypher_9.age, _cypher_14:_cypher_9|$_cypher_9.name, _cypher_15:_cypher_9|$_cypher_9->meta::legend::lite::elementId(), _cypher_16:_cypher_9|'[\"Firm\"]', _cypher_17:_cypher_9|$_cypher_9.firm.legalName, _cypher_18:_cypher_9|$_cypher_9.firm->meta::legend::lite::elementId()])->select(~[_cypher_15, _cypher_18])->distinct()->extend(~[_cypher_19:r|1]), meta::pure::functions::relation::JoinKind.LEFT, {l, r|($l._cypher_5 == $r._cypher_15) && ($l._cypher_8 == $r._cypher_18)})->extend(~[_cypher_20:r|$r._cypher_19->isEmpty() && ($r._cypher_3->isNotEmpty() && ($r._cypher_3->toOne() > 1))])->select(~[_cypher_1, _cypher_2, _cypher_3, _cypher_4, _cypher_5, _cypher_6, _cypher_7, _cypher_8, _cypher_20])->filter(r|$r._cypher_20)->select(~[_cypher_1, _cypher_2, _cypher_3, _cypher_4, _cypher_5, _cypher_6, _cypher_7, _cypher_8])->extend(~[l:r|$r._cypher_7])->select(~[l])", pure("MATCH (p:Person), (f:Firm) WITH p, f WHERE NOT (p)-[:firm]->(f) AND p.age > 1 RETURN f.legalName AS l"));
+        // an EXISTS subquery over rows with its own WHERE
+        assertTrue(pure("MATCH (p:Person), (f:Firm) WHERE EXISTS { (p)-[:firm]->(f) WHERE f.legalName = 'x' } RETURN p.name AS n")
+                .contains("->distinct()"));
+        // a predicate inside a quantifier over a graph reads from the graph beneath the binding
+        assertTrue(pure("MATCH (p:Person) RETURN any(x IN [1, 2] WHERE (p)-[:firm]->()) AS has")
+                .contains("$p.firm->isNotEmpty()"));
+    }
+
+    @Test
+    void comprehensionsOverListsTheDatabaseHoldsReadThemAsCollections() {
+        // (the study's §12.52) a collected list, a CASE's or coalesce's list, a list plus a value: comprehensions,
+        // quantifiers, reverse, tail and concatenation read the Variant back as the collection of its kind
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|if($p.age->isEmpty(), |[]->cast(@String), |$p.age->toOne()->toString())])->aggregate(~[_cypher_2:x|$x._cypher_1:y|$y->joinStrings(',')])->extend(~[ages:r|fromJson('[' + if($r._cypher_2->isEmpty(), |'', |$r._cypher_2->toOne()) + ']')])->select(~[ages])->extend(~[big:r|$r.ages->toMany(@Integer)->filter(x|$x > 1)->map(x|$x)->toVariant(), one:r|$r.ages->toMany(@Integer)->filter(x|$x == 2)->size() == 1])->select(~[big, one])", pure("MATCH (p:Person) WITH collect(p.age) AS ages RETURN [x IN ages WHERE x > 1 | x] AS big, single(x IN ages WHERE x = 2) AS one"));
+        assertAll(
+                () -> assertEquals("[1, 2]->flatten(~x)->select(~[x])->extend(~[c:r|fromJson(((('[' + toString(10)) + (',' + toString(20))) + (',' + if($r.x->isEmpty(), |'null', |$r.x->toOne()->toString()))) + ']')])->select(~[c])", pure("UNWIND [1, 2] AS x WITH [10, 20] AS l, x RETURN l + x AS c")),
+                () -> assertEquals("[fromJson('[1,2]'), fromJson('[3]')]->flatten(~l)->extend(~[r:r|$r.l->toMany(@Integer)->reverse()->toVariant(), t:r|$r.l->toMany(@Integer)->drop(1)->toVariant(), c:r|$r.l->toMany(@Integer)->concatenate(fromJson('[4]')->toMany(@Integer))->toVariant()])->select(~[r, t, c])", pure("UNWIND [[1, 2], [3]] AS l RETURN reverse(l) AS r, tail(l) AS t, l + [4] AS c")),
+                () -> assertEquals("1->range(2)->flatten(~_cypher_place)->extend(~[m:p|if($p._cypher_place == 1, |fromJson('{\"l\":[1],\"f\":true}'), |[]->cast(@meta::pure::metamodel::variant::Variant))])->select(~[m])->extend(~[c:r|if($r.m->get('f')->to(@Boolean)->isNotEmpty() && $r.m->get('f')->to(@Boolean)->toOne(), |$r.m->get('l'), |fromJson('[0]'))])->select(~[c])->extend(~[odd:r|$r.c->toMany(@Integer)->exists(x|$x->rem(2) == 1)])->select(~[odd])", pure("UNWIND [{l: [1], f: true}] AS m WITH CASE WHEN m.f THEN m.l ELSE [0] END AS c RETURN any(x IN c WHERE x % 2 = 1) AS odd")));
+        // collected relationships read back as Variants, the elements' mark on the bound variable (type(x) reads it)
+        String rels = pure("MATCH (p:Person)-[r:firm]->() WITH collect(r) AS rs RETURN [x IN rs | type(x)] AS t");
+        assertTrue(rels.contains("->toMany(@meta::pure::metamodel::variant::Variant)->map(x|'firm')"), rels);
     }
 }

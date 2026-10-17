@@ -950,7 +950,7 @@ ORDER BY title
 | 'Speed' | {role: 'Jack'} | 1 | false |
 | 'The Matrix' | {role: 'Neo', year: 1999} | 2 | true |
 
-## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.51)
+## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.52)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
@@ -961,9 +961,9 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 
 | status | cases |
 |---|---|
-| PASS | 2531 |
+| PASS | 2600 |
 | BOTH_ERROR | 670 |
-| REFUSED | 498 |
+| REFUSED | 429 |
 | SKIP | 181 |
 | total | 3880 |
 
@@ -972,7 +972,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | clauses/call | 52 | 0 | 2 | 0 | 50 |
 | clauses/create | 78 | 0 | 15 | 54 | 9 |
 | clauses/delete | 41 | 0 | 5 | 36 | 0 |
-| clauses/match | 381 | 96 | 240 | 39 | 6 |
+| clauses/match | 381 | 97 | 240 | 38 | 6 |
 | clauses/match-where | 34 | 27 | 2 | 5 | 0 |
 | clauses/merge | 75 | 0 | 13 | 54 | 8 |
 | clauses/remove | 33 | 0 | 0 | 31 | 2 |
@@ -992,15 +992,15 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | expressions/conditional | 13 | 13 | 0 | 0 | 0 |
 | expressions/existentialSubqueries | 10 | 5 | 1 | 4 | 0 |
 | expressions/graph | 61 | 28 | 15 | 7 | 11 |
-| expressions/list | 185 | 117 | 59 | 9 | 0 |
+| expressions/list | 185 | 119 | 59 | 7 | 0 |
 | expressions/literals | 131 | 100 | 25 | 6 | 0 |
 | expressions/map | 44 | 35 | 9 | 0 | 0 |
 | expressions/mathematical | 6 | 5 | 1 | 0 | 0 |
 | expressions/null | 44 | 44 | 0 | 0 | 0 |
 | expressions/path | 7 | 3 | 2 | 2 | 0 |
-| expressions/pattern | 50 | 15 | 19 | 16 | 0 |
+| expressions/pattern | 50 | 18 | 19 | 13 | 0 |
 | expressions/precedence | 104 | 102 | 0 | 2 | 0 |
-| expressions/quantifier | 604 | 513 | 12 | 79 | 0 |
+| expressions/quantifier | 604 | 576 | 12 | 16 | 0 |
 | expressions/string | 32 | 29 | 0 | 3 | 0 |
 | expressions/temporal | 1004 | 943 | 0 | 11 | 50 |
 | expressions/typeConversion | 47 | 25 | 17 | 5 | 0 |

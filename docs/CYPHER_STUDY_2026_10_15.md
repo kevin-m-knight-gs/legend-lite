@@ -3660,3 +3660,71 @@ and `.realtime` forms of null), Temporal10 (5: `duration.inSeconds` of a clock w
 cases found two things the TCK does not reach: `WITH rand() AS r RETURN r = r` false until the lowering stopped
 substituting a non-deterministic projection, and Neo4j's `realtime` clock differing from its `statement` clock within
 one statement (S77; the case pins the near-equality).
+
+### 12.52 Pattern predicates over rows, and comprehensions over lists the database holds, 2026-10-17
+
+- **The frame (the plan's W12):** two refusals with the same root, "the value is not where the reader looks": a
+  pattern predicate in a WHERE over rows (a cartesian product's `MATCH (n), (m) WHERE (n)-[]->(m)`, a WITH's, a
+  fanning graph's materialized rows: Pattern1, the lite predicates refused since §12.40), and a list comprehension
+  or quantifier over a list the database holds as a Variant (a collected list, a list through CASE or coalesce,
+  a list plus a value: Quantifier9-12 behind `rand()`, List12).
+- **A pattern predicate over rows is a flag the rows carry (`withPatternFlags`, `patternFlags`):** before the
+  WHERE is read, each pattern predicate or EXISTS subquery of it whose named nodes and relationships the rows all
+  carry with their identity is read as its own graph from the carried node's class (§12.49's re-anchoring, split
+  into `anchored` and the join), its rows narrowed to the identity columns of the shared variables and
+  deduplicated (a pattern matching several times is one match of the predicate), a constant beside them, and
+  left-joined back on those identities; the predicate's value is the constant's presence on the row
+  (`patternFlag`), which NOT, AND and OR compose as any boolean, and the flag columns are dropped after the filter
+  (`withoutFlags`). The WHERE sites: the product's (`cartesian`), a re-anchored MATCH's, a fanning graph's deferred
+  WHERE (`materialize`), and a WITH's (the flags on the rows before the projection, which drops every synthetic
+  column). A predicate reading a lambda's variable keeps the graph reading (`hopped`, which now reads through a
+  quantifier's or comprehension's binding to the graph beneath it: the lite case `any(x IN [1, 2] WHERE
+  (a)-[:T]->())`). A node the rows carry as one of several classes re-anchors from every class (the pattern
+  label-less at its first node, the join on identity keeping the row's own class), which lifts §12.49's refusal
+  for a MATCH after rows too; a bounded variable-length relationship after rows unrolls in the pattern's own
+  graph (§12.42); a relationship of several types matches through the types the model has (one whose every type
+  is unknown matches nothing, as before).
+- **A list the database holds reads as the collection it is (`asCollection`, `Coll.elementDetail`):** a Variant of
+  known shape (`ListOf`) was already read back by `toMany(@Kind)` for a comprehension of scalars; now elements the
+  database holds as Variants too (collected relationships, nodes, lists: `toMany(@Variant)`, the elements' mark on
+  the bound variable, so `type(x)` reads inside), `single` over such a collection (the holds counted), `reverse`
+  and `tail` over it, `list + value` and `list + list` (`concatenate`; a value that may be null makes the result
+  null, Cypher's, held as a Variant of the list's shape), a CASE's results' shapes and coalesce's arguments'
+  merged (`mergedShape`) so the list keeps its kind through them, `labels(n)` a list of strings. `%` inside a
+  lambda the database computes is read when its divisor is a literal that is not zero: the lowering spells no
+  divide-by-zero guard for such a divisor (the guard's raise envelope typed as text where Postgres wants the
+  remainder's integer, the reason the refusal was there).
+- **Two findings of the Postgres lane, fixed below the translator:** (1) a comprehension over a CASE of a Variant's
+  member (`WITH CASE WHEN m.f THEN m.l ELSE [0] END AS c RETURN [x IN c WHERE x > 0 | x]`) raised "Cannot cast a
+  collection of size 0" before any row was read (`EXPLAIN` alone fails): Postgres estimates an `unnest`
+  argument's array length while planning, evaluating its constant sub-expressions, the `toOne` guard's raise (a
+  stable cast of a constant text) among them, even in an arm no row reaches, and it pulls simple subqueries up
+  first, so the argument holds by then the expression of every column it reads: the raise was in the WITH's
+  projection (the guard on `m.f`), not in the `unnest` argument as written, which is why a guard that looked for
+  a raise in the argument caught nothing. The dialect now writes every `unnest` through one writer that holds the
+  argument behind a scalar subquery (`unnest((SELECT ...))`, `Postgres.unnest`, eleven sites: UNWIND's lateral,
+  comprehensions, reductions, map entries), which the estimate reads as a parameter it does not open (measured on
+  the embedded Postgres 16.15 by bisection: the same lateral plans with the raises replaced by NULL, with the
+  subquery kept from pulling up by `OFFSET 0`, or with the argument held; fails bare). (2) `list + value` lowered the
+  value's side as `CASE WHEN v IS NULL THEN [] ELSE [v] END`, and the empty literal had no type, which Postgres
+  refuses ("a list literal of Unknown[]"): an empty `ArrayLit` now keeps the type it is given, the one-element
+  side's (`ListEncodings.concatSide`).
+- **Still refused by name, recorded:** a pattern comprehension over rows (`[p = (a)-->(b) | p]` with both ends
+  carried: a collect per row, Pattern2/[3], [8], one lite case); a comprehension producing values that may be null
+  (Pure's `map` drops an empty result); a hop from a node read out of a list (`[x IN nodes(p) | size([(x)-->() |
+  1])]`, Pattern2/[7]); `nodes(x)` of a path held in a list (List12/[4], [5]); a comprehension over a literal list
+  beside a node value (`MATCH (n:A) RETURN n, [x IN [1, 2, 3] WHERE x > 1 | x]`: the resolver's object-space
+  lambda reads no `filter` over a literal collection, "TypedFilter is not substitutable", logged in the plan's §5).
+
+#### 12.52.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4614 | 3232 (from 3,141) | 0 | 0 | 0 | 470 (from 545) | 731 | 181 |
+| Postgres | 4614 | 2871 (from 2,780) | 0 | 0 | 0 | 831 (from 906) | 731 | 181 |
+
+The 16 lite cases of `lite/overrows.yaml` PASS on both lanes, judged by Neo4j (`snap.sh --check`: 0 problems over
+4531 cases). The TCK: agreement 3270 of 3880 (from 3,201): 69 more scenarios on each lane, none lost: Quantifier11
+(20), Quantifier12 (15), Quantifier9 (15), Quantifier10 (5), Pattern1 (3), List12 (2), Quantifier5, 6, 7 and 8 (2
+each), Match7 (1); Postgres 2920 of 3880 (from 2,851). The Quantifier9-12 scenarios had been REFUSED on Postgres by
+the untyped empty literal and then, with that fixed, raised at planning: both findings above.

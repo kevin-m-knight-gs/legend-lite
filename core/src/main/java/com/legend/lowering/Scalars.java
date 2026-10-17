@@ -425,6 +425,12 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_MATH_REM) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
+                if (args.get(1) instanceof SqlExpr.IntLit lit && lit.value() != 0) {
+                    // a literal divisor that is not zero: no guard to raise (the Cypher island's x % 2 inside a
+                    // lambda, 2026-10-17: the guard's raise envelope types as text where Postgres wants the
+                    // remainder's integer)
+                    return new SqlExpr.Call(SqlFn.REM, args);
+                }
                 return guarded(
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
                         cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)),

@@ -9932,6 +9932,28 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the fifty-first landing — pattern predicates over rows, comprehensions over lists the database holds
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12); the record is the study's §12.52. The translator:
+a pattern predicate or EXISTS subquery in a WHERE over rows is a flag column the rows carry (the pattern read as its
+own graph, its matches' identities deduplicated and left-joined back), a list the database holds as a Variant reads
+as the collection of its kind in a comprehension, a quantifier (`single` too), `reverse`, `tail`, `+`, CASE and
+coalesce; a node carried as one of several classes re-anchors from every class; the lowering spells no
+divide-by-zero guard for a literal divisor (`%` inside a database lambda).
+
+1. **What lands.** `MATCH (n), (m) WHERE (n)-[]->(m)` (Pattern1/[12], [14], [15]), the Quantifier9-12 identities
+   over `rand()`-filtered lists (25), List12/[3], [6], the lite predicates refused since §12.40 (3).
+2. **The ledger.** DuckDB PASS 3,141 → 3,232 (REFUSED 545 → 470; FAIL, BUG, ERROR 0), Postgres PASS 2,780 → 2,871 (REFUSED
+   906 → 831); TCK agreement 3,201 → 3,270 of 3,880 on DuckDB (Quantifier11 20, Quantifier12 15, Quantifier9 15,
+   Quantifier10 5, Pattern1 3, List12 2, Quantifier5-8 2 each, Match7 1; none lost) and 2,851 → 2,920 on Postgres;
+   16 lite cases in `lite/overrows.yaml`, all PASS on both lanes, judged by Neo4j (`snap.sh --check`: 0 problems);
+   `docs/CYPHER_SHOWCASE.md` §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_lowering`, `//core:guardrails`,
+   `//core:core_tests_integration` green.
+4. **Refused by name, recorded.** A pattern comprehension over rows (a collect per row); a comprehension producing
+   values that may be null; a hop from a node read out of a list; `nodes(x)` of a path held in a list; a
+   comprehension over a literal list beside a node value (the resolver's object-space lambda, the plan's §5).
+
 ## 2026-10-17 — `#Cypher{...}#`: the fiftieth landing — rand() and the statement clocks
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W3); the record is the study's §12.51. A lite native

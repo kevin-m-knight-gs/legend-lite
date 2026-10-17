@@ -314,7 +314,8 @@ public final class CypherToPure {
 
     /** {@code labels(n)}: the node's labels, a list. */
     private static Tx nodeLabels(NodeParts parts) {
-        return Tx.value(present(parts, call("fromJson", parts.labels())), Kind.JSON, parts.absent() != null);
+        return Tx.value(present(parts, call("fromJson", parts.labels())), Kind.JSON, parts.absent() != null,
+                new ListOf(Kind.STRING));
     }
 
     /** {@code properties(n)}: the node's properties that hold a value, a map (the pieces each lead with a comma: the
@@ -552,6 +553,12 @@ public final class CypherToPure {
     }
 
     private final MatchFrame matchFrame = new MatchFrame();
+
+    /** A pattern predicate (or an EXISTS subquery) a WHERE over rows holds, to the column of the rows that answers
+     *  it (the study's §12.52): the predicate's pattern read as its own graph from the carried node's class and
+     *  joined back by identity (a left join to the distinct identities it matches, a constant beside them), so the
+     *  predicate is the constant's presence on the row. Keyed by the predicate's own node (identity). */
+    private final Map<Expr, String> patternFlags = new java.util.IdentityHashMap<>();
     private final Set<String> typesInThisMatch = matchFrame.types;
 
     /** A MATCH's WHERE with relationship uniqueness conjoined: the named relationships of one type pairwise
@@ -956,9 +963,10 @@ public final class CypherToPure {
                         unknown |= model.classesOf(label).isEmpty();
                     }
                 } else {
-                    for (String type : ((RelPattern) e).types()) {
-                        unknown |= !typeKnown(type);
-                    }
+                    // (a relationship of several types matches through the types the model has: only one whose
+                    // every type is unknown matches nothing)
+                    List<String> types = ((RelPattern) e).types();
+                    unknown |= !types.isEmpty() && types.stream().noneMatch(this::typeKnown);
                 }
             }
         }
@@ -2270,7 +2278,12 @@ public final class CypherToPure {
         });
         g.lists().keySet().forEach(name -> items.add(new Item(new CypherAst.Var(name, pos), name, name, pos)));
         Rows rows = project(items, false, List.of(), null, null, null, g, pos, false);
-        RowScope scope = new RowScope(rows);
+        // (the WHERE over the materialized rows: a pattern predicate from a far node reads as a flag, §12.52)
+        Rows flagged = rows;
+        for (Expr w : g.deferredWhere()) {
+            flagged = withPatternFlags(flagged, w);
+        }
+        RowScope scope = new RowScope(flagged);
         ValueSpecification cond = null;
         for (String name : g.present()) {
             // a node a second-step hop reached: on the rows where its identity is
@@ -2295,7 +2308,8 @@ public final class CypherToPure {
         if (cond == null) {
             return rows;
         }
-        return new Rows(call("filter", rows.vs(), lambda(scope.row(), cond)), rows.columns());
+        return withoutFlags(new Rows(call("filter", flagged.vs(), lambda(scope.row(), cond)), flagged.columns()),
+                rows);
     }
 
     /** {@code rows} with {@code variable} (when named) a virtual column: an absent node, null everywhere, its
@@ -2509,6 +2523,58 @@ public final class CypherToPure {
      *  OPTIONAL MATCH a left join, its WHERE read over the pattern's rows before it; a MATCH's WHERE over the joined
      *  rows. Null when no end of the pattern is such a node. */
     private @com.legend.base.Nullable Rows reanchor(CypherAst.Match m, Rows rows) {
+        Anchored a = anchored(m, rows);
+        if (a == null) {
+            return null;
+        }
+        Rows right = a.right();
+        PathPattern p = a.pattern();
+        Expr where = m.where();
+        ValueSpecification cond = null;
+        for (Map.Entry<String, String> r : a.renamed().entrySet()) {
+            Col left = java.util.Objects.requireNonNull(column(rows, r.getValue()));
+            Col copy = java.util.Objects.requireNonNull(column(right, r.getKey()));
+            for (String[] key : joinKeys(left, copy, r.getValue(), p.pos())) {
+                ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), key[0]),
+                        new AppliedProperty(new Variable("r"), key[1]));
+                cond = cond == null ? eq : call("and", cond, eq);
+            }
+        }
+        ValueSpecification vs = call("join", rows.vs(), right.vs(), new EnumValue(JOIN_KIND, m.optional() ? "LEFT"
+                : "INNER"), new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
+                List.of(java.util.Objects.requireNonNull(cond))));
+        List<Col> columns = new ArrayList<>(rows.columns());
+        for (Col c : right.columns()) {
+            if (a.renamed().containsKey(c.name())) {
+                // (the rows' own column stands for the variable; the copy's columns ride along unnamed)
+                continue;
+            }
+            if (columns.stream().anyMatch(l -> l.name().equals(c.name()))) {
+                throw new IllegalStateException("the re-anchored pattern's rows share a column: " + c.name());
+            }
+            columns.add(m.optional() ? optionalColumn(c) : c);
+        }
+        Rows out = new Rows(vs, columns);
+        if (!m.optional() && where != null) {
+            out = filtered(out, where);
+        }
+        return out;
+    }
+
+    /** {@code rows} filtered by {@code where} read over them (a MATCH's or a WITH's WHERE over rows): the pattern
+     *  predicates it holds answered by flag columns first ({@link #withPatternFlags}), dropped after. */
+    private Rows filtered(Rows rows, Expr where) {
+        Rows flagged = withPatternFlags(rows, where);
+        RowScope scope = new RowScope(flagged);
+        Rows out = new Rows(call("filter", flagged.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
+                flagged.columns());
+        return withoutFlags(out, rows);
+    }
+
+    /** The pattern of a MATCH after rows read as its own graph from the carried node's class (the study's §12.49):
+     *  its rows and the renaming of the variables it shares with the rows; null when the pattern names no variable
+     *  of the rows (a fresh pattern: the product's, §12.44), or is not one pattern of at least a hop. */
+    private @com.legend.base.Nullable Anchored anchored(CypherAst.Match m, Rows rows) {
         if (m.patterns().size() != 1) {
             return null;
         }
@@ -2536,10 +2602,9 @@ public final class CypherToPure {
             if (!shares) {
                 return null;
             }
-        } else if (anchor.classPath() == null) {
-            throw CypherErrors.unsupported("a MATCH after rows from " + ((NodePattern) ordered.get(0)).variable()
-                    + ", a node the rows carry as one of several classes, is not supported yet", p.pos());
         }
+        // (a node the rows carry as one of several classes, a label-less pattern's arms: the pattern reads from
+        // every class, label-less at its first node, and the join on identity keeps the row's own class; §12.52)
         Set<String> taken = new HashSet<>();
         rows.columns().forEach(c -> taken.add(c.name()));
         Set<String> patternVars = new HashSet<>();
@@ -2549,12 +2614,9 @@ public final class CypherToPure {
                 taken.add(v);
                 patternVars.add(v);
             }
-            if (e instanceof RelPattern r && r.lengthRange() != null) {
-                throw CypherErrors.unsupported("a variable-length relationship (*) after rows is not supported yet",
-                        r.pos());
-            }
         }
         // every variable the rows hold reads under a fresh name in the pattern's own graph, joined back by identity
+        // (a bounded variable-length relationship among them unrolls there, §12.42: the pattern is a first MATCH)
         Map<String, String> renamed = new LinkedHashMap<>();
         List<PatternElement> fresh = new ArrayList<>();
         for (int i = 0; i < ordered.size(); i++) {
@@ -2565,8 +2627,8 @@ public final class CypherToPure {
                 if (bound) {
                     renamed.put(name, n.variable());
                 }
-                List<String> labels = i == 0 && anchor != null && n.labels().isEmpty()
-                        ? List.of(model.labelOf(java.util.Objects.requireNonNull(anchor.classPath()))) : n.labels();
+                List<String> labels = i == 0 && anchor != null && anchor.classPath() != null && n.labels().isEmpty()
+                        ? List.of(model.labelOf(anchor.classPath())) : n.labels();
                 fresh.add(new NodePattern(name, labels, n.properties(), n.pos()));
             } else {
                 RelPattern r = (RelPattern) e;
@@ -2606,37 +2668,163 @@ public final class CypherToPure {
             right = new Rows(call("filter", right.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
                     right.columns());
         }
-        ValueSpecification cond = null;
-        for (Map.Entry<String, String> r : renamed.entrySet()) {
-            Col left = java.util.Objects.requireNonNull(column(rows, r.getValue()));
-            Col copy = java.util.Objects.requireNonNull(column(right, r.getKey()));
-            for (String[] key : joinKeys(left, copy, r.getValue(), p.pos())) {
-                ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), key[0]),
-                        new AppliedProperty(new Variable("r"), key[1]));
-                cond = cond == null ? eq : call("and", cond, eq);
-            }
+        return new Anchored(right, renamed, p);
+    }
+
+    /** A pattern predicate's answer over rows ({@link #patternFlags}): the flag column's presence, a condition;
+     *  null where the predicate has no flag (one over a graph, or one the rows could not read). */
+    private @com.legend.base.Nullable Tx patternFlag(Expr predicate, Scope scope) {
+        String column = patternFlags.get(predicate);
+        if (column == null) {
+            return null;
         }
-        ValueSpecification vs = call("join", rows.vs(), right.vs(), new EnumValue(JOIN_KIND, m.optional() ? "LEFT"
-                : "INNER"), new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
-                List.of(java.util.Objects.requireNonNull(cond))));
-        List<Col> columns = new ArrayList<>(rows.columns());
-        for (Col c : right.columns()) {
-            if (renamed.containsKey(c.name())) {
-                // (the rows' own column stands for the variable; the copy's columns ride along unnamed)
+        Val v = scope.variable(new CypherAst.Var(column, predicate.pos()));
+        ValueSpecification read = SqlToPure.valueOf(((Scalar) v).tx());
+        ValueSpecification found = call("isNotEmpty", read);
+        return Tx.condition(found, call("isEmpty", read), false);
+    }
+
+    /**
+     * {@code MATCH (n), (m) WHERE (n)-[]->(m)}, {@code WITH a, b WHERE (a)-[:T]->(b)}, {@code MATCH (a)-[:T]->(b)
+     * WHERE (b)-[:U]->()} over a fanning graph's rows (the study's §12.52): every pattern predicate and EXISTS
+     * subquery of {@code where} whose named nodes and relationships the rows all carry with their identity is read
+     * before the WHERE as a flag column of the rows: the pattern read as its own graph ({@link #anchored}, the
+     * re-anchoring of §12.49), its rows narrowed to the identities of the variables it shares with these rows and
+     * deduplicated (a pattern matching several times is one match of the predicate), a constant beside them, and
+     * left-joined back on those identities, so the predicate is the constant's presence on the row, which AND, OR
+     * and NOT compose as any boolean. The rows with the flag columns; the predicates registered in
+     * {@link #patternFlags}, their columns dropped by {@link #withoutFlags} after the filter. A predicate reading a
+     * variable the rows do not carry (a lambda's, a graph's) keeps its own reading.
+     */
+    private Rows withPatternFlags(Rows rows, @com.legend.base.Nullable Expr where) {
+        if (where == null) {
+            return rows;
+        }
+        List<Expr> predicates = new ArrayList<>();
+        patternPredicatesIn(where, predicates);
+        Rows out = rows;
+        for (Expr predicate : predicates) {
+            if (patternFlags.containsKey(predicate)) {
                 continue;
             }
-            if (columns.stream().anyMatch(l -> l.name().equals(c.name()))) {
-                throw new IllegalStateException("the re-anchored pattern's rows share a column: " + c.name());
+            PathPattern pattern = predicate instanceof CypherAst.PatternPredicate pp ? pp.pattern()
+                    : ((CypherAst.ExistsSubquery) predicate).pattern();
+            Expr inner = predicate instanceof CypherAst.ExistsSubquery ex ? ex.where() : null;
+            if (pattern.variable() != null || pattern.elements().size() < 3) {
+                continue;
             }
-            columns.add(m.optional() ? optionalColumn(c) : c);
-        }
-        Rows out = new Rows(vs, columns);
-        if (!m.optional() && where != null) {
-            RowScope scope = new RowScope(out);
-            out = new Rows(call("filter", out.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
-                    out.columns());
+            boolean carried = false;
+            boolean foreign = false;
+            for (PatternElement e : pattern.elements()) {
+                String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                if (v == null) {
+                    continue;
+                }
+                Col c = column(out, v);
+                if (c == null) {
+                    foreign = true;
+                } else if (c.detail() instanceof NodeShape shape && shape.identity() != null && !shape.absent()
+                        || c.detail() instanceof RelShape rel && rel.identified()) {
+                    carried = true;
+                } else {
+                    foreign = true;
+                }
+            }
+            if (!carried || foreign) {
+                continue;
+            }
+            if (inner != null) {
+                Set<String> read = new HashSet<>();
+                variablesIn(inner, read);
+                for (PatternElement e : pattern.elements()) {
+                    String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                    if (v != null) {
+                        read.remove(v);
+                    }
+                }
+                if (!read.isEmpty()) {
+                    // (the subquery's WHERE reading a value of the rows beside its pattern: not this reading)
+                    continue;
+                }
+            }
+            Anchored a = anchored(new CypherAst.Match(true, List.of(pattern), inner, predicate.pos()), out);
+            if (a == null) {
+                continue;
+            }
+            // the matches narrowed to the shared variables' identities, deduplicated, a constant beside them
+            Set<String> names = new HashSet<>();
+            out.columns().forEach(c -> names.add(c.name()));
+            a.right().columns().forEach(c -> names.add(c.name()));
+            String flag = freshName(names);
+            List<ColSpec> kept = new ArrayList<>();
+            List<Col> keyColumns = new ArrayList<>();
+            ValueSpecification cond = null;
+            for (Map.Entry<String, String> r : a.renamed().entrySet()) {
+                Col left = java.util.Objects.requireNonNull(column(out, r.getValue()));
+                Col copy = java.util.Objects.requireNonNull(column(a.right(), r.getKey()));
+                for (String[] key : joinKeys(left, copy, r.getValue(), predicate.pos())) {
+                    if (keyColumns.stream().noneMatch(c -> c.name().equals(key[1]))) {
+                        Col keyCol = java.util.Objects.requireNonNull(column(a.right(), key[1]));
+                        keyColumns.add(keyCol);
+                        kept.add(new ColSpec(key[1], null, null, null));
+                    }
+                    ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), key[0]),
+                            new AppliedProperty(new Variable("r"), key[1]));
+                    cond = cond == null ? eq : call("and", cond, eq);
+                }
+            }
+            ValueSpecification matches = call("extend", call("distinct", call("select", a.right().vs(),
+                    new ColSpecArray(kept))), new ColSpecArray(List.of(new ColSpec(flag, lambda("r",
+                    new CInteger(1L)), null, null))));
+            ValueSpecification vs = call("join", out.vs(), matches, new EnumValue(JOIN_KIND, "LEFT"),
+                    new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
+                            List.of(java.util.Objects.requireNonNull(cond))));
+            List<Col> columns = new ArrayList<>(out.columns());
+            for (Col k : keyColumns) {
+                // (the copy's identity columns ride along unnamed by any variable; the flag is the predicate's)
+                columns.add(new Col(k.name(), k.kind(), true, k.carried(), null));
+            }
+            columns.add(new Col(flag, Kind.INTEGER, true));
+            patternFlags.put(predicate, flag);
+            out = new Rows(vs, columns);
         }
         return out;
+    }
+
+    /** The pattern predicates and EXISTS subqueries {@code e} holds, outside any lambda that binds a variable (a
+     *  quantifier's, a comprehension's: a predicate inside one may read the lambda's variable). */
+    private static void patternPredicatesIn(Expr e, List<Expr> out) {
+        if (e instanceof CypherAst.PatternPredicate || e instanceof CypherAst.ExistsSubquery) {
+            out.add(e);
+            return;
+        }
+        if (e instanceof CypherAst.Quantifier || e instanceof CypherAst.ListComprehension
+                || e instanceof CypherAst.PatternComprehension) {
+            return;
+        }
+        for (Expr child : children(e)) {
+            patternPredicatesIn(child, out);
+        }
+    }
+
+    /** {@code rows} without the flag columns {@link #withPatternFlags} added for {@code where} (and the copies'
+     *  identity columns beside them): the rows as they were, after the filter read the flags. */
+    private static Rows withoutFlags(Rows flagged, Rows before) {
+        if (flagged.columns().size() == before.columns().size()) {
+            return flagged;
+        }
+        List<ColSpec> kept = new ArrayList<>();
+        for (Col c : before.columns()) {
+            if (!c.virtual()) {
+                kept.add(new ColSpec(c.name(), null, null, null));
+            }
+        }
+        return new Rows(call("select", flagged.vs(), new ColSpecArray(kept)), before.columns());
+    }
+
+    /** A pattern read as its own graph from the rows' carried node, its rows, and the pattern's copies of the
+     *  rows' variables (the copy's fresh name to the rows' own), to join back on. */
+    private record Anchored(Rows right, Map<String, String> renamed, PathPattern pattern) {
     }
 
     /** The shape of a node {@code n} names that the rows carry with its identity; null for any other node. */
@@ -2790,9 +2978,7 @@ public final class CypherToPure {
             rows = new Rows(call("filter", rows.vs(), lambda(joined.row(), distinct.vs())), rows.columns());
         }
         if (where != null) {
-            RowScope scope = new RowScope(rows);
-            rows = new Rows(call("filter", rows.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
-                    rows.columns());
+            rows = filtered(rows, where);
         }
         return rows;
     }
@@ -3513,6 +3699,11 @@ public final class CypherToPure {
             }
             return new Arms(carried);
         }
+        if (state instanceof Rows rows && w.where() != null) {
+            // (a pattern predicate of the WHERE over the rows: a flag column of the rows, read by the projection's
+            // WHERE wherever it computes it; the projection drops it, as it drops every synthetic column)
+            state = withPatternFlags(rows, w.where());
+        }
         return project(w.items(), w.distinct(), w.orderBy(), w.skip(), w.limit(), w.where(), state, w.pos(), false);
     }
 
@@ -3699,8 +3890,11 @@ public final class CypherToPure {
             if (ap.whereColumn() != null) {
                 vs = call("filter", vs, lambda("r", new AppliedProperty(new Variable("r"), ap.whereColumn())));
             } else {
-                Scope after = new KeyedScope(new Rows(vs, List.copyOf(columns)), keyTexts(items, columns, false));
-                vs = call("filter", vs, lambda(after.row(), condition(where, after, "WHERE")));
+                Rows before = new Rows(vs, List.copyOf(columns));
+                Rows flagged = withPatternFlags(before, where);
+                Scope after = new KeyedScope(flagged, keyTexts(items, columns, false));
+                vs = withoutFlags(new Rows(call("filter", flagged.vs(), lambda(after.row(), condition(where, after,
+                        "WHERE"))), flagged.columns()), before).vs();
             }
         }
         if (!ap.afterGrouping().isEmpty()) {
@@ -5785,10 +5979,14 @@ public final class CypherToPure {
                     throw CypherErrors.invalid("PatternExpressions are not allowed to introduce new variables: '"
                             + pp.pattern().variable() + "'.", pp.pos());
                 }
-                yield scalar(patternExists(pp.pattern(), null, List.of(), pp.pos(), scope));
+                Tx flag = patternFlag(pp, scope);
+                yield scalar(flag != null ? flag : patternExists(pp.pattern(), null, List.of(), pp.pos(), scope));
             }
-            case CypherAst.ExistsSubquery ex -> scalar(patternExists(ex.pattern(), ex.where(), ex.items(), ex.pos(),
-                    scope));
+            case CypherAst.ExistsSubquery ex -> {
+                Tx flag = patternFlag(ex, scope);
+                yield scalar(flag != null ? flag : patternExists(ex.pattern(), ex.where(), ex.items(), ex.pos(),
+                        scope));
+            }
             case CypherAst.Index ix -> index(ix, scope);
             case CypherAst.Slice sl -> slice(sl, scope);
         };
@@ -5912,9 +6110,10 @@ public final class CypherToPure {
             case PLUS -> {
                 Val l = val(b.left(), scope);
                 Val r = val(b.right(), scope);
-                if (l instanceof Scalar ls && r instanceof Scalar rs) {
+                if (l instanceof Scalar ls && r instanceof Scalar rs && !listShaped(ls) && !listShaped(rs)) {
                     return scalar(arithmetic(b, ls.tx(), rs.tx()));
                 }
+                // (a list the database holds as a Variant, of a known shape, concatenates as a list: §12.52)
                 return concat(l, r, b.pos());
             }
             case MINUS, TIMES, DIVIDE, MODULO, POWER -> {
@@ -6145,7 +6344,10 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("% of values that are not both integers is not supported yet",
                             b.pos());
                 }
-                noDatabaseLambda("%", b.pos());
+                if (!(r.vs() instanceof CInteger ci && ci.value().longValue() != 0)) {
+                    // (a literal divisor that is not zero lowers without the divide-by-zero guard)
+                    noDatabaseLambda("%", b.pos());
+                }
                 yield SqlToPure.strict(Kind.INTEGER, List.of(l, r), v -> call("rem", v.get(0), v.get(1)));
             }
             case POWER -> SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> call("pow", call("toFloat", v.get(0)),
@@ -6512,7 +6714,7 @@ public final class CypherToPure {
 
     /** {@code tail(list)}: every element but the first. */
     private Val tail(CypherAst.Call c, Val v) {
-        return switch (v) {
+        return switch (asCollection(v)) {
             case ListVal l -> new ListVal(l.elements().isEmpty() ? List.of()
                     : l.elements().subList(1, l.elements().size()));
             case Coll col -> new Coll(call("drop", col.vs(), new CInteger(1L)), col.kind(), col.rowFree());
@@ -6523,7 +6725,7 @@ public final class CypherToPure {
 
     /** {@code reverse(list)}, {@code reverse(string)}. */
     private Val reverse(CypherAst.Call c, Val v) {
-        return switch (v) {
+        return switch (asCollection(v)) {
             case ListVal l -> {
                 List<Val> out = new ArrayList<>(l.elements());
                 java.util.Collections.reverse(out);
@@ -6860,7 +7062,18 @@ public final class CypherToPure {
             // one that is never null is read as one: the typer types the if's branches [0..1]
             tail = call("toOne", tail);
         }
-        return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(tail, nullable) : Tx.value(tail, kind, nullable);
+        if (kind == Kind.BOOLEAN) {
+            return SqlToPure.booleanValue(tail, nullable);
+        }
+        if (kind == Kind.JSON) {
+            // the arguments' shapes as one (lists of one kind in every argument, §12.52), as a CASE's results
+            com.legend.protocol.sql.InputDialect.TypeDetail detail = args.get(0).detail();
+            for (Tx a : args.subList(1, args.size())) {
+                detail = mergedShape(detail, a.detail());
+            }
+            return Tx.value(tail, kind, nullable, detail);
+        }
+        return Tx.value(tail, kind, nullable);
     }
 
     /** {@code CASE}: the first WHEN that holds gives the value, else the ELSE, else null. */
@@ -6909,7 +7122,24 @@ public final class CypherToPure {
             ValueSpecification v = r.kind() == Kind.NULL ? SqlToPure.nullOf(kind).vs() : SqlToPure.valueOf(r);
             vs = call("if", tests.get(i), thunk(v), thunk(vs));
         }
-        return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(vs, nullable) : Tx.value(vs, kind, nullable);
+        if (kind == Kind.BOOLEAN) {
+            return SqlToPure.booleanValue(vs, nullable);
+        }
+        if (kind == Kind.JSON) {
+            // the results' shapes as one (a list in every branch, the kind and mark their places share; the study's
+            // §12.52), so a comprehension or a quantifier over the CASE reads its elements by it
+            com.legend.protocol.sql.InputDialect.TypeDetail detail = null;
+            boolean first = true;
+            for (Tx r : results) {
+                if (r.kind() == Kind.NULL) {
+                    continue;
+                }
+                detail = first ? r.detail() : mergedShape(detail, r.detail());
+                first = false;
+            }
+            return Tx.value(vs, kind, nullable, detail);
+        }
+        return Tx.value(vs, kind, nullable);
     }
 
     // ------------------------------------------------------------------ values
@@ -6935,7 +7165,13 @@ public final class CypherToPure {
     }
 
     /** A collection the database computes; {@code rowFree} when it reads nothing of the row (literals only). */
-    private record Coll(ValueSpecification vs, Kind kind, boolean rowFree) implements Val {
+    private record Coll(ValueSpecification vs, Kind kind, boolean rowFree,
+            /** the elements' mark where they are values the database holds as Variants (a relationship's, a
+             *  node's, a list's shape; the study's §12.43), null for scalars or an unknown mark */
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail elementDetail) implements Val {
+        Coll(ValueSpecification vs, Kind kind, boolean rowFree) {
+            this(vs, kind, rowFree, null);
+        }
     }
 
     /** A list the database holds as a Variant whose elements are of one known kind ({@link ListOf}: a collected
@@ -6943,14 +7179,22 @@ public final class CypherToPure {
      *  that kind), so that a list predicate, IN, an index or a comprehension reads it as it reads any collection the
      *  database computes; any other value as it is. */
     private static Val asCollection(Val v) {
-        if (v instanceof Scalar s && s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape
-                && elementType(shape.element()) != null) {
-            return new Coll(call("toMany", SqlToPure.valueOf(s.tx()),
-                    SqlToPure.typeArg(java.util.Objects.requireNonNull(elementType(shape.element())))),
-                    shape.element(), false);
+        if (v instanceof Scalar s && s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape) {
+            String type = shape.element() == Kind.JSON ? VARIANT_TYPE : elementType(shape.element());
+            if (type == null) {
+                return v;
+            }
+            // (elements the database holds as Variants -- collected relationships, nodes or lists -- read back as
+            // Variants, each carrying the elements' mark)
+            ValueSpecification held = SqlToPure.valueOf(s.tx());
+            ValueSpecification read = call("toMany", held, SqlToPure.typeArg(type));
+            return new Coll(read, shape.element(), false, shape.element() == Kind.JSON ? shape.elementDetail()
+                    : null);
         }
         return v;
     }
+
+    private static final String VARIANT_TYPE = "meta::pure::metamodel::variant::Variant";
 
     private static Scalar scalar(Tx tx) {
         return new Scalar(tx, false, null);
@@ -7211,13 +7455,70 @@ public final class CypherToPure {
         return result;
     }
 
+    /** Whether {@code s} is a list the database holds as a Variant of a known element kind: one {@link #asCollection}
+     *  reads as a collection. */
+    private static boolean listShaped(Scalar s) {
+        return s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape
+                && (elementType(shape.element()) != null || shape.element() == Kind.JSON);
+    }
+
+    /** A spelled list as the collection the database reads: through its JSON text where its shape says one kind
+     *  ({@link #asCollection}), else its elements' values ({@link #collection}). */
+    private Coll spelledCollection(ListVal l, Pos pos) {
+        Val read = asCollection(scalar(variant(l, pos)));
+        return read instanceof Coll c ? c : collection(l, pos);
+    }
+
+    /** A value concatenated to a list the database computes: a scalar of the list's kind, never null. */
+    private static Tx elementOf(Val v, @com.legend.base.Nullable Coll list, Pos pos) {
+        if (!(v instanceof Scalar s) || s.tx().kind() == Kind.NULL || s.tx().kind() == Kind.JSON) {
+            throw CypherErrors.unsupported("+ of a list the database computes and a value that is a list or a map is"
+                    + " not supported yet", pos);
+        }
+        if (list != null && s.tx().kind() != list.kind()) {
+            throw CypherErrors.unsupported("+ of a list the database computes and a value of another type ("
+                    + cypherType(s.tx().kind()) + ") is not supported yet", pos);
+        }
+        return s.tx();
+    }
+
     /** {@code list + list}, {@code list + value}, {@code value + list}: the elements in a row. */
     private Val concat(Val l, Val r, Pos pos) {
         if (isNull(l) || isNull(r)) {
             return nullValue();
         }
-        if (l instanceof Coll || r instanceof Coll) {
-            throw CypherErrors.unsupported("+ of a list the database computes is not supported yet", pos);
+        Val left = asCollection(l);
+        Val right = asCollection(r);
+        if (left instanceof Coll || right instanceof Coll) {
+            // a list the database computes, and a list or a value beside it: the elements in a row, the database's
+            // concatenation (an element of another kind is refused by name: the database's lists are of one type)
+            // (a spelled list beside a collection the database computes: read through its JSON text as a
+            // collection of its kind, the list's element type stamped, which a literal list of Postgres lacks)
+            Coll a = left instanceof Coll c ? c : right instanceof Coll && left instanceof ListVal lv
+                    ? spelledCollection(lv, pos) : null;
+            Coll b = right instanceof Coll c ? c : left instanceof Coll && right instanceof ListVal rv
+                    ? spelledCollection(rv, pos) : null;
+            Tx le = a == null ? elementOf(left, b, pos) : null;
+            Tx re = b == null ? elementOf(right, a, pos) : null;
+            Coll known = a != null ? a : java.util.Objects.requireNonNull(b);
+            if (a != null && b != null && a.kind() != b.kind()) {
+                throw CypherErrors.unsupported("+ of two lists of different element types the database computes is"
+                        + " not supported yet", pos);
+            }
+            Tx maybeNull = le != null && le.nullable() ? le : re != null && re.nullable() ? re : null;
+            ValueSpecification lv = a != null ? a.vs() : SqlToPure.valueOf(java.util.Objects.requireNonNull(le));
+            ValueSpecification rv = b != null ? b.vs() : SqlToPure.valueOf(java.util.Objects.requireNonNull(re));
+            if (maybeNull != null) {
+                // a value that may be null beside the list: null where it is (Cypher's), else the list, held as a
+                // Variant of the list's shape (what a comprehension or a quantifier reads back)
+                ValueSpecification joined = call("concatenate", a != null ? lv : call("toOne", lv),
+                        b != null ? rv : call("toOne", rv));
+                return scalar(Tx.value(call("if", call("isEmpty", maybeNull.vs()), thunk(SqlToPure.nullOf(Kind.JSON)
+                        .vs()), thunk(call("toVariant", joined))), Kind.JSON, true,
+                        new ListOf(known.kind(), known.elementDetail())));
+            }
+            return new Coll(call("concatenate", lv, rv), known.kind(), (a == null || a.rowFree())
+                    && (b == null || b.rowFree()), known.elementDetail());
         }
         if (l instanceof MapVal || r instanceof MapVal) {
             throw CypherErrors.invalid("Type mismatch: expected Float, Integer, String, List<T> or Duration but was Map",
@@ -7603,7 +7904,7 @@ public final class CypherToPure {
                     + cypherType(s.tx().kind()), q.list().pos());
             case MapVal m -> throw CypherErrors.invalid("Type mismatch: expected List<T> but was Map", q.list().pos());
             case Coll c -> {
-                Scope inner = new BoundScope(scope, var, scalar(columnLike(new Variable(var), c.kind(), false)));
+                Scope inner = new BoundScope(scope, var, scalar(element(var, c)));
                 databaseLambdas++;
                 Tx pred;
                 try {
@@ -7620,8 +7921,9 @@ public final class CypherToPure {
                     case ANY -> SqlToPure.booleanValue(call("exists", c.vs(), lambda(var, pred.vs())), false);
                     case NONE -> SqlToPure.not(SqlToPure.booleanValue(call("exists", c.vs(), lambda(var,
                             pred.vs())), false));
-                    case SINGLE -> throw CypherErrors.unsupported("single(...) over a list the database computes is"
-                            + " not supported yet", q.pos());
+                    // exactly one element holds: the holds counted (the condition is never null here)
+                    case SINGLE -> SqlToPure.booleanValue(call("equal", call("size", call("filter", c.vs(),
+                            lambda(var, pred.vs()))), new CInteger(1L)), false);
                 };
             }
             case ListVal l -> {
@@ -7921,6 +8223,10 @@ public final class CypherToPure {
     }
 
     private Hopped hopped(CypherAst.PatternComprehension pc, Scope scope) {
+        while (scope instanceof BoundScope bs) {
+            // (a lambda's binding over the graph: the hop starts from a node of the graph beneath it)
+            scope = bs.inner;
+        }
         if (!(scope instanceof GraphScope gs)) {
             throw CypherErrors.unsupported("a pattern comprehension over rows (after a WITH, or a pattern read as"
                     + " rows) is not supported yet", pc.pos());
@@ -8127,18 +8433,19 @@ public final class CypherToPure {
         Kind kind = c.kind();
         Set<String> bound = Set.of(var);
         boolean rowFree = c.rowFree();
-        Scope inner = new BoundScope(scope, var, scalar(columnLike(new Variable(var), kind, false)));
+        Scope inner = new BoundScope(scope, var, scalar(element(var, c)));
         Expr where = lc.where();
         databaseLambdas++;
         try {
-            return comprehensionBody(lc, inner, vs, kind, rowFree, bound);
+            return comprehensionBody(lc, inner, vs, kind, rowFree, bound, c.elementDetail());
         } finally {
             databaseLambdas--;
         }
     }
 
     private Val comprehensionBody(CypherAst.ListComprehension lc, Scope inner, ValueSpecification collection,
-            Kind elementKind, boolean collectionRowFree, Set<String> bound) {
+            Kind elementKind, boolean collectionRowFree, Set<String> bound,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail elementDetail) {
         String var = lc.variable();
         ValueSpecification vs = collection;
         Kind kind = elementKind;
@@ -8164,8 +8471,17 @@ public final class CypherToPure {
             vs = call("map", vs, lambda(var, SqlToPure.valueOf(ms.tx())));
             kind = ms.tx().kind();
             rowFree &= !readsRow(map, bound);
+            return new Coll(vs, kind, rowFree, ms.tx().detail());
         }
-        return new Coll(vs, kind, rowFree);
+        return new Coll(vs, kind, rowFree, elementDetail);
+    }
+
+    /** The lambda variable {@code var} bound to an element of {@code c}: its kind and, for an element the database
+     *  holds as a Variant, the elements' mark. */
+    private static Tx element(String var, Coll c) {
+        Tx read = columnLike(new Variable(var), c.kind(), false);
+        return c.elementDetail() == null ? read : new Tx(read.vs(), read.kind(), read.nullable(), read.whenFalse(),
+                c.elementDetail());
     }
 
     /** A list of known shape as the collection the database reads: its elements scalars of one kind, none null. */

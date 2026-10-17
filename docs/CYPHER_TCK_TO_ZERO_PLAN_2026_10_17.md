@@ -244,7 +244,15 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
 Pattern comprehensions over rows and over two hops (W2's continuation, then the hop machinery), `count(DISTINCT)`
 over scalars (the distinct count: order-free, unlike `collect(DISTINCT)`), `toString` of lists and nodes (the
 JSON text), min/max over mixed values (Cypher's type rank, with W11), untyped relationships beside other patterns,
-SKIP/LIMIT expressions, `STARTS WITH` on non-strings (null), temporal texts of the row. Three legs.
+SKIP/LIMIT expressions, `STARTS WITH` on non-strings (null), temporal texts of the row. Three legs. Leg 1 LANDED
+2026-10-17 (the study's §12.52, GATES' fifty-first landing; TCK agreement 3201 → 3270, DuckDB PASS 3141 → 3232,
+Postgres 2780 → 2871):
+pattern predicates and EXISTS subqueries over rows as flag columns joined back by identity (Pattern1, the lite
+predicates), comprehensions, quantifiers (`single` too), `reverse`, `tail`, `+`, CASE and coalesce over lists the
+database holds as Variants (Quantifier9-12 behind `rand()`, List12), a node carried as one of several classes
+re-anchoring from every class, `%` inside a database lambda with a literal divisor. Still refused: a pattern
+comprehension over rows (a collect per row: Pattern2/[3], [8]), `nodes(x)` of a path held in a list (List12/[4],
+[5]), a hop from a node read out of a list (Pattern2/[7]).
 
 ## 3. Decisions asked of the user
 
@@ -506,6 +514,15 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   design's step 3) is implemented from memory of the engine's `PrimaryKey` inference; no reference checkout is on
   this machine (`-Dlegend.engine.root` unset), so it is not yet verified verbatim against the engine's compiler
   source (the verification tenet). Holds back nothing; to be checked at the next session with a checkout.
+- **2026-10-17, W12 leg 1 — the resolver's object-space lambda reads no collection operation over a literal
+  list.** `g::A.all()->project(~[n:n|..., odd:n|[1, 2, 3]->filter(x|$x > 1)->map(x|$x)->toVariant()])` fails to
+  resolve ("object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)"): a comprehension
+  or quantifier over a literal list inside a projection over a class extent (`MATCH (n:A) RETURN n, [x IN [1, 2,
+  3] WHERE x > 1 | x]`); the same lambda over rows (`extend` after a `project`) lowers. The island reaches it
+  only when a literal-list comprehension stands beside a node value in a RETURN over a graph (no TCK case
+  today: the TCK's literal-list comprehensions are over rows); the fix belongs to the resolver (W9), where the
+  object-space substitution would carry `filter`, `map`, `exists` and `forAll` over a `TypedCollection` as it
+  carries them over a navigation.
 - **2026-10-17, W2 leg 5 — the resolver's two-step existence past a bridge-table step.** `A.all()->filter(a|
   $a.KNOWS.LIKES->isNotEmpty())` fails to lower (`Resolvers$UnfoldableRef: KNOWS_LIKES_a_dst_id`) whenever the
   second step is an association mapped over a bridge table (`@LIKES_a > @LIKES_b`); the same filter over a

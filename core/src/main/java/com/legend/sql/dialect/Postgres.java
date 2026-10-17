@@ -308,8 +308,8 @@ public final class Postgres extends AnsiSqlRenderer {
                 String k = stringLit(entry.fields().get(0).name());
                 String v = stringLit(entry.fields().get(1).name());
                 SqlWriter.Piece entries = w -> w.append("ARRAY(SELECT jsonb_build_object('key', __me -> " + k
-                        + ", 'value', __me -> " + v + ") FROM unnest(").expr(xs, 0)
-                        .append(") WITH ORDINALITY AS __mu(__me, __mo) ORDER BY __mo)");
+                        + ", 'value', __me -> " + v + ") FROM ").piece(unnest(p -> p.expr(xs, 0)))
+                        .append(" WITH ORDINALITY AS __mu(__me, __mo) ORDER BY __mo)");
                 yield writer.append("(CASE WHEN ").expr(xs, 4).append(" IS NULL THEN NULL ELSE ")
                         .piece(keysChecked(entries)).append(" END)");
             }
@@ -321,8 +321,8 @@ public final class Postgres extends AnsiSqlRenderer {
                 SqlType vt = elementOf(vs, c.fn());
                 SqlWriter.Piece entries = w -> w.append("ARRAY(SELECT jsonb_build_object('key', ")
                         .piece(asJsonb(v -> v.append("__mk"), kt)).append(", 'value', ")
-                        .piece(asJsonb(v -> v.append("(").expr(vs, 0).append(")[__mo]"), vt)).append(") FROM unnest(")
-                        .expr(ks, 0).append(") WITH ORDINALITY AS __mu(__mk, __mo) ORDER BY __mo)");
+                        .piece(asJsonb(v -> v.append("(").expr(vs, 0).append(")[__mo]"), vt)).append(") FROM ")
+                        .piece(unnest(p -> p.expr(ks, 0))).append(" WITH ORDINALITY AS __mu(__mk, __mo) ORDER BY __mo)");
                 yield writer.append("(CASE WHEN ").expr(ks, 4).append(" IS NULL OR ").expr(vs, 4)
                         .append(" IS NULL THEN NULL WHEN cardinality(").expr(ks, 0).append(") <> cardinality(")
                         .expr(vs, 0).append(") THEN ").piece(mapRaise("The map key list does not align with the map"
@@ -333,9 +333,10 @@ public final class Postgres extends AnsiSqlRenderer {
                 writer.append("ARRAY(SELECT jsonb_build_object('key', __mg.k, 'value', (array_agg(__mg.v ORDER BY"
                         + " __mg.s DESC))[1]) FROM (");
                 for (int i = 0; i < a.size(); i++) {
+                    SqlExpr map = a.get(i);
                     writer.append(i > 0 ? " UNION ALL " : "").append("SELECT " + i + " AS s, __me -> 'key' AS k,"
-                            + " __me -> 'value' AS v, __mo AS o FROM unnest(").expr(a.get(i), 0)
-                            .append(") WITH ORDINALITY AS __mu" + i + "(__me, __mo)");
+                            + " __me -> 'value' AS v, __mo AS o FROM ").piece(unnest(p -> p.expr(map, 0)))
+                            .append(" WITH ORDINALITY AS __mu" + i + "(__me, __mo)");
                 }
                 yield writer.append(") AS __mg GROUP BY __mg.k ORDER BY min(__mg.s), (array_agg(__mg.o ORDER BY"
                         + " __mg.s))[1])");
@@ -348,8 +349,8 @@ public final class Postgres extends AnsiSqlRenderer {
                 boolean keys = c.fn() == SqlFn.MAP_KEYS;
                 writer.append("(CASE WHEN ").expr(m, 4).append(" IS NULL THEN NULL ELSE ARRAY(SELECT ")
                         .piece(held(w -> w.append(keys ? "__me -> 'key'" : "__me -> 'value'"), keys ? mt.key()
-                                : mt.value(), 0)).append(" FROM unnest(").expr(m, 0)
-                        .append(") WITH ORDINALITY AS __mu(__me, __mo)");
+                                : mt.value(), 0)).append(" FROM ").piece(unnest(p -> p.expr(m, 0)))
+                        .append(" WITH ORDINALITY AS __mu(__me, __mo)");
                 if (c.fn() == SqlFn.MAP_EXTRACT) {
                     writer.append(" WHERE __me -> 'key' = ").piece(asJsonb(w -> w.expr(a.get(1), 0), mt.key()));
                 }
@@ -371,10 +372,10 @@ public final class Postgres extends AnsiSqlRenderer {
 
     /** {@code entries} when their keys are each non-NULL and distinct; DuckDB's error otherwise. */
     private SqlWriter.Piece keysChecked(SqlWriter.Piece entries) {
-        return w -> w.append("(CASE WHEN (SELECT count(*) FROM unnest(").piece(entries)
-                .append(") AS __mk(e) WHERE jsonb_typeof(e -> 'key') = 'null') > 0 THEN ")
-                .piece(mapRaise("Map keys can not be NULL.")).append(" WHEN (SELECT count(DISTINCT e -> 'key') FROM"
-                        + " unnest(").piece(entries).append(") AS __mk(e)) < cardinality(").piece(entries)
+        return w -> w.append("(CASE WHEN (SELECT count(*) FROM ").piece(unnest(entries))
+                .append(" AS __mk(e) WHERE jsonb_typeof(e -> 'key') = 'null') > 0 THEN ")
+                .piece(mapRaise("Map keys can not be NULL.")).append(" WHEN (SELECT count(DISTINCT e -> 'key') FROM ")
+                        .piece(unnest(entries)).append(" AS __mk(e)) < cardinality(").piece(entries)
                 .append(") THEN ").piece(mapRaise("Map keys must be unique.")).append(" ELSE ").piece(entries)
                 .append(" END)");
     }
@@ -472,15 +473,29 @@ public final class Postgres extends AnsiSqlRenderer {
         return t instanceof SqlType.Array || t instanceof SqlType.Map;
     }
 
+    /** {@code unnest(list)}, the list held behind a scalar subquery, at every unnest the dialect writes: Postgres
+     *  estimates the function's rows while planning, and the estimate evaluates the argument's constant
+     *  sub-expressions (estimate_expression_value runs STABLE functions: a {@code toOne} guard's raise, the cast of
+     *  a constant text to TIMESTAMPTZ, in a CASE arm never taken, fired "invalid input syntax for type timestamp
+     *  with time zone") after pulling simple subqueries up, so the argument holds by then the expression of every
+     *  column it reads (the Cypher island's UNWIND of a CASE over a Variant's member, whose guard raises; measured
+     *  on 16.15, 2026-10-17: the raise was in the subquery's projection, not in the argument as written). A scalar
+     *  subquery reaches the estimate as a parameter, which it does not open, and the executor reads it per row. The
+     *  raise's own volatile term ({@link #raise}) covers only a raise typed as a list or a map, the kind that IS an
+     *  argument, not the one a column carries. */
+    private static SqlWriter.Piece unnest(SqlWriter.Piece list) {
+        return w -> w.append("unnest((SELECT ").piece(list).append("))");
+    }
+
     /** {@code ... FROM} the elements of {@code xs}: each bound to {@code elem} as its type reads (a list
      *  element held as jsonb rebuilt as a list), its 1-based position to {@code idx}. */
     private SqlWriter.Piece elementsFrom(SqlWriter.Piece xs, SqlType element, String elem, String idx) {
         if (!rebuilt(element)) {
-            return w -> w.append("unnest(").piece(xs).append(") WITH ORDINALITY AS __u(" + elem + ", " + idx + ")");
+            return w -> w.piece(unnest(xs)).append(" WITH ORDINALITY AS __u(" + elem + ", " + idx + ")");
         }
         return w -> w.append("(SELECT ").piece(decode(v -> v.append("__ue"), element, 0))
-                .append(" AS " + elem + ", __uo AS " + idx + " FROM unnest(").piece(xs)
-                .append(") WITH ORDINALITY AS __w(__ue, __uo)) AS __u");
+                .append(" AS " + elem + ", __uo AS " + idx + " FROM ").piece(unnest(xs))
+                .append(" WITH ORDINALITY AS __w(__ue, __uo)) AS __u");
     }
 
     /** A lambda body over elements of {@code element} type: a field read off a struct parameter
@@ -611,8 +626,8 @@ public final class Postgres extends AnsiSqlRenderer {
                     .append(")");
             // DuckDB's list_distinct drops NULLs; first occurrence order
             case LIST_DISTINCT -> writer.append("(CASE WHEN ").piece(xs).append(" IS NULL THEN NULL ELSE ARRAY(SELECT ")
-                    .append(x).append(" FROM unnest(").piece(xs)
-                    .append(") WITH ORDINALITY AS __u(" + x + ", __o) WHERE ")
+                    .append(x).append(" FROM ").piece(unnest(xs))
+                    .append(" WITH ORDINALITY AS __u(" + x + ", __o) WHERE ")
                     .append(x + " IS NOT NULL GROUP BY " + x + " ORDER BY min(__o)) END)");
             case LIST_APPEND -> writer.append("array_append(").piece(xs).append(", ")
                     .piece(encode(w -> w.expr(args.get(1), 0), first)).append(")");
@@ -1018,8 +1033,8 @@ public final class Postgres extends AnsiSqlRenderer {
     protected SqlWriter allDistinct(SqlWriter writer, List<SqlExpr> args) {
         SqlWriter.Piece xs = listOf(args.get(0), "isDistinct");
         String x = param("__x");
-        return writer.append("coalesce((SELECT count(*) = count(DISTINCT " + x + ") FROM unnest(").piece(xs)
-                .append(") AS __u(" + x + ")), TRUE)");
+        return writer.append("coalesce((SELECT count(*) = count(DISTINCT " + x + ") FROM ").piece(unnest(xs))
+                .append(" AS __u(" + x + ")), TRUE)");
     }
 
     /** DuckDB's list_contains: NULL for a NULL list; found by IS NOT DISTINCT FROM, as array_position. */
@@ -1051,7 +1066,7 @@ public final class Postgres extends AnsiSqlRenderer {
         } else {
             reducer(writer, agg);
         }
-        return writer.append(" FROM unnest(").piece(xs).append(") WITH ORDINALITY AS __u(" + param("__x") + ", "
+        return writer.append(" FROM ").piece(unnest(xs)).append(" WITH ORDINALITY AS __u(" + param("__x") + ", "
                 + param("__o") + "))");
     }
 
@@ -1075,7 +1090,7 @@ public final class Postgres extends AnsiSqlRenderer {
             // casts from it); Postgres refuses to unnest an untyped NULL
             return writer.append("unnest(CAST(NULL AS TEXT[]))");
         }
-        return writer.append("unnest(").piece(listOf(args.get(0), "UNNEST")).append(")");
+        return writer.piece(unnest(listOf(args.get(0), "UNNEST")));
     }
 
     /** fold(xs, {element, accumulator | body}, init): a correlated recursive walk over the elements, the
@@ -1133,7 +1148,7 @@ public final class Postgres extends AnsiSqlRenderer {
 
     /** A reduction of a list's elements: {@code (SELECT agg FROM unnest(xs) AS __u(__x))}. */
     private SqlWriter.Piece overReduce(SqlWriter.Piece xs, String agg) {
-        return w -> w.append("(SELECT " + agg + " FROM unnest(").piece(xs).append(") AS __u(" + param("__x") + "))");
+        return w -> w.append("(SELECT " + agg + " FROM ").piece(unnest(xs)).append(" AS __u(" + param("__x") + "))");
     }
 
     /** Postgres also reads a nested value as {@code jsonb}, the one nested type it can group,
@@ -1556,7 +1571,10 @@ public final class Postgres extends AnsiSqlRenderer {
      * argument of unnest, whose row estimate pre-evaluates it: an untaken raise under
      * unnest(CASE ...) fired, measured on 16.15, 2026-10-12), so a raise whose value is a
      * list or a map, the only kind unnest takes, carries an empty VOLATILE term
-     * ({@code left(random()::text, 0)}), which no estimate evaluates. Only that kind: a
+     * ({@code left(random()::text, 0)}), which no estimate evaluates (and every unnest now
+     * holds its argument behind a scalar subquery, {@link #unnest}: the estimate reaches a
+     * column's raise through the planner's pull-up, which no term at the raise's own site
+     * could carry, 2026-10-17). Only that kind: a
      * volatile term keeps the planner from flattening a subquery and from aggregating in
      * parallel, and every Integer division's zero guard is a raise (PR #34's review,
      * 2026-10-13, measured on 16.15: a join on a subquery's id went from an index nested
