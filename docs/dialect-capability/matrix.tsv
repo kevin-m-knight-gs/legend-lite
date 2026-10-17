@@ -526,8 +526,8 @@ Postgres	Postgres	call	ENDS_WITH	emulated	(right(…, length(…)) = …)		60
 Postgres	Postgres	call	MATCHES	emulated	pattern: (… ~ …)		16
 Postgres	Postgres	call	LEFT	spelled	left		6
 Postgres	Postgres	call	RIGHT	spelled	right		6
-Postgres	Postgres	call	LPAD	emulated	padWithSpace: lpad		16
-Postgres	Postgres	call	RPAD	emulated	padWithSpace: rpad		45
+Postgres	Postgres	call	LPAD	emulated	padWithSpaceToInteger: lpad		16
+Postgres	Postgres	call	RPAD	emulated	padWithSpaceToInteger: rpad		45
 Postgres	Postgres	call	TRIM	spelled	trim		2
 Postgres	Postgres	call	LTRIM	spelled	ltrim		3
 Postgres	Postgres	call	RTRIM	spelled	rtrim		60
@@ -1621,8 +1621,8 @@ DuckDb	DuckDB	call	ENDS_WITH	spelled	ends_with		60
 DuckDb	DuckDB	call	MATCHES	spelled	regexp_matches		16
 DuckDb	DuckDB	call	LEFT	spelled	left		6
 DuckDb	DuckDB	call	RIGHT	spelled	right		6
-DuckDb	DuckDB	call	LPAD	emulated	padWithSpace: lpad		16
-DuckDb	DuckDB	call	RPAD	emulated	padWithSpace: rpad		45
+DuckDb	DuckDB	call	LPAD	emulated	padWithSpaceToInteger: lpad		16
+DuckDb	DuckDB	call	RPAD	emulated	padWithSpaceToInteger: rpad		45
 DuckDb	DuckDB	call	TRIM	spelled	trim		2
 DuckDb	DuckDB	call	LTRIM	spelled	ltrim		3
 DuckDb	DuckDB	call	RTRIM	spelled	rtrim		60

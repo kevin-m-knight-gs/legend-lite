@@ -60,12 +60,24 @@ class IqParityPostgresTest {
                 if (mismatch != null) {
                     problems.add(mismatch);
                 }
-                outcomes.put(r.key(), IqParity.outcome(r, answers.get(r.key()), names,
-                        island -> service.execute(model, island, IqParity.RUNTIME, admin)));
+                SqlParity.Outcome outcome = IqParity.outcome(r, answers.get(r.key()), tables, names,
+                        island -> service.execute(model, island, IqParity.RUNTIME, admin));
+                outcomes.put(r.key(), outcome);
+                // IQ island, 2026-10-14 (review 7, the user's ruling on B1): no case pins one plan's choice
+                String nondeterministic = IqParity.determinism(r, tables, outcome.status());
+                if (nondeterministic != null) {
+                    problems.add(nondeterministic);
+                }
             }
             String update = System.getProperty("iq.parity.update");
             problems.addAll(IqParity.ratchet(runs, outcomes, Runfile.property("iq.parity.ledger"), "postgres",
                     update == null ? null : Path.of(update)));
+            if (update == null) {
+                // IQ island, landing 4 (WP1), 2026-10-14: every FAIL, BUG or ERROR is a listed iq17 divergence, and
+                // the list only shrinks
+                problems.addAll(IqParity.divergences(runs, outcomes, Runfile.property("iq.parity.divergences"),
+                        "postgres"));
+            }
         }
         assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
     }

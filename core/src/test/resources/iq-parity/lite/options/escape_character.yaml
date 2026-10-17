@@ -1,0 +1,15 @@
+# escape_character, every value (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the options framework):
+# On, \n, \\ and \xHH are escapes in a string; Off (a TDS login's), a backslash is a character. LIKE is unaffected. Given
+# for the query (settings). Judged by SQL Anywhere 17's answers. The SQL in YAML double quotes: a backslash is \\.
+tests:
+  - id: off_a_backslash_is_a_character
+    sql: "SELECT LENGTH('a\\nb') AS n, LENGTH('a\\\\b') AS m, 'x\\x41y' AS s"
+    settings: "query.escape_character='Off'"
+    profile: iq16-default, sqla17-default
+  - id: on_escapes
+    sql: "SELECT LENGTH('a\\nb') AS n, LENGTH('a\\\\b') AS m, 'x\\x41y' AS s"
+    settings: "query.escape_character='On'"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: off_compared_with_a_column
+    sql: "SELECT id FROM t WHERE vc <> 'a\\nb' AND id < 3 ORDER BY id"
+    settings: "query.escape_character='Off'"

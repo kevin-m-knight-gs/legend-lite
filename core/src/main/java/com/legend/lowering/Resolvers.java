@@ -37,7 +37,8 @@ final class Resolvers {
     sealed interface Resolution {
         record Resolved(SqlExpr expr) implements Resolution { }
 
-        record Unfoldable(String column) implements Resolution { }
+        /** {@code enclosing}: the miss is an enclosing row's read, the enclosing boundary's to cure. */
+        record Unfoldable(String column, boolean enclosing) implements Resolution { }
 
         /** The EXPRESSION-LEVEL {@link UnfoldableRef} catch site: run
          * the attempt, name the outcome. */
@@ -46,7 +47,7 @@ final class Resolvers {
                 return new Resolved(attemptFn.get());
             } catch (UnfoldableRef e) {
                 return new Unfoldable(Objects.requireNonNull(
-                        e.getMessage(), "UnfoldableRef column"));
+                        e.getMessage(), "UnfoldableRef column"), e.enclosing());
             }
         }
     }
@@ -58,8 +59,21 @@ final class Resolvers {
      * (docs/DESIGN_DEBT.md).
      */
     static final class UnfoldableRef extends RuntimeException {
+        /** An enclosing row's read missed (2026-10-16, the landing's review: told apart by the signal itself, where
+         *  a count of misses also counted the ones a nested attempt had cured). */
+        private final boolean enclosing;
+
         UnfoldableRef(String column) {
+            this(column, false);
+        }
+
+        UnfoldableRef(String column, boolean enclosing) {
             super(column);
+            this.enclosing = enclosing;
+        }
+
+        boolean enclosing() {
+            return enclosing;
         }
 
         @Override

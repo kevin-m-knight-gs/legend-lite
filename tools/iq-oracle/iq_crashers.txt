@@ -1,0 +1,12 @@
+# What snap.py --oracle iq never sends to the live SAP IQ 17.1 (live_iq.py; README.md, "The live IQ"): statements that
+# hung it or took the connection down (the session could not reconnect for seconds to minutes; the server is shared).
+# A matching run is answered not_judged with the line's reason, and the lanes count it SKIP.
+#   key <case key>  # reason        a case (lite/<file>/<id>), under every iq17-* profile
+#   shape <regex>  # reason         any case whose SQL, as written, the Python regular expression matches
+# IQ island, landing 4 (WP1), 2026-10-14: from the research's iqlive_corpus/iq_crashers.txt, measured that day.
+key lite/m1gaps/like_a_date_pattern_is_refused  # vc LIKE dt (a DATE column as LIKE's pattern) ran about 100 s on IQ 17.1, then -308 (connection terminated); the session could not reconnect for about 12 s
+shape (?i)\bLIKE\s+(?:[A-Za-z_][A-Za-z0-9_]*\.)?(?:dt|ts)\b  # LIKE whose pattern is a DATE or TIMESTAMP column of the schema (dt, ts): the shape of the case above
+shape (?is)\bOVER\s*\(.*\bsa_rowgenerator\b|\bsa_rowgenerator\b.*\bOVER\s*\(  # a window function over sa_rowgenerator (the catalog store's path): LAG, LAG with an offset and NTILE OVER (ORDER BY row_num) each ran to a 30 s cancel and dropped the connection (three hangs in the research's syntax run; ten other such queries answered)
+# Not a shape of any case: one exec of single-row INSERTs into the fuzzer's ll_xb (year-0001 dates, non-ASCII text)
+# ran 129 s, then -85, and the server refused connections for 80 minutes; the cause was not isolated. The seed's own
+# INSERTs (schema.yaml's 28 rows) ran without trouble the same day.

@@ -1,0 +1,45 @@
+# LIKE over a CHAR(n) column under IQ's engine and LIKE with a computed pattern and ESCAPE (IQ island, 2026-10-15;
+# measured on the live IQ 17.1). Under IQ's engine LIKE matches a CHAR(n) column's value blank padded (the research's
+# D-S5): 'ab   ' LIKE 'ab' is false, LIKE 'ab%' and LIKE 'a____' true -- judged by the live IQ only, SQL Anywhere's front
+# end not padding. A pattern the query computes takes an ESCAPE of one character: each escape pair, read left to right,
+# a literal. The SQL in YAML double quotes: a backslash in the SQL is written \\. Every case is deterministic.
+tests:
+
+  # ---- CHAR(n) under IQ's engine: its blank pad is matched
+  - id: like_a_char_column_exactly
+    sql: "SELECT id FROM t WHERE ch LIKE 'ab' ORDER BY id"
+    profile: iq17-default
+  - id: like_a_char_column_by_a_prefix
+    sql: "SELECT id FROM t WHERE ch LIKE 'ab%' ORDER BY id"
+    profile: iq17-default
+  - id: like_a_char_column_with_its_pad
+    sql: "SELECT id FROM t WHERE ch LIKE 'ab   ' ORDER BY id"
+    profile: iq17-default
+  - id: like_a_char_column_by_a_suffix
+    sql: "SELECT id FROM t WHERE ch LIKE '%b' ORDER BY id"
+    profile: iq17-default
+  - id: like_a_char_column_one_character_a_place
+    sql: "SELECT id FROM t WHERE ch LIKE 'a____' ORDER BY id"
+    profile: iq17-default
+  - id: not_like_a_char_column
+    sql: "SELECT id FROM t WHERE ch NOT LIKE 'ab' ORDER BY id"
+    profile: iq17-default
+  - id: like_a_char_column_by_its_own_prefix
+    sql: "SELECT id FROM t WHERE ch LIKE LEFT(ch, 2) || '%' ORDER BY id"
+    profile: iq17-default
+
+  # ---- a computed pattern with ESCAPE
+  - id: like_a_computed_pattern_with_an_escape
+    sql: "SELECT id FROM t WHERE vc LIKE LEFT(vc, 2) || '%' ESCAPE '\\' ORDER BY id"
+  - id: like_a_computed_pattern_with_an_escaped_underscore
+    sql: "SELECT x FROM (SELECT 'a_b' AS x, 'a\\_b' AS y FROM DUMMY UNION ALL SELECT 'axb', 'a\\_b' FROM DUMMY) d WHERE x LIKE y ESCAPE '\\' ORDER BY x"
+    engine: sa
+  - id: like_a_computed_pattern_with_an_escaped_percent
+    sql: "SELECT x FROM (SELECT '50%' AS x, '50\\%' AS y FROM DUMMY UNION ALL SELECT '500', '50\\%' FROM DUMMY) d WHERE x LIKE y ESCAPE '\\' ORDER BY x"
+    engine: sa
+  - id: like_a_computed_pattern_with_an_escaped_escape
+    sql: "SELECT x FROM (SELECT 'a\\b' AS x, 'a\\\\%' AS y FROM DUMMY UNION ALL SELECT 'ab', 'a\\\\%' FROM DUMMY) d WHERE x LIKE y ESCAPE '\\' ORDER BY x"
+    engine: sa
+  - id: like_a_computed_pattern_with_another_escape
+    sql: "SELECT x FROM (SELECT 'a_b' AS x, 'a!_b' AS y FROM DUMMY UNION ALL SELECT 'axb', 'a!_b' FROM DUMMY) d WHERE x LIKE y ESCAPE '!' ORDER BY x"
+    engine: sa

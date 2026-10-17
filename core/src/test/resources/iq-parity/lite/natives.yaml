@@ -235,7 +235,7 @@ tests:
   - id: ordering_strings_by_their_collation_key
     sql: "SELECT id FROM t ORDER BY vc"
   # IQ island, 2026-10-14 (the merge): was distinct_strings_is_still_no_key; refused now because IQ shows the first of 'a', 'a ' it meets
-  - id: distinct_strings_of_a_column_is_refused
+  - id: distinct_strings_of_a_column
     sql: "SELECT DISTINCT vc FROM t"
 
   # ---- REPLACE, LOCATE, CHARINDEX, PATINDEX in a sqla17 profile: without regard to the ASCII letters' case
@@ -435,8 +435,10 @@ tests:
   - id: a_quotient_in_a_row_limit
     sql: "SELECT TOP 2 row_num, 1.5 / row_num AS q FROM sa_rowgenerator(1, 4) ORDER BY row_num"
     engine: sa
-  - id: a_quotient_under_the_iq_engine_is_refused
+  - id: a_quotient_under_the_iq_engine
     sql: "SELECT id, nm / 2 AS q FROM t ORDER BY id"
+    decision: D-N1
+    expect: '{"columns": [["id", "integer", 0], ["q", "numeric", 6]], "rows": [["1", "6172839.495000"], ["2", "-49999999.995000"], ["3", "0.000000"], ["4", ".005000"], ["5", null], ["6", "50.250000"], ["7", "-.250000"]]}'
   - id: quotients_of_fractions
     sql: "SELECT CAST('0.5' AS NUMERIC(1,1)) / CAST('0.3' AS NUMERIC(1,1)) AS a, CAST('0.05' AS NUMERIC(2,2)) / CAST('0.03' AS NUMERIC(2,2)) AS b, CAST('0.5' AS NUMERIC(2,2)) / CAST('3' AS NUMERIC(1,0)) AS c"
     profile: iq16-default, sqla17-default
@@ -528,5 +530,5 @@ tests:
     sql: "SELECT (7.5 % 2) * 2 AS a, 7.5 % 2 + 0.25 AS b"
     profile: iq16-default, sqla17-default
     engine: sa
-  - id: a_remainder_under_the_iq_engine_is_refused
+  - id: a_remainder_under_the_iq_engine
     sql: "SELECT id, nm % 2 AS r FROM t ORDER BY id"

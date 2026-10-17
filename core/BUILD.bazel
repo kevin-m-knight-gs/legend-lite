@@ -392,6 +392,8 @@ legend_java_library(
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
             "src/test/java/com/legend/server/IqParityPostgresTest.java",
+            # the corpus lane is :iq_corpus_test's alone (manual): it fails without -Diq.corpus.root (2026-10-16)
+            "src/test/java/com/legend/integration/IqCorpusTest.java",
             # the #Cypher{...}# island's parity lanes are :cypher_parity_test's and :cypher_parity_postgres_test's
             "src/test/java/com/legend/integration/CypherParityTest.java",
             "src/test/java/com/legend/server/CypherParityPostgresTest.java",
@@ -748,17 +750,21 @@ junit_test(
 # iq-parity/lite, each run under each of its profiles as an #IQ{...}# island, judged against SQL Anywhere 17's answers
 # snapped by tools/iq-oracle (CI never runs SQL Anywhere) or the case's provisional decision, each run's status held
 # by iq-parity/ledger.tsv (testcases/IqParity.java). On DuckDB here; on the embedded Postgres below (no drift step:
-# the oracle is SQL Anywhere).
-_IQ_PARITY_DATA = glob(["src/test/resources/iq-parity/lite/*.yaml"]) + [
+# the oracle is SQL Anywhere). IQ island, 2026-10-14 (the options framework): the case files of lite's subdirectories
+# too (lite/options/<option>.yaml).
+_IQ_PARITY_DATA = glob(["src/test/resources/iq-parity/lite/**/*.yaml"]) + [
     "src/test/resources/iq-parity/iq-answers.jsonl",
     "src/test/resources/iq-parity/ledger.tsv",
     "src/test/resources/iq-parity/schema.yaml",
+    # IQ island, landing 4 (WP1), 2026-10-14: the iq17-* runs' known divergences from the live IQ, shrink-only
+    "src/test/resources/iq-parity/iq17-divergences.tsv",
 ]
 
 _IQ_PARITY_FLAGS = [
     "-Diq.parity.schema=$(rlocationpath src/test/resources/iq-parity/schema.yaml)",
     "-Diq.parity.answers=$(rlocationpath src/test/resources/iq-parity/iq-answers.jsonl)",
     "-Diq.parity.ledger=$(rlocationpath src/test/resources/iq-parity/ledger.tsv)",
+    "-Diq.parity.divergences=$(rlocationpath src/test/resources/iq-parity/iq17-divergences.tsv)",
     # the case files: the directory of this file
     "-Diq.parity.lite=$(rlocationpath src/test/resources/iq-parity/lite/basics.yaml)",
 ]
@@ -790,6 +796,27 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# the #IQ{...}# island over real-world SQL corpora (IQ island, 2026-10-15): coverage, run only where
+# -Diq.corpus.root names the corpora (their licences and size keep them out of this repository); manual, not a gate:
+#   bazel test //core:iq_corpus_test --strategy=TestRunner=local --test_output=all \
+#     --jvmopt=-Diq.corpus.root=<corpora> --jvmopt=-Diq.corpus.report=<report dir>
+junit_test(
+    name = "iq_corpus_test",
+    memory_mb = 4096,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/IqCorpusTest.java"],
+    select = ["--select-class=com.legend.integration.IqCorpusTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_cases",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )
 
 junit_test(

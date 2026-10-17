@@ -1,0 +1,58 @@
+# Where IQ's engine takes a subquery (IQ island, 2026-10-15, landing 4; measured on the live IQ 17.1, which takes more
+# than the research's flag list held): a scalar subquery anywhere in an item of the statement's own select list but
+# inside a conditional expression (CASE, IF, COALESCE, ISNULL, IFNULL, NULLIF, ARGN) or an aggregate; as a comparison's
+# or a BETWEEN's operand in WHERE, HAVING and a join's ON; EXISTS, IN, ANY and ALL as their predicates. IQ raises
+# -1001030 or -1005004 in ORDER BY, GROUP BY, a derived table's select list, arithmetic or an IN list in a condition, a
+# conditional expression, an aggregate, and for a correlated set operation: lite refuses those by name. Also arithmetic
+# on a COUNT, which IQ's engine widens (D-N3). Every case is deterministic: a total ORDER BY, or a single row.
+tests:
+
+  # ---- the select list: in arithmetic, a function's arguments, a concatenation, a CAST
+  - id: a_scalar_subquery_in_arithmetic
+    sql: "SELECT id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) + 1 AS n FROM t ORDER BY id"
+  - id: an_uncorrelated_subquery_as_a_divisor
+    sql: "SELECT id, id * 100 / (SELECT COUNT(*) FROM t) AS pct FROM t ORDER BY id"
+  - id: two_subqueries_added
+    sql: "SELECT id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) + (SELECT COUNT(*) FROM g WHERE g.k = t.id) AS n FROM t ORDER BY id"
+  - id: a_subquery_in_a_product
+    sql: "SELECT id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) * 2 - 1 AS n FROM t ORDER BY id"
+  - id: a_subquery_cast
+    sql: "SELECT id, CAST((SELECT MAX(qty) FROM u WHERE u.t_id = t.id) AS INTEGER) AS m FROM t ORDER BY id"
+  - id: a_subquery_in_a_function
+    sql: "SELECT id, ABS((SELECT MAX(t_id) FROM u) - id) AS a FROM t ORDER BY id"
+  - id: a_subquery_in_a_union_branchs_arithmetic
+    sql: "SELECT id, (SELECT COUNT(*) FROM u) + id AS n FROM t WHERE id < 3 UNION ALL SELECT 9, 9 FROM g WHERE id = 1 ORDER BY 1"
+
+  # ---- conditions: a join's ON, BETWEEN, HAVING
+  - id: an_in_subquery_in_an_inner_joins_on
+    sql: "SELECT t.id, u.id AS uid FROM t JOIN u ON u.t_id = t.id AND u.id IN (SELECT id FROM u WHERE qty > 0) ORDER BY t.id, u.id"
+  - id: an_exists_in_a_left_joins_on
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND EXISTS (SELECT 1 FROM g WHERE g.id = u.id) ORDER BY t.id, u.id"
+  - id: a_scalar_subquery_compared_in_on
+    sql: "SELECT t.id, u.id AS uid FROM t JOIN u ON u.t_id = t.id AND u.qty > (SELECT MIN(qty) FROM u) ORDER BY t.id, u.id"
+  - id: between_subqueries
+    sql: "SELECT id FROM t WHERE id BETWEEN (SELECT MIN(t_id) FROM u) AND (SELECT MAX(t_id) FROM u) ORDER BY id"
+  - id: a_correlated_count_compared
+    sql: "SELECT id FROM t WHERE (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) >= 1 ORDER BY id"
+  - id: an_uncorrelated_in_over_a_union
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u UNION SELECT 7) ORDER BY id"
+
+  # ---- arithmetic on a COUNT (IQ's UNSIGNED BIGINT, widened)
+  - id: count_plus_one
+    sql: "SELECT COUNT(*) + 1 AS a FROM t"
+  - id: counts_as_a_share
+    sql: "SELECT k, COUNT(*) * 100 / 11 AS pct, COUNT(*) - 1 AS m FROM g GROUP BY k ORDER BY k"
+
+  # ---- IQ's engine raises; lite refuses by name
+  - id: a_subquery_in_case_is_refused
+    sql: "SELECT id, CASE WHEN EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id) THEN 1 ELSE 0 END AS e FROM t ORDER BY id"
+  - id: a_subquery_in_coalesce_is_refused
+    sql: "SELECT id, COALESCE((SELECT MAX(qty) FROM u WHERE u.t_id = t.id), 0) AS m FROM t ORDER BY id"
+  - id: a_subquery_in_order_by_is_refused
+    sql: "SELECT id FROM t ORDER BY (SELECT COUNT(*) FROM u WHERE u.t_id = t.id), id"
+  - id: a_subquery_in_a_derived_select_list_is_refused
+    sql: "SELECT d.id, d.n FROM (SELECT id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d ORDER BY d.id"
+  - id: a_subquery_in_wheres_arithmetic_is_refused
+    sql: "SELECT id FROM t WHERE id < (SELECT MAX(t_id) FROM u) - 1 ORDER BY id"
+  - id: a_subquery_in_an_aggregate_is_refused
+    sql: "SELECT SUM((SELECT COUNT(*) FROM u WHERE u.t_id = t.id)) AS n FROM t"

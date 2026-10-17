@@ -67,7 +67,8 @@ tests:
     sql: "SELECT id x, vc AS \"the value\", nm AS [n] FROM t a WHERE a.id = 2"
   - id: alias_of_its_own_column
     sql: "SELECT id AS ID FROM t WHERE id = 1"
-  # IQ reads a select-list alias in WHERE before a column of its name: refused until the alias is read
+  # IQ reads a select-list alias in WHERE before a column of its name: refused until the alias is read (IQ island,
+  # 2026-10-14, the third landing, docs/IQ_SQL_STUDY_2026_10_13.md §9.16: read now)
   - id: alias_read_in_where
     sql: "SELECT id AS x FROM t WHERE x = 1"
   - id: qualified_star_of_u

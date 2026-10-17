@@ -1,0 +1,64 @@
+# Set operations' and alternatives' types under IQ's engine (IQ island, 2026-10-15, measured on the live IQ 17.1): the
+# census's Tier 1 "UNION typing" -- BI tools write UNION ALL with NULL placeholders and mixed number types. A NUMERIC
+# beside an integer or a NUMERIC is a NUMERIC of the most digits before its point and the largest scale; a DOUBLE
+# beside any number a DOUBLE; a DATE beside a TIMESTAMP a TIMESTAMP; an untyped NULL takes the other side's type; a
+# string beside a number is IQ's error -1001020. Judged by the live IQ only (SQL Anywhere's own engine types some of
+# these otherwise). Every case is deterministic: each ORDER BY is total, or the case compares its rows as a multiset.
+tests:
+  - id: union_numeric_with_integer
+    sql: "SELECT nm AS a FROM t WHERE id < 3 UNION ALL SELECT id FROM u WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_integer_with_numeric
+    sql: "SELECT id AS a FROM u WHERE id < 3 UNION ALL SELECT nm FROM t WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_numeric_with_numeric
+    sql: "SELECT nm AS a FROM t WHERE id < 3 UNION ALL SELECT qty FROM u WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_bigint_with_numeric
+    sql: "SELECT bg AS a FROM t WHERE id < 3 UNION ALL SELECT nm FROM t WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_smallint_with_numeric
+    sql: "SELECT sm AS a FROM t WHERE id < 3 UNION ALL SELECT n FROM g WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_integer_with_double
+    sql: "SELECT id AS a FROM t WHERE id < 3 UNION ALL SELECT dbl FROM t WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_numeric_with_double
+    sql: "SELECT nm AS a FROM t WHERE id < 3 UNION ALL SELECT dbl FROM t WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_date_with_timestamp
+    sql: "SELECT dt AS a FROM t WHERE id < 3 UNION ALL SELECT ts FROM t WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_distinct_numeric_with_integer
+    sql: "SELECT nm AS a FROM t WHERE id < 5 UNION SELECT id FROM u ORDER BY 1"
+    profile: iq17-default
+  - id: union_of_a_string_and_a_null
+    sql: "SELECT vc AS a FROM t WHERE id < 3 UNION ALL SELECT NULL FROM u WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_of_a_null_and_a_string
+    sql: "SELECT NULL AS a FROM u WHERE id < 3 UNION ALL SELECT vc FROM t WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_of_a_null_and_each_type
+    sql: "SELECT NULL AS c, NULL AS d, NULL AS ts, NULL AS f, NULL AS n FROM o WHERE id = 1 UNION ALL SELECT ch, dt, ts, dbl, nm FROM t WHERE id < 3 ORDER BY 2"
+    profile: iq17-default
+  - id: union_of_a_numeric_and_a_null
+    sql: "SELECT nm AS a FROM t WHERE id < 3 UNION SELECT NULL FROM u WHERE id < 3 ORDER BY 1"
+    profile: iq17-default
+  - id: union_with_bi_placeholders
+    sql: "SELECT id, vc AS label, NULL AS amount, NULL AS day FROM t WHERE id < 4 UNION ALL SELECT id, NULL, qty, NULL FROM u WHERE id < 4 UNION ALL SELECT id, NULL, NULL, dt FROM t WHERE id < 3 ORDER BY 1, 2, 3, 4"
+    profile: iq17-default
+  - id: union_of_a_string_and_a_number_is_iqs_error
+    sql: "SELECT id AS a FROM t WHERE id < 3 UNION ALL SELECT vc FROM t WHERE id < 3"
+    profile: iq17-default
+  - id: case_of_an_integer_and_a_double
+    sql: "SELECT id, CASE WHEN id > 1 THEN id ELSE dbl END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: case_of_a_date_and_a_timestamp
+    sql: "SELECT id, CASE WHEN id > 1 THEN dt ELSE ts END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: coalesce_of_a_date_and_a_timestamp
+    sql: "SELECT id, COALESCE(dt, ts) AS a, ISNULL(ts, dt) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: union_of_nulls_only
+    sql: "SELECT NULL AS a FROM t WHERE id < 3 UNION ALL SELECT NULL FROM u WHERE id < 2"
+    profile: iq17-default

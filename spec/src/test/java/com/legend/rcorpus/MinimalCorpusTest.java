@@ -633,7 +633,13 @@ public class MinimalCorpusTest {
     // unordered register (their rows are no longer compared by the referee at all). On main after D24 (1), whose roster
     // test testSubAggregationMultiLevelJoinString no longer reaches its later asserts, one differential fewer: LITERAL
     // 1411, DIFFERENTIAL+literal 841, DIFFERENTIAL-only 170.
-    private static final int[] DUCKDB_STRENGTH = {1011, 22, 27};
+    // DuckDB differential 1011 -> 1009 (2026-10-16, the IQ landings 3 and 4: one CASE of an if-chain's WHENs, commit
+    // 725c712cf): testSortByLambdaWithIfElseValue and testSortByLambda_QueryWithParameters_Plan now write the engine's
+    // own flat ORDER BY CASE (case when ... then 0 when ... then 10 ... else 30 end) byte-equal to the golden, so the
+    // text decides them and the referee is not appealed to (the 2026-09-21 rule). Measured against main ac946cf85 with
+    // every referee outcome named: every assert's verdict identical, LITERAL 1411 -> 1413, DIFFERENTIAL+literal 841 ->
+    // 840, DIFFERENTIAL-only 170 -> 169.
+    private static final int[] DUCKDB_STRENGTH = {1009, 22, 27};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -663,7 +669,10 @@ public class MinimalCorpusTest {
     // is plain string building, no JSON function; see DUCKDB_STRENGTH's note.
     // H2 differential 953 -> 946 (2026-10-09, E-4b): the same nine texts as DUCKDB_STRENGTH's note, now byte-equal to
     // the golden; every verdict identical, LITERAL 1219 -> 1228, DIFFERENTIAL+literal 786 -> 777.
-    private static final int[] H2_STRENGTH = {946, 22, 27};
+    // H2 differential 946 -> 944 (2026-10-16, the IQ landings 3 and 4): the same two texts as DUCKDB_STRENGTH's note,
+    // byte-equal to the golden; every verdict identical, LITERAL 1228 -> 1230, DIFFERENTIAL+literal 777 -> 776,
+    // DIFFERENTIAL-only 169 -> 168.
+    private static final int[] H2_STRENGTH = {944, 22, 27};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
