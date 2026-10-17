@@ -514,6 +514,26 @@ public final class CypherValues {
         return true;
     }
 
+    /** Two local times of day ({@code Time('HH:mm:ss.nnnnnnnnn')}, no offset): equal when they name one time, whatever
+     *  the fraction's digits (Neo4j spells nine, the island's text of a stored time Neo4j's toString, which cuts the
+     *  trailing zeros: the study's §12.59). */
+    static boolean sameLocalTime(String a, String b) {
+        java.time.LocalTime x = localTime(a);
+        java.time.LocalTime y = localTime(b);
+        return x != null && x.equals(y);
+    }
+
+    private static java.time.@com.legend.base.Nullable LocalTime localTime(String text) {
+        if (!text.startsWith("Time('") || !text.endsWith("')")) {
+            return null;
+        }
+        try {
+            return java.time.LocalTime.parse(text.substring(6, text.length() - 2));
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;   // a zoned time, or a date-time's text
+        }
+    }
+
     /** The four slots a duration text of Neo4j's spells; null when the text is not one. */
     static long @com.legend.base.Nullable [] durationSlots(String text) {
         if (!text.startsWith("Duration('") || !text.endsWith("')")) {
@@ -753,7 +773,7 @@ public final class CypherValues {
         }
         if (a instanceof Opaque x && b instanceof Opaque y) {
             return x.text().equals(y.text()) || sameInstant(x.text(), y.text()) || sameEpochTime(x.text(), y.text())
-                    || sameEpochLocalTime(x.text(), y.text());
+                    || sameEpochLocalTime(x.text(), y.text()) || sameLocalTime(x.text(), y.text());
         }
         if (a instanceof Opaque x && b instanceof Mp y || a instanceof Mp x2 && b instanceof Opaque y2) {
             Opaque o = a instanceof Opaque x3 ? x3 : (Opaque) b;

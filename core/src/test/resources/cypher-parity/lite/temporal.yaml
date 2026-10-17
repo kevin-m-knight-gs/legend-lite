@@ -306,3 +306,7 @@ tests:
     cypher: "RETURN toString(localtime({hour: 12, minute: 31, second: 14, millisecond: 645})) AS a, toString(time({hour: 12, minute: 31, second: 14, timezone: '+01:00'})) AS b, toString(time({hour: 0, minute: 5, second: 0, microsecond: 10})) AS c"
   - id: to_string_in_a_named_zone_refused_by_name
     cypher: "RETURN toString(datetime({year: 2017, month: 8, day: 8, hour: 12, timezone: 'Europe/Stockholm'})) AS a"
+  - id: a_date_moved_by_a_duration_of_more_than_a_day
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "WITH date({year: 1984, month: 10, day: 11}) AS x RETURN x + duration({days: 29, hours: 33, minutes: 58}) AS sum, x - duration({days: 29, hours: 33, minutes: 58}) AS diff, x + duration({hours: 23}) AS same, x - duration({hours: 23}) AS back"

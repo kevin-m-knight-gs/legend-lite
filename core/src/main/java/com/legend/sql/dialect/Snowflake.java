@@ -346,6 +346,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                 case BIT -> "BOOLEAN";
                 case TIMESTAMP -> "TIMESTAMP_NTZ";
                 case DATE -> "DATE";
+                case TIME -> "TIME";
                 case JSON -> "VARIANT";
                 case VARCHAR -> "VARCHAR";
                 case OTHER, DISTINCT -> throw DdlSpelling.unspelled(p.kind());

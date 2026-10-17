@@ -1057,6 +1057,9 @@ public final class TestDataGenerator {
                 if (t instanceof RelationalDataType.Timestamp) {
                     return new SqlExpr.TimestampLit(s);
                 }
+                if (t instanceof RelationalDataType.Time) {
+                    return new SqlExpr.TimeLit(s);
+                }
             }
             return new SqlExpr.StringLit(s);
         }

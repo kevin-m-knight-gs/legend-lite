@@ -249,8 +249,8 @@ public final class CypherGraph {
         for (Cls c : classes.values()) {
             madeTables.add(c.table);
         }
-        if (classes.containsKey("RelationshipType") || classes.containsKey("Duration")) {
-            throw new Unsupported("harness: the label RelationshipType or Duration is a class the model makes up");
+        if (classes.containsKey("RelationshipType")) {
+            throw new Unsupported("harness: the label RelationshipType is a class the model makes up");
         }
         for (RelType t : types.values()) {
             Set<String> lower = new HashSet<>();
@@ -443,7 +443,7 @@ public final class CypherGraph {
         // the classes, the tables and the mapping; the Duration class the island carries a duration as (the study's
         // §12.9: a class of the model, not a platform type)
         StringBuilder pure = new StringBuilder("###Pure\n");
-        pure.append("Class g::Duration\n{\n    months: Integer[1];\n    days: Integer[1];\n    seconds: Integer[1];\n"
+        pure.append("Class " + DURATION + "\n{\n    months: Integer[1];\n    days: Integer[1];\n    seconds: Integer[1];\n"
                 + "    nanoseconds: Integer[1];\n}\n");
         StringBuilder tablesDdl = new StringBuilder();
         StringBuilder mapping = new StringBuilder();
@@ -460,6 +460,19 @@ public final class CypherGraph {
             for (Map.Entry<String, String> p : c.propertyTypes.entrySet()) {
                 String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
                 pure.append("    ").append(p.getKey()).append(": ").append(p.getValue()).append("[0..1];\n");
+                if (p.getValue().equals(DURATION)) {
+                    // an embedded instance: one BIGINT column per slot, the property mapping's embedded block
+                    List<String> slots = new ArrayList<>();
+                    for (String slot : DURATION_SLOTS) {
+                        String slotColumn = column + "_" + slot;
+                        columns.add(new SqlParity.Column(slotColumn, "BIGINT"));
+                        ddl.append(", ").append(slotColumn).append(" BIGINT");
+                        slots.add("            " + slot + ": [g::DB] " + c.table + "." + slotColumn);
+                    }
+                    propertyMappings.add("        " + p.getKey() + "\n        (\n" + String.join(",\n", slots)
+                            + "\n        )");
+                    continue;
+                }
                 columns.add(new SqlParity.Column(column, sqlType(p.getValue())));
                 ddl.append(", ").append(column).append(' ').append(relationalType(p.getValue()));
                 propertyMappings.add("        " + p.getKey() + ": [g::DB] " + c.table + "." + column);
@@ -492,6 +505,14 @@ public final class CypherGraph {
                 row.add((long) n.id());
                 for (Map.Entry<String, String> p : c.propertyTypes.entrySet()) {
                     String text = n.props().get(p.getKey());
+                    if (p.getValue().equals(DURATION)) {
+                        long[] slots = text == null ? null : CypherValues.durationSlots(
+                                CypherValues.parse(text) instanceof CypherValues.Opaque o ? o.text() : text);
+                        for (int i = 0; i < DURATION_SLOTS.size(); i++) {
+                            row.add(slots == null ? null : slots[i]);
+                        }
+                        continue;
+                    }
                     row.add(text == null ? null : cell(text));
                 }
                 Map<String, Long> fk = fks.getOrDefault(n.id(), Map.of());
@@ -524,7 +545,7 @@ public final class CypherGraph {
             pure.append("Enum ").append(RELATIONSHIP_TYPE).append("\n{\n    ")
                     .append(String.join(", ", edgeTypes)).append("\n}\n").append(edgeClasses);
         }
-        scope.add("g::Duration");
+        scope.add(DURATION);
         java.util.Collections.sort(scope);
         String model = pure + associations.toString() + "###Relational\nDatabase " + DATABASE + "\n(\n" + tablesDdl
                 + joins + ")\n###Mapping\nMapping " + MAPPING + "\n(\n" + mapping + edgeMappings
@@ -565,13 +586,33 @@ public final class CypherGraph {
                 }
                 yield "DateTime";
             }
-            // a time of day is not stored: the ###Relational store grammar (legend-engine's, lite's) has no TIME
-            // column type (docs/SEMANTICS_REGISTER.md S64); the island computes times from texts and date-times
+            // a time of day: lite's TIME store column (the relational grammar's extension, docs/SEMANTICS_REGISTER.md
+            // S64 revised 2026-10-17), the property a StrictTime; its offset, where it has one, is a column beside
+            // it (a zoned time: not yet)
+            case CypherValues.Opaque o when LOCAL_TIME.matcher(o.text()).matches() -> {
+                String fraction = LOCAL_TIME.matcher(o.text()).replaceAll("$2");
+                if (fraction.length() > 6 && !fraction.substring(6).matches("0+")) {
+                    throw new Unsupported("harness: the property " + key + " holds a time of sub-microsecond"
+                            + " precision (" + valueText + ")");
+                }
+                yield "StrictTime";
+            }
+            // a duration: an embedded instance of the model's Duration class over four columns (its slots)
+            case CypherValues.Opaque o when CypherValues.durationSlots(o.text()) != null -> DURATION;
+            // not yet: a zoned date-time or time (its offset a column beside the value), a nanosecond value
             default -> throw new Unsupported("harness: the property " + key + " holds a " + v.getClass()
                     .getSimpleName().toLowerCase(Locale.ROOT) + " (" + valueText + "), a kind the model does not"
-                    + " hold yet (a time of day: no TIME store column; a zoned date-time; a duration)");
+                    + " hold yet (a zoned date-time or time of day: its offset a column beside the value)");
         };
     }
+
+    /** The model's Duration value class (the island carries a duration as an instance of it): a stored duration
+     *  is an embedded instance over four columns, one per slot. */
+    private static final String DURATION = "g::values::Duration";
+    private static final List<String> DURATION_SLOTS = List.of("months", "days", "seconds", "nanoseconds");
+    /** Neo4j's {@code Time('HH:mm:ss.nnnnnnnnn')} with no offset: a local time of day. */
+    private static final java.util.regex.Pattern LOCAL_TIME = java.util.regex.Pattern.compile(
+            "Time\\('(\\d\\d:\\d\\d:\\d\\d)\\.(\\d+)'\\)");
 
     private static final String VARIANT = "meta::pure::metamodel::variant::Variant";
 
@@ -617,6 +658,13 @@ public final class CypherGraph {
             // a date or date-time: the text the seed binds (java.sql.Date.valueOf, Timestamp.valueOf)
             case CypherValues.Opaque o when o.text().startsWith("Date('") -> o.text().substring(6,
                     o.text().length() - 2);
+            // a time of day: its text to the microsecond (the seed binds a LocalTime)
+            case CypherValues.Opaque o when LOCAL_TIME.matcher(o.text()).matches() -> {
+                java.util.regex.Matcher m = LOCAL_TIME.matcher(o.text());
+                m.matches();
+                String fraction = m.group(2);
+                yield m.group(1) + "." + (fraction.length() > 6 ? fraction.substring(0, 6) : fraction);
+            }
             case CypherValues.Lst l -> {
                 try {
                     yield jsonOf(l, "", text);
@@ -643,6 +691,7 @@ public final class CypherGraph {
             case "Boolean" -> "BOOLEAN";
             case "StrictDate" -> "DATE";
             case "DateTime" -> "TIMESTAMP";
+            case "StrictTime" -> "TIME";
             case VARIANT -> "JSONB";
             default -> throw new IllegalStateException(pureType);
         };
@@ -656,6 +705,7 @@ public final class CypherGraph {
             case "Boolean" -> "BIT";
             case "StrictDate" -> "DATE";
             case "DateTime" -> "TIMESTAMP";
+            case "StrictTime" -> "TIME";
             case VARIANT -> "SEMISTRUCTURED";
             default -> throw new IllegalStateException(pureType);
         };

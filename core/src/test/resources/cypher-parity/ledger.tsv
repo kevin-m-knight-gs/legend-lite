@@ -3419,7 +3419,7 @@ tck/expressions/temporal/Temporal5/[3] Should provide accessors for local time	S
 tck/expressions/temporal/Temporal5/[4] Should provide accessors for time	SKIP	SKIP
 tck/expressions/temporal/Temporal5/[5] Should provide accessors for local date time	SKIP	SKIP
 tck/expressions/temporal/Temporal5/[6] Should provide accessors for date time	SKIP	SKIP
-tck/expressions/temporal/Temporal5/[7] Should provide accessors for duration	SKIP	SKIP
+tck/expressions/temporal/Temporal5/[7] Should provide accessors for duration	PASS	PASS
 tck/expressions/temporal/Temporal6/[1] Should serialize date	PASS	PASS
 tck/expressions/temporal/Temporal6/[2] Should serialize local time	PASS	REFUSED
 tck/expressions/temporal/Temporal6/[3] Should serialize time	REFUSED	REFUSED
@@ -3455,33 +3455,33 @@ tck/expressions/temporal/Temporal7/[6] Should compare durations for equality #5	
 tck/expressions/temporal/Temporal7/[6] Should compare durations for equality #6	PASS	PASS
 tck/expressions/temporal/Temporal7/[6] Should compare durations for equality #7	PASS	PASS
 tck/expressions/temporal/Temporal7/[6] Should compare durations for equality #8	PASS	PASS
-tck/expressions/temporal/Temporal8/[1] Should add or subtract duration to or from date #1	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[1] Should add or subtract duration to or from date #2	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[1] Should add or subtract duration to or from date #3	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #1	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #2	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #3	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[3] Should add or subtract duration to or from time #1	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[3] Should add or subtract duration to or from time #2	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[3] Should add or subtract duration to or from time #3	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #1	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #2	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #3	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[5] Should add or subtract duration to or from date time #1	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[5] Should add or subtract duration to or from date time #2	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[5] Should add or subtract duration to or from date time #3	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #1	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #2	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #3	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #4	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #5	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #6	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #7	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #8	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #9	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #1	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #2	SKIP	SKIP
-tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #3	SKIP	SKIP
+tck/expressions/temporal/Temporal8/[1] Should add or subtract duration to or from date #1	PASS	PASS
+tck/expressions/temporal/Temporal8/[1] Should add or subtract duration to or from date #2	PASS	PASS
+tck/expressions/temporal/Temporal8/[1] Should add or subtract duration to or from date #3	PASS	PASS
+tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #1	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #2	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #3	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[3] Should add or subtract duration to or from time #1	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[3] Should add or subtract duration to or from time #2	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[3] Should add or subtract duration to or from time #3	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #1	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #2	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #3	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[5] Should add or subtract duration to or from date time #1	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[5] Should add or subtract duration to or from date time #2	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[5] Should add or subtract duration to or from date time #3	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #1	PASS	PASS
+tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #2	PASS	PASS
+tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #3	PASS	PASS
+tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #4	PASS	PASS
+tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #5	PASS	PASS
+tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #6	PASS	PASS
+tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #7	PASS	PASS
+tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #8	PASS	PASS
+tck/expressions/temporal/Temporal8/[6] Should add or subtract durations #9	PASS	PASS
+tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #2	REFUSED	REFUSED
+tck/expressions/temporal/Temporal8/[7] Should multiply or divide durations by numbers #3	REFUSED	REFUSED
 tck/expressions/temporal/Temporal9/[1] Should truncate date #1	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #2	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #3	PASS	REFUSED
@@ -4417,6 +4417,19 @@ lite/stored/stored_list_as_a_grouping_key	PASS	PASS
 lite/stored/stored_list_ordered_by_refused	PASS	PASS
 lite/stored/stored_lists_concatenated	PASS	PASS
 lite/stored/stored_list_ordered_with_a_limit_refused	PASS	PASS
+lite/stored/a_stored_time_of_day_read_and_ordered	PASS	PASS
+lite/stored/a_stored_time_s_fields_and_text	PASS	PASS
+lite/stored/a_stored_time_compared_with_a_spelled_one	PASS	PASS
+lite/stored/a_stored_time_absent_on_a_node	PASS	PASS
+lite/stored/a_node_with_a_stored_time_as_a_value	PASS	PASS
+lite/stored/a_stored_time_plus_a_duration	PASS	PASS
+lite/stored/a_stored_duration_added_to_a_date	PASS	PASS
+lite/stored/a_stored_duration_added_to_a_date_time_and_a_time	PASS	PASS
+lite/stored/a_stored_duration_s_fields_and_text	PASS	PASS
+lite/stored/a_stored_duration_compared_and_absent	PASS	PASS
+lite/stored/a_node_labelled_duration_holding_one	PASS	PASS
+lite/stored/a_stored_duration_read_label_less	PASS	PASS
+lite/stored/a_node_with_a_stored_duration_as_a_value	PASS	PASS
 lite/tail/an_order_by_on_an_expression_not_returned	PASS	PASS
 lite/tail/an_order_by_on_an_expression_not_returned_descending	PASS	PASS
 lite/tail/an_order_by_on_a_dropped_item_after_a_with	PASS	PASS
@@ -4572,6 +4585,7 @@ lite/temporal/localdatetime_to_string_fractions	PASS	PASS
 lite/temporal/datetime_to_string_with_offsets	PASS	PASS
 lite/temporal/times_to_string	PASS	PASS
 lite/temporal/to_string_in_a_named_zone_refused_by_name	REFUSED	REFUSED
+lite/temporal/a_date_moved_by_a_duration_of_more_than_a_day	PASS	PASS
 lite/union/union_distinct	PASS	PASS
 lite/union/union_all	PASS	PASS
 lite/union/union_over_matches	PASS	PASS

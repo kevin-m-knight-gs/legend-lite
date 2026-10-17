@@ -3511,6 +3511,11 @@ Class meta::relational::metamodel::datatype::Timestamp extends meta::relational:
 Class meta::relational::metamodel::datatype::Date extends meta::relational::metamodel::datatype::CoreDataType
 {
 }
+// A time of day: lite's extension of the store grammar (RelationalDataType.Time, the Cypher island's stored
+// times of day, 2026-10-17; legend-engine's grammar has no TIME column type, docs/SEMANTICS_REGISTER.md S64)
+Class meta::relational::metamodel::datatype::Time extends meta::relational::metamodel::datatype::CoreDataType
+{
+}
 
 Class meta::relational::metamodel::datatype::Distinct extends meta::relational::metamodel::datatype::CoreDataType
 {

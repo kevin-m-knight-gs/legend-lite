@@ -148,7 +148,7 @@ public final class SqlParity {
             return t;
         }
         return switch (t) {
-            case "INTEGER", "BIGINT", "DATE", "TIMESTAMP" -> t;
+            case "INTEGER", "BIGINT", "DATE", "TIMESTAMP", "TIME" -> t;
             case "DOUBLE PRECISION" -> "DOUBLE";
             case "BOOLEAN" -> "BIT";
             case "JSON", "JSONB" -> "SEMISTRUCTURED";
@@ -212,6 +212,9 @@ public final class SqlParity {
             ps.setDate(i, java.sql.Date.valueOf(val.toString()));
         } else if (type.contains("TIMESTAMP")) {
             ps.setTimestamp(i, java.sql.Timestamp.valueOf(val.toString()));
+        } else if (type.contains("TIME")) {
+            // a time of day: bound as the JDK's (DuckDB's and pgjdbc's TIME)
+            ps.setObject(i, java.time.LocalTime.parse(val.toString()));
         } else if (type.contains("JSON") && postgres) {
             try {
                 // a PGobject, as upstream binds it, made by reflection: core's tests do not compile against pgjdbc

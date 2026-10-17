@@ -404,6 +404,13 @@ public final class CypherToPure {
             // a date as the oracle's spelling of one, Date('yyyy-MM-dd'), which the judge reads back as that value
             // (the study's §12.21)
             case DATE -> plus(new CString("\"Date('"), call("toString", v), new CString("')\""));
+            // a time of day as the oracle's spelling, Time('HH:mm:ss.f'), its text Neo4j's (the judge reads the
+            // fraction's digits as a time, the study's §12.59)
+            case TIME -> plus(new CString("\"Time('"), temporalText(Tx.value(v, Kind.TIME, false), pos).vs(),
+                    new CString("')\""));
+            // a stored duration as the oracle's spelling too, Duration('P...'), its text the island's (Neo4j's)
+            case DURATION -> plus(new CString("\"Duration('"), durationText(Tx.value(v, Kind.DURATION, false)).vs(),
+                    new CString("')\""));
             // a stored list: its Variant's canonical text, in place
             case JSON -> call("toString", v);
             default -> throw CypherErrors.unsupported("a node holding a " + cypherType(kind) + " property (" + name
@@ -4152,7 +4159,8 @@ public final class CypherToPure {
                     + " supported yet", n.pos());
         }
         String label = n.labels().get(0);
-        List<String> classes = model.classesOf(label);
+        // (the model's Duration value class, which the island carries a duration as, is no node class)
+        List<String> classes = model.classesOf(label).stream().filter(c -> !durationClasses().contains(c)).toList();
         if (classes.isEmpty()) {
             throw CypherErrors.invalid("the label " + label + " names no class of the model (the graph is the model:"
                     + " a label is a class's name)", n.pos());
@@ -5791,7 +5799,10 @@ public final class CypherToPure {
             String cls = java.util.Objects.requireNonNull(b.classPath());
             List<Map.Entry<String, Tx>> props = new ArrayList<>();
             for (Property p : properties(cls)) {
-                if (!p.classTyped() && !p.enumTyped() && !p.many()) {
+                // (a stored duration, an embedded instance of the model's Duration value class, is a property
+                // value too: the study's §12.59)
+                boolean duration = p.classTyped() && CypherToPure.this.durationClasses().contains(p.type());
+                if ((!p.classTyped() || duration) && !p.enumTyped() && !p.many()) {
                     props.add(Map.entry(p.name(), propertyOf(b, p.name(), pos)));
                 }
             }
@@ -5982,10 +5993,12 @@ public final class CypherToPure {
             Map<String, Kind> kinds = new LinkedHashMap<>();
             for (String c : classes) {
                 for (Property p : properties(c)) {
-                    if (p.classTyped() || p.enumTyped() || p.many()) {
+                    boolean duration = p.classTyped() && !p.many()
+                            && CypherToPure.this.durationClasses().contains(p.type());
+                    if (p.classTyped() && !duration || p.enumTyped() || p.many()) {
                         continue;
                     }
-                    Kind kind = kindOf(p.type(), p.name(), pos);
+                    Kind kind = duration ? Kind.DURATION : kindOf(p.type(), p.name(), pos);
                     Kind before = kinds.putIfAbsent(p.name(), kind);
                     if (before != null && before != kind) {
                         throw CypherErrors.unsupported("the property " + p.name() + " typed differently across the"
@@ -6058,7 +6071,9 @@ public final class CypherToPure {
                         + name + " (the graph is the model: a property a class does not declare is an error, not"
                         + " null)", pos);
             }
-            if (prop.classTyped()) {
+            boolean duration = prop.classTyped() && !prop.many()
+                    && CypherToPure.this.durationClasses().contains(prop.type());
+            if (prop.classTyped() && !duration) {
                 throw CypherErrors.unsupported("the property " + name + " holds instances of " + prop.type()
                         + ": a node as a value is not supported yet", pos);
             }
@@ -6070,10 +6085,13 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("the property " + name + " holds many values (a list): not supported"
                         + " yet", pos);
             }
-            Kind kind = kindOf(prop.type(), name, pos);
+            // a stored duration: an embedded instance of the model's Duration class (the study's §12.59), read as
+            // the island carries a duration (an instance with the four slots)
+            Kind kind = duration ? Kind.DURATION : kindOf(prop.type(), name, pos);
             List<String> path = new ArrayList<>(b.path());
             path.add(name);
-            ValueSpecification v = navigate(g.row(), path);
+            ValueSpecification v = duration ? CypherToPure.this.storedDuration(prop.type(), navigate(g.row(), path))
+                    : navigate(g.row(), path);
             boolean nullable = prop.optional() || b.optional();
             if (b.guard() != null) {
                 // null where the OPTIONAL MATCH's WHERE does not hold, as where its hop finds none
@@ -10333,6 +10351,19 @@ public final class CypherToPure {
         return classes.get(0);
     }
 
+    /** A stored duration (an embedded instance over four columns, the harness's and a model's): the island's own
+     *  instance of its four slots, null where the row holds none (the months slot null: an embedded instance is
+     *  never null itself). */
+    private ValueSpecification storedDuration(String cls, ValueSpecification holder) {
+        ValueSpecification[] slots = new ValueSpecification[DURATION_SLOTS.size()];
+        for (int i = 0; i < slots.length; i++) {
+            slots[i] = call("toOne", new AppliedProperty(holder, DURATION_SLOTS.get(i)));
+        }
+        ValueSpecification instance = duration(cls, slots[0], slots[1], slots[2], slots[3]);
+        return call("if", call("isEmpty", new AppliedProperty(holder, DURATION_SLOTS.get(0))),
+                thunk(call("cast", SqlToPure.empty(), SqlToPure.typeArg(cls))), thunk(instance));
+    }
+
     /** An instance of the Duration class from its four slots (each an Integer the database computes). */
     private ValueSpecification duration(String cls, ValueSpecification months, ValueSpecification days,
             ValueSpecification seconds, ValueSpecification nanos) {
@@ -10842,8 +10873,10 @@ public final class CypherToPure {
             ValueSpecification secs = seconds;
             ValueSpecification ns = nanos;
             return switch (kind) {
-                case DATE -> day(call("adjust", call("adjust", x, integer(months), unit("MONTHS")), integer(days),
-                        unit("DAYS")));
+                // a date: the months, then the days and the whole days of the seconds (Neo4j's, the fraction of a
+                // day cut toward zero: a duration of 29 days and 33 hours moves a date by 30; the study's §12.59)
+                case DATE -> day(call("adjust", call("adjust", x, integer(months), unit("MONTHS")),
+                        integer(plus(days, SqlToPure.integerQuotient(seconds, lit(86400)))), unit("DAYS")));
                 case TIME -> fine ? timeOfNanos(secondsAndNanos(temporalNanos ? x : atEpoch(x), secs, ns,
                         temporalNanos))
                         : call(TIME_OF, call("adjust", call("adjust", atEpoch(x), integer(seconds),

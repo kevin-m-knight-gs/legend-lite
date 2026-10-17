@@ -2780,7 +2780,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 case DATE -> "DATE";
                 case JSON -> "JSON";
                 case VARCHAR -> "VARCHAR";
-                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
+                // a time of day: ClickHouse's Time type is experimental (the TIME scalar's own wall)
+                case TIME, OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
             case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);

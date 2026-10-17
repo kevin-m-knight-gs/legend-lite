@@ -1,5 +1,5 @@
 ###Pure
-Class g::Duration
+Class g::values::Duration
 {
     months: Integer[1];
     days: Integer[1];
@@ -79,5 +79,5 @@ DataSpace <<graph::graph.Open>> g::Graph
     }
   ];
   defaultExecutionContext: 'default';
-  elements: [ g::City, g::Duration, g::Firm, g::Person ];
+  elements: [ g::City, g::Firm, g::Person, g::values::Duration ];
 }

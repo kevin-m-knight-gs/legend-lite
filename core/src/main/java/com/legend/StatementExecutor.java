@@ -3088,6 +3088,7 @@ final class StatementExecutor {
                     java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_BIT, t -> new com.legend.model.RelationalDataType.Bit()),
                     java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_TIMESTAMP, t -> new com.legend.model.RelationalDataType.Timestamp()),
                     java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_DATE, t -> new com.legend.model.RelationalDataType.Date_()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_TIME, t -> new com.legend.model.RelationalDataType.Time()),
                     java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_DISTINCT, t -> new com.legend.model.RelationalDataType.Distinct()),
                     java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_OTHER, t -> new com.legend.model.RelationalDataType.Other()),
                     java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_SEMI_STRUCTURED, t -> new com.legend.model.RelationalDataType.SemiStructured()),

@@ -1178,7 +1178,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
                 case JSON -> JsonbRead.CAST;
                 case ARRAY, OBJECT -> JsonbRead.CONVERT;
-                case BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE,
+                case BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE, TIME,
                         VARCHAR, OTHER, DISTINCT -> JsonbRead.NONE;
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized ignored -> JsonbRead.NONE;
@@ -2330,6 +2330,7 @@ public final class Postgres extends AnsiSqlRenderer {
                 case BIT -> "BOOLEAN";
                 case TIMESTAMP -> "TIMESTAMP";
                 case DATE -> "DATE";
+                case TIME -> "TIME";
                 case JSON -> "JSONB";
                 case VARCHAR -> "VARCHAR";
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());

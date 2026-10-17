@@ -25,7 +25,7 @@ public sealed interface SqlDdl
         /** The unsized kinds. {@code VARCHAR}: text of any length &mdash; no store
          *  declares it (the grammar sizes VARCHAR); a bulk load's staging
          *  columns hold each cell as text before the database casts it. */
-        enum Kind { BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE,
+        enum Kind { BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE, TIME,
             JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT }
         record Plain(Kind kind) implements ColumnType {
         }

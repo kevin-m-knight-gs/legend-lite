@@ -193,6 +193,12 @@ the Quantifier9-12 cases now stop at the Variant list comprehension (W12).
 - A date-time of sub-microsecond precision: a `TIMESTAMP_NS` column type where the database has it (DuckDB), the
   Postgres lane refusing by name as the nanosecond leg does.
 - Two to three legs.
+- Leg 1 LANDED 2026-10-17 (the study's §12.59, GATES' fifty-seventh landing; TCK agreement DuckDB 3354 → 3379, Postgres 3004 → 3017; DuckDB PASS 3,386 → 3425, Postgres 3,025 → 3052): the TIME column type
+  (the relational grammar's extension, through the store compiler, the DDL of every dialect, the protocol, the
+  metamodel's datatype class; S64 revised), a stored duration as an embedded instance over four columns read as the
+  island's own instance, the whole days of a duration's seconds when it moves a date. Leg 2: a `TIMESTAMP_NS`
+  column (DuckDB; the TCK's stored times and date-times are nanosecond ones: 22 + 11 cases) and the offset column
+  beside a stored zoned value (the island's Zone carrying a column, not a literal).
 
 ### W6. Nodes with several labels
 

@@ -169,7 +169,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return switch (t) {
             case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
                 case OTHER, DISTINCT -> true;
-                case BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE,
+                case BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE, TIME,
                         JSON, VARCHAR, ARRAY, OBJECT -> false;
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized ignored -> false;

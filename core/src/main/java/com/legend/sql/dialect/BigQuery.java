@@ -2900,6 +2900,7 @@ public final class BigQuery extends AnsiSqlRenderer {
                 case BIT -> "BOOL";
                 case TIMESTAMP -> "DATETIME";
                 case DATE -> "DATE";
+                case TIME -> "TIME";
                 case JSON -> "JSON";
                 case VARCHAR -> "STRING";
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw new DialectCapability("a " + p.kind()

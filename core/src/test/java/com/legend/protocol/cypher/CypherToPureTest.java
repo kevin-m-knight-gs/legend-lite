@@ -38,7 +38,23 @@ class CypherToPureTest {
     /** demo::Person {name String[1], age Integer[0..1], active Boolean[0..1], firm Firm[0..1]} and demo::Firm
      *  {legalName String[1], hq City[0..1], employees Person[*]}; demo::City {name String[1]}; firm and employees
      *  are one association's ends. */
-    private static final Map<String, Map<String, Prop>> CLASSES = Map.of(
+    /** The classes below plus the stored-temporal ones (the study's §12.59): demo::Stored {t StrictTime[0..1],
+     *  dur demo::values::Duration[0..1]} and the Duration value class (the four slots). */
+    private static Map<String, Map<String, Prop>> classes() {
+        Map<String, Map<String, Prop>> all = new java.util.HashMap<>(BASE);
+        all.put("demo::Stored", Map.of(
+                "name", prop("name", "String", 1, 1),
+                "t", prop("t", "StrictTime", 0, 1),
+                "dur", prop("dur", "demo::values::Duration", 0, 1)));
+        all.put("demo::values::Duration", Map.of(
+                "months", prop("months", "Integer", 1, 1),
+                "days", prop("days", "Integer", 1, 1),
+                "seconds", prop("seconds", "Integer", 1, 1),
+                "nanoseconds", prop("nanoseconds", "Integer", 1, 1)));
+        return Map.copyOf(all);
+    }
+
+    private static final Map<String, Map<String, Prop>> BASE = Map.of(
             "demo::Person", Map.of(
                     "name", prop("name", "String", 1, 1),
                     "age", prop("age", "Integer", 0, 1),
@@ -70,6 +86,8 @@ class CypherToPureTest {
                     "person", prop("person", "demo::Person", 1, 1),
                     "firm", prop("firm", "demo::Firm", 1, 1),
                     "v", prop("v", "Integer", 0, 1)));
+
+    private static final Map<String, Map<String, Prop>> CLASSES = classes();   // (after BASE: static order)
 
     private static final java.util.Set<String> EDGE_CLASSES = java.util.Set.of("demo::Acting", "demo::Directing",
             "demo::LinkCity", "demo::LinkFirm");
@@ -146,6 +164,59 @@ class CypherToPureTest {
     };
 
     /** {@code inner} as an OPEN graph (the study's §12.45): every reading its own, the openness true. */
+    /** The model without one of its classes (a model declaring no Duration value class). */
+    private record Hiding(CypherToPure.Model inner, String hidden) implements CypherToPure.Model {
+        @Override
+        public List<String> classesOf(String label) {
+            return inner.classesOf(label).stream().filter(c -> !c.equals(hidden)).toList();
+        }
+
+        @Override
+        public void property(String classPath, String name, CypherToPure.PropertySink sink) {
+            inner.property(classPath, name, sink);
+        }
+
+        @Override
+        public void inverse(String classPath, String property, CypherToPure.PropertySink sink) {
+            inner.inverse(classPath, property, sink);
+        }
+
+        @Override
+        public boolean isSubclass(String classPath, String superPath) {
+            return inner.isSubclass(classPath, superPath);
+        }
+
+        @Override
+        public List<String> classes() {
+            return inner.classes().stream().filter(c -> !c.equals(hidden)).toList();
+        }
+
+        @Override
+        public void properties(String classPath, CypherToPure.PropertySink sink) {
+            inner.properties(classPath, sink);
+        }
+
+        @Override
+        public String labelOf(String classPath) {
+            return inner.labelOf(classPath);
+        }
+
+        @Override
+        public void ends(String classPath, CypherToPure.PropertySink sink) {
+            inner.ends(classPath, sink);
+        }
+
+        @Override
+        public void edges(CypherToPure.EdgeSink sink) {
+            inner.edges(sink);
+        }
+
+        @Override
+        public boolean open() {
+            return inner.open();
+        }
+    }
+
     private record Open(CypherToPure.Model inner) implements CypherToPure.Model {
         @Override
         public List<String> classesOf(String label) {
@@ -266,6 +337,27 @@ class CypherToPureTest {
 
     private static SqlTranslationException edgeRefusal(String cypher) {
         return assertThrows(SqlTranslationException.class, () -> edges(cypher));
+    }
+
+    @Test
+    void aStoredTimeOfDayAndAStoredDurationReadAsTheIslandsOwnValues() {
+        // a TIME column's StrictTime read as the time the island carries (ordered, a field, beside a duration); a
+        // stored duration (an embedded instance over four columns) as the island's own instance of the four slot
+        // navigations, null where the row holds none (the study's §12.59)
+        String pure = pure("MATCH (s:Stored) RETURN s.t AS t, s.t.hour AS h, s.dur AS dur, s.dur.days AS days,"
+                + " s.dur IS NULL AS none ORDER BY s.t");
+        assertTrue(pure.contains("t:s|$s.t"), pure);
+        assertTrue(pure.contains("->hour()"), pure);
+        assertTrue(pure.contains("if($s.dur.months->isEmpty(), |[]->cast(@demo::values::Duration), |^demo::values::Duration("
+                + "months=$s.dur.months->toOne()->cast(@Integer)"), pure);
+        assertTrue(pure.contains("->sort([~t->ascending("), pure);
+        // a node holding a time of day, as a value: the oracle's Time('HH:mm:ss.f') spelling, its text Neo4j's
+        String node = pure("MATCH (s:Stored) RETURN s");
+        assertTrue(node.contains("'\"Time(\\'' + "), node);
+        // a date moved by a duration takes the whole days of the duration's seconds (Neo4j's, cut toward zero)
+        String moved = pure("WITH date({year: 1984, month: 10, day: 11}) AS x RETURN x + duration({days: 29, hours: 33}) AS d");
+        assertTrue(moved.contains("DurationUnit.DAYS"), moved);
+        assertTrue(moved.contains("->rem(86400)"), moved);
     }
 
     private static String pure(String cypher) {
@@ -406,10 +498,17 @@ class CypherToPureTest {
 
     @Test
     void aDurationIsAnInstanceOfTheModelsDurationClass() {
-        // the demo model declares no Duration class: refused by name, with the declaration to add
-        unsupported("RETURN duration({days: 1}) AS d", "a duration needs one class named Duration in the model");
-        unsupported("RETURN duration.between(date('1984-10-11'), date('2015-06-24')) AS d",
-                "a duration needs one class named Duration in the model");
+        // the demo model declares demo::values::Duration (the four slots): a duration is an instance of it
+        assertTrue(pure("RETURN duration({days: 1}) AS d").contains("^demo::values::Duration(months="),
+                pure("RETURN duration({days: 1}) AS d"));
+        // a model declaring none: refused by name, with the declaration to add
+        CypherToPure.Model without = new Hiding(MODEL, "demo::values::Duration");
+        SqlTranslationException e = assertThrows(SqlTranslationException.class,
+                () -> CypherToPure.translate("RETURN duration({days: 1}) AS d", without));
+        assertTrue(e.getMessage().contains("a duration needs one class named Duration in the model"), e.getMessage());
+        e = assertThrows(SqlTranslationException.class, () -> CypherToPure.translate(
+                "RETURN duration.between(date('1984-10-11'), date('2015-06-24')) AS d", without));
+        assertTrue(e.getMessage().contains("a duration needs one class named Duration in the model"), e.getMessage());
     }
 
     // ------------------------------------------------------------------ shapes

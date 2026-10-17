@@ -9932,6 +9932,29 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the fifty-seventh landing — stored times of day and durations (W5 leg 1)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5, leg 1); the record is the study's §12.59. A time
+of day is a TIME store column (lite's extension of the relational grammar: `RelationalDataType.Time`, StrictTime,
+every dialect's DDL arm, the protocol's `Time`, the metamodel's datatype class; S64 revised), a stored duration an
+embedded instance of the model's Duration value class over four columns, read as the island's own instance; a
+date moved by a duration takes the whole days of its seconds.
+
+1. **What lands.** Temporal8/[1]-[6] and Temporal5/[7] (a stored duration added to and subtracted from a date, a local time, a
+   time, a local date-time and a date-time, durations added and subtracted, its accessors), the 12 stored-temporal
+   cases of `lite/stored.yaml` and the date-plus-duration day rule of `lite/temporal.yaml`; DuckDB PASS 3,386 → 3425,
+   Postgres 3,025 → 3052; TCK agreement DuckDB 3354 → 3379, Postgres 3004 → 3017.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3425 / REFUSED 383 / BOTH_ERROR
+   731 / SKIP 153; Postgres PASS 3052 / REFUSED 756 / BOTH_ERROR 731 / SKIP
+   153, of 4692 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `TypeSpellingParityTest` pins the TIME column's two engine spellings, `CypherToPureTest` the stored
+   duration's instance and the node value's time text; the broad unit suites (model, compiler, sql, builtin, parser,
+   lowering, setup, server, exec, resolver) green on the TIME type and the prelude's datatype class.
+4. **Refused by name, recorded.** A stored time of sub-microsecond precision, a stored zoned time or date-time, a
+   stored date-time of sub-microsecond precision (the harness, by name: leg 2); a duration multiplied or divided
+   by a number (the island's, as before).
+
 ## 2026-10-17 — `#Cypher{...}#`: the fifty-sixth landing — Cypher's orderability over Variants
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W11); the record is the study's §12.58. One text key

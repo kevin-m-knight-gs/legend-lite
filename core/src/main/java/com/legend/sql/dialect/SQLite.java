@@ -3101,7 +3101,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
                 case BIGINT, SMALLINT, TINYINT, INTEGER, BIT -> "INTEGER";
                 case FLOAT, DOUBLE, REAL -> "REAL";
-                case TIMESTAMP, DATE, JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT -> "TEXT";
+                case TIMESTAMP, DATE, TIME, JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT -> "TEXT";
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> z.kind().toUpperCase(Locale.ROOT).contains("BINARY")
                     ? "BLOB" : "TEXT";

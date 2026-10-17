@@ -4100,3 +4100,57 @@ of the row ordered against a spelled list; a comprehension comparing the lists o
 the two designed refusals (NaN inside a list, a list of dates read back), judged by Neo4j (`snap.sh --check`: 0
 problems); the quantifier and comprehension scenarios of W3's `rand()` tail PASS where they hold no NaN. TCK
 agreement (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB 3314 → 3354, Postgres 2964 → 3004.
+
+### 12.59 Stored temporal values, leg 1: a time of day in a TIME column, a duration as an embedded instance (2026-10-17)
+
+The TCK-to-zero plan's W5. The harness skipped every graph holding a time of day, a duration or a zoned date-time as
+a property ("a kind the model does not hold yet": 61 cases, and 11 more of sub-microsecond date-times), because the
+relational store grammar had no column for them (S64). This leg gives the model two of the three.
+
+- **A TIME column (lite's extension of the relational grammar, S64 revised).** `RelationalDataType.Time` (the
+  keyword `TIME`), its Pure type `StrictTime` (`StoreCompiler`), its DDL kind `TIME` spelled by every dialect's
+  DDL arm as its TIME scalar is (DuckDB, Postgres, H2, BigQuery, Snowflake `TIME`; Trino and MariaDB `TIME(6)`;
+  SQLite `TEXT`; ClickHouse and Databricks unspelled, as their TIME scalar is walled), the protocol's `Time`
+  (parse, compose, read), the plan text and the precise types, the system metamodel's datatype class
+  `meta::relational::metamodel::datatype::Time` (the prelude, the data-type kinds and their sets), the seed's
+  literal. legend-engine's grammar has none: a model naming a TIME column is lite's own, which S64 now records as
+  the extension it is. The harness declares a TIME column for a `localtime` property, binds it as the JDK's
+  `LocalTime` (DuckDB's and pgjdbc's TIME), and the island reads it as the StrictTime it already carries: ordering,
+  fields, comparison, arithmetic with a duration, `toString`, a node's value (the oracle's `Time('HH:mm:ss.f')`
+  spelling, its text Neo4j's; the judge reads two local-time texts as one time whatever the fraction's digits,
+  `sameLocalTime`) and the null of an absent one all come from the TIME leg's machinery (§12.6). A time of
+  sub-microsecond precision is refused by the harness by name (leg 2: a `TIMESTAMP_NS` column where the database
+  has one), a zoned time or date-time too (leg 2: its offset a column beside the value).
+- **A stored duration: an embedded instance.** The harness declares the duration value class at
+  `g::values::Duration` (so the label `Duration` is free to name a node class: the island's label lookup skips the
+  model's Duration value class, the four-slot one it carries durations as) and a duration property as
+  `dur: g::values::Duration[0..1]` with an EMBEDDED property mapping over four BIGINT columns (`p_dur_months`,
+  `_days`, `_seconds`, `_nanoseconds`: the relational mapping's own `prop ( slot: [db] t.col, ... )` block), the
+  seed filling the four from Neo4j's text (`durationSlots`: years to months, weeks to days, the time part to
+  seconds and a nanosecond rest in [0, 1e9)). The island reads the property as a DURATION value
+  (`storedDuration`): the resolver refuses an embedded instance projected whole ("class-typed property used as a
+  whole value is graph output"), so the read is the island's own instance built of the four slot navigations
+  (`^Duration(months=$d.dur.months->toOne()->cast(@Integer), ...)`, the database's struct), null where the row
+  holds none (the months slot empty: an embedded instance is never null itself). Every operation over durations
+  then applies unchanged (arithmetic with dates, date-times and times, fields, `toString`, `=`, `IS NULL`), on
+  a labelled or a label-less node.
+- **A date moved by a duration (a rule the stored durations exposed).** Neo4j adds a duration's months, then its
+  days AND the whole days of its seconds (the fraction of a day cut toward zero: 29 days and 33 hours move a date
+  by 30; 23 hours by none; Temporal8/[1] #3's `P12Y11M29DT33H58M13.5S`); the island added the months and days
+  only. The DATE arm of `durationArithmetic` now adds `integerQuotient(seconds, 86400)` days
+  (`lite/temporal/a_date_moved_by_a_duration_of_more_than_a_day`).
+
+#### 12.59.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4692 | 3425 (from 3,386) | 0 | 0 | 0 | 383 (from 380) | 731 | 153 (from 181) |
+| Postgres | 4692 | 3052 (from 3,025) | 0 | 0 | 0 | 756 (from 741) | 731 | 153 (from 181) |
+
+The 12 stored-temporal cases of `lite/stored.yaml` (a stored time of day read and ordered, its fields and text,
+compared with a spelled one, absent on a node, inside a node's value, plus a duration; a stored duration added to a
+date, to a date-time and a time, its fields and text, compared and absent, on a node labelled Duration, read
+label-less) and `lite/temporal/a_date_moved_by_a_duration_of_more_than_a_day` PASS on both lanes, judged by Neo4j
+(`snap.sh --check`: 0 problems); the TCK's Temporal8 and Temporal5/[7] duration scenarios pass but the three
+multiply-and-divide refusals of before. TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB
+3354 → 3379, Postgres 3004 → 3017.
