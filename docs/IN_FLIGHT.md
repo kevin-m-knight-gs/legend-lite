@@ -1505,8 +1505,8 @@ pause for the user's review after Phase 1.
   A branch that subclasses `AbstractDatabaseTest` overrides `backend()`, if anything. A branch that opens
   `jdbc:duckdb:` in a new core test opens `TestBackends.platform()`. **Part 2** (the corpus harness:
   `MinimalCorpus`, `MinimalCorpusTest`, `ReplayReferee`, `DuckWorkspaces`, `ServerWorkspaces`; and the SQL, IQ and Cypher
-  islands' tests) waits for #43 and #50 to land.
-- **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move after #43 and #48 land** (D11:
+  islands' tests) is next: #43 and #50, which it waited for, landed on 2026-10-17.
+- **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move: #43 and #48 have landed** (D11:
   "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
   lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate
   fallback, dates, jsonb, and `postgresName`'s type names in messages). They move to Postgres-owned files in

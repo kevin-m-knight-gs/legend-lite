@@ -1,11 +1,14 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
-**Status: IN PROGRESS (2026-10-16).**
+**Status: IN PROGRESS (2026-10-17).**
 - Phases 0 and 1 landed as neema2/legend-lite#39 (8501ccb).
 - The owner guard and Phases 2 and 4 landed as neema2/legend-lite#45 (4fb892f).
 - Phase 3 landed as neema2/legend-lite#49 (59b547a).
-- Phase 5 is done on branch `claude/gracious-edison-jcsvzm` (its record is under Phase 5).
-- Left: Phase 6, Phase 7, and the SQL translator's Postgres rules, which wait for neema2/legend-lite#43.
+- Phase 5 landed as neema2/legend-lite#51 (6f2a0f8).
+- Phase 6's part 1 is done on branch `claude/gracious-edison-jcsvzm`, neema2/legend-lite#52 (its record is under
+  Phase 6).
+- Left: Phase 6's part 2, Phase 7, and the SQL translator's Postgres rules. neema2/legend-lite#43 and #50, which they
+  waited for, landed on 2026-10-17.
 
 (The status of 2026-10-13, on `claude/great-wright-p6t5s1`: Phase 0 done (55569df); Phase 1's 1b steps 1 to 3
 (2a4a5c8, 9373aec, 4a9f1bc, 43ad660), P1a (e64e7e8), P1c (9e6363e to 074bd95), P1d with D8 (0470214 to 1447d42) and
@@ -1056,7 +1059,7 @@ three-dialect list; `PostgresArmTest`; `scripts/corpus/differential.py`; and the
 `openWorkspace()`, `isolateFixture()`, `readerOn()`, `seed()` and `censusCeilings()`.
 
 The ledger after part 1: core's test rows are the SQL, IQ and Cypher islands' and `LowerRelationTest`'s, each open in
-#43 or #50 (part 2). spec keeps the corpus harness's rows but `H2Verify`'s and `H2ExtensionFunctions`' (named for H2,
+#43 or #50 when part 1 was written (part 2; both landed on 2026-10-17). spec keeps the corpus harness's rows but `H2Verify`'s and `H2ExtensionFunctions`' (named for H2,
 they are its owners now), the warehouse its tests' (Phase 7), and main code `DynaFn` (D10) and the SQL translator's three
 files (#43).
 
