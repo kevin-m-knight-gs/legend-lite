@@ -1686,6 +1686,81 @@ final class IqFunctions {
      *  'a', 'x') is 'xxbBx', REPLACE('éÉe', 'é', 'x') is 'xÉe'): a global {@code regexpReplace} whose pattern spells
      *  each letter of a constant search as a class of its two cases (IQ island, 2026-10-14, natives); refused by name
      *  there: a search with a letter that is no constant, a replacement that is no constant. */
+    /** The width IQ's engine types string {@code e} with, where constants give it: a constant's length; LEFT's, RIGHT's
+     *  and SUBSTRING's of a constant length the lesser of it and their string's (0 for a length of 0); SPACE's and
+     *  REPEAT's by their constant counts; the TRIMs', UPPER's and LOWER's their string's; COALESCE's, ISNULL's, IF's
+     *  and CASE's their widest; {@code ||}'s and STRING's their sum. Null where no constant gives it (measured on IQ
+     *  17.1, 2026-10-17: {@link #replace}). */
+    static @com.legend.base.Nullable Integer stringWidth(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.StringLit l -> l.value().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.CONCAT -> sum(List.of(b.left(), b.right()));
+            case SqlAst.Case c -> {
+                List<SqlAst.Expr> branches = new ArrayList<>();
+                c.whens().forEach(w -> branches.add(w.result()));
+                if (c.otherwise() != null) {
+                    branches.add(java.util.Objects.requireNonNull(c.otherwise()));
+                }
+                yield widest(branches);
+            }
+            case SqlAst.FunctionCall f when f.name().size() == 1 -> {
+                String fn = f.name().get(0).text().toLowerCase(Locale.ROOT);
+                List<SqlAst.Expr> a = f.args();
+                yield switch (fn) {
+                    case "left", "right" -> a.size() == 2 ? least(stringWidth(a.get(0)), count(a.get(1))) : null;
+                    case "substring", "substr" -> a.size() == 3 ? least(stringWidth(a.get(0)), count(a.get(2)))
+                            : null;
+                    case "space" -> a.size() == 1 ? count(a.get(0)) : null;
+                    case "repeat", "replicate" -> {
+                        Integer n = a.size() == 2 ? count(a.get(1)) : null;
+                        Integer w = a.size() == 2 ? stringWidth(a.get(0)) : null;
+                        yield n == null ? null : n == 0 ? Integer.valueOf(0) : w == null ? null : w * n;
+                    }
+                    case "trim", "ltrim", "rtrim", "upper", "lower", "ucase", "lcase" -> a.size() == 1
+                            ? stringWidth(a.get(0)) : null;
+                    case "coalesce", "isnull", "ifnull" -> widest(a);
+                    case "string" -> sum(a);
+                    default -> null;
+                };
+            }
+            default -> null;
+        };
+    }
+
+    private static @com.legend.base.Nullable Integer count(SqlAst.Expr e) {
+        return e instanceof SqlAst.IntegerLit n && n.value().signum() >= 0 && n.value().bitLength() < Integer.SIZE
+                ? n.value().intValue() : null;
+    }
+
+    private static @com.legend.base.Nullable Integer least(@com.legend.base.Nullable Integer width,
+            @com.legend.base.Nullable Integer n) {
+        return n == null ? null : n == 0 ? Integer.valueOf(0) : width == null ? null : Math.min(width, n);
+    }
+
+    private static @com.legend.base.Nullable Integer widest(List<SqlAst.Expr> es) {
+        int most = 0;
+        for (SqlAst.Expr x : es) {
+            Integer w = stringWidth(x);
+            if (w == null) {
+                return null;
+            }
+            most = Math.max(most, w);
+        }
+        return es.isEmpty() ? null : most;
+    }
+
+    private static @com.legend.base.Nullable Integer sum(List<SqlAst.Expr> es) {
+        int total = 0;
+        for (SqlAst.Expr x : es) {
+            Integer w = stringWidth(x);
+            if (w == null) {
+                return null;
+            }
+            total += w;
+        }
+        return es.isEmpty() ? null : total;
+    }
+
     private Tx replace(String name, SqlAst.FunctionCall f, List<Tx> args) {
         Tx s = text(args.get(0), f.args().get(0), name);
         Tx search = text(args.get(1), f.args().get(1), name);
@@ -1708,6 +1783,14 @@ final class IqFunctions {
             return strict(Kind.STRING, varchar(), List.of(s, search, replacement), v -> SqlToPure.call(
                     "regexpReplace", v.get(0), new CString(pattern), new CString(rewrite),
                     new com.legend.protocol.spec.CBoolean(true)));
+        }
+        if (engine == IqDialect.Engine.IQ && (Integer.valueOf(0).equals(stringWidth(f.args().get(0)))
+                || s.detail() instanceof IqType type && (type.family().equals("CHAR") || type.family().equals("VARCHAR"))
+                && type.size() == 0)) {
+            // IQ island, 2026-10-17 (the differential fuzzer's REPLACE('', 'a', ''); measured on IQ 17.1): IQ's engine
+            // answers NULL for a string it types with no width ('', LEFT(vc, 0), SPACE(0), TRIM(''), a derived
+            // table's '' column), whatever it replaces; '' for a wider one (CAST('' AS VARCHAR(1)), LEFT(vc, id - 1))
+            return nullString();
         }
         boolean guard = !shortConstant(f.args().get(1));
         Tx r = strict(Kind.STRING, varchar(), List.of(s, search, replacement), v -> {

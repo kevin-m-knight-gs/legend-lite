@@ -1931,6 +1931,25 @@ tests:
     sql: "SELECT 0 + it AS k, COUNT(*) AS c FROM t GROUP BY it ORDER BY k"
     profile: iq17-default
 
+  # ---- REPLACE of a string typed with no width (IQ island, 2026-10-17; the differential fuzzer, measured on IQ 17.1):
+  # NULL under IQ's engine ('', LEFT(vc, 0), SPACE(0), TRIM(''), LEFT('', 3), a derived table's '' column); '' for a
+  # wider one, and in SQL Anywhere's front end
+  - id: replace_of_a_zero_width_string
+    sql: "SELECT id, REPLACE('', 'a', 'x') AS a, REPLACE(LEFT(vc, 0), 'a', 'x') AS b, REPLACE(SPACE(0), 'a', 'x') AS c, REPLACE(TRIM(''), 'a', 'x') AS d, REPLACE(LEFT('', 3), 'a', 'x') AS e FROM t ORDER BY id"
+    profile: iq17-default
+  - id: replace_of_a_wider_empty_string
+    sql: "SELECT id, REPLACE(CAST('' AS VARCHAR(1)), 'a', 'x') AS a, REPLACE(LEFT(vc, id - 1), 'Q', 'x') AS b, REPLACE('a', 'a', '') AS c, REPLACE(SUBSTRING(vc, 100), 'a', 'x') AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: replace_of_a_derived_zero_width_column
+    sql: "SELECT id, REPLACE(x, 'a', 'y') AS a FROM (SELECT id, '' AS x FROM t) d ORDER BY id"
+    profile: iq17-default
+  - id: replace_of_a_zero_width_string_in_a_case
+    sql: "SELECT id, CASE WHEN NOT (dt IS NOT NULL) THEN REPLACE('', 'a', '') ELSE 'b' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: replace_of_a_zero_width_string_in_sql_anywhere
+    sql: "SELECT REPLACE('', 'a', 'x') AS a, REPLACE(LEFT('abc', 0), 'a', 'x') AS b"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where
