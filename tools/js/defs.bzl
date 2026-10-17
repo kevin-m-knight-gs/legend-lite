@@ -59,7 +59,9 @@ def node_test(name, entry_point, data = [], wasm = False, env = {}, platform_env
     zone = (pinned | env)["TZ"]
     if wasm:
         pinned["WASM_PLANNER"] = "$(rlocationpath //wasm:planner_dir)"
-    duckdb = type(data) == "list" and [d for d in data if str(d).endswith("node_modules/@duckdb/duckdb-wasm")] != []
+    if type(data) != "list":
+        fail("node_test %s: data must be a plain list, which the DuckDB-WASM check reads (a select() is not read)" % name)
+    duckdb = [d for d in data if str(d).endswith("node_modules/@duckdb/duckdb-wasm")] != []
     if duckdb:
         pinned["DUCKDB_EXTENSIONS"] = "$(rlocationpaths //engine-client:duckdb_extensions)"
     js_test(

@@ -26,6 +26,11 @@ export function plannerOptions(): Pick<LitePlannerOptions, 'assetBaseUrl' | 'wor
 
 /** A database of its own: DuckDB-WASM's blocking build, from engine-client's package. */
 export async function openDatabase(): Promise<TestDatabase> {
+  // node_test names the pinned extensions for a test that takes DuckDB-WASM: one of datacube/BUILD.bazel's _DUCKDB_USERS
+  if (!process.env['DUCKDB_EXTENSIONS']) {
+    throw new Error('DUCKDB_EXTENSIONS is not set: add this test to _DUCKDB_USERS in datacube/BUILD.bazel (it then takes '
+      + 'DuckDB-WASM, and node_test gives it the pinned extensions)');
+  }
   const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   return {
     connection: db.connect() as ArrowishConnection,
