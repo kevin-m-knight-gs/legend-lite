@@ -1314,9 +1314,9 @@ final class IqAggregates {
                 throw SqlTranslationException.unsupported(what + " of a value of this type is not supported yet",
                         f.pos());
             }
-            readEverywhere(f, dialect);
+            boolean guard = readEverywhere(f, dialect);
             return checkedSum(at, x, values, average ? "average" : "sum", Kind.FLOAT, new IqType("DOUBLE"),
-                    new CFloat(0.0), new CFloat(Double.MAX_VALUE), new CFloat(-Double.MAX_VALUE));
+                    new CFloat(0.0), new CFloat(Double.MAX_VALUE), new CFloat(-Double.MAX_VALUE), guard);
         }
         if (average && engine == IqDialect.Engine.IQ) {
             return iqAverage(f, at, x, type, values, settings);
@@ -1336,12 +1336,12 @@ final class IqAggregates {
             if (engine == IqDialect.Engine.IQ) {
                 return iqIntegerSum(at, x, values, family);
             }
-            readEverywhere(f, dialect);
+            boolean guard = readEverywhere(f, dialect);
             boolean bigint = family.equals("BIGINT");
             BigInteger min = bigint ? IqType.BIGINT_MIN : IqType.INTEGER_MIN;
             BigInteger max = bigint ? IqType.BIGINT_MAX : IqType.INTEGER_MAX;
             return checkedSum(at, x, values, "sum", Kind.INTEGER, IqType.integer(bigint ? "BIGINT" : "INTEGER", min,
-                    max, true), new CInteger(0L), SqlToPure.integer(max), SqlToPure.integer(min));
+                    max, true), new CInteger(0L), SqlToPure.integer(max), SqlToPure.integer(min), guard);
         }
         if (kind == Kind.INTEGER && type != null && engine == IqDialect.Engine.IQ && type.spelling().equals(
                 "UNSIGNED BIGINT")) {
@@ -1547,7 +1547,14 @@ final class IqAggregates {
      *  the finish that raises IQ's -158 where either leaves the type. */
     /** IQ island, 2026-10-14 (review 3's B1): a checked SUM or AVG ({@link #checkedSum}) that the statement reads only
      *  for some rows or groups is refused by name ({@link IqDialect#lazilyRead}). */
-    private static void readEverywhere(SqlAst.FunctionCall f, IqDialect dialect) {
+    private static boolean readEverywhere(SqlAst.FunctionCall f, IqDialect dialect) {
+        // IQ island, 2026-10-17 (measured on IQ 17.1: a DOUBLE sum's overflow is its engine's -1001010 in every group,
+        // those its TOP drops too): read for some groups only by the statement's own SELECT (a CASE, a COALESCE, its
+        // row limit), the check is a filter of every group after the aggregation (the guard); from a query around
+        // it, which may keep groups from the aggregation itself, refused by name
+        if (!dialect.lazilyReadAround(f)) {
+            return dialect.lazilyRead(f);
+        }
         if (dialect.lazilyRead(f)) {
             throw SqlTranslationException.unsupported(f.name().get(0).text().toUpperCase(java.util.Locale.ROOT)
                     + " read only for some groups (a CASE's or an IF's value or later test, a later argument of"
@@ -1556,11 +1563,12 @@ final class IqAggregates {
                     + " is not supported: IQ checks its running total for every group (D-E3), lite's databases only"
                     + " where they read it", f.pos());
         }
+        return false;
     }
 
     private static SqlToPure.Aggregation checkedSum(SqlToPure.Grouping at, Tx x, ValueSpecification values,
             String reduce, Kind kind, IqType type, ValueSpecification zero, ValueSpecification max,
-            ValueSpecification min) {
+            ValueSpecification min, boolean guarded) {
         String raw = at.fresh();
         String positive = at.fresh();
         String negative = at.fresh();
@@ -1581,8 +1589,19 @@ final class IqAggregates {
         Tx checked = SqlToPure.strict(kind, List.of(p, n, r), v -> IqDialect.ifThen(SqlToPure.call("or",
                 SqlToPure.call("greaterThan", v.get(0), max), SqlToPure.call("lessThan", v.get(1), min)),
                 kind == Kind.FLOAT ? IqDialect.floatRaise() : IqDialect.raise(), v.get(2)));
+        // IQ island, 2026-10-17: the same test of every group, a filter after the aggregation, where the statement
+        // reads the value for some groups only (readEverywhere)
+        ValueSpecification guard = null;
+        if (guarded) {
+            Tx leaves = SqlToPure.strictTest(List.of(p, n), v -> SqlToPure.call("or", SqlToPure.call("greaterThan",
+                    v.get(0), max), SqlToPure.call("lessThan", v.get(1), min)));
+            guard = IqDialect.ifThen(leaves.vs(), SqlToPure.call("fail", new com.legend.protocol.spec.CString("a "
+                    + (reduce.equals("average") ? "AVG" : "SUM") + "'s running total leaves its type in a group: IQ's"
+                    + " error (-158; -1001010 under its engine for a DOUBLE), raised in its aggregation for every"
+                    + " group")), new com.legend.protocol.spec.CBoolean(true));
+        }
         return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(checked.vs()), null, null), kind,
-                true, type);
+                true, type, guard);
     }
 
     /** MEDIAN of a SMALLINT or an INTEGER (or a TINYINT): Pure's continuous percentile at 0.5 of the values as

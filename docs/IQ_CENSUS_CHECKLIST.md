@@ -162,6 +162,8 @@ island's reason, those IQ answers, and what became of them:
   17-digit string one unit off in 6 of 267 Tableau-style constants (its front end exactly), so such a CAST stays
   refused: an equality filter on it may match no row in IQ. A DOUBLE sum's overflow is its engine's -1001010 in every
   group, those TOP drops too (the paused AVG decision, measured);
+- DATE, YEAR, DATEPART and DATEADD of a computed string (BIRD's `DATE(SUBSTR(event_date, 1, 10))`): read as CAST to
+  TIMESTAMP reads it under IQ's engine (measured: the same values, its -1001006 alike);
 - TRUE and FALSE (BIRD's `THEN TRUE ELSE FALSE`): IQ 17.1's constants 1 and 0, SMALLINTs as the literals are
   (`TRUE + 1` is 2), named `true` unaliased, no alias; the iq17 profiles read them so, and the listed true-keyword
   divergence is gone. NULLIF of a date and a string that is no date is its engine's -1001014 whether or not a row
@@ -170,10 +172,12 @@ island's reason, those IQ answers, and what became of them:
   DATEPART of a string's -1001011 may come first; a BETWEEN over a computed DATE in a grouped query is -157);
 - lite's database failing on SEDE's empty sample tables (27 of 40): each answers over the data, PASS; the other 13
   are IQ's errors too (division by zero, the outer join ON rule above);
-- paused, a decision for the user: AVG or SUM of a DOUBLE read for some groups only (39). IQ checks the running
-  total for overflow in every group (D-E3), lite where the value is read; a check computed for every group needs the
-  finish kept apart from the lowering's folds and filters, so that DuckDB cannot skip it. For a DOUBLE it guards only a
-  sum past 1.8 × 10^308, so the alternative is a registered divergence for DOUBLEs;
+- AVG or SUM read for some groups only (39, Tableau's TOP n ... AVG(CAST(x AS double)) among them): built
+  2026-10-17 where the statement's own SELECT reads it so (a CASE, a COALESCE, its row limit). IQ checks the running
+  total for overflow in every group (D-E3; measured on IQ 17.1, its engine's -1001010 for a DOUBLE in a group TOP
+  drops): the check is now also a filter of every group after the aggregation (`Aggregation.guard`), which no read
+  pattern skips. Still refused by name: an aggregate of a derived table, a set operation's branch or a subquery, where
+  a WHERE on a group key around it may reach below its aggregation;
 - out, the 38 digits of lite's DuckDB decimals: CAST to DECIMAL without a precision (64, IQ's NUMERIC(126,38)), AVG
   of a wide NUMERIC (53, IQ's NUMERIC(127,59): '9.83333...' to 59 places), a NUMERIC quotient or product past 38
   digits (46), CAST of a NUMERIC to more places (8). IQ answers them exactly; DuckDB holds no decimal past 38 digits
@@ -184,10 +188,12 @@ island's reason, those IQ answers, and what became of them:
   answer. A scalar subquery a select item computes on every path is computed once now, a column before the item
   (`SqlToPure.output`, both SQL islands): a correlated COUNT under a DOUBLE quotient was written 504 times (187 KB,
   1,520 SELECTs; now 86 KB, 10), and one more answers; the SE judge is unchanged but ties (PASS 9,932 -> 9,935). The
-  rest repeat a long operand through checked operations' NULL and zero tests (35k nodes at the median, 330k at most;
-  lifted, 34 of 44 answer in DuckDB but with megabytes of SQL). Open: the same binding for any long operand, which
-  needs the lowering to keep a column it reads more than once in its own select (Fold inlines a scalar projection
-  into each reader);
+  rest repeated a long operand through checked operations' NULL and zero tests. Built 2026-10-17: an item past the
+  size bound has its long operands (64 Pure nodes or more, read on every path) each computed once, bottom up, a
+  column before it (`SqlToPure.output`), and the lowering writes a large computed column (48 SQL nodes or more) that
+  later columns read twice in its own select rather than into each read (`Fold.rereadsLarge`). 32 of the 44 answer
+  (sede-13007: 9.6 KB of SQL, where the bound lifted wrote 1.5 MB); 8 pass the bound still; the SE judge unchanged
+  but ties;
 - not built yet: the name IQ gives an
   unaliased expression it spells with its own rules (32: tables qualified, `count()`, an inner alias kept); RAND (8,
   in ORDER BY: no answer to judge); DATEADD's counts that may pass 32 bits (10); STR, LOG and LOG10 of an UNSIGNED

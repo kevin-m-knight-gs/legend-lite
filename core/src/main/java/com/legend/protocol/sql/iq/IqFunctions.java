@@ -2739,6 +2739,11 @@ final class IqFunctions {
                         dated("TIMESTAMP", Integer.parseInt(parts[0].substring(0, 4))));
             }
         }
+        if (x.kind() == Kind.STRING && engine == IqDialect.Engine.IQ) {
+            // IQ island, 2026-10-17 (BIRD's DATE(SUBSTR(event_date, 1, 10)); measured on IQ 17.1): DATE, DATEPART,
+            // YEAR and DATEADD read a computed string as CAST to TIMESTAMP reads it (stringDate), their -1001006 alike
+            return stringDate(x, false, dated("TIMESTAMP", null));
+        }
         throw SqlTranslationException.unsupported(name + " of " + kindName(x.kind()) + " is not supported yet: IQ"
                 + " converts it to a date by its own rules (a constant string in a spelling of IQ's the island reads is"
                 + " read)", e.pos());

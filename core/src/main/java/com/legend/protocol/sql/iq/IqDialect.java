@@ -1393,6 +1393,7 @@ public final class IqDialect implements InputDialect {
                 starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement), IqKeys.of(statement, settings),
                 lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere,
                 innerSetsHere, chainedHere, filtersHere);
+        read.outerLazy.addAll(outerAggregates(statement));
         read.outerReads.addAll(outerReads);
         read.aliasesRead.putAll(aliasesRead);
         read.innerNames.putAll(innerNames);
@@ -2322,6 +2323,44 @@ public final class IqDialect implements InputDialect {
     /** Whether the statement reads aggregate call {@code f} only for some rows or groups ({@link #lazyAggregates}). */
     boolean lazilyRead(SqlAst.FunctionCall f) {
         return lazy.contains(IqAggregates.shape(f));
+    }
+
+    /** The aggregate calls (by {@link IqAggregates#shape}) of a query other than the statement's own SELECT -- a
+     *  derived table's, a set operation's branch's, a subquery's -- whose groups the query around it may read for some
+     *  only, before their aggregation (a WHERE on a group key reaching below it). IQ island, 2026-10-17. */
+    final Set<String> outerLazy = new java.util.HashSet<>();
+
+    /** Whether the statement reads aggregate call {@code f} from a query around it ({@link #outerLazy}). */
+    boolean lazilyReadAround(SqlAst.FunctionCall f) {
+        return outerLazy.contains(IqAggregates.shape(f));
+    }
+
+    private static Set<String> outerAggregates(SqlAst.Statement statement) {
+        Set<SqlAst.Statement> inSubqueries = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : expressions(s)) {
+                    subqueryQueries(e, inSubqueries);
+                }
+            }
+        }
+        Set<String> out = new java.util.HashSet<>();
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s0 && (s0 != statement || inSubqueries.contains(s0))) {
+                SqlAst.Select s = IqAggregates.grouping(s0);
+                Set<String> eager = new java.util.HashSet<>();
+                for (SqlAst.SelectItem item : s.items()) {
+                    if (item instanceof SqlAst.SelectExpr x) {
+                        lazyCalls(x.expr(), true, out, eager);
+                    }
+                }
+                s.orderBy().forEach(o -> lazyCalls(o.expr(), true, out, eager));
+                if (s.having() != null) {
+                    lazyCalls(java.util.Objects.requireNonNull(s.having()), true, out, eager);
+                }
+            }
+        }
+        return out;
     }
 
     /**
@@ -5124,7 +5163,7 @@ public final class IqDialect implements InputDialect {
     }
 
     private static SqlTranslationException tooLarge(SqlAst.Pos pos, long size) {
-        return SqlTranslationException.unsupported("this expression nests too many operations IQ checks for overflow"
+        return SqlTranslationException.pastSizeBound("this expression nests too many operations IQ checks for overflow"
                 + " or a zero divisor to be translated: each repeats its operands in lite's SQL, which would hold "
                 + size + " nodes, more than " + LARGEST + "; split it into fewer operations (or compute it over BIGINT"
                 + " values, which need no check)", pos);

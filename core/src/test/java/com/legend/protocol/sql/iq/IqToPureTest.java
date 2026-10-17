@@ -308,10 +308,12 @@ class IqToPureTest {
         String twelve = String.join(" + ", java.util.Collections.nCopies(12, "sm"));
         // (in SQL Anywhere's front end, which checks each step; IQ island, 2026-10-15: IQ's engine checks none, D-N3,
         // so there a chain stays linear, below)
-        SqlTranslationException e = assertTimeoutPreemptively(java.time.Duration.ofSeconds(10),
-                () -> saNumbersRefusal("SELECT " + twelve + " AS n FROM " + T));
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind());
-        assertTrue(e.getMessage().contains("nests too many operations"), e.getMessage());
+        // IQ island, 2026-10-17: past the bound, the item's long operands are computed once each, a column before it,
+        // so the chain translates, small and quickly
+        String chained = assertTimeoutPreemptively(java.time.Duration.ofSeconds(10),
+                () -> saNumbers("SELECT " + twelve + " AS n FROM " + T));
+        assertTrue(chained.length() < 100_000, "" + chained.length());
+        assertTrue(chained.contains("->extend(~[_sql_"), chained.substring(0, Math.min(400, chained.length())));
         // IQ island, 2026-10-17: a quotient reads each operand once now (lite's quotient), so nested ones stay small
         String quotients = saNumbers("SELECT i / 2 / 2 / 2 AS n FROM " + T);
         assertTrue(quotients.length() < 20_000, "" + quotients.length());
@@ -975,10 +977,14 @@ class IqToPureTest {
                 "SELECT sm FROM " + T + " GROUP BY sm HAVING COUNT(*) > 2 AND SUM(i) > 0",
                 "SELECT TOP 1 sm, SUM(i) AS s FROM " + T + " GROUP BY sm ORDER BY sm")) {
             // SQL Anywhere's front end checks the running total (IQ island, 2026-10-15: IQ's engine checks none,
-            // D-N3, so there each is read)
-            assertTrue(saNumbersRefusal(sql).getMessage().contains("D-E3"), sql);
+            // D-N3, so there each is read); IQ island, 2026-10-17: read so by the statement's own SELECT, the check is
+            // a filter of every group after the aggregation (IqAggregates.readEverywhere's guard)
+            assertTrue(saNumbers(sql).contains("running total leaves its type in a group"), sql);
             assertTrue(numbers(sql).contains("sum()"), sql);
         }
+        // from a query around it, which may keep groups from the aggregation itself, still refused
+        assertTrue(saNumbersRefusal("SELECT * FROM (SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm) d WHERE sm = 1")
+                .getMessage().contains("D-E3"));
         assertTrue(saNumbers("SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm HAVING SUM(i) > 0").contains("sum()"));
         for (String sql : List.of("SELECT sm FROM " + T + " GROUP BY sm HAVING NOT (SUM(d) <= 0)",
                 "SELECT sm, IF SUM(i) > 0 THEN 1 ELSE 0 ENDIF AS s FROM " + T + " GROUP BY sm",

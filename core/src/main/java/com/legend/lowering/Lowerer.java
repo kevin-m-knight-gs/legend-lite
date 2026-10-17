@@ -1405,7 +1405,13 @@ public final class Lowerer {
     private SqlSelect extend(SqlSelect src, List<TypedFuncCol> columns,
                              ExprType info) {
         SqlSelect base = Fold.extendFolds(src) ? src : extendOver(src);
-        return computedColumns(base, columns, info, true, false);
+        SqlSelect folded = computedColumns(base, columns, info, true, false);
+        // 2026-10-17 (the IQ island's scale): a large computed column the new columns read more than once is
+        // written once, in its own select, rather than substituted into each read (Fold.rereadsLarge)
+        if (base == src && Fold.rereadsLarge(src, folded, columns.size())) {
+            return computedColumns(isolate(src), columns, info, true, false);
+        }
+        return folded;
     }
 
     /** The select an extend that does not fold computes its columns in: {@code src} isolated. Over a truncated

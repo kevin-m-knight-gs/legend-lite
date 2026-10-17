@@ -826,6 +826,11 @@ lite/corpus_gaps/nullif_of_a_date_and_an_empty_string_in_the_front_end@iq17-defa
 lite/corpus_gaps/true_and_false_are_constants@iq17-default	PASS	PASS
 lite/corpus_gaps/a_bit_compared_with_true@iq17-default	PASS	PASS
 lite/corpus_gaps/true_as_an_alias_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/date_of_a_computed_string@iq17-default	PASS	PASS
+lite/corpus_gaps/date_of_a_computed_string_that_is_no_date_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/avg_of_a_double_under_top@iq17-default	PASS	PASS
+lite/corpus_gaps/sum_of_a_double_in_a_case@iq17-default	PASS	PASS
+lite/corpus_gaps/a_double_sum_overflowing_in_a_group_top_drops_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

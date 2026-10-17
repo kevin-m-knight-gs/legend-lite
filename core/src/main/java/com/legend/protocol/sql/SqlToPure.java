@@ -163,7 +163,9 @@ public final class SqlToPure {
     private final String row;
     /** IQ island, 2026-10-17: the scalar subqueries the item being translated computes once ({@link #output}), by
      *  node, each the column computed before it. */
-    private final Map<SqlAst.ScalarSubquery, Col> hoisted = new java.util.IdentityHashMap<>();
+    private final Map<SqlAst.Expr, Col> hoisted = new java.util.IdentityHashMap<>();
+    /** IQ island, 2026-10-17: the grouping being translated's dialect guards ({@link Aggregation#guard}). */
+    private final List<ValueSpecification> guards = new ArrayList<>();
     private final String group;
     private final String leftRow;
     private final String rightRow;
@@ -543,9 +545,16 @@ public final class SqlToPure {
      *  groupBy and aggregate take them), the column computed from those after the grouping when the aggregate is not
      *  one of them (an {@code extend}'s, named {@link Grouping#name()}), and what is known of its type. */
     public record Aggregation(List<ColSpec> specs, @com.legend.base.Nullable ColSpec finish, Kind kind,
-            boolean nullable, InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            boolean nullable, InputDialect.@com.legend.base.Nullable TypeDetail detail,
+            @com.legend.base.Nullable ValueSpecification guard) {
         public Aggregation {
             specs = List.copyOf(specs);
+        }
+
+        /** An aggregate of no guard. */
+        public Aggregation(List<ColSpec> specs, @com.legend.base.Nullable ColSpec finish, Kind kind, boolean nullable,
+                InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            this(specs, finish, kind, nullable, detail, null);
         }
     }
 
@@ -2550,6 +2559,17 @@ public final class SqlToPure {
         if (!finishes.isEmpty()) {
             relation = call("extend", relation, new ColSpecArray(finishes));
         }
+        if (!guards.isEmpty()) {
+            // IQ island, 2026-10-17: a dialect's test of every group (an overflow its database raises in the
+            // aggregation for each group, those the statement reads or not), a filter of the grouped rows that keeps
+            // each or raises
+            ValueSpecification all = guards.get(0);
+            for (int i = 1; i < guards.size(); i++) {
+                all = call("and", all, guards.get(i));
+            }
+            relation = call("filter", relation, lambda(row, all));
+            guards.clear();
+        }
         Grouped g = new Grouped(in, byCanon, keyBySource);
         if (having != null) {
             relation = call("filter", relation, lambda(row, condition(having, g, "HAVING")));
@@ -3464,7 +3484,7 @@ public final class SqlToPure {
         // times, each check of a checked operation reading its operand again): a scalar subquery the item computes for
         // every row it is computed for is computed once, a column of the row before it (assemble), and read as one
         List<ColSpec> pre = new ArrayList<>();
-        List<SqlAst.ScalarSubquery> mine = new ArrayList<>();
+        List<SqlAst.Expr> mine = new ArrayList<>();
         for (SqlAst.ScalarSubquery q : x.expr() instanceof SqlAst.ScalarSubquery ? List.<SqlAst.ScalarSubquery>of()
                 : eagerSubqueries(x.expr())) {
             Tx sq = scalarSubquery(q, scope);
@@ -3478,7 +3498,32 @@ public final class SqlToPure {
         }
         Tx t;
         try {
-            t = tx(x.expr(), scope, row);
+            try {
+                t = tx(x.expr(), scope, row);
+            } catch (SqlTranslationException tooLarge) {
+                if (!tooLarge.pastSizeBound()) {
+                    throw tooLarge;
+                }
+                // IQ island, 2026-10-17 (the corpus lane's scale): an item past the dialect's size bound has its long
+                // operands, read on every path, each computed once, a column before it (bottom up, so each reads
+                // the ones below it), then is translated again; past the bound still, it is refused as before
+                for (SqlAst.Expr c : eagerOperands(x.expr())) {
+                    Tx ct;
+                    try {
+                        ct = tx(c, scope, row);
+                    } catch (SqlTranslationException notAlone) {
+                        continue;
+                    }
+                    if (ct.kind() == Kind.BOOLEAN || written(ct.vs()) < BOUND_OPERAND) {
+                        continue;
+                    }
+                    String column = fresh(present);
+                    pre.add(new ColSpec(column, lambda(row, valueOf(ct)), null, null));
+                    hoisted.put(c, Col.of(column, ct.kind(), ct.nullable(), ct.detail()));
+                    mine.add(c);
+                }
+                t = tx(x.expr(), scope, row);
+            }
         } finally {
             mine.forEach(hoisted::remove);
         }
@@ -3515,6 +3560,71 @@ public final class SqlToPure {
             default -> {
             }
         }
+    }
+
+    /** The written size, in Pure nodes, from which an operand of an item past the size bound is computed once
+     *  ({@link #output}). */
+    private static final long BOUND_OPERAND = 64;
+
+    /** {@code e}'s operands (not {@code e} itself) that it computes whenever it is computed, composite ones only and
+     *  no subquery, each after its own ({@link #eagerSubqueries}' positions). */
+    private List<SqlAst.Expr> eagerOperands(SqlAst.Expr e) {
+        List<SqlAst.Expr> out = new ArrayList<>();
+        eagerOperands(e, out);
+        out.remove(out.size() - 1);
+        return out;
+    }
+
+    private void eagerOperands(SqlAst.Expr e, List<SqlAst.Expr> out) {
+        switch (e) {
+            case SqlAst.Binary b when b.op() != SqlAst.BinaryOp.AND && b.op() != SqlAst.BinaryOp.OR -> {
+                eagerOperands(b.left(), out);
+                eagerOperands(b.right(), out);
+                out.add(e);
+            }
+            case SqlAst.Unary u -> {
+                eagerOperands(u.operand(), out);
+                out.add(e);
+            }
+            case SqlAst.Cast c -> {
+                eagerOperands(c.operand(), out);
+                out.add(e);
+            }
+            case SqlAst.FunctionCall f when !isAggregate(f) && f.filter() == null && f.orderBy().isEmpty()
+                    && f.withinGroup().isEmpty() -> {
+                String fn = f.name().get(f.name().size() - 1).text().toLowerCase(Locale.ROOT);
+                List<SqlAst.Expr> read = LAZY_ARGUMENTS.contains(fn) ? f.args().subList(0, Math.min(1,
+                        f.args().size())) : f.args();
+                read.forEach(a -> eagerOperands(a, out));
+                out.add(e);
+            }
+            default -> out.add(e);
+        }
+    }
+
+    /** {@code vs}'s nodes written out, a node shared by several parents counted for each. */
+    private static long written(ValueSpecification vs) {
+        return written(vs, new java.util.IdentityHashMap<>());
+    }
+
+    private static long written(ValueSpecification vs, Map<ValueSpecification, Long> memo) {
+        Long known = memo.get(vs);
+        if (known != null) {
+            return known;
+        }
+        List<ValueSpecification> children = switch (vs) {
+            case AppliedFunction f -> f.parameters();
+            case AppliedProperty p -> List.of(p.receiver());
+            case com.legend.protocol.spec.LambdaFunction l -> l.body();
+            case PureCollection c -> c.values();
+            default -> List.of();
+        };
+        long n = 1;
+        for (ValueSpecification c : children) {
+            n = Math.min(Long.MAX_VALUE / 2, n + written(c, memo));
+        }
+        memo.put(vs, n);
+        return n;
     }
 
     /** The functions that read their later arguments for some rows only. */
@@ -3667,8 +3777,9 @@ public final class SqlToPure {
         }
         List<ColSpec> earlyPre = new ArrayList<>();
         computed.forEach(c -> earlyPre.addAll(preOf.getOrDefault(c.name(), List.of())));
-        if (!earlyPre.isEmpty()) {
-            relation = call("extend", relation, new ColSpecArray(earlyPre));
+        for (ColSpec c : earlyPre) {
+            // one extend each: a column computed once may read one computed before it
+            relation = call("extend", relation, new ColSpecArray(List.of(c)));
         }
         if (!computed.isEmpty()) {
             relation = call("extend", relation, new ColSpecArray(computed));
@@ -3714,8 +3825,8 @@ public final class SqlToPure {
                 relation = rowsComputed(relation, s, limited);
                 List<ColSpec> latePre = new ArrayList<>();
                 late.forEach(c -> latePre.addAll(preOf.getOrDefault(c.name(), List.of())));
-                if (!latePre.isEmpty()) {
-                    relation = call("extend", relation, new ColSpecArray(latePre));
+                for (ColSpec c : latePre) {
+                    relation = call("extend", relation, new ColSpecArray(List.of(c)));
                 }
                 if (!late.isEmpty()) {
                     relation = call("extend", relation, new ColSpecArray(late));
@@ -4024,6 +4135,9 @@ public final class SqlToPure {
                 aggregates.addAll(own.specs());
                 if (own.finish() != null) {
                     finishes.add(own.finish());
+                }
+                if (own.guard() != null) {
+                    guards.add(own.guard());
                 }
                 return;
             }
@@ -4705,6 +4819,11 @@ public final class SqlToPure {
     }
 
     private Tx tx(SqlAst.Expr e, Scope scope, String row) {
+        Col bound = hoisted.get(e);
+        if (bound != null) {
+            // IQ island, 2026-10-17: an operand the item computes once, a column before it (output)
+            return columnValue(row, bound);
+        }
         Col g = scope.grouped(e);
         if (g != null) {
             return columnValue(row, g);
@@ -4742,10 +4861,7 @@ public final class SqlToPure {
             case SqlAst.Case c -> caseExpr(c, scope, row);
             case SqlAst.FunctionCall f -> function(f, scope, row);
             case SqlAst.Cast c -> dialect.cast(c, new At(scope, row));
-            case SqlAst.ScalarSubquery q -> {
-                Col h = hoisted.get(q);
-                yield h != null ? columnValue(row, h) : scalarSubquery(q, scope);
-            }
+            case SqlAst.ScalarSubquery q -> scalarSubquery(q, scope);
             case SqlAst.Exists q -> {
                 // never NULL: a row or none
                 ValueSpecification found = call("exists", subquery(q.query(), scope).vs(),

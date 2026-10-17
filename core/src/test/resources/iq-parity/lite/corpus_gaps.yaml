@@ -950,3 +950,25 @@ tests:
   - id: true_as_an_alias_is_a_syntax_error
     sql: "SELECT id AS true FROM t WHERE id = 1"
     profile: iq17-default
+
+  # ---- a date function of a computed string (IQ island, 2026-10-17; BIRD's DATE(SUBSTR(d, 1, 10)), measured on IQ
+  # 17.1): read as CAST to TIMESTAMP reads it
+  - id: date_of_a_computed_string
+    sql: "SELECT id, DATE(LEFT(CAST(ts AS VARCHAR(30)), 10)) AS a, YEAR(LEFT(CAST(ts AS VARCHAR(30)), 16)) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_of_a_computed_string_that_is_no_date_is_iqs_error
+    sql: "SELECT DATE('x' || vc) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+
+  # ---- a checked SUM or AVG read for some groups only by the statement's own SELECT (IQ island, 2026-10-17; the corpus
+  # lane's TOP n ... AVG(CAST(x AS DOUBLE)), measured on IQ 17.1): its overflow is IQ's error in every group, those TOP
+  # drops too
+  - id: avg_of_a_double_under_top
+    sql: "SELECT TOP 2 sm, AVG(CAST(id AS DOUBLE)) AS a FROM t WHERE sm IS NOT NULL GROUP BY sm ORDER BY a DESC, sm"
+    profile: iq17-default
+  - id: sum_of_a_double_in_a_case
+    sql: "SELECT sm, CASE WHEN COUNT(*) > 0 THEN SUM(dbl) END AS s FROM t WHERE sm IS NOT NULL AND dbl < 1e10 GROUP BY sm ORDER BY sm"
+    profile: iq17-default
+  - id: a_double_sum_overflowing_in_a_group_top_drops_is_iqs_error
+    sql: "SELECT TOP 1 k, SUM(x) AS s FROM (SELECT 1 AS k, dbl * 1.5e8 AS x FROM t WHERE id = 6 UNION ALL SELECT 1, dbl * 1.5e8 FROM t WHERE id = 6 UNION ALL SELECT 2, 1.0e0 FROM t WHERE id = 1) d GROUP BY k ORDER BY k DESC"
+    profile: iq17-default
