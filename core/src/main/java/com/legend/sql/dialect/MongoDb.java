@@ -994,8 +994,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case REGEXP_FULL_MATCH -> regexMatch(writer, a, true);
             case REGEXP_EXTRACT -> regexExtract(writer, a);
             case REGEXP_EXTRACT_ALL -> regexExtractAll(writer, a);
-            case REGEXP_REPLACE -> throw new DialectCapability("a regular-expression replace reached MongoDb,"
-                    + " which has no operator for one ($replaceAll replaces text)");
+            case REGEXP_REPLACE -> regexReplace(writer, a);
             case LEFT -> MongoJson.guarded(writer, a, MongoJson.text("{\"$substrCP\": [" + G0 + ", 0, {\"$max\":"
                     + " [0, {\"$min\": [" + G1 + ", {\"$strLenCP\": " + G0 + "}]}]}]}"));
             case RIGHT -> rightChars(writer, a);
@@ -1032,8 +1031,14 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " no base64 operator");
             case LEVENSHTEIN, JARO_WINKLER -> throw new DialectCapability(c.fn() + " reached MongoDb, which has no"
                     + " string-distance operator");
-            case GUID -> throw new DialectCapability("generateGuid reached MongoDb, whose pipeline has no uuid"
-                    + " operator");
+            // no uuid operator: thirty-two random hexadecimal digits ($rand, one per step of a reduce), in a
+            // uuid's five groups
+            case GUID -> writer.append("{\"$let\": {\"vars\": {\"h\": {\"$reduce\": {\"input\": {\"$range\": [0, 32]},"
+                    + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", {\"$substrCP\": [\"0123456789abcdef\","
+                    + " {\"$toInt\": {\"$floor\": {\"$multiply\": [{\"$rand\": {}}, 16]}}}, 1]}]}}}}, \"in\": {\"$concat\":"
+                    + " [{\"$substrCP\": [\"$$h\", 0, 8]}, \"-\", {\"$substrCP\": [\"$$h\", 8, 4]}, \"-\", {\"$substrCP\":"
+                    + " [\"$$h\", 12, 4]}, \"-\", {\"$substrCP\": [\"$$h\", 16, 4]}, \"-\", {\"$substrCP\": [\"$$h\", 20,"
+                    + " 12]}]}}}");
             case FORMAT -> format(writer, a);
             case MD5, SHA1, SHA256 -> throw new DialectCapability(c.fn() + " reached MongoDb, which has no digest"
                     + " operator");
@@ -1211,7 +1216,9 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter hashSigned(SqlWriter writer, List<SqlExpr> a) {
-        throw new DialectCapability("hashCode reached MongoDb: its hashed index key is not Pure's hash");
+        // the database's own hash, as every lane answers its own (DuckDB's hash is not Java's either): the hashed
+        // index key, a 64-bit integer
+        return MongoJson.op1(writer, "$toHashedIndexKey", a.get(0));
     }
 
     /**
@@ -1480,6 +1487,39 @@ public final class MongoDb extends AnsiSqlRenderer {
                 + " [\"$$this.captures\", {\"$subtract\": [" + G2 + ", 1]}]}]}" : "\"$$this.match\"";
         return MongoJson.guarded(writer, a, MongoJson.text("{\"$map\": {\"input\": {\"$regexFindAll\": {\"input\": "
                 + G0 + ", \"regex\": " + G1 + "}}, \"in\": " + each + "}}"));
+    }
+
+    /**
+     * {@code regexp_replace(s, pattern, replacement, 'g' | '')}: MongoDB has no regular-expression replace
+     * ({@code $replaceAll} replaces text), so the matches are found ({@code $regexFindAll}, or the first alone) and
+     * the text spliced: the stretch before each match kept, the replacement put in its place -- a {@code $N} in it
+     * the match's Nth capture -- and the tail after the last match kept.
+     */
+    private static SqlWriter regexReplace(SqlWriter writer, List<SqlExpr> a) {
+        // the fourth argument carries the 'g' option; without it (the three-argument form) the first match alone
+        boolean all = a.size() > 3 && a.get(3) instanceof SqlExpr.StringLit flags && flags.value().contains("g");
+        String matches = all ? "{\"$regexFindAll\": {\"input\": " + G0 + ", \"regex\": " + G1 + "}}"
+                : "{\"$let\": {\"vars\": {\"m\": {\"$regexFind\": {\"input\": " + G0 + ", \"regex\": " + G1 + "}}},"
+                        + " \"in\": {\"$cond\": [{\"$eq\": [\"$$m\", null]}, [], [\"$$m\"]]}}}";
+        // the replacement's capture references: those a literal replacement spells, else any of $1 to $9
+        List<Integer> groups = new ArrayList<>();
+        for (int n = 9; n >= 1; n--) {
+            if (!(a.get(2) instanceof SqlExpr.StringLit r) || r.value().contains("$" + n)) {
+                groups.add(n);
+            }
+        }
+        String replacement = G2;
+        for (int n : groups) {
+            // the reference under $literal: a text beginning with $ is otherwise a field path
+            replacement = "{\"$replaceAll\": {\"input\": " + replacement + ", \"find\": {\"$literal\": \"$" + n + "\"},"
+                    + " \"replacement\": {\"$ifNull\": [{\"$arrayElemAt\": [\"$$this.captures\", " + (n - 1) + "]}, \"\"]}}}";
+        }
+        return MongoJson.guarded(writer, a, MongoJson.text("{\"$let\": {\"vars\": {\"r\": {\"$reduce\": {\"input\": "
+                + matches + ", \"initialValue\": {\"t\": \"\", \"p\": 0}, \"in\": {\"t\": {\"$concat\": [\"$$value.t\","
+                + " {\"$substrCP\": [" + G0 + ", \"$$value.p\", {\"$subtract\": [\"$$this.idx\", \"$$value.p\"]}]}, "
+                + replacement + "]}, \"p\": {\"$add\": [\"$$this.idx\", {\"$strLenCP\": \"$$this.match\"}]}}}}}, \"in\":"
+                + " {\"$concat\": [\"$$r.t\", {\"$substrCP\": [" + G0 + ", \"$$r.p\", {\"$subtract\": [{\"$strLenCP\": " + G0
+                + "}, \"$$r.p\"]}]}]}}}"));
     }
 
     private static SqlWriter rightChars(SqlWriter writer, List<SqlExpr> a) {

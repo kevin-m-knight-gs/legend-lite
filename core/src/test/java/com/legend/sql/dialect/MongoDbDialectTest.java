@@ -110,8 +110,17 @@ class MongoDbDialectTest {
 
     @Test
     void whatHasNoShapeIsRefusedByName() {
-        var hash = assertThrows(DialectCapability.class, () -> statement(
-                "#>{test::Store.people}#->extend(~h: x | $x.name->hashCode())", TypedQuery.Output.STREAMED_JSON));
-        assertTrue(hash.getMessage().contains("hashCode reached MongoDb"), hash.getMessage());
+        // base64 has no operator in a pipeline (the burn-down's third pass, 2026-10-17: hashCode, refused here
+        // before, is the hashed index key now)
+        var base64 = assertThrows(DialectCapability.class, () -> statement(
+                "#>{test::Store.people}#->extend(~h: x | $x.name->encodeBase64())", TypedQuery.Output.STREAMED_JSON));
+        assertTrue(base64.getMessage().contains("ENCODE_BASE64 reached MongoDb"), base64.getMessage());
+    }
+
+    @Test
+    void aHashIsTheHashedIndexKey() {
+        String s = statement("#>{test::Store.people}#->extend(~h: x | $x.name->hashCode())",
+                TypedQuery.Output.STREAMED_JSON);
+        assertTrue(s.contains("{\"$toHashedIndexKey\": \"$_tds0.name\"}") || s.contains("$toHashedIndexKey"), s);
     }
 }

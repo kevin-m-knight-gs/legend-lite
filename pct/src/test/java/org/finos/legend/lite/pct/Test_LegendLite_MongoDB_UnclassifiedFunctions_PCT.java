@@ -46,9 +46,7 @@ public class Test_LegendLite_MongoDB_UnclassifiedFunctions_PCT extends PCTReport
             one("meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityEqual_Function_1__Boolean_1_", "\"JARO_WINKLER reached MongoDb, which has no string-distance operator\""),
             one("meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityNotEqual_Function_1__Boolean_1_", "\"JARO_WINKLER reached MongoDb, which has no string-distance operator\""),
             one("meta::pure::functions::string::tests::levenshteinDistance::testLevenshteinDistanceEqual_Function_1__Boolean_1_", "\"LEVENSHTEIN reached MongoDb, which has no string-distance operator\""),
-            one("meta::pure::functions::string::tests::levenshteinDistance::testLevenshteinDistanceNotEqual_Function_1__Boolean_1_", "\"LEVENSHTEIN reached MongoDb, which has no string-distance operator\""),
-            one("meta::pure::functions::string::tests::regexpReplace::testregexpReplaceAll_Function_1__Boolean_1_", "\"a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)\""),
-            one("meta::pure::functions::string::tests::regexpReplace::testregexpReplace_Function_1__Boolean_1_", "\"a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)\"")
+            one("meta::pure::functions::string::tests::levenshteinDistance::testLevenshteinDistanceNotEqual_Function_1__Boolean_1_", "\"LEVENSHTEIN reached MongoDb, which has no string-distance operator\"")
     );
 
     public static Test suite() {

@@ -1332,7 +1332,9 @@ a dynamic pivot alone now), and the target shapes it as two groups and a project
 keys and the ON value with each aggregate accumulated, then by the keys with the ON value and the aggregates
 pushed, then each pivot column read as its value's aggregate). The dialect resolves an unqualified column under a
 select's one alias while the row is wrapped (`MongoDb.soleAlias`), as SQL resolves a column over one source.
-After it the lane stands at 1,111 of 1,249 (88%; 138 pinned: Essential 65, Grammar 20, Relation 20, Standard 18, Unclassified 15); the relation suite's pins are the dynamic pivots (14), the Variant holding JSON null (5) and currentUserId.
+After it the lane stands at 1,121 of 1,249 (89%; 128 pinned: Essential 65, Grammar 20, Relation 20, Standard 10, Unclassified 13); the relation suite's pins are the dynamic pivots (14), the Variant holding JSON null (5) and currentUserId.
+
+**The third pass, the same day** (the differential at 165 EQUAL of 173): the regular-expression replace, which MongoDB has no operator for (`$replaceAll` replaces text), as the matches found and the text spliced -- the stretch before each match kept, the replacement put in its place, a `$N` in it the match's Nth capture, the tail kept; the first match alone without the 'g' option (the three-argument form); `generateGuid` as thirty-two random hexadecimal digits (`$rand`, one per step of a reduce) in a uuid's five groups; `hashCode` as the hashed index key (`$toHashedIndexKey`: the database's own hash, as every lane answers its own -- DuckDB's is not Java's either). The adapter reads a Number cell spelled with the Decimal suffix (`2D`) as a Decimal.
 
 **MongoDB's own, measured and named** (the pins that are the target's): a Variant holding JSON null is BSON null, so
 its cell prints as a null cell where Pure prints `'null'` (five relation tests); dates past year 9999 and the

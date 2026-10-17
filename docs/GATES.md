@@ -10676,8 +10676,8 @@ The second pass, the same day (the record's "second pass"): right and full joins
 `range(n)`, `maxBy` and `minBy`, a list element past the end, a power as a Float, and the static pivot (its columns
 typed at compile time by `PivotChecker`, found under either spelling by `Lowerer.relationCast`, let through the TDS
 text plan by `PlanMaker`, shaped as two groups and a projection by `MongoDbPipeline.pivot`; the dialect resolves an
-unqualified column under a select's one alias). The differential: 157 EQUAL of 165. The lane: 1,111 pass,
-138 pinned (Essential 65, Grammar 20, Relation 20, Standard 18, Unclassified 15); `//pct:pct_duckdb_relation` and
+unqualified column under a select's one alias). The differential: 157 EQUAL of 165. A third pass adds the regular-expression replace (the matches found, the text spliced), `generateGuid` (`$rand`) and `hashCode` (`$toHashedIndexKey`); the differential: 165 EQUAL of 173. The lane: 1,121 pass,
+128 pinned (Essential 65, Grammar 20, Relation 20, Standard 10, Unclassified 13); `//pct:pct_duckdb_relation` and
 `//core:core_tests_compiler` pass with the typing change.
 
 What judges it: `//pct:pct_mongodb` -- 1,249 tests, 1,095 pass, 154 pinned (Essential 65, Grammar 21,

@@ -2700,7 +2700,7 @@ MongoDb	MongoDB	call	BIT_SHIFT_RIGHT	emulated	guarded: {"$toLong": {"$floor":,  
 MongoDb	MongoDB	call	BIT_NOT	emulated	op1: $bitNot		0
 MongoDb	MongoDB	call	REGEXP_EXTRACT	emulated	regexExtract		0
 MongoDb	MongoDB	call	REGEXP_EXTRACT_ALL	emulated	regexExtractAll		0
-MongoDb	MongoDB	call	REGEXP_REPLACE	refused	a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)		0
+MongoDb	MongoDB	call	REGEXP_REPLACE	emulated	regexReplace		0
 MongoDb	MongoDB	call	REGEXP_FULL_MATCH	emulated	regexMatch		0
 MongoDb	MongoDB	call	MAP_FROM_LISTS	emulated	{"$arrayToObject": {"$zip": {"inputs": […]}}}		0
 MongoDb	MongoDB	call	MAP_FROM_ENTRIES	emulated	{"$arrayToObject": {"$map": {"input": {"$ifNull": […, []]}, "in": {"k": "$$th...		0
@@ -2733,9 +2733,9 @@ MongoDb	MongoDB	call	UC_FIRST	emulated	firstCased: $toUpper		0
 MongoDb	MongoDB	call	LC_FIRST	emulated	firstCased: $toLower		0
 MongoDb	MongoDB	call	ENCODE_BASE64	refused	reached MongoDb, which has no base64 operator		0
 MongoDb	MongoDB	call	LEVENSHTEIN	refused	reached MongoDb, which has no string-distance operator		0
-MongoDb	MongoDB	call	GUID	refused	generateGuid reached MongoDb, whose pipeline has no uuid operator		0
+MongoDb	MongoDB	call	GUID	emulated	{"$let": {"vars": {"h": {"$reduce": {"input": {"$range": [0, 32]}, "initialVa...		0
 MongoDb	MongoDB	call	FORMAT	emulated	format		0
-MongoDb	MongoDB	call	HASH	refused	hashCode reached MongoDb: its hashed index key is not Pure's hash	via MongoDb.hashSigned	0
+MongoDb	MongoDB	call	HASH	emulated	hashSigned		0
 MongoDb	MongoDB	call	MD5	refused	reached MongoDb, which has no digest operator		0
 MongoDb	MongoDB	call	SHA1	refused	reached MongoDb, which has no digest operator		0
 MongoDb	MongoDB	call	SHA256	refused	reached MongoDb, which has no digest operator		0

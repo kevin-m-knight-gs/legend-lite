@@ -1996,7 +1996,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   text, lateral and as-of joins, the statistics, then the long tail (two-parameter lambdas, maps from entries, time
   zones, `format` directives, `timeBucket`, `ascii`/`char`, bit shifts, the composed date formats) -- each with its
   differential cases, and the adapter reading the value relation's cells by the function's own return type. The lane
-  stands at 1,111 of 1,249 (138 pinned after the second pass -- joins, regex, range, arg-max, the static pivot -- most of them named refusals, the server's own errors or the route's). What
+  stands at 1,121 of 1,249 (128 pinned after the second and third passes -- joins, regex, range, arg-max, the static pivot, the regular-expression replace, generateGuid, hashCode -- most of them named refusals, the server's own errors or the route's). What
   is left is MongoDB's own by name (§11.4's last paragraph), the pivot (the plan path has no probe), and the route's
   (a List, a Map or an instance as text; the date precision the user decides).
 - **Homework 2, 2026-10-17 (the plan's §11.2 item 2)**: the harness-named product code renamed for what it is --

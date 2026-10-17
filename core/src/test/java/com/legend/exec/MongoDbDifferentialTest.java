@@ -304,6 +304,14 @@ class MongoDbDifferentialTest {
                     + " ~newCol : x | $x.treePlanted : y | $y->plus())->cast(@Relation<(city:String, country:String,"
                     + " '\\'2000__|__newCol\\'':Integer, '\\'2011__|__newCol\\'':Integer)>)->sort(~city->ascending())",
                     TypedQuery.Output.TDS_TEXT),
+            new Case("regex_replace_first", "'abc'->regexpReplace('(b|c)', 'X', false)"),
+            new Case("regex_replace_all", "'abc'->regexpReplace('(b|c)', 'X', true)"),
+            new Case("regex_replace_many", "'abcabc'->regexpReplace('a(b)', '[x]', true)"),
+            new Case("guid_length", "meta::pure::functions::string::generation::generateGuid()->length()"),
+            new Case("hash_forms", "hashCode([10]) == hashCode([[10]])"),
+            new Case("greatest_mixed", "greatest([4.23, 7.345, 1.0, 3, 4])"),
+            new Case("least_mixed", "least([1.23, 2])"),
+            new Case("max_numbers", "max([1.23, 2, 7.0])"),
             new Case("window_qualify", SCORES + "->extend(over(~g, ~s->descending()), ~r: {p, w, r | $p->rank($w, $r)})"
                     + "->filter(x | $x.r == 1)->sort(~id->ascending())->select(~[id, s])"));
 
