@@ -593,6 +593,19 @@ class IqToPureTest {
     }
 
     @Test
+    void iqReportsItsErrorsInItsOrder() {
+        // IQ island, 2026-10-17 (the corpus lane's IQ_ERROR verification, measured on IQ 17.1): a row limit in a
+        // subquery before the outer join's ON rule (-1001030 before -1001047)
+        String m = refusal("SELECT a.id FROM " + T + " a LEFT JOIN " + T + " b ON b.id = a.id AND b.id = (SELECT TOP 1"
+                + " c.id FROM " + T + " c WHERE c.id = a.id ORDER BY c.id)").getMessage();
+        assertTrue(m.contains("TOP") && m.contains("-1001030"), m);
+        // a held item's subquery inside a conditional expression before a qualified read (-1001030 before -1005004)
+        m = refusal("SELECT d.n FROM (SELECT id, COALESCE((SELECT MAX(c.id) FROM " + T + " c WHERE c.id = t.id), 0)"
+                + " AS n FROM " + T + " t) d").getMessage();
+        assertTrue(m.contains("-1001030") && m.contains("conditional"), m);
+    }
+
+    @Test
     void aStringComparedWithADateIsATimestamp() {
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt = '2026-03-04'").contains("%2026-03-04"));
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt >= '2026-03-04 00:00:00.000'").contains("%2026-03-04"));

@@ -1322,6 +1322,7 @@ public final class IqDialect implements InputDialect {
         Set<SqlAst.Join> innerHere = Collections.newSetFromMap(new IdentityHashMap<>());
         if (chosen == Engine.IQ) {
             appliedQueries(statement);
+            limitedSubqueries(statement);
             subqueryPlaces(statement, innerHere);
             iqEngineRestrictions(statement);
         }
@@ -1351,17 +1352,6 @@ public final class IqDialect implements InputDialect {
         for (SqlAst.Statement q : queries(statement)) {
             if (!(q instanceof SqlAst.Select s) || s.limit() == null && s.offset() == null) {
                 continue;
-            }
-            if (s != statement) {
-                if (chosen == Engine.IQ) {
-                    SqlAst.Expr at = s.limit() != null ? s.limit() : s.offset();
-                    // IQ island, 2026-10-15 (the corpus lane: 243 of SQLStorm's and SEDE's queries; measured on IQ
-                    // 17.1, where the research's D-R1 held that IQ may ignore it): its error, in a derived table, a
-                    // common table expression, and a subquery in WHERE, IN, a join's ON or the select list alike
-                    throw SqlTranslationException.unsupported("TOP, FIRST or START AT in a subquery or a derived table"
-                            + " is IQ's error -1001030 under its engine (TOP/FIRST/LIMIT in a subquery or a view is not"
-                            + " supported), refused before translating", java.util.Objects.requireNonNull(at).pos());
-                }
             }
             // an EXISTS subquery's rows are counted, never shown: which ones a limit keeps is no one's concern
             boolean[] flags = {s.orderBy().isEmpty() && !s.from().isEmpty() && !inExists.contains(s),
@@ -2711,6 +2701,14 @@ public final class IqDialect implements InputDialect {
                     d.pos());
         }
         if (qualified != null) {
+            // IQ island, 2026-10-17 (the lane's IQ_ERROR verification, 4 queries): a held item's own subquery inside a
+            // conditional expression or an aggregate is reported first, its -1001030
+            for (int i = 0; i < ds.items().size(); i++) {
+                if (ds.items().get(i) instanceof SqlAst.SelectExpr x && held.contains(itemName(ds, i,
+                        d.columnAliases()))) {
+                    shownSubqueries(x.expr());
+                }
+            }
             throw SqlTranslationException.unsupported("a column of a derived table that holds a subquery, read"
                     + " qualified, is IQ's error -1005004 under its engine (subqueries are"
                     + " allowed only as arguments to comparisons, IN and EXISTS), refused before translating",
@@ -2911,6 +2909,21 @@ public final class IqDialect implements InputDialect {
             }
         }
         return null;
+    }
+
+    /** IQ island, 2026-10-15 (the corpus lane: 243 of SQLStorm's and SEDE's queries; measured on IQ 17.1, where the
+     *  research's D-R1 held that IQ may ignore it): a row limit in a derived table, a common table expression, or a
+     *  subquery in WHERE, IN, a join's ON or the select list is IQ's error under its engine. 2026-10-17 (the lane's
+     *  IQ_ERROR verification: 7 of 7): reported before the subqueries' places ({@link #subqueryPlaces}), as IQ does. */
+    private static void limitedSubqueries(SqlAst.Statement statement) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s && s != statement && (s.limit() != null || s.offset() != null)) {
+                SqlAst.Expr at = s.limit() != null ? s.limit() : s.offset();
+                throw SqlTranslationException.unsupported("TOP, FIRST or START AT in a subquery or a derived table"
+                        + " is IQ's error -1001030 under its engine (TOP/FIRST/LIMIT in a subquery or a view is not"
+                        + " supported), refused before translating", java.util.Objects.requireNonNull(at).pos());
+            }
+        }
     }
 
     private static void subqueryPlaces(SqlAst.Statement statement, Set<SqlAst.Join> innerJoins) {

@@ -277,6 +277,11 @@ island's reason, those IQ answers, and what became of them:
   syntax error -131, where only a derived table takes a column list. An index hint there (`r (INDEX i)`) is SQL
   Anywhere's, refused by name. A call of a name that is no system procedure in FROM (`FROM Users (NOLOCK)`) is its
   -265;
+- IQ's order among its errors (2026-10-17, from the IQ_ERROR verification): a row limit in a subquery or a derived
+  table (-1001030) before an outer join's ON subquery (-1001047; 7 of 7), and a held item's own subquery inside a
+  conditional expression or an aggregate (-1001030) before a qualified read of it (-1005004; 4 of 4);
+- not built yet: PIVOT (IQ 17.1 reads it, both engines; an IN list of literals, COUNT shown as a NUMERIC(20,0)).
+  The corpus's 10 are SQL Server's `IN ([Question], [Answer])`, IQ's -143 (a name) or -1816 (a number);
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's
   server rejects every one (-131, measured), while an ODBC client that processes escapes translates them before it
   sends (the syntax research's `accept-with-option:client_escapes`). Whether an island reads them as such a client
