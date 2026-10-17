@@ -168,6 +168,8 @@ public final class IqDialect implements InputDialect {
      *  {@link #reading}; the statement's, raised by {@link #failed} and {@link #translated}. */
     private final Map<SqlAst.Statement, Recursive> recursives = new IdentityHashMap<>();
     private final Recursive[] recursive = {null};
+    /** The comparisons simple CASEs' WHENs read as (IqParser.Parsed#simpleWhens), by identity ({@link #simpleWhen}). */
+    final Set<SqlAst.Expr> simpleWhens = Collections.newSetFromMap(new IdentityHashMap<>());
     /** IQ island, 2026-10-17: an error IQ raises as it runs the statement, after every other one
      *  ({@link #windowKeyComparisons}), raised once the statement is translated. */
     private final SqlTranslationException[] executed = {null};
@@ -420,6 +422,7 @@ public final class IqDialect implements InputDialect {
         if (statementEngine != Engine.IQ) {
             frontEndStyles(statement);
         }
+        simpleWhens.addAll(read.simpleWhens());
         for (IqParser.EngineCast cast : read.engineCasts()) {
             // IQ island, 2026-10-15 (checklist 0.5): a constant one engine raises for and the other converts
             // (IqFunctions.constantCast), refused under the engine that raises
@@ -1623,6 +1626,7 @@ public final class IqDialect implements InputDialect {
                 lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere,
                 innerSetsHere, chainedHere, filtersHere);
         read.outerLazy.addAll(outerAggregates(statement));
+        read.simpleWhens.addAll(simpleWhens);
         read.innerJoins.addAll(innerHere);
         read.placeheld.addAll(placeheldHere);
         read.claims(placement, recursives.get(statement));
@@ -5104,6 +5108,9 @@ public final class IqDialect implements InputDialect {
             case EQ, NE, LT, LE, GT, GE -> {
                 Tx l = at.tx(b.left());
                 Tx r = at.tx(b.right());
+                if (engine == Engine.IQ && simpleWhens.contains(b)) {
+                    simpleWhen(b, l, r);
+                }
                 Tx compared = comparison(b.op(), l, r, b.left() instanceof SqlAst.NullLit,
                         b.right() instanceof SqlAst.NullLit, b, b.pos());
                 yield selfComparison(b, l, r) ? itself(b.op(), l) : twoValued(b, compared);
@@ -5120,6 +5127,35 @@ public final class IqDialect implements InputDialect {
             case MINUS, TIMES, DIVIDE, MODULO -> arithmetic(b, at.tx(b.left()), at.tx(b.right()));
             case POWER -> throw SqlTranslationException.unsupported("IQ has no power operator", b.pos());
         };
+    }
+
+    /**
+     * IQ island, 2026-10-17 (the differential fuzzer's fifth round; measured on IQ 17.1): under IQ's engine a simple
+     * CASE's operand and a WHEN's value of different kinds -- a number and a string either way, a number or a string
+     * and a date -- are its -1009145 ("In CASE expression, incompatible data type"), whether or not a row reaches it
+     * ({@code CASE sm WHEN '1'}), where a comparison converts; a constant string that is no number beside a number is
+     * -157 or -1009145 by IQ's plan, refused by name. A date operand converts a string, as a comparison does.
+     */
+    private static void simpleWhen(SqlAst.Binary b, Tx operand, Tx value) {
+        boolean numberOperand = numeric(operand.kind());
+        boolean numberValue = numeric(value.kind());
+        boolean dateValue = value.kind() == Kind.DATE || value.kind() == Kind.DATETIME;
+        boolean mixed = numberOperand && (value.kind() == Kind.STRING || dateValue)
+                || operand.kind() == Kind.STRING && (numberValue || dateValue);
+        if (!mixed) {
+            return;
+        }
+        if (numberOperand && b.right() instanceof SqlAst.StringLit l && !iqNumber(l.value())) {
+            throw SqlTranslationException.unsupported("a simple CASE's WHEN of a string that is no number, beside a"
+                    + " number, is IQ's -157 or -1009145 by its plan under its engine: not supported", b.right().pos());
+        }
+        throw SqlTranslationException.invalid("Data type conversion is not possible: a simple CASE compares "
+                + kindName(operand.kind()) + " with " + kindName(value.kind()) + " under IQ's engine"
+                + code(-1009145, "QFA2E"), b.right().pos());
+    }
+
+    private static boolean numeric(Kind k) {
+        return k == Kind.INTEGER || k == Kind.DECIMAL || k == Kind.FLOAT || k == Kind.NUMBER;
     }
 
     /** IQ island, 2026-10-17 (the differential fuzzer's IF ch = ch THEN ch ELSE '' ENDIF; measured on IQ 17.1): under

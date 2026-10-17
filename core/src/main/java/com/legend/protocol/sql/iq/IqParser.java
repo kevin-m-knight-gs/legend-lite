@@ -115,6 +115,9 @@ public final class IqParser {
      *  ({@code CASE x WHEN v ...}), the CASEs that are IF expressions. */
     private final Map<SqlAst.Expr, Integer> parens = new IdentityHashMap<>();
     private final Set<SqlAst.Expr> simpleCases = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+    /** IQ island, 2026-10-17: each {@code value = v} a simple CASE's WHEN reads as, by identity (IQ's engine checks
+     *  their types otherwise than a comparison's: IqDialect's simple CASE). */
+    private final Set<SqlAst.Expr> simpleWhens = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<SqlAst.Expr> ifs = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     /** IQ island, 2026-10-14 (the merge of M1b and M1d): each date part as written, in lower case (the constant the
      *  tree holds is the part's full name; SQL Anywhere names a call by the spelling, measured: {@code DATEPART(mm,
@@ -196,7 +199,7 @@ public final class IqParser {
      *  in it, as written (by identity). */
     public record Parsed(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans,
             List<SqlAst.Pos> droppedOrderKeys, List<EngineCast> engineCasts, List<SqlAst.Pos> laterals,
-            List<SqlAst.Statement> later, Recursion recursion) {
+            List<SqlAst.Statement> later, Recursion recursion, Set<SqlAst.Expr> simpleWhens) {
     }
 
     /** IQ island, 2026-10-17 (the TPC-H corpus lane's 1,805 WITH RECURSIVE): whether the statement's WITH says
@@ -235,7 +238,8 @@ public final class IqParser {
         }
         return new Parsed(statement, java.util.Collections.unmodifiableMap(p.spans), List.copyOf(p.droppedOrderKeys),
                 List.copyOf(p.engineCasts), List.copyOf(p.laterals), List.copyOf(p.later),
-                new Recursion(p.recursiveWith[0], p.recursions, p.columnless));
+                new Recursion(p.recursiveWith[0], p.recursions, p.columnless),
+                java.util.Collections.unmodifiableSet(p.simpleWhens));
     }
 
     /** The statement, the whole text. */
@@ -2183,6 +2187,7 @@ public final class IqParser {
                 SqlAst.Expr v = expression();
                 value(v, "WHEN");
                 test = new SqlAst.Binary(SqlAst.BinaryOp.EQ, operand, v, when.pos());
+                simpleWhens.add(test);
             }
             expectSyntax("then", "WHEN needs THEN");
             SqlAst.Expr result = expression();

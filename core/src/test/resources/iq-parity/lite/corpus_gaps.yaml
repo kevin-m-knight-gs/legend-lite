@@ -1993,6 +1993,34 @@ tests:
     sql: "SELECT a FROM (SELECT CAST('0' AS INTEGER) AS a FROM t UNION ALL SELECT (w + DATEDIFF(year, CAST('2020-01-15' AS DATE), CAST('2000-02-29' AS DATE))) FROM g) d ORDER BY a"
     profile: iq17-default
 
+  # ---- a simple CASE's kinds (IQ island, 2026-10-17; the differential fuzzer's fifth round, measured on IQ 17.1): under
+  # IQ's engine an operand and a WHEN of different kinds (a number and a string either way, a date beside either) are
+  # -1009145 whether or not a row reaches them, where a comparison converts; SQL Anywhere's front end converts
+  - id: simple_case_of_a_number_and_a_number_string
+    sql: "SELECT id, CASE sm WHEN '1' THEN 'a' ELSE 'c' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: simple_case_of_a_string_and_a_number
+    sql: "SELECT id, CASE vc WHEN 1 THEN 'a' ELSE 'c' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: simple_case_of_a_number_and_a_date
+    sql: "SELECT id, CASE sm WHEN CAST('2020-01-01' AS DATE) THEN 'a' ELSE 'c' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: simple_case_of_a_number_and_a_number_string_reaching_no_row
+    sql: "SELECT id, CASE sm WHEN '1' THEN 'a' ELSE 'c' END AS a FROM t WHERE id = 99"
+    profile: iq17-default
+  - id: simple_case_of_kinds_alike
+    sql: "SELECT id, CASE sm WHEN 1.0 THEN 'a' WHEN NULL THEN 'b' ELSE 'c' END AS a, CASE vc WHEN 'abc' THEN 'x' END AS b, CASE nm WHEN 1 THEN 'y' END AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: simple_case_of_a_number_and_text_no_number
+    sql: "SELECT id, CASE sm WHEN 1 THEN 'a' WHEN 'abc' THEN 'b' ELSE 'c' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: searched_case_of_a_number_and_a_number_string
+    sql: "SELECT id, CASE WHEN sm = '1' THEN 'a' ELSE 'c' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: simple_case_of_a_number_and_a_number_string_in_sql_anywhere
+    sql: "SELECT CASE 1 WHEN '1' THEN 'a' ELSE 'c' END AS a"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where
