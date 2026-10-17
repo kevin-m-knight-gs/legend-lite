@@ -438,7 +438,7 @@ lite/collation/list_of_constants_with_blanks_and_empty_strings@iq17-default	REFU
 lite/collation/list_of_blanks_in_a_sql_anywhere_database@sqla17-default	PASS	PASS
 lite/collation/list_of_a_string_column_is_refused@iq16-default	REFUSED	REFUSED
 lite/collation/list_of_a_string_column_is_refused@sqla17-default	REFUSED	REFUSED
-lite/collation/list_of_a_string_column_is_refused@iq17-default	REFUSED	REFUSED
+lite/collation/list_of_a_string_column_is_refused@iq17-default	PASS	PASS
 lite/collation/avg_of_a_numeric@iq16-default	PASS	PASS
 lite/collation/avg_of_a_numeric@sqla17-default	PASS	PASS
 lite/collation/avg_of_a_numeric@iq17-default	PASS	PASS
@@ -1184,6 +1184,10 @@ lite/corpus_gaps/days_of_one_date_in_sql_anywhere@iq17-default	REFUSED	REFUSED
 lite/corpus_gaps/stuff_under_iqs_engine@iq17-default	PASS	PASS
 lite/corpus_gaps/stuff_at_its_edges_under_iqs_engine@iq17-default	PASS	PASS
 lite/corpus_gaps/char_of_a_computed_code@iq17-default	PASS	PASS
+lite/corpus_gaps/list_of_strings_ordered_by_themselves@iq17-default	PASS	PASS
+lite/corpus_gaps/list_of_strings_ordered_by_themselves_descending@iq17-default	PASS	PASS
+lite/corpus_gaps/list_of_strings_with_trailing_blanks_ordered_by_themselves@iq17-default	PASS	PASS
+lite/corpus_gaps/list_of_strings_with_no_delimiter_ordered_by_themselves@iq17-default	PASS	PASS
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR
@@ -3518,7 +3522,7 @@ lite/m1c/list_with_a_delimiter_without_order_by@iq17-default	PASS	PASS
 lite/m1c/list_ordered_by_another_column_is_refused@iq16-default	PASS	PASS
 lite/m1c/list_ordered_by_another_column_is_refused@iq17-default	PASS	PASS
 lite/m1c/list_of_strings_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1c/list_of_strings_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1c/list_of_strings_is_refused@iq17-default	PASS	PASS
 lite/m1c/list_distinct_is_refused@iq16-default	REFUSED	REFUSED
 lite/m1c/list_distinct_is_refused@iq17-default	REFUSED	REFUSED
 lite/m1c/list_ordered_by_a_position_is_wrong@iq16-default	BOTH_ERROR	BOTH_ERROR

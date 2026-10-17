@@ -2128,7 +2128,15 @@ final class IqAggregates {
                     + " supported yet: the order of tied rows is the plan's", order.pos());
         }
         boolean strings = x.kind() == Kind.STRING;
-        if (strings && order != null && !dialect.keys().own(value)) {
+        // IQ island, 2026-10-17 (the differential fuzzer's fifth round; measured on IQ 17.1's UTF8BIN database): under
+        // IQ's engine in a case-sensitive database the values of one collation key differ only in trailing spaces,
+        // which the list drops, so their
+        // order is not seen; ordered by the values' bytes, as IQ's blank-padded order is but for a character below
+        // a space (a tab, a line break), whose row is refused at run time
+        boolean byBytes = strings && order != null && !dialect.keys().own(value)
+                && dialect.engine() == IqDialect.Engine.IQ && dialect.settings().caseSensitive()
+                && !dialect.settings().latin1();
+        if (strings && order != null && !dialect.keys().own(value) && !byBytes) {
             // IQ island, 2026-10-14 (the merge): the order of values of one collation key is the plan's
             throw SqlTranslationException.unsupported("LIST of strings is supported only where every value is its own"
                     + " collation key (a derived table's RTRIM, TRIM or constant" + (dialect.settings().caseSensitive()
@@ -2146,6 +2154,11 @@ final class IqAggregates {
         // trailing spaces ('x  ' is listed 'x', 'a \t' as it is), '' kept as an item, and no values at all NULL
         boolean iqEngine = dialect.engine() == IqDialect.Engine.IQ;
         Tx digits = SqlToPure.strict(Kind.STRING, List.of(x), v -> !strings ? SqlToPure.call("toString", v.get(0))
+                : byBytes ? IqFunctions.refusedPast(SqlToPure.call("or", SqlToPure.call("or", SqlToPure.call(
+                        "contains", v.get(0), new CString("\t")), SqlToPure.call("contains", v.get(0), new CString(
+                        "\n"))), SqlToPure.call("contains", v.get(0), new CString("\r"))), IqDialect.REFUSED_AT_RUN_TIME
+                        + "LIST of a string holding a tab or a line break: IQ orders it by blank padding",
+                        IqFunctions.trailingSpacesDropped(v.get(0)), SqlToPure.empty())
                 : iqEngine ? IqFunctions.trailingSpacesDropped(v.get(0)) : IqDialect.ifThen(SqlToPure.call("equal",
                 v.get(0), new CString("")), SqlToPure.nullOf(Kind.STRING).vs(), v.get(0)));
         if (f.distinct()) {
