@@ -1,5 +1,12 @@
 package com.legend.integration;
 
+import com.legend.json.Json;
+import com.legend.model.DatabaseDefinition;
+import com.legend.model.PackageableElement;
+import com.legend.setup.Ddl;
+import com.legend.setup.RowLoad;
+import com.legend.sql.SqlDdl;
+import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.*;
 
@@ -21,9 +28,15 @@ import static org.junit.jupiter.api.Assertions.*;
  * equally plain: a defect both engines share is invisible to it.
  *
  * <p>Its inputs are a build output: {@code //scripts/corpus:gen_differential} runs
- * {@code scripts/corpus/differential.py} over the committed corpus into one tree ({@code seed.sql},
+ * {@code scripts/corpus/differential.py} over the committed corpus into one tree ({@code seed.json},
  * {@code expected/}), which {@code //core:corpus_differential_test} names by its seed file,
  * {@code -Dcorpus.differential.seed}.
+ *
+ * <p>Each service runs on the database its runtime declares ({@link com.legend.Compiler#executesOn}), its SQL that
+ * database's dialect's, in a session of that database's test backend, seeded once through the same dialect: the seed
+ * is data (each table's columns, with the type the seed gives each, and its rows as text), never one database's SQL.
+ * Until 2026-10-17 every service was rendered and run on DuckDB, whatever its runtime declared (defect 4 of
+ * docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, §3).
  *
  * <p>Comparison is on a normalised text form, not JSON, so that neither side's float
  * formatter or key ordering can manufacture a difference. Column kinds travel in the
@@ -33,8 +46,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("differential")   // //core:corpus_differential_test alone: its data is that target's (core_tests excludes the tag)
 class CorpusDifferentialTest {
 
-    /** The generated tree: seed.sql (resolved by its runfiles path) and expected/ beside it. */
-    private static final Path DIFF = com.legend.testing.Runfile.property("corpus.differential.seed").getParent();
+    /** The generated seed (resolved by its runfiles path), and expected/ beside it. */
+    private static final Path SEED = com.legend.testing.Runfile.property("corpus.differential.seed");
+    private static final Path DIFF = SEED.getParent();
     private static final String NULL = "~";
 
     @Test
@@ -44,7 +58,7 @@ class CorpusDifferentialTest {
         String model = StressCorpus.model();
         StressCorpus.reportExclusions();
         var ctx = com.legend.Compiler.compileModel(model);
-        var dialect = TestBackends.platform().dialect();
+        List<PackageableElement> elements = com.legend.testing.Own.model(model).elements();
 
         // Services whose disagreement with the reference is already understood and
         // recorded in docs/UPSTREAM_FINDINGS.md. Reported, not tolerated silently — and a
@@ -61,9 +75,10 @@ class CorpusDifferentialTest {
 
         List<String> agree = new ArrayList<>(), disagree = new ArrayList<>(),
                 knownFail = new ArrayList<>(), fixed = new ArrayList<>();
-        try (Connection conn = TestBackends.platform().open()) {
-            seed(conn);
-            for (var el : com.legend.testing.Own.model(model).elements()) {
+        // one seeded session per database the services' runtimes declare, by its backend's name
+        Map<String, Connection> sessions = new LinkedHashMap<>();
+        try {
+            for (var el : elements) {
                 if (!(el instanceof com.legend.model.ServiceDefinition svc)) continue;
                 if (!svc.qualifiedName().startsWith("stress::")) continue;
                 String name = svc.qualifiedName().substring(
@@ -80,7 +95,20 @@ class CorpusDifferentialTest {
                     var vs = com.legend.compiler.NameResolver.resolveQuery(svc.functionBody());
                     // The service's own runtime, not a fixed one — see StressServiceSuitesTest.
                     String rt = svc.runtimeRef() != null ? svc.runtimeRef() : "stress::RT";
-                    String sql = dialect.render(
+                    // the database the runtime declares: its dialect renders the SQL, its session runs it
+                    TestBackend backend = TestBackends.of(com.legend.Compiler.executesOn(ctx, rt).type());
+                    Connection conn = sessions.get(backend.name());
+                    if (conn == null) {
+                        conn = backend.open();
+                        try {
+                            seed(backend, conn, elements);
+                        } catch (Exception e) {
+                            conn.close();
+                            throw e;
+                        }
+                        sessions.put(backend.name(), conn);
+                    }
+                    String sql = backend.dialect().render(
                             com.legend.Compiler.lowerResolved(vs, ctx, rt, false));
                     actualRows = run(conn, sql, header);
                 } catch (Exception e) {
@@ -107,7 +135,12 @@ class CorpusDifferentialTest {
                     diff(expectedRows, actualRows).forEach(l -> System.out.println("    " + l));
                 }
             }
+        } finally {
+            for (Connection conn : sessions.values()) {
+                conn.close();
+            }
         }
+        System.out.println("databases: " + sessions.keySet());
 
         System.out.printf("%n%d agree, %d known-divergence, %d unexpected, %d total%n",
                 agree.size(), knownFail.size(), disagree.size() + fixed.size(),
@@ -119,15 +152,94 @@ class CorpusDifferentialTest {
                 "legend-lite disagrees with the reference evaluator on: " + disagree);
     }
 
-    private void seed(Connection conn) throws Exception {
-        String script = Files.readString(DIFF.resolve("seed.sql"));
+    /**
+     * The seed's tables on {@code conn}, every statement rendered by {@code backend}'s dialect: each table made as its
+     * store declares it (its names, and which the store declared quoted: the queries spell them so) with the column
+     * types the seed gives it, then filled with its rows, each cell text the database casts to its column
+     * ({@link RowLoad}). A table no store of the corpus legend-lite loads declares (its file is one
+     * {@link StressExclusions} names) is not made: no query of legend-lite's reads it, and one that did would fail
+     * as its service's disagreement, named.
+     */
+    private static void seed(TestBackend backend, Connection conn, List<PackageableElement> elements)
+            throws Exception {
+        var dialect = backend.dialect();
+        Map<String, DatabaseDefinition.TableDefinition> declared = declarations(elements);
+        Set<String> schemas = new HashSet<>();
+        List<String> undeclared = new ArrayList<>();
         try (Statement st = conn.createStatement()) {
-            for (String stmt : script.split(";\\s*\\n")) {
-                String s = stmt.lines()
-                        .filter(l -> !l.trim().startsWith("--"))
-                        .collect(Collectors.joining("\n")).trim();
-                if (!s.isEmpty()) st.execute(s);
+            for (Json.Node node : Json.parseObject(Files.readString(SEED)).getArr("tables").items()) {
+                Json.Obj table = (Json.Obj) node;
+                String schema = table.getStringOr("schema", null);
+                String name = table.getString("table");
+                DatabaseDefinition.TableDefinition def = declared.get(key(schema, name));
+                if (def == null) {
+                    undeclared.add(key(schema, name));
+                    continue;
+                }
+                var quoting = Ddl.quoting(def, schema);
+                if (schema != null && schemas.add(schema)) {
+                    st.execute(dialect.render(new SqlDdl.CreateSchema(schema, quoting.schema())));
+                }
+                List<SqlDdl.Column> columns = new ArrayList<>();
+                for (Json.Node c : table.getArr("columns").items()) {
+                    List<Json.Node> column = ((Json.Arr) c).items();
+                    String columnName = ((Json.Str) column.get(0)).value();
+                    DatabaseDefinition.ColumnDefinition col = def.columns().stream()
+                            .filter(d -> d.name().equals(columnName)).findFirst()
+                            .orElseThrow(() -> new IllegalStateException("the seed's column " + name + "."
+                                    + columnName + " is not declared by its store"));
+                    columns.add(new SqlDdl.Column(columnName, col.quoted(), new SqlDdl.ColumnType.Plain(
+                            SqlDdl.ColumnType.Kind.valueOf(((Json.Str) column.get(1)).value())), false, false));
+                }
+                st.execute(dialect.render(new SqlDdl.DropTable(schema, name, quoting)));
+                st.execute(dialect.render(new SqlDdl.CreateTable(schema, name, quoting, columns, false)));
+                List<List<String>> rows = new ArrayList<>();
+                for (Json.Node r : table.getArr("rows").items()) {
+                    List<String> cells = new ArrayList<>();
+                    for (Json.Node cell : ((Json.Arr) r).items()) {
+                        cells.add(cell instanceof Json.Str text ? text.value() : null);
+                    }
+                    rows.add(cells);
+                }
+                if (!rows.isEmpty()) {
+                    st.execute(dialect.render(new RowLoad(schema, name, quoting, List.of(), Set.of(), columns.size(),
+                            rows).values()));
+                }
             }
+        }
+        System.out.println(backend.name() + ": " + undeclared.size()
+                + " of the seed's tables are in files legend-lite excludes, not made: " + undeclared);
+    }
+
+    /** A table's name in {@link #declarations}: {@code schema.table}, or {@code table} in the default schema. */
+    private static String key(@com.legend.base.Nullable String schema, String table) {
+        return schema == null ? table : schema + "." + table;
+    }
+
+    /** Every table the corpus's stores declare, by {@link #key}. Two stores may declare one table (a store includes
+     *  another's); they must declare it alike. */
+    private static Map<String, DatabaseDefinition.TableDefinition> declarations(List<PackageableElement> elements) {
+        Map<String, DatabaseDefinition.TableDefinition> out = new HashMap<>();
+        for (PackageableElement element : elements) {
+            if (element instanceof DatabaseDefinition db) {
+                for (var t : db.defaultSchemaTables()) {
+                    declare(out, key(null, t.name()), t);
+                }
+                for (var s : db.schemas()) {
+                    for (var t : s.tables()) {
+                        declare(out, key(s.name(), t.name()), t);
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    private static void declare(Map<String, DatabaseDefinition.TableDefinition> out, String key,
+            DatabaseDefinition.TableDefinition table) {
+        DatabaseDefinition.TableDefinition before = out.putIfAbsent(key, table);
+        if (before != null && !before.equals(table)) {
+            throw new IllegalStateException("two stores declare " + key + " differently");
         }
     }
 

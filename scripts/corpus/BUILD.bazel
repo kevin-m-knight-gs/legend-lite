@@ -280,9 +280,9 @@ run_binary(
         "//core:stress_dense",
         "//core:stress_sources",
     ] + _LINKED,
-    # seed.sql a file of its own, so a test resolves IT by runfiles path and takes expected/ beside it (a directory
+    # seed.json a file of its own, so a test resolves IT by runfiles path and takes expected/ beside it (a directory
     # resolves only under a runfiles tree, never by the Windows manifest: com.legend.testing.Runfile)
-    outs = ["diff/seed.sql"],
+    outs = ["diff/seed.json"],
     out_dirs = ["diff/expected"],
     args = [
         "--out",

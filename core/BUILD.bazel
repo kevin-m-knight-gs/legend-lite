@@ -572,10 +572,10 @@ junit_test(
     name = "corpus_differential_test",
     memory_mb = 768,
     data = [
-        "//scripts/corpus:diff/seed.sql",
+        "//scripts/corpus:diff/seed.json",
         "//scripts/corpus:gen_differential",
     ],
-    jvm_flags = ["-Dcorpus.differential.seed=$(rlocationpath //scripts/corpus:diff/seed.sql)"],
+    jvm_flags = ["-Dcorpus.differential.seed=$(rlocationpath //scripts/corpus:diff/seed.json)"],
     select = ["--select-class=com.legend.integration.CorpusDifferentialTest"],
     runtime_deps = [
         ":core_tests_lib",
