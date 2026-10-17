@@ -48,7 +48,30 @@ class CypherToPureTest {
                     "legalName", prop("legalName", "String", 1, 1),
                     "hq", prop("hq", "demo::City", 0, 1),
                     "employees", prop("employees", "demo::Person", 0, -1)),
-            "demo::City", Map.of("name", prop("name", "String", 1, 1)));
+            "demo::City", Map.of("name", prop("name", "String", 1, 1)),
+            // the edge classes (the study's §5.6): Acting's ends actor and firm, its properties role and since;
+            // Directing's ends director and firm (never nodes: the models' classes() leave them out)
+            "demo::Acting", Map.of(
+                    "actor", prop("actor", "demo::Person", 1, 1),
+                    "firm", prop("firm", "demo::Firm", 1, 1),
+                    "role", prop("role", "String", 1, 1),
+                    "since", prop("since", "Integer", 0, 1)),
+            "demo::Directing", Map.of(
+                    "director", prop("director", "demo::Person", 1, 1),
+                    "firm", prop("firm", "demo::Firm", 1, 1)),
+            // LINK, a type over two pairs (Person to City, Person to Firm): two edge classes of one type, their
+            // properties differing (w on one, v on the other)
+            "demo::LinkCity", Map.of(
+                    "person", prop("person", "demo::Person", 1, 1),
+                    "city", prop("city", "demo::City", 1, 1),
+                    "w", prop("w", "Integer", 0, 1)),
+            "demo::LinkFirm", Map.of(
+                    "person", prop("person", "demo::Person", 1, 1),
+                    "firm", prop("firm", "demo::Firm", 1, 1),
+                    "v", prop("v", "Integer", 0, 1)));
+
+    private static final java.util.Set<String> EDGE_CLASSES = java.util.Set.of("demo::Acting", "demo::Directing",
+            "demo::LinkCity", "demo::LinkFirm");
 
     private static final CypherToPure.Model MODEL = new CypherToPure.Model() {
         @Override
@@ -84,7 +107,8 @@ class CypherToPureTest {
 
         @Override
         public List<String> classes() {
-            return CLASSES.keySet().stream().sorted().toList();
+            // (an edge class is never a node)
+            return CLASSES.keySet().stream().filter(c -> !EDGE_CLASSES.contains(c)).sorted().toList();
         }
 
         @Override
@@ -109,7 +133,76 @@ class CypherToPureTest {
                 prop("hq", "demo::City", 0, 1).reportTo(sink);
             }
         }
+
+        @Override
+        public void edges(CypherToPure.EdgeSink sink) {
+        }
     };
+
+    /** The model with its edge class (the study's §5.6): Acting, of type ACTED_IN from Person to Firm in the
+     *  association form (each end's inverse on the node class holds many edges), its properties role and since;
+     *  Directing, the compact form (its ends its own properties, no inverse), of its simple name's type. */
+    private static final CypherToPure.Model EDGES = new CypherToPure.Model() {
+        @Override
+        public List<String> classesOf(String label) {
+            return MODEL.classesOf(label);
+        }
+
+        @Override
+        public void property(String classPath, String name, CypherToPure.PropertySink sink) {
+            MODEL.property(classPath, name, sink);
+        }
+
+        @Override
+        public void inverse(String classPath, String property, CypherToPure.PropertySink sink) {
+            MODEL.inverse(classPath, property, sink);
+        }
+
+        @Override
+        public boolean isSubclass(String classPath, String superPath) {
+            return MODEL.isSubclass(classPath, superPath);
+        }
+
+        @Override
+        public List<String> classes() {
+            return MODEL.classes();
+        }
+
+        @Override
+        public void properties(String classPath, CypherToPure.PropertySink sink) {
+            MODEL.properties(classPath, sink);
+        }
+
+        @Override
+        public String labelOf(String classPath) {
+            return MODEL.labelOf(classPath);
+        }
+
+        @Override
+        public void ends(String classPath, CypherToPure.PropertySink sink) {
+            MODEL.ends(classPath, sink);
+        }
+
+        @Override
+        public void edges(CypherToPure.EdgeSink sink) {
+            sink.edge("demo::Acting", "ACTED_IN", "actor", "demo::Person", "actings", true, "firm", "demo::Firm",
+                    "cast", true);
+            sink.edge("demo::Directing", "Directing", "director", "demo::Person", null, false, "firm", "demo::Firm",
+                    null, false);
+            sink.edge("demo::LinkCity", "LINK", "person", "demo::Person", "cityLinks", true, "city", "demo::City",
+                    "linkedPeople", true);
+            sink.edge("demo::LinkFirm", "LINK", "person", "demo::Person", "firmLinks", true, "firm", "demo::Firm",
+                    "linkedPeople", true);
+        }
+    };
+
+    private static String edges(String cypher) {
+        return PureComposer.valueSpecification(CypherToPure.translate(cypher, EDGES), PureComposer.Style.STANDARD);
+    }
+
+    private static SqlTranslationException edgeRefusal(String cypher) {
+        return assertThrows(SqlTranslationException.class, () -> edges(cypher));
+    }
 
     private static String pure(String cypher) {
         ValueSpecification vs = CypherToPure.translate(cypher, MODEL);
@@ -810,15 +903,38 @@ class CypherToPureTest {
         unsupported("MATCH (f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm) RETURN g.legalName", "no inverse");
         unsupported("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name",
                 "two relationships of the type firm");
-        unsupported("MATCH (p:Person)-[:firm*1..2]->(f) RETURN f.legalName", "variable-length");
+        // a variable-length relationship with an upper bound unrolls into the chains of each length (the study's
+        // §12.42): one arm per length, concatenated; without one it is a recursion, refused by name
+        String chains = pure("MATCH (p:Person)-[:firm*1..2]->(f) RETURN f.legalName AS firm");
+        // (Firm holds no firm: the chain of two has no way, the one of one reads as the plain pattern)
+        assertTrue(chains.contains("$p.firm.legalName"), chains);
+        String zero = pure("MATCH (p:Person)-[:firm*0..1]->(x) RETURN x.name AS name");
+        assertTrue(zero.contains("->concatenate("), zero);
+        unsupported("MATCH (p:Person)-[:firm*]->(f) RETURN f.legalName", "without an upper bound");
+        unsupported("MATCH (p:Person)-[:firm*1..9]->(f) RETURN f.legalName", "longer than 4");
         unsupported("MATCH (p:Person)-[:firm {since: 1}]->(f) RETURN f.legalName", "properties on a relationship");
-        unsupported("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n", "a MATCH after a WITH");
+        // a MATCH after rows whose pattern names no variable of the rows: the product (the study's §12.44); one that
+        // binds a projected variable again is still refused by name
+        String product = pure("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n, f.legalName AS firm");
+        assertTrue(product.contains("->join(") && product.contains("JoinKind.INNER"), product);
+        unsupported("MATCH (p:Person) WITH p.name AS n MATCH (n)-[:firm]->(f:Firm) RETURN n", "a MATCH after a WITH");
         unsupported("CREATE (p:Person {name: 'x'})", "CREATE is not supported yet");
-        unsupported("MATCH (p:Person) RETURN collect(p.name)", "collect(...) is not supported yet");
+        // collect: the group's values as the JSON array the database builds (the study's §12.41)
+        String collected = pure("MATCH (p:Person) RETURN collect(p.name) AS names");
+        assertTrue(collected.contains("->joinStrings(',')"), collected);
+        assertTrue(collected.contains("fromJson('[' + "), collected);
+        // (collect(DISTINCT ...) stays refused: the database's order of the distinct values is not Neo4j's, nor
+        // the same twice; the study's §12.44)
+        unsupported("MATCH (p:Person) RETURN collect(DISTINCT p.name)", "collect(DISTINCT ...) is not supported yet");
         unsupported("MATCH (p:Person) RETURN count(DISTINCT p.name)", "count(DISTINCT ...)");
         unsupported("MATCH (p:Person) WHERE p.name = $name RETURN p.name", "a parameter ($name)");
         unsupported("MATCH (p:Person) WHERE p.name =~ 'A.*' RETURN p.name", "regular expression");
-        unsupported("MATCH (p:Person) WITH [p.age] AS l RETURN l", "holding a value of the row (l), carried");
+        // a list of row values through WITH is the Variant the database builds, marked with its element kind
+        String carriedList = pure("MATCH (p:Person) WITH [p.age, 1] AS l UNWIND l AS x RETURN x");
+        assertTrue(carriedList.contains("l:p|fromJson(") && carriedList.contains("+ ']')"), carriedList);
+        assertTrue(carriedList.contains("$r.l->toMany(@Integer)->flatten(~x)"), carriedList);
+        unsupported("MATCH (p:Person) WITH [p.age] AS l, count(*) AS n RETURN l, n",
+                "holding a value of the row (l) among the grouping keys");
         unsupported("MATCH (p:Person) RETURN [localtime('12:00')] AS l", "a list or map holding a LocalTime, as a value");
         invalid("MATCH (p:Person) RETURN all(x IN p.name WHERE x > 1)", "expected List<T> but was String");
         unsupported("USE demo::Space MATCH (p:Person) RETURN p.name", "USE");
@@ -829,5 +945,158 @@ class CypherToPureTest {
         invalid("MATCH (p:Person) RETURN p.age + count(*)", "implicit grouping expressions (p in p.age + count(*))");
         unsupported("RETURN 1e308 AS x", "a float literal beyond 1e15");
         unsupported("RETURN 1e-20 AS x", "a float literal beyond 1e15");
+    }
+
+    // ------------------------------------------------------------------ edge classes (the study's §5.6)
+
+    @Test
+    void anEdgeHopNavigatesTheInverseEndThenTheFarEnd() {
+        String pure = edges("MATCH (p:Person)-[r:ACTED_IN]->(f:Firm) RETURN r.role AS role, f.legalName AS firm");
+        assertTrue(pure.contains("$p.actings.role"), pure);
+        assertTrue(pure.contains("$p.actings.firm.legalName"), pure);
+        assertTrue(pure.contains("$p.actings.firm->isNotEmpty()"), pure);
+    }
+
+    @Test
+    void anIncomingEdgeHopNavigatesTheToEndsInverse() {
+        String pure = edges("MATCH (f:Firm)<-[r:ACTED_IN]-(p:Person) RETURN r.role AS role, p.name AS name");
+        assertTrue(pure.contains("$f.cast.role"), pure);
+        assertTrue(pure.contains("$f.cast.actor.name"), pure);
+    }
+
+    @Test
+    void anEdgeAsAValueCarriesItsTypeAndProperties() {
+        String pure = edges("MATCH (p:Person)-[r:ACTED_IN]->(:Firm) RETURN r, type(r) AS t, properties(r) AS ps,"
+                + " keys(r) AS ks");
+        // (the graph fans out: the relationship is carried as its type's and its properties' columns, and its
+        // value is rebuilt from them)
+        assertTrue(pure.contains("'{\"@type\":' + ('\"' + $r._cypher_6->toOne()"), pure);
+        assertTrue(pure.contains(",\"role\":"), pure);
+        assertTrue(pure.contains(",\"since\":"), pure);
+        assertTrue(pure.contains("'ACTED_IN'"), pure);
+    }
+
+    @Test
+    void anEdgesPropertyMapFiltersTheEdgeInstance() {
+        String pure = edges("MATCH (p:Person)-[:ACTED_IN {role: 'Neo'}]->(f:Firm) RETURN f.legalName AS firm");
+        assertTrue(pure.contains("'Neo'"), pure);
+        assertTrue(pure.contains("$p.actings.role"), pure);
+    }
+
+    @Test
+    void aPropertyOneArmsEdgeClassLacksIsTheKnownNullInThatArm() {
+        // (the Postgres lane's catch: within the arm whose edge class lacks the property, its column is the null
+        // constant, which the comparison folds to null and the property map to false; read as a column, Postgres
+        // types the null navigated to one as text and refuses it against an integer)
+        String pure = edges("MATCH (p:Person)-[:LINK {w: 1}]->(x) RETURN p.name AS name");
+        assertTrue(pure.contains("$p.cityLinks.w"), pure);
+        assertTrue(pure.contains("->filter(r|false)"), pure);
+        String where = edges("MATCH (p:Person)-[l:LINK]->(x) WHERE l.w IS NULL RETURN p.name AS name");
+        assertTrue(where.contains("->filter(r|true)"), where);
+        // a far node's property map in the arm whose class lacks it (Firm has no name): false there, not C4's
+        // refusal (lenient across every class the arms read, as the WHERE is), whichever root the arm tries
+        String node = edges("MATCH (p:Person)-[:LINK]->(x {name: 'Paris'}) RETURN p.name AS name");
+        assertTrue(node.contains("->filter(r|false)"), node);
+        assertTrue(node.contains("$p.cityLinks.city.name"), node);
+        // after the arms' union the column holds the other arm's values: read as the column, never the constant
+        String read = edges("MATCH (p:Person)-[l:LINK]->(x) WITH p, l RETURN p.name AS name, l.w AS w, l.v AS v");
+        assertTrue(read.matches("(?s).*w:r\\|\\$r\\._cypher_\\d+, v:r\\|\\$r\\._cypher_\\d+.*"), read);
+    }
+
+    @Test
+    void anUntypedHopRefusesAnEdgeEndWithoutAnInverse() {
+        // (the review's second finding: an edge the node cannot navigate to is refused wherever it is a way, never
+        // skipped; Directing's from end is its own property)
+        SqlTranslationException e = edgeRefusal("MATCH (p:Person)-->(x) RETURN labels(x) AS l");
+        assertTrue(e.getMessage().contains("holds its from end director with no inverse end"), e.getMessage());
+        SqlTranslationException pred = edgeRefusal("MATCH (p:Person) WHERE (p)-->() RETURN p.name");
+        assertTrue(pred.getMessage().contains("holds its from end director with no inverse end"), pred.getMessage());
+    }
+
+    @Test
+    void aPatternPredicateBindsNoNewVariableAndStandsWhereABooleanIsTested() {
+        SqlTranslationException fresh = refusal("MATCH (p:Person) WHERE (p)-[r:firm]->(f) RETURN p.name");
+        assertEquals(SqlTranslationException.Kind.INVALID, fresh.kind(), fresh.getMessage());
+        assertTrue(fresh.getMessage().contains("PatternExpressions are not allowed to introduce new variables: 'r'"),
+                fresh.getMessage());
+        SqlTranslationException value = refusal("MATCH (p:Person) WHERE toString((p)-[:firm]->()) = 'true' RETURN p.name");
+        assertTrue(value.getMessage().contains("A pattern expression should only be used"), value.getMessage());
+        // (a quantifier's predicate is a boolean context too: the pattern is allowed there and refused by name only
+        // because the quantifier's scope is not the graph's, never as Neo4j's rejection)
+        SqlTranslationException quantified = refusal("MATCH (p:Person) RETURN any(x IN [1] WHERE (p)-[:firm]->()) AS a");
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, quantified.kind(), quantified.getMessage());
+        assertTrue(quantified.getMessage().contains("over rows"), quantified.getMessage());
+        String negated = pure("MATCH (p:Person) WHERE NOT ((p)-[:firm]->() OR p.age > 1) RETURN p.name");
+        assertTrue(negated.contains("$p.firm->isNotEmpty()"), negated);
+    }
+
+    @Test
+    void aLabelledStartInAPredicateIsTheBoundNodesClassOrNothing() {
+        // (the review's third finding: the start node's label is read)
+        String nothing = pure("MATCH (p:Person) WHERE (p:Firm)-[:firm]->() RETURN p.name");
+        assertTrue(nothing.contains("filter(p|false)"), nothing);
+        String same = pure("MATCH (p:Person) WHERE (p:Person)-[:firm]->() RETURN p.name");
+        assertTrue(same.contains("$p.firm->isNotEmpty()"), same);
+    }
+
+    @Test
+    void edgeRefusalsAreNamed() {
+        SqlTranslationException label = edgeRefusal("MATCH (a:Acting) RETURN a");
+        assertEquals(SqlTranslationException.Kind.INVALID, label.kind(), label.getMessage());
+        assertTrue(label.getMessage().contains("names the edge class demo::Acting"), label.getMessage());
+        SqlTranslationException compact = edgeRefusal("MATCH (p:Person)-[r:Directing]->(f:Firm) RETURN r");
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, compact.kind(), compact.getMessage());
+        assertTrue(compact.getMessage().contains("holds its from end director with no inverse end on demo::Person"),
+                compact.getMessage());
+        SqlTranslationException past = edgeRefusal("MATCH (p:Person)-[:ACTED_IN]->(f:Firm)-[:hq]->(c:City) RETURN c");
+        assertTrue(past.getMessage().contains("a hop from f, a node reached through an edge class"), past.getMessage());
+        SqlTranslationException wrongWay = edgeRefusal("MATCH (f:Firm)-[r:ACTED_IN]->(p:Person) RETURN r");
+        assertEquals(SqlTranslationException.Kind.INVALID, wrongWay.kind(), wrongWay.getMessage());
+        assertTrue(wrongWay.getMessage().contains("which no pattern from demo::Firm reads outgoing"),
+                wrongWay.getMessage());
+    }
+
+    @Test
+    void aVariantsEntryIsThePlatformsGetTypedWhereTheShapeIsKnown() {
+        // an unwound map's entries (the study's §12.43): get, read by the entry's kind where it is known
+        String typed = pure("UNWIND [{a: 1, b: 'x'}] AS m RETURN m.a AS a, m.b AS b");
+        assertTrue(typed.contains("$r.m->get('a')->to(@Integer)"), typed);
+        assertTrue(typed.contains("$r.m->get('b')->to(@String)"), typed);
+        // a key the map lacks is null before the database is asked; a scalar entry has no entries
+        String lacks = pure("UNWIND [{a: 1}] AS m RETURN m.z AS z");
+        assertTrue(lacks.contains("z:r|[]"), lacks);
+        SqlTranslationException scalar = refusal("UNWIND [{a: 1}] AS m RETURN m.a.b");
+        assertEquals(SqlTranslationException.Kind.INVALID, scalar.kind(), scalar.getMessage());
+        // a collected node's property: get, a Variant (the node's class is not carried)
+        String node = pure("MATCH (p:Person) WITH collect(p) AS ps UNWIND ps AS n RETURN n.name AS name");
+        assertTrue(node.contains("$r.n->get('name')"), node);
+        assertFalse(node.contains("get('name')->to("), node);
+        // a list of several kinds carried through WITH: each place by its own kind
+        String tuple = pure("MATCH (p:Person) WITH [p.name, 1] AS l RETURN l[0] AS s, l[1] AS i, l[2] AS none");
+        assertTrue(tuple.contains("$r.l->get(0)->to(@String)"), tuple);
+        assertTrue(tuple.contains("$r.l->get(1)->to(@Integer)"), tuple);
+        assertTrue(tuple.contains("none:r|[]"), tuple);
+        // a node indexed by a key of the row: get by the key
+        String key = pure("MATCH (p:Person) UNWIND ['name', 'age'] AS k RETURN p[k] AS v");
+        assertTrue(key.contains("->get($r.k->toOne())"), key);
+    }
+
+    @Test
+    void graphFunctionsOverValuesRaiseNeo4jsTypeErrorsOrRefuseAnUnknownMark() {
+        SqlTranslationException node = refusal("MATCH (p:Person) RETURN type(p)");
+        assertEquals(SqlTranslationException.Kind.INVALID, node.kind(), node.getMessage());
+        assertTrue(node.getMessage().contains("expected Relationship but was Node"), node.getMessage());
+        SqlTranslationException length = refusal("MATCH (p:Person) RETURN length(p)");
+        assertTrue(length.getMessage().contains("expected Path but was Node"), length.getMessage());
+        SqlTranslationException properties = refusal("RETURN properties([true, false])");
+        assertTrue(properties.getMessage().contains("expected Map, Node or Relationship but was List<T>"),
+                properties.getMessage());
+        // a relationship in a list of several kinds: its place is a relationship, its type read from the Variant
+        String typed = pure("MATCH (p:Person)-[r:firm]->(f:Firm) WITH [r, 1] AS l RETURN type(l[0]) AS t");
+        assertTrue(typed.contains("$r.l->get(0)->get('@type')->to(@String)"), typed);
+        // a Variant of no known mark is refused by name, never read as a relationship
+        SqlTranslationException unknown = refusal("MATCH (p:Person) WITH [p, 1] AS l UNWIND l AS x RETURN type(x)");
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, unknown.kind(), unknown.getMessage());
+        assertTrue(unknown.getMessage().contains("of a kind the island does not know"), unknown.getMessage());
     }
 }

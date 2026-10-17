@@ -2924,3 +2924,335 @@ collision a cycle (it names the variable); `[(n:Foo)]` parsed as a pattern compr
 predicate's lookahead, in a list too). The review found the indexing, the fresh-column naming, the flag threading,
 the resolver's condition (a pure relaxation; `isVariant` admits the `meta::json` family too, consistently) and the
 harness's JSON spelling correct.
+
+### 12.38 The edge class: a relationship type with properties, 2026-10-16 (PR3, step 1; the design is §5.6)
+
+- **The model.** The library project `projects/graph` declares the one profile, `graph::graph`
+  (`stereotypes: [Edge, from, to, type]`, no tag), as `core_types::CtGovernance` is declared for every project that
+  depends on it; `PlatformTypes.GRAPH_PROFILE` names it, as `EQUALITY_PROFILE` names the equality profile. A class
+  carrying `<<graph.Edge>>` (itself or a superclass) is a relationship type with properties; its two ends are the
+  properties carrying `<<graph.from>>` and `<<graph.to>>`, each `[1]` and typed by a class, declared on the class, inherited,
+  or injected by an association (whose other end is the node class's navigation to the edge); its type is the
+  enumeration value the derived property carrying `<<graph.type>>` spells, else the class's simple name; every other
+  stored property is the relationship's. `compiler/element/GraphEdges` reads it in phase F (`ModelIntegrity`), as
+  `EqualityKeys` reads `<<equality.Key>>`, with an error under the class's name for a misdeclared edge: an end
+  stereotype without the marker, the marker without both ends, an end that is not `[1]` or not a class, two ends of one
+  kind, a type whose body is not one spelled enumeration value, a to-many property holding a class, the profile not
+  declared or not of that shape. Two small changes outside the island (announced in `IN_FLIGHT`): the association
+  end's stereotypes, which the parser read and the model record dropped, now ride on
+  `AssociationDefinition.AssociationEndDefinition`; and `NameResolver.resolveDerivedProperty` kept a rebuilt derived
+  property's annotations (it rebuilt with the five-argument constructor, so a `<<graph.type>>` whose body named an
+  enumeration lost its marker on resolution).
+- **The island.** The model adapter reports the edge classes (`CypherToPure.Model.edges()`), leaves them out of the
+  classes a label-less pattern reads, and reports no end holding an edge class (an edge is reached by its type, never
+  by an end's name). A relationship type naming an edge class resolves, from a node of its from class, to a hop of two
+  steps: the node's inverse of the from end (to-many: the graph fans out, one row per relationship) to the edge
+  instance, then the edge's to end to the node after; incoming, the inverse of the to end then the from end; undirected,
+  whichever the node's class allows. The far node's label picks among the edge classes of one type (a type joining
+  several class pairs, §5.6's union) and must otherwise be the far end's class or a superclass. The relationship is
+  bound to the edge instance with the edge class as its class: `r.prop` navigates there as a node's property does,
+  `r` as a value is `{"@type": T, props}` built as a node's JSON is, `properties(r)` and `keys(r)` read the edge's
+  properties, a property map on the relationship pattern filters the edge instance, a relationship carried through
+  `WITH` carries its type's column and its properties' columns, and a path's relationship prints its properties. An
+  untyped hop reads the edge ways beside the association ends; a pattern comprehension's hop over an edge is rooted
+  at the edge instance. Refused by name: an edge class as a label ("a relationship type, not a node label"); the
+  compact form read from the node side (an end that is the edge's own property has no inverse for the node to
+  navigate; the association form gives it one); an undirected pattern over a self-typed edge (a loop); a type naming
+  both an edge class and a property; an end's name used as a type; a hop from a node reached through an edge class
+  (the resolver's nested navigation reads no association end past the edge's end, `$a.ACTED_IN_out.to.MADE_BY`:
+  a finding for the resolver line, `IN_FLIGHT`, with a plain three-hop to-one chain that fails the same way).
+- **The harness.** A relationship type whose relationships carry properties is declared as an edge class in the
+  association form: `Class <<graph::graph.Edge>> g::E_T` with the properties and
+  `<<graph::graph.type>> type() { g::RelationshipType.T }: g::RelationshipType[1]`, the ends
+  `Association g::E_T_from { <<graph::graph.from>> from: g::Src[1]; T_out: g::E_T[*]; }` and
+  `Association g::E_T_to { <<graph::graph.to>> to: g::Dst[1]; T_in: g::E_T[*]; }`, over a bridge table `r_t (id PRIMARY
+  KEY, src_id, dst_id, p_...)` with one row per relationship and a join per end; the profile inlined. The SKIP for "a
+  relationship holding a property, named by the query" is gone (50 TCK cases, most of them writes). A type without
+  properties stays an association, byte for byte as before (the showcase's pins hold).
+
+#### 12.38.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4363 | 2671 (from 2,649) | 0 | 0 | 0 | 683 | 711 | 298 |
+| Postgres | 4363 | 2321 (from 2,299) | 0 | 0 | 0 | 1033 | 711 | 298 |
+
+18 lite cases in `lite/edges.yaml`, each judged by Neo4j (one of them the hop past an edge, refused by name). The SKIP
+count fell from 348: the 50 cases the harness skipped for a relationship property run now (most of them writes,
+refused by name; the read-only ones pass).
+
+### 12.39 A relationship type joining several class pairs, as several edge classes of one type, 2026-10-16 (PR3, step 2)
+
+- **The model.** One Neo4j relationship type may join several label pairs (`(:A)-[:T]->(:B)` and `(:D)-[:T]->(:B)`);
+  §5.6 says two edge classes may name the same type with different end pairs, `[:T]` is then their union and the
+  endpoint labels choose. The harness now declares one edge class per class pair a type joins, numbered in the order
+  the pairs appear (`g::E_T_1`, `g::E_T_2`, each `<<graph::graph.type>> type() { g::RelationshipType.T }`, each over
+  its own bridge table, its ends `T_1_out`/`T_1_in` on the node classes), with or without properties; a type joining
+  one pair stays what it was (an association, or an edge class when its relationships carry properties). Its SKIP
+  "joins several class pairs, which waits for PR3's inheritance" is gone: 117 TCK cases run.
+- **The island.** A typed relationship pattern whose type names several edge classes reads as arms, through the
+  machinery an untyped relationship reads by (§12.17, §12.32): one arm per edge class the start node's class allows
+  (`edgeWays`), the far node labelled with the class that edge reaches, each arm a typed pattern over one edge, the
+  arms materialized to rows and concatenated. A far label written in the pattern keeps the arms it agrees with (an
+  edge reaching another class is left out, as a label narrowing an end would be). A relationship carried through
+  the arms is the union of its edge classes' properties (null where an edge class lacks one), as a node is of its
+  classes'. Where the ways stay several outside the arms (an OPTIONAL MATCH's hop, a pattern comprehension's), the
+  hop is refused by name: "the relationship type T names 2 edge classes read from A".
+
+#### 12.39.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4369 | 2690 (from 2,671) | 0 | 0 | 0 | 785 | 713 | 181 |
+| Postgres | 4369 | 2340 (from 2,321) | 0 | 0 | 0 | 1135 | 713 | 181 |
+
+6 more lite cases in `lite/edges.yaml`, each judged by Neo4j (one of them the OPTIONAL MATCH form, refused by name).
+The SKIP count fell from 298 to 181: the 117 cases the harness skipped for a type joining several pairs run, 14 of
+them passing, 2 erroring on both sides as the TCK expects, the other 101 refused by name (variable-length
+relationships, patterns inside expressions, an OPTIONAL MATCH after rows, identity); 5 more passes come from cases
+whose graphs mix a multi-pair type with what they read.
+
+### 12.40 A pattern as a predicate, and `EXISTS { ... }`, 2026-10-16
+
+- **`WHERE (n)-[:T]->()`, `WHERE NOT (n)<-[]-(:B)`, `WHERE (n)-[:T|U]->() AND n.x = 1`:** a pattern inside an
+  expression is a predicate, true where the hop from its bound node finds a match. The parser reads it as a
+  `PatternPredicate` (a pattern starting after the parenthesis, rather than the refusal it was); the translator
+  spells it over the pattern comprehension's hop resolution (§12.31): each way the model reads the hop, the
+  navigation's non-emptiness (a to-one way `isNotEmpty`, a to-many way the collection's), the ways or-ed, no way
+  false; a condition with its false case, so `NOT`, `AND` and `OR` around it read both. Neo4j allows a pattern
+  expression only where a boolean is tested, and so does the island: outside a condition (a RETURN item) it is
+  refused with Neo4j's words, and both error.
+- **`WHERE EXISTS { MATCH (n)-[:T]->(b) WHERE b.x = 1 RETURN b }`, `WHERE exists { (n)-->() }`:** an existential
+  subquery over one pattern, an optional WHERE (a filter over the hop's node, as the comprehension's is) and an
+  optional RETURN (its items unread: a row's existence is what counts), spelled the same way. A subquery with
+  several patterns or further clauses, and `COUNT { }` and `COLLECT { }`, stay refused by name.
+- **Refused by name**, as the comprehension machinery refuses: a pattern over rows (a WHERE read over a fanning
+  graph's materialized rows, or after a WITH), both ends bound (`MATCH (a), (b) WHERE (a)-[:T]->(b)`: identity),
+  a property map in the pattern, more than one hop, a variable-length hop.
+
+#### 12.40.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4381 | 2712 (from 2,690) | 0 | 0 | 0 | 774 | 714 | 181 |
+| Postgres | 4381 | 2362 (from 2,340) | 0 | 0 | 0 | 1124 | 714 | 181 |
+
+12 lite cases in `lite/predicates.yaml`, each judged by Neo4j (one erroring on both sides, two refused by name).
+
+#### 12.40.2 The review of the three landings, 2026-10-16
+
+Two independent reviews of the diff since PR #48 merged, one over the model and phase-F half, one over the
+translator, parser and harness, each finding verified by a probe against the built jars; every finding fixed.
+
+**The reader (`GraphEdges`, nine findings).** The island's view of the model read platform primitives as classes
+(the context's lookup reaches the native catalog), so a `String[*]` property on an edge passed phase F and then broke
+every query: both sources now read the model's classes alike. An end typed by a primitive, an enumeration or an edge
+class passed: refused. A subclass of an association-form edge inherited an inverse reaching the superclass's
+relationships (`[:Sub]` read every superclass instance): an inherited association end has no inverse for the
+subclass, and the translator refuses the hop by name. The association scan ran only once a marked class had been
+read, so an end stereotype on an unmarked class was caught or missed by class order: the injected ends are indexed
+once. An association linking an edge by an end carrying neither marker (a third link), a type marker on an unmarked
+class, both markers on one property, two inherited types that disagree, and a derived end (`<<graph.from>> from()
+{...}`, which the reader does not read) went unchecked or were refused with the wrong words: each refused by name. A
+fault in an inherited declaration was blamed on the subclass: it names the declaring class. A tolerant build walled
+only the first bad edge, and the derived view then threw on every query: phase F checks class by class, one wall
+each. A generic superclass dropped out of the lineage: read by its head. Open, recorded: a `<<graph.type>>` marker
+on a derived property is read by its bare profile name (the resolver does not resolve a derived property's
+stereotypes), so a profile named `graph` in another package would be read as the graph profile's.
+
+**The translator, the parser and the harness (twelve findings).** Wrong answers: a hop over a to-one inverse
+(`T_out: E[0..1]`) never filtered, every start node returned (the hop is optional now, so a row without an edge is no
+match); an edge end with no inverse was silently skipped outside the typed MATCH (an untyped hop, a predicate, an
+OPTIONAL MATCH, a comprehension answered as if the edge were absent): refused by name wherever the edge is a way; a
+pattern predicate ignored its start node's label (`WHERE (a:B)-->()` over an `a:A`): the bound node's class or a
+superclass is a no-op, a class apart matches nothing, a subclass is refused; a far label that is a subclass of the
+class a way reaches made a predicate false (and an arm vanish) instead of refusing: refused as narrowing; an
+undirected typed pattern from a label-less start read one direction only: refused. An execution error: a
+relationship carried across arms as an edge in one arm and an association or an absent one in another, or an
+unnamed relationship with a property map over a multi-pair type, gave the arms different columns (a union arity
+error): every arm now carries the union's columns, null where its relationship lacks them, and such relationships
+are named before the arms are read. Accepting what Neo4j rejects: a pattern predicate could introduce new variables
+(`WHERE (a)-[r:K]->(m)`): refused with Neo4j's words, as EXISTS may introduce them; the boolean-context rule was a
+dynamic flag, so a pattern inside a function's argument under a WHERE passed and one in a quantifier's predicate
+was refused as Neo4j's rejection: the rule is structural now (a WHERE, a CASE test, a quantifier's or
+comprehension's predicate, and the operands of NOT, AND, OR, XOR under one; a quantifier's pattern is then refused
+by name, its scope not being the graph's). Missing or misplaced refusals: the hop-past-edge refusal was bypassed by
+an unnamed far node (named now) and by a comprehension's end (marked now); the parser took `(a) - (b)` for a
+relationship (arithmetic now) and refused `(:A)-[:K]->(a)`, `()-->(a)` and `({k: 1})-->(a)` as syntax errors (predicates
+now); EXISTS gave syntax errors on `RETURN *`, `RETURN DISTINCT x` and `OPTIONAL MATCH` (read, read, refused by
+name) and never read its RETURN items (read now for their static errors: an undefined variable errors, as in
+Neo4j); a carried edge relationship's undeclared property read null where a bound one errored (C4: both error now),
+and three edge refusals lacked the C4 phrase the harness classifies by. The harness's made-up names (`E_T_from`,
+`RelationshipType`, a bridge table `r_t_1` beside a type named `T_1`) could collide with the graph's own: refused by
+name.
+
+**The Postgres lane's catch after the fixes (one finding, the lanes' own).** The arms' union gives a relationship
+(and a carried node) the union of its classes' properties across the arms, null where an arm's class lacks one; the
+arm's own property map or WHERE then read that column (`isNotEmpty && toOne() == 1`), which the lowering spells, over
+a null constant, as the runtime error a `toOne()` over nothing raises: text on Postgres, refused against an integer
+when the statement is typed (DuckDB's `error(...)` takes any type, so the DuckDB lane passed). Within the arm the
+property is the known null: the carried column is marked absent, a read of it is the typed null constant the
+comparison folds to null and the property map to false (as a label-less node's own property does, §12.13), `IS NULL`
+folds too, and the marks are cleared on the union, where the column holds the other arms' values. The node form
+showed a second gap beside it: the arms route tries each labelled node of an arm as the pattern's root, and a tried
+root's property map was read against no candidate class, so a far node's map over a property its arm's class lacks
+was refused as C4's error where the same test in a WHERE was lenient; an arm's every class is its pattern's
+candidates from the start. Three more lite cases (the node form, a WHERE over the property, the property read after
+the union) and one unit test pin both. The
+reader's review also moved a guard: the lineage-order compares it made (`fqn.equals(cd.qualifiedName())`) counted
+against `IdentityGuardrailTest`'s reversed-compare pin; the reader indexes the lineage instead (the declaring class
+is position 0), the pin unmoved.
+
+The ledger after the review, DuckDB: PASS 2718 (from 2,712), REFUSED 779, BOTH_ERROR 717, SKIP 181, over 4395 cases;
+Postgres: PASS 2368 (from 2,362); 0 FAIL, 0 BUG, 0 ERROR on both. 14 more lite cases pin the findings Neo4j judges
+(`lite/predicates.yaml`, `lite/edges.yaml`), 28 unit tests the rest.
+
+### 12.41 `collect`, and lists the database holds, 2026-10-16
+
+- **`collect(x)`:** the group's values as a list the database builds. Each value's JSON text (a number, a boolean, a
+  string, a date as the oracle spells one, a node's or a list's Variant text; the spelling of §12.14 and §12.25), a
+  null contributing nothing (Neo4j's `collect` skips nulls), joined with commas by Pure's `joinStrings` (the
+  database's string aggregate) and read as a Variant between brackets; `[]` over no value. The elements' order is the
+  database's, which the TCK's "ignoring element order for lists" allows and lite's cases avoid depending on. No new
+  aggregate was needed: the ask to the database owner for a collection-valued aggregate (IN_FLIGHT, 2026-10-16) is
+  withdrawn. `collect(DISTINCT x)` stays refused by name.
+- **The element kind travels with the list.** A collected column whose elements are of one scalar kind (an integer,
+  a float, a string, a boolean, a date), and a spelled list of such lists, carry the kind as a mark on the Variant
+  (`ListOf`), so what reads the list reads its elements by type: `UNWIND xs AS y` flattens `toMany(@Integer)` and
+  `y` is an integer column (ordered, compared, added); a list predicate, `IN`, an index and a list comprehension over
+  it read the collection the database computes (`toMany` by the kind), as they read any computed collection. A
+  list without a known element kind (a stored list, a collected list of nodes, a list of maps) unwinds as Variants
+  (`toMany(@Variant)`), each read back by its own value; `size` of any Variant list counts its elements through the
+  database.
+- **UNWIND over a spelled list of lists, of maps, or of values of several kinds:** each element a Variant (its JSON
+  text, read as a Variant), null elements null, the column marked with the lists' common element kind when they
+  have one.
+- **A list or map holding a value of the row, carried through WITH** (`WITH [p.age, p.age * 10] AS l`, `WITH {name:
+  p.name} AS m`): the Variant the database builds (§12.25's text), marked with the element kind where the list's
+  elements share one, so the clauses after unwind, size, test and index it as above; among the grouping keys it
+  stays refused by name.
+- **Refused by name:** `min` and `max` over Variants (Neo4j ranks lists, maps and mixed values by type: the three
+  TCK cases that reached them through a mixed UNWIND answered wrongly before the refusal); `UNWIND` of a node, a
+  relationship or a path (one row in Neo4j); `ORDER BY` a Variant; `single` over a collection the database computes
+  (as before); `collect(DISTINCT x)`; `collect` of a time, a date-time or a duration (the Variant spells none of
+  them yet).
+
+#### 12.41.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4422 | 2784 (from 2,718) | 0 | 0 | 0 | 740 | 717 | 181 |
+| Postgres | 4422 | 2434 (from 2,368) | 0 | 0 | 0 | 1090 | 717 | 181 |
+
+22 lite cases in `lite/collect.yaml` and 5 in `lite/withlists.yaml`, each judged by Neo4j (one refused by name:
+`collect(DISTINCT x)`). The TCK:
+38 more scenarios pass (the `collect` bucket, Precedence1's quantifiers over collected booleans, Unwind1's double
+unwinding and collected lists, Aggregation's and Return's `collect`s).
+
+### 12.42 Variable-length relationships with an upper bound, 2026-10-16
+
+- **`(a)-[:T*1..2]->(b)`, `(a)-[r:T*2]->(b)`, `(a)-[*0..1]->(b)`, `p = (a)-[:KNOWS*0..1]->(b)-[:FRIEND*0..1]->(c)`:**
+  a variable-length relationship with an upper bound is the union of the patterns of each length within its bounds
+  (Neo4j's missing lower bound is 1), each a chain of that many hops of the relationship's types and direction
+  through nodes the query does not name, read as arms by §12.17's machinery (every chain's ways from every class
+  the start node may be), the arms materialized and concatenated. The unroll's own nodes and relationships are
+  bound in the arm's graph under names the materialization never carries as columns, so the arms' columns agree
+  across lengths; a zero-length hop binds the far node to the near one (its labels and property map then the
+  near node's; a far label the near node cannot carry leaves no chain of length zero). The relationship's
+  variable is the list of the chain's relationships (the Variant the database builds, `[]` for the empty chain);
+  a named path over the unroll is the chain's path, and its length, nodes and relationships are carried beside it
+  when the arms are materialized, so `length(p)` reads over the rows. The WHERE is read per arm.
+- **Relationship uniqueness is not spelled.** Neo4j never walks one relationship twice within a chain; telling
+  the same relationship from another needs identity (C5), so a graph whose data loops a chain back over the same
+  relationship (a self-loop walked twice, a two-node cycle walked round and back) answers rows Neo4j does not. A
+  deliberate difference, recorded (`docs/SEMANTICS_REGISTER.md` S75); the TCK's variable-length graphs are
+  acyclic or walk a cycle once, and lite's `a_variable_length_round_a_cycle` pins the walk Neo4j allows.
+- **Refused by name:** no upper bound (`*`, `*2..`: a recursion, §6.3's native); a bound beyond 4; a pattern
+  unrolling to more than 16 chains; a property map on the relationship; a pattern unrolling to more than two hops
+  in all (the resolver's nested navigation reads no association end past a second step: the resolver line's
+  finding in `docs/IN_FLIGHT.md`); a variable-length relationship after another clause, beside another pattern,
+  or in an OPTIONAL MATCH; a chain past an edge class (§12.38's refusal, the same resolver limit).
+
+#### 12.42.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4438 | 2802 (from 2,784) | 0 | 0 | 0 | 738 | 717 | 181 |
+| Postgres | 4438 | 2452 (from 2,434) | 0 | 0 | 0 | 1088 | 717 | 181 |
+
+16 lite cases in `lite/varlen.yaml`, each judged by Neo4j (three refused by name). The TCK: 5 more scenarios pass
+(Match4, Match6, Match9, Path2, Path3).
+
+### 12.43 A property or an index of a value the database holds as a Variant, 2026-10-17
+
+- **`m.a`, `m['b']`, `m[k]`, `l[0]`, `l[-1]`, `l[i]`, `(l[1]).name`, `n['na' + 'me']`, `type(l[0])`, `labels(n)`
+  over a value the database holds as a Variant** (a map or list carried through WITH, an UNWIND's row over a
+  spelled list of maps or of lists, a collected node, a stored list): the platform's `get` by the key or the place
+  (`get(Variant[0..1], String[1])`, `get(Variant[0..1], Integer[1])`: a negative place counted from the end, null
+  beyond either end, null for a key the value lacks; the JSON arrow on DuckDB, jsonb's on Postgres, which agree). The
+  result is read **by type where the Variant's shape says it**, through the platform's `to(@T)`: a spelled map's
+  entries (`MapOf`: each entry's kind, nullability and shape), a list of one kind's elements (`ListOf`, §12.41, now
+  carrying the elements' own shape, so a collected node unwinds as a node), a spelled list of several kinds' places
+  (`TupleOf`: `[r, 1]` carried through WITH reads `l[0]` as the relationship and `l[1]` as the Integer). The shape
+  travels as the Variant's mark: `variant(...)` attaches it to a list or map carried through WITH or returned,
+  `collect` to the list it builds, an UNWIND over a spelled list to its rows when every element's shape agrees (a
+  list spelling no element of a kind, `[]` or `[null]`, agrees with any list's; so `[[], [true], [null], [true,
+  false]]` unwinds to lists of Booleans, and the TCK's Precedence1 `b IN c` cases pass). Where the shape says
+  nothing (a map's member of a node the collect carried, a list's element by a place of the row, a key of the row),
+  the result stays a Variant: a RETURN writes it and the judge reads the value it holds; a comparison, an ORDER BY,
+  arithmetic over it stay refused by name. An entry that may be null is read only where its text is not the JSON
+  null (Postgres's cast of a jsonb null raises; DuckDB's reads none).
+- **`type`, `labels`, `properties` and `length` over values:** of a Variant whose mark says the function applies
+  (`type` of a relationship's `"@type"`, `labels` of a node's `"@labels"`, `properties` of a known map), the entry;
+  of a Variant of no known mark, a refusal by name (Neo4j raises for a value of the wrong kind, which the island
+  could not tell from a right one); of a value the function does not apply to (`type(n)` of a node, `length(r)`,
+  `properties(1)`, `labels('a')`, `type(1)` inside a comprehension), Neo4j's type error in Neo4j's words, so the
+  TCK's negative scenarios agree (Graph4, Graph9, Path3).
+- **`size` of a Variant list that may be null** tests the list and reads it only where it holds a value, without
+  `toOne`: Postgres plans a FROM function's argument (`jsonb_array_elements(CASE WHEN x IS NULL THEN <raise> ...)`)
+  before any row is read, so `toOne`'s raise inside it fired for a row whose list held a value (the Postgres lane's
+  catch on `an_unwound_map_s_list_entry_sized`; the ninth line's finding in `docs/IN_FLIGHT.md`).
+- **Refused by name, still:** a list comprehension or predicate over a list the database holds as a Variant of no
+  known element kind (the quantifier scenarios, 26: `[y IN input.list ...]` where the map's entry is a list of
+  Integers is read; `reverse(list) + x` over it is not), `ORDER BY` a Variant (18: a stored list's element by place,
+  `a.list[1]`, is a Variant of no kind), two Variants compared (Comparison2, 4), `properties` of a node or
+  relationship the database holds as a Variant (its keys would need stripping).
+
+#### 12.43.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4473 | 2840 (from 2,802) | 0 | 0 | 0 | 724 | 728 | 181 |
+| Postgres | 4473 | 2490 (from 2,452) | 0 | 0 | 0 | 1074 | 728 | 181 |
+
+35 lite cases in `lite/variants.yaml`, each judged by Neo4j (eleven Neo4j's errors, matched). The TCK: 14 more
+scenarios agree (Unwind1, Graph4, Graph6, Graph7, Precedence1; the error scenarios of Graph4, Graph9 and Path3 now
+agree by the type error, not by a refusal).
+
+### 12.44 A MATCH after rows whose pattern is new, 2026-10-17
+
+- **`WITH a.num AS property MATCH (b:End) WHERE property = b.num`, `UNWIND xs AS x MATCH (n)`, `WITH 1 AS x MATCH
+  ()-[r]->()`:** a MATCH after rows (a WITH that projected its variables, an UNWIND, a pattern read as rows) whose
+  one pattern names no variable of the rows is the product of the rows and the pattern's rows, §12.28's cartesian
+  machinery (the pattern read on its own as a first pattern, a graph, a label-less node's arms or rows, then its
+  rows; every pair joined by a condition that always holds), the WHERE read over the pairs, the clauses after
+  reading the rows (the pattern's nodes carried as their columns, so `RETURN b` and `b.name` read them). A pattern
+  naming a variable of the rows stays refused by name: a hop from a carried node after rows is the continuation
+  §12.32 reads where it can, two ends bound is identity (C5), and a variable of another kind (`WITH p.name AS n
+  MATCH (n)`) is Neo4j's static error, which the island does not spell. A MATCH of several patterns after rows is
+  refused by name too.
+- **`collect(DISTINCT x)` stays refused by name, tried and withdrawn:** the distinct texts joined
+  (`distinct()->joinStrings(',')`) answer in the database's order of the distinct values, which is not Neo4j's
+  encounter order and not the same twice (lite's `collect_distinct_is_refused` passed one run as `[1, 2]` and
+  failed the next as `[2, 1]`); a list is an ordered value, so a list in an order the database chooses is a wrong
+  answer, not a difference to register.
+
+#### 12.44.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4484 | 2854 (from 2,840) | 0 | 0 | 0 | 720 | 729 | 181 |
+| Postgres | 4484 | 2504 (from 2,490) | 0 | 0 | 0 | 1070 | 729 | 181 |
+
+11 lite cases in `lite/rows.yaml`, each judged by Neo4j (one refused by name, as Neo4j errors). The TCK: 4 more
+scenarios pass (With4, Comparison1).

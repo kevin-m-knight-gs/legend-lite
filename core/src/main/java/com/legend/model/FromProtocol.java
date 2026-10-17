@@ -74,7 +74,7 @@ public final class FromProtocol {
                 new ArrayList<>(a.properties().size());
         for (PProperty p : a.properties()) {
             ends.add(new AssociationDefinition.AssociationEndDefinition(
-                    p.name(), p.type(), p.multiplicity()));
+                    p.name(), p.type(), p.multiplicity(), stereotypes(p.stereotypes())));
         }
         if (ends.size() != 2) {
             // ENGINE-VERBATIM (TestDomainCompilationFromGrammar): the

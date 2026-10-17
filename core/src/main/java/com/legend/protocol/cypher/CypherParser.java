@@ -678,10 +678,46 @@ public final class CypherParser {
         return peek(k).is(Type.LBRACE) || relationshipAt(k);
     }
 
+    /** Whether a relationship follows the node closing at {@code k}: {@code )<-}, {@code )-[}, {@code )--},
+     *  {@code )-->} ({@code )-(} is arithmetic over a parenthesized value, never a relationship). */
     private boolean relationshipAt(int k) {
         return peek(k).is(Type.RPAREN) && (peek(k + 1).is(Type.ARROW_LEFT) || peek(k + 1).is(Type.MINUS)
-                && (peek(k + 2).is(Type.LBRACKET) || peek(k + 2).is(Type.LPAREN) || peek(k + 2).is(Type.MINUS)
-                || peek(k + 2).is(Type.ARROW_RIGHT)));
+                && (peek(k + 2).is(Type.LBRACKET) || peek(k + 2).is(Type.MINUS) || peek(k + 2).is(Type.ARROW_RIGHT)));
+    }
+
+    /** Whether a node pattern opens at {@code k} (its {@code (}): a label, a property map or a relationship follows
+     *  its variable, or it is empty and a relationship follows. */
+    private boolean nodeStartsPattern(int k) {
+        if (peek(k + 1).is(Type.RPAREN)) {
+            return relationshipAt(k + 1);
+        }
+        if (peek(k + 1).is(Type.COLON)) {
+            return labelledNodeStartsPattern(k + 1);
+        }
+        if (peek(k + 1).is(Type.LBRACE)) {
+            return mapNodeStartsPattern(k + 1);
+        }
+        return peek(k + 1).is(Type.IDENT) && (peek(k + 2).is(Type.COLON) && labelledNodeStartsPattern(k + 2)
+                || peek(k + 2).is(Type.LBRACE) && mapNodeStartsPattern(k + 2) || relationshipAt(k + 2));
+    }
+
+    /** Whether the property map opening at {@code k} closes a node pattern that a relationship follows (a
+     *  parenthesized map literal, {@code ({a: 1})}, is a value). */
+    private boolean mapNodeStartsPattern(int k) {
+        int depth = 0;
+        int i = k;
+        while (!peek(i).is(Type.EOF)) {
+            if (peek(i).is(Type.LBRACE)) {
+                depth++;
+            } else if (peek(i).is(Type.RBRACE)) {
+                depth--;
+                if (depth == 0) {
+                    return relationshipAt(i + 1);
+                }
+            }
+            i++;
+        }
+        return false;
     }
 
     private Expr atom() {
@@ -705,21 +741,18 @@ public final class CypherParser {
                 return new CypherAst.Param(t.text(), pos);
             }
             case LPAREN -> {
-                advance();
-                if (peek().is(Type.RPAREN) || peek().is(Type.IDENT) && (peek(1).is(Type.COLON)
-                        && labelledNodeStartsPattern(1) || peek(1).is(Type.LBRACE) || relationshipAt(1))) {
-                    throw CypherErrors.unsupported("a pattern inside an expression (a pattern predicate or"
-                            + " comprehension) is not supported yet", pos);
+                if (nodeStartsPattern(0)) {
+                    // a pattern as a predicate: (n)-[:T]->(), (n)<-[]-(), ()-->(n), (:A)-->(n), ({k: 1})-->(n)
+                    return new CypherAst.PatternPredicate(pathPattern(), pos);
                 }
+                advance();
                 Expr inner = expression();
                 expect(Type.RPAREN, "')'");
                 return new CypherAst.Paren(inner, pos);
             }
             case LBRACKET -> {
                 advance();
-                if (peek().is(Type.LPAREN) && (peek(1).is(Type.COLON) || peek(1).is(Type.LBRACE)
-                        || relationshipAt(1) || peek(1).is(Type.IDENT) && (peek(2).is(Type.COLON)
-                        && labelledNodeStartsPattern(2) || peek(2).is(Type.LBRACE) || relationshipAt(2)))
+                if (peek().is(Type.LPAREN) && nodeStartsPattern(0)
                         || peek().is(Type.IDENT) && peek(1).is(Type.EQ) && peek(2).is(Type.LPAREN)) {
                     // [p = (a)-[:T]->(b) WHERE predicate | expression]: a pattern comprehension
                     PathPattern pattern = pathPattern();
@@ -834,7 +867,47 @@ public final class CypherParser {
                 advance();
                 return caseExpression(pos);
             }
-            if ((t.isWord("EXISTS") || t.isWord("COUNT") || t.isWord("COLLECT")) && peek(1).is(Type.LBRACE)) {
+            if (t.isWord("EXISTS") && peek(1).is(Type.LBRACE)) {
+                // EXISTS { [MATCH] pattern [WHERE predicate] [RETURN items] }: one pattern, the items unread (a
+                // row's existence is what counts)
+                advance();
+                advance();
+                if (peek().isWord("OPTIONAL") || peek().isWord("WITH") || peek().isWord("UNWIND")
+                        || peek().isWord("CALL")) {
+                    throw CypherErrors.unsupported("an EXISTS subquery starting with " + peek().text().toUpperCase(
+                            java.util.Locale.ROOT) + " is not supported yet", pos);
+                }
+                matchWord("MATCH");
+                PathPattern pattern = pathPattern();
+                if (peek().is(Type.COMMA)) {
+                    throw CypherErrors.unsupported("an EXISTS subquery over several patterns is not supported yet",
+                            pos);
+                }
+                Expr where = matchWord("WHERE") ? expression() : null;
+                List<Expr> items = new ArrayList<>();
+                if (matchWord("RETURN")) {
+                    matchWord("DISTINCT");
+                    if (!match(Type.STAR)) {
+                        items.add(expression());
+                        if (matchWord("AS")) {
+                            advance();
+                        }
+                        while (match(Type.COMMA)) {
+                            items.add(expression());
+                            if (matchWord("AS")) {
+                                advance();
+                            }
+                        }
+                    }
+                }
+                if (!peek().is(Type.RBRACE)) {
+                    throw CypherErrors.unsupported("an EXISTS subquery with more than one pattern, a WHERE and a RETURN"
+                            + " (a " + peek().text() + " clause) is not supported yet", pos);
+                }
+                advance();
+                return new CypherAst.ExistsSubquery(pattern, where, items, pos);
+            }
+            if ((t.isWord("COUNT") || t.isWord("COLLECT")) && peek(1).is(Type.LBRACE)) {
                 throw CypherErrors.unsupported(t.text().toUpperCase(java.util.Locale.ROOT)
                         + " { ... } subqueries are not supported yet", pos);
             }
