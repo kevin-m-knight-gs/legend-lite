@@ -6911,7 +6911,9 @@ public final class IqDialect implements InputDialect {
     @Override
     public Tx between(SqlAst.Between b, SqlToPure.At at) {
         boolean iq = engine == Engine.IQ;
-        if (iq && (b.low() instanceof SqlAst.NullLit || b.high() instanceof SqlAst.NullLit)) {
+        boolean lowIsX = IqAggregates.same(b.operand(), b.low()) && constantBound(b.high());
+        boolean highIsX = IqAggregates.same(b.operand(), b.high()) && constantBound(b.low());
+        if (iq && lowIsX == highIsX && (b.low() instanceof SqlAst.NullLit || b.high() instanceof SqlAst.NullLit)) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine a NULL bound leaves every row UNKNOWN
             // (sm NOT BETWEEN NULL AND 5 holds for none), where SQL Anywhere's lets the other bound decide FALSE
             return Tx.condition(new CBoolean(false), new CBoolean(false), true);
@@ -6929,6 +6931,20 @@ public final class IqDialect implements InputDialect {
         boolean xNull = b.operand() instanceof SqlAst.NullLit;
         Tx lowValue = at.tx(b.low());
         Tx highValue = at.tx(b.high());
+        if (iq && lowIsX != highIsX && !xNull) {
+            // IQ island, 2026-10-17 (the differential fuzzer's three rounds; measured on IQ 17.1): under IQ's engine
+            // x BETWEEN x AND c (and BETWEEN c AND x) is x IS NOT NULL AND x <= c -- FALSE, not UNKNOWN, for a NULL x
+            // (NOT (sm BETWEEN sm AND 1) holds there); beside a column bound it stays three-valued
+            Tx other = comparison(lowIsX ? SqlAst.BinaryOp.LE : SqlAst.BinaryOp.GE, x, lowIsX ? highValue : lowValue,
+                    false, (lowIsX ? b.high() : b.low()) instanceof SqlAst.NullLit, null, b.pos());
+            ValueSpecification present = x.nullable() ? SqlToPure.call("isNotEmpty", SqlToPure.valueOf(x))
+                    : new CBoolean(true);
+            ValueSpecification absent = x.nullable() ? SqlToPure.call("isEmpty", SqlToPure.valueOf(x))
+                    : new CBoolean(false);
+            Tx folded = Tx.condition(SqlToPure.call("and", present, other.vs()), SqlToPure.call("or", absent,
+                    other.falseWhen()), other.nullable());
+            return bounded(b.negated() ? SqlToPure.not(folded) : folded, b);
+        }
         Tx low = comparison(SqlAst.BinaryOp.GE, x, lowValue, xNull, b.low() instanceof SqlAst.NullLit, null,
                 b.pos());
         Tx high = comparison(SqlAst.BinaryOp.LE, x, highValue, xNull, b.high() instanceof SqlAst.NullLit, null,
@@ -6950,6 +6966,13 @@ public final class IqDialect implements InputDialect {
         }
         Tx test = Tx.condition(SqlToPure.call("and", low.vs(), high.vs()), fails, low.nullable() || high.nullable());
         return bounded(b.negated() ? SqlToPure.not(test) : test, b);
+    }
+
+    /** A BETWEEN bound IQ folds beside the operand ({@link #between}): a constant (a number, a string, NULL, or a
+     *  CAST of a string). */
+    private static boolean constantBound(SqlAst.Expr e) {
+        return numberLiteral(e) != null || e instanceof SqlAst.StringLit || e instanceof SqlAst.NullLit
+                || e instanceof SqlAst.Cast c && c.operand() instanceof SqlAst.StringLit;
     }
 
     /** {@code x [NOT] IN (v, ...)}: {@code x = v} for each, by IQ's comparison, in three-valued OR -- TRUE where one

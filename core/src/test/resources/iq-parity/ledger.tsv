@@ -1177,6 +1177,12 @@ lite/corpus_gaps/array_agg_in_a_column_no_one_reads@iq17-default	PASS	PASS
 lite/corpus_gaps/a_conversion_before_a_subquery_in_order_by@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_conversion_before_a_subquery_in_an_outer_join@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_row_limit_in_a_derived_table_before_a_conversion@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/between_the_operand_and_a_constant@iq17-default	PASS	PASS
+lite/corpus_gaps/between_a_constant_and_the_operand@iq17-default	PASS	PASS
+lite/corpus_gaps/between_the_operand_and_null@iq17-default	PASS	PASS
+lite/corpus_gaps/between_the_operand_and_a_string@iq17-default	PASS	PASS
+lite/corpus_gaps/between_the_operand_and_a_column@iq17-default	PASS	PASS
+lite/corpus_gaps/between_the_operand_twice@iq17-default	PASS	PASS
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

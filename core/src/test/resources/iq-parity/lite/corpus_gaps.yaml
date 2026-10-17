@@ -2027,3 +2027,24 @@ tests:
   - id: a_row_limit_in_a_derived_table_before_a_conversion
     sql: "SELECT TOP 2 id FROM (SELECT TOP 3 id FROM t ORDER BY id) d WHERE id = 'abc' ORDER BY id"
     profile: iq17-default
+
+  # ---- x BETWEEN x AND c under IQ's engine (IQ island, 2026-10-17; the differential fuzzer's, measured on IQ 17.1):
+  # x IS NOT NULL AND x <= c, FALSE for a NULL x; beside a column bound, three-valued
+  - id: between_the_operand_and_a_constant
+    sql: "SELECT id FROM t WHERE NOT (sm BETWEEN sm AND 1) ORDER BY id"
+    profile: iq17-default
+  - id: between_a_constant_and_the_operand
+    sql: "SELECT id FROM t WHERE NOT (sm BETWEEN -5 AND sm) ORDER BY id"
+    profile: iq17-default
+  - id: between_the_operand_and_null
+    sql: "SELECT id FROM t WHERE NOT (sm BETWEEN sm AND NULL) ORDER BY id"
+    profile: iq17-default
+  - id: between_the_operand_and_a_string
+    sql: "SELECT id, CASE WHEN vc BETWEEN vc AND 'm' THEN 'T' WHEN NOT (vc BETWEEN vc AND 'm') THEN 'F' ELSE 'U' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: between_the_operand_and_a_column
+    sql: "SELECT id FROM t WHERE NOT (sm BETWEEN sm AND it) ORDER BY id"
+    profile: iq17-default
+  - id: between_the_operand_twice
+    sql: "SELECT id FROM t WHERE NOT (sm BETWEEN sm AND sm) ORDER BY id"
+    profile: iq17-default
