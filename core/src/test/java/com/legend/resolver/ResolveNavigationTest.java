@@ -5,7 +5,6 @@ import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
 import org.junit.jupiter.api.AfterAll;
@@ -88,24 +87,13 @@ class ResolveNavigationTest {
     }
 
     private static String sqlOf(String query) {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        return TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
+        return ResolvedSql.of(MODEL, query);
     }
 
     /** Driver-style resolution (runtime as API argument — the corpus's
      * no-from() shape; scalar-collection roots cannot spell from()). */
     private static String sqlOfDriver(String query) {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs)
-                .resolve(body, "m::RT");
-        return TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
+        return ResolvedSql.of(MODEL, query, "m::RT");
     }
 
     private List<String> exec(String sql) throws SQLException {
@@ -298,11 +286,7 @@ class ResolveNavigationTest {
             """;
 
     private static String sqlOfA7(String query) {
-        var ctx = Compiler.compileModel(A7_MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        return TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(
-                new StoreResolver(ctx, specs).resolve(body, null)));
+        return ResolvedSql.of(A7_MODEL, query);
     }
 
     @Test
