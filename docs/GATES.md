@@ -9932,6 +9932,23 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the forty-fourth landing — open and closed graphs
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's Phase A, W1); the record is the study's §12.45. The
+graph profile's fifth stereotype, `Open`: a class of an OPEN graph (GQL's, one no graph type constrains); every
+class open, the graph is open and the island reads it as Neo4j does (a label or a relationship type the model has
+nothing of as no rows, a hop no way of the class reads likewise, a property no class declares as null); a closed
+graph (no stereotype) keeps C4's compile errors. The parity harness's graphs are open.
+
+1. **What lands.** `MATCH (n:Nope) RETURN n`, `OPTIONAL MATCH (n:Nope) RETURN n IS NULL`, `MATCH (a:A)
+   MATCH (a)-[:T]->(x:Nope)`, `MATCH (a:A)-[:NOPE]->(b)`, `MATCH (a:A)-[:U]->(x)` where only `B` has `U`,
+   `RETURN n.nope`, `WHERE n.nope = 'a'`, `(n {nope: 'a'})`, `coalesce(n.nope, n.name)`, `[(a)-[:NOPE]->(x) |
+   x.name]`, `exists((a)-[:T]->(:Nope))`.
+2. **The ledger.** (ledger: pending)
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:guardrails`,
+   `//core:core_tests_integration` green; a unit test pins the open readings beside the closed pins.
+4. **Decided.** `docs/SEMANTICS_REGISTER.md` S58 rewritten as the two readings.
+
 ## 2026-10-17 — `#Cypher{...}#`: the forty-third landing — a MATCH after rows whose pattern is new
 
 Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.44. The translator alone: a MATCH

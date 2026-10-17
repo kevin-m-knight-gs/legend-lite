@@ -648,7 +648,8 @@ for a relationship with properties, and where does the model say so?
    }
    ```
 
-   Four stereotypes and no tags: nothing in the declaration is a string. A model that wants edge classes depends on
+   Four stereotypes (five since 2026-10-17: `Open`, a class of an open graph, §12.45) and no tags: nothing in the
+   declaration is a string. A model that wants edge classes depends on
    that project (through the depot, as on any library) and writes the edge in either of Legend's two forms of a
    link. **The idiomatic form, an association class decomposed as Legend can say it** (the user, 2026-10-15: "should
    that be moved to association and only the property exist on the class?"): the class holds the relationship's
@@ -3256,3 +3257,53 @@ agree by the type error, not by a refusal).
 
 11 lite cases in `lite/rows.yaml`, each judged by Neo4j (one refused by name, as Neo4j errors). The TCK: 4 more
 scenarios pass (With4, Comparison1).
+
+### 12.45 Open and closed graphs, 2026-10-17
+
+- **The frame (the user, 2026-10-17: "look at the GQL spec, seems like they support open and closed graphs, so
+  maybe we do the same"):** GQL (ISO/IEC 39075) calls a graph CLOSED when a graph type constrains it (it holds only
+  the node and edge types the type declares) and OPEN when none does (any label, any property). Neo4j's graphs
+  are open. A lite model IS a graph type, so a lite graph was closed by construction and C4 (S58) was the closed
+  reading: a label, a property or a relationship type the model lacks is a compile error. The leg adds the open
+  reading as a declaration of the graph, not a switch on the engine: a class carrying `<<graph::graph.Open>>`
+  (the profile's fifth stereotype, `projects/graph`) is a type of an open graph, and when every class of the model
+  carries it the graph is open (`CypherIslands.Openness`, read once per model; `CypherToPure.Model.open()`). The
+  parity harness marks every class it generates open, because a Neo4j fixture is an open graph; a model in a
+  user's source is closed unless it says otherwise, so the typo guard (`p.nmae`) stays the default and the TCK
+  certifies the open reading of an open graph, which is what it measures on Neo4j.
+- **A name the model has nothing of (`MATCH (n:Nope)`, `MATCH (a:A)-[:NOPE]->(b)`):** read before the MATCH's
+  pattern is (`unknownName`): a label naming no class, or a relationship type that is no edge class's type and no
+  class's property holding a class, makes the MATCH match nothing (`noneOf`): as the first clause, §12.36's no-row
+  form (an OPTIONAL MATCH: one null row); after a graph or rows, the rows in hand limited to none (an OPTIONAL
+  MATCH: kept), the pattern's own variables absent and a bound one kept as the pattern's anchor; the property maps
+  and the WHERE read for their static errors (`Variable q not defined` is Neo4j's error too). A pattern
+  comprehension, a pattern predicate or `EXISTS` over such a name matches nothing (`Hopped` with no way); `n:Nope`
+  was already false (the labels list never contains it).
+- **A typed hop no way of the class reads (`MATCH (a:A)-[:U]->(x)` where only `B` has `U`):** `hop` answers no way
+  (null) where the closed graph threw C4, and the labelled pattern's `extend` throws `NoWay`, which `match` reads
+  as the same nothing. The arms machinery (§12.17, §12.35) already dropped such ways; an OPTIONAL MATCH already
+  bound an absent node.
+- **A property no class declares (`n.nope`):** Neo4j's null, the untyped null the island already carried for an
+  absent node's property, at each of the four reads (a bound node's property navigated from the root, a carried
+  node's column, a carried relationship's, an ORDER BY key with SKIP or LIMIT, which orders nothing); a comparison
+  folds it as the known null (`WHERE n.nope = 'a'` keeps no row, `n.nope IS NULL` every row, `{nope: 'a'}` none),
+  `coalesce` passes it, arithmetic over it is null.
+- **What stays as it was:** the closed graph's three errors, pinned by name; a model inconsistency (a label naming
+  an edge class, a type naming both an edge class and a property) is an error in both readings.
+- **Found on the way, fixed (the open reading reaches eight TCK scenarios C4 refused before):** a UNION whose part
+  answers an untyped null (`RETURN n.nope`, `RETURN null`) re-projects that column as the other part's typed null,
+  so the parts concatenate; `WITH me.age + you.age, count(*) AS cnt` is Neo4j's static error (`Expression in WITH
+  must be aliased (use AS)`), which the island now raises (WithOrderBy4); an incoming (or undirected) typed hop
+  to a label-less node (`(advertiser)-->(out)-->(red)<-[:AA_HAS_VALUE]-(a)`, MatchWhere2, WithWhere2) reads the
+  one class of the model declaring the type as a property holding the node before's class, as §12.17's arms
+  decide a label-less root's ways (several such classes refused by name), where the closed graph raised C4 for the
+  wrong reason; and an expression around aggregates may read a grouping key, Neo4j's rule that any other item of
+  the projection is one (`RETURN me.age, me.age + count(you.age)`, `WITH age, age + count(you.age) AS agg`,
+  `{foo: a.name = 'Andres', kids: collect(child.name)}` beside `a.name`: Return6, With6), the key's spelling read
+  as its column after the grouping (`KeyedScope`); a value of the row that is no item stays the implicit-grouping
+  error in Neo4j's words. The `NoWay` sentinel is a null graph from `pattern()`, not an exception: the
+  catch-that-returns-a-value guardrail (`ErrorShapeGuardrailTest`) holds at its pin.
+
+#### 12.45.1 The ledger
+
+(ledger: pending)

@@ -57,7 +57,7 @@ The sum exceeds 849 because W11's comprehension cases are also W3's, and W2 unlo
 
 ## 2. The workstreams
 
-### W1. Schema-optional reads (S58 overturned)
+### W1. Schema-optional reads (S58 overturned) — LANDED as open graphs, 2026-10-17 (the study's §12.45)
 
 A property declared by no candidate class of a pattern variable reads the known null (the island already reads a
 property an arm's class lacks as the known null, §12.40.2: the same mechanism, one step wider). `MATCH (n:Nope)`

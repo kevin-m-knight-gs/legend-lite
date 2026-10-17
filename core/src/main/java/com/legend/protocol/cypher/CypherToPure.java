@@ -597,6 +597,25 @@ public final class CypherToPure {
         return statementRows(s).vs();
     }
 
+    /** {@code rows} with the column at {@code at}, an untyped null, re-projected as the null of {@code kind}: every
+     *  column read as itself, that one spelled typed. */
+    private static Rows retyped(Rows rows, int at, Kind kind) {
+        List<ColSpec> specs = new ArrayList<>();
+        List<Col> columns = new ArrayList<>();
+        for (int i = 0; i < rows.columns().size(); i++) {
+            Col c = rows.columns().get(i);
+            if (i == at) {
+                specs.add(new ColSpec(c.name(), lambda("r", SqlToPure.nullOf(kind).vs()), null, null));
+                columns.add(new Col(c.name(), kind, true, c.carried(), c.detail()));
+            } else {
+                specs.add(new ColSpec(c.name(), lambda("r", new AppliedProperty(new Variable("r"), c.name())), null,
+                        null));
+                columns.add(c);
+            }
+        }
+        return new Rows(call("project", rows.vs(), new ColSpecArray(specs)), columns);
+    }
+
     /** A statement's rows: its parts' concatenated when it is a UNION (the study's §12.20) -- each part a query of
      *  its own (its own fresh names), the parts' columns united by position (Cypher unites by name and requires the
      *  same names in the same order), DISTINCT unless UNION ALL. */
@@ -645,6 +664,13 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("a UNION whose parts type the column " + l.name()
                             + " differently (" + cypherType(l.kind()) + " and " + cypherType(r.kind())
                             + ") is not supported yet", java.util.Objects.requireNonNull(unionPos));
+                }
+                // a part whose column is an untyped null (a property no class declares over an open graph, the
+                // study's §12.45; `null` itself) takes the other part's type, so the parts concatenate
+                if (l.kind() == Kind.NULL && r.kind() != Kind.NULL) {
+                    out = retyped(out, i, r.kind());
+                } else if (r.kind() == Kind.NULL && l.kind() != Kind.NULL) {
+                    rows = retyped(rows, i, l.kind());
                 }
             }
             out = new Rows(call("concatenate", out.vs(), rows.vs()), out.columns());
@@ -718,10 +744,110 @@ public final class CypherToPure {
     // ------------------------------------------------------------------ MATCH
 
     private State match(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        if (open) {
+            // an open graph (the study's §12.45): a name the model lacks reads no rows; a typed hop no way of the
+            // class reads is a null graph from pattern(), read as the same nothing where the pattern is read
+            State none = unknownName(m, state);
+            if (none != null) {
+                return none;
+            }
+        }
         if (m.optional()) {
             return optionalMatch(m, state);
         }
         return matchPattern(m, state);
+    }
+
+    /** A MATCH of an OPEN graph naming a label or a relationship type the model has nothing of (the study's
+     *  §12.45; Neo4j's: no node carries the label, no relationship has the type): {@link #noneOf}; null when every
+     *  name is the model's. */
+    private @com.legend.base.Nullable State unknownName(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        boolean unknown = false;
+        for (PathPattern p : m.patterns()) {
+            for (PatternElement e : p.elements()) {
+                if (e instanceof NodePattern n) {
+                    for (String label : n.labels()) {
+                        unknown |= model.classesOf(label).isEmpty();
+                    }
+                } else {
+                    for (String type : ((RelPattern) e).types()) {
+                        unknown |= !typeKnown(type);
+                    }
+                }
+            }
+        }
+        return unknown ? noneOf(m, state) : null;
+    }
+
+    /** Whether a label of {@code n} names no class of the model. */
+    private boolean unknownLabel(NodePattern n) {
+        for (String label : n.labels()) {
+            if (model.classesOf(label).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the model has a relationship of {@code type}: an edge class of that type, or a class declaring a
+     *  property of that name holding a class. */
+    private boolean typeKnown(String type) {
+        if (!edgesOf(type).isEmpty()) {
+            return true;
+        }
+        for (String cls : model.classes()) {
+            Property p = property(cls, type);
+            if (p != null && p.classTyped()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A MATCH of an OPEN graph that matches nothing (the study's §12.45): as the first clause, no row (an OPTIONAL
+     *  MATCH: one null row); after rows or a graph, the rows in hand limited to none (an OPTIONAL MATCH: kept), the
+     *  pattern's own variables absent and a bound one kept; the property maps and the WHERE read for their static
+     *  errors. */
+    private Rows noneOf(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        String pathVar = null;
+        List<PatternElement> elements = new ArrayList<>();
+        for (PathPattern p : m.patterns()) {
+            if (p.variable() != null) {
+                if (pathVar != null) {
+                    throw CypherErrors.unsupported("two named paths in a MATCH that matches nothing of the open graph"
+                            + " are not supported yet", p.pos());
+                }
+                pathVar = p.variable();
+            }
+            elements.addAll(p.elements());
+        }
+        if (state == null) {
+            return noWay(elements, pathVar, m.where(), null, m.optional(), m.pos());
+        }
+        Rows rows;
+        if (state instanceof Rows r) {
+            rows = r;
+        } else {
+            List<Graph> bases = state instanceof Graph g ? List.of(g) : ((Arms) state).arms();
+            rows = materializeArms(bases, new ArrayList<>(bases.get(0).bindings().keySet()), m.pos());
+        }
+        Set<String> bound = new HashSet<>();
+        rows.columns().forEach(c -> bound.add(c.name()));
+        List<PatternElement> fresh = new ArrayList<>();
+        for (PatternElement e : elements) {
+            // (a variable the rows hold keeps its value: it is the pattern's anchor, not one of its findings)
+            if (e instanceof NodePattern n && n.variable() != null && bound.contains(n.variable())) {
+                fresh.add(new NodePattern(null, n.labels(), n.properties(), n.pos()));
+            } else if (e instanceof RelPattern r && r.variable() != null && bound.contains(r.variable())) {
+                fresh.add(new RelPattern(null, r.types(), r.direction(), r.properties(), r.lengthRange(), r.pos()));
+            } else {
+                fresh.add(e);
+            }
+        }
+        Rows base = m.optional() ? rows : new Rows(call("limit", rows.vs(), new CInteger(0L)), rows.columns());
+        Rows out = absentPattern(base, fresh, 0, pathVar, m.pos());
+        readStatically(elements, m.where(), new RowScope(out));
+        return out;
     }
 
     /** A MATCH's pattern read as required; {@code m.optional()} only when {@link #optionalMatch} reads an OPTIONAL
@@ -789,6 +915,10 @@ public final class CypherToPure {
                         + " supported yet", m.pos());
             }
             g = pattern(named, g);
+            if (g == null) {
+                // (an open graph, the study's §12.45: a typed hop no way of the class reads)
+                return noneOf(m, state);
+            }
             if (named.variable() != null) {
                 recordPath(g, named);
             }
@@ -889,6 +1019,10 @@ public final class CypherToPure {
             typesInThisMatch.clear();
             // (the property maps lenient across every class the arms read, as the WHERE below is)
             Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
+            if (g == null) {
+                // (an arm is assigned from the ways the model has: none has no way; kept for the type's sake)
+                continue;
+            }
             if (p.variable() != null) {
                 recordPath(g, new PathPattern(p.variable(), arm, p.pos()));
             }
@@ -1078,6 +1212,10 @@ public final class CypherToPure {
             Chain chain = armChains.get(a);
             typesInThisMatch.clear();
             Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
+            if (g == null) {
+                // (an arm is assigned from the ways the model has: none has no way; kept for the type's sake)
+                continue;
+            }
             if (p.variable() != null) {
                 recordPath(g, new PathPattern(p.variable(), arm, p.pos()));
             }
@@ -1282,6 +1420,10 @@ public final class CypherToPure {
                         base.variableClasses(), new LinkedHashMap<>(base.paths()),
                         new LinkedHashMap<>(base.forward()), new LinkedHashMap<>(base.lists()));
                 Graph g = pattern(new PathPattern(null, arm, p.pos()), copy);
+                if (g == null) {
+                    // (an arm is assigned from the ways the model has: none has no way; kept for the type's sake)
+                    continue;
+                }
                 if (m.where() != null) {
                     g.deferredWhere().add(m.where());
                 }
@@ -2081,14 +2223,17 @@ public final class CypherToPure {
 
     /** One path pattern read into the graph: the first pattern of a query chooses the root; a later one must start
      *  or end at a node already bound (else it is a cartesian product, which PR1 does not read). */
-    private Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g) {
+    private @com.legend.base.Nullable Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g) {
         return pattern(p, g, List.of());
     }
 
     /** {@link #pattern(PathPattern, Graph)} with, for a first pattern, the classes its property maps are lenient
      *  across ({@code candidates}: an arm's every class, C4 lenient across the classes the arms read, as its
-     *  WHERE is; a property declared on none of them stays an error). */
-    private Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g, List<String> candidates) {
+     *  WHERE is; a property declared on none of them stays an error). Null when a typed hop has no way of the
+     *  class it leaves: over an OPEN graph only (the study's §12.45; a closed graph's C4 error), the pattern
+     *  matches nothing. */
+    private @com.legend.base.Nullable Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g,
+            List<String> candidates) {
         List<PatternElement> elements = p.elements();
         for (PatternElement e : elements) {
             if (e instanceof RelPattern r && r.lengthRange() != null) {
@@ -2116,14 +2261,13 @@ public final class CypherToPure {
         NodePattern start = (NodePattern) ordered.get(0);
         Binding bound = java.util.Objects.requireNonNull(g.bindings().get(start.variable()));
         nodeConstraints(start, bound, g);
-        extend(ordered, 0, bound, g, !firstBound);
-        return g;
+        return extend(ordered, 0, bound, g, !firstBound) ? g : null;
     }
 
     /** The first pattern: its root is the node from which every hop navigates to at most one node. The property
      *  maps are lenient across {@code candidates} (a class without the property, where one of them declares it,
      *  reads null: an arm's far node, or a root tried and passed over). */
-    private Graph rooted(PathPattern p, List<String> candidates) {
+    private @com.legend.base.Nullable Graph rooted(PathPattern p, List<String> candidates) {
         List<PatternElement> elements = p.elements();
         for (int rootAt = 0; rootAt < elements.size(); rootAt += 2) {
             NodePattern root = (NodePattern) elements.get(rootAt);
@@ -2138,8 +2282,10 @@ public final class CypherToPure {
             nodeConstraints(root, rootBinding, g);
             // forward from the root, then backward, each hop to-one from the node before it
             if (navigable(elements, rootAt, true) && navigable(elements, rootAt, false)) {
-                extend(elements, rootAt, rootBinding, g, false);
-                extend(reversed(elements), elements.size() - 1 - rootAt, rootBinding, g, true);
+                if (!extend(elements, rootAt, rootBinding, g, false)
+                        || !extend(reversed(elements), elements.size() - 1 - rootAt, rootBinding, g, true)) {
+                    return null;
+                }
                 return g;
             }
         }
@@ -2160,8 +2306,7 @@ public final class CypherToPure {
         Binding rootBinding = new Binding(true, rootClass, List.of(), false);
         bind(g, root.variable(), rootBinding, root.pos());
         nodeConstraints(root, rootBinding, g);
-        extend(elements, 0, rootBinding, g, false);
-        return g;
+        return extend(elements, 0, rootBinding, g, false) ? g : null;
     }
 
     /** The class of a label-less start node, read from its relationship's type: the one class of the model
@@ -2244,7 +2389,7 @@ public final class CypherToPure {
     }
 
     /** Binds the nodes after {@code at} in {@code ordered}, each navigated from the one before it. */
-    private void extend(List<PatternElement> ordered, int at, Binding from, Graph g, boolean reversed) {
+    private boolean extend(List<PatternElement> ordered, int at, Binding from, Graph g, boolean reversed) {
         Binding current = from;
         String currentVar = ((NodePattern) ordered.get(at)).variable();
         while (at + 2 < ordered.size()) {
@@ -2252,7 +2397,12 @@ public final class CypherToPure {
             NodePattern next = (NodePattern) ordered.get(at + 2);
             refuseHopPastEdge(currentVar, rel.pos());
             String cls = java.util.Objects.requireNonNull(current.classPath());
-            Hop hop = java.util.Objects.requireNonNull(hop(cls, rel, next, true, g.fanning()));
+            Hop hop = hop(cls, rel, next, true, g.fanning());
+            if (hop == null) {
+                // (an open graph only, the study's §12.45: a closed one refused inside hop) no way: the pattern
+                // matches nothing, which the caller reads
+                return false;
+            }
             String nextVar = next.variable();
             if ((g.fanning() || hop.edge() != null) && nextVar == null) {
                 // every node of a fanning graph is carried by name when the graph is materialized; a node reached
@@ -2307,6 +2457,7 @@ public final class CypherToPure {
             currentVar = nextVar;
             at += 2;
         }
+        return true;
     }
 
     /** A hop: the property navigated from the node before it, the class it reaches, whether it may find nothing,
@@ -2397,7 +2548,35 @@ public final class CypherToPure {
                     + ": an edge is reached by its type, never by an end's name (the study's §5.6; the graph is the"
                     + " model)", rel.pos());
         }
+        if (forward == null && backward == null && toClass == null && rel.direction() != CypherAst.Direction.OUT) {
+            // an incoming (or undirected) hop to a label-less node: the one class of the model declaring the type as
+            // a property holding a class the node before is of (as the arms of a label-less root are decided, the
+            // study's §12.17); several such classes are refused by name
+            String declaring = null;
+            Property declared = null;
+            int found = 0;
+            for (String other : model.classes()) {
+                Property back = property(other, type);
+                if (back != null && back.classTyped() && model.isSubclass(from, back.type())) {
+                    found++;
+                    declaring = other;
+                    declared = back;
+                }
+            }
+            if (found > 1) {
+                throw CypherErrors.unsupported("an incoming relationship " + type + " to a label-less node, declared"
+                        + " by " + found + " classes of the model, is not supported yet: label the node", to.pos());
+            }
+            if (found == 1) {
+                toClass = declaring;
+                backward = declared;
+            }
+        }
         if (forward == null && backward == null) {
+            if (open) {
+                // (an open graph, the study's §12.45: no relationship of the type from the class, no way)
+                return null;
+            }
             throw CypherErrors.invalid("the relationship type " + type + " names no property or association end of "
                     + from + (toClass == null ? "" : " or " + toClass) + " holding a class"
                     + " (the graph is the model: a relationship type is a property's name)", rel.pos());
@@ -2499,6 +2678,10 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("the label " + toClass + " is not the class the edge "
                         + String.join(", ", narrowed) + " of type " + type + " reaches nor one of its superclasses: a"
                         + " label narrowing an edge's end is not supported yet", to.pos());
+            }
+            if (open) {
+                // (an open graph, the study's §12.45: the edge class joins other classes, no way from this one)
+                return null;
             }
             throw CypherErrors.invalid("the relationship type " + type + " names the edge class "
                     + edges.get(0).classPath() + " from " + edges.get(0).from().classPath() + " to "
@@ -2630,6 +2813,12 @@ public final class CypherToPure {
     // ------------------------------------------------------------------ WITH and RETURN
 
     private State with(CypherAst.With w, @com.legend.base.Nullable State state) {
+        for (Item item : w.items()) {
+            if (item.expr() != null && item.alias() == null && !(item.expr() instanceof CypherAst.Var)) {
+                // Neo4j's static error (WithOrderBy4): a WITH names what it projects
+                throw CypherErrors.invalid("Expression in WITH must be aliased (use AS)", item.pos());
+            }
+        }
         if (state == null) {
             // WITH 1 AS x ...: a query over no pattern starts from one row
             state = oneRow();
@@ -3029,6 +3218,10 @@ public final class CypherToPure {
                 // a carried node's property: its own column is the key (the node is carried under its name)
                 NodeProp np = nodes.get(pv.name()).shape().props().get(pr.name());
                 if (np == null) {
+                    if (open) {
+                        // an open graph (the study's §12.45): null on every row, which orders nothing
+                        continue;
+                    }
                     throw CypherErrors.invalid("the node " + pv.name() + " has no property " + pr.name() + " (the"
                             + " graph is the model: a property no class declares is an error, not null)", o.pos());
                 }
@@ -3193,6 +3386,16 @@ public final class CypherToPure {
     private List<Output> outputs(List<Item> items, Scope scope, Set<String> names, Map<String, NodeCarry> nodes,
             Map<String, String> aggregateTexts, boolean returning) {
         List<Output> outputs = new ArrayList<>();
+        // the grouping keys' spellings (an item that is no aggregate and holds none) to their output names: an
+        // expression around aggregates may read them (Neo4j's: any other item of the projection is a grouping key;
+        // Return6, With6)
+        Map<String, String> keyTexts = new LinkedHashMap<>();
+        for (Item item : items) {
+            Expr e = item.expr();
+            if (e != null && !isAggregate(e) && !containsAggregate(e)) {
+                keyTexts.put(text(e), item.alias() != null ? item.alias() : item.text());
+            }
+        }
         for (Item item : items) {
             Expr e = item.expr();
             if (e == null) {
@@ -3214,15 +3417,13 @@ public final class CypherToPure {
                 outputs.add(new Output(name, null, aggregate(e, scope, names)));
             } else if (containsAggregate(e)) {
                 // an expression around aggregates (the study's §12.24): each aggregate a hidden output of the
-                // grouping, the expression computed over them after it; its other parts are constants and
-                // parameters (a value of the row among them is Neo4j's implicit grouping key, an error)
-                for (CypherAst.Var v : variablesIn(e, false)) {
-                    throw CypherErrors.invalid("Aggregation column contains implicit grouping expressions (" + v.name()
-                            + " in " + item.text() + "): extract them into a preceding WITH", item.pos());
-                }
+                // grouping, the expression computed over them after it; its other parts are constants,
+                // parameters and the grouping keys, read as their columns after the grouping (any other value of
+                // the row is Neo4j's implicit grouping key, an error)
+                refuseImplicitGrouping(e, keyTexts, item);
                 List<Expr> inner = new ArrayList<>();
                 aggregatesIn(e, inner);
-                Map<String, String> aggregateColumns = new LinkedHashMap<>();
+                Map<String, String> aggregateColumns = new LinkedHashMap<>(keyTexts);
                 List<Output> hiddenAggregates = new ArrayList<>();
                 for (Expr a : inner) {
                     if (!aggregateColumns.containsKey(text(a))) {
@@ -3351,6 +3552,23 @@ public final class CypherToPure {
             }
         }
         return false;
+    }
+
+    /** An expression around aggregates may read a grouping key (another item's expression, by its spelling) and
+     *  its aggregates; any other value of the row (a variable outside both, a list predicate's or comprehension's
+     *  own left aside) is Neo4j's implicit grouping key, refused in Neo4j's words. */
+    private static void refuseImplicitGrouping(Expr e, Map<String, String> keyTexts, Item item) {
+        if (keyTexts.containsKey(text(e)) || isAggregate(e) || e instanceof CypherAst.Quantifier
+                || e instanceof CypherAst.ListComprehension) {
+            return;
+        }
+        if (e instanceof CypherAst.Var v) {
+            throw CypherErrors.invalid("Aggregation column contains implicit grouping expressions (" + v.name()
+                    + " in " + item.text() + "): extract them into a preceding WITH", item.pos());
+        }
+        for (Expr child : children(e)) {
+            refuseImplicitGrouping(child, keyTexts, item);
+        }
     }
 
     /** The aggregates inside {@code e}, outermost (one inside another is Neo4j's error, raised where the aggregate
@@ -4175,6 +4393,10 @@ public final class CypherToPure {
                         return SqlToPure.nullOf(kindOf(elsewhere.type(), name, pos));
                     }
                 }
+                if (open) {
+                    // an open graph (the study's §12.45): a property no class declares is Neo4j's null
+                    return nullValue().tx();
+                }
                 throw CypherErrors.invalid("the " + (b.node() ? "class " : "edge class ") + cls + " has no property "
                         + name + " (the graph is the model: a property a class does not declare is an error, not"
                         + " null)", pos);
@@ -4501,6 +4723,10 @@ public final class CypherToPure {
                 }
                 NodeProp np = shape.props().get(p.name());
                 if (np == null) {
+                    if (open) {
+                        // an open graph (the study's §12.45): a property no class declares is Neo4j's null
+                        return nullValue();
+                    }
                     throw CypherErrors.invalid("the node " + v.name() + " has no property " + p.name() + " (the"
                             + " graph is the model: a property no class declares is an error, not null)", p.pos());
                 }
@@ -4517,7 +4743,7 @@ public final class CypherToPure {
                 // lacks); of one an OPTIONAL MATCH never found, null too
                 NodeProp np = rel.props().get(p.name());
                 if (np == null) {
-                    if (!rel.props().isEmpty()) {
+                    if (!rel.props().isEmpty() && !open) {
                         throw CypherErrors.invalid("the relationship " + v.name() + " has no property " + p.name()
                                 + " (the graph is the model: a property its edge class does not declare is an error,"
                                 + " not null)", p.pos());
@@ -6878,6 +7104,11 @@ public final class CypherToPure {
         }
         refuseHopPastEdge(start.variable(), rel.pos());
         String cls = java.util.Objects.requireNonNull(from.classPath());
+        if (open && (unknownLabel(start) || unknownLabel(end) || rel.types().stream().anyMatch(t -> !typeKnown(t)))) {
+            // an open graph (the study's §12.45): a label or a type the model has nothing of matches nothing
+            return new Hopped(gs, java.util.Objects.requireNonNull(start.variable()), from, List.of(),
+                    end.variable(), rel.variable(), this::freshName);
+        }
         String startLabel = labelClass(start);
         if (startLabel != null && !model.isSubclass(cls, startLabel)) {
             if (model.isSubclass(startLabel, cls)) {

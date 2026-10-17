@@ -937,6 +937,80 @@ class CypherToPureTest {
     // ------------------------------------------------------------------ the model is the schema
 
     @Test
+    void anOpenGraphReadsAnUnknownNameAsNeo4jDoes() {
+        // the study's §12.45: over an OPEN graph (every class <<graph.Open>>) a label no class has reads no rows (the
+        // closed graph's C4 error): as the first clause, the no-row TDS, p an absent node, its property null
+        String label = open("MATCH (p:Nobody) RETURN p.name AS n");
+        assertTrue(label.contains("->cast(@String)->flatten(") && !label.contains(".all()")
+                && label.contains("n:r|[]"), label);
+        // an OPTIONAL MATCH as the first clause: one null row
+        String optional = open("OPTIONAL MATCH (p:Nobody) RETURN p.name AS n");
+        assertTrue(optional.startsWith("#TDS{") && optional.contains("n:r|[]"), optional);
+        // a property no class declares is null
+        String property = open("MATCH (p:Person) RETURN p.nam AS x");
+        assertTrue(property.contains("demo::Person.all()") && property.contains("x:p|[]"), property);
+        // a relationship type the model has nothing of: no rows
+        String type = open("MATCH (p:Person)-[:boss]->(q) RETURN q.name AS n");
+        assertTrue(type.contains("->cast(@String)->flatten(") && !type.contains(".all()"), type);
+        // a type the model declares, but no way of it from the class (firm is a Person's): no rows too
+        String noWay = open("MATCH (f:Firm)-[:firm]->(x) RETURN x.name AS n");
+        assertTrue(noWay.contains("->cast(@String)->flatten(") && !noWay.contains(".all()"), noWay);
+        // after a graph: the rows in hand limited to none (an OPTIONAL MATCH keeps them), x absent
+        String after = open("MATCH (f:Firm) MATCH (f)-[:nothing]->(x:Person) RETURN f.legalName AS l, x.name AS n");
+        assertTrue(after.contains("demo::Firm.all()") && after.contains("->limit(0)") && after.contains("n:r|[]"),
+                after);
+        String afterOptional = open("MATCH (f:Firm) OPTIONAL MATCH (f)-[:nothing]->(x:Person) RETURN f.legalName AS l,"
+                + " x.name AS n");
+        assertTrue(afterOptional.contains("demo::Firm.all()") && !afterOptional.contains("->limit(0)")
+                && afterOptional.contains("n:r|[]"), afterOptional);
+        // after rows: likewise, the rows' columns kept
+        String afterRows = open("MATCH (p:Person) WITH p.name AS n MATCH (q:Nobody) RETURN n, q.name AS m");
+        assertTrue(afterRows.contains("demo::Person.all()") && afterRows.contains("->limit(0)")
+                && afterRows.contains("m:r|[]"), afterRows);
+        // a pattern comprehension or predicate over a name the model lacks matches nothing
+        String comprehension = open("MATCH (p:Person) RETURN [(p)-[:nothing]->(x) | x.name] AS l");
+        assertTrue(comprehension.contains("demo::Person.all()"), comprehension);
+        String predicate = open("MATCH (p:Person) WHERE (p)-[:nothing]->(:Nobody) RETURN p.name AS n");
+        assertTrue(predicate.contains("demo::Person.all()"), predicate);
+        // a WHERE over an undeclared property: null, which filters every row
+        String where = open("MATCH (p:Person) WHERE p.nam = 'x' RETURN p.name AS n");
+        assertTrue(where.contains("demo::Person.all()"), where);
+        // the static errors stay: a variable not defined is Neo4j's error too
+        assertEquals(SqlTranslationException.Kind.INVALID,
+                openRefusal("MATCH (p:Nobody) RETURN q.name AS n").kind());
+        // a UNION whose part answers an untyped null takes the other part's type (the parts concatenate)
+        String union = open("MATCH (p:Person) RETURN p.name AS n UNION ALL MATCH (p:Nobody) RETURN p.name AS n");
+        assertTrue(union.contains("->concatenate(") && union.contains("n:r|[]->cast(@String)"), union);
+        // absent nodes carried through a WITH, each its own column
+        String carried = open("MATCH (p:Nobody)-[:firm]->(q) WITH p, q RETURN p.name AS n, q.name AS m");
+        assertTrue(carried.contains("n:r|[]") && carried.contains("m:r|[]"), carried);
+    }
+
+    @Test
+    void anIncomingHopToALabelLessNodeReadsTheOneClassDeclaringTheType() {
+        // Person declares firm: Firm, so (f:Firm)<-[:firm]-(p) reads p as a Person through Firm's inverse end
+        String p = pure("MATCH (f:Firm)<-[:firm]-(p) RETURN f.legalName AS l, p.name AS n");
+        assertTrue(p.contains("demo::Firm.all()") && p.contains("employees"), p);
+    }
+
+    @Test
+    void anExpressionInWithMustBeAliased() {
+        invalid("MATCH (p:Person) WITH p.name, count(*) AS c RETURN c", "Expression in WITH must be aliased (use AS)");
+        invalid("MATCH (p:Person) WITH p.name + 'x' RETURN 1 AS one", "Expression in WITH must be aliased");
+    }
+
+    @Test
+    void anExpressionAroundAggregatesMayReadAGroupingKey() {
+        // Neo4j's rule (Return6, With6): another item of the projection is a grouping key, read after the grouping
+        String keyed = pure("MATCH (p:Person) RETURN p.age, p.age + count(*) AS s");
+        assertTrue(keyed.contains("->groupBy(") && keyed.contains("'p.age'"), keyed);
+        String projected = pure("MATCH (p:Person) WITH p.age AS age, p WITH age, age + count(p.name) AS agg RETURN *");
+        assertTrue(projected.contains("->groupBy(") && projected.contains("agg"), projected);
+        // a value of the row that is no item stays Neo4j's implicit-grouping error
+        invalid("MATCH (p:Person) RETURN p.name, p.age + count(*)", "implicit grouping expressions");
+    }
+
+    @Test
     void anUnknownLabelPropertyOrRelationshipIsAnError() {
         invalid("MATCH (p:Nobody) RETURN p.name", "the label Nobody names no class");
         invalid("MATCH (p:Person) RETURN p.nam", "the class demo::Person has no property nam");

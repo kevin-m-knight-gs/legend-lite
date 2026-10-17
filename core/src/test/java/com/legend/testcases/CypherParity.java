@@ -443,8 +443,11 @@ public final class CypherParity {
                     : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
         }
         if (e instanceof com.legend.compiler.spec.TypeInferenceException) {
-            // C4 (docs/SEMANTICS_REGISTER.md S58): a label, property or relationship type the model does not declare
-            // is lite's compile error where Neo4j answers no rows or null -- a decided refusal, by name
+            // C4 (docs/SEMANTICS_REGISTER.md S58): over a CLOSED graph a label, property or relationship type the
+            // model does not declare is lite's compile error where Neo4j answers no rows or null -- a decided
+            // refusal, by name. The harness's graphs are OPEN (every class <<graph::graph.Open>>, the study's
+            // §12.45), so the lanes read Neo4j's answers; the classification stays for a reading the open graph
+            // does not cover yet
             boolean c4 = String.valueOf(e.getMessage()).contains("the graph is the model");
             return a.error() != null ? new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR, oneLine(e))
                     : new SqlParity.Outcome(c4 ? SqlParity.Status.REFUSED : SqlParity.Status.ERROR, oneLine(e));
