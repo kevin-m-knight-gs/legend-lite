@@ -1066,6 +1066,9 @@ lite/corpus_gaps/a_missing_column_before_a_string_that_is_no_number@iq17-default
 lite/corpus_gaps/order_by_exists_inside_a_case_is_refused@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_rejection_through_a_windowed_middle_table@iq17-default	PASS	PASS
 lite/corpus_gaps/a_missing_column_before_a_convert_style_of_no_engine@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_rejection_by_a_join_through_a_windowed_middle_table@iq17-default	PASS	PASS
+lite/corpus_gaps/no_rejection_into_a_grouped_table_under_a_window@iq17-default	PASS	PASS
+lite/corpus_gaps/no_rejection_by_a_join_into_a_grouped_table_under_a_window@iq17-default	PASS	PASS
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

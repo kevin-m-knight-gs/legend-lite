@@ -3566,10 +3566,15 @@ public final class IqDialect implements InputDialect {
      */
     private static Map<SqlAst.Select, List<SqlAst.Expr>> heldNonNull(SqlAst.Statement statement) {
         Map<SqlAst.Select, List<SqlAst.Expr>> held = new IdentityHashMap<>();
+        // the landing's corpus check (2026-10-17, SQLStorm's grouped CTE under a ROW_NUMBER, joined on its column;
+        // measured on IQ 17.1): the rejection does not enter a grouped derived table a window above it reads -- its
+        // NULL group stays, numbered (COUNT(*) OVER over a grouped table: SQL's count); a plain one it enters
+        Set<SqlAst.Select> windowAbove = Collections.newSetFromMap(new IdentityHashMap<>());
         for (SqlAst.Statement q : queries(statement)) {
             if (!(q instanceof SqlAst.Select s)) {
                 continue;
             }
+            boolean above = windowAbove.contains(s) || expressions(s).stream().anyMatch(IqDialect::hasWindowCall);
             List<SqlAst.Expr> mine = held.getOrDefault(s, List.of());
             List<SqlAst.FromItem> all = new ArrayList<>();
             s.from().forEach(f -> all.addAll(leaves(f)));
@@ -3577,6 +3582,12 @@ public final class IqDialect implements InputDialect {
                 if (!(leaf instanceof SqlAst.SubqueryFrom d) || d.alias() == null
                         || !(d.query() instanceof SqlAst.Select ds) || ds.limit() != null) {
                     continue;
+                }
+                if (above) {
+                    windowAbove.add(ds);
+                    if (!ds.groupBy().isEmpty() || expressions(ds).stream().anyMatch(IqDialect::hasAggregate)) {
+                        continue;
+                    }
                 }
                 String alias = IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text());
                 String only = all.size() == 1 ? alias : null;

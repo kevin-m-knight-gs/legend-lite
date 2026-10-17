@@ -1695,3 +1695,12 @@ tests:
   - id: a_missing_column_before_a_convert_style_of_no_engine
     sql: "SELECT CONVERT(VARCHAR(40), ts, 126) AS a FROM t WHERE nosuch = 1"
     profile: iq17-default
+  - id: a_rejection_by_a_join_through_a_windowed_middle_table
+    sql: "SELECT m.id, m.bid, m.r FROM (SELECT x.id, x.bid, COUNT(*) OVER (ORDER BY x.id) AS r FROM (SELECT a.id, b.id AS bid FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id > 0) x) m JOIN u z ON z.id = m.bid ORDER BY m.id, m.bid"
+    profile: iq17-default
+  - id: no_rejection_into_a_grouped_table_under_a_window
+    sql: "SELECT m.id, m.bid, m.r FROM (SELECT x.id, x.bid, COUNT(*) OVER (ORDER BY x.id) AS r FROM (SELECT a.id, b.id AS bid, COUNT(*) AS n FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id > 0 GROUP BY a.id, b.id) x) m WHERE m.bid > 0 ORDER BY m.id, m.bid"
+    profile: iq17-default
+  - id: no_rejection_by_a_join_into_a_grouped_table_under_a_window
+    sql: "SELECT m.id, m.bid, m.r FROM (SELECT x.id, x.bid, COUNT(*) OVER (ORDER BY x.id) AS r FROM (SELECT a.id, b.id AS bid, COUNT(*) AS n FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id > 0 GROUP BY a.id, b.id) x) m JOIN u z ON z.id = m.bid ORDER BY m.id, m.bid"
+    profile: iq17-default

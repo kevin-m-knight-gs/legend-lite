@@ -334,7 +334,8 @@ island's reason, those IQ answers, and what became of them:
   its front end matches nothing by one (not built: refused);
 - the landing's second review (2026-10-17; each measured on IQ 17.1): a rejected outer join is read as inner
   always (IQ's plan: a window over it, or in a derived table between, numbers the inner rows; COUNT(*) OVER through a
-  windowed middle table measured); a named WINDOW's keys read a derived column; NOT LIKE NULL and BETWEEN NULL
+  windowed middle table measured, by a WHERE or a join), but the rejection enters no grouped derived table a window
+  above it reads (its NULL group stays: SQLStorm's grouped CTE under a ROW_NUMBER, measured); a named WINDOW's keys read a derived column; NOT LIKE NULL and BETWEEN NULL
   reject nothing; -157, TO_CHAR's -157 and CONVERT's -1009145 are held behind the statement's names (-143 first),
   -265 before a held error; ORDER BY's -1005004 for a scalar subquery outside a conditional only (CASE WHEN EXISTS
   is -1001030: refused); an enclosing query's column beside a GROUP BY expression is no -149; TO_CHAR of a string is
