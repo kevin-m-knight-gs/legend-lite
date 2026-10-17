@@ -327,6 +327,15 @@ public final class CypherToPure {
                 specs.add(new ColSpec(p.column(), lambda("r", new AppliedProperty(new Variable("r"), p.column())),
                         null, null));
                 columns.add(new Col(p.column(), p.kind(), p.nullable(), null, p.detail()));
+                // (a zoned property's zone columns, kept under their names: the study's §12.75)
+                for (String part : List.of(ZONE_PART + p.column(), REGION_PART + p.column())) {
+                    Col zc = rs.column(part);
+                    if (zc != null) {
+                        specs.add(new ColSpec(part, lambda("r", new AppliedProperty(new Variable("r"), part)), null,
+                                null));
+                        columns.add(new Col(part, zc.kind(), true));
+                    }
+                }
             }
             if (shape.identity() != null) {
                 // its identity rides along (the study's §12.46)
@@ -890,10 +899,12 @@ public final class CypherToPure {
     private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable Val carried,
             com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
         Col {
-            if (detail instanceof Carried c && c.printedFrom() != null) {
+            if (detail instanceof Carried c && (c.printedFrom() != null || c.zone() != null
+                    && c.zone().read() != null)) {
                 // (a column holds no expression of the scope it was computed in: a printed value's source stays
-                // behind, §12.74)
-                detail = new Carried(c.zone(), c.nanos());
+                // behind, §12.74; so does an offset the database read, which a projection carries as its own
+                // column, §12.75)
+                detail = new Carried(c.zone() != null && c.zone().read() != null ? null : c.zone(), c.nanos());
             }
         }
 
@@ -6385,7 +6396,24 @@ public final class CypherToPure {
                 }
                 outputs.add(new Output(name, null, null, new Around(e, hiddenAggregates, aggregateColumns)));
             } else {
-                outputs.add(new Output(name, val(e, scope), null));
+                Val value = val(e, scope);
+                outputs.add(new Output(name, value, null));
+                Zone zone = value instanceof Scalar s ? zoneOf(s.tx()) : null;
+                if (!returning && zone != null && zone.read() != null) {
+                    // a zoned value whose offset the database read, through a WITH: the offset beside it (and its
+                    // region, where one is read), columns of the rows the clauses after read its zone from (the
+                    // study's §12.75)
+                    String column = ZONE_PART + name;
+                    names.add(column);
+                    outputs.add(new Output(column, scalar(Tx.value(zone.read(), Kind.INTEGER,
+                            ((Scalar) value).tx().nullable())), null));
+                    if (zone.region() != null) {
+                        String regionColumn = REGION_PART + name;
+                        names.add(regionColumn);
+                        outputs.add(new Output(regionColumn, scalar(Tx.value(zone.region(), Kind.STRING, true)),
+                                null));
+                    }
+                }
             }
         }
         return outputs;
@@ -7344,6 +7372,7 @@ public final class CypherToPure {
                             null));
                     columns.add(new Col(column, k.getValue(), true, null, nanos ? new Carried(null, true) : null));
                     props.put(k.getKey(), new NodeProp(column, k.getValue(), true, true, nanos));
+                    zoneColumns(column, null, k, acrossArms, specs, columns);
                 }
                 // its identity: null too (the column the node has in the other arms)
                 String identity = freshName(names);
@@ -7379,6 +7408,7 @@ public final class CypherToPure {
                 specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
                 columns.add(new Col(column, k.getValue(), nullable, null, nanos ? new Carried(null, true) : null));
                 props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, lacks, nanos));
+                zoneColumns(column, lacks ? null : zoneOf(t), k, classes, specs, columns);
             }
             // its identity (the study's §12.46), carried beside its properties
             Tx id = java.util.Objects.requireNonNull(identityOf(b));
@@ -7387,6 +7417,29 @@ public final class CypherToPure {
             columns.add(new Col(identity, Kind.STRING, id.nullable() || optional));
             return new NodeCarry(new NodeShape(labels, props, false, identity, classes.size() == 1 ? cls : null),
                     specs, columns);
+        }
+
+        /** Beside a carried node's zoned property's column {@code column}, its zone as the database read it (the
+         *  study's §12.75): the offset under {@link #ZONE_PART} and, where a class of {@code classes} declares the
+         *  region slot, the region under {@link #REGION_PART}, each named after the column (null in an arm whose
+         *  class lacks the property, so the arms' columns agree); none for another kind. */
+        private void zoneColumns(String column, @com.legend.base.Nullable Zone zone, Map.Entry<String, Kind> k,
+                List<String> classes, List<ColSpec> specs, List<Col> columns) {
+            if (k.getValue() != Kind.ZONED && k.getValue() != Kind.ZONED_TIME) {
+                return;
+            }
+            ValueSpecification offset = zone == null ? SqlToPure.nullOf(Kind.INTEGER).vs() : zone.read();
+            if (offset == null) {
+                throw new IllegalStateException("a stored zoned value's zone is read: " + k.getKey());
+            }
+            specs.add(new ColSpec(ZONE_PART + column, lambda(g.row(), offset), null, null));
+            columns.add(new Col(ZONE_PART + column, Kind.INTEGER, true));
+            if (k.getValue() == Kind.ZONED && CypherToPure.this.regionDeclared(k.getKey(), classes)) {
+                ValueSpecification region = zone == null ? null : zone.region();
+                specs.add(new ColSpec(REGION_PART + column, lambda(g.row(), region == null
+                        ? SqlToPure.nullOf(Kind.STRING).vs() : region), null, null));
+                columns.add(new Col(REGION_PART + column, Kind.STRING, true));
+            }
         }
 
         /** A relationship carried through a projection: its type's column (a constant; null where an OPTIONAL
@@ -7620,7 +7673,7 @@ public final class CypherToPure {
             }
             // a stored duration: an embedded instance of the model's Duration class (the study's §12.59), read as
             // the island carries a duration (an instance with the four slots); a stored zoned value: its instant
-            // slot, the zone not carried (the study's §12.65)
+            // slot (the study's §12.65), its offset slot its zone (§12.75)
             Kind kind = valueKind != null ? valueKind : kindOf(prop, pos);
             List<String> path = new ArrayList<>(b.path());
             path.add(name);
@@ -7635,6 +7688,15 @@ public final class CypherToPure {
             }
             // (a nanosecond time of day or date-time, the study's §12.64: the column's value marked as one)
             Tx own = withNanos(columnLike(v, kind, nullable), CypherToPure.this.nanosOf(prop));
+            if (valueKind == Kind.ZONED || valueKind == Kind.ZONED_TIME) {
+                // a stored zoned value's zone: its offset slot, which the database reads, and its region slot where
+                // the value class declares one (the study's §12.75)
+                ValueSpecification offset = new AppliedProperty(navigate(g.row(), path), ZONED_SLOTS.get(1));
+                ValueSpecification region = CypherToPure.this.regionSlot(prop.type())
+                        ? new AppliedProperty(navigate(g.row(), path), ZONE_SLOT) : null;
+                own = new Tx(own.vs(), own.kind(), own.nullable(), own.whenFalse(), new Carried(Zone.read(
+                        nullable ? call("toOne", offset) : offset, region), nanos(own)), own.guard(), own.body());
+            }
             // typed two ways across the classes a label-less root may be (the study's §12.62): the class's own
             // value as a Variant, so the arms agree
             return b.node() && b.path().isEmpty() && candidateKind(name, kind, true, pos) == Kind.JSON
@@ -7879,6 +7941,18 @@ public final class CypherToPure {
                     }
                     Tx read = columnLike(new AppliedProperty(new Variable(row()), c.name()), c.kind(),
                             c.nullable());
+                    Col zone = column(ZONE_PART + c.name());
+                    boolean zoneless = !(c.detail() instanceof Carried cc) || cc.zone() == null;
+                    if ((c.kind() == Kind.ZONED || c.kind() == Kind.ZONED_TIME) && zoneless && zone != null) {
+                        // a zoned value whose offset the database read: the offset its projection carried beside it
+                        // (the study's §12.75)
+                        ValueSpecification offset = new AppliedProperty(new Variable(row()), zone.name());
+                        Col region = column(REGION_PART + c.name());
+                        return scalar(new Tx(read.vs(), read.kind(), read.nullable(), read.whenFalse(),
+                                new Carried(Zone.read(zone.nullable() ? call("toOne", offset) : offset,
+                                        region == null ? null : new AppliedProperty(new Variable(row()),
+                                                region.name())), c.detail() instanceof Carried cn && cn.nanos())));
+                    }
                     return scalar(c.detail() == null ? read : new Tx(read.vs(), read.kind(), read.nullable(),
                             read.whenFalse(), c.detail()));
                 }
@@ -8041,8 +8115,18 @@ public final class CypherToPure {
                     // (the class this arm reads lacks it: the known null, which a comparison folds)
                     return scalar(nullOfStored(np.kind(), np.nanos()));
                 }
-                return scalar(withNanos(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
-                        np.nullable()), np.nanos()));
+                Tx read = withNanos(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
+                        np.nullable()), np.nanos());
+                Col zone = column(ZONE_PART + np.column());
+                if ((np.kind() == Kind.ZONED || np.kind() == Kind.ZONED_TIME) && zone != null) {
+                    // a zoned property's zone: the columns its carry wrote beside it (the study's §12.75)
+                    ValueSpecification offset = new AppliedProperty(new Variable(row()), zone.name());
+                    Col region = column(REGION_PART + np.column());
+                    return scalar(new Tx(read.vs(), read.kind(), read.nullable(), read.whenFalse(), new Carried(
+                            Zone.read(read.nullable() ? call("toOne", offset) : offset, region == null ? null
+                                    : new AppliedProperty(new Variable(row()), region.name())), np.nanos())));
+                }
+                return scalar(read);
             }
             if (found.detail() instanceof RelShape rel) {
                 // a carried relationship's property: its edge class's column (the study's §5.6); of a relationship
@@ -11709,20 +11793,54 @@ public final class CypherToPure {
      * UTC} and a zero offset are the UTC offset, as Neo4j prints them.
      */
     private record Zone(String written, int sign, int hours, int minutes, int seconds,
-            @com.legend.base.Nullable String name) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+            @com.legend.base.Nullable String name,
+            /** an offset the database reads, its seconds (a stored zone's offset slot, a named zone's offset at an
+             *  instant: the study's §12.75): an expression of the scope it was read in, which no column keeps
+             *  ({@link Col} drops it; a projection carries its value as a hidden column, {@link #ZONE_PART});
+             *  null for a spelled zone */
+            @com.legend.base.Nullable ValueSpecification read,
+            /** beside a read offset, the region's name the database reads with it (String[0..1]: a stored zoned
+             *  value's zone slot, empty where the value names none), whose rules place a wall time the value is
+             *  moved to (§12.75); null when no region is read */
+            @com.legend.base.Nullable ValueSpecification region)
+            implements com.legend.protocol.sql.InputDialect.TypeDetail {
 
         static final Zone UTC = new Zone("Z", 1, 0, 0, 0, null);
+
+        Zone(String written, int sign, int hours, int minutes, int seconds, @com.legend.base.Nullable String name) {
+            this(written, sign, hours, minutes, seconds, name, null, null);
+        }
+
+        /** The offset of {@code seconds} (Integer[1]), the database's. */
+        static Zone read(ValueSpecification seconds) {
+            return new Zone("", 1, 0, 0, 0, null, seconds, null);
+        }
+
+        /** The offset of {@code seconds} (Integer[1]) and the region {@code region} (String[0..1]), the
+         *  database's. */
+        static Zone read(ValueSpecification seconds, @com.legend.base.Nullable ValueSpecification region) {
+            return new Zone("", 1, 0, 0, 0, null, seconds, region);
+        }
 
         boolean named() {
             return name != null;
         }
 
         boolean zero() {
-            return name == null && hours == 0 && minutes == 0 && seconds == 0;
+            return name == null && read == null && hours == 0 && minutes == 0 && seconds == 0;
+        }
+
+        /** The offset as Neo4j prints it: a spelled one's text, a read one's the database's ({@link
+         *  #offsetTextOf}). */
+        ValueSpecification offsetSpelled() {
+            return read != null ? offsetTextOf(read) : new CString(offsetText());
         }
 
         /** The offset as Neo4j prints it ({@code +01:00}, {@code Z}, {@code +02:05:59}). */
         String offsetText() {
+            if (read != null || name != null) {
+                throw new IllegalStateException("a read or named zone's offset is the database's text");
+            }
             if (zero()) {
                 return "Z";
             }
@@ -12013,21 +12131,62 @@ public final class CypherToPure {
      *  database's reading of it in the named zone (a nanosecond value's sub-microsecond digits put back after it). */
     private static Tx localOf(Tx zoned, Zone z) {
         boolean nanos = nanos(zoned);
-        return withNanos(SqlToPure.strict(Kind.DATETIME, List.of(zoned), x -> z.named()
-                ? inZone(LOCAL_IN, x.get(0), z, nanos) : shifted(x.get(0), z, 1, nanos)), nanos);
+        return withNanos(SqlToPure.strict(Kind.DATETIME, List.of(zoned), x -> toWall(x.get(0), z, nanos)), nanos);
     }
 
-    /** The instant a wall time names in a zone, as a zoned date-time of that zone. */
+    /** The instant a wall time names in a zone, as a zoned date-time of that zone (a zone whose region the
+     *  database reads, of the offset the region has at that instant). */
     private static Tx instantOf(Tx local, Zone z) {
         boolean nanos = nanos(local);
-        return zoned(withNanos(SqlToPure.strict(Kind.DATETIME, List.of(local), x -> z.named()
-                ? inZone(INSTANT_IN, x.get(0), z, nanos) : shifted(x.get(0), z, -1, nanos)), nanos), z);
+        Tx instant = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(local), x -> toInstant(x.get(0), z, nanos)),
+                nanos);
+        return zoned(instant, after(z, instant));
+    }
+
+    /** The wall time of the instant {@code x} of a value of zone {@code z}: the database's reading of it in a named
+     *  zone, else the instant shifted by the offset (a read one the offset at that very instant). */
+    private static ValueSpecification toWall(ValueSpecification x, Zone z, boolean nanos) {
+        return z.named() ? inZone(LOCAL_IN, x, z, nanos) : shifted(x, z, 1, nanos);
+    }
+
+    /** The instant the wall time {@code wall} names in the zone {@code z}: the database's reading of it in a named
+     *  zone or, where a read region names one, in that region; else the wall time shifted back by the offset. */
+    private static ValueSpecification toInstant(ValueSpecification wall, Zone z, boolean nanos) {
+        if (z.named()) {
+            return inZone(INSTANT_IN, wall, z, nanos);
+        }
+        ValueSpecification region = z.region();
+        if (region != null) {
+            return call("if", call("isEmpty", region), thunk(shifted(wall, z, -1, nanos)), thunk(inZone(INSTANT_IN,
+                    wall, call("toOne", region), nanos)));
+        }
+        return shifted(wall, z, -1, nanos);
+    }
+
+    /** The zone of a value of zone {@code z} moved to the instant {@code moved}: a read region's offset at that
+     *  instant where the region names one (the offset read stays where it names none); any other zone stays (a
+     *  named zone's offset is read at each instant, an offset is fixed). */
+    private static Zone after(Zone z, Tx moved) {
+        ValueSpecification region = z.region();
+        if (region == null) {
+            return z;
+        }
+        ValueSpecification offset = call("if", call("isEmpty", region), thunk(java.util.Objects.requireNonNull(
+                z.read())), thunk(call("dateDiff", one(moved), inZone(LOCAL_IN, one(moved), call("toOne", region),
+                nanos(moved)), unit("SECONDS"))));
+        return Zone.read(offset, region);
     }
 
     /** The database's reading of {@code x} in a named zone ({@code instantIn}, {@code localIn}: microseconds), a
      *  nanosecond value's sub-microsecond digits put back. */
     private static ValueSpecification inZone(String fn, ValueSpecification x, Zone z, boolean nanos) {
-        ValueSpecification converted = call(fn, x, new CString(java.util.Objects.requireNonNull(z.name())));
+        return inZone(fn, x, new CString(java.util.Objects.requireNonNull(z.name())), nanos);
+    }
+
+    /** {@link #inZone} in the zone the database names {@code zoneName} (String[1]). */
+    private static ValueSpecification inZone(String fn, ValueSpecification x, ValueSpecification zoneName,
+            boolean nanos) {
+        ValueSpecification converted = call(fn, x, zoneName);
         return nanos ? remainderKept(converted, x) : converted;
     }
 
@@ -12035,6 +12194,12 @@ public final class CypherToPure {
      *  instant), each part an {@code adjust} step the database computes; a zero part is no step. A nanosecond
      *  value steps over the nanosecond epoch (an interval step keeps microseconds). */
     private static ValueSpecification shifted(ValueSpecification x, Zone z, int direction, boolean nanos) {
+        if (z.read() != null) {
+            // an offset the database reads: one step of its seconds (of nanosecond precision, of their nanoseconds)
+            ValueSpecification secs = direction > 0 ? z.read() : integer(minus(lit(0), z.read()));
+            return nanos ? call("adjust", x, integer(times(NANOS, secs)), unit("NANOSECONDS"))
+                    : call("adjust", x, secs, unit("SECONDS"));
+        }
         ValueSpecification out = x;
         int sign = z.sign * direction;
         if (z.hours != 0) {
@@ -12053,6 +12218,46 @@ public final class CypherToPure {
                     : call("adjust", out, new CInteger((long) sign * z.seconds), unit("SECONDS"));
         }
         return out;
+    }
+
+    /** A projection's hidden column holding a zoned value's read offset (the study's §12.75), named for the value's
+     *  column: what the clauses after read the value's zone from. */
+    private static final String ZONE_PART = SYNTHETIC + "zone_offset_";
+
+    /** Beside {@link #ZONE_PART}, the hidden column holding a zoned value's read region. */
+    private static final String REGION_PART = SYNTHETIC + "zone_region_";
+
+    /** {@code x}, a zoned date-time's instant, with {@code toOne} where it may be absent (a strict body's reading). */
+    private static ValueSpecification one(Tx x) {
+        return x.nullable() ? call("toOne", SqlToPure.valueOf(x)) : SqlToPure.valueOf(x);
+    }
+
+    /** A named zone's offset at the instant {@code instant}, its seconds: the database's wall time of it in the zone
+     *  against it. */
+    private static ValueSpecification namedOffset(ValueSpecification instant, Zone z, boolean nanos) {
+        return call("dateDiff", instant, inZone(LOCAL_IN, instant, z, nanos), unit("SECONDS"));
+    }
+
+    /** The zone of the zoned date-time {@code zoned} as an offset: a named zone's offset at its instant, which the
+     *  database reads (what a time of day selected from it keeps: Neo4j's time of a Stockholm date-time is of
+     *  that date's offset); an offset stays. */
+    private static Zone fixedAt(Tx zoned, Zone z) {
+        if (z.named()) {
+            return Zone.read(namedOffset(one(zoned), z, nanos(zoned)));
+        }
+        // (a read region: its offset alone, which is the one at the value's instant)
+        return z.read() != null && z.region() != null ? Zone.read(z.read()) : z;
+    }
+
+    /** An offset's seconds as Neo4j prints the offset, the database's text: {@code Z} for none, else its sign, then
+     *  the hours and minutes (and the seconds, when there are any) of its size read as a time on the epoch day. */
+    private static ValueSpecification offsetTextOf(ValueSpecification seconds) {
+        ValueSpecification at = call("adjust", epochInstant(), call("abs", seconds), unit("SECONDS"));
+        ValueSpecification secs = call("second", at);
+        return call("if", call("equal", seconds, lit(0)), thunk(new CString("Z")), thunk(plus(call("if",
+                call("lessThan", seconds, lit(0)), thunk(new CString("-")), thunk(new CString("+"))),
+                two(call("hour", at)), new CString(":"), two(call("minute", at)), call("if", call("equal", secs,
+                        lit(0)), thunk(new CString("")), thunk(plus(new CString(":"), two(secs)))))));
     }
 
     /** A zoned date-time's wall time, for the constructors that read a date-time's fields (Neo4j reads a zoned value
@@ -12135,11 +12340,8 @@ public final class CypherToPure {
             case Scalar s when s.tx().kind() == Kind.TIME -> scalar(zonedTimeOf(s.tx(), Zone.UTC));
             case Scalar s when s.tx().kind() == Kind.DATETIME -> scalar(zonedTimeOf(timeOf(s.tx()), Zone.UTC));
             case Scalar s when s.tx().kind() == Kind.ZONED -> {
-                Zone z = zoneKnown(s.tx(), c.pos());
-                if (z.named()) {
-                    throw CypherErrors.unsupported("the time of a date-time in a named zone (its offset is that"
-                            + " date's) is not supported yet", c.pos());
-                }
+                // (a named zone: its offset at the date-time's instant, the database's)
+                Zone z = fixedAt(s.tx(), zoneKnown(s.tx(), c.pos()));
                 yield scalar(zonedTimeOf(timeOf(localOf(s.tx(), z)), z));
             }
             case Scalar s when s.tx().kind() == Kind.DATE -> {
@@ -12208,11 +12410,9 @@ public final class CypherToPure {
             if (k == Component.TIME && e.getValue() instanceof Scalar s
                     && (s.tx().kind() == Kind.ZONED_TIME || s.tx().kind() == Kind.ZONED)) {
                 zonedBase = s.tx();
-                baseZone = zoneKnown(s.tx(), c.pos());
-                if (baseZone.named()) {
-                    throw CypherErrors.unsupported("the time of a date-time in a named zone (its offset is that"
-                            + " date's) is not supported yet", c.pos());
-                }
+                // (a named zone: its offset at the date-time's instant, the database's)
+                baseZone = s.tx().kind() == Kind.ZONED ? fixedAt(s.tx(), zoneKnown(s.tx(), c.pos()))
+                        : zoneKnown(s.tx(), c.pos());
             }
             rest.put(e.getKey(), e.getValue());
         }
@@ -12333,6 +12533,29 @@ public final class CypherToPure {
      *  day, the date-time at it on the epoch day) and its offset in seconds. */
     private static final List<String> ZONED_SLOTS = List.of("instant", "offsetSeconds");
 
+    /** A zoned date-time class's optional slot naming the value's region ({@code Europe/Stockholm}; String[0..1],
+     *  empty for a value of an offset alone): the study's §12.75. */
+    private static final String ZONE_SLOT = "zone";
+
+    /** Whether a class of {@code classes} holds its property {@code name} as a zoned value whose class declares the
+     *  region slot. */
+    private boolean regionDeclared(String name, List<String> classes) {
+        for (String cls : classes) {
+            Property p = property(cls, name);
+            if (p != null && p.classTyped() && regionSlot(p.type())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the zoned value class {@code cls} declares the region slot ({@link #ZONE_SLOT}, one optional
+     *  String). */
+    private boolean regionSlot(String cls) {
+        Property p = property(cls, ZONE_SLOT);
+        return p != null && p.type().equals("String") && !p.many();
+    }
+
     /** The model's classes named {@code ZonedTime} or {@code ZonedDateTime} declaring the two slots (the study's
      *  §12.65): a stored zoned value's class, never a node; the island reads the instant and carries no zone (the
      *  offset slot is the leg to come: an operation reading the zone refuses by name). */
@@ -12378,7 +12601,7 @@ public final class CypherToPure {
     }
 
     /** A stored zoned value (an embedded instance of a zoned value class): its instant slot, which the island
-     *  carries (the study's §12.65); its offset slot is not read yet. */
+     *  carries (the study's §12.65); its offset slot is its zone, read beside it (§12.75). */
     private static ValueSpecification storedZoned(ValueSpecification holder) {
         return new AppliedProperty(holder, ZONED_SLOTS.get(0));
     }
@@ -12925,12 +13148,10 @@ public final class CypherToPure {
                                 unit("SECONDS")), integer(micros), unit("MICROSECONDS")));
                 case ZONED -> {
                     Zone z = java.util.Objects.requireNonNull(zone);
-                    ValueSpecification wall = z.named() ? inZone(LOCAL_IN, x, z, temporalNanos)
-                            : shifted(x, z, 1, temporalNanos);
+                    ValueSpecification wall = toWall(x, z, temporalNanos);
                     ValueSpecification moved = step(step(wall, months, "MONTHS", temporalNanos), days, "DAYS",
                             temporalNanos);
-                    ValueSpecification instant = z.named() ? inZone(INSTANT_IN, moved, z, temporalNanos)
-                            : shifted(moved, z, -1, temporalNanos);
+                    ValueSpecification instant = toInstant(moved, z, temporalNanos);
                     yield fine ? secondsAndNanos(instant, secs, ns, temporalNanos)
                             : call("adjust", call("adjust", instant, integer(seconds), unit("SECONDS")),
                                     integer(micros), unit("MICROSECONDS"));
@@ -12947,7 +13168,8 @@ public final class CypherToPure {
         if (kind == Kind.ZONED_TIME) {
             return zonedTimeOf(out, java.util.Objects.requireNonNull(zone));
         }
-        return kind == Kind.ZONED ? zoned(out, java.util.Objects.requireNonNull(zone)) : out;
+        // (a zone whose region the database reads: the region's offset at the instant moved to)
+        return kind == Kind.ZONED ? zoned(out, after(java.util.Objects.requireNonNull(zone), out)) : out;
     }
 
     /** {@code duration.between(a, b)}, {@code inMonths}, {@code inDays}, {@code inSeconds}: Neo4j's split, the
@@ -14333,16 +14555,20 @@ public final class CypherToPure {
      *  the database's. */
     private static Tx zoneField(Tx t, TemporalField field, Zone z, Pos pos) {
         return switch (field) {
-            case TIMEZONE -> SqlToPure.strict(Kind.STRING, List.of(t), x -> new CString(z.named()
-                    ? java.util.Objects.requireNonNull(z.name()) : z.offsetText()));
-            case OFFSET -> {
-                if (z.named()) {
-                    throw CypherErrors.unsupported("the offset of a named zone as a text is not supported yet",
-                            pos);
-                }
-                yield SqlToPure.strict(Kind.STRING, List.of(t), x -> new CString(z.offsetText()));
-            }
+            case TIMEZONE -> SqlToPure.strict(Kind.STRING, List.of(t), x -> z.named()
+                    ? new CString(java.util.Objects.requireNonNull(z.name())) : z.region() != null
+                    ? call("if", call("isEmpty", z.region()), thunk(z.offsetSpelled()), thunk(call("toOne",
+                            z.region()))) : z.offsetSpelled());
+            // (a named zone's offset at the instant, the database's text: the study's §12.75)
+            case OFFSET -> SqlToPure.strict(Kind.STRING, List.of(t), x -> z.named()
+                    ? offsetTextOf(namedOffset(x.get(0), z, nanos(t))) : z.offsetSpelled());
             case OFFSET_MINUTES, OFFSET_SECONDS -> {
+                ValueSpecification read = z.read();
+                if (read != null) {
+                    // an offset the database reads: its seconds, its whole minutes toward zero (Java's)
+                    yield field(t, v -> field == TemporalField.OFFSET_SECONDS ? read
+                            : SqlToPure.integerQuotient(read, lit(60)));
+                }
                 String u = field == TemporalField.OFFSET_MINUTES ? "MINUTES" : "SECONDS";
                 yield field(t, v -> call("dateDiff", v, z.named() ? call(LOCAL_IN, v, new CString(
                         java.util.Objects.requireNonNull(z.name()))) : shifted(v, z, 1, false), unit(u)));
@@ -14357,23 +14583,27 @@ public final class CypherToPure {
      *  {@code yyyy-MM-ddTHH:mm:ss[.f]} for a local date-time, with the offset ({@code +01:00}, {@code Z}) after it
      *  for a zoned one, {@code HH:mm:ss[.f]} for a time (with its offset for a zoned one); the fraction of the second
      *  trimmed of its trailing zeros (Neo4j's, as a duration's), none when zero. Every field is the database's,
-     *  read off the wall time as the fields are (§12.8, §12.11), zero-padded by text arithmetic; a named zone and
-     *  a year outside 0..9999 are refused by name. */
+     *  read off the wall time as the fields are (§12.8, §12.11), zero-padded by text arithmetic; a named zone's
+     *  offset is the one at the instant, its name after it in brackets (Java's); a year outside 0..9999 is refused
+     *  by name. */
     private static Tx temporalText(Tx t, Pos pos) {
         Zone zone = t.kind() == Kind.ZONED || t.kind() == Kind.ZONED_TIME ? zoneKnown(t, pos) : null;
-        if (zone != null && zone.named()) {
-            throw CypherErrors.unsupported("toString of a value in a named zone (" + zone.name() + "; Neo4j spells"
-                    + " the zone's offset at that instant and the name) is not supported yet", pos);
-        }
         boolean fine = nanos(t);
         boolean time = t.kind() == Kind.TIME || t.kind() == Kind.ZONED_TIME;
         Tx wall = t.kind() == Kind.TIME ? atEpoch(t)
                 : t.kind() == Kind.ZONED_TIME ? wallAtEpoch(t, java.util.Objects.requireNonNull(zone))
                 : t.kind() == Kind.ZONED ? localOf(t, java.util.Objects.requireNonNull(zone)) : t;
-        String offset = zone == null ? "" : zone.offsetText();
+        boolean named = zone != null && zone.named();
         // (the text of a nanosecond value is marked as one: a parse of it reads the digits past the microsecond)
-        Tx printed = withNanos(SqlToPure.strict(Kind.STRING, List.of(wall), x -> {
+        Tx printed = withNanos(SqlToPure.strict(Kind.STRING, named ? List.of(wall, t) : List.of(wall), x -> {
             ValueSpecification v = x.get(0);
+            // the zone as Java prints it: the offset (a named zone's at the instant, its wall time against the
+            // instant, then its name in brackets: the study's §12.75), none for a local value
+            ValueSpecification offset = zone == null ? new CString("") : named ? plus(offsetTextOf(call("dateDiff",
+                    x.get(1), v, unit("SECONDS"))), new CString("[" + zone.name() + "]")) : zone.region() != null
+                    ? plus(zone.offsetSpelled(), call("if", call("isEmpty", zone.region()), thunk(new CString("")),
+                            thunk(plus(new CString("["), call("toOne", zone.region()), new CString("]")))))
+                    : zone.offsetSpelled();
             // the digits of the fraction: the nanoseconds since the second's start (the microseconds a thousandfold
             // when the value keeps microseconds), behind a leading 1 that keeps the zeros, then cut to the three,
             // six or nine Java prints
@@ -14386,7 +14616,7 @@ public final class CypherToPure {
             ValueSpecification fraction = call("if", call("equal", ns, lit(0)), thunk(new CString("")),
                     thunk(plus(new CString("."), digits)));
             ValueSpecification clock = plus(two(call("hour", v)), new CString(":"), two(call("minute", v)),
-                    new CString(":"), two(call("second", v)), fraction, new CString(offset));
+                    new CString(":"), two(call("second", v)), fraction, offset);
             if (time) {
                 return clock;
             }

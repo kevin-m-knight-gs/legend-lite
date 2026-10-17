@@ -643,13 +643,15 @@ class CypherToPureTest {
     }
 
     @Test
-    void aStoredZonedValueIsItsInstantWithNoZoneCarried() {
+    void aStoredZonedValueIsItsInstantWithItsOffsetSlotAsItsZone() {
         // a zoned value class's instance (the study's §12.65): its instant slot read as a zoned time of day (on the
-        // epoch day, nanosecond where the slot is marked), compared and ordered by the instant; its zone is not
-        // carried, so an operation reading it refuses by name
+        // epoch day, nanosecond where the slot is marked), compared and ordered by the instant; its zone is its
+        // offset slot, which the database reads (§12.75): the zone's text and the value's spelled from it
         assertEquals("demo::Clock.all()->project(~[zt:c|$c.zt.instant, later:c|if($c.zt.instant->isNotEmpty() && ($c.zt.instant->toOne() > %1970-01-01->meta::legend::lite::atTime(%11:00:00)), |true, |if($c.zt.instant->isNotEmpty() && !($c.zt.instant->toOne() > %1970-01-01->meta::legend::lite::atTime(%11:00:00)), |false, |[]))])->sort([~zt->ascending(meta::pure::functions::relation::NullOrder.LAST)])", pure("MATCH (c:Clock) RETURN c.zt AS zt, c.zt > time('11:00Z') AS later ORDER BY zt"));
-        unsupported("MATCH (c:Clock) RETURN c.zt.timezone", "not carried here");
-        unsupported("MATCH (c:Clock) RETURN toString(c.zt)", "not carried here");
+        String zone = pure("MATCH (c:Clock) RETURN c.zt.timezone");
+        assertTrue(zone.contains("$c.zt.offsetSeconds->toOne()->abs()"), zone);
+        String text = pure("MATCH (c:Clock) RETURN toString(c.zt)");
+        assertTrue(text.contains("$c.zt.instant->toOne()->adjust((1000000000 * $c.zt.offsetSeconds->toOne())"), text);
     }
 
     // ------------------------------------------------------------------ a time of day (the study's §12.7)
@@ -748,9 +750,12 @@ class CypherToPureTest {
         invalid("RETURN localdatetime({year: 1984, month: 1, day: 1, timezone: '+01:00'}) AS d",
                 "Cannot assign time zone if also assigning other fields.");
         invalid("RETURN datetime('1984-10-11T12:31:14+2') AS d", "Invalid value for TimeZone: Text '+2'");
-        // refused by name: a signed year, toString, a zoned value of a list read in its zone
+        // a named zone's text: its offset at the instant (the database's wall time against it), then its name in
+        // brackets (the study's §12.75)
+        String named = pure("RETURN toString(datetime({year: 2017, month: 8, day: 8, hour: 12, timezone: 'Europe/Stockholm'})) AS s");
+        assertTrue(named.contains("localIn('Europe/Stockholm')") && named.contains("'[Europe/Stockholm]'"), named);
+        // refused by name: a signed year, a zoned value of a list read in its zone
         unsupported("RETURN datetime('+999999999-12-31T12:31:14Z') AS d", "a signed year");
-        unsupported("RETURN toString(datetime({year: 2017, month: 8, day: 8, hour: 12, timezone: 'Europe/Stockholm'})) AS s", "toString of a value in a named zone");
         unsupported("UNWIND [datetime('1984-10-11T12:31:14+01:00'), datetime('1984-10-11T12:31:14Z')] AS d RETURN d.hour",
                 "whose zone is not carried here");
     }

@@ -1034,11 +1034,11 @@ tck/clauses/with-orderBy/WithOrderBy2/[13] Sort by a local time expression in as
 tck/clauses/with-orderBy/WithOrderBy2/[13] Sort by a local time expression in ascending order #3	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy2/[14] Sort by a local time expression in descending order #1	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy2/[14] Sort by a local time expression in descending order #2	PASS	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[16] Sort by a time expression in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[16] Sort by a time expression in descending order #2	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #1	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #2	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #3	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[16] Sort by a time expression in descending order #1	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[16] Sort by a time expression in descending order #2	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy2/[17] Sort by a local date time expression in ascending order #1	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[17] Sort by a local date time expression in ascending order #2	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[17] Sort by a local date time expression in ascending order #3	SKIP	SKIP
@@ -3239,11 +3239,11 @@ tck/expressions/temporal/Temporal3/[3] Should select time #12	PASS	PASS
 tck/expressions/temporal/Temporal3/[3] Should select time #13	PASS	PASS
 tck/expressions/temporal/Temporal3/[3] Should select time #14	PASS	PASS
 tck/expressions/temporal/Temporal3/[3] Should select time #15	PASS	PASS
-tck/expressions/temporal/Temporal3/[3] Should select time #16	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[3] Should select time #17	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[3] Should select time #18	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[3] Should select time #19	REFUSED	REFUSED
-tck/expressions/temporal/Temporal3/[3] Should select time #20	REFUSED	REFUSED
+tck/expressions/temporal/Temporal3/[3] Should select time #16	PASS	PASS
+tck/expressions/temporal/Temporal3/[3] Should select time #17	PASS	PASS
+tck/expressions/temporal/Temporal3/[3] Should select time #18	PASS	PASS
+tck/expressions/temporal/Temporal3/[3] Should select time #19	PASS	PASS
+tck/expressions/temporal/Temporal3/[3] Should select time #20	PASS	PASS
 tck/expressions/temporal/Temporal3/[4] Should select date into local date time #1	PASS	PASS
 tck/expressions/temporal/Temporal3/[4] Should select date into local date time #2	PASS	PASS
 tck/expressions/temporal/Temporal3/[4] Should select date into local date time #3	PASS	PASS
@@ -3416,9 +3416,9 @@ tck/expressions/temporal/Temporal4/[13] Should propagate null #21	PASS	PASS
 tck/expressions/temporal/Temporal5/[1] Should provide accessors for date	PASS	PASS
 tck/expressions/temporal/Temporal5/[2] Should provide accessors for date in last weekYear	PASS	PASS
 tck/expressions/temporal/Temporal5/[3] Should provide accessors for local time	PASS	REFUSED
-tck/expressions/temporal/Temporal5/[4] Should provide accessors for time	REFUSED	REFUSED
+tck/expressions/temporal/Temporal5/[4] Should provide accessors for time	PASS	REFUSED
 tck/expressions/temporal/Temporal5/[5] Should provide accessors for local date time	PASS	REFUSED
-tck/expressions/temporal/Temporal5/[6] Should provide accessors for date time	REFUSED	REFUSED
+tck/expressions/temporal/Temporal5/[6] Should provide accessors for date time	PASS	REFUSED
 tck/expressions/temporal/Temporal5/[7] Should provide accessors for duration	PASS	PASS
 tck/expressions/temporal/Temporal6/[1] Should serialize date	PASS	PASS
 tck/expressions/temporal/Temporal6/[2] Should serialize local time	PASS	REFUSED
@@ -3436,7 +3436,7 @@ tck/expressions/temporal/Temporal6/[6] Should serialize duration #8	PASS	PASS
 tck/expressions/temporal/Temporal6/[6] Should serialize duration #9	PASS	PASS
 tck/expressions/temporal/Temporal6/[6] Should serialize duration #10	PASS	PASS
 tck/expressions/temporal/Temporal6/[6] Should serialize duration #11	PASS	PASS
-tck/expressions/temporal/Temporal6/[7] Should serialize timezones correctly	REFUSED	REFUSED
+tck/expressions/temporal/Temporal6/[7] Should serialize timezones correctly	PASS	REFUSED
 tck/expressions/temporal/Temporal7/[1] Should compare dates #1	PASS	PASS
 tck/expressions/temporal/Temporal7/[1] Should compare dates #2	PASS	PASS
 tck/expressions/temporal/Temporal7/[2] Should compare local times #1	PASS	REFUSED
@@ -4524,13 +4524,13 @@ lite/stored/a_stored_nanosecond_date_time_ordered_truncated_and_moved	PASS	REFUS
 lite/stored/a_stored_nanosecond_date_time_as_a_node_value_and_text	PASS	REFUSED
 lite/stored/a_stored_nanosecond_time_absent_on_a_class	PASS	REFUSED
 lite/stored/a_stored_zoned_time_ordered_and_read	PASS	REFUSED
-lite/stored/a_stored_zoned_time_plus_a_duration_ordered	REFUSED	REFUSED
+lite/stored/a_stored_zoned_time_plus_a_duration_ordered	PASS	REFUSED
 lite/stored/a_stored_zoned_time_compared_with_a_zoned_literal	PASS	REFUSED
 lite/stored/a_stored_zoned_time_absent_on_a_class	PASS	PASS
-lite/stored/a_stored_zoned_time_s_zone_refused_by_name	REFUSED	REFUSED
-lite/stored/a_stored_zoned_time_s_text_refused_by_name	REFUSED	REFUSED
+lite/stored/a_stored_zoned_time_s_zone_refused_by_name	PASS	REFUSED
+lite/stored/a_stored_zoned_time_s_text_refused_by_name	PASS	PASS
 lite/stored/a_stored_zoned_date_time_ordered_and_read	PASS	REFUSED
-lite/stored/a_stored_zoned_date_time_moved_and_compared	REFUSED	REFUSED
+lite/stored/a_stored_zoned_date_time_moved_and_compared	PASS	PASS
 lite/tail/an_order_by_on_an_expression_not_returned	PASS	PASS
 lite/tail/an_order_by_on_an_expression_not_returned_descending	PASS	PASS
 lite/tail/an_order_by_on_a_dropped_item_after_a_with	PASS	PASS
@@ -4626,7 +4626,7 @@ lite/temporal/localdatetime_from_compact_text	PASS	PASS
 lite/temporal/localdatetime_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/datetime_from_compact_text	PASS	PASS
 lite/temporal/datetime_from_text_with_named_zone	PASS	PASS
-lite/temporal/datetime_named_zone_offset_refused_by_name	REFUSED	REFUSED
+lite/temporal/datetime_named_zone_offset_refused_by_name	PASS	PASS
 lite/temporal/date_signed_year_refused_by_name	REFUSED	REFUSED
 lite/temporal/datetime_text_offset_disagreeing_with_its_zone	BOTH_ERROR	BOTH_ERROR
 lite/temporal/datetime_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
@@ -4661,7 +4661,7 @@ lite/temporal/time_truncate_to_month_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/time_truncate_of_a_date_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/time_named_zone_refused_by_name	BOTH_ERROR	BOTH_ERROR
 lite/temporal/time_named_zone_component_refused_by_name	REFUSED	REFUSED
-lite/temporal/time_of_a_named_zone_datetime_refused_by_name	REFUSED	REFUSED
+lite/temporal/time_of_a_named_zone_datetime_refused_by_name	PASS	PASS
 lite/temporal/time_to_string	PASS	PASS
 lite/temporal/time_list_refused_by_name	REFUSED	REFUSED
 lite/temporal/nanos_construction	PASS	REFUSED
@@ -4674,7 +4674,7 @@ lite/temporal/nanos_ordering	PASS	REFUSED
 lite/temporal/nanos_arithmetic	PASS	REFUSED
 lite/temporal/nanos_between	PASS	REFUSED
 lite/temporal/nanos_zones	PASS	REFUSED
-lite/temporal/nanos_time_of_a_named_zone_datetime_refused_by_name	REFUSED	REFUSED
+lite/temporal/nanos_time_of_a_named_zone_datetime_refused_by_name	PASS	REFUSED
 lite/temporal/nanos_year_outside_the_range_refused_by_name	REFUSED	REFUSED
 lite/temporal/nanos_duration_fields	PASS	REFUSED
 lite/temporal/nanos_component_of_the_row_refused_by_name	REFUSED	REFUSED
@@ -4687,7 +4687,7 @@ lite/temporal/date_property_inside_a_node	PASS	PASS
 lite/temporal/localdatetime_to_string_fractions	PASS	PASS
 lite/temporal/datetime_to_string_with_offsets	PASS	PASS
 lite/temporal/times_to_string	PASS	PASS
-lite/temporal/to_string_in_a_named_zone_refused_by_name	REFUSED	REFUSED
+lite/temporal/to_string_in_a_named_zone_refused_by_name	PASS	PASS
 lite/temporal/a_date_moved_by_a_duration_of_more_than_a_day	PASS	PASS
 lite/temporaltail/a_second_in_thirds	PASS	PASS
 lite/temporaltail/months_in_fractions	PASS	PASS
@@ -4861,3 +4861,21 @@ lite/withlists/a_list_of_row_values_through_with_unwound	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with_sized_and_tested	PASS	PASS
 lite/withlists/a_map_of_row_values_through_with	PASS	PASS
 lite/withlists/a_list_of_row_strings_through_with	PASS	PASS
+lite/zones/stored_offset_fields	PASS	PASS
+lite/zones/stored_offset_through_with	PASS	PASS
+lite/zones/stored_offset_texts	PASS	PASS
+lite/zones/stored_time_plus_duration_ordered	PASS	PASS
+lite/zones/stored_time_moved_through_with	PASS	PASS
+lite/zones/stored_region_fields	PASS	PASS
+lite/zones/stored_region_through_with	PASS	PASS
+lite/zones/stored_regions_and_offsets	PASS	PASS
+lite/zones/stored_region_moved_across_summer_time	PASS	PASS
+lite/zones/stored_region_moved_by_hours	PASS	PASS
+lite/zones/stored_region_rebuilt	PASS	PASS
+lite/zones/stored_region_time_of	PASS	PASS
+lite/zones/stored_region_between	PASS	PASS
+lite/zones/named_zone_time_of	PASS	PASS
+lite/zones/named_zone_texts	PASS	PASS
+lite/zones/named_zone_time_through_with	PASS	PASS
+lite/zones/stored_zone_grouped	PASS	PASS
+lite/zones/stored_zone_optional_absent	PASS	PASS

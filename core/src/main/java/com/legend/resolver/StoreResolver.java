@@ -2514,6 +2514,12 @@ public final class StoreResolver {
                     }
                     continue;
                 }
+                if (hop > 0 && parent.bindings().containsKey(SyntheticHeads.realHead(path.get(hop)))) {
+                    // an embedded/slot property of the hop's target ($a.T.d.instant, d an embedded value of T's
+                    // class): a read on the target's row, as at the root, no further join (2026-10-17, the
+                    // #Cypher{...}# island's stored zoned values on a node a hop reaches, the study's §12.75)
+                    break;
+                }
                 String chainKey = String.join(".", path.subList(0, hop + 1));
                 AssociationJoins.AssocJoin known = joinsByChain.get(chainKey);
                 if (known != null) {

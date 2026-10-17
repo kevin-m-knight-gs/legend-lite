@@ -213,6 +213,12 @@ the Quantifier9-12 cases now stop at the Variant list comprehension (W12).
   refused by name; WithOrderBy1/[37], [38], WithOrderBy2/[15], [16] on DuckDB. Leg 2c, open: the island's Zone
   carrying a column (the offset slot read: Temporal5/[4]'s fields and zone texts), which every projection must carry
   beside the value.
+- Leg 2c LANDED 2026-10-17 (the study's §12.75, GATES' seventy-third landing; TCK agreement DuckDB 3542 → 3555,
+  Postgres 3160 → 3165): a zone whose offset the database reads (`Zone.read`), a stored value's offset slot and, for
+  a date-time of a named zone, a region slot the harness declares from the oracle's dump (the zone's name in
+  brackets); carried through a WITH and with a carried node's properties as hidden columns; a value moved in a
+  stored region taking the region's offset at the new instant; a resolver fix for an embedded value on an
+  association's target. Temporal5/[4], [6], WithOrderBy2/[15], [16] (DuckDB).
 
 ### W6. Nodes with several labels
 
@@ -292,6 +298,10 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   value's text parsed back in its scope as the value itself (Temporal6/[3], [5], DuckDB). Logged (§5): nanosecond
   values outside the databases' range, years beyond their dates. Next: a zone whose offset the database reads (a
   stored zone's, a named zone's at an instant).
+- The temporal tail, leg 2 LANDED 2026-10-17 (the study's §12.75, GATES' seventy-third landing; TCK agreement DuckDB
+  3542 → 3555, Postgres 3160 → 3165): zones the database reads (W5 leg 2c above), a named zone's offset at an
+  instant (the time of a Stockholm date-time, Temporal3/[3] #16-20 on both lanes; its `offset`; its `toString` with
+  the zone's name, Temporal6/[7]). Next: temporals inside a Variant read back as values (WithOrderBy1/[45] #6-#8).
 - The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
   UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships
@@ -697,7 +707,7 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   toInteger(rand()*9)` (ReturnSkipLimit1/[3]): the MIR's `limit` and `offset` are constants (`SqlSelect.limit`,
   `ConstBounds.intOf`), so a row count the database computes has no carrier; one TCK case. The MIR would take an
   expression bound (every dialect renders `LIMIT <expr>` for a constant-foldable one); W9.
-- **2026-10-17, W12 leg 2 — the time of a date-time in a named zone.** `time(datetime({..., timezone:
+- **2026-10-17, W12 leg 2 — the time of a date-time in a named zone.** RESOLVED 2026-10-17 (§12.75: the zone's offset at the instant, which the database reads, carried as an offset the database reads). `time(datetime({..., timezone:
   'Europe/Stockholm'}))` (Temporal3/[3] #16-20): the zoned time carries its zone as a written detail (§12.11), and
   a named zone's offset at that date is the database's to read (`localIn` minus the instant); a zoned time whose
   offset is a value of the row needs the representation to carry it as a column. Five TCK cases; W8's temporal

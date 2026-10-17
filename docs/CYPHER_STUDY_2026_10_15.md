@@ -4921,3 +4921,62 @@ errors) on both, `float_remainders` refused on Postgres. TCK agreement DuckDB 35
 
 Temporal8/[7]'s three examples move to PASS on both lanes, Temporal6/[3] and [5] on DuckDB. TCK agreement DuckDB
 3537 → 3542, Postgres 3157 → 3160.
+
+### 12.75 The temporal tail, leg 2: zones the database reads (2026-10-17)
+
+- **A zone whose offset the database reads** (`Zone.read`): beside the spelled offsets and named zones of §12.8 and
+  §12.11, a zone may be an offset the database computes, in seconds. `shifted` steps by it (one `adjust` of the
+  seconds, or of their nanoseconds for a nanosecond value); its text is the database's (`offsetTextOf`: `Z` for none,
+  else the sign and the hours and minutes of its size read as a time on the epoch day, the seconds when there are
+  any); `offsetSeconds` is it and `offsetMinutes` its whole minutes toward zero (Java's).
+- **A stored zoned value's zone** (W5 leg 2c): the value class's offset slot (`offsetSeconds`), read beside the
+  instant slot (§12.65), so `d.timezone`, `d.offset`, `d.offsetMinutes`, `d.offsetSeconds`, the wall-time fields,
+  `toString`, a duration added to a zoned time of day (its wall time wraps within the day), and every constructor
+  over the value read its own offset (Temporal5/[4], WithOrderBy2/[15] and [16]).
+- **Through a WITH** (`ZONE_PART`, `REGION_PART`): a column holds no expression of the scope it was computed in
+  (`Col` drops a read zone, as it drops a printed text's source, §12.74); the projection writes the offset (and the
+  region, below) as hidden columns named for the value's column, and a read of the column attaches them again. A
+  node carried through a WITH carries its zoned properties' zones the same way, the columns named for the property's
+  column (`zoneColumns`; null in an arm whose class lacks the property, so the arms' columns agree). A step that
+  renames the columns (a re-anchoring, a variable-length chain) does not carry them: a zoned property read after it
+  refuses by name, as before.
+- **A named zone's offset at an instant** (`namedOffset`): the database's wall time of the instant in the zone
+  against the instant, in seconds. The time of a date-time in a named zone keeps that offset alone (Neo4j's Time is
+  of an offset: Temporal3/[3] #16 to #20); `d.offset` of a named zone is its text; `toString` of a value in a named
+  zone is the offset at its instant and the zone's name in brackets, Java's spelling (Temporal6/[7]).
+- **A stored region** (Temporal5/[6]): the oracle's dump spells a date-time of a named zone with the zone's name in
+  brackets after its offset (`snap.py`'s `stored`; the driver's text is the offset alone: tools/neo4j-oracle/
+  README.md), the harness declares a third slot, `zone: String[0..1]`, on the zoned date-time class when a stored
+  value names one, and the island reads it beside the offset (`Zone.region`, String[0..1], empty for a value of an
+  offset alone). `timezone` is the region where the row names one, else the offset's text; `toString` appends it in
+  brackets. A value moved in it (a duration added, a constructor over it, a truncation, `duration.between` against a
+  local value) takes the region's rules where the row names one: the instant is the database's reading of the wall
+  time in the region (else the wall time shifted back by the offset), and the moved value's offset the region's at
+  the new instant (`toInstant`, `after`); across a change to summer time the offset follows (`+01:00` in January,
+  `+02:00` six months on).
+- **A resolver fix** (core, StoreResolver.registerAssociationJoins): a path that crosses an association and then
+  reads an embedded property of the hop's target (`$a.T.d.instant`, `d` an embedded value of the target's class) took
+  the embedded property for a second association hop and named it unmapped. The hop walk now stops at a segment the
+  target's class source binds (embedded or slot): the rest is a read on the target's row, as at the root.
+  `RelationalMappingIntegrationTest`'s embedded-on-an-association's-target case pins it.
+- **Pinned.** `lite/zones.yaml`'s 18 cases, each judged by Neo4j: stored offsets read directly, through a WITH and
+  as a carried node's property; stored regions read, carried, moved across a change to summer time, rebuilt,
+  truncated, converted and measured; the time of a named-zone date-time; a named zone's texts; a zoned value grouped
+  and one an OPTIONAL MATCH does not find.
+
+#### 12.75.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4878 | 3782 (from 3,743) | 0 | 0 | 0 | 289 (from 310) | 750 | 57 |
+| Postgres | 4878 | 3365 (from 3,337) | 0 | 0 | 0 | 706 (from 716) | 750 | 57 |
+
+On DuckDB WithOrderBy2/[15] (three examples) and [16] (two), Temporal3/[3] #16 to #20, Temporal5/[4] and [6] and
+Temporal6/[7] move to PASS; on Postgres Temporal3/[3] #16 to #20 (the others are nanosecond values, which Postgres
+refuses by name, §12.12). TCK agreement DuckDB 3542 → 3555, Postgres 3160 → 3165. Of lite's own cases, the 18 of
+`lite/zones.yaml` and eight earlier ones pass: `lite/stored.yaml`'s zoned time moved and ordered, zoned date-time
+moved and compared, and two cases named for the zone's refusal (`a_stored_zoned_time_s_zone_refused_by_name`,
+`a_stored_zoned_time_s_text_refused_by_name`); `lite/temporal.yaml`'s four named for a named zone's refusal
+(`datetime_named_zone_offset_refused_by_name`, `time_of_a_named_zone_datetime_refused_by_name`,
+`nanos_time_of_a_named_zone_datetime_refused_by_name`, `to_string_in_a_named_zone_refused_by_name`). The six so
+named are renamed with the next leg.

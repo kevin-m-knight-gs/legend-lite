@@ -11618,3 +11618,23 @@ change is intended.
     59b547a, in 8 of those 60 lanes. The moves are #48's (the Cypher island), and every test still passes:
     - Postgres casts a string literal to VARCHAR before parsing it: ec902e07, "numbers from texts".
     - DuckDB casts a struct's integer field to BIGINT under a BIGINT slot: 6852139b, the duration leg.
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-third landing — the temporal tail, leg 2: zones the database reads
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5 leg 2c and tail); the record is the study's §12.75.
+A zone whose offset the database reads: a stored zoned value's offset slot, a stored date-time's region slot, a
+named zone's offset at an instant; carried through a WITH as hidden columns.
+
+1. **What lands.** On DuckDB WithOrderBy2/[15] (three examples) and [16] (two), Temporal3/[3] #16 to #20,
+   Temporal5/[4] and [6], Temporal6/[7]; on Postgres Temporal3/[3] #16 to #20 (the rest are nanosecond values, which
+   Postgres refuses by name); the 18 cases of `lite/zones.yaml` and eight earlier lite cases; DuckDB PASS 3,743 →
+   3782, Postgres 3,337 → 3365; TCK agreement DuckDB 3542 → 3555, Postgres 3160 → 3165.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3782
+   / REFUSED 289 / BOTH_ERROR 750 / SKIP 57; Postgres PASS 3365 / REFUSED 706 / BOTH_ERROR 750 / SKIP 57, of 4878
+   cases); the oracle check 0 problems (its dump now spells a named zone's date-time with the zone's name:
+   Temporal5's re-snap).
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration` (with
+   `RelationalMappingIntegrationTest`'s new case: an embedded value on an association's target, the resolver's
+   hop walk stopping at a segment the target binds), `//core:guardrails` green.
+4. **Refused by name, recorded.** A zoned property read after a step that renames a carried node's columns (a
+   re-anchoring, a variable-length chain).

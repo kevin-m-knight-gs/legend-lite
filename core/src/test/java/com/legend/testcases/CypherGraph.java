@@ -163,6 +163,9 @@ public final class CypherGraph {
         // (a zoned value class's instant slot is marked nanoseconds when any zoned value of the graph is sub-
         // microsecond: one class per kind, the study's §12.65)
         boolean[] zonedNanos = new boolean[2];
+        // (the zoned date-time class declares the region slot when a stored date-time of the graph is of a named
+        // zone: the study's §12.75)
+        boolean zonedRegion = false;
         for (CypherAnswers.GraphNode n : g.nodes()) {
             for (Map.Entry<String, String> p : n.props().entrySet()) {
                 if (subMicro(p.getValue())) {
@@ -173,6 +176,10 @@ public final class CypherGraph {
                         && !java.util.Objects.requireNonNull(CypherValues.zonedParts(o.text())).instant()
                         .substring(26).matches("0+")) {
                     zonedNanos[CypherValues.zonedTimeText(o.text()) ? 0 : 1] = true;
+                }
+                if (v instanceof CypherValues.Opaque o && CypherValues.zonedParts(o.text()) != null
+                        && java.util.Objects.requireNonNull(CypherValues.zonedParts(o.text())).region() != null) {
+                    zonedRegion = true;
                 }
             }
         }
@@ -486,10 +493,12 @@ public final class CypherGraph {
                 + "    nanoseconds: Integer[1];\n}\n");
         // the zoned value classes (the study's §12.65): the instant (a time of day's on the epoch day), marked
         // nanoseconds where any zoned value of its kind is sub-microsecond, and the offset in seconds
+        // (and, for a date-time of a named zone, the region's name: the study's §12.75)
         for (int i = 0; i < 2; i++) {
             pure.append("Class " + (i == 0 ? ZONED_TIME : ZONED_DATETIME) + "\n{\n    "
                     + (zonedNanos[i] ? "<<graph::graph.nanoseconds>> " : "") + "instant: DateTime[1];\n"
-                    + "    offsetSeconds: Integer[1];\n}\n");
+                    + "    offsetSeconds: Integer[1];\n" + (i == 1 && zonedRegion ? "    zone: String[0..1];\n" : "")
+                    + "}\n");
         }
         StringBuilder tablesDdl = new StringBuilder();
         StringBuilder mapping = new StringBuilder();
@@ -518,10 +527,13 @@ public final class CypherGraph {
                     // an embedded instance: one column per slot (a duration's four BIGINTs; a zoned value's instant,
                     // a TIMESTAMP_NS where its class is marked, and its offset), the property mapping's embedded block
                     List<String> slots = new ArrayList<>();
-                    List<String> slotNames = zoned ? ZONED_SLOTS : DURATION_SLOTS;
+                    List<String> slotNames = new ArrayList<>(zoned ? ZONED_SLOTS : DURATION_SLOTS);
+                    if (p.getValue().equals(ZONED_DATETIME) && zonedRegion) {
+                        slotNames.add(ZONE_SLOT);
+                    }
                     for (String slot : slotNames) {
                         String slotColumn = column + "_" + slot.toLowerCase(Locale.ROOT);
-                        String type = !slot.equals("instant") ? "BIGINT"
+                        String type = slot.equals(ZONE_SLOT) ? "VARCHAR(4000)" : !slot.equals("instant") ? "BIGINT"
                                 : zonedNanos[p.getValue().equals(ZONED_TIME) ? 0 : 1] ? "TIMESTAMP_NS" : "TIMESTAMP";
                         columns.add(new SqlParity.Column(slotColumn, type));
                         ddl.append(", ").append(slotColumn).append(' ').append(type);
@@ -578,6 +590,9 @@ public final class CypherGraph {
                         boolean ns = zonedNanos[p.getValue().equals(ZONED_TIME) ? 0 : 1];
                         row.add(parts == null ? null : ns ? parts.instant() : parts.instant().substring(0, 26));
                         row.add(parts == null ? null : parts.offsetSeconds());
+                        if (p.getValue().equals(ZONED_DATETIME) && zonedRegion) {
+                            row.add(parts == null ? null : parts.region());
+                        }
                         continue;
                     }
                     // (a Variant column, a list property's or a property typed two ways: the value's JSON)
@@ -832,6 +847,8 @@ public final class CypherGraph {
     private static final String ZONED_TIME = "g::values::ZonedTime";
     private static final String ZONED_DATETIME = "g::values::ZonedDateTime";
     private static final List<String> ZONED_SLOTS = List.of("instant", "offsetSeconds");
+    /** A zoned date-time's region slot, declared when a stored date-time names its zone (the study's §12.75). */
+    private static final String ZONE_SLOT = "zone";
     private static final List<String> DURATION_SLOTS = List.of("months", "days", "seconds", "nanoseconds");
     /** Neo4j's {@code Time('HH:mm:ss.nnnnnnnnn')} with no offset: a local time of day. */
     private static final java.util.regex.Pattern LOCAL_TIME = java.util.regex.Pattern.compile(

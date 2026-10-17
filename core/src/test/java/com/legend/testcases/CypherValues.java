@@ -672,13 +672,19 @@ public final class CypherValues {
                 java.time.OffsetTime t = java.time.OffsetTime.parse(text.substring(6, text.length() - 2));
                 java.time.LocalDateTime utc = java.time.LocalDateTime.ofInstant(t.atDate(java.time.LocalDate.EPOCH)
                         .toInstant(), java.time.ZoneOffset.UTC);
-                return new ZonedParts(seedText(utc), t.getOffset().getTotalSeconds());
+                return new ZonedParts(seedText(utc), t.getOffset().getTotalSeconds(), null);
             }
             if (zonedText(text)) {
-                java.time.OffsetDateTime t = java.time.OffsetDateTime.parse(text.substring(10, text.length() - 2));
+                String body = text.substring(10, text.length() - 2);
+                // (a region's name in brackets after the offset, as the oracle dumps a value of a named zone:
+                // tools/neo4j-oracle/README.md)
+                int bracket = body.indexOf('[');
+                java.time.OffsetDateTime t = java.time.OffsetDateTime.parse(bracket < 0 ? body
+                        : body.substring(0, bracket));
                 java.time.LocalDateTime utc = java.time.LocalDateTime.ofInstant(t.toInstant(),
                         java.time.ZoneOffset.UTC);
-                return new ZonedParts(seedText(utc), t.getOffset().getTotalSeconds());
+                return new ZonedParts(seedText(utc), t.getOffset().getTotalSeconds(), bracket < 0 ? null
+                        : body.substring(bracket + 1, body.length() - 1));
             }
         } catch (java.time.format.DateTimeParseException e) {
             return null;
@@ -686,8 +692,9 @@ public final class CypherValues {
         return null;
     }
 
-    /** A stored zoned value's parts: the instant's seed text and the offset in seconds. */
-    record ZonedParts(String instant, long offsetSeconds) {
+    /** A stored zoned value's parts: the instant's seed text, the offset in seconds, and the region's name where
+     *  the value is of a named zone (null for an offset alone). */
+    record ZonedParts(String instant, long offsetSeconds, @com.legend.base.Nullable String region) {
     }
 
     /** A date-time as the seed binds it: {@code yyyy-MM-dd HH:mm:ss.nnnnnnnnn}, nine digits. */

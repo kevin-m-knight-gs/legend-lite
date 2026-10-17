@@ -74,6 +74,21 @@ def fmt(v):
     return type(v).__name__ + "(" + fmt(str(v)) + ")"
 
 
+def stored(v):
+    """A stored value as the dump writes it: fmt's, but a date-time of a named zone carries the zone's name in brackets
+    after its offset (Java's spelling, `DateTime('1984-11-11T12:31:14.645876123+01:00[Europe/Stockholm]')`): the
+    driver's text is the offset alone, and the lanes store the zone the value names
+    (docs/CYPHER_STUDY_2026_10_15.md §12.75). UTC, by any name, is the offset Z."""
+    from neo4j.time import DateTime
+    if isinstance(v, DateTime) and v.tzinfo is not None:
+        zone = getattr(v.tzinfo, "zone", None) or getattr(v.tzinfo, "key", None)
+        if zone is not None and zone != "UTC":
+            return "DateTime(" + fmt(str(v) + "[" + zone + "]") + ")"
+    if isinstance(v, list):
+        return "[" + ", ".join(stored(x) for x in v) + "]"
+    return fmt(v)
+
+
 def props(entity):
     p = dict(entity)
     return (" {" + ", ".join(k + ": " + fmt(p[k]) for k in sorted(p)) + "}") if p else ""
@@ -537,12 +552,12 @@ def dump(s):
     for rec in s.run("MATCH (n) RETURN elementId(n) AS id, labels(n) AS labels, properties(n) AS props ORDER BY id"):
         ids[rec["id"]] = len(nodes)
         nodes.append({"id": len(nodes), "labels": sorted(rec["labels"]),
-                      "props": {k: fmt(v) for k, v in sorted(rec["props"].items())}})
+                      "props": {k: stored(v) for k, v in sorted(rec["props"].items())}})
     rels = []
     for rec in s.run("MATCH (a)-[r]->(b) RETURN elementId(r) AS id, elementId(a) AS a, elementId(b) AS b, type(r) AS t,"
                      " properties(r) AS props ORDER BY id"):
         rels.append({"id": len(rels), "start": ids[rec["a"]], "end": ids[rec["b"]], "type": rec["t"],
-                     "props": {k: fmt(v) for k, v in sorted(rec["props"].items())}})
+                     "props": {k: stored(v) for k, v in sorted(rec["props"].items())}})
     return {"nodes": nodes, "rels": rels}
 
 
