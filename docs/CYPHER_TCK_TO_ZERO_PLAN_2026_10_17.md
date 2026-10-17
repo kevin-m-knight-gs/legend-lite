@@ -287,6 +287,9 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   path carried as its value; the resolver resolving a recursion's step. Left (the §5 log): a variable-length
   relationship bound to a list of relationships (Match4/[8], Match9/[6], [7]); other relationships beside the walk
   in one pattern (no TCK row).
+- The remainder LANDED 2026-10-17 (the study's §12.69, GATES' sixty-seventh landing; TCK agreement DuckDB 3487 → 3494, Postgres 3108 → 3115): a bounded
+  variable-length relationship after another clause re-anchored, a WHERE's variable-length pattern predicate over
+  a graph read over rows, the nodes reached through an edge class scoped to their arm (Match4/[6], Match7/[14], Pattern1/[10], Pattern1/[13], Pattern1/[7], Pattern1/[8], Pattern1/[9]).
 
 ### W11. Variants of no known shape
 

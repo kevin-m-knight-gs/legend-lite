@@ -413,7 +413,7 @@ tck/clauses/match/Match4/[2] Simple variable length pattern	PASS	PASS
 tck/clauses/match/Match4/[3] Zero-length variable length pattern in the middle of the pattern	PASS	PASS
 tck/clauses/match/Match4/[4] Matching longer variable length paths	PASS	PASS
 tck/clauses/match/Match4/[5] Matching variable length pattern with property predicate	PASS	PASS
-tck/clauses/match/Match4/[6] Matching variable length patterns from a bound node	REFUSED	REFUSED
+tck/clauses/match/Match4/[6] Matching variable length patterns from a bound node	PASS	PASS
 tck/clauses/match/Match4/[7] Matching variable length patterns including a bound relationship	REFUSED	REFUSED
 tck/clauses/match/Match4/[8] Matching relationships into a list and matching variable length using the list	REFUSED	REFUSED
 tck/clauses/match/Match4/[9] Fail when asterisk operator is missing	BOTH_ERROR	BOTH_ERROR
@@ -557,7 +557,7 @@ tck/clauses/match/Match7/[10] Optionally matching from null nodes should return 
 tck/clauses/match/Match7/[11] Return two subgraphs with bound undirected relationship and optional relationship	REFUSED	REFUSED
 tck/clauses/match/Match7/[12] Variable length optional relationships	PASS	PASS
 tck/clauses/match/Match7/[13] Variable length optional relationships with bound nodes	PASS	PASS
-tck/clauses/match/Match7/[14] Variable length optional relationships with length predicates	REFUSED	REFUSED
+tck/clauses/match/Match7/[14] Variable length optional relationships with length predicates	PASS	PASS
 tck/clauses/match/Match7/[15] Variable length patterns and nulls	PASS	PASS
 tck/clauses/match/Match7/[16] Optionally matching named paths - null result	PASS	PASS
 tck/clauses/match/Match7/[17] Optionally matching named paths - existing result	REFUSED	REFUSED
@@ -2016,10 +2016,10 @@ tck/expressions/pattern/Pattern1/[3] Matching on any single incoming directed co
 tck/expressions/pattern/Pattern1/[4] Matching on a specific type of single outgoing directed connection	PASS	PASS
 tck/expressions/pattern/Pattern1/[5] Matching on a specific type of single undirected connection	PASS	PASS
 tck/expressions/pattern/Pattern1/[6] Matching on a specific type of single incoming directed connection	PASS	PASS
-tck/expressions/pattern/Pattern1/[7] Matching on a specific type of a variable length outgoing directed connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[8] Matching on a specific type of variable length undirected connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[9] Matching on a specific type of variable length incoming directed connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[10] Matching on a specific type of undirected connection with length 2	REFUSED	REFUSED
+tck/expressions/pattern/Pattern1/[7] Matching on a specific type of a variable length outgoing directed connection	PASS	PASS
+tck/expressions/pattern/Pattern1/[8] Matching on a specific type of variable length undirected connection	PASS	PASS
+tck/expressions/pattern/Pattern1/[9] Matching on a specific type of variable length incoming directed connection	PASS	PASS
+tck/expressions/pattern/Pattern1/[10] Matching on a specific type of undirected connection with length 2	PASS	PASS
 tck/expressions/pattern/Pattern1/[10] Fail on introducing unbounded variables in pattern #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[10] Fail on introducing unbounded variables in pattern #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[10] Fail on introducing unbounded variables in pattern #3	BOTH_ERROR	BOTH_ERROR
@@ -2037,7 +2037,7 @@ tck/expressions/pattern/Pattern1/[10] Fail on introducing unbounded variables in
 tck/expressions/pattern/Pattern1/[10] Fail on introducing unbounded variables in pattern #15	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[11] Fail on checking self pattern	BOTH_ERROR	BOTH_ERROR
 tck/expressions/pattern/Pattern1/[12] Matching two nodes on a single directed connection between them	PASS	PASS
-tck/expressions/pattern/Pattern1/[13] Fail on matching two nodes on a single undirected connection between them	REFUSED	REFUSED
+tck/expressions/pattern/Pattern1/[13] Fail on matching two nodes on a single undirected connection between them	PASS	PASS
 tck/expressions/pattern/Pattern1/[14] Matching two nodes on a specific type of single outgoing directed connection	PASS	PASS
 tck/expressions/pattern/Pattern1/[15] Matching two nodes on a specific type of single undirected connection	PASS	PASS
 tck/expressions/pattern/Pattern1/[16] Matching two nodes on a specific type of a variable length outgoing directed connection	PASS	PASS
@@ -4785,6 +4785,12 @@ lite/varlen/an_unbounded_walk_in_a_pattern_of_other_relationships_is_refused	REF
 lite/varlen/a_variable_length_round_a_cycle	PASS	PASS
 lite/varlen/a_variable_length_from_a_labelless_start_over_several_types	PASS	PASS
 lite/varlen/a_property_map_on_a_variable_length_is_refused	REFUSED	REFUSED
+lite/varlen/a_bounded_variable_length_after_a_match	PASS	PASS
+lite/varlen/a_variable_length_pattern_as_a_predicate	PASS	PASS
+lite/varlen/an_undirected_fixed_length_pattern_as_a_predicate	PASS	PASS
+lite/varlen/a_negated_variable_length_predicate	PASS	PASS
+lite/varlen/a_relationship_of_an_edge_type_and_an_association_type	PASS	PASS
+lite/varlen/an_optional_walk_with_a_lower_bound_past_its_reach	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with_unwound	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with_sized_and_tested	PASS	PASS

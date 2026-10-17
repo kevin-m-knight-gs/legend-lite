@@ -146,3 +146,27 @@ cases:
     graph: |
       CREATE (:A {name: 'a'})-[:T {w: 1}]->(:A {name: 'b'})
     cypher: "MATCH (a:A)-[:T*1..2 {w: 1}]->(x) RETURN x.name AS x"
+  - id: a_bounded_variable_length_after_a_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})
+    cypher: "MATCH (a:A) MATCH (a)-[r:T*2]->(x) RETURN x.name AS x, size(r) AS n"
+  - id: a_variable_length_pattern_as_a_predicate
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})
+    cypher: "MATCH (n) WHERE (n)-[:T*]->(:C) RETURN n.name AS n ORDER BY n"
+  - id: an_undirected_fixed_length_pattern_as_a_predicate
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})
+    cypher: "MATCH (n) WHERE (n)-[:T*2]-() RETURN n.name AS n ORDER BY n"
+  - id: a_negated_variable_length_predicate
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})
+    cypher: "MATCH (n) WHERE NOT (n)-[:T*]->() RETURN n.name AS n"
+  - id: a_relationship_of_an_edge_type_and_an_association_type
+    graph: |
+      CREATE (a:A {name: 'a'})-[:R]->(:B {name: 'b'}), (a)-[:R]->(:D {name: 'd'}), (:B {name: 'x'})-[:S]->(a)
+    cypher: "MATCH (n)-[:R|S]-(m) RETURN n.name AS n, m.name AS m ORDER BY n, m"
+  - id: an_optional_walk_with_a_lower_bound_past_its_reach
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[*3..]-(b) RETURN a.name AS a, b.name AS b"

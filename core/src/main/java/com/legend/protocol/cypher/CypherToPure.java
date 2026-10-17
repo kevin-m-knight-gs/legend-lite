@@ -1430,6 +1430,13 @@ public final class CypherToPure {
         if (!matchFrame.nested) {
             matchFrame.scan(m);
         }
+        if (!(state instanceof Rows) && !m.optional() && variableLengthPredicate(m.where())) {
+            // a WHERE holding a variable-length pattern predicate (`MATCH (n) WHERE (n)-[:T*]->()`, the study's
+            // §12.69): the pattern read as rows and the WHERE over them, the predicate a flag (§12.52) whose
+            // pattern, a MATCH of its own, is the unroll or the walk (§12.42, §12.68), never a navigation
+            State read = matchPattern(new CypherAst.Match(false, m.patterns(), null, m.pos()), state);
+            return filtered(rowsOf(read, m.pos()), java.util.Objects.requireNonNull(m.where()));
+        }
         if (state instanceof Rows rows) {
             Rows hop = absentHop(m, rows);
             if (hop != null) {
@@ -1638,8 +1645,13 @@ public final class CypherToPure {
             }
         }));
         List<Graph> graphs = new ArrayList<>();
+        Set<String> edgeReachedBefore = new HashSet<>(reachedThroughEdge);
+        Set<String> edgeReachedByArms = new HashSet<>(reachedThroughEdge);
         for (List<PatternElement> arm : arms) {
             clearMatch();
+            // (each arm its own graph: the nodes an earlier arm reached through an edge class are not this arm's,
+            // the study's §12.69)
+            resetReachedThroughEdge(edgeReachedBefore, edgeReachedByArms);
             // (the property maps lenient across every class the arms read, as the WHERE below is)
             Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
             if (g == null) {
@@ -1663,6 +1675,7 @@ public final class CypherToPure {
             }
             graphs.add(g);
         }
+        reachedThroughEdge.addAll(edgeReachedByArms);   // (every arm's, once the arms are read)
         return armsRows(graphs, order, m.pos());
     }
 
@@ -2028,8 +2041,14 @@ public final class CypherToPure {
             return walk(m, state);
         }
         if (state != null) {
-            throw CypherErrors.unsupported("a variable-length relationship in a MATCH after another clause is not"
-                    + " supported yet", m.pos());
+            // after rows or a graph: the pattern read from the rows' node as a MATCH of its own, unrolled there,
+            // and joined back by identity (the re-anchoring of §12.49; the study's §12.69)
+            Rows anchored = reanchor(m, rowsOf(state, m.pos()));
+            if (anchored != null) {
+                return anchored;
+            }
+            throw CypherErrors.unsupported("a variable-length relationship in a MATCH after another clause, from no"
+                    + " node the rows carry, is not supported yet", m.pos());
         }
         if (m.patterns().size() != 1) {
             throw CypherErrors.unsupported("a variable-length relationship in a MATCH of several patterns is not"
@@ -2157,10 +2176,13 @@ public final class CypherToPure {
             }
         }));
         List<Graph> graphs = new ArrayList<>();
+        Set<String> edgeReachedBefore = new HashSet<>(reachedThroughEdge);
+        Set<String> edgeReachedByArms = new HashSet<>(reachedThroughEdge);
         for (int a = 0; a < arms.size(); a++) {
             List<PatternElement> arm = arms.get(a);
             Chain chain = armChains.get(a);
             clearMatch();
+            resetReachedThroughEdge(edgeReachedBefore, edgeReachedByArms);
             Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
             if (g == null) {
                 // (an arm is assigned from the ways the model has: none has no way; kept for the type's sake)
@@ -2186,6 +2208,7 @@ public final class CypherToPure {
             }
             graphs.add(read);
         }
+        reachedThroughEdge.addAll(edgeReachedByArms);   // (every arm's, once the arms are read)
         return armsRows(graphs, order, m.pos());
     }
 
@@ -2602,8 +2625,11 @@ public final class CypherToPure {
             head.add(new NodePattern(startVar, List.of(cls), start.properties(), start.pos()));
             List<List<PatternElement>> arms = new ArrayList<>();
             assign(ordered, 2, cls, head, arms);
+            Set<String> edgeReachedBefore = new HashSet<>(reachedThroughEdge);
+            Set<String> edgeReachedByArms = new HashSet<>(reachedThroughEdge);
             for (List<PatternElement> arm : arms) {
                 clearMatch();
+                resetReachedThroughEdge(edgeReachedBefore, edgeReachedByArms);
                 // (a fanning graph: the hop may find many, one row per node reached when the arms materialize)
                 Graph copy = new Graph(base.rootClass(), base.row(), new LinkedHashMap<>(base.bindings()),
                         new ArrayList<>(base.conditions()), base.candidates(), true,
@@ -2622,6 +2648,7 @@ public final class CypherToPure {
                 }
                 graphs.add(g);
             }
+            reachedThroughEdge.addAll(edgeReachedByArms);   // (every arm's, once the arms are read)
         }
         if (graphs.isEmpty()) {
             for (PatternElement e : ordered) {
@@ -3765,6 +3792,24 @@ public final class CypherToPure {
 
     /** The pattern predicates and EXISTS subqueries {@code e} holds, outside any lambda that binds a variable (a
      *  quantifier's, a comprehension's: a predicate inside one may read the lambda's variable). */
+    /** Whether {@code where} holds a pattern predicate or an EXISTS subquery over a variable-length relationship
+     *  (the study's §12.69). */
+    private static boolean variableLengthPredicate(@com.legend.base.Nullable Expr where) {
+        if (where == null) {
+            return false;
+        }
+        List<Expr> predicates = new ArrayList<>();
+        patternPredicatesIn(where, predicates);
+        for (Expr predicate : predicates) {
+            PathPattern pattern = predicate instanceof CypherAst.PatternPredicate pp ? pp.pattern()
+                    : ((CypherAst.ExistsSubquery) predicate).pattern();
+            if (pattern.elements().stream().anyMatch(e -> e instanceof RelPattern r && r.lengthRange() != null)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void patternPredicatesIn(Expr e, List<Expr> out) {
         if (e instanceof CypherAst.PatternPredicate || e instanceof CypherAst.ExistsSubquery) {
             out.add(e);
@@ -4492,6 +4537,15 @@ public final class CypherToPure {
             at += 2;
         }
         return true;
+    }
+
+    /** Before an arm is read: the nodes reached through an edge class are those before the arms (an arm is its
+     *  own graph, the study's §12.69), the arm before's gathered into {@code byArms}, which the set holds again once
+     *  the arms are read. */
+    private void resetReachedThroughEdge(Set<String> before, Set<String> byArms) {
+        byArms.addAll(reachedThroughEdge);
+        reachedThroughEdge.clear();
+        reachedThroughEdge.addAll(before);
     }
 
     /** A hop from a node reached through an edge class, refused by name ({@link #reachedThroughEdge}). */

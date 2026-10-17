@@ -1536,6 +1536,12 @@ class CypherToPureTest {
         String listed = pure("MATCH q = (p:Person)-[r:firm*0..]->(f) RETURN r, length(q) AS n, nodes(q) AS ns");
         assertTrue(listed.contains("r:r|fromJson('[' + $r._cypher_walk_relsj + ']')"), listed);
         assertTrue(listed.contains("_cypher_path_length_q:r|$r._cypher_walk_depth") && !listed.contains(">= 0)"), listed);
+        // a bounded one after another MATCH re-anchors (§12.49), and one in a WHERE's pattern predicate is read over
+        // the rows as a flag whose pattern is a MATCH of its own (the study's §12.69)
+        String afterMatch = pure("MATCH (p:Person) MATCH (p)-[:firm*1..2]->(f) RETURN f.legalName AS firm");
+        assertTrue(afterMatch.contains("JoinKind.INNER, {l, r|$l._cypher_"), afterMatch);
+        String predicate = pure("MATCH (p:Person) WHERE (p)-[:firm*]->() RETURN p.name AS name");
+        assertTrue(predicate.contains("recurse(") && predicate.contains("JoinKind.LEFT"), predicate);
         unsupported("MATCH (p:Person)-[:firm*]->(f)-[:firm]->(g) RETURN g.legalName", "other relationships");
         unsupported("MATCH (p:Person)-[:firm*]->(p) RETURN p.name", "back to itself");
         // after rows, the walk is the re-anchored pattern's own (§12.49): read from the rows' node, joined back

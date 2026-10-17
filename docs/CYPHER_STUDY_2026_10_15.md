@@ -4666,3 +4666,38 @@ rows) DuckDB 3470 → 3470, Postgres 3091 → 3091.
 The 17 TCK rows that move (DuckDB REFUSED → PASS; Postgres the same): Match4/[2], Match4/[4], Match4/[5], Match6/[15], Match6/[20], Match7/[12], Match7/[13], Match9/[5], Match9/[8], ReturnOrderBy2/[12], Return6/[13], Return6/[8], With6/[4], List12/[4], List12/[5], Pattern1/[16], Pattern1/[17]; the 21 new lite
 cases PASS on both lanes but the refusal, REFUSED on both. TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB
 3470 → 3487, Postgres 3091 → 3108.
+
+### 12.69 The variable-length remainder: after a MATCH, as a WHERE's predicate, and arms read one at a time (2026-10-17)
+
+- **A bounded variable-length relationship after another clause** (`MATCH (a:A) MATCH (a)-[r*2]->()`, Match4/[6]): the
+  pattern re-anchored (§12.49), read from the rows' node as a MATCH of its own, unrolled there (§12.42), and joined
+  back by identity, as the walk does after rows (§12.68). Refused by name only where no end of the pattern is a node
+  the rows carry.
+- **A WHERE holding a variable-length pattern predicate over a graph** (`MATCH (n) WHERE (n)-[:REL1*]->() RETURN n`,
+  Pattern1/[7]-[10]): the pattern is read as rows and the WHERE over them, the predicate a flag (§12.52) whose
+  pattern, a MATCH of its own, is the unroll or the walk; never a navigation, which reads no variable length.
+  `CypherToPure.variableLengthPredicate` names the case (a pattern predicate or an EXISTS subquery holding a
+  relationship with a length range).
+- **The nodes reached through an edge class, scoped to their arm.** The translator refuses a hop from a node reached
+  through an edge class (§12.38: the resolver reads no association end past the edge's end), keeping those nodes in
+  one set for the statement. A relationship of several types, or a type joining several class pairs, is read as
+  arms (§12.35, §12.17), each its own graph: the set kept the earlier arms' nodes, so an arm over an association
+  read from a node an edge arm had reached was refused (`(n)-[:REL1|REL2]-(m)` with `REL1` over edge classes,
+  Pattern1/[13]; the undirected `OPTIONAL MATCH (a)-[*3..]-(b)`, Match7/[14]). Each arm now starts from the set as
+  it was before the arms (`resetReachedThroughEdge`), and the set holds every arm's nodes again once the arms are
+  read, as it did.
+- **Pinned.** `CypherToPureTest` (the re-anchored bounded pattern after a MATCH, the predicate's recursion and its
+  left join); `lite/varlen.yaml`'s 6 new cases (a bounded pattern after a MATCH, a variable-length predicate, an
+  undirected fixed-length predicate, a negated predicate, a relationship of an edge type and an association type,
+  an optional walk whose lower bound is past its reach), each judged by Neo4j; the TCK rows that move: Match4/[6], Match7/[14], Pattern1/[10], Pattern1/[13], Pattern1/[7], Pattern1/[8], Pattern1/[9].
+
+#### 12.69.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4795 | 3623 (from 3,610) | 0 | 0 | 0 | 368 (from 375) | 747 | 57 |
+| Postgres | 4795 | 3221 (from 3,208) | 0 | 0 | 0 | 770 (from 777) | 747 | 57 |
+
+The 7 TCK rows move REFUSED → PASS on both lanes; the 6 new lite cases PASS on both. TCK agreement
+(PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB 3487 → 3494, Postgres 3108 → 3115.
+

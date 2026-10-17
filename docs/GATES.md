@@ -9932,6 +9932,22 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the sixty-seventh landing — the variable-length remainder
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, its remainder); the record is the study's §12.69. A
+bounded variable-length relationship after another clause re-anchored; a WHERE's variable-length pattern predicate
+over a graph read over the rows as a flag; the nodes reached through an edge class scoped to the arm that reached
+them.
+
+1. **What lands.** Match4/[6], Match7/[14], Pattern1/[10], Pattern1/[13], Pattern1/[7], Pattern1/[8], Pattern1/[9] (7 TCK rows); the 6 new cases of `lite/varlen.yaml`; DuckDB PASS
+   3,610 → 3623, Postgres 3,208 → 3221; TCK agreement DuckDB 3487 → 3494, Postgres 3108 → 3115.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3623 / REFUSED 368 / BOTH_ERROR
+   747 / SKIP 57; Postgres PASS 3221 / REFUSED 770 / BOTH_ERROR 747 / SKIP 57, of
+   4795 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest` pins the two new routes.
+4. **Refused by name, recorded.** Nothing new.
+
 ## 2026-10-17 — `#Cypher{...}#`: the sixty-sixth landing — the walk the data bounds (W10 leg 2b)
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, leg 2b); the record is the study's §12.68. A
