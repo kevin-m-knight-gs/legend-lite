@@ -7192,8 +7192,9 @@ public final class CypherToPure {
             case CypherAst.NullLit n -> nullValue();
             case CypherAst.Var v -> scope.variable(v);
             case CypherAst.Prop p -> scope.property(p);
-            case CypherAst.Param p -> throw CypherErrors.unsupported("a parameter ($" + p.name() + ") is not"
-                    + " supported yet", p.pos());
+            // a parameter the text did not bind (the island has no parameter channel, the study's §12.15: a lane
+            // binds a scenario's parameters into the text before translating): Neo4j's ParameterMissing
+            case CypherAst.Param p -> throw CypherErrors.invalid("Expected parameter(s): " + p.name(), p.pos());
             case CypherAst.ListLit l -> {
                 List<Val> elements = new ArrayList<>();
                 for (Expr x : l.elements()) {
@@ -7264,14 +7265,9 @@ public final class CypherToPure {
      *  double (0.1 + 0.2 is 0.30000000000000004); a bare Float literal lowers to a decimal
      *  (docs/SEMANTICS_REGISTER.md S9). */
     private static Val floatLiteral(CypherAst.FloatLit f, boolean negated) {
-        double v = Math.abs(f.value());
-        if (v >= 1e15 || (v != 0 && v < 1e-15)) {
-            // lite's Postgres dialect spells a Float literal in plain digits, which Postgres types numeric
-            // (1e308 answers an exact numeric, Neo4j a float): reported to the database owner (IN_FLIGHT,
-            // 2026-10-15); refused here until it spells a float
-            throw CypherErrors.unsupported("a float literal beyond 1e15 or below 1e-15 (" + f.text()
-                    + ") is not supported yet", f.pos());
-        }
+        // (a float of an extreme magnitude, 1e308 or 1e-305, was refused by name while Postgres typed its plain
+        // digits numeric; every dialect spells toFloat of one as a DOUBLE cast of its exponent form now, measured
+        // 2026-10-17, the study's §12.66)
         if (!negated) {
             return literal(Tx.value(call("toFloat", new CFloat(f.value())), Kind.FLOAT, false), f.value());
         }

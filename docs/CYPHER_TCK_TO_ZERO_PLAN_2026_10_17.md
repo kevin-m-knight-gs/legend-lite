@@ -325,6 +325,9 @@ chains past two steps as rows per chain under the same columns; with them a list
 over computed lists. Next: an untyped relationship in a MATCH of several patterns, a variable-length relationship
 after another clause or in an OPTIONAL MATCH; then W11 (ORDER BY and min/max over Variants), `toString` of lists,
 maps and nodes, the pattern comprehension over rows.
+- Leg 5 LANDED 2026-10-17 (the study's §12.66, GATES' sixty-fourth landing; TCK agreement DuckDB 3463 → 3470, Postgres 3084 → 3091; DuckDB PASS 3,565 → 3573, Postgres 3,163 → 3171): the extreme float
+  literals (the island's stale guard lifted: the dialects cast `toFloat` of one to a double now) and a parameter the
+  text did not bind as Neo4j's ParameterMissing (Call1/[11]).
 
 ## 3. Decisions asked of the user
 

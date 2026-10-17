@@ -54,3 +54,12 @@ tests:
     graph: |
       CREATE (:A {k: 1})
     cypher: "MATCH (n:A) RETURN toString([1, 'a', [2, true]]) AS l, toString({a: 1, b: 'x'}) AS m, toString(n) AS node"
+  # extreme float literals and an unbound parameter (docs/CYPHER_STUDY_2026_10_15.md §12.66)
+  - id: extreme_float_literals
+    graph: |
+      CREATE (:A {k: 1})
+    cypher: "RETURN 1e308 AS big, -1e-305 AS tiny, 123456789e300 AS nine, .00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 AS verySmall"
+  - id: an_unbound_parameter_is_neo4js_error
+    graph: |
+      CREATE (:A {k: 1})
+    cypher: "MATCH (a:A) RETURN a.k + $x AS y"

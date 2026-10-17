@@ -1544,7 +1544,9 @@ class CypherToPureTest {
         String countNodes = pure("MATCH (p:Person) RETURN count(DISTINCT p) AS c");
         assertTrue(countNodes.contains("$p->meta::legend::lite::elementId()")
                 && countNodes.contains("y|$y->distinct()->count()"), countNodes);
-        unsupported("MATCH (p:Person) WHERE p.name = $name RETURN p.name", "a parameter ($name)");
+        // (a parameter the text did not bind: Neo4j's ParameterMissing, the study's §12.66; a lane binds a
+        // scenario's parameters into the text, §12.15)
+        invalid("MATCH (p:Person) WHERE p.name = $name RETURN p.name", "Expected parameter(s): name");
         unsupported("MATCH (p:Person) WHERE p.name =~ 'A.*' RETURN p.name", "regular expression");
         // a list of row values through WITH is the Variant the database builds, marked with its element kind
         String carriedList = pure("MATCH (p:Person) WITH [p.age, 1] AS l UNWIND l AS x RETURN x");
@@ -1575,8 +1577,11 @@ class CypherToPureTest {
         String groupedRel = pure("MATCH (p:Person)-[r:firm]->(f:Firm) WITH r, count(*) AS c RETURN c");
         assertTrue(groupedRel.contains("->groupBy(~[_cypher_1, _cypher_2, _cypher_3], ~[c:x|"), groupedRel);
         invalid("MATCH (p:Person) RETURN p.age + count(*)", "implicit grouping expressions (p.age in p.age + count(*))");
-        unsupported("RETURN 1e308 AS x", "a float literal beyond 1e15");
-        unsupported("RETURN 1e-20 AS x", "a float literal beyond 1e15");
+        // (an extreme float was refused by name while Postgres typed its plain digits numeric: the dialects cast
+        // toFloat of one to a double now, the study's §12.66)
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[x:r|toFloat(1.0E308), y:r|toFloat(1.0E-20) * -1.0])->select(~[x, y])", pure("RETURN 1e308 AS x, -1e-20 AS y"));
+        // a parameter the text did not bind is Neo4j's ParameterMissing (the island has no parameter channel)
+        invalid("RETURN $x AS x", "Expected parameter(s): x");
     }
 
     // ------------------------------------------------------------------ edge classes (the study's §5.6)

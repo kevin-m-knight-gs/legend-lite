@@ -11,7 +11,7 @@ tck/clauses/call/Call1/[7] Standalone call to procedure should fail if explicit 
 tck/clauses/call/Call1/[8] In-query call to procedure should fail if explicit argument is missing	PASS	PASS
 tck/clauses/call/Call1/[9] Standalone call to procedure should fail if too many explicit argument are given	PASS	PASS
 tck/clauses/call/Call1/[10] In-query call to procedure should fail if too many explicit argument are given	PASS	PASS
-tck/clauses/call/Call1/[11] Standalone call to procedure should fail if implicit argument is missing	REFUSED	REFUSED
+tck/clauses/call/Call1/[11] Standalone call to procedure should fail if implicit argument is missing	PASS	PASS
 tck/clauses/call/Call1/[12] In-query call to procedure that has outputs fails if no outputs are yielded	PASS	PASS
 tck/clauses/call/Call1/[13] Standalone call to unknown procedure should fail	BOTH_ERROR	BOTH_ERROR
 tck/clauses/call/Call1/[14] In-query call to unknown procedure should fail	BOTH_ERROR	BOTH_ERROR
@@ -1826,14 +1826,14 @@ tck/expressions/literals/Literals5/[1] Return a short positive float	PASS	PASS
 tck/expressions/literals/Literals5/[2] Return a short positive float without integer digits	PASS	PASS
 tck/expressions/literals/Literals5/[3] Return a long positive float	PASS	PASS
 tck/expressions/literals/Literals5/[4] Return a long positive float without integer digits	PASS	PASS
-tck/expressions/literals/Literals5/[5] Return a very long positive float	REFUSED	REFUSED
-tck/expressions/literals/Literals5/[6] Return a very long positive float without integer digits	REFUSED	REFUSED
+tck/expressions/literals/Literals5/[5] Return a very long positive float	PASS	PASS
+tck/expressions/literals/Literals5/[6] Return a very long positive float without integer digits	PASS	PASS
 tck/expressions/literals/Literals5/[7] Return a positive zero float	PASS	PASS
 tck/expressions/literals/Literals5/[8] Return a positive zero float without integer digits	PASS	PASS
 tck/expressions/literals/Literals5/[9] Return a negative zero float	PASS	PASS
 tck/expressions/literals/Literals5/[10] Return a negative zero float without integer digits	PASS	PASS
-tck/expressions/literals/Literals5/[11] Return a very long negative float	REFUSED	REFUSED
-tck/expressions/literals/Literals5/[12] Return a very long negative float without integer digits	REFUSED	REFUSED
+tck/expressions/literals/Literals5/[11] Return a very long negative float	PASS	PASS
+tck/expressions/literals/Literals5/[12] Return a very long negative float without integer digits	PASS	PASS
 tck/expressions/literals/Literals5/[13] Return a positive float with positive lower case exponent	PASS	PASS
 tck/expressions/literals/Literals5/[14] Return a positive float with positive upper case exponent	PASS	PASS
 tck/expressions/literals/Literals5/[15] Return a positive float with positive lower case exponent without integer digits	PASS	PASS
@@ -1846,8 +1846,8 @@ tck/expressions/literals/Literals5/[21] Return a negative float with positive lo
 tck/expressions/literals/Literals5/[22] Return a negative float with negative lower case exponent	PASS	PASS
 tck/expressions/literals/Literals5/[23] Return a negative float with negative lower case exponent without integer digits	PASS	PASS
 tck/expressions/literals/Literals5/[24] Return a negative float with negative upper case exponent without integer digits	PASS	PASS
-tck/expressions/literals/Literals5/[25] Return a positive float with one integer digit and maximum positive exponent	REFUSED	REFUSED
-tck/expressions/literals/Literals5/[26] Return a positive float with nine integer digit and maximum positive exponent	REFUSED	REFUSED
+tck/expressions/literals/Literals5/[25] Return a positive float with one integer digit and maximum positive exponent	PASS	PASS
+tck/expressions/literals/Literals5/[26] Return a positive float with nine integer digit and maximum positive exponent	PASS	PASS
 tck/expressions/literals/Literals5/[27] Fail when float value is too large	BOTH_ERROR	BOTH_ERROR
 tck/expressions/literals/Literals6/[1] Return a single-quoted empty string	PASS	PASS
 tck/expressions/literals/Literals6/[2] Return a single-quoted string with one character	PASS	PASS
@@ -4486,6 +4486,8 @@ lite/tail/the_size_of_a_collect_distinct	PASS	PASS
 lite/tail/a_collect_distinct_of_a_node_property_ignoring_order	PASS	PASS
 lite/tail/a_duration_text_in_the_date_time_form	PASS	PASS
 lite/tail/to_string_of_a_list_a_map_and_a_node_refused	REFUSED	REFUSED
+lite/tail/extreme_float_literals	PASS	PASS
+lite/tail/an_unbound_parameter_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/date_from_components	PASS	PASS
 lite/temporal/date_from_text	PASS	PASS
 lite/temporal/localdatetime_from_components	PASS	PASS

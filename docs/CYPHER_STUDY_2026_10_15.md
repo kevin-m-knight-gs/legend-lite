@@ -4521,3 +4521,37 @@ The 8 new cases of `lite/stored.yaml`: 4 in agreement on DuckDB (two refused by 
 zoned times: WithOrderBy1/[37], [38], WithOrderBy2/[15], [16] SKIP → PASS on DuckDB (REFUSED on Postgres); Temporal5/[4] SKIP → REFUSED
 (the zone), WithOrderBy1/[41], [42], WithOrderBy2/[19], [20] SKIP, named (a year outside 1678 to 2261); Temporal5/[6] SKIP → REFUSED (a named zone). TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK
 rows) DuckDB 3458 → 3463, Postgres 3084 → 3084.
+
+### 12.66 The tail, leg 5: extreme float literals and an unbound parameter (2026-10-17)
+
+- **Extreme float literals** (Literals5/[5], [6], [11], [12], [25], [26]: `1e308`, `-1e-305`, `123456789e300`, a
+  three-hundred-digit mantissa). The island refused a float literal beyond 1e15 or below 1e-15 by name (2026-10-15)
+  because lite's Postgres dialect spelled a Float literal in plain digits, which Postgres typed `numeric` (an exact
+  value where Neo4j answers a float). Every dialect spells `toFloat` of such a literal as a DOUBLE cast of its
+  exponent form now (`CAST(1.0E308 AS DOUBLE PRECISION)`, measured on both lanes), so the guard was stale: lifted.
+  The judge compares the doubles (Neo4j prints `1e+308`, `1.2635418652381264e+305`).
+- **An unbound parameter** (Call1/[11]: `CALL test.my.proc` with the parameter `in` missing). The island has no
+  parameter channel (§12.15: a lane binds a scenario's parameters into the text, implicit arguments spelled as the
+  explicit call of the parameters), so a `$x` the text did not bind is Neo4j's error, `ParameterMissing: Expected
+  parameter(s): x`, not a refusal.
+- **Still refused, by name.** `range` over a bound that may be null or a step of the row (List11/[3]: the UNWIND of
+  a list carried through a WITH types its values nullable, and a step of the row needs the end's sign spelled at
+  run time, `if($step > 0, |$last + 1, |$last - 1)`); `toString` of a list, a map, a node, a relationship or a path
+  (TypeConversion4/[10]: Neo4j 2026.09 answers its own texts, `'[]'`, `'{}'`, `'()'`, `'[:T]'`, `'()-[:T]->()'`,
+  where the TCK expects an error); a signed year beyond the database's dates (Temporal10/[9], [10]:
+  `date('-999999999-01-01')`); a duration divided by a number (Temporal8/[7]: Neo4j's own normalisation of the
+  fractional months and days).
+- **Pinned.** `lite/tail.yaml` grows 2 cases judged by Neo4j (the extreme literals returned, an
+  unbound parameter's error); `CypherToPureTest` pins the literals' spelling and the parameter's error (its
+  former refusal pin turned).
+
+#### 12.66.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4769 | 3573 (from 3,565) | 0 | 0 | 0 | 392 (from 399) | 747 (from 746) | 57 (from 57) |
+| Postgres | 4769 | 3171 (from 3,163) | 0 | 0 | 0 | 794 (from 801) | 747 (from 746) | 57 (from 57) |
+
+The 2 new cases of `lite/tail.yaml`: 1 in agreement on DuckDB, 1 on Postgres. Literals5/[5], [6], [11], [12],
+[25], [26] REFUSED → PASS on both lanes; Call1/[11] REFUSED → PASS (the TCK's error met). TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK
+rows) DuckDB 3463 → 3470, Postgres 3084 → 3091.

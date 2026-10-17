@@ -9932,6 +9932,25 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the sixty-fourth landing — the tail, leg 5 (extreme floats, an unbound parameter)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, leg 5); the record is the study's §12.66. The
+island's stale guard against extreme float literals lifted (the dialects cast `toFloat` of one to a double now,
+measured), and a parameter the text did not bind raised as Neo4j's ParameterMissing.
+
+1. **What lands.** Literals5/[5], [6], [11], [12], [25], [26] (extreme float literals), Call1/[11] (a procedure's implicit
+   argument whose parameter is missing: ParameterMissing); the 2 new cases of `lite/tail.yaml`; DuckDB PASS
+   3,565 → 3573, Postgres 3,163 → 3171; TCK agreement DuckDB 3463 → 3470, Postgres 3084 → 3091.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3573 / REFUSED 392 / BOTH_ERROR
+   747 / SKIP 57; Postgres PASS 3171 / REFUSED 794 / BOTH_ERROR 747 / SKIP
+   57, of 4769 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest` pins the extreme literals' spelling (`toFloat(1.0E308)`, the negation folded) and
+   the parameter's error (`Expected parameter(s): name`, where it pinned the refusal).
+4. **Refused by name, recorded.** `range` over a nullable bound or a step of the row; `toString` of a list, map,
+   node, relationship or path (Neo4j 2026's own texts); a signed year beyond the database's dates; a duration divided
+   by a number.
+
 ## 2026-10-17 — `#Cypher{...}#`: the sixty-third landing — stored zoned times and date-times (W5 leg 2b)
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5, leg 2b); the record is the study's §12.65. A stored
