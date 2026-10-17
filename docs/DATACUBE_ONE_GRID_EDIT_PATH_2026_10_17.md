@@ -1,7 +1,10 @@
 # One way to edit a grid: the screen's, for the screen and Python alike (2026-10-17)
 
-**Status:** agreed with the user 2026-10-17 ("in #47, before merge"; "yes, as proposed"). Lands in PR
-neema2/legend-lite#47 (branch `claude/epic-rubin-ay7upl`), reviewed by the DataCube + Python line before push.
+**Status:** agreed with the user 2026-10-17 ("in #47, before merge"; "yes, as proposed"). Built in PR
+neema2/legend-lite#47 (branch `claude/epic-rubin-ay7upl`): step 1 in 57f365d, steps 2 and 3 together in baf0bfd (Python's
+calls need `gridEdit`), the Query app's grid in cbcd4d6, and three fixes the command-API homework found in da1f546
+(§3.3, §4). Reviewed by the DataCube + Python line before push. What it leaves for later is in
+`docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md`.
 
 ## 1. Why
 
@@ -75,19 +78,22 @@ it, and aggregates source and row-level columns only. The panel now disables bot
 
 ### 3.3 Python asks it
 
-Headless `gridEdit` replaces `gridQuery`. It turns Python's call into the module's edits, then compiles the grid as
-`#applyDraft` does, and answers the query, configuration and open rows Python's page document keeps:
+Headless `gridEdit` replaces `gridQuery`. It opens the grid on the configuration the screen opens on (`fromSnapshot`,
+as `app.ts`'s constructor), turns Python's call into the module's edits -- in the order configuration, columns, rows,
+pivot, measures, sorts -- then folds and compiles the grid as `#applyDraft` does, and answers the whole cube document
+as DataCube writes it (`{cube}`), which Python's page keeps. The open groups stay, as the screen's edits keep them.
 
 | Python | The module |
 |---|---|
-| `grid.group(*rows)`, `grid.pivot(*columns)` | `setGrouping`, `setPivot` |
+| `grid.group(*rows)`, `grid.pivot(*columns)` | `setGrouping`, `setPivot` (unpivoted, a sort of a pivot's header goes with its headers) |
 | `grid.sort(column, direction)` | `setSorts`: the column's sort replaced, added last (the menu's Add Ascending) |
-| `grid.column(name, kind=, aggregate=, weight=)` (new) | `setColumn`, as Column Properties sets it |
-| `grid.measure(column, fn, weight=)` | `setColumn(column, {aggregate: fn, weight})` |
-| `grid.measure(column, fn, name=...)`, or of a grouped column | a calculated column `name` reading `column`, by the column editor's own steps (`column-draft.ts`), then `setColumn(name, ...)` |
-| `Page.grid(rows=, columns=, measures=, sort=)` | the same, in one call |
+| `grid.column(name, kind=, aggregate=, weight=)` (new) | `setColumn`, as Column Properties sets it; None clears an Aggregation or a weight |
+| `grid.measure(column, fn, weight=)` | `measureAsColumn`: `setColumn(column, {aggregate: fn, weight})` |
+| `grid.measure(column, fn, name=...)`, or of a grouped column | `measureAsColumn`: a calculated column `name` reading `column`, by the column editor's own steps (`column-draft.ts`), with that Aggregation |
+| `grid.configure(settings)` | `config.ts withConfiguration`, the rule `CubeApp.applyConfiguration` applies a host's patch by: each column's merged, None clears |
+| `Page.grid(rows=, columns=, measures=, sort=, dimensions=)` | the same, in one call (`dimensions`: `setColumn(name, {kind: 'dimension'})` first) |
 
-`gridQuery`'s own parsing and checks go (`columnsFrom`, `measuresFrom`, `sortsFrom`, `queryFrom`,
+`gridQuery`'s own parsing and checks went (`columnsFrom`, `measuresFrom`, `sortsFrom`, `queryFrom`,
 `producedColumns`), with `offers.ts measureOfferProblem`.
 
 ### 3.4 Measures saved before this: converted on open
@@ -134,6 +140,12 @@ Column Properties where it read the grid's measures:
     it no longer makes a one-row total.
   - A measure is a column's Aggregation, shown in Column Properties; a named one is a calculated column. A saved page's
     measures are converted on load, with a warning.
+  - `grid.sort(column, ...)` replaces that column's sort rather than adding a second.
+  - `grid.configure` sets settings as DataCube sets a host's: each column's merged into what it has (it replaced the
+    column map), None clears one, and they are folded into the query -- so a row cap set after an edit holds (it was
+    overridden on open by the query's copy).
+  - A grid's open groups stay when it is regrouped, as on the screen (Python let them go).
+  - A chart told to follow its grid and told a value at another aggregate than the grid's Aggregation is refused.
 - **The browser app.**
   - A saved cube's measures are converted on open, said in its notes.
   - Open in Grid writes Column Properties and calculated columns: the grid it opens shows its aggregates in Column
@@ -141,15 +153,19 @@ Column Properties where it read the grid's measures:
   - A new chart's default value takes its column's Aggregation, and a following chart plots its column at the
     grid's Aggregation (it plotted the grid's first measure, which no panel showed).
   - Update from Open in Grid carries the editing grid's aggregates back to the chart.
+  - Removing the horizontal pivot drops a sort of a pivot's header (the flat grid had no such column, and its query
+    was refused).
 
-## 5. Steps (one commit each)
+## 5. Steps
 
-1. `grid-edits.ts`, and the screen calling it: no change on the screen.
-2. `measures` off the grid's type: the builder's own input, worked out per query; `measuresAsColumns` for
-   `openCube`'s conversion and Open in Grid; the example page's cube; the follow rule (`followCube`, `firstMeasure`,
-   Update).
-3. Python onto the module: headless `gridEdit`, `page.py`'s `group`, `pivot`, `sort`, `measure`, `column` and
-   `Page.grid`; `gridQuery`'s own checks deleted.
-4. Docs and the record: `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`, `docs/IN_FLIGHT.md`, the PR description.
+1. `grid-edits.ts`, and the screen calling it: no change on the screen (57f365d).
+2. and 3., in one commit since Python's calls need `gridEdit` (baf0bfd): `measures` off the grid's type, the builder's
+   own input worked out per query; `measuresAsColumns` for `openCube`'s conversion and Open in Grid; the example
+   page's cube; the follow rule (`followCube`, `followedValue`, Update); headless `gridEdit`; `page.py`'s `group`,
+   `pivot`, `sort`, `measure`, `column` and `Page.grid`; `gridQuery`'s own checks deleted.
+4. The Query app's grid (cbcd4d6), and the homework's three fixes (da1f546): open groups kept, `column()` clears,
+   `configure` by `withConfiguration`.
+5. Docs and the record: this file, `docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md`,
+   `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`, `docs/IN_FLIGHT.md`, the PR description.
 
-Then the audit, the full local set, the DataCube + Python line's review, one push, CI.
+Then the DataCube + Python line's review, the full local set, one push, CI.

@@ -919,7 +919,15 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `page/cube-page.ts` (Open in Grid), `chart-spec.ts` (`firstMeasure`, `followCube`), `examples/charts-dashboard.ts`,
   `offers.ts`, `headless/grid.ts` (`gridEdit` for `gridQuery`), `headless/entry.ts`, `python/legend_lite/page.py`,
   their tests, `datacube/test_imports.bzl` (regenerated), `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`. Still not
-  touched: the SQL plan's ground, as above.
+  touched: the SQL plan's ground, as above. Declared after it landed locally (2026-10-17), past that list: the grid's
+  type and the builder's own input (`snapshot.ts`, `query.ts`, `calc.ts`, `cube.ts`, `shown-columns.ts`, `adhoc/outline.ts`,
+  `adhoc/query.ts`); the screen's edit path and the host's configuration rule (`app.ts`, `config.ts withConfiguration`);
+  the demos and tools that build a grid (`demo/boot.ts`, `demo/stress.ts`, `tools/link-dictionary/make.ts`,
+  `tools/offer-facts/emit.ts`); `datacube/BUILD.bazel` (`grid-edits` in `_HEADLESS_TESTS`: the Compiler Rewrite
+  line's OK asked); `datacube/test/bundle-budget.test.ts` (281,000 -> 283,500, its dated note); and one line outside
+  DataCube, `query/src/app/cube.ts` (the Query app's grid wrote `measures: []`, which no longer type-checks). The
+  command-API homework that followed (four read-only surveys, the user's ask) is
+  `docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md`: the next program, after #47 merges (the user, 2026-10-17).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

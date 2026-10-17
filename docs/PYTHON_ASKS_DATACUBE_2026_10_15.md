@@ -107,12 +107,27 @@ What is left, and why:
   - The engine's planner kinds and `MAX_SNAP_ROWS` (items 10 and 8, 2026-10-15): no twins at all -- a page asks a
     Python host on legend-engine's own routes and the host's compute, never by the tab's worker kinds, and the snap
     limit is Python's own.
-  - `AGGREGATES`, `DIRECTIONS` (2026-10-16): with its measure and sort rules (`gridQuery`).
+  - `AGGREGATES`, `DIRECTIONS` (2026-10-16): with its measure and sort rules (`gridQuery`; since 2026-10-17 headless
+    `gridEdit`, over `grid-edits.ts`, the module the screen edits a grid with).
   - The chart words (`MARKS`, `MEASURE_MARKS`, `AXES`, `SHOW_AS`, `GRAINS`, `LAYERS`, `STATS`), `CHART_VERSION`,
     `PAGE_KIND` and `PAGE_VERSION` (2026-10-16): Python keeps none of them -- DataCube's chart reader judges each word
     (`gridChart`), a chart's version is the one DataCube starts it from, and a new page is DataCube's own (`pageNew`,
     over `page-document.ts startingViews`, whose first grid the same `bands.ts add` places as a page started on the
     screen). With the last pin gone, the test went.
+
+## A grid's edits, 2026-10-17: one path, and what Python still holds
+
+Round 2's `gridQuery` was a second implementation of grid editing that only Python called (the user, 2026-10-17). It
+is gone: the screen and Python edit a grid through one module, `grid-edits.ts`, on the screen's model -- each column's
+Aggregation in Column Properties -- and Python asks it through headless `gridEdit`
+(docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md). `Grid.configure` sets settings by the rule the screen applies a
+host's patch by (`config.ts withConfiguration`), not a raw write.
+
+The homework for a command API (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md) found what Python still holds of its
+own, because the screen's side of each rule still lives in a DOM class with no shared function to ask: tile and sheet
+ids and "Chart N" titles, `Page.remove`'s cascade, moving tiles between sheets, where a new tile is placed, the page
+name written into each cube, and three small copies (`_tiles`/`_leaves`, `_keep`, a data space's class paths). They
+are named there (§8) and are the command-API program's first stage, not done here.
 
 ## A finding for DataCube (its line designs the fix)
 
@@ -142,7 +157,9 @@ on `notional` beside `total` of it) asked the planner for a column its groupBy d
 the grid was refused; it now sorts by what it writes, as a pivot's level did, the detail rows by the rest. A cube saved
 before the rule -- old Python's `grid.group('region').measure('region', 'count')`, whose count the grouped level had
 dropped without a word, or a sum of a text column, which old Python checked no type of -- opens without each measure
-the rule or its column's type refuses (`offers.ts measureOfferProblem`), judged in order as the level judges them, and
+the rule or its column's type refuses (`offers.ts measureOfferProblem`, until 2026-10-17: a saved measures list is
+now made the grid's Column Properties by `grid-edits.ts measuresAsColumns`, docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md
+§3.4), judged in order as the level judges them, and
 says so (`cube-document.ts openCube`, as it leaves out a measure of a column that is gone): the screen's note, Python's
 warning when it loads the page. No panel shows a measure to fix, so refusing it at every level would lock the page. A
 page Python loads takes each cube as DataCube opens it whenever opening changed it (`page.py _reopened`, at load and
@@ -162,7 +179,10 @@ panel shows a column's measures is the DataCube line's to decide. A known limit 
 2026-10-16, not fixed): old Python's `grid.pivot('desk').measure('notional', 'sum', name='pnl')` is legal (a spread
 measure clashes with no column), but a person who takes the pivot off on the screen meets the grouped column rule, and
 every level refuses: "'pnl' is already a column". The refusal names the measure, and putting the pivot back undoes it;
-renaming the measure is Python's alone until the panel shows measures.
+renaming the measure is Python's alone until the panel shows measures. **Resolved 2026-10-17**
+(docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md): a grid carries no measures list -- a measure is its column's
+Aggregation, which the panel shows and edits, or a calculated column of its own name, refused at the call when the
+name is taken.
 
 **A class's sample writes a NaN or an infinity as `null`** (found 2026-10-15, the audit of item 7): `sample-rows.ts
 sampleOf` keeps a double as the executor gives it, and the sample goes to the route as JSON, which has neither, so
