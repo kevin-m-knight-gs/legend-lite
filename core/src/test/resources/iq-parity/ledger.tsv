@@ -1149,6 +1149,8 @@ lite/corpus_gaps/row_number_by_constants_alone@iq17-default	BOTH_ERROR	BOTH_ERRO
 lite/corpus_gaps/a_qualified_order_key_names_a_column_item@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_qualified_order_key_names_an_unqualified_column_item@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_qualified_order_key_beside_an_expression_item@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_union_of_abs_of_a_bigint_and_an_integer@iq17-default	PASS	PASS
+lite/corpus_gaps/a_union_of_an_integer_and_abs_of_a_bigint@iq17-default	PASS	PASS
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

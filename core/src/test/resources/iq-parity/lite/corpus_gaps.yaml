@@ -1926,3 +1926,12 @@ tests:
   - id: a_qualified_order_key_beside_an_expression_item
     sql: "SELECT t.id, t.sm + 1 FROM t GROUP BY t.id ORDER BY t.sm"
     profile: iq17-default
+
+  # ---- a union of a decimal computed by the island and an integer branch (IQ island, 2026-10-17; the differential
+  # fuzzer's, measured on IQ 17.1): ABS of a BIGINT is a decimal under IQ's engine, which the integer branch joins
+  - id: a_union_of_abs_of_a_bigint_and_an_integer
+    sql: "SELECT a FROM (SELECT ABS(bg) AS a FROM t UNION ALL SELECT id FROM g) d ORDER BY a"
+    profile: iq17-default
+  - id: a_union_of_an_integer_and_abs_of_a_bigint
+    sql: "SELECT a FROM (SELECT YEAR(dt) AS a FROM g UNION ALL SELECT ABS(bg) FROM t) d ORDER BY a"
+    profile: iq17-default
