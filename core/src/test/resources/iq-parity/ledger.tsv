@@ -1003,6 +1003,11 @@ lite/corpus_gaps/var_of_a_missing_column_is_iqs_143@iq17-default	BOTH_ERROR	BOTH
 lite/corpus_gaps/substring_index_is_iqs_265@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/unnest_is_iqs_265@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/datediff_big_reads_its_part_as_a_column@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_group_by_expression_read_qualified@iq17-default	PASS	PASS
+lite/corpus_gaps/a_group_by_expression_read_qualified_by_its_table@iq17-default	PASS	PASS
+lite/corpus_gaps/a_qualified_group_by_expression_read_unqualified@iq17-default	PASS	PASS
+lite/corpus_gaps/a_group_by_expression_of_another_tables_column_is_iqs_149@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_group_by_expression_under_an_alias_of_its_column@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

@@ -1454,3 +1454,22 @@ tests:
   - id: datediff_big_reads_its_part_as_a_column
     sql: "SELECT DATEDIFF_BIG(day, ts, ts) AS x FROM t"
     profile: iq17-default
+
+  # ---- a GROUP BY expression read with its column qualified otherwise (SEDE's CAST(PostSqlity.CreationDateTime AS
+  # DATE) under GROUP BY CAST(CreationDateTime AS DATE); measured on IQ 17.1, 2026-10-17): the same column, the same
+  # expression; another table's column is IQ's -149; an alias the column's name hides it in GROUP BY (-149)
+  - id: a_group_by_expression_read_qualified
+    sql: "SELECT CAST(d.ts AS DATE) AS c, COUNT(*) AS n FROM (SELECT ts FROM t) d GROUP BY CAST(ts AS DATE) ORDER BY 1"
+    profile: iq17-default
+  - id: a_group_by_expression_read_qualified_by_its_table
+    sql: "SELECT ISNULL(t.it, 0) AS v, COUNT(*) AS n FROM t GROUP BY ISNULL(it, 0) ORDER BY 1"
+    profile: iq17-default
+  - id: a_qualified_group_by_expression_read_unqualified
+    sql: "SELECT ISNULL(it, 0) AS v, COUNT(*) AS n FROM t GROUP BY ISNULL(t.it, 0) ORDER BY 1"
+    profile: iq17-default
+  - id: a_group_by_expression_of_another_tables_column_is_iqs_149
+    sql: "SELECT ISNULL(a.id, 0) AS v, COUNT(*) AS n FROM t a JOIN u b ON b.t_id = a.id GROUP BY ISNULL(b.id, 0)"
+    profile: iq17-default
+  - id: a_group_by_expression_under_an_alias_of_its_column
+    sql: "SELECT sm, ISNULL(it, 0) it, COUNT(*) n FROM t GROUP BY sm, ISNULL(it, 0)"
+    profile: iq17-default

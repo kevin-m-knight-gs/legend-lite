@@ -765,7 +765,7 @@ final class IqAggregates {
         return out;
     }
 
-    /** A column of a GROUP BY expression read outside it and not grouped by itself: refused (IQ may match it). */
+    /** A column of a GROUP BY expression read outside it and not grouped by itself: IQ's -149. */
     private static void keyMatches(SqlAst.Select s) {
         List<SqlAst.Expr> keys = expressionKeys(s);
         if (keys.isEmpty()) {
@@ -789,15 +789,29 @@ final class IqAggregates {
             return;
         }
         for (SqlAst.Expr k : keys) {
-            if (same(k, e)) {
+            // IQ island, 2026-10-17 (the corpus lane's CAST(d.ts AS DATE) under GROUP BY CAST(ts AS DATE); measured on
+            // IQ 17.1): a column qualified or not is the same column there; the translator, which resolves each,
+            // decides whether two are one
+            if (unqualifiedShape(k).equals(unqualifiedShape(e))) {
                 return;
             }
         }
+        for (SqlAst.Expr k : keys) {
+            if (commutedShape(k).equals(commutedShape(e))) {
+                // measured on IQ 17.1: SELECT 1 + k ... GROUP BY k + 1 is answered -- IQ reads an expression written
+                // otherwise as the key where it may; which forms it reads so is not known beyond this one
+                throw SqlTranslationException.unsupported("a GROUP BY expression written otherwise here is not"
+                        + " supported: IQ may read it as that GROUP BY expression (it reads 1 + k as k + 1); write it"
+                        + " as GROUP BY does", e.pos());
+            }
+        }
         if (e instanceof SqlAst.ColumnRef r && inKeys.contains(last(r)) && !bare.contains(last(r))) {
-            throw SqlTranslationException.unsupported("'" + String.join(".", r.parts().stream().map(SqlAst.Ident::text)
-                    .toList()) + "' is read here outside the GROUP BY expression it is part of, which is not supported:"
-                    + " IQ may read the expression around it as that GROUP BY expression; write it as GROUP BY does",
-                    r.pos());
+            // IQ island, 2026-10-17 (the corpus lane's 20 such queries sent to IQ 17.1: 4 answered once a column
+            // qualified or not was read as one, and the other 15 raised -149): IQ's -149 where no expression around
+            // the column is a key written otherwise
+            throw SqlTranslationException.invalid("'" + String.join(".", r.parts().stream().map(SqlAst.Ident::text)
+                    .toList()) + "' is read here outside the GROUP BY expression it is part of, and is no GROUP BY item"
+                    + " itself" + IqDialect.code(-149, "53003"), r.pos());
         }
         for (SqlAst.Expr child : IqDialect.children(e)) {
             keyMatch(child, keys, inKeys, bare);
@@ -872,6 +886,39 @@ final class IqAggregates {
      *  equal without regard to ASCII case, parentheses and places aside. */
     static boolean same(SqlAst.Expr a, SqlAst.Expr b) {
         return shape(a).equals(shape(b));
+    }
+
+    /** {@code e}'s form as {@link #unqualifiedShape} writes it, but a chain of + or of * (and AND, OR) by its operands'
+     *  forms in order, so that {@code 1 + k} and {@code k + 1} are one. */
+    private static String commutedShape(SqlAst.Expr e) {
+        if (e instanceof SqlAst.Binary b && COMMUTED.contains(b.op())) {
+            List<SqlAst.Expr> operands = new ArrayList<>();
+            chain(b, b.op(), operands);
+            List<String> forms = new ArrayList<>(operands.stream().map(IqAggregates::commutedShape).toList());
+            java.util.Collections.sort(forms);
+            return b.op() + forms.toString();
+        }
+        return e instanceof SqlAst.ColumnRef r ? "col(" + last(r) + ")" : shapeOf(e, IqAggregates::commutedShape);
+    }
+
+    /** The operators {@link #commutedShape} reads in any order. */
+    private static final Set<SqlAst.BinaryOp> COMMUTED = Set.of(SqlAst.BinaryOp.PLUS, SqlAst.BinaryOp.TIMES,
+            SqlAst.BinaryOp.AND, SqlAst.BinaryOp.OR);
+
+    /** Into {@code out}, the operands of the chain of {@code op} {@code e} is. */
+    private static void chain(SqlAst.Expr e, SqlAst.BinaryOp op, List<SqlAst.Expr> out) {
+        if (e instanceof SqlAst.Binary b && b.op() == op) {
+            chain(b.left(), op, out);
+            chain(b.right(), op, out);
+        } else {
+            out.add(e);
+        }
+    }
+
+    /** {@code e}'s form as {@link #shape} writes it, but each column by its name alone. */
+    private static String unqualifiedShape(SqlAst.Expr e) {
+        return e instanceof SqlAst.ColumnRef r ? "col(" + last(r) + ")"
+                : shapeOf(e, IqAggregates::unqualifiedShape);
     }
 
     /** {@code e}'s form, for {@link #same}. */

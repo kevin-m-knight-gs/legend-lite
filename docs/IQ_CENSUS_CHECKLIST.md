@@ -307,6 +307,10 @@ island's reason, those IQ answers, and what became of them:
 - more names of no function of IQ's (VAR, VARP, STDEVP, UNNEST, SUBSTRING_INDEX, SPLITPART, PARSENAME,
   DATEDIFF_BIG; the corpus lane's 19; measured on IQ 17.1, 2026-10-17): its -265 (DATEDIFF_BIG's part a column, -143);
   DB_NAME() answers the server's own name and COUNT_BIG is its -1001030 under its engine (both left refused);
+- a column of a GROUP BY expression read outside it (SEDE's 20; measured on IQ 17.1, 2026-10-17): a column
+  qualified or not is one there (CAST(d.ts AS DATE) under GROUP BY CAST(ts AS DATE): answered, 4 of the 20); where
+  no expression around the column is a key even written otherwise, IQ's -149 (the other 15); one that is a key with
+  its + or * operands in another order (1 + k under GROUP BY k + 1, which IQ answers) stays refused by name;
 - open, error order (the claim verification's residue, 2026-10-17: 34 of 879 claims name another code than IQ's):
   where a query holds two errors, IQ raises the one of its earlier phase -- syntax, then -154, names (-143, -142,
   -144), grouping (-149, -150), function names (-265), then conversions and type checks (-157, -1001013, -1009145)
