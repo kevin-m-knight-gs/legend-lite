@@ -532,6 +532,22 @@ The user asked for real queries that push the island hard. Their corpora, data a
 - **Built from the benchmarks:** ARRAY_AGG under IQ's engine (-1001030, in IQ's order; dropped with a column no one
   reads), LPAD and RPAD (IQ's engine's own; the front end's -134), and a conversion's -157 before a subquery's
   placement (a row limit's in a derived table still first).
+- **Built later the same day:**
+  - IQ engine types past 38 digits, where IQ's value is still 38 digits at its scale:
+    - an AVG of NUMERIC(39,23) and wider, by long division (at most three chunks; an AVG of an AVG is refused);
+    - `+ - *` and SUM at IQ's scale, a value that may not fit refused at run time (TPC-H's Q1 expression);
+    - an ordering of two decimals whose common type passes 38 digits, compared at the fewer places (floor or ceil
+      by the operator). Values past 38 digits stay refused, per the user's decision.
+  - A stale refusal deleted: a set operation whose first branch shows a NULL constant (fixed by the compiler's union
+    stamps, d619c5cd6); 131 JOB queries.
+  - A window function in a subquery after an outer join's or ORDER BY's subquery (the order of -1001030 and
+    -1001047/-1005004).
+  - ILIKE and PostgreSQL's arrays as IQ's -131.
+  - The DuckDB dialect writes an outer join's ON without the IS NOT NULL tests its comparisons make. DuckDB planned
+    them as a nested loop: one TPC-H query took 55 s against 0.1 s.
+- **Judged with ties broken:** TPC-H 9,131 of 9,427 match IQ; TPC-DS 8,403 of 8,647; JOB 4,554 of 4,811. What is
+  left is ROW_NUMBER over ties inside CTEs (both answers valid), D-N3's places, IQ's internal errors and its
+  Cartesian limit.
 - **Measured, not built:**
   - BIGINT arithmetic past 64 bits. IQ's engine answers a NUMERIC(20,0) (`bg + 7` over 2^63 - 1). Lite types from the
     column, so it keeps a BIGINT and the database's overflow raises. That is D-N3: IQ sizes from the data, and
@@ -544,3 +560,8 @@ The user asked for real queries that push the island hard. Their corpora, data a
   - IQ's engine refuses some functions in a window's PARTITION BY or ORDER BY (GREATER, LESSER, a CAST of a
     string: "Function not currently supported").
   - DATEADD of a constant date is a TIMESTAMP under IQ's engine.
+  - A sum far past its declared type (a triple join's fan-out, 2e20) defeats lite's type-sized division steps, and the
+    database raises; IQ answers. A ROUND of a quotient whose declared type is narrower than IQ's data-sized one raises
+    lite's range check, where IQ answers (both D-N3).
+  - An uncorrelated scalar subquery of many rows over an empty outer side: IQ never computes it, DuckDB raises.
+  - CAST of a column string to REAL or DOUBLE (26 JOB queries): IQ's string-to-float rules, not measured.
