@@ -1076,7 +1076,10 @@ harness, the islands' tests, and what part 1 left. What it did, and where it dep
     is a schema made and filled by a session of its own, which commits each statement: a test body's attempt holds
     the workspace's transaction, and Postgres's DDL and `SET` are transactional, so a failed body's rollback would
     otherwise take the aside away while the run counts the fixture provided. The workspace's search path names
-    its asides from its first statement (at most 64 a workspace; a 65th is refused by name). **Defect 5 is fixed for
+    its asides from its first statement (at most 64 a workspace; a 65th is refused by name);
+    `//core:fixture_aside_postgres_test` holds it (on the aside before this, it fails: the rolled-back aside's table
+    is gone), and the Postgres corpus lane's one on-demand fixture (`testGroupByWithWindowSubset`) now runs in
+    `aside_0` and passes. **Defect 5 is fixed for
     a fixture's unqualified names**: Postgres's on-demand fixtures ran over the workspace's own tables, and a backend
     that cannot set a fixture aside now refuses by name. A fixture's schema-qualified names are not set aside on any
     backend. The product's runner still runs a fixture unisolated when an observer offers no aside
