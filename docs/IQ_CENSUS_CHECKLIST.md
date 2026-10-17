@@ -272,6 +272,11 @@ island's reason, those IQ answers, and what became of them:
   (from 730), another for 69 (from 163), answers 5 (from 12; FORMAT in unread columns, 4, and SQLStorm's 11558,
   whose join is made inner by an enclosing query's join). SQLStorm's coverage: IQ_ERROR 12,078, REFUSED 358 (from
   601);
+- FROM items IQ reads no other way (2026-10-17, measured): VALUES as a FROM item, and a column list after a
+  table's, a CTE's or a function's correlation name (`STRING_SPLIT(...) AS t(TagName)`, `[u] (NOLOCK)`), are its
+  syntax error -131, where only a derived table takes a column list. An index hint there (`r (INDEX i)`) is SQL
+  Anywhere's, refused by name. A call of a name that is no system procedure in FROM (`FROM Users (NOLOCK)`) is its
+  -265;
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's
   server rejects every one (-131, measured), while an ODBC client that processes escapes translates them before it
   sends (the syntax research's `accept-with-option:client_escapes`). Whether an island reads them as such a client

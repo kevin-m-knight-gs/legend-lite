@@ -460,9 +460,19 @@ public final class IqDialect implements InputDialect {
                     }
                     if (item instanceof SqlAst.TableFunction f && !(f.name().size() == 1
                             && IqLexer.lower(f.name().get(0).text()).equals("tb")) && !rowGenerator(f.name())) {
-                        throw SqlTranslationException.unsupported("the FROM function " + f.name().get(f.name().size()
-                                - 1).text() + "(...) is not supported yet: an #IQ{...}# island reads tables,"
-                                + " tb('...'), and sa_rowgenerator(...)", f.pos());
+                        String fn = f.name().get(f.name().size() - 1).text();
+                        String lower = IqLexer.lower(fn);
+                        if (f.name().size() == 1 && !lower.startsWith("sa_") && !lower.startsWith("sp_")
+                                && !lower.startsWith("xp_")) {
+                            // IQ island, 2026-10-17 (the corpus lane's FROM Users (NOLOCK); measured on IQ 17.1): a
+                            // name of no system procedure called in FROM is IQ's -265 (a table's name too)
+                            throw SqlTranslationException.unsupported("the FROM call " + fn + "(...) is IQ's error -265"
+                                    + " (procedure '" + fn + "' not found: no procedure of IQ's, unless a user procedure"
+                                    + " holds the name), refused before translating", f.pos());
+                        }
+                        throw SqlTranslationException.unsupported("the FROM function " + fn + "(...) is not supported"
+                                + " yet: an #IQ{...}# island reads tables, tb('...'), and sa_rowgenerator(...)",
+                                f.pos());
                     }
                     if (item instanceof SqlAst.SubqueryFrom d) {
                         derivedNames(d);

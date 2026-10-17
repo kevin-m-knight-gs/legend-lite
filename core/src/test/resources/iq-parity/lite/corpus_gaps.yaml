@@ -1233,3 +1233,13 @@ tests:
   - id: top_n_percent_star_is_iqs_syntax_error
     sql: "SELECT TOP 10 PERCENT * FROM t"
     profile: iq17-default
+
+  # ---- FROM items IQ reads no other way (IQ island, 2026-10-17; the corpus lane's FROM (VALUES ...), STRING_SPLIT(...) AS
+  # t(TagName) and FROM Users (NOLOCK), measured on IQ 17.1): VALUES and a column list after a table's name are its
+  # syntax errors, a call of a table's name its -265
+  - id: values_as_a_from_item_is_iqs_syntax_error
+    sql: "SELECT a FROM (VALUES (1), (2)) v(a)"
+  - id: a_column_list_after_a_tables_name_is_iqs_syntax_error
+    sql: "SELECT x FROM t AS d(x, y)"
+  - id: a_from_call_of_a_tables_name_is_iqs_error
+    sql: "SELECT id FROM t (NOLOCK)"

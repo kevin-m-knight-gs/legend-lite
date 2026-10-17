@@ -1001,9 +1001,17 @@ public final class IqParser {
         }
         if (t.isName()) {
             take();
+            if (fromItem && peek().isOp("(") && peek(1).isWord("index")) {
+                // SQL Anywhere's index hint after a correlation name (the syntax research's flag cases)
+                throw SqlSyntaxException.unsupported("an index hint after a FROM item's correlation name is not"
+                        + " supported yet", peek().pos());
+            }
             if (fromItem && peek().isOp("(")) {
-                throw SqlSyntaxException.unsupported("a FROM item's column alias list is not supported yet",
-                        peek().pos());
+                // IQ island, 2026-10-17 (the corpus lane's STRING_SPLIT(...) AS t(TagName), [u] (NOLOCK); measured on IQ
+                // 17.1): only a derived table takes a column list; after a table's, a CTE's or a function's name it is
+                // IQ's syntax error
+                throw new SqlSyntaxException("a column list follows only a derived table's correlation name"
+                        + IqDialect.syntaxCode(), peek().pos());
             }
             return name(t);
         }
@@ -1184,6 +1192,12 @@ public final class IqParser {
             return derivedTable(query, first);
         }
         take();
+        if (peek().is("values")) {
+            // IQ island, 2026-10-17 (the corpus lane's FROM (VALUES (0), (1), ...); measured on IQ 17.1): no table
+            // value constructor of IQ's, its syntax error
+            throw new SqlSyntaxException("VALUES as a FROM item is no syntax of IQ's" + IqDialect.syntaxCode(),
+                    peek().pos());
+        }
         if (peek().is("with")) {
             // a derived table's own WITH (measured on IQ 17.1): its queries see no CTE outside it
             cteScopes.push(Map.of());
