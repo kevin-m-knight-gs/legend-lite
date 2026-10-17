@@ -69,28 +69,49 @@ user wants the typo guard back (not proposed). **Reframed 2026-10-17 (§3.2 Q1):
 graph's, GQL's own distinction; the closed graph keeps C4, so the typo guard stays the default of a user's model
 and no query option is needed.**
 
-### W2. Identity through hidden keys (C5 as the user meant it)
+### W2. Identity (C5 as the user meant it) — the design settled 2026-10-17 (§3.2 Q2 and its three addenda)
 
-- **The model.** A node class's identity is its `<<equality.Key>>` properties. The harness declares `id` on every
-  node class as a key property marked hidden (a `graph.hidden` stereotype on the existing `graph::graph` profile,
-  beside `Edge`, `from`, `to`, `type`), so `properties(n)`, `keys(n)`, a node as a value and `RETURN n` never show
-  it. A user model keeps whatever keys it declares; a class without keys keeps today's refusals (identity needs
-  a key, by name).
-- **Relationships.** An edge class's identity is its own hidden `id`. A plain association has no row of its
-  own: its identity is the ordered pair of node identities, which S74 already states; the harness switches a
-  relationship type to an edge class when its setup holds parallel links between one pair (as it does for
-  properties and several pairs), so parallel links get their own identities. S74's "one link per pair" then
-  holds only for user models that choose a plain association.
-- **The island.** A node value carries `"@id"` (its key values) in its JSON, which the judge ignores; a carried
-  node keeps its key columns; comparisons of nodes, relationships and paths compare keys; `DISTINCT` and grouping
-  over nodes use the keys; an OPTIONAL MATCH or MATCH after rows from a carried node re-finds the instance by key
-  (`Class.all()->filter(n | $n.id == $r.id)`, a lateral) — the continuation the rows could not express; both ends
-  bound is the hop's far key compared with the bound node's; an undirected hop over a self-association dedupes
-  by key; relationship uniqueness along a variable-length chain is the chain's relationship identities
-  pairwise distinct (S75 overturned); `collect(DISTINCT n)` and `count(DISTINCT n)` count keys. The judge reads
-  `@id` and never compares it (Neo4j's ids are its own).
-- Three to four legs: keys and node values; comparisons, DISTINCT and grouping; continuation and both-ends-bound
-  hops; uniqueness and the undirected self-association.
+**Two questions, two rules, as Legend already keeps them.** Value equality (`==`, `equal`, `in`) is Pure's rule,
+unchanged: by the `<<equality.Key>>` properties when the class declares them, else by identity. Identity (`eq`: "the
+same instance") is what Cypher means by `a = b` on nodes and relationships, by DISTINCT, grouping, `IN` over nodes
+and relationship uniqueness; two nodes named Ann are two nodes. `<<equality.Key>>` is never in the identity chain:
+it states meaning ("same name, same person for comparison"), identity states the store ("rows are distinguishable
+by this key"); using the first for the second would merge distinct nodes exactly on the models that declare keys.
+
+**The identity of an instance, in order, with no fallback past the last step (the engine's own precedence, to be
+verified against its compiler source in the leg, per the verification tenet):**
+
+1. a constructed instance (`^Person(...)`, the PCT lane): the `__id` the lowering mints per construction site
+   (exists);
+2. a mapped instance: the class mapping's `~primaryKey(...)` when declared;
+3. else the main table's `PRIMARY KEY` columns from the store's DDL (a relational class mapping has exactly one
+   main table and its instances ARE that table's rows: joins inside property mappings fetch columns for the same
+   instance or reach other classes' instances, and a projection's exploded rows still carry the main row's key,
+   which is how the engine's graph fetch rebuilds objects; a relation-function mapping's key is the engine's
+   inference over its expression, `PkInference`, already lite's);
+4. else a compile error naming the class ("no identity"): never all mapped columns, never `<<equality.Key>>`.
+
+**Who does what.** The PRODUCT: one native, `meta::legend::lite::elementId(x: Any[1]): String[1]` (Cypher's own
+`elementId(n)` and `id(n)`), lowered to the instance's identity as a value (the key columns, a composite spelled as
+text), the only expression Pure lacks for "the identity of this mapped instance"; the same `__id` carrier on the
+value lane later unifies `eq` for mapped and constructed instances. The HARNESS: nothing (its tables declare
+`id BIGINT PRIMARY KEY`; step 3). A USER: nothing beyond a `~primaryKey` or a table key. The hidden-key property
+and the `graph.hidden` marker of the first draft are withdrawn: there is no key property to hide.
+
+**The island.** Node comparisons are `elementId($a) == elementId($b)`; a carried node keeps its identity as a
+column; DISTINCT, grouping and `IN` over nodes use it; a MATCH or OPTIONAL MATCH after rows from a carried node
+re-anchors by a JOIN on identity (`Class.all()` joined on `elementId`), which also retires the resolver's depth
+limit from the translator's side (chains past two steps, variable-length unrolls past two hops, hops from a node
+reached through an edge class: every hop beyond what the resolver navigates becomes a join on the id over
+materialized rows); both ends bound is the far identity compared with the bound node's; an undirected hop over a
+self-association dedupes by identity; relationship uniqueness along a chain is the relationships' identities
+pairwise distinct (an edge class's own; a plain association's the ordered pair of node identities, S74; S75
+overturned); `collect(DISTINCT n)` and `count(DISTINCT n)` count identities. A node value carries `"@id"` in its
+JSON, which the judge ignores (Neo4j's ids are its own).
+
+Legs: the native and its lowering (platform, under its guards); node identity in the island (comparisons,
+DISTINCT, grouping, IN, values); re-anchoring joins (continuations, cycles, deep chains); uniqueness and the
+undirected self-association.
 
 ### W3. Non-deterministic functions
 
@@ -337,6 +358,10 @@ and the island still needs the native to carry identity through projections. Rec
 identity queries without a declared property. Relationships: an edge class gets the same hidden key; a relationship
 mapped as a bare association end (no edge class) has no row of its own and no identity, so uniqueness over it is
 the pair of endpoint identities, which is Neo4j's answer wherever the graph holds no parallel relationships (S74).
+**Addendum (the user, three turns later): superseded by W2's settled design: identity is the mapped instance's row
+key by the engine's precedence (`~primaryKey`, else the main table's `PRIMARY KEY`, else refuse), carried as the
+PCT lane's `__id` and exposed by one native (`elementId`); `<<equality.Key>>` stays value equality and is never
+identity; no key property is declared or hidden by anyone.**
 
 **Q3. How the TCK's `rand()` and clock scenarios pass.** The 50 cases of W3 assert nothing a draw or an instant
 decides. The quantifier features (Quantifier9, 11, 12: 30 cases) build a list by random filtering and random
@@ -415,17 +440,29 @@ MIR directly is orchestration, not evaluation) or move to `write` of a `Values` 
 planning-internal. So: yes, real relation functions, and `SqlDml` grows into their MIR rather than being replaced;
 F1 of W4 is exactly this, before the island's clauses.
 
-## 4. The order, and the count it would reach
+## 4. The order, and the count it would reach (rewritten 2026-10-17 on the user's "attack expertly" ask)
 
-| phase | workstreams | legs | cases (cumulative agreement of 3880) |
-|---|---|---|---|
-| A — rules in the island | W1 (open graphs: LANDED 2026-10-17, 3031 → 3093), W3, W12 | 5 | 3031 → ~3180 |
-| B — identity | W2 | 4 | → ~3290 |
-| C — the harness's models | W5, W6, W7, W8 | 7 | → ~3440 |
-| D — the platform's limits | W9, W10, W11 | 9 | → ~3600 |
-| E — writes | W4 (after F1) | 6–10 | → 3880 |
+The remaining 787 (DuckDB: REFUSED 606, SKIP 181; agreement 3093 of 3880) are three kinds of work, ordered by what
+gates what:
 
-Each leg lands as the forty-three before it: Neo4j-judged lite cases, both lanes in update mode with FAIL, BUG and
-ERROR at zero, the oracle check, the guards, the study's section, GATES. Phase A can start now on PR #50's
-branch; B changes the harness's models and the register, so it opens PR #50's successor; C to E follow in order,
-E in its own PR per decision 6.
+| phase | legs | what, and why here |
+|---|---|---|
+| 1 identity, then joins on it | ~5 | W2: the keystone most buckets lean on (cycles, DISTINCT and grouping over nodes, uniqueness, MERGE and DELETE later, the triadic use cases); then re-anchoring by join on identity, which retires the resolver's depth limit from the translator's side: ~150 cases hang off the pair |
+| 2 cheap translator fillers | ~6 | W3 (50: a lite `random()` native and the statement clock, one MIR function each, a render arm per dialect) and W12 (62: COUNT/COLLECT subqueries, untyped relationships in OPTIONAL and multi-pattern MATCH, string predicates on non-strings, SKIP/LIMIT expressions, named-zone leftovers), interleaved while bigger legs wait on lanes |
+| 3 the harness's models | ~5 | W5 stored temporals (72: the marker convention, no grammar change), W6 label sets (18: a class per set, multiple inheritance, the arms union; reads only), W7 two-typed properties (6), W8 procedures (50: the TCK declares each procedure's signature and rows, so the harness declares it as a Pure function returning that relation and `CALL ... YIELD` calls it) |
+| 4 the platform's limits | ~9 | W9's remainder (fan-out to a property-less class 21, `%` in a database lambda 9, literal edge cases 14, ORDER BY a non-returned item 4), W11 the Variant family (68: comprehension over a JSON array, element-wise list ordering and comparison by a canonical key the database computes, min/max across kinds), W10 (15: the one real feature, a recursive MIR node for unbounded paths, WITH RECURSIVE on DuckDB and Postgres with a depth guard) |
+| 5 writes, on a real foundation | ~7 | F1 first as its own landing (Pure's `write`, lite's `update`/`delete`/`merge` natives, four MIR variants, a render arm per dialect, one execution seam in a transaction); then the stronger judge BEFORE any write clause (the whole graph dumped after the write and compared structurally with Neo4j's); then CREATE, SET and REMOVE, DELETE and DETACH DELETE, MERGE; the 33 control-query scenarios come free |
+
+About 32 legs. Each lands as the forty-four before it: Neo4j-judged lite cases, both lanes in update mode with FAIL,
+BUG and ERROR at zero, the oracle check, the guards, the study's section, GATES, a commit and a push on the branch.
+Three risks held in view: the writes judge (built before the first write clause), nondeterminism (`rand`, the order
+of collected and distinct values: pin invariants only), the two lanes diverging (every leg runs both).
+
+**Standing order (the user, 2026-10-17):** keep going until the TCK is at zero or as close as makes sense; no
+questions, no PRs; a blocker is logged in §5 and the line moves to the next item; no hacks or shortcuts.
+
+## 5. Blockers log
+
+What got stuck, where, and why, for later; each entry names the cases it holds back.
+
+(none yet)
