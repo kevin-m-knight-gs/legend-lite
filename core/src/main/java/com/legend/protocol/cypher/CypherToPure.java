@@ -1032,6 +1032,10 @@ public final class CypherToPure {
             if (hop != null) {
                 return hop;
             }
+            Rows anchored = reanchor(m, rows);
+            if (anchored != null) {
+                return anchored;
+            }
             Rows fresh = freshAfterRows(m, rows);
             if (fresh != null) {
                 return fresh;
@@ -1501,6 +1505,10 @@ public final class CypherToPure {
             if (hop != null) {
                 return hop;
             }
+            Rows anchored = reanchor(m, rows);
+            if (anchored != null) {
+                return anchored;
+            }
             Rows fresh = freshAfterRows(m, rows);
             if (fresh != null) {
                 return fresh;
@@ -1797,8 +1805,12 @@ public final class CypherToPure {
             if (hop != null) {
                 return hop;
             }
+            Rows anchored = reanchor(m, rows);
+            if (anchored != null) {
+                return anchored;
+            }
             throw CypherErrors.unsupported("OPTIONAL MATCH after a WITH that projected its variables, or after a"
-                    + " pattern read as rows, is not supported yet", m.pos());
+                    + " pattern read as rows, from no node the rows carry, is not supported yet", m.pos());
         }
         if (m.patterns().size() != 1) {
             throw CypherErrors.unsupported("OPTIONAL MATCH of several patterns is not supported yet", m.pos());
@@ -2015,7 +2027,7 @@ public final class CypherToPure {
             if (c.detail() instanceof NodeShape shape && shape.props().values().stream().anyMatch(NodeProp::absent)) {
                 out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
                         new NodeShape(shape.labels(), withoutAbsentMarks(shape.props()), shape.absent(),
-                                shape.identity())));
+                                shape.identity(), shape.classPath())));
             } else if (c.detail() instanceof RelShape rel && rel.props().values().stream().anyMatch(NodeProp::absent)) {
                 out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
                         new RelShape(rel.type(), withoutAbsentMarks(rel.props()), rel.identity(), rel.source(),
@@ -2293,6 +2305,213 @@ public final class CypherToPure {
     }
 
     private static final String JOIN_KIND = "meta::pure::functions::relation::JoinKind";
+
+    /** A MATCH or OPTIONAL MATCH after rows whose pattern starts (or ends) at a node the rows carry with its identity
+     *  (the study's §12.49, re-anchoring): the pattern read as a graph of its own from that node's class, every
+     *  variable the rows hold given a fresh name there, materialized, and joined to the rows on the identity of each
+     *  such variable (a node by its identity column, a relationship by its identity or the pair of its ends'); an
+     *  OPTIONAL MATCH a left join, its WHERE read over the pattern's rows before it; a MATCH's WHERE over the joined
+     *  rows. Null when no end of the pattern is such a node. */
+    private @com.legend.base.Nullable Rows reanchor(CypherAst.Match m, Rows rows) {
+        if (m.patterns().size() != 1) {
+            return null;
+        }
+        PathPattern p = m.patterns().get(0);
+        if (p.variable() != null || p.elements().size() < 3) {
+            return null;
+        }
+        List<PatternElement> ordered = p.elements();
+        NodeShape anchor = anchorShape(rows, (NodePattern) ordered.get(0));
+        boolean reversed = false;
+        if (anchor == null && anchorShape(rows, (NodePattern) ordered.get(ordered.size() - 1)) != null) {
+            anchor = anchorShape(rows, (NodePattern) ordered.get(ordered.size() - 1));
+            ordered = new ArrayList<>(ordered);
+            java.util.Collections.reverse(ordered);
+            reversed = true;
+        }
+        if (anchor == null) {
+            // (no end of the pattern is a carried node: the pattern reads as written, from its first node's label
+            // or every class, joined on whatever variable it shares with the rows, a relationship among them)
+            boolean shares = false;
+            for (PatternElement e : ordered) {
+                String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                shares |= v != null && column(rows, v) != null;
+            }
+            if (!shares) {
+                return null;
+            }
+        } else if (anchor.classPath() == null) {
+            throw CypherErrors.unsupported("a MATCH after rows from " + ((NodePattern) ordered.get(0)).variable()
+                    + ", a node the rows carry as one of several classes, is not supported yet", p.pos());
+        }
+        Set<String> taken = new HashSet<>();
+        rows.columns().forEach(c -> taken.add(c.name()));
+        Set<String> patternVars = new HashSet<>();
+        for (PatternElement e : ordered) {
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v != null) {
+                taken.add(v);
+                patternVars.add(v);
+            }
+            if (e instanceof RelPattern r && r.lengthRange() != null) {
+                throw CypherErrors.unsupported("a variable-length relationship (*) after rows is not supported yet",
+                        r.pos());
+            }
+        }
+        // every variable the rows hold reads under a fresh name in the pattern's own graph, joined back by identity
+        Map<String, String> renamed = new LinkedHashMap<>();
+        List<PatternElement> fresh = new ArrayList<>();
+        for (int i = 0; i < ordered.size(); i++) {
+            PatternElement e = ordered.get(i);
+            if (e instanceof NodePattern n) {
+                boolean bound = n.variable() != null && column(rows, n.variable()) != null;
+                String name = bound ? freshName(taken) : n.variable();
+                if (bound) {
+                    renamed.put(name, n.variable());
+                }
+                List<String> labels = i == 0 && anchor != null && n.labels().isEmpty()
+                        ? List.of(model.labelOf(java.util.Objects.requireNonNull(anchor.classPath()))) : n.labels();
+                fresh.add(new NodePattern(name, labels, n.properties(), n.pos()));
+            } else {
+                RelPattern r = (RelPattern) e;
+                boolean bound = r.variable() != null && column(rows, r.variable()) != null;
+                String name = bound ? freshName(taken) : r.variable();
+                if (bound) {
+                    renamed.put(name, r.variable());
+                }
+                CypherAst.Direction d = !reversed ? r.direction() : switch (r.direction()) {
+                    case OUT -> CypherAst.Direction.IN;
+                    case IN -> CypherAst.Direction.OUT;
+                    case BOTH -> CypherAst.Direction.BOTH;
+                };
+                fresh.add(new RelPattern(name, r.types(), d, r.properties(), r.lengthRange(), r.pos()));
+            }
+        }
+        Rows right = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(null, fresh, p.pos())), null,
+                m.pos()), null), m.pos());
+        Expr where = m.where();
+        if (m.optional() && where != null) {
+            // the optional pattern's WHERE: over its own rows, before the join (the rows' variables it names read
+            // from the pattern's copy of them, the same nodes by the join)
+            Set<String> read = new HashSet<>();
+            variablesIn(where, read);
+            read.removeAll(patternVars);
+            if (!read.isEmpty()) {
+                throw CypherErrors.unsupported("an OPTIONAL MATCH's WHERE reading a value of the rows beside its"
+                        + " pattern (" + String.join(", ", new java.util.TreeSet<>(read)) + ") is not supported yet",
+                        where.pos());
+            }
+            List<Col> aliased = new ArrayList<>(right.columns());
+            for (Map.Entry<String, String> r : renamed.entrySet()) {
+                Col c = java.util.Objects.requireNonNull(column(right, r.getKey()));
+                aliased.add(new Col(r.getValue(), c.kind(), c.nullable(), c.carried(), c.detail()));
+            }
+            RowScope scope = new RowScope(new Rows(right.vs(), aliased));
+            right = new Rows(call("filter", right.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
+                    right.columns());
+        }
+        ValueSpecification cond = null;
+        for (Map.Entry<String, String> r : renamed.entrySet()) {
+            Col left = java.util.Objects.requireNonNull(column(rows, r.getValue()));
+            Col copy = java.util.Objects.requireNonNull(column(right, r.getKey()));
+            for (String[] key : joinKeys(left, copy, r.getValue(), p.pos())) {
+                ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), key[0]),
+                        new AppliedProperty(new Variable("r"), key[1]));
+                cond = cond == null ? eq : call("and", cond, eq);
+            }
+        }
+        ValueSpecification vs = call("join", rows.vs(), right.vs(), new EnumValue(JOIN_KIND, m.optional() ? "LEFT"
+                : "INNER"), new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
+                List.of(java.util.Objects.requireNonNull(cond))));
+        List<Col> columns = new ArrayList<>(rows.columns());
+        for (Col c : right.columns()) {
+            if (renamed.containsKey(c.name())) {
+                // (the rows' own column stands for the variable; the copy's columns ride along unnamed)
+                continue;
+            }
+            if (columns.stream().anyMatch(l -> l.name().equals(c.name()))) {
+                throw new IllegalStateException("the re-anchored pattern's rows share a column: " + c.name());
+            }
+            columns.add(m.optional() ? optionalColumn(c) : c);
+        }
+        Rows out = new Rows(vs, columns);
+        if (!m.optional() && where != null) {
+            RowScope scope = new RowScope(out);
+            out = new Rows(call("filter", out.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
+                    out.columns());
+        }
+        return out;
+    }
+
+    /** The shape of a node {@code n} names that the rows carry with its identity; null for any other node. */
+    private static @com.legend.base.Nullable NodeShape anchorShape(Rows rows, NodePattern n) {
+        Col c = n.variable() == null ? null : column(rows, n.variable());
+        return c != null && c.detail() instanceof NodeShape shape && !shape.absent() && shape.identity() != null
+                ? shape : null;
+    }
+
+    private static @com.legend.base.Nullable Col column(Rows rows, String name) {
+        for (Col c : rows.columns()) {
+            if (c.name().equals(name)) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    /** The column pairs a re-anchored pattern joins {@code copy} (the pattern's copy of a variable) to {@code own}
+     *  (the rows' own) on: a node's identity columns, a relationship's identity columns or the columns of its
+     *  type and the pair of its ends'. */
+    private static List<String[]> joinKeys(Col own, Col copy, String variable, Pos pos) {
+        if (own.detail() instanceof NodeShape l && copy.detail() instanceof NodeShape r) {
+            if (l.identity() == null || r.identity() == null) {
+                throw CypherErrors.unsupported("a MATCH after rows naming " + variable + ", a node carried without"
+                        + " its identity, is not supported yet", pos);
+            }
+            return List.<String[]>of(new String[] {l.identity(), r.identity()});
+        }
+        if (own.detail() instanceof RelShape l && copy.detail() instanceof RelShape r) {
+            if (l.identity() != null && r.identity() != null) {
+                return List.<String[]>of(new String[] {l.identity(), r.identity()});
+            }
+            if (l.source() != null && r.source() != null) {
+                return List.<String[]>of(new String[] {l.type(), r.type()}, new String[] {l.source(), r.source()},
+                        new String[] {l.target(), r.target()});
+            }
+            throw CypherErrors.unsupported("a MATCH after rows naming " + variable + ", a relationship carried"
+                    + " without its identity, is not supported yet", pos);
+        }
+        throw CypherErrors.unsupported("a MATCH after rows naming " + variable + ", which the rows hold as a value"
+                + " of another kind (Neo4j's error), is not supported yet", pos);
+    }
+
+    /** A column of an OPTIONAL MATCH's re-anchored pattern after the left join: null where the pattern found
+     *  nothing, its carried shape's properties nullable too. */
+    private static Col optionalColumn(Col c) {
+        com.legend.protocol.sql.InputDialect.TypeDetail detail = c.detail();
+        if (detail instanceof NodeShape n) {
+            detail = new NodeShape(n.labels(), nullableProps(n.props()), n.absent(), n.identity(), n.classPath());
+        } else if (detail instanceof RelShape r) {
+            detail = new RelShape(r.type(), nullableProps(r.props()), r.identity(), r.source(), r.target());
+        }
+        return new Col(c.name(), c.kind(), true, c.carried(), detail);
+    }
+
+    private static Map<String, NodeProp> nullableProps(Map<String, NodeProp> props) {
+        Map<String, NodeProp> out = new LinkedHashMap<>();
+        props.forEach((k, v) -> out.put(k, new NodeProp(v.column(), v.kind(), true, v.absent())));
+        return out;
+    }
+
+    /** The variables an expression reads. */
+    private static void variablesIn(Expr e, Set<String> out) {
+        if (e instanceof CypherAst.Var v) {
+            out.add(v.name());
+        }
+        for (Expr child : children(e)) {
+            variablesIn(child, out);
+        }
+    }
 
     /** {@code WITH a.num AS property MATCH (b:End) WHERE property = b.num}, {@code UNWIND xs AS x MATCH (n)}: a MATCH
      *  after rows (a WITH that projected its variables, an UNWIND, a pattern read as rows) whose one pattern names
@@ -2633,9 +2852,10 @@ public final class CypherToPure {
             }
             List<String> path = new ArrayList<>(current.path());
             path.addAll(hop.steps());
-            if (path.size() > 2 && hop.edge() == null) {
+            if (path.size() > 2) {
                 // (the resolver's nested navigation reads no association end past a second step: IN_FLIGHT, the
-                // W9 item of the TCK-to-zero plan; a variable-length unroll is limited likewise)
+                // W9 item of the TCK-to-zero plan; a variable-length unroll is limited likewise; an edge hop after
+                // an association hop is three steps too, the re-anchoring leg's chain run caught it resolving)
                 throw CypherErrors.unsupported("a pattern navigating more than two association steps from its root"
                         + " (" + String.join(".", path) + ") is not supported yet", rel.pos());
             }
@@ -4555,12 +4775,8 @@ public final class CypherToPure {
             Map<String, Kind> kinds = unionKinds(classes, pos);
             List<ColSpec> specs = new ArrayList<>();
             List<Col> columns = new ArrayList<>();
-            if (b.fanning() && kinds.isEmpty()) {
-                // the rows multiply through the properties navigated along the to-many path: none, no rows (lite's
-                // project of a navigation mapped to a constant stays one row per root, measured)
-                throw CypherErrors.unsupported("a pattern that fans out to a node of " + cls + ", a class without a"
-                        + " property, is not supported yet (one row per node needs a navigated column)", pos);
-            }
+            // (a fanning node of a class without a property still multiplies the rows: its identity column
+            // navigates its path, the study's §12.49; before it, such a pattern was refused by name)
             String labels = freshName(names);
             // an OPTIONAL MATCH's node: its labels where its navigation finds one, null where none (the node's
             // presence, read by the clauses after)
@@ -4585,7 +4801,8 @@ public final class CypherToPure {
             String identity = freshName(names);
             specs.add(new ColSpec(identity, lambda(g.row(), SqlToPure.valueOf(id)), null, null));
             columns.add(new Col(identity, Kind.STRING, id.nullable() || optional));
-            return new NodeCarry(new NodeShape(labels, props, false, identity), specs, columns);
+            return new NodeCarry(new NodeShape(labels, props, false, identity, classes.size() == 1 ? cls : null),
+                    specs, columns);
         }
 
         /** A relationship carried through a projection: its type's column (a constant; null where an OPTIONAL
@@ -8022,13 +8239,19 @@ public final class CypherToPure {
      *  only when returned or used as a value. The node's own column is virtual: none of the relation bears its
      *  name. */
     private record NodeShape(String labels, Map<String, NodeProp> props, boolean absent,
-            @com.legend.base.Nullable String identity) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+            @com.legend.base.Nullable String identity,
+            /** the node's class when the rows carry nodes of one class (a re-anchored pattern reads from it) */
+            @com.legend.base.Nullable String classPath) implements com.legend.protocol.sql.InputDialect.TypeDetail {
         NodeShape(String labels, Map<String, NodeProp> props) {
-            this(labels, props, false, null);
+            this(labels, props, false, null, null);
         }
 
         NodeShape(String labels, Map<String, NodeProp> props, boolean absent) {
-            this(labels, props, absent, null);
+            this(labels, props, absent, null, null);
+        }
+
+        NodeShape(String labels, Map<String, NodeProp> props, boolean absent, @com.legend.base.Nullable String identity) {
+            this(labels, props, absent, identity, null);
         }
     }
 

@@ -133,7 +133,15 @@ LANDED 2026-10-17 (the study's §12.48, GATES' forty-seventh landing; TCK agreem
 the ordered pair of its ends' (S74), comparisons, DISTINCT, grouping and `count(DISTINCT r)` over it, and
 relationship uniqueness within one MATCH (S75 overturned there: the relationships of a repeated type pairwise
 distinct, an unnamed one named for it); still unspelled along a variable-length chain and within an OPTIONAL
-MATCH's chain. Next: re-anchoring joins (leg 4).
+MATCH's chain. Leg 4 LANDED 2026-10-17 (the study's §12.49, GATES' forty-eighth landing; TCK agreement 3115 →
+3149, DuckDB PASS 3020 → 3068): re-anchoring, a MATCH
+or OPTIONAL MATCH after rows joined back to the rows on the identity of every shared node or relationship (the
+pattern read from the carried node's class), both ends bound, a bound relationship matched again, the fan-out
+to a property-less class lifted. Still refused: re-anchoring from a node of several classes (the arms would
+each need the join), a named path or a variable-length relationship after rows, an OPTIONAL MATCH's WHERE over
+the rows' values. W2's remaining items: the undirected self-association (15), uniqueness along variable-length
+chains, cycles within one pattern (a pattern binding a node again: `(a)-->(b)-->(a)`), hops from an
+edge-reached node.
 
 ### W3. Non-deterministic functions
 

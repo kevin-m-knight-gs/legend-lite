@@ -630,7 +630,10 @@ class CypherToPureTest {
         // WITH * keeps a path with the nodes and relationships it reads (one named synthetically)
         assertTrue(pure("MATCH q = (p:Person)-[:firm]->(f) WITH * MATCH (c:City) RETURN q, c.name AS n")
                 .contains("@path"));
-        unsupported("MATCH (n), (m) WITH n, m MATCH (n)-->(x) RETURN x", "a MATCH after a WITH that projected");
+        // (re-anchoring after rows reads from the carried node's class, the study's §12.49: a label-less node carried
+        // as one of several classes has none to read from)
+        unsupported("MATCH (n), (m) WITH n, m MATCH (n)-->(x) RETURN x", "a node the rows carry as one of several"
+                + " classes");
         // a list comprehension's WHERE keeps an element when its condition is true: null, like false, drops it
         assertEquals("[1, 2, 3]->flatten(~value)->extend(~[x:r|[1, 2, 3]->filter(x|$r.value->isNotEmpty() && ($x < $r.value->toOne()))->size()])->select(~[x])",
                 pure("UNWIND [1, 2, 3] AS value RETURN size([x IN [1, 2, 3] WHERE x < value]) AS x"));
@@ -645,8 +648,11 @@ class CypherToPureTest {
         // the relationship's type is the way's (hq, the one end leaving Firm)
         assertEquals("demo::Firm.all()->filter(f|$f.hq->isNotEmpty())->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName, _cypher_3:f|$f->meta::legend::lite::elementId(), _cypher_4:f|'[\"City\"]', _cypher_5:f|$f.hq.name, _cypher_6:f|$f.hq->meta::legend::lite::elementId(), _cypher_7:f|'hq', _cypher_8:f|$f->meta::legend::lite::elementId(), _cypher_9:f|$f.hq->meta::legend::lite::elementId()])->extend(~[l:r|$r._cypher_2, t:r|$r._cypher_7])->select(~[l, t])",
                 pure("MATCH (f:Firm) MATCH (f)-[r]->(x) RETURN f.legalName AS l, type(r) AS t"));
-        unsupported("MATCH (f:Firm) WITH f.legalName AS l, f MATCH (f)-->(x) RETURN l",
-                "a MATCH after a WITH that projected its variables");
+        // a MATCH after rows from a node the rows carry: the pattern read from the node's class and joined back on
+        // its identity (re-anchoring, the study's §12.49)
+        String anchored = pure("MATCH (f:Firm) WITH f.legalName AS l, f MATCH (f)-->(x) RETURN l");
+        assertTrue(anchored.contains("->join(demo::Firm.all()") && anchored.contains("JoinKind.INNER, {l, r|$l._cypher_3"
+                + " == $r._cypher_"), anchored);
         unsupported("MATCH (f:Firm)-[:employees]->(p:Person) MATCH (f)-->(p) RETURN p.name",
                 "two ends are both bound already");
         // no way of the model leaves Firm to a Person (the study's §12.36): the rows in hand limited to none, x
@@ -1098,7 +1104,8 @@ class CypherToPureTest {
         // binds a projected variable again is still refused by name
         String product = pure("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n, f.legalName AS firm");
         assertTrue(product.contains("->join(") && product.contains("JoinKind.INNER"), product);
-        unsupported("MATCH (p:Person) WITH p.name AS n MATCH (n)-[:firm]->(f:Firm) RETURN n", "a MATCH after a WITH");
+        unsupported("MATCH (p:Person) WITH p.name AS n MATCH (n)-[:firm]->(f:Firm) RETURN n", "which the rows hold as a"
+                + " value of another kind");
         unsupported("CREATE (p:Person {name: 'x'})", "CREATE is not supported yet");
         // collect: the group's values as the JSON array the database builds (the study's §12.41)
         String collected = pure("MATCH (p:Person) RETURN collect(p.name) AS names");

@@ -3509,3 +3509,48 @@ lost. Most uniqueness cases of the TCK run over association
 graphs the harness already read correctly where the data walked no relationship twice, which is why the gain
 is small and the correctness gain large (the chain's first run flagged the product applying uniqueness across
 clauses).
+
+### 12.49 Re-anchoring: a pattern after rows joined back by identity, 2026-10-17
+
+- **The frame (the plan's W2, leg 4):** a MATCH or OPTIONAL MATCH after rows (a WITH that projected values or
+  grouped, an UNWIND, a pattern read as rows) whose pattern names a variable the rows hold was refused by name
+  since §12.44 read only the pattern sharing nothing (the product): a continuation from a carried node had
+  nothing to navigate from, since a carried node is columns, not an instance. Identity (§12.46) is what joins
+  them: the carried node's identity column names the row of its class.
+- **The reading (`reanchor`):** the pattern is read as a graph of its own, from the carried node's class when
+  the pattern starts (or, reversed with its directions flipped, ends) at one (`NodeShape.classPath`, the class
+  a carry of one class records; a node carried as one of several classes is refused by name), else from its
+  first node's label or every class (a relationship the rows hold is enough to share); every variable the rows
+  hold reads under a fresh name in that graph; the graph is materialized (every node and relationship carried
+  with its identity, §12.16) and joined to the rows on the identity of each shared variable: a node by its
+  identity column, a relationship by its identity column or by the columns of its type and the pair of its
+  ends' (§12.48). The joined rows carry the rows' own columns and the pattern's new ones; the copies of the
+  shared variables ride unnamed. A MATCH's WHERE reads over the joined rows; an OPTIONAL MATCH is a left join
+  (`JoinKind.LEFT`), the pattern's columns nullable after it (a node's labels column null where the pattern
+  found nothing: the absent node §12.18 already reads), its WHERE read over the pattern's own rows before the
+  join, under aliases of the shared variables to the pattern's copies (the same nodes by the join); an OPTIONAL
+  MATCH's WHERE reading a value of the rows beside its pattern is refused by name.
+- **What it reaches:** `WITH a, a.name AS n MATCH (a)-[:T]->(b)`, `WITH a, count(*) AS c MATCH (a)-[:T]->(b)`,
+  `OPTIONAL MATCH (a)-[:T]->(b)` after rows with or without a WHERE, both ends bound (`WITH a, b, 1 AS x MATCH
+  (a)-[:U]->(b)`), a pattern ending at the carried node, a bound relationship matched again (`WITH r, x.name AS
+  xn MATCH (y)-[r]->(z)`; With6/[2]'s `WITH r1 AS r2, count(*) AS c MATCH ()-[r2]->()`), re-anchoring twice.
+  With it, the fan-out to a class without a property (§12.16's refusal: no navigated column to multiply the
+  rows) is lifted: the node's identity column navigates its path.
+- **Still refused by name, recorded:** a MATCH after rows naming a scalar the rows hold (Neo4j's error), from a
+  node carried as one of several classes, a named path after rows, a variable-length relationship after rows,
+  an OPTIONAL MATCH's WHERE reading the rows' values.
+
+#### 12.49.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4576 | 3068 (from 3,020) | 0 | 0 | 0 | 597 | 730 | 181 |
+| Postgres | 4576 | 2707 (from 2,659) | 0 | 0 | 0 | 958 | 730 | 181 |
+
+14 lite cases in `lite/anchor.yaml`, each judged by Neo4j (12 PASS; a re-anchoring from a node of several
+classes and an OPTIONAL MATCH's WHERE over the rows' values REFUSED by name). The TCK: agreement 3149 of 3880
+(from 3,115): 34 more scenarios, TriadicSelection1 (9: friend-of-a-friend with an OPTIONAL MATCH after the
+rows), Match (8), With (4), Graph (4), MatchWhere (3), WithSkipLimit (3), Return (2), WithWhere (1); no case
+lost. The chain's first run had 9 TriadicSelection cases erroring in the resolver (an edge hop after an
+association hop is three navigation steps, which the translator's depth refusal had exempted): the refusal now
+counts every step, so they are REFUSED by name, as W9 records.

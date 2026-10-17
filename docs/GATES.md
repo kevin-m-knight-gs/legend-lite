@@ -9932,6 +9932,30 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the forty-eighth landing — re-anchoring: a pattern after rows joined back by identity
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 4); the record is the study's §12.49. The
+translator alone: a MATCH or OPTIONAL MATCH after rows whose pattern names a node or relationship the rows hold
+is read as a graph of its own (from the carried node's class), materialized, and joined to the rows on the
+identity of every shared variable; an OPTIONAL MATCH a left join, its WHERE over the pattern's rows first. The
+fan-out to a class without a property is lifted (the identity column navigates the path).
+
+1. **What lands.** `MATCH (a:A) WITH a, a.name AS n MATCH (a)-[:T]->(b:B)`, `WITH a, count(*) AS c MATCH
+   (a)-[:T]->(b:B)`, `OPTIONAL MATCH (a)-[:T]->(b:B)` after rows (with a WHERE over the pattern), `WHERE b.name <>
+   n` over the joined rows, both ends bound, a pattern ending at the carried node, a bound relationship matched
+   again, re-anchoring twice, `MATCH (a:A)-[:T]->(b:B) RETURN count(*), count(DISTINCT b)` over property-less
+   classes.
+2. **The ledger.** DuckDB: 4576 cases; PASS 3068 (from 3,020); FAIL 0; BUG 0; ERROR 0; REFUSED 597; BOTH_ERROR 730;
+   SKIP 181. Postgres: PASS 2707 (from 2,659); FAIL 0; BUG 0; ERROR 0; REFUSED 958; BOTH_ERROR 730; SKIP 181. 14
+   lite cases in `lite/anchor.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems). The
+   TCK's agreement 3149 of 3880 (from 3,115); the showcase's §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pins that refused a MATCH after a projecting WITH now pin the join on identity, the refusal of a node
+   carried as one of several classes, and the refusal of a scalar matched as a node.
+4. **Refused by name, recorded.** A MATCH after rows from a node of several classes, a named path or a
+   variable-length relationship after rows, an OPTIONAL MATCH's WHERE reading the rows' values, a scalar matched
+   as a node (Neo4j's error).
+
 ## 2026-10-17 — `#Cypher{...}#`: the forty-seventh landing — a relationship over an association is the pair of its ends; relationship uniqueness
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 3); the record is the study's §12.48. The
