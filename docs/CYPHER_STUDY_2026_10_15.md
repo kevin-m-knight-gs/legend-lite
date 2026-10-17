@@ -5110,3 +5110,37 @@ NaN rows by the decision S60 (the division's error) and Graph5/[2]; TCK agreemen
 3172 → 3177. The 13 cases of `lite/nonfinite.yaml` and `lite/rellabels.yaml` pass on both lanes (the NaN ones
 on Postgres by S60), and `lite/rank/nan_inside_a_list`, named for its refusal before, is renamed (its answer carried
 to the new key).
+
+### 12.80 A comprehension over a path's parts, EXISTS among a projection's items (2026-10-17)
+
+- **A comprehension over a named path's parts** (`CypherToPure.unrolledOverPaths`, `Renaming`): after `MATCH p =
+  (n:X)-->()`, `RETURN [x IN nodes(p) | size([(x)-->(:Y) | 1])]` has no node to start the inner pattern from (the
+  comprehension's variable is an element of a list); a fixed-length path's parts are the MATCH's own variables, so
+  the comprehension, with no WHERE and a projection that holds a pattern, reads as the list of its projection per
+  part, `[size([(n)-->(:Y) | 1]), size([(m)-->(:Y) | 1])]`, each pattern then from a node the MATCH binds. Read in
+  the RETURN or WITH right after the MATCH, where the parts are in scope; the path's unnamed parts named for it with
+  synthetic names, which no `*` lists. The substitution renames the comprehension's variable where it is free (a
+  lambda binding the name shadows it) and keeps the expression as written where a binder inside would capture the
+  part's name. A shape rearranged, nothing computed.
+- **EXISTS or a pattern predicate among a projection's items over rows** (the projection's `withPatternFlags`):
+  read as a flag column of the rows, as a WHERE's is (§12.52), the projection keeping its items alone; so
+  `RETURN EXISTS { (b)-->(:C) } AS e, count(*)` over rows groups by the flag.
+- **Tried and withdrawn: a null grouping key on Postgres.** Postgres refuses a bare NULL GROUP BY key
+  (`ConstantKeysAsExpressions`: a constant key is an expression only where it is typed), eleven TCK rows. Casting the
+  key to the plan's declared type of its column in the lowering lets them run and keeps the IQ corpus green; one of
+  them, ReturnOrderBy6/[5], then reaches the planner with `toOne` of a column stamped `[0..0]` (the raise, typed
+  VARCHAR by Postgres's spelling) in a CASE arm never taken, added to a count. Casting the raise to its value's
+  carrier fixed it and broke 125 IQ cases on Postgres and 29 on DuckDB (a typed raise changes a CASE's type
+  unification, the quotients' scale). Both withdrawn; the rows stay refused by name; the fix belongs to the island
+  (an item that is a null constant read back as one, so no `toOne` is spelled), the plan's §5.
+- **Pinned.** `lite/pathunroll.yaml`'s 8 cases, each judged by Neo4j; Pattern2/[7] on both lanes.
+
+#### 12.80.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4930 | 3855 (from 3,846) | 0 | 0 | 0 | 269 (from 270) | 750 | 56 |
+| Postgres | 4930 | 3432 (from 3,423) | 0 | 0 | 0 | 692 (from 693) | 750 | 56 |
+
+Pattern2/[7] moves to PASS on both lanes; TCK agreement DuckDB 3569 → 3570, Postgres 3177 → 3178. The 8 cases of
+`lite/pathunroll.yaml` pass on both lanes.

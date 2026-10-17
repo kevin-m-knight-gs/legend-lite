@@ -316,6 +316,9 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   agreement DuckDB 3564 → 3569, Postgres 3172 → 3177): NaN and the infinities in a list, a map or a
   `collect` as the database's own Variant, ordered after the numbers (ReturnOrderBy1/[11], [12], WithOrderBy1/[21],
   [22]; Postgres by S60); a relationship's label as its type, types differing only in case (Graph5/[2]).
+- A comprehension over a path's parts LANDED 2026-10-17 (the study's §12.80, GATES' seventy-seventh landing; TCK
+  agreement DuckDB 3569 → 3570, Postgres 3177 → 3178): a list comprehension over a fixed-length named
+  path's nodes or relationships read per part (Pattern2/[7]); EXISTS among a projection's items over rows.
 - The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
   UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships
@@ -663,6 +666,13 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   one variable); spelling it over the join's two needs either a scope reading each column off its side, or the
   rows' values the WHERE reads joined into the pattern's rows first (on the shared identities) and the left join
   matched on them too. Two TCK rows.
+- **2026-10-17, W12 (§12.80) — a null grouping key on Postgres.** `MATCH (a) WITH a.num AS a, count(*) AS count
+  RETURN count` and ten more (Return6/[3], [6], [18], [19], ReturnOrderBy6/[2], [3], [5], WithOrderBy4/[17], [18],
+  With6/[6], [7]) group by a property no class declares, a typed null; Postgres refuses a bare NULL key, and its
+  dialect refuses it by name (`ConstantKeysAsExpressions`). Casting the key to the plan's declared type lets ten of
+  them run (IQ-safe); ReturnOrderBy6/[5] then needs `toOne` of the null column not spelled at all (a raise in a CASE
+  arm Postgres types when it plans), which the island can do by reading an item that is a null constant back as
+  one; typing the raise in the lowering broke the IQ corpus (§12.80). Eleven Postgres rows; the next island leg.
 - **2026-10-17, W10 (§12.78) — a variable-length relationship beside another relationship in one pattern.** `MATCH
   (a {name: 'A'}) OPTIONAL MATCH p = (a)-->(b)-[*]->(c) RETURN p` (Match7/[19]): the walk (§12.68) reads a pattern
   of one variable-length relationship between two nodes; beside a single relationship, the pattern is cut at the

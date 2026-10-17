@@ -1161,7 +1161,9 @@ public final class CypherToPure {
         return rows;
     }
 
-    private Rows clausesRows(List<Clause> clauses, Pos pos) {
+    private Rows clausesRows(List<Clause> written, Pos pos) {
+        // (a comprehension over a named path's parts holding a pattern, unrolled per part: the study's §12.80)
+        List<Clause> clauses = unrolledOverPaths(written);
         State state = null;
         for (Clause c : clauses) {
             if (c instanceof CypherAst.OtherClause o) {
@@ -4181,6 +4183,240 @@ public final class CypherToPure {
         return found.stream().anyMatch(pc -> throughRows(pc, g));
     }
 
+    /**
+     * The clauses with each list comprehension over a fixed-length named path's nodes or relationships, with no
+     * WHERE and a projection that holds a pattern of its own, read as the list of that projection per part (the
+     * study's §12.80): after {@code MATCH p = (n:X)-->()}, {@code RETURN [x IN nodes(p) | size([(x)-->(:Y) | 1])]}
+     * is {@code [size([(n)-->(:Y) | 1]), size([(m)-->(:Y) | 1])]}, each pattern then from a node the MATCH binds
+     * (a comprehension's pattern over a list's element has no node to start from). Read in the RETURN or WITH
+     * right after the MATCH, where the path's parts are in scope; the path's unnamed parts named for it, with
+     * names no {@code *} lists. A shape rearranged, nothing computed.
+     */
+    private static List<Clause> unrolledOverPaths(List<Clause> clauses) {
+        List<Clause> out = new ArrayList<>(clauses);
+        for (int i = 0; i + 1 < out.size(); i++) {
+            if (!(out.get(i) instanceof CypherAst.Match m)) {
+                continue;
+            }
+            Clause next = out.get(i + 1);
+            List<Item> items = next instanceof CypherAst.With w ? w.items()
+                    : next instanceof CypherAst.Return r ? r.items() : null;
+            if (items == null) {
+                continue;
+            }
+            Map<String, PathPattern> named = new LinkedHashMap<>();
+            for (PathPattern p : m.patterns()) {
+                if (p.variable() != null && p.elements().stream().noneMatch(e -> e instanceof RelPattern r
+                        && r.lengthRange() != null)) {
+                    named.put(p.variable(), p);
+                }
+            }
+            Map<String, PathPattern> namedFor = new LinkedHashMap<>();
+            List<Item> rewritten = new ArrayList<>();
+            boolean changed = false;
+            for (Item item : items) {
+                Expr e = item.expr();
+                Expr unrolled = e == null ? null : unrolledOverPath(e, named, namedFor);
+                changed |= unrolled != e;
+                rewritten.add(unrolled == e ? item : new Item(unrolled, item.alias(), item.text(), item.pos()));
+            }
+            if (!changed) {
+                continue;
+            }
+            List<PathPattern> patterns = new ArrayList<>();
+            for (PathPattern p : m.patterns()) {
+                PathPattern n = p.variable() == null ? null : namedFor.get(p.variable());
+                patterns.add(n == null ? p : n);
+            }
+            out.set(i, new CypherAst.Match(m.optional(), patterns, m.where(), m.pos()));
+            out.set(i + 1, next instanceof CypherAst.With w ? new CypherAst.With(w.distinct(), rewritten,
+                    w.orderBy(), w.skip(), w.limit(), w.where(), w.pos())
+                    : new CypherAst.Return(((CypherAst.Return) next).distinct(), rewritten,
+                            ((CypherAst.Return) next).orderBy(), ((CypherAst.Return) next).skip(),
+                            ((CypherAst.Return) next).limit(), next.pos()));
+        }
+        return out;
+    }
+
+    /** {@code e} unrolled over a path of {@code named} ({@link #unrolledOverPaths}), or itself; a path whose parts it
+     *  names is recorded in {@code namedFor}, its unnamed parts named. */
+    private static Expr unrolledOverPath(Expr e, Map<String, PathPattern> named, Map<String, PathPattern> namedFor) {
+        if (!(e instanceof CypherAst.ListComprehension lc) || lc.where() != null || lc.map() == null
+                || !holdsPattern(lc.map()) || !(lc.list() instanceof CypherAst.Call c) || c.args().size() != 1
+                || !(c.args().get(0) instanceof CypherAst.Var p)) {
+            return e;
+        }
+        String fn = c.name().toLowerCase(java.util.Locale.ROOT);
+        PathPattern path = namedFor.containsKey(p.name()) ? namedFor.get(p.name()) : named.get(p.name());
+        if (path == null || !fn.equals("nodes") && !fn.equals("relationships")) {
+            return e;
+        }
+        if (!namedFor.containsKey(p.name())) {
+            // (the path's unnamed parts named for it: a synthetic name, apart from the translator's fresh ones)
+            List<PatternElement> elements = new ArrayList<>();
+            int k = 0;
+            for (PatternElement el : path.elements()) {
+                String part = SYNTHETIC + "part_" + p.name() + "_" + k++;
+                elements.add(switch (el) {
+                    case NodePattern n -> n.variable() != null ? n
+                            : new NodePattern(part, n.labels(), n.properties(), n.pos());
+                    case RelPattern r -> r.variable() != null ? r
+                            : new RelPattern(part, r.types(), r.direction(), r.properties(), r.lengthRange(), r.pos());
+                });
+            }
+            path = new PathPattern(path.variable(), elements, path.pos());
+            namedFor.put(p.name(), path);
+        }
+        List<Expr> parts = new ArrayList<>();
+        for (PatternElement el : path.elements()) {
+            String part = el instanceof NodePattern n ? n.variable() : ((RelPattern) el).variable();
+            if (fn.equals("nodes") == el instanceof NodePattern) {
+                Renaming renaming = new Renaming(lc.variable(), java.util.Objects.requireNonNull(part));
+                Expr one = renaming.of(lc.map());
+                if (renaming.captured) {
+                    return e;
+                }
+                parts.add(one);
+            }
+        }
+        return new CypherAst.ListLit(parts, lc.pos());
+    }
+
+    /** Whether {@code e} holds a pattern (a comprehension, a predicate, an EXISTS) anywhere. */
+    private static boolean holdsPattern(Expr e) {
+        if (e instanceof CypherAst.PatternComprehension || e instanceof CypherAst.PatternPredicate
+                || e instanceof CypherAst.ExistsSubquery) {
+            return true;
+        }
+        for (Expr child : children(e)) {
+            if (holdsPattern(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * An expression with one variable read as another (the study's §12.80): every free {@link CypherAst.Var} of the
+     * name and every pattern element naming it read as the substitute; a list comprehension's or a quantifier's
+     * variable of the name shadows it in that lambda. {@link #captured} where a binder inside names the substitute
+     * (the substitute would be read as the binder's): the caller keeps the expression as written then. A shape
+     * rearranged, nothing computed.
+     */
+    private static final class Renaming {
+        private final String var;
+        private final String with;
+        boolean captured;
+
+        Renaming(String var, String with) {
+            this.var = var;
+            this.with = with;
+        }
+
+        private String name(String n) {
+            return n.equals(var) ? with : n;
+        }
+
+        private @com.legend.base.Nullable String nameOf(@com.legend.base.Nullable String n) {
+            return n == null ? null : name(n);
+        }
+
+        private void binds(@com.legend.base.Nullable String binder) {
+            if (with.equals(binder)) {
+                captured = true;
+            }
+        }
+
+        private @com.legend.base.Nullable Expr opt(@com.legend.base.Nullable Expr e) {
+            return e == null ? null : of(e);
+        }
+
+        private List<Expr> all(List<Expr> es) {
+            List<Expr> out = new ArrayList<>(es.size());
+            for (Expr e : es) {
+                out.add(of(e));
+            }
+            return out;
+        }
+
+        private Map<String, Expr> entries(Map<String, Expr> m) {
+            Map<String, Expr> out = new LinkedHashMap<>();
+            m.forEach((k, v) -> out.put(k, of(v)));
+            return out;
+        }
+
+        PathPattern pattern(PathPattern p) {
+            binds(p.variable());
+            List<PatternElement> elements = new ArrayList<>();
+            for (PatternElement e : p.elements()) {
+                elements.add(switch (e) {
+                    case NodePattern n -> new NodePattern(nameOf(n.variable()), n.labels(), entries(n.properties()),
+                            n.pos());
+                    case RelPattern r -> new RelPattern(nameOf(r.variable()), r.types(), r.direction(),
+                            entries(r.properties()), r.lengthRange(), r.pos());
+                });
+            }
+            return new PathPattern(p.variable(), elements, p.pos());
+        }
+
+        Expr of(Expr e) {
+            return switch (e) {
+                case CypherAst.IntLit x -> x;
+                case CypherAst.FloatLit x -> x;
+                case CypherAst.StringLit x -> x;
+                case CypherAst.BoolLit x -> x;
+                case CypherAst.NullLit x -> x;
+                case CypherAst.Param x -> x;
+                case CypherAst.CountStar x -> x;
+                case CypherAst.Var v -> v.name().equals(var) ? new CypherAst.Var(with, v.pos()) : v;
+                case CypherAst.Prop p -> new CypherAst.Prop(of(p.target()), p.name(), p.pos());
+                case CypherAst.ListLit l -> new CypherAst.ListLit(all(l.elements()), l.pos());
+                case CypherAst.MapLit m -> new CypherAst.MapLit(entries(m.entries()), m.pos());
+                case CypherAst.Unary u -> new CypherAst.Unary(u.op(), of(u.operand()), u.pos());
+                case CypherAst.Binary b -> new CypherAst.Binary(b.op(), of(b.left()), of(b.right()), b.pos());
+                case CypherAst.Call c -> new CypherAst.Call(c.name(), c.distinct(), all(c.args()), c.pos());
+                case CypherAst.Case c -> {
+                    List<CypherAst.When> whens = new ArrayList<>();
+                    for (CypherAst.When w : c.whens()) {
+                        whens.add(new CypherAst.When(of(w.condition()), of(w.result())));
+                    }
+                    yield new CypherAst.Case(opt(c.operand()), whens, opt(c.elseResult()), c.pos());
+                }
+                case CypherAst.Paren p -> new CypherAst.Paren(of(p.inner()), p.pos());
+                case CypherAst.Quantifier q -> {
+                    binds(q.variable());
+                    yield q.variable().equals(var) ? new CypherAst.Quantifier(q.name(), q.variable(), of(q.list()),
+                            q.where(), q.pos()) : new CypherAst.Quantifier(q.name(), q.variable(), of(q.list()),
+                            of(q.where()), q.pos());
+                }
+                case CypherAst.ListComprehension lc -> {
+                    binds(lc.variable());
+                    yield lc.variable().equals(var) ? new CypherAst.ListComprehension(lc.variable(), of(lc.list()),
+                            lc.where(), lc.map(), lc.pos()) : new CypherAst.ListComprehension(lc.variable(),
+                            of(lc.list()), opt(lc.where()), opt(lc.map()), lc.pos());
+                }
+                case CypherAst.PatternComprehension pc -> new CypherAst.PatternComprehension(pattern(pc.pattern()),
+                        opt(pc.where()), of(pc.map()), pc.pos());
+                case CypherAst.LabelPredicate lp -> new CypherAst.LabelPredicate(of(lp.target()), lp.labels(),
+                        lp.pos());
+                case CypherAst.Index i -> new CypherAst.Index(of(i.target()), of(i.index()), i.pos());
+                case CypherAst.Slice s -> new CypherAst.Slice(of(s.target()), opt(s.from()), opt(s.to()), s.pos());
+                case CypherAst.PatternPredicate pp -> new CypherAst.PatternPredicate(pattern(pp.pattern()), pp.pos());
+                case CypherAst.ExistsSubquery x -> {
+                    CypherAst.Counted was = x.counted();
+                    CypherAst.Counted counted = null;
+                    if (was != null) {
+                        binds(was.alias());
+                        counted = new CypherAst.Counted(was.keys().stream().map(this::name).toList(), was.alias(),
+                                opt(was.having()), was.pos());
+                    }
+                    yield new CypherAst.ExistsSubquery(pattern(x.pattern()), opt(x.where()), all(x.items()), counted,
+                            x.pos());
+                }
+            };
+        }
+    }
+
     /** The pattern comprehensions {@code e} holds, outside any lambda that binds a variable (a quantifier's, a list
      *  comprehension's: one inside may read the lambda's variable) and outside each other. */
     private static void comprehensionsIn(Expr e, List<CypherAst.PatternComprehension> out) {
@@ -5960,7 +6196,13 @@ public final class CypherToPure {
         }
         orderBy.forEach(o -> listed.add(o.expr()));
         if (state instanceof Rows rows) {
-            state = withPatternLists(rows, listed);
+            Rows read = withPatternLists(rows, listed);
+            // (a pattern predicate or EXISTS among the items over rows: a flag column, as a WHERE's is, §12.80;
+            // the projection keeps only its items)
+            for (Expr e : listed) {
+                read = withPatternFlags(read, e);
+            }
+            state = read;
         }
         // a label-less pattern's arms (one graph per class) are each projected to the same columns and
         // concatenated; the grouping, the sort, the SKIP and the LIMIT then read the whole (the study's §12.13)

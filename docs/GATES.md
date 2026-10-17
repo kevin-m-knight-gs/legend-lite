@@ -11700,3 +11700,21 @@ in case.
 4. **The harness.** A DuckDB JSON cell read by the JSON grammar and DuckDB's tokens for a double that is not finite
    (`DuckJson`, the parity grid's and the judge's); the product's JSON library unchanged. Relationship types
    differing only in case named apart in SQL (`CypherGraph.RelType.sql`).
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-seventh landing — a comprehension over a path's parts
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 tail); the record is the study's §12.80. A list
+comprehension over a fixed-length named path's parts read per part; EXISTS among a projection's items over rows.
+
+1. **What lands.** Pattern2/[7] moves to PASS on both lanes; the 8 cases of `lite/pathunroll.yaml`. DuckDB PASS
+   3,846 → 3855, Postgres 3,423 → 3432; TCK agreement DuckDB 3569 → 3570, Postgres 3177 → 3178.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS
+   3855 / REFUSED 269 / BOTH_ERROR 750 / SKIP 56; Postgres PASS 3432 / REFUSED 692 /
+   BOTH_ERROR 750 / SKIP 56, of 4930 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green.
+4. **Tried and withdrawn.** A null grouping key cast for Postgres and a statically empty `toOne`'s raise typed, in
+   the lowering (the study's §12.80): the gate's core suite caught the second breaking the IQ corpus (125 cases on
+   Postgres, 29 on DuckDB); both withdrawn, the eleven Postgres rows refused by name as before (plan §5).
+5. **Found, not this leg's.** The same run found `//spec:spec_tests` red on the branch's last commit (a8ef726),
+   from earlier legs (lite natives without a claim or a ratchet line, two store types hand-written into the
+   generated prelude); the next leg repairs it, and the chain runs the spec and parity suites from now on.

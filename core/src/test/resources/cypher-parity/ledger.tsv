@@ -2055,7 +2055,7 @@ tck/expressions/pattern/Pattern2/[3] Return a pattern comprehension with bound n
 tck/expressions/pattern/Pattern2/[4] Introduce a new node variable in pattern comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[5] Introduce a new relationship variable in pattern comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[6] Aggregate on a pattern comprehension	PASS	PASS
-tck/expressions/pattern/Pattern2/[7] Use a pattern comprehension inside a list comprehension	REFUSED	REFUSED
+tck/expressions/pattern/Pattern2/[7] Use a pattern comprehension inside a list comprehension	PASS	PASS
 tck/expressions/pattern/Pattern2/[8] Use a pattern comprehension in WITH	PASS	PASS
 tck/expressions/pattern/Pattern2/[9] Use a variable-length pattern comprehension in WITH	PASS	PASS
 tck/expressions/pattern/Pattern2/[10] Use a pattern comprehension in RETURN	PASS	PASS
@@ -4381,6 +4381,14 @@ lite/paths/two_hop_path	PASS	PASS
 lite/paths/path_length_in_a_where	PASS	PASS
 lite/paths/return_star_with_a_path	PASS	PASS
 lite/paths/fanning_path	PASS	PASS
+lite/pathunroll/a_count_per_node_of_the_path	PASS	PASS
+lite/pathunroll/a_pattern_predicate_per_node	PASS	PASS
+lite/pathunroll/an_unnamed_node_of_the_path	PASS	PASS
+lite/pathunroll/two_hops	PASS	PASS
+lite/pathunroll/in_a_with	PASS	PASS
+lite/pathunroll/the_variable_named_as_a_node_of_the_path	PASS	PASS
+lite/pathunroll/exists_in_a_return_over_rows	PASS	PASS
+lite/pathunroll/exists_as_a_grouping_key	PASS	PASS
 lite/patternlists/a_named_path_over_a_graph	PASS	PASS
 lite/patternlists/the_path_itself	PASS	PASS
 lite/patternlists/the_start_read_inside	PASS	PASS
