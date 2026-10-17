@@ -926,6 +926,7 @@ public final class CypherParser {
                             pos);
                 }
                 Expr where = matchWord("WHERE") ? expression() : null;
+                CypherAst.Counted counted = peek().isWord("WITH") ? counted() : null;
                 List<Expr> items = new ArrayList<>();
                 if (matchWord("RETURN")) {
                     matchWord("DISTINCT");
@@ -947,7 +948,7 @@ public final class CypherParser {
                             + " (a " + peek().text() + " clause) is not supported yet", pos);
                 }
                 advance();
-                return new CypherAst.ExistsSubquery(pattern, where, items, pos);
+                return nested(new CypherAst.ExistsSubquery(pattern, where, items, counted, pos));
             }
             if ((t.isWord("COUNT") || t.isWord("COLLECT")) && peek(1).is(Type.LBRACE)) {
                 throw CypherErrors.unsupported(t.text().toUpperCase(java.util.Locale.ROOT)
@@ -1020,5 +1021,94 @@ public final class CypherParser {
         Expr elseResult = matchWord("ELSE") ? expression() : null;
         expectWord("END");
         return new CypherAst.Case(operand, whens, elseResult, pos);
+    }
+
+    /** An EXISTS subquery's {@code WITH v1, ..., count(*) AS c [WHERE having]} (the study's §12.77): variables and
+     *  one aliased {@code count(*)}, in any order; any other WITH is refused by name. */
+    private CypherAst.Counted counted() {
+        Token with = advance();
+        List<String> keys = new ArrayList<>();
+        String alias = null;
+        do {
+            Token t = peek();
+            if (t.isWord("COUNT") && peek(1).is(Type.LPAREN) && peek(2).is(Type.STAR) && peek(3).is(Type.RPAREN)
+                    && peek(4).isWord("AS") && peek(5).is(Type.IDENT) && alias == null) {
+                for (int i = 0; i < 5; i++) {
+                    advance();
+                }
+                alias = advance().text();
+            } else if (t.is(Type.IDENT) && (peek(1).is(Type.COMMA) || peek(1).isWord("WHERE")
+                    || peek(1).isWord("RETURN") || peek(1).is(Type.RBRACE))) {
+                keys.add(advance().text());
+            } else {
+                throw CypherErrors.unsupported("an EXISTS subquery's WITH other than its variables and one count(*)"
+                        + " is not supported yet", with.pos());
+            }
+        } while (match(Type.COMMA));
+        if (alias == null) {
+            throw CypherErrors.unsupported("an EXISTS subquery's WITH other than its variables and one count(*) is"
+                    + " not supported yet", with.pos());
+        }
+        Expr having = matchWord("WHERE") ? expression() : null;
+        return new CypherAst.Counted(List.copyOf(keys), alias, having, with.pos());
+    }
+
+    /**
+     * An EXISTS subquery's normal form (docs/CYPHER_STUDY_2026_10_15.md §12.77): {@code EXISTS { MATCH (m) WHERE
+     * EXISTS { pattern } }} and {@code EXISTS { MATCH (m) WHERE pattern }}, the outer match a lone node {@code m}
+     * (its labels and properties, if any, moved onto the inner pattern's {@code m}) whose variable the inner pattern
+     * binds, are the inner pattern's own existence: a lone node has no relationship, so the two matches' uniqueness
+     * rules agree, and the rows the outer match adds are the inner pattern's {@code m}. The shape is rearranged,
+     * nothing computed; any other subquery stays as written.
+     */
+    static CypherAst.ExistsSubquery nested(CypherAst.ExistsSubquery ex) {
+        if (ex.counted() != null) {
+            return ex;
+        }
+        PathPattern outer = ex.pattern();
+        if (outer.variable() != null || outer.elements().size() != 1
+                || !(outer.elements().get(0) instanceof CypherAst.NodePattern lone) || lone.variable() == null) {
+            return ex;
+        }
+        Expr where = ex.where();
+        while (where instanceof CypherAst.Paren paren) {
+            where = paren.inner();
+        }
+        PathPattern inner;
+        Expr innerWhere;
+        if (where instanceof CypherAst.ExistsSubquery sub && sub.counted() == null) {
+            inner = sub.pattern();
+            innerWhere = sub.where();
+        } else if (where instanceof CypherAst.PatternPredicate pp) {
+            inner = pp.pattern();
+            innerWhere = null;
+        } else {
+            return ex;
+        }
+        if (inner.variable() != null) {
+            return ex;
+        }
+        List<PatternElement> elements = new ArrayList<>();
+        boolean bound = false;
+        for (PatternElement e : inner.elements()) {
+            if (!bound && e instanceof CypherAst.NodePattern n && lone.variable().equals(n.variable())) {
+                if (!lone.labels().isEmpty() && !n.labels().isEmpty()
+                        || !lone.properties().isEmpty() && !n.properties().isEmpty()) {
+                    // (both levels constrain the node: kept as written)
+                    return ex;
+                }
+                bound = true;
+                elements.add(new CypherAst.NodePattern(n.variable(), n.labels().isEmpty() ? lone.labels()
+                        : n.labels(), n.properties().isEmpty() ? lone.properties() : n.properties(), n.pos()));
+                continue;
+            }
+            elements.add(e);
+        }
+        if (!bound) {
+            // (an inner pattern that does not bind the node: the outer match counts every node, not the same)
+            return ex;
+        }
+        return nested(new CypherAst.ExistsSubquery(new PathPattern(null, elements, inner.pos()), innerWhere,
+                ex.items(), ex.pos()));
     }
 }

@@ -1488,8 +1488,10 @@ public final class CypherToPure {
         }
         if (!(state instanceof Rows) && !m.optional() && variableLengthPredicate(m.where())) {
             // a WHERE holding a variable-length pattern predicate (`MATCH (n) WHERE (n)-[:T*]->()`, the study's
-            // §12.69): the pattern read as rows and the WHERE over them, the predicate a flag (§12.52) whose
-            // pattern, a MATCH of its own, is the unroll or the walk (§12.42, §12.68), never a navigation
+            // §12.69), or a pattern predicate or EXISTS subquery over more than one hop (`MATCH (n) WHERE EXISTS {
+            // (l)<-[:R]-(n)-[:R]->(m) }`, §12.77): the pattern read as rows and the WHERE over them, the predicate
+            // a flag (§12.52) whose pattern, a MATCH of its own, is the unroll, the walk (§12.42, §12.68) or the
+            // re-anchored chain, never a navigation
             State read = matchPattern(new CypherAst.Match(false, m.patterns(), null, m.pos()), state);
             return filtered(rowsOf(read, m.pos()), java.util.Objects.requireNonNull(m.where()));
         }
@@ -3834,7 +3836,8 @@ public final class CypherToPure {
             PathPattern pattern = predicate instanceof CypherAst.PatternPredicate pp ? pp.pattern()
                     : ((CypherAst.ExistsSubquery) predicate).pattern();
             Expr inner = predicate instanceof CypherAst.ExistsSubquery ex ? ex.where() : null;
-            if (pattern.variable() != null || pattern.elements().size() < 3) {
+            if (pattern.variable() != null || pattern.elements().size() < 3
+                    || predicate instanceof CypherAst.ExistsSubquery cx && cx.counted() != null) {
                 continue;
             }
             boolean carried = false;
@@ -3845,6 +3848,11 @@ public final class CypherToPure {
                     continue;
                 }
                 Col c = column(out, v);
+                if (c == null && predicate instanceof CypherAst.ExistsSubquery) {
+                    // (a variable of the subquery's own, which the rows do not carry: the pattern's, as an unnamed
+                    // node is, §12.77; a lambda's is never here, patternPredicatesIn reads no lambda)
+                    continue;
+                }
                 if (c == null) {
                     foreign = true;
                 } else if (c.detail() instanceof NodeShape shape && shape.identity() != null && !shape.absent()
@@ -4130,7 +4138,8 @@ public final class CypherToPure {
             if (s.tx().kind() == Kind.JSON) {
                 return new ListOf(Kind.JSON, s.tx().detail());
             }
-            return !s.tx().nullable() && elementType(s.tx().kind()) != null ? new ListOf(s.tx().kind()) : null;
+            return !s.tx().nullable() && readsBack(s.tx().kind()) ? new ListOf(s.tx().kind(),
+                    scalarMark(s.tx().kind(), nanos(s.tx()))) : null;
         }
         return new ListOf(Kind.JSON, shapeOf(v));
     }
@@ -4149,6 +4158,11 @@ public final class CypherToPure {
             PathPattern pattern = predicate instanceof CypherAst.PatternPredicate pp ? pp.pattern()
                     : ((CypherAst.ExistsSubquery) predicate).pattern();
             if (pattern.elements().stream().anyMatch(e -> e instanceof RelPattern r && r.lengthRange() != null)) {
+                return true;
+            }
+            // (more than one hop: the navigation reads one, §12.77)
+            if (pattern.variable() == null && pattern.elements().size() > 3
+                    && !(predicate instanceof CypherAst.ExistsSubquery cx && cx.counted() != null)) {
                 return true;
             }
         }
@@ -6831,15 +6845,20 @@ public final class CypherToPure {
     }
 
     /** {@code collect(x)} (the study's §12.41): the group's values as a list the database builds -- each value's
-     *  JSON text ({@link #scalarJsonText}: a number, a boolean, a string, a date, a node's or a list's Variant text),
+     *  JSON text ({@link #scalarJsonText}: a number, a boolean, a string, a temporal (§12.76), a node's or a list's
+     *  Variant text),
      *  a null contributing nothing (Neo4j's {@code collect} skips nulls), joined with commas (Pure's
      *  {@code joinStrings}, the database's string aggregate) and read as a Variant between brackets; {@code []} over
      *  no value. The elements' order is the database's, as the TCK's "ignoring element order for lists" allows. */
     private Aggregate collect(Tx arg, boolean distinct, Set<String> names, Pos pos) {
-        if (arg.kind() == Kind.DATETIME || arg.kind() == Kind.TIME || arg.kind() == Kind.ZONED
-                || arg.kind() == Kind.ZONED_TIME || arg.kind() == Kind.DURATION || arg.kind() == Kind.OTHER) {
+        if (arg.kind() == Kind.DURATION || arg.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("collect of a " + cypherType(arg.kind()) + " is not supported yet (the"
                     + " Variant spells it as text)", pos);
+        }
+        if (distinct && (arg.kind() == Kind.ZONED || arg.kind() == Kind.ZONED_TIME)) {
+            // (a zoned value's text is its instant's: two of one instant in two zones would be one)
+            throw CypherErrors.unsupported("collect(DISTINCT ...) of a " + cypherType(arg.kind()) + " is not"
+                    + " supported yet (the Variant spells its instant alone)", pos);
         }
         Tx piece;
         if (arg.kind() == Kind.NULL) {
@@ -6867,11 +6886,12 @@ public final class CypherToPure {
                 new CString("]"))), arg.kind() == Kind.JSON
                         // (a list of Variants, each with its mark, or of no known shape: still a list, §12.58)
                         ? new ListOf(Kind.JSON, arg.detail())
-                        : elementType(arg.kind()) == null ? null : new ListOf(arg.kind()));
+                        : !readsBack(arg.kind()) ? null : new ListOf(arg.kind(), scalarMark(arg.kind(), nanos(arg))));
     }
 
     /** The Pure type a list's elements of this kind are read back as ({@code toMany}), or null for a kind the
-     *  Variant does not read back by type (a Variant element, a null, a temporal the text spells). */
+     *  Variant does not read back by type (a Variant element, a null, a temporal the text spells: {@link
+     *  #spelledTemporal}). */
     private static @com.legend.base.Nullable String elementType(Kind kind) {
         return switch (kind) {
             case INTEGER, WHOLE -> "Integer";
@@ -6879,9 +6899,61 @@ public final class CypherToPure {
             case DECIMAL, NUMBER -> "Decimal";
             case STRING -> "String";
             case BOOLEAN -> "Boolean";
-            case DATE -> "StrictDate";
             default -> null;
         };
+    }
+
+    /** Whether a Variant's element of this kind reads back as the value: by its Pure type, or a temporal by its
+     *  text (the study's §12.76). */
+    private static boolean readsBack(Kind kind) {
+        return elementType(kind) != null || spelledTemporal(kind);
+    }
+
+    /** A temporal a Variant holds as the oracle's text ({@link #jsonText}: {@code Date('...')}, {@code
+     *  Time('...')}, {@code DateTime('...')}, a zoned value's its instant's), which the database parses back. */
+    private static boolean spelledTemporal(Kind kind) {
+        return kind == Kind.DATE || kind == Kind.TIME || kind == Kind.DATETIME || kind == Kind.ZONED
+                || kind == Kind.ZONED_TIME;
+    }
+
+    /** The mark of a list's elements of nanosecond precision (a temporal's), its {@link ListOf}'s element detail. */
+    private static final Carried NANOS_ELEMENT = new Carried(null, true);
+
+    /** Whether a list's elements are of nanosecond precision. */
+    private static boolean nanosElements(ListOf shape) {
+        return shape.elementDetail() instanceof Carried c && c.nanos();
+    }
+
+    /** The element mark of a list of values of this kind: a nanosecond temporal's, else none. */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail scalarMark(Kind kind,
+            boolean nanos) {
+        return nanos && spelledTemporal(kind) ? NANOS_ELEMENT : null;
+    }
+
+    /** The value a temporal's Variant text spells ({@link #spelledTemporal}), the database's parse of the text
+     *  inside the oracle's spelling: a date's, a time of day's on the epoch day, a date-time's (a zoned value's
+     *  instant: its zone is not carried). */
+    private static ValueSpecification temporalOfText(ValueSpecification text, Kind kind, boolean nanos) {
+        int open = kind == Kind.DATE ? "Date('".length() : kind == Kind.TIME ? "Time('".length()
+                : "DateTime('".length();
+        ValueSpecification inner = call("substring", text, lit(open + 1), integer(minus(call("length", text),
+                lit(open + 2))));
+        return switch (kind) {
+            case DATE -> call("datePart", call("parseDate", inner));
+            case TIME -> nanos ? parsedWithNanos(inner, 15, true, "1970-01-01T")
+                    : call(TIME_OF, parsedWithNanos(inner, 15, false, "1970-01-01T"));
+            default -> parsedWithNanos(inner, 26, nanos, null);
+        };
+    }
+
+    /** A Variant list's elements of a kind it reads back ({@link #readsBack}) as the collection of their values:
+     *  by type ({@code toMany}), or a temporal's texts parsed. */
+    private static ValueSpecification elementsOf(ValueSpecification held, Kind kind, boolean nanos) {
+        if (!spelledTemporal(kind)) {
+            return call("toMany", held, SqlToPure.typeArg(java.util.Objects.requireNonNull(elementType(kind))));
+        }
+        return call("map", call("toMany", held, SqlToPure.typeArg("String")), lambda("e", temporalOfText(
+                new Variable("e"), kind, nanos)));
     }
 
     /** The one scalar kind a spelled list's elements share (nulls aside), or null: what a Variant of it reads back
@@ -6904,7 +6976,7 @@ public final class CypherToPure {
                 return null;
             }
         }
-        return kind != null && elementType(kind) != null ? kind : null;
+        return kind != null && readsBack(kind) ? kind : null;
     }
 
     /** {@code percentileDisc(x, p)}, {@code percentileCont(x, p)} (the study's §12.30): Pure's percentile aggregate
@@ -8380,6 +8452,7 @@ public final class CypherToPure {
                 Tx flag = patternFlag(pp, scope);
                 yield scalar(flag != null ? flag : patternExists(pp.pattern(), null, List.of(), pp.pos(), scope));
             }
+            case CypherAst.ExistsSubquery ex when ex.counted() != null -> scalar(countedExists(ex, scope));
             case CypherAst.ExistsSubquery ex -> {
                 Tx flag = patternFlag(ex, scope);
                 yield scalar(flag != null ? flag : patternExists(ex.pattern(), ex.where(), ex.items(), ex.pos(),
@@ -9153,6 +9226,15 @@ public final class CypherToPure {
             if (ls.tx().kind() == Kind.BOOLEAN ? c.kind() != Kind.BOOLEAN : !comparable(ls.tx().kind(), c.kind())) {
                 return SqlToPure.strictTest(List.of(ls.tx()), v -> new CBoolean(false));
             }
+            boolean listNanos = c.elementDetail() instanceof Carried cc && cc.nanos();
+            if (spelledTemporal(c.kind()) && listNanos != nanos(ls.tx())) {
+                // a time or date-time of one precision among those of another (the study's §12.76): the
+                // microsecond side read at nanosecond precision, as the comparisons read both
+                Kind kind = c.kind();
+                return SqlToPure.strictTest(List.of(ls.tx()), v -> listNanos ? call("in", asNanos(v.get(0), kind),
+                        c.vs()) : call("in", v.get(0), call("map", c.vs(), lambda("e", asNanos(new Variable("e"),
+                        kind)))));
+            }
             return SqlToPure.strictTest(List.of(ls.tx()), v -> call("in", v.get(0), c.vs()));
         }
         ListVal list = (ListVal) r;
@@ -9722,9 +9804,8 @@ public final class CypherToPure {
             text = relText(one);
         } else if (t.detail() instanceof PathValue) {
             text = pathText(one);
-        } else if (t.detail() instanceof ListOf l && elementType(l.element()) != null && l.elementDetail() == null) {
-            text = elementsText(call("toMany", one, SqlToPure.typeArg(java.util.Objects.requireNonNull(
-                    elementType(l.element())))), l.element(), pos);
+        } else if (t.detail() instanceof ListOf l && readsBack(l.element())) {
+            text = elementsText(elementsOf(one, l.element(), nanosElements(l)), l.element(), pos);
         } else {
             throw CypherErrors.unsupported("toString of a value the database holds as a Variant of no known shape is"
                     + " not supported yet", pos);
@@ -10078,21 +10159,15 @@ public final class CypherToPure {
      *  database computes; any other value as it is. */
     private static Val asCollection(Val v) {
         if (v instanceof Scalar s && s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape) {
-            String type = shape.element() == Kind.JSON ? VARIANT_TYPE : elementType(shape.element());
-            if (type == null) {
+            if (shape.element() != Kind.JSON && !readsBack(shape.element())) {
                 return v;
             }
-            if (shape.element() == Kind.DATE) {
-                // (the Variant spells a date as the oracle's text, which no database reads back as a date)
-                throw CypherErrors.unsupported("a list of dates the database holds as a Variant, read back as"
-                        + " values, is not supported yet", new Pos(0, 0));
-            }
             // (elements the database holds as Variants -- collected relationships, nodes or lists -- read back as
-            // Variants, each carrying the elements' mark)
+            // Variants, each carrying the elements' mark; a temporal's text parsed back, §12.76)
             ValueSpecification held = SqlToPure.valueOf(s.tx());
-            ValueSpecification read = call("toMany", held, SqlToPure.typeArg(type));
-            return new Coll(read, shape.element(), false, shape.element() == Kind.JSON ? shape.elementDetail()
-                    : null);
+            ValueSpecification read = shape.element() == Kind.JSON ? call("toMany", held,
+                    SqlToPure.typeArg(VARIANT_TYPE)) : elementsOf(held, shape.element(), nanosElements(shape));
+            return new Coll(read, shape.element(), false, shape.elementDetail());
         }
         return v;
     }
@@ -10186,10 +10261,26 @@ public final class CypherToPure {
         }
         return switch (v) {
             case Scalar s -> s.tx();
-            case Coll c -> Tx.value(call("toVariant", c.vs()), Kind.JSON, false, shapeOf(c));
+            case Coll c -> Tx.value(collVariant(c, pos), Kind.JSON, false, shapeOf(c));
             case ListVal l -> Tx.value(call("fromJson", jsonTextOf(l, pos)), Kind.JSON, false, shapeOf(l));
             case MapVal m -> Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false, shapeOf(m));
         };
+    }
+
+    /** A collection the database computes as the Variant it holds: {@code toVariant} of it, or, of temporals, the
+     *  JSON text of their oracle spellings ({@link #jsonText}: the database's own JSON of a date is its ISO text,
+     *  which neither the judge nor a read back takes for the date, §12.76). */
+    private static ValueSpecification collVariant(Coll c, Pos pos) {
+        return spelledTemporal(c.kind()) ? call("fromJson", collJsonText(c, pos)) : call("toVariant", c.vs());
+    }
+
+    /** A collection's JSON text ({@link #collVariant}'s). */
+    private static ValueSpecification collJsonText(Coll c, Pos pos) {
+        if (!spelledTemporal(c.kind())) {
+            return call("toString", call("toVariant", c.vs()));
+        }
+        return plus(new CString("["), call("joinStrings", call("map", c.vs(), lambda("e", scalarJsonText(element("e",
+                c), pos))), new CString(",")), new CString("]"));
     }
 
     /** Whether a kind is one a Variant spells (the study's §12.62): a string, a boolean, a number, or a Variant. */
@@ -10236,11 +10327,13 @@ public final class CypherToPure {
             case Scalar s -> s.tx().detail();
             // (a collection of Variants -- nodes, relationships, lists -- a list of them, each with its mark)
             case Coll c -> c.kind() == Kind.JSON ? new ListOf(Kind.JSON, c.elementDetail())
-                    : elementType(c.kind()) == null ? null : new ListOf(c.kind());
+                    : !readsBack(c.kind()) ? null : new ListOf(c.kind(), c.elementDetail());
             case ListVal l -> {
                 Kind k = elementKind(l);
-                if (k != null && elementType(k) != null) {
-                    yield new ListOf(k);
+                if (k != null && readsBack(k)) {
+                    // (a temporal's precision its mark, §12.76)
+                    boolean fine = l.elements().stream().anyMatch(e -> e instanceof Scalar es && nanos(es.tx()));
+                    yield new ListOf(k, scalarMark(k, fine));
                 }
                 List<Entry> entries = new ArrayList<>();
                 for (Val e : l.elements()) {
@@ -10258,17 +10351,22 @@ public final class CypherToPure {
         };
     }
 
+    /** Whether two scalars of this kind a Variant spells are equal exactly when their texts are: a number, a string,
+     *  a boolean, a local temporal (its canonical text, §12.76); not a zoned value (its text the instant's alone). */
+    private static boolean equalAsText(Kind kind) {
+        return elementType(kind) != null || kind == Kind.DATE || kind == Kind.TIME || kind == Kind.DATETIME;
+    }
+
     /** Whether a Variant's shape holds scalars alone, lists and maps of them included (what the database compares
      *  as text): a node, a relationship, a path, or an element of no known shape, is not. */
     private static boolean scalarShaped(com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail d) {
         return switch (d) {
             case null -> false;
-            case ListOf l -> l.element() != Kind.JSON ? elementType(l.element()) != null
-                    : scalarShaped(l.elementDetail());
+            case ListOf l -> l.element() != Kind.JSON ? equalAsText(l.element()) : scalarShaped(l.elementDetail());
             case TupleOf t -> t.entries().stream().allMatch(e -> e.kind() == Kind.NULL || e.kind() != Kind.JSON
-                    ? e.kind() == Kind.NULL || elementType(e.kind()) != null : scalarShaped(e.detail()));
+                    ? e.kind() == Kind.NULL || equalAsText(e.kind()) : scalarShaped(e.detail()));
             case MapOf m -> m.entries().values().stream().allMatch(e -> e.kind() == Kind.NULL
-                    || e.kind() != Kind.JSON ? e.kind() == Kind.NULL || elementType(e.kind()) != null
+                    || e.kind() != Kind.JSON ? e.kind() == Kind.NULL || equalAsText(e.kind())
                     : scalarShaped(e.detail()));
             // (a node or relationship: its JSON carries its identity, the study's §12.71, so it is equal as text
             // where Neo4j's are equal, by identity)
@@ -10291,7 +10389,7 @@ public final class CypherToPure {
     private ValueSpecification jsonTextOf(Val v, Pos pos) {
         return switch (v) {
             case Scalar s -> scalarJsonText(s.tx(), pos);
-            case Coll c -> call("toString", call("toVariant", c.vs()));
+            case Coll c -> collJsonText(c, pos);
             case ListVal l -> {
                 ValueSpecification text = new CString("[");
                 for (int i = 0; i < l.elements().size(); i++) {
@@ -10313,8 +10411,9 @@ public final class CypherToPure {
     }
 
     /** A scalar's JSON text: {@code null} for a null, else its kind's spelling ({@link #jsonText}: a number, a
-     *  boolean, a string, a date as the oracle spells one); a Variant's (a node, a relationship, a list or map the
-     *  database holds) its canonical text. A time or a duration inside a list or map is not spelled yet. */
+     *  boolean, a string, a temporal as the oracle spells one, which the database parses back, §12.76); a
+     *  Variant's (a node, a relationship, a list or map the database holds) its canonical text. A duration inside a
+     *  list or map is not spelled yet. */
     private static ValueSpecification scalarJsonText(Tx t, Pos pos) {
         if (t.kind() == Kind.NULL) {
             return new CString("null");
@@ -10323,8 +10422,7 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a float divided by a zero (NaN or an infinity in Neo4j, which Postgres's"
                     + " JSON holds neither of) inside a list or map is not supported yet", pos);
         }
-        if (t.kind() == Kind.DATETIME || t.kind() == Kind.TIME || t.kind() == Kind.ZONED
-                || t.kind() == Kind.ZONED_TIME || t.kind() == Kind.DURATION || t.kind() == Kind.OTHER) {
+        if (t.kind() == Kind.DURATION || t.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("a list or map holding a " + cypherType(t.kind()) + ", as a value, is"
                     + " not supported yet (the Variant spells it as text)", pos);
         }
@@ -10459,7 +10557,7 @@ public final class CypherToPure {
 
     private static boolean listShaped(Scalar s) {
         return s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape
-                && (elementType(shape.element()) != null || shape.element() == Kind.JSON);
+                && (readsBack(shape.element()) || shape.element() == Kind.JSON);
     }
 
     /** A spelled list as the collection the database reads: through its JSON text where its shape says one kind
@@ -10490,7 +10588,7 @@ public final class CypherToPure {
         // (the list's JSON built as text, as collect builds one: a conditional over collections has no SQL
         // carrier, where one over texts has)
         ValueSpecification elements = list.kind() == Kind.JSON ? list.vs()
-                : call("toMany", call("toVariant", list.vs()), SqlToPure.typeArg(VARIANT_TYPE));
+                : call("toMany", collVariant(list, pos), SqlToPure.typeArg(VARIANT_TYPE));
         ValueSpecification listText = call("joinStrings", call("map", elements, lambda("e", call("toString",
                 new Variable("e")))), new CString(","));
         ValueSpecification v = SqlToPure.valueOf(x);
@@ -10552,8 +10650,8 @@ public final class CypherToPure {
                 ValueSpecification joined = call("concatenate", a != null ? lv : call("toOne", lv),
                         b != null ? rv : call("toOne", rv));
                 return scalar(Tx.value(call("if", call("isEmpty", maybeNull.vs()), thunk(SqlToPure.nullOf(Kind.JSON)
-                        .vs()), thunk(call("toVariant", joined))), Kind.JSON, true,
-                        new ListOf(known.kind(), known.elementDetail())));
+                        .vs()), thunk(collVariant(new Coll(joined, known.kind(), false, known.elementDetail()), pos))),
+                        Kind.JSON, true, new ListOf(known.kind(), known.elementDetail())));
             }
             return new Coll(call("concatenate", lv, rv), known.kind(), (a == null || a.rowFree())
                     && (b == null || b.rowFree()), known.elementDetail());
@@ -10684,7 +10782,9 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("indexing a list the database computes by a value that is not a"
                             + " literal, or from its end, is not supported yet", ix.pos());
                 }
-                yield scalar(columnLike(call("first", call("drop", c.vs(), new CInteger(n))), c.kind(), true));
+                // (a nanosecond temporal's precision kept, §12.76)
+                yield scalar(withNanos(columnLike(call("first", call("drop", c.vs(), new CInteger(n))), c.kind(),
+                        true), c.elementDetail() instanceof Carried cc && cc.nanos()));
             }
             case Scalar s -> {
                 if (s.tx().kind() == Kind.JSON) {
@@ -10868,16 +10968,20 @@ public final class CypherToPure {
      *  the entry's shape (a nested list's or map's). An entry that may be null is read only where its text is not
      *  the JSON null (a null the Variant spells, which Postgres's cast refuses and DuckDB's reads as none). */
     private static Tx entryRead(ValueSpecification got, Entry e) {
-        String type = e.kind() == Kind.JSON ? null : elementType(e.kind());
-        if (type == null) {
+        if (e.kind() == Kind.JSON || !readsBack(e.kind())) {
             return Tx.value(got, Kind.JSON, true, e.kind() == Kind.JSON ? e.detail() : null);
         }
-        ValueSpecification read = call("to", got, SqlToPure.typeArg(type));
+        // (a temporal's text parsed back, §12.76: the entry's own mark says its precision)
+        boolean fine = e.detail() instanceof Carried c && c.nanos();
+        ValueSpecification read = spelledTemporal(e.kind()) ? temporalOfText(call("toOne", call("to", got,
+                SqlToPure.typeArg("String"))), e.kind(), fine) : call("to", got, SqlToPure.typeArg(
+                java.util.Objects.requireNonNull(elementType(e.kind()))));
         if (e.nullable()) {
             read = call("if", call("or", call("isEmpty", got), call("equal", call("toString", call("toOne", got)),
-                    new CString("null"))), thunk(SqlToPure.nullOf(e.kind()).vs()), thunk(read));
+                    new CString("null"))), thunk(nullOfStored(e.kind(), fine && spelledTemporal(e.kind())).vs()),
+                    thunk(read));
         }
-        return columnLike(read, e.kind(), true);
+        return withNanos(columnLike(read, e.kind(), true), fine && spelledTemporal(e.kind()));
     }
 
     /** {@code target[from..to]}: a known list's slice by spelled bounds (from the end when negative, clamped to the
@@ -11170,6 +11274,29 @@ public final class CypherToPure {
             total = total == null ? size : plus(total, size);
         }
         return scalar(Tx.value(total == null ? new CInteger(0L) : total, Kind.INTEGER, false));
+    }
+
+    /** {@code EXISTS { MATCH pattern [WHERE w] WITH keys, count(*) AS c [WHERE having] }} (the study's §12.77): the
+     *  keys variables of the scope (each one value for the subquery: one group, or none where the pattern matches
+     *  nothing), so the subquery holds where the pattern's matches, counted as the size of their comprehension, are
+     *  some and {@code having} holds of their count; a key the subquery binds itself is refused by name. */
+    private Tx countedExists(CypherAst.ExistsSubquery ex, Scope scope) {
+        CypherAst.Counted counted = java.util.Objects.requireNonNull(ex.counted());
+        for (String key : counted.keys()) {
+            if (!scope.binds(key)) {
+                throw CypherErrors.unsupported("an EXISTS subquery grouping by " + key + ", a variable of its own, is"
+                        + " not supported yet", counted.pos());
+            }
+        }
+        Expr matches = new CypherAst.Call("size", false, List.of(new CypherAst.PatternComprehension(ex.pattern(),
+                ex.where(), new CypherAst.IntLit(1L, "1", ex.pos()), ex.pos())), ex.pos());
+        Tx count = tx(matches, scope);
+        Tx some = SqlToPure.strictTest(List.of(count), v -> call("greaterThan", v.get(0), new CInteger(0L)));
+        if (counted.having() == null) {
+            return some;
+        }
+        Tx having = tx(counted.having(), new BoundScope(scope, counted.alias(), scalar(count)));
+        return and3(some, having);
     }
 
     /** A pattern as a predicate, or an EXISTS subquery (the study's §12.40): whether the hop from the bound node
@@ -11765,6 +11892,12 @@ public final class CypherToPure {
      *  value. */
     private static ValueSpecification atEpoch(ValueSpecification time) {
         return call(AT_TIME, epoch(), time);
+    }
+
+    /** A microsecond time or date-time at nanosecond precision: a time of day the date-time at it on the epoch
+     *  day, the database's nanosecond step of none. */
+    private static ValueSpecification asNanos(ValueSpecification x, Kind kind) {
+        return call("adjust", kind == Kind.TIME ? atEpoch(x) : x, lit(0), unit("NANOSECONDS"));
     }
 
     private static Tx atEpoch(Tx time) {
@@ -14242,7 +14375,9 @@ public final class CypherToPure {
         int h = Integer.parseInt(text.substring(11, 13));
         int mi = Integer.parseInt(text.substring(14, 16));
         if (n == 16) {
-            return new com.legend.values.PureDateLiteral.DateWithMinute(y, mo, d, h, mi);
+            // (to the second: a Cypher date-time has its seconds, zero here; Pure's minute-precision literal has
+            // none, and its second() is Pure's error, which the text of the value reads, §12.76)
+            return new com.legend.values.PureDateLiteral.DateWithSecond(y, mo, d, h, mi, 0);
         }
         if (n < 19 || text.charAt(16) != ':' || !digits(text, 17, 2)) {
             return null;
@@ -14967,11 +15102,12 @@ public final class CypherToPure {
                             + " not supported yet", u.pos());
                 }
                 ListOf shape = s.tx().detail() instanceof ListOf l ? l : null;
-                Kind element = shape == null || elementType(shape.element()) == null ? null : shape.element();
-                String type = element == null ? "meta::pure::metamodel::variant::Variant"
-                        : java.util.Objects.requireNonNull(elementType(element));
-                rel = call("flatten", call("toMany", SqlToPure.valueOf(s.tx()), SqlToPure.typeArg(type)),
-                        new ColSpec(x, null, null, null));
+                Kind element = shape == null || !readsBack(shape.element()) ? null : shape.element();
+                // (a temporal's text parsed back, §12.76)
+                ValueSpecification elements = element == null ? call("toMany", SqlToPure.valueOf(s.tx()),
+                        SqlToPure.typeArg(VARIANT_TYPE)) : elementsOf(SqlToPure.valueOf(s.tx()), element,
+                        nanosElements(java.util.Objects.requireNonNull(shape)));
+                rel = call("flatten", elements, new ColSpec(x, null, null, null));
                 col = new Col(x, element == null ? Kind.JSON : element, true, null,
                         shape == null ? null : shape.elementDetail());
             }

@@ -302,6 +302,12 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   3542 → 3555, Postgres 3160 → 3165): zones the database reads (W5 leg 2c above), a named zone's offset at an
   instant (the time of a Stockholm date-time, Temporal3/[3] #16-20 on both lanes; its `offset`; its `toString` with
   the zone's name, Temporal6/[7]). Next: temporals inside a Variant read back as values (WithOrderBy1/[45] #6-#8).
+- Temporal values inside lists and nested EXISTS LANDED 2026-10-17 (the study's §12.76, §12.77, GATES' seventy-fourth
+  landing; TCK agreement DuckDB 3555 → 3562, Postgres 3165 → 3170): a Variant's temporal read back by the
+  database's parse of the oracle's spelling (WithOrderBy1/[45] #6-#8); the EXISTS normal form (a lone node the inner
+  pattern binds), a multi-hop EXISTS in a MATCH's WHERE over the pattern's rows, a counted EXISTS as its
+  comprehension's size (ExistentialSubquery3/[1]-[3], ExistentialSubquery2/[2]). Next: an OPTIONAL MATCH's WHERE
+  reading a value of the rows (Match7/[11], MatchWhere6/[5]).
 - The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
   UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships

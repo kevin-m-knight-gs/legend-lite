@@ -120,9 +120,19 @@ public final class CypherAst {
     }
 
     /** {@code EXISTS { MATCH pattern WHERE where RETURN ... }}, or {@code EXISTS { pattern }}: true where the pattern
-     *  has a match (the items returned do not matter; the subquery's one pattern, one optional WHERE). */
-    public record ExistsSubquery(PathPattern pattern, @com.legend.base.Nullable Expr where, List<Expr> items, Pos pos)
-            implements Expr {
+     *  has a match (the items returned do not matter; the subquery's one pattern, one optional WHERE); with a
+     *  {@code counted} part, {@code EXISTS { MATCH pattern WITH keys, count(*) AS alias WHERE having RETURN ... }}
+     *  (docs/CYPHER_STUDY_2026_10_15.md §12.77). */
+    public record ExistsSubquery(PathPattern pattern, @com.legend.base.Nullable Expr where, List<Expr> items,
+            @com.legend.base.Nullable Counted counted, Pos pos) implements Expr {
+        public ExistsSubquery(PathPattern pattern, @com.legend.base.Nullable Expr where, List<Expr> items, Pos pos) {
+            this(pattern, where, items, null, pos);
+        }
+    }
+
+    /** An EXISTS subquery's {@code WITH keys, count(*) AS alias [WHERE having]}: the matches grouped by the keys
+     *  (variables), counted, the groups kept where {@code having} holds. */
+    public record Counted(List<String> keys, String alias, @com.legend.base.Nullable Expr having, Pos pos) {
     }
 
     public record IntLit(long value, String text, Pos pos) implements Expr {

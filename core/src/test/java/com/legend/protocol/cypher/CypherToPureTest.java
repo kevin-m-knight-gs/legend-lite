@@ -682,10 +682,12 @@ class CypherToPureTest {
                 pure("RETURN time('12:00+01:00') AS t, time('12:00+01:00').hour AS h"));
         invalid("RETURN time('25:00+01:00') AS t", "Text cannot be parsed to a Time: \"25:00+01:00\"");
         invalid("RETURN time('12:00[Europe/Stockholm]') AS t", "Using a named time zone e.g. [UTC] is not valid");
-        // refused by name: a named zone for a time (its offset is the clock's), the Variant's text spelling of a time
+        // refused by name: a named zone for a time (its offset is the clock's)
         unsupported("RETURN time({hour: 12, timezone: 'Europe/Stockholm'}) AS t", "a named zone for a time of day");
         unsupported("RETURN time({timezone: '+01:00'}) AS t", "the current time in a zone");
-        unsupported("RETURN [localtime('12:31'), localtime('13:00')] AS l", "a list or map holding a LocalTime");
+        // a list of times: the Variant of the oracle's spellings, which the database parses back (the study's §12.76)
+        String times = pure("RETURN [localtime('12:31'), localtime('13:00')] AS l");
+        assertTrue(times.contains("fromJson(") && times.contains("Time("), times);
     }
 
     // ------------------------------------------------------------------ a zoned date-time (the study's §12.8)
@@ -1606,7 +1608,7 @@ class CypherToPureTest {
         assertTrue(listKey.contains("l:p|fromJson(") && listKey.contains("groupBy(~[l]"), listKey);
         // (a list of nodes is a key too: each node's JSON carries its identity, the study's §12.71)
         assertTrue(pure("MATCH (p:Person) WITH [p] AS l, count(*) AS n RETURN l, n").contains("groupBy(~[l]"));
-        unsupported("MATCH (p:Person) RETURN [localtime('12:00')] AS l", "a list or map holding a LocalTime, as a value");
+        assertTrue(pure("MATCH (p:Person) RETURN [localtime('12:00')] AS l").contains("Time("));
         invalid("MATCH (p:Person) RETURN all(x IN p.name WHERE x > 1)", "expected List<T> but was String");
         // a node under DISTINCT or among the grouping keys: its columns (its identity among them) the distinct
         // columns or the keys, its JSON rebuilt after (the study's §12.47)

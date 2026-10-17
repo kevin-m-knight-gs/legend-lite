@@ -984,9 +984,9 @@ tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with 
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #3	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #4	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #5	PASS	PASS
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #6	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #7	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #8	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #6	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #7	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #8	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #9	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #10	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[46] Fail on sorting by an undefined variable #Example: <exampleName> #1	BOTH_ERROR	BOTH_ERROR
@@ -1527,11 +1527,11 @@ tck/expressions/existentialSubqueries/ExistentialSubquery1/[2] Simple subquery w
 tck/expressions/existentialSubqueries/ExistentialSubquery1/[3] Simple subquery without WHERE clause, not existing pattern	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery1/[4] Simple subquery with WHERE clause, not existing pattern	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery2/[1] Full existential subquery	PASS	PASS
-tck/expressions/existentialSubqueries/ExistentialSubquery2/[2] Full existential subquery with aggregation	REFUSED	REFUSED
+tck/expressions/existentialSubqueries/ExistentialSubquery2/[2] Full existential subquery with aggregation	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery2/[3] Full existential subquery with update clause should fail	BOTH_ERROR	BOTH_ERROR
-tck/expressions/existentialSubqueries/ExistentialSubquery3/[1] Nested simple existential subquery	REFUSED	REFUSED
-tck/expressions/existentialSubqueries/ExistentialSubquery3/[2] Nested full existential subquery	REFUSED	REFUSED
-tck/expressions/existentialSubqueries/ExistentialSubquery3/[3] Nested full existential subquery with pattern predicate	REFUSED	REFUSED
+tck/expressions/existentialSubqueries/ExistentialSubquery3/[1] Nested simple existential subquery	PASS	PASS
+tck/expressions/existentialSubqueries/ExistentialSubquery3/[2] Nested full existential subquery	PASS	PASS
+tck/expressions/existentialSubqueries/ExistentialSubquery3/[3] Nested full existential subquery with pattern predicate	PASS	PASS
 tck/expressions/graph/Graph3/[1] Creating node without label	REFUSED	REFUSED
 tck/expressions/graph/Graph3/[2] Creating node with two labels	REFUSED	REFUSED
 tck/expressions/graph/Graph3/[3] Ignore space when creating node with labels	REFUSED	REFUSED
@@ -4094,6 +4094,17 @@ lite/empty/empty_match_property	PASS	PASS
 lite/empty/empty_match_with_skip	PASS	PASS
 lite/empty/empty_optional_match	PASS	PASS
 lite/empty/empty_optional_through_with	PASS	PASS
+lite/existsnested/nested_simple	PASS	PASS
+lite/existsnested/nested_with_a_pattern_predicate	PASS	PASS
+lite/existsnested/two_hops_need_two_relationships	PASS	PASS
+lite/existsnested/a_chain_of_two_hops	PASS	PASS
+lite/existsnested/not_a_chain_of_two_hops	PASS	PASS
+lite/existsnested/a_chain_with_a_where	PASS	PASS
+lite/existsnested/the_lone_node_labelled	PASS	PASS
+lite/existsnested/a_chain_or_a_property	PASS	PASS
+lite/existsnested/counted_matches	PASS	PASS
+lite/existsnested/counted_none_is_no_group	PASS	PASS
+lite/existsnested/counted_with_a_where_and_not	PASS	PASS
 lite/exprtail/union_over_nodes	PASS	PASS
 lite/exprtail/union_over_relationships	PASS	PASS
 lite/exprtail/float_remainders	PASS	REFUSED
@@ -4448,7 +4459,7 @@ lite/rank/two_stored_lists_concatenated	PASS	PASS
 lite/rank/a_computed_list_equal_to_a_range	PASS	PASS
 lite/rank/a_variant_of_no_known_shape_ordered_by_rank_among_numbers	PASS	PASS
 lite/rank/nan_inside_a_list_is_refused	REFUSED	REFUSED
-lite/rank/a_list_of_dates_read_back_is_refused	REFUSED	REFUSED
+lite/rank/a_list_of_dates_read_back_is_refused	PASS	PASS
 lite/rank/a_list_beside_a_variant_concatenates_by_its_kind	PASS	PASS
 lite/rank/a_mixed_spelled_list_read_by_the_database	PASS	PASS
 lite/rank/a_mixed_spelled_list_indexed_by_a_value_of_the_row	PASS	PASS
@@ -4527,8 +4538,8 @@ lite/stored/a_stored_zoned_time_ordered_and_read	PASS	REFUSED
 lite/stored/a_stored_zoned_time_plus_a_duration_ordered	PASS	REFUSED
 lite/stored/a_stored_zoned_time_compared_with_a_zoned_literal	PASS	REFUSED
 lite/stored/a_stored_zoned_time_absent_on_a_class	PASS	PASS
-lite/stored/a_stored_zoned_time_s_zone_refused_by_name	PASS	REFUSED
-lite/stored/a_stored_zoned_time_s_text_refused_by_name	PASS	PASS
+lite/stored/a_stored_zoned_time_s_zone	PASS	REFUSED
+lite/stored/a_stored_zoned_time_s_text	PASS	PASS
 lite/stored/a_stored_zoned_date_time_ordered_and_read	PASS	REFUSED
 lite/stored/a_stored_zoned_date_time_moved_and_compared	PASS	PASS
 lite/tail/an_order_by_on_an_expression_not_returned	PASS	PASS
@@ -4557,7 +4568,7 @@ lite/temporal/localdatetime_truncate	PASS	PASS
 lite/temporal/temporal_null_propagation	PASS	PASS
 lite/temporal/truncate_of_a_written_null_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/stored_dates	PASS	PASS
-lite/temporal/temporal_refused_by_name	PASS	PASS
+lite/temporal/datetime_from_a_date_alone	PASS	PASS
 lite/temporal/duration_from_components	PASS	PASS
 lite/temporal/duration_from_text	PASS	PASS
 lite/temporal/duration_fields	PASS	PASS
@@ -4572,8 +4583,8 @@ lite/temporal/duration_unknown_field_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_order_refused_by_name	REFUSED	REFUSED
 lite/temporal/duration_to_string	PASS	PASS
-lite/temporal/duration_date_time_text_form_refused_by_name	PASS	PASS
-lite/temporal/duration_divided_refused_by_name	PASS	PASS
+lite/temporal/duration_date_time_text_form	PASS	PASS
+lite/temporal/duration_divided	PASS	PASS
 lite/temporal/time_from_text	PASS	PASS
 lite/temporal/datetime_from_components	PASS	PASS
 lite/temporal/datetime_from_text	PASS	PASS
@@ -4613,7 +4624,7 @@ lite/temporal/date_with_time_component	BOTH_ERROR	BOTH_ERROR
 lite/temporal/localdatetime_from_time_only	BOTH_ERROR	BOTH_ERROR
 lite/temporal/localtime_compact_text	PASS	PASS
 lite/temporal/localtime_to_string	PASS	PASS
-lite/temporal/localtime_list_refused_by_name	REFUSED	REFUSED
+lite/temporal/localtime_list	PASS	PASS
 lite/temporal/temporal_errors_are_cyphers	BOTH_ERROR	BOTH_ERROR
 lite/temporal/date_from_compact_and_partial_text	PASS	PASS
 lite/temporal/date_text_week_53_and_leap_ordinal	PASS	PASS
@@ -4626,7 +4637,7 @@ lite/temporal/localdatetime_from_compact_text	PASS	PASS
 lite/temporal/localdatetime_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/datetime_from_compact_text	PASS	PASS
 lite/temporal/datetime_from_text_with_named_zone	PASS	PASS
-lite/temporal/datetime_named_zone_offset_refused_by_name	PASS	PASS
+lite/temporal/datetime_named_zone_offset	PASS	PASS
 lite/temporal/date_signed_year_refused_by_name	REFUSED	REFUSED
 lite/temporal/datetime_text_offset_disagreeing_with_its_zone	BOTH_ERROR	BOTH_ERROR
 lite/temporal/datetime_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
@@ -4634,7 +4645,7 @@ lite/temporal/datetime_text_unknown_zone_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/date_week_quarter_ordinal_over_a_base	PASS	PASS
 lite/temporal/localdatetime_week_over_a_base	PASS	PASS
 lite/temporal/fine_truncation	PASS	PASS
-lite/temporal/fine_truncation_with_a_field_refused_by_name	PASS	PASS
+lite/temporal/fine_truncation_with_a_field	PASS	PASS
 lite/temporal/date_truncate_to_millisecond_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_between_a_time_and_a_date	PASS	PASS
 lite/temporal/duration_between_a_time_and_a_zoned_datetime	PASS	PASS
@@ -4661,9 +4672,9 @@ lite/temporal/time_truncate_to_month_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/time_truncate_of_a_date_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/time_named_zone_refused_by_name	BOTH_ERROR	BOTH_ERROR
 lite/temporal/time_named_zone_component_refused_by_name	REFUSED	REFUSED
-lite/temporal/time_of_a_named_zone_datetime_refused_by_name	PASS	PASS
+lite/temporal/time_of_a_named_zone_datetime	PASS	PASS
 lite/temporal/time_to_string	PASS	PASS
-lite/temporal/time_list_refused_by_name	REFUSED	REFUSED
+lite/temporal/time_list	PASS	PASS
 lite/temporal/nanos_construction	PASS	REFUSED
 lite/temporal/nanos_from_text	PASS	REFUSED
 lite/temporal/nanos_fields	PASS	REFUSED
@@ -4674,7 +4685,7 @@ lite/temporal/nanos_ordering	PASS	REFUSED
 lite/temporal/nanos_arithmetic	PASS	REFUSED
 lite/temporal/nanos_between	PASS	REFUSED
 lite/temporal/nanos_zones	PASS	REFUSED
-lite/temporal/nanos_time_of_a_named_zone_datetime_refused_by_name	PASS	REFUSED
+lite/temporal/nanos_time_of_a_named_zone_datetime	PASS	REFUSED
 lite/temporal/nanos_year_outside_the_range_refused_by_name	REFUSED	REFUSED
 lite/temporal/nanos_duration_fields	PASS	REFUSED
 lite/temporal/nanos_component_of_the_row_refused_by_name	REFUSED	REFUSED
@@ -4687,8 +4698,22 @@ lite/temporal/date_property_inside_a_node	PASS	PASS
 lite/temporal/localdatetime_to_string_fractions	PASS	PASS
 lite/temporal/datetime_to_string_with_offsets	PASS	PASS
 lite/temporal/times_to_string	PASS	PASS
-lite/temporal/to_string_in_a_named_zone_refused_by_name	PASS	PASS
+lite/temporal/to_string_in_a_named_zone	PASS	PASS
 lite/temporal/a_date_moved_by_a_duration_of_more_than_a_day	PASS	PASS
+lite/temporallists/dates_unwound_in_order	PASS	PASS
+lite/temporallists/dates_filtered_and_indexed	PASS	PASS
+lite/temporallists/local_times_of_two_precisions	PASS	REFUSED
+lite/temporallists/local_times_in_microseconds	PASS	REFUSED
+lite/temporallists/times_with_offsets_in_order	PASS	REFUSED
+lite/temporallists/local_date_times_mapped	PASS	PASS
+lite/temporallists/zoned_date_times_by_their_instants	PASS	PASS
+lite/temporallists/collected_dates_unwound	PASS	PASS
+lite/temporallists/collected_times_indexed	PASS	PASS
+lite/temporallists/a_list_of_times_returned	PASS	PASS
+lite/temporallists/a_map_of_temporals	PASS	PASS
+lite/temporallists/distinct_lists_of_dates	PASS	PASS
+lite/temporallists/sort_consistent_with_comparisons	PASS	REFUSED
+lite/temporallists/a_comprehension_of_dates_returned	PASS	PASS
 lite/temporaltail/a_second_in_thirds	PASS	PASS
 lite/temporaltail/months_in_fractions	PASS	PASS
 lite/temporaltail/negative_factors	PASS	PASS

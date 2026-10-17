@@ -4980,3 +4980,63 @@ moved and compared, and two cases named for the zone's refusal (`a_stored_zoned_
 (`datetime_named_zone_offset_refused_by_name`, `time_of_a_named_zone_datetime_refused_by_name`,
 `nanos_time_of_a_named_zone_datetime_refused_by_name`, `to_string_in_a_named_zone_refused_by_name`). The six so
 named are renamed with the next leg.
+
+### 12.76 Temporal values inside lists and maps, read back (2026-10-17)
+
+- **The spelling** (`jsonText`, unchanged): a Variant holds a temporal as the oracle spells one, `Date('...')`,
+  `Time('...')`, `DateTime('...')` (a zoned value as its instant's, its zone not carried, S65, S68). A list or map
+  of times, local date-times and zoned values is now spelled so too (`scalarJsonText`; a duration inside one is
+  still refused by name), and `collect` of them builds the same text (`collect(DISTINCT ...)` of a zoned value is
+  refused by name: two values of one instant in two zones would be one).
+- **Read back** (`readsBack`, `elementsOf`, `temporalOfText`): where the list or map is read as values -- an UNWIND,
+  an index, a comprehension or a quantifier, IN, a map's entry -- the database parses the text inside the oracle's
+  spelling: a date's (`parseDate`), a time of day's on the epoch day, a date-time's, each to the nanosecond where
+  the elements are (the list's mark, `NANOS_ELEMENT`). A date had been read by `toMany(@StrictDate)` of its text,
+  which the database refuses (`Date('1910-05-06')` is no date: a latent error no case reached); it reads by the
+  parse now.
+- **A collection of temporals held as a Variant** (`collVariant`): the JSON text of its elements' spellings, never
+  the database's own JSON of a date (its ISO text, which neither the judge nor a read back takes for the date).
+- **Precision across a list** (`asNanos`): IN of a microsecond time among nanosecond ones (or the reverse) reads the
+  microsecond side at nanosecond precision, as the comparisons read both; an index read keeps the elements' mark;
+  an absent entry is the nanosecond null.
+- **A minute-precision local date-time literal** (`isoLiteral`): `localdatetime('2017-01-01T12:00')` is Pure's
+  date literal to the second, its seconds zero; Pure's minute literal has none, and its `second()` is Pure's error,
+  which `toString` read (it printed `2017-01-01T12:00:`, a latent error no case reached).
+- **The judge** (`CypherValues.sameLocalDateTime`): two local date-times of the value grammar are equal when they
+  name one local date-time (Neo4j spells nine digits of the second, the island trims them), as two local times
+  already were.
+- **Renamed.** Twelve lite cases named for a refusal that now pass drop the `_refused_by_name` suffix (their answers
+  carried to the new keys: the answer's sha is over the query, not the name).
+- **Pinned.** `lite/temporallists.yaml`'s 14 cases, each judged by Neo4j; WithOrderBy1/[45] #6 to #8 (dates, local
+  times, zoned times sorted as compared) on DuckDB, #6 on Postgres (the others are nanosecond values).
+
+### 12.77 Nested and multi-hop EXISTS subqueries (2026-10-17)
+
+- **The normal form** (`CypherParser.nested`): `EXISTS { MATCH (m) WHERE EXISTS { pattern } }` and `EXISTS { MATCH
+  (m) WHERE pattern }`, the outer match a lone node whose variable the inner pattern binds (its labels and
+  properties moved onto the inner pattern's node when only one level constrains it), are the inner pattern's own
+  existence: a lone node has no relationship, so the two matches' uniqueness rules agree, and the rows the outer
+  match adds are the inner pattern's node. A shape rearranged, nothing computed; an inner pattern that does not
+  bind the node (the outer match then counts every node) stays as written.
+- **More than one hop** (`variableLengthPredicate`, `withPatternFlags`): a pattern predicate or EXISTS subquery of
+  more than one hop in a MATCH's WHERE over a graph reads the pattern as rows and the WHERE over them, the predicate
+  the flag of §12.52, its pattern the re-anchored chain (relationship uniqueness within it, so `(l)<-[:R]-(n)-
+  [:R]->(m)` needs two of n's relationships); a variable of the subquery's own, which the rows do not carry, is the
+  pattern's (as an unnamed node is).
+- **A count in the subquery** (`CypherAst.Counted`, `countedExists`): `EXISTS { MATCH pattern [WHERE w] WITH keys,
+  count(*) AS c [WHERE having] RETURN ... }` with keys the scope's own variables (one group, or none where the
+  pattern matches nothing) holds where the matches, counted as their comprehension's size, are some and `having`
+  holds of the count; a key of the subquery's own, any other WITH, is refused by name.
+- **Pinned.** `lite/existsnested.yaml`'s 11 cases, each judged by Neo4j; ExistentialSubquery3/[1], [2], [3] and
+  ExistentialSubquery2/[2] on both lanes.
+
+#### 12.77.1 The ledger (§12.76 and §12.77 together)
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4903 | 3817 (from 3,782) | 0 | 0 | 0 | 279 (from 289) | 750 | 57 |
+| Postgres | 4903 | 3394 (from 3,365) | 0 | 0 | 0 | 702 (from 706) | 750 | 57 |
+
+On DuckDB WithOrderBy1/[45] #6 to #8, ExistentialSubquery3/[1], [2], [3] and ExistentialSubquery2/[2] move to PASS;
+on Postgres WithOrderBy1/[45] #6 and the four EXISTS rows. TCK agreement DuckDB 3555 → 3562, Postgres 3165 → 3170.
+The 25 lite cases of the two new files pass on both lanes (the nanosecond ones refused by name on Postgres).

@@ -142,11 +142,11 @@ tests:
     graph: |
       CREATE (:T {name: 'a', t: time({hour: 12, minute: 31, second: 14, timezone: '+01:00'})}), (:U {name: 'u'})
     cypher: "MATCH (n) RETURN n.name AS name, n.t IS NULL AS missing, n.t AS t ORDER BY name"
-  - id: a_stored_zoned_time_s_zone_refused_by_name
+  - id: a_stored_zoned_time_s_zone
     graph: |
       CREATE (:Val {date: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'})})
     cypher: "MATCH (v:Val) WITH v.date AS d RETURN d.hour, d.timezone, d.offsetSeconds"
-  - id: a_stored_zoned_time_s_text_refused_by_name
+  - id: a_stored_zoned_time_s_text
     graph: |
       CREATE (:Val {date: time({hour: 12, minute: 31, second: 14, timezone: '+01:00'})})
     cypher: "MATCH (v:Val) RETURN toString(v.date) AS text"

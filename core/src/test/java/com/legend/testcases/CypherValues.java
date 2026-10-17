@@ -523,6 +523,26 @@ public final class CypherValues {
         return x != null && x.equals(y);
     }
 
+    /** Two local date-times of the value grammar ({@code DateTime('2017-01-01T12:00:00')}, Neo4j's nine digits of
+     *  the second or the island's trimmed ones, a list's or map's element, the study's §12.76): equal when they
+     *  name one local date-time. */
+    static boolean sameLocalDateTime(String a, String b) {
+        java.time.LocalDateTime x = localDateTime(a);
+        java.time.LocalDateTime y = localDateTime(b);
+        return x != null && x.equals(y);
+    }
+
+    private static java.time.@com.legend.base.Nullable LocalDateTime localDateTime(String text) {
+        if (!text.startsWith("DateTime('") || !text.endsWith("')")) {
+            return null;
+        }
+        try {
+            return java.time.LocalDateTime.parse(text.substring(10, text.length() - 2));
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;   // a zoned date-time
+        }
+    }
+
     private static java.time.@com.legend.base.Nullable LocalTime localTime(String text) {
         if (!text.startsWith("Time('") || !text.endsWith("')")) {
             return null;
@@ -815,7 +835,8 @@ public final class CypherValues {
         }
         if (a instanceof Opaque x && b instanceof Opaque y) {
             return x.text().equals(y.text()) || sameInstant(x.text(), y.text()) || sameEpochTime(x.text(), y.text())
-                    || sameEpochLocalTime(x.text(), y.text()) || sameLocalTime(x.text(), y.text());
+                    || sameEpochLocalTime(x.text(), y.text()) || sameLocalTime(x.text(), y.text())
+                    || sameLocalDateTime(x.text(), y.text());
         }
         if (a instanceof Opaque x && b instanceof Mp y || a instanceof Mp x2 && b instanceof Opaque y2) {
             Opaque o = a instanceof Opaque x3 ? x3 : (Opaque) b;

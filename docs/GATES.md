@@ -11638,3 +11638,25 @@ named zone's offset at an instant; carried through a WITH as hidden columns.
    hop walk stopping at a segment the target binds), `//core:guardrails` green.
 4. **Refused by name, recorded.** A zoned property read after a step that renames a carried node's columns (a
    re-anchoring, a variable-length chain).
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-fourth landing — temporal values inside lists, nested EXISTS
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 tail); the record is the study's §12.76 and §12.77.
+A temporal held by a Variant read back as the value (the database's parse of the oracle's spelling); an EXISTS
+subquery nested in another, of more than one hop, or counting its matches.
+
+1. **What lands.** On DuckDB WithOrderBy1/[45] #6 to #8, ExistentialSubquery3/[1], [2], [3] and
+   ExistentialSubquery2/[2]; on Postgres WithOrderBy1/[45] #6 and the four EXISTS rows; the 14 cases of
+   `lite/temporallists.yaml` and the 11 of `lite/existsnested.yaml`; DuckDB PASS 3,782 → 3817, Postgres 3,365 → 3394;
+   TCK agreement DuckDB 3555 → 3562, Postgres 3165 → 3170.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3817
+   / REFUSED 279 / BOTH_ERROR 750 / SKIP 57; Postgres PASS 3394 / REFUSED 702 / BOTH_ERROR 750 / SKIP 57, of 4903
+   cases); the oracle check 0 problems. Twelve lite cases named for a refusal that now pass renamed (their answers
+   carried to the new keys).
+3. **The guards.** `//core:core_tests_protocol` (two pinned refusals of a list of times turned into translation
+   checks), `//core:core_tests_integration`, `//core:guardrails` green.
+4. **Fixed in passing.** An UNWIND of a Variant list of dates read the oracle's text as a date (the database's
+   error, no case reached it); `toString` of a minute-precision local date-time literal (Pure's minute literal has
+   no second). The judge compares two local date-times by value (`CypherValues.sameLocalDateTime`).
+5. **Refused by name, recorded.** `collect(DISTINCT ...)` of a zoned value; a duration inside a list or map; an
+   EXISTS subquery's WITH other than its scope's variables and one `count(*)`.
