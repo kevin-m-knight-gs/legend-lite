@@ -1845,3 +1845,28 @@ tests:
   - id: an_unread_regexp_replace_is_dropped
     sql: "SELECT id FROM (SELECT id, REGEXP_REPLACE(vc, 'a', 'b') AS r FROM t) d ORDER BY id"
     profile: iq17-default
+
+  # ---- BETWEEN under IQ's engine (IQ island, 2026-10-17; the differential fuzzer, measured on IQ 17.1): a bound read
+  # from a column that is NULL leaves the other bound to decide FALSE (three-valued AND); a NULL constant bound leaves
+  # every row UNKNOWN; an empty range of constants is FALSE for a number, a NULL one too
+  - id: between_a_false_bound_beside_a_null_column_bound
+    sql: "SELECT id FROM t WHERE NOT (id BETWEEN 100 AND sm) ORDER BY id"
+    profile: iq17-default
+  - id: between_a_false_low_beside_a_null_column_high
+    sql: "SELECT id FROM t WHERE NOT (7 BETWEEN 100 AND sm) ORDER BY id"
+    profile: iq17-default
+  - id: between_a_false_high_beside_a_null_column_low
+    sql: "SELECT id FROM t WHERE NOT (id BETWEEN sm AND 1) ORDER BY id"
+    profile: iq17-default
+  - id: between_an_unknown_bound_beside_a_true_one
+    sql: "SELECT id FROM t WHERE NOT (id BETWEEN 1 AND sm) ORDER BY id"
+    profile: iq17-default
+  - id: between_an_empty_range_of_constants
+    sql: "SELECT id FROM t WHERE NOT (sm BETWEEN 5 AND 1) ORDER BY id"
+    profile: iq17-default
+  - id: between_an_empty_range_of_constants_in_a_case
+    sql: "SELECT id, CASE WHEN NOT (sm + 0 BETWEEN 5 AND 1) THEN 'T' ELSE 'F' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: between_a_null_constant_bound_beside_a_false_one
+    sql: "SELECT id FROM t WHERE NOT (id BETWEEN 100 AND NULL) ORDER BY id"
+    profile: iq17-default

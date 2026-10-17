@@ -6719,6 +6719,15 @@ public final class IqDialect implements InputDialect {
             return Tx.condition(new CBoolean(false), new CBoolean(false), true);
         }
         Tx x = at.tx(b.operand());
+        BigDecimal lowConstant = numberLiteral(b.low());
+        BigDecimal highConstant = numberLiteral(b.high());
+        if (iq && lowConstant != null && highConstant != null && lowConstant.compareTo(highConstant) > 0
+                && (x.kind() == Kind.INTEGER || x.kind() == Kind.DECIMAL || x.kind() == Kind.FLOAT)) {
+            // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): under IQ's engine an empty range of
+            // constants is FALSE for a number, whatever it is -- a NULL too (NOT (sm BETWEEN 5 AND 1) holds for a NULL)
+            Tx empty = Tx.condition(new CBoolean(false), new CBoolean(true), false);
+            return bounded(b.negated() ? SqlToPure.not(empty) : empty, b);
+        }
         boolean xNull = b.operand() instanceof SqlAst.NullLit;
         Tx lowValue = at.tx(b.low());
         Tx highValue = at.tx(b.high());
@@ -6728,10 +6737,16 @@ public final class IqDialect implements InputDialect {
                 b.pos());
         ValueSpecification fails = SqlToPure.call("or", low.falseWhen(), high.falseWhen());
         if (iq) {
-            // ... and a bound that is NULL in a row leaves that row UNKNOWN too
-            for (Tx bound : List.of(lowValue, highValue)) {
-                if (bound.nullable()) {
-                    fails = SqlToPure.call("and", fails, SqlToPure.call("isNotEmpty", SqlToPure.valueOf(bound)));
+            // ... and so does a bound of no column that is NULL (a host variable's); a column's NULL leaves the other
+            // bound to decide FALSE (IQ island, 2026-10-17, the differential fuzzer, measured on IQ 17.1: NOT (id
+            // BETWEEN 100 AND sm) holds where sm is NULL)
+            List<SqlAst.Expr> bounds = List.of(b.low(), b.high());
+            List<Tx> values = List.of(lowValue, highValue);
+            for (int i = 0; i < 2; i++) {
+                List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                columnRefs(bounds.get(i), refs);
+                if (values.get(i).nullable() && refs.isEmpty()) {
+                    fails = SqlToPure.call("and", fails, SqlToPure.call("isNotEmpty", SqlToPure.valueOf(values.get(i))));
                 }
             }
         }
