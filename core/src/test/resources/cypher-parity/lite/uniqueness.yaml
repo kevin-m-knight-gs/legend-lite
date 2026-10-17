@@ -61,7 +61,7 @@ tests:
     graph: |
       CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (a)-[:T]->(:B {name: 'c'}), (:A {name: 'd'})-[:T]->(:B {name: 'e'})
     cypher: "MATCH (x:A)-[r:T]->(y:B) RETURN count(DISTINCT r) AS c, count(r) AS all"
-  - id: a_variable_length_chain_still_walks_a_relationship_twice
+  - id: a_variable_length_chain_past_two_steps_walks_no_relationship_twice
     graph: |
       CREATE (a:A {name: 'a'})-[:T]->(b:A {name: 'b'}), (b)-[:T]->(a)
     cypher: "MATCH (x:A)-[:T*3]->(z:A) RETURN x.name AS xn, z.name AS zn ORDER BY xn"

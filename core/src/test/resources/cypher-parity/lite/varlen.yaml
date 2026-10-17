@@ -41,7 +41,7 @@ cases:
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:U]->(:D {name: 'd'})
     cypher: "MATCH (a:A)-[:T*0..1]->(x)-[:U]->(d) RETURN x.name AS x, d.name AS d"
-  - id: a_variable_length_unrolling_past_two_hops_is_refused
+  - id: a_variable_length_unrolling_past_two_hops
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})-[:U]->(:D {name: 'd'})
     cypher: "MATCH (a:A)-[:T*1..2]->(x)-[:U]->(d) RETURN x.name AS x, d.name AS d"

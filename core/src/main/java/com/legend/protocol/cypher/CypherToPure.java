@@ -198,7 +198,11 @@ public final class CypherToPure {
                 return null;
             }
             if (!b.node()) {
-                return gs.carryRel(b, names, v.pos(), gs.g.variableClasses().getOrDefault(v.name(), List.of()));
+                // (read in a segment of a cut path: its stored direction rides along, the study's §12.56)
+                boolean segment = gs.g.paths().values().stream().anyMatch(ps -> ps.partial()
+                        && ps.rels().contains(v.name()));
+                return gs.carryRel(b, names, v.pos(), gs.g.variableClasses().getOrDefault(v.name(), List.of()),
+                        segment ? Boolean.TRUE.equals(gs.g.forward().get(v.name())) : null);
             }
             return gs.carry(b, v.pos(), names, gs.g.variableClasses().getOrDefault(v.name(), List.of()));
         }
@@ -224,6 +228,12 @@ public final class CypherToPure {
                                 null));
                         columns.add(new Col(id, Kind.STRING, c2.nullable()));
                     }
+                }
+                if (rel.forward() != null) {
+                    Col c2 = java.util.Objects.requireNonNull(rs.column(rel.forward()));
+                    specs.add(new ColSpec(rel.forward(), lambda("r", new AppliedProperty(new Variable("r"),
+                            rel.forward())), null, null));
+                    columns.add(new Col(rel.forward(), Kind.BOOLEAN, c2.nullable()));
                 }
                 return new NodeCarry(new NodeShape(rel.type(), rel.props(), false, rel.identity()), specs, columns,
                         true, rel);
@@ -684,7 +694,13 @@ public final class CypherToPure {
     /** A named path (the study's §12.27): its nodes' and its relationships' variables in the pattern's order (every
      *  one named, synthetically where the query did not); each relationship's stored direction is the graph's
      *  {@code forward} (true when the node before it holds the node after). */
-    private record PathSpec(List<String> nodes, List<String> rels) {
+    private record PathSpec(List<String> nodes, List<String> rels,
+            /** a segment of a named path cut around its hops (the study's §12.56): its relationships carry their
+             *  stored directions, the whole path assembled over the rows; no value or parts of its own */
+            boolean partial) {
+        PathSpec(List<String> nodes, List<String> rels) {
+            this(nodes, rels, false);
+        }
     }
 
     /** A far node's property map in a fanning graph, read over the materialized rows (the study's §12.16). */
@@ -1089,10 +1105,10 @@ public final class CypherToPure {
         clearMatch();
         List<PathPattern> patterns = m.patterns();
         State arms = state instanceof Arms a ? a : null;
-        if (!m.optional() && arms == null && patterns.size() == 1 && patterns.get(0).variable() == null) {
-            List<PathPattern> segments = segments(patterns.get(0), g);
-            if (segments != null) {
-                return deep(m, segments, g, state);
+        if (!m.optional() && arms == null && patterns.size() == 1) {
+            Cut cut = segments(patterns.get(0), g);
+            if (cut != null) {
+                return deep(m, cut, g, state);
             }
         }
         for (int i = 0; i < patterns.size(); i++) {
@@ -1198,13 +1214,14 @@ public final class CypherToPure {
             head.add(new NodePattern(root.variable(), List.of(cls), root.properties(), root.pos()));
             assign(elements, 2, cls, head, arms);
         }
-        if (!arms.isEmpty() && !m.optional() && p.variable() == null && arms.stream().anyMatch(
+        if (!arms.isEmpty() && !m.optional() && arms.stream().anyMatch(
                 arm -> !cuts(arm, ((NodePattern) arm.get(0)).labels().get(0)).isEmpty())) {
             // an arm navigating more than two steps (an edge among its ways): the pattern is cut around its hops,
-            // each untyped one a segment of its own read over the rows before it (the study's §12.55)
-            List<PathPattern> segments = segments(new PathPattern(null, elements, p.pos()), null);
-            if (segments != null) {
-                return deep(m, segments, null, state);
+            // each untyped one a segment of its own read over the rows before it (the study's §12.55); a named
+            // path assembled over the rows after (§12.56)
+            Cut cut = segments(new PathPattern(p.variable(), elements, p.pos()), null);
+            if (cut != null) {
+                return deep(m, cut, null, state);
             }
         }
         if (arms.isEmpty()) {
@@ -1276,6 +1293,11 @@ public final class CypherToPure {
      *  ({@code <prefix><function>_<path>}): what {@code length(p)}, {@code nodes(p)} and {@code relationships(p)}
      *  read over rows. */
     private static final String PATH_PART = SYNTHETIC + "path_";
+
+    /** The prefix of the names a named path's segments are recorded under when the path is cut around its hops
+     *  (the study's §12.56, {@code <prefix><path>_<k>}): a partial path, its relationships carrying their stored
+     *  directions, no value or parts of its own; the whole path is assembled over the rows ({@link #withPath}). */
+    private static final String SEGMENT = SYNTHETIC + "seg_";
 
     private static boolean hidden(@com.legend.base.Nullable String name) {
         return name != null && name.startsWith(HIDDEN);
@@ -1376,14 +1398,6 @@ public final class CypherToPure {
         head.add(elements.get(0));
         int[] counter = {0};
         expand(elements, 1, head, new LinkedHashMap<>(), new LinkedHashMap<>(), counter, chains);
-        for (Chain chain : chains) {
-            if (chain.elements().size() > 5) {
-                // (the resolver's nested navigation reads no association end past a second step: IN_FLIGHT,
-                // 2026-10-16, the resolver line's finding)
-                throw CypherErrors.unsupported("a variable-length relationship whose pattern unrolls to more than two"
-                        + " hops in all is not supported yet", p.pos());
-            }
-        }
         // every chain's arms, from every class the start node may be (as the untyped route reads a pattern)
         List<List<PatternElement>> arms = new ArrayList<>();
         List<Chain> armChains = new ArrayList<>();
@@ -1405,6 +1419,12 @@ public final class CypherToPure {
         if (arms.isEmpty()) {
             throw CypherErrors.unsupported("a variable-length relationship no way of the model reads is not"
                     + " supported yet", p.pos());
+        }
+        if (arms.stream().anyMatch(arm -> !cuts(arm, ((NodePattern) arm.get(0)).labels().get(0)).isEmpty())) {
+            // a chain running past two steps (an edge among its ways, three hops): every chain read as rows of its
+            // own, the long ones cut around their hops, and the chains' rows concatenated under the same columns
+            // (the study's §12.57)
+            return chainRows(m, p, chains, order);
         }
         Map<String, List<String>> variableClasses = new LinkedHashMap<>();
         for (int a = 0; a < arms.size(); a++) {
@@ -1466,6 +1486,229 @@ public final class CypherToPure {
             graphs.add(read);
         }
         return armsRows(graphs, order, m.pos());
+    }
+
+    /**
+     * A variable-length pattern a chain of which runs past two steps (the study's §12.57): each chain read as a
+     * MATCH of its own (cut around its hops where it runs past two steps, {@link #deep}; the arms' route where it
+     * does not), the unroll's nodes and relationships named afresh so the rows carry them (a cut re-anchors on
+     * them, the relationship's list and the path read them); the relationship's list the Variant of the chain's
+     * relationships' values; a zero-length hop's far node the near one; the MATCH's WHERE over each chain's rows;
+     * then the chains' rows projected to the pattern's own variables under the same columns
+     * ({@link #canonical}) and concatenated.
+     */
+    private Rows chainRows(CypherAst.Match m, PathPattern p, List<Chain> chains, List<String> order) {
+        Pos pos = m.pos();
+        List<Rows> rowsByChain = new ArrayList<>();
+        for (Chain chain : chains) {
+            Set<String> taken = new HashSet<>(order);
+            for (PatternElement e : chain.elements()) {
+                String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                if (v != null) {
+                    taken.add(v);
+                }
+            }
+            Map<String, String> renamed = new HashMap<>();
+            List<PatternElement> elements = new ArrayList<>();
+            for (PatternElement e : chain.elements()) {
+                if (e instanceof NodePattern n && hidden(n.variable())) {
+                    String name = freshName(taken);
+                    renamed.put(java.util.Objects.requireNonNull(n.variable()), name);
+                    elements.add(new NodePattern(name, n.labels(), n.properties(), n.pos()));
+                } else if (e instanceof RelPattern r && hidden(r.variable())) {
+                    String name = freshName(taken);
+                    renamed.put(java.util.Objects.requireNonNull(r.variable()), name);
+                    elements.add(new RelPattern(name, r.types(), r.direction(), r.properties(), r.lengthRange(),
+                            r.pos()));
+                } else {
+                    elements.add(e);
+                }
+            }
+            State state = matchPattern(new CypherAst.Match(false, List.of(new PathPattern(p.variable(), elements,
+                    p.pos())), null, pos), null);
+            Rows rows = rowsOf(state, pos);
+            List<Col> columns = new ArrayList<>(rows.columns());
+            for (Map.Entry<String, String> alias : chain.aliases().entrySet()) {
+                // (a zero-length hop: the far node is the near one, its columns under the far name too)
+                Col near = java.util.Objects.requireNonNull(column(rows, alias.getValue()));
+                columns.add(new Col(alias.getKey(), near.kind(), near.nullable(), near.carried(), near.detail()));
+            }
+            rows = new Rows(rows.vs(), columns);
+            if (!chain.lists().isEmpty()) {
+                RowScope scope = new RowScope(rows);
+                List<ColSpec> specs = new ArrayList<>();
+                List<Col> extended = new ArrayList<>(rows.columns());
+                for (Map.Entry<String, List<String>> list : chain.lists().entrySet()) {
+                    // the relationship's list: the chain's relationships' values, the Variant the database builds
+                    // (empty for a zero-length hop)
+                    List<Val> values = new ArrayList<>();
+                    for (String r : list.getValue()) {
+                        values.add(scope.variable(new CypherAst.Var(renamed.getOrDefault(r, r), pos)));
+                    }
+                    Tx t = variant(new ListVal(values), pos);
+                    specs.add(new ColSpec(list.getKey(), lambda(scope.row(), t.vs()), null, null));
+                    extended.add(new Col(list.getKey(), t.kind(), t.nullable(), null, t.detail()));
+                }
+                rows = new Rows(call("extend", rows.vs(), new ColSpecArray(specs)), extended);
+            }
+            if (m.where() != null) {
+                rows = filtered(rows, m.where());
+            }
+            rowsByChain.add(rows);
+        }
+        // the pattern's own variables: its nodes and relationships, the lists, the path with its parts
+        List<String> variables = new ArrayList<>(order);
+        chains.get(0).lists().keySet().forEach(variables::remove);
+        List<String> kept = new ArrayList<>(chains.get(0).lists().keySet());
+        if (p.variable() != null) {
+            kept.add(p.variable());
+            for (String fn : List.of("length", "nodes", "relationships")) {
+                kept.add(PATH_PART + fn + "_" + p.variable());
+            }
+        }
+        // each node's and relationship's properties across the chains: the union, by name
+        Map<String, Map<String, Kind>> kinds = new LinkedHashMap<>();
+        for (String v : variables) {
+            Map<String, Kind> union = kinds.computeIfAbsent(v, k -> new LinkedHashMap<>());
+            for (Rows rows : rowsByChain) {
+                Col c = java.util.Objects.requireNonNull(column(rows, v));
+                Map<String, NodeProp> props = c.detail() instanceof NodeShape n ? n.props()
+                        : c.detail() instanceof RelShape r ? r.props() : Map.of();
+                for (Map.Entry<String, NodeProp> e : props.entrySet()) {
+                    Kind before = union.putIfAbsent(e.getKey(), e.getValue().kind());
+                    if (before != null && before != e.getValue().kind()) {
+                        throw CypherErrors.unsupported("the property " + e.getKey() + " typed differently across"
+                                + " the chains of a variable-length pattern (" + cypherType(before) + " and "
+                                + cypherType(e.getValue().kind()) + ") is not supported yet", pos);
+                    }
+                }
+            }
+        }
+        int mark = fresh;
+        Rows out = null;
+        List<List<Col>> chainColumns = new ArrayList<>();
+        for (Rows rows : rowsByChain) {
+            fresh = mark;
+            Rows one = canonical(rows, variables, kinds, kept, rowsByChain, pos);
+            chainColumns.add(one.columns());
+            out = out == null ? one : new Rows(call("concatenate", out.vs(), one.vs()), out.columns());
+        }
+        return new Rows(java.util.Objects.requireNonNull(out).vs(), withoutAbsentMarks(mergedShapes(chainColumns)));
+    }
+
+    /**
+     * One chain's rows projected to the variables every chain carries, under the same columns in every chain
+     * (the fresh-name counter reset before each, as the arms' union does): a node as its labels, the union of its
+     * properties across the chains (null where this chain's shape lacks one) and its identity; a relationship as
+     * its type, its properties likewise, its identity, its pair and its direction where any chain carries them;
+     * the lists and the path's columns under their names.
+     */
+    private Rows canonical(Rows rows, List<String> variables, Map<String, Map<String, Kind>> kinds,
+            List<String> kept, List<Rows> every, Pos pos) {
+        Set<String> names = new HashSet<>();
+        rows.columns().forEach(c -> names.add(c.name()));
+        String row = "r";
+        List<ColSpec> computed = new ArrayList<>();
+        List<ColSpec> selected = new ArrayList<>();
+        List<Col> columns = new ArrayList<>();
+        for (String v : variables) {
+            Col c = java.util.Objects.requireNonNull(column(rows, v));
+            Map<String, NodeProp> props = new LinkedHashMap<>();
+            Map<String, NodeProp> own = c.detail() instanceof NodeShape n ? n.props()
+                    : c.detail() instanceof RelShape r ? r.props() : Map.of();
+            String head = freshName(names);
+            String headSource = c.detail() instanceof NodeShape n ? n.labels()
+                    : c.detail() instanceof RelShape r ? r.type() : null;
+            if (headSource == null) {
+                throw new IllegalStateException("the variable-length pattern's " + v + " is not a node or a"
+                        + " relationship of the rows");
+            }
+            Col headCol = java.util.Objects.requireNonNull(column(rows, headSource));
+            computed.add(new ColSpec(head, lambda(row, new AppliedProperty(new Variable(row), headSource)), null,
+                    null));
+            columns.add(new Col(head, Kind.STRING, headCol.nullable()));
+            selected.add(new ColSpec(head, null, null, null));
+            for (Map.Entry<String, Kind> k : kinds.getOrDefault(v, Map.of()).entrySet()) {
+                String column = freshName(names);
+                NodeProp np = own.get(k.getKey());
+                ValueSpecification value = np == null ? SqlToPure.nullOf(k.getValue()).vs()
+                        : new AppliedProperty(new Variable(row), np.column());
+                boolean nullable = np == null || np.nullable() || every.size() > 1;
+                computed.add(new ColSpec(column, lambda(row, value), null, null));
+                columns.add(new Col(column, k.getValue(), nullable));
+                selected.add(new ColSpec(column, null, null, null));
+                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, np == null || np.absent()));
+            }
+            if (c.detail() instanceof NodeShape n) {
+                if (n.identity() == null) {
+                    throw new IllegalStateException("the variable-length pattern's node " + v + " is carried"
+                            + " without its identity");
+                }
+                String identity = freshName(names);
+                Col id = java.util.Objects.requireNonNull(column(rows, n.identity()));
+                computed.add(new ColSpec(identity, lambda(row, new AppliedProperty(new Variable(row),
+                        n.identity())), null, null));
+                columns.add(new Col(identity, Kind.STRING, id.nullable()));
+                selected.add(new ColSpec(identity, null, null, null));
+                boolean oneClass = n.classPath() != null && every.stream().allMatch(o -> {
+                    Col oc = column(o, v);
+                    return oc != null && oc.detail() instanceof NodeShape on
+                            && n.classPath().equals(on.classPath());
+                });
+                columns.add(new Col(v, c.kind(), c.nullable(), null, new NodeShape(head, props, false, identity,
+                        oneClass ? n.classPath() : null)));
+            } else {
+                RelShape r = java.util.Objects.requireNonNull((RelShape) c.detail());
+                String[] carried = new String[4];
+                String[] sources = {r.identity(), r.source(), r.target(), r.forward()};
+                for (int i = 0; i < sources.length; i++) {
+                    // (a column any chain carries: this chain's, or null where it carries none)
+                    int at = i;
+                    boolean any = every.stream().anyMatch(o -> {
+                        Col oc = column(o, v);
+                        if (oc == null || !(oc.detail() instanceof RelShape os)) {
+                            return false;
+                        }
+                        String[] theirs = {os.identity(), os.source(), os.target(), os.forward()};
+                        return theirs[at] != null;
+                    });
+                    if (!any) {
+                        continue;
+                    }
+                    Kind kind = i == 3 ? Kind.BOOLEAN : Kind.STRING;
+                    String column = freshName(names);
+                    ValueSpecification value = sources[i] == null ? SqlToPure.nullOf(kind).vs()
+                            : new AppliedProperty(new Variable(row), sources[i]);
+                    boolean nullable = sources[i] == null
+                            || java.util.Objects.requireNonNull(column(rows, sources[i])).nullable();
+                    computed.add(new ColSpec(column, lambda(row, value), null, null));
+                    columns.add(new Col(column, kind, nullable));
+                    selected.add(new ColSpec(column, null, null, null));
+                    carried[i] = column;
+                }
+                columns.add(new Col(v, c.kind(), c.nullable(), null, new RelShape(head, props, carried[0],
+                        carried[1], carried[2], carried[3])));
+            }
+        }
+        for (String k : kept) {
+            Col c = column(rows, k);
+            if (c == null) {
+                throw new IllegalStateException("the variable-length pattern's chain carries no " + k);
+            }
+            if (c.carried() != null) {
+                // (a value the chain carries as a constant, an empty path's relationships: a column of the relation,
+                // so the chains' rows agree)
+                Tx t = c.carried() instanceof Scalar sc ? sc.tx() : variant(c.carried(), pos);
+                computed.add(new ColSpec(k, lambda(row, SqlToPure.valueOf(t)), null, null));
+                columns.add(new Col(k, t.kind(), t.nullable(), null, t.detail()));
+            } else {
+                columns.add(c);
+            }
+            selected.add(new ColSpec(k, null, null, null));
+        }
+        ValueSpecification vs = call("select", call("extend", rows.vs(), new ColSpecArray(computed)),
+                new ColSpecArray(selected));
+        return new Rows(vs, columns);
     }
 
     /** The chains from {@code at} (a relationship's place in {@code elements}) on: a fixed relationship and its
@@ -2244,7 +2487,7 @@ public final class CypherToPure {
             } else if (c.detail() instanceof RelShape rel && rel.props().values().stream().anyMatch(NodeProp::absent)) {
                 out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
                         new RelShape(rel.type(), withoutAbsentMarks(rel.props()), rel.identity(), rel.source(),
-                                rel.target())));
+                                rel.target(), rel.forward())));
             } else {
                 out.add(c);
             }
@@ -2283,7 +2526,12 @@ public final class CypherToPure {
         // (a path too: its value, a JSON column, and beside it its length, its nodes and its relationships under
         // the names the row scope reads them by, since a variable-length pattern's arms differ in them; a
         // variable-length relationship's list likewise)
-        g.paths().keySet().forEach(name -> {
+        g.paths().forEach((name, spec) -> {
+            if (spec.partial()) {
+                // (a segment of a cut path: its relationships carry their directions; the path is assembled over
+                // the rows, §12.56)
+                return;
+            }
             items.add(new Item(new CypherAst.Var(name, pos), name, name, pos));
             for (String fn : List.of("length", "nodes", "relationships")) {
                 String column = PATH_PART + fn + "_" + name;
@@ -2594,7 +2842,7 @@ public final class CypherToPure {
             return null;
         }
         PathPattern p = m.patterns().get(0);
-        if (p.variable() != null || p.elements().size() < 3) {
+        if (p.variable() != null && !p.variable().startsWith(SEGMENT) || p.elements().size() < 3) {
             return null;
         }
         List<PatternElement> ordered = p.elements();
@@ -2660,8 +2908,12 @@ public final class CypherToPure {
                 fresh.add(new RelPattern(name, r.types(), d, r.properties(), r.lengthRange(), r.pos()));
             }
         }
-        Rows right = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(null, fresh, p.pos())), null,
-                m.pos()), null), m.pos());
+        if (reversed && p.variable() != null) {
+            throw new IllegalStateException("a segment of a cut path starts at the node the rows carry: " + p.variable());
+        }
+        // (a segment of a cut path keeps its name: the pattern's own graph records it as a partial path, §12.56)
+        Rows right = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(p.variable(), fresh, p.pos())),
+                null, m.pos()), null), m.pos());
         Expr where = m.where();
         if (m.optional() && where != null) {
             // the optional pattern's WHERE: over its own rows, before the join (the rows' variables it names read
@@ -2891,7 +3143,8 @@ public final class CypherToPure {
         if (detail instanceof NodeShape n) {
             detail = new NodeShape(n.labels(), nullableProps(n.props()), n.absent(), n.identity(), n.classPath());
         } else if (detail instanceof RelShape r) {
-            detail = new RelShape(r.type(), nullableProps(r.props()), r.identity(), r.source(), r.target());
+            detail = new RelShape(r.type(), nullableProps(r.props()), r.identity(), r.source(), r.target(),
+                    r.forward());
         }
         return new Col(c.name(), c.kind(), true, c.carried(), detail);
     }
@@ -2954,11 +3207,12 @@ public final class CypherToPure {
      * relationship whose type the whole pattern repeats (any, beside an untyped one) is named so the MATCH's
      * relationship uniqueness is spelled across the segments. Null when the pattern needs no cut.
      */
-    private @com.legend.base.Nullable List<PathPattern> segments(PathPattern p, @com.legend.base.Nullable Graph g) {
+    private @com.legend.base.Nullable Cut segments(PathPattern p, @com.legend.base.Nullable Graph g) {
         List<PatternElement> elements = p.elements();
         if (elements.size() < 5) {
             return null;
         }
+        boolean reversed = false;
         for (PatternElement e : elements) {
             if (e instanceof RelPattern r && r.lengthRange() != null) {
                 return null;
@@ -2972,6 +3226,7 @@ public final class CypherToPure {
             if (!firstBound && lastBound) {
                 elements = reversed(elements);
                 first = (NodePattern) elements.get(0);
+                reversed = true;
             } else if (!firstBound) {
                 return null;
             }
@@ -2980,12 +3235,20 @@ public final class CypherToPure {
                 ? g.bindings().get(first.variable()).classPath() : labelClass(first);
         if (cls == null && g == null && elements.get(1) instanceof RelPattern r0 && r0.types().size() == 1
                 && r0.direction() == CypherAst.Direction.OUT) {
-            // a label-less first node: the class its first relationship's type leaves (rooted's reading of it)
-            cls = startClassOf(r0, first.pos());
+            // a label-less first node: the class its first relationship's type leaves (rooted's reading of it);
+            // several declaring it, the arms' route's, unknown
+            List<String> declaring = startClasses(r0.types().get(0));
+            cls = declaring.size() == 1 ? declaring.get(0) : null;
         }
         List<Integer> cuts = cuts(elements, cls);
         if (cuts.isEmpty()) {
             return null;
+        }
+        if (p.variable() != null) {
+            // a named path (the study's §12.56): every node and relationship named, so the path assembled over the
+            // rows reads each from its columns
+            elements = namedPath(new PathPattern(p.variable(), elements, p.pos()), g == null ? Set.of()
+                    : g.bindings().keySet()).elements();
         }
         // the relationships' names: a type the pattern repeats names each of its relationships (every
         // relationship, where an untyped one may be of any type), so the MATCH's uniqueness is spelled across
@@ -3041,7 +3304,12 @@ public final class CypherToPure {
             es.set(0, new NodePattern(cut.variable(), List.of(), Map.of(), cut.pos()));
             segments.set(k, new PathPattern(null, List.copyOf(es), p.pos()));
         }
-        return segments;
+        return new Cut(segments, reversed, p.variable());
+    }
+
+    /** A pattern cut into segments ({@link #segments}): the segments, whether they read the pattern from its last
+     *  node (a graph in hand binding that node alone), and the path's variable when the pattern names one. */
+    private record Cut(List<PathPattern> segments, boolean reversed, @com.legend.base.Nullable String path) {
     }
 
     /** The cuts of a pattern walked from its first node, of class {@code cls} where the walk knows it: the
@@ -3054,7 +3322,9 @@ public final class CypherToPure {
         for (int i = 1; i + 1 < elements.size(); i += 2) {
             RelPattern rel = (RelPattern) elements.get(i);
             NodePattern next = (NodePattern) elements.get(i + 1);
-            Hop hop = cls != null && rel.types().size() == 1 ? hop(cls, rel, next, false, true) : null;
+            // (a type naming several edge classes read from the class: several ways, the arms' route's, two steps)
+            Hop hop = cls != null && rel.types().size() == 1 && edgeWayCount(cls, rel) <= 1
+                    ? hop(cls, rel, next, false, true) : null;
             int width = hop == null ? 2 : hop.steps().size();
             if (steps > 0 && steps + width > 2) {
                 cuts.add(i - 1);
@@ -3066,12 +3336,34 @@ public final class CypherToPure {
         return cuts;
     }
 
+    /** The edge classes of the relationship's type read from {@code cls} in its direction (as {@link #edgeHop}
+     *  counts its ways; none for a type that names no edge class). */
+    private int edgeWayCount(String cls, RelPattern rel) {
+        int ways = 0;
+        for (Edge e : edgesOf(rel.types().get(0))) {
+            boolean out = rel.direction() != CypherAst.Direction.IN && model.isSubclass(cls, e.from().classPath());
+            boolean in = rel.direction() != CypherAst.Direction.OUT && model.isSubclass(cls, e.to().classPath());
+            if (out || in) {
+                ways++;
+            }
+        }
+        return ways;
+    }
+
     /** A MATCH of a deep pattern ({@link #segments}): the first segment a MATCH of its own (a graph over
      *  {@code g} where there is one, the arms' route for an untyped hop), materialized; each next one a MATCH over
      *  the rows so far, re-anchored on the cut node; then the relationships across segments distinct by identity,
      *  and the MATCH's WHERE over the rows. */
-    private State deep(CypherAst.Match m, List<PathPattern> segments, @com.legend.base.Nullable Graph g,
+    private State deep(CypherAst.Match m, Cut cut, @com.legend.base.Nullable Graph g,
             @com.legend.base.Nullable State state) {
+        List<PathPattern> segments = new ArrayList<>();
+        for (int k = 0; k < cut.segments().size(); k++) {
+            // (a named path's segments are recorded as partial paths, so the relationships carry their stored
+            // directions to the rows the path is assembled over, §12.56)
+            PathPattern s = cut.segments().get(k);
+            segments.add(new PathPattern(cut.path() == null ? null : SEGMENT + cut.path() + "_" + k, s.elements(),
+                    s.pos()));
+        }
         State first = matchPattern(new CypherAst.Match(false, List.of(segments.get(0)), null, m.pos()), state);
         Rows rows = rowsOf(first, m.pos());
         List<Set<String>> relsBySegment = new ArrayList<>();
@@ -3125,7 +3417,96 @@ public final class CypherToPure {
         if (distinct != null) {
             rows = new Rows(call("filter", rows.vs(), lambda(scope.row(), distinct.vs())), rows.columns());
         }
+        if (cut.path() != null && !cut.path().startsWith(SEGMENT)) {
+            // (a segment cut again over the rows is a partial path still: its relationships carry their
+            // directions, the whole path's assembly reads them)
+            rows = withPath(rows, cut.path(), segments, cut.reversed(), m.pos());
+        }
         return m.where() == null ? rows : filtered(rows, m.where());
+    }
+
+    /**
+     * The rows of a cut path's segments with the path's value and its parts assembled over them (the study's
+     * §12.56): the path's JSON (§12.27's shape) built as text from each node's and each relationship's columns in
+     * the pattern's written order, each relationship's stored direction its column's (negated where the segments
+     * read the pattern from its last node); beside it {@code length}, {@code nodes} and {@code relationships}
+     * under the {@link #PATH_PART} names a materialized path carries them under, the lists the Variants the
+     * database builds.
+     */
+    private Rows withPath(Rows rows, String path, List<PathPattern> segments, boolean reversed, Pos pos) {
+        List<String> nodes = new ArrayList<>();
+        List<String> rels = new ArrayList<>();
+        for (int k = 0; k < segments.size(); k++) {
+            List<PatternElement> es = segments.get(k).elements();
+            // (a segment after the first starts at the node the one before ended on)
+            for (int i = k == 0 ? 0 : 1; i < es.size(); i++) {
+                if (es.get(i) instanceof NodePattern n) {
+                    nodes.add(java.util.Objects.requireNonNull(n.variable()));
+                } else {
+                    rels.add(java.util.Objects.requireNonNull(((RelPattern) es.get(i)).variable()));
+                }
+            }
+        }
+        if (reversed) {
+            java.util.Collections.reverse(nodes);
+            java.util.Collections.reverse(rels);
+        }
+        RowScope scope = new RowScope(rows);
+        ValueSpecification text = new CString("{\"@path\":[");
+        ValueSpecification dirs = null;
+        List<Val> nodeValues = new ArrayList<>();
+        List<Val> relValues = new ArrayList<>();
+        for (int i = 0; i < nodes.size(); i++) {
+            if (i > 0) {
+                String rel = rels.get(i - 1);
+                Col rc = column(rows, rel);
+                if (rc == null || !(rc.detail() instanceof RelShape rs) || rs.forward() == null) {
+                    throw new IllegalStateException("the cut path's relationship " + rel + " is carried without its"
+                            + " direction");
+                }
+                Col dc = java.util.Objects.requireNonNull(column(rows, rs.forward()));
+                if (dc.nullable()) {
+                    throw CypherErrors.unsupported("a path over a relationship an OPTIONAL MATCH may not find is"
+                            + " not supported yet", pos);
+                }
+                Tx stored = columnLike(new AppliedProperty(new Variable(scope.row()), rs.forward()), Kind.BOOLEAN,
+                        false);
+                ValueSpecification dir = jsonTextOf(scalar(reversed ? SqlToPure.not(stored) : stored), pos);
+                dirs = dirs == null ? dir : plus(dirs, new CString(","), dir);
+                text = plus(text, new CString(","), nodeJsonText(scope.relParts(rs, pos), pos), new CString(","));
+                relValues.add(scope.variable(new CypherAst.Var(rel, pos)));
+            }
+            String node = nodes.get(i);
+            Col nc = column(rows, node);
+            if (nc == null || !(nc.detail() instanceof NodeShape ns) || ns.absent()) {
+                throw new IllegalStateException("the cut path's node " + node + " is not carried by the rows");
+            }
+            NodeParts parts = scope.parts(ns);
+            if (parts.absent() != null) {
+                throw CypherErrors.unsupported("a path over a node an OPTIONAL MATCH may not find is not supported"
+                        + " yet", pos);
+            }
+            text = plus(text, nodeJsonText(parts, pos));
+            nodeValues.add(scope.variable(new CypherAst.Var(node, pos)));
+        }
+        text = plus(text, new CString("],\"@dirs\":["), dirs == null ? new CString("") : dirs,
+                new CString("]}"));
+        Tx nodeList = variant(new ListVal(nodeValues), pos);
+        Tx relList = variant(new ListVal(relValues), pos);
+        String length = PATH_PART + "length_" + path;
+        String nodesColumn = PATH_PART + "nodes_" + path;
+        String relsColumn = PATH_PART + "relationships_" + path;
+        List<ColSpec> specs = List.of(
+                new ColSpec(path, lambda(scope.row(), call("fromJson", text)), null, null),
+                new ColSpec(length, lambda(scope.row(), new CInteger((long) rels.size())), null, null),
+                new ColSpec(nodesColumn, lambda(scope.row(), nodeList.vs()), null, null),
+                new ColSpec(relsColumn, lambda(scope.row(), relList.vs()), null, null));
+        List<Col> columns = new ArrayList<>(rows.columns());
+        columns.add(new Col(path, Kind.JSON, false, null, new PathValue()));
+        columns.add(new Col(length, Kind.INTEGER, false));
+        columns.add(new Col(nodesColumn, nodeList.kind(), nodeList.nullable(), null, nodeList.detail()));
+        columns.add(new Col(relsColumn, relList.kind(), relList.nullable(), null, relList.detail()));
+        return new Rows(call("extend", rows.vs(), new ColSpecArray(specs)), columns);
     }
 
     /** A segment's named relationships. */
@@ -3244,7 +3625,7 @@ public final class CypherToPure {
         if (g.bindings().containsKey(name) || g.paths().containsKey(name)) {
             throw CypherErrors.invalid("Variable `" + name + "` already declared", named.pos());
         }
-        g.paths().put(name, new PathSpec(nodes, rels));
+        g.paths().put(name, new PathSpec(nodes, rels, name.startsWith(SEGMENT)));
     }
 
     /** One path pattern read into the graph: the first pattern of a query chooses the root; a later one must start
@@ -3346,6 +3727,18 @@ public final class CypherToPure {
                     + ") is not supported yet", rel.pos());
         }
         String type = rel.types().get(0);
+        List<String> declaring = startClasses(type);
+        if (declaring.size() != 1) {
+            throw CypherErrors.unsupported("a label-less start node of a relationship pattern whose type " + type
+                    + " is declared on " + (declaring.isEmpty() ? "no class" : declaring.size() + " classes ("
+                    + String.join(", ", declaring) + ")") + " is not supported yet", pos);
+        }
+        return declaring.get(0);
+    }
+
+    /** The classes an outgoing relationship of {@code type} is left from: those declaring it as a property holding
+     *  a class, and the from classes of its edge classes (left through the inverse of the from end). */
+    private List<String> startClasses(String type) {
         List<String> declaring = new ArrayList<>();
         for (String cls : model.classes()) {
             Property p = property(cls, type);
@@ -3359,12 +3752,7 @@ public final class CypherToPure {
                 declaring.add(e.from().classPath());
             }
         }
-        if (declaring.size() != 1) {
-            throw CypherErrors.unsupported("a label-less start node of a relationship pattern whose type " + type
-                    + " is declared on " + (declaring.isEmpty() ? "no class" : declaring.size() + " classes ("
-                    + String.join(", ", declaring) + ")") + " is not supported yet", pos);
-        }
-        return declaring.get(0);
+        return declaring;
     }
 
     private static List<PatternElement> reversed(List<PatternElement> elements) {
@@ -4035,7 +4423,7 @@ public final class CypherToPure {
                 // named path named for it)
                 Graph g = state instanceof Arms a ? a.arms().get(0) : (Graph) state;
                 g.bindings().keySet().stream().filter(n -> !n.startsWith(SYNTHETIC)).forEach(columnNames::add);
-                columnNames.addAll(g.paths().keySet());
+                g.paths().keySet().stream().filter(n -> !n.startsWith(SYNTHETIC)).forEach(columnNames::add);
             }
             java.util.Collections.sort(columnNames);
             for (String name : columnNames) {
@@ -4242,15 +4630,18 @@ public final class CypherToPure {
                 // (the study's §12.41), marked with its shape where its spelling says it (its elements' one kind, a
                 // map's entries), so what reads it after reads into it by type (the study's §12.43)
                 scalars.put(out.name(), variant(v, pos));
-            } else if (!rowFree(v)) {
-                throw CypherErrors.unsupported("a list or map holding a value of the row (" + out.name() + ") among"
-                        + " the grouping keys is not supported yet", pos);
-            } else if (grouped) {
-                throw CypherErrors.unsupported("a list or map (" + out.name() + ") among the grouping keys is not"
-                        + " supported yet", pos);
-            } else if (distinct) {
-                throw CypherErrors.unsupported("WITH DISTINCT over a list or map (" + out.name() + ") is not"
-                        + " supported yet", pos);
+            } else if (grouped || distinct) {
+                // a list or map among the grouping keys, or under DISTINCT (the study's §12.57): the Variant the
+                // database builds, equal as text when its elements are scalars, lists or maps of them; one holding
+                // a node or a relationship (equal by identity in Neo4j, which the text lacks), or elements of a
+                // shape the spelling does not say, is refused by name
+                Tx key = variant(v, pos);
+                if (!scalarShaped(key.detail())) {
+                    throw CypherErrors.unsupported((grouped ? "a list or map (" : "WITH DISTINCT over a list or map (")
+                            + out.name() + ") holding a node, a relationship or an element of unknown shape "
+                            + (grouped ? "among the grouping keys " : "") + "is not supported yet", pos);
+                }
+                scalars.put(out.name(), key);
             } else {
                 carried.put(out.name(), v);
             }
@@ -5437,7 +5828,8 @@ public final class CypherToPure {
          *  columns (the study's §5.6), as a node's are carried -- of every edge class the relationship is over
          *  across a pattern's arms ({@code acrossArms}: the columns agree, null where an edge class lacks the
          *  property). */
-        NodeCarry carryRel(Binding b, Set<String> names, Pos pos, List<String> acrossArms) {
+        NodeCarry carryRel(Binding b, Set<String> names, Pos pos, List<String> acrossArms,
+                @com.legend.base.Nullable Boolean stored) {
             String column = freshName(names);
             ValueSpecification type;
             boolean nullable;
@@ -5456,6 +5848,19 @@ public final class CypherToPure {
             List<Col> columns = new ArrayList<>();
             specs.add(new ColSpec(column, lambda(g.row(), type), null, null));
             columns.add(new Col(column, Kind.STRING, nullable));
+            String direction = null;
+            if (stored != null) {
+                // read in a segment of a cut path (the study's §12.56): its stored direction in the path's written
+                // order, a constant of the arm (an undirected hop reads either way, one per arm), null where the
+                // relationship is absent
+                ValueSpecification dir = b.absent() ? SqlToPure.nullOf(Kind.BOOLEAN).vs()
+                        : b.maybeAbsent() ? call("if", absent(b), thunk(SqlToPure.nullOf(Kind.BOOLEAN).vs()),
+                                thunk(new CBoolean(stored)))
+                        : new CBoolean(stored);
+                direction = freshName(names);
+                specs.add(new ColSpec(direction, lambda(g.row(), dir), null, null));
+                columns.add(new Col(direction, Kind.BOOLEAN, nullable));
+            }
             Map<String, NodeProp> props = new LinkedHashMap<>();
             if (!acrossArms.isEmpty() || b.classPath() != null && !b.absent()) {
                 List<String> classes = !acrossArms.isEmpty() ? acrossArms
@@ -5494,9 +5899,9 @@ public final class CypherToPure {
                 } else if (b.type() != null && b.forward() != null && !b.path().isEmpty()) {
                     Tx near = nodeIdentityAt(b.path().subList(0, b.path().size() - 1));
                     Tx far = nodeIdentityAt(b.path());
-                    boolean forward = Boolean.TRUE.equals(b.forward());
-                    id = pairIdentity(java.util.Objects.requireNonNull(b.type()), forward ? near : far,
-                            forward ? far : near, b.guard() != null || b.maybeAbsent() ? absent(b) : null);
+                    boolean ahead = Boolean.TRUE.equals(b.forward());
+                    id = pairIdentity(java.util.Objects.requireNonNull(b.type()), ahead ? near : far,
+                            ahead ? far : near, b.guard() != null || b.maybeAbsent() ? absent(b) : null);
                 } else {
                     id = SqlToPure.nullOf(Kind.STRING);
                 }
@@ -5524,9 +5929,10 @@ public final class CypherToPure {
                 specs.add(new ColSpec(target, lambda(g.row(), SqlToPure.valueOf(dst)), null, null));
                 columns.add(new Col(target, Kind.STRING, dst.nullable() || nullable));
                 return new NodeCarry(new NodeShape(column, props, false, null), specs, columns, true,
-                        new RelShape(column, props, null, source, target));
+                        new RelShape(column, props, null, source, target, direction));
             }
-            return new NodeCarry(new NodeShape(column, props, false, identity), specs, columns, true);
+            return new NodeCarry(new NodeShape(column, props, false, identity), specs, columns, true,
+                    new RelShape(column, props, identity, null, null, direction));
         }
 
         /** The labels array's JSON text of a class: its label. */
@@ -6468,6 +6874,13 @@ public final class CypherToPure {
                     + " or association (no row of their own, so no identity)" : "nodes, relationships or paths with"
                     + " values of another kind, or paths") + " is not supported yet", pos);
         }
+        if ((l.kind() == Kind.JSON) != (r.kind() == Kind.JSON)) {
+            Tx json = l.kind() == Kind.JSON ? l : r;
+            Tx other = l.kind() == Kind.JSON ? r : l;
+            if (json.detail() == null && jsonKindOf(other.kind()) != null) {
+                return variantEqual(json, other);
+            }
+        }
         if (l.kind() == Kind.JSON || r.kind() == Kind.JSON || l.kind() == Kind.OTHER || r.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("comparing a " + cypherType(l.kind()) + " with a " + cypherType(r.kind())
                     + " is not supported yet", pos);
@@ -6495,6 +6908,46 @@ public final class CypherToPure {
             });
         }
         return SqlToPure.strictTest(List.of(l, r), v -> call("equal", v.get(0), v.get(1)));
+    }
+
+    /** The JSON kind ({@code isKind}'s name) a scalar of this kind is held as by a Variant, where the Variant reads
+     *  it back by type; null for a kind the Variant spells as text (a temporal) or cannot hold. */
+    private static @com.legend.base.Nullable String jsonKindOf(Kind kind) {
+        return switch (kind) {
+            case STRING -> "string";
+            case BOOLEAN -> "boolean";
+            case INTEGER, WHOLE, FLOAT, INEXACT, DECIMAL, NUMBER -> "number";
+            default -> null;
+        };
+    }
+
+    /** {@code v = x} where {@code v} is a Variant of no known shape (a property of a node the database holds as a
+     *  Variant, an element of such a list) and {@code x} a scalar the Variant reads back by type (the study's
+     *  §12.57): equal where the Variant holds a value of x's kind and the two agree (a number as a float), false
+     *  where it holds a value of another kind (Cypher: values of different types are never equal), null where
+     *  either is null or the Variant holds the JSON null. */
+    private static Tx variantEqual(Tx json, Tx other) {
+        String kind = java.util.Objects.requireNonNull(jsonKindOf(other.kind()));
+        boolean number = other.kind().numeric();
+        ValueSpecification v = SqlToPure.valueOf(json);
+        ValueSpecification x = SqlToPure.valueOf(other);
+        ValueSpecification present = call("not", call("equal", call(IS_KIND, v, new CString("null")),
+                new CBoolean(true)));
+        if (json.nullable()) {
+            present = call("and", call("isNotEmpty", v), present);
+        }
+        if (other.nullable()) {
+            present = call("and", present, call("isNotEmpty", x));
+        }
+        ValueSpecification holds = call("equal", call(IS_KIND, v, new CString(kind)), new CBoolean(true));
+        ValueSpecification one = other.nullable() ? call("toOne", x) : x;
+        ValueSpecification read = call("to", call("toOne", v), SqlToPure.typeArg(number ? "Float"
+                : java.util.Objects.requireNonNull(elementType(other.kind()))));
+        ValueSpecification same = call("equal", read, number ? call("toFloat", one) : one);
+        ValueSpecification whenTrue = call("and", present, call("if", holds, thunk(same), thunk(new CBoolean(false))));
+        ValueSpecification whenFalse = call("and", present, call("if", holds, thunk(call("not", same)),
+                thunk(new CBoolean(true))));
+        return Tx.condition(whenTrue, whenFalse, true);
     }
 
     /** {@code l < r} and the others: null when either is null, or when the values are of different types. Booleans
@@ -6974,7 +7427,8 @@ public final class CypherToPure {
         return switch (asCollection(v)) {
             case ListVal l -> new ListVal(l.elements().isEmpty() ? List.of()
                     : l.elements().subList(1, l.elements().size()));
-            case Coll col -> new Coll(call("drop", col.vs(), new CInteger(1L)), col.kind(), col.rowFree());
+            case Coll col -> new Coll(call("drop", col.vs(), new CInteger(1L)), col.kind(), col.rowFree(),
+                    col.elementDetail());
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
             default -> throw notAList(c, v);
         };
@@ -6988,7 +7442,7 @@ public final class CypherToPure {
                 java.util.Collections.reverse(out);
                 yield new ListVal(out);
             }
-            case Coll col -> new Coll(call("reverse", col.vs()), col.kind(), col.rowFree());
+            case Coll col -> new Coll(call("reverse", col.vs()), col.kind(), col.rowFree(), col.elementDetail());
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
             case Scalar s when s.tx().kind() == Kind.STRING -> scalar(SqlToPure.strict(Kind.STRING,
                     List.of(s.tx()), x -> call("reverseString", x.get(0))));
@@ -7535,7 +7989,9 @@ public final class CypherToPure {
     private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail shapeOf(Val v) {
         return switch (v) {
             case Scalar s -> s.tx().detail();
-            case Coll c -> elementType(c.kind()) == null ? null : new ListOf(c.kind());
+            // (a collection of Variants -- nodes, relationships, lists -- a list of them, each with its mark)
+            case Coll c -> c.kind() == Kind.JSON ? new ListOf(Kind.JSON, c.elementDetail())
+                    : elementType(c.kind()) == null ? null : new ListOf(c.kind());
             case ListVal l -> {
                 Kind k = elementKind(l);
                 if (k != null && elementType(k) != null) {
@@ -7554,6 +8010,22 @@ public final class CypherToPure {
                 }
                 yield new MapOf(entries);
             }
+        };
+    }
+
+    /** Whether a Variant's shape holds scalars alone, lists and maps of them included (what the database compares
+     *  as text): a node, a relationship, a path, or an element of no known shape, is not. */
+    private static boolean scalarShaped(com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail d) {
+        return switch (d) {
+            case null -> false;
+            case ListOf l -> l.element() != Kind.JSON ? elementType(l.element()) != null
+                    : scalarShaped(l.elementDetail());
+            case TupleOf t -> t.entries().stream().allMatch(e -> e.kind() == Kind.NULL || e.kind() != Kind.JSON
+                    ? e.kind() == Kind.NULL || elementType(e.kind()) != null : scalarShaped(e.detail()));
+            case MapOf m -> m.entries().values().stream().allMatch(e -> e.kind() == Kind.NULL
+                    || e.kind() != Kind.JSON ? e.kind() == Kind.NULL || elementType(e.kind()) != null
+                    : scalarShaped(e.detail()));
+            default -> false;
         };
     }
 
@@ -8170,8 +8642,25 @@ public final class CypherToPure {
                     databaseLambdas--;
                 }
                 if (pred.nullable()) {
-                    throw CypherErrors.unsupported("a list predicate whose condition may be null, over a list the"
-                            + " database computes, is not supported yet", q.pos());
+                    // a condition that may be null (the study's §12.57): the elements it holds for, fails for and is
+                    // unknown for counted by the database, combined by Cypher's three-valued rules (as a spelled
+                    // list's are, {@link #single})
+                    ValueSpecification holds = call("size", call("filter", c.vs(), lambda(var, pred.vs())));
+                    ValueSpecification fails = call("size", call("filter", c.vs(), lambda(var, pred.falseWhen())));
+                    ValueSpecification unknowns = call("size", call("filter", c.vs(), lambda(var, call("not",
+                            call("or", pred.vs(), pred.falseWhen())))));
+                    ValueSpecification none = call("equal", holds, new CInteger(0L));
+                    ValueSpecification some = call("greaterThan", holds, new CInteger(0L));
+                    ValueSpecification known = call("equal", unknowns, new CInteger(0L));
+                    return switch (name) {
+                        case ALL -> Tx.condition(call("and", call("equal", fails, new CInteger(0L)), known),
+                                call("greaterThan", fails, new CInteger(0L)), true);
+                        case ANY -> Tx.condition(some, call("and", none, known), true);
+                        case NONE -> Tx.condition(call("and", none, known), some, true);
+                        case SINGLE -> Tx.condition(call("and", call("equal", holds, new CInteger(1L)), known),
+                                call("or", call("greaterThan", holds, new CInteger(1L)), call("and", none, known)),
+                                true);
+                    };
                 }
                 return switch (name) {
                     case ALL -> SqlToPure.booleanValue(call("forAll", c.vs(), lambda(var, pred.vs())), false);
@@ -8722,8 +9211,14 @@ public final class CypherToPure {
                         lc.pos());
             }
             if (ms.tx().nullable() || ms.tx().kind() == Kind.NULL) {
-                throw CypherErrors.unsupported("a list comprehension producing values that may be null is not"
-                        + " supported yet", lc.pos());
+                // a value that may be null (the study's §12.57): each element's JSON text (a null spelled as JSON's,
+                // which a collection of values would drop), the texts joined as the list's JSON the database
+                // builds (as collect spells one), a Variant of no known shape (a null among the elements is not
+                // what a reader by kind reads back)
+                ValueSpecification texts = call("map", vs, lambda(var, scalarJsonText(ms.tx(), lc.pos())));
+                ValueSpecification json = call("fromJson", plus(new CString("["), call("joinStrings", texts,
+                        new CString(",")), new CString("]")));
+                return scalar(Tx.value(json, Kind.JSON, false));
             }
             vs = call("map", vs, lambda(var, SqlToPure.valueOf(ms.tx())));
             kind = ms.tx().kind();
@@ -9114,14 +9609,23 @@ public final class CypherToPure {
      *  concatenated carry each their own type in the one column. */
     private record RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity,
             /** over a property or association: the columns of its source's and its target's identities (S74) */
-            @com.legend.base.Nullable String source, @com.legend.base.Nullable String target)
+            @com.legend.base.Nullable String source, @com.legend.base.Nullable String target,
+            /** read in a segment of a cut path (the study's §12.56): the column of its stored direction in the
+             *  path's written order (true when the node before it holds the node after), what the path assembled
+             *  over the rows prints; null when the rows carry none */
+            @com.legend.base.Nullable String forward)
             implements com.legend.protocol.sql.InputDialect.TypeDetail {
         RelShape(String type, Map<String, NodeProp> props) {
-            this(type, props, null, null, null);
+            this(type, props, null, null, null, null);
         }
 
         RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity) {
-            this(type, props, identity, null, null);
+            this(type, props, identity, null, null, null);
+        }
+
+        RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity,
+                @com.legend.base.Nullable String source, @com.legend.base.Nullable String target) {
+            this(type, props, identity, source, target, null);
         }
 
         /** Whether the rows tell this relationship apart from another (an identity or a pair of its own). */

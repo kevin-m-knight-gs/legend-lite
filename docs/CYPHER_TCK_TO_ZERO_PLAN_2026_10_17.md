@@ -272,8 +272,13 @@ the arms' route (untyped hops), named paths over the segments, variable-length c
 pattern comprehension over rows and `toString` of lists, maps and nodes. Leg 4 step 1 LANDED 2026-10-17 (the
 study's §12.55, GATES' fifty-fourth landing; TCK agreement 3285 → 3299, DuckDB PASS 3273 → 3291, Postgres 2912 → 2930): the cut under the arms' route (an untyped hop a segment
 of its own), one identity column for a relationship across arms (uniqueness and `count(DISTINCT r)` over the
-union). Step 2: named paths over the segments; step 3: variable-length chains past two hops; then an untyped
-relationship in a MATCH of several patterns.
+union). Steps 2 and 3 LANDED 2026-10-17 (the study's §12.56 and §12.57, GATES' fifty-fifth landing; TCK agreement 3299 → 3314, DuckDB PASS 3291 → 3322, Postgres 2930 → 2961):
+a named path over the cut (partial paths, directions as columns, the path assembled over the rows), variable-length
+chains past two steps as rows per chain under the same columns; with them a list of scalars as a grouping key
+(S79), a Variant of no known shape beside a scalar (S80), three-valued list predicates and nullable comprehensions
+over computed lists. Next: an untyped relationship in a MATCH of several patterns, a variable-length relationship
+after another clause or in an OPTIONAL MATCH; then W11 (ORDER BY and min/max over Variants), `toString` of lists,
+maps and nodes, the pattern comprehension over rows.
 
 ## 3. Decisions asked of the user
 
@@ -554,6 +559,17 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   pull the bridge into its own subselect and correlate on the fanned row's key, as the one-step form does. The
   translator routes around it (a second-step hop of a fanning graph is present on the rows, the study's §12.50),
   so no TCK case is held back; the resolver fix belongs to W9 (platform limits), with the depth-two limit.
+- **2026-10-17, W12 leg 4 — a list of nodes or relationships as a grouping key.** `WITH tail(relationships(p)) AS
+  relationships, COUNT(*) AS c` (Quantifier1-4/[9]) groups by a list of relationships, equal by identity in Neo4j;
+  the island's Variant carries the relationships' JSON (type and properties), so two alike relationships would be
+  one key, and the island refuses by name (S79). A faithful spelling would carry each list element's identity
+  beside the Variant (`nodes(p)`'s and `relationships(p)`'s identities are known when the path is assembled) and
+  group by those; four TCK cases, W11's Variant program.
+- **2026-10-17, W12 leg 4 — an untyped variable-length pattern from a typed root over the unit-test model.**
+  `MATCH (f:Firm)-[*3..3]->(x) RETURN x` over `CypherToPureTest`'s demo model refuses "no way of the model
+  reads", where the typed `-[:employees|firm|hq*3..3]->` reads: the untyped unroll's `assign` finds no way from
+  the demo model's associations (the TCK's untyped unrolls read over inferred models, Quantifier1-4/[8] pass). To
+  be traced; holds back no TCK case today.
 - **2026-10-17, W12 leg 2 — SKIP and LIMIT with a variable-free expression.** `MATCH (n) WITH n SKIP
   toInteger(rand()*9)` (ReturnSkipLimit1/[3]): the MIR's `limit` and `offset` are constants (`SqlSelect.limit`,
   `ConstBounds.intOf`), so a row count the database computes has no carrier; one TCK case. The MIR would take an

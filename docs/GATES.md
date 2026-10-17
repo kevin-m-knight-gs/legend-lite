@@ -9932,6 +9932,35 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the fifty-fifth landing — named paths over the cut, variable-length chains as rows
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 leg 4, steps 2 and 3); the record is the study's
+§12.56 and §12.57. A named path deeper than the cut is read as partial paths whose relationships carry their stored
+directions, the path assembled over the rows; a variable-length pattern a chain of which runs past two steps reads
+every chain as rows of its own (the long ones cut), projected to the pattern's variables under the same columns and
+concatenated; a list or map of scalars is a grouping key; a Variant of no known shape compares with a scalar by its
+kind; a list predicate whose condition may be null is counted three ways; a comprehension producing nullable values
+is the list's JSON.
+
+1. **What lands.** Match6/[3], [10], [11] (named paths over two and three untyped hops, undirected among them),
+   Match6/[14] (a named path with an undirected variable-length of three hops), Match6/[16] (a variable-length named
+   path over edges), Match9/[2]-[4] and Path2/[1], [2] (`-[r:REL*2..2]-` over edges, `r` and `relationships(p)`),
+   Pattern1/[18] (a pattern predicate with a variable-length of two), Quantifier1-4/[8] (`none`, `single`, `any`,
+   `all` over `tail(nodes(p))`, `x.name = 'a'` on a node the database holds); fifteen more lite cases in
+   `lite/depth.yaml` (named paths over the cut, variable-length hops over edges past two steps, lists as grouping
+   keys, a Variant property beside a scalar) and two refusal pins turned positive (`lite/uniqueness`,
+   `lite/varlen`).
+2. **The ledger.** DuckDB PASS 3,291 → 3,322 (REFUSED 437 → 421; FAIL, BUG, ERROR 0), Postgres PASS 2,930 → 2,961 (REFUSED
+   798 → 782); TCK agreement 3,299 → 3,314 of 3,880 on DuckDB and 2,949 → 2,964 on Postgres (none lost); 29 lite
+   cases in `lite/depth.yaml`, all PASS on both lanes but the designed refusal, judged by Neo4j (`snap.sh --check`:
+   0 problems over 4572 cases); `docs/CYPHER_SHOWCASE.md` regenerated where the showcase cases' SQL moved.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `//core:core_tests_resolver`, `//core:core_tests_lowering`, `//core:core_tests_sql` green on the leg
+   before, untouched since.
+4. **Refused by name, recorded.** A variable-length relationship after another clause, in an OPTIONAL MATCH or
+   beside another pattern; one without an upper bound (W10); a list holding nodes or relationships as a grouping
+   key (S79); a property typed differently across the classes a label-less node reads (W11).
+
 ## 2026-10-17 — `#Cypher{...}#`: the fifty-fourth landing — the cut under the arms' route
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 leg 4, step 1); the record is the study's §12.55.

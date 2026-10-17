@@ -1068,6 +1068,37 @@ class CypherToPureTest {
     }
 
     @Test
+    void aNamedPathOverACutIsAssembledOverTheRowsAndAVariableLengthChainPastTwoStepsReadsAsRows() {
+        // a named path deeper than the cut (the study's §12.56): the segments recorded as partial paths, every
+        // relationship carrying its stored direction as a column, the path's JSON and its parts built over the rows
+        String path = pure("MATCH p = (f:Firm)-[:employees]->(x)-[:firm]->(g)-[:hq]->(c) RETURN p, length(p) AS l,"
+                + " nodes(p) AS ns");
+        assertTrue(path.contains("->join(") && path.contains("\"@dirs\":[") && path.contains("_cypher_path_nodes_p"),
+                path);
+        // a hop past an edge hop under a named path: cut, the edge's direction a constant of its arm
+        String edge = edges("MATCH q = (p:Person)-[:ACTED_IN]->(f)-[:hq]->(c) RETURN q");
+        assertTrue(edge.contains("->join(") && edge.contains("\"@dirs\":["), edge);
+        // a variable-length chain past two steps (the study's §12.57): each chain read as rows of its own (the
+        // long ones cut), projected to the pattern's variables under the same columns, and concatenated
+        String chain = pure("MATCH (f:Firm)-[:employees|firm|hq*3..3]->(x) RETURN x");
+        assertTrue(chain.contains("->join("), chain);
+        String chains = pure("MATCH (f:Firm)-[r:employees|firm*2..3]->(x) RETURN x, size(r) AS n");
+        assertTrue(chains.contains("->join(") && chains.contains("->concatenate("), chains);
+        // a property of a node the database holds as a Variant beside a scalar (§12.57): equal where the Variant
+        // holds that kind and the values agree, false where it holds another kind, null where either is null
+        String variant = pure("MATCH (p:Person) WITH collect(p) AS ps UNWIND ps AS q RETURN q.name = 'a' AS t,"
+                + " q.age = 1 AS one");
+        assertTrue(variant.contains("meta::legend::lite::isKind(") && variant.contains("->to(@Float)"), variant);
+        // a list predicate whose condition may be null, over a list the database computes: the holds, the fails
+        // and the unknowns counted, combined by Cypher's three-valued rules
+        String any = pure("MATCH (p:Person) WITH collect(p) AS ps RETURN any(q IN ps WHERE q.name = 'a') AS t");
+        assertTrue(any.contains("->filter(") && any.contains("->size()"), any);
+        // a list comprehension producing values that may be null: the elements' JSON texts joined as the list
+        String mapped = pure("MATCH (p:Person) WITH collect(p) AS ps RETURN [q IN ps | q.name = 'a'] AS ts");
+        assertTrue(mapped.contains("joinStrings(") && mapped.contains("fromJson("), mapped);
+    }
+
+    @Test
     void anUnknownLabelPropertyOrRelationshipIsAnError() {
         invalid("MATCH (p:Nobody) RETURN p.name", "the label Nobody names no class");
         invalid("MATCH (p:Person) RETURN p.nam", "the class demo::Person has no property nam");
@@ -1142,8 +1173,12 @@ class CypherToPureTest {
         String carriedList = pure("MATCH (p:Person) WITH [p.age, 1] AS l UNWIND l AS x RETURN x");
         assertTrue(carriedList.contains("l:p|fromJson(") && carriedList.contains("+ ']')"), carriedList);
         assertTrue(carriedList.contains("$r.l->toMany(@Integer)->flatten(~x)"), carriedList);
-        unsupported("MATCH (p:Person) WITH [p.age] AS l, count(*) AS n RETURN l, n",
-                "holding a value of the row (l) among the grouping keys");
+        // a list of scalars among the grouping keys: the Variant the database builds, a key (the study's §12.57); one
+        // holding a node is refused by name (equal by identity in Neo4j, which the text lacks)
+        String listKey = pure("MATCH (p:Person) WITH [p.age] AS l, count(*) AS n RETURN l, n");
+        assertTrue(listKey.contains("l:p|fromJson(") && listKey.contains("groupBy(~[l]"), listKey);
+        unsupported("MATCH (p:Person) WITH [p] AS l, count(*) AS n RETURN l, n",
+                "holding a node, a relationship or an element of unknown shape among the grouping keys");
         unsupported("MATCH (p:Person) RETURN [localtime('12:00')] AS l", "a list or map holding a LocalTime, as a value");
         invalid("MATCH (p:Person) RETURN all(x IN p.name WHERE x > 1)", "expected List<T> but was String");
         // a node under DISTINCT or among the grouping keys: its columns (its identity among them) the distinct

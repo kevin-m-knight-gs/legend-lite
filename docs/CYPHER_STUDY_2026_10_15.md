@@ -3890,3 +3890,109 @@ OPTIONAL MATCH after), Match7/[9] (a longer pattern with bound nodes), Match8/[3
 one relationship's identity), ReturnSkipLimit2/[8], Return4/[11] and With4/[6] (`(a)-->(b)-->(c)` reusing names);
 Postgres 2949 of 3880 (from 2,935). What the cut still refuses by name is the paragraph above's: an untyped
 relationship in a MATCH of several patterns, a named path over the cut, a variable-length chain past two hops.
+
+### 12.56 A named path over the cut: partial paths, directions as columns, the path assembled over the rows, 2026-10-17
+
+- **The frame (the plan's W12 leg 4, step 2):** a named path deeper than the cut (`MATCH p = (a {name: 'A'})-[rel1]->(b)
+  -[rel2]->(c) RETURN p`, Match6/[3]; `p = (n)-->(m)--(o)`, Match6/[10]; `path = (n)-->(m)--(o)--(p)`, Match6/[11])
+  was refused: the cut of §12.54 and §12.55 reads unnamed patterns only, since a path's value (§12.27) is built in
+  one graph from its bindings and the graph's `forward` map (each relationship's stored direction in the written
+  order), and a cut's segments are materialized to rows before the whole path exists.
+- **A segment of a named path is a partial path (`SEGMENT`, `PathSpec.partial`):** the cut names every node and
+  relationship first (`namedPath`), then records each segment under a synthetic name (`_cypher_seg_<p>_<k>`) as a
+  partial path: a path a graph records but never materializes (no JSON, no parts), whose relationships carry their
+  stored direction as a column (`RelShape.forward`, `carryRel`: a constant of the arm, since an undirected hop
+  reads either way one arm at a time, null for an absent relationship). Re-anchoring over rows (`anchored`) keeps a
+  segment's name, so the pattern's own graph records it too; a segment starts at the node the rows carry (never
+  reversed there).
+- **The whole path assembled over the rows (`withPath`):** after the segments are read and the uniqueness across
+  them filtered, the rows are extended with the path's JSON (§12.27's shape: each node's text from its columns,
+  each relationship's from its type and properties, the `@dirs` from the direction columns, negated when the cut
+  read the pattern from its last node), its length (a constant), its nodes and its relationships (the Variants the
+  database builds), under the names a materialized path's parts carry (`_cypher_path_<fn>_<p>`), so `length(p)`,
+  `nodes(p)` and `relationships(p)` read them as they read a variable-length pattern's. The MATCH's WHERE runs
+  after, so it may read the path.
+- **Reaches:** Match6/[3], [10], [11] (two and three untyped hops, undirected among them) through the arms' route's
+  cut; `lite/depth.yaml` pins a named path over two untyped hops, one with an undirected hop after the cut, one cut
+  twice with its parts, one with a WHERE on its end.
+
+### 12.57 Variable-length chains past two steps as rows per chain; lists as keys; a Variant beside a scalar, 2026-10-17
+
+- **The frame (the plan's W12 leg 4, step 3):** a variable-length relationship whose unroll (§12.42) runs past two
+  steps (an edge hop counting two: `(a)-[r:REL*2..2]->(b:End)` over an edge class, Match9/[2]-[4], Path2/[1], [2],
+  Match6/[16]; three hops, Match6/[14]; `*0..3` from a label-less start, the quantifiers' Quantifier1-4/[8]) was
+  refused ("unrolls to more than two hops in all", or "a hop from a node reached through an edge class"): the
+  arms' route reads every chain as one graph, and the unroll's nodes and relationships are hidden (never columns),
+  so the cut could not re-anchor on them.
+- **Each chain read as rows of its own (`chainRows`):** when any arm of any chain needs a cut, every chain is read
+  as a MATCH of its own (the plain or the arms' route, cut around its hops where it runs past two steps, §12.54-
+  §12.56), its hidden names renamed afresh so the rows carry every node and relationship; the relationship's list
+  is the Variant of the chain's relationships' values (empty for a zero-length hop, whose far node reads the near
+  node's columns); the MATCH's WHERE filters each chain's rows. A relationship of a type the chain repeats is named
+  by the cut, so relationship uniqueness along a long chain is spelled by identity where it was not along a short
+  one (S75's remaining gap narrows to the chains the arms' route still reads).
+- **The chains' rows under the same columns (`canonical`):** the union of chains of different lengths needs the
+  same columns in every chain, which fresh names from different readings do not give. Each chain's rows are
+  projected to the pattern's own variables with the fresh-name counter reset before each (as `materializeArms`
+  resets it per arm): a node as its labels, the union of its properties across the chains (null where this chain's
+  shape lacks one, marked absent) and its identity; a relationship as its type, its properties, its identity, its
+  pair and its direction where any chain carries them; the lists and the path's columns under their names (a
+  constant the chain carried, an empty path's relationships, made a column). The chains concatenated, the list
+  shapes merged (`mergedShapes`, as the arms' are).
+- **The cut's walk never asks a hop of several ways (`cuts`, `edgeWayCount`; `segments`, `startClasses`):** a type
+  naming several edge classes read from a class (`-[:REL]-` from a node that is the source of one and the target
+  of another) is two steps, the arms' route's; a label-less first node whose outgoing type several classes declare
+  has no class (two steps likewise), where `startClassOf` refused by name.
+- **A list or map among the grouping keys, or under DISTINCT (`scalarShaped`):** the Variant the database builds
+  is the key, equal as text, when its elements are scalars, lists or maps of them (`WITH [p.a, p.b] AS l, count(*)
+  AS n`); one holding a node or a relationship (equal by identity in Neo4j, which the text lacks: two alike nodes
+  would be one key), or an element of a shape the spelling does not say, is refused by name (S79). Quantifier1-4/
+  [9] (`WITH tail(relationships(p)) AS relationships, COUNT(*) AS c`) stay refused by it.
+- **A Variant of no known shape beside a scalar (`variantEqual`):** `x.name = 'a'` where `x` is a node the
+  database holds as a Variant (an element of `nodes(p)`, a collected node) read `x.name` as a Variant of no known
+  shape and refused the comparison ("comparing a Map with a String"). Now `v = x` for a scalar `x` of a kind the
+  Variant reads back by type (string, boolean, number) is equal where `isKind(v, kind)` holds and `v->to(@T)`
+  agrees with `x` (a number as a float, S80), false where the Variant holds another kind (Cypher: values of
+  different types are never equal), null where either is null or the Variant holds the JSON null; `v <> x` is its
+  negation (`not` of the condition). A collection of Variants keeps its elements' mark through `tail`, `reverse`
+  and `toVariant` (`shapeOf(Coll)`: a list of Variants with their mark), so `tail(nodes(p))` through a WITH reads
+  back as nodes.
+- **A list predicate whose condition may be null, over a list the database computes:** `none(x IN nodes WHERE
+  x.name = 'a')` was refused (Pure's `forAll` and `exists` read a two-valued condition). Now the elements the
+  condition holds for, fails for and is unknown for are counted (`filter` and `size`, three lambdas over the
+  collection) and combined by Cypher's rules, as `single` over a spelled list was: `any` true when one holds, false
+  when none holds and none is unknown, else null; `all` false when one fails, true when none fails and none is
+  unknown; `none` the negation of `any`; `single` true when exactly one holds and none is unknown, false when two
+  or more hold or none holds and none is unknown.
+- **A list comprehension producing values that may be null:** `[y IN ns | y.k = 1]` over a computed list was
+  refused (a collection of values drops a null). Now each element's JSON text (the null spelled) is joined as the
+  list's JSON the database builds (as `collect` spells one), a Variant of no known shape (a null among the
+  elements is not what a reader by kind reads back; a reader refuses by name).
+- **Still refused by name, recorded:** a variable-length relationship after another clause (Match4/[6]), in an
+  OPTIONAL MATCH (Match7/[12]-[14], Match9/[8]) or beside another pattern; one without an upper bound (W10's
+  recursion); a list holding nodes or relationships as a grouping key (Quantifier1-4/[9]); an undirected
+  relationship over an edge class whose two ends are one class (a loop, identity's); a property typed differently
+  across the classes a label-less node reads (W11's Variant columns).
+
+#### 12.57.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4655 | 3322 (from 3,291) | 0 | 0 | 0 | 421 (from 437) | 731 | 181 |
+| Postgres | 4655 | 2961 (from 2,930) | 0 | 0 | 0 | 782 (from 798) | 731 | 181 |
+
+The 29 lite cases of `lite/depth.yaml` (the 14 before and fifteen new: a named path over two untyped hops, one with
+an undirected hop after the cut, one cut twice with its parts, one with a WHERE on its end; a variable-length hop
+over edges past two steps, a named one of lengths one and two, an undirected one from both ends, one from zero with
+its list and path, a pattern predicate with a variable-length of two over edges, one past two steps with a WHERE on
+the far end; the tail of a deep path's nodes under a quantifier; a list of scalars among the grouping keys, WITH
+DISTINCT over one, a list of nodes refused; a Variant property beside a number, a string and a boolean) PASS on
+both lanes but the designed refusal, judged by Neo4j (`snap.sh --check`: 0 problems over 4572 cases); two refusal
+pins turned positive (`lite/uniqueness`: a variable-length chain past two steps walks no relationship twice;
+`lite/varlen`: a variable-length unrolling past two hops reads). The TCK: agreement 3314 of 3880 (from 3,299): 15
+more scenarios on each lane, none lost: Match6/[3], [10], [11] (named paths over two and three untyped hops,
+undirected among them), Match6/[14] (a named path with an undirected variable-length of three), Match6/[16] (a
+variable-length named path over edges), Match9/[2]-[4] and Path2/[1], [2] (`-[r:REL*2..2]-` over edges, directed and
+undirected, `r` and `relationships(p)`), Pattern1/[18] (a pattern predicate with a variable-length of two) and
+Quantifier1-4/[8] (`none`, `single`, `any`, `all` over `tail(nodes(p))` of a `*0..3` path, `x.name = 'a'` on a
+node the database holds); Postgres 2964 of 3880 (from 2,949).

@@ -449,20 +449,20 @@ tck/clauses/match/Match5/[28] Handling mixed relationship patterns 1	PASS	PASS
 tck/clauses/match/Match5/[29] Handling mixed relationship patterns 2	PASS	PASS
 tck/clauses/match/Match6/[1] Zero-length named path	PASS	PASS
 tck/clauses/match/Match6/[2] Return a simple path	PASS	PASS
-tck/clauses/match/Match6/[3] Return a three node path	REFUSED	REFUSED
+tck/clauses/match/Match6/[3] Return a three node path	PASS	PASS
 tck/clauses/match/Match6/[4] Respecting direction when matching non-existent path	PASS	PASS
 tck/clauses/match/Match6/[5] Path query should return results in written order	PASS	PASS
 tck/clauses/match/Match6/[6] Handling direction of named paths	PASS	PASS
 tck/clauses/match/Match6/[7] Respecting direction when matching existing path	PASS	PASS
 tck/clauses/match/Match6/[8] Respecting direction when matching non-existent path with multiple directions	PASS	PASS
 tck/clauses/match/Match6/[9] Longer path query should return results in written order	PASS	PASS
-tck/clauses/match/Match6/[10] Named path with alternating directed/undirected relationships	REFUSED	REFUSED
-tck/clauses/match/Match6/[11] Named path with multiple alternating directed/undirected relationships	REFUSED	REFUSED
+tck/clauses/match/Match6/[10] Named path with alternating directed/undirected relationships	PASS	PASS
+tck/clauses/match/Match6/[11] Named path with multiple alternating directed/undirected relationships	PASS	PASS
 tck/clauses/match/Match6/[12] Matching path with multiple bidirectional relationships	PASS	PASS
 tck/clauses/match/Match6/[13] Matching path with both directions should respect other directions	PASS	PASS
-tck/clauses/match/Match6/[14] Named path with undirected fixed variable length pattern	REFUSED	REFUSED
+tck/clauses/match/Match6/[14] Named path with undirected fixed variable length pattern	PASS	PASS
 tck/clauses/match/Match6/[15] Variable-length named path	REFUSED	REFUSED
-tck/clauses/match/Match6/[16] Return a var length path	REFUSED	REFUSED
+tck/clauses/match/Match6/[16] Return a var length path	PASS	PASS
 tck/clauses/match/Match6/[17] Return a named var length path of length zero	PASS	PASS
 tck/clauses/match/Match6/[18] Undirected named path	PASS	PASS
 tck/clauses/match/Match6/[19] Variable length relationship without lower bound	PASS	PASS
@@ -579,9 +579,9 @@ tck/clauses/match/Match8/[1] Pattern independent of bound variables results in c
 tck/clauses/match/Match8/[2] Counting rows after MATCH, MERGE, OPTIONAL MATCH	REFUSED	REFUSED
 tck/clauses/match/Match8/[3] Matching and disregarding output, then matching again	PASS	PASS
 tck/clauses/match/Match9/[1] Variable length relationship variables are lists of relationships	PASS	PASS
-tck/clauses/match/Match9/[2] Return relationships by collecting them as a list - directed, one way	REFUSED	REFUSED
-tck/clauses/match/Match9/[3] Return relationships by collecting them as a list - undirected, starting from two extremes	REFUSED	REFUSED
-tck/clauses/match/Match9/[4] Return relationships by collecting them as a list - undirected, starting from one extreme	REFUSED	REFUSED
+tck/clauses/match/Match9/[2] Return relationships by collecting them as a list - directed, one way	PASS	PASS
+tck/clauses/match/Match9/[3] Return relationships by collecting them as a list - undirected, starting from two extremes	PASS	PASS
+tck/clauses/match/Match9/[4] Return relationships by collecting them as a list - undirected, starting from one extreme	PASS	PASS
 tck/clauses/match/Match9/[5] Variable length pattern with label predicate on both sides	REFUSED	REFUSED
 tck/clauses/match/Match9/[6] Matching relationships into a list and matching variable length using the list, with bound nodes	REFUSED	REFUSED
 tck/clauses/match/Match9/[7] Matching relationships into a list and matching variable length using the list, with bound nodes, wrong direction	REFUSED	REFUSED
@@ -2004,8 +2004,8 @@ tck/expressions/null/Null3/[4] Using null in IN #5	PASS	PASS
 tck/expressions/null/Null3/[4] Using null in IN #6	PASS	PASS
 tck/expressions/null/Null3/[4] Using null in IN #7	PASS	PASS
 tck/expressions/path/Path1/[1] `nodes()` on null path	PASS	PASS
-tck/expressions/path/Path2/[1] Return relationships by fetching them from the path	REFUSED	REFUSED
-tck/expressions/path/Path2/[2] Return relationships by fetching them from the path - starting from the end	REFUSED	REFUSED
+tck/expressions/path/Path2/[1] Return relationships by fetching them from the path	PASS	PASS
+tck/expressions/path/Path2/[2] Return relationships by fetching them from the path - starting from the end	PASS	PASS
 tck/expressions/path/Path2/[3] `relationships()` on null path	PASS	PASS
 tck/expressions/path/Path3/[1] Return a var length path of length zero	PASS	PASS
 tck/expressions/path/Path3/[2] Failing when using `length()` on a node	BOTH_ERROR	BOTH_ERROR
@@ -2042,7 +2042,7 @@ tck/expressions/pattern/Pattern1/[14] Matching two nodes on a specific type of s
 tck/expressions/pattern/Pattern1/[15] Matching two nodes on a specific type of single undirected connection	PASS	PASS
 tck/expressions/pattern/Pattern1/[16] Matching two nodes on a specific type of a variable length outgoing directed connection	REFUSED	REFUSED
 tck/expressions/pattern/Pattern1/[17] Matching two nodes on a specific type of variable length undirected connection	REFUSED	REFUSED
-tck/expressions/pattern/Pattern1/[18] Matching two nodes on a specific type of undirected connection with length 2	REFUSED	REFUSED
+tck/expressions/pattern/Pattern1/[18] Matching two nodes on a specific type of undirected connection with length 2	PASS	PASS
 tck/expressions/pattern/Pattern1/[19] Using a negated existential pattern predicate	PASS	PASS
 tck/expressions/pattern/Pattern1/[20] Using two existential pattern predicates in a conjunction	PASS	PASS
 tck/expressions/pattern/Pattern1/[21] Using two existential pattern predicates in a disjunction	PASS	PASS
@@ -2230,7 +2230,7 @@ tck/expressions/quantifier/Quantifier1/[7] None quantifier on list literal conta
 tck/expressions/quantifier/Quantifier1/[7] None quantifier on list literal containing maps #7	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[7] None quantifier on list literal containing maps #8	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[7] None quantifier on list literal containing maps #9	PASS	PASS
-tck/expressions/quantifier/Quantifier1/[8] None quantifier on list containing nodes	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier1/[8] None quantifier on list containing nodes	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[9] None quantifier on list containing relationships	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier1/[10] None quantifier on lists containing nulls #1	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[10] None quantifier on lists containing nulls #2	PASS	PASS
@@ -2382,7 +2382,7 @@ tck/expressions/quantifier/Quantifier2/[7] Single quantifier on list literal con
 tck/expressions/quantifier/Quantifier2/[7] Single quantifier on list literal containing maps #7	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[7] Single quantifier on list literal containing maps #8	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[7] Single quantifier on list literal containing maps #9	PASS	PASS
-tck/expressions/quantifier/Quantifier2/[8] Single quantifier on list containing nodes	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier2/[8] Single quantifier on list containing nodes	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[9] Single quantifier on list containing relationships	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier2/[10] Single quantifier on lists containing nulls #1	PASS	PASS
 tck/expressions/quantifier/Quantifier2/[10] Single quantifier on lists containing nulls #2	PASS	PASS
@@ -2488,7 +2488,7 @@ tck/expressions/quantifier/Quantifier3/[7] Any quantifier on list literal contai
 tck/expressions/quantifier/Quantifier3/[7] Any quantifier on list literal containing maps #7	PASS	PASS
 tck/expressions/quantifier/Quantifier3/[7] Any quantifier on list literal containing maps #8	PASS	PASS
 tck/expressions/quantifier/Quantifier3/[7] Any quantifier on list literal containing maps #9	PASS	PASS
-tck/expressions/quantifier/Quantifier3/[8] Any quantifier on list containing nodes	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier3/[8] Any quantifier on list containing nodes	PASS	PASS
 tck/expressions/quantifier/Quantifier3/[9] Any quantifier on list containing relationships	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier3/[10] Any quantifier on lists containing nulls #1	PASS	PASS
 tck/expressions/quantifier/Quantifier3/[10] Any quantifier on lists containing nulls #2	PASS	PASS
@@ -2593,7 +2593,7 @@ tck/expressions/quantifier/Quantifier4/[7] All quantifier on list literal contai
 tck/expressions/quantifier/Quantifier4/[7] All quantifier on list literal containing maps #7	PASS	PASS
 tck/expressions/quantifier/Quantifier4/[7] All quantifier on list literal containing maps #8	PASS	PASS
 tck/expressions/quantifier/Quantifier4/[7] All quantifier on list literal containing maps #9	PASS	PASS
-tck/expressions/quantifier/Quantifier4/[8] All quantifier on list containing nodes	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier4/[8] All quantifier on list containing nodes	PASS	PASS
 tck/expressions/quantifier/Quantifier4/[9] All quantifier on list containing relationships	REFUSED	REFUSED
 tck/expressions/quantifier/Quantifier4/[10] All quantifier on lists containing nulls #1	PASS	PASS
 tck/expressions/quantifier/Quantifier4/[10] All quantifier on lists containing nulls #2	PASS	PASS
@@ -4042,6 +4042,21 @@ lite/depth/two_untyped_hops_with_an_edge_among_the_ways	PASS	PASS
 lite/depth/a_triadic_selection_with_an_optional_match_after_the_cut	PASS	PASS
 lite/depth/an_untyped_chain_from_a_label_less_node_with_uniqueness	PASS	PASS
 lite/depth/an_incoming_untyped_hop_then_a_named_incoming_relationship	PASS	PASS
+lite/depth/a_named_path_over_two_untyped_hops	PASS	PASS
+lite/depth/a_named_path_with_an_undirected_hop_after_the_cut	PASS	PASS
+lite/depth/a_named_path_cut_twice_with_its_parts	PASS	PASS
+lite/depth/a_named_path_over_the_cut_with_a_where_on_its_end	PASS	PASS
+lite/depth/a_variable_length_hop_over_edges_past_two_steps	PASS	PASS
+lite/depth/a_variable_length_named_path_over_edges_of_lengths_one_and_two	PASS	PASS
+lite/depth/an_undirected_variable_length_over_edges_from_both_ends	PASS	PASS
+lite/depth/a_variable_length_from_zero_over_edges_with_its_list_and_path	PASS	PASS
+lite/depth/a_pattern_predicate_with_a_variable_length_of_two_over_edges	PASS	PASS
+lite/depth/a_variable_length_past_two_steps_then_a_where_on_the_far_end	PASS	PASS
+lite/depth/the_tail_of_a_deep_paths_nodes_under_a_quantifier	PASS	PASS
+lite/depth/a_list_of_scalars_among_the_grouping_keys	PASS	PASS
+lite/depth/with_distinct_over_a_list_of_scalars	PASS	PASS
+lite/depth/a_list_of_nodes_among_the_grouping_keys_refused	REFUSED	REFUSED
+lite/depth/a_variant_property_equal_to_a_number	PASS	PASS
 lite/edges/a_relationship_property	PASS	PASS
 lite/edges/a_relationship_as_a_value	PASS	PASS
 lite/edges/properties_and_keys_of_a_relationship	PASS	PASS
@@ -4554,7 +4569,7 @@ lite/uniqueness/an_association_relationship_compared_after_a_with	PASS	PASS
 lite/uniqueness/an_association_relationship_equals_itself	PASS	PASS
 lite/uniqueness/an_absent_association_relationship_has_no_identity	PASS	PASS
 lite/uniqueness/count_distinct_association_relationships	PASS	PASS
-lite/uniqueness/a_variable_length_chain_still_walks_a_relationship_twice	REFUSED	REFUSED
+lite/uniqueness/a_variable_length_chain_past_two_steps_walks_no_relationship_twice	PASS	PASS
 lite/uniqueness/unnamed_relationships_across_the_patterns_of_one_match	PASS	PASS
 lite/values/with_first_literal_list	PASS	PASS
 lite/values/quantifiers_three_valued	PASS	PASS
@@ -4630,7 +4645,7 @@ lite/varlen/a_variable_length_with_a_where	PASS	PASS
 lite/varlen/an_untyped_variable_length	PASS	PASS
 lite/varlen/a_variable_length_from_a_labelless_start	PASS	PASS
 lite/varlen/a_variable_length_in_the_middle	PASS	PASS
-lite/varlen/a_variable_length_unrolling_past_two_hops_is_refused	REFUSED	REFUSED
+lite/varlen/a_variable_length_unrolling_past_two_hops	PASS	PASS
 lite/varlen/a_missing_lower_bound_is_one	PASS	PASS
 lite/varlen/an_unbounded_variable_length_is_refused	REFUSED	REFUSED
 lite/varlen/a_variable_length_round_a_cycle	PASS	PASS
