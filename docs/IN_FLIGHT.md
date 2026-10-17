@@ -2027,3 +2027,18 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   run), then the measurements of joins, unions and the ordered aggregates on the server, then the function table's
   burn-down (the plan's §7 PR3 and PR4).
 
+## A thirteenth line, 2026-10-17: everything executes through a plan (the user's ask, rule 5)
+
+- **The plan**: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` (the rulings R1 to R6 of 2026-10-17, the state measured, the
+  representation decided -- JSON stays -- the eleven steps in order, the status log). It continues
+  `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §8's program from its step 4: the callers switch to plans, the legacy
+  executor is deleted; both judges stay (the charter's Clause 2c); the plan carries every type; a non-primitive value
+  crosses a text wire as Pure's own literal grammar, spelled by the database and parsed by Pure.
+- **Files this line owns**: `executionplan/ExecutionPlan.java`, `PlanJson.java`, `PlanMaker.java`, `exec/PlanRunner.java`,
+  `plan/UpstreamRelationType.java`, `lowering/Render.java`'s TDS text writer and `TdsTextWrap.java`, the verdict arms
+  (`AssertVerdicts`, `DatabaseJudge`, `HostJudge`, `SqlTextVerdicts`), `test/PureTestRunner.java`,
+  `test/ServiceTestRunner.java`, `server/QueryService.java`, the PCT extension (`pct/src/test/.../extension/`), the
+  adapter `pct_adapter.pure`; cross-area edits (the lowering's type facts, the dialects' holes) announced here first.
+- **Step 1 announced 2026-10-17: types in the plan** (the program's §3): the three facts per result column, the engine
+  renderer reading the store's declared type, the typed SQL tree written into the lite JSON (format 4), the round-trip
+  gate.
