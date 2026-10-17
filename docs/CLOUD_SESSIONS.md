@@ -55,7 +55,11 @@ when it starts. An environment's setup script could also run `tools/cloud-distdi
 - **The disk allowance.** The output base (about 8 GB) and the repository cache (about 20 GB) take most of it, and
   "No space left on device" then appears mid-build, often while copying inputs into a sandbox. When no build runs,
   `rm -rf "$(bazel info output_base)"/sandbox/*` and stale scratch output free a few GB. `df` reports the
-  allowance, not the machine: "Avail" near zero means it is spent.
+  allowance, not the machine: "Avail" near zero means it is spent. `tools/cloud-distdir.sh`'s `bazel fetch` also
+  pulls every platform's toolchains (Chromium, esbuild and DuckDB's binaries for macOS and Windows: about 1 GB,
+  measured 2026-10-17), and the targets that read the reference sources (`//spec:spec_tests`, the `update_generated`
+  checks) then build: a full local set that ran in the space before can fill it. Free space first; under a full disk a
+  browser test fails as "Target crashed", not as "No space left on device".
 - **Root.** The container runs as root, and the embedded Postgres (`initdb`) refuses root:
   `tools/postgres/as_unprivileged.sh` runs a Postgres test as an unprivileged user (its header says how).
 - **DuckDB in a Node test asks nothing of the network** (2026-10-17). With no `XMLHttpRequest`, DuckDB-WASM's Node
