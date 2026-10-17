@@ -157,7 +157,7 @@ lite/basics/unknown_correlation_name@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/basics/unknown_qualified_column@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/basics/unknown_qualified_column@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/basics/true_is_a_name@iq16-default	BOTH_ERROR	BOTH_ERROR
-lite/basics/true_is_a_name@iq17-default	ERROR	ERROR
+lite/basics/true_is_a_name@iq17-default	PASS	PASS
 lite/basics/like_of_a_varchar@iq16-default	PASS	PASS
 lite/basics/like_of_a_varchar@iq17-default	PASS	PASS
 lite/basics/top_two@iq16-default	PASS	PASS
@@ -821,6 +821,11 @@ lite/corpus_gaps/convert_style_to_a_shorter_string_is_iqs_error@iq17-default	BOT
 lite/corpus_gaps/convert_style_to_a_shorter_string_over_no_rows@iq17-default	PASS	PASS
 lite/corpus_gaps/convert_style_compared_past_its_string_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/convert_style_to_its_full_string@iq17-default	PASS	PASS
+lite/corpus_gaps/nullif_of_a_timestamp_and_no_date_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/nullif_of_a_date_and_an_empty_string_in_the_front_end@iq17-default	PASS	PASS
+lite/corpus_gaps/true_and_false_are_constants@iq17-default	PASS	PASS
+lite/corpus_gaps/a_bit_compared_with_true@iq17-default	PASS	PASS
+lite/corpus_gaps/true_as_an_alias_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

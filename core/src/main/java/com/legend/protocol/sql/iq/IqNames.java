@@ -285,7 +285,8 @@ final class IqNames {
     private @com.legend.base.Nullable String bare(SqlAst.Expr e) {
         return switch (e) {
             case SqlAst.ColumnRef ref -> columns.rendering(ref, inAggregate);
-            case SqlAst.IntegerLit n -> n.value().toString();
+            case SqlAst.IntegerLit n -> written.constantWordAt(n.pos()) != null
+                    ? java.util.Objects.requireNonNull(written.constantWordAt(n.pos())) : n.value().toString();
             case SqlAst.NumericLit n -> numeric(n.value());
             case SqlAst.StringLit s -> (written.nationalAt(s.pos()) ? "N" : "") + quoted(s.value());
             case SqlAst.NullLit n -> "null";

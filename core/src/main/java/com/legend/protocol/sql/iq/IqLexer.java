@@ -110,6 +110,11 @@ public final class IqLexer {
      *  17, and SQL Anywhere's are SQL Anywhere's. */
     static final Set<String> IQ_RESERVED = Set.of("aes_decrypt", "clear", "iq", "timeline");
 
+    /** IQ island, 2026-10-17 (BIRD's THEN TRUE ELSE FALSE; measured on IQ 17.1): TRUE and FALSE, IQ 17.1's
+     *  constants 1 and 0 (SMALLINTs, as the literals are; TRUE + 1 is 2), no name; in IQ 16's stand-in, SQL Anywhere
+     *  17, names. */
+    static final Set<String> IQ_CONSTANTS = Set.of("true", "false");
+
     /** IQ's two- and one-character operators, longest first where one begins another. */
     private static final List<String> OPERATORS = List.of("<>", "<=", ">=", "!=", "!<", "!>", "*=", "=*", "||", "=",
             "<", ">", "+", "-", "*", "/", "%", "&", "|", "^", "~", "(", ")", ",", ".", ";", "?", ":", "{", "}");
@@ -190,7 +195,7 @@ public final class IqLexer {
             }
             String word = text.substring(start, at);
             boolean keyword = reserved(word) || settings.base() == IqSettings.Base.IQ16 && !settings.latin1()
-                    && IQ_RESERVED.contains(lower(word));
+                    && (IQ_RESERVED.contains(lower(word)) || IQ_CONSTANTS.contains(lower(word)));
             return new Token(keyword ? Kind.KEYWORD : Kind.WORD, word, pos, start, at);
         }
         for (String op : OPERATORS) {

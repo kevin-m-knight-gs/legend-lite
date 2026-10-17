@@ -162,6 +162,10 @@ island's reason, those IQ answers, and what became of them:
   17-digit string one unit off in 6 of 267 Tableau-style constants (its front end exactly), so such a CAST stays
   refused: an equality filter on it may match no row in IQ. A DOUBLE sum's overflow is its engine's -1001010 in every
   group, those TOP drops too (the paused AVG decision, measured);
+- TRUE and FALSE (BIRD's `THEN TRUE ELSE FALSE`): IQ 17.1's constants 1 and 0, SMALLINTs as the literals are
+  (`TRUE + 1` is 2), named `true` unaliased, no alias; the iq17 profiles read them so, and the listed true-keyword
+  divergence is gone. NULLIF of a date and a string that is no date is its engine's -1001014 for each row (its front
+  end's NULLIF(d, '') is d);
 - a date string IQ cannot convert names both codes rather than one: which IQ reports is its evaluation order's (a
   DATEPART of a string's -1001011 may come first; a BETWEEN over a computed DATE in a grouped query is -157);
 - lite's database failing on SEDE's empty sample tables (27 of 40): each answers over the data, PASS; the other 13

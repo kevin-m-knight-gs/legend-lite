@@ -209,6 +209,17 @@ public final class IqParser {
             return nationals.contains(pos);
         }
 
+        /** IQ island, 2026-10-17: the constant word written at {@code pos} ({@code true}, {@code false}: IQ 17.1's
+         *  1 and 0, IqLexer.IQ_CONSTANTS), which an unaliased item's name keeps, lower case; null for none. */
+        public @com.legend.base.Nullable String constantWordAt(SqlAst.Pos pos) {
+            for (IqLexer.Token t : tokens) {
+                if (t.pos().equals(pos) && (t.is("true") || t.is("false"))) {
+                    return t.text().toLowerCase(java.util.Locale.ROOT);
+                }
+            }
+            return null;
+        }
+
         /** The parentheses written around {@code e}. */
         public int parensOf(SqlAst.Expr e) {
             return parens.getOrDefault(e, 0);
@@ -1731,6 +1742,11 @@ public final class IqParser {
                 if (t.is("null")) {
                     take();
                     return new SqlAst.NullLit(t.pos());
+                }
+                if (t.is("true") || t.is("false")) {
+                    // IQ island, 2026-10-17 (measured on IQ 17.1): its constants 1 and 0 (IqLexer.IQ_CONSTANTS)
+                    take();
+                    return new SqlAst.IntegerLit(java.math.BigInteger.valueOf(t.is("true") ? 1 : 0), t.pos());
                 }
                 if (t.is("if")) {
                     return ifExpression();
