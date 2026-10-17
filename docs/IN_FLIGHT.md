@@ -1158,6 +1158,24 @@ by target against main's run 38729604540. The review is right: #46's own run was
 the seventh line called it ready without comparing the lanes #44 had not measured. Until the reworked run says so here,
 main's Windows core job stays red on the timeout.
 
+**#46 closed unmerged, 2026-10-16 (04:34 UTC, by the user).** The per-target JIT choice is not on main: `junit_test`
+takes no `jit`, and CI's test JVMs keep C2. Its measurements stay on the closed PR's branch (`claude/loving-euler-gjta59`,
+GitHub's refs/pull/46/head): main's Windows `core_tests_integration` took 262.6 s against its 300 s limit on run
+38729604540 (C2) and 106.8 / 149.9 s on #46's two runs. Nothing of it is in flight now.
+
+**Announced 2026-10-17 -- the corpus program: `#SQL{}` over the compatibility and real-world corpora, SELECTs only**
+(the seventh line; the user: "we should try to do all the compatibility tests and real world tests we can"). One
+harness, the embedded Postgres 16 the oracle, live: each corpus's setup on Postgres, each read-only statement on Postgres
+and through `#SQL{}`, rows compared, wrong answers held at zero, refusals counted and ranked by reason. The order:
+(1) the PostgreSQL regression suite's read-only statements (REL_16_STABLE, 222 files, 15,963 of its 44,218
+statements; PostgreSQL License), the yardstick Postgres-compatible projects publish; (2) SQLite's sqllogictest;
+(3) TPC-H's 22 and TPC-DS's 99; (4) SQLStorm's PostgreSQL set (18,251) and BIRD Mini-Dev's PostgreSQL version (500),
+judged on samples of their data, the corpora and data outside this repository (MIT / CC BY-SA), as the IQ line's corpus
+lane keeps its own (`IqCorpusTest`, whose shape the runner follows); (5) JOB; (6) a SQLancer-style generator.
+Each step lands as its own PR, the first the harness with the regression suite. Files: a new runner beside
+`IqCorpusTest` in `core/src/test/java/com/legend/integration/`, its manual target in `core/BUILD.bazel`, the island's own
+files where a corpus finds a fault, and this line's GATES entries.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
