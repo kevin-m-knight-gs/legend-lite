@@ -1373,12 +1373,16 @@ License), kept outside the repository and named by `-Dsql.corpus.regress`. The r
   where Postgres raises past the type. The island now holds integer arithmetic over constants to the Postgres type it
   has (int2 with int2 is int2, else the wider; a constant is int4 where it fits, a minus before one is its value).
   The test is written once, at the outermost arithmetic of constants, and only where the constants as written could
-  reach past the range, so `1 + 2` gains nothing. One gap stays: an intermediate result past the range that the next
-  operator brings back answers, where Postgres raises. Two folds wrapped on their own: `StaticFold`'s long sum and
-  difference, and the lowering's negation of the least long. Both now decline, or answer exactly.
+  reach past the range, so `1 + 2` gains nothing. A step inside that may pass its own type's range part-way, which
+  the outer test cannot see (`(32767::int2 + 1::int2) * 0::int2`, `2147483647 + 1 - 1`), is refused by name. Two
+  folds wrapped on their own: `StaticFold`'s long sum and difference, and the lowering's negation of the least long.
+  Both now decline, or answer exactly.
 - **Smaller faults (11).** A float8 constant past a double's range (`'10e-400'::float8`) is Postgres's error. Two
-  WINDOW definitions of one name are an error. A `char(n)` cast to `text` or `varchar` drops its padding. A string
-  compared with a `real` is refused by name: Postgres reads the string as a float4, which Pure's Float is not.
+  WINDOW definitions of one name are Postgres's error (SQL Anywhere's island keeps the first). A `char(n)` cast to
+  `text` or `varchar` drops its padding. A string read with a `real` (a comparison, IN, BETWEEN, ANY, CASE,
+  COALESCE, lag's default) is refused by name: Postgres reads it as a float4, which Pure's Float is not. Both store
+  types reach the translator as the Postgres dialect's own detail of a column (`InputDialect.padded`,
+  `singlePrecision`).
 - **Names (86 NAMES, 13 more inside FAILs).** The island follows FigureColname's strengths. A cast's type or `case`
   names an item only where what it holds has no name of its own. So `'1'::float8::int2` is `int2`, `date '...'` is
   `date`, `CASE ... ELSE b END` is `b`, and `(SELECT max(x) ...)` is `max`. Type names are the grammar's: `int4`,
@@ -1392,28 +1396,44 @@ License), kept outside the repository and named by `-Dsql.corpus.regress`. The r
     comment);
   - USING over an int and a bigint column, whose merged column is a cast Postgres's GROUP BY tells apart.
 
+**The independent review** (an agent that wrote none of it) found, and the branch fixed:
+- the corpus test inside the integration shard;
+- the duplicate-window error under SQL Anywhere;
+- a unary plus whose operand went untested;
+- an unsound bound (a product with 0, a divisor's subtree);
+- NAMES and REGISTERED decided from SqlParity's truncated details (now from the whole grids);
+- `count(*)` read as a select-list star;
+- a failing judge that left its savepoint open (now undone in a `finally`);
+- KNOWN entries matched by text alone (now by status and detail too);
+- statements that write outside their transaction (`nextval`, advisory locks), now left unjudged;
+- `SET LOCAL datestyle` sent as a session setting.
+
+The review's tests were added: `StaticFoldTest`, `PostgresArmTest`'s BC date, and nine lite parity cases on both lanes
+(constant overflow and its edges, the part-way refusal, a float8 past its range, two windows of one name, the names).
+
 The run after the fixes:
 
 | Status | n |
 |---|---|
-| PASS | 2,636 |
+| PASS | 2,637 |
 | NAMES | 0 |
 | FAIL | 0 |
 | BUG | 0 |
 | KNOWN | 4 |
 | REGISTERED | 6 |
-| REFUSED | 7,310 |
-| ERROR | 511 |
+| REFUSED | 7,219 |
+| ERROR | 510 |
 | UNMODELED | 1,452 |
-| CATALOG | 1,238 |
-| BOTH_ERROR | 2,310 |
-| NONDETERMINISTIC | 238 |
+| CATALOG | 1,237 |
+| BOTH_ERROR | 2,259 |
+| NONDETERMINISTIC | 160 |
 | SKIP | 7 |
 | HARNESS | 2 |
 
-Of the 10,467 statements the island is judged on (PASS, KNOWN, REGISTERED, REFUSED, ERROR: a model declares their
-tables, and Postgres does not reject them where the island does too), 2,636 (25.2%) answer Postgres's rows, and none
-answers wrong. The suite tests Postgres's own types and
+15,493 statements were judged; 221 more that write outside their transaction were left to the script alone. Of the
+10,376 statements the island is judged on (PASS, KNOWN, REGISTERED, REFUSED, ERROR: a model declares their tables,
+and Postgres does not reject them where the island does too), 2,637 (25.4%) answer Postgres's rows, and none answers
+wrong. The suite tests Postgres's own types and
 catalogs more than ordinary queries do, so the real-world corpora (step 4) will measure everyday SQL. This suite
 measures breadth.
 

@@ -465,16 +465,26 @@ public final class SqlParity {
 
     private static final Set<String> JSON_TYPES = Set.of("json", "jsonb");
 
-    /** Whether two texts are one JSON object or array spelled two ways: register S49's difference, where the island
-     *  writes a {@code json} value's object or array as {@code jsonb} does and Postgres keeps the text as written. */
-    public static boolean sameJsonContainer(String a, String b) {
-        if (!jsonContainerText(a) || !jsonContainerText(b)) {
-            return false;
+    /** {@code g} with each text cell that holds a JSON object or array as that JSON's canonical text: register S49's
+     *  difference, where the island writes a {@code json} value's object or array as {@code jsonb} does and Postgres
+     *  keeps the text as written, so two grids that agree so differ only by it. */
+    public static Grid jsonTextAsJson(Grid g) {
+        List<List<Object>> rows = new ArrayList<>();
+        for (List<Object> row : g.rows()) {
+            List<Object> cells = new ArrayList<>();
+            for (Object v : row) {
+                cells.add(v instanceof String s && jsonContainerText(s) ? canonicalOrSelf(s) : v);
+            }
+            rows.add(cells);
         }
+        return new Grid(g.columns(), rows);
+    }
+
+    private static String canonicalOrSelf(String s) {
         try {
-            return JsonValue.of(a).equals(JsonValue.of(b));
+            return JsonValue.of(s).toString();
         } catch (RuntimeException notJson) {
-            return false;
+            return s;
         }
     }
 

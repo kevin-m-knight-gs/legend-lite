@@ -146,7 +146,7 @@ public final class PostgresDialect implements InputDialect {
 
     /** A type's name as Postgres's grammar gives it (gram.y's SystemTypeName for the SQL standard's spellings), the
      *  last part of a qualified one. */
-    static String typeName(SqlAst.TypeName type) {
+    private static String typeName(SqlAst.TypeName type) {
         String name = type.name();
         return switch (name) {
             case "int", "integer" -> "int4";
@@ -184,6 +184,16 @@ public final class PostgresDialect implements InputDialect {
         boolean single() {
             return type.equals("REAL");
         }
+    }
+
+    @Override
+    public boolean padded(InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+        return detail instanceof Stored s && s.padded();
+    }
+
+    @Override
+    public boolean singlePrecision(InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+        return detail instanceof Stored s && s.single();
     }
 
     @Override
@@ -239,6 +249,14 @@ public final class PostgresDialect implements InputDialect {
     /** Postgres's resolution of a CASE's results ("UNION, CASE, and Related Constructs"). */
     @Override
     public SqlToPure.Common unify(String what, List<SqlAst.Expr> exprs, List<Tx> values, SqlAst.Pos pos) {
+        // a string resolved with a real is read as a real there (2026-10-17, as a comparison's: SqlToPure.single)
+        if (values.stream().anyMatch(v -> singlePrecision(v.detail()))) {
+            for (SqlAst.Expr e : exprs) {
+                if (e instanceof SqlAst.StringLit s) {
+                    throw SqlToPure.stringWithAReal(s.pos());
+                }
+            }
+        }
         return SqlToPure.common(what, exprs, values, pos);
     }
 

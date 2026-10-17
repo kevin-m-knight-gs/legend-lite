@@ -157,3 +157,6 @@ tests:
     sql: "SELECT id, r, RANK() OVER (ORDER BY salary DESC NULLS LAST, id) AS s FROM (SELECT id, salary, RANK() OVER (ORDER BY id DESC) AS r FROM persons) d WHERE r <= 4 ORDER BY id"
   - id: window_of_a_derived_table_then_a_filter_of_its_column
     sql: "SELECT * FROM (SELECT id, dept_id, ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary DESC NULLS LAST, id) AS rn FROM persons) d WHERE rn = 1 ORDER BY id"
+  # two WINDOW definitions of one name are Postgres's error (2026-10-17, the regression-suite corpus)
+  - id: two_windows_of_one_name_are_an_error
+    sql: "SELECT id, count(*) OVER w AS n FROM numbers WINDOW w AS (ORDER BY id), w AS (ORDER BY id DESC) ORDER BY id"

@@ -427,10 +427,10 @@
 {"id":"functions/date_literals/date_literal__compact_6_digits","columns":["result"],"rows":[["s1999-01-08"]]}
 {"id":"functions/date_literals/date_literal__julian_day","columns":["result"],"rows":[["s1999-01-08"]]}
 {"id":"functions/date_literals/date_literal__year_day_of_year","columns":["result"],"rows":[["s1999-01-08"]]}
-{"id":"functions/date_literals/date_literal__bc_date","columns":["result"],"rows":[["s0099-01-08"]]}
+{"id":"functions/date_literals/date_literal__bc_date","columns":["result"],"rows":[["s-0098-01-08"]]}
 {"id":"functions/date_literals/date_literal__ad_date","columns":["result"],"rows":[["s1999-01-08"]]}
 {"id":"functions/date_literals/date_literal__epoch","columns":["result"],"rows":[["s1970-01-01 00:00:00"]]}
-{"id":"functions/date_literals/date_literal__infinity","columns":["result"],"rows":[["s+292278994-08-16 23:00:00"]]}
+{"id":"functions/date_literals/date_literal__infinity","columns":["result"],"rows":[["s+999999999-12-31 23:59:59.999999999"]]}
 {"id":"functions/date_literals/date_literal__tz_positive_offset","columns":["result"],"rows":[["s1999-01-08 02:05:06"]]}
 {"id":"functions/date_literals/date_literal__tz_abbrev_stripped","columns":["result"],"rows":[["s1999-01-08 12:05:06"]]}
 {"id":"functions/date_literals/date_literal__ampm","columns":["result"],"rows":[["s1999-01-08 16:05:06"]]}
@@ -1685,7 +1685,7 @@
 {"id":"lite/dates/date_spelling_of_a_day_name_alone_is_an_error","error":{"state":"22007","message":"ERROR: invalid input syntax for type date: \"Wednesday\""}}
 {"id":"lite/dates/date_spelling_of_two_months_is_an_error","error":{"state":"22007","message":"ERROR: invalid input syntax for type date: \"Jan Feb 8 1999\""}}
 {"id":"lite/dates/timestamp_spelling_of_13_pm_is_an_error","error":{"state":"22008","message":"ERROR: date/time field value out of range: \"1999-01-08 13:00 PM\""}}
-{"id":"lite/dates/date_spelling_before_christ_is_refused","columns":["a"],"rows":[["s0099-01-08"]]}
+{"id":"lite/dates/date_spelling_before_christ_is_refused","columns":["a"],"rows":[["s-0098-01-08"]]}
 {"id":"lite/dates/date_spelling_of_now_is_refused","columns":["a"],"rows":[["btrue"]]}
 {"id":"lite/dates/timestamp_spelling_with_a_zone_name_is_refused","columns":["a"],"rows":[["s1999-01-08 04:05:06"]]}
 {"id":"lite/dates/extract_dow_week_decade_century_millennium","columns":["id","a","b","c","e","g","h","i"],"rows":[["i1","d0","d2","d202","d21","d3","f0.0","f2.0"],["i2","d6","d9","d202","d21","d3","f6.0","f9.0"],["i3","d6","d52","d200","d20","d2","f6.0","f52.0"],["i4","d5","d52","d199","d20","d2","f5.0","f52.0"],["i5",null,null,null,null,null,null,null],["i6","d6","d24","d202","d21","d3","f6.0","f24.0"],["i7","d4","d52","d202","d21","d3","f4.0","f52.0"],["i8","d4","d1","d197","d20","d2","f4.0","f1.0"],["i9","d2","d27","d202","d21","d3","f2.0","f27.0"],["i10","d4","d1","d202","d21","d3","f4.0","f1.0"]]}
@@ -1837,6 +1837,7 @@
 {"id":"lite/functions/percentile_disc_multiplies_in_double_precision","columns":["a","b"],"rows":[["i21","i28"]]}
 {"id":"lite/functions/text_of_merged_decimals_is_refused","columns":["id","a"],"rows":[["i1","s1.5"],["i2","s1.5"],["i3","s1.5"],["i4","s1.5"],["i5","s1.5"],["i6","s55000.00"],["i7","s70000.00"],["i8",null],["i9","s45000.00"],["i10","s120000.00"]]}
 {"id":"lite/functions/coalesce_of_decimals_keeps_its_numbers","columns":["id","a","b"],"rows":[["i1","d50000.00","d50001.00"],["i2","d60000.50","d60001.50"],["i3","d75000.75","d75001.75"],["i4","d80000.25","d80001.25"],["i5","d95000.00","d95001.00"],["i6","d55000.00","d55001.00"],["i7","d70000.00","d70001.00"],["i8","d0","d1"],["i9","d45000.00","d45001.00"],["i10","d120000.00","d120001.00"]]}
+{"id":"lite/functions/unnamed_items_are_named_by_their_strongest_name","columns":["int2","int4","date","name","max"],"rows":[["i1","i7","s2024-01-31","sAlice","d250.00"],["i1","i7","s2024-01-31","sBob","d620.00"],["i1","i7","s2024-01-31","sCharlie","d500.00"],["i1","i7","s2024-01-31","sx","d450.00"],["i1","i7","s2024-01-31","sx","d1200.00"],["i1","i7","s2024-01-31","sx","d175.25"],["i1","i7","s2024-01-31","sx",null],["i1","i7","s2024-01-31","sx",null],["i1","i7","s2024-01-31","sx",null],["i1","i7","s2024-01-31","sx","d99.99"]]}
 {"id":"lite/joins/inner_join_on","columns":["name","dept"],"rows":[["sAlice","sEngineering"],["sBob","sEngineering"],["sCharlie","sMarketing"],["sDiana","sMarketing"],["sEve","sSales"],["sFrank","sSales"],["sHank","sEngineering"],["sIvy","sMarketing"],["sJack","sSales"]]}
 {"id":"lite/joins/left_join_keeps_unmatched","columns":["name","dept"],"rows":[["sAlice","sEngineering"],["sBob","sEngineering"],["sCharlie","sMarketing"],["sDiana","sMarketing"],["sEve","sSales"],["sFrank","sSales"],["sGrace",null],["sHank","sEngineering"],["sIvy","sMarketing"],["sJack","sSales"]]}
 {"id":"lite/joins/right_join_keeps_unmatched","columns":["name","dept"],"rows":[["sAlice","sEngineering"],["sBob","sEngineering"],["sHank","sEngineering"],["sCharlie","sMarketing"],["sDiana","sMarketing"],["sIvy","sMarketing"],["sEve","sSales"],["sFrank","sSales"],["sJack","sSales"],[null,"sHR"],[null,"sFinance"],[null,"sLegal"],[null,"sSupport"],[null,"sResearch"],[null,"sOperations"],[null,"sDesign"]]}
@@ -1981,6 +1982,13 @@
 {"id":"lite/math/a_division_by_zero_past_the_limit_is_an_error","error":{"state":"22012","message":"ERROR: division by zero"}}
 {"id":"lite/math/a_division_by_zero_before_the_offset_is_an_error","error":{"state":"22012","message":"ERROR: division by zero"}}
 {"id":"lite/math/a_division_past_the_limit_of_no_zero","columns":["id","q"],"rows":[["i1","i-50"],["i2","i-100"]]}
+{"id":"lite/math/smallint_arithmetic_of_constants_past_its_type_is_an_error","error":{"state":"22003","message":"ERROR: smallint out of range"}}
+{"id":"lite/math/bigint_arithmetic_of_constants_past_its_type_is_an_error","error":{"state":"22003","message":"ERROR: bigint out of range"}}
+{"id":"lite/math/integer_arithmetic_of_constants_past_its_type_is_an_error","error":{"state":"22003","message":"ERROR: integer out of range"}}
+{"id":"lite/math/negation_of_the_least_bigint_is_an_error","error":{"state":"22003","message":"ERROR: bigint out of range"}}
+{"id":"lite/math/integer_arithmetic_of_constants_at_its_types_edges","columns":["a","b","c","e"],"rows":[["i2147483647","i-32768","i9223372036854775807","i2147483647"]]}
+{"id":"lite/math/integer_arithmetic_of_constants_past_its_type_part_way_is_refused","error":{"state":"22003","message":"ERROR: smallint out of range"}}
+{"id":"lite/math/a_double_precision_constant_past_its_range_is_an_error","error":{"state":"22003","message":"ERROR: \"10e-400\" is out of range for type double precision"}}
 {"id":"lite/subqueries/in_subquery","columns":["name"],"rows":[["sAlice"],["sBob"],["sCharlie"],["sDiana"],["sEve"],["sFrank"],["sJack"]]}
 {"id":"lite/subqueries/not_in_subquery","columns":["name"],"rows":[["sGrace"],["sHank"],["sIvy"]]}
 {"id":"lite/subqueries/not_in_a_null_row_is_never_true","columns":["name"],"rows":[]}
@@ -2131,3 +2139,4 @@
 {"id":"lite/windows/count_of_every_row_in_a_cte_then_a_filter","columns":["id","total"],"rows":[["i3","i10"],["i7","i10"],["i9","i10"]]}
 {"id":"lite/windows/windows_over_a_filter_of_a_derived_tables_rank","columns":["id","r","s"],"rows":[["i7","i4","i2"],["i8","i3","i4"],["i9","i2","i3"],["i10","i1","i1"]]}
 {"id":"lite/windows/window_of_a_derived_table_then_a_filter_of_its_column","columns":["id","dept_id","rn"],"rows":[["i2","i1","i1"],["i4","i2","i1"],["i7",null,"i1"],["i10","i3","i1"]]}
+{"id":"lite/windows/two_windows_of_one_name_are_an_error","error":{"state":"42P20","message":"ERROR: window \"w\" is already defined"}}

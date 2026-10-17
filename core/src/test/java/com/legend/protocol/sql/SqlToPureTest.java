@@ -323,7 +323,7 @@ class SqlToPureTest {
     }
 
     @Test
-    void constantIntegerArithmeticIsHeldToItsPostgresType() {
+    void constantIntegerArithmeticIsHeldToItsIntegerType() {
         // 2026-10-17, the regression suite: the fold of constants answered past the type's range, where Postgres
         // raises; int2 with int2 is int2, else the wider, a constant int4 where it fits, a minus before one its value
         String product = pure("select (-32768)::int2 * (-1)::int2 as a from tb('s::DB.T')");
@@ -334,6 +334,14 @@ class SqlToPureTest {
         assertTrue(pure("select '9223372036854775800'::int8 + 100 as a from tb('s::DB.T')")
                 .contains("> 9223372036854775807"));
         assertTrue(pure("select -(-2147483648) as a from tb('s::DB.T')").contains("> 2147483647"));
+        // a plus is its operand, tested as itself (the independent review, 2026-10-17)
+        assertTrue(pure("select +(32767::int2 + 1::int2) as a from tb('s::DB.T')").contains("> 32767"));
+        // where a step inside may pass its type's range, which the outer test cannot see, it is refused
+        for (String partWay : List.of("(32767::int2 + 1::int2) * 0::int2", "1::int2 / (32767::int2 + 1::int2)",
+                "-(32767::int2 + 1::int2)", "('9223372036854775807'::int8 + 1) - 1", "2147483647 + 1 - 1")) {
+            assertEquals("integer arithmetic of constants that may pass its type's range part-way is not supported yet",
+                    refusal("select " + partWay + " as a from tb('s::DB.T')").getMessage(), partWay);
+        }
         // constants that bound it within the type need no test: 1 + 2 is at most 3
         assertEquals("#>{s::DB.T}#->extend(~[a:r|1 + 2])->select(~[a])", pure("select 1 + 2 as a from tb('s::DB.T')"));
         // over a column the database computes in the column's own type: nothing is added
@@ -363,8 +371,12 @@ class SqlToPureTest {
     void aStringComparedWithARealIsRefused() {
         List<Col> real = List.of(new Col("f", "Float", false, "REAL"), new Col("d", "Float", false, "DOUBLE"));
         // Postgres reads '1004.3' as a real there, which Pure's Float is not
-        assertEquals("a string compared with a real (float4) value is not supported yet: Postgres reads it as a real",
-                refusal("select f from tb('s::DB.T') where f = '1004.3'", real).getMessage());
+        String refused = "a string read with a real (float4) value is not supported yet: Postgres reads it as a real";
+        assertEquals(refused, refusal("select f from tb('s::DB.T') where f = '1004.3'", real).getMessage());
+        assertEquals(refused, refusal("select f from tb('s::DB.T') where f in ('1004.3', '1.5')", real).getMessage());
+        assertEquals(refused, refusal("select case when d > 0 then f else '1004.3' end from tb('s::DB.T')", real)
+                .getMessage());
+        assertEquals(refused, refusal("select coalesce(f, '1004.3') from tb('s::DB.T')", real).getMessage());
         assertEquals("#>{s::DB.T}#->filter(r|$r.d == toFloat(1004.3D))->select(~[d])",
                 pure("select d from tb('s::DB.T') where d = '1004.3'", real));
     }
@@ -376,7 +388,7 @@ class SqlToPureTest {
     }
 
     @Test
-    void anUnnamedItemIsNamedAsPostgresNamesIt() {
+    void anUnnamedItemIsNamedByItsStrongestName() {
         // FigureColname's strengths: a cast's type or CASE names an item only where what it holds has no name of its
         // own (2026-10-17, the regression suite)
         named("int2", "select '1'::float8::int2 from tb('s::DB.T')");

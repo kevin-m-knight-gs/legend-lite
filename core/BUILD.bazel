@@ -394,6 +394,9 @@ legend_java_library(
             "src/test/java/com/legend/server/IqParityPostgresTest.java",
             # the corpus lane is :iq_corpus_test's alone (manual): it fails without -Diq.corpus.root (2026-10-16)
             "src/test/java/com/legend/integration/IqCorpusTest.java",
+            # the regression suite's corpus lane is :pg_regress_corpus_test's alone (manual): it fails without
+            # -Dsql.corpus.regress (2026-10-17)
+            "src/test/java/com/legend/integration/PgRegressCorpusTest.java",
             # the #Cypher{...}# island's parity lanes are :cypher_parity_test's and :cypher_parity_postgres_test's
             "src/test/java/com/legend/integration/CypherParityTest.java",
             "src/test/java/com/legend/server/CypherParityPostgresTest.java",

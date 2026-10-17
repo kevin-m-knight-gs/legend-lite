@@ -33,6 +33,8 @@ core/src/test/java/com/legend/integration/CypherParityTest.java	product-name	4
 core/src/test/java/com/legend/integration/IqCorpusTest.java	jdbc-url	1
 # 2026-10-16, the IQ island's corpus lane (IqCorpusTest, 2026-10-15; its manual target): the DuckDB it runs the island on and the input language's name, as IqParityTest's, pinned as measured.
 core/src/test/java/com/legend/integration/IqCorpusTest.java	product-name	8
+# 2026-10-17, the #SQL{} island's regression-suite corpus lane (PgRegressCorpusTest; its manual target, the corpus program's first corpus): the embedded Postgres it replays the PostgreSQL regression suite on, pinned as measured.
+core/src/test/java/com/legend/integration/PgRegressCorpusTest.java	product-name	2
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 core/src/test/java/com/legend/integration/IqParityTest.java	jdbc-url	1
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).

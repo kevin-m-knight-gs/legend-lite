@@ -3999,6 +3999,13 @@ public final class IqDialect implements InputDialect {
         };
     }
 
+    /** Two WINDOW definitions of one name: SQL Anywhere reads the first
+     *  (lite/windows/named_window_twice_the_first_counts, measured on IQ 17). */
+    @Override
+    public boolean oneWindowPerName() {
+        return false;
+    }
+
     /** {@code -x}, {@code +x}, {@code NOT c}: a minus before an integer constant is a constant typed by its value; one
      *  before any other integer negates it in its type (a BIT's is a SMALLINT), checked; a minus before a numeric
      *  constant negates it exactly; a plus changes no number. */

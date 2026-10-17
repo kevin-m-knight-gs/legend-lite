@@ -1908,6 +1908,7 @@ lite/functions/sign_of_a_quotient_of_numerics_is_refused	REFUSED	REFUSED
 lite/functions/percentile_disc_multiplies_in_double_precision	PASS	PASS
 lite/functions/text_of_merged_decimals_is_refused	REFUSED	REFUSED
 lite/functions/coalesce_of_decimals_keeps_its_numbers	PASS	PASS
+lite/functions/unnamed_items_are_named_by_their_strongest_name	PASS	PASS
 lite/joins/inner_join_on	PASS	PASS
 lite/joins/left_join_keeps_unmatched	PASS	PASS
 lite/joins/right_join_keeps_unmatched	PASS	PASS
@@ -2052,6 +2053,13 @@ lite/math/log10_of_integers_and_numerics	PASS	PASS
 lite/math/a_division_by_zero_past_the_limit_is_an_error	BOTH_ERROR	BUG
 lite/math/a_division_by_zero_before_the_offset_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/math/a_division_past_the_limit_of_no_zero	PASS	PASS
+lite/math/smallint_arithmetic_of_constants_past_its_type_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/math/bigint_arithmetic_of_constants_past_its_type_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/math/integer_arithmetic_of_constants_past_its_type_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/math/negation_of_the_least_bigint_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/math/integer_arithmetic_of_constants_at_its_types_edges	PASS	PASS
+lite/math/integer_arithmetic_of_constants_past_its_type_part_way_is_refused	BOTH_ERROR	BOTH_ERROR
+lite/math/a_double_precision_constant_past_its_range_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/subqueries/in_subquery	PASS	PASS
 lite/subqueries/not_in_subquery	PASS	PASS
 lite/subqueries/not_in_a_null_row_is_never_true	PASS	PASS
@@ -2202,3 +2210,4 @@ lite/windows/running_total_of_a_derived_table_then_a_filter	PASS	PASS
 lite/windows/count_of_every_row_in_a_cte_then_a_filter	PASS	PASS
 lite/windows/windows_over_a_filter_of_a_derived_tables_rank	PASS	PASS
 lite/windows/window_of_a_derived_table_then_a_filter_of_its_column	PASS	PASS
+lite/windows/two_windows_of_one_name_are_an_error	BOTH_ERROR	BOTH_ERROR

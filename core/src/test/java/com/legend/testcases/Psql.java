@@ -525,8 +525,10 @@ public final class Psql {
 
         /** {@code sql} with the settings the JDBC driver requires kept: it closes a session whose DateStyle's output
          *  style is not ISO or whose IntervalStyle is not postgres, or whose client_encoding is not UTF8. A DateStyle's
-         *  field order (how a date literal is read) is kept, its output style made ISO; an IntervalStyle or a
-         *  client_encoding, which only shape text the comparison does not read, is not sent ("" sends nothing). */
+         *  field order (how a date literal is read) is kept as Postgres's check_datestyle reads it (YMD; DMY, Euro,
+         *  European; MDY, US, NonEuro, NonEuropean; German without an order is DMY; no order keeps the session's), its
+         *  output style made ISO, and LOCAL kept; an IntervalStyle or a client_encoding, which only shape text the
+         *  comparison does not read, is not sent ("" sends nothing). */
         static String driverSettings(String sql) {
             Matcher m = SETTING.matcher(sql);
             if (!m.matches()) {
@@ -536,13 +538,27 @@ public final class Psql {
             if (!name.equals("datestyle")) {
                 return "";
             }
+            String scope = m.group(1) != null && m.group(1).strip().equalsIgnoreCase("local") ? "LOCAL " : "";
             String value = m.group(3).replace("'", "").replace("\"", "").toLowerCase(Locale.ROOT);
-            String order = value.contains("dmy") || value.contains("european") && !value.contains("noneuropean")
-                    ? "DMY" : value.contains("ymd") ? "YMD" : value.contains("german") ? "DMY" : "MDY";
-            if (value.contains("default")) {
-                return "SET datestyle TO DEFAULT";
+            if (value.strip().equals("default")) {
+                return "SET " + scope + "datestyle TO DEFAULT";
             }
-            return "SET datestyle TO 'ISO, " + order + "'";
+            String order = null;
+            boolean german = false;
+            for (String word : value.split("[,\\s]+")) {
+                switch (word) {
+                    case "ymd" -> order = "YMD";
+                    case "dmy", "euro", "european" -> order = "DMY";
+                    case "mdy", "us", "noneuro", "noneuropean" -> order = "MDY";
+                    case "german" -> german = true;
+                    default -> {
+                    }
+                }
+            }
+            if (order == null && german) {
+                order = "DMY";
+            }
+            return "SET " + scope + "datestyle TO 'ISO" + (order == null ? "" : ", " + order) + "'";
         }
 
         private static final Pattern SETTING = Pattern.compile(
