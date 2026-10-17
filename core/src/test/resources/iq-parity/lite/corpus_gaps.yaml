@@ -1870,3 +1870,18 @@ tests:
   - id: between_a_null_constant_bound_beside_a_false_one
     sql: "SELECT id FROM t WHERE NOT (id BETWEEN 100 AND NULL) ORDER BY id"
     profile: iq17-default
+
+  # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
+  # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
+  - id: a_nested_aggregate_before_one_in_where
+    sql: "SELECT k, COUNT(CHARINDEX('a', LTRIM(RTRIM(c)))) AS a, COUNT(*) AS c FROM g WHERE LTRIM(c) LIKE '_' GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: a_nested_aggregate_read_by_in
+    sql: "SELECT k, AVG(CASE WHEN CHARINDEX('1', c) IN (100, 2, 3) THEN 1 ELSE 0 END) AS a, COUNT(*) AS c FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: a_nested_aggregate_read_by_between
+    sql: "SELECT k, COUNT(CASE WHEN c BETWEEN 1 AND 2 THEN 1 END) AS a, COUNT(*) AS c FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: an_aggregate_in_where_before_one_nested_in_having
+    sql: "SELECT k, COUNT(*) AS c FROM g WHERE c > 0 GROUP BY k HAVING SUM(COUNT(*)) > 0"
+    profile: iq17-default

@@ -1135,6 +1135,10 @@ lite/corpus_gaps/between_an_unknown_bound_beside_a_true_one@iq17-default	PASS	PA
 lite/corpus_gaps/between_an_empty_range_of_constants@iq17-default	PASS	PASS
 lite/corpus_gaps/between_an_empty_range_of_constants_in_a_case@iq17-default	PASS	PASS
 lite/corpus_gaps/between_a_null_constant_bound_beside_a_false_one@iq17-default	PASS	PASS
+lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_aggregate_in_where_before_one_nested_in_having@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

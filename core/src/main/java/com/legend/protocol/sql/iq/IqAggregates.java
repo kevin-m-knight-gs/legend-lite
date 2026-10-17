@@ -111,6 +111,17 @@ final class IqAggregates {
         for (SqlAst.Expr e : IqDialect.expressions(s)) {
             calls(e);
         }
+        // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): an aggregate inside a select item's
+        // aggregate is IQ's -156 before an aggregate in WHERE (-150), and -150 itself where an IN reads the inner one
+        Nested inner = nestedInItems(s);
+        SqlTranslationException nested = inner == null ? null : inner.byIn()
+                ? SqlTranslationException.invalid("an aggregate an IN reads inside an aggregate" + code(-150, "42W06"),
+                        inner.call().pos())
+                : SqlTranslationException.invalid("an aggregate's argument holds an aggregate (aggregate calls cannot"
+                        + " be nested)" + code(-156, "42W08"), inner.call().pos());
+        if (inner != null && inner.byIn()) {
+            throw nested;
+        }
         List<SqlAst.Expr> placed = new ArrayList<>(grouping(s).groupBy());
         if (s.where() != null) {
             placed.add(java.util.Objects.requireNonNull(s.where()));
@@ -139,8 +150,8 @@ final class IqAggregates {
                         IqLexer.lower(r.parts().get(r.parts().size() - 2).text())));
             });
             if (!misplaced.isEmpty()) {
-                throw SqlTranslationException.invalid("an aggregate is not allowed in WHERE, ON or GROUP BY"
-                        + code(-150, "42W06"), misplaced.get(0).pos());
+                throw nested != null ? nested : SqlTranslationException.invalid("an aggregate is not allowed in WHERE,"
+                        + " ON or GROUP BY" + code(-150, "42W06"), misplaced.get(0).pos());
             }
         }
         SqlAst.Select read = grouping(s);
@@ -672,6 +683,44 @@ final class IqAggregates {
     }
 
     /** The calls of the aggregates read under {@code e}, in the order they are written (not into subqueries). */
+    /** An aggregate inside a select item's aggregate ({@link #nestedInItems}), and whether an IN reads it. */
+    private record Nested(SqlAst.FunctionCall call, boolean byIn) {
+    }
+
+    /** A select item's aggregate holding another in its arguments, as IQ raises it ({@link #parsed}): -156, or -150
+     *  where an IN reads the inner aggregate (measured on IQ 17.1: SUM(CASE WHEN COUNT(*) IN (1, 2) THEN 1 END)); null
+     *  for none. */
+    private static @com.legend.base.Nullable Nested nestedInItems(SqlAst.Select s) {
+        for (SqlAst.SelectItem i : s.items()) {
+            if (!(i instanceof SqlAst.SelectExpr x)) {
+                continue;
+            }
+            for (SqlAst.FunctionCall outer : aggregateCalls(x.expr())) {
+                for (SqlAst.Expr arg : outer.args()) {
+                    List<SqlAst.FunctionCall> inner = aggregateCalls(arg);
+                    if (!inner.isEmpty()) {
+                        return new Nested(inner.get(0), readByIn(arg, false));
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Whether an aggregate under {@code e} is read by an IN ({@code in}: below one already). */
+    private static boolean readByIn(SqlAst.Expr e, boolean in) {
+        if (e instanceof SqlAst.FunctionCall f && named(f)) {
+            return in;
+        }
+        boolean below = in || e instanceof SqlAst.InList;
+        for (SqlAst.Expr child : IqDialect.children(e)) {
+            if (readByIn(child, below)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static List<SqlAst.FunctionCall> aggregateCalls(SqlAst.Expr e) {
         List<SqlAst.FunctionCall> out = new ArrayList<>();
         aggregateCalls(e, out);
