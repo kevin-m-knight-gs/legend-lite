@@ -3603,6 +3603,128 @@ public final class IqDialect implements InputDialect {
                         + " DuckDB lowering cannot plan it (write it as a LEFT JOIN)", c.pos());
             }
         }
+        mergedDerivedSubqueries(j, conjuncts);
+    }
+
+    /**
+     * IQ island, 2026-10-17 (the TPC-H corpus lane's LEFT JOIN TopSuppliers ts ON 1 = 1; measured on IQ 17.1): IQ
+     * merges a plain derived table (no GROUP BY, aggregate, DISTINCT, row limit or window) on an outer join's
+     * null-supplying side into an ON that reads no column of the preserved side ({@code 1 = 1}, {@code d.id > 0}); its
+     * WHERE then is the ON's, and a subquery there -- a comparison's, an IN's, an EXISTS -- is IQ's error -1001047. An
+     * ON reading the preserved side ({@code d.id = t.id}, {@code t.id > 0}) is answered, as is one of constants that
+     * fails ({@code 1 = 0}); an ON of other constants is refused by name.
+     */
+    private static void mergedDerivedSubqueries(SqlAst.Join j, List<SqlAst.Expr> conjuncts) {
+        if (j.type() == SqlAst.JoinType.FULL) {
+            return;
+        }
+        boolean left = j.type() == SqlAst.JoinType.LEFT;
+        if (!((left ? j.right() : j.left()) instanceof SqlAst.SubqueryFrom d) || !(d.query() instanceof SqlAst.Select ds)
+                || ds.where() == null || !holdsSubquery(java.util.Objects.requireNonNull(ds.where())) || !merged(ds)) {
+            return;
+        }
+        Set<String> kept = new java.util.HashSet<>();
+        for (SqlAst.FromItem leaf : leaves(left ? j.left() : j.right())) {
+            SqlAst.Ident name = correlation(leaf);
+            if (name != null) {
+                kept.add(IqLexer.lower(name.text()));
+            }
+        }
+        boolean constants = true;
+        for (SqlAst.Expr c : conjuncts) {
+            if (holdsSubquery(c) || !readsColumn(c)) {
+                continue;
+            }
+            constants = false;
+            Set<String> read = new java.util.HashSet<>();
+            boolean[] unqualified = {false};
+            tablesRead(c, Set.of(), read, unqualified);
+            if (unqualified[0] || read.stream().anyMatch(kept::contains)) {
+                return;
+            }
+        }
+        if (constants) {
+            Boolean holds = constantsHold(conjuncts);
+            if (holds == null) {
+                throw SqlTranslationException.unsupported("an outer join's ON of constants beside a derived table whose"
+                        + " WHERE holds a subquery is not supported yet: IQ merges the table into the ON where it"
+                        + " holds (its -1001047) and answers where it fails", j.pos());
+            }
+            if (!holds) {
+                return;
+            }
+        } else {
+            // under an ON reading the null-supplying side, a scalar subquery is -1001047 and an EXISTS is answered
+            // (measured); an IN, an ANY or ALL is not measured there
+            List<SqlAst.Expr> subqueries = new ArrayList<>();
+            subqueryExprs(java.util.Objects.requireNonNull(ds.where()), subqueries);
+            if (subqueries.stream().allMatch(q -> q instanceof SqlAst.Exists)) {
+                return;
+            }
+            if (!subqueries.stream().allMatch(q -> q instanceof SqlAst.ScalarSubquery)) {
+                throw SqlTranslationException.unsupported("an IN, ANY or ALL subquery in the WHERE of a derived table on"
+                        + " an outer join's null-supplying side, under an ON reading that side alone, is not supported"
+                        + " yet: IQ merges the table into the ON (its -1001047 for a scalar subquery, an answer for an"
+                        + " EXISTS)", java.util.Objects.requireNonNull(ds.where()).pos());
+            }
+        }
+        throw SqlTranslationException.unsupported("a subquery in the WHERE of a plain derived table on an outer join's"
+                + " null-supplying side, under an ON that reads no column of the preserved side, is IQ's error -1001047"
+                + " under its engine (IQ merges the table's WHERE into the ON: subqueries are not supported in outer join"
+                + " ON clauses), refused before translating", java.util.Objects.requireNonNull(ds.where()).pos());
+    }
+
+    /** Into {@code out}, the subquery expressions under {@code e}, outside its subqueries. */
+    private static void subqueryExprs(SqlAst.Expr e, List<SqlAst.Expr> out) {
+        if (subqueryOf(e) != null) {
+            out.add(e);
+            return;
+        }
+        for (SqlAst.Expr child : children(e)) {
+            subqueryExprs(child, out);
+        }
+    }
+
+    /** Whether IQ merges {@code s} into an outer join's ON ({@link #mergedDerivedSubqueries}): no GROUP BY, HAVING,
+     *  aggregate, DISTINCT, row limit or window function. */
+    private static boolean merged(SqlAst.Select s) {
+        if (!s.groupBy().isEmpty() || s.having() != null || s.distinct() || s.limit() != null || s.offset() != null) {
+            return false;
+        }
+        for (SqlAst.SelectItem i : s.items()) {
+            if (i instanceof SqlAst.SelectExpr x && (!IqAggregates.aggregateCalls(x.expr()).isEmpty()
+                    || hasWindowCall(x.expr()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether conjuncts of integer constants compared ({@code 1 = 1}, {@code 2 > 1}) all hold; null where one is
+     *  of another form. */
+    private static @com.legend.base.Nullable Boolean constantsHold(List<SqlAst.Expr> conjuncts) {
+        boolean all = true;
+        for (SqlAst.Expr c : conjuncts) {
+            if (!(c instanceof SqlAst.Binary b) || !(b.left() instanceof SqlAst.IntegerLit l)
+                    || !(b.right() instanceof SqlAst.IntegerLit r)) {
+                return null;
+            }
+            int cmp = l.value().compareTo(r.value());
+            Boolean holds = switch (b.op()) {
+                case EQ -> cmp == 0;
+                case NE -> cmp != 0;
+                case LT -> cmp < 0;
+                case LE -> cmp <= 0;
+                case GT -> cmp > 0;
+                case GE -> cmp >= 0;
+                default -> null;
+            };
+            if (holds == null) {
+                return null;
+            }
+            all &= holds;
+        }
+        return all;
     }
 
     /**

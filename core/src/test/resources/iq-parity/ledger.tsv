@@ -1156,6 +1156,15 @@ lite/corpus_gaps/constants_past_32_bits_in_a_comparison@iq17-default	PASS	PASS
 lite/corpus_gaps/sign_of_a_fraction_constant@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/sign_of_a_fraction_constant_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/sign_of_numerics_that_hold_one@iq17-default	PASS	PASS
+lite/corpus_gaps/merged_derived_subquery_under_a_true_on@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/merged_derived_exists_under_a_null_side_on@iq17-default	PASS	PASS
+lite/corpus_gaps/merged_derived_exists_under_a_true_on@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/merged_derived_scalar_under_a_null_side_on@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/merged_derived_subquery_under_a_right_join@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/derived_subquery_under_an_on_reading_the_preserved_side@iq17-default	PASS	PASS
+lite/corpus_gaps/derived_subquery_under_a_join_condition@iq17-default	PASS	PASS
+lite/corpus_gaps/derived_subquery_under_a_failing_on@iq17-default	PASS	PASS
+lite/corpus_gaps/grouped_derived_subquery_under_a_true_on@iq17-default	PASS	PASS
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

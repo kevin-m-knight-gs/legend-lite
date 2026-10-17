@@ -1956,3 +1956,34 @@ tests:
   - id: sign_of_numerics_that_hold_one
     sql: "SELECT id, SIGN(-2.25) AS a, SIGN(0.0) AS b, SIGN(nm + 0.5) AS c FROM t ORDER BY id"
     profile: iq17-default
+
+  # ---- a plain derived table on an outer join's null-supplying side, its WHERE holding a subquery (IQ island,
+  # 2026-10-17; the TPC-H corpus lane's 2, measured on IQ 17.1): IQ merges it into an ON reading no preserved column
+  # (-1001047); an ON reading the preserved side, a failing constant ON, or a grouped table is answered
+  - id: merged_derived_subquery_under_a_true_on
+    sql: "SELECT t.id, d.id AS did FROM t LEFT JOIN (SELECT id FROM u WHERE qty = (SELECT MAX(qty) FROM u)) d ON 1 = 1 ORDER BY t.id"
+    profile: iq17-default
+  - id: merged_derived_exists_under_a_null_side_on
+    sql: "SELECT t.id, d.id AS did FROM t LEFT JOIN (SELECT id FROM u WHERE EXISTS (SELECT 1 FROM g WHERE g.id = u.id)) d ON d.id > 0 ORDER BY t.id, d.id"
+    profile: iq17-default
+  - id: merged_derived_exists_under_a_true_on
+    sql: "SELECT t.id, d.id AS did FROM t LEFT JOIN (SELECT id FROM u WHERE EXISTS (SELECT 1 FROM g WHERE g.id = u.id)) d ON 1 = 1 ORDER BY t.id, d.id"
+    profile: iq17-default
+  - id: merged_derived_scalar_under_a_null_side_on
+    sql: "SELECT t.id, d.id AS did FROM t LEFT JOIN (SELECT id FROM u WHERE qty = (SELECT MAX(qty) FROM u)) d ON d.id > 0 ORDER BY t.id, d.id"
+    profile: iq17-default
+  - id: merged_derived_subquery_under_a_right_join
+    sql: "SELECT t.id, d.id AS did FROM (SELECT id FROM u WHERE qty = (SELECT MAX(qty) FROM u)) d RIGHT JOIN t ON 1 = 1 ORDER BY t.id"
+    profile: iq17-default
+  - id: derived_subquery_under_an_on_reading_the_preserved_side
+    sql: "SELECT t.id, d.id AS did FROM t LEFT JOIN (SELECT id FROM u WHERE qty = (SELECT MAX(qty) FROM u)) d ON t.id > 0 ORDER BY t.id, d.id"
+    profile: iq17-default
+  - id: derived_subquery_under_a_join_condition
+    sql: "SELECT t.id, d.id AS did FROM t LEFT JOIN (SELECT id FROM u WHERE t_id IN (SELECT id FROM g)) d ON d.id = t.id ORDER BY t.id"
+    profile: iq17-default
+  - id: derived_subquery_under_a_failing_on
+    sql: "SELECT t.id, d.id AS did FROM t LEFT JOIN (SELECT id FROM u WHERE qty = (SELECT MAX(qty) FROM u)) d ON 1 = 0 ORDER BY t.id"
+    profile: iq17-default
+  - id: grouped_derived_subquery_under_a_true_on
+    sql: "SELECT t.id, d.c FROM t LEFT JOIN (SELECT t_id, COUNT(*) AS c FROM u WHERE qty = (SELECT MAX(qty) FROM u) GROUP BY t_id) d ON 1 = 1 ORDER BY t.id, d.c"
+    profile: iq17-default
