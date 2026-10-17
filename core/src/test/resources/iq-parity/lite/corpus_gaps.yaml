@@ -1903,6 +1903,34 @@ tests:
     sql: "SELECT id, IF ch = ch THEN 'T' ELSE 'F' ENDIF AS a, CASE WHEN NOT (sm < sm) THEN 'T' ELSE 'F' END AS b FROM t ORDER BY id"
     profile: sqla17-default
 
+  # ---- x + 0 (IQ island, 2026-10-17; the differential fuzzer, measured on IQ 17.1): IQ's engine reads 0 + x, x + 0
+  # and x - 0 as x for a SMALLINT, an INTEGER or a DOUBLE (typed so), not in GROUP BY: a key 0 + x is no key of a
+  # select item or a HAVING written alike, which reads x ungrouped (-149); ORDER BY reads the key
+  - id: zero_plus_an_integer_is_the_integer
+    sql: "SELECT id, 0 + it AS a, it + 0 AS b, 0 + sm AS c, it - 0 AS e, 0.0 + it AS f, 0 + dbl AS h, 0 + nm AS i FROM t ORDER BY id"
+    profile: iq17-default
+  - id: group_by_zero_plus_an_integer
+    sql: "SELECT (0 + it) AS k, COUNT(*) AS c, SUM(id) AS s FROM t GROUP BY (0 + it) ORDER BY k"
+    profile: iq17-default
+  - id: group_by_zero_plus_an_integer_beside_the_integer
+    sql: "SELECT it, 0 + it AS k, COUNT(*) AS c FROM t GROUP BY 0 + it, it ORDER BY it"
+    profile: iq17-default
+  - id: group_by_zero_plus_an_integer_in_having
+    sql: "SELECT COUNT(*) AS c FROM t GROUP BY 0 + it HAVING 0 + it > 0"
+    profile: iq17-default
+  - id: group_by_zero_plus_an_integer_ordered_by_it
+    sql: "SELECT SUM(id) AS s FROM t GROUP BY 0 + it ORDER BY 0 + it"
+    profile: iq17-default
+  - id: group_by_zero_plus_a_numeric
+    sql: "SELECT 0 + nm AS k, COUNT(*) AS c FROM t GROUP BY 0 + nm ORDER BY k"
+    profile: iq17-default
+  - id: group_by_zero_plus_an_integer_plus_one
+    sql: "SELECT 0 + it + 1 AS k, COUNT(*) AS c FROM t GROUP BY 0 + it + 1"
+    profile: iq17-default
+  - id: zero_plus_an_integer_grouped_by_the_integer
+    sql: "SELECT 0 + it AS k, COUNT(*) AS c FROM t GROUP BY it ORDER BY k"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where

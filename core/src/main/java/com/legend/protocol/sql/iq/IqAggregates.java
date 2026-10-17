@@ -960,6 +960,66 @@ final class IqAggregates {
         return out;
     }
 
+    /** IQ island, 2026-10-17 (the differential fuzzer's GROUP BY (0 + it); measured on IQ 17.1): IQ's engine reads
+     *  {@code 0 + x} as {@code x} in the select list and HAVING, not in GROUP BY ({@link IqDialect}'s identity), so a
+     *  key holding {@code identity}, written again there outside an aggregate, is no key of the item, which reads
+     *  {@code x} ungrouped: -149 ({@code SELECT 0 + it ... GROUP BY 0 + it}), unless {@code x} is a key itself.
+     *  ORDER BY reads the key (measured), and so does an item whose alias the GROUP BY names (its key is the item). */
+    static void foldedOutOfGroup(SqlAst.Select s, SqlAst.Expr identity, SqlAst.Expr x) {
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr e && holds(e.expr(), identity)) {
+                return;
+            }
+        }
+        for (SqlAst.Expr k : s.groupBy()) {
+            if (!holds(k, identity)) {
+                continue;
+            }
+            if (s.groupBy().stream().anyMatch(g -> unqualifiedShape(g).equals(unqualifiedShape(x)))) {
+                return;
+            }
+            List<SqlAst.Expr> read = new ArrayList<>();
+            for (SqlAst.SelectItem item : s.items()) {
+                if (item instanceof SqlAst.SelectExpr e) {
+                    read.add(e.expr());
+                }
+            }
+            if (s.having() != null) {
+                read.add(java.util.Objects.requireNonNull(s.having()));
+            }
+            String key = unqualifiedShape(k);
+            for (SqlAst.Expr e : read) {
+                if (readsOutsideAggregates(e, key) && !columns(x).isEmpty()) {
+                    SqlAst.ColumnRef r = columns(x).get(0);
+                    throw SqlTranslationException.invalid("'" + String.join(".", r.parts().stream()
+                            .map(SqlAst.Ident::text).toList()) + "' is not grouped: IQ reads " + identityText(identity)
+                            + " outside GROUP BY as its column, which this GROUP BY does not hold" + code(-149,
+                            "53003"), r.pos());
+                }
+            }
+        }
+    }
+
+    /** Whether {@code e} is {@code part}, or holds it outside subqueries (by identity). */
+    private static boolean holds(SqlAst.Expr e, SqlAst.Expr part) {
+        return e == part || IqDialect.children(e).stream().anyMatch(c -> holds(c, part));
+    }
+
+    /** Whether {@code e} holds an expression of {@code shape} outside aggregates and subqueries. */
+    private static boolean readsOutsideAggregates(SqlAst.Expr e, String shape) {
+        if (unqualifiedShape(e).equals(shape)) {
+            return true;
+        }
+        if (e instanceof SqlAst.FunctionCall f && named(f)) {
+            return false;
+        }
+        return IqDialect.children(e).stream().anyMatch(c -> readsOutsideAggregates(c, shape));
+    }
+
+    private static String identityText(SqlAst.Expr identity) {
+        return identity instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.MINUS ? "x - 0" : "0 + x";
+    }
+
     /** A GROUP BY of constants only: IQ's error -149 when the select list reads a column outside an aggregate (it
      *  groups by the constant, not by a select-list position: measured); else every row is one group. IQ island,
      *  2026-10-17 (the corpus lane's SQLStorm, measured on IQ 17.1): IQ's engine reads it too ({@code GROUP BY 'Total

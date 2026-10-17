@@ -1144,6 +1144,14 @@ lite/corpus_gaps/comparisons_of_an_expression_with_itself_in_a_case@iq17-default
 lite/corpus_gaps/a_column_compared_with_itself_in_where@iq17-default	PASS	PASS
 lite/corpus_gaps/a_column_compared_with_itself_under_a_truth_test@iq17-default	PASS	PASS
 lite/corpus_gaps/a_column_compared_with_itself_in_sql_anywhere@sqla17-default	PASS	PASS
+lite/corpus_gaps/zero_plus_an_integer_is_the_integer@iq17-default	PASS	PASS
+lite/corpus_gaps/group_by_zero_plus_an_integer@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/group_by_zero_plus_an_integer_beside_the_integer@iq17-default	PASS	PASS
+lite/corpus_gaps/group_by_zero_plus_an_integer_in_having@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/group_by_zero_plus_an_integer_ordered_by_it@iq17-default	PASS	PASS
+lite/corpus_gaps/group_by_zero_plus_a_numeric@iq17-default	PASS	PASS
+lite/corpus_gaps/group_by_zero_plus_an_integer_plus_one@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/zero_plus_an_integer_grouped_by_the_integer@iq17-default	PASS	PASS
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR
@@ -7458,8 +7466,8 @@ lite/review6/b1_bit_column_is_two_valued@iq17-tds	PASS	PASS
 lite/review6/b1_having_alias_of_a_column_is_two_valued@iq16-tds	PASS	PASS
 lite/review6/b1_having_alias_of_a_column_is_two_valued@sqla17-tds	PASS	PASS
 lite/review6/b1_having_alias_of_a_column_is_two_valued@iq17-tds	PASS	PASS
-lite/review6/b1_having_alias_of_arithmetic_is_two_valued@iq16-tds	PASS	PASS
-lite/review6/b1_having_alias_of_arithmetic_is_two_valued@iq17-tds	BUG	BUG
+lite/review6/b1_having_alias_of_arithmetic_is_two_valued@sqla17-tds	PASS	PASS
+lite/review6/b1_having_alias_of_arithmetic_is_two_valued@iq17-tds	BOTH_ERROR	BOTH_ERROR
 lite/review6/b1_having_key_arithmetic_is_two_valued@iq16-tds	PASS	PASS
 lite/review6/b1_having_key_arithmetic_is_two_valued@sqla17-tds	PASS	PASS
 lite/review6/b1_having_key_arithmetic_is_two_valued@iq17-tds	PASS	PASS

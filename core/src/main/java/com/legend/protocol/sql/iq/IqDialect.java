@@ -5230,6 +5230,20 @@ public final class IqDialect implements InputDialect {
             throw SqlTranslationException.unsupported(operator(b.op()) + " of an untyped NULL is IQ's error -1009145"
                     + " under its engine, refused before translating", b.pos());
         }
+        SqlAst.Expr x = engine == Engine.IQ ? identityOperand(b) : null;
+        if (x != null) {
+            Tx value = x == b.left() ? l : r;
+            if (value.detail() instanceof IqType type && IDENTITY_FAMILIES.contains(type.family())) {
+                // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): under IQ's engine x + 0, 0 + x
+                // and x - 0 are x for a SMALLINT, an INTEGER or a DOUBLE (0 + it an INTEGER where 1 + it is a BIGINT,
+                // 0.0 + it an INTEGER), not for a BIGINT, a NUMERIC or a BIT; not in GROUP BY, whose key it then is
+                // of no select item written alike (IqAggregates.foldedOutOfGroup)
+                for (SqlAst.Select s : grouped.values()) {
+                    IqAggregates.foldedOutOfGroup(s, b, x);
+                }
+                return value;
+            }
+        }
         if (engine == Engine.IQ && (l.kind() == Kind.DATE || l.kind() == Kind.DATETIME || r.kind() == Kind.DATE
                 || r.kind() == Kind.DATETIME)) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): a date moved by days, two dates' days apart
@@ -5242,6 +5256,24 @@ public final class IqDialect implements InputDialect {
             return decimalArithmetic(b, l, r);
         }
         return integerArithmetic(b, l, r);
+    }
+
+    /** The types whose {@code x + 0} IQ's engine reads as {@code x} ({@link #arithmetic}). */
+    private static final Set<String> IDENTITY_FAMILIES = Set.of("SMALLINT", "INTEGER", "DOUBLE");
+
+    /** {@code x} of {@code x + 0}, {@code 0 + x} or {@code x - 0} (a zero written as a number) where {@code x} reads a
+     *  column; null for any other expression. */
+    private static SqlAst.@com.legend.base.Nullable Expr identityOperand(SqlAst.Binary b) {
+        BigDecimal right = numberLiteral(b.right());
+        if ((b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS) && right != null
+                && right.signum() == 0 && readsColumn(b.left())) {
+            return b.left();
+        }
+        BigDecimal left = numberLiteral(b.left());
+        if (b.op() == SqlAst.BinaryOp.PLUS && left != null && left.signum() == 0 && readsColumn(b.right())) {
+            return b.right();
+        }
+        return null;
     }
 
     private static String operator(SqlAst.BinaryOp op) {
