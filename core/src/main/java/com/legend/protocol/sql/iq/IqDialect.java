@@ -5013,8 +5013,12 @@ public final class IqDialect implements InputDialect {
             // At.logical, PR #41): a chain of one operator read without recursion, each operand under its operator's
             // position, combined as a balanced tree -- the meaning of the two-operand arm it replaces
             case AND, OR -> at.logical(b);
-            case EQ, NE, LT, LE, GT, GE -> twoValued(b, comparison(b.op(), at.tx(b.left()), at.tx(b.right()),
-                    b.left() instanceof SqlAst.NullLit, b.right() instanceof SqlAst.NullLit, b, b.pos()));
+            case EQ, NE, LT, LE, GT, GE -> {
+                Tx l = at.tx(b.left());
+                Tx compared = comparison(b.op(), l, at.tx(b.right()), b.left() instanceof SqlAst.NullLit,
+                        b.right() instanceof SqlAst.NullLit, b, b.pos());
+                yield selfComparison(b) ? itself(b.op(), l) : twoValued(b, compared);
+            }
             case PLUS -> plus(b, at);
             case CONCAT -> {
                 List<Tx> parts = new ArrayList<>();
@@ -5027,6 +5031,38 @@ public final class IqDialect implements InputDialect {
             case MINUS, TIMES, DIVIDE, MODULO -> arithmetic(b, at.tx(b.left()), at.tx(b.right()));
             case POWER -> throw SqlTranslationException.unsupported("IQ has no power operator", b.pos());
         };
+    }
+
+    /** IQ island, 2026-10-17 (the differential fuzzer's IF ch = ch THEN ch ELSE '' ENDIF; measured on IQ 17.1): under
+     *  IQ's engine an expression compared with itself, written alike ({@code v = v}, {@code ABS(v) = ABS(v)}, {@code
+     *  g.v = v} not yet), is two-valued outside a search condition -- an IF's or a CASE's condition, a truth test's
+     *  operand: {@code =}, {@code <=} and {@code >=} hold where it is not NULL, {@code <>}, {@code <} and {@code >}
+     *  never; reached through AND, OR and NOT from a WHERE, an ON or a HAVING it stays three-valued (NOT (v = v) keeps
+     *  no row there). One that reads no column, a subquery or a host variable is read as any other. */
+    private boolean selfComparison(SqlAst.Binary b) {
+        return engine == Engine.IQ && !filters.contains(b) && IqAggregates.same(b.left(), b.right())
+                && readsColumn(b.left()) && !readsQuery(b.left()) && !readsParameter(b.left());
+    }
+
+    /** {@link #selfComparison}'s truth: TRUE where {@code x} is not NULL for an order that holds of equals, else FALSE;
+     *  never UNKNOWN. */
+    private static Tx itself(SqlAst.BinaryOp op, Tx x) {
+        if (op == SqlAst.BinaryOp.NE || op == SqlAst.BinaryOp.LT || op == SqlAst.BinaryOp.GT) {
+            return Tx.condition(new CBoolean(false), new CBoolean(true), false);
+        }
+        if (!x.nullable()) {
+            return Tx.condition(new CBoolean(true), new CBoolean(false), false);
+        }
+        return Tx.condition(SqlToPure.call("isNotEmpty", SqlToPure.valueOf(x)), SqlToPure.call("isEmpty",
+                SqlToPure.valueOf(x)), false);
+    }
+
+    /** The comparison operators. */
+    private static final Set<SqlAst.BinaryOp> COMPARISONS = Set.of(SqlAst.BinaryOp.EQ, SqlAst.BinaryOp.NE,
+            SqlAst.BinaryOp.LT, SqlAst.BinaryOp.LE, SqlAst.BinaryOp.GT, SqlAst.BinaryOp.GE);
+
+    private static boolean readsParameter(SqlAst.Expr e) {
+        return e instanceof SqlAst.Param || children(e).stream().anyMatch(IqDialect::readsParameter);
     }
 
     /** {@code -x}, {@code +x}, {@code NOT c}: a minus before an integer constant is a constant typed by its value; one
@@ -5692,7 +5728,8 @@ public final class IqDialect implements InputDialect {
         }
     }
 
-    /** The IN and LIKE predicates search condition {@code c} reaches through AND, OR and NOT alone, into {@code out}. */
+    /** The IN, LIKE and comparison predicates search condition {@code c} reaches through AND, OR and NOT alone, into
+     *  {@code out}. */
     private static void filters(SqlAst.Expr c, Set<SqlAst.Expr> out) {
         java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>();
         todo.push(c);
@@ -5706,6 +5743,7 @@ public final class IqDialect implements InputDialect {
                 case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.NOT -> todo.push(u.operand());
                 case SqlAst.InList in -> out.add(in);
                 case SqlAst.Like l -> out.add(l);
+                case SqlAst.Binary b when COMPARISONS.contains(b.op()) -> out.add(b);
                 default -> {
                 }
             }
@@ -6990,14 +7028,19 @@ public final class IqDialect implements InputDialect {
         ValueSpecification fails = SqlToPure.call("or", low.falseWhen(), high.falseWhen());
         if (iq) {
             // ... and so does a bound of no column that is NULL (a host variable's); a column's NULL leaves the other
-            // bound to decide FALSE (IQ island, 2026-10-17, the differential fuzzer, measured on IQ 17.1: NOT (id
-            // BETWEEN 100 AND sm) holds where sm is NULL)
+            // bound to decide FALSE only where that bound reads no column (IQ island, 2026-10-17, the differential
+            // fuzzer, measured on IQ 17.1: NOT (id BETWEEN 100 AND sm) and NOT (id BETWEEN w AND 3 + 0) hold where sm
+            // or w is NULL; id BETWEEN w AND v, and BETWEEN w AND j - 5, are UNKNOWN there, whatever v or j - 5 is)
             List<SqlAst.Expr> bounds = List.of(b.low(), b.high());
             List<Tx> values = List.of(lowValue, highValue);
+            boolean[] reads = new boolean[2];
             for (int i = 0; i < 2; i++) {
                 List<SqlAst.ColumnRef> refs = new ArrayList<>();
                 columnRefs(bounds.get(i), refs);
-                if (values.get(i).nullable() && refs.isEmpty()) {
+                reads[i] = !refs.isEmpty();
+            }
+            for (int i = 0; i < 2; i++) {
+                if (values.get(i).nullable() && (!reads[i] || reads[1 - i])) {
                     fails = SqlToPure.call("and", fails, SqlToPure.call("isNotEmpty", SqlToPure.valueOf(values.get(i))));
                 }
             }

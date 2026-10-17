@@ -1847,8 +1847,9 @@ tests:
     profile: iq17-default
 
   # ---- BETWEEN under IQ's engine (IQ island, 2026-10-17; the differential fuzzer, measured on IQ 17.1): a bound read
-  # from a column that is NULL leaves the other bound to decide FALSE (three-valued AND); a NULL constant bound leaves
-  # every row UNKNOWN; an empty range of constants is FALSE for a number, a NULL one too
+  # from a column that is NULL leaves the other bound to decide FALSE (three-valued AND) where that bound reads no
+  # column, and leaves the row UNKNOWN beside a bound that reads one; a NULL constant bound leaves every row UNKNOWN;
+  # an empty range of constants is FALSE for a number, a NULL one too
   - id: between_a_false_bound_beside_a_null_column_bound
     sql: "SELECT id FROM t WHERE NOT (id BETWEEN 100 AND sm) ORDER BY id"
     profile: iq17-default
@@ -1870,6 +1871,37 @@ tests:
   - id: between_a_null_constant_bound_beside_a_false_one
     sql: "SELECT id FROM t WHERE NOT (id BETWEEN 100 AND NULL) ORDER BY id"
     profile: iq17-default
+  - id: between_two_column_bounds_one_null
+    sql: "SELECT id FROM g WHERE NOT (1 + 0 BETWEEN w AND v) ORDER BY id"
+    profile: iq17-default
+  - id: between_two_column_bounds_one_null_in_a_case
+    sql: "SELECT id, CASE WHEN id BETWEEN w AND v THEN 'T' WHEN NOT (id BETWEEN w AND v) THEN 'F' ELSE 'U' END AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: between_a_null_column_bound_beside_an_expression_of_a_column
+    sql: "SELECT id, CASE WHEN id BETWEEN w AND j - 5 THEN 'T' WHEN NOT (id BETWEEN w AND j - 5) THEN 'F' ELSE 'U' END AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: between_a_null_column_bound_beside_a_constant_expression
+    sql: "SELECT id, CASE WHEN id BETWEEN w AND ABS(3) + 0 THEN 'T' WHEN NOT (id BETWEEN w AND ABS(3) + 0) THEN 'F' ELSE 'U' END AS a FROM g ORDER BY id"
+    profile: iq17-default
+
+  # ---- an expression compared with itself (IQ island, 2026-10-17; the differential fuzzer, measured on IQ 17.1): under
+  # IQ's engine two-valued outside a search condition (= <= >= where it is not NULL, <> < > never), three-valued
+  # through AND, OR and NOT from a WHERE
+  - id: a_column_compared_with_itself_in_an_if
+    sql: "SELECT id, LENGTH(IF ch = ch THEN ch ELSE '' ENDIF) AS a, IF sm <> sm THEN 'T' ELSE 'F' ENDIF AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: comparisons_of_an_expression_with_itself_in_a_case
+    sql: "SELECT id, CASE WHEN v = v THEN 'T' WHEN NOT (v = v) THEN 'F' ELSE 'U' END AS a, CASE WHEN v < v THEN 'T' WHEN NOT (v < v) THEN 'F' ELSE 'U' END AS b, CASE WHEN ABS(v) >= ABS(v) THEN 'T' WHEN NOT (ABS(v) >= ABS(v)) THEN 'F' ELSE 'U' END AS c, CASE WHEN v = v + 0 THEN 'T' WHEN NOT (v = v + 0) THEN 'F' ELSE 'U' END AS d FROM g ORDER BY id"
+    profile: iq17-default
+  - id: a_column_compared_with_itself_in_where
+    sql: "SELECT id FROM g WHERE NOT (v = v) OR NOT (s <> s) ORDER BY id"
+    profile: iq17-default
+  - id: a_column_compared_with_itself_under_a_truth_test
+    sql: "SELECT id FROM g WHERE NOT (v = v) IS TRUE ORDER BY id"
+    profile: iq17-default
+  - id: a_column_compared_with_itself_in_sql_anywhere
+    sql: "SELECT id, IF ch = ch THEN 'T' ELSE 'F' ENDIF AS a, CASE WHEN NOT (sm < sm) THEN 'T' ELSE 'F' END AS b FROM t ORDER BY id"
+    profile: sqla17-default
 
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
