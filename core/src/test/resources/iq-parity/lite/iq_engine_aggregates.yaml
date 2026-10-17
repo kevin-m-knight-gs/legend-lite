@@ -86,6 +86,27 @@ tests:
     sql: "SELECT AVG(n) AS a FROM g WHERE id > 100"
     profile: iq17-default
 
+  # ---- IQ island, 2026-10-17 (the TPC-H corpus lane's AVG of a NUMERIC(15,2), IQ's NUMERIC(37,23), measured on IQ
+  # 17.1): lite makes the sum whole before it scales it, so each step fits its 38 digits
+  - id: avg_of_a_numeric_15_2
+    sql: "SELECT AVG(CAST(nm AS NUMERIC(15,2))) AS a, SUM(CAST(nm AS NUMERIC(15,2))) AS s, COUNT(*) AS c FROM t"
+    profile: iq17-default
+  - id: avg_of_a_numeric_16_2_grouped
+    sql: "SELECT k, AVG(CAST(n AS NUMERIC(16,2))) AS a FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: avg_of_a_numeric_14_4_repeating
+    sql: "SELECT AVG(CAST(n AS NUMERIC(14,4))) AS a FROM g WHERE id IN (8, 11, 2)"
+    profile: iq17-default
+  - id: avg_of_a_numeric_15_2_negative
+    sql: "SELECT AVG(CAST(n AS NUMERIC(15,2))) AS a FROM g WHERE id IN (8, 4, 11)"
+    profile: iq17-default
+  - id: avg_of_a_numeric_15_2_read_by_arithmetic
+    sql: "SELECT AVG(CAST(n AS NUMERIC(15,2))) * 3 AS a FROM g WHERE id IN (8, 11, 2)"
+    profile: iq17-default
+  - id: avg_of_a_numeric_15_2_compared_in_having
+    sql: "SELECT k, COUNT(*) AS c FROM g WHERE k IS NOT NULL GROUP BY k HAVING AVG(CAST(n AS NUMERIC(15,2))) > 0.5 ORDER BY k"
+    profile: iq17-default
+
   # ---- IQ island, 2026-10-15 (checklist 2.16, measured on IQ 17.1): PERCENTILE_CONT and PERCENTILE_DISC (WITHIN GROUP);
   # MEDIAN of a NUMERIC (the midpoint cut toward zero at its scale) and of a DOUBLE; STDDEV and VARIANCE refused (IQ's
   # engine computes them by a formula of its own that loses precision: VARIANCE of 1000000.1, .2, .3 is 0.0100 there)

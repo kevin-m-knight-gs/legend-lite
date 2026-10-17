@@ -2550,7 +2550,17 @@ final class IqFunctions {
             throw new IllegalStateException("a quotient of more than 38 digits");
         }
         ValueSpecification ax = SqlToPure.call("abs", x);
-        ValueSpecification n = s > 0 ? times(ax, new CDecimal(pow10(s))) : ax;
+        ValueSpecification n;
+        if (whole1 + s + s1 <= 38) {
+            n = s > 0 ? times(ax, new CDecimal(pow10(s))) : ax;
+        } else {
+            // IQ island, 2026-10-17 (TPC-H's AVG of a NUMERIC(15,2), IQ's NUMERIC(37,23)): |x| made whole first,
+            // |x| * 10^s1 through a BIGINT (exact: at most 18 digits) to a scale-0 decimal, so that n needs
+            // whole1 + s digits, not whole1 + s + s1
+            ValueSpecification whole = SqlToPure.call("toDecimal", SqlToPure.call("floor",
+                    times(ax, new CDecimal(pow10(s1)))));
+            n = s > s1 ? times(whole, new CDecimal(pow10(s - s1))) : whole;
+        }
         ValueSpecification m = whole(n, y, pow10(whole1 + s));
         BigDecimal unit = pow10(-s);
         return times(m, ifThen(lt(x, integer(0)), new CDecimal(unit.negate()), new CDecimal(unit)));
@@ -2581,9 +2591,10 @@ final class IqFunctions {
         return s <= 38 && whole1 + s + s2 <= 38 && Math.max(whole1 + s + s2, whole2) + 1 + Math.max(s1, s2) <= 38;
     }
 
-    /** Whether {@link #truncatedQuotient}'s steps fit lite's 38 digits, scales counted (n keeps x's scale). */
+    /** Whether {@link #truncatedQuotient}'s steps fit lite's 38 digits, scales counted (n keeps x's scale, unless x
+     *  is made whole first, through a BIGINT). */
     static boolean truncatedFits(int s1, int whole1, int s) {
-        return s1 <= s && whole1 + s + s1 <= 38;
+        return s1 <= s && (whole1 + s + s1 <= 38 || whole1 + s <= 38 && whole1 + s1 <= FLOOR_DIGITS);
     }
 
     /** Whether {@link #quotient}'s steps fit lite's 38 digits, scales counted (n = |x| * 10^s keeps x's scale, and
