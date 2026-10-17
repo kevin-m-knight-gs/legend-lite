@@ -396,6 +396,8 @@ public interface InputDialect {
         DISTINCT_ORDER_KEY,
         /** IQ island, 2026-10-14 (the third landing): a set operation's two sides of different widths: the operation
          *  ({@code UNION}, {@code INTERSECT}, {@code EXCEPT}). */
-        SET_WIDTHS
+        SET_WIDTHS,
+        /** IQ island, 2026-10-17: an aggregate call inside an aggregate's arguments. */
+        NESTED_AGGREGATE
     }
 }

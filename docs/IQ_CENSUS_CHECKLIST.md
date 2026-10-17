@@ -258,6 +258,14 @@ island's reason, those IQ answers, and what became of them:
   outside the GROUP BY (-149; IQ reads the name as no aggregate), then its -265, raised as it is translated, where
   every one was -265 before (its sample: 1 of 12 STRING_AGG claims matched IQ's code). The aggregates' forms after
   the name (DISTINCT, an ORDER BY inside, WITHIN GROUP, OVER) stay refused by name, as -265;
+- IQ's own codes for three more errors (2026-10-17, from the IQ_ERROR verification, measured):
+  - nested aggregates are -156 (`InputDialect.Problem.NESTED_AGGREGATE`, where the shared translator wrote
+    Postgres's text);
+  - LIKE over a date or a timestamp converts the pattern first, so one that is no date (`'%2015%'`) is -1009145,
+    and one that is a date -1001013;
+  - a subquery's reference to a column that is inside a GROUP BY expression but no GROUP BY item itself
+    (`month(p1.CreationDate)` beside `GROUP BY month(CreationDate)`) is -1005028, where a column in no GROUP BY
+    expression stays -149;
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's
   server rejects every one (-131, measured), while an ODBC client that processes escapes translates them before it
   sends (the syntax research's `accept-with-option:client_escapes`). Whether an island reads them as such a client

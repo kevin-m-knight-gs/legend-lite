@@ -184,6 +184,10 @@ public final class IqDialect implements InputDialect {
     /** IQ island, 2026-10-14 (the third landing): the column references of the statement's ORDER BY clauses, by
      *  identity (a grouped query's column no key reads is IQ's -854 there, -149 elsewhere). */
     private final Set<Object> orderRefs = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** IQ island, 2026-10-17: the columns a grouped query's subqueries read of it inside one of its GROUP BY
+     *  expressions ({@code month(p1.CreationDate)} beside {@code GROUP BY month(CreationDate)}), by identity: IQ's
+     *  -1005028, which matches no expression across a subquery's edge. */
+    private final Set<Object> outerGroupRefs = Collections.newSetFromMap(new IdentityHashMap<>());
     /** IQ island, 2026-10-14 (review 7's m2): the select-list and HAVING references of a grouped SELECT whose ORDER BY
      *  reads a column not grouped ({@link IqAggregates#ordersUngrouped}), which IQ reports first. */
     private final Set<Object> orderFirst = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -1428,6 +1432,35 @@ public final class IqDialect implements InputDialect {
                 }
                 s.groupBy().forEach(g -> computedReads(g, read.computedReads));
                 s.orderBy().forEach(o -> computedReads(o.expr(), read.computedReads));
+            }
+        }
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s && !s.groupBy().isEmpty()) {
+                // IQ island, 2026-10-17 (the corpus lane's sede-6559; measured on IQ 17.1)
+                Set<String> inKeys = new java.util.HashSet<>();
+                for (SqlAst.Expr k : s.groupBy()) {
+                    if (!(k instanceof SqlAst.ColumnRef)) {
+                        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                        columnRefs(k, refs);
+                        refs.forEach(r -> inKeys.add(IqLexer.lower(r.parts().get(r.parts().size() - 1).text())));
+                    }
+                }
+                if (!inKeys.isEmpty()) {
+                    Set<SqlAst.Statement> inner = Collections.newSetFromMap(new IdentityHashMap<>());
+                    for (SqlAst.Expr e : expressions(s)) {
+                        subqueryQueries(e, inner);
+                    }
+                    for (SqlAst.Statement sub : inner) {
+                        if (sub instanceof SqlAst.Select ss) {
+                            for (SqlAst.Expr e : expressions(ss)) {
+                                List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                                columnRefs(e, refs);
+                                refs.stream().filter(r -> inKeys.contains(IqLexer.lower(r.parts().get(
+                                        r.parts().size() - 1).text()))).forEach(read.outerGroupRefs::add);
+                            }
+                        }
+                    }
+                }
             }
         }
         for (SqlAst.Statement q : queries(statement)) {
@@ -6127,6 +6160,14 @@ public final class IqDialect implements InputDialect {
         if (engine == Engine.IQ && operand.kind() != Kind.STRING) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine LIKE over a number or a date is
             // "Invalid data type comparison in predicate"
+            if ((operand.kind() == Kind.DATE || operand.kind() == Kind.DATETIME) && l.pattern() instanceof SqlAst
+                    .StringLit p && IqDateTime.read(p.value(), settings, p.pos()) == null) {
+                // IQ island, 2026-10-17 (the corpus lane's CreationDate LIKE '%2015%'; measured on IQ 17.1): it
+                // converts the pattern to the date's type first, so a pattern that is no date is its -1009145
+                throw SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " of a pattern"
+                        + " that is no date is IQ's error -1009145 under its engine (the pattern converted to the"
+                        + " date's type), refused before translating", l.pattern().pos());
+            }
             throw SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " is IQ's error"
                     + " -1001013 under its engine (an invalid comparison), refused before translating",
                     l.operand().pos());
@@ -7417,7 +7458,13 @@ public final class IqDialect implements InputDialect {
             case NO_SUCH_TABLE -> "no table or correlation name '" + args[0] + "' in the query" + code(-142, "52W02");
             // IQ island, 2026-10-14 (the third landing, measured): IQ's codes for these three -- -149 in the select
             // list and HAVING, -854 in ORDER BY (as IqAggregates' own check)
-            case NOT_GROUPED -> "'" + args[0] + "' is neither grouped nor aggregated: it must be a GROUP BY item, or"
+            // IQ island, 2026-10-17 (the corpus lane's SUM(COUNT(*)); measured on IQ 17.1): its -156
+            case NESTED_AGGREGATE -> "an aggregate's argument holds an aggregate (aggregate calls cannot be nested)"
+                    + code(-156, "42W08");
+            case NOT_GROUPED -> args.length > 1 && outerGroupRefs.contains(args[1]) ? "'" + args[0] + "', read in a"
+                    + " subquery, is inside a GROUP BY expression but no GROUP BY item itself: an outer reference of"
+                    + " a scalar subquery must appear in GROUP BY" + code(-1005028, "QTA28")
+                    : "'" + args[0] + "' is neither grouped nor aggregated: it must be a GROUP BY item, or"
                     + " inside an aggregate" + (args.length > 1 && orderRefs.contains(args[1]) ? code(-854, "42W65")
                     : args.length > 1 && orderFirst.contains(args[1]) ? "; so is a column the ORDER BY reads, which IQ"
                     + " reports first" + code(-854, "42W65") : code(-149, "53003"));

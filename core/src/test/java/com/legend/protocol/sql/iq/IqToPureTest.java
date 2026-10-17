@@ -730,7 +730,10 @@ class IqToPureTest {
         // measured) on SQL Anywhere's front end; under IQ's engine it is IQ's error -1001013 (2026-10-15)
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt LIKE '2%'", IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
                 .contains("lpad(4, '0')"));
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt LIKE '2%'").getMessage().contains("-1001013"));
+        // IQ island, 2026-10-17 (measured on IQ 17.1): IQ converts the pattern to the date's type first -- one that is
+        // no date is its -1009145, one that is a date its -1001013
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt LIKE '2%'").getMessage().contains("-1009145"));
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt LIKE '2026-03-04'").getMessage().contains("-1001013"));
     }
 
     // ------------------------------------------------------------------ M1a: NUMERIC and DOUBLE arithmetic

@@ -925,6 +925,11 @@ lite/corpus_gaps/string_agg_alone_is_iqs_265@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/stdev_beside_count_is_iqs_149@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/string_agg_of_a_grouped_column_is_iqs_265@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/string_agg_of_a_syntax_error_is_iqs_131@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/nested_aggregates_are_iqs_156@iq16-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/nested_aggregates_are_iqs_156@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/like_over_a_timestamp_of_a_pattern_that_is_no_date_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/like_over_a_timestamp_of_a_timestamp_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_outer_reference_inside_a_group_expression_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

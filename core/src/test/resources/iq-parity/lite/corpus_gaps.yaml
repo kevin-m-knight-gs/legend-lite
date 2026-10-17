@@ -1212,3 +1212,18 @@ tests:
   - id: string_agg_of_a_syntax_error_is_iqs_131
     sql: "SELECT STRING_AGG(CAST(vc AS NVARCHAR(MAX)), ',') AS a FROM t"
     profile: iq17-default
+
+  # ---- IQ's own codes for three errors (IQ island, 2026-10-17; found by verifying the corpus lane's IQ_ERROR claims,
+  # measured on IQ 17.1): nested aggregates -156; LIKE over a date of a pattern that is no date -1009145 (the pattern
+  # converted first); a subquery's outer reference inside a GROUP BY expression, no GROUP BY item, -1005028
+  - id: nested_aggregates_are_iqs_156
+    sql: "SELECT SUM(COUNT(*)) AS a FROM t GROUP BY sm"
+  - id: like_over_a_timestamp_of_a_pattern_that_is_no_date_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts LIKE '%2015%'"
+    profile: iq17-default
+  - id: like_over_a_timestamp_of_a_timestamp_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts LIKE '2026-03-04 05:06:07.123456'"
+    profile: iq17-default
+  - id: an_outer_reference_inside_a_group_expression_is_iqs_error
+    sql: "SELECT MONTH(dt) AS m, (SELECT COUNT(*) FROM u WHERE u.id = MONTH(t.dt)) AS c FROM t GROUP BY MONTH(dt)"
+    profile: iq17-default

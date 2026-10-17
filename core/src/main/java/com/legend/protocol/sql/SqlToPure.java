@@ -4162,7 +4162,7 @@ public final class SqlToPure {
         if (e instanceof SqlAst.FunctionCall f && isAggregate(f)) {
             for (SqlAst.Expr arg : f.args()) {
                 if (containsAggregate(arg)) {
-                    throw SqlTranslationException.invalid("aggregate function calls cannot be nested", arg.pos());
+                    throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), arg.pos());
                 }
             }
             String canon = canon(f, in);
@@ -4318,7 +4318,7 @@ public final class SqlToPure {
         SqlAst.SortItem key = f.withinGroup().get(0);
         for (SqlAst.Expr a : List.of(f.args().get(0), key.expr())) {
             if (containsAggregate(a)) {
-                throw SqlTranslationException.invalid("aggregate function calls cannot be nested", a.pos());
+                throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), a.pos());
             }
         }
         SqlAst.Expr fraction = f.args().get(0);
@@ -4377,7 +4377,7 @@ public final class SqlToPure {
         List<Tx> pair = new ArrayList<>();
         for (SqlAst.Expr a : f.args()) {
             if (containsAggregate(a)) {
-                throw SqlTranslationException.invalid("aggregate function calls cannot be nested", a.pos());
+                throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), a.pos());
             }
             Tx t = tx(a, in, row);
             if (!t.kind().numeric()) {
@@ -4427,7 +4427,7 @@ public final class SqlToPure {
     private void orderedKeys(SqlAst.FunctionCall f, Input in) {
         for (SqlAst.SortItem o : f.orderBy()) {
             if (containsAggregate(o.expr())) {
-                throw SqlTranslationException.invalid("aggregate function calls cannot be nested", o.expr().pos());
+                throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), o.expr().pos());
             }
             if (f.distinct() && (f.args().size() != 1 || !canon(o.expr(), in).equals(canon(f.args().get(0), in)))) {
                 throw SqlTranslationException.invalid("in an aggregate with DISTINCT, ORDER BY expressions must"
@@ -4462,7 +4462,7 @@ public final class SqlToPure {
         List<Boolean> nullable = new ArrayList<>();
         for (SqlAst.Expr a : f.args()) {
             if (containsAggregate(a)) {
-                throw SqlTranslationException.invalid("aggregate function calls cannot be nested", a.pos());
+                throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), a.pos());
             }
             Tx t = tx(a, in, row);
             if (!t.kind().numeric()) {
@@ -4571,7 +4571,7 @@ public final class SqlToPure {
         }
         for (SqlAst.Expr a : f.args()) {
             if (containsAggregate(a)) {
-                throw SqlTranslationException.invalid("aggregate function calls cannot be nested", a.pos());
+                throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), a.pos());
             }
         }
         Tx value = tx(f.args().get(0), in, row);
@@ -5640,7 +5640,7 @@ public final class SqlToPure {
         if (isAggregate(f)) {
             String clause = scope.noAggregatesIn();
             throw SqlTranslationException.invalid(clause != null ? "aggregate functions are not allowed in " + clause
-                    : "aggregate function calls cannot be nested", f.pos());
+                    : dialect.message(Problem.NESTED_AGGREGATE), f.pos());
         }
         if (f.name().size() != 1) {
             throw SqlTranslationException.unsupported("schema-qualified function names are not supported yet",
