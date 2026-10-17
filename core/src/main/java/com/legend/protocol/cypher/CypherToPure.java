@@ -95,6 +95,15 @@ public final class CypherToPure {
          *  declaration order, each once. What {@code labels(n)} lists and a label predicate tests. */
         List<String> labels(String classPath);
 
+        /** The graph profile's marks on the property {@code property} of the class at {@code classPath} (declared
+         *  on it or inherited; the study's §12.64): {@code timeOfDay} (a DateTime holding the date-time at a time of
+         *  day on the epoch day, read as a time of day of nanosecond precision) and {@code nanoseconds} (a DateTime
+         *  of nanosecond precision, the store's TIMESTAMP_NS: its operations spelled over the nanosecond epoch).
+         *  None for a model without the profile. */
+        default List<String> marks(String classPath, String property) {
+            return List.of();
+        }
+
         /** Reports the relationships of the class at {@code classPath} read forward, to {@code sink}: its stored
          *  properties holding a class, and the associations whose first end is its (the end a relationship type
          *  names; the inverse end is the other class's); its superclasses' too. What an untyped relationship
@@ -200,7 +209,20 @@ public final class CypherToPure {
     }
 
     /** A property as the translator reads it, as the model reported it ({@link PropertySink}). */
-    private record Property(String name, String type, boolean classTyped, boolean enumTyped, int lower, int upper) {
+    private record Property(String name, String type, boolean classTyped, boolean enumTyped, int lower, int upper,
+            List<String> marks) {
+
+        /** Whether the property is marked {@code timeOfDay} (the study's §12.64: a DateTime holding the date-time
+         *  at a time of day on the epoch day, read as a time of day). */
+        boolean timeOfDay() {
+            return marks.contains("timeOfDay");
+        }
+
+        /** Whether its values are of nanosecond precision: marked {@code nanoseconds}, or a time of day (the
+         *  island carries a time of day finer than a TIME as the date-time at it on the epoch day). */
+        boolean nanos() {
+            return marks.contains("nanoseconds") || timeOfDay();
+        }
 
         /** Whether the property may hold more than one value. */
         boolean many() {
@@ -218,7 +240,7 @@ public final class CypherToPure {
     private List<Property> properties(String classPath) {
         List<Property> out = new ArrayList<>();
         model.properties(classPath, (n, type, classTyped, enumTyped, lower, upper) ->
-                out.add(new Property(n, type, classTyped, enumTyped, lower, upper)));
+                out.add(new Property(n, type, classTyped, enumTyped, lower, upper, model.marks(classPath, n))));
         return out;
     }
 
@@ -272,7 +294,7 @@ public final class CypherToPure {
                 for (NodeProp p : rel.props().values()) {
                     specs.add(new ColSpec(p.column(), lambda("r", new AppliedProperty(new Variable("r"), p.column())),
                             null, null));
-                    columns.add(new Col(p.column(), p.kind(), p.nullable()));
+                    columns.add(new Col(p.column(), p.kind(), p.nullable(), null, p.detail()));
                 }
                 for (String id : new String[] {rel.identity(), rel.source(), rel.target()}) {
                     if (id != null) {
@@ -304,7 +326,7 @@ public final class CypherToPure {
             for (NodeProp p : shape.props().values()) {
                 specs.add(new ColSpec(p.column(), lambda("r", new AppliedProperty(new Variable("r"), p.column())),
                         null, null));
-                columns.add(new Col(p.column(), p.kind(), p.nullable()));
+                columns.add(new Col(p.column(), p.kind(), p.nullable(), null, p.detail()));
             }
             if (shape.identity() != null) {
                 // its identity rides along (the study's §12.46)
@@ -436,8 +458,8 @@ public final class CypherToPure {
             ValueSpecification key = new CString("," + com.legend.json.Json.toCompact(p.getKey()) + ":");
             ValueSpecification piece = t.nullable()
                     ? call("if", call("isEmpty", v), thunk(new CString("")),
-                            thunk(plus(key, jsonText(call("toOne", v), t.kind(), p.getKey(), pos))))
-                    : plus(key, jsonText(v, t.kind(), p.getKey(), pos));
+                            thunk(plus(key, jsonText(call("toOne", v), t.kind(), nanos(t), p.getKey(), pos))))
+                    : plus(key, jsonText(v, t.kind(), nanos(t), p.getKey(), pos));
             text = text == null ? piece : plus(text, piece);
         }
         return text == null ? new CString("") : text;
@@ -446,7 +468,8 @@ public final class CypherToPure {
     /** A property value's JSON text, as the database spells it: a number's or a boolean's spelling (a whole float
      *  with its {@code .0}, which Postgres's text drops), a string in quotes with its quotes and backslashes
      *  escaped. */
-    private static ValueSpecification jsonText(ValueSpecification v, Kind kind, String name, Pos pos) {
+    private static ValueSpecification jsonText(ValueSpecification v, Kind kind, boolean nanos, String name,
+            Pos pos) {
         return switch (kind) {
             case INTEGER, WHOLE, BOOLEAN -> call("toString", v);
             case FLOAT, INEXACT, DECIMAL, NUMBER -> call("if", call("or", call("contains", call("toString", v),
@@ -459,8 +482,12 @@ public final class CypherToPure {
             case DATE -> plus(new CString("\"Date('"), call("toString", v), new CString("')\""));
             // a time of day as the oracle's spelling, Time('HH:mm:ss.f'), its text Neo4j's (the judge reads the
             // fraction's digits as a time, the study's §12.59)
-            case TIME -> plus(new CString("\"Time('"), temporalText(Tx.value(v, Kind.TIME, false), pos).vs(),
-                    new CString("')\""));
+            case TIME -> plus(new CString("\"Time('"), temporalText(withNanos(Tx.value(v, Kind.TIME, false), nanos),
+                    pos).vs(), new CString("')\""));
+            // a date-time as the oracle's spelling, DateTime('yyyy-MM-ddTHH:mm:ss.f'), its text Neo4j's (a
+            // nanosecond one's digits past the microsecond kept, the study's §12.64)
+            case DATETIME -> plus(new CString("\"DateTime('"), temporalText(withNanos(Tx.value(v, Kind.DATETIME,
+                    false), nanos), pos).vs(), new CString("')\""));
             // a stored duration as the oracle's spelling too, Duration('P...'), its text the island's (Neo4j's)
             case DURATION -> plus(new CString("\"Duration('"), durationText(Tx.value(v, Kind.DURATION, false)).vs(),
                     new CString("')\""));
@@ -474,7 +501,7 @@ public final class CypherToPure {
     private @com.legend.base.Nullable Property property(String classPath, String name) {
         Property[] found = new Property[1];
         model.property(classPath, name, (n, type, classTyped, enumTyped, lower, upper) ->
-                found[0] = new Property(n, type, classTyped, enumTyped, lower, upper));
+                found[0] = new Property(n, type, classTyped, enumTyped, lower, upper, model.marks(classPath, n)));
         return found[0];
     }
 
@@ -483,7 +510,7 @@ public final class CypherToPure {
     private @com.legend.base.Nullable Property inverse(String classPath, String propertyName) {
         Property[] found = new Property[1];
         model.inverse(classPath, propertyName, (n, type, classTyped, enumTyped, lower, upper) ->
-                found[0] = new Property(n, type, classTyped, enumTyped, lower, upper));
+                found[0] = new Property(n, type, classTyped, enumTyped, lower, upper, List.of()));
         return found[0];
     }
 
@@ -1995,9 +2022,10 @@ public final class CypherToPure {
                         ? SqlToPure.valueOf(asVariant(columnLike(read, np.kind(), np.nullable()), pos)) : read;
                 boolean nullable = np == null || np.nullable() || every.size() > 1;
                 computed.add(new ColSpec(column, lambda(row, value), null, null));
-                columns.add(new Col(column, k.getValue(), nullable));
+                columns.add(new Col(column, k.getValue(), nullable, null, np == null ? null : np.detail()));
                 selected.add(new ColSpec(column, null, null, null));
-                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, np == null || np.absent()));
+                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, np == null || np.absent(),
+                        np != null && np.nanos()));
             }
             if (c.detail() instanceof NodeShape n) {
                 if (n.identity() == null) {
@@ -2452,7 +2480,7 @@ public final class CypherToPure {
     private List<Property> ends(String classPath) {
         List<Property> out = new ArrayList<>();
         model.ends(classPath, (n, type, classTyped, enumTyped, lower, upper) ->
-                out.add(new Property(n, type, classTyped, enumTyped, lower, upper)));
+                out.add(new Property(n, type, classTyped, enumTyped, lower, upper, List.of())));
         return out;
     }
 
@@ -5742,9 +5770,10 @@ public final class CypherToPure {
         } else if (arg.nullable()) {
             ValueSpecification v = SqlToPure.valueOf(arg);
             piece = Tx.value(call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.STRING).vs()),
-                    thunk(jsonText(call("toOne", v), arg.kind(), "collect", pos))), Kind.STRING, true);
+                    thunk(jsonText(call("toOne", v), arg.kind(), nanos(arg), "collect", pos))), Kind.STRING, true);
         } else {
-            piece = Tx.value(jsonText(SqlToPure.valueOf(arg), arg.kind(), "collect", pos), Kind.STRING, false);
+            piece = Tx.value(jsonText(SqlToPure.valueOf(arg), arg.kind(), nanos(arg), "collect", pos), Kind.STRING,
+                    false);
         }
         // collect(DISTINCT x): the distinct texts joined, in the database's order (Neo4j's is the encounter
         // order, which the TCK reads ignoring the elements' order; the register's S78) -- tried and withdrawn in
@@ -6171,7 +6200,7 @@ public final class CypherToPure {
             for (String other : g.candidates()) {
                 Property elsewhere = CypherToPure.this.property(other, name);
                 if (elsewhere != null && !elsewhere.classTyped() && !elsewhere.enumTyped() && !elsewhere.many()) {
-                    return SqlToPure.nullOf(kindOf(elsewhere.type(), name, pos));
+                    return nullOfStored(kindOf(elsewhere, pos), elsewhere.nanos());
                 }
             }
             return SqlToPure.nullOf(Kind.NULL);
@@ -6264,9 +6293,11 @@ public final class CypherToPure {
                 Map<String, NodeProp> props = new LinkedHashMap<>();
                 for (Map.Entry<String, Kind> k : unionKinds(acrossArms, pos).entrySet()) {
                     String column = freshName(names);
-                    specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.nullOf(k.getValue()).vs()), null, null));
-                    columns.add(new Col(column, k.getValue(), true));
-                    props.put(k.getKey(), new NodeProp(column, k.getValue(), true, true));
+                    boolean nanos = CypherToPure.this.nanosDeclared(k.getKey(), acrossArms);
+                    specs.add(new ColSpec(column, lambda(g.row(), nullOfStored(k.getValue(), nanos).vs()), null,
+                            null));
+                    columns.add(new Col(column, k.getValue(), true, null, nanos ? new Carried(null, true) : null));
+                    props.put(k.getKey(), new NodeProp(column, k.getValue(), true, true, nanos));
                 }
                 // its identity: null too (the column the node has in the other arms)
                 String identity = freshName(names);
@@ -6295,12 +6326,13 @@ public final class CypherToPure {
             for (Map.Entry<String, Kind> k : kinds.entrySet()) {
                 String column = freshName(names);
                 boolean lacks = CypherToPure.this.property(cls, k.getKey()) == null;
-                Tx t = lacks ? SqlToPure.nullOf(k.getValue())
+                boolean nanos = CypherToPure.this.nanosDeclared(k.getKey(), classes);
+                Tx t = lacks ? nullOfStored(k.getValue(), nanos)
                         : asKind(propertyOf(b, k.getKey(), pos), k.getValue(), pos);
                 boolean nullable = classes.size() > 1 || t.nullable() || optional;
                 specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
-                columns.add(new Col(column, k.getValue(), nullable));
-                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, lacks));
+                columns.add(new Col(column, k.getValue(), nullable, null, nanos ? new Carried(null, true) : null));
+                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, lacks, nanos));
             }
             // its identity (the study's §12.46), carried beside its properties
             Tx id = java.util.Objects.requireNonNull(identityOf(b));
@@ -6357,12 +6389,14 @@ public final class CypherToPure {
                 for (Map.Entry<String, Kind> k : unionKinds(classes, pos).entrySet()) {
                     String col = freshName(names);
                     boolean lacks = edge == null || CypherToPure.this.property(edge, k.getKey()) == null;
-                    Tx t = lacks ? SqlToPure.nullOf(k.getValue())
+                    boolean nanos = CypherToPure.this.nanosDeclared(k.getKey(), classes);
+                    Tx t = lacks ? nullOfStored(k.getValue(), nanos)
                             : asKind(propertyOf(b, k.getKey(), pos), k.getValue(), pos);
                     boolean nullableHere = classes.size() > 1 || t.nullable() || nullable;
                     specs.add(new ColSpec(col, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
-                    columns.add(new Col(col, k.getValue(), nullableHere));
-                    props.put(k.getKey(), new NodeProp(col, k.getValue(), nullableHere, lacks));
+                    columns.add(new Col(col, k.getValue(), nullableHere, null, nanos ? new Carried(null, true)
+                            : null));
+                    props.put(k.getKey(), new NodeProp(col, k.getValue(), nullableHere, lacks, nanos));
                 }
             }
             String identity = null;
@@ -6444,8 +6478,15 @@ public final class CypherToPure {
                     if (p.classTyped() && !duration || p.enumTyped() || p.many()) {
                         continue;
                     }
-                    Kind kind = duration ? Kind.DURATION : kindOf(p.type(), p.name(), pos);
+                    Kind kind = duration ? Kind.DURATION : kindOf(p, pos);
                     Kind before = kinds.putIfAbsent(p.name(), kind);
+                    if (before != null && before == kind && nanosDeclared(p.name(), classes) != p.nanos()) {
+                        // a time of day or date-time of two precisions across the classes (the study's §12.64):
+                        // the nanosecond one is the date-time at it, the other a TIME or a microsecond value
+                        throw CypherErrors.unsupported("the property " + p.name() + " of nanosecond precision on"
+                                + " some of the classes a label-less node reads and not on others is not supported"
+                                + " yet", pos);
+                    }
                     if (before != null && before != kind) {
                         // typed two ways across the classes (the study's §12.62): a Variant, each class's value as
                         // the database spells it, where both kinds are a Variant's
@@ -6509,7 +6550,7 @@ public final class CypherToPure {
                 // the property is where a class declares it
                 Kind elsewhere = b.node() ? candidateKind(name, null, b.path().isEmpty(), pos) : null;
                 if (elsewhere != null) {
-                    return SqlToPure.nullOf(elsewhere);
+                    return nullOfStored(elsewhere, CypherToPure.this.nanosDeclared(name, g.candidates()));
                 }
                 if (open) {
                     // an open graph (the study's §12.45): a property no class declares is Neo4j's null
@@ -6535,7 +6576,7 @@ public final class CypherToPure {
             }
             // a stored duration: an embedded instance of the model's Duration class (the study's §12.59), read as
             // the island carries a duration (an instance with the four slots)
-            Kind kind = duration ? Kind.DURATION : kindOf(prop.type(), name, pos);
+            Kind kind = duration ? Kind.DURATION : kindOf(prop, pos);
             List<String> path = new ArrayList<>(b.path());
             path.add(name);
             ValueSpecification v = duration ? CypherToPure.this.storedDuration(prop.type(), navigate(g.row(), path))
@@ -6546,7 +6587,8 @@ public final class CypherToPure {
                 v = call("if", absent(b), thunk(SqlToPure.nullOf(kind).vs()), thunk(v));
                 nullable = true;
             }
-            Tx own = columnLike(v, kind, nullable);
+            // (a nanosecond time of day or date-time, the study's §12.64: the column's value marked as one)
+            Tx own = withNanos(columnLike(v, kind, nullable), prop.nanos());
             // typed two ways across the classes a label-less root may be (the study's §12.62): the class's own
             // value as a Variant, so the arms agree
             return b.node() && b.path().isEmpty() && candidateKind(name, kind, true, pos) == Kind.JSON
@@ -6570,7 +6612,7 @@ public final class CypherToPure {
                 if (p.classTyped() && !duration) {
                     continue;
                 }
-                Kind k = duration ? Kind.DURATION : kindOf(p.type(), name, pos);
+                Kind k = duration ? Kind.DURATION : kindOf(p, pos);
                 if (found == null) {
                     found = k;
                     if (!union) {
@@ -6828,14 +6870,14 @@ public final class CypherToPure {
             List<Map.Entry<String, Tx>> props = new ArrayList<>();
             for (Map.Entry<String, NodeProp> p : shape.props().entrySet()) {
                 NodeProp np = p.getValue();
-                props.add(Map.entry(p.getKey(), columnLike(new AppliedProperty(new Variable(row()), np.column()),
-                        np.kind(), np.nullable())));
+                props.add(Map.entry(p.getKey(), withNanos(columnLike(new AppliedProperty(new Variable(row()),
+                        np.column()), np.kind(), np.nullable()), np.nanos())));
             }
             Col type = java.util.Objects.requireNonNull(column(shape.type()));
             ValueSpecification read = new AppliedProperty(new Variable(row()), shape.type());
             // its identity: an edge class's relationship carries its column (the study's §12.46); one over a
             // property or an association the pair of its ends' (S74)
-            return NodeParts.rel(jsonText(call("toOne", read), Kind.STRING, shape.type(), pos), props,
+            return NodeParts.rel(jsonText(call("toOne", read), Kind.STRING, false, shape.type(), pos), props,
                     type.nullable() ? call("isEmpty", read) : null, relIdentity(shape));
         }
 
@@ -6868,8 +6910,8 @@ public final class CypherToPure {
             List<Map.Entry<String, Tx>> props = new ArrayList<>();
             for (Map.Entry<String, NodeProp> p : shape.props().entrySet()) {
                 NodeProp np = p.getValue();
-                props.add(Map.entry(p.getKey(), columnLike(new AppliedProperty(new Variable(row()), np.column()),
-                        np.kind(), np.nullable())));
+                props.add(Map.entry(p.getKey(), withNanos(columnLike(new AppliedProperty(new Variable(row()),
+                        np.column()), np.kind(), np.nullable()), np.nanos())));
             }
             Col labels = java.util.Objects.requireNonNull(column(shape.labels()));
             ValueSpecification read = new AppliedProperty(new Variable(row()), shape.labels());
@@ -6942,10 +6984,10 @@ public final class CypherToPure {
                 }
                 if (np.absent()) {
                     // (the class this arm reads lacks it: the known null, which a comparison folds)
-                    return scalar(SqlToPure.nullOf(np.kind()));
+                    return scalar(nullOfStored(np.kind(), np.nanos()));
                 }
-                return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
-                        np.nullable()));
+                return scalar(withNanos(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
+                        np.nullable()), np.nanos()));
             }
             if (found.detail() instanceof RelShape rel) {
                 // a carried relationship's property: its edge class's column (the study's §5.6); of a relationship
@@ -7028,6 +7070,40 @@ public final class CypherToPure {
     /** A column's or a lambda parameter's value: a boolean one is a condition. */
     private static Tx columnLike(ValueSpecification v, Kind kind, boolean nullable) {
         return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(v, nullable) : Tx.value(v, kind, nullable);
+    }
+
+    /** A stored property's kind: a time of day under its mark (the study's §12.64: a DateTime, the date-time at
+     *  the time of day on the epoch day), else its type's. */
+    private static Kind kindOf(Property p, Pos pos) {
+        if (p.timeOfDay()) {
+            if (!p.type().equals("DateTime")) {
+                throw CypherErrors.invalid("the property " + p.name() + " is marked timeOfDay but is of type "
+                        + p.type() + " (the mark takes a DateTime: the date-time at the time of day on the epoch"
+                        + " day)", pos);
+            }
+            return Kind.TIME;
+        }
+        return kindOf(p.type(), p.name(), pos);
+    }
+
+    /** A typed null of a stored property's kind: of a nanosecond time of day, the DateTime null (its value is the
+     *  date-time at it on the epoch day), marked as one; else the kind's. */
+    private static Tx nullOfStored(Kind kind, boolean nanos) {
+        Tx n = SqlToPure.nullOf(nanos && kind == Kind.TIME ? Kind.DATETIME : kind);
+        return nanos ? new Tx(n.vs(), kind, n.nullable(), n.whenFalse(), new Carried(null, true), n.guard(), n.body())
+                : n;
+    }
+
+    /** Whether the property {@code name} is of nanosecond precision on the classes declaring it (the study's
+     *  §12.64; a precision differing across them is refused by {@link GraphScope#unionKinds}). */
+    private boolean nanosDeclared(String name, List<String> classes) {
+        for (String c : classes) {
+            Property p = property(c, name);
+            if (p != null && p.nanos()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A Pure primitive's kind, as the translator reasons about a value. */
@@ -8913,7 +8989,7 @@ public final class CypherToPure {
         ValueSpecification value = SqlToPure.valueOf(t);
         ValueSpecification one = t.nullable() ? call("toOne", value) : value;
         ValueSpecification text = t.kind() == Kind.JSON ? call("toString", one)
-                : jsonText(one, t.kind(), "the element", pos);
+                : jsonText(one, t.kind(), nanos(t), "the element", pos);
         return t.nullable() ? call("if", call("isEmpty", value), thunk(new CString("null")), thunk(text)) : text;
     }
 
@@ -10473,9 +10549,18 @@ public final class CypherToPure {
      *  where the column holds the other arms' values). A property map or a WHERE read within the arm compares the
      *  property as the known null it is (the comparison folds to null, as a label-less node's own does), never the
      *  column: Postgres types a null constant navigated to one as text. */
-    private record NodeProp(String column, Kind kind, boolean nullable, boolean absent) {
+    private record NodeProp(String column, Kind kind, boolean nullable, boolean absent, boolean nanos) {
         NodeProp(String column, Kind kind, boolean nullable) {
-            this(column, kind, nullable, false);
+            this(column, kind, nullable, false, false);
+        }
+
+        NodeProp(String column, Kind kind, boolean nullable, boolean absent) {
+            this(column, kind, nullable, absent, false);
+        }
+
+        /** The column's type detail: a nanosecond value's mark (the study's §12.64), else none. */
+        com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail() {
+            return nanos ? new Carried(null, true) : null;
         }
     }
 

@@ -4405,3 +4405,67 @@ The 16 cases of `lite/varkinds.yaml`: 15 on DuckDB, 15 on Postgres in agreement 
 scenarios BOTH_ERROR, the reading ones PASS). No TCK row moves: the 250 error scenarios of Match1/[7]-[11], Match2/[9]-[13]
 and Match6/[21]-[25] agreed by the refusal and agree by the error. TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK
 rows) DuckDB 3446 → 3446, Postgres 3084 → 3084.
+
+### 12.64 Stored nanosecond times and date-times: a TIMESTAMP_NS column under the profile's marks (W5 leg 2a, 2026-10-17)
+
+Neo4j's temporals are nanosecond values, and the TCK stores them: `localtime({..., nanosecond: 645876123})` and
+`localdatetime({..., nanosecond: 645876123})` as node properties (WithOrderBy1/[35], [36], WithOrderBy2/[13], [14],
+Temporal5/[3], [5]: ordering, fields, arithmetic over them). The island already carries such values when it computes
+them (§12.12: the database's TIMESTAMP_NS, a time of day as the date-time at it on the epoch day, every operation
+spelled over the nanosecond epoch); the STORE had no column for them (a TIME column keeps microseconds, as a
+TIMESTAMP does), so the harness skipped the scenarios by name.
+
+- **The column: `TIMESTAMP_NS`**, lite's extension of the `###Relational` grammar as `TIME` was (§12.59, S64): a
+  date-time of nanosecond precision (`RelationalDataType.TimestampNs`; the parser, the protocol and the composer,
+  the store compiler typing it DateTime, the DDL kind spelled by DuckDB as `TIMESTAMP_NS`, by H2 and Trino as
+  `TIMESTAMP(9)`, by Snowflake as `TIMESTAMP_NTZ(9)`, by ClickHouse as `DateTime64(9)`, by SQLite as text; refused
+  by name on Postgres, MariaDB, BigQuery and Databricks, whose timestamps keep microseconds; the metamodel's datatype
+  class, the plan's and the precise types' spellings, the data generator's literal).
+- **The marks: `timeOfDay` and `nanoseconds`** (the graph profile's seventh and eighth stereotypes, on a DateTime
+  property; `GraphEdges.STEREOTYPES` moved with this leg). Pure's DateTime names no precision and no shape: the
+  island cannot tell from the type that a column holds nanoseconds, nor that it holds a time of day (its own
+  carriage of one finer than a TIME column is the date-time at it on the epoch day), and the translator reads the
+  model, never the mapping (the column type is the store's). The marks say it: `nanoseconds` reads the property's
+  values at nanosecond precision (the §12.12 operations), `timeOfDay` reads a DateTime as a time of day of that
+  precision (its fields and comparisons the nanosecond ones, its node-value text `Time('...')`). The mark is the
+  declaration the §3.1 decision 4 of the plan foresaw (`graph.timeOfDay`), the column type the one the W5 plan named.
+- **The island** (`Model.marks`, the `Property` record's marks, `kindOf(Property)`, `nullOfStored`,
+  `nanosDeclared`): a marked property's value is marked nanosecond as it is read (`propertyOf`), carried through a
+  projection marked (`NodeProp.nanos`, the carried column's detail), its typed null the DateTime null marked (a
+  class the arms read that lacks it; a StrictTime null would not unite with the DateTime column); a property of
+  nanosecond precision on some of the classes a label-less node reads and not on others is refused by name (the
+  harness never makes one: below). A node's value spells a stored date-time too (`DateTime('...')`, the oracle's
+  spelling, which no node value spelled before: a stored date-time property in a returned node was refused by name).
+- **The harness** (`CypherGraph`, `SqlParity.seed`): a property NAME's precision is the finest the graph holds under
+  it (a time or date-time with digits past the microsecond on any node or relationship makes every class's property
+  of that name a nanosecond one), so a label-less read unites columns of one kind; such a property is declared
+  `<<graph::graph.timeOfDay, graph::graph.nanoseconds>> time: DateTime[0..1]` (a time of day) or
+  `<<graph::graph.nanoseconds>> datetime: DateTime[0..1]` over a `TIMESTAMP_NS` column, its cell the value's full
+  text (a time on the epoch day), which the seed casts to the column (`CAST(? AS TIMESTAMP_NS)`: the driver's
+  timestamp keeps microseconds, measured). On the Postgres lane the seed refuses the column by name (the dialect's
+  own refusal, as its DDL's), which the lane records as REFUSED. A nanosecond date-time whose year is outside 1678 to
+  2261 (the database's nanosecond range, §12.12; the TCK's year-1 and year-9999 values) stays the harness's skip,
+  named: WithOrderBy1/[39]-[42], WithOrderBy2/[17]-[20] (20 rows) hold one each.
+- **Compare, never compute**: the harness types by the values' digits; the island reads marks and spells
+  operations; the database holds and computes the nanoseconds.
+- **Pinned.** `lite/stored.yaml` grows 9 cases judged by Neo4j (a nanosecond time ordered and read,
+  its fields and text, plus a duration, as a node's value, compared, absent on a class of a label-less read; a
+  nanosecond date-time's fields, ordered, truncated and moved, as a node's value and text);
+  `CypherToPureTest.aMarkedDateTimeIsANanosecondTimeOfDayOrDateTime` pins the island's read of the marks;
+  `GraphEdgesTest` and `CypherIslandIntegrationTest` the profile's eight stereotypes; `TypeSpellingParityTest` the
+  column type's two spellings.
+- **Still refused or skipped, by name.** A stored zoned time or date-time (its offset a column beside the value:
+  leg 2b, the island's Zone carrying a column); the year-1 and year-9999 nanosecond date-times (above); Temporal5/[6]'s
+  named zone.
+
+#### 12.64.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4759 | 3556 (from 3,535) | 0 | 0 | 0 | 388 (from 388) | 746 (from 746) | 69 (from 81) |
+| Postgres | 4759 | 3162 (from 3,162) | 0 | 0 | 0 | 782 (from 761) | 746 (from 746) | 69 (from 81) |
+
+The 9 new cases of `lite/stored.yaml`: 9 PASS on DuckDB, 9 REFUSED on Postgres (the TIMESTAMP_NS column, the dialect's
+refusal). The TCK's stored nanosecond local times and date-times: WithOrderBy1/[35], [36], WithOrderBy2/[13], [14], Temporal5/[3], [5]
+SKIP → PASS on DuckDB (REFUSED on Postgres); WithOrderBy1/[39]-[42], WithOrderBy2/[17]-[20] SKIP, named (a year outside 1678 to 2261). TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK
+rows) DuckDB 3446 → 3458, Postgres 3084 → 3084.

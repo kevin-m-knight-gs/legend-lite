@@ -9932,6 +9932,31 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the sixty-second landing — stored nanosecond times and date-times (W5 leg 2a)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5, leg 2a); the record is the study's §12.64. A
+`TIMESTAMP_NS` column type (lite's extension of the relational grammar, as `TIME` was), the graph profile's
+`timeOfDay` and `nanoseconds` marks on a DateTime property, the harness declaring and seeding them, the island
+reading a marked property as its nanosecond time of day or date-time.
+
+1. **What lands.** WithOrderBy1/[35], [36] (a nanosecond local time projected from a property, ordered), WithOrderBy2/[13],
+   [14] (ordered by the time plus a duration), Temporal5/[3], [5] (a nanosecond time's and date-time's accessors) on
+   DuckDB, REFUSED on Postgres; the 9 new cases of `lite/stored.yaml`; DuckDB PASS 3,535 → 3556, Postgres 3,162 → 3162; TCK agreement DuckDB
+   3446 → 3458, Postgres 3084 → 3084.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3556 / REFUSED 388 / BOTH_ERROR
+   746 / SKIP 69; Postgres PASS 3162 / REFUSED 782 / BOTH_ERROR 746 / SKIP
+   69, of 4759 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest.aMarkedDateTimeIsANanosecondTimeOfDayOrDateTime` pins the island's read of the
+   marks (the nanosecond field, a comparison with a time, toString of a nanosecond date-time, the node's value);
+   `GraphEdgesTest`, `CypherIslandIntegrationTest` and the showcase models pin the profile's eight stereotypes
+   (`GraphEdges.STEREOTYPES` moved with this leg, dated); `TypeSpellingParityTest` the column type's spellings;
+   `LowerRelationTest` unchanged. The DDL arms of every dialect spell or refuse the new kind (javac's
+   exhaustiveness, invariant 3).
+4. **Refused by name, recorded.** A stored zoned time or date-time (leg 2b); a nanosecond date-time of a year
+   outside 1678 to 2261 (the harness's skip, named); the Postgres lane's TIMESTAMP_NS column (the dialect's refusal,
+   REFUSED).
+
 ## 2026-10-17 — `#Cypher{...}#`: the sixty-first landing — the static variable errors before any clause (W10 leg 1)
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, leg 1); the record is the study's §12.63. Neo4j's

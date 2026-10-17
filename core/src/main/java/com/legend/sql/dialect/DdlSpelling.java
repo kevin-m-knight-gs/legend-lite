@@ -52,6 +52,7 @@ public final class DdlSpelling {
                 case TIMESTAMP -> "TIMESTAMP";
                 case DATE -> "DATE";
                 case TIME -> "TIME";
+                case TIMESTAMP_NS -> "TIMESTAMP_NS";
                 case JSON -> "JSON";
                 case VARCHAR -> "VARCHAR";
                 case OTHER -> "OTHER";

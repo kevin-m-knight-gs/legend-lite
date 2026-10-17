@@ -199,6 +199,14 @@ the Quantifier9-12 cases now stop at the Variant list comprehension (W12).
   island's own instance, the whole days of a duration's seconds when it moves a date. Leg 2: a `TIMESTAMP_NS`
   column (DuckDB; the TCK's stored times and date-times are nanosecond ones: 22 + 11 cases) and the offset column
   beside a stored zoned value (the island's Zone carrying a column, not a literal).
+- Leg 2a LANDED 2026-10-17 (the study's §12.64, GATES' sixty-second landing; TCK agreement DuckDB 3446 → 3458, Postgres 3084 → 3084; DuckDB PASS 3,535 → 3556, Postgres 3,162 → 3162): the `TIMESTAMP_NS`
+  column type (DuckDB spells it; a microsecond engine refuses by name, the Postgres lane REFUSED), the graph
+  profile's `timeOfDay` and `nanoseconds` marks on a DateTime property (the declaration decision 4 foresaw), the
+  harness declaring a property name's finest precision under them and seeding the text through a cast, the island
+  reading a marked property as its nanosecond time of day or date-time; the stored nanosecond local times and
+  date-times of WithOrderBy1/[35], [36], WithOrderBy2/[13], [14], Temporal5/[3], [5]. Still open: leg 2b, the
+  offset column beside a stored zoned value; the year-1 and year-9999 nanosecond date-times (WithOrderBy1/[39]-[42],
+  WithOrderBy2/[17]-[20]) are outside the database's nanosecond range (the harness skips them by name).
 
 ### W6. Nodes with several labels
 

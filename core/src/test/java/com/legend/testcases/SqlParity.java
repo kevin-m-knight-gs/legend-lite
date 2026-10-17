@@ -172,6 +172,12 @@ public final class SqlParity {
             StringBuilder ddl = new StringBuilder("CREATE TABLE " + t.name() + " (");
             for (int i = 0; i < t.columns().size(); i++) {
                 Column col = t.columns().get(i);
+                if (postgres && col.type().equalsIgnoreCase("TIMESTAMP_NS")) {
+                    // the dialect's own refusal (Postgres.ddlType): a nanosecond timestamp column on an engine whose
+                    // timestamps keep microseconds (the Cypher island's stored nanosecond values, 2026-10-17)
+                    throw new com.legend.sql.dialect.DialectCapability("a TIMESTAMP_NS column: Postgres keeps"
+                            + " microseconds");
+                }
                 String type = !postgres && col.type().equalsIgnoreCase("JSONB") ? "JSON" : col.type();
                 ddl.append(i > 0 ? ", " : "").append(col.name()).append(' ').append(type);
             }
@@ -182,7 +188,13 @@ public final class SqlParity {
             if (t.rows().isEmpty()) {
                 continue;
             }
-            String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
+            // (a TIMESTAMP_NS column takes its value's text, cast by the database: the driver's timestamp keeps
+            // microseconds; the Cypher island's stored nanosecond values, 2026-10-17)
+            List<String> places = new ArrayList<>();
+            for (Column col : t.columns()) {
+                places.add(col.type().equalsIgnoreCase("TIMESTAMP_NS") ? "CAST(? AS TIMESTAMP_NS)" : "?");
+            }
+            String marks = String.join(", ", places);
             try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + t.name() + " VALUES (" + marks + ")")) {
                 for (List<Object> row : t.rows()) {
                     for (int i = 0; i < row.size(); i++) {
@@ -210,6 +222,9 @@ public final class SqlParity {
             ps.setBoolean(i, b);
         } else if (type.contains("DATE") && !type.contains("TIMESTAMP")) {
             ps.setDate(i, java.sql.Date.valueOf(val.toString()));
+        } else if (type.equals("TIMESTAMP_NS")) {
+            // its text, cast by the database (seed)
+            ps.setString(i, val.toString());
         } else if (type.contains("TIMESTAMP")) {
             ps.setTimestamp(i, java.sql.Timestamp.valueOf(val.toString()));
         } else if (type.contains("TIME")) {

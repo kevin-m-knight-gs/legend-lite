@@ -33,6 +33,7 @@ public final class PreciseTypes {
             case RelationalDataType.Timestamp ignored -> PP + "Timestamp";
             case RelationalDataType.Date_ ignored -> "StrictDate";
             case RelationalDataType.Time ignored -> "StrictTime";
+            case RelationalDataType.TimestampNs ignored -> PP + "Timestamp";
             case RelationalDataType.BigInt ignored -> PP + "BigInt";
             case RelationalDataType.SmallInt ignored -> PP + "SmallInt";
             case RelationalDataType.TinyInt ignored -> PP + "TinyInt";

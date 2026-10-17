@@ -343,6 +343,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                 case TIMESTAMP -> "TIMESTAMP";
                 case DATE -> "DATE";
                 case TIME -> "TIME";
+                case TIMESTAMP_NS -> "TIMESTAMP_NS";
                 case JSON -> "JSON";
                 case VARCHAR -> "VARCHAR";
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());

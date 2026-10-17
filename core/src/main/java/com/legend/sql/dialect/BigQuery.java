@@ -2903,7 +2903,8 @@ public final class BigQuery extends AnsiSqlRenderer {
                 case TIME -> "TIME";
                 case JSON -> "JSON";
                 case VARCHAR -> "STRING";
-                case OTHER, DISTINCT, ARRAY, OBJECT -> throw new DialectCapability("a " + p.kind()
+                // a nanosecond timestamp column: BigQuery's DATETIME keeps microseconds
+                case TIMESTAMP_NS, OTHER, DISTINCT, ARRAY, OBJECT -> throw new DialectCapability("a " + p.kind()
                         + " column reached BigQuery's DDL");
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> z.kind().toUpperCase(Locale.ROOT).contains("BINARY")

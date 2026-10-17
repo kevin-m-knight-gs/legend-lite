@@ -3379,6 +3379,8 @@ public class MariaDb extends AnsiSqlRenderer {
                 case TIMESTAMP -> "DATETIME(6)";
                 case DATE -> "DATE";
                 case TIME -> "TIME(6)";
+                // a nanosecond timestamp column: MariaDB's DATETIME keeps microseconds
+                case TIMESTAMP_NS -> throw new DialectCapability("a TIMESTAMP_NS column: MariaDB keeps microseconds");
                 case JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT -> "LONGTEXT";
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> z.kind().toUpperCase(Locale.ROOT).contains("BINARY")

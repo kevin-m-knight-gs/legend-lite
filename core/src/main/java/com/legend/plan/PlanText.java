@@ -1094,6 +1094,7 @@ public final class PlanText {
             case RelationalDataType.Timestamp ignored -> "TIMESTAMP";
             case RelationalDataType.Date_ ignored -> "DATE";
             case RelationalDataType.Time ignored -> "TIME";
+            case RelationalDataType.TimestampNs ignored -> "TIMESTAMP_NS";
             case RelationalDataType.Bit ignored -> "BIT";
             // Pending spellings — EXPLICIT so a new variant is a compile
             // error here, not a runtime surprise (T3.1).

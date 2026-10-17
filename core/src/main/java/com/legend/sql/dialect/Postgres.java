@@ -1179,7 +1179,7 @@ public final class Postgres extends AnsiSqlRenderer {
                 case JSON -> JsonbRead.CAST;
                 case ARRAY, OBJECT -> JsonbRead.CONVERT;
                 case BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE, TIME,
-                        VARCHAR, OTHER, DISTINCT -> JsonbRead.NONE;
+                        TIMESTAMP_NS, VARCHAR, OTHER, DISTINCT -> JsonbRead.NONE;
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized ignored -> JsonbRead.NONE;
             case com.legend.sql.SqlDdl.ColumnType.Scaled ignored -> JsonbRead.NONE;
@@ -2336,6 +2336,8 @@ public final class Postgres extends AnsiSqlRenderer {
                 case TIMESTAMP -> "TIMESTAMP";
                 case DATE -> "DATE";
                 case TIME -> "TIME";
+                // a nanosecond timestamp column: Postgres's timestamps keep microseconds (the nanosecond leg's wall)
+                case TIMESTAMP_NS -> throw new DialectCapability("a TIMESTAMP_NS column: Postgres keeps microseconds");
                 case JSON -> "JSONB";
                 case VARCHAR -> "VARCHAR";
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());

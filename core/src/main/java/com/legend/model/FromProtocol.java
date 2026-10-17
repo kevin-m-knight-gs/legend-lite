@@ -320,6 +320,7 @@ public final class FromProtocol {
             case "Bit" -> new RelationalDataType.Bit();
             case "Timestamp" -> new RelationalDataType.Timestamp();
             case "Time" -> new RelationalDataType.Time();
+            case "TimestampNs" -> new RelationalDataType.TimestampNs();
             case "Date" -> new RelationalDataType.Date_();
             case "Distinct" -> new RelationalDataType.Distinct();
             case "Other" -> new RelationalDataType.Other();

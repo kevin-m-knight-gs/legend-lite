@@ -811,8 +811,9 @@ public final class Databricks extends AnsiSqlRenderer {
                 case DATE -> "DATE";
                 case JSON -> "JSON";
                 case VARCHAR -> "STRING";
-                // a time of day: Databricks has no TIME type (the TIME scalar's own wall)
-                case TIME, OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
+                // a time of day: Databricks has no TIME type (the TIME scalar's own wall); a nanosecond timestamp: its
+                // TIMESTAMP keeps microseconds
+                case TIME, TIMESTAMP_NS, OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
             case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);

@@ -137,7 +137,8 @@ public final class CypherGraph {
     private static final String RELATIONSHIP_TYPE = "g::RelationshipType";
 
     /** The property-graph profile, as projects/graph/model.pure declares it (inlined: the model is one text). */
-    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Anonymous, Edge, Open, from, to, type];\n}\n";
+    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Anonymous, Edge, Open, from, to, type,"
+            + " nanoseconds, timeOfDay];\n}\n";
 
     public static Inferred infer(CypherAnswers.Graph g) throws Unsupported {
         Map<String, Cls> classes = new TreeMap<>();
@@ -153,6 +154,24 @@ public final class CypherGraph {
             labels.addAll(n.labels());
             if (n.labels().size() > 1) {
                 amongOthers.addAll(n.labels());
+            }
+        }
+        // a property name's precision is the finest the graph holds under it (the study's §12.64): a time of day or
+        // date-time with sub-microsecond digits on any node or relationship makes every class's property of that
+        // name a nanosecond one (a TIMESTAMP_NS column under the profile's marks), so a label-less read unites them
+        Set<String> nanoNames = new HashSet<>();
+        for (CypherAnswers.GraphNode n : g.nodes()) {
+            for (Map.Entry<String, String> p : n.props().entrySet()) {
+                if (subMicro(p.getValue())) {
+                    nanoNames.add(p.getKey());
+                }
+            }
+        }
+        for (CypherAnswers.GraphRel r : g.rels()) {
+            for (Map.Entry<String, String> p : r.props().entrySet()) {
+                if (subMicro(p.getValue())) {
+                    nanoNames.add(p.getKey());
+                }
             }
         }
         for (CypherAnswers.GraphNode n : g.nodes()) {
@@ -182,7 +201,7 @@ public final class CypherGraph {
                 if (!IDENTIFIER.matcher(p.getKey()).matches()) {
                     throw new Unsupported("harness: the property " + p.getKey() + " is not a Pure identifier");
                 }
-                String type = typeOf(p.getValue(), p.getKey());
+                String type = typeOf(p.getValue(), p.getKey(), nanoNames.contains(p.getKey()));
                 c.propertyTypes.put(p.getKey(), merged(c.propertyTypes.get(p.getKey()), type, c.name + "."
                         + p.getKey()));
             }
@@ -220,7 +239,7 @@ public final class CypherGraph {
                     throw new Unsupported("harness: the relationship property " + p.getKey() + " is named as the"
                             + " edge class's end or type");
                 }
-                String type = typeOf(p.getValue(), p.getKey());
+                String type = typeOf(p.getValue(), p.getKey(), nanoNames.contains(p.getKey()));
                 t.propertyTypes.put(p.getKey(), merged(t.propertyTypes.get(p.getKey()), type, r.type() + "."
                         + p.getKey()));
             }
@@ -307,7 +326,8 @@ public final class CypherGraph {
                 List<String> propertyMappings = new ArrayList<>();
                 for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
                     String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
-                    edgeClasses.append("    ").append(p.getKey()).append(": ").append(p.getValue()).append("[0..1];\n");
+                    edgeClasses.append("    ").append(marks(p.getValue())).append(p.getKey()).append(": ")
+                            .append(declaredType(p.getValue())).append("[0..1];\n");
                     columns.add(new SqlParity.Column(column, sqlType(p.getValue())));
                     propertyMappings.add("        " + p.getKey() + ": [g::DB] " + t.table() + "." + column);
                 }
@@ -321,7 +341,7 @@ public final class CypherGraph {
                     for (String key : t.propertyTypes.keySet()) {
                         String text = r.props().get(key);
                         row.add(text == null ? null : t.propertyTypes.get(key).equals(VARIANT)
-                                ? jsonOf(CypherValues.parse(text), key, text) : cell(text));
+                                ? jsonOf(CypherValues.parse(text), key, text) : cell(text, t.propertyTypes.get(key)));
                     }
                     rows.add(row);
                 }
@@ -460,7 +480,8 @@ public final class CypherGraph {
             List<String> propertyMappings = new ArrayList<>();
             for (Map.Entry<String, String> p : c.propertyTypes.entrySet()) {
                 String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
-                pure.append("    ").append(p.getKey()).append(": ").append(p.getValue()).append("[0..1];\n");
+                pure.append("    ").append(marks(p.getValue())).append(p.getKey()).append(": ")
+                        .append(declaredType(p.getValue())).append("[0..1];\n");
                 if (p.getValue().equals(DURATION)) {
                     // an embedded instance: one BIGINT column per slot, the property mapping's embedded block
                     List<String> slots = new ArrayList<>();
@@ -516,7 +537,7 @@ public final class CypherGraph {
                     }
                     // (a Variant column, a list property's or a property typed two ways: the value's JSON)
                     row.add(text == null ? null : p.getValue().equals(VARIANT)
-                            ? jsonOf(CypherValues.parse(text), p.getKey(), text) : cell(text));
+                            ? jsonOf(CypherValues.parse(text), p.getKey(), text) : cell(text, p.getValue()));
                 }
                 Map<String, Long> fk = fks.getOrDefault(n.id(), Map.of());
                 for (String column : c.fkColumns.values()) {
@@ -598,7 +619,40 @@ public final class CypherGraph {
                 + DATABASE + ": [ environment: g::Conn ] ];\n}\n";
     }
 
-    private static String typeOf(String valueText, String key) throws Unsupported {
+    /** Whether a value is a local time or date-time with digits past the microsecond. */
+    private static boolean subMicro(String valueText) {
+        CypherValues.Value v = CypherValues.parse(valueText);
+        if (!(v instanceof CypherValues.Opaque o)) {
+            return false;
+        }
+        java.util.regex.Matcher m = LOCAL_DATE_TIME.matcher(o.text());
+        if (!m.matches()) {
+            m = LOCAL_TIME.matcher(o.text());
+        }
+        if (!m.matches()) {
+            return false;
+        }
+        String fraction = m.group(2);
+        return fraction.length() > 6 && !fraction.substring(6).matches("0+");
+    }
+
+    /** The Pure type a harness type token names: a nanosecond time of day or date-time is a DateTime under the
+     *  profile's marks ({@link #marks}). */
+    private static String declaredType(String type) {
+        return type.equals(NANOS_TIME) || type.equals(NANOS_DATETIME) ? "DateTime" : type;
+    }
+
+    /** The profile's marks a harness type token carries, spelled before the property: {@code <<graph::graph
+     *  .timeOfDay, graph::graph.nanoseconds>>} for a nanosecond time of day, {@code <<graph::graph.nanoseconds>>}
+     *  for a nanosecond date-time (the study's §12.64); nothing otherwise. */
+    private static String marks(String type) {
+        return type.equals(NANOS_TIME) ? "<<graph::graph.timeOfDay, graph::graph.nanoseconds>> "
+                : type.equals(NANOS_DATETIME) ? "<<graph::graph.nanoseconds>> " : "";
+    }
+
+    /** The harness's type of a property's value: a Pure type's name, the Variant, the Duration class, or a token for
+     *  a nanosecond time of day or date-time ({@code nanos}: the property name's precision across the graph). */
+    private static String typeOf(String valueText, String key, boolean nanos) throws Unsupported {
         CypherValues.Value v = CypherValues.parse(valueText);
         return switch (v) {
             case CypherValues.Int i -> "Integer";
@@ -612,22 +666,38 @@ public final class CypherGraph {
                 jsonOf(l, key, valueText);
                 yield VARIANT;
             }
+            // a nanosecond date-time (the study's §12.64): a TIMESTAMP_NS column under the profile's nanoseconds
+            // mark, which holds the years 1678 to 2261 (DuckDB's, measured; the island's own range)
             case CypherValues.Opaque o when LOCAL_DATE_TIME.matcher(o.text()).matches() -> {
-                String fraction = LOCAL_DATE_TIME.matcher(o.text()).replaceAll("$2");
+                java.util.regex.Matcher m = LOCAL_DATE_TIME.matcher(o.text());
+                m.matches();
+                if (nanos) {
+                    int year = Integer.parseInt(m.group(1).substring(0, 4));
+                    if (year < 1678 || year > 2261) {
+                        throw new Unsupported("harness: the property " + key + " holds a nanosecond date-time of the"
+                                + " year " + year + " (" + valueText + "; the database's nanosecond timestamps hold"
+                                + " 1678 to 2261)");
+                    }
+                    yield NANOS_DATETIME;
+                }
+                String fraction = m.group(2);
                 if (fraction.length() > 6 && !fraction.substring(6).matches("0+")) {
-                    throw new Unsupported("harness: the property " + key + " holds a date-time of sub-microsecond"
-                            + " precision (" + valueText + ")");
+                    throw new IllegalStateException("a sub-microsecond date-time under a microsecond name: " + key);
                 }
                 yield "DateTime";
             }
             // a time of day: lite's TIME store column (the relational grammar's extension, docs/SEMANTICS_REGISTER.md
             // S64 revised 2026-10-17), the property a StrictTime; its offset, where it has one, is a column beside
             // it (a zoned time: not yet)
+            // (a nanosecond time of day, the study's §12.64: a TIMESTAMP_NS column holding the date-time at it on
+            // the epoch day, under the profile's timeOfDay and nanoseconds marks)
             case CypherValues.Opaque o when LOCAL_TIME.matcher(o.text()).matches() -> {
+                if (nanos) {
+                    yield NANOS_TIME;
+                }
                 String fraction = LOCAL_TIME.matcher(o.text()).replaceAll("$2");
                 if (fraction.length() > 6 && !fraction.substring(6).matches("0+")) {
-                    throw new Unsupported("harness: the property " + key + " holds a time of sub-microsecond"
-                            + " precision (" + valueText + ")");
+                    throw new IllegalStateException("a sub-microsecond time under a microsecond name: " + key);
                 }
                 yield "StrictTime";
             }
@@ -709,6 +779,10 @@ public final class CypherGraph {
             "Time\\('(\\d\\d:\\d\\d:\\d\\d)\\.(\\d+)'\\)");
 
     private static final String VARIANT = "meta::pure::metamodel::variant::Variant";
+    /** The harness's tokens for a nanosecond time of day and date-time (the study's §12.64): a DateTime property
+     *  under the profile's marks over a TIMESTAMP_NS column; never a Variant's kind. */
+    private static final String NANOS_TIME = "DateTime<timeOfDay>";
+    private static final String NANOS_DATETIME = "DateTime<nanoseconds>";
 
     /** The types a Variant column holds as JSON (an integer, a float, a string, a boolean, a list). */
     private static final Set<String> VARIANT_SPELLED = Set.of("Integer", "Float", "String", "Boolean", VARIANT);
@@ -745,8 +819,17 @@ public final class CypherGraph {
     private static final java.util.regex.Pattern LOCAL_DATE_TIME = java.util.regex.Pattern.compile(
             "DateTime\\('(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})\\.(\\d{1,9})'\\)");
 
-    private static Object cell(String text) {
+    /** A stored value as the seed binds it; a nanosecond time of day or date-time as its full text (a time on the
+     *  epoch day), which the seed casts to the TIMESTAMP_NS column (the driver's timestamp keeps microseconds). */
+    private static Object cell(String text, String type) {
         CypherValues.Value v = CypherValues.parse(text);
+        if (type.equals(NANOS_TIME) || type.equals(NANOS_DATETIME)) {
+            java.util.regex.Matcher m = (type.equals(NANOS_TIME) ? LOCAL_TIME : LOCAL_DATE_TIME)
+                    .matcher(((CypherValues.Opaque) v).text());
+            m.matches();
+            return (type.equals(NANOS_TIME) ? "1970-01-01 " + m.group(1) : m.group(1).replace('T', ' ')) + "."
+                    + m.group(2);
+        }
         return switch (v) {
             case CypherValues.Int i -> i.value().longValueExact();
             case CypherValues.Flt f -> f.value();
@@ -790,6 +873,8 @@ public final class CypherGraph {
             case "DateTime" -> "TIMESTAMP";
             case "StrictTime" -> "TIME";
             case VARIANT -> "JSONB";
+            // (the lane's column; a microsecond engine's seed refuses it by name, as its DDL does)
+            case NANOS_TIME, NANOS_DATETIME -> "TIMESTAMP_NS";
             default -> throw new IllegalStateException(pureType);
         };
     }
@@ -804,6 +889,7 @@ public final class CypherGraph {
             case "DateTime" -> "TIMESTAMP";
             case "StrictTime" -> "TIME";
             case VARIANT -> "SEMISTRUCTURED";
+            case NANOS_TIME, NANOS_DATETIME -> "TIMESTAMP_NS";
             default -> throw new IllegalStateException(pureType);
         };
     }

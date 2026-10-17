@@ -347,6 +347,9 @@ public final class Ddl {
         if (t instanceof RelationalDataType.Time) {
             return new com.legend.sql.SqlExpr.TimeLit(text);
         }
+        if (t instanceof RelationalDataType.TimestampNs) {
+            return new com.legend.sql.SqlExpr.TimestampLit(text);
+        }
         if (t instanceof RelationalDataType.Bit) {
             String b = text.strip().toLowerCase(java.util.Locale.ROOT);
             if (TRUE_BITS.contains(b) || FALSE_BITS.contains(b)) {

@@ -75,7 +75,7 @@ public final class SystemMetamodel {
      * idiom for a hierarchy over one table); the seed writes the same
      * spelling in {@code dt_kind} ({@code OpSeeds.kindOf}). */
     static final String[] DATA_TYPE_KINDS = {"BigInt", "SmallInt", "TinyInt",
-        "Integer", "Float", "Double", "Real", "Bit", "Timestamp", "Date", "Time", "Distinct",
+        "Integer", "Float", "Double", "Real", "Bit", "Timestamp", "Date", "Time", "TimestampNs", "Distinct",
         "Other", "SemiStructured", "Varchar", "Char", "Binary", "Varbinary",
         "Decimal", "Numeric", "Array", "Object"};
 
@@ -1113,6 +1113,7 @@ public final class SystemMetamodel {
                     t : meta::relational::metamodel::datatype::Timestamp[1] | 'TIMESTAMP',
                     d : meta::relational::metamodel::datatype::Date[1] | 'DATE',
                     t : meta::relational::metamodel::datatype::Time[1] | 'TIME',
+                    t : meta::relational::metamodel::datatype::TimestampNs[1] | 'TIMESTAMP_NS',
                     b : meta::relational::metamodel::datatype::BigInt[1] | 'BIGINT',
                     s : meta::relational::metamodel::datatype::SmallInt[1] | 'SMALLINT',
                     t : meta::relational::metamodel::datatype::TinyInt[1] | 'TINYINT',

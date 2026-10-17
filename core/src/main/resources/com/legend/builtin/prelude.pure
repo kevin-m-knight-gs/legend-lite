@@ -3516,6 +3516,11 @@ Class meta::relational::metamodel::datatype::Date extends meta::relational::meta
 Class meta::relational::metamodel::datatype::Time extends meta::relational::metamodel::datatype::CoreDataType
 {
 }
+// A date-time of nanosecond precision: lite's extension of the store grammar (RelationalDataType.TimestampNs, the
+// Cypher island's stored nanosecond times and date-times, 2026-10-17; legend-engine's grammar has no TIMESTAMP_NS)
+Class meta::relational::metamodel::datatype::TimestampNs extends meta::relational::metamodel::datatype::CoreDataType
+{
+}
 
 Class meta::relational::metamodel::datatype::Distinct extends meta::relational::metamodel::datatype::CoreDataType
 {

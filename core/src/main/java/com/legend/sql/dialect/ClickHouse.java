@@ -2777,6 +2777,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 case REAL -> "REAL";
                 case BIT -> "Bool";
                 case TIMESTAMP -> "TIMESTAMP";
+                case TIMESTAMP_NS -> "DateTime64(9)";
                 case DATE -> "DATE";
                 case JSON -> "JSON";
                 case VARCHAR -> "VARCHAR";

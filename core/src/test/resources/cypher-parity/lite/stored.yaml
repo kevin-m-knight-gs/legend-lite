@@ -86,3 +86,41 @@ tests:
     graph: |
       CREATE (:D {name: 'a', dur: duration({years: 1, days: 2, hours: 3, nanoseconds: 4})}), (:D {name: 'b'})
     cypher: "MATCH (d:D) RETURN d ORDER BY d.name"
+  # a stored nanosecond time of day or date-time (docs/CYPHER_STUDY_2026_10_15.md §12.64): a TIMESTAMP_NS column
+  # under the graph profile's timeOfDay and nanoseconds marks, the Postgres lane refusing by name
+  - id: a_stored_nanosecond_time_ordered_and_read
+    graph: |
+      CREATE (:A {name: 'a', time: localtime({hour: 10, minute: 35})}), (:B {name: 'b', time: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:C {name: 'c', time: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876124})}), (:D {name: 'd', time: localtime({hour: 12, minute: 30, second: 14, nanosecond: 645876123})})
+    cypher: "MATCH (n) WITH n, n.time AS time ORDER BY time DESC LIMIT 3 RETURN n.name AS name, time"
+  - id: a_stored_nanosecond_time_s_fields_and_text
+    graph: |
+      CREATE (:Val {date: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})})
+    cypher: "MATCH (v:Val) WITH v.date AS d RETURN d.hour AS h, d.minute AS m, d.second AS s, d.millisecond AS ms, d.microsecond AS us, d.nanosecond AS ns, toString(d) AS text"
+  - id: a_stored_nanosecond_time_plus_a_duration
+    graph: |
+      CREATE (:A {name: 'a', time: localtime({hour: 10, minute: 35})}), (:B {name: 'b', time: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:C {name: 'c', time: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876124})})
+    cypher: "MATCH (a) WITH a ORDER BY a.time + duration({minutes: 6}) LIMIT 2 RETURN a.name AS name, a.time + duration({minutes: 6}) AS later"
+  - id: a_node_with_a_stored_nanosecond_time_as_a_value
+    graph: |
+      CREATE (:T {name: 'a', t: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:T {name: 'b'})
+    cypher: "MATCH (n:T) RETURN n ORDER BY n.name"
+  - id: a_stored_nanosecond_time_compared
+    graph: |
+      CREATE (:T {name: 'a', t: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:T {name: 'b', t: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876124})})
+    cypher: "MATCH (n:T) RETURN n.name AS name, n.t = localtime('12:31:14.645876123') AS same, n.t > localtime('12:31:14.645876123') AS later ORDER BY name"
+  - id: a_stored_nanosecond_date_time_s_fields
+    graph: |
+      CREATE (:Val {date: localdatetime({year: 1984, month: 11, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123})})
+    cypher: "MATCH (v:Val) WITH v.date AS d RETURN d.year AS y, d.month AS mo, d.day AS day, d.hour AS h, d.minute AS mi, d.second AS s, d.millisecond AS ms, d.microsecond AS us, d.nanosecond AS ns"
+  - id: a_stored_nanosecond_date_time_ordered_truncated_and_moved
+    graph: |
+      CREATE (:A {name: 'a', datetime: localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 30, second: 14, nanosecond: 12})}), (:B {name: 'b', datetime: localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:E {name: 'e', datetime: localdatetime({year: 1980, month: 12, day: 11, hour: 12, minute: 31, second: 14})})
+    cypher: "MATCH (a) WITH a ORDER BY a.datetime + duration({days: 4, minutes: 6}) DESC RETURN a.name AS name, a.datetime AS dt, localdatetime.truncate('millisecond', a.datetime) AS ms, a.datetime + duration({days: 4, minutes: 6}) AS moved"
+  - id: a_stored_nanosecond_date_time_as_a_node_value_and_text
+    graph: |
+      CREATE (:D {name: 'a', at: localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:D {name: 'b'})
+    cypher: "MATCH (d:D) RETURN d, toString(d.at) AS text ORDER BY d.name"
+  - id: a_stored_nanosecond_time_absent_on_a_class
+    graph: |
+      CREATE (:T {name: 'a', t: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:U {name: 'u'})
+    cypher: "MATCH (n) RETURN n.name AS name, n.t IS NULL AS missing, n.t AS t ORDER BY name"

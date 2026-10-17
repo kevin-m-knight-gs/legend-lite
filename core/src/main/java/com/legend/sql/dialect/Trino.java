@@ -1820,6 +1820,7 @@ public final class Trino extends AnsiSqlRenderer {
                 case TIMESTAMP -> "TIMESTAMP(6)";
                 case DATE -> "DATE";
                 case TIME -> "TIME(6)";
+                case TIMESTAMP_NS -> "TIMESTAMP(9)";
                 case JSON -> "JSON";
                 case VARCHAR -> "VARCHAR";
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());

@@ -237,6 +237,40 @@ public final class CypherIslands {
         }
 
         @Override
+        public List<String> marks(String classPath, String property) {
+            // the graph profile's stereotypes on the property's declaration: the class's own, else the first
+            // superclass's declaring it (the study's §12.64)
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            java.util.Deque<String> todo = new java.util.ArrayDeque<>(List.of(classPath));
+            while (!todo.isEmpty()) {
+                String path = todo.poll();
+                if (!seen.add(path)) {
+                    continue;
+                }
+                com.legend.model.ClassDefinition cd = model.findClassDefinition(path).orElse(null);
+                if (cd != null) {
+                    for (com.legend.model.ClassDefinition.PropertyDefinition pd : cd.properties()) {
+                        if (pd.name().equals(property)) {
+                            List<String> out = new ArrayList<>();
+                            for (com.legend.model.StereotypeApplication st : pd.stereotypes()) {
+                                if (com.legend.compiler.element.type.PlatformTypes.isProfile(st.profileName(),
+                                        com.legend.compiler.element.type.PlatformTypes.GRAPH_PROFILE)) {
+                                    out.add(st.stereotypeName());
+                                }
+                            }
+                            return out;
+                        }
+                    }
+                }
+                com.legend.compiler.element.TypedClass tc = model.findClass(path).orElse(null);
+                if (tc != null) {
+                    todo.addAll(tc.superClassFqns());
+                }
+            }
+            return List.of();
+        }
+
+        @Override
         public boolean isSubclass(String classPath, String superPath) {
             return classPath.equals(superPath) || model.isSubtype(classPath, superPath);
         }

@@ -35,6 +35,10 @@ class CypherToPureTest {
         return new Prop(name, type, lower, upper);
     }
 
+    /** demo::Clock's marks (the study's §12.64). */
+    private static final Map<String, List<String>> MARKS = Map.of("tick", List.of("timeOfDay", "nanoseconds"),
+            "at", List.of("nanoseconds"));
+
     /** demo::Person {name String[1], age Integer[0..1], active Boolean[0..1], firm Firm[0..1]} and demo::Firm
      *  {legalName String[1], hq City[0..1], employees Person[*]}; demo::City {name String[1]}; firm and employees
      *  are one association's ends. */
@@ -66,6 +70,10 @@ class CypherToPureTest {
                     "hq", prop("hq", "demo::City", 0, 1),
                     "employees", prop("employees", "demo::Person", 0, -1)),
             "demo::City", Map.of("name", prop("name", "String", 1, 1)),
+            // a class with the profile's temporal marks (the study's §12.64): tick a nanosecond time of day, at a
+            // nanosecond date-time (MARKS)
+            "demo::Clock", Map.of("name", prop("name", "String", 1, 1), "tick", prop("tick", "DateTime", 0, 1),
+                    "at", prop("at", "DateTime", 0, 1)),
             // the edge classes (the study's §5.6): Acting's ends actor and firm, its properties role and since;
             // Directing's ends director and firm (never nodes: the models' classes() leave them out)
             "demo::Acting", Map.of(
@@ -122,6 +130,11 @@ class CypherToPureTest {
         @Override
         public boolean isSubclass(String classPath, String superPath) {
             return classPath.equals(superPath);
+        }
+
+        @Override
+        public List<String> marks(String classPath, String property) {
+            return classPath.equals("demo::Clock") ? MARKS.getOrDefault(property, List.of()) : List.of();
         }
 
         @Override
@@ -601,6 +614,18 @@ class CypherToPureTest {
         unsupported("MATCH ()-[r1]->()-[r2]->() WITH [r1, r2] AS rs LIMIT 1 MATCH (first)-[rs*]->(second) RETURN first",
                 "a variable-length relationship");
         invalid("WITH [[1], 'x'] AS rs MATCH ()-[rs*]->() RETURN rs", "Type mismatch: rs defined with conflicting type");
+    }
+
+    // ------------------------------------------------------------------ stored nanosecond values (the study's §12.64)
+
+    @Test
+    void aMarkedDateTimeIsANanosecondTimeOfDayOrDateTime() {
+        // the profile's timeOfDay and nanoseconds marks on a DateTime property: a nanosecond time of day is the
+        // date-time at it on the epoch day (its fields and comparisons the nanosecond ones), a nanosecond date-time
+        // keeps its digits past the microsecond (toString spells them); the node's value spells a Time('...')
+        assertEquals("demo::Clock.all()->project(~[ns:c|if($c.tick->isEmpty(), |[], |$c.tick->toOne()->firstMillisecondOfSecond()->dateDiff($c.tick->toOne(), meta::pure::functions::date::DurationUnit.NANOSECONDS)), pm:c|if($c.tick->isNotEmpty() && ($c.tick->toOne() > %1970-01-01->meta::legend::lite::atTime(%12:00)), |true, |if($c.tick->isNotEmpty() && !($c.tick->toOne() > %1970-01-01->meta::legend::lite::atTime(%12:00)), |false, |[])), at:c|if($c.at->isEmpty(), |[], |(toString($c.at->toOne()->year() + 10000)->substring(2) + '-' + toString($c.at->toOne()->monthNumber() + 100)->substring(2) + '-' + toString($c.at->toOne()->dayOfMonth() + 100)->substring(2)) + 'T' + (toString($c.at->toOne()->hour() + 100)->substring(2) + ':' + toString($c.at->toOne()->minute() + 100)->substring(2) + ':' + toString($c.at->toOne()->second() + 100)->substring(2) + if($c.at->toOne()->firstMillisecondOfSecond()->dateDiff($c.at->toOne(), meta::pure::functions::date::DurationUnit.NANOSECONDS) == 0, |'', |'.' + toString($c.at->toOne()->firstMillisecondOfSecond()->dateDiff($c.at->toOne(), meta::pure::functions::date::DurationUnit.NANOSECONDS) + 1000000000)->substring(2)->regexpReplace('0+$', '', true)) + ''))])", pure("MATCH (c:Clock) RETURN c.tick.nanosecond AS ns, c.tick > localtime('12:00') AS pm,"
+                + " toString(c.at) AS at"));
+        assertEquals("demo::Clock.all()->project(~[c:c|fromJson(('{\"@labels\":' + '[\"Clock\"]') + ((if($c.at->isEmpty(), |'', |',\"at\":' + ('\"DateTime(\\'' + ((toString($c.at->toOne()->year() + 10000)->substring(2) + '-' + toString($c.at->toOne()->monthNumber() + 100)->substring(2) + '-' + toString($c.at->toOne()->dayOfMonth() + 100)->substring(2)) + 'T' + (toString($c.at->toOne()->hour() + 100)->substring(2) + ':' + toString($c.at->toOne()->minute() + 100)->substring(2) + ':' + toString($c.at->toOne()->second() + 100)->substring(2) + if($c.at->toOne()->firstMillisecondOfSecond()->dateDiff($c.at->toOne(), meta::pure::functions::date::DurationUnit.NANOSECONDS) == 0, |'', |'.' + toString($c.at->toOne()->firstMillisecondOfSecond()->dateDiff($c.at->toOne(), meta::pure::functions::date::DurationUnit.NANOSECONDS) + 1000000000)->substring(2)->regexpReplace('0+$', '', true)) + '')) + '\\')\"')) + (',\"name\":' + ('\"' + $c.name->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + if($c.tick->isEmpty(), |'', |',\"tick\":' + ('\"Time(\\'' + (toString($c.tick->toOne()->hour() + 100)->substring(2) + ':' + toString($c.tick->toOne()->minute() + 100)->substring(2) + ':' + toString($c.tick->toOne()->second() + 100)->substring(2) + if($c.tick->toOne()->firstMillisecondOfSecond()->dateDiff($c.tick->toOne(), meta::pure::functions::date::DurationUnit.NANOSECONDS) == 0, |'', |'.' + toString($c.tick->toOne()->firstMillisecondOfSecond()->dateDiff($c.tick->toOne(), meta::pure::functions::date::DurationUnit.NANOSECONDS) + 1000000000)->substring(2)->regexpReplace('0+$', '', true)) + '') + '\\')\"'))) + '}')])", pure("MATCH (c:Clock) RETURN c"));
     }
 
     // ------------------------------------------------------------------ a time of day (the study's §12.7)
