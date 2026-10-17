@@ -369,6 +369,11 @@ public final class MongoDb extends AnsiSqlRenderer {
             return writer.append("{\"$round\": [{\"$convert\": {\"input\": ").expr(c.value(), 0)
                     .append(", \"to\": \"decimal\"}}, ").append(d.scale()).append("]}");
         }
+        if (target instanceof SqlType.Array || target instanceof SqlType.Map) {
+            // a BSON array or document is untyped: the cast to a list or map type is the lowering's typing of the
+            // value, which is itself here (the MongoDB lane's first run, 2026-10-17: 21 list and map cases)
+            return writer.expr(c.value(), 0);
+        }
         if (!(target instanceof SqlType.Scalar s)) {
             throw new DialectCapability("a cast to " + target + " reached MongoDb: only scalar and decimal targets"
                     + " convert");
@@ -389,6 +394,16 @@ public final class MongoDb extends AnsiSqlRenderer {
         }
         if (text && mayBeNumber(c.value())) {
             return numberText(writer, c.value());
+        }
+        if (s == SqlType.Scalar.BOOLEAN) {
+            // a string converts to true whatever it says ($convert: every non-empty string is true), so a boolean's
+            // text is read by its word (a Variant-carried boolean, the MongoDB lane's first run, 2026-10-17)
+            return MongoJson.guarded(writer, List.of(c.value()), MongoJson.text("{\"$cond\": [{\"$eq\":"
+                    + " [{\"$type\": " + G0 + "}, \"string\"]}, {\"$switch\": {\"branches\": [{\"case\":"
+                    + " {\"$eq\": [{\"$toLower\": " + G0 + "}, \"true\"]}, \"then\": true}, {\"case\": {\"$eq\":"
+                    + " [{\"$toLower\": " + G0 + "}, \"false\"]}, \"then\": false}], \"default\": "
+                    + raiseText("a text that is no boolean reached a cast to Boolean on MongoDb") + "}},"
+                    + " {\"$convert\": {\"input\": " + G0 + ", \"to\": \"bool\"}}]}"));
         }
         return writer.append("{\"$convert\": {\"input\": ").expr(c.value(), 0).append(", \"to\": ")
                 .append(MongoJson.string(scalarTypeName(s))).append("}}");
@@ -419,32 +434,57 @@ public final class MongoDb extends AnsiSqlRenderer {
         return MongoJson.guarded(writer, List.of(value), w -> numberTextOf(w, MongoJson.var("g0"), hugeInt));
     }
 
-    /** {@link #numberText} over a value already bound to a variable, which {@code bound} writes: a double (by its
-     *  run-time type: a float literal is written as one whatever its fact says, a HUGEINT-fact literal included) gets
-     *  Pure's Float spelling; a decimal its exponent unfolded, and the digits alone where the fact is HUGEINT. */
+    /**
+     * {@link #numberText} over a value already bound to a variable, which {@code bound} writes, spelled ONCE in the
+     * pipeline's own operators (the MariaDb precedent: a dialect whose double text is a long expression spells it its
+     * own way): the text's sign, digits and exponent found by one {@code $regexFind} and bound, the point moved as text
+     * -- the portable spelling's three shapes ({@link FloatCanonText}: the point before the digits, inside them, or
+     * past them) -- so a cast to text costs about a kilobyte wherever the lowering writes one (the MongoDB lane's first
+     * run, 2026-10-17: the portable composition rendered to 17 KB per cast, and a print path that casts a value a
+     * few hundred times ran the driver out of memory). A double (by its run-time type: a float literal is written as
+     * one whatever its fact says, a HUGEINT-fact literal included) gets Pure's Float spelling: every zero {@code 0.0},
+     * a fraction digit kept; a decimal its exponent unfolded alone; a HUGEINT, an integer, its digits alone.
+     */
     private void numberTextOf(SqlWriter w, SqlWriter.Piece bound, boolean hugeInt) {
-        SqlExpr text = SqlExpr.Column.of(NUMBER_TEXT, "s", SqlType.Scalar.VARCHAR, true,
-                com.legend.sql.OutputCol.Origin.DERIVED);
-        w.append("{\"$let\": {\"vars\": {").append(MongoJson.string(MongoJson.variable(NUMBER_TEXT)))
-                .append(": {\"s\": {\"$toString\": ").piece(bound).append("}}}, \"in\": ");
-        pushLookupScope(List.of(NUMBER_TEXT), null);
-        try {
-            w.append("{\"$cond\": [{\"$eq\": [{\"$type\": ").piece(bound).append("}, \"double\"]}, ")
-                    .expr(FloatCanonText.ofText(text), 0).append(", ");
-            if (hugeInt) {
-                // an integer's digits: the unfolded form of a scientific Decimal128 ends in ".0", which an integer's
-                // text has not
-                w.append("{\"$let\": {\"vars\": {\"t\": ").expr(FloatCanonText.fixedPoint(text), 0)
-                        .append("}, \"in\": {\"$cond\": [{\"$regexMatch\": {\"input\": \"$$t\", \"regex\":"
-                                + " \"\\\\.0$\"}}, {\"$substrCP\": [\"$$t\", 0, {\"$subtract\": [{\"$strLenCP\":"
-                                + " \"$$t\"}, 2]}]}, \"$$t\"]}}}");
-            } else {
-                w.expr(FloatCanonText.fixedPoint(text), 0);
-            }
-            w.append("]}");
-        } finally {
-            popScope();
+        // the shapes over the bound parts: $$s the text, $$g the sign, $$d the digits (the point removed), $$p the
+        // point's position among them, $$n their count
+        String zeros = "{\"$reduce\": {\"input\": {\"$range\": [0, %s]}, \"initialValue\": \"\", \"in\":"
+                + " {\"$concat\": [\"$$value\", \"0\"]}}}";
+        String unfolded = "{\"$let\": {\"vars\": {\"g\": {\"$arrayElemAt\": [\"$$m.captures\", 0]}, \"d\":"
+                + " {\"$concat\": [{\"$arrayElemAt\": [\"$$m.captures\", 1]}, {\"$ifNull\": [{\"$arrayElemAt\":"
+                + " [\"$$m.captures\", 2]}, \"\"]}]}, \"p\": {\"$add\": [{\"$strLenCP\": {\"$arrayElemAt\":"
+                + " [\"$$m.captures\", 1]}}, {\"$toInt\": {\"$arrayElemAt\": [\"$$m.captures\", 3]}}]}},"
+                + " \"in\": {\"$let\": {\"vars\": {\"n\": {\"$strLenCP\": \"$$d\"}}, \"in\": {\"$concat\": [\"$$g\","
+                + " {\"$switch\": {\"branches\": ["
+                + "{\"case\": {\"$lte\": [\"$$p\", 0]}, \"then\": {\"$concat\": [\"0.\", "
+                + String.format(java.util.Locale.ROOT, zeros, "{\"$subtract\": [0, \"$$p\"]}") + ", \"$$d\"]}},"
+                + " {\"case\": {\"$gte\": [\"$$p\", \"$$n\"]}, \"then\": {\"$concat\": [\"$$d\", "
+                + String.format(java.util.Locale.ROOT, zeros, "{\"$subtract\": [\"$$p\", \"$$n\"]}") + ", \".0\"]}}],"
+                + " \"default\": {\"$concat\": [{\"$substrCP\": [\"$$d\", 0, \"$$p\"]}, \".\", {\"$substrCP\": [\"$$d\","
+                + " \"$$p\", {\"$subtract\": [\"$$n\", \"$$p\"]}]}]}}}]}}}}}";
+        // the text without an exponent: a double gets its fraction digit (and every zero is 0.0); a decimal is as it is
+        String plain = "{\"$cond\": [{\"$eq\": [{\"$type\": " + "BOUND" + "}, \"double\"]}, {\"$cond\": [{\"$regexMatch\":"
+                + " {\"input\": \"$$s\", \"regex\": \"^-?0+(\\\\.0+)?$\"}}, \"0.0\", {\"$cond\": [{\"$regexMatch\": {\"input\":"
+                + " \"$$s\", \"regex\": \"^-?[0-9]+$\"}}, {\"$concat\": [\"$$s\", \".0\"]}, \"$$s\"]}]}, \"$$s\"]}";
+        String spelled = "{\"$let\": {\"vars\": {\"m\": {\"$regexFind\": {\"input\": \"$$s\", \"regex\":"
+                + " \"^(-?)([0-9]+)(?:\\\\.([0-9]+))?[eE]([+-]?[0-9]+)$\"}}}, \"in\": {\"$cond\": [{\"$eq\": [\"$$m\","
+                + " null]}, " + plain + ", " + unfolded + "]}}}";
+        if (hugeInt) {
+            // an integer's digits: the unfolded form of a scientific Decimal128 ends in ".0", which an integer's text
+            // has not -- a double under a HUGEINT fact (a float literal past the 64-bit edge) keeps its Float spelling
+            spelled = "{\"$let\": {\"vars\": {\"t\": " + spelled + "}, \"in\": {\"$cond\": [{\"$or\": [{\"$eq\":"
+                    + " [{\"$type\": BOUND}, \"double\"]}, {\"$not\": {\"$regexMatch\": {\"input\": \"$$t\", \"regex\":"
+                    + " \"\\\\.0$\"}}}]}, \"$$t\", {\"$substrCP\": [\"$$t\", 0, {\"$subtract\": [{\"$strLenCP\": \"$$t\"},"
+                    + " 2]}]}]}}}";
         }
+        w.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": ").piece(bound).append("}}, \"in\": ");
+        // the bound value is read again wherever its run-time type decides
+        int from = 0;
+        for (int at = spelled.indexOf("BOUND"); at >= 0; at = spelled.indexOf("BOUND", from)) {
+            w.append(spelled.substring(from, at)).piece(bound);
+            from = at + "BOUND".length();
+        }
+        w.append(spelled.substring(from));
         w.append("}}");
     }
 
@@ -722,7 +762,7 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " string-distance operator");
             case GUID -> throw new DialectCapability("generateGuid reached MongoDb, whose pipeline has no uuid"
                     + " operator");
-            case FORMAT -> throw new DialectCapability("format reached MongoDb, which has no printf operator");
+            case FORMAT -> format(writer, a);
             case MD5, SHA1, SHA256 -> throw new DialectCapability(c.fn() + " reached MongoDb, which has no digest"
                     + " operator");
             case CURRENT_USER_FN -> throw new DialectCapability("currentUserId reached MongoDb, whose pipeline"
@@ -760,7 +800,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             // ---- lists (BSON arrays)
             case LIST_FILTER -> listFilter(writer, a);
             case LIST_TRANSFORM -> listMap(writer, a);
-            case LIST_CONCAT -> MongoJson.op(writer, "$concatArrays", a);
+            case LIST_CONCAT -> listConcat(writer, a);
             case LIST_GET -> writer.append("{\"$arrayElemAt\": [").expr(a.get(0), 0).append(", {\"$subtract\": [")
                     .expr(a.get(1), 0).append(", 1]}]}");
             case LIST_POSITION -> listPosition(writer, a);
@@ -898,6 +938,31 @@ public final class MongoDb extends AnsiSqlRenderer {
         throw new DialectCapability("hashCode reached MongoDb: its hashed index key is not Pure's hash");
     }
 
+    /**
+     * A list's slice by the platform's bounds ({@code LIST_SLICE(list, begin, end)}: 1-based, both ends inclusive, a
+     * negative bound counted from the end -- DuckDB's {@code array_slice}, the lowering's spelling): {@code $slice}
+     * takes a 0-based position and a positive count, so the bounds are resolved against the size first and an empty
+     * range is the empty array (the MongoDB lane's first run, 2026-10-17).
+     */
+    private static SqlWriter listSlice(SqlWriter writer, List<SqlExpr> a) {
+        return MongoJson.guarded(writer, a, MongoJson.text("{\"$let\": {\"vars\": {\"n\": {\"$size\": " + G0
+                + "}}, \"in\": {\"$let\": {\"vars\": {\"b\": {\"$max\": [1, {\"$cond\": [{\"$lt\": [" + G1
+                + ", 0]}, {\"$add\": [\"$$n\", " + G1 + ", 1]}, " + G1 + "]}]}, \"e\": {\"$min\": [\"$$n\","
+                + " {\"$cond\": [{\"$lt\": [" + G2 + ", 0]}, {\"$add\": [\"$$n\", " + G2 + ", 1]}, " + G2
+                + "]}]}}, \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", \"$$b\"]}, [], {\"$slice\": [" + G0
+                + ", {\"$subtract\": [\"$$b\", 1]}, {\"$add\": [{\"$subtract\": [\"$$e\", \"$$b\"]}, 1]}]}]}}}}}"));
+    }
+
+    /** A null operand is the empty list, as the platform's list concatenation reads it (DuckDB's list_concat; a fold's
+     *  empty accumulator), where $concatArrays would answer null (the MongoDB lane's first run, 2026-10-17). */
+    private static SqlWriter listConcat(SqlWriter writer, List<SqlExpr> a) {
+        writer.append("{\"$concatArrays\": [");
+        for (int i = 0; i < a.size(); i++) {
+            writer.append(i > 0 ? ", " : "").append("{\"$ifNull\": [").expr(a.get(i), 0).append(", []]}");
+        }
+        return writer.append("]}");
+    }
+
     /** Null-skipping concat: each argument's null is the empty string, nested concats flattened. */
     private static SqlWriter concatSkippingNull(SqlWriter writer, List<SqlExpr> a) {
         writer.append("{\"$concat\": [");
@@ -915,8 +980,67 @@ public final class MongoDb extends AnsiSqlRenderer {
     private static SqlWriter length(SqlWriter writer, List<SqlExpr> a) {
         boolean text = a.get(0).type() instanceof TypeFact.Typed t && (t.type() == SqlType.Scalar.VARCHAR
                 || t.type() == SqlType.Scalar.LITERAL) || a.get(0) instanceof SqlExpr.StringLit;
-        return MongoJson.guarded(writer, a, MongoJson.text(text ? "{\"$strLenCP\": " + G0 + "}"
-                : "{\"$strLenCP\": {\"$toString\": " + G0 + "}}"));
+        // null tested at run time whatever the fact says: $strLenCP of null is the server's error, not SQL's null
+        // (the MongoDB lane's first run, 2026-10-17: find() over a lambda's string)
+        return MongoJson.guarded(writer, a, MongoJson.text("{\"$cond\": [{\"$eq\": [" + G0 + ", null]}, null, "
+                + (text ? "{\"$strLenCP\": " + G0 + "}" : "{\"$strLenCP\": {\"$toString\": " + G0 + "}}")
+                + "]}"));
+    }
+
+    /**
+     * Pure's {@code format} over a literal format: the text between the {@code %s} directives concatenated with each
+     * argument's text (a string as it is, a number as Pure spells it, a date in Pure's spelling, a boolean's word, a
+     * null's nothing); {@code %%} is a percent sign. The lowering rewrites the directives it can to {@code %s}; one it
+     * cannot is refused by name, as a format that is not a literal is. (The MongoDB lane's first run, 2026-10-17:
+     * 13 cases.)
+     */
+    private SqlWriter format(SqlWriter writer, List<SqlExpr> a) {
+        if (!(a.get(0) instanceof SqlExpr.StringLit fmt)) {
+            throw new DialectCapability("a format that is not a literal reached MongoDb: no printf operator");
+        }
+        List<String> pieces = new java.util.ArrayList<>();
+        StringBuilder piece = new StringBuilder();
+        String f = fmt.value();
+        for (int i = 0; i < f.length(); i++) {
+            char c = f.charAt(i);
+            if (c != '%') {
+                piece.append(c);
+            } else if (i + 1 < f.length() && f.charAt(i + 1) == '%') {
+                piece.append('%');
+                i++;
+            } else if (i + 1 < f.length() && f.charAt(i + 1) == 's') {
+                pieces.add(piece.toString());
+                piece.setLength(0);
+                i++;
+            } else {
+                throw new DialectCapability("a format directive other than %s reached MongoDb (" + f + "): no printf"
+                        + " operator");
+            }
+        }
+        pieces.add(piece.toString());
+        if (pieces.size() - 1 != a.size() - 1) {
+            throw new DialectCapability("format reached MongoDb with " + (a.size() - 1) + " arguments for "
+                    + (pieces.size() - 1) + " directives (" + f + ")");
+        }
+        writer.append("{\"$concat\": [").append(MongoJson.string(pieces.get(0)));
+        for (int i = 1; i < a.size(); i++) {
+            writer.append(", ");
+            formatArgument(writer, a.get(i));
+            writer.append(", ").append(MongoJson.string(pieces.get(i)));
+        }
+        return writer.append("]}");
+    }
+
+    /** One {@code %s} argument's text, by its kind at run time. */
+    private void formatArgument(SqlWriter writer, SqlExpr arg) {
+        writer.append("{\"$let\": {\"vars\": {\"g0\": ").expr(arg, 0).append("}, \"in\": {\"$switch\":"
+                + " {\"branches\": [{\"case\": {\"$eq\": [\"$$g0\", null]}, \"then\": \"\"},"
+                + " {\"case\": {\"$eq\": [{\"$type\": \"$$g0\"}, \"string\"]}, \"then\": \"$$g0\"},"
+                + " {\"case\": {\"$eq\": [{\"$type\": \"$$g0\"}, \"date\"]}, \"then\": {\"$dateToString\":"
+                + " {\"date\": \"$$g0\", \"format\": \"%Y-%m-%dT%H:%M:%S.%L+0000\"}}},"
+                + " {\"case\": {\"$in\": [{\"$type\": \"$$g0\"}, [\"double\", \"decimal\"]]}, \"then\": ");
+        numberTextOf(writer, MongoJson.var("g0"), false);
+        writer.append("}], \"default\": {\"$toString\": \"$$g0\"}}}}}");
     }
 
     /** 1-based SQL substring, its start and length clamped at zero as the engine's substring is. */
@@ -1172,8 +1296,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case LIST_PRODUCT -> writer.append("{\"$reduce\": {\"input\": ").expr(a.get(0), 0)
                     .append(", \"initialValue\": 1, \"in\": {\"$multiply\": [" + VALUE + ", " + THIS + "]}}}");
             case LIST_REDUCE -> listReduce(writer, a);
-            case LIST_SLICE -> throw new DialectCapability("a list slice reached MongoDb: its bounds are not mapped"
-                    + " yet");
+            case LIST_SLICE -> listSlice(writer, a);
             case REPEAT_VALUE -> writer.append("{\"$map\": {\"input\": {\"$range\": [0, ").expr(a.get(1), 0)
                     .append("]}, \"in\": ").expr(a.get(0), 0).append("}}");
             case LIST_BOOL_AND -> writer.append("{\"$allElementsTrue\": [").expr(a.get(0), 0).append("]}");

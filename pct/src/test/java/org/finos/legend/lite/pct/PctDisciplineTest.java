@@ -65,7 +65,13 @@ class PctDisciplineTest {
      * capture-safety proof gained its EXECUTABLE WALL (assertClosed —
      * the free-variable postcondition checked on every test). Wall
      * growth; the proof stopped being testimony. */
-    private static final int ADAPTER_MAX_LINES = 485;
+    // 485 -> 490 (2026-10-17, the MongoDB line's lane, docs/MONGODB_PLAN_2026_10_16.md §6): a lane whose results all
+    // cross as Pure's TDS text carries a value as the one-column relation `value`; the adapter unwraps it by the
+    // function's own return type (one `if`, five lines). ANTI-compensation: one representation crosses the wire for
+    // every shape, and the Java bridge's typed value conversions are not needed on that route.
+    // 490 -> 500 (2026-10-17, the lane's first run): a Date or Decimal value read from the text's lines by Pure's own
+    // parsers, since the TDS reader builds neither from a cell (seven lines)
+    private static final int ADAPTER_MAX_LINES = 500;
 
     @Test
     void noJavaSideComparisonInPct() throws IOException {

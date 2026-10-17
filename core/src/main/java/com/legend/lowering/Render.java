@@ -822,6 +822,13 @@ public final class Render {
      *  comma/quote/newline. */
     public static SqlSelect tdsText(SqlSelect inner, List<Type.Column> typedCols,
             String rowAlias) {
+        return tdsText(inner, typedCols, rowAlias, false);
+    }
+
+    /** {@link #tdsText(SqlSelect, List, String)}; {@code quoteStrings} quotes every String cell whole (a value's
+     *  relation, TdsTextWrap). */
+    public static SqlSelect tdsText(SqlSelect inner, List<Type.Column> typedCols,
+            String rowAlias, boolean quoteStrings) {
         List<OutputCol> cols = inner.outputs();
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
         for (Type.Column c : typedCols) {
@@ -845,11 +852,11 @@ public final class Render {
         }
         String aggAlias = rowAlias + "_a";
         SqlExpr line = tdsTextCell(SqlExpr.Column.of(rowAlias, cols.get(0)),
-                relCols.get(0), cols.get(0).type());
+                relCols.get(0), cols.get(0).type(), quoteStrings);
         for (int i = 1; i < cols.size(); i++) {
             line = cat(line, new SqlExpr.StringLit(","),
                     tdsTextCell(SqlExpr.Column.of(rowAlias, cols.get(i)),
-                            relCols.get(i), cols.get(i).type()));
+                            relCols.get(i), cols.get(i).type(), quoteStrings));
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         rowProjs.add(new SqlSelect.Projection(line, "_pct_line",
@@ -903,12 +910,24 @@ public final class Render {
         if (t instanceof Type.Primitive p) {
             return p.typeName();
         }
+        if (t instanceof Type.PrecisionDecimal) {
+            // the TDS header's grammar has no type variables (the reader: "Type variable mismatch for Decimal"), so a
+            // precision decimal is a Decimal there (the MongoDB lane's first run, 2026-10-17)
+            return Type.Primitive.DECIMAL.typeName();
+        }
         if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
             // the 5.88 TDS header parser resolves names as pure paths
             // without import scanning — Variant must be fully qualified
             return "meta::pure::metamodel::variant::Variant";
         }
-        return t.typeName();
+        // the same for every class: a path, never a simple name (the reader: "Pair not found! (imports are not scan
+        // for TDS column type resolution)", the MongoDB lane's first run, 2026-10-17)
+        return switch (t) {
+            case Type.ClassType c -> c.fqn();
+            case Type.EnumType e -> e.fqn();
+            case Type.GenericType g -> g.rawFqn();
+            default -> t.typeName();
+        };
     }
 
     /** One TDS text cell: typed print form, SQL NULL = bare 'null'.
@@ -924,7 +943,7 @@ public final class Render {
      *  their commas under the 5.92.0 reader ("Row 2 has too many
      *  columns" — 28 variant tests, batch 1 of the upstream boundary
      *  program, 2026-09-10). */
-    private static SqlExpr tdsTextCell(SqlExpr c, Type.Column col, SqlType slot) {
+    private static SqlExpr tdsTextCell(SqlExpr c, Type.Column col, SqlType slot, boolean quoteStrings) {
         Type t = col.type();
         SqlExpr rendered;
         if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
@@ -945,7 +964,8 @@ public final class Render {
             rendered = Scalars.pureToString(Type.Primitive.FLOAT, c);
         } else if (t == Type.Primitive.STRING
                 || t instanceof Type.EnumType) {
-            rendered = tdsTextEscape(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+            rendered = quoteStrings && t == Type.Primitive.STRING ? pureQuoted(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR))
+                    : tdsTextEscape(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
         } else {
             // Integer/Boolean/Decimal/Number print via the DB's plain
             // VARCHAR cast (NUMBER columns carry mixed-identity print
@@ -968,6 +988,9 @@ public final class Render {
     private static SqlExpr tdsTextEscape(SqlExpr s) {
         SqlExpr needs = or(or(contains(s, ","), contains(s, "'")),
                 or(contains(s, "\\"), or(contains(s, "\n"), contains(s, "\r"))));
+        // the empty string quoted, since an empty cell is the reader's null (the MongoDB lane's first run,
+        // 2026-10-17: left('', n), reverse('') read back as no value)
+        needs = or(needs, SqlExpr.Call.of(SqlFn.EQUAL, s, new SqlExpr.StringLit("")));
         return new SqlExpr.Case(
                 List.of(new SqlExpr.Case.When(needs, pureQuoted(s))), s);
     }

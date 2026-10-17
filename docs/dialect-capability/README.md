@@ -48,7 +48,7 @@ input).
 | SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 136 | 12 | 15 | 32 |
 | MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 51 | 145 | 8 | 15 | 31 |
 | MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 51 | 145 | 8 | 15 | 31 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 171 | 33 | 15 | 171 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 173 | 31 | 15 | 173 |
 | EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 104 | 82 | 18 | 15 | — |
 | EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 106 | 80 | 18 | 15 | — |
 | EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 107 | 79 | 18 | 15 | — |
@@ -161,7 +161,7 @@ input).
 | `ENCODE_BASE64` | R | R | E | S | E | E | E | E | S | E | E | E | R | E | E | E |
 | `LEVENSHTEIN` | S | S | E | S | S | S | S | S | E | E | E | E | R | S | S | S |
 | `GUID` | E | E | E | S | E | S | S | E | E | E | E | E | R | E | E | E |
-| `FORMAT` | E | E | E | E | S | E | S | S | E | E | E | E | R | S | S | S |
+| `FORMAT` | E | E | E | E | S | E | S | S | E | E | E | E | E· | S | S | S |
 | `HASH` | R | R | E | E | E | E | E | E | E | R | E | E | R | R | R | R |
 | `MD5` | E | E | S | S | E | E | S | S | E | R | S | S | R | E | E | E |
 | `SHA1` | E | E | R | S | E | E | S | S | E | R | S | S | R | E | E | E |
@@ -212,7 +212,7 @@ input).
 | `RANGE_FN` | R | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
 | `LIST_PRODUCT` | R | R | R | E· | E· | R | E· | E· | E· | E· | R | R | E· | E | E | E |
 | `LIST_REDUCE` | R | R | E | E | E | R | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_SLICE` | R | R | E | E | E | E | E | S | E | E | E | E | R | E | E | E |
+| `LIST_SLICE` | R | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
 | `REPEAT_VALUE` | R | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
 | `LIST_BOOL_AND` | R | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
 | `LIST_BOOL_OR` | R | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |

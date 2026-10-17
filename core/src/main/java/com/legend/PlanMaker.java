@@ -101,7 +101,7 @@ final class PlanMaker {
         SqlQuery wrapped = com.legend.lowering.TdsTextWrap.wrap(lowered, schema, null, sqlType -> {
             throw new IllegalStateException("TDS text: an output column outside the query's typed schema (SQL type "
                     + sqlType + "): the lowering's typed slot is missing");
-        });
+        }, own == null);   // a value's strings quoted whole: the reader types an unquoted cell by its text
         return text(ExecutionPlan.Format.TDS_TEXT, relation(schema), wrapped, dialect, target);
     }
 

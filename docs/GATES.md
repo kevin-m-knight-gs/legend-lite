@@ -10653,6 +10653,36 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-17 — The PCT lane on MongoDB: channel A through the plan path, the first measurement pinned
+
+The plan: `docs/MONGODB_PLAN_2026_10_16.md` §11.3 (the record; §6 the design). The line: `docs/IN_FLIGHT.md`, the
+twelfth line. The user's word: "Did we pass all the PCT tests already?" -- the lane is built and its first run pinned.
+
+What changed:
+1. **The lane**: `PctBackend.Lane.MONGODB` (`LEGENDLITE_PCT_BACKEND=mongodb`; the storeless runtime on the embedded
+   MongoDB 8.0.17; no JDBC session), `PctPlanRoute` (channel A through the plan path: the expression planned to Pure's
+   TDS text under the PCT's feature flag, run by `PlanRunner` on the connector's session), the five
+   `Test_LegendLite_MongoDB_*Functions_PCT` suites with MongoDB's own expected failures, `//pct:pct_mongodb_*` and
+   `//pct:pct_mongodb` (manual, in `//gates:heavy`).
+2. **The adapter** (`pct_adapter.pure`, its repository now declaring `core_functions_relation`): a value crossing as
+   the one-column relation `value` is unwrapped by the function's own return type; a Date or Decimal read from the
+   text's lines by Pure's parsers. `PctDisciplineTest`'s adapter pin 485 -> 500, two reasons.
+3. **The TDS text** (`Render`, `TdsTextWrap`, `PlanMaker`): a precision decimal's header type is `Decimal`; a class
+   is named by its path; the empty string is quoted; a value relation's strings are quoted whole.
+4. **The target** (`MongoDb`, `MongoJson`): a literal array as the one argument of an operator; `$concatArrays` over
+   null operands; a Boolean read from a string by its word; `$strLenCP` of null; the list slice; `format` with `%s`;
+   array and map casts as the value; a number's text spelled once in the pipeline's own operators (the portable
+   composition rendered to 17 KB per cast and ran the driver out of memory on a print path with hundreds of them).
+   The differential in miniature: 68 EQUAL of 72.
+
+What judges it: `//pct:pct_mongodb` -- 1,249 tests, 678 pass, 571 pinned (Essential 104, Grammar 24, Relation 326,
+Standard 81, Unclassified 36; the record's table says by what); green with its pins. `//core:mongodb_plan_test`,
+`//pct:pct_duckdb_relation`, `//pct:pct_discipline`, `//core:core_tests_sql`, `//core:core_tests_lowering`,
+`//core:core_tests_root` pass (the TDS text changes left the DuckDB lane's texts as they were). Not run here: the
+other DuckDB suites after the last TDS text change (the relation suite, the one whose texts the change could touch,
+was), channel B on MongoDB (the runner's `Execution.executeResolved` is the legacy route; a plan-path form of channel
+B is the next step), the spec lanes and the Windows jobs.
+
 ## 2026-10-17 — Pure's TDS text as a plan output; the harness-named product code renamed; the PCT shadow run
 
 The plan: `docs/MONGODB_PLAN_2026_10_16.md` §11.2 item 2 (the record). The line: `docs/IN_FLIGHT.md`, the twelfth

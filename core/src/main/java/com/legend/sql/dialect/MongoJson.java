@@ -82,10 +82,17 @@ final class MongoJson {
         return w.append("{\"").append(op).append("\": [").list(args).append("]}");
     }
 
-    /** {@code {"$op": <arg>}}: an operator of one argument. */
+    /** {@code {"$op": <arg>}}: an operator of one argument. A literal array is written as the one element of an
+     *  argument list ({@code {"$op": [[...]]}}), since the server reads a bare array as the list of arguments
+     *  ({@code $reverseArray takes exactly 1 arguments. 3 were passed in}, the MongoDB lane's first run, 2026-10-17);
+     *  the four numeric reducers read either form the same way and keep the bare one. */
     static SqlWriter op1(SqlWriter w, String op, SqlExpr arg) {
-        return w.append("{\"").append(op).append("\": ").expr(arg, 0).append("}");
+        boolean listed = arg instanceof SqlExpr.ArrayLit && !REDUCERS.contains(op);
+        w.append("{\"").append(op).append("\": ").append(listed ? "[" : "").expr(arg, 0);
+        return w.append(listed ? "]}" : "}");
     }
+
+    private static final java.util.Set<String> REDUCERS = java.util.Set.of("$sum", "$min", "$max", "$avg");
 
     /** {@code {"$op": [<pieces>]}}: an operator over pieces the caller writes. */
     static SqlWriter opOf(SqlWriter w, String op, List<SqlWriter.Piece> pieces) {

@@ -2291,7 +2291,7 @@ Database types planned with it: MongoDB.
 | `CONCAT_JOIN` | emulated | `$concat` |  | 0 |
 | `LIST_FILTER` | emulated | `listFilter` |  | 0 |
 | `LIST_TRANSFORM` | emulated | `listMap` |  | 0 |
-| `LIST_CONCAT` | emulated | `$concatArrays` |  | 0 |
+| `LIST_CONCAT` | emulated | `listConcat` |  | 0 |
 | `LIST_GET` | emulated | `{"$arrayElemAt": […, {"$subtract": […, 1]}]}` |  | 0 |
 | `LIST_POSITION` | emulated | `listPosition` |  | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 0 |
@@ -2364,7 +2364,7 @@ Database types planned with it: MongoDB.
 | `ENCODE_BASE64` | refused | `reached MongoDb, which has no base64 operator` |  | 0 |
 | `LEVENSHTEIN` | refused | `reached MongoDb, which has no string-distance operator` |  | 0 |
 | `GUID` | refused | `generateGuid reached MongoDb, whose pipeline has no uuid operator` |  | 0 |
-| `FORMAT` | refused | `format reached MongoDb, which has no printf operator` |  | 0 |
+| `FORMAT` | emulated | `format` |  | 0 |
 | `HASH` | refused | `hashCode reached MongoDb: its hashed index key is not Pure's hash` | `via MongoDb.hashSigned` | 0 |
 | `MD5` | refused | `reached MongoDb, which has no digest operator` |  | 0 |
 | `SHA1` | refused | `reached MongoDb, which has no digest operator` |  | 0 |
@@ -2415,7 +2415,7 @@ Database types planned with it: MongoDB.
 | `RANGE_FN` | emulated | `$range` | `via MongoDb.listCall` | 0 |
 | `LIST_PRODUCT` | emulated | `{"$reduce": {"input": …, "initialValue": 1, "in": {"$multiply": [, ]}}}` | `via MongoDb.listCall` | 0 |
 | `LIST_REDUCE` | emulated | `listReduce` | `via MongoDb.listCall` | 0 |
-| `LIST_SLICE` | refused | `a list slice reached MongoDb: its bounds are not mapped yet` | `via MongoDb.listCall` | 0 |
+| `LIST_SLICE` | emulated | `listSlice` | `via MongoDb.listCall` | 0 |
 | `REPEAT_VALUE` | emulated | `{"$map": {"input": {"$range": [0, …]}, "in": …}}` | `via MongoDb.listCall` | 0 |
 | `LIST_BOOL_AND` | emulated | `{"$allElementsTrue": […]}` | `via MongoDb.listCall` | 0 |
 | `LIST_BOOL_OR` | emulated | `{"$anyElementTrue": […]}` | `via MongoDb.listCall` | 0 |

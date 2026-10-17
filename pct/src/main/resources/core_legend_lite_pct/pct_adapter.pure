@@ -458,7 +458,21 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                   // (docs/PCT_HEADER_DIFFERENTIAL.md) adjudicated the
                   // classes; the producers were fixed, never the overlay.
                   let tdsString = $single->cast(@TDSResult).tdsString;
-                  $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
+                  let tds = $tdsString->stringToTDS();
+                  // ONE representation (the MongoDB line, 2026-10-17): a lane whose results all cross as Pure's
+                  // TDS text (the plan path) carries a value as the one-column relation `value`, unwrapped HERE by
+                  // the function's own return type -- never guessed from the text
+                  let rt = $f->functionReturnType().rawType->toOne();
+                  if($rt != meta::pure::metamodel::type::Nil && $rt->subTypeOf(Relation),
+                    | $tds->cast(@X)->toMultiplicity(@[o]),
+                    | // the reader builds no Date or Decimal value from a cell ("Not supported data type"), so
+                      // those are read from the text's lines by Pure's own parsers, the precision kept
+                      let lines = $tdsString->split('\n')->tail()->filter(l | $l != '' && $l != 'null');
+                      if($rt == Date || $rt == StrictDate || $rt == DateTime || $rt == LatestDate,
+                        | $lines->map(l | $l->parseDate())->cast(@X)->toMultiplicity(@[o]),
+                        | if($rt == Decimal,
+                            | $lines->map(l | $l->parseDecimal())->cast(@X)->toMultiplicity(@[o]),
+                            | $tds->cast(@Relation<(value:Any)>)->map(r | $r.value)->cast(@X)->toMultiplicity(@[o]))););,
                 | // B8 (the P7 relabel is DELETED): the platform now
                   // labels precision-exact float literals FLOAT end to
                   // end — proved against the reference source

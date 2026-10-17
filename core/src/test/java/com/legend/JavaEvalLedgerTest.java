@@ -101,7 +101,10 @@ class JavaEvalLedgerTest {
             // nothing evaluated in Java
             // 108 -> 109 (2026-10-17, the MongoDB line's homework 2, §11.2 of the same plan): the shadow run's one call
             // (PctShadowPlan.record) beside the result under -Dlegend.diagnostics=pct-shadow-plan; a measurement
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 109),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
+            // 109 -> 116 (2026-10-17, the MongoDB PCT lane, §11.3 of the same plan): the route by lane -- a lane with
+            // no JDBC session runs through the plan (PctPlanRoute, one call); the legacy route is its own method
+            // (legacyRoute, the query service on the session PctBackend opens, as before). Nothing evaluated in Java.
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 116),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation

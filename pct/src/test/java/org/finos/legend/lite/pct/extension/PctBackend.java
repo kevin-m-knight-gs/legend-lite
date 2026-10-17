@@ -6,6 +6,7 @@ package org.finos.legend.lite.pct.extension;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testing.EmbeddedClickHouse;
 import com.legend.testing.EmbeddedMariaDb;
+import com.legend.testing.EmbeddedMongoDb;
 import com.legend.testing.EmbeddedMySql;
 import com.legend.testing.EmbeddedPostgres;
 import com.legend.testing.EmbeddedTrino;
@@ -156,6 +157,22 @@ public final class PctBackend {
             Connection openSystem() throws SQLException {
                 return CloudLane.openSystem(CloudLane.Cloud.BIGQUERY);
             }
+        },
+        /** MongoDB 8.0 (docs/MONGODB_PLAN_2026_10_16.md §6, 2026-10-17): no JDBC session -- channel A runs through
+         *  the plan path ({@link #throughThePlan}: the expression planned to Pure's TDS text, run by the plan runner on
+         *  the session the connector opens), as the lane's database is reached by its connector alone. */
+        MONGODB(DatabaseType.MongoDB) {
+            @Override
+            Connection open() throws SQLException {
+                throw new IllegalStateException("the MongoDB lane has no JDBC session: channel A runs through the"
+                        + " plan (PctBackend.throughThePlan, PctPlanRoute)");
+            }
+
+            @Override
+            Connection openSystem() throws SQLException {
+                throw new IllegalStateException("the MongoDB lane has no system database: the metamodel store on"
+                        + " MongoDB is refused by name (docs/MONGODB_PLAN_2026_10_16.md D13)");
+            }
         };
 
         final DatabaseType type;
@@ -194,9 +211,10 @@ public final class PctBackend {
             case "databricks" -> Lane.DATABRICKS;
             case "snowflake" -> Lane.SNOWFLAKE;
             case "bigquery" -> Lane.BIGQUERY;
+            case "mongodb" -> Lane.MONGODB;
             default -> throw new IllegalStateException("LEGENDLITE_PCT_BACKEND=" + backend + ": a PCT lane runs on"
-                    + " DuckDB (unset), h2, postgres, sqlite, mariadb, mysql, trino, clickhouse, databricks, snowflake or"
-                    + " bigquery");
+                    + " DuckDB (unset), h2, postgres, sqlite, mariadb, mysql, trino, clickhouse, databricks, snowflake,"
+                    + " bigquery or mongodb");
         };
     }
 
@@ -209,6 +227,17 @@ public final class PctBackend {
     public static boolean isDuckDb() {
         return lane() == Lane.DUCKDB;
     }
+
+    /** Whether channel A runs through the plan path (the expression planned to Pure's TDS text and run by the plan
+     *  runner on the session the lane's connector opens) rather than the legacy executor on a JDBC session: the
+     *  MongoDB lane, which has no JDBC session (docs/MONGODB_PLAN_2026_10_16.md §6). */
+    public static boolean throughThePlan() {
+        return lane() == Lane.MONGODB;
+    }
+
+    /** The system property the MongoDB lane's storeless runtime names for its password (a vault reference in the
+     *  declared connection; the embedded server's throwaway password is set under it when the runtime is declared). */
+    static final String MONGODB_PASSWORD_PROPERTY = "legend.mongodb.pct.password";
 
     /** This lane's storeless runtime declared alone: the session {@link #connect} opens. */
     public static String storelessRuntime() {
@@ -235,6 +264,11 @@ public final class PctBackend {
             case DATABRICKS -> CloudLane.withStorelessRuntime(model, CloudLane.Cloud.DATABRICKS);
             case SNOWFLAKE -> CloudLane.withStorelessRuntime(model, CloudLane.Cloud.SNOWFLAKE);
             case BIGQUERY -> CloudLane.withStorelessRuntime(model, CloudLane.Cloud.BIGQUERY);
+            case MONGODB -> {
+                System.setProperty(MONGODB_PASSWORD_PROPERTY, EmbeddedMongoDb.PASSWORD);
+                yield com.legend.test.StorelessRuntime.onMongo(model, "127.0.0.1", EmbeddedMongoDb.shared().port(),
+                        EmbeddedMongoDb.DATABASE, EmbeddedMongoDb.USER, MONGODB_PASSWORD_PROPERTY);
+            }
         };
     }
 

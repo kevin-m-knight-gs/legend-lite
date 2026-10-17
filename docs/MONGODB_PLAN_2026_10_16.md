@@ -1192,3 +1192,58 @@ What the homework changes in the plan: §6's channel A route is confirmed as one
 differential stays in `//core:mongodb_plan_test` as the line's standing measurement, grown with each landing (item 3,
 now with TDS text cases); the lane's size estimate is unchanged. The measurements that remain open are §9's items 2,
 6, 7, 11, 12 and 13.
+
+### 11.3 The PCT lane, 2026-10-17: the first measurement
+
+**The ask (the user, 2026-10-17): "Why did you stop? Did we pass all the PCT tests already?"** The lane is built and
+run; the first measurement is pinned, as every other lane's was.
+
+**The lane.** `LEGENDLITE_PCT_BACKEND=mongodb` (`PctBackend.Lane.MONGODB`: the storeless runtime on the embedded
+MongoDB 8.0.17, `StorelessRuntime.onMongo`, the password a system property the connection's vault reference names).
+Channel A runs through the plan path (`PctPlanRoute`, `PctBackend.throughThePlan`): the case's expression and its
+injected model planned by the one compiler to Pure's TDS text (`TypedQuery.Output.TDS_TEXT`, under the PCT's feature
+flag) and run by `PlanRunner` on the session the connector opens; the lane has no JDBC session and touches nothing of
+the legacy executor. ONE representation crosses: a relation as its TDS text, a value as the one-column relation
+`value`, which the adapter (`pct_adapter.pure`) unwraps by the function's own return type -- a Date or a Decimal read
+from the text's lines by Pure's own parsers, since legend-pure's TDS reader builds neither from a cell; the value's
+strings quoted whole, since the reader types an unquoted cell by its text. The adapter's repository declares the
+engine's relation functions (`core_functions_relation`) for the one `map` it uses. The five suites are
+`Test_LegendLite_MongoDB_*Functions_PCT` (`//pct:pct_mongodb_*`, `//pct:pct_mongodb` in `//gates:heavy`).
+
+**The first measurement** (two runs the same day; the second after the fixes the first drove):
+
+| suite | tests | pass | pinned | the pins, by cause |
+|---|---:|---:|---:|---|
+| Essential | 345 | 241 | 104 | 24 value differences (dates printed with three millisecond digits where the value has none, 8; the mixed-Number list unified, the big Float, the error positions and messages -- the platform's own); 15 the reader's cell typing; 11 a List, Map or class instance crossing as text; 8 maps from entries; 8 the empty string (the reader's null); 6 two-parameter lambdas; 4 dates past year 9999 (`$dateToString`); 3 `%f` directives with a precision; the rest named refusals |
+| Grammar | 137 | 113 | 24 | 4 List or instance values as text; 3 `Any`-typed values; 3 the reader's cell typing; 6 value and error differences (the platform's own); the rest named |
+| Relation | 469 | 143 | 326 | 188 window functions (`$setWindowFields`); 67 quantified comparisons (ANY/ALL over a subquery); 27 a Variant's JSON text; 20 pivots (the plan path has no probe); 17 lateral and as-of joins; 7 others (full and right joins, QUALIFY, currentUserId, a lambda, a value) |
+| Standard | 205 | 124 | 81 | 32 window functions; 11 `timeBucket`; 10 value differences; 6 the reader's cell typing; 6 mode; 2 each regex replace, hashCode, generateGuid, weekday names; bit shifts, CORR |
+| Unclassified | 93 | 57 | 36 | 13 ascii and char; 5 base64; 4 string distances; 3 digests; 5 value differences; 2 regex replace; 2 List values; currentUserId |
+| **all** | **1,249** | **678 (54%)** | **571** | |
+
+The DuckDB lane pins 24, 4, 1, 4 and 0 in the same suites: the platform's own. The other lanes' first measurements
+were 40 (Snowflake, Trino) to 83 (BigQuery) own pins over the whole platform; this lane's 572 is of another kind,
+since the target is three days old and its relation half (§7 PR4: windows, quantified subqueries, pivots, lateral and
+as-of joins, the Variant text) is the named refusals that make up 320 of the 326 relation pins. (The counts are the
+lane's as committed: 571 pins after the number text's spelling let `testFormatFloat` pass.) The differential in
+miniature stands at 68 EQUAL of 72 (the two differences the DuckDB side's; two refusals, pivot and window).
+
+**What the first run fixed in the target** (each a measured defect, now a differential case): a literal array handed
+to a one-argument operator was read as an argument list (`$reverseArray`, `$size`); `$concatArrays` answered null for
+a fold's empty accumulator; a string converted to Boolean was true whatever it said; `$strLenCP` of null was the
+server's error; the list slice, the `%s` format and the array and map casts were refused; and a number's text,
+spelled through the portable composition, rendered to 17 KB per cast to text -- a print path that casts a value a
+few hundred times (Pure's print of an `Any`-typed Float through the CSV wire, 2 MB; a `%f` of a mixed list's
+element, 147 MB) ran the driver out of memory, so the target now spells the text once in the pipeline's own
+operators (the MariaDb precedent: one `$regexFind` for the sign, digits and exponent, the point moved as text; about
+a kilobyte per cast; `1.5->toString()` 18 KB, the mixed-list element 79 KB, the `%f` case 6 MB -- the lowering's own
+multiplication, measured and left). **What the harness's own
+reader showed** (legend-pure's `stringToTDS`, the form every lane's relation results cross in): it types an unquoted
+cell by its text, trims an unquoted cell's spaces, reads an empty cell as null, builds no Date or Decimal through
+`map`, and takes no type variable or simple class name in its header -- each now handled in the TDS text or the
+adapter, except the empty string (8 pins: quoted or not, the reader reads nothing).
+
+**Next, in the order the pins say:** `$setWindowFields` (220 pins over two suites), the quantified subquery as a
+`$lookup` (67), the Variant's JSON text (27), a static pivot's grouped form (20), lateral and as-of joins (17); then
+the essential suite's two-parameter lambda, map from entries and `timeBucket`. The date-precision and
+class-instance pins stay the user's decision (§11.2).

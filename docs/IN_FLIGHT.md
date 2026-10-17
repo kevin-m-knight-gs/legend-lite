@@ -1998,6 +1998,13 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `executionPlan(runtime, output, features)` for the engine's feature flags; the shadow run
   (`-Dlegend.diagnostics=pct-shadow-plan`, `PctShadowPlan`) plans every PCT case the same way beside the legacy
   route and records whether the two agree. A plan is never named for a harness: the plan's forms are Pure's.
+- **The PCT lane, 2026-10-17 (the plan's §11.3)**: `LEGENDLITE_PCT_BACKEND=mongodb`, channel A through the plan path
+  (`PctPlanRoute`), the five suites pinned at their first measurement -- 1,249 tests, 678 pass, 571 pinned, 320 of
+  the relation suite's 326 being the named refusals of the plan's PR4 (windows, quantified subqueries, pivots,
+  lateral and as-of joins, the Variant text). `//pct:pct_mongodb` in `//gates:heavy`.
+- **Files this line owns, added**: `pct/.../extension/PctPlanRoute.java`, `PctShadowPlan.java`,
+  `pct/.../Test_LegendLite_MongoDB_*Functions_PCT.java`; shared with the harness: `PctBackend.java`,
+  `PctExecuteNative.java`, `pct_adapter.pure`.
 - **Announced to the ninth line (the dialect program), 2026-10-17 -- its Phase 5's shape, landed for one database
   first:** `exec/Statements` (what a session does with a plan's text), `exec/JdbcStatements` (the runner's JDBC, moved
   whole), `exec/DatabaseConnector` and `exec/Connectors` (a connector beside the drivers, found by `ServiceLoader`),

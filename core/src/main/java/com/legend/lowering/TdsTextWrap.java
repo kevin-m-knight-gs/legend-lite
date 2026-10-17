@@ -37,6 +37,16 @@ public final class TdsTextWrap {
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
             com.legend.sql.@com.legend.base.Nullable PlanProbe probe,
             java.util.function.Function<String, Type> sqlTypeToPure) {
+        return wrap(plan, schema, probe, sqlTypeToPure, false);
+    }
+
+    /** {@link #wrap(SqlQuery, Type.RelationType, PlanProbe, Function)} with every String cell quoted whole when
+     *  {@code quoteStrings}: a value's one-column relation, which the reader never prints and whose cells it would
+     *  otherwise type by their text ({@code '345'} read as a number, {@code 'true'} as a boolean; the MongoDB lane's
+     *  first run, 2026-10-17). */
+    public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
+            com.legend.sql.@com.legend.base.Nullable PlanProbe probe,
+            java.util.function.Function<String, Type> sqlTypeToPure, boolean quoteStrings) {
         List<SqlSelect.SortKey> lifted = List.of();
         SqlQuery inner0 = plan;
         if (plan instanceof SqlSelect ps && !ps.orderBy().isEmpty()) {
@@ -55,7 +65,7 @@ public final class TdsTextWrap {
                         new SqlSource.Subselect(inner0, alias, null))
                 .withOutputs(outs)
                 .withOrderBy(lift.remapped());
-        return Render.tdsText(inner, typedCols, "_pct1");
+        return Render.tdsText(inner, typedCols, "_pct1", quoteStrings);
     }
 
     /** Per-output pure types: static schema by name → the plan's pivot
