@@ -11082,3 +11082,12 @@ product behaviour change was intended, and none was measured.
   - The Postgres corpus lane, every test (`bazel run //spec:corpus_on_postgres`): pass=1883 fail=716 skipped=14 of 2613
     on both commits, every FAIL, SKIP, referee, origin and census line identical. The head sets one fixture aside
     (`testGroupByWithWindowSubset`, `aside_0`); main ran it over the workspace. Its verdict, a pass, is the same.
+  - Trino and H2 (12 targets): all pass on both commits, digests, census, channel B and test counts identical; every
+    test log, normalised, identical line for line.
+  - The corpus (`//spec:corpus_h2`, `//spec:corpus_duckdb`, 12 targets): all pass on both; the ten roster tests re-ran
+    on the head (the harness changed) and the rosters and registers are byte-identical to the committed ones. The
+    judge logs' failures agree test by test: host H2 359, host DuckDB 108, database H2 353, database DuckDB 108.
+  - The warehouse lane (`//spec:corpus_warehouse`, manual, its native server built): passes on both commits, with
+    `-Drcorpus.backend=warehouse` and `legend.warehouse.*` on the head. Host pass 2471/108/14, database pass
+    2473/108/14 of 2613 on both, the failures identical between the commits and equal to the DuckDB lane's, test by
+    test.
