@@ -1177,6 +1177,10 @@ lite/corpus_gaps/simple_case_of_kinds_alike@iq17-default	PASS	PASS
 lite/corpus_gaps/simple_case_of_a_number_and_text_no_number@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/searched_case_of_a_number_and_a_number_string@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/simple_case_of_a_number_and_a_number_string_in_sql_anywhere@iq17-default	PASS	PASS
+lite/corpus_gaps/days_and_weeks_from_year_zero@iq17-default	PASS	PASS
+lite/corpus_gaps/hours_minutes_and_seconds_from_year_zero@iq17-default	PASS	PASS
+lite/corpus_gaps/days_from_year_zero_at_the_calendar_s_edges@iq17-default	PASS	PASS
+lite/corpus_gaps/days_of_one_date_in_sql_anywhere@iq17-default	REFUSED	REFUSED
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR

@@ -1352,8 +1352,11 @@ final class IqFunctions {
             default -> throw new IllegalStateException("no date unit " + fn);
         };
         if (args.size() == 1) {
-            throw SqlTranslationException.unsupported(name + " of one argument (the " + part + "s from IQ's own epoch)"
-                    + " is not supported yet", f.pos());
+            if (engine != IqDialect.Engine.IQ) {
+                throw SqlTranslationException.unsupported(name + " of one argument (the " + part + "s from SQL"
+                        + " Anywhere's own epoch) is not supported in its front end yet", f.pos());
+            }
+            return sinceYearZero(fn, name, f, args.get(0));
         }
         SqlAst.StringLit unit = new SqlAst.StringLit(part, f.pos());
         Tx partTx = Tx.value(new CString(part), Kind.STRING, false, new IqType("VARCHAR(" + part.length() + ")"));
@@ -1370,6 +1373,52 @@ final class IqFunctions {
         }
         throw SqlTranslationException.unsupported(name + " of a " + kindName(second.kind()) + " second argument is not"
                 + " supported yet: IQ converts it by its own rules", f.args().get(1).pos());
+    }
+
+    /** The days from 0000-01-01 (proleptic Gregorian) to 1970-01-01, IQ's engine's DAYS of 1970-01-01. */
+    private static final long DAYS_TO_1970 = 719_528L;
+
+    /**
+     * IQ island, 2026-10-17 (the differential fuzzer's fifth round; measured on IQ 17.1): under IQ's engine {@code
+     * DAYS(d)} is the days from 0000-01-01 in the proleptic Gregorian calendar (DAYS of 1970-01-01 is 719528, of
+     * 0001-01-01 366), {@code WEEKS(d)} those days / 7 rounded down, {@code YEARS(d)} the year, {@code MONTHS(d)} year *
+     * 12 + month - 1, all INTEGERs; {@code HOURS(t)}, {@code MINUTES(t)} and {@code SECONDS(t)} the days' hours,
+     * minutes and seconds with the time's own, BIGINTs (a DATE's time is midnight). SQL Anywhere's front end counts
+     * from another epoch (DAYS of 2020-01-15 is 737745 there, 737804 here), refused.
+     */
+    private Tx sinceYearZero(Fn fn, String name, SqlAst.FunctionCall f, Tx x) {
+        Tx d = dateArgument(x, f.args().get(0), name);
+        boolean big = fn == Fn.HOURS || fn == Fn.MINUTES || fn == Fn.SECONDS;
+        IqType type = big ? IqType.integer("BIGINT", BigInteger.ZERO, IqType.BIGINT_MAX, true)
+                : IqType.integer("INTEGER", BigInteger.ZERO, IqType.INTEGER_MAX, true);
+        if (d == null) {
+            return Tx.value(SqlToPure.nullOf(Kind.INTEGER).vs(), Kind.INTEGER, true, type);
+        }
+        boolean date = d.kind() == Kind.DATE;
+        return strict(Kind.INTEGER, type, List.of(d), v -> {
+            ValueSpecification t = v.get(0);
+            ValueSpecification days = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("dateDiff",
+                    new CDate(PureDateLiteral.parse("1970-01-01"), "1970-01-01", null), day(t, date),
+                    new EnumValue(DURATION_UNIT, "DAYS")), integer(DAYS_TO_1970)));
+            ValueSpecification hours = date ? AppliedFunction.infixRun("times", List.of(days, integer(24)))
+                    : AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("times", List.of(days,
+                            integer(24))), SqlToPure.call("hour", t)));
+            ValueSpecification minutes = date ? AppliedFunction.infixRun("times", List.of(hours, integer(60)))
+                    : AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("times", List.of(hours,
+                            integer(60))), SqlToPure.call("minute", t)));
+            return switch (fn) {
+                case DAYS -> days;
+                case WEEKS -> truncatedQuotient(days, 7);
+                case YEARS -> SqlToPure.call("year", t);
+                case MONTHS -> minus(months(t, 12), integer(1));
+                case HOURS -> hours;
+                case MINUTES -> minutes;
+                case SECONDS -> date ? AppliedFunction.infixRun("times", List.of(minutes, integer(60)))
+                        : AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("times", List.of(minutes,
+                                integer(60))), SqlToPure.call("second", t)));
+                default -> throw new IllegalStateException("no date unit " + fn);
+            };
+        });
     }
 
     /**

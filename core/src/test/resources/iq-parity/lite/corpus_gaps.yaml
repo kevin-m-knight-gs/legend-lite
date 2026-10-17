@@ -2021,6 +2021,21 @@ tests:
     sql: "SELECT CASE 1 WHEN '1' THEN 'a' ELSE 'c' END AS a"
     profile: iq17-default
 
+  # ---- DAYS, WEEKS, YEARS, MONTHS, HOURS, MINUTES and SECONDS of one date (IQ island, 2026-10-17; the differential
+  # fuzzer's fifth round, measured on IQ 17.1): under IQ's engine counted from 0000-01-01, proleptic Gregorian
+  - id: days_and_weeks_from_year_zero
+    sql: "SELECT id, DAYS(dt) AS a, WEEKS(dt) AS b, YEARS(dt) AS c, MONTHS(dt) AS d, DAYS(ts) AS e FROM t ORDER BY id"
+    profile: iq17-default
+  - id: hours_minutes_and_seconds_from_year_zero
+    sql: "SELECT id, HOURS(ts) AS a, MINUTES(ts) AS b, SECONDS(ts) AS c, HOURS(dt) AS d, SECONDS(dt) AS e FROM t ORDER BY id"
+    profile: iq17-default
+  - id: days_from_year_zero_at_the_calendar_s_edges
+    sql: "SELECT id, DAYS(CAST('0100-01-01' AS DATE)) AS a, WEEKS(CAST('0100-03-01' AS DATE)) AS b, DAYS(CAST('1582-10-15' AS DATE)) AS c, DAYS(CAST('9999-12-31' AS DATE)) AS d, MONTHS(CAST('0100-03-01' AS DATE)) AS e, SECONDS(CAST('7910-12-31 13:45:07' AS TIMESTAMP)) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: days_of_one_date_in_sql_anywhere
+    sql: "SELECT DAYS(CAST('2020-01-15' AS DATE)) AS a"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where
