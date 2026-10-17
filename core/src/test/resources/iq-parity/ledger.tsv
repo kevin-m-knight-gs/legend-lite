@@ -955,6 +955,9 @@ lite/corpus_gaps/trim_of_a_column_of_a_table_named_both@iq16-default	PASS	PASS
 lite/corpus_gaps/trim_of_a_column_of_a_table_named_both@iq17-default	PASS	PASS
 lite/corpus_gaps/group_by_a_subquery_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/group_by_a_correlated_subquery_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/format_in_an_unread_derived_column_is_refused@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/format_in_a_read_derived_column_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/format_in_an_unread_column_of_a_distinct_derived_table_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

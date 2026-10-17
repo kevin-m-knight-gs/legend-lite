@@ -295,6 +295,10 @@ island's reason, those IQ answers, and what became of them:
   rows the join supplies NULLs for, though a stored NULL concatenates as ''; `||` keeps them (both pinned);
 - a subquery in GROUP BY (SQLStorm's 9; measured on IQ 17.1, 2026-10-17): IQ's -1001030 under its engine,
   correlated or not; the front end's reading is not built;
+- a function of no name of IQ's (FORMAT, ...) in a derived table's column no one reads (SEDE's 4, found by verifying
+  the claims; measured on IQ 17.1, 2026-10-17): IQ drops the column before it resolves its functions and answers;
+  read, or under DISTINCT, its -265. Refused by name there (the island does not drop the column yet: the column's
+  names still bind, -143, which a drop must keep); open: drop it, binding its names;
 - not built yet: PIVOT (IQ 17.1 reads it, both engines; an IN list of literals, COUNT shown as a NUMERIC(20,0)).
   The corpus's 10 are SQL Server's `IN ([Question], [Answer])`, IQ's -143 (a name) or -1816 (a number);
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's

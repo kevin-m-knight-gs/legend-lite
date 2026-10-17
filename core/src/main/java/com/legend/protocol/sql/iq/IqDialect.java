@@ -1322,6 +1322,7 @@ public final class IqDialect implements InputDialect {
         Set<SqlAst.Join> innerHere = Collections.newSetFromMap(new IdentityHashMap<>());
         groupBySubqueries(statement, chosen);
         if (chosen == Engine.IQ) {
+            unreadUnknownFunctions(statement);
             appliedQueries(statement);
             limitedSubqueries(statement);
             subqueryPlaces(statement, innerHere);
@@ -2953,6 +2954,77 @@ public final class IqDialect implements InputDialect {
                         + " supported), refused before translating", java.util.Objects.requireNonNull(at).pos());
             }
         }
+    }
+
+    /**
+     * IQ island, 2026-10-17 (found by verifying the corpus lane's IQ_ERROR claims: IQ 17.1 answered 4 SEDE queries whose
+     * derived table computes FORMAT(...) in a column the outer query never reads): IQ's engine drops a derived table's
+     * (or a common table expression's) column no one reads before it resolves the column's functions, so a function of
+     * no name of IQ's there raises nothing (its -265 where read; a DISTINCT or windowed derived table is planned whole,
+     * so its -265 there). The island does not drop such a column yet: refused by name rather than claim the -265. A
+     * column is read where the outer query reads its name anywhere (qualified by the derived table or not), or shows
+     * {@code *} or the table's {@code .*}; one read only from inside a subquery of the outer query counts as unread,
+     * which refuses (the safe side).
+     */
+    private static void unreadUnknownFunctions(SqlAst.Statement statement) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select outer)) {
+                continue;
+            }
+            for (SqlAst.FromItem f : outer.from()) {
+                for (SqlAst.FromItem leaf : leaves(f)) {
+                    if (!(leaf instanceof SqlAst.SubqueryFrom d) || !(d.query() instanceof SqlAst.Select ds)
+                            || ds.distinct() || expressions(ds).stream().anyMatch(IqDialect::hasWindowCall)) {
+                        continue;
+                    }
+                    String alias = d.alias() == null ? null
+                            : IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text());
+                    if (outer.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns a && (a.qualifier() == null
+                            || IqLexer.lower(java.util.Objects.requireNonNull(a.qualifier()).text()).equals(alias)))) {
+                        continue;
+                    }
+                    Set<String> read = new java.util.HashSet<>();
+                    for (SqlAst.Expr e : expressions(outer)) {
+                        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                        columnRefs(e, refs);
+                        for (SqlAst.ColumnRef r : refs) {
+                            if (r.parts().size() == 1 || IqLexer.lower(r.parts().get(r.parts().size() - 2).text())
+                                    .equals(alias)) {
+                                read.add(IqLexer.lower(r.parts().get(r.parts().size() - 1).text()));
+                            }
+                        }
+                    }
+                    for (int i = 0; i < ds.items().size(); i++) {
+                        String name = itemName(ds, i, d.columnAliases());
+                        if (name != null && !read.contains(name) && ds.items().get(i) instanceof SqlAst.SelectExpr x) {
+                            SqlAst.FunctionCall unknown = unknownCall(x.expr());
+                            if (unknown != null) {
+                                throw SqlTranslationException.unsupported(unknown.name().get(unknown.name().size() - 1)
+                                        .text() + "(...), no function of IQ's, in a derived table's column '" + name
+                                        + "' no one reads is not supported: IQ 17.1 drops the column before it resolves"
+                                        + " its functions (it answers), which the island does not do yet", unknown.pos());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** A call in {@code e} (outside its subqueries) of a name no function of IQ's has ({@link
+     *  IqFunctions#NO_SUCH_FUNCTION}); null for none. */
+    private static SqlAst.@com.legend.base.Nullable FunctionCall unknownCall(SqlAst.Expr e) {
+        if (e instanceof SqlAst.FunctionCall f && IqFunctions.NO_SUCH_FUNCTION.contains(IqLexer.lower(
+                f.name().get(f.name().size() - 1).text()))) {
+            return f;
+        }
+        for (SqlAst.Expr child : children(e)) {
+            SqlAst.FunctionCall found = unknownCall(child);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     /** IQ island, 2026-10-17 (the corpus lane's SQLStorm, GROUP BY (SELECT COUNT(*) FROM Posts), ...; measured on IQ

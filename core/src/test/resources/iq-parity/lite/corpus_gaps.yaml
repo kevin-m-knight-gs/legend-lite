@@ -1285,3 +1285,16 @@ tests:
   - id: group_by_a_correlated_subquery_is_iqs_error
     sql: "SELECT COUNT(*) AS n FROM t GROUP BY (SELECT MAX(u.id) FROM u WHERE u.t_id = t.id)"
     profile: iq17-default
+
+  # ---- a function of no name of IQ's in a derived table's column no one reads (SEDE's FORMAT(d.CreationDate, 'yy-MM');
+  # measured on IQ 17.1, 2026-10-17): IQ drops the column before it resolves its functions and answers (refused by
+  # name: the island does not drop it yet); read, or under DISTINCT, its -265
+  - id: format_in_an_unread_derived_column_is_refused
+    sql: "SELECT n, COUNT(*) AS c FROM (SELECT id AS n, FORMAT(dt, 'yy-MM') AS f FROM t) d GROUP BY n ORDER BY n"
+    profile: iq17-default
+  - id: format_in_a_read_derived_column_is_iqs_error
+    sql: "SELECT f FROM (SELECT id AS n, FORMAT(dt, 'yy-MM') AS f FROM t) d"
+    profile: iq17-default
+  - id: format_in_an_unread_column_of_a_distinct_derived_table_is_iqs_error
+    sql: "SELECT n FROM (SELECT DISTINCT id AS n, FORMAT(dt, 'yy-MM') AS f FROM t) d ORDER BY n"
+    profile: iq17-default
