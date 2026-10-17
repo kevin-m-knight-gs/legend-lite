@@ -2643,7 +2643,8 @@ final class IqFunctions {
 
     static @com.legend.base.Nullable ValueSpecification longQuotient(ValueSpecification x, int s1, int whole1,
             ValueSpecification y, int wholeY, int s, String refusal) {
-        int k = 38 - wholeY - s1 - 1;
+        // a chunk of at most 13 digits takes whole() one estimate: fewer repeats of the rest (2026-10-17)
+        int k = Math.min(38 - wholeY - s1 - 1, 13);
         // each chunk reads the rest the one before it leaves, so the expression grows with their count: past three
         // (a quotient of many places over a dividend of many, an AVG of an AVG) the plan is refused by name
         if (k < 1 || s < s1 || s > 37 || whole1 + s1 > 38 || (s + k - 1) / k > LONG_QUOTIENT_CHUNKS) {
