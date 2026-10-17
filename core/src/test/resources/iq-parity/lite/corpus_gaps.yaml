@@ -819,3 +819,24 @@ tests:
   - id: a_month_first_date_compared_in_the_front_end_is_iqs_error
     sql: "SELECT 1 AS a FROM dummy WHERE CAST('2020-01-01' AS DATE) > '8-16-2011'"
     profile: iq17-default
+
+  # ---- a subquery in an outer join's ON beside no condition of a column (IQ island, 2026-10-17; the corpus lane's
+  # SQLStorm, measured on IQ 17.1): IQ's error -1001047 alone or beside constant conditions; beside one of a column read
+  - id: an_outer_joins_on_of_a_subquery_alone_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.id = (SELECT MAX(id) FROM u) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: an_outer_joins_on_of_a_subquery_beside_a_constant_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON 1 = 1 AND u.id > (SELECT MIN(id) FROM u) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: an_outer_joins_on_of_a_subquery_over_a_cte_alone_is_iqs_error
+    sql: "WITH c AS (SELECT t_id, COUNT(*) AS n FROM u GROUP BY t_id) SELECT t.id, c.n FROM t LEFT JOIN c ON c.n = (SELECT MAX(n) FROM c) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: an_outer_joins_on_of_an_exists_alone_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON EXISTS (SELECT 1 FROM g WHERE g.id = u.id) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: an_outer_joins_on_subquery_beside_a_condition_of_its_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id > 0 AND u.id = (SELECT MAX(id) FROM u) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: an_outer_joins_on_subquery_beside_a_condition_of_the_other_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON t.id > 2 AND u.id = (SELECT MAX(id) FROM u) ORDER BY 1, 2"
+    profile: iq17-default

@@ -119,7 +119,7 @@ Measured to be IQ's own errors, raised or named by the island:
 - under IQ's engine:
   - TOP in any subquery, derived table or common table expression is -1001030 (the research's D-R1 had held that IQ may ignore it);
   - a subquery inside a conditional expression is -1001030;
-  - a subquery in an outer join's ON is -1001047 unless its conjunct reads the null-supplying side alone (directly and through correlation; in a FULL JOIN always): 21 shapes measured;
+  - a subquery in an outer join's ON is -1001047 unless its conjunct reads the null-supplying side alone (directly and through correlation; in a FULL JOIN always): 21 shapes measured. It is -1001047 too where no conjunct without a subquery reads a column beside it (2026-10-17: `ON u.id = (SELECT MAX(id) FROM u)` alone, or beside `1 = 1`; SQLStorm's 6 such queries over a common table expression);
   - an integer where DATEADD or DATEDIFF reads a date is -1001011;
   - CAST to NVARCHAR or NCHAR is -1001030;
   - a number compared with a string (`PostTypeId = '1'`, `YEAR(ts) = '2026'`, in IN, BETWEEN and CASE alike), and a date or timestamp compared with a number, is -1001013. A string that is no number is the front end's -157 first.
@@ -138,7 +138,7 @@ Open, ranked by the corpora:
     database compute it for every row first. Both lanes answer every measured case.
   - Postgres differs: it computes a cheap item (a division) for every row before its sort, so the Postgres island
     keeps that order;
-- the outer join ON shapes IQ reads but DuckDB cannot plan: a subquery in a RIGHT JOIN's ON (refused by name), an uncorrelated one over a common table expression in a LEFT JOIN's ON (6, DuckDB's error);
+- the outer join ON shapes IQ reads but DuckDB cannot plan: a subquery in a RIGHT JOIN's ON (refused by name); an uncorrelated scalar subquery in a LEFT JOIN's ON beside a column's condition (`ON u.t_id > 0 AND u.id = (SELECT MAX(id) FROM u)`: DuckDB's error, Postgres answers; no corpus query). The fix is to apply such a conjunct, which reads the null-supplying side alone, as a filter of that side before the join. SQLStorm's 6 queries once listed here are IQ's -1001047 (above);
 - CROSS APPLY (676), which this round measured only as IQ's internal error on one correlated shape (2.16c).
 
 ### Phase 2: the answers judged (2026-10-16)

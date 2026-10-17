@@ -2840,6 +2840,10 @@ public final class IqDialect implements InputDialect {
      * g.id = u.id)}, an uncorrelated EXISTS); any other, and any in a FULL JOIN's ON, is IQ's error -1001047, an IN, an
      * ANY, an EXISTS and a scalar subquery alike (a later join's ON reading an earlier join's table too). An unqualified
      * column in such a conjunct is refused by name: which side holds it decides.
+     *
+     * <p>IQ island, 2026-10-17 (the corpus lane's SQLStorm, 6 queries; measured on IQ 17.1): and only beside a conjunct
+     * of no subquery that reads a column, of either side ({@code u.t_id = t.id}, {@code u.t_id > 0}, {@code t.id > 0}):
+     * an ON of subquery conjuncts alone, or beside constant ones ({@code 1 = 1}), is IQ's error -1001047 too.
      */
     private static void outerJoinSubqueries(SqlAst.Join j, SqlAst.Expr on) {
         Set<String> nullSide = new java.util.HashSet<>();
@@ -2853,9 +2857,15 @@ public final class IqDialect implements InputDialect {
         }
         List<SqlAst.Expr> conjuncts = new ArrayList<>();
         andConjuncts(on, conjuncts);
+        boolean joined = conjuncts.stream().anyMatch(c -> !holdsSubquery(c) && readsColumn(c));
         for (SqlAst.Expr c : conjuncts) {
             if (!holdsSubquery(c)) {
                 continue;
+            }
+            if (!joined) {
+                throw SqlTranslationException.unsupported("a subquery in an outer join's ON beside no condition of"
+                        + " a column without one is IQ's error -1001047 under its engine (subqueries are not supported"
+                        + " in outer join ON clauses), refused before translating", c.pos());
             }
             Set<String> read = new java.util.HashSet<>();
             boolean[] unqualified = {false};
