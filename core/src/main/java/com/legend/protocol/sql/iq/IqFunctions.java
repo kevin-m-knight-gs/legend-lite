@@ -266,6 +266,10 @@ final class IqFunctions {
                         // IQ island, 2026-10-16 (measured on IQ 17.1): read on 1900-01-01 by IQ's engine
                         frontEnd = "the string '" + text + "' is a time alone, which SQL Anywhere's front end reads on"
                                 + " the current date";
+                    } else if (parts == null && IqDateTime.unconvertible(text, settings)) {
+                        // IQ island, 2026-10-17 (measured on IQ 17.1): numbers ending in a four-digit year
+                        problem = "the string '" + text + "' is no date under DATE_ORDER YMD (IQ's error -157 in SQL"
+                                + " Anywhere's front end, -1001006 under IQ's engine)";
                     } else if (parts == null) {
                         problem = "the string '" + text + "' is no date the island reads (IQ's error -157, or a"
                                 + " spelling of IQ's date order)";

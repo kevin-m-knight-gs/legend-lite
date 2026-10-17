@@ -595,7 +595,7 @@ class IqToPureTest {
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt >= '2026-03-04 00:00:00.000'").contains("%2026-03-04"));
         // IQ island, 2026-10-16 (measured on IQ 17.1): a string of no digit is no date in any spelling, IQ's -157
         assertEquals(SqlTranslationException.Kind.INVALID, refusal("SELECT id FROM " + T + " WHERE dt = 'x'").kind());
-        for (String s : new String[] {"'2026-03-04 10:00'", "'2026-02-30'", "''", "'Mar 2026'", "'10:11:12'"}) {
+        for (String s : new String[] {"'2026-03-04 10:00'", "'2026-02-30'", "''", "'10:11:12'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE dt = " + s)
                     .kind(), s);
         }
@@ -604,6 +604,10 @@ class IqToPureTest {
         for (String s : new String[] {"'2026/03/04'", "'2026-3-4'", "'2026-03-04 00:00:00.0000009'"}) {
             assertTrue(pure("SELECT id FROM " + T + " WHERE dt = " + s).contains("%2026-03-04"), s);
         }
+        // IQ island, 2026-10-17 (the corpus lane, measured on IQ 17.1): a month and a year are its first day; numbers
+        // ending in a four-digit year are IQ's error under DATE_ORDER YMD, -157 beside a DATE column
+        assertTrue(pure("SELECT id FROM " + T + " WHERE dt = 'Mar 2026'").contains("%2026-03-01"));
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt > '01/02/2018'").getMessage().contains("SQLCODE -157"));
         SqlAst.Pos at = new SqlAst.Pos(1, 1);
         assertEquals(java.util.Arrays.asList("2026-03-04", "05:06:07.100000"), java.util.Arrays.asList(
                 IqDateTime.read("2026-03-04 05:06:07.1", IqProfile.IQ16_DEFAULT.settings(), at)));

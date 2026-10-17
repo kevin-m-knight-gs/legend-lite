@@ -783,3 +783,39 @@ tests:
   - id: to_date_is_iqs_error
     sql: "SELECT TO_DATE(vc, 'YYYY-MM-DD') AS s FROM t"
     profile: iq17-default, sqla17-default
+
+  # ---- a year alone and a year and a month as dates (IQ island, 2026-10-17; the corpus lane's SEDE, measured on IQ
+  # 17.1): the month's first day; numbers ending in a four-digit year are no date under DATE_ORDER YMD (IQ's error)
+  - id: a_year_alone_compared_with_a_timestamp
+    sql: "SELECT id FROM t WHERE ts >= '2026' ORDER BY id"
+    profile: iq17-default
+  - id: a_year_and_a_month_compared_with_a_date
+    sql: "SELECT id FROM t WHERE dt < '2026-05' AND dt >= '2000/3' OR dt > '2026.12' ORDER BY id"
+    profile: iq17-default
+  - id: a_month_name_and_a_year_compared_with_a_date
+    sql: "SELECT id FROM t WHERE dt BETWEEN 'Mar 2026' AND '2026 Dec' ORDER BY id"
+    profile: iq17-default
+  - id: a_year_alone_cast_to_a_date
+    sql: "SELECT CAST('2010' AS DATE) AS a, CAST(' 2010 ' AS DATE) AS b, CAST('2010-05' AS DATE) AS c, CAST('2010/5 10:30' AS TIMESTAMP) AS d, CAST('May 2010' AS DATE) AS e, CAST('2010T10:30' AS TIMESTAMP) AS f"
+    profile: iq17-default
+  - id: a_year_alone_cast_under_iqs_engine
+    sql: "SELECT MIN(CAST('2010' AS DATE)) AS a, MIN(CAST('2010-05' AS TIMESTAMP)) AS b, MAX(CAST('2010 May' AS DATE)) AS c FROM t"
+    profile: iq17-default
+  - id: a_month_first_date_compared_with_a_timestamp_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts > '01/02/2018'"
+    profile: iq17-default
+  - id: a_month_first_date_compared_with_a_date_is_iqs_error
+    sql: "SELECT id FROM t WHERE dt BETWEEN '1/1/2018' AND '2026-01-01'"
+    profile: iq17-default
+  - id: a_month_and_a_year_first_compared_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts IN ('05/2010')"
+    profile: iq17-default
+  - id: a_month_first_date_with_a_time_compared_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts < '1/01/2012 12:00AM'"
+    profile: iq17-default
+  - id: a_month_first_date_compared_with_a_computed_date_is_iqs_error
+    sql: "SELECT id FROM t WHERE CAST(ts AS DATE) > '1/1/2018'"
+    profile: iq17-default
+  - id: a_month_first_date_compared_in_the_front_end_is_iqs_error
+    sql: "SELECT 1 AS a FROM dummy WHERE CAST('2020-01-01' AS DATE) > '8-16-2011'"
+    profile: iq17-default

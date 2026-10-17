@@ -5225,7 +5225,7 @@ public final class IqDialect implements InputDialect {
             Kind other = left ? rk : lk;
             Tx text = left ? l : r;
             Tx converted = other.numeric() ? numberOf(text, other, left ? r : l, pos)
-                    : other == Kind.DATE || other == Kind.DATETIME ? dateOf(text, other, pos) : null;
+                    : other == Kind.DATE || other == Kind.DATETIME ? dateOf(text, left ? r : l, pos) : null;
             if (converted == null) {
                 throw SqlTranslationException.unsupported("comparing " + kindName(lk) + " with " + kindName(rk)
                         + " is not supported yet", pos);
@@ -5451,12 +5451,22 @@ public final class IqDialect implements InputDialect {
      * which every profile's date order reads alike; with a DATE only at midnight, where the two compare as dates. Any
      * other string is refused by name (IQ reads many more spellings, by the profile's date order).
      */
-    private Tx dateOf(Tx text, Kind other, SqlAst.Pos pos) {
+    private Tx dateOf(Tx text, Tx date, SqlAst.Pos pos) {
         if (!(text.vs() instanceof CString s) || text.nullable()) {
             throw SqlTranslationException.unsupported("comparing a string that is not a constant with a date is not"
                     + " supported yet: IQ converts the string to TIMESTAMP", pos);
         }
-        return dateConstant(s.value(), other, pos, "comparing");
+        if (IqDateTime.read(s.value(), settings, pos) == null && IqDateTime.unconvertible(s.value(), settings)) {
+            // IQ island, 2026-10-17 (the corpus lane's SEDE, 55 queries; measured on IQ 17.1): numbers ending in a
+            // four-digit year ('01/01/2018') are no date under DATE_ORDER YMD -- in a comparison (BETWEEN and IN
+            // too), IQ's engine's -157 beside a DATE column, its -1009145 beside a TIMESTAMP or a computed DATE
+            // (CAST(ts AS DATE)); SQL Anywhere's front end's -157
+            boolean column = date.kind() == Kind.DATE && date.vs() instanceof com.legend.protocol.spec.AppliedProperty;
+            String code = engine == Engine.IQ && !column ? code(-1009145, "QFA2E") : code(-157, "53018");
+            throw SqlTranslationException.invalid("cannot convert '" + s.value() + "' to a " + (date.kind()
+                    == Kind.DATE ? "date" : "timestamp") + " under DATE_ORDER YMD" + code, pos);
+        }
+        return dateConstant(s.value(), date.kind(), pos, "comparing");
     }
 
     /** The date constant string {@code value} is in IQ's spellings (IqDateTime), as a DATE ({@code other} a DATE: of

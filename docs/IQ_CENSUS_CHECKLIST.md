@@ -110,6 +110,7 @@ Measured on the live IQ 17.1 and built (parity cases: `lite/corpus_gaps.yaml`):
 - DATALENGTH: a string's bytes, and a column's storage width under IQ's engine;
 - a table's `WITH (NOLOCK)` and `WITH (READUNCOMMITTED)`, read and dropped. After a derived table or a FROM function a hint is IQ's -131;
 - a constant date string beside a DATE or a TIMESTAMP in COALESCE, ISNULL or CASE, read as one. `COALESCE(ts, '1900-01-01')` is a TIMESTAMP.
+- a year alone, or a year and a month, as a date (2026-10-17): the month's first day. `'2010'`, `'2010-05'`, `'2010/5'`, `'2010 May'` and `'May 2010'` are read in comparisons, CAST and CONVERT, with a time after them or not.
 
 Measured to be IQ's own errors, raised or named by the island:
 - `OFFSET ... FETCH`, `LIMIT`, `INTERVAL` and `FILTER` are -131;
@@ -122,6 +123,7 @@ Measured to be IQ's own errors, raised or named by the island:
   - an integer where DATEADD or DATEDIFF reads a date is -1001011;
   - CAST to NVARCHAR or NCHAR is -1001030;
   - a number compared with a string (`PostTypeId = '1'`, `YEAR(ts) = '2026'`, in IN, BETWEEN and CASE alike), and a date or timestamp compared with a number, is -1001013. A string that is no number is the front end's -157 first.
+- numbers ending in a four-digit year (`'01/01/2018'`, `'8-16-2011'`, `'05/2010'`) are no date under DATE_ORDER YMD (2026-10-17, 55 of SEDE's queries). Compared, IQ's engine raises -157 beside a DATE column and -1009145 beside a TIMESTAMP or a computed DATE; SQL Anywhere's front end raises -157. In CAST and CONVERT, where IQ's engine raises -1001006, they stay refused by name, as every constant IQ cannot convert is.
 
 Open, ranked by the corpora:
 - CAST to DECIMAL without a precision, IQ's NUMERIC(126,38) (70);
