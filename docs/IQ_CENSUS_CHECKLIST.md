@@ -314,6 +314,17 @@ island's reason, those IQ answers, and what became of them:
 - a reserved word qualifying a column (SQLStorm's top.TotalPosts) and a reserved type's name standing as a value
   (SEDE's TRY_CONVERT(int, ...); measured on IQ 17.1, 2026-10-17): IQ's -131 (datetime, timestamp, money and text are
   names there, a column's -143); CONTAINS's correlation name (contains.score) stays refused;
+- CONVERT's styles under IQ's engine (the corpus lane's style 126, 8; every style from -1 to 400 and 1000 measured
+  on IQ 17.1, 2026-10-17): it writes a date or a timestamp in 0-14, 20, 21, 36-40, 100-114, 120, 121, 136-140 and
+  365 (36-40 and 136-140 to the microsecond, 365 yyyyjjj), now all read; every other style is its -1009145 as it
+  plans, over no rows too. Its front end reads 126 and 127 as 121 (not built: the island refuses its styles);
+- known, D-N3 (the judge's NUMERIC places, 9 of the tiebreak's remaining FAILs): IQ's engine types arithmetic on a
+  column by its data's range (AnswerCount + 1.0 is a NUMERIC(3,0) over the sample, an INTEGER column); over tables
+  holding each type's extremes, as the parity tables do, its types are the declared ones', which the island's are;
+  under its engine an integer column enters + - * with its own type's digits (100.0 * sm a NUMERIC(8,0), sm + 1.0
+  a NUMERIC(6,0)), now read so, and so the quotient over it (it / (sm + 1.0) a NUMERIC(17,7));
+- a subquery in the statement's ORDER BY (the corpus lane's 4; measured on IQ 17.1, 2026-10-17): IQ's -1005004 under
+  its engine, correlated or not, shown as an item or not, in arithmetic too;
 - open, error order (the claim verification's residue, 2026-10-17: 34 of 879 claims name another code than IQ's):
   where a query holds two errors, IQ raises the one of its earlier phase -- syntax, then -154, names (-143, -142,
   -144), grouping (-149, -150), function names (-265), then conversions and type checks (-157, -1001013, -1009145)

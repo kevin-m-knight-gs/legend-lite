@@ -1485,3 +1485,54 @@ tests:
   - id: a_reserved_type_as_a_later_argument_is_iqs_131
     sql: "SELECT FOO(1, bigint) AS x FROM t"
     profile: iq17-default
+
+  # ---- NUMERIC division's type under IQ's engine (the corpus judge's NUMERIC places: SEDE's Score / (AnswerCount +
+  # 1.0), ROUND(100.0 * UpVotes / (UpVotes + DownVotes), 2); measured on IQ 17.1, 2026-10-17)
+  - id: division_types_an_integer_by_a_sum_with_a_decimal
+    sql: "SELECT it / (sm + 1.0) AS r FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: division_types_a_product_with_a_decimal_by_a_sum
+    sql: "SELECT 100.0 * it / (it + sm) AS r FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: division_types_a_rounded_percentage
+    sql: "SELECT ROUND(100.0 * it / (it + sm), 2) AS r FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: division_types_an_integer_times_one_point_zero
+    sql: "SELECT it * 1.0 / sm AS r FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: division_types_by_a_sum_with_a_small_decimal
+    sql: "SELECT sm / (it + 0.00001) AS r FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: division_types_an_integer_by_a_decimal_constant
+    sql: "SELECT it / 3.0 AS r FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: division_types_a_cast_integer_by_a_cast_decimal
+    sql: "SELECT CAST(7 AS INT) / CAST(3.0 AS NUMERIC(2,1)) AS r FROM t WHERE id = 1"
+    profile: iq17-default
+
+  # ---- CONVERT's styles under IQ's engine (the corpus lane's style 126; measured on IQ 17.1 from -1 to 400, 2026-10-17):
+  # 36-40, 136-140 and 365 are its too; every other is its -1009145 as it plans, over no rows too
+  - id: convert_styles_36_to_40_of_a_timestamp
+    sql: "SELECT id, CONVERT(VARCHAR(40), ts, 36) AS a, CONVERT(VARCHAR(40), ts, 37) AS b, CONVERT(VARCHAR(40), ts, 38) AS c, CONVERT(VARCHAR(40), ts, 39) AS d, CONVERT(VARCHAR(40), ts, 40) AS e FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_styles_136_to_140_and_365_of_a_timestamp
+    sql: "SELECT id, CONVERT(VARCHAR(40), ts, 136) AS a, CONVERT(VARCHAR(40), ts, 137) AS b, CONVERT(VARCHAR(40), ts, 138) AS c, CONVERT(VARCHAR(40), ts, 139) AS d, CONVERT(VARCHAR(40), ts, 140) AS e, CONVERT(VARCHAR(40), ts, 365) AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_styles_36_to_140_and_365_of_a_date
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 36) AS a, CONVERT(VARCHAR(40), dt, 38) AS b, CONVERT(VARCHAR(40), dt, 40) AS c, CONVERT(VARCHAR(40), dt, 139) AS d, CONVERT(VARCHAR(40), dt, 140) AS e, CONVERT(VARCHAR(40), dt, 365) AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_126_is_iqs_error_under_its_engine
+    sql: "SELECT CONVERT(VARCHAR(40), ts, 126) AS a FROM t WHERE id = -999"
+    profile: iq17-default
+  - id: convert_style_23_of_a_date_is_iqs_error_under_its_engine
+    sql: "SELECT CONVERT(VARCHAR(10), dt, 23) AS a FROM t"
+    profile: iq17-default
+
+  # ---- a subquery in the statement's ORDER BY (the corpus lane's 4; measured on IQ 17.1, 2026-10-17): IQ's -1005004
+  # under its engine, correlated or not, shown as an item or not
+  - id: order_by_a_correlated_subquery_is_iqs_error
+    sql: "SELECT id FROM t ORDER BY (SELECT MAX(u.id) FROM u WHERE u.t_id = t.id), id"
+    profile: iq17-default
+  - id: order_by_arithmetic_of_a_subquery_is_iqs_error
+    sql: "SELECT id FROM t ORDER BY id + (SELECT COUNT(*) FROM u)"
+    profile: iq17-default

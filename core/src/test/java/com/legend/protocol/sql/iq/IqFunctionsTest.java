@@ -124,7 +124,11 @@ class IqFunctionsTest {
         // a style the island does not read, a domain, TIMESTAMP WITH TIME ZONE, a type of no value read (TIME, TINYINT,
         // unsigned, binary), a FLOAT's precision outside 1 to 53, a constant IQ cannot convert: refused by name (IQ
         // island, 2026-10-15: REAL and FLOAT(24) read now, IqToPureTest)
-        for (String sql : List.of("SELECT CONVERT(VARCHAR(10), dt, 23) AS x", "SELECT CONVERT(INT, dt, 112) AS x",
+        // IQ island, 2026-10-17: a style IQ's engine raises -1009145 for is read past the reader (IqFunctions
+        // .convertStyle), and refused by name under SQL Anywhere's front end (IqDialect.frontEndStyles)
+        assertTrue(assertThrows(SqlSyntaxException.class, () -> IqDialect.of(IqProfile.IQ16_DEFAULT.settings())
+                .parse("SELECT CONVERT(VARCHAR(10), CURRENT DATE, 23) AS x")).unsupported());
+        for (String sql : List.of("SELECT CONVERT(INT, dt, 112) AS x",
                 "SELECT CONVERT(VARCHAR(10), dt, 99999999999) AS x", "SELECT CAST(1 AS my_domain) AS x",
                 "SELECT CAST(ts AS TIMESTAMP WITH TIME ZONE) AS x", "SELECT CURRENT TIME AS x",
                 "SELECT CAST(id AS FLOAT(54)) AS x", "SELECT CAST(id AS FLOAT(0)) AS x", "SELECT CAST(id AS TIME) AS x",

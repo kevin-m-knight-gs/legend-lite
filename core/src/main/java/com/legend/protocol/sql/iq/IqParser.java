@@ -2704,10 +2704,11 @@ public final class IqParser {
                 throw SqlSyntaxException.unsupported("CONVERT with a style is supported only to CHAR, VARCHAR, DATE or"
                         + " TIMESTAMP with an integer constant style yet", style.pos());
             }
-            if (n.value().bitLength() > 31 || !IqFunctions.STYLES.contains(n.value().intValue())) {
+            if (n.value().bitLength() > 31) {
                 throw SqlSyntaxException.unsupported("CONVERT style " + n.value() + " is not supported: the island"
-                        + " reads IQ's date styles 0-14, 20, 21, 100-114, 120 and 121", style.pos());
+                        + " reads IQ's date styles 0-14, 20, 21, 36-40, 100-114, 120, 121, 136-140 and 365", style.pos());
             }
+            // IQ island, 2026-10-17: another style is IQ's engine's -1009145 (IqFunctions.convertStyle)
             // IQ island, 2026-10-15: a date's text by an IQ style ({@link IqFunctions}'s CONVERT_STYLE, measured on
             // IQ 17.1): the operand, the style and the target's length (-1 for none)
             int length = type.modifiers().isEmpty() ? -1 : type.modifiers().get(0);

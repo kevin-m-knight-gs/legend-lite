@@ -1141,10 +1141,18 @@ final class IqFunctions {
     private static final List<String> MONTHS_SHORT = List.of("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug",
             "sep", "oct", "nov", "dec");
 
-    /** The styles {@link #convertStyle} reads; {@link IqParser} refuses another by name (IQ raises -1009145 for some,
-     *  "CONVERT format style ... is invalid", and writes others the island does not read). */
-    static final java.util.Set<Integer> STYLES = java.util.Set.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20,
-            21, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 120, 121);
+    /** The styles {@link #convertStyle} reads, every one IQ's engine writes a date or a timestamp in (measured on IQ
+     *  17.1 from -1 to 400 and at 1000; {@link #engineRejects}). */
+    private static final java.util.Set<Integer> STYLES = java.util.Set.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20,
+            21, 36, 37, 38, 39, 40, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 120, 121,
+            136, 137, 138, 139, 140, 365);
+
+    /** IQ island, 2026-10-17 (the corpus lane's style 126; each style from -1 to 400 and 1000 measured on IQ 17.1):
+     *  the styles past which IQ's engine raises -1009145 for a date or a timestamp, as it plans -- every one but
+     *  {@link #STYLES}; one beyond them is refused by name. */
+    private static boolean engineRejects(int style) {
+        return !STYLES.contains(style) && (style >= -1 && style <= 400 || style == 1000);
+    }
 
     /**
      * {@code CONVERT(VARCHAR(n), d, style)} of a DATE or a TIMESTAMP under IQ's engine (IQ island, 2026-10-15; each
@@ -1173,6 +1181,10 @@ final class IqFunctions {
         boolean ts = x.kind() == Kind.DATETIME;
         int style = ((SqlAst.IntegerLit) f.args().get(1)).value().intValue();
         int length = ((SqlAst.IntegerLit) f.args().get(2)).value().intValue();
+        if (engineRejects(style)) {
+            throw SqlTranslationException.invalid("CONVERT format style " + style + " is invalid for " + kindName(
+                    x.kind()) + " under IQ's engine" + IqDialect.code(-1009145, "QFA2E"), f.args().get(1).pos());
+        }
         List<Object> spec = switch (style) {
             case 1 -> List.of("MM", "/", "DD", "/", "YY");
             case 101 -> List.of("MM", "/", "DD", "/", "YYYY");
@@ -1211,6 +1223,21 @@ final class IqFunctions {
                     : List.of("DD", " ", "MON", " ", "YYYY");
             case 14, 114 -> ts ? List.of("HH", ":", "NN", ":", "SS", ":", "SSS") : List.of("YYYY", "-", "MM", "-",
                     "DD");
+            // IQ island, 2026-10-17 (measured on IQ 17.1): 36 and 136 a timestamp's hh:nn:ss.ssssss and AM or PM (the
+            // hour of twelve), 37 and 137 its hh:nn:ss.ssssss (a date's yyyy-mm-dd); 38 mon dd yy and the first, 39 mon
+            // dd yy and the second (138, 139 with yyyy); 40 yy-mm-dd and the second (140 with yyyy); 365 yyyyjjj, the
+            // day of the year
+            case 36, 136 -> ts ? List.of("H12", ":", "NN", ":", "SS", ".", "SSSSSS", "AMPM") : List.of("YYYY", "-",
+                    "MM", "-", "DD");
+            case 37, 137 -> ts ? List.of("HH", ":", "NN", ":", "SS", ".", "SSSSSS") : List.of("YYYY", "-", "MM", "-",
+                    "DD");
+            case 38, 138 -> concat(List.of("MON", " ", "DD", " ", style == 38 ? "YY" : "YYYY"), ts ? List.of(" ",
+                    "H12", ":", "NN", ":", "SS", ".", "SSSSSS", "AMPM") : List.of());
+            case 39, 139 -> concat(List.of("MON", " ", "DD", " ", style == 39 ? "YY" : "YYYY"), ts ? List.of(" ",
+                    "HH", ":", "NN", ":", "SS", ".", "SSSSSS") : List.of());
+            case 40, 140 -> concat(List.of(style == 40 ? "YY" : "YYYY", "-", "MM", "-", "DD"), ts ? List.of(" ", "HH",
+                    ":", "NN", ":", "SS", ".", "SSSSSS") : List.of());
+            case 365 -> List.of("YYYY", "JJJ");
             default -> throw SqlTranslationException.unsupported("CONVERT style " + style + " is not supported yet",
                     f.args().get(1).pos());
         };
@@ -1220,7 +1247,8 @@ final class IqFunctions {
             width += switch (piece) {
                 case "YYYY" -> 4;
                 case "YY", "MM", "DD", "HH", "NN", "SS", "H12", "AMPM" -> 2;
-                case "SSS", "MON" -> 3;
+                case "SSS", "MON", "JJJ" -> 3;
+                case "SSSSSS" -> 6;
                 default -> piece.length();
             };
         }
@@ -1253,6 +1281,10 @@ final class IqFunctions {
                             AppliedFunction.infixRun("plus", List.of(SqlToPure.call("mod", epochMicros(d, false),
                                     integer(1_000_000L)), integer(1_000_000L))), integer(1_000_000L)),
                             integer(1000L))), 3);
+                    case "SSSSSS" -> lpad(SqlToPure.call("mod", AppliedFunction.infixRun("plus", List.of(
+                            SqlToPure.call("mod", epochMicros(d, false), integer(1_000_000L)), integer(1_000_000L))),
+                            integer(1_000_000L)), 6);
+                    case "JJJ" -> lpad(SqlToPure.call("dayOfYear", d), 3);
                     case "H12" -> lpad(ifThen(SqlToPure.call("equal", SqlToPure.call("rem", SqlToPure.call("hour",
                             d), integer(12)), integer(0)), integer(12), SqlToPure.call("rem", SqlToPure.call("hour",
                             d), integer(12))), 2);
@@ -1265,6 +1297,13 @@ final class IqFunctions {
             return AppliedFunction.infixRun("plus", parts);
         });
         return Tx.value(r.vs(), Kind.STRING, r.nullable(), new IqType("VARCHAR(" + width + ")"));
+    }
+
+    /** A style's pieces, {@code a}'s then {@code b}'s. */
+    private static List<Object> concat(List<Object> a, List<Object> b) {
+        List<Object> out = new ArrayList<>(a);
+        out.addAll(b);
+        return out;
     }
 
     /** {@code n}'s digits, zeros before them to {@code width}. */

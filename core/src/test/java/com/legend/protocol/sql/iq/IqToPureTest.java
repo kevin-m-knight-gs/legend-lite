@@ -870,7 +870,6 @@ class IqToPureTest {
                 "SELECT IF id = 1 THEN (SELECT 1 FROM DUMMY) ENDIF AS x FROM " + T,
                 "SELECT COALESCE((SELECT 1 FROM DUMMY), id) AS x FROM " + T,
                 "SELECT SUM((SELECT 1 FROM DUMMY)) AS x FROM " + T,
-                "SELECT id FROM " + T + " ORDER BY (SELECT 1 FROM DUMMY)",
                 "SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY INTERSECT SELECT 2 FROM DUMMY)"}) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): one inside a conditional expression or an aggregate names
             // IQ's error, -1001030
@@ -878,6 +877,11 @@ class IqToPureTest {
             assertTrue(m.contains("IQ's engine") || m.contains("IQ's error -1001030 under its engine"), sql);
             pure(sql, IqProfile.SQLA17_DEFAULT.settings());
         }
+        // IQ island, 2026-10-17 (measured on IQ 17.1): a subquery in the statement's ORDER BY is IQ's -1005004; SQL
+        // Anywhere's front end reads it
+        String orderedBySubquery = "SELECT id FROM " + T + " ORDER BY (SELECT 1 FROM DUMMY)";
+        assertTrue(refusal(orderedBySubquery).getMessage().contains("IQ's error -1005004"));
+        pure(orderedBySubquery, IqProfile.SQLA17_DEFAULT.settings());
         // IQ island, 2026-10-15 (measured on IQ 17.1): it takes more than the research's flag list held -- a scalar
         // subquery in the select list's arithmetic, a function's arguments, a CAST; one in a join's ON and BETWEEN
         for (String sql : new String[] {"SELECT id + (SELECT 1 FROM DUMMY) AS x FROM " + T,

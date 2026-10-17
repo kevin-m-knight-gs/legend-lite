@@ -389,6 +389,9 @@ public final class IqDialect implements InputDialect {
                 }
             }
         }
+        if (statementEngine != Engine.IQ) {
+            frontEndStyles(statement);
+        }
         for (IqParser.EngineCast cast : read.engineCasts()) {
             // IQ island, 2026-10-15 (checklist 0.5): a constant one engine raises for and the other converts
             // (IqFunctions.constantCast), refused under the engine that raises
@@ -3097,6 +3100,37 @@ public final class IqDialect implements InputDialect {
         return null;
     }
 
+    /** IQ island, 2026-10-17: a CONVERT style of IQ's engine's only (36-40, 136-140, 365) or of neither's, under SQL
+     *  Anywhere's front end (a query over no IQ table), refused by name as the reader did before its engine's styles
+     *  were read (the front end's styles differ; it raises its own error for some: style 365, the syntax research's
+     *  a3_sa_fn1-416). */
+    private static void frontEndStyles(SqlAst.Statement statement) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : expressions(s)) {
+                    frontEndStyle(e);
+                }
+            }
+        }
+    }
+
+    private static void frontEndStyle(SqlAst.Expr e) {
+        if (e instanceof SqlAst.FunctionCall f && f.name().size() == 1 && f.name().get(0).text().equals(
+                IqParser.CONVERT_STYLE) && f.args().get(1) instanceof SqlAst.IntegerLit n
+                && !FRONT_END_STYLES.contains(n.value().intValue())) {
+            throw com.legend.protocol.sql.SqlSyntaxException.unsupported("CONVERT style " + n.value() + " is not"
+                    + " supported under SQL Anywhere's front end (a query over no IQ table): the island reads its"
+                    + " styles 0-14, 20, 21, 100-114, 120 and 121", n.pos());
+        }
+        for (SqlAst.Expr child : children(e)) {
+            frontEndStyle(child);
+        }
+    }
+
+    /** The CONVERT styles the reader passes under SQL Anywhere's front end ({@link #frontEndStyles}). */
+    private static final Set<Integer> FRONT_END_STYLES = Set.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20,
+            21, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 120, 121);
+
     /** IQ island, 2026-10-17 (the corpus lane's SQLStorm, GROUP BY (SELECT COUNT(*) FROM Posts), ...; measured on IQ
      *  17.1, correlated or not, with or without a FROM): a subquery in a GROUP BY item is IQ's -1001030 under its engine
      *  (a scalar value subquery outside of a top level SELECT list); the front end's reading is not built. */
@@ -3195,7 +3229,17 @@ public final class IqDialect implements InputDialect {
                 predicates(java.util.Objects.requireNonNull(s.having()));
             }
             s.groupBy().forEach(k -> noSubquery(k, "GROUP BY"));
-            s.orderBy().forEach(o -> noSubquery(o.expr(), "ORDER BY"));
+            for (SqlAst.SortItem o : s.orderBy()) {
+                if (top.contains(s)) {
+                    // IQ island, 2026-10-17 (the corpus lane's 4; measured on IQ 17.1, correlated or not, shown as an
+                    // item or not, in arithmetic too): IQ's -1005004
+                    refuseSubquery(o.expr(), "a subquery in ORDER BY is IQ's error -1005004 under its engine (subqueries"
+                            + " are allowed only as arguments to comparisons, IN and EXISTS), refused before"
+                            + " translating");
+                } else {
+                    noSubquery(o.expr(), "ORDER BY");
+                }
+            }
             for (SqlAst.FromItem f : s.from()) {
                 List<SqlAst.Join> joins = new ArrayList<>();
                 joins(f, joins);
@@ -4991,8 +5035,12 @@ public final class IqDialect implements InputDialect {
         if (b.op() == SqlAst.BinaryOp.DIVIDE || b.op() == SqlAst.BinaryOp.MODULO) {
             return quotient(b, l, r, operator);
         }
-        int[] lt = numericType(l, b.left(), operator);
-        int[] rt = numericType(r, b.right(), operator);
+        // IQ island, 2026-10-17 (the corpus judge's NUMERIC places; measured on IQ 17.1): under IQ's engine an integer
+        // column enters with its own type's digits (100.0 * sm a NUMERIC(8,0), sm + 1.0 a NUMERIC(6,0), bg + 1 a
+        // NUMERIC(20,0)), as its quotient's operands do (iqNumericType); SQL Anywhere's front end's are NUMERIC(10,0)
+        // and NUMERIC(20,0)
+        int[] lt = engine == Engine.IQ ? iqNumericType(l, b.left(), operator) : numericType(l, b.left(), operator);
+        int[] rt = engine == Engine.IQ ? iqNumericType(r, b.right(), operator) : numericType(r, b.right(), operator);
         int p;
         int s;
         if (b.op() == SqlAst.BinaryOp.TIMES) {
@@ -5184,6 +5232,11 @@ public final class IqDialect implements InputDialect {
      *  integer literal its digits, an integer column its type's (SMALLINT 5, INTEGER 10, BIGINT 19, BIT 1), a COUNT
      *  (IQ's UNSIGNED BIGINT) 20. */
     private static int[] iqNumericType(Tx t, SqlAst.Expr e) {
+        return iqNumericType(t, e, "/");
+    }
+
+    /** {@link #iqNumericType} of an operand of {@code operator}. */
+    private static int[] iqNumericType(Tx t, SqlAst.Expr e, String operator) {
         if (t.detail() instanceof IqType type) {
             if (type.spelling().equals("UNSIGNED BIGINT")) {
                 return new int[] {20, 0};
@@ -5198,7 +5251,7 @@ public final class IqDialect implements InputDialect {
                 }, 0};
             }
         }
-        return numericType(t, e, "/");
+        return numericType(t, e, operator);
     }
 
     /** A number literal's written value, signs applied ({@code 1.5}, {@code -2}); null for any other expression. */
