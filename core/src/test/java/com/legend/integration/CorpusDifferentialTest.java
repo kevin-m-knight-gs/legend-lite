@@ -136,8 +136,19 @@ class CorpusDifferentialTest {
                 }
             }
         } finally {
+            // every session closes; the first failure to close is reported after the rest are closed
+            SQLException unclosed = null;
             for (Connection conn : sessions.values()) {
-                conn.close();
+                try {
+                    conn.close();
+                } catch (SQLException e) {
+                    if (unclosed == null) {
+                        unclosed = e;
+                    }
+                }
+            }
+            if (unclosed != null) {
+                throw unclosed;
             }
         }
         System.out.println("databases: " + sessions.keySet());
@@ -156,9 +167,9 @@ class CorpusDifferentialTest {
      * The seed's tables on {@code conn}, every statement rendered by {@code backend}'s dialect: each table made as its
      * store declares it (its names, and which the store declared quoted: the queries spell them so) with the column
      * types the seed gives it, then filled with its rows, each cell text the database casts to its column
-     * ({@link RowLoad}). A table no store of the corpus legend-lite loads declares (its file is one
-     * {@link StressExclusions} names) is not made: no query of legend-lite's reads it, and one that did would fail
-     * as its service's disagreement, named.
+     * ({@link RowLoad}). A table no store of the corpus legend-lite loads declares is not made when a file
+     * {@link StressExclusions} names declares it (no query of legend-lite's reads it, and one that did would fail as
+     * its service's disagreement, named); any other is refused by name.
      */
     private static void seed(TestBackend backend, Connection conn, List<PackageableElement> elements)
             throws Exception {
@@ -197,7 +208,13 @@ class CorpusDifferentialTest {
                 for (Json.Node r : table.getArr("rows").items()) {
                     List<String> cells = new ArrayList<>();
                     for (Json.Node cell : ((Json.Arr) r).items()) {
-                        cells.add(cell instanceof Json.Str text ? text.value() : null);
+                        cells.add(switch (cell) {
+                            case Json.Str text -> text.value();
+                            case Json.Null ignored -> null;
+                            default -> throw new IllegalStateException("the seed's cell " + cell + " in "
+                                    + key(schema, name) + " is neither text nor null: differential.py writes each"
+                                    + " value as the text its column takes");
+                        });
                     }
                     rows.add(cells);
                 }
@@ -207,8 +224,29 @@ class CorpusDifferentialTest {
                 }
             }
         }
+        Set<String> excluded = excludedTables();
+        List<String> stray = undeclared.stream().filter(t -> !excluded.contains(t)).toList();
+        if (!stray.isEmpty()) {
+            throw new IllegalStateException("the seed's tables " + stray + " are declared by no store of the corpus"
+                    + " legend-lite loads, nor by a file it excludes");
+        }
         System.out.println(backend.name() + ": " + undeclared.size()
                 + " of the seed's tables are in files legend-lite excludes, not made: " + undeclared);
+    }
+
+    /** Every table the files legend-lite excludes declare ({@link StressExclusions}), by {@link #key}: a file it
+     *  cannot build a model from still parses. */
+    private static Set<String> excludedTables() throws Exception {
+        Set<String> out = new HashSet<>();
+        for (String file : StressExclusions.EXCLUDED.keySet()) {
+            String text;
+            try (var in = CorpusDifferentialTest.class.getResourceAsStream("/stress/" + file)) {
+                text = new String(Objects.requireNonNull(in, "/stress/" + file + " is not on the classpath")
+                        .readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            }
+            out.addAll(declarations(com.legend.Compiler.parseModel(text).elements()).keySet());
+        }
+        return out;
     }
 
     /** A table's name in {@link #declarations}: {@code schema.table}, or {@code table} in the default schema. */

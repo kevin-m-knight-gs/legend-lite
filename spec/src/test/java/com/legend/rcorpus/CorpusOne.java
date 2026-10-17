@@ -26,8 +26,9 @@ public final class CorpusOne {
         com.legend.testbackend.TestBackends.named(args[0]);
         if (args[1].equals("database") && args.length == 2) {
             throw new IllegalArgumentException("a whole database pass needs the host pass's outputs: bazel test"
-                    + " //spec:corpus_" + args[0] + " (its passes are the actions judge_host_" + args[0]
-                    + " and judge_database_" + args[0] + "); corpus_one runs the database judge scoped to a test");
+                    + " //spec:corpus_" + args[0] + " where the lane has that target (its passes are the actions"
+                    + " judge_host_" + args[0] + " and judge_database_" + args[0] + "; spec/BUILD.bazel), else"
+                    + " CorpusOn; corpus_one runs the database judge scoped to a test");
         }
         System.setProperty("rcorpus.backend", args[0]);
         System.setProperty("legend.judge.mode", args[1]);

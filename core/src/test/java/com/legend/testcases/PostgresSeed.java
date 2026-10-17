@@ -41,7 +41,7 @@ public final class PostgresSeed {
                 s.execute("DROP TABLE IF EXISTS " + t.name() + " CASCADE");
                 s.execute(ddl.append(')').toString());
             }
-            SqlParity.fill(c, t, PostgresSeed::bindJson);
+            SqlParity.fill(c, t.name(), t, PostgresSeed::bindJson);
         }
     }
 

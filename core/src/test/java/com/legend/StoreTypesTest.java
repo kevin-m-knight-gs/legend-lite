@@ -159,11 +159,12 @@ class StoreTypesTest {
                 + "\\)";
     }
 
-    /** The type {@code dialect} reads a column stored as OTHER as: its own stored read of one, rendered alone. */
+    /** The type {@code dialect} casts a column to when a Pure String is asked of it: its own spelling of text, from a
+     *  cast it renders alone (not the stored read under test, which must arrive at the same type). */
     static String textType(com.legend.sql.dialect.SqlDialect dialect) {
         String sql = dialect.render(new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(
-                new com.legend.sql.SqlExpr.StoredRead(com.legend.sql.SqlExpr.Column.physical("t", "c"),
-                        new SqlDdl.ColumnType.Plain(SqlDdl.ColumnType.Kind.OTHER), null), "x", null)), false,
+                new com.legend.sql.SqlExpr.Cast(com.legend.sql.SqlExpr.Column.physical("t", "c"),
+                        com.legend.sql.SqlType.Scalar.VARCHAR), "x", null)), false,
                 new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of()));
         var m = java.util.regex.Pattern.compile("CAST\\([^)]*\\bc[\"`]?\\s+AS ([^)]+)\\)").matcher(sql);
         assertTrue(m.find(), sql);

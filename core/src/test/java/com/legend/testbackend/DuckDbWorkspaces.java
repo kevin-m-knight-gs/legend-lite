@@ -133,6 +133,9 @@ final class DuckDbWorkspaces {
             st.execute("USE " + aside);
             com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("SET TimeZone='UTC'");
+        } catch (SQLException e) {
+            own.close();
+            throw e;
         }
         List<String> held = List.copyOf(asides.get(workspace));
         return new FixtureAside() {

@@ -183,7 +183,7 @@ public final class SqlParity {
                         com.legend.setup.Ddl.quoting(table, null))));
                 s.execute(dialect.render(com.legend.setup.Ddl.createTable(table, null)));
             }
-            fill(c, t, (ps, i, type, json) -> ps.setString(i, json));
+            fill(c, dialect.storedName(table.name(), table.quoted()), t, (ps, i, type, json) -> ps.setString(i, json));
         }
     }
 
@@ -192,14 +192,14 @@ public final class SqlParity {
         void bind(PreparedStatement ps, int i, String type, String json) throws SQLException;
     }
 
-    /** Fills {@code t}'s rows, each value bound as upstream's {@code SchemaManager} binds it, by its YAML type: a JSON
-     *  value by {@code json}. */
-    public static void fill(Connection c, Table t, JsonBinding json) throws SQLException {
+    /** Fills {@code t}'s rows into {@code target} (the table as the session's SQL spells it), each value bound as
+     *  upstream's {@code SchemaManager} binds it, by its YAML type: a JSON value by {@code json}. */
+    public static void fill(Connection c, String target, Table t, JsonBinding json) throws SQLException {
         if (t.rows().isEmpty()) {
             return;
         }
         String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
-        try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + t.name() + " VALUES (" + marks + ")")) {
+        try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + target + " VALUES (" + marks + ")")) {
             for (List<Object> row : t.rows()) {
                 for (int i = 0; i < row.size(); i++) {
                     bind(ps, i + 1, row.get(i), t.columns().get(i).type().toUpperCase(Locale.ROOT), json);

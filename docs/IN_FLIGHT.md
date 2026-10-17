@@ -1542,7 +1542,8 @@ pause for the user's review after Phase 1.
     needs `-Dstress.pg.url` (`core/src/test/resources/sql-stress/run.sh` passes it).
   - New `resolver/ResolvedSql` (the resolver tests' one `sqlOf`). `CorpusDifferentialTest` runs each service on its
     runtime's database; `scripts/corpus/differential.py` writes `diff/seed.json` in place of `diff/seed.sql`.
-    `StoreTypesTest.on` takes a `DatabaseType`.
+    `StoreTypesTest.on` takes a `DatabaseType`. `LowerRelationTest` and `ScaleCostsTest` are
+    `LowerRelationDuckDbTest` and `ScaleCostsDuckDbTest`; `SqlParity.fill` takes the table as the session spells it.
 
   A branch that calls `SqlParity.seed` or `IqParity.seed` passes the backend; one that reads `diff/seed.sql` reads
   `diff/seed.json`; one that runs the corpus on the warehouse passes `-Drcorpus.backend=warehouse`.

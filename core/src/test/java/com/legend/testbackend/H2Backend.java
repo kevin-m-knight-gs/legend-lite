@@ -63,6 +63,9 @@ final class H2Backend extends InProcessBackend implements RefereeBackend {
                 com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                 st.execute(alias);
             }
+        } catch (SQLException e) {
+            referee.close();
+            throw e;
         }
         return referee;
     }

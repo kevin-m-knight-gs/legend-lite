@@ -15,6 +15,7 @@ import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSource;
+import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.SqlIslandCases;
@@ -39,13 +40,14 @@ import org.junit.jupiter.api.Test;
  * read twice doubled at every level of nesting: the tenth line's suite measured 20 nested derived tables at 53 MB
  * of SQL; the chain here, reading the level below twice, gave 7 MB at 10 levels and ran out of memory at 15.
  */
-class ScaleCostsTest {
+class ScaleCostsDuckDbTest {
 
-    /** The platform's own engine: the table, the island's session and the answer it is held to. */
-    private static final TestBackend PLATFORM = TestBackends.platform();
+    /** DuckDB, whose rendering the read counts pin and whose session gives the answer (named for it by the dialect
+     *  program's Phase 6, 2026-10-17: it was the platform's engine). */
+    private static final TestBackend DUCKDB = TestBackends.of(DatabaseType.DuckDB);
 
     private static final String MODEL =
-            SqlIslandCases.model(PLATFORM.connectionBody());
+            SqlIslandCases.model(DUCKDB.connectionBody());
     private static final String EMP = SqlIslandCases.SOURCE;
     private static ModelContext ctx;
     private static Connection session;
@@ -53,9 +55,9 @@ class ScaleCostsTest {
     @BeforeAll
     static void seed() throws SQLException {
         ctx = Compiler.compileModel(MODEL);
-        session = PLATFORM.open();
+        session = DUCKDB.open();
         try (Statement s = session.createStatement()) {
-            s.execute(SqlIslandCases.table(PLATFORM));
+            s.execute(SqlIslandCases.table(DUCKDB));
             s.execute("INSERT INTO EMP VALUES " + SqlIslandCases.ROWS);
         }
     }
@@ -170,7 +172,7 @@ class ScaleCostsTest {
                         ? lf.body() : List.of(parsed);
         var resolved = Compiler.resolveQuery(statements, new com.legend.model.ImportScope(List.of()), ctx);
         SqlQuery q = Compiler.lowerResolved(resolved, ctx, SqlIslandCases.RUNTIME, false);
-        return PLATFORM.dialect().render(q);
+        return DUCKDB.dialect().render(q);
     }
 
     private static int count(String text, String needle) {

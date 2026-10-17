@@ -58,13 +58,17 @@ final class DuckDbBackend extends InProcessBackend {
      *  catalog is metadata, safe while the session holds an open streaming result). */
     @Override
     public Connection readerOn(Connection session) throws SQLException {
-        Connection reader = session.unwrap(DuckDBConnection.class).duplicate();
         String ws = session.getCatalog();
-        if (ws != null && !ws.isBlank()) {
-            try (Statement st = reader.createStatement()) {
-                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                st.execute("USE " + ws);
-            }
+        if (ws == null || ws.isBlank()) {
+            throw new SQLException("a DuckDB session that names no catalog: no reader can be pointed at its data");
+        }
+        Connection reader = session.unwrap(DuckDBConnection.class).duplicate();
+        try (Statement st = reader.createStatement()) {
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
+            st.execute("USE " + ws);
+        } catch (SQLException e) {
+            reader.close();
+            throw e;
         }
         return reader;
     }
