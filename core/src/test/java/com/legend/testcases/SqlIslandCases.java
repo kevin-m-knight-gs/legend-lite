@@ -76,8 +76,7 @@ public final class SqlIslandCases {
      *  database: its dialect renders the store's declaration ({@code setup.Ddl.createTable}), each name quoted as the
      *  store declared it, so a database that folds a bare name keeps the quoted ones as the model spells them. */
     public static String table(TestBackend backend) {
-        for (var element : com.legend.parser.ElementParser.parse(STORE, com.legend.parser.Dialect.LEGEND_LITE)
-                .elements()) {
+        for (var element : com.legend.Compiler.parseModel(STORE).elements()) {
             if (element instanceof com.legend.model.DatabaseDefinition db) {
                 for (var table : db.tables()) {
                     if (table.name().equals("EMP")) {

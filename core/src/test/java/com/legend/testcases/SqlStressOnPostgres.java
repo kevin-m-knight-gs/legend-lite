@@ -64,8 +64,8 @@ public final class SqlStressOnPostgres {
         }
         try (Connection duck = platform.open()) {
             SqlParity.seed(platform, duck, tables);
-            System.out.println("id\tchars\tpostgres\tpg_ms\tduck_plan_ms\tduck_sql\tduckdb\tduck_ms\tpg_plan_ms"
-                    + "\tpg_sql\tpostgres_lane\tpgl_ms\tdetail");
+            System.out.println("id\tchars\tpostgres\tpg_ms\tduck_plan_ms\tduck_sql\t" + platform.name()
+                    + "\tduck_ms\tpg_plan_ms\tpg_sql\tpostgres_lane\tpgl_ms\tdetail");
             for (String[] q : queries) {
                 if (only != null && !q[0].matches(only)) {
                     continue;

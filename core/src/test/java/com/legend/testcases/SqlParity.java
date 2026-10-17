@@ -169,8 +169,7 @@ public final class SqlParity {
     public static void seed(TestBackend backend, Connection c, List<Table> tables) throws SQLException {
         com.legend.sql.dialect.SqlDialect dialect = backend.dialect();
         Map<String, com.legend.model.DatabaseDefinition.TableDefinition> declared = new LinkedHashMap<>();
-        for (var element : com.legend.parser.ElementParser.parse(store(tables),
-                com.legend.parser.Dialect.LEGEND_LITE).elements()) {
+        for (var element : com.legend.Compiler.parseModel(store(tables)).elements()) {
             if (element instanceof com.legend.model.DatabaseDefinition db) {
                 for (var table : db.tables()) {
                     declared.put(table.name(), table);
