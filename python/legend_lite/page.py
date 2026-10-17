@@ -251,8 +251,8 @@ class Grid(Tile):
 
     def _edit(self, given: dict[str, Any]) -> Grid:
         """The grid edited as DataCube's screen edits one -- any of ``configuration`` (its settings, as a host patches
-        them), ``columns`` (Column Properties), ``rows``, ``pivotOn``, ``measures`` and ``sorts``, each whole -- by
-        DataCube's own module, the one its panels, header menu
+        them), ``columns`` (Column Properties), ``rows``, ``pivotOn``, ``measures`` and ``sorts``, each whole, and
+        ``addSort`` (one sort added as the header menu adds it) -- by DataCube's own module, the one its panels, header menu
         and drag zones call (headless gridEdit: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md), and compiled as its
         Apply compiles: refused in DataCube's words, nothing set; else the cube document DataCube writes, its open
         groups kept as the screen keeps them."""

@@ -55,11 +55,13 @@ Claude Code cloud container). Three things differ from CI, and each has its own 
    `$HOME/.pki/nssdb`, and a test's `HOME` is its `TEST_TMPDIR`, which has none. Pass the bundle and a home whose NSS
    store trusts the proxy's CA (made once with `certutil -A -t "C,," ...` as that user):
    `--test_env=NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt --test_env=HOME=/home/ubuntu`. With these, 11 of the 13
-   passed.
+   passed. **Since 2026-10-17 neither flag is needed:** a Node test starts DuckDB with engine-client's
+   `startNodeDuckDb`, which answers its extension requests from the pinned files `node_test` gives it, so no test asks
+   the network (docs/CLOUD_SESSIONS.md); the full local set passed in the container without them (the Postgres tests
+   as `ubuntu`, item 1).
 3. *Two tests write into their working directory*, the runfiles tree, which root owns: `//datacube:upload_test` and
    `//engine-client:model_data_test` (DuckDB-WASM's `COPY ... TO 'nested.json'`, `'tmp_made.parquet'`). As `ubuntu`
-   they fail with `EACCES`. Run those two as root, without `--run_under`, with item 2's
-   `NODE_EXTRA_CA_CERTS`: both passed.
+   they fail with `EACCES`. Run those two as root, without `--run_under`: both passed.
 
 So all 347 tests passed in this container. The two hazards are the tests' own: an extension fetched from the
 network at run time, and a scratch file written outside `TEST_TMPDIR`. CI doesn't see them because it has direct

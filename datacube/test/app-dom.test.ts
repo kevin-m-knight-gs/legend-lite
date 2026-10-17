@@ -222,8 +222,7 @@ describe('the app', () => {
     /**
      * A measure shown under its OWN column's name -- how every uploaded
      * file's measures appear -- so the menu knows its type and would
-     * offer a value filter. (A measure named apart from its column, as
-     * `notional` above, has no type to offer operators for.)
+     * offer a value filter.
      */
     class OwnNameEngine extends FakeEngine {
       readonly name = 'own-name';

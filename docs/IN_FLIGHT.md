@@ -934,7 +934,14 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   2026-10-17: every test runs in the container): `tools/js/defs.bzl` (a test that takes DuckDB-WASM takes the pinned
   extensions too, named in `DUCKDB_EXTENSIONS`: the Compiler Rewrite line's OK asked), `engine-client/src/node-require.ts`
   (`startNodeDuckDb`), `engine-client/BUILD.bazel` (`node_duckdb_test`), the engine-client tests that start DuckDB
-  (`arrow-ipc`, `model-data`, `snap`), and `datacube/BUILD.bazel` (the two remote harnesses' `bazel run` targets).
+  (`arrow-ipc`, `model-data`, `snap`), `datacube/BUILD.bazel` (the two remote harnesses' `bazel run` targets), the
+  harnesses themselves (`demo/verify-remote.mjs`, `demo/verify-real-data.mjs`), and `docs/CLOUD_SESSIONS.md`, `docs/GATES.md`.
+  Then main merged in (137c702) and the clean audit (four auditors, the user's ask before the push): its fixes in files
+  already declared, and, by the user's ruling that no older document be read ("remove ALL backward compatibility";
+  "you can break saved links"), `page-document.ts` (a page before version 4 refused), `layout/bands.ts` (`fromCells`
+  gone), `chart-spec.ts` (a version 1 spec refused), `config.ts` (the settings' lists configure checks names against),
+  `tools/link-dictionary/make.ts` (the next dictionary's chart at CHART_VERSION), their tests, and
+  `docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` (a dated note).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

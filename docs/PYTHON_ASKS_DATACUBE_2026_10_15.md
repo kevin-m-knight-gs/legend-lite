@@ -52,7 +52,8 @@ the DataCube + Python line before CI (the BUILD edits by the Compiler Rewrite li
   (built from `drop`); Python's band editors deleted. Found on the way: `arrange` took any preset name on a page of
   one place or none -- it now checks first.
 - **1, reading and writing a page.** `headless/page.ts pageRead` (`readPage` then `pageToJson`): Python loads, reads
-  back, lays out, saves and shows a page through DataCube's reader -- any version it reads, migrated; an empty page
+  back, lays out, saves and shows a page through DataCube's reader -- its own version only (since 2026-10-17 no
+  older page is read: the user's ruling, docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.4); an empty page
   refused; two cubes of one id refused (`readPage`, new). `_check` and `_problems` deleted.
 - **2 and 1's reopened cube.** `rawRows` and `rebuilt` moved from `app/sources.ts` into `cube-document.ts`, with
   `frameSource`; `headless/grid.ts gridCube` makes a grid's cube over a frame as DataCube does, new (capped beside
@@ -94,7 +95,9 @@ What is left, and why:
     copy of the compiler's `ModelChanges.isIdentifier`, kept and named so (the user, 2026-10-16: moving the check into
     the model writer, `Boundary.tableModel`, was weighed and not taken). DataCube holds a third copy for its naming
     dialogs (`model-names.ts isPureName`): a follow-up, not in PR neema2/legend-lite#47, could have them ask the worker.
-  - `_next` ids (page.py) are no copy of `cube-page.ts`'s: Python never reuses an id a handle once had.
+  - `_next` ids (page.py): no copy of a rule `cube-page.ts` decides (Python never reuses an id a handle once had), but
+    a second allocator all the same -- the command program's homework (§4.6, §8) counts it among what Python still
+    does differently, for one command API to settle.
   - `_column_choices` (page.py) passes the writer only the keys it reads (`as`, `name`, `documentation`) and drops any
     other unsaid, so a misspelt key is ignored, never refused (found by the round's second audit, 2026-10-16; there
     before PR neema2/legend-lite#47). A follow-up could pass every key and have `CreateClass` refuse one it does not
@@ -157,9 +160,9 @@ on `notional` beside `total` of it) asked the planner for a column its groupBy d
 the grid was refused; it now sorts by what it writes, as a pivot's level did, the detail rows by the rest. A cube saved
 before the rule -- old Python's `grid.group('region').measure('region', 'count')`, whose count the grouped level had
 dropped without a word, or a sum of a text column, which old Python checked no type of -- opens without each measure
-the rule or its column's type refuses (`offers.ts measureOfferProblem`, until 2026-10-17: a saved measures list is
-now made the grid's Column Properties by `grid-edits.ts measuresAsColumns`, docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md
-§3.4), judged in order as the level judges them, and
+the rule or its column's type refuses (`offers.ts measureOfferProblem`, until 2026-10-17: a saved measures list was
+then made the grid's Column Properties, and since the same day's clean audit a cube that carries one is not read at
+all, docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.4), judged in order as the level judges them, and
 says so (`cube-document.ts openCube`, as it leaves out a measure of a column that is gone): the screen's note, Python's
 warning when it loads the page. No panel shows a measure to fix, so refusing it at every level would lock the page. A
 page Python loads takes each cube as DataCube opens it whenever opening changed it (`page.py _reopened`, at load and

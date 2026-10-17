@@ -201,7 +201,7 @@ describe('step 1: types from the compiler', () => {
         { name: 'sum_qty', column: 'qty', fn: 'sum' },
         { name: 'sum_amount', column: 'amount', fn: 'sum' },
         { name: 'avg_price', column: 'price', fn: 'average' },
-        // a count is offered on an integer column only (Aggregation's offer, offers.ts takesAggregate); a group's rows
+        // a count is offered on a number column only (Aggregation's offer, offers.ts takesAggregate); a group's rows
         // are counted by "Show leaf count"
         { name: 'n', column: 'big', fn: 'count' },
         { name: 'last_day', column: 'day', fn: 'max' },

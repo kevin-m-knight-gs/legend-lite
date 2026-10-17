@@ -36,8 +36,9 @@ through just 4 commits: Properties Apply, Filters Apply, Column OK, and Column D
   - A rule's refusal becomes a return value. That replaces today's try/catch-and-capture in `#edit`.
 - **`grid-edits.ts` is the start of `apply`'s grid half**, and headless `gridEdit` is already a batch command.
 - **Python already holds the page as exactly one document** (`Page._doc`), which is the shape `apply` wants.
-- **The document formats don't need to change.** Today's measures-list migration correctly lives in the open step
-  (openCube), not in an edit.
+- **The document formats need no migration step.** No older document is read (the user, 2026-10-17): a cube is
+  version 2, a page version 4, a chart spec version 2, and an older one is refused by its version -- so a command
+  never meets an older shape.
 
 ## 4. What's big, ranked
 
@@ -89,14 +90,21 @@ layout lock, maximise) is not a command.
 **Mostly no.**
 - The headless entry points and their JSON are internal (Python's public methods wrap them), so swapping them for
   one `apply` later is invisible to Python users.
-- The document formats are unchanged.
-- Python's public API changes little against `main`:
-  - **added:** `Grid.column()` and `Page.grid(dimensions=)`;
+- The document formats changed once, and nothing older is read: a cube is version 2 (no measures list); a cube of
+  version 1, a page before version 4 and a chart spec of version 1 are refused by their versions (the user,
+  2026-10-17: "you can remove ALL backward compatibility"; "you can break saved links"). Share links made before
+  are refused too.
+- Python's public API against `main`:
+  - **added:** `Grid.column()`, `Page.grid(dimensions=)` and `Grid.calculate(kind=)`;
+  - **removed:** `ll.planner()`, `ll.show(planner=, server=)`, `legend_lite.upstream` and `Engine(planner=)` (no
+    remote planner in Python);
   - **changed meaning:** `Grid.measure()` (now a column's Aggregation, or a calculated column; a dimension's refused),
     `Grid.sort()` (now the menu's Add: replaces that column's sort), `Grid.group()` and `Grid.pivot()` (a column that
     is not a dimension refused: `Page.grid(rows=['year'])` needs `dimensions=['year']`), and `Grid.configure()` (a
     host's patch, merged and folded, with Column Properties' rules for a column's kind and Aggregation, where it wrote
-    the document raw).
+    the document raw; a setting, a column or a name it has not is refused), `Grid.measure()` (its aggregate is
+    required: no `'sum'` assumed), and `to_json()`/`save(path)` (a page with no grid is refused, as DataCube refuses
+    it).
 - Most public methods map one-to-one onto commands.
 
 **Before merge, fix what #47 itself introduced or made worse:**
@@ -117,13 +125,23 @@ left out kept on open; `measure()` making a dimension a measure; `configure` set
 `sort()`'s move-last rule held in Python (`grid-edits.ts addSort`, the menu's too); a grid measures list read at run
 time (refused now); unknown `gridEdit` parts ignored (refused now); reopening's notes dropped (warned now).
 
+**The clean audit (four independent auditors, 2026-10-17, main merged in) found, and #47 fixed before merge,** each
+with a test that fails without it: an untouched Update after Open in Grid changing a chart's values (a histogram's
+count, a copy the grid had, two counts both named "count"); a following chart folding one of two values of a column
+onto the other, for good; seven ways a converted page opened showing other numbers, and cubes written then that
+older readers refused -- all moot with the conversion gone (no older cube is read); `create_data_space` leaving out a
+grid whose sample a class cannot hold; `configure` keeping settings and columns DataCube has not; a filter, a
+calculated column or a chart checked against a Live frame changed in place but written into the stale cube; a
+broken lambda escaping as a JavaScript exception; `measure()`'s Python-held `'sum'`; and the stand-in's test case that
+could not fail.
+
 **Known differences to record as follow-ups, not fix in #47:**
 - `gridEdit` only compiles. The screen runs the change, so a pivot past 500 values is refused on screen but accepted
   by Python until its view runs (**checked**).
 - A live chart's saved spec goes stale after a Python grid edit until a chart method touches it. The screen
   re-follows on every view (**checked**). A page-level `apply` fixes this properly.
-- Open in Grid says nothing of a chart value it could not make a column (its notes are dropped); the value is kept,
-  its own column's.
+- Open in Grid says nothing of a chart value it could not make a column (its notes are dropped); Update leaves that
+  value as it is (since the clean audit: it took its column's Aggregation).
 - `gridEdit` does not move the tree with the configuration as Properties Apply does (`withTotals`, `withExpandTo`), so
   `configure({'showRootAggregation': ...})` does not change the view (as before this round).
 

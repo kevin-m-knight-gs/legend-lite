@@ -509,7 +509,7 @@ export async function gridEdit(spec: GridSpec, given: string): Promise<string> {
   return using(spec, async ({ planner, cube }) => {
     const asked: unknown = JSON.parse(given);
     if (!isObject(asked)) {
-      return JSON.stringify({ problems: ["a grid's edit is {configuration, columns, rows, pivotOn, measures, sorts}, any of them"] });
+      return JSON.stringify({ problems: ["a grid's edit is {configuration, columns, rows, pivotOn, measures, sorts, addSort}, any of them"] });
     }
     const draft: GridDraft = { snapshot: await typedColumns(planner, cube.snapshot), config: cube.configuration };
     let d: GridDraft;

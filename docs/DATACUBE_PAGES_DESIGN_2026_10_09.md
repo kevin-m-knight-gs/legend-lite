@@ -144,7 +144,9 @@ divider is the one exception that follows live, and only its content, at most on
   then lays them out. A v1 page reads as before: its one cube and charts, its 12-column grid read as bands (cut where no tile crosses:
   across into bands, then into columns and stacked parts; tiles no straight cut divides, side by side) -- as built,
   2026-10-09, where this said "laid out as one column": its arrangement is kept rather than lost. The page's layout is
-  written as version 2 from then on.
+  written as version 2 from then on. **Since 2026-10-17 no older page is read** (the user's ruling,
+  docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.4): a page before version 4 is refused by its version, and the
+  reading of a v1 grid as bands (`fromCells`) went.
 - Save, Share (the same compressed JSON in the link), Export > Specification and "changed since saved" cover every
   tile.
 
