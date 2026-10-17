@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 
 /**
@@ -604,6 +605,66 @@ public final class CypherGraph {
                     .getSimpleName().toLowerCase(Locale.ROOT) + " (" + valueText + "), a kind the model does not"
                     + " hold yet (a zoned date-time or time of day: its offset a column beside the value)");
         };
+    }
+
+    /** The scenario's procedures as Pure functions (the study's §12.60): {@code test.my.proc} is the function
+     *  {@code test::my::proc}, its inputs the parameters (each optional), its outputs the relation it returns; the
+     *  body a typed TDS literal of the declared rows, filtered on the inputs (a null input matches a null cell) and
+     *  cut to the outputs; a procedure of no output returns a Boolean (VOID). */
+    public static String procedures(List<CypherTck.Procedure> procedures) {
+        StringBuilder pure = new StringBuilder("###Pure\n");
+        for (CypherTck.Procedure p : procedures) {
+            String path = p.name().replace(".", "::");
+            String params = p.inputs().stream().map(i -> i.name() + ": " + pureType(i.type()) + "[0..1]")
+                    .collect(Collectors.joining(", "));
+            if (p.outputs().isEmpty()) {
+                pure.append("function ").append(path).append('(').append(params).append("): Boolean[1]\n{\n")
+                        .append("    true\n}\n");
+                continue;
+            }
+            String relation = p.outputs().stream().map(o -> o.name() + ": " + pureType(o.type()))
+                    .collect(Collectors.joining(", "));
+            pure.append("function ").append(path).append('(').append(params).append("): Relation<(")
+                    .append(relation).append(")>[1]\n{\n    #TDS\n      ");
+            List<CypherTck.Procedure.Param> columns = new ArrayList<>(p.inputs());
+            columns.addAll(p.outputs());
+            pure.append(columns.stream().map(c -> c.name() + ":" + pureType(c.type())).collect(
+                    Collectors.joining(", "))).append('\n');
+            for (List<String> row : p.rows()) {
+                if (row.size() != columns.size()) {
+                    throw new IllegalStateException("the procedure " + p.name() + " declares a row of " + row.size()
+                            + " cells for " + columns.size() + " columns: " + row);
+                }
+                pure.append("      ").append(row.stream().map(CypherGraph::tdsCell).collect(Collectors.joining(", ")))
+                        .append('\n');
+            }
+            pure.append("    #");
+            if (!p.inputs().isEmpty()) {
+                pure.append("->filter(r | ").append(p.inputs().stream().map(i -> "$r." + i.name() + " == $"
+                        + i.name()).collect(Collectors.joining(" && "))).append(')');
+            }
+            pure.append("->select(~[").append(p.outputs().stream().map(CypherTck.Procedure.Param::name).collect(
+                    Collectors.joining(", "))).append("])\n}\n");
+        }
+        return pure.toString();
+    }
+
+    /** The TCK's parameter types as Pure's (a NUMBER is a Float in the rows, a Number as the parameter). */
+    private static String pureType(String tckType) {
+        return switch (tckType) {
+            case "INTEGER" -> "Integer";
+            case "FLOAT" -> "Float";
+            case "NUMBER" -> "Number";
+            case "STRING" -> "String";
+            case "BOOLEAN" -> "Boolean";
+            default -> throw new IllegalStateException("a procedure type the harness does not declare: " + tckType);
+        };
+    }
+
+    /** A TCK table cell as a TDS literal cell: a null empty, a string in its quotes (the grammar's spelling is
+     *  the literal's). */
+    private static String tdsCell(String cell) {
+        return cell.equals("null") ? "" : cell;
     }
 
     /** The model's Duration value class (the island carries a duration as an instance of it): a stored duration

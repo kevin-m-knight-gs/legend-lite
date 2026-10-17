@@ -288,6 +288,7 @@ def case(prefix, name, steps, graphs):
     setup = []
     params = {}
     params_text = []
+    procedures = []
     query = None
     expect = None
     skip = None
@@ -318,8 +319,12 @@ def case(prefix, name, steps, graphs):
         elif re.match(r"an? (\w+) should be raised at (compile time|runtime|any time): (\S+)", text):
             m = re.match(r"an? (\w+) should be raised at (compile time|runtime|any time): (\S+)", text)
             expect = {"kind": "error", "type": m.group(1), "phase": m.group(2), "detail": m.group(3)}
-        elif text.startswith("there exists a procedure") or text.startswith("having defined"):
-            skip = skip or "a procedure"
+        elif text.startswith("there exists a procedure"):
+            # a procedure the scenario declares (CypherTck.Procedure): its graph is Neo4j's, its answer the TCK's
+            # own table (the harness judges a procedure case by its expectation; Neo4j runs no procedure of ours)
+            procedures.append(procedure_text(text, table))
+        elif text.startswith("having defined"):
+            skip = skip or "a defined function"
         elif text in ("no side effects",) or text.startswith("the side effects should be"):
             pass
         else:
@@ -327,7 +332,47 @@ def case(prefix, name, steps, graphs):
     if query is None:
         skip = skip or "no query"
     return {"key": prefix + "/" + name, "query": query or "", "setup": setup, "params": params,
-            "paramsText": "\n".join(params_text), "version": version, "expect": expect, "skip": skip}
+            "paramsText": "\n".join(params_text), "version": version, "expect": expect, "skip": skip,
+            "proceduresText": "\n".join(procedures)}
+
+
+def lite_procedures_text(block):
+    """A lite case's procedures block (declaration lines, each followed by its table's lines) as the text."""
+    if not block:
+        return ""
+    out = []
+    declaration = None
+    table = []
+    for line in block.split("\n"):
+        l = line.strip()
+        if not l:
+            continue
+        if l.startswith("|"):
+            table.append(cells(l))
+        else:
+            if declaration is not None:
+                out.append(procedure_text(declaration, table))
+            declaration = l
+            table = []
+    if declaration is not None:
+        out.append(procedure_text(declaration, table))
+    return "\n".join(out)
+
+
+def procedure_text(text, table):
+    """A procedure declaration as CypherTck.Procedure.text spells it: name(in :: T?, ...) :: (out :: T?, ...), then
+    its rows (a table of one empty cell is none), each row's cells joined by |."""
+    m = re.match(r"(?:there exists a procedure )?(\S+?)\((.*?)\)\s*::\s*\((.*?)\)\s*:?\s*$", text.strip())
+    if not m:
+        raise SystemExit("a procedure declaration the snapper does not read: " + text)
+    def params(t):
+        return ", ".join(p.strip().split("::")[0].strip() + " :: " + p.strip().split("::")[1].strip().replace("?", "") + "?"
+                         for p in t.split(",") if p.strip())
+    out = m.group(1) + "(" + params(m.group(2)) + ") :: (" + params(m.group(3)) + ")"
+    for row in (table or [])[1:]:   # the first row is the header (the inputs' then the outputs' names)
+        if not (len(row) == 1 and row[0] == ""):
+            out += "\n" + "|".join(row)
+    return out
 
 
 # ------------------------------------------------------------------ lite's own cases
@@ -396,7 +441,8 @@ def lite_cases(lite_dir):
             cases.append({"key": "lite/" + file + "/" + it["id"], "query": it.get("cypher", ""), "setup": setup,
                           "params": params, "paramsText": it.get("params") or "", "version": it.get("version"),
                           "expect": None, "skip": it.get("skip"), "decision": it.get("decision"),
-                          "expectText": it.get("expect")})
+                          "expectText": it.get("expect"),
+                          "proceduresText": lite_procedures_text(it.get("procedures"))})
     return cases
 
 
@@ -415,6 +461,8 @@ def sha(c):
     and expect; a change to any makes the answer STALE (CypherAnswers.sha computes the same)."""
     parts = [c["query"], cypher_version(c), "\n;\n".join(c["setup"]), c["paramsText"], c.get("decision") or "",
              c.get("expectText") or ""]
+    if c.get("proceduresText"):
+        parts.append(c["proceduresText"])   # (a case declaring procedures, the study's §12.60)
     return hashlib.sha256("\n\x00\n".join(parts).encode("utf-8")).hexdigest()
 
 
@@ -447,6 +495,8 @@ def run_case(driver, c):
                 out["setupError"] = error_of(e)
                 return out
         out["graph"] = dump(s)
+        if c.get("proceduresText"):
+            return out   # the query calls a procedure Neo4j has not: the graph alone is the oracle's
         query = c["query"]
         if not re.match(r"\s*CYPHER\b", query):
             query = "CYPHER " + cypher_version(c) + " " + query

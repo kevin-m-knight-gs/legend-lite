@@ -4154,3 +4154,66 @@ label-less) and `lite/temporal/a_date_moved_by_a_duration_of_more_than_a_day` PA
 (`snap.sh --check`: 0 problems); the TCK's Temporal8 and Temporal5/[7] duration scenarios pass but the three
 multiply-and-divide refusals of before. TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB
 3354 → 3379, Postgres 3004 → 3017.
+
+### 12.60 Procedures: a Pure function over its rows, CALL joined to the rows in hand (2026-10-17)
+
+The TCK-to-zero plan's W8. The TCK declares a procedure per scenario ("there exists a procedure test.my.proc(in ::
+INTEGER?) :: (out :: STRING?):" and a table of its rows, the inputs' columns then the outputs'), and the harness
+skipped the 50 scenarios of Call1-6. Neo4j runs no procedure of ours (a TCK procedure is a plugin of its runner),
+so the leg has three parts: the representation, the clause, and the judging.
+
+- **A procedure is a function of the model.** The harness declares each as a Pure function at the path its dotted
+  name spells ({@code test.my.proc} is {@code test::my::proc}), its inputs the parameters (each {@code [0..1]}),
+  its outputs the relation it returns, the body a typed TDS literal of the declared rows (the brace-less
+  {@code #TDS ... #}, the island's own spelling) filtered on the inputs ({@code $r.in == $in}: Pure's equality
+  joins a null argument to a null cell, Call4) and cut to the outputs; a procedure of no output is a function
+  returning a Boolean (VOID). The island's `Model.procedure(name)` reports a procedure as the function at that path
+  (`CypherIslands.Graph`: `findFunction`, the parameters, the relation's columns through the generic `Relation`),
+  null when the model declares none; a model with no procedures reports none (the interface's base).
+- **The CALL clause.** The parser reads {@code CALL name[(args)] [YIELD * | item [AS alias], ...]} (a dotted
+  name; no parentheses: the implicit form, its arguments the query's parameters; a `CALL {` subquery refused by
+  name). The translator (`procedureCall`): standalone, the function's relation is the result, every output
+  without a YIELD, the yielded ones selected and renamed (each through a fresh name first, so `YIELD a AS b, b AS
+  a` swaps two); after rows, the rows laterally joined to the relation of each row's arguments
+  (`lateral(rows, r | f($r.x))`), the yields the new columns (nullable, of the outputs' kinds); a VOID procedure
+  leaves the state as it is (a graph stays a graph; a query it starts is one row), standalone it answers no row
+  (under a hidden column: a relation has one at least, where Neo4j's result has none). Neo4j's static errors are
+  raised as its: an unknown procedure (ProcedureNotFound), too many or few arguments (InvalidNumberOfArguments), an
+  argument of the wrong kind (InvalidArgumentType: an integer passes for a NUMBER or a FLOAT input, as Neo4j
+  widens it, a null for any), an aggregate among the arguments (InvalidAggregation), implicit arguments or an
+  unnamed yield inside a query (InvalidArgumentPassingMode, the TCK's UndefinedVariable and UnexpectedSyntax), a
+  yield of an unknown output, of a bound name or of two outputs to one name (VariableAlreadyBound).
+- **Implicit arguments.** The harness binds a scenario's parameters into the island's text (§12.16); a standalone
+  `CALL test.my.proc` with no parentheses calls the procedure with its inputs' namesakes among the parameters
+  (Cypher's rule), which the harness spells as the explicit call of those parameters before binding them
+  (`Case.implicitArguments`), so Call2/[3] reads as `CALL test.my.proc('Stefan', 1)`. A parameter the scenario
+  does not provide (Call1/[11], MissingParameter) reaches the island as `$in`, which it refuses by name: REFUSED,
+  not an agreement claimed.
+- **The judge.** The oracle's snapper runs a procedure case's setup and dumps its graph (Neo4j is the oracle of the
+  graph, as for every case) and runs no query (`run_case`: the answer holds the graph alone); the answer's hash
+  takes the declarations' text (`Procedure.text`, spelled the same by `snap.py`), so a changed table is a stale
+  answer. The lane judges the case by the TCK's own expectation (`procedureOutcome`): its rows (the columns and
+  the rows, in order where it says so), an empty result (no row), or an error (any error of lite's but a refusal
+  by name, which stays REFUSED). A lite case declares procedures the same way (`procedures:` a declaration line in
+  the TCK's form, then its table) and its own `expect:` block (`rows in order` / `rows in any order` and the
+  table, `empty`, `error <type>`): `lite/procedures.yaml`, ten cases.
+- **A platform fix on the way.** The TDS literal's brace form (`#TDS{...}#`, the engine's own grammar, what the
+  composer prints) parsed from text kept its braces: the checker read `{` as the first header cell (every row a
+  cell of one column named `{`). `TdsChecker` strips the braces now; the brace-less form, the island's own, was
+  never affected (`RelationApiIntegrationTest.testTdsLiteralBraceForm`).
+
+#### 12.60.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4702 | 3484 (from 3,425) | 0 | 0 | 0 | 384 (from 383) | 731 | 103 (from 153) |
+| Postgres | 4702 | 3111 (from 3,052) | 0 | 0 | 0 | 757 (from 756) | 731 | 103 (from 153) |
+
+The 10 procedure cases of `lite/procedures.yaml` (a standalone call yielding every output, a call over the rows
+of a MATCH with an aliased yield, a VOID procedure keeping the rows, a null argument matching a null cell, a NUMBER
+input taking an integer or a float, outputs swapped by their aliases, a call twice over a count, and three errors: an
+unknown procedure, a wrong argument kind, a yield of a bound name) PASS on both lanes, judged by their own expect
+blocks (Neo4j snaps their graphs: `snap.sh --check` 0 problems); of the TCK's 52 Call scenarios 49 PASS, 2 are
+BOTH_ERROR (an unknown procedure, where Neo4j errors too) and 1 REFUSED (the implicit call whose parameter the
+scenario omits). The harness's SKIP count falls by the 50 procedure scenarios. TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB
+3379 → 3428, Postgres 3017 → 3066.

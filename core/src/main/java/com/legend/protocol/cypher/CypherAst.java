@@ -25,8 +25,20 @@ public final class CypherAst {
 
     // ------------------------------------------------------------------ clauses
 
-    public sealed interface Clause permits Match, With, Return, Unwind, Use, OtherClause {
+    public sealed interface Clause permits Match, With, Return, Unwind, Use, ProcedureCall, OtherClause {
         Pos pos();
+    }
+
+    /** {@code CALL name[(args)] [YIELD * | item, ...]} (the study's §12.60): a procedure of the model, called standalone
+     *  or over the rows in hand. {@code args} is null when the call is written without parentheses (its arguments
+     *  implicit: the query's parameters); {@code yields} null when nothing is yielded, {@code yieldAll} for
+     *  {@code YIELD *}. */
+    public record ProcedureCall(String name, @com.legend.base.Nullable List<Expr> args,
+            @com.legend.base.Nullable List<YieldItem> yields, boolean yieldAll, Pos pos) implements Clause {
+    }
+
+    /** A yielded output of a procedure, under its alias when written. */
+    public record YieldItem(String name, @com.legend.base.Nullable String alias, Pos pos) {
     }
 
     /** {@code [OPTIONAL] MATCH pattern, ... [WHERE expr]}. */

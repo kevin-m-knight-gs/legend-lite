@@ -219,6 +219,12 @@ The scenario declares each procedure's signature and its result rows (`there exi
 relation the model declares) and its signature; the island reads `CALL proc(args) YIELD cols` as the rows whose
 inputs equal the arguments, joined to the rows in hand, and raises Neo4j's static errors for the wrong arity, a
 missing parameter or a yield of nothing. Two legs.
+- LANDED 2026-10-17 in one leg (the study's §12.60, GATES' fifty-eighth landing; TCK agreement DuckDB 3379 → 3428, Postgres 3017 → 3066; DuckDB PASS 3,386 → 3484, Postgres 3,025 → 3111): a procedure is the
+  model's function at its dotted name's path, over a typed TDS literal of its rows; the CALL clause (standalone,
+  or `lateral` over the rows in hand; YIELD with swap-safe renames; Neo4j's static errors); the harness declares
+  the TCK's procedures and judges a procedure case by the TCK's own table, the snapper keeping Neo4j's graph alone.
+  REFUSED by name: the implicit call whose parameter the scenario omits (MissingParameter: the island reads no
+  parameter).
 
 ### W9. Lowering and resolver limits (outside the island)
 

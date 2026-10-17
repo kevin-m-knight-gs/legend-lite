@@ -282,6 +282,50 @@ public final class CypherIslands {
             return List.copyOf(out);
         }
 
+        /** The function at the dotted name's path, its parameters the inputs, its relation's columns the outputs
+         *  (a function returning no relation is a VOID procedure); null when the model declares none. */
+        @Override
+        public void procedure(String name, CypherToPure.ProcedureSink sink) {
+            List<com.legend.compiler.element.TypedFunction> found = model.findFunction(name.replace(".", "::"));
+            if (found.isEmpty()) {
+                return;
+            }
+            com.legend.compiler.element.TypedFunction f = found.get(0);
+            sink.procedure(name.replace(".", "::"));
+            for (com.legend.compiler.element.TypedParameter p : f.parameters()) {
+                sink.input(p.name(), primitiveName(p.type(), name));
+            }
+            // Relation<(col: T, ...)>: the generic Relation over its row type
+            if (f.returnType() instanceof Type.GenericType g && g.arguments().size() == 1
+                    && g.arguments().get(0) instanceof Type.RelationType rt) {
+                for (Type.Column c : rt.columns()) {
+                    sink.output(c.name(), primitiveName(c.type(), name));
+                }
+            }
+        }
+
+        /** A parameter's or column's type by its Pure name: the translator reads the kinds it supports and refuses
+         *  the others by name (no protocol node is built here: the guard on protocol-node construction). */
+        private static String primitiveName(Type t, String procedure) {
+            if (t instanceof Type.Primitive p) {
+                return switch (p) {
+                    case INTEGER -> "Integer";
+                    case FLOAT -> "Float";
+                    case NUMBER -> "Number";
+                    case DECIMAL -> "Decimal";
+                    case STRING -> "String";
+                    case BOOLEAN -> "Boolean";
+                    case BYTE -> "Byte";
+                    case DATE -> "Date";
+                    case STRICT_DATE -> "StrictDate";
+                    case DATE_TIME -> "DateTime";
+                    case LATEST_DATE -> "LatestDate";
+                    case STRICT_TIME -> "StrictTime";
+                };
+            }
+            return t.toString();
+        }
+
         @Override
         public void edges(CypherToPure.EdgeSink sink) {
             for (GraphEdges.Edge e : model.derived(GraphEdges.class, GraphEdges::of).edges()) {

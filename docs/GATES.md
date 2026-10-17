@@ -9932,6 +9932,28 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the fifty-eighth landing — procedures (W8)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W8); the record is the study's §12.60. A procedure is a
+Pure function of the model over a typed TDS literal of its rows; `CALL name(args) [YIELD items]` is the function's
+relation, standalone, or the rows in hand laterally joined to it; the harness declares the TCK's procedures and judges
+a procedure case by the TCK's own table (Neo4j runs none); the TDS literal's brace form reads its grid.
+
+1. **What lands.** Call1/[1]-[16] but [11] (standalone and in-query calls, VOID procedures, STRING procedures, the static
+   errors), Call2/[1]-[6] (explicit and implicit arguments, the wrong kind), Call3/[1]-[6] (NUMBER and FLOAT inputs
+   taking integers), Call4/[1]-[2] (null arguments), Call5/[1]-[8] (yields, renames, YIELD *), Call6/[1]-[3] (CALL
+   among WITH and RETURN), the 10 cases of `lite/procedures.yaml`; DuckDB PASS 3,425 → 3484, Postgres 3,052 → 3111;
+   TCK agreement DuckDB 3379 → 3428, Postgres 3017 → 3066.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3484 / REFUSED 384 / BOTH_ERROR
+   731 / SKIP 103; Postgres PASS 3111 / REFUSED 757 / BOTH_ERROR 731 / SKIP
+   103, of 4702 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherParserTest` pins the read CALL clause, `CypherToPureTest` the call's relation, the lateral join,
+   the swap-safe renames and Neo4j's static errors, `RelationApiIntegrationTest` the brace-form TDS literal.
+4. **Refused by name, recorded.** A procedure call with implicit arguments the scenario's parameters do not provide
+   (the island reads no parameter); a `CALL { ... }` subquery; a procedure declaring an input or output of a kind
+   beyond Integer, Float, Number, String and Boolean.
+
 ## 2026-10-17 — `#Cypher{...}#`: the fifty-seventh landing — stored times of day and durations (W5 leg 1)
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5, leg 1); the record is the study's §12.59. A time

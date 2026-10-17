@@ -216,11 +216,53 @@ public final class CypherParser {
             expectWord("AS");
             return new CypherAst.Unwind(list, identifier("a variable"), pos);
         }
+        if (atWord("CALL")) {
+            advance();
+            if (peek().is(Type.LBRACE)) {
+                throw CypherErrors.unsupported("a CALL subquery (CALL { ... }) is not supported yet", pos);
+            }
+            return procedureCall(pos);
+        }
         if (t.is(Type.IDENT) && !t.backticked()
                 && OTHER_CLAUSE_WORDS.contains(t.text().toUpperCase(java.util.Locale.ROOT))) {
             return otherClause(t);
         }
         throw error("expected a clause but found '" + t.text() + "'");
+    }
+
+    /** {@code CALL name[(args)] [YIELD * | item [AS alias], ...]}: the procedure's dotted name, its arguments when
+     *  written in parentheses, its yielded outputs. */
+    private Clause procedureCall(Pos pos) {
+        StringBuilder name = new StringBuilder(identifier("a procedure name"));
+        while (match(Type.DOT)) {
+            name.append('.').append(identifier("a procedure name"));
+        }
+        List<Expr> args = null;
+        if (match(Type.LPAREN)) {
+            args = new ArrayList<>();
+            if (!peek().is(Type.RPAREN)) {
+                do {
+                    args.add(expression());
+                } while (match(Type.COMMA));
+            }
+            expect(Type.RPAREN, "')'");
+        }
+        List<CypherAst.YieldItem> yields = null;
+        boolean all = false;
+        if (matchWord("YIELD")) {
+            if (match(Type.STAR)) {
+                all = true;
+            } else {
+                yields = new ArrayList<>();
+                do {
+                    Pos at = peek().pos();
+                    String output = identifier("a procedure output");
+                    String alias = matchWord("AS") ? identifier("an alias") : null;
+                    yields.add(new CypherAst.YieldItem(output, alias, at));
+                } while (match(Type.COMMA));
+            }
+        }
+        return new CypherAst.ProcedureCall(name.toString(), args, yields, all, pos);
     }
 
     /** A path the query names as its graph: {@code demo::MovieSpace} or a backticked text. */

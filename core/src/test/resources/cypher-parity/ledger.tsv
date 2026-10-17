@@ -1,58 +1,58 @@
 # the Cypher parity corpus (the openCypher TCK and lite's cases, cypher-parity/), each case's status per lane: the ratchet
 # CypherParityTest and CypherParityPostgresTest hold (core/src/test/java/com/legend/testcases/CypherParity.java; the statuses are SqlParity's)
 case	duckdb	postgres
-tck/clauses/call/Call1/[1] Standalone call to procedure that takes no arguments and yields no results	SKIP	SKIP
-tck/clauses/call/Call1/[2] Standalone call to procedure that takes no arguments and yields no results, called with implicit arguments	SKIP	SKIP
-tck/clauses/call/Call1/[3] In-query call to procedure that takes no arguments and yields no results	SKIP	SKIP
-tck/clauses/call/Call1/[4] In-query call to procedure that takes no arguments and yields no results and consumes no rows	SKIP	SKIP
-tck/clauses/call/Call1/[5] Standalone call to STRING procedure that takes no arguments	SKIP	SKIP
-tck/clauses/call/Call1/[6] In-query call to STRING procedure that takes no arguments	SKIP	SKIP
-tck/clauses/call/Call1/[7] Standalone call to procedure should fail if explicit argument is missing	SKIP	SKIP
-tck/clauses/call/Call1/[8] In-query call to procedure should fail if explicit argument is missing	SKIP	SKIP
-tck/clauses/call/Call1/[9] Standalone call to procedure should fail if too many explicit argument are given	SKIP	SKIP
-tck/clauses/call/Call1/[10] In-query call to procedure should fail if too many explicit argument are given	SKIP	SKIP
-tck/clauses/call/Call1/[11] Standalone call to procedure should fail if implicit argument is missing	SKIP	SKIP
-tck/clauses/call/Call1/[12] In-query call to procedure that has outputs fails if no outputs are yielded	SKIP	SKIP
+tck/clauses/call/Call1/[1] Standalone call to procedure that takes no arguments and yields no results	PASS	PASS
+tck/clauses/call/Call1/[2] Standalone call to procedure that takes no arguments and yields no results, called with implicit arguments	PASS	PASS
+tck/clauses/call/Call1/[3] In-query call to procedure that takes no arguments and yields no results	PASS	PASS
+tck/clauses/call/Call1/[4] In-query call to procedure that takes no arguments and yields no results and consumes no rows	PASS	PASS
+tck/clauses/call/Call1/[5] Standalone call to STRING procedure that takes no arguments	PASS	PASS
+tck/clauses/call/Call1/[6] In-query call to STRING procedure that takes no arguments	PASS	PASS
+tck/clauses/call/Call1/[7] Standalone call to procedure should fail if explicit argument is missing	PASS	PASS
+tck/clauses/call/Call1/[8] In-query call to procedure should fail if explicit argument is missing	PASS	PASS
+tck/clauses/call/Call1/[9] Standalone call to procedure should fail if too many explicit argument are given	PASS	PASS
+tck/clauses/call/Call1/[10] In-query call to procedure should fail if too many explicit argument are given	PASS	PASS
+tck/clauses/call/Call1/[11] Standalone call to procedure should fail if implicit argument is missing	REFUSED	REFUSED
+tck/clauses/call/Call1/[12] In-query call to procedure that has outputs fails if no outputs are yielded	PASS	PASS
 tck/clauses/call/Call1/[13] Standalone call to unknown procedure should fail	BOTH_ERROR	BOTH_ERROR
 tck/clauses/call/Call1/[14] In-query call to unknown procedure should fail	BOTH_ERROR	BOTH_ERROR
-tck/clauses/call/Call1/[15] In-query procedure call should fail if shadowing an already bound variable	SKIP	SKIP
-tck/clauses/call/Call1/[16] In-query procedure call should fail if one of the argument expressions uses an aggregation function	SKIP	SKIP
-tck/clauses/call/Call2/[1] In-query call to procedure with explicit arguments	SKIP	SKIP
-tck/clauses/call/Call2/[2] Standalone call to procedure with explicit arguments	SKIP	SKIP
-tck/clauses/call/Call2/[3] Standalone call to procedure with implicit arguments	SKIP	SKIP
-tck/clauses/call/Call2/[4] In-query call to procedure that takes arguments fails when trying to pass them implicitly	SKIP	SKIP
-tck/clauses/call/Call2/[5] Standalone call to procedure should fail if input type is wrong	SKIP	SKIP
-tck/clauses/call/Call2/[6] In-query call to procedure should fail if input type is wrong	SKIP	SKIP
-tck/clauses/call/Call3/[1] Standalone call to procedure with argument of type NUMBER accepts value of type INTEGER	SKIP	SKIP
-tck/clauses/call/Call3/[2] In-query call to procedure with argument of type NUMBER accepts value of type INTEGER	SKIP	SKIP
-tck/clauses/call/Call3/[3] Standalone call to procedure with argument of type NUMBER accepts value of type FLOAT	SKIP	SKIP
-tck/clauses/call/Call3/[4] In-query call to procedure with argument of type NUMBER accepts value of type FLOAT	SKIP	SKIP
-tck/clauses/call/Call3/[5] Standalone call to procedure with argument of type FLOAT accepts value of type INTEGER	SKIP	SKIP
-tck/clauses/call/Call3/[6] In-query call to procedure with argument of type FLOAT accepts value of type INTEGER	SKIP	SKIP
-tck/clauses/call/Call4/[1] Standalone call to procedure with null argument	SKIP	SKIP
-tck/clauses/call/Call4/[2] In-query call to procedure with null argument	SKIP	SKIP
-tck/clauses/call/Call5/[1] Explicit procedure result projection	SKIP	SKIP
-tck/clauses/call/Call5/[2] Explicit procedure result projection with RETURN *	SKIP	SKIP
-tck/clauses/call/Call5/[3] The order of yield items is irrelevant #1	SKIP	SKIP
-tck/clauses/call/Call5/[3] The order of yield items is irrelevant #2	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #1	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #2	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #3	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #4	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #5	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #6	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #7	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #8	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #9	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #10	SKIP	SKIP
-tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #11	SKIP	SKIP
-tck/clauses/call/Call5/[5] Fail on renaming to an already bound variable name	SKIP	SKIP
-tck/clauses/call/Call5/[6] Fail on renaming all outputs to the same variable name	SKIP	SKIP
-tck/clauses/call/Call5/[7] Fail on in-query call to procedure with YIELD *	SKIP	SKIP
-tck/clauses/call/Call5/[8] Allow standalone call to procedure with YIELD *	SKIP	SKIP
-tck/clauses/call/Call6/[1] Calling the same STRING procedure twice using the same outputs in each call	SKIP	SKIP
-tck/clauses/call/Call6/[2] Project procedure results between query scopes with WITH clause	SKIP	SKIP
-tck/clauses/call/Call6/[3] Project procedure results between query scopes with WITH clause and rename the projection	SKIP	SKIP
+tck/clauses/call/Call1/[15] In-query procedure call should fail if shadowing an already bound variable	PASS	PASS
+tck/clauses/call/Call1/[16] In-query procedure call should fail if one of the argument expressions uses an aggregation function	PASS	PASS
+tck/clauses/call/Call2/[1] In-query call to procedure with explicit arguments	PASS	PASS
+tck/clauses/call/Call2/[2] Standalone call to procedure with explicit arguments	PASS	PASS
+tck/clauses/call/Call2/[3] Standalone call to procedure with implicit arguments	PASS	PASS
+tck/clauses/call/Call2/[4] In-query call to procedure that takes arguments fails when trying to pass them implicitly	PASS	PASS
+tck/clauses/call/Call2/[5] Standalone call to procedure should fail if input type is wrong	PASS	PASS
+tck/clauses/call/Call2/[6] In-query call to procedure should fail if input type is wrong	PASS	PASS
+tck/clauses/call/Call3/[1] Standalone call to procedure with argument of type NUMBER accepts value of type INTEGER	PASS	PASS
+tck/clauses/call/Call3/[2] In-query call to procedure with argument of type NUMBER accepts value of type INTEGER	PASS	PASS
+tck/clauses/call/Call3/[3] Standalone call to procedure with argument of type NUMBER accepts value of type FLOAT	PASS	PASS
+tck/clauses/call/Call3/[4] In-query call to procedure with argument of type NUMBER accepts value of type FLOAT	PASS	PASS
+tck/clauses/call/Call3/[5] Standalone call to procedure with argument of type FLOAT accepts value of type INTEGER	PASS	PASS
+tck/clauses/call/Call3/[6] In-query call to procedure with argument of type FLOAT accepts value of type INTEGER	PASS	PASS
+tck/clauses/call/Call4/[1] Standalone call to procedure with null argument	PASS	PASS
+tck/clauses/call/Call4/[2] In-query call to procedure with null argument	PASS	PASS
+tck/clauses/call/Call5/[1] Explicit procedure result projection	PASS	PASS
+tck/clauses/call/Call5/[2] Explicit procedure result projection with RETURN *	PASS	PASS
+tck/clauses/call/Call5/[3] The order of yield items is irrelevant #1	PASS	PASS
+tck/clauses/call/Call5/[3] The order of yield items is irrelevant #2	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #1	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #2	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #3	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #4	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #5	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #6	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #7	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #8	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #9	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #10	PASS	PASS
+tck/clauses/call/Call5/[4] Rename outputs to unbound variable names #11	PASS	PASS
+tck/clauses/call/Call5/[5] Fail on renaming to an already bound variable name	PASS	PASS
+tck/clauses/call/Call5/[6] Fail on renaming all outputs to the same variable name	PASS	PASS
+tck/clauses/call/Call5/[7] Fail on in-query call to procedure with YIELD *	PASS	PASS
+tck/clauses/call/Call5/[8] Allow standalone call to procedure with YIELD *	PASS	PASS
+tck/clauses/call/Call6/[1] Calling the same STRING procedure twice using the same outputs in each call	PASS	PASS
+tck/clauses/call/Call6/[2] Project procedure results between query scopes with WITH clause	PASS	PASS
+tck/clauses/call/Call6/[3] Project procedure results between query scopes with WITH clause and rename the projection	PASS	PASS
 tck/clauses/create/Create1/[1] Create a single node	REFUSED	REFUSED
 tck/clauses/create/Create1/[2] Create two nodes	REFUSED	REFUSED
 tck/clauses/create/Create1/[3] Create a single node with a label	REFUSED	REFUSED
@@ -4337,6 +4337,16 @@ lite/predicates/a_pattern_predicate_in_a_quantifier	PASS	PASS
 lite/predicates/arithmetic_over_parenthesized_values	PASS	PASS
 lite/predicates/an_exists_subquery_returning_star	PASS	PASS
 lite/predicates/an_exists_subquery_returning_an_undefined_variable_is_refused	BOTH_ERROR	BOTH_ERROR
+lite/procedures/a_standalone_call_yields_every_output	PASS	PASS
+lite/procedures/a_call_over_the_rows_of_a_match	PASS	PASS
+lite/procedures/a_void_procedure_keeps_the_rows	PASS	PASS
+lite/procedures/a_null_argument_matches_a_null_cell	PASS	PASS
+lite/procedures/a_number_input_takes_an_integer_or_a_float	PASS	PASS
+lite/procedures/outputs_swapped_by_their_aliases	PASS	PASS
+lite/procedures/a_call_twice_over_a_count	PASS	PASS
+lite/procedures/an_unknown_procedure_is_an_error	PASS	PASS
+lite/procedures/a_wrong_argument_kind_is_an_error	PASS	PASS
+lite/procedures/a_yield_of_a_bound_name_is_an_error	PASS	PASS
 lite/products/two_labelless_nodes	PASS	PASS
 lite/products/labelless_nodes_of_several_classes	PASS	PASS
 lite/products/a_labelless_node_beside_a_labelled_one	PASS	PASS

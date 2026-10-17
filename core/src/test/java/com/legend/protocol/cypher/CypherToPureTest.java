@@ -143,6 +143,20 @@ class CypherToPureTest {
             return classPath.substring(classPath.lastIndexOf("::") + 2);
         }
 
+        /** test.cities(name :: STRING?) :: (city :: STRING?, code :: INTEGER?) at test::cities; test.doNothing() a
+         *  VOID one (the study's §12.60). */
+        @Override
+        public void procedure(String name, CypherToPure.ProcedureSink sink) {
+            if (name.equals("test.cities")) {
+                sink.procedure("test::cities");
+                sink.input("name", "String");
+                sink.output("city", "String");
+                sink.output("code", "Integer");
+            } else if (name.equals("test.doNothing")) {
+                sink.procedure("test::doNothing");
+            }
+        }
+
         @Override
         public void ends(String classPath, CypherToPure.PropertySink sink) {
             // firm is the forward end of Person-Firm (employees its inverse); hq a plain property holding a class
@@ -337,6 +351,32 @@ class CypherToPureTest {
 
     private static SqlTranslationException edgeRefusal(String cypher) {
         return assertThrows(SqlTranslationException.class, () -> edges(cypher));
+    }
+
+    @Test
+    void aProcedureCallIsTheModelsFunctionOverItsArgumentsJoinedToTheRows() {
+        // standalone: the function's relation, every output; after rows: the rows laterally joined to the relation
+        // of each row's arguments, the yielded outputs under their aliases (the study's §12.60)
+        assertEquals("test::cities('Stefan')", pure("CALL test.cities('Stefan')"));
+        assertEquals("test::cities('Stefan')->select(~[city])", pure("CALL test.cities('Stefan') YIELD city"));
+        // (the composer spells a call over a variable as its receiver: $r.x->test::cities())
+        String rows = pure("MATCH (p:Person) CALL test.cities(p.name) YIELD city AS c, code RETURN p.name AS name, c,"
+                + " code");
+        assertTrue(rows.contains("->lateral(r|$r._cypher_4->test::cities()->rename(~city, ~_cypher_vl_y0)->rename("
+                + "~_cypher_vl_y0, ~c))"), rows);
+        // a VOID procedure keeps the rows; standalone it answers no row
+        assertEquals("demo::Person.all()->project(~[name:p|$p.name])",
+                pure("MATCH (p:Person) CALL test.doNothing() RETURN p.name AS name"));
+        assertTrue(pure("CALL test.doNothing()").contains("_cypher_void"), pure("CALL test.doNothing()"));
+        // Neo4j's static errors
+        invalid("CALL test.other()", "There is no procedure with the name `test.other`");
+        invalid("CALL test.cities('a', 1)", "too many arguments");
+        invalid("CALL test.cities(1)", "Type mismatch: expected String but was Integer");
+        invalid("MATCH (p:Person) CALL test.cities(count(p)) YIELD city RETURN city", "aggregating function");
+        invalid("CALL test.cities YIELD city RETURN city", "passing arguments implicitly");
+        invalid("CALL test.cities('a') RETURN city", "naming results implicitly");
+        invalid("WITH 'x' AS city CALL test.cities('a') YIELD city RETURN *", "Variable `city` already declared");
+        invalid("CALL test.cities('a') YIELD town RETURN town", "Unknown procedure output: `town`");
     }
 
     @Test

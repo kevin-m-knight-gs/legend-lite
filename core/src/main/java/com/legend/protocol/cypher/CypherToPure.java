@@ -109,6 +109,57 @@ public final class CypherToPure {
          *  Neo4j does; over a closed graph (the model is its graph type) each is a compile error (C4, the
          *  register's S58). */
         boolean open();
+
+        /** Reports to {@code sink} the procedure {@code name} (Cypher's dotted name, {@code test.my.proc}) names:
+         *  the model's function at the path its dots spell ({@code test::my::proc}), its inputs and the outputs of
+         *  the relation it returns (the study's §12.60); reports nothing when the model declares none. The base: a
+         *  model declaring no procedure. */
+        default void procedure(String name, ProcedureSink sink) {
+        }
+    }
+
+    /** Where the model reports a procedure: its function's path, then each input and each output (a name and a
+     *  Pure primitive type). */
+    public interface ProcedureSink {
+        void procedure(String path);
+
+        void input(String name, String type);
+
+        void output(String name, String type);
+    }
+
+    /** A procedure of the model, as the translator reads a {@code CALL}: the function's path, its inputs (each a
+     *  name and a Pure primitive type, optional) and its outputs (the relation's columns; none for a VOID
+     *  procedure, a function returning no relation). */
+    public record Procedure(String path, List<Param> inputs, List<Param> outputs) {
+    }
+
+    /** The procedure the model reports for {@code name}, null when it reports none. */
+    private @com.legend.base.Nullable Procedure procedureOf(String name) {
+        String[] path = new String[1];
+        List<Param> inputs = new ArrayList<>();
+        List<Param> outputs = new ArrayList<>();
+        model.procedure(name, new ProcedureSink() {
+            @Override
+            public void procedure(String p) {
+                path[0] = p;
+            }
+
+            @Override
+            public void input(String n, String type) {
+                inputs.add(new Param(n, type));
+            }
+
+            @Override
+            public void output(String n, String type) {
+                outputs.add(new Param(n, type));
+            }
+        });
+        return path[0] == null ? null : new Procedure(path[0], List.copyOf(inputs), List.copyOf(outputs));
+    }
+
+    /** An input or output of a procedure: its name and its Pure primitive type. */
+    public record Param(String name, String type) {
     }
 
     /** Where the model reports an edge class: its path, its relationship type, and its two ends, each the property
@@ -926,6 +977,7 @@ public final class CypherToPure {
                 }
                 case CypherAst.OtherClause o -> throw CypherErrors.unsupported(o.keyword() + " is not supported yet",
                         o.pos());
+                case CypherAst.ProcedureCall p -> state = procedureCall(p, state, last);
                 case CypherAst.Match m -> state = match(m, state);
                 case CypherAst.Unwind u -> state = unwind(u, state);
                 case CypherAst.With w -> state = with(w, state);
@@ -953,8 +1005,166 @@ public final class CypherToPure {
             case CypherAst.Unwind u -> "UNWIND";
             case CypherAst.Return r -> "RETURN";
             case CypherAst.Use u -> "USE";
+            case CypherAst.ProcedureCall p -> "CALL";
             case CypherAst.OtherClause o -> o.keyword();
         };
+    }
+
+    // ------------------------------------------------------------------ CALL
+
+    /** {@code CALL name(args) [YIELD items]} (the study's §12.60): the model's procedure, a Pure function returning
+     *  a relation of its outputs, called over the arguments. Standalone, its relation is the result (the yielded
+     *  outputs, every one without a YIELD); after rows, the rows laterally joined to the relation of each row's
+     *  arguments; a VOID procedure (no output) leaves the rows as they are, standalone an empty result (no row,
+     *  under a hidden column: a relation has one at least). Neo4j's static errors are raised as its: an unknown
+     *  procedure, a wrong count or kind of arguments, an aggregate among them, implicit arguments or an unnamed
+     *  yield inside a query, a yield of an unknown output or of a bound name. */
+    private State procedureCall(CypherAst.ProcedureCall c, @com.legend.base.Nullable State state, boolean last) {
+        Procedure proc = procedureOf(c.name());
+        if (proc == null) {
+            throw CypherErrors.invalid("There is no procedure with the name `" + c.name() + "` registered for this"
+                    + " database instance. Please ensure you've spelled the procedure name correctly and that the"
+                    + " procedure is properly deployed.", c.pos());
+        }
+        boolean standalone = state == null && last;
+        List<Expr> args = c.args();
+        if (args == null) {
+            // implicit arguments: the query's parameters named as the inputs
+            if (!proc.inputs().isEmpty()) {
+                if (!standalone) {
+                    throw CypherErrors.invalid("Procedure call inside a query does not support passing arguments"
+                            + " implicitly (pass explicitly after procedure name instead)", c.pos());
+                }
+                throw CypherErrors.unsupported("a procedure call with implicit arguments (the query's parameters"
+                        + " named as the inputs) is not supported yet", c.pos());
+            }
+            args = List.of();
+        }
+        if (args.size() != proc.inputs().size()) {
+            throw CypherErrors.invalid("Procedure call provides too " + (args.size() > proc.inputs().size()
+                    ? "many" : "few") + " arguments: got " + args.size() + " expected " + proc.inputs().size()
+                    + " (" + proc.inputs().stream().map(i -> i.name() + " :: " + i.type()).toList() + ")", c.pos());
+        }
+        for (Expr a : args) {
+            if (isAggregate(a) || containsAggregate(a)) {
+                throw CypherErrors.invalid("Invalid use of aggregating function in this context (a procedure's"
+                        + " argument)", c.pos());
+            }
+        }
+        if (proc.outputs().isEmpty() && args.isEmpty() && state != null) {
+            // a VOID procedure of no argument after a clause: the state passes through untouched (the graph stays a
+            // graph: nothing is read of it here)
+            if (c.yieldAll() || c.yields() != null && !c.yields().isEmpty()) {
+                throw CypherErrors.invalid("Cannot yield value from void procedure.", c.pos());
+            }
+            return state;
+        }
+        if (state instanceof Graph g) {
+            state = materialize(g, c.pos(), List.of());
+        } else if (state instanceof Arms a) {
+            state = materializeArms(a.arms(), new ArrayList<>(a.arms().get(0).bindings().keySet()), c.pos());
+        }
+        Rows rows = (Rows) state;
+        Scope scope = new RowScope(rows == null ? oneRow() : rows);
+        List<ValueSpecification> values = new ArrayList<>();
+        for (int i = 0; i < args.size(); i++) {
+            values.add(argument(args.get(i), proc.inputs().get(i), scope, c.pos()));
+        }
+        ValueSpecification rel = call(proc.path(), values.toArray(new ValueSpecification[0]));
+        if (proc.outputs().isEmpty()) {
+            if (c.yieldAll() || c.yields() != null && !c.yields().isEmpty()) {
+                throw CypherErrors.invalid("Cannot yield value from void procedure.", c.pos());
+            }
+            // a VOID procedure: called for its effect, of which a read has none (the rows in hand pass through;
+            // the one row of a query with none)
+            String column = SYNTHETIC + "void";
+            return standalone ? new Rows(noRows(column), List.of(new Col(column, Kind.STRING, true)))
+                    : rows == null ? oneRow() : rows;
+        }
+        List<CypherAst.YieldItem> yields = c.yields();
+        if (yields == null) {
+            if (!standalone) {
+                throw CypherErrors.invalid("Procedure call inside a query does not support naming results"
+                        + " implicitly (name explicitly using `YIELD` instead)", c.pos());
+            }
+            yields = new ArrayList<>();
+            for (Param out : proc.outputs()) {
+                yields.add(new CypherAst.YieldItem(out.name(), null, c.pos()));
+            }
+        }
+        Set<String> bound = new HashSet<>();
+        if (rows != null) {
+            for (Col col : rows.columns()) {
+                bound.add(col.name());
+            }
+        }
+        List<Col> added = new ArrayList<>();
+        List<ColSpec> selected = new ArrayList<>();
+        List<String[]> renames = new ArrayList<>();
+        for (CypherAst.YieldItem y : yields) {
+            Param out = proc.outputs().stream().filter(o -> o.name().equals(y.name())).findFirst().orElseThrow(
+                    () -> CypherErrors.invalid("Unknown procedure output: `" + y.name() + "`", y.pos()));
+            String as = y.alias() == null ? y.name() : y.alias();
+            if (!bound.add(as)) {
+                throw CypherErrors.invalid("Variable `" + as + "` already declared", y.pos());
+            }
+            selected.add(new ColSpec(out.name(), null, null, null));
+            if (y.alias() != null) {
+                renames.add(new String[] {out.name(), as});
+            }
+            added.add(new Col(as, kindOf(out.type(), out.name(), c.pos()), true));
+        }
+        boolean every = yields.size() == proc.outputs().size();
+        for (int i = 0; every && i < yields.size(); i++) {
+            every = yields.get(i).name().equals(proc.outputs().get(i).name());
+        }
+        if (!every) {
+            rel = call("select", rel, new ColSpecArray(selected));
+        }
+        // each output to its alias through a fresh name first: YIELD a AS b, b AS a swaps two
+        for (int i = 0; i < renames.size(); i++) {
+            rel = call("rename", rel, new ColSpec(renames.get(i)[0], null, null, null),
+                    new ColSpec(HIDDEN + "y" + i, null, null, null));
+        }
+        for (int i = 0; i < renames.size(); i++) {
+            rel = call("rename", rel, new ColSpec(HIDDEN + "y" + i, null, null, null),
+                    new ColSpec(renames.get(i)[1], null, null, null));
+        }
+        if (rows == null) {
+            return new Rows(rel, added);
+        }
+        List<Col> columns = new ArrayList<>(rows.columns());
+        columns.addAll(added);
+        return new Rows(call("lateral", rows.vs(), lambda("r", rel)), columns);
+    }
+
+    /** A procedure's argument, checked against its input's type as Neo4j checks it (an integer for a Number or a
+     *  Float input too, a null for any), spelled for the function's parameter. */
+    private ValueSpecification argument(Expr e, Param input, Scope scope, Pos pos) {
+        Val v = val(e, scope);
+        Kind want = kindOf(input.type(), input.name(), pos);
+        if (!(v instanceof Scalar s)) {
+            throw CypherErrors.invalid("Type mismatch: expected " + cypherType(want) + " but was "
+                    + (v instanceof MapVal ? "Map" : "List<Any>"), pos);
+        }
+        Tx t = s.tx();
+        if (t.kind() == Kind.NULL) {
+            return SqlToPure.nullOf(want).vs();
+        }
+        boolean ok = switch (want) {
+            case INTEGER -> t.kind() == Kind.INTEGER || t.kind() == Kind.WHOLE;
+            case FLOAT, NUMBER, DECIMAL -> t.kind().numeric();
+            case STRING -> t.kind() == Kind.STRING;
+            case BOOLEAN -> t.kind() == Kind.BOOLEAN;
+            default -> throw CypherErrors.unsupported("a procedure input of type " + input.type() + " (" + input.name()
+                    + ") is not supported yet", pos);
+        };
+        if (!ok) {
+            throw CypherErrors.invalid("Type mismatch: expected " + cypherType(want) + " but was "
+                    + cypherType(t.kind()), pos);
+        }
+        ValueSpecification vs = SqlToPure.valueOf(t);
+        return want == Kind.FLOAT && t.kind() != Kind.FLOAT ? call("toFloat", vs) : vs;
     }
 
     // ------------------------------------------------------------------ MATCH
