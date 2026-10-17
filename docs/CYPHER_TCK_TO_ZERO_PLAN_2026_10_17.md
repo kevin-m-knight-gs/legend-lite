@@ -276,6 +276,11 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   errors (VariableAlreadyBound, VariableTypeConflict) raised over the whole statement before any clause is read,
   so the 250 error scenarios of Match1, Match2 and Match6 stay in agreement when leg 2 lifts the unbounded
   refusal; `lite/varkinds.yaml`. No TCK row moves (the error scenarios agreed by the refusal; now by the error).
+- Leg 2a LANDED 2026-10-17 (the study's §12.67, GATES' sixty-fifth landing; TCK agreement DuckDB 3470 → 3470, Postgres 3091 → 3091; DuckDB PASS 3,573 → 3573, Postgres 3,171 → 3171): the recursion native
+  (`meta::legend::lite::recurse`, typed generically, lowered to `WITH RECURSIVE` as a derived table, executed on
+  DuckDB). Leg 2b: the island spelling an unbounded pattern as the recursion over the association's identities with
+  relationship uniqueness, the far node re-anchored by identity, the path's length, nodes and relationships from the
+  walk's carried texts.
 
 ### W11. Variants of no known shape
 

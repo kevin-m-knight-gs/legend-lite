@@ -128,7 +128,13 @@ class NativeCatalogGovernanceTest {
         // renders), what Cypher's min and max over values of several kinds answer by the island's orderability
         // text; legend-pure's own minBy and maxBy take a number key, which a type rank over Variants is not.
         // Emitted by the Cypher translator only, by FQN. 24 -> 26.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 26,
+        // +1 2026-10-17 (the Cypher island's W10 leg 2a, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md): recurse —
+        // recurse(base, r | step): the database's recursive common table expression (WITH RECURSIVE name AS (base
+        // UNION ALL step)), the step reading the previous round's rows through its parameter until a round yields
+        // none; what Cypher's unbounded variable-length pattern walks. legend-pure has no recursion over a relation
+        // (its Pure functions recurse in the host, which the execution tenet forbids). Emitted by the Cypher
+        // translator only, by FQN. 26 -> 27.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 27,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

@@ -4555,3 +4555,43 @@ rows) DuckDB 3458 → 3463, Postgres 3084 → 3084.
 The 2 new cases of `lite/tail.yaml`: 1 in agreement on DuckDB, 1 on Postgres. Literals5/[5], [6], [11], [12],
 [25], [26] REFUSED → PASS on both lanes; Call1/[11] REFUSED → PASS (the TCK's error met). TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK
 rows) DuckDB 3463 → 3470, Postgres 3084 → 3091.
+
+### 12.67 A recursion over a relation: the platform's native for the unbounded walk (W10 leg 2a, 2026-10-17)
+
+An unbounded variable-length pattern (`(a)-[:T*]->(b)`, `*2..`) is a walk the data bounds, not the query: Cypher's
+relationship uniqueness (no path walks one relationship twice) ends it. The island unrolls a bounded pattern into
+its chains (§12.42, §12.56); an unbounded one has no chains to unroll, and the SQL for a walk the data bounds is
+the database's recursive common table expression. legend-pure has no function for one.
+
+- **The native** (`meta::legend::lite::recurse<T>(base: Relation<T>[1], step: Function<{Relation<T>[1]->
+  Relation<T>[1]}>[1]): Relation<T>[1]`, lite's own, docs/LITE_INVENTION_CENSUS.md): the base's rows and,
+  repeatedly, the rows the step yields from the previous round's rows, until a round yields none. The step is a
+  lambda over a relation of the base's type (the first relation-typed lambda parameter outside the window
+  functions' partition), yielding one of the same type: the signature's `Relation<T>` unifies the three, so a step
+  projecting other columns is a type error at the checker (`RecurseChecker`, the generic check as `filter`'s),
+  never the database's.
+- **The lowering** (`TypedRecurse`, a relation operator; `Lowerer.recurse`): `WITH RECURSIVE __walkN AS (base UNION
+  ALL step) SELECT * FROM __walkN`, self-contained as a derived table where the relation stands (DuckDB and
+  Postgres read a WITH inside a subquery), the step's parameter lowering to the expression's own name (a CTE
+  source, `recursions`): the step reads the previous round's rows, and the database stops when a round yields
+  none. No depth guard of the platform's: termination is the query's, by what the step filters (the island's
+  uniqueness filter, leg 2b).
+- **Compare, never compute**: the translator spells the walk's shape; the database walks.
+- **Pinned.** `LowerRelationTest.aRecursionWalksUntilItsStepYieldsNoRow` (a count from 1 to 5 over a TDS literal,
+  executed on DuckDB; the SQL's `WITH RECURSIVE` and `UNION ALL`). The island does not emit the native yet (leg 2b
+  spells the unbounded pattern over it); no TCK row moves.
+- **The guards moved, each with its dated justification.** `NativeCatalogGovernanceTest`'s `INTERNAL_DESUGAR` ceiling
+  26 → 27 (the native). `Lowerer.relation`'s two new arms put it over the method-length guardrail (256 lines, limit
+  250): the `lateral` arm's body moved out along its seam to `Lowerer.lateral`, and the recursion's step parameter
+  reads through `Lowerer.recursionSelf`; the guardrail stays at 250. The parked-work ledger's anchor on `new SqlWith(`
+  (PARK-2) holds: the lowering builds the expression through `SqlWith.prepend`.
+
+#### 12.67.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4769 | 3573 (from 3,573) | 0 | 0 | 0 | 392 (from 392) | 747 (from 747) | 57 (from 57) |
+| Postgres | 4769 | 3171 (from 3,171) | 0 | 0 | 0 | 794 (from 794) | 747 (from 747) | 57 (from 57) |
+
+No lite case and no TCK row moves: the native alone, pinned by the lowering's test. TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK
+rows) DuckDB 3470 → 3470, Postgres 3091 → 3091.

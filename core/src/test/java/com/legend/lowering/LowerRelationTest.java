@@ -141,6 +141,19 @@ class LowerRelationTest {
     }
 
     @Test
+    @DisplayName("recurse(base, r | step): the database's recursive CTE, the step over the previous round's rows")
+    void aRecursionWalksUntilItsStepYieldsNoRow() throws SQLException {
+        // meta::legend::lite::recurse (the Cypher island's unbounded variable-length patterns, 2026-10-17): the
+        // base's rows and, repeatedly, the step's over the previous round's, until a round yields none; the step
+        // reads the expression by its own name, and the database stops the recursion
+        String sql = sqlOf("#TDS{n\n1\n}#->meta::legend::lite::recurse(r|$r->filter(x|$x.n < 5)"
+                + "->project(~[n:x|$x.n + 1]))->sort(~n->ascending())");
+        assertTrue(sql.contains("WITH RECURSIVE __walk0 AS ("), sql);
+        assertTrue(sql.contains("UNION ALL"), sql);
+        assertEquals(List.of("1", "2", "3", "4", "5"), exec(sql), sql);
+    }
+
+    @Test
     @DisplayName("THE tenet: filter→select→sort→limit folds into ONE flat SELECT")
     void wholeChainOneSelect() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#"

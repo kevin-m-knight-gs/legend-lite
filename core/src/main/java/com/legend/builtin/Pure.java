@@ -458,6 +458,12 @@ public final class Pure {
          *  every window inside stamped as a boundary ({@code TypedExtendWindow.extentBoundary}, the class extent's
          *  rule): the lowerer closes each window's select, so the enclosing filter lands outside. Erased at typing. */
         public static final String INLINE_VIEW = PKG + "inlineView";
+        /** A recursion over a relation (2026-10-17, the Cypher island's unbounded variable-length patterns,
+         *  docs/CYPHER_STUDY_2026_10_15.md §12.67): {@code recurse(base, r | step(r))} is the rows of {@code base}
+         *  and, repeatedly, the rows the step yields from the rows of the previous round, until a round yields none:
+         *  the database's recursive common table expression ({@code WITH RECURSIVE}, UNION ALL). The step's relation
+         *  has the base's columns. Emitted by the Cypher translator only. */
+        public static final String RECURSE = PKG + "recurse";
         /** ASOR store-object-reference readers (batch 72b): the pk value
          *  at position i of a reference (typed by the resolver as the pk
          *  column's type), and the engine's decode-to-pkMap JSON over a
@@ -562,7 +568,8 @@ public final class Pure {
                     Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
-                    Lite.TUPLE, Lite.INLINE_VIEW, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN, Lite.LOCAL_IN,
+                    Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN,
+                    Lite.LOCAL_IN,
                     Lite.ELEMENT_ID, Lite.RANDOM, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
@@ -863,6 +870,9 @@ public final class Pure {
     public static final NativeFunctionDefinition TRUST_ONE__T_MANY = signature("native function meta::legend::lite::trustOne<T>(values:T[*]):T[1];");
     /** A SQL island's inline view (see {@link Lite#INLINE_VIEW}): types as its relation, its windows a boundary. */
     public static final NativeFunctionDefinition INLINE_VIEW__RELATION_1 = signature("native function meta::legend::lite::inlineView<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
+    /** A recursion over a relation ({@link Lite#RECURSE}): the base's rows and, repeatedly, the step's over the previous
+     *  round's, until a round yields none (the Cypher island's unbounded variable-length patterns, 2026-10-17). */
+    public static final NativeFunctionDefinition RECURSE__RELATION_1__FUNCTION_1 = signature("native function meta::legend::lite::recurse<T>(base:meta::pure::metamodel::relation::Relation<T>[1], step:meta::pure::metamodel::function::Function<{meta::pure::metamodel::relation::Relation<T>[1]->meta::pure::metamodel::relation::Relation<T>[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
 
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");

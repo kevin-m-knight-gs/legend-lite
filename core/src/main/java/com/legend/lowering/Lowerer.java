@@ -75,6 +75,7 @@ import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 import com.legend.sql.SqlUnion;
+import com.legend.sql.SqlWith;
 import com.legend.values.PureDateLiteral;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -524,6 +525,80 @@ public final class Lowerer {
                 ? new SqlExpr.CheckedOne(op) : null;
     }
 
+    /** The recursions being lowered, by the step's parameter name: the expression the parameter reads
+     *  ({@code recurse}, 2026-10-17). */
+    private final Map<String, SqlSource.Cte> recursions = new java.util.HashMap<>();
+
+    /** {@code recurse(base, r | step)} as the database's recursive common table expression ({@code WITH RECURSIVE
+     *  name AS (base UNION ALL step)}), read as a derived table where the relation stands: the step's parameter
+     *  lowers to the expression's own name, so the step reads the previous round's rows; the database stops when a
+     *  round yields none. The expression's columns are the base's. */
+    private SqlSelect recurse(com.legend.compiler.spec.typed.TypedRecurse r) {
+        SqlSelect base = relation(r.source());
+        String name = "__walk" + recursions.size();
+        List<OutputCol> outputs = base.outputs().stream().map(o -> new OutputCol(o.name(), o.type(), o.nullable(),
+                OutputCol.Origin.DERIVED)).toList();
+        String param = r.step().parameters().get(0);
+        SqlSource.Cte self = new SqlSource.Cte(name, name, outputs);
+        SqlSource.Cte before = recursions.put(param, self);
+        SqlSelect step;
+        try {
+            step = relation(LambdaBinding.last(r.step()));
+        } finally {
+            if (before == null) {
+                recursions.remove(param);
+            } else {
+                recursions.put(param, before);
+            }
+        }
+        SqlQuery expression = SqlWith.prepend(List.of(new SqlWith.Cte(name, new SqlUnion(List.of(base, step), true,
+                outputs))), SqlSelect.starOf(new SqlSource.Cte(name, nextAlias(), outputs)), true);
+        return SqlSelect.starOf(new SqlSource.Subselect(expression, nextAlias(), null));
+    }
+
+    /** Inside a recursion's step, the step's parameter: the expression's own rows, read by name. */
+    private SqlSelect recursionSelf(TypedVariable v) {
+        SqlSource.Cte self = Objects.requireNonNull(recursions.get(v.name()));
+        return SqlSelect.starOf(new SqlSource.Cte(self.name(), nextAlias(), self.outputs()));
+    }
+
+    /** {@code lateral(rel, {row | relationOf(row)})}: the lambda's relation body lowers with the row parameter
+     *  CORRELATED to the left alias (the enclosing-resolver channel); the database joins it per row via
+     *  {@code CROSS JOIN LATERAL}. Schema = T+V (the checker's schema algebra). (The arm's body, moved out of
+     *  {@link #relation} at the method-length guardrail, 2026-10-17.) */
+    private SqlSelect lateral(TypedNativeCall nc, TypedLambda lam) {
+        SqlSelect left = relation(nc.args().get(0));
+        SqlSource leftSide = asLeftJoinSide(left);
+        String param = lam.parameters().get(0);
+        ColumnResolver leftCols = (v, name) ->
+                (v == null || v.equals(param))
+                        ? resolveOrThrow(SqlSelect.starOf(leftSide), name)
+                        : null;
+        enclosing.push((v, name) -> {
+            SqlExpr r = leftCols.resolve(v, name);
+            if (r == null) {
+                // NOT this scope's variable: the UnfoldableRef SIGNAL
+                // lets scopedResolver continue outward (a hard throw
+                // severed the whole enclosing chain behind lateral).
+                throw new UnfoldableRef(
+                        name == null ? "<whole variable>" : name);
+            }
+            return r;
+        });
+        SqlSelect right;
+        try {
+            right = relation(lam.body().get(lam.body().size() - 1));
+        } finally {
+            enclosing.pop();
+        }
+        SqlSource.Join join = new SqlSource.Join(leftSide,
+                new SqlSource.Subselect(right, nextAlias(), null),
+                SqlSource.Join.Kind.CROSS_LATERAL,
+                null);   // CROSS JOIN takes no ON clause
+        // star frame: the join's own outputs (left ++ lateral)
+        return SqlSelect.starOf(join);
+    }
+
     String nextAlias() {
         return "t" + aliasCounter++;
     }
@@ -595,6 +670,10 @@ public final class Lowerer {
 
             case TypedFilter f -> filter(f);
 
+            // a recursion and, inside its step, the expression its parameter reads (recurse, 2026-10-17)
+            case com.legend.compiler.spec.typed.TypedRecurse r -> recurse(r);
+            case TypedVariable v when recursions.containsKey(v.name()) -> recursionSelf(v);
+
             case TypedSelect sel -> Fold.restrictOverWholeRowDistinct(sel) != null
                     ? distinctNarrowTo(relation(Objects.requireNonNull(
                             Fold.restrictOverWholeRowDistinct(sel)).source()),
@@ -609,38 +688,7 @@ public final class Lowerer {
             case TypedNativeCall nc when com.legend.builtin.NativeFn.LowererForm
                     .of(nc.callee().id()).orElse(null) == com.legend.builtin.NativeFn.LowererForm.LATERAL
                     && nc.args().size() == 2
-                    && nc.args().get(1) instanceof TypedLambda lam -> {
-                SqlSelect left = relation(nc.args().get(0));
-                SqlSource leftSide = asLeftJoinSide(left);
-                String param = lam.parameters().get(0);
-                ColumnResolver leftCols = (v, name) ->
-                        (v == null || v.equals(param))
-                                ? resolveOrThrow(SqlSelect.starOf(leftSide), name)
-                                : null;
-                enclosing.push((v, name) -> {
-                    SqlExpr r = leftCols.resolve(v, name);
-                    if (r == null) {
-                        // NOT this scope's variable: the UnfoldableRef SIGNAL
-                        // lets scopedResolver continue outward (a hard throw
-                        // severed the whole enclosing chain behind lateral).
-                        throw new UnfoldableRef(
-                                name == null ? "<whole variable>" : name);
-                    }
-                    return r;
-                });
-                SqlSelect right;
-                try {
-                    right = relation(lam.body().get(lam.body().size() - 1));
-                } finally {
-                    enclosing.pop();
-                }
-                SqlSource.Join join = new SqlSource.Join(leftSide,
-                        new SqlSource.Subselect(right, nextAlias(), null),
-                        SqlSource.Join.Kind.CROSS_LATERAL,
-                        null);   // CROSS JOIN takes no ON clause
-                // star frame: the join's own outputs (left ++ lateral)
-                yield SqlSelect.starOf(join);
-            }
+                    && nc.args().get(1) instanceof TypedLambda lam -> lateral(nc, lam);
             // relation::variant::flatten(collection, ~col): the collection
             // UNNESTs as the single column (real flatten.pure semantics).
             // (the body moved to CollectionRelations at the file guardrail)

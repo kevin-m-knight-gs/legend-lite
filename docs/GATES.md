@@ -9932,6 +9932,28 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the sixty-fifth landing — the recursion native (W10 leg 2a)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, leg 2a); the record is the study's §12.67. The
+platform's `meta::legend::lite::recurse(base, r | step)`: a relation operator typed by the generic check (the step a
+lambda over a relation of the base's type) and lowered to the database's recursive common table expression
+(`WITH RECURSIVE`, UNION ALL) as a derived table; the island's unbounded variable-length patterns spell over it in
+leg 2b.
+
+1. **What lands.** The native alone: no TCK row moves (the island emits it in leg 2b); DuckDB PASS 3,573 → 3573, Postgres
+   3,171 → 3171; TCK agreement DuckDB 3470 → 3470, Postgres 3091 → 3091.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3573 / REFUSED 392 / BOTH_ERROR
+   747 / SKIP 57; Postgres PASS 3171 / REFUSED 794 / BOTH_ERROR 747 / SKIP
+   57, of 4769 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `LowerRelationTest.aRecursionWalksUntilItsStepYieldsNoRow` pins the lowering and its execution on
+   DuckDB; the native is in `Pure.INTERNAL_DESUGAR` (the lite-internal names, emitted by translators only; the
+   governance test's ceiling 26 → 27 with its dated justification) and the platform table (`CoreFn.RECURSE`);
+   `//core:core_tests` green (the whole unit suite, run before the chain: the native touches builtin, platform,
+   compiler and lowering). `Lowerer.relation` back under the 250-line guardrail by moving the `lateral` arm's body
+   out along its seam, the guardrail unchanged.
+4. **Refused by name, recorded.** Nothing new: the island's unbounded patterns stay refused until leg 2b.
+
 ## 2026-10-17 — `#Cypher{...}#`: the sixty-fourth landing — the tail, leg 5 (extreme floats, an unbound parameter)
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, leg 5); the record is the study's §12.66. The
