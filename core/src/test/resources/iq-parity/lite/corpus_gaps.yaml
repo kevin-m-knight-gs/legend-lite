@@ -1944,3 +1944,15 @@ tests:
   - id: constants_past_32_bits_in_a_comparison
     sql: "SELECT id FROM t WHERE NULLIF((2147483647 + 3), 3) > id ORDER BY id"
     profile: iq17-default
+
+  # ---- SIGN of a NUMERIC with no digit before its point under IQ's engine (IQ island, 2026-10-17; the differential
+  # fuzzer's, measured on IQ 17.1): its own type cannot hold 1, so a value not 0 is IQ's -1001014
+  - id: sign_of_a_fraction_constant
+    sql: "SELECT id, SIGN(0.5) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: sign_of_a_fraction_constant_in_where
+    sql: "SELECT id FROM t WHERE SIGN(0.5) > 0 ORDER BY id"
+    profile: iq17-default
+  - id: sign_of_numerics_that_hold_one
+    sql: "SELECT id, SIGN(-2.25) AS a, SIGN(0.0) AS b, SIGN(nm + 0.5) AS c FROM t ORDER BY id"
+    profile: iq17-default

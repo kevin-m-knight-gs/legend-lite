@@ -2218,9 +2218,15 @@ final class IqFunctions {
             if (decimal(x)) {
                 int[] ps = scaleOf(x, e, "SIGN");
                 IqType own = (IqType) java.util.Objects.requireNonNull(x.detail());
+                // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): a NUMERIC with no digit before
+                // its point (0.5 is a NUMERIC(1,1)) cannot hold 1, so a value not 0 is IQ's -1001014 (data conversion
+                // failed) in each row that computes it
+                boolean holdsNoOne = ps[0] <= ps[1];
                 return strict(Kind.DECIMAL, own, List.of(x), v -> {
                     ValueSpecification d = SqlToPure.call("toDecimal", SqlToPure.call("sign", v.get(0)));
-                    return ps[1] > 0 ? atScale(d, ps[1]) : d;
+                    ValueSpecification shown = ps[1] > 0 ? atScale(d, ps[1]) : d;
+                    return holdsNoOne ? ifThen(SqlToPure.call("equal", SqlToPure.call("sign", v.get(0)), integer(0)),
+                            shown, raise("Decimal")) : shown;
                 });
             }
             IqType t = integerType(x, e, "SIGN");

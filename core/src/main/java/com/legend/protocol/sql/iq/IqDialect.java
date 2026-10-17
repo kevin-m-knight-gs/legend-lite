@@ -5900,15 +5900,20 @@ public final class IqDialect implements InputDialect {
         boolean check = leaves && (!type.family().equals("BIGINT") || loose);
         boolean wide = false;
         List<Boolean> widen = new ArrayList<>();
-        // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): under IQ's engine 2147483647 * 2 is the
-        // BIGINT 4294967294, so a result past 32 bits widens its constants too (the database types each one by itself)
-        boolean past32 = widened != null && (lo.compareTo(IqType.INTEGER_MIN) < 0 || hi.compareTo(IqType.INTEGER_MAX) > 0);
         for (int i = 0; i < types.size(); i++) {
             IqType t = types.get(i);
             // a constant (one value, never NULL) is written as itself; anything else is widened unless it is wide
-            boolean w = !t.wide() && (past32 || !(t.exact() && !operands.get(i).nullable()));
+            boolean w = !t.wide() && !(t.exact() && !operands.get(i).nullable());
             widen.add(w);
             wide |= w || t.wide();
+        }
+        if (!wide && widened != null && (lo.compareTo(IqType.INTEGER_MIN) < 0
+                || hi.compareTo(IqType.INTEGER_MAX) > 0)) {
+            // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): under IQ's engine 2147483647 * 2
+            // is the BIGINT 4294967294; of constants alone (the database types each by itself, in 32 bits) one is
+            // widened so that the database computes in 64
+            widen.set(0, true);
+            wide = true;
         }
         // IQ island, 2026-10-15 (D-N3): under IQ's engine an operation that cannot raise merges every operand's NULL
         // guard: none of its operands raises where another is NULL either (an integer operation raises only for a
