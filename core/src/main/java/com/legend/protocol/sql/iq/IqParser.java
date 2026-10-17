@@ -234,6 +234,24 @@ public final class IqParser {
         return e;
     }
 
+    /** After an ORDER that a call of no function of IQ's holds: {@code BY key [ASC | DESC], ...}, each key into
+     *  {@code into}, read as the call's argument (IQ island, 2026-10-17); NULLS FIRST or LAST is IQ's syntax error. */
+    private void orderKeys(List<SqlAst.Expr> into) {
+        expectKeyword("by");
+        do {
+            SqlAst.Expr e = expression();
+            value(e, "ORDER BY");
+            if (peek().is("desc") || peek().is("asc")) {
+                take();
+            }
+            if (peek().isWord("nulls")) {
+                throw new SqlSyntaxException("IQ has no NULLS FIRST or NULLS LAST" + IqDialect.syntaxCode(),
+                        peek().pos());
+            }
+            into.add(e);
+        } while (takeOp(","));
+    }
+
     /** On the reading past an error ({@link #afterReading}): the rest of a call from inside its parentheses -- to its
      *  closing one -- and a WITHIN GROUP (...) or OVER after it, read for their parentheses only. */
     private SqlAst.Expr pastCall(List<SqlAst.Ident> parts, IqLexer.Token first, boolean inside) {
@@ -370,7 +388,18 @@ public final class IqParser {
                     + "'", first.pos());
         }
         SqlAst.Statement query = first.is("with") ? with() : queryBlock();
+        if (peek().is("for") && peek(1).isWord("xml") && peek(2).isWord("path")) {
+            throw unexpected(peek());
+        }
         refuseClause("for", "FOR READ ONLY, FOR UPDATE and FOR XML are not supported yet");
+        if (peek().is("option") && peek(1).isOp("(") && peek(2).isName() && !peek(3).isOp("=")
+                && !peek(2).isWord("force") && !peek(2).isWord("materialized")) {
+            // IQ island, 2026-10-17 (the corpus lane's OPTION (MAXRECURSION 0), OPTION (RECOMPILE), 10; measured on IQ
+            // 17.1): IQ's OPTION clause sets options, (name = value, ...), or reads its own hints (FORCE [NO]
+            // OPTIMIZATION, MATERIALIZED VIEW OPTIMIZATION ...), so T-SQL's query hints are its syntax error
+            throw new SqlSyntaxException("the OPTION clause sets options, (name = value, ...): '" + peek(3).text()
+                    + "' cannot follow '" + peek(2).text() + "'" + IqDialect.syntaxCode(), peek(3).pos());
+        }
         refuseClause("option", "the OPTION clause is not supported yet");
         if (peek().isWord("offset") || peek().isWord("fetch")) {
             // IQ island, 2026-10-16 (measured on IQ 17.1; the corpus lane: 5,724 of SQLStorm's queries): T-SQL's
@@ -2159,8 +2188,9 @@ public final class IqParser {
         // IQ island, 2026-10-15 (checklist 2.16b): GROUPING(x) is read as a call, IqDialect.rolledUp's to read
         // IQ island, 2026-10-17 (measured on IQ 17.1): a name of no function of IQ's (STRING_AGG, STDEV, CONCAT) is read
         // as a call -- a syntax error in its arguments comes first (-131), a grouped query's column it reads outside
-        // the GROUP BY next (-149), its -265 last, as it is translated (IqDialect.function); the aggregates' forms
-        // after its name (DISTINCT, an ORDER BY inside, WITHIN GROUP, OVER) refused by name here, its -265
+        // the GROUP BY next (-149), its -265 last, as it is translated (IqDialect.function); under the iq17 presets
+        // an aggregate's DISTINCT, an ORDER BY inside and WITHIN GROUP read as the call (their keys its arguments;
+        // SQL Anywhere 17 rejects them: the syntax research's z2_redteam-714), OVER and * its -265 here
         boolean noSuch = IqFunctions.NO_SUCH_FUNCTION.contains(lower);
         if (AGGREGATES.contains(lower) && !lower.equals("grouping") && !noSuch) {
             throw SqlSyntaxException.unsupported("the aggregate or OLAP function " + name + "(...) is not supported"
@@ -2177,6 +2207,11 @@ public final class IqParser {
             take();
             take();
             return new SqlAst.FunctionCall(parts, List.of(), false, true, List.of(), List.of(), null, first.pos());
+        } else if (noSuch && settings.iq17() && (peek().is("distinct") || peek().is("all")) && !peek(1).isOp(")")) {
+            // IQ island, 2026-10-17 (the claim verification's SQLStorm STRING_AGG(DISTINCT ...); measured on IQ 17.1):
+            // read as the call it is, its arguments as written -- a grouped query's column outside the GROUP BY is
+            // its -149 there, its -265 else
+            take();
         } else if (peek().is("distinct") || peek().is("all") || peek().isOp("*")) {
             if (noSuch) {
                 SqlSyntaxException e = afterReading(SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name),
@@ -2226,17 +2261,33 @@ public final class IqParser {
                 if (trims && peek().is("from")) {
                     throw ansiTrim(peek());
                 }
-                if (noSuch && peek().is("order")) {
-                    SqlSyntaxException e = afterReading(SqlSyntaxException.unsupported(
-                            IqFunctions.noSuchFunctionText(name), first.pos()));
-                    if (e != null) {
-                        throw e;
-                    }
-                    return pastCall(parts, first, true);
+                if (peek().is("as") && !IqLexer.lower(name).startsWith("xml") && !IqLexer.lower(name).equals("treat")) {
+                    // IQ island, 2026-10-17 (the corpus lane's COALESCE(COUNT(a.Id) AS AnswerCount, 0); measured on IQ
+                    // 17.1): AS after an argument (but an XML function's or TREAT's) is its syntax error
+                    throw new SqlSyntaxException("AS cannot follow a function's argument" + IqDialect.syntaxCode(),
+                            peek().pos());
+                }
+                if (noSuch && settings.iq17() && peek().is("order")) {
+                    // IQ island, 2026-10-17 (measured on IQ 17.1): an ORDER BY inside, its keys read as arguments
+                    take();
+                    orderKeys(args);
+                    break;
                 }
             } while (takeOp(","));
         }
         expectOp(")");
+        if (noSuch && settings.iq17() && peek().is("within") && peek(1).isWord("group") && peek(2).isOp("(")
+                && peek(3).is("order")) {
+            // IQ island, 2026-10-17 (the claim verification's SQLStorm STRING_AGG(...) WITHIN GROUP (ORDER BY ...);
+            // measured on IQ 17.1): its keys read as arguments, as an ORDER BY inside is
+            take();
+            take();
+            take();
+            take();
+            orderKeys(args);
+            expectOp(")");
+            return new SqlAst.FunctionCall(parts, args, false, false, first.pos());
+        }
         if (noSuch && (peek().is("over") || peek().is("within"))) {
             SqlSyntaxException e = afterReading(SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name),
                     first.pos()));
@@ -3177,6 +3228,28 @@ public final class IqParser {
             return new SqlSyntaxException("OFFSET and FETCH are no clauses of IQ's (its row limit is TOP n START AT m)"
                     + IqDialect.syntaxCode(), t.pos());
         }
+        IqLexer.Token after = at + 1 < tokens.size() && tokens.get(at) == t ? tokens.get(at + 1) : null;
+        IqLexer.Token third = after != null && at + 2 < tokens.size() ? tokens.get(at + 2) : null;
+        if (t.is("for") && after != null && after.isWord("xml") && third != null && third.isWord("path")) {
+            // IQ island, 2026-10-17 (the corpus lane's FOR XML PATH(''), 15; measured on IQ 17.1): FOR XML RAW, AUTO
+            // and EXPLICIT are IQ's, PATH its syntax error
+            return new SqlSyntaxException("FOR XML PATH is no syntax of IQ's (its FOR XML reads RAW, AUTO and"
+                    + " EXPLICIT)" + IqDialect.syntaxCode(), third.pos());
+        }
+        if (before != null && (before.kind() == IqLexer.Kind.NUMBER || before.isOp(")"))
+                && DATE_UNITS.contains(IqLexer.lower(t.text()))) {
+            // IQ island, 2026-10-17 (the corpus lane's ts - 1 YEAR, - 90 DAY; measured on IQ 17.1): a date part after
+            // a value is no interval of IQ's, its syntax error
+            return new SqlSyntaxException("a date part after a value ('" + t.text() + "') is no interval of IQ's (it"
+                    + " reads DATEADD(part, n, d))" + IqDialect.syntaxCode(), t.pos());
+        }
+        if (t.kind() == IqLexer.Kind.STRING && before != null && TYPED_LITERALS.contains(IqLexer.lower(
+                before.text()))) {
+            // IQ island, 2026-10-17 (the corpus lane's DATETIME2 '2024-10-01 12:34:56'; measured on IQ 17.1): a type's
+            // name before a string is no typed constant of IQ's, its syntax error
+            return new SqlSyntaxException("'" + before.text() + " '...'' is no typed constant of IQ's (it reads"
+                    + " CAST('...' AS type))" + IqDialect.syntaxCode(), t.pos());
+        }
         if (t.isWord("limit") || before != null && before.isWord("limit") && t.kind() == IqLexer.Kind.NUMBER) {
             // IQ island, 2026-10-17 (the corpus lane's subqueries' ORDER BY x LIMIT 1 and FROM t LIMIT 5; measured on
             // IQ 17.1): LIMIT is a name under the reserved_keywords option's default, so a row limit spelled so is its
@@ -3185,6 +3258,13 @@ public final class IqParser {
         }
         return SqlSyntaxException.unsupported("'" + t.text() + "' here is not supported", t.pos());
     }
+
+    /** The date parts IQ raises its syntax error for after a value ({@link #unexpected}; measured on IQ 17.1). */
+    private static final Set<String> DATE_UNITS = Set.of("year", "quarter", "month", "week", "day", "hour", "minute",
+            "second", "years", "months", "weeks", "days", "hours", "minutes", "seconds");
+
+    /** Type names IQ raises its syntax error for before a string ({@link #unexpected}; measured on IQ 17.1). */
+    private static final Set<String> TYPED_LITERALS = Set.of("datetime", "datetime2", "smalldatetime", "timestamp");
 
     /** LIMIT as a row limit: IQ's syntax error under the reserved_keywords option's default ({@link #unexpected}). */
     private static SqlSyntaxException limit(IqLexer.Token t) {

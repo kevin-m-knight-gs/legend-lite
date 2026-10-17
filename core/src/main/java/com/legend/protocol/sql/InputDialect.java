@@ -36,6 +36,13 @@ public interface InputDialect {
     default void translated() {
     }
 
+    /** The statement {@link #reading} was given failed to translate with {@code e}: the error to raise, {@code e} or
+     *  one the dialect held that comes before it (IQ island, 2026-10-17: IQ raises a subquery's placement error after
+     *  the statement's names, grouping and functions are checked). */
+    default SqlTranslationException failed(SqlTranslationException e) {
+        return e;
+    }
+
     // ------------------------------------------------------------------ names
 
     /** The name an unquoted identifier declares ({@code AS x}, a WITH query's name): Postgres folds it to lower

@@ -144,7 +144,8 @@ final class IqFunctions {
             "greatest", "least", "to_date", "string_split",
             // IQ island, 2026-10-17 (the corpus lane's 19; measured on IQ 17.1): SQL Server's, MySQL's and Postgres's
             // too -- DATEDIFF_BIG's part is read as a column there (its -143 for day)
-            "var", "varp", "stdevp", "unnest", "substring_index", "splitpart", "parsename", "datediff_big");
+            "var", "varp", "stdevp", "unnest", "substring_index", "splitpart", "parsename", "datediff_big",
+            "split_string");
 
     /** The refusal of a call of {@code name}, one of {@link #NO_SUCH_FUNCTION}. */
     static SqlTranslationException noSuchFunction(String name, SqlAst.Pos pos) {
@@ -4132,8 +4133,16 @@ final class IqFunctions {
             }
             BigDecimal d = IqTypes.atScale(java.util.Objects.requireNonNull(IqDialect.numericText(s.value())));
             if (d.precision() > 15 || d.scale() > 38) {
-                throw SqlTranslationException.unsupported(what + " of a string of more than 15 significant digits to"
-                        + " DOUBLE is not supported yet", c.operand().pos());
+                // IQ island, 2026-10-17 (the corpus lane's Public BI, cast('21.280000000000001' as double): a double's
+                // seventeen-digit spelling): the database parses the digits, to the nearest DOUBLE, where a NUMERIC's
+                // conversion may miss it by a unit in the last place; a magnitude past a DOUBLE's is refused
+                if (d.signum() != 0 && (d.abs().compareTo(new BigDecimal("1e308")) >= 0
+                        || d.abs().compareTo(new BigDecimal("1e-307")) <= 0)) {
+                    throw SqlTranslationException.unsupported(what + " of a string past a DOUBLE's magnitude is not"
+                            + " supported yet", c.operand().pos());
+                }
+                return Tx.value(SqlToPure.call("parseFloat", new CString(d.toPlainString())), Kind.FLOAT, false,
+                        type);
             }
             return Tx.value(SqlToPure.call("toFloat", new CDecimal(d)), Kind.FLOAT, false, type);
         }

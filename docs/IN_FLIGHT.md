@@ -1729,7 +1729,9 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
       unchanged; the IQ island's its -156); the shared translator's seven nested-aggregate refusals read it.
     - `protocol/sql/InputDialect.java`, `protocol/sql/SqlToPure.java`: `translated()`, called once a statement is
       translated, where a dialect raises an error it held while translating (the IQ island's -1001013 for a string
-      compared with a number, which IQ raises after any -157 of the statement and after a missing column's -143).
+      compared with a number, which IQ raises after any -157 of the statement and after a missing column's -143);
+      and `failed(e)`, the error to raise when a statement fails to translate (the IQ island's held placement error,
+      which comes after the statement's names, grouping and functions).
     - `core/BUILD.bazel`: `//core:iq_parity_test` and `//core:iq_parity_postgres_test` sized `large`. The first ran 43 s
       alone but past `medium`'s 300 s in `//gates:local`.
 

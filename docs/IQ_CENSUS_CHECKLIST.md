@@ -325,12 +325,29 @@ island's reason, those IQ answers, and what became of them:
   a NUMERIC(6,0)), now read so, and so the quotient over it (it / (sm + 1.0) a NUMERIC(17,7));
 - a subquery in the statement's ORDER BY (the corpus lane's 4; measured on IQ 17.1, 2026-10-17): IQ's -1005004 under
   its engine, correlated or not, shown as an item or not, in arithmetic too;
+- other dialects' forms that are IQ's -131 (measured on IQ 17.1, 2026-10-17): FOR XML PATH (its FOR XML reads RAW,
+  AUTO, EXPLICIT; the lane's 15), a date part after a value (ts - 1 YEAR, - (2) DAY, DAYS too), a type's name before a
+  string (DATETIME2 '...', DATETIME, SMALLDATETIME, TIMESTAMP; DATE and TIME are reserved words there already), AS
+  after a function's argument (but an XML function's or TREAT's), T-SQL's query hints in OPTION (MAXRECURSION 0,
+  RECOMPILE: IQ's OPTION sets options, name = value); SPLIT_STRING is its -265;
+- a LIKE pattern whose [ no ] closes (the lane's 5; measured on IQ 17.1): its engine's -1001047, over no rows too;
+  its front end matches nothing by one (not built: refused);
+- not built, recorded: LATERAL in FROM (IQ's engine's -1001030; the front end reads it; the lane's 4: its marker
+  would need telling it from APPLY's), CAST of a timestamp to FLOAT (IQ's engine a REAL count of microseconds, a
+  date's of days; the front end's days; SEDE's 4, T-SQL's date truncation through a float, which means nothing
+  there);
 - open, error order (the claim verification's residue, 2026-10-17: 34 of 879 claims name another code than IQ's):
   where a query holds two errors, IQ raises the one of its earlier phase -- syntax, then -154, names (-143, -142,
   -144), grouping (-149, -150), function names (-265), then conversions and type checks (-157, -1001013, -1009145)
   -- and lite raises the first it meets as it translates. Built for -157 before -1001013 (held, InputDialect
   .translated) and for a syntax error after a CTE's recursion or a decorated unknown call; the general form would
-  hold each claim with its phase and raise the earliest's, one or two queries per pair;
+  hold each claim with its phase and raise the earliest's, one or two queries per pair. Built since (2026-10-17, the
+  second verification, 1,110 of 1,173 claims IQ's code, none an answer): a subquery's placement error (-1001030,
+  -1005004, -1001047) is held behind the statement's names, grouping and functions (InputDialect.failed); a call of
+  no function of IQ's is -265 before any later error; a date conversion under its engine is held as -1001013 is;
+  a windowed derived table's -1001030 before an outer qualified read's -1005004; a subquery in a window's key is
+  -156; STRING_AGG's DISTINCT, ORDER BY and WITHIN GROUP read as its arguments under the iq17 presets (-149 for an
+  ungrouped column, else -265);
 - IQ carries a derived table's column's NULL rejection into it (SQLStorm's CTE whose LEFT JOIN's ON holds a
   subquery, joined on its column by an inner join; measured on IQ 17.1, 2026-10-17): its outer query's WHERE or inner
   join over it, through arithmetic, unqualified where it is the one FROM item, grouped or not, nested: the derived

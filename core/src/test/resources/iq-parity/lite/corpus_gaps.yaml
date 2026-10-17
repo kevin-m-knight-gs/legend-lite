@@ -1536,3 +1536,105 @@ tests:
   - id: order_by_arithmetic_of_a_subquery_is_iqs_error
     sql: "SELECT id FROM t ORDER BY id + (SELECT COUNT(*) FROM u)"
     profile: iq17-default
+
+  # ---- other dialects' forms IQ raises its syntax error for (the corpus lane's FOR XML PATH(''), ts - 1 YEAR,
+  # DATETIME2 '...', COALESCE(COUNT(a.Id) AS n, 0); measured on IQ 17.1, 2026-10-17)
+  - id: for_xml_path_is_iqs_131
+    sql: "SELECT (SELECT ', ' + vc FROM t FOR XML PATH('')) AS s"
+    profile: iq17-default
+  - id: a_date_part_after_a_number_is_iqs_131
+    sql: "SELECT id FROM t WHERE ts >= ts - 1 YEAR"
+    profile: iq17-default
+  - id: a_date_part_after_a_parenthesis_is_iqs_131
+    sql: "SELECT id FROM t WHERE ts >= ts - (2) DAY"
+    profile: iq17-default
+  - id: a_typed_constant_is_iqs_131
+    sql: "SELECT id FROM t WHERE ts >= DATETIME2 '2024-10-01 12:34:56'"
+    profile: iq17-default
+  - id: as_after_an_argument_is_iqs_131
+    sql: "SELECT COALESCE(COUNT(id) AS n, 0) AS x FROM t"
+    profile: iq17-default
+  - id: a_query_hint_option_is_iqs_131
+    sql: "SELECT id FROM t OPTION (MAXRECURSION 0)"
+    profile: iq17-default
+  - id: a_top_level_for_xml_path_is_iqs_131
+    sql: "SELECT vc FROM t FOR XML PATH('')"
+    profile: iq17-default
+  - id: like_with_an_unclosed_set_is_iqs_error_under_its_engine
+    sql: "SELECT COUNT(*) AS n FROM t WHERE vc LIKE '%[%'"
+    profile: iq17-default
+  - id: not_like_with_an_unclosed_set_over_no_rows_is_iqs_error
+    sql: "SELECT COUNT(*) AS n FROM t WHERE id = -9 AND vc NOT LIKE '[%'"
+    profile: iq17-default
+
+  # ---- a CAST to DOUBLE of a string of seventeen significant digits (Public BI's cast('21.280000000000001' as double);
+  # measured on IQ 17.1, 2026-10-17): the nearest DOUBLE
+  - id: cast_of_a_seventeen_digit_string_to_double
+    sql: "SELECT CAST('21.280000000000001' AS DOUBLE) AS a, CAST('-74.359561999999997' AS DOUBLE) AS b, CAST('1.2581712270000001' AS DOUBLE) AS c, CAST('0.10000000000000001' AS DOUBLE) AS d"
+    profile: iq17-default
+  - id: cast_of_a_seventeen_digit_string_to_double_under_its_engine
+    sql: "SELECT id, CAST('-157.83000000000001' AS DOUBLE) + dbl AS a FROM t WHERE id = 1"
+    profile: iq17-default
+
+  # ---- a date conversion IQ's engine raises after the statement's names and functions (the claim verification's SEDE
+  # DATEFROMPARTS and EOMONTH beside one; measured on IQ 17.1, 2026-10-17)
+  - id: a_function_of_no_name_before_a_date_conversion
+    sql: "SELECT id FROM t WHERE ts > '01/01/2018' AND DATEFROMPARTS(2020, 1, 1) = dt"
+    profile: iq17-default
+  - id: a_missing_column_before_a_date_conversion
+    sql: "SELECT id FROM t WHERE dt > '01/01/2018' AND nosuch = 1"
+    profile: iq17-default
+  - id: a_function_of_no_name_before_a_string_of_no_digit_as_a_date
+    sql: "SELECT id FROM t WHERE ts > 'x' AND EOMONTH(dt) = dt"
+    profile: iq17-default
+
+  # ---- an aggregate's decorations on a call of no function of IQ's (the claim verification's SQLStorm STRING_AGG(...)
+  # WITHIN GROUP (ORDER BY ...), DISTINCT; measured on IQ 17.1, 2026-10-17): read as the call, their keys its arguments
+  # -- a grouped query's column outside the GROUP BY is -149, else -265
+  - id: string_agg_within_group_in_a_grouped_query_is_iqs_149
+    sql: "SELECT id, STRING_AGG(vc, ',') WITHIN GROUP (ORDER BY vc) AS s FROM t GROUP BY id"
+    profile: iq17-default
+  - id: string_agg_within_group_of_a_group_key_is_iqs_265
+    sql: "SELECT vc, STRING_AGG(vc, ',') WITHIN GROUP (ORDER BY vc) AS s FROM t GROUP BY vc"
+    profile: iq17-default
+  - id: string_agg_within_group_by_another_column_is_iqs_149
+    sql: "SELECT vc, STRING_AGG(vc, ',') WITHIN GROUP (ORDER BY id) AS s FROM t GROUP BY vc"
+    profile: iq17-default
+  - id: string_agg_distinct_in_a_grouped_query_is_iqs_149
+    sql: "SELECT id, STRING_AGG(DISTINCT vc, ',') AS s FROM t GROUP BY id"
+    profile: iq17-default
+  - id: string_agg_ordered_inside_in_a_grouped_query_is_iqs_149
+    sql: "SELECT id, STRING_AGG(vc, ',' ORDER BY vc) AS s FROM t GROUP BY id"
+    profile: iq17-default
+
+  # ---- a windowed derived table's subquery column before an outer qualified read of it (the claim verification's
+  # SQLStorm, 5; measured on IQ 17.1, 2026-10-17): IQ's -1001030 first
+  - id: a_windowed_derived_subquery_before_a_qualified_read
+    sql: "SELECT f.id, f.n FROM (SELECT r.id, r.n FROM (SELECT t.id, ROW_NUMBER() OVER (ORDER BY t.id) AS rk, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) r) f ORDER BY f.n"
+    profile: iq17-default
+
+  # ---- a subquery in a window's key (the claim verification's SEDE ROW_NUMBER() OVER (ORDER BY (SELECT NULL));
+  # measured on IQ 17.1, 2026-10-17): IQ's -156, PARTITION BY and an aggregate's window too
+  - id: a_window_ordered_by_a_subquery_is_iqs_156
+    sql: "SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS r, id FROM t"
+    profile: iq17-default
+    nondeterministic: "tests an error IQ raises before any row"
+  - id: a_window_partitioned_by_a_subquery_is_iqs_156
+    sql: "SELECT SUM(id) OVER (PARTITION BY (SELECT 1) ORDER BY id) AS r, id FROM t"
+    profile: iq17-default
+
+  # ---- a subquery's placement error comes after the statement's names, grouping and functions (the claim
+  # verification; measured on IQ 17.1, 2026-10-17)
+  - id: a_missing_column_before_a_row_limit_in_a_subquery
+    sql: "SELECT id FROM t WHERE id IN (SELECT TOP 5 PERCENT id FROM t ORDER BY id)"
+    profile: iq17-default
+    nondeterministic: "tests an error IQ raises before any row"
+  - id: a_grouping_error_before_an_outer_join_subquery
+    sql: "SELECT a.id, b.id AS bid FROM t a LEFT JOIN u b ON b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = a.id) GROUP BY a.id"
+    profile: iq17-default
+  - id: a_function_of_no_name_before_a_window_in_a_subquery
+    sql: "SELECT id FROM t WHERE id IN (SELECT ROW_NUMBER() OVER (ORDER BY id) FROM t) AND CONCAT(vc, 'x') = 'y'"
+    profile: iq17-default
+  - id: a_window_in_a_subquery_alone
+    sql: "SELECT id FROM t WHERE id IN (SELECT ROW_NUMBER() OVER (ORDER BY id) FROM t)"
+    profile: iq17-default

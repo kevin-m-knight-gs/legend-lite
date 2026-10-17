@@ -294,9 +294,11 @@ final class IqWindows {
         boolean framed = spec.frame() != null;
         for (SqlAst.Expr k : spec.partitionBy()) {
             position(k);
+            subqueryKey(f, k);
         }
         for (SqlAst.SortItem o : spec.orderBy()) {
             position(o.expr());
+            subqueryKey(f, o.expr());
         }
         if (fn.equals("median")) {
             throw SqlTranslationException.unsupported("MEDIAN over a window is not supported: IQ computes its integer"
@@ -426,6 +428,16 @@ final class IqWindows {
     private static void position(SqlAst.Expr k) {
         if (k instanceof SqlAst.IntegerLit) {
             throw iq("a window's key is an expression, not a position", -152, "53005", k.pos());
+        }
+    }
+
+    /** IQ island, 2026-10-17 (the claim verification's SEDE ROW_NUMBER() OVER (ORDER BY (SELECT NULL)); measured on IQ
+     *  17.1, PARTITION BY too, an aggregate's window too, with or without a FROM): a subquery in a window's key is IQ's
+     *  -156, an invalid expression near the function. */
+    private static void subqueryKey(SqlAst.FunctionCall f, SqlAst.Expr k) {
+        if (hasSubquery(k)) {
+            throw iq("a subquery in a window's key is an invalid expression near " + f.name().get(f.name().size() - 1)
+                    .text().toUpperCase(Locale.ROOT), -156, "42W08", k.pos());
         }
     }
 

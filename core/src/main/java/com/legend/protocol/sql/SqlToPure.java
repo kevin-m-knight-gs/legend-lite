@@ -252,7 +252,12 @@ public final class SqlToPure {
         }
         InputDialect reading = dialect.reading(statement);
         SqlToPure translation = new SqlToPure(sources, reading, new Env(Map.of(), null, null, 0));
-        Rel translated = translation.statement(statement);
+        Rel translated;
+        try {
+            translated = translation.statement(statement);
+        } catch (SqlTranslationException e) {
+            throw reading.failed(e);
+        }
         reading.translated();
         // the island's own result is an inline view too (2026-10-16, the landing's review): its windows are computed
         // over all of its rows before a Pure step after the island (a filter) reads them
