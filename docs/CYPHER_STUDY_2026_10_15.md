@@ -3165,7 +3165,7 @@ unwinding and collected lists, Aggregation's and Return's `collect`s).
 - **Relationship uniqueness is not spelled.** Neo4j never walks one relationship twice within a chain; telling
   the same relationship from another needs identity (C5), so a graph whose data loops a chain back over the same
   relationship (a self-loop walked twice, a two-node cycle walked round and back) answers rows Neo4j does not. A
-  deliberate difference, recorded (`docs/SEMANTICS_REGISTER.md` S73); the TCK's variable-length graphs are
+  deliberate difference, recorded (`docs/SEMANTICS_REGISTER.md` S75); the TCK's variable-length graphs are
   acyclic or walk a cycle once, and lite's `a_variable_length_round_a_cycle` pins the walk Neo4j allows.
 - **Refused by name:** no upper bound (`*`, `*2..`: a recursion, §6.3's native); a bound beyond 4; a pattern
   unrolling to more than 16 chains; a property map on the relationship; a pattern unrolling to more than two hops

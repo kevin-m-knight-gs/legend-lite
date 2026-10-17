@@ -1093,12 +1093,15 @@ final class Overloads {
 
         List<TypedFuncCol> cols = new ArrayList<>(specs.size());
         List<Type.Column> schema = new ArrayList<>(specs.size());
+        // the names so far, looked up rather than scanned (2026-10-15, the IQ island's census scale suite: a
+        // 4 MB report's ~[…] of thousands of columns spent most of its compile in the scan, quadratic in its width)
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (ColSpec cs : specs) {
             if (cs.function1() == null) {
                 throw new TypeInferenceException(
                         "~" + cs.name() + " needs a mapping expression (alias:x|…) here");
             }
-            if (schema.stream().anyMatch(c -> c.name().equals(cs.name()))) {
+            if (!seen.add(cs.name())) {
                 throw new SchemaInvariantException("duplicate column '" + cs.name() + "' in ~[…]");
             }
             TypedLambda lam = (TypedLambda) typeLambda(cs.function1(), f, b, env);

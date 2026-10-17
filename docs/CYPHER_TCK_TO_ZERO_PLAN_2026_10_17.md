@@ -40,7 +40,7 @@ store grammar, executor).
 | # | workstream | cases | today's reason | where | rule to change |
 |---|---|---|---|---|---|
 | W1 | Schema-optional reads | 56 | a label naming no class (42), a property no class declares (10+2), a type naming no association (2): C4 | island | S58 |
-| W2 | Identity | ~100 | OPTIONAL MATCH after rows (36), both ends bound (11), undirected self-association (15), a node among grouping keys (8), nodes compared (7), a MATCH binding a projected variable again (8), untyped relationship in OPTIONAL MATCH (7), RETURN DISTINCT over a node (3), two relationships of one type (3), the rest ones and twos; plus S73's uniqueness and S72's parallel links | island, harness | C5 as read, S72, S73 |
+| W2 | Identity | ~100 | OPTIONAL MATCH after rows (36), both ends bound (11), undirected self-association (15), a node among grouping keys (8), nodes compared (7), a MATCH binding a projected variable again (8), untyped relationship in OPTIONAL MATCH (7), RETURN DISTINCT over a node (3), two relationships of one type (3), the rest ones and twos; plus S75's uniqueness and S74's parallel links | island, harness | C5 as read, S74, S75 |
 | W3 | Non-deterministic functions | 50 | `rand()` (31), `datetime()`/`date()`/`time()`/`localtime()`/`localdatetime()` and their `.transaction`/`.statement`/`.realtime` forms (19) | island | the "value of the call" rule |
 | W4 | Writes | 274 | CREATE 69, SET 53, MERGE 49, REMOVE 31, DELETE 30, DETACH DELETE 9; 33 write scenarios the harness skips for their control query | platform (F1), island, harness | — |
 | W5 | Stored temporal values | 72 | properties holding a time of day (10 scenarios), a duration (8), a zoned date-time (5): 61 skipped; a date-time of sub-microsecond precision: 11 skipped | harness, store grammar, island | S64 |
@@ -75,9 +75,9 @@ user wants the typo guard back (not proposed).
   it. A user model keeps whatever keys it declares; a class without keys keeps today's refusals (identity needs
   a key, by name).
 - **Relationships.** An edge class's identity is its own hidden `id`. A plain association has no row of its
-  own: its identity is the ordered pair of node identities, which S72 already states; the harness switches a
+  own: its identity is the ordered pair of node identities, which S74 already states; the harness switches a
   relationship type to an edge class when its setup holds parallel links between one pair (as it does for
-  properties and several pairs), so parallel links get their own identities. S72's "one link per pair" then
+  properties and several pairs), so parallel links get their own identities. S74's "one link per pair" then
   holds only for user models that choose a plain association.
 - **The island.** A node value carries `"@id"` (its key values) in its JSON, which the judge ignores; a carried
   node keeps its key columns; comparisons of nodes, relationships and paths compare keys; `DISTINCT` and grouping
@@ -85,7 +85,7 @@ user wants the typo guard back (not proposed).
   (`Class.all()->filter(n | $n.id == $r.id)`, a lateral) — the continuation the rows could not express; both ends
   bound is the hop's far key compared with the bound node's; an undirected hop over a self-association dedupes
   by key; relationship uniqueness along a variable-length chain is the chain's relationship identities
-  pairwise distinct (S73 overturned); `collect(DISTINCT n)` and `count(DISTINCT n)` count keys. The judge reads
+  pairwise distinct (S75 overturned); `collect(DISTINCT n)` and `count(DISTINCT n)` count keys. The judge reads
   `@id` and never compares it (Neo4j's ids are its own).
 - Three to four legs: keys and node values; comparisons, DISTINCT and grouping; continuation and both-ends-bound
   hops; uniqueness and the undirected self-association.
@@ -191,7 +191,7 @@ SKIP/LIMIT expressions, `STARTS WITH` on non-strings (null), temporal texts of t
 
 1. **W1:** adopt Neo4j's schema-optional reads (null, no rows) for the island, overturning S58? (Proposed: yes.)
 2. **W2:** node identity through a hidden `<<equality.Key>>` property the harness declares, relationships as
-   edge classes wherever a setup holds parallel links; S72 and S73 rewritten? (Proposed: yes.)
+   edge classes wherever a setup holds parallel links; S74 and S75 rewritten? (Proposed: yes.)
 3. **W3:** `rand()` and the clock functions as the database's? (Proposed: yes.)
 4. **W5:** a `TIME` column type added to lite's relational grammar (a lite extension of legend-engine's), or
    times of day stored as texts? (Proposed: the column type.)

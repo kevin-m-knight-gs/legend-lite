@@ -316,6 +316,9 @@ test_suite(
         # the DataCube model design's measurement (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §11, 2026-10-10): manual
         "//datacube:model_scale_measure",
         "//parser-equivalence:diagnostics",
+        # the #IQ{...}# island's real-world corpus lane (2026-10-15; core/BUILD.bazel's iq_corpus_test): manual, it
+        # names corpora kept out of the repository (-Diq.corpus.root) and fails without them
+        "//core:iq_corpus_test",
         "//pct:update_ratchets_test",
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an

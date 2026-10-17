@@ -48,27 +48,27 @@ class IqFunctionsTest {
     private static final String T = "tb('s::DB.T')";
 
     private static String pure(String sql) {
-        return pure(sql, IqProfile.IQ16_DEFAULT);
+        return pure(sql, IqProfile.IQ16_DEFAULT.settings());
     }
 
-    private static String pure(String sql, IqProfile profile) {
+    private static String pure(String sql, IqSettings profile) {
         ValueSpecification vs = SqlToPure.translate(sql, (source, column) -> COLUMNS.forEach(
                 c -> column.column(c.name(), c.type(), c.nullable(), c.store())), IqDialect.of(profile));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 
     private static SqlTranslationException refusal(String sql) {
-        return refusal(sql, IqProfile.IQ16_DEFAULT);
+        return refusal(sql, IqProfile.IQ16_DEFAULT.settings());
     }
 
-    private static SqlTranslationException refusal(String sql, IqProfile profile) {
+    private static SqlTranslationException refusal(String sql, IqSettings profile) {
         SqlTranslationException e = assertThrows(SqlTranslationException.class, () -> pure(sql, profile));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql + ": " + e.getMessage());
         return e;
     }
 
     private static SqlAst.Expr item(String sql) {
-        SqlAst.Select s = (SqlAst.Select) IqParser.parse(sql, IqProfile.IQ16_DEFAULT);
+        SqlAst.Select s = (SqlAst.Select) IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings());
         return ((SqlAst.SelectExpr) s.items().get(0)).expr();
     }
 
@@ -98,6 +98,18 @@ class IqFunctionsTest {
     }
 
     @Test
+    void iqsEngineReadsAStringAsANumberWithoutAnExponent() {
+        // IQ island, 2026-10-15 (checklist 0.5, measured on IQ 17.1): white space at both ends, a sign, digits with one
+        // point at most; '' and an exponent are IQ's -1009145
+        assertEquals(new java.math.BigDecimal("1.555"), IqFunctions.iqNumberText(" 1.555\t"));
+        assertEquals(new java.math.BigDecimal("12"), IqFunctions.iqNumberText("+12."));
+        assertEquals(new java.math.BigDecimal("-0.9"), IqFunctions.iqNumberText("\n-.9\r"));
+        for (String no : List.of("", " ", "1e2", "1.2.3", "- 1", "+", ".", "1,5", "\u00a01")) {
+            assertEquals(null, IqFunctions.iqNumberText(no), no);
+        }
+    }
+
+    @Test
     void castsSyntaxErrorsAreIqs() {
         for (String sql : List.of("SELECT CAST(1 AS VARCHAR(0)) AS x", "SELECT CAST(1 AS NUMERIC(2, 3)) AS x",
                 "SELECT CAST(1 INT) AS x", "SELECT CAST(1 = 1 AS INT) AS x", "SELECT CONVERT(INT) AS x",
@@ -105,22 +117,34 @@ class IqFunctionsTest {
                 "SELECT DATEPART('dd', dt) AS x", "SELECT DATEPART(yyyy, dt) AS x",
                 "SELECT DATEADD(tz, 1, dt) AS x", "SELECT CAST('a' AS NCHAR(10 CHAR)) AS x")) {
             SqlSyntaxException e = assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql,
-                    IqProfile.IQ16_DEFAULT), sql);
+                    IqProfile.IQ16_DEFAULT.settings()), sql);
             assertFalse(e.unsupported(), sql);
             assertTrue(e.reason().contains("SQLCODE -131"), sql + ": " + e.reason());
         }
-        // a style, a domain, TIMESTAMP WITH TIME ZONE, a type of no value read (REAL, TIME, TINYINT, unsigned, binary),
-        // a constant IQ cannot convert: refused by name
-        for (String sql : List.of("SELECT CONVERT(VARCHAR(10), dt, 112) AS x", "SELECT CAST(1 AS my_domain) AS x",
+        // a style the island does not read, a domain, TIMESTAMP WITH TIME ZONE, a type of no value read (TIME, TINYINT,
+        // unsigned, binary), a FLOAT's precision outside 1 to 53, a constant IQ cannot convert: refused by name (IQ
+        // island, 2026-10-15: REAL and FLOAT(24) read now, IqToPureTest)
+        for (String sql : List.of("SELECT CONVERT(VARCHAR(10), dt, 23) AS x", "SELECT CONVERT(INT, dt, 112) AS x",
+                "SELECT CONVERT(VARCHAR(10), dt, 99999999999) AS x", "SELECT CAST(1 AS my_domain) AS x",
                 "SELECT CAST(ts AS TIMESTAMP WITH TIME ZONE) AS x", "SELECT CURRENT TIME AS x",
-                "SELECT CAST(id AS FLOAT(24)) AS x", "SELECT CAST(id AS FLOAT(0)) AS x", "SELECT CAST(id AS TIME) AS x",
+                "SELECT CAST(id AS FLOAT(54)) AS x", "SELECT CAST(id AS FLOAT(0)) AS x", "SELECT CAST(id AS TIME) AS x",
                 "SELECT CAST(id AS TINYINT) AS x", "SELECT CAST(id AS INT UNSIGNED) AS x",
                 "SELECT CAST(id AS VARBINARY(4)) AS x", "SELECT CAST('abc' AS INT) AS x",
                 "SELECT CAST('40000' AS SMALLINT) AS x", "SELECT CAST(2 AS BIT) AS x",
                 "SELECT CAST('2026-02-30' AS DATE) AS x", "SELECT CAST(12345 AS CHAR(3)) AS x",
-                "SELECT CAST(999.5 AS NUMERIC(3, 0)) AS x", "SELECT CONVERT(DATE, 'not a date') AS x")) {
-            assertTrue(assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql, IqProfile.IQ16_DEFAULT))
+                "SELECT CAST(1000.5 AS NUMERIC(3, 0)) AS x", "SELECT CONVERT(DATE, 'not a date') AS x")) {
+            assertTrue(assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings()))
                     .unsupported(), sql);
+        }
+        // IQ island, 2026-10-15 (checklist 0.5, measured on IQ 17.1): what only SQL Anywhere's front end raises for --
+        // a value its rounding takes past a NUMERIC's digits, a string longer than its target -- is refused there, and
+        // read under IQ's engine, which truncates and cuts
+        String[][] frontEndOnly = {{"SELECT CAST(999.5 AS NUMERIC(3, 0)) AS x", "floor("},
+                {"SELECT CAST('abcdef' AS VARCHAR(3)) AS x", "left(3)"}};
+        for (String[] c : frontEndOnly) {
+            assertTrue(assertThrows(SqlSyntaxException.class, () -> IqDialect.of(IqProfile.IQ16_DEFAULT.settings())
+                    .parse(c[0])).unsupported(), c[0]);
+            assertTrue(pure(c[0] + " FROM " + T).contains(c[1]), c[0]);
         }
     }
 
@@ -129,27 +153,34 @@ class IqFunctionsTest {
         for (String sql : List.of("SELECT CHARINDEX('b', vc, 2) AS x FROM " + T, "SELECT ROUND(nm, 1, 1) AS x FROM "
                 + T, "SELECT LOG(2, 8) AS x", "SELECT SUBSTRING('abc', 1, -1) AS x")) {
             SqlTranslationException e = assertThrows(SqlTranslationException.class, () -> IqDialect.of(
-                    IqProfile.IQ16_DEFAULT).parse(sql), sql);
+                    IqProfile.IQ16_DEFAULT.settings()).parse(sql), sql);
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql);
         }
         // a wrong count of arguments is IQ's -154 before translation
         assertEquals(SqlTranslationException.Kind.INVALID, assertThrows(SqlTranslationException.class,
-                () -> IqDialect.of(IqProfile.IQ16_DEFAULT).parse("SELECT LEFT('abc') AS x")).kind());
+                () -> IqDialect.of(IqProfile.IQ16_DEFAULT.settings()).parse("SELECT LEFT('abc') AS x")).kind());
     }
 
     // ------------------------------------------------------------------ strings
 
     @Test
     void substringReadsAnsiVirtualPositions() {
-        String p = pure("SELECT SUBSTRING(vc, sm, 3) AS s FROM " + T);
+        // SQL Anywhere's front end
+        IqSettings sa = IqProfile.SQLA17_DEFAULT.settings();
+        String p = pure("SELECT SUBSTRING(vc, sm, 3) AS s FROM " + T, sa);
         // a start below 1: the positions from 1 to start + length - 1
         assertTrue(p.contains("substring(1, "), p);
         assertTrue(p.contains("< 2"), p);
         // a length that may be negative is IQ's -1090 where computed
-        assertTrue(pure("SELECT SUBSTRING(vc, 1, sm) AS s FROM " + T).contains("cast(@String)->toOne()"));
-        assertFalse(pure("SELECT SUBSTRING(vc, 1, 3) AS s FROM " + T).contains("cast(@String)->toOne()"));
+        assertTrue(pure("SELECT SUBSTRING(vc, 1, sm) AS s FROM " + T, sa).contains("cast(@String)->toOne()"));
+        assertFalse(pure("SELECT SUBSTRING(vc, 1, 3) AS s FROM " + T, sa).contains("cast(@String)->toOne()"));
         // without a length: the largest INTEGER
-        assertTrue(pure("SELECT SUBSTR(vc, 2) AS s FROM " + T).contains("2147483647"));
+        assertTrue(pure("SELECT SUBSTR(vc, 2) AS s FROM " + T, sa).contains("2147483647"));
+        // IQ island, 2026-10-15 (measured on IQ 17.1): IQ's engine has no virtual positions -- a start of 0 is 1, a
+        // negative one counts from the end -- and a start beyond 32,767 either way is NULL (IqFunctions.substringIq)
+        String iq = pure("SELECT SUBSTRING(vc, sm, 3) AS s FROM " + T);
+        assertTrue(iq.contains("> 32767") && iq.contains("< -32767"), iq);
+        assertTrue(pure("SELECT SUBSTRING(vc, 1, sm) AS s FROM " + T).contains("cast(@String)->toOne()"));
     }
 
     @Test
@@ -173,23 +204,23 @@ class IqFunctionsTest {
         assertFalse(p.contains("trim("), p);
         assertTrue(pure("SELECT TRIM(vc, ']-^') AS t FROM " + T).contains("[\\\\]\\\\-\\\\^]"));
         // IQ island, 2026-10-14 (natives): a UTF-8 database trims the same six (measured), a set without case
-        assertEquals(p, pure("SELECT TRIM(vc) AS t FROM " + T, IqProfile.SQLA17_DEFAULT));
-        assertTrue(pure("SELECT LTRIM(vc, 'ab') AS t FROM " + T, IqProfile.SQLA17_DEFAULT).contains("^([aAbB])+"));
+        assertEquals(p, pure("SELECT TRIM(vc) AS t FROM " + T, IqProfile.SQLA17_DEFAULT.settings()));
+        assertTrue(pure("SELECT LTRIM(vc, 'ab') AS t FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("^([aAbB])+"));
     }
 
     @Test
     void matchingIsCaseSensitiveInAnIqDatabaseAndAsciiCaselessInSqlAnywheres() {
         assertTrue(pure("SELECT REPLACE(vc, 'a', 'b') AS r FROM " + T).contains("replace('a', 'b')"));
         // IQ island, 2026-10-14 (natives): a sqla17 profile's matching ignores the ASCII letters' case, composed
-        String replace = pure("SELECT REPLACE(vc, 'a.b', 'x\\\\y') AS r FROM " + T, IqProfile.SQLA17_DEFAULT);
+        String replace = pure("SELECT REPLACE(vc, 'a.b', 'x\\\\y') AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings());
         assertTrue(replace.contains("regexpReplace('[aA]\\\\.[bB]', 'x\\\\\\\\y', true)"), replace);
-        assertTrue(pure("SELECT REPLACE(vc, '1.', 'x') AS r FROM " + T, IqProfile.SQLA17_DEFAULT)
+        assertTrue(pure("SELECT REPLACE(vc, '1.', 'x') AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings())
                 .contains("replace('1.', 'x')"));
-        assertTrue(refusal("SELECT REPLACE(vc, vc, 'x') AS r FROM " + T, IqProfile.SQLA17_DEFAULT).getMessage()
+        assertTrue(refusal("SELECT REPLACE(vc, vc, 'x') AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).getMessage()
                 .contains("no constant"));
         for (String sql : List.of("SELECT CHARINDEX('a', vc) AS r FROM " + T,
                 "SELECT LOCATE(vc, 'a', -1) AS r FROM " + T, "SELECT PATINDEX('%a%', vc) AS r FROM " + T)) {
-            String p = pure(sql, IqProfile.SQLA17_DEFAULT);
+            String p = pure(sql, IqProfile.SQLA17_DEFAULT.settings());
             assertTrue(p.contains("replace('A', 'a')") && !p.contains("toLower"), p);
             assertFalse(pure(sql).contains("replace('A', 'a')"), sql);
         }
@@ -219,9 +250,11 @@ class IqFunctionsTest {
         assertTrue(refusal("SELECT DISTINCT 10.0 / 3 AS q").getMessage().contains("select item"));
         assertTrue(refusal("SELECT (2 + 3) / 1.5 AS q").getMessage().contains("constant integer expression"));
         assertTrue(refusal("SELECT NULL % 1.5 AS q").getMessage().contains("untyped NULL"));
-        assertTrue(refusal("SELECT nm / 2 AS q FROM " + T).getMessage().contains("D-N1"));
+        // under IQ's engine a NUMERIC quotient is cut toward zero at scale max(6, ...) (IQ island, 2026-10-15, D-N1
+        // measured on IQ 17.1)
+        assertTrue(pure("SELECT nm / 2 AS q FROM " + T).contains("0.000001"));
         assertTrue(refusal("SELECT CAST(1 AS NUMERIC(30,10)) / CAST(1 AS NUMERIC(30,10)) AS q",
-                IqProfile.SQLA17_DEFAULT).getMessage().contains("'?'"));
+                IqProfile.SQLA17_DEFAULT.settings()).getMessage().contains("'?'"));
         assertTrue(IqFunctions.quotientFits(2, 8, 2, 8, 21, 11));
         assertFalse(IqFunctions.quotientFits(10, 20, 0, 10, 31, 11));
     }
@@ -236,11 +269,14 @@ class IqFunctionsTest {
     // ------------------------------------------------------------------ numbers and the engine split
 
     @Test
-    void absKeepsTheArgumentsTypeUnderTheIqEngine() {
-        // D-F5: the smallest SMALLINT's absolute value is IQ's -158 under the IQ engine
-        assertTrue(pure("SELECT ABS(sm) AS a FROM " + T).contains("> 32767"));
+    void absTakesTheSmallestTypeThatHoldsItUnderTheIqEngine() {
+        // IQ island, 2026-10-16 (measured on IQ 17.1, replacing the research's D-F5): the smallest SMALLINT's absolute
+        // value is an INTEGER's, a BIGINT's a NUMERIC(20,0)'s, under the IQ engine as in the front end
+        String iq = pure("SELECT ABS(sm) AS a, ABS(bg) AS b FROM " + T);
+        assertFalse(iq.contains("32767"), iq);
+        assertTrue(iq.contains("toDecimal()->abs()"), iq);
         // SQL Anywhere's front end: an unsigned SMALLINT, a BIGINT's NUMERIC(20,0)
-        String sa = pure("SELECT ABS(sm) AS a, ABS(bg) AS b FROM " + T, IqProfile.SQLA17_DEFAULT);
+        String sa = pure("SELECT ABS(sm) AS a, ABS(bg) AS b FROM " + T, IqProfile.SQLA17_DEFAULT.settings());
         assertFalse(sa.contains("32767"), sa);
         assertTrue(sa.contains("toDecimal()->abs()"), sa);
     }
@@ -248,32 +284,79 @@ class IqFunctionsTest {
     @Test
     void whatTheIqEngineTypesOrComputesOtherwiseIsRefusedByItsDecision() {
         String[][] decided = {
-                {"SELECT CEILING(nm) AS c FROM " + T, "D-F2"},
-                {"SELECT ROUND(nm, 1) AS r FROM " + T, "D-F1"},
                 {"SELECT STUFF(vc, 1, 1, 'x') AS s FROM " + T, "D-F3"},
                 {"SELECT PATINDEX('%', vc) AS p FROM " + T, "D-F6"},
-                {"SELECT DATEADD(dd, 1, dt) AS d FROM " + T, "D-T2"},
-                {"SELECT DATEDIFF(dd, dt, ts) AS d FROM " + T, "D-T11"},
-                {"SELECT DATEPART(cdw, dt) AS d FROM " + T, "D-T10"},
-                {"SELECT CAST(vc AS VARCHAR(3)) AS c FROM " + T, "D-C2"},
-                {"SELECT CONVERT(VARCHAR(20), dt) AS c FROM " + T, "D-C6"},
-                {"SELECT CAST(d AS NUMERIC(10, 2)) AS c FROM " + T, "D-N6"},
-                {"SELECT CAST(nm AS VARCHAR(4)) AS c FROM " + T, "D-C1"},
         };
         for (String[] d : decided) {
             assertTrue(refusal(d[0]).getMessage().contains(d[1]), d[0]);
         }
+        // IQ island, 2026-10-15 (checklist 0.5; D-C2, D-N6, D-C1, measured on IQ 17.1): under IQ's engine a longer
+        // string is cut to the target's bytes (characters in ISO-8859-1, whole characters in UTF-8), a DOUBLE to a
+        // NUMERIC is its DOUBLE product cut toward zero, a NUMERIC whose text is too long raises for that row
+        assertTrue(pure("SELECT CAST(vc AS VARCHAR(3)) AS c FROM " + T).contains("left(3)"));
+        assertTrue(pure("SELECT CAST(vc AS VARCHAR(3)) AS c FROM " + T, IqProfile.IQ17_DEFAULT.settings())
+                .contains("'xxE'"));
+        String dbl = pure("SELECT CAST(d AS NUMERIC(10, 2)) AS c FROM " + T);
+        assertTrue(dbl.contains("100.0") && dbl.contains("floor("), dbl);
+        assertTrue(refusal("SELECT CAST(d AS NUMERIC(19, 2)) AS c FROM " + T).getMessage().contains("18 digits"));
+        assertTrue(pure("SELECT CAST(nm AS VARCHAR(4)) AS c FROM " + T).contains("cast(@String)->toOne()"));
+        // IQ island, 2026-10-15 (D-T10, measured on IQ 17.1): the calendar parts are read under IQ's engine, its weeks
+        // from Sunday (the week's Wednesday decides its year and number)
+        String cdw = pure("SELECT DATEPART(cdw, dt) AS d, DATEPART(cwk, dt) AS w FROM " + T);
+        assertTrue(cdw.contains("DayOfWeek.Sunday") && cdw.contains("dayOfYear()"), cdw);
+        // IQ island, 2026-10-15 (D-F1, D-F2, measured on IQ 17.1): ROUND and CEILING of a NUMERIC(p,s) are a
+        // NUMERIC(p+1,s) under IQ's engine, unchecked
+        assertFalse(pure("SELECT ROUND(nm, 1) AS r FROM " + T).contains("cast(@Decimal)->toOne()"));
+        assertTrue(pure("SELECT CEILING(nm) AS c FROM " + T).contains("ceiling()"));
+        // IQ island, 2026-10-15 (D-T2, D-T11, measured on IQ 17.1): DATEADD of a DATE stays a DATE under IQ's
+        // engine; DATEDIFF below a day counts whole elapsed units; DAYOFYEAR is IQ's -1001015
+        assertTrue(pure("SELECT DATEADD(dd, 1, dt) AS d FROM " + T).contains("datePart"));
+        assertTrue(pure("SELECT DATEDIFF(hh, dt, ts) AS d FROM " + T).contains("3600000000"));
+        assertTrue(org.junit.jupiter.api.Assertions.assertThrows(SqlTranslationException.class,
+                () -> pure("SELECT DATEDIFF(dy, dt, ts) AS d FROM " + T)).getMessage().contains("-1001015"));
         // the IQ engine raises outside a function's domain (D-F9), SQL Anywhere's front end answers NULL
         assertTrue(pure("SELECT LN(d) AS l FROM " + T).contains("cast(@Float)->toOne()"));
-        assertFalse(pure("SELECT LN(d) AS l FROM " + T, IqProfile.SQLA17_DEFAULT).contains("cast(@Float)->toOne()"));
-        assertTrue(refusal("SELECT ROUND(d, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT).getMessage()
-                .contains("decimal digits"));
+        assertFalse(pure("SELECT LN(d) AS l FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("cast(@Float)->toOne()"));
+        // IQ island, 2026-10-15 (the corpus lane, measured on IQ 17.1 and SQL Anywhere 17): ROUND of a DOUBLE is read,
+        // floor(|x| * 10^n + 0.5) / 10^n in double steps; TRUNCNUM of one is not yet
+        assertTrue(pure("SELECT ROUND(d, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("floor"));
+        assertTrue(refusal("SELECT TRUNCNUM(d, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).getMessage()
+                .contains("DOUBLE"));
         assertTrue(refusal("SELECT POWER(2, 3) AS p").getMessage().contains("Infinity"));
     }
 
     @Test
+    void extractReadsSixPartsAndSecondsWithTheirFraction() {
+        // IQ island, 2026-10-15 (measured on IQ 17.1): DATEPART's value; SECOND a NUMERIC with the microseconds
+        assertTrue(pure("SELECT EXTRACT(YEAR FROM dt) AS y FROM " + T).contains("year()"));
+        String second = pure("SELECT EXTRACT(SECOND FROM ts) AS s FROM " + T);
+        assertTrue(second.contains("second()") && second.contains("0.000001"), second);
+        // another part is IQ's syntax error; a DATE's time IQ's engine's -1009145
+        SqlSyntaxException quarter = assertThrows(SqlSyntaxException.class, () -> IqParser.parse(
+                "SELECT EXTRACT(QUARTER FROM dt) AS q FROM " + T, IqProfile.IQ16_DEFAULT.settings()));
+        assertTrue(quarter.reason().contains("SQLCODE -131"), quarter.reason());
+        assertTrue(refusal("SELECT EXTRACT(HOUR FROM dt) AS h FROM " + T).getMessage().contains("-1009145"));
+    }
+
+    @Test
+    void strIsReadUnderTheIqEngineOnly() {
+        // IQ island, 2026-10-15 (measured on IQ 17.1): cut toward zero, right-justified, a zero's text constant
+        String str = pure("SELECT STR(nm, 6, 1) AS s FROM " + T);
+        assertTrue(str.contains("lpad(") && str.contains(", 6, ' ')"), str);
+        assertTrue(str.contains("'0.0   '"), str);
+        assertFalse(str.contains("round"), str);
+        // SQL Anywhere's front end rounds a DOUBLE's binary value; a DOUBLE's own binary value is cut: refused by name
+        assertTrue(refusal("SELECT STR(nm) AS s FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).getMessage()
+                .contains("IQ's engine only"));
+        assertTrue(refusal("SELECT STR(d) AS s FROM " + T).getMessage().contains("DOUBLE"));
+        // a length over 255 and more decimals than the length are IQ's errors
+        assertTrue(refusal("SELECT STR(id, 256) AS s FROM " + T).getMessage().contains("-1001005"));
+        assertTrue(refusal("SELECT STR(id, 4, 5) AS s FROM " + T).getMessage().contains("-1009145"));
+    }
+
+    @Test
     void roundOfAColumnChecksItsPrecisionAndOfAConstantNot() {
-        String column = pure("SELECT ROUND(nm, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT);
+        String column = pure("SELECT ROUND(nm, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings());
         assertTrue(column.contains("cast(@Decimal)->toOne()"), column);
         String constant = pure("SELECT ROUND(CAST(9.99 AS NUMERIC(3, 2)), 1) AS r");
         assertFalse(constant.contains("cast(@Decimal)->toOne()"), constant);
@@ -284,19 +367,19 @@ class IqFunctionsTest {
     @Test
     void castToCharPadsUnderTheIqEngineAndLikeOverItIsRefused() {
         assertTrue(pure("SELECT CAST(vc AS CHAR(22)) AS c FROM " + T).contains("rpad(22, ' ')"));
-        assertFalse(pure("SELECT CAST(vc AS CHAR(22)) AS c FROM " + T, IqProfile.SQLA17_DEFAULT).contains("rpad"));
-        // D-S5: whether IQ matches the pad in LIKE is not verified
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE CAST(vc AS CHAR(22)) LIKE 'a%'").getMessage()
-                .contains("D-S5"));
+        assertFalse(pure("SELECT CAST(vc AS CHAR(22)) AS c FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("rpad"));
+        // D-S5 (IQ island, 2026-10-15, measured on IQ 17.1): IQ matches the pad in LIKE, which lite reads
+        assertTrue(pure("SELECT id FROM " + T + " WHERE CAST(vc AS CHAR(22)) LIKE 'a%'").contains("rpad(22, ' ')"));
     }
 
     @Test
-    void anOperationThatCanRaiseUnderARowLimitIsRefused() {
-        assertTrue(refusal("SELECT TOP 2 id, CAST(nm AS INT) AS c FROM " + T + " ORDER BY id").getMessage()
-                .contains("-158"));
-        assertTrue(refusal("SELECT TOP 2 id, SUBSTRING(vc, 1, sm) AS c FROM " + T + " ORDER BY id").getMessage()
-                .contains("-1090"));
-        pure("SELECT TOP 2 id, SUBSTRING(vc, 1, 2) AS c FROM " + T + " ORDER BY id");
+    void anOperationThatCanRaiseUnderARowLimitIsComputedForTheRowsKept() {
+        // IQ island, 2026-10-16 (the user's decision; these were refused): IQ computes the items its ORDER BY does not
+        // read for the rows it keeps, so they are computed after the limit (IqToPureTest pins the order)
+        for (String sql : new String[] {"SELECT TOP 2 id, CAST(nm AS INT) AS c FROM " + T + " ORDER BY id",
+                "SELECT TOP 2 id, SUBSTRING(vc, 1, sm) AS c FROM " + T + " ORDER BY id"}) {
+            assertTrue(pure(sql).contains("->limit(2)->extend("), sql);
+        }
     }
 
     @Test
@@ -324,5 +407,19 @@ class IqFunctionsTest {
         // IQ island, 2026-10-14 (review 3's M3, the study's D-T13): SQL Anywhere reads GETDATE() apart from the
         // statement's other clock readings: beside one, refused
         assertThrows(SqlTranslationException.class, () -> pure("SELECT GETDATE() AS a, NOW(*) AS b"));
+    }
+
+    /** IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1, lite/iq_reals.yaml): REAL and FLOAT are single
+     *  precision, rounded by Veltkamp's split of 2^29 + 1; FLOAT(25) is a DOUBLE; a precision outside 1 to 53 refused. */
+    @Test
+    void realsAreRoundedToSinglePrecision() {
+        assertTrue(pure("SELECT CAST(id AS REAL) AS x FROM " + T, IqProfile.IQ17_DEFAULT.settings())
+                .matches("(?s).*(5\\.36870913E8|536870913\\.0).*"));
+        assertTrue(pure("SELECT CAST(id AS FLOAT) AS x FROM " + T, IqProfile.IQ17_DEFAULT.settings())
+                .matches("(?s).*(5\\.36870913E8|536870913\\.0).*"));
+        assertFalse(pure("SELECT CAST(id AS FLOAT(25)) AS x FROM " + T, IqProfile.IQ17_DEFAULT.settings())
+                .matches("(?s).*(5\\.36870913E8|536870913\\.0).*"));
+        assertTrue(assertThrows(SqlSyntaxException.class, () -> IqParser.parse("SELECT CAST(id AS FLOAT(54)) AS x",
+                IqProfile.IQ17_DEFAULT.settings())).unsupported());
     }
 }

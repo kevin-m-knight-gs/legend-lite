@@ -104,6 +104,11 @@ class NativeCatalogGovernanceTest {
         // wall time of an instant in it, each the convertTimeZone lowering's pair of zone conversions with a
         // DateTime in and out. Upstream knows zones only at formatting and on the connection. Emitted by the
         // Cypher translator only, by FQN. 19 -> 21.
+        // +1 2026-10-16 (the SQL islands' inline views; docs/LITE_INVENTION_CENSUS.md): inlineView — a derived
+        // table or CTE whose own query computes windows, typed as its relation with each window a boundary
+        // (InlineViewChecker; ClassSources' extent rule) and erased: SQL computes such windows before the enclosing
+        // WHERE, which Pure's relation composition folds under them. Within the ceiling: merged with the Cypher
+        // island's four (2026-10-16), whose 21 counted from the ceiling 17, the count is 16 + 4 + 1 = 21.
         assertTrue(Pure.INTERNAL_DESUGAR.size() <= 21,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/

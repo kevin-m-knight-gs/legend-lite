@@ -110,7 +110,7 @@ class IqSyntaxCasesTest {
 
     private static Verdict verdict(String probe, IqProfile profile, List<String> crashed, String id) {
         try {
-            IqDialect.of(profile).parse(probe);
+            IqDialect.of(profile.settings()).parse(probe);
             return Verdict.PARSED;
         } catch (SqlSyntaxException e) {
             return e.unsupported() ? Verdict.REFUSED : Verdict.REJECTED;

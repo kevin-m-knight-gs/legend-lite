@@ -1,0 +1,59 @@
+# date_order, every value, and date_order x nearest_century (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island,
+# 2026-10-14, the options framework): three numbers of a date string in its order -- YMD, MDY, DMY -- a two-digit year
+# by nearest_century; a four-digit year first is read year first in every order. Given for the query
+# (settings). Judged by SQL Anywhere 17's answers. The SQL in YAML double quotes.
+tests:
+  - id: ymd
+    sql: "SELECT CAST('03/04/05' AS DATE) AS a, CAST('2003/04/05' AS DATE) AS b"
+    settings: "query.date_order='YMD'"
+    profile: iq16-default, sqla17-default, iq16-tds
+  - id: ymd_a_four_digit_year_last_is_iqs_error
+    sql: "SELECT CAST('03-04-2005' AS DATE) AS c"
+    settings: "query.date_order='YMD'"
+  - id: mdy
+    sql: "SELECT CAST('03/04/05' AS DATE) AS a, CAST('2003/04/05' AS DATE) AS b, CAST('03-04-2005' AS DATE) AS c"
+    settings: "query.date_order='MDY'"
+    profile: iq16-default, sqla17-default, iq16-odbc
+  - id: dmy
+    sql: "SELECT CAST('03/04/05' AS DATE) AS a, CAST('2003/04/05' AS DATE) AS b, CAST('03-04-2005' AS DATE) AS c"
+    settings: "query.date_order='DMY'"
+    profile: iq16-default, sqla17-default, iq16-tds
+  - id: dmy_a_day_past_twelve
+    sql: "SELECT CAST('13/04/05' AS DATE) AS d"
+    settings: "query.date_order='DMY'"
+    profile: iq16-default, sqla17-default
+  - id: mdy_a_month_past_twelve_is_iqs_error
+    sql: "SELECT CAST('13/04/05' AS DATE) AS d"
+    settings: "query.date_order='MDY'"
+  - id: dmy_a_timestamp
+    sql: "SELECT CAST('03/04/05 10:11:12' AS TIMESTAMP) AS ts"
+    settings: "query.date_order='DMY'"
+    profile: iq16-default, sqla17-default
+  - id: dmy_compared_with_a_column
+    sql: "SELECT id FROM t WHERE dt = '04/03/2026' ORDER BY id"
+    settings: "query.date_order='DMY'"
+    profile: iq16-default, sqla17-default
+  - id: mdy_compared_with_a_column
+    sql: "SELECT id FROM t WHERE dt = '03/04/2026' ORDER BY id"
+    settings: "query.date_order='MDY'"
+    profile: iq16-default, sqla17-default
+
+  # ---- date_order x nearest_century: the two-digit year where each order puts it
+  - id: ymd_century_30
+    sql: "SELECT CAST('29/04/05' AS DATE) AS a, CAST('30/04/05' AS DATE) AS b"
+    settings: "query.date_order='YMD', query.nearest_century=30"
+    profile: iq16-default, sqla17-default
+  - id: mdy_century_30
+    sql: "SELECT CAST('04/05/29' AS DATE) AS a, CAST('04/05/30' AS DATE) AS b"
+    settings: "query.date_order='MDY', query.nearest_century=30"
+    profile: iq16-default, sqla17-default
+  - id: dmy_century_70
+    sql: "SELECT CAST('05/04/69' AS DATE) AS a, CAST('05/04/70' AS DATE) AS b"
+    settings: "query.date_order='DMY', query.nearest_century=70"
+    profile: iq16-default, sqla17-default
+  - id: dmy_century_0
+    sql: "SELECT CAST('05/04/00' AS DATE) AS a, CAST('05/04/99' AS DATE) AS b"
+    settings: "query.date_order='DMY', query.nearest_century=0"
+  - id: mdy_century_100
+    sql: "SELECT CAST('04/05/00' AS DATE) AS a, CAST('04/05/99' AS DATE) AS b"
+    settings: "query.date_order='MDY', query.nearest_century=100"

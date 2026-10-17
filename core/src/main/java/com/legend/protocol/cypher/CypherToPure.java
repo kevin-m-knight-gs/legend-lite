@@ -928,7 +928,7 @@ public final class CypherToPure {
      * zero). The relationship's variable is the list of the chain's relationships. Neo4j's relationship
      * uniqueness (a chain never walks one relationship twice) is not spelled: it needs identity (C5), and only a
      * graph whose data loops a chain back over the same relationship (a self-loop, a two-node cycle walked twice)
-     * can tell the difference (docs/SEMANTICS_REGISTER.md S73). Refused by name: no upper bound (a recursion), a
+     * can tell the difference (docs/SEMANTICS_REGISTER.md S75). Refused by name: no upper bound (a recursion), a
      * bound beyond 4, a property map on the relationship, a variable-length relationship after another clause
      * or beside another pattern, or in an OPTIONAL MATCH.
      */

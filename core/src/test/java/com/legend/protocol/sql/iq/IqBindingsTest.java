@@ -80,10 +80,10 @@ class IqBindingsTest {
     }
 
     private static String pure(String sql, List<SqlToPure.CatalogTable> catalog) {
-        return pure(sql, catalog, IqProfile.IQ16_DEFAULT);
+        return pure(sql, catalog, IqProfile.IQ16_DEFAULT.settings());
     }
 
-    private static String pure(String sql, List<SqlToPure.CatalogTable> catalog, IqProfile profile) {
+    private static String pure(String sql, List<SqlToPure.CatalogTable> catalog, IqSettings profile) {
         ValueSpecification vs = SqlToPure.translate(sql, sources(catalog), IqDialect.of(profile));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
@@ -122,6 +122,23 @@ class IqBindingsTest {
         assertTrue(twice.getMessage().contains("e2e::DB.t, e2e::Other.t"), twice.getMessage());
         for (String sql : new String[] {"SELECT id FROM dbo.t", "SELECT id FROM SYS.SYSTAB", "SELECT * FROM nosuch"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal(sql).kind(), sql);
+        }
+    }
+
+    @Test
+    void aNameOfIqsOwnUsersThatIsNoCatalogNameReadsTheModelsSchemaOfThatName() {
+        // IQ island, 2026-10-14 (the third landing): a T-SQL database's dbo.orders is the model's table of a schema dbo
+        List<SqlToPure.CatalogTable> tsql = List.of(new SqlToPure.CatalogTable("e2e::DB", "default", "t"),
+                new SqlToPure.CatalogTable("e2e::DB", "dbo", "orders"),
+                new SqlToPure.CatalogTable("e2e::DB", "dbo", "sysobjects"));
+        assertTrue(pure("SELECT id FROM dbo.orders", tsql).startsWith("#>{e2e::DB.dbo.orders}#"));
+        assertTrue(pure("SELECT id FROM DBO.Orders o", tsql).startsWith("#>{e2e::DB.dbo.orders}#"));
+        // a catalog name stays IQ's catalog's, whatever the model holds; with no such schema, refused as before
+        for (String sql : new String[] {"SELECT id FROM dbo.sysobjects", "SELECT id FROM SYS.SYSTAB",
+                "SELECT id FROM dbo.t", "SELECT id FROM dbo.nosuch"}) {
+            SqlTranslationException e = assertThrows(SqlTranslationException.class, () -> pure(sql, tsql), sql);
+            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql);
+            assertTrue(e.getMessage().contains("one of IQ's own users"), e.getMessage());
         }
     }
 
@@ -191,7 +208,7 @@ class IqBindingsTest {
     @Test
     void underATdsProfileAColumnNamedLikeAVariableIsRefused() {
         String sql = "SELECT @lo AS v FROM (SELECT 1 AS @lo) d";
-        for (IqProfile tds : new IqProfile[] {IqProfile.IQ16_TDS, IqProfile.SQLA17_TDS}) {
+        for (IqSettings tds : new IqSettings[] {IqProfile.IQ16_TDS.settings(), IqProfile.SQLA17_TDS.settings()}) {
             SqlTranslationException e = assertThrows(SqlTranslationException.class,
                     () -> pure(sql, CATALOG.subList(0, 4), tds));
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), e.getMessage());
@@ -209,24 +226,24 @@ class IqBindingsTest {
     void underAnsinullOffAVariableIsComparedTwoValuedWithAColumnOnly() {
         List<SqlToPure.CatalogTable> catalog = CATALOG.subList(0, 4);
         String column = "SELECT id FROM DBA.t WHERE NOT (vc = @s)";
-        assertTrue(!pure(column, catalog, IqProfile.IQ16_TDS).equals(pure(column, catalog, IqProfile.IQ16_DEFAULT)));
-        assertEquals(pure("SELECT id FROM DBA.t WHERE NOT (vc || '' = @s)", catalog, IqProfile.IQ16_TDS),
-                pure("SELECT id FROM DBA.t WHERE NOT (vc || '' = @s)", catalog, IqProfile.IQ16_DEFAULT));
+        assertTrue(!pure(column, catalog, IqProfile.IQ16_TDS.settings()).equals(pure(column, catalog, IqProfile.IQ16_DEFAULT.settings())));
+        assertEquals(pure("SELECT id FROM DBA.t WHERE NOT (vc || '' = @s)", catalog, IqProfile.IQ16_TDS.settings()),
+                pure("SELECT id FROM DBA.t WHERE NOT (vc || '' = @s)", catalog, IqProfile.IQ16_DEFAULT.settings()));
         for (String sql : new String[] {"SELECT id FROM DBA.t WHERE NOT (UPPER(vc) = @s)",
             "SELECT id FROM DBA.t WHERE NOT (@s = NULLIF(vc, 'x'))",
             "SELECT id FROM (SELECT id, UPPER(vc) AS z FROM DBA.t) d WHERE NOT (z = @s)",
             "SELECT id FROM DBA.t WHERE NOT ((SELECT u.vc FROM DBA.u u WHERE u.id = t.id) = @s)"}) {
             SqlTranslationException e = assertThrows(SqlTranslationException.class,
-                    () -> pure(sql, catalog, IqProfile.SQLA17_TDS));
+                    () -> pure(sql, catalog, IqProfile.SQLA17_TDS.settings()));
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql + ": " + e.getMessage());
             assertTrue(e.getMessage().contains("with this operand"), sql + ": " + e.getMessage());
         }
         String positive = "SELECT id FROM DBA.t WHERE UPPER(vc) = @s OR id = 1";
-        assertEquals(pure(positive, catalog, IqProfile.IQ16_DEFAULT), pure(positive, catalog, IqProfile.IQ16_TDS));
+        assertEquals(pure(positive, catalog, IqProfile.IQ16_DEFAULT.settings()), pure(positive, catalog, IqProfile.IQ16_TDS.settings()));
         // HAVING's alias is its expression (read three-valued before review 6's fix, which placed HAVING as written)
         String having = "SELECT RTRIM(vc) AS z FROM DBA.t GROUP BY RTRIM(vc) HAVING NOT (z = @s)";
         SqlTranslationException alias = assertThrows(SqlTranslationException.class,
-                () -> pure(having, catalog, IqProfile.IQ16_TDS));
+                () -> pure(having, catalog, IqProfile.IQ16_TDS.settings()));
         assertTrue(alias.getMessage().contains("with this operand"), alias.getMessage());
     }
 

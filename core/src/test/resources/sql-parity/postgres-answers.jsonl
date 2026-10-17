@@ -1978,6 +1978,9 @@
 {"id":"lite/math/mod_of_salaries_and_sums","columns":["dept_id","a","b","c"],"rows":[["i1","d0.50","i0","s0"],["i2","d1.00","i1","s1"],["i3","d0.00","i3","s1"],[null,"d0.00",null,null]]}
 {"id":"lite/math/mod_of_a_double_does_not_exist","error":{"state":"42883","message":"ERROR: operator does not exist: double precision % integer"}}
 {"id":"lite/math/log10_of_integers_and_numerics","columns":["id","a","b"],"rows":[["i1","f1.6232492903979006","d4.0915149771692704"],["i4","f9.331929865381182","d14.000000000000000"],["i6","f0.0","d-5.000000000000000"],["i8","f2.0","d4.698971076607771"],["i9","f0.8450980400142568","d2.5228787409373927"]]}
+{"id":"lite/math/a_division_by_zero_past_the_limit_is_an_error","error":{"state":"22012","message":"ERROR: division by zero"}}
+{"id":"lite/math/a_division_by_zero_before_the_offset_is_an_error","error":{"state":"22012","message":"ERROR: division by zero"}}
+{"id":"lite/math/a_division_past_the_limit_of_no_zero","columns":["id","q"],"rows":[["i1","i-50"],["i2","i-100"]]}
 {"id":"lite/subqueries/in_subquery","columns":["name"],"rows":[["sAlice"],["sBob"],["sCharlie"],["sDiana"],["sEve"],["sFrank"],["sJack"]]}
 {"id":"lite/subqueries/not_in_subquery","columns":["name"],"rows":[["sGrace"],["sHank"],["sIvy"]]}
 {"id":"lite/subqueries/not_in_a_null_row_is_never_true","columns":["name"],"rows":[]}
@@ -2123,3 +2126,8 @@
 {"id":"lite/windows/window_sum_of_a_star_with_a_filter_is_an_error","error":{"state":"42883","message":"ERROR: function sum() does not exist"}}
 {"id":"lite/windows/exclude_of_a_sum_of_doubles_is_refused","columns":["id","s"],"rows":[["i1","f101.30547309999999"],["i2","f107.16534309999999"],["i3","f104.4470631"],["i4","f102.64936999999999"],["i5","f104.4470631"],["i6","f104.34706309999999"],["i7","f104.54706309999999"],["i8","f4.4570631"],["i9","f102.2109931"],["i10","f104.4470731"]]}
 {"id":"lite/windows/window_max_of_a_boolean_is_an_error","error":{"state":"42883","message":"ERROR: function max(boolean) does not exist"}}
+{"id":"lite/windows/window_of_a_derived_table_then_a_filter_of_another_column","columns":["id","name","dept_id","company_rank"],"rows":[["i3","sCharlie","i2","i4"],["i4","sDiana","i2","i3"],["i9","sIvy","i2","i9"]]}
+{"id":"lite/windows/running_total_of_a_derived_table_then_a_filter","columns":["id","amount","running"],"rows":[["i8","d450.00","d3025.49"],["i9","d175.25","d3200.74"],["i10","d620.00","d3820.74"]]}
+{"id":"lite/windows/count_of_every_row_in_a_cte_then_a_filter","columns":["id","total"],"rows":[["i3","i10"],["i7","i10"],["i9","i10"]]}
+{"id":"lite/windows/windows_over_a_filter_of_a_derived_tables_rank","columns":["id","r","s"],"rows":[["i7","i4","i2"],["i8","i3","i4"],["i9","i2","i3"],["i10","i1","i1"]]}
+{"id":"lite/windows/window_of_a_derived_table_then_a_filter_of_its_column","columns":["id","dept_id","rn"],"rows":[["i2","i1","i1"],["i4","i2","i1"],["i7",null,"i1"],["i10","i3","i1"]]}

@@ -1,0 +1,295 @@
+# DATEADD and DATEDIFF under IQ's engine (IQ island, 2026-10-15; the research's D-T2, D-T11, D-T12, measured on the live
+# IQ 17.1): a DATE moved stays a DATE (by hours, the day the time reaches), a TIMESTAMP stays a TIMESTAMP; DATEDIFF counts
+# boundaries crossed for YEAR, QUARTER, MONTH, WEEK (Sundays) and DAY (midnights), whole elapsed units for HOUR, MINUTE,
+# SECOND and MILLISECOND (cut toward zero); DAYOFYEAR and WEEKDAY are IQ's -1001015. SQL Anywhere's front end types and
+# counts otherwise, so these cases are judged by the live IQ only. Every case is deterministic.
+tests:
+  - id: dateadd_day_of_a_date
+    sql: "SELECT id, DATEADD(day, 1, dt) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_month_of_a_date
+    sql: "SELECT id, DATEADD(month, 1, dt) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_month_clamped_to_its_end
+    sql: "SELECT DATEADD(month, 1, CAST('2026-01-31' AS DATE)) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: dateadd_year_from_a_leap_day
+    sql: "SELECT DATEADD(year, 1, dt) AS a FROM t WHERE id = 3"
+    profile: iq17-default
+  - id: dateadd_week_and_quarter
+    sql: "SELECT DATEADD(week, 2, dt) AS w, DATEADD(quarter, 1, dt) AS q FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: dateadd_hours_to_a_date_keep_a_date
+    sql: "SELECT DATEADD(hour, 5, dt) AS a, DATEADD(hour, 25, dt) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: dateadd_a_columns_count
+    sql: "SELECT id, DATEADD(day, sm, dt) AS a FROM t WHERE id IN (3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_minutes_to_a_timestamp
+    sql: "SELECT id, DATEADD(minute, 90, ts) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_days_to_a_timestamp
+    sql: "SELECT id, DATEADD(day, -1, ts) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_seconds_and_months_to_a_timestamp
+    sql: "SELECT DATEADD(second, 30, ts) AS s, DATEADD(month, 1, ts) AS m FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: dateadd_dayofyear_is_iqs_error
+    sql: "SELECT DATEADD(dayofyear, 1, dt) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: datediff_days_of_dates
+    sql: "SELECT id, DATEDIFF(day, CAST('2026-01-01' AS DATE), dt) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datediff_months_count_boundaries
+    sql: "SELECT id, DATEDIFF(month, CAST('2026-01-31' AS DATE), dt) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datediff_years_and_quarters
+    sql: "SELECT id, DATEDIFF(year, CAST('2025-12-31' AS DATE), dt) AS y, DATEDIFF(quarter, CAST('2025-12-31' AS DATE), dt) AS q FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datediff_weeks_cross_sundays
+    sql: "SELECT DATEDIFF(week, CAST('2026-03-07' AS DATE), CAST('2026-03-08' AS DATE)) AS a, DATEDIFF(week, CAST('2026-03-08' AS DATE), CAST('2026-03-09' AS DATE)) AS b, DATEDIFF(week, CAST('2026-03-09' AS DATE), CAST('2026-03-15' AS DATE)) AS c FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: datediff_days_of_timestamps_count_midnights
+    sql: "SELECT id, DATEDIFF(day, CAST('2026-03-03 23:00:00' AS TIMESTAMP), ts) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datediff_hours_elapsed
+    sql: "SELECT DATEDIFF(hour, CAST('2026-03-04 04:30:30' AS TIMESTAMP), CAST('2026-03-04 06:30:00' AS TIMESTAMP)) AS a, DATEDIFF(hour, CAST('2026-03-04 06:30:00' AS TIMESTAMP), CAST('2026-03-04 04:30:30' AS TIMESTAMP)) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: datediff_minutes_elapsed
+    sql: "SELECT DATEDIFF(minute, CAST('2026-03-04 05:05:59.9' AS TIMESTAMP), CAST('2026-03-04 05:06:59.8' AS TIMESTAMP)) AS a, DATEDIFF(minute, CAST('2026-03-04 05:05:30' AS TIMESTAMP), CAST('2026-03-04 05:07:29' AS TIMESTAMP)) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: datediff_seconds_and_milliseconds_elapsed
+    sql: "SELECT DATEDIFF(second, CAST('2026-03-04 05:06:06.5' AS TIMESTAMP), CAST('2026-03-04 05:06:08.4' AS TIMESTAMP)) AS a, DATEDIFF(millisecond, CAST('2026-03-04 05:06:06.0009' AS TIMESTAMP), CAST('2026-03-04 05:06:06.0021' AS TIMESTAMP)) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: datediff_hours_of_columns
+    sql: "SELECT id, DATEDIFF(hour, CAST('2026-03-04 04:59:59' AS TIMESTAMP), ts) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datediff_in_where
+    sql: "SELECT id FROM t WHERE DATEDIFF(day, dt, CAST('2026-12-31' AS DATE)) < 400 ORDER BY id"
+    profile: iq17-default
+  - id: datediff_dayofyear_is_iqs_error
+    sql: "SELECT DATEDIFF(dayofyear, CAST('2025-12-31' AS DATE), dt) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  # ---- CONVERT of a date or a timestamp to text without a style (D-C6): the DATE_FORMAT's and TIMESTAMP_FORMAT's forms
+  - id: convert_of_a_date_to_text
+    sql: "SELECT id, CONVERT(VARCHAR(20), dt) AS a, CAST(dt AS VARCHAR(20)) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_of_a_timestamp_to_text
+    sql: "SELECT id, CONVERT(VARCHAR(30), ts) AS a, CAST(ts AS VARCHAR(30)) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_date_concatenated
+    sql: "SELECT id, 'on ' || dt AS a FROM t ORDER BY id"
+    profile: iq17-default
+
+  # ---- CONVERT(VARCHAR(n), d, style) of dates and timestamps under IQ's engine (measured on IQ 17.1)
+  - id: convert_style_1
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 1) AS a, CONVERT(VARCHAR(40), ts, 1) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_101
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 101) AS a, CONVERT(VARCHAR(40), ts, 101) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_2
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 2) AS a, CONVERT(VARCHAR(40), ts, 2) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_102
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 102) AS a, CONVERT(VARCHAR(40), ts, 102) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_3
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 3) AS a, CONVERT(VARCHAR(40), ts, 3) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_103
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 103) AS a, CONVERT(VARCHAR(40), ts, 103) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_4
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 4) AS a, CONVERT(VARCHAR(40), ts, 4) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_104
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 104) AS a, CONVERT(VARCHAR(40), ts, 104) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_5
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 5) AS a, CONVERT(VARCHAR(40), ts, 5) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_105
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 105) AS a, CONVERT(VARCHAR(40), ts, 105) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_10
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 10) AS a, CONVERT(VARCHAR(40), ts, 10) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_110
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 110) AS a, CONVERT(VARCHAR(40), ts, 110) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_11
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 11) AS a, CONVERT(VARCHAR(40), ts, 11) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_111
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 111) AS a, CONVERT(VARCHAR(40), ts, 111) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_12
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 12) AS a, CONVERT(VARCHAR(40), ts, 12) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_112
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 112) AS a, CONVERT(VARCHAR(40), ts, 112) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_20
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 20) AS a, CONVERT(VARCHAR(40), ts, 20) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_120
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 120) AS a, CONVERT(VARCHAR(40), ts, 120) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_21
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 21) AS a, CONVERT(VARCHAR(40), ts, 21) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_121
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 121) AS a, CONVERT(VARCHAR(40), ts, 121) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_108
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 108) AS a, CONVERT(VARCHAR(40), ts, 108) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_0
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 0) AS a, CONVERT(VARCHAR(40), ts, 0) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_100
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 100) AS a, CONVERT(VARCHAR(40), ts, 100) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_106
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 106) AS a, CONVERT(VARCHAR(40), ts, 106) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_107
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 107) AS a, CONVERT(VARCHAR(40), ts, 107) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_into_a_too_short_string_is_refused
+    sql: "SELECT CONVERT(VARCHAR(5), dt, 101) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: convert_style_iq_rejects_is_refused
+    sql: "SELECT CONVERT(VARCHAR(30), dt, 23) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  # IQ island, 2026-10-15: EXTRACT (8.9% of real BI scalar expressions, the census's third), measured on IQ 17.1:
+  # YEAR..MINUTE an INTEGER, SECOND a NUMERIC(24,7) with its fraction under IQ's engine, (8,6) on the front end
+  - id: extract_parts_of_a_timestamp
+    sql: "SELECT id, EXTRACT(YEAR FROM ts) AS y, EXTRACT(MONTH FROM ts) AS m, EXTRACT(DAY FROM ts) AS d, EXTRACT(HOUR FROM ts) AS h, EXTRACT(MINUTE FROM ts) AS mi, EXTRACT(SECOND FROM ts) AS s FROM t ORDER BY id"
+    profile: iq17-default
+  - id: extract_parts_of_a_date
+    sql: "SELECT id, EXTRACT(YEAR FROM dt) AS y, EXTRACT(MONTH FROM dt) AS m, EXTRACT(DAY FROM dt) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: extract_by_abbreviations
+    sql: "SELECT EXTRACT(yy FROM ts) AS y, EXTRACT(mm FROM ts) AS m, EXTRACT(dd FROM ts) AS d, EXTRACT(hh FROM ts) AS h, EXTRACT(mi FROM ts) AS mi, EXTRACT(ss FROM ts) AS s FROM t WHERE id = 4"
+    profile: iq17-default
+  - id: extract_in_where_and_group_by
+    sql: "SELECT EXTRACT(YEAR FROM dt) AS y, COUNT(*) AS n FROM t WHERE EXTRACT(MONTH FROM dt) < 12 OR dt IS NULL GROUP BY EXTRACT(YEAR FROM dt) ORDER BY 1"
+    profile: iq17-default
+  - id: extract_in_arithmetic
+    sql: "SELECT id, EXTRACT(YEAR FROM dt) + 1 AS a, EXTRACT(MONTH FROM dt) * 100 + EXTRACT(DAY FROM dt) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: extract_unaliased_is_named_by_its_operand
+    sql: "SELECT EXTRACT(YEAR FROM a.dt), extract(month from ts), EXTRACT(DAY FROM DATE(ts)) FROM t a WHERE id = 1"
+    profile: iq17-default
+  - id: extract_of_a_constant_string
+    sql: "SELECT EXTRACT(YEAR FROM '2026-03-04') AS a, EXTRACT(SECOND FROM '2026-03-04 05:06:07.25') AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: extract_of_null
+    sql: "SELECT EXTRACT(YEAR FROM NULL) AS a, EXTRACT(DAY FROM NULL) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: extract_second_of_null_is_refused
+    sql: "SELECT EXTRACT(SECOND FROM NULL) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: extract_hour_of_a_date_is_refused
+    sql: "SELECT EXTRACT(HOUR FROM dt) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: extract_quarter_is_a_syntax_error
+    sql: "SELECT EXTRACT(QUARTER FROM dt) AS a FROM t WHERE id = 1"
+    profile: iq16-default, iq17-default
+  - id: extract_on_the_front_end
+    sql: "SELECT EXTRACT(YEAR FROM DATE('2026-03-04')) AS a, EXTRACT(SECOND FROM '2026-03-04 05:06:07.25') AS b, EXTRACT(HOUR FROM DATE('2026-03-04')) AS c, EXTRACT(MINUTE FROM '2026-03-04 05:06:07') AS d"
+    profile: iq16-default, iq17-default
+  # IQ island, 2026-10-15: date arithmetic under IQ's engine (IqFunctions.dateArithmetic, measured on IQ 17.1): a date
+  # or a timestamp moved by whole days (cut toward zero), two dates' days apart; the census's Tier 0 dates (dt - 30)
+  - id: date_plus_and_minus_days
+    sql: "SELECT id, dt + 1 AS a, dt - 1 AS b, 1 + dt AS c, dt + sm AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_plus_and_minus_days
+    sql: "SELECT id, ts + 1 AS a, ts - 1 AS b, ts + 1.5 AS c, ts - 0.25 AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_plus_fractional_days_cuts_toward_zero
+    sql: "SELECT id, dt + 1.9 AS a, dt - 1.5 AS b, dt + -1.5 AS c, dt + dbl AS d, dt + nm AS e FROM t WHERE id IN (3, 4) ORDER BY id"
+    profile: iq17-default
+  - id: date_minus_date_is_days
+    sql: "SELECT id, dt - dt AS a, dt - CAST('2026-01-01' AS DATE) AS b, CAST('2026-01-01' AS DATE) - dt AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_minus_timestamp_counts_dates
+    sql: "SELECT id, ts - CAST('2026-03-03 23:00:00' AS TIMESTAMP) AS a, ts - dt AS b, dt - ts AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_window_in_where
+    sql: "SELECT id FROM t WHERE dt > CAST('2026-03-10' AS DATE) - 30 ORDER BY id"
+    profile: iq17-default
+  - id: date_past_the_last_year_is_iqs_error
+    sql: "SELECT CAST('9999-12-31' AS DATE) + id AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: number_minus_date_is_iqs_error
+    sql: "SELECT id - dt AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: date_plus_untyped_null_is_iqs_error
+    sql: "SELECT dt + NULL AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  # IQ island, 2026-10-15: a string that is not a constant read as a date under IQ's engine (IqFunctions.stringDate,
+  # measured on IQ 17.1): the year-first spellings every profile reads; another raises where it is computed
+  # (a TIMESTAMP's text read back is not judged here: tools/iq-oracle re-fetches a TIMESTAMP column under six places of
+  # TIMESTAMP_FORMAT, which also writes the inner CAST's text at six)
+  - id: string_date_of_a_date_column_round_trip
+    sql: "SELECT id, CAST(CAST(dt AS VARCHAR(10)) AS DATE) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: string_date_iso_separators
+    sql: "SELECT CAST(SUBSTR('2026-03-04' || vc, 1, 10) AS DATE) AS a, CAST(SUBSTR('2026/03/04' || vc, 1, 10) AS DATE) AS b, CAST(SUBSTR('2026.03.04' || vc, 1, 10) AS DATE) AS c, CAST(SUBSTR('2026-3-4' || vc, 1, 8) AS DATE) AS d FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_date_compact_and_blanks
+    sql: "SELECT CAST(SUBSTR('20260304' || vc, 1, 8) AS DATE) AS a, CAST(SUBSTR(' 2026-03-04' || vc, 1, 11) AS DATE) AS b, CAST(SUBSTR('20260304' || vc, 1, 8) AS TIMESTAMP) AS c FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_timestamp_with_times
+    sql: "SELECT CAST(SUBSTR('2026-03-04 05:06:07' || vc, 1, 19) AS TIMESTAMP) AS a, CAST(SUBSTR('2026-03-04 05:06:07.123456' || vc, 1, 26) AS TIMESTAMP) AS b, CAST(SUBSTR('2026-03-04T05:06' || vc, 1, 16) AS TIMESTAMP) AS c, CAST(SUBSTR('2026-03-04 23:59:59.9' || vc, 1, 21) AS TIMESTAMP) AS d FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_date_drops_its_time
+    sql: "SELECT CAST(SUBSTR('2026-03-04 05:06:07' || vc, 1, 19) AS DATE) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: convert_string_to_date
+    sql: "SELECT CONVERT(DATE, SUBSTR('2026-03-04' || vc, 1, 10)) AS a, CONVERT(TIMESTAMP, SUBSTR('2026/03/04 10:11:12' || vc, 1, 19)) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_date_that_does_not_exist_is_an_error
+    sql: "SELECT CAST(SUBSTR('2026-02-30' || vc, 1, 10) AS DATE) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_date_of_a_text_column_is_an_error
+    sql: "SELECT CAST(vc AS DATE) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_date_by_a_month_name
+    sql: "SELECT CAST(SUBSTR('Mar 4 2026' || vc, 1, 10) AS DATE) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  # IQ island, 2026-10-15: IQ's date functions (measured on IQ 17.1; the census's Tier 0 dates): DATEFORMAT, DAYNAME,
+  # MONTHNAME, DATETIME, YMD, and DATEPART's calendar parts under IQ's engine (weeks from Sunday, ISO's rule)
+  - id: dateformat_numbers
+    sql: "SELECT id, DATEFORMAT(dt, 'yyyy-mm-dd') AS a, DATEFORMAT(ts, 'yyyy/mm/dd hh:nn:ss') AS b, DATEFORMAT(dt, 'dd/mm/yy') AS c, DATEFORMAT(ts, 'yyyymmddhhnnss') AS d FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: dateformat_names
+    sql: "SELECT id, DATEFORMAT(dt, 'Mmm dd, yyyy') AS a, DATEFORMAT(dt, 'Mmmm') AS b, DATEFORMAT(dt, 'MMM') AS c, DATEFORMAT(dt, 'mmm') AS d, DATEFORMAT(dt, 'Dddd') AS e, DATEFORMAT(dt, 'ddd') AS f, DATEFORMAT(dt, 'Mmmmmmmmm') AS g, DATEFORMAT(dt, 'dddddddddd') AS h FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: dateformat_unpadded_and_single_letters
+    sql: "SELECT id, DATEFORMAT(dt, 'Mm') AS a, DATEFORMAT(dt, 'm') AS b, DATEFORMAT(dt, 'd') AS c, DATEFORMAT(dt, 'jjj') AS d, DATEFORMAT(dt, 'Jjj') AS e, DATEFORMAT(dt, 'm/d/yyyy') AS f FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: dateformat_times
+    sql: "SELECT id, DATEFORMAT(ts, 'hh:nn AA') AS a, DATEFORMAT(ts, 'hh:nn aa') AS b, DATEFORMAT(ts, 'HH:NN:SS') AS c, DATEFORMAT(ts, 'hh:nn:ss.sss') AS d, DATEFORMAT(ts, 'yyyy-mm-dd hh:nn:ss.s') AS e, DATEFORMAT(ts, 'hh:nn a') AS f FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: dateformat_literals_and_constants
+    sql: "SELECT id, DATEFORMAT(ts, 'mm-dd T hh') AS a, DATEFORMAT(dt, ' x q ') AS b, DATEFORMAT('2026-03-04', 'mm/dd/yyyy') AS c, DATEFORMAT(NULL, 'yyyy') AS d FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: dateformat_of_a_text_column_is_an_error
+    sql: "SELECT DATEFORMAT(vc, 'yyyy') AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: day_and_month_names
+    sql: "SELECT id, DAYNAME(dt) AS a, MONTHNAME(dt) AS b, DAYNAME(ts) AS c, MONTHNAME(ts) AS d FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: datetime_of_dates_and_timestamps
+    sql: "SELECT id, DATETIME(dt) AS a, DATETIME(ts) AS b FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: ymd_carries_months_and_days
+    sql: "SELECT YMD(2026, 3, 4) AS a, YMD(id + 2025, 13, 1) AS b, YMD(2026, id, 31) AS c, YMD(2026, 1, 0) AS d FROM t WHERE id = 2"
+    profile: iq16-default, iq17-default
+  - id: calendar_parts_under_iq_engine
+    sql: "SELECT id, DATEPART(cdw, dt) AS a, DATEPART(cwk, dt) AS b, DATEPART(cyr, dt) AS c, DATEPART(cwk, ts) AS d, DATENAME(cwk, dt) AS e FROM t ORDER BY id"
+    profile: iq17-default

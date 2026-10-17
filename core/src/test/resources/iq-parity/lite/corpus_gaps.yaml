@@ -1,0 +1,785 @@
+# The real-world corpus lane's first gaps (IQ island, 2026-10-15; IqCorpusTest over SEDE, SQLStorm, Public BI and
+# BIRD, measured on the live IQ 17.1): COUNT's UNSIGNED BIGINT beside other numbers (COALESCE, ISNULL, CASE, NULLIF,
+# CAST, NUMERIC arithmetic, SUM and AVG of counts), NULLIF of numbers by COALESCE's type, a DATE compared with a
+# TIMESTAMP at its midnight, a reading of the clock moved by DATEADD; and IQ's own
+# errors the corpora meet (TOP in a subquery, a subquery inside a conditional expression). Judged by the live IQ. Every
+# case is deterministic.
+tests:
+
+  # ---- COUNT's UNSIGNED BIGINT beside other numbers
+  - id: coalesce_of_a_count_and_an_integer
+    sql: "SELECT COALESCE(COUNT(*), 0) AS a, ISNULL(COUNT(id), 0) AS b, COALESCE(COUNT(*), MAX(sm)) AS c FROM t"
+    profile: iq17-default
+  - id: coalesce_of_counts_alone
+    sql: "SELECT COALESCE(COUNT(*), COUNT(id)) AS a, CASE WHEN COUNT(*) > 2 THEN COUNT(*) END AS b FROM t"
+    profile: iq17-default
+  - id: coalesce_of_a_count_and_a_numeric_or_a_double
+    sql: "SELECT COALESCE(COUNT(*), 0.5) AS a, COALESCE(COUNT(*), MAX(dbl)) AS b FROM t"
+    profile: iq17-default
+  - id: case_of_a_count_and_zero
+    sql: "SELECT sm, CASE WHEN COUNT(*) > 0 THEN COUNT(*) ELSE 0 END AS n FROM t GROUP BY sm ORDER BY sm"
+    profile: iq17-default
+  - id: a_left_joined_count_defaulted
+    sql: "SELECT t.id, COALESCE(x.n, 0) AS n FROM t LEFT JOIN (SELECT t_id, COUNT(*) AS n FROM u GROUP BY t_id) x ON x.t_id = t.id ORDER BY t.id"
+    profile: iq17-default
+  - id: a_ranking_defaulted
+    sql: "SELECT id, COALESCE(ROW_NUMBER() OVER (ORDER BY id), 0) AS r FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_count_in_numeric_arithmetic
+    sql: "SELECT COUNT(*) * 1.5 AS a, COUNT(id) + 0.25 AS b, COUNT(id) - 100.25 AS c, COUNT(id) * MAX(nm) AS d, COUNT(*) * 100.0 / 3 AS e, COUNT(id) / 3.0 AS f FROM t"
+    profile: iq17-default
+  - id: a_count_cast
+    sql: "SELECT CAST(COUNT(*) AS INT) AS a, CAST(COUNT(*) AS BIGINT) AS b, CAST(COUNT(*) AS DECIMAL(10,2)) AS c, CAST(COUNT(*) AS VARCHAR(10)) AS d, CAST(COUNT(*) AS CHAR(3)) || '|' AS e, CAST(COUNT(*) AS DOUBLE) / 3 AS f FROM t"
+    profile: iq17-default
+  - id: a_count_written_into_text
+    sql: "SELECT 'n=' + CAST(COUNT(*) AS VARCHAR(10)) AS a FROM t"
+    profile: iq17-default
+  # IQ shows the NUMERIC(20,0) of a COUNT beside an integer, but computes it as an integer: its / divides whole
+  - id: a_defaulted_count_divides_whole
+    sql: "SELECT COALESCE(COUNT(*), 0) / 2 AS a, (CASE WHEN COUNT(*) > 0 THEN COUNT(*) ELSE 0 END) / 2 AS b, 10 / COALESCE(COUNT(*), 0) AS c, COALESCE(COUNT(*), 0) % 4 AS d, COALESCE(COUNT(*), -5) - 100 AS e FROM t"
+    profile: iq17-default
+  - id: a_defaulted_count_in_numeric_arithmetic
+    sql: "SELECT COALESCE(COUNT(*), 0) / 2.0 AS a, COALESCE(COUNT(*), 0) * 1.5 AS b, ROUND(COALESCE(COUNT(*), 0) * 100.0 / 3, 2) AS c, CAST(COALESCE(COUNT(*), 0) AS VARCHAR(5)) AS d FROM t"
+    profile: iq17-default
+  - id: sum_and_avg_of_counts
+    sql: "SELECT SUM(n) AS s, AVG(n) AS a, MAX(n) AS m FROM (SELECT sm, COUNT(*) AS n FROM t GROUP BY sm) x"
+    profile: iq17-default
+
+  # ---- NULLIF of numbers: COALESCE's type, NULL where the two are equal in it
+  - id: nullif_of_a_numeric
+    sql: "SELECT id, NULLIF(nm, 0.01) AS a, NULLIF(nm, 0) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: nullif_of_an_integer_and_a_numeric
+    sql: "SELECT id, NULLIF(id, 1.0) AS a, NULLIF(id, 1.5) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: nullif_of_a_numeric_and_a_double
+    sql: "SELECT id, NULLIF(nm, dbl) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_quotient_by_a_count_not_zero
+    sql: "SELECT 10 / NULLIF(COUNT(*), 0) AS a FROM t"
+    profile: iq17-default
+  # IQ's NUMERIC(42,21): refused by name, past lite's 38 digits
+  - id: a_ratio_of_counts
+    sql: "SELECT COUNT(id) * 1.0 / NULLIF(COUNT(*), 0) AS b FROM t"
+    profile: iq17-default
+
+  # ---- a DATE compared with a TIMESTAMP: the TIMESTAMP of its midnight
+  - id: timestamp_against_date_columns
+    sql: "SELECT id FROM t WHERE ts >= dt ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_equal_to_a_date
+    sql: "SELECT id FROM t WHERE ts = dt OR dt > ts ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_against_a_date_constant
+    sql: "SELECT id FROM t WHERE ts >= CAST('2026-03-04' AS DATE) ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_between_dates
+    sql: "SELECT id FROM t WHERE ts BETWEEN CAST('2000-01-01' AS DATE) AND CAST('2026-03-04' AS DATE) ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_in_dates
+    sql: "SELECT id FROM t WHERE ts IN (CAST('2000-02-29' AS DATE), CAST('1900-01-01' AS DATE)) ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_against_a_moved_date
+    sql: "SELECT id FROM t WHERE ts >= CAST(DATEADD(DAY, -30, '2026-04-01') AS DATE) ORDER BY id"
+    profile: iq17-default
+
+  # ---- the clock moved by DATEADD (a statement's trailing separator is IqParserTest's: the oracle sends no ';')
+  - id: the_clock_moved_back
+    sql: "SELECT COUNT(*) AS n FROM t WHERE ts >= DATEADD(YEAR, -200, GETDATE())"
+    profile: iq17-default
+  - id: the_clock_moved_forward
+    sql: "SELECT COUNT(*) AS n FROM t WHERE ts < DATEADD(DAY, 30, NOW())"
+    profile: iq17-default
+
+  # ---- IQ's own errors the corpora meet
+  - id: top_in_a_derived_table_is_iqs_error
+    sql: "SELECT * FROM (SELECT TOP 2 id FROM t ORDER BY id DESC) d ORDER BY id"
+    profile: iq17-default
+  - id: top_in_a_where_subquery_is_iqs_error
+    sql: "SELECT id FROM t WHERE id = (SELECT TOP 1 t_id FROM u ORDER BY id DESC)"
+    profile: iq17-default
+  - id: top_in_a_cte_is_iqs_error
+    sql: "WITH c AS (SELECT TOP 3 id FROM t ORDER BY id DESC) SELECT id FROM c ORDER BY id"
+    profile: iq17-default
+  - id: a_subquery_inside_coalesce_is_iqs_error
+    sql: "SELECT id, COALESCE((SELECT COUNT(*) FROM u WHERE u.t_id = t.id), 0) AS n FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_plain_subquery_in_the_select_list
+    sql: "SELECT id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t ORDER BY id"
+    profile: iq17-default
+
+  # ---- a quotient or a ROUND whose IQ type needs more than lite's 38 digits: computed where the value fits
+  - id: a_percentage_of_counts
+    sql: "SELECT COUNT(id) * 100.0 / COUNT(*) AS a, ROUND(COUNT(id) * 100.0 / COUNT(*), 2) AS b FROM t"
+    profile: iq17-default
+  - id: a_percentage_per_group
+    sql: "SELECT sm, ROUND(SUM(CASE WHEN id > 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS pct FROM t GROUP BY sm ORDER BY sm"
+    profile: iq17-default
+
+  # ---- national strings, national casts
+  - id: a_national_string
+    sql: "SELECT id, N'é' || vc AS a, LENGTH(N'é') AS b FROM t WHERE vc < N'i' ORDER BY id"
+    profile: iq17-default
+  - id: a_cast_to_nvarchar_is_iqs_error
+    sql: "SELECT CAST(vc AS NVARCHAR(10)) AS a FROM t"
+    profile: iq17-default
+
+  # ---- a GROUP BY expression that reads no select-list alias
+  - id: grouped_by_a_cast_beside_aliases
+    sql: "SELECT CAST(ts AS DATE) AS day, COUNT(id) AS n FROM t GROUP BY CAST(ts AS DATE) ORDER BY 1"
+    profile: iq17-default
+
+  # ---- more of IQ's errors the corpora meet
+  - id: a_subquery_in_an_outer_joins_on_is_iqs_error
+    sql: "SELECT t.id, x.label FROM t LEFT JOIN u x ON t.id = (SELECT MAX(y.t_id) FROM u y WHERE y.id = x.id)"
+    profile: iq17-default
+  - id: datediff_from_zero_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts > DATEADD(dd, DATEDIFF(dd, 0, GETDATE()), 0)"
+    profile: iq17-default
+
+  # ---- a COUNT beside a DOUBLE, AVG over a COUNT's integer, COALESCE of a wide AVG
+  - id: a_double_by_a_count
+    sql: "SELECT CAST(SUM(id) AS DOUBLE) / COUNT(*) AS a, CAST(COUNT(sm) AS DOUBLE) * 100 / NULLIF(COUNT(*), 0) AS b FROM t"
+    profile: iq17-default
+  - id: avg_of_a_defaulted_count
+    sql: "SELECT AVG(c) AS a, COALESCE(AVG(n), 0) AS b FROM (SELECT t.id, COALESCE(x.n, 0) AS c, x.n AS n FROM t LEFT JOIN (SELECT t_id, COUNT(*) AS n FROM u GROUP BY t_id) x ON x.t_id = t.id) d"
+    profile: iq17-default
+  - id: window_avg_of_a_defaulted_count
+    sql: "SELECT id, AVG(c) OVER () AS a, AVG(n) OVER () AS b FROM (SELECT t.id, COALESCE(x.n, 0) AS c, x.n AS n FROM t LEFT JOIN (SELECT t_id, COUNT(*) AS n FROM u GROUP BY t_id) x ON x.t_id = t.id) d ORDER BY id"
+    profile: iq17-default
+
+  # ---- an outer join's ON: a subquery only in a conjunct that reads the null-supplying side alone
+  - id: on_in_of_the_inner_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND u.t_id IN (SELECT id FROM g) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_in_correlated_to_the_inner_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND u.t_id IN (SELECT g.id FROM g WHERE g.id = u.id) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_scalar_correlated_to_the_inner_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND u.id >= (SELECT MIN(y.id) FROM u y WHERE y.t_id = u.t_id) ORDER BY 1, 2"
+    profile: iq17-default
+  # IQ reads it; refused by name: DuckDB cannot plan a subquery in a RIGHT JOIN's condition
+  - id: on_right_joins_inner_side
+    sql: "SELECT t.id, u.id AS uid FROM t RIGHT JOIN u ON u.t_id = t.id AND t.id > (SELECT MIN(id) FROM u) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_or_of_the_inner_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND (u.id = 1 OR u.id IN (SELECT id FROM g)) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_a_later_join_of_its_own_side
+    sql: "SELECT t.id, u.id AS uid, g.id AS gid FROM t LEFT JOIN u ON u.t_id = t.id LEFT JOIN g ON g.id = u.id AND g.id IN (SELECT id FROM u) ORDER BY 1, 2, 3"
+    profile: iq17-default
+  - id: on_in_of_the_preserved_side_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND t.id IN (SELECT t_id FROM u) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_exists_correlated_to_the_preserved_side_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND EXISTS (SELECT 1 FROM g WHERE g.id = t.id) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_of_a_full_join_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t FULL JOIN u ON u.t_id = t.id AND EXISTS (SELECT 1 FROM g) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_or_of_both_sides_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id OR u.id > (SELECT MIN(id) FROM u) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: on_a_later_join_reading_an_earlier_one_is_iqs_error
+    sql: "SELECT t.id, u.id AS uid, g.id AS gid FROM t LEFT JOIN u ON u.t_id = t.id LEFT JOIN g ON g.id = u.id AND u.id IN (SELECT id FROM u) ORDER BY 1, 2, 3"
+    profile: iq17-default
+
+  # ---- an aggregate's DISTINCT over an expression (the research's D-R1 held IQ's engine restricts it; IQ 17.1 reads it)
+  - id: count_distinct_of_expressions
+    sql: "SELECT COUNT(DISTINCT CASE WHEN id > 2 THEN sm END) AS a, COUNT(DISTINCT id + 1) AS b, COUNT(DISTINCT CAST(ts AS DATE)) AS c, COUNT(DISTINCT YEAR(ts)) AS d FROM t"
+    profile: iq17-default
+  - id: sum_distinct_of_an_expression
+    sql: "SELECT SUM(DISTINCT sm * 2) AS a FROM t"
+    profile: iq17-default
+  - id: count_distinct_of_an_expression_grouped
+    sql: "SELECT bt, COUNT(DISTINCT CASE WHEN id > 2 THEN sm END) AS a FROM t GROUP BY bt ORDER BY bt"
+    profile: iq17-default
+  - id: count_distinct_in_a_select_distinct
+    sql: "SELECT DISTINCT COUNT(DISTINCT sm + 1) AS a FROM t"
+    profile: iq17-default
+
+  # ---- a reserved word standing alone as a column's name
+  - id: a_bare_date_column_is_iqs_error
+    sql: "SELECT Date FROM t"
+    profile: iq17-default
+  - id: a_bare_comment_column_is_iqs_error
+    sql: "SELECT id, Comment FROM t"
+    profile: iq17-default
+
+  # ---- the names IQ gives unaliased CASTs: a whole item named as its operand, a CAST inside one written out
+  - id: unaliased_casts_named_as_their_operands
+    sql: "SELECT id, CAST(ts AS DATE), CAST(sm + 1 AS INT) FROM t ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_casts_inside_items
+    sql: "SELECT id, 'x' || CAST(id AS VARCHAR(10)), CONVERT(VARCHAR(10), sm) || '', MONTH(CAST(ts AS DATE)) FROM t ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_casts_of_aggregates
+    sql: "SELECT CAST(SUM(sm) AS DOUBLE) / NULLIF(COUNT(id), 0), AVG(CAST(sm AS DECIMAL(10,2))), CAST(COUNT(*) AS FLOAT) FROM t"
+    profile: iq17-default
+  - id: unaliased_cast_type_spellings
+    sql: "SELECT id, CAST(sm AS INT) || '', CAST(sm AS NUMERIC(10,2)) || '', CAST(sm AS DOUBLE PRECISION) * 2, CAST(sm AS FLOAT) * 2, CAST(sm AS CHAR(8)) || '', CAST(sm AS VARCHAR) || '' FROM t WHERE id < 5 ORDER BY id"
+    profile: iq17-default
+
+  # ---- a number compared with a string under IQ's engine: its -1001013 (a string that is no number its -157)
+  - id: a_number_against_a_numeric_string_is_iqs_error
+    sql: "SELECT id FROM t WHERE id = '1'"
+    profile: iq17-default
+  - id: a_year_against_a_string_is_iqs_error
+    sql: "SELECT id FROM t WHERE YEAR(ts) = '2026'"
+    profile: iq17-default
+  - id: a_string_column_against_a_number_is_iqs_error
+    sql: "SELECT id FROM t WHERE vc = 1"
+    profile: iq17-default
+
+  # ---- LIKE's sets: a set, a range, a negated range
+  - id: like_sets
+    sql: "SELECT id, CASE WHEN vc LIKE '[hH]%' THEN 1 ELSE 0 END AS a, CASE WHEN vc LIKE '%[^a-z]%' THEN 1 ELSE 0 END AS b, CASE WHEN vc LIKE '_[a-e]%' THEN 1 ELSE 0 END AS c, CASE WHEN vc LIKE '%[lp][lp]%' THEN 1 ELSE 0 END AS d FROM t WHERE vc IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: like_a_set_over_a_char_column
+    sql: "SELECT id FROM t WHERE ch LIKE '[a-z]%' ORDER BY id"
+    profile: iq17-default
+
+  # ---- DATALENGTH: a string's bytes, a column's storage width
+  - id: datalength_of_columns
+    sql: "SELECT id, DATALENGTH(sm) AS a, DATALENGTH(it) AS b, DATALENGTH(bg) AS c, DATALENGTH(nm) AS d, DATALENGTH(dbl) AS e, DATALENGTH(ch) AS f, DATALENGTH(vc) AS g, DATALENGTH(dt) AS h, DATALENGTH(ts) AS i, DATALENGTH(bt) AS j FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datalength_of_strings
+    sql: "SELECT id, DATALENGTH(vc || 'x') AS a, DATALENGTH(CAST(id AS VARCHAR(10))) AS b FROM t ORDER BY id"
+    profile: iq17-default
+
+  # ---- the isolation hints NOLOCK and READUNCOMMITTED, read and dropped
+  - id: table_hints_nolock
+    sql: "SELECT t.id, u.label FROM t WITH (NOLOCK) JOIN u WITH (READUNCOMMITTED) ON u.t_id = t.id ORDER BY 1, 2"
+    profile: iq17-default
+
+  # ---- a constant date string beside a date or a timestamp; a timestamp against a number
+  - id: coalesce_of_a_timestamp_and_a_date_string
+    sql: "SELECT id, COALESCE(ts, '1900-01-01') AS a, ISNULL(ts, '1900-01-01 10:20:30') AS b, COALESCE(dt, '1900-01-01') AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: case_of_a_timestamp_and_a_date_string
+    sql: "SELECT id, CASE WHEN id > 3 THEN ts ELSE '1900-01-01' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: max_of_a_defaulted_timestamp
+    sql: "SELECT MAX(COALESCE(ts, '1900-01-01')) AS a FROM t"
+    profile: iq17-default
+  - id: a_timestamp_against_a_number_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts > 2008"
+    profile: iq17-default
+
+  # ---- TOP, FIRST, START AT: IQ computes the select list's items its ORDER BY does not read for the rows up to the
+  # limit's last only (START AT's skipped ones too), its ORDER BY's for every row. Refused by name where an item can
+  # raise: lite's lowering folds an extend over truncated rows into the truncated block (Fold.extendFolds), so the
+  # databases may compute it for the rows the limit drops -- recorded for the cross-area decision
+  # (docs/IQ_CENSUS_CHECKLIST.md's corpus section)
+  - id: top_computes_its_items_for_the_kept_rows
+    sql: "SELECT TOP 2 id, 10 / (id - 3) AS q FROM t ORDER BY id"
+    profile: iq17-default, sqla17-default
+  - id: top_descending_keeps_other_rows
+    sql: "SELECT TOP 3 id, 10 / (id - 3) AS q FROM t ORDER BY id DESC"
+    profile: iq17-default, sqla17-default
+  - id: first_computes_one_row
+    sql: "SELECT FIRST id, 10 / (id - 3) AS q FROM t ORDER BY id"
+    profile: iq17-default, sqla17-default
+  - id: start_at_computes_the_skipped_rows_too
+    sql: "SELECT TOP 2 START AT 2 id, 10 / (id - 4) AS q FROM t ORDER BY id"
+    profile: iq17-default, sqla17-default
+  - id: start_at_skipping_a_raising_row_is_iqs_error
+    sql: "SELECT TOP 2 START AT 4 id, 10 / (id - 3) AS q FROM t ORDER BY id"
+    profile: iq17-default, sqla17-default
+  - id: top_of_groups_computes_the_kept_groups
+    sql: "SELECT TOP 1 k, 10 / (COUNT(*) - 2) AS q FROM g GROUP BY k ORDER BY COUNT(*) DESC, k"
+    profile: iq17-default, sqla17-default
+  - id: top_with_a_window_kept_rows
+    sql: "SELECT TOP 2 id, 10 / (ROW_NUMBER() OVER (ORDER BY id) - 3) AS q FROM t ORDER BY id"
+    profile: iq17-default, sqla17-default
+  - id: top_with_a_double_quotient
+    sql: "SELECT TOP 2 id, dbl / (id - 3) AS q FROM t ORDER BY id"
+    profile: iq17-default, sqla17-default
+  - id: top_ordered_by_a_raising_item_is_iqs_error
+    sql: "SELECT TOP 2 id, 10 / (id - 3) AS q FROM t ORDER BY q, id"
+    profile: iq17-default, sqla17-default
+  - id: top_computes_a_distincts_items_for_every_row
+    sql: "SELECT DISTINCT TOP 2 id, 10 / (id - 3) AS q FROM t ORDER BY id"
+    profile: iq17-default, sqla17-default
+  - id: top_computes_an_order_by_expression_for_every_row
+    sql: "SELECT TOP 2 id FROM t ORDER BY 10 / (id - 3), id"
+    profile: iq17-default, sqla17-default
+  - id: top_computes_a_cast_for_the_kept_rows
+    sql: "SELECT TOP 2 id, CAST(CASE WHEN id > 5 THEN '1' ELSE vc END AS INTEGER) AS n FROM t ORDER BY id DESC"
+    profile: iq17-default, sqla17-default
+  - id: top_over_generated_rows_computes_the_kept_rows
+    sql: "SELECT TOP 2 row_num, 10 / (row_num - 3) AS q FROM sa_rowgenerator(1, 7) ORDER BY row_num"
+    profile: iq17-default, sqla17-default
+  - id: start_at_over_generated_rows_computes_the_skipped_rows
+    sql: "SELECT TOP 2 START AT 4 row_num, 10 / (row_num - 3) AS q FROM sa_rowgenerator(1, 7) ORDER BY row_num"
+    profile: iq17-default, sqla17-default
+  - id: top_in_a_derived_table_computes_its_kept_rows
+    sql: "SELECT row_num, q FROM (SELECT TOP 2 row_num, 10 / (row_num - 3) AS q FROM sa_rowgenerator(1, 7) ORDER BY row_num) d ORDER BY row_num"
+    profile: iq17-default, sqla17-default
+  # names a database reads without regard to case, as DuckDB does even quoted: a sort key spelled as another column
+  # (computed before the limit), and an item spelled as another column (computed after it)
+  - id: top_ordered_by_an_alias_spelled_as_another_column
+    sql: "SELECT TOP 2 it AS ID, id * 2 AS q FROM t ORDER BY ID DESC, t.id"
+    profile: iq17-default, sqla17-default
+  - id: top_of_an_item_spelled_as_another_column
+    sql: "SELECT TOP 2 id, sm + 1 AS SM FROM t ORDER BY id"
+    profile: iq17-default, sqla17-default
+
+  # ---- the landing's review (IQ island, 2026-10-16), each measured on IQ 17.1 and SQL Anywhere 17
+  # NUMBER(*): one ROW_NUMBER, the statement's last sort key, so tied rows are numbered as they are shown; a constant
+  # ORDER BY, or none, numbers the rows in the order shown
+  - id: number_star_over_tied_keys
+    sql: "SELECT NUMBER(*) AS n, k FROM g ORDER BY k"
+    profile: iq17-default, sqla17-default
+  - id: number_star_without_order_by
+    sql: "SELECT NUMBER(*) AS n FROM t"
+    profile: iq17-default, sqla17-default
+  - id: number_star_ordered_by_a_constant
+    sql: "SELECT 'x' AS c, NUMBER(*) AS n FROM t ORDER BY c"
+    profile: iq17-default, sqla17-default
+  - id: number_star_ordered_by_a_constants_position
+    sql: "SELECT 1 AS one, NUMBER(*) AS n FROM t ORDER BY 1"
+    profile: iq17-default, sqla17-default
+  # ROLLUP: a key any copy of which a grouping holds is grouped; a key written otherwise refused by name
+  - id: rollup_of_a_repeated_key
+    sql: "SELECT k, COUNT(*) AS c, GROUPING(k) AS gk FROM g GROUP BY ROLLUP(k, k) ORDER BY 3, 1, 2"
+    profile: iq17-default, sqla17-default
+  - id: rollup_of_a_key_written_otherwise
+    sql: "SELECT g.k, COUNT(*) AS c FROM g GROUP BY ROLLUP(k) ORDER BY 1, 2"
+    profile: iq17-default, sqla17-default
+  - id: rollup_ordered_by_a_position_past_an_int
+    sql: "SELECT k, COUNT(*) AS c FROM g GROUP BY ROLLUP(k) ORDER BY 3000000000"
+    profile: iq17-default, sqla17-default
+  - id: order_by_the_largest_int_past_the_items
+    sql: "SELECT k FROM g WHERE k = 1 ORDER BY 2147483647"
+    profile: iq17-default, sqla17-default
+  - id: order_by_an_integer_past_an_int
+    sql: "SELECT k FROM g WHERE k = 1 ORDER BY 2147483648"
+    profile: iq17-default, sqla17-default
+  - id: rollup_of_an_item_reading_an_alias
+    sql: "SELECT id AS sm, sm + 1, COUNT(*) AS c FROM t GROUP BY ROLLUP(id) ORDER BY 1, 3"
+    profile: iq17-default, sqla17-default
+  # a named window and its reference, one quoted: names match without regard to case
+  - id: a_named_window_quoted_otherwise
+    sql: "SELECT id, ROW_NUMBER() OVER w AS r FROM t WINDOW \"W\" AS (ORDER BY id) ORDER BY id"
+    profile: iq17-default, sqla17-default
+  # a derived table's WITH of the names of the CTE it stands in
+  - id: a_derived_tables_with_inside_a_cte_of_one_name
+    sql: "WITH p AS (SELECT id FROM (WITH p AS (SELECT id FROM t) SELECT id FROM p) d) SELECT id FROM p ORDER BY id"
+    profile: iq17-default, sqla17-default
+  # computed date strings: m and two digits is no month; a lower-case t between a date and its time; a time after 7910
+  - id: a_computed_m_and_two_digits_is_no_month
+    sql: "SELECT CAST('M11 7 ' + STR(2008 + id, 4) AS DATE) AS d FROM t WHERE id = 1"
+    profile: iq17-default, sqla17-default
+  - id: a_computed_date_and_time_with_a_lower_t
+    sql: "SELECT CAST('2009-11-0' + STR(id, 1) + 't10:30' AS TIMESTAMP) AS d FROM t WHERE id = 7"
+    profile: iq17-default, sqla17-default
+  - id: a_computed_timestamp_after_7910
+    sql: "SELECT CAST('7911-01-0' + STR(id, 1) + ' 10:30' AS TIMESTAMP) AS d FROM t WHERE id = 1"
+    profile: iq17-default, sqla17-default
+
+  # ---- found by the lane's judged runs (sede-18206): a subquery over a CTE correlated to the CTE read again outside
+  - id: a_running_total_over_a_cte_read_twice
+    sql: "WITH f AS (SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t) SELECT q.id, (SELECT COUNT(*) FROM f WHERE f.rn <= q.rn) AS c FROM f q ORDER BY q.id"
+    profile: iq17-default
+  - id: a_running_total_over_a_derived_table_read_twice
+    sql: "SELECT q.id, (SELECT COUNT(*) FROM (SELECT id AS rn FROM t) f WHERE f.rn <= q.id) AS c FROM t q ORDER BY q.id"
+    profile: iq17-default
+  - id: a_running_total_over_two_derived_tables_of_one_column_name
+    sql: "SELECT q.rn, (SELECT COUNT(*) FROM (SELECT id AS rn FROM t) f WHERE f.rn <= q.rn) AS c FROM (SELECT id AS rn FROM t) q ORDER BY q.rn"
+    profile: iq17-default
+  - id: a_correlated_count_over_one_table_twice
+    sql: "SELECT q.id, (SELECT COUNT(*) FROM t f WHERE f.id <= q.id) AS c FROM t q ORDER BY q.id"
+    profile: iq17-default
+  - id: a_running_total_over_two_windowed_derived_tables
+    sql: "SELECT q.id, (SELECT COUNT(*) FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t) f WHERE f.rn <= q.rn) AS c FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM t) q ORDER BY q.id"
+    profile: iq17-default
+  - id: a_running_total_over_a_cte_of_no_window
+    sql: "WITH f AS (SELECT id AS rn FROM t) SELECT q.rn, (SELECT COUNT(*) FROM f WHERE f.rn <= q.rn) AS c FROM f q ORDER BY q.rn"
+    profile: iq17-default
+
+  # ---- an ORDER BY name reads a select item only by its alias; else a FROM column, an ambiguous one IQ's -144
+  - id: order_by_an_ambiguous_column_is_iqs_error
+    sql: "SELECT t.id FROM t JOIN u ON u.t_id = t.id ORDER BY id"
+    profile: iq17-default
+  - id: order_by_an_alias_of_an_ambiguous_name
+    sql: "SELECT u.id AS id FROM t JOIN u ON u.t_id = t.id ORDER BY id"
+    profile: iq17-default
+  - id: order_by_a_unique_column_selected
+    sql: "SELECT t.sm FROM t JOIN u ON u.t_id = t.id ORDER BY sm, t.id"
+    profile: iq17-default
+
+  # ---- found by the lane's judged runs (sede-36359): IQ's engine reads a time alone on 1900-01-01
+  - id: a_time_alone_cast_to_a_timestamp
+    sql: "SELECT id, CAST('12:34' AS DATETIME) AS a, CAST('01:05:07.25' AS TIMESTAMP) AS b, CAST('12:05 am' AS DATETIME) AS c, CAST('T7:5' AS DATETIME) AS d, CONVERT(DATETIME, '23:59:59.999999') AS e, CAST('12:34' AS DATE) AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_functions_of_a_time_alone
+    sql: "SELECT id, DATEPART(hour, '12:34') AS a, YEAR('12:34') AS b, MINUTE('7:05') AS c, DATEADD(day, 1, '12:34') AS d, DATEDIFF(day, '12:34', '1900-01-03') AS e, DATE('T7:05') AS f, DATETIME('12:34:56.5') AS g FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_computed_time_alone_cast_to_a_timestamp
+    sql: "SELECT id, CAST(RIGHT('0' + CONVERT(VARCHAR(2), id), 2) + ':' + RIGHT('0' + CONVERT(VARCHAR(2), id * 7 % 60), 2) AS DATETIME) AS a, CAST(CONVERT(VARCHAR(2), id) + ':05:30.5' AS DATETIME) AS b, CAST(CONVERT(VARCHAR(2), id) + ':05' AS DATE) AS c, CAST(CAST(CONVERT(VARCHAR(2), id) + ':34:56.123456' AS DATETIME) AS VARCHAR(40)) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_computed_time_out_of_range_is_iqs_error
+    sql: "SELECT CAST(CONVERT(VARCHAR(3), id + 30) + ':00' AS DATETIME) AS a FROM t WHERE id IS NOT NULL"
+    profile: iq17-default
+  - id: a_computed_date_and_time_out_of_range_as_a_date_is_iqs_error
+    sql: "SELECT CAST(CAST(dt AS VARCHAR(10)) + ' 25:00' AS DATE) AS a FROM t WHERE id IS NOT NULL"
+    profile: iq17-default
+  - id: a_computed_date_and_time_as_a_date
+    sql: "SELECT id, CAST(CAST(dt AS VARCHAR(10)) + ' 23:59:59' AS DATE) AS a FROM t ORDER BY id"
+    profile: iq17-default
+
+  # ---- found by the lane's judged runs (56 queries): IQ's engine names a grouped query's items by their own spelling
+  - id: grouped_items_named_as_written_under_iqs_engine
+    sql: "SELECT SM, Sm + 1, 2 * (SM + 1), MAX(Sm), Count(id) FROM t GROUP BY sm HAVING count(id) > 0 ORDER BY sm"
+    profile: iq17-default
+  - id: grouped_qualified_items_named_as_written_under_iqs_engine
+    sql: "SELECT q.SM, q.SM + 1, CASE WHEN q.SM > 0 THEN 1 ELSE 0 END FROM t q GROUP BY q.sm ORDER BY q.sm"
+    profile: iq17-default
+  - id: aggregates_named_as_written_under_iqs_engine
+    sql: "SELECT SUM(IT), sum(it), Sum(it) + 1 FROM t HAVING SUM(it) > 0"
+    profile: iq17-default
+  - id: grouped_derived_items_named_as_written_under_iqs_engine
+    sql: "SELECT X, X + 1, COUNT(*) FROM (SELECT sm AS x FROM t) d GROUP BY x ORDER BY x"
+    profile: iq17-default
+  - id: grouped_items_of_the_front_end_named_as_group_by_and_having_read_them
+    sql: "SELECT X + 1, Count(*) FROM (SELECT 1 AS x UNION ALL SELECT 2) d GROUP BY x HAVING count(*) > 0 ORDER BY 1"
+    profile: iq17-default
+
+  # ---- found by the lane's judged runs (sede-257154, sede-927953): under DISTINCT too an ORDER BY name reads a select
+  # item only by its alias; else a FROM column, an ambiguous one IQ's -144
+  - id: distinct_order_by_an_ambiguous_column_is_iqs_error
+    sql: "SELECT DISTINCT t.id, t.sm FROM t JOIN u ON u.t_id = t.id ORDER BY id"
+    profile: iq17-default
+  - id: distinct_order_by_an_alias_of_an_ambiguous_name
+    sql: "SELECT DISTINCT u.id AS id FROM t JOIN u ON u.t_id = t.id ORDER BY id"
+    profile: iq17-default
+  - id: distinct_order_by_a_unique_column_selected
+    sql: "SELECT DISTINCT t.sm FROM t JOIN u ON u.t_id = t.id ORDER BY sm"
+    profile: iq17-default
+
+  # ---- found by the lane's judged runs: where IQ's engine takes a subquery in a condition, measured on IQ 17.1
+  - id: a_window_in_a_conditions_subquery_is_iqs_error
+    sql: "SELECT id FROM t WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY id) r FROM t) d WHERE r < 3)"
+    profile: iq17-default
+  - id: a_window_in_a_cte_read_by_a_conditions_subquery_is_iqs_error
+    sql: "WITH w AS (SELECT id, ROW_NUMBER() OVER (ORDER BY id) r FROM t) SELECT a.id FROM w a JOIN u ON a.r = (SELECT MAX(r) FROM w)"
+    profile: iq17-default
+  - id: a_window_in_an_exists_is_iqs_error
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM (SELECT id, LAG(id) OVER (ORDER BY id) l FROM t) d WHERE d.id = t.id)"
+    profile: iq17-default
+  - id: a_window_in_a_scalar_subquery_of_having_is_iqs_error
+    sql: "SELECT sm FROM t GROUP BY sm HAVING COUNT(*) < (SELECT MAX(r) FROM (SELECT ROW_NUMBER() OVER (ORDER BY id) r FROM t) d)"
+    profile: iq17-default
+  - id: a_window_in_a_select_lists_subquery
+    sql: "SELECT id, (SELECT MAX(r) FROM (SELECT ROW_NUMBER() OVER (ORDER BY id) r FROM t) d) AS m FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_comparison_of_two_subqueries_is_iqs_error
+    sql: "SELECT id FROM t WHERE (SELECT MAX(id) FROM t) > (SELECT MIN(id) FROM u)"
+    profile: iq17-default
+  - id: a_subquery_as_a_betweens_operand_is_iqs_error
+    sql: "SELECT id FROM t WHERE (SELECT MAX(id) FROM u) BETWEEN 1 AND 9"
+    profile: iq17-default
+  - id: a_subquery_inside_a_conditions_expression_is_iqs_error
+    sql: "SELECT id FROM t WHERE (SELECT MAX(id) FROM u) IS NULL OR ABS((SELECT MAX(id) FROM u)) > 0"
+    profile: iq17-default
+  - id: subqueries_as_betweens_bounds
+    sql: "SELECT id FROM t WHERE id BETWEEN (SELECT MIN(id) FROM u) AND (SELECT MAX(id) FROM u) ORDER BY id"
+    profile: iq17-default
+  - id: a_subquery_alias_read_in_where_is_iqs_error
+    sql: "SELECT (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t WHERE c > 0"
+    profile: iq17-default
+  - id: a_subquery_alias_read_in_group_by_is_iqs_error
+    sql: "SELECT (SELECT MAX(id) FROM u) AS m FROM t GROUP BY m"
+    profile: iq17-default
+  - id: a_subquery_alias_read_in_the_select_list_and_order_by
+    sql: "SELECT id, (SELECT MAX(id) FROM u) AS m, m + 1 AS n FROM t ORDER BY m, id"
+    profile: iq17-default
+
+  # ---- found by the lane's judged runs (sqlstorm-5634 and 20 more): an outer query's filter over a derived table's
+  # window function, which ranks every row of the derived table
+  - id: a_filter_over_a_derived_tables_rank
+    sql: "SELECT * FROM (SELECT id, sm, DENSE_RANK() OVER (ORDER BY id DESC) AS r FROM t) d WHERE d.sm > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_over_a_ctes_rank
+    sql: "WITH c AS (SELECT id, sm, RANK() OVER (ORDER BY it DESC) AS r, COUNT(*) OVER () AS n FROM t) SELECT id, r, n FROM c WHERE sm > 0 AND id > 1 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_over_a_grouped_derived_tables_rank
+    sql: "SELECT * FROM (SELECT t_id, COUNT(*) AS c, RANK() OVER (ORDER BY COUNT(*) DESC, t_id) AS r FROM u GROUP BY t_id) d WHERE d.c > 1 ORDER BY t_id"
+    profile: iq17-default
+  - id: a_filter_over_a_derived_tables_running_sum
+    sql: "SELECT * FROM (SELECT id, sm, SUM(id) OVER (ORDER BY id) AS s FROM t) d WHERE d.id > 3 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_of_a_derived_tables_rank_alone
+    sql: "SELECT * FROM (SELECT id, sm, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 5 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_of_a_derived_tables_rank_and_another_column
+    sql: "SELECT * FROM (SELECT id, sm, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 5 AND sm > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_of_a_derived_tables_rank_or_another_column
+    sql: "SELECT * FROM (SELECT id, sm, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r = 7 OR sm > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_join_of_a_derived_tables_rank
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, RANK() OVER (ORDER BY id DESC) AS r FROM t) d JOIN u ON u.t_id = d.id ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_join_and_a_filter_of_a_derived_tables_rank
+    sql: "SELECT d.id, d.r FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d JOIN u ON u.t_id = d.id WHERE d.sm > 0 ORDER BY d.id"
+    profile: iq17-default
+  - id: a_grouping_of_a_derived_tables_rank
+    sql: "SELECT d.bt, MAX(d.r) AS m FROM (SELECT id, bt, RANK() OVER (ORDER BY id) AS r FROM t) d GROUP BY d.bt ORDER BY d.bt"
+    profile: iq17-default
+  - id: a_filtered_count_of_a_derived_tables_rank
+    sql: "SELECT COUNT(*) AS c, MAX(r) AS m FROM (SELECT id, sm, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE sm > 0"
+    profile: iq17-default
+  - id: an_in_filter_of_a_derived_tables_rank
+    sql: "SELECT * FROM (SELECT id, RANK() OVER (ORDER BY id DESC) AS r FROM t) d WHERE d.id IN (SELECT t_id FROM u) ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_of_a_derived_tables_rank_two_levels_down
+    sql: "SELECT * FROM (SELECT * FROM (SELECT id, sm, RANK() OVER (ORDER BY id) AS r FROM t) d1) d2 WHERE sm > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_filter_over_a_derived_table_of_a_grouped_rank
+    sql: "SELECT * FROM (SELECT sm, COUNT(*) AS c, RANK() OVER (ORDER BY sm) AS r FROM t GROUP BY sm) d WHERE d.sm > 0 ORDER BY sm"
+    profile: iq17-default
+  - id: windows_over_a_filter_of_a_derived_tables_rank
+    sql: "SELECT id, r, RANK() OVER (ORDER BY sm DESC) AS s FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d WHERE r <= 4 ORDER BY id"
+    profile: iq17-default
+  - id: a_grouping_of_a_filter_of_a_derived_tables_rank
+    sql: "SELECT d.bt, COUNT(*) AS c FROM (SELECT id, bt, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 3 GROUP BY d.bt ORDER BY d.bt"
+    profile: iq17-default
+  - id: a_count_of_a_filter_of_a_derived_tables_rank
+    sql: "SELECT COUNT(*) AS c, MAX(id) AS m FROM (SELECT id, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 3"
+    profile: iq17-default
+  - id: windows_over_a_filter_of_a_plain_derived_table
+    sql: "SELECT id, RANK() OVER (ORDER BY sm DESC) AS s, COUNT(*) OVER () AS n FROM (SELECT id, sm FROM t) d WHERE id <= 4 ORDER BY id"
+    profile: iq17-default
+  - id: a_distinct_of_a_filter_of_a_derived_tables_rank
+    sql: "SELECT DISTINCT bt FROM (SELECT id, bt, RANK() OVER (ORDER BY id) AS r FROM t) d WHERE r <= 3 ORDER BY bt"
+    profile: iq17-default
+
+  # ---- quotients under IQ's engine, over columns holding their types' whole ranges (IQ types a column by its data's
+  # range: D-N3): a constant's trailing zeros dropped, then the scale max(6, s1 + p2 - s2 + 1)
+  - id: quotients_of_a_constant_times_a_column
+    sql: "SELECT 1.0 * it / it AS a, 1.0 * sm / it AS b, it * 1.0 / it AS c, 2.50 * it / it AS d, 100.00 * sm / sm AS e, 1.0 * bg / bg AS f FROM t WHERE id = 4"
+    profile: iq17-default
+  - id: quotients_of_columns_and_constants
+    sql: "SELECT 1.0 / it AS a, it / 1.0 AS b, it / (it + 1.0) AS c, sm / (it + 1.0) AS d, 100.0 - (it * 100.0 / it) AS e FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: quotients_of_numerics_and_integers
+    sql: "SELECT nm / it AS a, it / nm AS b, nm / nm AS c, 100.0 * it / (it + it) AS d FROM t WHERE id = 1"
+    profile: iq17-default
+
+  # ---- found by the lane's judged runs (sede-394767): the name of a CONVERT with a style
+  - id: unaliased_converts_with_a_style
+    sql: "SELECT id, CONVERT(VARCHAR(12), ts, 107), CONVERT(VARCHAR(10), dt, 101), CONVERT(VARCHAR(12), ts, 107) || 'x', CONVERT(CHAR(10), q.dt, 101) || '' FROM t q ORDER BY id"
+    profile: iq17-default
+  - id: a_left_join_and_a_filter_of_a_derived_tables_rank
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d LEFT JOIN u ON u.t_id = d.id WHERE d.sm > 0 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_join_and_a_filter_of_a_derived_tables_rank_column
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d JOIN u ON u.t_id = d.id WHERE d.r <= 6 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_left_join_and_a_filter_of_a_derived_tables_rank_column
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d LEFT JOIN u ON u.t_id = d.id WHERE d.r <= 6 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_join_onto_a_derived_tables_rank_and_a_filter
+    sql: "SELECT d.id, d.r, u.id AS uid FROM u JOIN (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d ON u.t_id = d.id WHERE d.sm > 0 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_join_condition_on_a_derived_tables_rank
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d JOIN u ON u.t_id = d.id AND d.sm > 0 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_join_of_two_derived_ranks_and_a_filter
+    sql: "SELECT d.id, d.r, e.r AS r2 FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d JOIN (SELECT t_id, RANK() OVER (ORDER BY id) AS r FROM u) e ON e.t_id = d.id WHERE d.sm > 0 ORDER BY d.id, r2"
+    profile: iq17-default
+  - id: a_right_join_and_a_filter_of_a_derived_tables_rank
+    sql: "SELECT d.id, d.r, u.id AS uid FROM u RIGHT JOIN (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d ON u.t_id = d.id WHERE d.sm > 0 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_comma_join_and_a_filter_of_a_derived_tables_rank
+    sql: "SELECT d.id, d.r, u.id AS uid FROM (SELECT id, sm, RANK() OVER (ORDER BY id DESC) AS r FROM t) d, u WHERE u.t_id = d.id AND d.sm > 0 ORDER BY d.id, uid"
+    profile: iq17-default
+  - id: a_left_join_and_a_filter_of_a_joined_derived_rank
+    sql: "SELECT d.id, d.r, x.id AS xid FROM (SELECT t.id, t.sm, u.id AS uid, RANK() OVER (ORDER BY t.id DESC) AS r FROM t LEFT JOIN u ON u.t_id = t.id) d LEFT JOIN u x ON x.t_id = d.id WHERE d.uid IS NOT NULL ORDER BY d.id, d.uid, xid"
+    profile: iq17-default
+  - id: a_filter_of_a_joined_derived_rank
+    sql: "SELECT d.id, d.uid, d.r FROM (SELECT t.id, t.sm, u.id AS uid, RANK() OVER (ORDER BY t.id DESC) AS r FROM t LEFT JOIN u ON u.t_id = t.id) d WHERE d.uid IS NOT NULL ORDER BY d.id, d.uid"
+    profile: iq17-default
+  - id: a_join_and_a_rank_filter_of_a_grouped_derived_rank
+    sql: "SELECT d.t_id, d.r FROM (SELECT t_id, COUNT(*) AS c, RANK() OVER (ORDER BY t_id DESC) AS r FROM u GROUP BY t_id) d JOIN t ON t.id = d.t_id WHERE d.r <= 3 ORDER BY d.t_id"
+    profile: iq17-default
+  - id: a_join_of_a_grouped_derived_rank
+    sql: "SELECT d.t_id, d.r FROM (SELECT t_id, COUNT(*) AS c, RANK() OVER (ORDER BY t_id DESC) AS r FROM u GROUP BY t_id) d JOIN t ON t.id = d.t_id ORDER BY d.t_id"
+    profile: iq17-default
+  - id: a_join_and_a_filter_of_a_grouped_derived_rank
+    sql: "SELECT d.t_id, d.r FROM (SELECT t_id, COUNT(*) AS c, RANK() OVER (ORDER BY t_id DESC) AS r FROM u GROUP BY t_id) d JOIN t ON t.id = d.t_id WHERE d.c > 1 ORDER BY d.t_id"
+    profile: iq17-default
+
+  # ---- found by the lane's judged runs (sede-153489, sede-485366): computed date strings IQ reads -- blanks around the
+  # separators, a month's name (CONVERT's styles written back), AM and PM
+  - id: a_date_of_padded_numbers
+    sql: "SELECT id, CAST(STR(2000 + id) + '-' + STR(id) + '-' + STR(id + 10) AS DATE) AS a, CAST(STR(2000 + id) + ' / ' + STR(id) + ' / ' + STR(id + 10) AS DATETIME) AS b FROM t WHERE id IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: dates_written_back_from_convert_styles
+    sql: "SELECT id, CAST(CONVERT(VARCHAR(16), dt, 106) AS DATE) AS a, CONVERT(DATETIME, CONVERT(VARCHAR(16), ts, 106)) AS b, CAST(CONVERT(VARCHAR(16), dt, 107) AS DATE) AS c, CAST(CONVERT(VARCHAR(30), ts, 100) AS DATETIME) AS d FROM t WHERE id IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: dates_of_month_names
+    sql: "SELECT id, CAST(CAST(id AS VARCHAR(2)) + ' ' + (CASE id WHEN 1 THEN 'Jan' WHEN 2 THEN 'february' WHEN 3 THEN 'MAR' WHEN 4 THEN 'Sept' WHEN 6 THEN 'Decem' ELSE 'may' END) + ' 2009' AS DATE) AS a, CAST((CASE id WHEN 1 THEN 'Oct' ELSE 'june' END) + ' ' + CAST(id AS VARCHAR(2)) + ', 2010 ' + CAST(id AS VARCHAR(2)) + ':05 pm' AS DATETIME) AS b, CAST(CAST(id + 20 AS VARCHAR(2)) + '-Aug-2011 12:30AM' AS DATETIME) AS c FROM t WHERE id IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: a_date_of_no_months_name_is_iqs_error
+    sql: "SELECT CAST(CAST(id AS VARCHAR(2)) + ' Nox 2009' AS DATE) AS a FROM t WHERE id IS NOT NULL"
+    profile: iq17-default
+  - id: a_join_on_the_null_side_of_a_joined_derived_rank
+    sql: "SELECT d.id, d.uid, d.r FROM (SELECT t.id, u.id AS uid, RANK() OVER (ORDER BY t.id DESC) AS r FROM t LEFT JOIN u ON u.t_id = t.id) d JOIN u x ON x.id = d.uid WHERE d.r <= 7 ORDER BY d.id, d.uid"
+    profile: iq17-default
+
+  # ---- the lane's most frequent SQLStorm shape (5,724 queries): T-SQL's OFFSET ... FETCH is IQ's syntax error
+  - id: offset_fetch_is_a_syntax_error
+    sql: "SELECT id FROM t ORDER BY id OFFSET 2 ROWS FETCH NEXT 3 ROWS ONLY"
+    profile: iq17-default
+  - id: fetch_first_is_a_syntax_error
+    sql: "SELECT id FROM t ORDER BY id FETCH FIRST 3 ROWS ONLY"
+    profile: iq17-default
+  - id: offset_in_a_derived_table_is_a_syntax_error
+    sql: "SELECT * FROM (SELECT id FROM t ORDER BY id OFFSET 1 ROWS) d"
+    profile: iq17-default
+  - id: an_interval_constant_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE ts > CURRENT TIMESTAMP - INTERVAL '1 year'"
+    profile: iq17-default
+  - id: an_interval_of_days_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE ts > ts - INTERVAL 30 DAY"
+    profile: iq17-default
+  - id: a_timestamp_compared_with_a_string_of_no_digit_is_iqs_error
+    sql: "SELECT id FROM t WHERE ts >= 'x'"
+    profile: iq17-default
+  - id: a_timestamp_compared_with_an_empty_string_is_iqs_error
+    sql: "SELECT id FROM t WHERE id > 100 AND ts <> ''"
+    profile: iq17-default
+  - id: a_date_compared_with_a_string_of_no_digit_is_iqs_error
+    sql: "SELECT id FROM t WHERE dt = 'x'"
+    profile: iq17-default
+  - id: collate_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE vc LIKE 'a%' COLLATE Latin1_General_BIN"
+    profile: iq17-default
+  - id: an_aggregates_filter_is_a_syntax_error
+    sql: "SELECT COUNT(id) FILTER (WHERE id > 1) FROM t"
+    profile: iq17-default
+  - id: filter_as_an_alias
+    sql: "SELECT COUNT(id) filter FROM t"
+    profile: iq17-default
+
+  # ---- found by the lane's coverage (182 queries): a derived table's select-list subquery, read as IQ's engine reads it
+  - id: a_derived_tables_subquery_read_unqualified
+    sql: "SELECT id, c FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_read_by_star
+    sql: "SELECT * FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_in_arithmetic_and_functions
+    sql: "SELECT id, c + 1 AS c1, ABS(c) AS a, CAST(c AS VARCHAR(5)) AS v FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_ordered_and_distinct
+    sql: "SELECT DISTINCT c FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY c"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_beside_a_filter_of_another_column
+    sql: "SELECT id, c FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d WHERE sm > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_other_columns_grouped
+    sql: "SELECT sm, MAX(id) AS m FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d GROUP BY sm ORDER BY sm"
+    profile: iq17-default
+  - id: a_ctes_subquery_read_unqualified
+    sql: "WITH d AS (SELECT id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) SELECT id, c FROM d ORDER BY c, id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_read_qualified_is_iqs_error
+    sql: "SELECT d.id, d.c FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY d.id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_in_where_is_iqs_error
+    sql: "SELECT id, c FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d WHERE c > 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_grouped_is_iqs_error
+    sql: "SELECT c, COUNT(*) AS n FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d GROUP BY c ORDER BY c"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_in_a_case_is_iqs_error
+    sql: "SELECT id, CASE WHEN c > 0 THEN 'y' ELSE 'n' END AS h FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d ORDER BY id"
+    profile: iq17-default
+  - id: a_derived_tables_subquery_in_an_aggregate_is_iqs_error
+    sql: "SELECT SUM(c) AS s FROM (SELECT id, sm, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS c FROM t) d"
+    profile: iq17-default
+
+  # ---- the lane's most frequent other-dialect functions (about 2,900 queries): IQ has none of them, its error -265
+  - id: string_agg_is_iqs_error
+    sql: "SELECT STRING_AGG(vc, ',') AS s FROM t"
+    profile: iq17-default
+  - id: concat_is_iqs_error
+    sql: "SELECT CONCAT(vc, 'x') AS s FROM t"
+    profile: iq17-default
+  - id: string_split_is_iqs_error
+    sql: "SELECT value FROM STRING_SPLIT('a,b', ',')"
+    profile: iq17-default
+  # IQ island, 2026-10-16 (the landing's review: the rest of the refused names, measured on IQ 17.1 and SQL Anywhere 17)
+  - id: concat_ws_is_iqs_error
+    sql: "SELECT CONCAT_WS(',', vc, 'x') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: eomonth_is_iqs_error
+    sql: "SELECT EOMONTH(dt) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: format_is_iqs_error
+    sql: "SELECT FORMAT(dt, 'yyyy') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: choose_is_iqs_error
+    sql: "SELECT CHOOSE(2, 'a', 'b') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: datefromparts_is_iqs_error
+    sql: "SELECT DATEFROMPARTS(2020, 1, 2) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: date_trunc_is_iqs_error
+    sql: "SELECT DATE_TRUNC('month', dt) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: split_part_is_iqs_error
+    sql: "SELECT SPLIT_PART(vc, 'l', 1) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: age_is_iqs_error
+    sql: "SELECT AGE(dt) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: getutcdate_is_iqs_error
+    sql: "SELECT GETUTCDATE() AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: sysdatetime_is_iqs_error
+    sql: "SELECT SYSDATETIME() AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: json_value_is_iqs_error
+    sql: "SELECT JSON_VALUE(vc, '$.a') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: last_day_is_iqs_error
+    sql: "SELECT LAST_DAY(dt) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: nvl_is_iqs_error
+    sql: "SELECT NVL(sm, 0) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: group_concat_is_iqs_error
+    sql: "SELECT GROUP_CONCAT(vc) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: stdev_is_iqs_error
+    sql: "SELECT STDEV(sm) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: strftime_is_iqs_error
+    sql: "SELECT STRFTIME('%Y', dt) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: translate_is_iqs_error
+    sql: "SELECT TRANSLATE(vc, 'l', 'L') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: initcap_is_iqs_error
+    sql: "SELECT INITCAP(vc) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: quotename_is_iqs_error
+    sql: "SELECT QUOTENAME(vc) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: decode_is_iqs_error
+    sql: "SELECT DECODE(id, 1, 'one', 'other') AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: greatest_is_iqs_error
+    sql: "SELECT GREATEST(id, sm) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: least_is_iqs_error
+    sql: "SELECT LEAST(id, sm) AS s FROM t"
+    profile: iq17-default, sqla17-default
+  - id: to_date_is_iqs_error
+    sql: "SELECT TO_DATE(vc, 'YYYY-MM-DD') AS s FROM t"
+    profile: iq17-default, sqla17-default

@@ -399,12 +399,19 @@ public final class InferenceKernel {
                             + right.typeName());
                 }
                 List<Type.Column> selected = new ArrayList<>(actualRow.columns().size());
+                // the superset's columns by name, the first of each as the scan found it (2026-10-15, the IQ
+                // island's census scale suite: a scan per column was quadratic in a wide select's width)
+                java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
+                for (Type.Column sc : schema.columns()) {
+                    byName.putIfAbsent(stripColQ(sc.name()), sc);
+                }
                 for (Type.Column c : actualRow.columns()) {
-                    selected.add(schema.columns().stream()
-                            .filter(sc -> sameColumn(sc.name(), c.name()))
-                            .findFirst()
-                            .orElseThrow(() -> new TypeInferenceException(
-                                    "unknown column '" + c.name() + "' in " + schema.typeName())));
+                    Type.Column found = byName.get(stripColQ(c.name()));
+                    if (found == null) {
+                        throw new TypeInferenceException("unknown column '" + c.name() + "' in "
+                                + schema.typeName());
+                    }
+                    selected.add(found);
                 }
                 unifyConstraintLeft(sa.left(), new Type.RelationType(selected), b);
             }
