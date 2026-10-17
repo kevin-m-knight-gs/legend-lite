@@ -485,9 +485,10 @@ public final class CypherToPure {
             case TIME -> plus(new CString("\"Time('"), temporalText(withNanos(Tx.value(v, Kind.TIME, false), nanos),
                     pos).vs(), new CString("')\""));
             // a date-time as the oracle's spelling, DateTime('yyyy-MM-ddTHH:mm:ss.f'), its text Neo4j's (a
-            // nanosecond one's digits past the microsecond kept, the study's §12.64)
-            case DATETIME -> plus(new CString("\"DateTime('"), temporalText(withNanos(Tx.value(v, Kind.DATETIME,
-                    false), nanos), pos).vs(), new CString("')\""));
+            // nanosecond one's digits past the microsecond kept, the study's §12.64); a zoned value as its instant's
+            // (a zoned time of day's on the epoch day), which the judge reads against Neo4j's zoned text (S65, S68)
+            case DATETIME, ZONED, ZONED_TIME -> plus(new CString("\"DateTime('"), temporalText(withNanos(Tx.value(v,
+                    Kind.DATETIME, false), nanos), pos).vs(), new CString("')\""));
             // a stored duration as the oracle's spelling too, Duration('P...'), its text the island's (Neo4j's)
             case DURATION -> plus(new CString("\"Duration('"), durationText(Tx.value(v, Kind.DURATION, false)).vs(),
                     new CString("')\""));
@@ -2540,7 +2541,7 @@ public final class CypherToPure {
     private State optionalMatch(CypherAst.Match m, @com.legend.base.Nullable State state) {
         if (state == null) {
             List<String> classes = new ArrayList<>(model.classes());
-            classes.removeAll(durationClasses());
+            classes.removeAll(valueClasses());
             if (classes.isEmpty() && m.patterns().size() == 1 && m.patterns().get(0).elements().size() == 1
                     && m.patterns().get(0).variable() == null) {
                 // over a model with no class (the study's §12.20): one row, the node absent (Neo4j's null row)
@@ -4536,7 +4537,7 @@ public final class CypherToPure {
      *  subclasses carry the label too; several of the name: an error naming them); never the edge class a
      *  relationship type names, nor the model's Duration value class (which the island carries a duration as). */
     private String labelledClass(String label, Pos pos) {
-        List<String> classes = model.classesOf(label).stream().filter(c -> !durationClasses().contains(c)).toList();
+        List<String> classes = model.classesOf(label).stream().filter(c -> !valueClasses().contains(c)).toList();
         if (classes.isEmpty()) {
             throw CypherErrors.invalid("the label " + label + " names no class of the model (the graph is the model:"
                     + " a label is a class's name)", pos);
@@ -4586,7 +4587,7 @@ public final class CypherToPure {
             return null;
         }
         List<String> out = new ArrayList<>(model.classes());
-        out.removeAll(durationClasses());
+        out.removeAll(valueClasses());
         for (String label : new java.util.LinkedHashSet<>(n.labels())) {
             String cls = labelledClass(label, n.pos());
             // (the label as the class's own path: that class; a simple name: the class and its subclasses)
@@ -4604,7 +4605,7 @@ public final class CypherToPure {
             return new ArrayList<>(candidates);
         }
         List<String> all = new ArrayList<>(model.classes());
-        all.removeAll(durationClasses());
+        all.removeAll(valueClasses());
         return all;
     }
 
@@ -6268,10 +6269,10 @@ public final class CypherToPure {
             String cls = java.util.Objects.requireNonNull(b.classPath());
             List<Map.Entry<String, Tx>> props = new ArrayList<>();
             for (Property p : properties(cls)) {
-                // (a stored duration, an embedded instance of the model's Duration value class, is a property
-                // value too: the study's §12.59)
-                boolean duration = p.classTyped() && CypherToPure.this.durationClasses().contains(p.type());
-                if ((!p.classTyped() || duration) && !p.enumTyped() && !p.many()) {
+                // (a stored duration or zoned value, an embedded instance of a value class, is a property value
+                // too: the study's §12.59, §12.65)
+                if ((!p.classTyped() || CypherToPure.this.storedValueKind(p) != null) && !p.enumTyped()
+                        && !p.many()) {
                     props.add(Map.entry(p.name(), propertyOf(b, p.name(), pos)));
                 }
             }
@@ -6473,14 +6474,13 @@ public final class CypherToPure {
             Map<String, Kind> kinds = new LinkedHashMap<>();
             for (String c : classes) {
                 for (Property p : properties(c)) {
-                    boolean duration = p.classTyped() && !p.many()
-                            && CypherToPure.this.durationClasses().contains(p.type());
-                    if (p.classTyped() && !duration || p.enumTyped() || p.many()) {
+                    Kind vk = CypherToPure.this.storedValueKind(p);
+                    if (p.classTyped() && vk == null || p.enumTyped() || p.many()) {
                         continue;
                     }
-                    Kind kind = duration ? Kind.DURATION : kindOf(p, pos);
+                    Kind kind = vk != null ? vk : kindOf(p, pos);
                     Kind before = kinds.putIfAbsent(p.name(), kind);
-                    if (before != null && before == kind && nanosDeclared(p.name(), classes) != p.nanos()) {
+                    if (before != null && before == kind && nanosDeclared(p.name(), classes) != nanosOf(p)) {
                         // a time of day or date-time of two precisions across the classes (the study's §12.64):
                         // the nanosecond one is the date-time at it, the other a TIME or a microsecond value
                         throw CypherErrors.unsupported("the property " + p.name() + " of nanosecond precision on"
@@ -6560,9 +6560,8 @@ public final class CypherToPure {
                         + name + " (the graph is the model: a property a class does not declare is an error, not"
                         + " null)", pos);
             }
-            boolean duration = prop.classTyped() && !prop.many()
-                    && CypherToPure.this.durationClasses().contains(prop.type());
-            if (prop.classTyped() && !duration) {
+            Kind valueKind = CypherToPure.this.storedValueKind(prop);
+            if (prop.classTyped() && valueKind == null) {
                 throw CypherErrors.unsupported("the property " + name + " holds instances of " + prop.type()
                         + ": a node as a value is not supported yet", pos);
             }
@@ -6575,12 +6574,14 @@ public final class CypherToPure {
                         + " yet", pos);
             }
             // a stored duration: an embedded instance of the model's Duration class (the study's §12.59), read as
-            // the island carries a duration (an instance with the four slots)
-            Kind kind = duration ? Kind.DURATION : kindOf(prop, pos);
+            // the island carries a duration (an instance with the four slots); a stored zoned value: its instant
+            // slot, the zone not carried (the study's §12.65)
+            Kind kind = valueKind != null ? valueKind : kindOf(prop, pos);
             List<String> path = new ArrayList<>(b.path());
             path.add(name);
-            ValueSpecification v = duration ? CypherToPure.this.storedDuration(prop.type(), navigate(g.row(), path))
-                    : navigate(g.row(), path);
+            ValueSpecification v = valueKind == Kind.DURATION
+                    ? CypherToPure.this.storedDuration(prop.type(), navigate(g.row(), path))
+                    : valueKind != null ? storedZoned(navigate(g.row(), path)) : navigate(g.row(), path);
             boolean nullable = prop.optional() || b.optional();
             if (b.guard() != null) {
                 // null where the OPTIONAL MATCH's WHERE does not hold, as where its hop finds none
@@ -6588,7 +6589,7 @@ public final class CypherToPure {
                 nullable = true;
             }
             // (a nanosecond time of day or date-time, the study's §12.64: the column's value marked as one)
-            Tx own = withNanos(columnLike(v, kind, nullable), prop.nanos());
+            Tx own = withNanos(columnLike(v, kind, nullable), CypherToPure.this.nanosOf(prop));
             // typed two ways across the classes a label-less root may be (the study's §12.62): the class's own
             // value as a Variant, so the arms agree
             return b.node() && b.path().isEmpty() && candidateKind(name, kind, true, pos) == Kind.JSON
@@ -6608,11 +6609,11 @@ public final class CypherToPure {
                 if (p == null || p.enumTyped() || p.many()) {
                     continue;
                 }
-                boolean duration = p.classTyped() && CypherToPure.this.durationClasses().contains(p.type());
-                if (p.classTyped() && !duration) {
+                Kind vk = CypherToPure.this.storedValueKind(p);
+                if (p.classTyped() && vk == null) {
                     continue;
                 }
-                Kind k = duration ? Kind.DURATION : kindOf(p, pos);
+                Kind k = vk != null ? vk : kindOf(p, pos);
                 if (found == null) {
                     found = k;
                     if (!union) {
@@ -7099,7 +7100,7 @@ public final class CypherToPure {
     private boolean nanosDeclared(String name, List<String> classes) {
         for (String c : classes) {
             Property p = property(c, name);
-            if (p != null && p.nanos()) {
+            if (p != null && nanosOf(p)) {
                 return true;
             }
         }
@@ -11044,6 +11045,60 @@ public final class CypherToPure {
     /** The model's classes named Duration declaring the four slots (the platform's own
      *  meta::pure::functions::date::Duration, one number and one unit, shares the simple name: the four slots tell
      *  the model's class apart): the duration value's class, never a node. */
+    /** The slots of a stored zoned value's class (the study's §12.65): the instant (a DateTime; for a zoned time of
+     *  day, the date-time at it on the epoch day) and its offset in seconds. */
+    private static final List<String> ZONED_SLOTS = List.of("instant", "offsetSeconds");
+
+    /** The model's classes named {@code ZonedTime} or {@code ZonedDateTime} declaring the two slots (the study's
+     *  §12.65): a stored zoned value's class, never a node; the island reads the instant and carries no zone (the
+     *  offset slot is the leg to come: an operation reading the zone refuses by name). */
+    private List<String> zonedClasses(String simpleName) {
+        List<String> classes = new ArrayList<>();
+        for (String cls : model.classesOf(simpleName)) {
+            Property instant = property(cls, ZONED_SLOTS.get(0));
+            Property offset = property(cls, ZONED_SLOTS.get(1));
+            if (instant != null && instant.type().equals("DateTime") && !instant.many() && !instant.optional()
+                    && offset != null && offset.type().equals("Integer") && !offset.many() && !offset.optional()) {
+                classes.add(cls);
+            }
+        }
+        return classes;
+    }
+
+    /** The model's value classes: the Duration class and the zoned ones; never nodes. */
+    private List<String> valueClasses() {
+        List<String> out = new ArrayList<>(durationClasses());
+        out.addAll(zonedClasses("ZonedTime"));
+        out.addAll(zonedClasses("ZonedDateTime"));
+        return out;
+    }
+
+    /** The kind a class-typed property holds as a VALUE (an embedded instance of a value class): a duration, a zoned
+     *  time of day, a zoned date-time; null for a property holding nodes or many values. */
+    private @com.legend.base.Nullable Kind storedValueKind(Property p) {
+        if (!p.classTyped() || p.many()) {
+            return null;
+        }
+        return durationClasses().contains(p.type()) ? Kind.DURATION : zonedClasses("ZonedTime").contains(p.type())
+                ? Kind.ZONED_TIME : zonedClasses("ZonedDateTime").contains(p.type()) ? Kind.ZONED : null;
+    }
+
+    /** Whether a stored property's values are of nanosecond precision: its own marks, or its zoned value class's
+     *  instant slot's. */
+    private boolean nanosOf(Property p) {
+        if (p.classTyped()) {
+            Property instant = property(p.type(), ZONED_SLOTS.get(0));
+            return instant != null && instant.nanos();
+        }
+        return p.nanos();
+    }
+
+    /** A stored zoned value (an embedded instance of a zoned value class): its instant slot, which the island
+     *  carries (the study's §12.65); its offset slot is not read yet. */
+    private static ValueSpecification storedZoned(ValueSpecification holder) {
+        return new AppliedProperty(holder, ZONED_SLOTS.get(0));
+    }
+
     private List<String> durationClasses() {
         List<String> classes = new ArrayList<>();
         for (String cls : model.classesOf("Duration")) {

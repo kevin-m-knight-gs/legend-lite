@@ -207,6 +207,12 @@ the Quantifier9-12 cases now stop at the Variant list comprehension (W12).
   date-times of WithOrderBy1/[35], [36], WithOrderBy2/[13], [14], Temporal5/[3], [5]. Still open: leg 2b, the
   offset column beside a stored zoned value; the year-1 and year-9999 nanosecond date-times (WithOrderBy1/[39]-[42],
   WithOrderBy2/[17]-[20]) are outside the database's nanosecond range (the harness skips them by name).
+- Leg 2b LANDED 2026-10-17 (the study's §12.65, GATES' sixty-third landing; TCK agreement DuckDB 3458 → 3463, Postgres 3084 → 3084; DuckDB PASS 3,556 → 3565, Postgres 3,162 → 3163): a stored zoned value as
+  an embedded value class of the instant and its offset, the island reading the instant and carrying no zone
+  (ordering, comparison, arithmetic and node values by the instant: S65, S66, S68), an operation reading the zone
+  refused by name; WithOrderBy1/[37], [38], WithOrderBy2/[15], [16] on DuckDB. Leg 2c, open: the island's Zone
+  carrying a column (the offset slot read: Temporal5/[4]'s fields and zone texts), which every projection must carry
+  beside the value.
 
 ### W6. Nodes with several labels
 

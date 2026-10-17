@@ -645,7 +645,7 @@ public final class CypherValues {
         return text.startsWith("Time('") && text.endsWith("')") && !zonedTimeText(text);
     }
 
-    private static boolean zonedTimeText(String text) {
+    static boolean zonedTimeText(String text) {
         if (!text.startsWith("Time('") || !text.endsWith("')")) {
             return false;
         }
@@ -653,13 +653,47 @@ public final class CypherValues {
         return body.indexOf('+') > 0 || body.indexOf('-') > 0 || body.endsWith("Z");
     }
 
-    private static boolean zonedText(String text) {
+    static boolean zonedText(String text) {
         if (!text.startsWith("DateTime('") || !text.endsWith("')")) {
             return false;
         }
         String body = text.substring(10, text.length() - 2);
         int t = body.indexOf('T');
         return t > 0 && (body.indexOf('+', t) > 0 || body.indexOf('-', t) > 0 || body.endsWith("Z"));
+    }
+
+    /** A zoned value's text ({@code Time('HH:mm:ss.n+01:00')}, {@code DateTime('...T...+00:15')}) split for the
+     *  store (the Cypher island's stored zoned values, docs/CYPHER_STUDY_2026_10_15.md §12.65): its instant's text
+     *  as a seed binds it (a zoned time's on the epoch day, 1969-12-31 or 1970-01-02 when the offset crosses
+     *  midnight) and its offset in seconds; null for another text. */
+    static @com.legend.base.Nullable ZonedParts zonedParts(String text) {
+        try {
+            if (zonedTimeText(text)) {
+                java.time.OffsetTime t = java.time.OffsetTime.parse(text.substring(6, text.length() - 2));
+                java.time.LocalDateTime utc = java.time.LocalDateTime.ofInstant(t.atDate(java.time.LocalDate.EPOCH)
+                        .toInstant(), java.time.ZoneOffset.UTC);
+                return new ZonedParts(seedText(utc), t.getOffset().getTotalSeconds());
+            }
+            if (zonedText(text)) {
+                java.time.OffsetDateTime t = java.time.OffsetDateTime.parse(text.substring(10, text.length() - 2));
+                java.time.LocalDateTime utc = java.time.LocalDateTime.ofInstant(t.toInstant(),
+                        java.time.ZoneOffset.UTC);
+                return new ZonedParts(seedText(utc), t.getOffset().getTotalSeconds());
+            }
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
+        return null;
+    }
+
+    /** A stored zoned value's parts: the instant's seed text and the offset in seconds. */
+    record ZonedParts(String instant, long offsetSeconds) {
+    }
+
+    /** A date-time as the seed binds it: {@code yyyy-MM-dd HH:mm:ss.nnnnnnnnn}, nine digits. */
+    private static String seedText(java.time.LocalDateTime dt) {
+        return dt.toLocalDate() + " " + String.format(java.util.Locale.ROOT, "%02d:%02d:%02d.%09d", dt.getHour(),
+                dt.getMinute(), dt.getSecond(), dt.getNano());
     }
 
     private static java.time.@com.legend.base.Nullable Instant instantOf(String text) {

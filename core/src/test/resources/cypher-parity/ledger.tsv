@@ -960,11 +960,11 @@ tck/clauses/with-orderBy/WithOrderBy1/[35] Sort by a local time variable project
 tck/clauses/with-orderBy/WithOrderBy1/[35] Sort by a local time variable projected from a node property in ascending order #3	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[36] Sort by a local time variable projected from a node property in descending order #1	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[36] Sort by a local time variable projected from a node property in descending order #2	PASS	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[37] Sort by a time variable projected from a node property in ascending order #1	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy1/[37] Sort by a time variable projected from a node property in ascending order #2	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy1/[37] Sort by a time variable projected from a node property in ascending order #3	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy1/[38] Sort by a time variable projected from a node property in descending order #1	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy1/[38] Sort by a time variable projected from a node property in descending order #2	SKIP	SKIP
+tck/clauses/with-orderBy/WithOrderBy1/[37] Sort by a time variable projected from a node property in ascending order #1	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[37] Sort by a time variable projected from a node property in ascending order #2	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[37] Sort by a time variable projected from a node property in ascending order #3	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[38] Sort by a time variable projected from a node property in descending order #1	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[38] Sort by a time variable projected from a node property in descending order #2	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[39] Sort by a local date time variable projected from a node property in ascending order #1	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy1/[39] Sort by a local date time variable projected from a node property in ascending order #2	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy1/[39] Sort by a local date time variable projected from a node property in ascending order #3	SKIP	SKIP
@@ -1034,11 +1034,11 @@ tck/clauses/with-orderBy/WithOrderBy2/[13] Sort by a local time expression in as
 tck/clauses/with-orderBy/WithOrderBy2/[13] Sort by a local time expression in ascending order #3	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy2/[14] Sort by a local time expression in descending order #1	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy2/[14] Sort by a local time expression in descending order #2	PASS	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #1	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #2	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #3	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy2/[16] Sort by a time expression in descending order #1	SKIP	SKIP
-tck/clauses/with-orderBy/WithOrderBy2/[16] Sort by a time expression in descending order #2	SKIP	SKIP
+tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #1	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #2	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[15] Sort by a time expression in ascending order #3	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[16] Sort by a time expression in descending order #1	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[16] Sort by a time expression in descending order #2	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy2/[17] Sort by a local date time expression in ascending order #1	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[17] Sort by a local date time expression in ascending order #2	SKIP	SKIP
 tck/clauses/with-orderBy/WithOrderBy2/[17] Sort by a local date time expression in ascending order #3	SKIP	SKIP
@@ -3416,9 +3416,9 @@ tck/expressions/temporal/Temporal4/[13] Should propagate null #21	PASS	PASS
 tck/expressions/temporal/Temporal5/[1] Should provide accessors for date	PASS	PASS
 tck/expressions/temporal/Temporal5/[2] Should provide accessors for date in last weekYear	PASS	PASS
 tck/expressions/temporal/Temporal5/[3] Should provide accessors for local time	PASS	REFUSED
-tck/expressions/temporal/Temporal5/[4] Should provide accessors for time	SKIP	SKIP
+tck/expressions/temporal/Temporal5/[4] Should provide accessors for time	REFUSED	REFUSED
 tck/expressions/temporal/Temporal5/[5] Should provide accessors for local date time	PASS	REFUSED
-tck/expressions/temporal/Temporal5/[6] Should provide accessors for date time	SKIP	SKIP
+tck/expressions/temporal/Temporal5/[6] Should provide accessors for date time	REFUSED	REFUSED
 tck/expressions/temporal/Temporal5/[7] Should provide accessors for duration	PASS	PASS
 tck/expressions/temporal/Temporal6/[1] Should serialize date	PASS	PASS
 tck/expressions/temporal/Temporal6/[2] Should serialize local time	PASS	REFUSED
@@ -4466,6 +4466,14 @@ lite/stored/a_stored_nanosecond_date_time_s_fields	PASS	REFUSED
 lite/stored/a_stored_nanosecond_date_time_ordered_truncated_and_moved	PASS	REFUSED
 lite/stored/a_stored_nanosecond_date_time_as_a_node_value_and_text	PASS	REFUSED
 lite/stored/a_stored_nanosecond_time_absent_on_a_class	PASS	REFUSED
+lite/stored/a_stored_zoned_time_ordered_and_read	PASS	REFUSED
+lite/stored/a_stored_zoned_time_plus_a_duration_ordered	REFUSED	REFUSED
+lite/stored/a_stored_zoned_time_compared_with_a_zoned_literal	PASS	REFUSED
+lite/stored/a_stored_zoned_time_absent_on_a_class	PASS	PASS
+lite/stored/a_stored_zoned_time_s_zone_refused_by_name	REFUSED	REFUSED
+lite/stored/a_stored_zoned_time_s_text_refused_by_name	REFUSED	REFUSED
+lite/stored/a_stored_zoned_date_time_ordered_and_read	PASS	REFUSED
+lite/stored/a_stored_zoned_date_time_moved_and_compared	REFUSED	REFUSED
 lite/tail/an_order_by_on_an_expression_not_returned	PASS	PASS
 lite/tail/an_order_by_on_an_expression_not_returned_descending	PASS	PASS
 lite/tail/an_order_by_on_a_dropped_item_after_a_with	PASS	PASS

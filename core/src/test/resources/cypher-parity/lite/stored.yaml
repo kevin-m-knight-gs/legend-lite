@@ -124,3 +124,37 @@ tests:
     graph: |
       CREATE (:T {name: 'a', t: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:U {name: 'u'})
     cypher: "MATCH (n) RETURN n.name AS name, n.t IS NULL AS missing, n.t AS t ORDER BY name"
+  # a stored zoned time of day or date-time (docs/CYPHER_STUDY_2026_10_15.md §12.65): an embedded value class of the
+  # instant (a time's on the epoch day) and its offset in seconds; the island reads the instant and carries no zone
+  - id: a_stored_zoned_time_ordered_and_read
+    graph: |
+      CREATE (:A {name: 'a', time: time({hour: 10, minute: 35, timezone: '-08:00'})}), (:B {name: 'b', time: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'})}), (:C {name: 'c', time: time({hour: 12, minute: 31, second: 14, nanosecond: 645876124, timezone: '+01:00'})}), (:D {name: 'd', time: time({hour: 12, minute: 30, second: 14, nanosecond: 645876123, timezone: '+01:00'})})
+    cypher: "MATCH (a) WITH a, a.time AS time WITH a, time ORDER BY time LIMIT 3 RETURN a, time"
+  - id: a_stored_zoned_time_plus_a_duration_ordered
+    graph: |
+      CREATE (:A {name: 'a', time: time({hour: 10, minute: 35, timezone: '-08:00'})}), (:B {name: 'b', time: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'})}), (:C {name: 'c', time: time({hour: 12, minute: 31, second: 14, nanosecond: 645876124, timezone: '+01:00'})})
+    cypher: "MATCH (a) WITH a ORDER BY a.time + duration({minutes: 6}) DESC LIMIT 2 RETURN a.name AS name, a.time + duration({minutes: 6}) AS later"
+  - id: a_stored_zoned_time_compared_with_a_zoned_literal
+    graph: |
+      CREATE (:T {name: 'a', t: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'})}), (:T {name: 'b', t: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+02:00'})})
+    cypher: "MATCH (n:T) RETURN n.name AS name, n.t > time('11:00:00Z') AS late, n.t = time('11:31:14.645876123Z') AS same ORDER BY name"
+  - id: a_stored_zoned_time_absent_on_a_class
+    graph: |
+      CREATE (:T {name: 'a', t: time({hour: 12, minute: 31, second: 14, timezone: '+01:00'})}), (:U {name: 'u'})
+    cypher: "MATCH (n) RETURN n.name AS name, n.t IS NULL AS missing, n.t AS t ORDER BY name"
+  - id: a_stored_zoned_time_s_zone_refused_by_name
+    graph: |
+      CREATE (:Val {date: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'})})
+    cypher: "MATCH (v:Val) WITH v.date AS d RETURN d.hour, d.timezone, d.offsetSeconds"
+  - id: a_stored_zoned_time_s_text_refused_by_name
+    graph: |
+      CREATE (:Val {date: time({hour: 12, minute: 31, second: 14, timezone: '+01:00'})})
+    cypher: "MATCH (v:Val) RETURN toString(v.date) AS text"
+  - id: a_stored_zoned_date_time_ordered_and_read
+    graph: |
+      CREATE (:A {name: 'a', datetime: datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 30, second: 14, nanosecond: 12, timezone: '+00:15'})}), (:B {name: 'b', datetime: datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+00:17'})}), (:E {name: 'e', datetime: datetime({year: 1980, month: 12, day: 11, hour: 12, minute: 31, second: 14, timezone: '-11:59'})})
+    cypher: "MATCH (a) WITH a, a.datetime AS datetime WITH a, datetime ORDER BY datetime DESC LIMIT 2 RETURN a, datetime"
+  - id: a_stored_zoned_date_time_moved_and_compared
+    graph: |
+      CREATE (:A {name: 'a', datetime: datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 30, second: 14, timezone: '+00:15'})}), (:B {name: 'b', datetime: datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, timezone: '+00:17'})})
+    cypher: "MATCH (a) RETURN a.name AS name, a.datetime + duration({days: 4, minutes: 6}) AS moved, a.datetime < datetime('1984-10-11T12:15:00Z') AS early ORDER BY name"

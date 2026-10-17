@@ -4469,3 +4469,55 @@ The 9 new cases of `lite/stored.yaml`: 9 PASS on DuckDB, 9 REFUSED on Postgres (
 refusal). The TCK's stored nanosecond local times and date-times: WithOrderBy1/[35], [36], WithOrderBy2/[13], [14], Temporal5/[3], [5]
 SKIP → PASS on DuckDB (REFUSED on Postgres); WithOrderBy1/[39]-[42], WithOrderBy2/[17]-[20] SKIP, named (a year outside 1678 to 2261). TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK
 rows) DuckDB 3446 → 3458, Postgres 3084 → 3084.
+
+### 12.65 Stored zoned times and date-times: a value class of the instant and its offset (W5 leg 2b, 2026-10-17)
+
+The TCK stores zoned values too: `time({..., timezone: '+01:00'})` and `datetime({..., timezone: '+00:15'})`
+(WithOrderBy1/[37], [38], WithOrderBy2/[15], [16]: ordered, projected, moved by a duration, returned in a node;
+Temporal5/[4]: its fields and zone; WithOrderBy1/[41], [42], WithOrderBy2/[19], [20]: zoned date-times of the
+years 1 and 9999 beside nanosecond ones; Temporal5/[6]: a named zone). The island carries a zoned value as its
+instant with the zone as a fact beside it while the translator sees it (§12.8, §12.11, S65): a stored one has
+its zone in the store.
+
+- **The representation: a value class**, as a stored duration is (§12.59): `g::values::ZonedTime` and
+  `g::values::ZonedDateTime` with two slots, `instant: DateTime[1]` (a zoned time's the date-time at it on the
+  epoch day, the island's own carriage; marked `nanoseconds` where any zoned value of the kind is sub-microsecond,
+  §12.64) and `offsetSeconds: Integer[1]`; a property holding one is an embedded instance over two columns. The
+  island recognises the classes as it recognises the Duration class, by simple name and slots (`zonedClasses`),
+  never as nodes (`valueClasses`); a node's keys list the property, its value spells the instant's text.
+- **What the island reads: the instant.** A stored zoned value is its instant slot (`storedZoned`), a `ZONED_TIME`
+  or `ZONED` value whose zone is NOT carried (`Carried(null, nanos)`): ordering, comparison and arithmetic with a
+  duration go by the instant (S65, S66: `=` between two zoned values is the instants'; the lite case
+  `a_stored_zoned_time_compared_with_a_zoned_literal` is judged against S66, `cypher-parity/decisions.tsv`), a node's
+  value and a returned value spell the instant (`DateTime('1970-01-01T11:31:14.645876123')` for a time, which the
+  judge reads against Neo4j's `Time('12:31:14.645876123+01:00')`, S68). An operation reading the zone (`.hour` of
+  the wall time, `.timezone`, `.offset`, `toString`) refuses by name through `zoneKnown`, as a zoned value of a
+  list or an aggregate does: the offset slot is leg 2c's (the island's `Zone` carrying a column, which every
+  projection must carry beside the value).
+- **The harness** (`CypherGraph`, `CypherValues.zonedParts`): a `Time('..±oo:oo')` or `DateTime('..±oo:oo')` text
+  is split into its instant's seed text (the UTC wall time, a time's on 1970-01-01, the day before or after when
+  the offset crosses midnight) and its offset in seconds; the class's instant is a `TIMESTAMP_NS` column where its
+  kind holds a sub-microsecond value anywhere in the graph (the seed casts the text), a `TIMESTAMP` otherwise; a
+  nanosecond zoned date-time of a year outside 1678 to 2261 is the harness's skip, named (WithOrderBy1/[41], [42],
+  WithOrderBy2/[19], [20] hold one each); a duration or zoned value on a relationship is refused by name (an
+  embedded value is a node's).
+- **Compare, never compute**: the harness splits texts; the island reads a slot; the database orders instants.
+- **Pinned.** `lite/stored.yaml` grows 8 cases judged by Neo4j (a zoned time ordered and read in a
+  node, plus a duration, compared with a zoned literal (S66), absent on a class of a label-less read, its zone and
+  its text refused by name; a zoned date-time ordered and read in a node, moved and compared);
+  `CypherToPureTest.aStoredZonedValueIsItsInstantWithNoZoneCarried` pins the read and the refusals.
+- **Still refused or skipped, by name.** The zone of a stored zoned value (Temporal5/[4]; leg 2c); the year-1 and
+  year-9999 nanosecond zoned date-times (the harness's range); Temporal5/[6]'s named zone.
+
+#### 12.65.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4767 | 3565 (from 3,556) | 0 | 0 | 0 | 399 (from 388) | 746 (from 746) | 57 (from 69) |
+| Postgres | 4767 | 3163 (from 3,162) | 0 | 0 | 0 | 801 (from 782) | 746 (from 746) | 57 (from 69) |
+
+The 8 new cases of `lite/stored.yaml`: 4 in agreement on DuckDB (two refused by name: the zone's fields and text),
+8 on Postgres (the nanosecond instant's TIMESTAMP_NS column refused by the dialect, the microsecond ones read). The TCK's stored
+zoned times: WithOrderBy1/[37], [38], WithOrderBy2/[15], [16] SKIP → PASS on DuckDB (REFUSED on Postgres); Temporal5/[4] SKIP → REFUSED
+(the zone), WithOrderBy1/[41], [42], WithOrderBy2/[19], [20] SKIP, named (a year outside 1678 to 2261); Temporal5/[6] SKIP → REFUSED (a named zone). TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK
+rows) DuckDB 3458 → 3463, Postgres 3084 → 3084.

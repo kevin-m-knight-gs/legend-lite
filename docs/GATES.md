@@ -9932,6 +9932,29 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the sixty-third landing — stored zoned times and date-times (W5 leg 2b)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5, leg 2b); the record is the study's §12.65. A stored
+zoned value is an embedded instance of a value class (`g::values::ZonedTime`, `g::values::ZonedDateTime`: the
+instant and its offset in seconds); the island reads the instant and carries no zone, so ordering, comparison,
+arithmetic and node values go by the instant (S65, S66, S68) and an operation reading the zone refuses by name.
+
+1. **What lands.** WithOrderBy1/[37], [38] (a zoned time projected from a property, ordered, the node returned), WithOrderBy2/[15],
+   [16] (ordered by the time plus a duration) on DuckDB, REFUSED on Postgres (the nanosecond instant's column);
+   Temporal5/[4], [6] SKIP → REFUSED by name (the zone, a named zone); the 8 new cases of `lite/stored.yaml`; DuckDB
+   PASS 3,556 → 3565, Postgres 3,162 → 3163; TCK agreement DuckDB 3458 → 3463, Postgres 3084 → 3084.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3565 / REFUSED 399 / BOTH_ERROR
+   746 / SKIP 57; Postgres PASS 3163 / REFUSED 801 / BOTH_ERROR 746 / SKIP
+   57, of 4767 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest.aStoredZonedValueIsItsInstantWithNoZoneCarried` pins the instant's read, the
+   comparison with a zoned literal and the refusals of the zone's fields and text;
+   `aMarkedDateTimeIsANanosecondTimeOfDayOrDateTime` re-pinned with the node's zoned property; the decision for
+   `a_stored_zoned_time_compared_with_a_zoned_literal` (S66) in `decisions.tsv`.
+4. **Refused by name, recorded.** The zone of a stored zoned value (its fields, offset and text: leg 2c, the
+   island's Zone carrying a column); a nanosecond zoned date-time outside 1678 to 2261 (the harness's skip); a
+   named zone (Temporal5/[6]); a duration or zoned value on a relationship.
+
 ## 2026-10-17 — `#Cypher{...}#`: the sixty-second landing — stored nanosecond times and date-times (W5 leg 2a)
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5, leg 2a); the record is the study's §12.64. A
