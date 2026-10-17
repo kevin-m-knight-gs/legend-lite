@@ -370,6 +370,12 @@ describe('opening a cube over its file as it is now', () => {
     const opened = openCube({ ...saved, query: { ...saved.query, sorts } }, RELATION, today);
     assert.deepEqual(opened.snapshot.sorts, [{ column: 'qty', direction: 'asc' }]);
     assert.ok(opened.notes.includes('left out sorting by trades'), opened.notes.join('; '));
+    // a measure left out that is named as a column the grid has: its sort is that column's, and stays
+    const grouped = legacy([{ name: 'region', column: 'region', fn: 'count' }]);
+    const kept = openCube({ ...grouped, query: { ...grouped.query, sorts: [{ column: 'region', direction: 'desc' }] } },
+      RELATION, today);
+    assert.deepEqual(kept.snapshot.sorts, [{ column: 'region', direction: 'desc' }]);
+    assert.ok(!kept.notes.some((n) => n.startsWith('left out sorting')), kept.notes.join('; '));
   });
 
   it('opens a cube saved with an empty measures list as it was', () => {

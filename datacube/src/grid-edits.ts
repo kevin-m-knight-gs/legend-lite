@@ -8,7 +8,8 @@ import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts
 import { lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import { nameProblem } from './calc.ts';
 import { draftColumn, newDraft } from './column-draft.ts';
-import { columnConfig, withColumn, type ColumnPatch, type CubeConfiguration } from './config.ts';
+import { applyToSnapshot, columnConfig, withColumn, type ColumnPatch, type CubeConfiguration } from './config.ts';
+import { spreadMeasures } from './query.ts';
 import { takesAggregate } from './offers.ts';
 import {
   AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SORT_DIRECTIONS, rowColumns, type AggregateFn, type ColumnKind,
@@ -90,13 +91,15 @@ function checkGroupable(draft: GridDraft, names: readonly string[], had: readonl
 
 /**
  * `sorts` as the grid's sorts, in order, each once, ascending or descending: each it did not sort by a column the grid
- * has (the Sorts panel's), or, pivoted, a pivot's header -- a pivot value's column, a pivot total's, the count a pivot
- * of no measure fills with -- as the header menu sorts by the header clicked; a sort it has is kept or taken away as
- * it is. A header the pivoted level does not write is left out of its query (query.ts levelRelation, `produced`).
+ * has (the Sorts panel's), or, pivoted, a pivot's header -- a pivot value's column or a pivot total's, each ending with
+ * a measure the pivot spreads (query.ts spreadMeasures: a measure column, or the count a pivot of none fills with),
+ * made unique by `~N` when its name is taken (pivotColumns) -- as the header menu sorts by the header clicked; a sort
+ * it has is kept or taken away as it is. A header of values the level does not have is left out of its query.
  */
 export function setSorts<D extends GridDraft>(draft: D, sorts: readonly SortSpec[]): D {
   const columns = allColumns(draft);
   const pivoted = draft.snapshot.pivotOn.length > 0;
+  const spread = new Set(pivoted ? spreadMeasures(applyToSnapshot(draft.snapshot, draft.config)).map((m) => m.name) : []);
   const seen = new Set<string>();
   for (const { column, direction } of sorts) {
     if (!SORT_DIRECTIONS.includes(direction)) {
@@ -105,7 +108,8 @@ export function setSorts<D extends GridDraft>(draft: D, sorts: readonly SortSpec
     if (seen.has(column)) throw new CubeRefusal(`the sorts name '${column}' twice`);
     seen.add(column);
     if (draft.snapshot.sorts.some((x) => x.column === column)) continue;
-    const header = pivoted && column.includes(PIVOT_SEPARATOR);
+    const at = column.lastIndexOf(PIVOT_SEPARATOR);
+    const header = at > 0 && spread.has(column.slice(at + PIVOT_SEPARATOR.length).replace(/~\d+$/, ''));
     if (!columns.includes(column) && !header) {
       throw new CubeRefusal(`the sort names '${column}', which the grid does not have: one of its columns `
         + `(${listed(columns)})${pivoted ? ", or a pivot's header" : ''}`);

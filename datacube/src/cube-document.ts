@@ -34,7 +34,7 @@ import {
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
-import { measuresAsColumns } from './grid-edits.ts';
+import { allColumns, measuresAsColumns } from './grid-edits.ts';
 import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, applyToSnapshot, type CubeConfiguration } from './config.ts';
 import type {
   ColumnSpec,
@@ -479,9 +479,11 @@ export function openCube(
   const savedMeasures = q.measures ?? [];
   const converted = measuresAsColumns({ snapshot: reconciled, config: configuration }, savedMeasures);
   notes.push(...converted.notes);
-  // a sort of a measure left out names a column the grid no longer has: the flat level would sort by it, refused
+  // a sort of a measure left out names a column the grid has not (unless a column is so named): the flat level would
+  // sort by it, refused
   const madeNames = new Set(converted.made.map((x) => x.measure.name));
-  const lost = savedMeasures.map((m) => m.name).filter((n) => !madeNames.has(n));
+  const has = new Set(allColumns(converted.draft));
+  const lost = savedMeasures.map((m) => m.name).filter((n) => !madeNames.has(n) && !has.has(n));
   const lostSort = (column: string): boolean => lost.some((n) => column === n || column.endsWith(`${PIVOT_SEPARATOR}${n}`));
   const keptSorts = converted.draft.snapshot.sorts.filter((s) => {
     if (!lostSort(s.column)) return true;

@@ -12,7 +12,8 @@ import { before, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../../src/app.ts';
-import { DEFAULT_CONFIGURATION } from '../../src/config.ts';
+import { DEFAULT_CONFIGURATION, applyToSnapshot, fromSnapshot } from '../../src/config.ts';
+import { measuresAsColumns } from '../../src/grid-edits.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
 import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
@@ -119,10 +120,16 @@ async function openCube(snapshot: QuerySnapshot, configuration = DEFAULT_CONFIGU
   const engine = new Watched(new DuckDbEngine(conn));
   const errors: string[] = [];
   const downloads: [string, string, string | Uint8Array][] = [];
-  const app = new CubeApp(root, snapshot, {
+  // the measures as a grid holds them -- its columns' Aggregation and calculated columns of their own names
+  // (grid-edits.ts measuresAsColumns, as a cube saved with a list is made on open), folded as an opener takes them
+  // its settings read back first, as the app opens a snapshot (app.ts: fromSnapshot -- a row cap the cube carries)
+  const { measures = [], ...grid } = snapshot;
+  const made = measuresAsColumns({ snapshot: grid, config: fromSnapshot(grid, configuration) }, measures);
+  assert.equal(made.made.length, measures.length, made.notes.join('; '));
+  const app = new CubeApp(root, applyToSnapshot(made.draft.snapshot, made.draft.config), {
     engine,
     planner,
-    configuration,
+    configuration: made.draft.config,
     onStatus: (text, kind) => { if (kind === 'error') errors.push(text); },
     download: (n, m, t) => downloads.push([n, m, t]),
   });

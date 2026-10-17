@@ -291,7 +291,8 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       dropdown(
         doc,
         c.aggregationParameters?.[0],
-        columns.map((x) => ({ value: x, label: x })),
+        // a column the rows have (setColumn's rule): a group-level column exists only after grouping
+        rowColumns(draft.snapshot).map((x) => ({ value: x.name, label: x.name })),
         (weight) => ctx.setConfig(setColumn(ctx.draft(), name, { weight: weight ?? null }).config),
         {
           allowNone: true,

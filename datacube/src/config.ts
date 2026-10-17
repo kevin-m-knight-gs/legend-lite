@@ -379,7 +379,7 @@ export function withSettings(
  * withSettings, the grid-wide appearance by withAppearance and each column's by withColumn, each merged into what it
  * has. `columns` and `appearance` are split out rather than passed through: withSettings prunes undefined keys and
  * replaces the rest, so `columns: undefined` would delete the column map, and a part of the appearance would replace
- * all of it.
+ * all of it. Neither is cleared whole -- a grid always has an appearance; each setting is cleared by its own undefined.
  */
 export function withConfiguration(
   config: CubeConfiguration,

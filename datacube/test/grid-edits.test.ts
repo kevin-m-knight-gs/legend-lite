@@ -123,12 +123,17 @@ describe('sorting', () => {
     refused(() => setSorts(draft(), [{ column: 'desk', direction: 'up' as 'asc' }]), /a sort is 'asc' or 'desc', not 'up'/);
   });
 
-  it('pivoted, takes any pivot header the menu offers: the count a pivot of no measure fills with too', () => {
+  it('pivoted, takes the headers the pivot writes: one made unique, the count a pivot of no measure fills with', () => {
     const pivoted = draft({ pivotOn: ['desk'] });
-    for (const header of [`EMEA${PIVOT_SEPARATOR}count`, `EMEA${PIVOT_SEPARATOR}notional~2`]) {
-      assert.deepEqual(setSorts(pivoted, [{ column: header, direction: 'desc' }]).snapshot.sorts,
-        [{ column: header, direction: 'desc' }]);
-    }
+    const unique = `EMEA${PIVOT_SEPARATOR}notional~2`;
+    assert.deepEqual(setSorts(pivoted, [{ column: unique, direction: 'desc' }]).snapshot.sorts, [{ column: unique, direction: 'desc' }]);
+    // a grid of dimensions only: its pivot spreads a count
+    const dims = draft({ pivotOn: ['desk'], rows: ['region'], columns: CUBE.columns.slice(0, 2), derived: [], groupDerived: [] });
+    const filler = `EMEA${PIVOT_SEPARATOR}count`;
+    assert.deepEqual(setSorts(dims, [{ column: filler, direction: 'asc' }]).snapshot.sorts, [{ column: filler, direction: 'asc' }]);
+    // a header of no measure the pivot spreads is a typo, refused
+    refused(() => setSorts(pivoted, [{ column: `FX${PIVOT_SEPARATOR}notionl`, direction: 'asc' }]), /which the grid does not have/);
+    refused(() => setSorts(pivoted, [{ column: filler, direction: 'asc' }]), /which the grid does not have/);
   });
 
   it('adds a sort last, as the menu\'s Add Ascending: the column\'s sort before taken away; one it has changes nothing', () => {

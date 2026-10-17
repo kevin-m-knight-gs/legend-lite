@@ -16,7 +16,8 @@ import { before, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../../src/app.ts';
-import { DEFAULT_CONFIGURATION } from '../../src/config.ts';
+import { DEFAULT_CONFIGURATION, applyToSnapshot, fromSnapshot } from '../../src/config.ts';
+import { measuresAsColumns } from '../../src/grid-edits.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
 import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
@@ -123,10 +124,16 @@ async function openCube(snapshot: QuerySnapshot, connection: ArrowishConnection 
   const root = dom.window.document.getElementById('r') as HTMLElement;
   const engine = new Watched(new DuckDbEngine(connection));
   const errors: string[] = [];
-  const app = new CubeApp(root, snapshot, {
+  // the measures as a grid holds them -- its columns' Aggregation and calculated columns of their own names
+  // (grid-edits.ts measuresAsColumns, as a cube saved with a list is made on open), folded as an opener takes them
+  // its settings read back first, as the app opens a snapshot (app.ts: fromSnapshot -- a row cap the cube carries)
+  const { measures = [], ...grid } = snapshot;
+  const made = measuresAsColumns({ snapshot: grid, config: fromSnapshot(grid, DEFAULT_CONFIGURATION) }, measures);
+  assert.equal(made.made.length, measures.length, made.notes.join('; '));
+  const app = new CubeApp(root, applyToSnapshot(made.draft.snapshot, made.draft.config), {
     engine,
     planner,
-    configuration: DEFAULT_CONFIGURATION,
+    configuration: made.draft.config,
     onStatus: (text, kind) => { if (kind === 'error') errors.push(text); },
   });
   // A refused first query is reported on the status line AND rejects
