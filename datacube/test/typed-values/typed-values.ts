@@ -17,7 +17,7 @@ import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/sr
 import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
-import type { CubeSnapshot } from '../../src/snapshot.ts';
+import type { QuerySnapshot, Measure, } from '../../src/snapshot.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { PlanError } from '../../src/planner.ts';
 import { catalogColumns } from '../../src/upload.ts';
@@ -108,7 +108,7 @@ async function quiet(engine: Watched): Promise<void> {
   }
 }
 
-async function openCube(snapshot: CubeSnapshot, configuration = DEFAULT_CONFIGURATION): Promise<{
+async function openCube(snapshot: QuerySnapshot, configuration = DEFAULT_CONFIGURATION): Promise<{
   app: CubeApp; engine: Watched; errors: string[]; root: HTMLElement; dom: JSDOM;
   downloads: [string, string, string | Uint8Array][];
 }> {
@@ -132,7 +132,7 @@ async function openCube(snapshot: CubeSnapshot, configuration = DEFAULT_CONFIGUR
 }
 
 const SOURCE = accessor('typed::DB', 'T');
-const COLUMNS: CubeSnapshot['columns'] = [
+const COLUMNS: QuerySnapshot['columns'] = [
   { name: 'region', type: 'String', kind: 'dimension' },
   { name: 'qty', type: 'Integer', kind: 'measure' },
   { name: 'big', type: 'Integer', kind: 'measure' },
@@ -293,7 +293,7 @@ describe('a source\'s columns come from the compiler', () => {
 });
 
 /** A flat cube over one source, its columns typed by the compiler, opened for real. */
-async function flat(source: ValueSpecification, filter?: CubeSnapshot['filter']) {
+async function flat(source: ValueSpecification, filter?: QuerySnapshot['filter']) {
   return openCube({
     source: { query: source },
     columns: await sourceColumns(planner, source),
@@ -380,14 +380,14 @@ describe('T7: one formatter on compiler types', () => {
     probe.style.color = token[1]!.trim();
     return probe.style.color;
   };
-  const grouped = (measures: CubeSnapshot['measures'], only?: string) => openCube({
+  const grouped = (measures: readonly Measure[], only?: string) => openCube({
     source: { query: P },
     columns: ([
       { name: 'region', type: 'String', kind: 'dimension' },
       { name: 'qty', type: 'Integer', kind: 'measure' },
       { name: 'pnl', type: 'Decimal', kind: 'measure' },
       { name: 'big', type: 'Integer', kind: 'measure' },
-    ] as CubeSnapshot['columns']).filter((c) => only === undefined || c.name === 'region' || c.name === only),
+    ] as QuerySnapshot['columns']).filter((c) => only === undefined || c.name === 'region' || c.name === only),
     derived: [], rows: ['region'], pivotOn: [], measures, sorts: [], epoch: 1,
   });
 

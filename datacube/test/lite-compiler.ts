@@ -20,7 +20,7 @@ import {
   type PivotFacts,
   type TypeOf,
 } from '../src/query.ts';
-import type { CubeSnapshot, FilterNode } from '../src/snapshot.ts';
+import type { QuerySnapshot, FilterNode } from '../src/snapshot.ts';
 import { lambda } from '../../pure-protocol/src/index.ts';
 
 /** The grammar's planner: no model of its own is needed to parse and print. */
@@ -54,19 +54,19 @@ export function print(query: Lambda): Promise<string> {
 }
 
 /** A level's query, printed. */
-export function printLevel(s: CubeSnapshot, scope?: LevelScope, pivot?: PivotFacts): Promise<string> {
+export function printLevel(s: QuerySnapshot, scope?: LevelScope, pivot?: PivotFacts): Promise<string> {
   return print(levelLambda(s, scope, pivot));
 }
 
 /** A pivot's values query, printed; null when the cube does not ask one. */
-export function printValues(s: CubeSnapshot): Promise<string | null> {
+export function printValues(s: QuerySnapshot): Promise<string | null> {
   const q = pivotValuesLambda(s);
   return q === null ? Promise.resolve(null) : print(q);
 }
 
 /** A level's child-group aggregates query, printed, and the columns it answers. */
 export function printChildren(
-  s: CubeSnapshot,
+  s: QuerySnapshot,
   scope: LevelScope,
 ): Promise<{ readonly pure: string; readonly columns: readonly string[] } | null> {
   const q = childAggregateLambda(s, scope);
@@ -74,7 +74,7 @@ export function printChildren(
 }
 
 /** A drill's query, printed. */
-export function printDrill(s: CubeSnapshot, request: DrillRequest): Promise<string> {
+export function printDrill(s: QuerySnapshot, request: DrillRequest): Promise<string> {
   return print(drillLambda(s, request));
 }
 

@@ -71,7 +71,6 @@ Database t::DB ( Table T ( qty INTEGER, desk VARCHAR(32) ) )
     derived: [{ name: 'qty_text', lambda: (await row(body)) }],
     rows: [],
     pivotOn: [],
-    measures: [],
     sorts: [],
     epoch: 1,
   });

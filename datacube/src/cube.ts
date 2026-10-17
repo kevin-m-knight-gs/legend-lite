@@ -541,7 +541,8 @@ export class CubeController {
       const typed = await typeColumns(reading, runner, signal);
       const withEpoch: CubeSnapshot = typed.snapshot;
       const withChanges = typed.changes.length > 0 ? { schemaChanges: typed.changes } : {};
-      const measureNames = withEpoch.measures.map((m) => m.name);
+      // a grid asks no measures of its own (snapshot.ts QuerySnapshot): its pivot's headers are the plan's (pivotPaths)
+      const measureNames: readonly string[] = [];
       // STEP 1 of a pivoted cube: its values, from their own query,
       // on this refresh's data (plan.ts). Every level is then one
       // groupBy written with them.

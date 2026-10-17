@@ -23,7 +23,6 @@ const CUBE: CubeSnapshot = {
   derived: [],
   rows: ['region'],
   pivotOn: ['year'],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -480,7 +479,7 @@ describe("upstream's remaining entries", () => {
   });
 
   it('Pivot > Exclude from a pivoted column, Include from an excluded measure', () => {
-    const onPivoted = labels({ snapshot: CUBE, column: '2021__|__total',
+    const onPivoted = labels({ snapshot: CUBE, column: '2021__|__notional',
       canGroup: false, pivotBase: 'notional', isMeasure: true });
     assert.ok(onPivoted.includes('Exclude Column notional from Horizontal Pivot'));
     const onExcluded = labels({ snapshot: CUBE, column: 'notional',
@@ -506,7 +505,7 @@ describe('valueLabel', () => {
 describe('a pivot Total column', () => {
   // A total is a real column of the level's query (a conditional aggregate), so it sorts;
   // filters apply to source rows, before any total exists, so it offers none.
-  const total = pivotTotalColumn('total');
+  const total = pivotTotalColumn('notional');
   const ctx = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' as const } }, column: total, pivotTotal: true };
 
   it('offers Sort on the total', () => {
@@ -598,10 +597,10 @@ describe('the chart\'s presets in the grid\'s Extended Columns (docs/DATACUBE_CH
   });
 
   it('a measure of grouped rows shown as something computed from it; not on a pivot', () => {
-    const shown = items({ snapshot: DATED, column: 'total', isMeasure: true });
+    const shown = items({ snapshot: DATED, column: 'notional', isMeasure: true });
     assert.deepEqual(shown.filter((i) => i.id === 'calc.showAs').map((i) => i.showAs),
       ['runningTotal', 'percentOfTotal', 'difference', 'percentChange', 'movingAverage', 'rank']);
-    assert.ok(!items({ snapshot: CUBE, column: 'total', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
-    assert.ok(!items({ snapshot: { ...DATED, rows: [] }, column: 'total', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
+    assert.ok(!items({ snapshot: CUBE, column: 'notional', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
+    assert.ok(!items({ snapshot: { ...DATED, rows: [] }, column: 'notional', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
   });
 });

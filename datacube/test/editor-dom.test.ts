@@ -30,8 +30,7 @@ const CUBE: CubeSnapshot = {
   derived: [{ name: 'margin', lambda: stand('$x.a / $x.b'), kind: 'measure' }],
   rows: ['region'],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
-  sorts: [{ column: 'total', direction: 'desc' }],
+  sorts: [{ column: 'notional', direction: 'desc' }],
   epoch: 3,
 };
 
@@ -194,8 +193,7 @@ describe('the editor', () => {
 
   it('Sorts keeps a direction across a remove and re-add', () => {
     go('Sorts');
-    assert.deepEqual(rows('selected'), ['total']);
-    // total is a measure name, so it is not in the source columns;
+    assert.deepEqual(rows('selected'), ['notional']);
     // the sorts panel offers every column the cube knows, derived
     // ones included.
     assert.ok(rows('available').includes('margin'));
@@ -418,7 +416,7 @@ describe('the editor', () => {
       root.replaceChildren();
       editor = new CubeEditor(root, draftFor({
         ...CUBE,
-        groupDerived: [{ name: 'share', lambda: stand('$x.total / 2'), type: 'Float', kind: 'measure' }],
+        groupDerived: [{ name: 'share', lambda: stand('$x.notional / 2'), type: 'Float', kind: 'measure' }],
       }), { onApply: () => true, onClose: () => {} });
       choose('share');
       const field = fieldWithLabel('Aggregation:');

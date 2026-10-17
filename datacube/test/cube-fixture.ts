@@ -27,7 +27,6 @@ export const SNAPSHOT: CubeSnapshot = {
   derived: [],
   rows: ['region', 'desk'],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -48,7 +47,7 @@ export class GateEngine extends FakeEngine {
       columns: [
         { name: 'region', type: 'String', values: ['EMEA', 'AMER'] },
         { name: 'desk', type: 'String', values: ['A', 'B'] },
-        { name: 'total', type: 'Float', values: [600, 400] },
+        { name: 'notional', type: 'Float', values: [600, 400] },
         ...(tagged ? [{ name: 'n', type: 'Integer', values: [n, n] }] : []),
       ],
       rowCount: 2,

@@ -28,7 +28,9 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
-import { followCube, GRID_MARKS, measureName } from '../chart-spec.ts';
+import { followCube, GRID_MARKS, measureName, type ChartMeasure } from '../chart-spec.ts';
+import { measuresAsColumns } from '../grid-edits.ts';
+import type { CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import {
@@ -50,6 +52,8 @@ const GRID = 'grid';
 export interface ChartSource {
   /** The grid's query as it is now. */
   readonly snapshot: CubeSnapshot;
+  /** The grid's configuration as it is now: its Column Properties among it. */
+  readonly configuration: CubeConfiguration;
   /** Run a query the grid did not plan, through the grid's own runner. */
   run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
   /** A value as the grid writes it. */
@@ -94,6 +98,8 @@ export interface SpawnOptions {
   readonly sheets?: () => { readonly locked: boolean; readonly others: readonly { readonly id: string; readonly label: string }[] };
   /** Its Move to Sheet: onto `sheet`, or -- null -- onto a new one. */
   readonly onMoveToSheet?: (sheet: string | null) => void;
+  /** Its configuration, when not the spawning grid's: Open in Grid's, the chart's values as its Column Properties. */
+  readonly configuration?: CubeConfiguration;
 }
 
 /** A grid on a page (a CubeApp). */
@@ -1004,6 +1010,7 @@ export class CubePage {
     const runs = kept.chartSource();
     return {
       snapshot: detached.snapshot,
+      get configuration() { return runs.configuration; },
       run: (query, s, signal) => runs.run(query, s, signal),
       format: (value, column, type) => runs.format(value, column, type),
       unit: (column) => runs.unit?.(column),
@@ -1124,20 +1131,25 @@ export class CubePage {
     const host = this.#doc.createElement('div');
     host.className = 'dc-chart-editor';
     const used = new Set<string>();
-    // a group-level column plotted as it is is the grid's already (its groupDerived comes with the snapshot)
-    const measures = spec.y.filter((m): m is typeof m & { fn: AggregateFn } => m.fn !== 'value').map((m): Measure => {
-      // the grid's own measure of that column and aggregate keeps its name (its format)
-      const own = source.snapshot.measures.find((c) => c.column === m.column && c.fn === m.fn);
-      const name = own?.name ?? (used.has(m.column) ? measureName(m) : m.column);
+    // a group-level column plotted as it is is the grid's already (its groupDerived comes with the snapshot); each other
+    // value named for its column, a second one of a column for itself
+    const pairs = spec.y.filter((m): m is typeof m & { fn: AggregateFn } => m.fn !== 'value');
+    const asked = pairs.map((m): Measure => {
+      const name = used.has(m.column) ? measureName(m) : m.column;
       used.add(name);
       return { name, column: m.column, fn: m.fn };
     });
-    const grid = source.spawn(host, {
-      ...source.snapshot,
-      rows: [spec.x, ...(spec.split !== undefined ? [spec.split] : [])],
-      pivotOn: [],
-      measures,
-    });
+    // THE CHART'S VALUES AS THE GRID'S COLUMN PROPERTIES (grid-edits.ts measuresAsColumns, the one rule): the first of a
+    // column its Aggregation, another a calculated column of its name with its own -- so the editing grid shows, in
+    // Column Properties, what the chart plots, and Update reads each value back from the column that carries it
+    const made = measuresAsColumns({
+      snapshot: { ...source.snapshot, rows: [spec.x, ...(spec.split !== undefined ? [spec.split] : [])], pivotOn: [] },
+      config: source.configuration,
+    }, asked);
+    const carrier = new Map(made.made.map((x) => [JSON.stringify([x.measure.column, x.measure.fn]), x.column]));
+    // a value the grid carries in a column of its own; any other (a row's value) is its own column's
+    const carriedBy = (m: ChartMeasure): string => carrier.get(JSON.stringify([m.column, m.fn])) ?? m.column;
+    const grid = source.spawn(host, made.draft.snapshot, { configuration: made.draft.config });
     const chartTitle = this.title(chartId) ?? 'the chart';
     const update = this.#button(`Update ${chartTitle}`, 'Give the chart this grid\'s grouping, and close this grid.');
     update.addEventListener('click', () => {
@@ -1159,7 +1171,7 @@ export class CubePage {
         chart.link.detached = { snapshot: grid.snapshot, from: own };
         this.#releaseKept();
       }
-      chart.panel.setSpec({ ...followCube(following, grid.snapshot), frozen: true });
+      chart.panel.setSpec({ ...followCube(following, grid.snapshot, carriedBy), frozen: true });
       this.#closeEditor(chartId);
       this.#options.onChange();
     });

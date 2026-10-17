@@ -128,7 +128,6 @@ describe('a saved cube reopens in a fresh app over its file', () => {
       derived: [{ name: 'double', lambda: lambda(['x'], times(fn('toOne', col('x', 'notional')), lit.integer(2))) }],
       rows: ['region'],
       pivotOn: [],
-      measures: [{ name: 'notional', column: 'notional', fn: 'sum' }, { name: 'double', column: 'double', fn: 'sum' }],
       sorts: [{ column: 'region', direction: 'asc' }],
       filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 1 },
       epoch: 1,
@@ -172,7 +171,6 @@ describe('a saved cube reopens in a fresh app over its file', () => {
       derived: [],
       rows: ['region'],
       pivotOn: [],
-      measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
       sorts: [],
       filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 1 },
       epoch: 1,
@@ -198,7 +196,7 @@ describe('a saved cube reopens in a fresh app over its file', () => {
     const first = await read('trades.csv', CSV);
     const cube: CubeSnapshot = {
       source: { query: first.relation }, columns: first.columns, derived: [],
-      rows: [], pivotOn: [], measures: [], sorts: [], epoch: 1,
+      rows: [], pivotOn: [], sorts: [], epoch: 1,
     };
     const a = await openApp(cube, DEFAULT_CONFIGURATION, first.source);
     const text = cubeToJson(a.app.cubeDocument('flat') ?? assert.fail('no document'));

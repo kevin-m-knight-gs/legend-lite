@@ -18,7 +18,7 @@ import {
   memberConditions,
   type LevelScope,
 } from '../query.ts';
-import type { CubeSnapshot, FilterNode, Measure } from '../snapshot.ts';
+import type { CubeSnapshot, FilterNode, Measure, QuerySnapshot } from '../snapshot.ts';
 import { groupValue } from '../treeview.ts';
 import type { GroupKey } from '../tree.ts';
 import {
@@ -166,7 +166,8 @@ export function planQueries(cube: AdHocCube, grid: AdHocGrid): AdHocQuery[] {
     // the filter's columns too: a POV member's value is written by its column's compiler type
     const needed = new Set([...groupColumns, ...specs.map((m) => m.column),
       ...specs.flatMap((m) => (m.weight ? [m.weight] : [])), ...filterColumns(filter)]);
-    const snapshot: CubeSnapshot = {
+    // the outline's own aggregates, asked of the builder for this query (snapshot.ts QuerySnapshot)
+    const snapshot: QuerySnapshot = {
       ...cube.snapshot,
       columns: cube.snapshot.columns.filter((c) => needed.has(c.name)),
       rows: groupColumns,

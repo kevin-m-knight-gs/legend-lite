@@ -12,7 +12,7 @@
 // a chart never depends on the drawing library's version, and it holds
 // no functions (a stored formatter would need eval to come back).
 
-import { levelLambda, type LevelScope } from './query.ts';
+import { columnSpecs, defaultMeasure, levelLambda, type LevelScope } from './query.ts';
 import { binColumns, binName, grainColumn, grainEndColumn, grainName, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waterfallColumns } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import {
@@ -23,6 +23,7 @@ import {
   type DerivedColumn,
   type FilterNode,
   type Measure,
+  type QuerySnapshot,
   type RowColumn,
   type SortSpec,
 } from './snapshot.ts';
@@ -746,15 +747,30 @@ function chartRowCalcs(spec: ChartSpec | undefined): RowColumn[] {
   }));
 }
 
-/** The measure a new chart plots when it is not told one: the cube's own (a weighted average needs its weight, which
- *  a chart's value has not); else a column it treats as a measure, a fraction first (money, a quantity) -- every number
- *  is a measure by default (D3), and an id or a year summed is the worst first chart; else none. */
+/** The measure a new chart plots when it is not told one: a column it treats as a measure, a fraction first (money, a
+ *  quantity) -- every number is a measure by default (D3), and an id or a year summed is the worst first chart -- on
+ *  the grid's Aggregation of it (Column Properties), as the grid shows it; never one aggregated by a weighted average,
+ *  which needs a weight a chart's value has not; else none. */
 function firstMeasure(s: CubeSnapshot): ChartMeasure | undefined {
-  const configured = s.measures.find((m) => m.fn !== 'wavg');
-  if (configured) return { column: configured.column, fn: configured.fn };
-  const asMeasures = chartColumns(s).measures.filter((c) => c.kind === 'measure');
-  const measureKind = asMeasures.find((c) => isFractional(c.type)) ?? asMeasures[0];
-  return measureKind ? { column: measureKind.name, fn: 'sum' } : undefined;
+  const specOf = columnSpecs(s);
+  const plotted = chartColumns(s).measures.filter((c) => c.kind === 'measure')
+    .map((c) => ({ column: c, fn: defaultMeasure(c.name, specOf.get(c.name)).fn }))
+    .filter((m) => m.fn !== 'wavg');
+  const first = plotted.find((m) => isFractional(m.column.type)) ?? plotted[0];
+  return first ? { column: first.column.name, fn: first.fn } : undefined;
+}
+
+/**
+ * A chart's value as a following chart plots it: its column at the grid's Aggregation of `column`, the grid column that
+ * carries the value (its own, unless Open in Grid made it a calculated column of its own: page/cube-page.ts). A row's
+ * value, a value of a dimension (which the grid does not aggregate) and one the grid aggregates by a weighted average
+ * (which needs a weight a chart's value has not) keep the chart's own.
+ */
+function followedValue(m: ChartMeasure, s: CubeSnapshot, column: string): ChartMeasure {
+  if (m.fn === 'value') return m;
+  if (rowColumns(s).find((c) => c.name === column)?.kind !== 'measure') return m;
+  const fn = defaultMeasure(column, columnSpecs(s).get(column)).fn;
+  return fn === 'wavg' || fn === m.fn ? m : { ...m, fn };
 }
 
 /** A new chart's options with `x` across: time runs left to right, and long; categories lead with the largest. */
@@ -931,19 +947,20 @@ export function followRefusal(told: readonly string[], made: ChartSpec, followed
 
 /**
  * A live chart, regrouped the way the cube is now: its first row group across; its second row group -- else its first
- * column label -- as the split; the cube's own measure plotted, when it has one. The mark and the options are the
- * chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots values, not
- * groups), a chart of the grid as shown and a cube with nothing grouped are left as they are.
+ * column label -- as the split; each value on the grid's Aggregation of the column carrying it (followedValue:
+ * `carriedBy`, the value's own column unless Open in Grid made it a calculated column -- Update's). The mark and the
+ * options are the chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots
+ * values, not groups), a chart of the grid as shown and a cube with nothing grouped are left as they are.
  */
-export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
+export function followCube(spec: ChartSpec, s: CubeSnapshot,
+  carriedBy: (m: ChartMeasure) => string = (m) => m.column): ChartSpec {
   // a drilled chart stays where it was taken until it is taken back up
   if (!live(spec) || (spec.drill?.path.length ?? 0) > 0) return spec;
-  // a KPI or a gauge follows the cube's measure; a KPI's trend's column is its own
+  const followed = (y: readonly ChartMeasure[]): readonly ChartMeasure[] => y.map((m) => followedValue(m, s, carriedBy(m)));
+  // a KPI or a gauge follows the grid's Aggregation of its value; a KPI's trend's column is its own
   if (spec.mark === 'kpi' || spec.mark === 'gauge') {
-    const measure = s.measures.find((m) => m.fn !== 'wavg');
-    if (!measure) return spec;
-    const y = [{ column: measure.column, fn: measure.fn }];
-    return JSON.stringify(y) === JSON.stringify(spec.y) ? spec : { ...spec, y };
+    const y = followed(spec.y);
+    return same(y, spec.y) ? spec : { ...spec, y };
   }
   const x = s.rows[0] ?? s.pivotOn[0];
   if (x === undefined) return spec;
@@ -951,8 +968,7 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
   // spokes) keeps its own, as the cube's one measure would leave it refused
   const split = UNSPLIT.has(spec.mark) ? undefined
     : s.rows[0] !== undefined ? (s.rows[1] ?? s.pivotOn[0]) : s.pivotOn[1];
-  const configured = s.measures.find((m) => m.fn !== 'wavg');
-  const y = configured && !SEVERAL_VALUES.has(spec.mark) ? [{ column: configured.column, fn: configured.fn }] : spec.y;
+  const y = SEVERAL_VALUES.has(spec.mark) ? spec.y : followed(spec.y);
   // a new column across takes its own order, and its grain or bins go with the old one (acrossChanged)
   const { split: _old, ...rest } = x === spec.x ? spec : acrossChanged(spec, x, s);
   const next: ChartSpec = { ...rest, y, ...(split !== undefined ? { split } : {}) };
@@ -1109,7 +1125,7 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
  * reads are kept, so a grouped query does not carry every other column
  * along as a "unique value".
  */
-export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot {
+export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapshot {
   // drilled, the level after the path across and the path as the chart's own conditions
   const view = drilledView(drilled);
   const conditions = view.conditions;
@@ -1138,7 +1154,9 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
   // window a measure) and every measure of the cube's they read, under the names they read them by -- the expression
   // was written against those names.
   const groupLevel = new Map(groupLevelColumns(s, spec).map((d) => [d.name, d]));
-  const cubeMeasures = new Map(s.measures.map((m) => [m.name, m]));
+  // the grid's own aggregated columns, each on its Aggregation (Column Properties), as its group level writes them
+  const specOf = columnSpecs(s);
+  const gridColumns = new Set(rowColumns(s).map((c) => c.name));
   const keptGroup: DerivedColumn[] = [];
   const keptMeasures: Measure[] = [];
   const seen = new Set<string>(measures.map((m) => m.name));
@@ -1151,8 +1169,8 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
       keptGroup.push(d);
       return;
     }
-    const m = cubeMeasures.get(name);
-    if (m) keptMeasures.push(m);
+    // a column the chart groups by is a key of its rows, never aggregated (a window ordered by its column across)
+    if (gridColumns.has(name) && !keys.includes(name)) keptMeasures.push(defaultMeasure(name, specOf.get(name)));
   };
   if (!scatter) plotted.filter((m) => m.fn === 'value').forEach((m) => need(m.column));
   // A SHOW-AS: group-level columns over the chart's rows, after what they read -- along the axis, restarting per series
@@ -1288,7 +1306,7 @@ export function kpiQueries(s: CubeSnapshot, spec: ChartSpec): {
 }
 
 /** The chart's query and the scope it runs at. */
-export function chartQuery(s: CubeSnapshot, spec: ChartSpec): { query: Lambda; snapshot: CubeSnapshot; scope: LevelScope } {
+export function chartQuery(s: CubeSnapshot, spec: ChartSpec): { query: Lambda; snapshot: QuerySnapshot; scope: LevelScope } {
   const snapshot = chartSnapshot(s, spec);
   // small multiples ask for each panel's rows: the most per panel, times the most panels drawn
   const limit = plotsRows(spec) ? SCATTER_LIMIT : spec.options.limit * (spec.facet ? MAX_FACETS : 1);

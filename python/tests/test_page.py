@@ -85,7 +85,9 @@ class Document(Paged):
                          [('region', 'String'), ('desk', 'String'), ('notional', 'Float'), ('pnl', 'Float')])
         query = cube['cube']['query']
         self.assertEqual(query['rows'], ['region'])
-        self.assertEqual(query['measures'], [{'name': 'notional', 'column': 'notional', 'fn': 'sum'}])
+        # a measure is its column's Aggregation, in Column Properties, as the screen sets it: no measures list
+        self.assertNotIn('measures', query)
+        self.assertEqual(cube['cube']['configuration']['columns']['notional'], {'aggregateFn': 'sum'})
         self.assertEqual(query['sorts'], [{'column': 'notional', 'direction': 'desc'}])
         # a list of one condition, in the filter editor's normal form: a group of one is that one, as DataCube writes it
         self.assertEqual(query['filter'],
@@ -218,43 +220,49 @@ class Document(Paged):
         self.assertEqual([c['name'] for c in cube['source']['columns']], ['region', 'notional', 'pnl', 'book'])
         ll.Page.load(page.to_dict(), frames={'changed_trades': trades().drop(columns=['desk']).assign(book='B1')})
 
-    def test_a_page_saved_before_the_naming_rule_opens_without_its_measure_and_says_so(self):
-        # old Python's way to count each region's rows, grid.group('region').measure('region', 'count'): the grouped
-        # level dropped the count without a word; DataCube now leaves it out when it opens the cube (cube-document.ts
-        # openCube), saying why -- and the loaded page takes the cube DataCube opens, so the next call on the grid
-        # sends no measure DataCube left out (it was refused beside a new one, at a call that never named it)
+    def test_a_page_saved_with_a_measures_list_opens_as_column_properties_and_says_so(self):
+        # a page saved before 2026-10-17 kept a grid's measures as a list no panel showed: DataCube opens it as Column
+        # Properties (cube-document.ts openCube: grid-edits.ts measuresAsColumns), each measure its column's Aggregation
+        # or a calculated column of its own, saying so; one the screen's model cannot hold left out, saying why -- old
+        # Python's grid.group('region').measure('region', 'count'), a sum of text. The loaded page takes the cube DataCube
+        # opens, so it holds no list, and is saved without one
         saved = ll.Page('counts')
-        saved.grid(trades(), name='old_counts', rows=['region'], measures={'notional': 'sum'})
+        saved.grid(trades(), name='old_counts', rows=['region'])
         doc = saved.to_dict()
-        # old Python checked no aggregate against its column's type either, and kept a name's spaces
-        doc['cubes'][0]['cube']['query']['measures'] += [{'name': 'region', 'column': 'region', 'fn': 'count'},
-                                                         {'name': 's', 'column': 'desk', 'fn': 'sum'},
-                                                         {'name': ' total ', 'column': 'pnl', 'fn': 'sum'}]
+        doc['cubes'][0]['cube']['query']['measures'] = [{'name': 'notional', 'column': 'notional', 'fn': 'average'},
+                                                        {'name': 'region', 'column': 'region', 'fn': 'count'},
+                                                        {'name': 's', 'column': 'desk', 'fn': 'sum'},
+                                                        {'name': ' total ', 'column': 'pnl', 'fn': 'sum'}]
         with warnings.catch_warnings(record=True) as said:
             warnings.simplefilter('always')
             page = ll.Page.load(doc, frames={'old_counts': trades()})
         self.assertEqual([str(w.message) for w in said], [
-            "old_counts: left out measure region: 'region' is already a column: the measure count(region) takes a name "
-            'of its own',
-            "old_counts: left out measure s: 'sum' is not offered on desk, a String column"])
+            "old_counts: measure notional is now notional's Aggregation, average",
+            "old_counts: left out measure region: 'count' is not offered on region, a String column: min, max, "
+            "joinStrings, unique (Show leaf count counts a group's rows)",
+            "old_counts: left out measure s: 'sum' is not offered on desk, a String column: min, max, joinStrings, "
+            'unique',
+            'old_counts: measure  total  is now a calculated column of pnl, its Aggregation sum'])
+        cube = page.to_dict()['cubes'][0]['cube']
+        self.assertNotIn('measures', cube['query'])
+        self.assertEqual(cube['configuration']['columns']['notional'], {'aggregateFn': 'average'})
+        self.assertEqual([d['name'] for d in cube['query']['derived']], ['total'])
         page.grids[0].measure('pnl', 'average', name='p')
-        measures = page.to_dict()['cubes'][0]['cube']['query']['measures']
-        # the measures the grid had are sent back as it has them: ' total ' keeps its name, judged when it was set
-        self.assertEqual([m['name'] for m in measures], ['notional', ' total ', 'p'])
+        self.assertEqual([d['name'] for d in page.to_dict()['cubes'][0]['cube']['query']['derived']], ['total', 'p'])
         with warnings.catch_warnings(record=True) as again:
             warnings.simplefilter('always')
             ll.Page.load(page.to_dict(), frames={'old_counts': trades()})
         self.assertEqual(again, [], 'saved again, it opens as it was saved')
 
     def test_a_frame_served_again_takes_the_cube_datacube_opens_when_opening_changed_it(self):
-        # its columns as they were, but a part DataCube leaves out: the cube is taken all the same (page.py _reopened's
-        # test is "nothing left out and the same source", not the source alone)
+        # its columns as they were, but a measures list DataCube converts: the cube is taken all the same (page.py
+        # _reopened's test is "nothing changed and the same source", not the source alone)
         page = ll.Page('served again')
         grid = page.grid(trades(), name='again_trades', rows=['region'], measures={'notional': 'sum'})
-        page._doc['cubes'][0]['cube']['query']['measures'].append({'name': 'region', 'column': 'region', 'fn': 'count'})
-        with self.assertWarnsRegex(UserWarning, "again_trades: left out measure region: 'region' is already a column"):
+        page._doc['cubes'][0]['cube']['query']['measures'] = [{'name': 'region', 'column': 'region', 'fn': 'count'}]
+        with self.assertWarnsRegex(UserWarning, "again_trades: left out measure region: 'count' is not offered on region"):
             grid.update(trades())
-        self.assertEqual([m['name'] for m in page.to_dict()['cubes'][0]['cube']['query']['measures']], ['notional'])
+        self.assertNotIn('measures', page.to_dict()['cubes'][0]['cube']['query'])
 
     def test_a_layout_of_splits_and_sizes_is_kept_as_tiles_come_and_go(self):
         page, grid, chart = self.built()
@@ -418,11 +426,14 @@ class Document(Paged):
                                  ('matrix', {'y': [{'column': 'pnl', 'fn': 'sum', 'showAs': {'kind': 'rank'}}, ('notional', 'sum')]}, 'plots rows')]:
             with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
                 grid.chart(mark, **given)
-        # a live chart follows its grid -- regrouped the way the grid is (DataCube's followCube), its measure the grid's --
-        # so two values told to a chart told to follow are refused: the grid's measure would replace them
-        with self.assertRaisesRegex(ValueError, "follows its grid takes sum of 'notional' as its values"):
-            grid.chart('bar', x='region', y=[('notional', 'sum'), ('pnl', 'sum')], frozen=False,
-                       layers=[{'kind': 'line', 'value': 1, 'measure': 1}])
+        # a live chart follows its grid -- regrouped the way the grid is (DataCube's followCube), each value on the grid's
+        # Aggregation of its column -- so a value told another aggregate and told to follow is refused: the grid's
+        # Aggregation would replace it; values on the grid's Aggregations follow it, two of them too
+        with self.assertRaisesRegex(ValueError, "follows its grid takes sum of 'notional', sum of 'pnl' as its values, "
+                                                "not max of 'notional', sum of 'pnl'"):
+            grid.chart('bar', x='region', y=[('notional', 'max'), ('pnl', 'sum')], frozen=False)
+        grid.chart('bar', x='region', y=[('notional', 'sum'), ('pnl', 'sum')], frozen=False,
+                   layers=[{'kind': 'line', 'value': 1, 'measure': 1}])
         # and a chart written fine cannot be changed into one DataCube refuses: by plot or by options
         lined = grid.chart('bar', x='region', y=[('notional', 'sum'), ('pnl', 'sum')],
                            layers=[{'kind': 'stat', 'stat': 'average'}, {'kind': 'line', 'value': 1, 'measure': 1}])
@@ -567,50 +578,66 @@ class Document(Paged):
         # a chart can plot it, as any column
         grid.chart('line', x='region', y=[('margin', 'average')])
 
-    def test_a_grids_query_is_set_as_datacubes_screen_sets_it_and_refused_in_its_words(self):
-        # grouping, pivot, measures and sorts by DataCube's own rules (headless gridQuery), the grid compiled with them
+    def test_a_grid_is_edited_as_datacubes_screen_edits_it_and_refused_in_its_words(self):
+        # grouping, pivot, Column Properties and sorts by the one module the screen's panels, header menu and drag zones
+        # call (grid-edits.ts, headless gridEdit: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md), the grid compiled as
+        # Apply compiles it
         page, grid, _ = self.built()
         before = page.to_dict()
-        # an aggregate DataCube does not offer for the column's type (offers.ts measureOfferProblem), the measure named
-        with self.assertRaisesRegex(ValueError, "the measure desks: 'sum' is not offered on desk, a String column"):
+        # an aggregate Aggregation does not offer for the column's type
+        with self.assertRaisesRegex(ValueError, "'sum' is not offered on desk, a String column: min, max, joinStrings"):
             grid.measure('desk', 'sum', name='desks')
         # only a weighted average takes a weight, refused rather than dropped; and it takes one (the query's own words)
         with self.assertRaisesRegex(ValueError, r'only a weighted average \(wavg\) takes a weight'):
             grid.measure('pnl', 'sum', name='p', weight='notional')
         with self.assertRaisesRegex(ValueError, 'uses wavg but has no weight column'):
             grid.measure('pnl', 'wavg', name='w')
-        with self.assertRaisesRegex(ValueError, 'a sort\'s direction is \'asc\' or \'desc\', not "up"'):
+        with self.assertRaisesRegex(ValueError, "a sort is 'asc' or 'desc', not 'up'"):
             grid.sort('region', 'up')
-        with self.assertRaisesRegex(ValueError, 'the grouping names "nope", not a column of the grid'):
+        # the screen groups and pivots by dimensions: a number is a measure until Column Properties makes it one
+        with self.assertRaisesRegex(ValueError, "'nope' is not a column the row groups can take: the grid's dimensions "
+                                                'are desk, region'):
             grid.group('nope')
-        with self.assertRaisesRegex(ValueError, 'the grouping names region twice'):
+        with self.assertRaisesRegex(ValueError, "'pnl' is a measure, and the row groups take dimensions"):
+            grid.group('region', 'pnl')
+        with self.assertRaisesRegex(ValueError, "the row groups name 'region' twice"):
             grid.group('region', 'region')
-        # a measure's name is its own column's while that column is no key, or a name nothing else has: the calculated
-        # column's rule (calc.ts measureNameProblem) -- else the level writes two columns of one name
-        with self.assertRaisesRegex(ValueError, r"'region' is already a column: the measure count\(region\) takes a name"):
-            grid.measure('region', 'count')
+        # a measure of a grouped column is a calculated column of its own; a count of text is offered nowhere
+        with self.assertRaisesRegex(ValueError, r"'count' is not offered on region, a String column: .* \(Show leaf "
+                                                r"count counts a group's rows\)"):
+            grid.measure('region', 'count', name='trades')
         with self.assertRaisesRegex(ValueError, "'desk' is already a column"):
             grid.measure('pnl', 'sum', name='desk')
-        # the measure the grid has, added again: a second measure of one name, refused by the rule (the round's second
-        # audit: the grid's own measure matched twice was judged once, and passed)
-        with self.assertRaisesRegex(ValueError, r"'notional' is already a column: the measure sum\(notional\)"):
-            grid.measure('notional', 'sum')
-        # a count reads none of its column's values but is placed by its column: one the grid does not have is refused,
-        # never left out; a name's text is trimmed, so ' w_pnl ' and 'w_pnl' are one name
-        with self.assertRaisesRegex(ValueError, 'the measure n names "nope", not a column of the grid'):
+        with self.assertRaisesRegex(ValueError, "'nope' is not a column of the grid"):
             grid.measure('nope', 'count', name='n')
+        # Column Properties' own rules: a calculated column's kind is its editor's; a dimension takes no Aggregation
+        with self.assertRaisesRegex(ValueError, "'region' is a dimension, and only a measure takes an Aggregation"):
+            grid.column('region', aggregate='unique')
+        with self.assertRaisesRegex(ValueError, "'region' is grouped or pivoted on: its kind cannot change"):
+            grid.column('region', kind='measure')
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
-        # a count reads no column, a grouping column's too; a weighted average with its weight; a second measure of one
-        # column (each shown under its own name: the grouped query kept the last alone, a DataCube bug fixed here); a
-        # sort on a measure's header
-        grid.measure('pnl', 'wavg', name='w_pnl', weight='notional').measure('region', 'count', name='trades')
-        grid.measure('notional', 'average', name=' avg_notional ').sort('w_pnl', 'desc')
-        query = page.to_dict()['cubes'][0]['cube']['query']
-        self.assertEqual([m['name'] for m in query['measures']], ['notional', 'w_pnl', 'trades', 'avg_notional'])
-        self.assertEqual(query['sorts'][-1], {'column': 'w_pnl', 'direction': 'desc'})
-        shown = grid.view()
-        names = {c['name'] for c in shown.columns}
-        self.assertTrue({'notional', 'avg_notional', 'w_pnl', 'trades'} <= names, names)
+        # a measure is its column's Aggregation, replacing the one it had; a named one, a calculated column with its own;
+        # a weighted average with its weight; a count of a number; a sort on a calculated column
+        grid.measure('notional', 'average')
+        grid.measure('pnl', 'wavg', name='w_pnl', weight='notional').measure('pnl', 'count', name='trades')
+        grid.measure('notional', 'max', name=' top_notional ').sort('w_pnl', 'desc')
+        cube = page.to_dict()['cubes'][0]['cube']
+        self.assertNotIn('measures', cube['query'])
+        self.assertEqual(cube['configuration']['columns']['notional'], {'aggregateFn': 'average'})
+        self.assertEqual([d['name'] for d in cube['query']['derived']], ['w_pnl', 'trades', 'top_notional'])
+        self.assertEqual(cube['configuration']['columns']['w_pnl'],
+                         {'aggregateFn': 'wavg', 'aggregationParameters': ['notional']})
+        self.assertEqual(cube['query']['sorts'][-1], {'column': 'w_pnl', 'direction': 'desc'})
+        names = {c['name'] for c in grid.view().columns}
+        self.assertTrue({'notional', 'top_notional', 'w_pnl', 'trades'} <= names, names)
+        # an integer made a dimension, as Column Properties makes one, is then grouped by
+        counted = ll.Page('Counted').grid(trades().assign(year=2024), name='by_year')
+        with self.assertRaisesRegex(ValueError, "'year' is a measure, and the row groups take dimensions"):
+            counted.group('year')
+        counted.column('year', kind='dimension').group('year')
+        self.assertEqual(counted._query['rows'], ['year'])
+        self.assertEqual(ll.Page('In one go').grid(trades().assign(year=2024), name='by_year_2', rows=['year'],
+                                                     dimensions=['year'])._query['rows'], ['year'])
 
     def test_pandas_missing_value_is_no_nan_in_a_class_sample(self):
         # pandas' own missing value is no NaN in the rows: pa.Table.from_pandas reads it as null (frames.py), so a class's
@@ -621,20 +648,20 @@ class Document(Paged):
         rows = cls['where']['samples'][asked['table']['table']]['rows']
         self.assertEqual(sorted(r[1] is None for r in rows), [False, True])
 
-    def test_a_sort_the_grid_would_leave_out_is_refused_and_a_new_grouping_closes_its_groups(self):
-        # grouped, a sort applies to the groups and to the detail rows beneath them (the tree's detailSnapshot): a
-        # column its measure renames is no group's header, but the detail rows show it
+    def test_a_sort_is_a_column_or_a_pivots_header_and_a_new_grouping_closes_its_groups(self):
+        # a sort names a column the grid has, a calculated one too, or -- pivoted -- a pivot's header, as the screen's
+        # Sorts panel and header menu offer them (grid-edits.ts setSorts); a sort of a column replaces the one it had
         detailed = ll.Page('Detailed').grid(trades(), name='detailed_trades', rows=['region'])
-        detailed.measure('notional', 'sum', name='total').sort('notional', 'desc')
-        self.assertEqual(detailed._query['sorts'], [{'column': 'notional', 'direction': 'desc'}])
+        detailed.measure('notional', 'max', name='top').sort('notional', 'desc').sort('top').sort('notional', 'asc')
+        self.assertEqual(detailed._query['sorts'], [{'column': 'top', 'direction': 'asc'},
+                                                    {'column': 'notional', 'direction': 'asc'}])
         page = ll.Page('Sorted')
         grid = page.grid(trades(), name='sorted_trades', columns=['desk'], measures={'notional': 'sum'})
-        # pivoted, the same: a spread measure's name is no column's, but two measures of one name are refused
-        with self.assertRaisesRegex(ValueError, r"'notional' is already a measure's name: the measure sum\(notional\)"):
-            grid.measure('notional', 'sum')
-        # pivoted on desk, the query shows no pnl header: a sort on it would be left out without a word
-        with self.assertRaisesRegex(ValueError, 'the sort names "pnl", which the grid does not show'):
-            grid.sort('pnl')
+        with self.assertRaisesRegex(ValueError, "the sort names 'nope', which the grid does not have"):
+            grid.sort('nope')
+        grid.sort('FX__|__notional', 'desc')
+        self.assertEqual(grid._query['sorts'], [{'column': 'FX__|__notional', 'direction': 'desc'}])
+        grid.sort('FX__|__notional', 'asc')
         grid.pivot()
         grid.group('region')
         # its open groups, as DataCube keeps them: a changed grouping lets them go (as a reopened cube's do)
@@ -673,8 +700,6 @@ class Document(Paged):
                 grid.filter(('notional', 'greaterThan', wrong))
         with self.assertRaisesRegex(ValueError, "not one of DataCube's aggregates"):
             grid.measure('pnl', 'total')
-        with self.assertRaisesRegex(ValueError, "'notional' is already a column: the measure average\\(notional\\)"):
-            grid.measure('notional', 'average')
         with self.assertRaisesRegex(ValueError, 'is not one this DataCube draws'):
             grid.chart('violin', x='region')
         with self.assertRaisesRegex(ValueError, 'not a column'):

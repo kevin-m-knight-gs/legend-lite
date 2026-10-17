@@ -3,7 +3,7 @@ in DataCube, said in code (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md).
 
     import legend_lite as ll
     page = ll.Page('Q3 review')
-    trades = page.grid(trades_df, name='trades', rows=['region', 'desk'], columns=['year'],
+    trades = page.grid(trades_df, name='trades', rows=['region', 'desk'], columns=['year'], dimensions=['year'],
                        measures={'notional': 'sum'}, filter=[('region', 'notEqual', 'APAC')])
     trades.calculate('margin', '$x.pnl->toOne() / $x.notional->toOne()')   # Pure, checked by the compiler here
     by_desk = trades.chart('bar', x='desk', y=[('notional', 'sum')], split='region')
@@ -225,8 +225,9 @@ class Tile:
 
 
 class Grid(Tile):
-    """A grid over a frame: its groupings (``group``), pivot (``pivot``), measures, filter, sorts and calculated
-    columns, as the grid's panels set them; its configuration (``configure``); its charts (``chart``)."""
+    """A grid over a frame: its groupings (``group``), pivot (``pivot``), each column's Column Properties (``column``,
+    ``measure``), filter, sorts and calculated columns, as the grid's panels set them; its configuration
+    (``configure``); its charts (``chart``)."""
 
     _kind = 'grid'
 
@@ -248,18 +249,20 @@ class Grid(Tile):
         self._page._changed()
         return self
 
-    def _ask_query(self, given: dict[str, Any]) -> Grid:
-        """Parts of its query -- ``rows``, ``pivotOn``, ``measures``, ``sorts``, each whole -- set as DataCube's screen
-        sets them, and the grid with them compiled (DataCube's code, headless: gridQuery): refused in DataCube's words,
-        nothing set; else set, and its open groups as DataCube keeps them (let go when the grouping changed)."""
+    def _edit(self, given: dict[str, Any]) -> Grid:
+        """The grid edited as DataCube's screen edits one -- any of ``columns`` (Column Properties), ``rows``,
+        ``pivotOn``, ``measures`` and ``sorts``, each whole -- by DataCube's own module, the one its panels, header menu
+        and drag zones call (headless gridEdit: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md), and compiled as its
+        Apply compiles: refused in DataCube's words, nothing set; else the cube document DataCube writes, its open
+        groups let go when the grouping changed."""
         engine, frames = self._headless()
         with frames.serving():
-            said = json.loads(engine.call('gridQuery', self._spec(frames), _json.dumps(given)))
+            said = json.loads(engine.call('gridEdit', self._spec(frames), _json.dumps(given)))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
-        made = _plain(_json.loads(said['query']))
-        self._cube['tree'] = made.pop('tree')
-        self._query.update(made)
+        cube = self._cube
+        cube.clear()
+        cube.update(_plain(_json.loads(said['cube'])))
         self._page._changed()
         return self
 
@@ -368,20 +371,31 @@ class Grid(Tile):
         return path or cls['name']
 
     def group(self, *rows: str) -> Grid:
-        """Grouped by ``rows``, outermost first (the Rows zone); none, not grouped."""
-        return self._ask_query({'rows': list(rows)})
+        """Grouped by ``rows``, outermost first (the Rows zone): dimensions, as the screen offers them
+        (``column(name, kind='dimension')`` makes one); none, not grouped."""
+        return self._edit({'rows': list(rows)})
 
     def pivot(self, *columns: str) -> Grid:
-        """Pivoted on ``columns`` (the Columns zone); none, not pivoted."""
-        return self._ask_query({'pivotOn': list(columns)})
+        """Pivoted on ``columns`` (the Columns zone): dimensions, as for ``group``; none, not pivoted."""
+        return self._edit({'pivotOn': list(columns)})
+
+    def column(self, name: str, *, kind: str | None = None, aggregate: str | None = None,
+               weight: str | None = None) -> Grid:
+        """``name``'s Column Properties, as the panel sets them: its ``kind`` (``'dimension'``, which can be grouped and
+        pivoted on, or ``'measure'``; a calculated column's is its editor's), its Aggregation (``aggregate``: one the
+        panel offers for its type; a measure's only) and a weighted average's ``weight`` column. What is not given is
+        left as it is."""
+        change = {k: v for k, v in (('kind', kind), ('aggregate', aggregate), ('weight', weight)) if v is not None}
+        return self._edit({'columns': {name: change}})
 
     def measure(self, column: str, fn: str = 'sum', name: str | None = None, *, weight: str | None = None) -> Grid:
-        """A measure: ``column`` aggregated by ``fn`` (one DataCube offers for the column's type; ``wavg`` takes a
-        ``weight`` column, and only it does), named ``name`` -- the column's own unless given, while the column is not
-        grouped; a second measure of a column, or one of a grouping column, takes a name of its own."""
+        """``column`` aggregated by ``fn`` when the grid groups (one Aggregation offers for its type; ``wavg`` takes a
+        ``weight`` column, and only it does): ``column``'s own Aggregation, as Column Properties sets it -- replacing
+        the one it had -- unless ``name`` names another column, or ``column`` is grouped: then a calculated column of
+        that name reading ``column``, with that Aggregation, as the screen would add one."""
         measure = {'name': column if name is None else name, 'column': column, 'fn': fn,
                    **({'weight': weight} if weight is not None else {})}
-        return self._ask_query({'measures': [*self._query.get('measures', []), measure]})
+        return self._edit({'measures': [measure]})
 
     def filter(self, condition: Any) -> Grid:
         """Its filter: a condition ``(column, operator[, value])``, a list of them (all of them), a group
@@ -403,8 +417,10 @@ class Grid(Tile):
         return self
 
     def sort(self, column: str, direction: str = 'asc') -> Grid:
-        """A sort, after those it has: ``column`` (any header the grid shows, a measure's too) ``'asc'`` or ``'desc'``."""
-        return self._ask_query({'sorts': [*self._query.get('sorts', []), {'column': column, 'direction': direction}]})
+        """A sort, after those it has, as the header menu adds one (a sort it had of ``column`` taken first):
+        ``column`` (one of the grid's columns, or a pivot's header) ``'asc'`` or ``'desc'``."""
+        kept = [x for x in self._query.get('sorts', []) if x.get('column') != column]
+        return self._edit({'sorts': [*kept, {'column': column, 'direction': direction}]})
 
     def calculate(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
@@ -945,15 +961,17 @@ class Page:
 
     def grid(self, frame: Any, *, name: str | None = None, rows: Sequence[str] = (), columns: Sequence[str] = (),
              measures: Mapping[str, str] | Sequence[tuple[str, str]] | None = None, filter: Any = None,
-             sort: Sequence[tuple[str, str]] = (), title: str | None = None, sheet: Sheet | None = None,
-             mode: str = LIVE) -> Grid:
+             sort: Sequence[tuple[str, str]] = (), dimensions: Sequence[str] = (), title: str | None = None,
+             sheet: Sheet | None = None, mode: str = LIVE) -> Grid:
         """A grid over ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one), served
         under ``name`` (``frame``, ``frame_2``, ... unless given), in a band of its own at the bottom of ``sheet`` (the
         first unless given). A name served already is this grid's when it serves this same frame, the same way (two
         grids over one frame), and refused when it serves another: ``grid.update(frame)`` replaces a frame, every grid
         over it showing the new one. ``rows``, ``columns``, ``measures`` (``{column: aggregate}`` or ``[(column,
-        aggregate)]``), ``filter`` and ``sort``: as ``group``, ``pivot``, ``measure``, ``filter`` and ``sort`` say -- all
-        checked before the grid is on the page, so a mistake leaves the page and the frames as they were. ``mode``:
+        aggregate)]``), ``filter`` and ``sort``: as ``group``, ``pivot``, ``measure``, ``filter`` and ``sort`` say;
+        ``dimensions``: columns made dimensions first (``column(name, kind='dimension')``: a number is a measure until
+        then, and only a dimension is grouped or pivoted on) -- all checked before the grid is on the page, so a
+        mistake leaves the page and the frames as they were. ``mode``:
         Live (each query reads the frame as it is then) or ``'snapped'``."""
         if mode not in (LIVE, SNAPPED):
             raise ValueError(f'mode is {LIVE!r} or {SNAPPED!r}, not {mode!r}')
@@ -984,10 +1002,11 @@ class Page:
             # grid's cube has none: nothing to ask when none is given)
             with self._batch(tell=False):
                 pairs = list(measures.items() if isinstance(measures, Mapping) else measures or ())
-                if rows or columns or pairs or sort:
-                    grid._ask_query({'rows': list(rows), 'pivotOn': list(columns),
-                                     'measures': [{'name': column, 'column': column, 'fn': fn} for column, fn in pairs],
-                                     'sorts': [{'column': column, 'direction': direction} for column, direction in sort]})
+                if rows or columns or pairs or sort or dimensions:
+                    grid._edit({'columns': {d: {'kind': 'dimension'} for d in dimensions},
+                                'rows': list(rows), 'pivotOn': list(columns),
+                                'measures': [{'name': column, 'column': column, 'fn': fn} for column, fn in pairs],
+                                'sorts': [{'column': column, 'direction': direction} for column, direction in sort]})
                 if filter is not None:
                     grid.filter(filter)
         except BaseException:

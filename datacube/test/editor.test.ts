@@ -28,8 +28,7 @@ const CUBE: CubeSnapshot = {
   derived: [{ name: 'margin', lambda: stand('$x.a / $x.b'), kind: 'measure' }],
   rows: ['region'],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
-  sorts: [{ column: 'total', direction: 'desc' }],
+  sorts: [{ column: 'notional', direction: 'desc' }],
   epoch: 3,
 };
 
@@ -80,7 +79,7 @@ describe('groupableColumns', () => {
         { name: 'margin', lambda: stand('$x.a / $x.b'), kind: 'measure' },
         { name: 'big', lambda: stand('$x.notional > 1'), kind: 'dimension' },
       ],
-      groupDerived: [{ name: 'share', lambda: stand('$x.total / 2') }],
+      groupDerived: [{ name: 'share', lambda: stand('$x.notional / 2') }],
     }));
     assert.deepEqual(names, ['region', 'desk', 'year', 'big']);
   });

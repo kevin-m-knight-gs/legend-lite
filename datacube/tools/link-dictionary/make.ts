@@ -44,7 +44,6 @@ const COLUMN: Required<ColumnConfiguration> = {
 /** The document's vocabulary: a page around a cube that uses every kind of thing a cube holds, empty. */
 function templatePage(): string {
   const types = Object.keys(OFFER_FACTS);
-  const aggregates = Object.keys(Object.values(OFFER_FACTS)[0]?.aggregates ?? {});
   const columns = types.map((type) => ({ name: '', type, kind: 'dimension' as const }));
   const snapshot: CubeSnapshot = {
     source: { query: lambda([], lit.integer(1)) } as unknown as CubeSnapshot['source'],
@@ -52,7 +51,6 @@ function templatePage(): string {
     derived: [{ name: '', lambda: lambda(['x'], fn('toOne', col('x', 'a'))), kind: 'measure' }],
     rows: [''],
     pivotOn: [''],
-    measures: aggregates.map((a) => ({ name: '', column: '', fn: a })) as CubeSnapshot['measures'],
     sorts: [{ column: '', direction: 'asc' }, { column: '', direction: 'desc' }],
     filter: { kind: 'and', children: [
       ...OPERATORS.map((o) => ({ kind: 'condition' as const, column: '', operator: o.op, value: '' })),

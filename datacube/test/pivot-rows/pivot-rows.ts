@@ -22,7 +22,7 @@ import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import type { CubeView } from '../../src/cube.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
-import type { CubeSnapshot } from '../../src/snapshot.ts';
+import type { QuerySnapshot, Measure, } from '../../src/snapshot.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { MODEL, RUNTIME } from '../wasm-differential/cases.ts';
 import { accessor } from '../../../pure-protocol/src/index.ts';
@@ -41,7 +41,7 @@ const ROWS = `
   ('APAC','Rates','B9',2022,'Q1',70,8,9),  ('APAC','FX','B10',2022,'Q3',80,9,10),
   (NULL,'Rates','B11',2021,'Q4',5,1,11)`;
 
-const COLUMNS: CubeSnapshot['columns'] = [
+const COLUMNS: QuerySnapshot['columns'] = [
   { name: 'region', type: 'String', kind: 'dimension' },
   { name: 'desk', type: 'String', kind: 'dimension' },
   { name: 'book', type: 'String', kind: 'dimension' },
@@ -53,7 +53,7 @@ const COLUMNS: CubeSnapshot['columns'] = [
 ];
 
 /** One measure per column: average, median, count and sum. */
-const MEASURES: CubeSnapshot['measures'] = [
+const MEASURES: readonly Measure[] = [
   { name: 'avg_n', column: 'notional', fn: 'average' },
   { name: 'med_p', column: 'pnl', fn: 'median' },
   { name: 'cnt_q', column: 'qty', fn: 'count' },
@@ -64,7 +64,7 @@ const TRUTH_SQL: Record<string, string> = {
   cnt_q: 'COUNT(*)',
 };
 
-const CUBE: CubeSnapshot = {
+const CUBE: QuerySnapshot = {
   source: { query: accessor('trades::DB', 'TRADES') },
   columns: COLUMNS,
   derived: [],
@@ -116,7 +116,7 @@ interface Opened {
   readonly errors: string[];
 }
 
-async function openCube(snapshot: CubeSnapshot, connection: ArrowishConnection = conn): Promise<Opened> {
+async function openCube(snapshot: QuerySnapshot, connection: ArrowishConnection = conn): Promise<Opened> {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
   (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame =
     (fn: () => void) => { fn(); return 0; };

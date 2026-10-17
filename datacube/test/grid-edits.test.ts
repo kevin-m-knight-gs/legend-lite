@@ -4,8 +4,8 @@ import { describe, it } from 'node:test';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { DEFAULT_CONFIGURATION, columnConfig, withColumn } from '../src/config.ts';
 import {
-  allColumns, columnKind, groupableColumns, offeredAggregates, setColumn, setGrouping, setPivot, setSorts,
-  type GridDraft,
+  allColumns, columnKind, groupableColumns, measureAsColumn, measuresAsColumns, offeredAggregates, setColumn,
+  setGrouping, setPivot, setSorts, type GridDraft,
 } from '../src/grid-edits.ts';
 import { AGGREGATE_FNS, CubeRefusal, pivotTotalColumn, type CubeSnapshot } from '../src/snapshot.ts';
 import { element } from '../../pure-protocol/src/index.ts';
@@ -30,7 +30,6 @@ const CUBE: CubeSnapshot = {
   groupDerived: [{ name: 'share', lambda: stand('$x.notional / 2'), type: 'Float' }],
   rows: ['region'],
   pivotOn: [],
-  measures: [],
   sorts: [],
   epoch: 1,
 };
@@ -106,6 +105,14 @@ describe('sorting', () => {
     refused(() => setSorts(draft(), [{ column: header, direction: 'asc' }]), /which the grid does not have/);
   });
 
+  it('unpivoted, lets a pivot header\'s sort go with its headers, and keeps a column\'s', () => {
+    const sorts = [{ column: `FX${PIVOT_SEPARATOR}notional`, direction: 'asc' as const },
+      { column: 'notional', direction: 'desc' as const }];
+    const pivoted = draft({ pivotOn: ['desk'], sorts });
+    assert.deepEqual(setPivot(pivoted, ['region']).snapshot.sorts, sorts);
+    assert.deepEqual(setPivot(pivoted, []).snapshot.sorts, [{ column: 'notional', direction: 'desc' }]);
+  });
+
   it('refuses a column the grid has not, one named twice and a direction of no sort', () => {
     refused(() => setSorts(draft(), [{ column: 'nope', direction: 'asc' }]),
       /the sort names 'nope', which the grid does not have: one of its columns \(big, desk/);
@@ -171,5 +178,55 @@ describe('a column\'s Column Properties', () => {
 
   it('refuses a column the grid has not', () => {
     refused(() => setColumn(draft(), 'nope', { aggregate: 'sum' }), /'nope' is not a column of the grid/);
+  });
+});
+
+describe('a measure as the screen\'s model (Python\'s grid.measure, a saved measures list, Open in Grid)', () => {
+  it('is its own column\'s Aggregation, named as its column and the column no key', () => {
+    const one = measureAsColumn(draft(), { name: 'notional', column: 'notional', fn: 'average' });
+    assert.equal(columnConfig(one.draft.config, 'notional').aggregateFn, 'average');
+    assert.deepEqual(one.made, { measure: { name: 'notional', column: 'notional', fn: 'average' }, column: 'notional' });
+    assert.equal(one.draft.snapshot.derived.length, CUBE.derived.length, 'no column made');
+    // a dimension made a measure first, as Column Properties would
+    const desk = measureAsColumn(draft({ rows: [] }), { name: 'desk', column: 'desk', fn: 'joinStrings' });
+    assert.deepEqual(columnConfig(desk.draft.config, 'desk'),
+      { kind: 'measure', excludedFromPivot: false, aggregateFn: 'joinStrings' });
+    assert.match(desk.note, /desk is now a measure/);
+  });
+
+  it('is a calculated column of its own name when named for another, or of a grouped column', () => {
+    const named = measureAsColumn(draft(), { name: 'top', column: 'notional', fn: 'max' });
+    const top = named.draft.snapshot.derived.at(-1);
+    assert.deepEqual([top?.name, top?.kind, top?.type], ['top', 'measure', 'Float']);
+    assert.match(JSON.stringify(top?.lambda), /"property":"notional"/);
+    assert.equal(columnConfig(named.draft.config, 'top').aggregateFn, 'max');
+    assert.equal(named.made.column, 'top');
+    // a weighted average with its weight
+    const w = measureAsColumn(draft(), { name: 'w', column: 'notional', fn: 'wavg', weight: 'qty' });
+    assert.deepEqual(columnConfig(w.draft.config, 'w'), { aggregateFn: 'wavg', aggregationParameters: ['qty'] });
+  });
+
+  it('refuses, in the screen\'s words: a column the grid has not, a name taken, an aggregate its type is not offered', () => {
+    refused(() => measureAsColumn(draft(), { name: 'n', column: 'nope', fn: 'sum' }), /'nope' is not a column of the grid/);
+    refused(() => measureAsColumn(draft(), { name: 'desk', column: 'qty', fn: 'sum' }), /'desk' is already a column/);
+    // region is grouped: its measure is a column of its own, and a count of text is not offered
+    refused(() => measureAsColumn(draft(), { name: 'region', column: 'region', fn: 'count' }),
+      /'count' is not offered on region, a String column: min, max, joinStrings, unique \(Show leaf count/);
+    refused(() => measureAsColumn(draft(), { name: 'n', column: 'notional', fn: 'sum', weight: 'qty' }),
+      /only a weighted average \(wavg\) takes a weight/);
+  });
+
+  it('makes a list in order, a column taken once, and leaves out what it cannot hold, saying why', () => {
+    const made = measuresAsColumns(draft(), [
+      { name: 'notional', column: 'notional', fn: 'sum' },
+      { name: 'notional', column: 'notional', fn: 'max' },
+      { name: 'peak', column: 'notional', fn: 'max' },
+    ]);
+    assert.deepEqual(made.made.map((m) => m.column), ['notional', 'peak']);
+    assert.deepEqual(made.notes, [
+      "measure notional is now notional's Aggregation, sum",
+      "left out measure notional: 'notional' is already a column",
+      'measure peak is now a calculated column of notional, its Aggregation max',
+    ]);
   });
 });

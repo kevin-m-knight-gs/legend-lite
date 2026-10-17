@@ -27,7 +27,6 @@ const SNAPSHOT: CubeSnapshot = {
   derived: [],
   rows: ['region'],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -38,7 +37,7 @@ class Engine extends FakeEngine {
     return {
       columns: [
         { name: 'region', type: 'String', values: ['EMEA'] },
-        { name: 'total', type: 'Float', values: [1] },
+        { name: 'notional', type: 'Float', values: [1] },
       ],
       rowCount: 1,
       epoch,

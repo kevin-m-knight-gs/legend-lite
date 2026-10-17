@@ -30,7 +30,9 @@ import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts
 import { CALC_FACTS } from './generated/offer-facts.ts';
 import { ROOT_COLUMN } from './grid/columns.ts';
 import { groupedMeasures, pivotLabel, type PivotColumn } from './query.ts';
-import { LEAF_COUNT_COLUMN, excludedFromPivot, rowColumns, type CubeSnapshot } from './snapshot.ts';
+import {
+  LEAF_COUNT_COLUMN, askedMeasures, excludedFromPivot, rowColumns, type CubeSnapshot, type QuerySnapshot,
+} from './snapshot.ts';
 
 /** Which extend stage an expression belongs to. */
 export type CalcStage = 'row' | 'group';
@@ -192,14 +194,13 @@ export function columnsInScope(
       detail: 'row dimension (a group key)', kind: 'column' });
   }
   // NO PIVOT: the groupBy's own aggregates, exactly as the level query writes them (query.ts groupedMeasures) --
-  // every measure under its name, every other column on its own aggregate (upstream's _groupByAggCols). A PIVOT
-  // SPREADS ITS MEASURES into its generated columns (below): under one, a measure's own name is no column here.
+  // every column on its Aggregation (upstream's _groupByAggCols). A PIVOT SPREADS ITS MEASURES into its generated
+  // columns (below): under one, a measure's own name is no column here.
   if (snapshot.pivotOn.length === 0) {
     const typeOf = new Map(rowColumns(snapshot).map((c) => [c.name, c.type] as const));
     for (const m of groupedMeasures(snapshot, snapshot.rows)) {
-      const detail = snapshot.measures.includes(m)
-        ? `measure, ${m.fn}(${m.column})` : `aggregated column, ${typeOf.get(m.column)}`;
-      out.push({ insert: columnRef(m.name), label: m.name, detail, kind: 'column' });
+      out.push({ insert: columnRef(m.name), label: m.name, detail: `aggregated column, ${typeOf.get(m.column)}`,
+        kind: 'column' });
     }
   }
   // The pivot's own columns, from the PLAN that made them: what each
@@ -247,11 +248,11 @@ export function completionsFor(
  * new name may not be. One list, so a calculated column (nameProblem) and a measure (measureNameProblem) are named by
  * one rule.
  */
-export function takenNames(snapshot: CubeSnapshot, pivot: readonly PivotColumn[] = []): string[] {
+export function takenNames(snapshot: QuerySnapshot, pivot: readonly PivotColumn[] = []): string[] {
   return [
     ...snapshot.columns.map((c) => c.name),
     ...snapshot.derived.map((d) => d.name),
-    ...snapshot.measures.map((m) => m.name),
+    ...askedMeasures(snapshot).map((m) => m.name),
     ...(snapshot.groupDerived ?? []).map((d) => d.name),
     ...pivot.map((p) => p.name),
     ROOT_COLUMN,
@@ -262,7 +263,8 @@ export function takenNames(snapshot: CubeSnapshot, pivot: readonly PivotColumn[]
 const SEPARATOR_TAKEN = `'${PIVOT_SEPARATOR}' is how a pivot spells its generated columns, so a name cannot contain it`;
 
 /**
- * Why the cube's measure `at` (its place in `snapshot.measures`) has no name of its own, or null: its own column's,
+ * Why the query's asked measure `at` (its place in `snapshot.measures`: a chart's value, never a grid's -- snapshot.ts
+ * QuerySnapshot) has no name of its own, or null: its own column's,
  * when that column is no grouping key (the
  * column's aggregate, as the level query writes it), or a name nothing else of the cube has (takenNames: the measures
  * before it, so of two of one name the later is the one refused) -- a measure named after another column, or after a
@@ -273,11 +275,12 @@ const SEPARATOR_TAKEN = `'${PIVOT_SEPARATOR}' is how a pivot spells its generate
  * place, never by the measure object: a cube holding one object twice is two measures of one name (the round's second
  * audit, 2026-10-16).
  */
-export function measureNameProblem(snapshot: CubeSnapshot, at: number): string | null {
-  const m = snapshot.measures[at];
-  if (m === undefined) throw new Error(`the cube has no measure ${at}: it has ${snapshot.measures.length}`);
+export function measureNameProblem(snapshot: QuerySnapshot, at: number): string | null {
+  const asked = askedMeasures(snapshot);
+  const m = asked[at];
+  if (m === undefined) throw new Error(`the query asks no measure ${at}: it asks ${asked.length}`);
   if (m.name.includes(PIVOT_SEPARATOR)) return SEPARATOR_TAKEN;
-  const before = snapshot.measures.slice(0, at);
+  const before = asked.slice(0, at);
   // pivoted, a measure whose column is not kept out of the pivot is spread under each pivot value (query.ts
   // spreadMeasures)
   if (snapshot.pivotOn.length > 0 && !excludedFromPivot(snapshot).has(m.column)) {

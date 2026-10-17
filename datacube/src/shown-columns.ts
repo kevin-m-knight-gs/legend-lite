@@ -10,7 +10,8 @@ export function shownColumns(view: CubeView, configuration: CubeConfiguration): 
   return buildColumnModel(
     view.rows,
     view.snapshot.rows,
-    view.snapshot.measures.map((m) => m.name),
+    // a grid asks no measures of its own: its pivot's headers are the plan's (below)
+    [],
     {
       ...(toColumnLayout(configuration) as ColumnLayout),
       // THE CUBE'S ORDER, not the answer's.

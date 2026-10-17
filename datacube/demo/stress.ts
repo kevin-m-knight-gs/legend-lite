@@ -24,7 +24,7 @@ import { levelWithValues } from '../src/plan.ts';
 import { col, lambda, lit, times, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { LevelScope } from '../src/query.ts';
 import type {
-  AggregateFn, CubeSnapshot, FilterNode, FilterOperator,
+  AggregateFn, QuerySnapshot, FilterNode, FilterOperator,
 } from '../src/snapshot.ts';
 import { ingestFile } from '../src/upload.ts';
 import type { Planner } from '../src/cube.ts';
@@ -84,7 +84,7 @@ async function attempt(
   deps: { engine: DuckDbEngine; planner: Planner },
   csv: string,
   op: string,
-  snapshot: CubeSnapshot,
+  snapshot: QuerySnapshot,
   scope?: LevelScope,
 ): Promise<void> {
   let pure = '';
@@ -132,7 +132,7 @@ async function attempt(
   }
 }
 
-function base(source: ValueSpecification, columns: CubeSnapshot['columns']): CubeSnapshot {
+function base(source: ValueSpecification, columns: QuerySnapshot['columns']): QuerySnapshot {
   return {
     source: { query: source },
     columns,
@@ -163,7 +163,7 @@ export async function runStress(): Promise<Outcome[]> {
     }
     models.use(opened.model, opened.runtime, { bitColumns: opened.bitColumns });
     const cols = await sourceColumns(planner, opened.source);
-    const snap = (over: Partial<CubeSnapshot>): CubeSnapshot =>
+    const snap = (over: Partial<QuerySnapshot>): QuerySnapshot =>
       ({ ...base(opened.source, cols), ...over });
 
     const dims = cols.filter((c) => kindOf(c) === 'dimension').map((c) => c.name);

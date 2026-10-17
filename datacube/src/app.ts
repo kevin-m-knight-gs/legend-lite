@@ -49,7 +49,7 @@ import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
 import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { CubeRefusal, isPivotTotalColumn, withoutConditions } from './snapshot.ts';
+import { CubeRefusal, isPivotTotalColumn, withoutConditions, type QuerySnapshot } from './snapshot.ts';
 import { columnKind, setGrouping, setPivot, setSorts, type GridDraft } from './grid-edits.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
@@ -1865,12 +1865,10 @@ export class CubeApp {
       const facts = column !== undefined ? this.#columnFacts(column, this.#shown) : {};
       // FROM A COLUMN -- its header OR any of its cells (the user, 2026-09-30) -- Properties...
       // opens on that column's Column Properties, it chosen (its measure, for a pivot result or a
-      // pivot total).
+      // pivot total; an aggregated column is its own column's name).
       const propertiesColumn = column !== undefined
         && column !== TREE_COLUMN
-        ? facts.pivotBase
-          ?? this.#shown.measures.find((m) => m.name === column)?.column
-          ?? column
+        ? facts.pivotBase ?? column
         : undefined;
       const groups = buildMenu({
         snapshot: this.#shown,
@@ -2370,10 +2368,8 @@ export class CubeApp {
     const measure = leaf && leaf.path.length > 1
       ? leaf.path[leaf.path.length - 1]
       : undefined;
-    const base = measure === undefined
-      ? column
-      : (snapshot.measures.find((m) => m.name === measure)?.column
-        ?? measure);
+    // a pivot's cell is named for the column it spreads (a grid's aggregates are its columns')
+    const base = measure ?? column;
     const excluded = columnConfig(this.#config, base).excludedFromPivot === true
       || snapshot.columns.some((c) => c.name === base && c.excludedFromPivot);
     return {
@@ -2597,6 +2593,7 @@ export class CubeApp {
     const app = this;
     return {
       get snapshot() { return app.#snapshot; },
+      get configuration() { return app.#config; },
       run: async (query, snapshot, signal) =>
         (await this.#controller.runQuery(query, snapshot, undefined, signal)).rows,
       format: (value, column, type) => this.#formatters.format(value, this.#formats[column], type),
@@ -2607,7 +2604,12 @@ export class CubeApp {
       label: (column) => labelFor(this.#config, column),
       shown: () => {
         const view = this.#view;
-        const figures = new Set([...(view?.snapshot.measures ?? []).map((m) => m.name), ...(view?.snapshot.groupDerived ?? []).map((d) => d.name)]);
+        // a grid's figures: its measure columns, each on its Aggregation, and its group-level columns (it read a measures
+        // list only Python set, so a grid grouped on the screen had none but its group-level columns)
+        const figures = new Set(view ? [
+          ...rowColumns(view.snapshot).filter((c) => c.kind === 'measure').map((c) => c.name),
+          ...(view.snapshot.groupDerived ?? []).map((d) => d.name),
+        ] : []);
         return view ? {
           rows: view.rows,
           tree: view.treeRows,
@@ -2644,7 +2646,8 @@ export class CubeApp {
           ...(o.heldCopy ? { heldCopy: o.heldCopy } : {}),
           ...(o.cubeSource ? { cubeSource: o.cubeSource } : {}),
           ...(o.sourceLabel !== undefined ? { sourceLabel: o.sourceLabel } : {}),
-          configuration: this.#config,
+          // its own Column Properties when it is given them (Open in Grid: the chart's values), else this cube's
+          configuration: spawned?.configuration ?? this.#config,
           // its windows float where this cube's do, not inside the small tile
           windowHost: o.windowHost ?? this.#els.root,
           compact: true,
@@ -3113,7 +3116,6 @@ export class CubeApp {
         derived: candidate.derived.slice(0, at + 1),
         rows: [],
         pivotOn: [],
-        measures: [],
         sorts: [],
         epoch: candidate.epoch,
       };
@@ -3146,14 +3148,13 @@ export class CubeApp {
       derived: at >= 0 ? s.derived.slice(0, at + 1) : [],
       rows: [],
       pivotOn: [],
-      measures: [],
       sorts: [],
       epoch: s.epoch,
     };
     const cellsOf = (rows: ResultTable): readonly unknown[] =>
       rows.columns.find((c) => c.name === column)?.values ?? [];
     // the rows the column has: one count over the same relation
-    const counted: CubeSnapshot = { ...flat, measures: [{ name: JSON_ROWS, column, fn: 'count' }] };
+    const counted: QuerySnapshot = { ...flat, measures: [{ name: JSON_ROWS, column, fn: 'count' }] };
     return {
       sample: async (signal) => {
         const scope = { level: 0, parent: [], limit: JSON_SAMPLE_ROWS };

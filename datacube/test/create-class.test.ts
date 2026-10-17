@@ -68,15 +68,19 @@ describe("the grid's rows, as a class's", () => {
   });
 
   it('a grouped grid: its groups', () => {
-    const json = toJson(classLambda(snapshot({ rows: ['region'], measures: [{ column: 'notional', fn: 'sum', name: 'notional' }] } as Partial<CubeSnapshot>)));
+    // its measure columns each on its Aggregation (Column Properties): a grid asks no aggregate of its own
+    const json = toJson(classLambda(snapshot({ rows: ['region'] })));
     assert.match(json, /"groupBy"/);
     assert.doesNotMatch(json, /"sort"|"limit"|"slice"/, json);
   });
 
-  it('refused in words: a pivot, a total of no group', () => {
+  it('refused in words: a pivot', () => {
     assert.throws(() => classLambda(snapshot({ pivotOn: ['region'] })), /take the pivot off first/);
-    assert.throws(() => classLambda(snapshot({ measures: [{ column: 'notional', fn: 'sum', name: 'notional' }] } as Partial<CubeSnapshot>)),
-      /group by a column first/);
+  });
+
+  it('a grid grouped by nothing: its rows', () => {
+    const json = toJson(classLambda(snapshot({})));
+    assert.doesNotMatch(json, /"groupBy"/);
   });
 
   it('a source read from its store, and its sample', () => {

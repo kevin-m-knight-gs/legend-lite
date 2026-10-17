@@ -51,10 +51,6 @@ before(async () => {
     derived: [],
     rows: ['region'],
     pivotOn: [],
-    measures: [
-      { name: 'revenue', column: 'revenue', fn: 'sum' },
-      { name: 'cost', column: 'cost', fn: 'sum' },
-    ],
     sorts: [],
     epoch: 1,
   };
@@ -293,7 +289,7 @@ describe('a bin and its filter agree by construction (the DataCube + Python line
       const edges: CubeSnapshot = {
         source: { query: r.source },
         columns: [{ name: 'region', type: 'String' }, { name: 'discount', type: 'Float', kind: 'measure' }],
-        derived: [], rows: [], pivotOn: [], measures: [], sorts: [], epoch: 1,
+        derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
       };
       for (const bins of [{ width: 0.05 }, { count: 4 }]) {
         const spec: ChartSpec = { ...BY_REGION, x: 'discount', bins, y: [{ column: 'discount', fn: 'count' }] };

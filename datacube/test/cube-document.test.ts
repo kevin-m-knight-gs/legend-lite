@@ -19,6 +19,7 @@ import {
   rebuilt,
   sha256,
   writeCube,
+  type CubeDocument,
   type FileSource,
   type QuerySource,
   type FrameSource,
@@ -26,7 +27,7 @@ import {
   type WarehouseSource,
 } from '../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, type CubeConfiguration } from '../src/config.ts';
-import type { ColumnSpec, CubeSnapshot } from '../src/snapshot.ts';
+import type { ColumnSpec, CubeSnapshot, Measure } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
 
@@ -72,7 +73,6 @@ const EVERY: Required<CubeSnapshot> = {
   keepGroupedColumns: true,
   leafCount: true,
   childCount: true,
-  measures: [{ name: 'notional', column: 'notional', fn: 'sum' }, { name: 'w', column: 'notional', fn: 'wavg', weight: 'qty' }],
   sorts: [{ column: 'region', direction: 'desc' }],
   window: { offset: 50, limit: 100 },
   treeColumnSort: 'desc',
@@ -266,11 +266,8 @@ describe('opening a cube over its file as it is now', () => {
     assert.match(text, /no longer in the file: notional/);
     assert.match(text, /left out calculated column scaled \(it uses notional\)/);
     assert.match(text, /left out calculated column doubled/);
-    assert.match(text, /left out measure notional/);
-    assert.match(text, /left out measure w/);
     assert.equal(opened.changed, true);
     assert.deepEqual(opened.snapshot.derived, []);
-    assert.deepEqual(opened.snapshot.measures, []);
     assert.deepEqual(opened.snapshot.rows, ['region'], 'what does not use it stays');
     assert.ok(opened.snapshot.filter, 'the filter on region and qty stays');
   });
@@ -296,54 +293,70 @@ describe('opening a cube over its file as it is now', () => {
     assert.equal(opened.tree.isOpen(['EMEA']), false);
   });
 
-  // A cube saved before the naming rule (2026-10-16): old Python's way to count each region's rows,
-  // grid.group('region').measure('region', 'count'), which the grouped level dropped without a word, and a second
-  // measure of a name another already has. It opens, without them, saying why -- never refused at every level.
-  it('opens a cube saved before the naming rule, leaving out each measure whose name is not its own', () => {
-    const old = writeCube({
-      name: 'counts', source: SOURCE,
-      snapshot: {
-        source: RELATION, columns: SOURCE.columns, derived: [], rows: ['region'], pivotOn: [],
-        measures: [
-          { name: 'region', column: 'region', fn: 'count' },
-          { name: 'notional', column: 'notional', fn: 'sum' },
-          { name: 'notional', column: 'qty', fn: 'max' },
-        ],
-        sorts: [], epoch: 1,
-      },
+  // A CUBE SAVED WITH A MEASURES LIST (before 2026-10-17; a grid's aggregates are its Column Properties now,
+  // docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md): opened, each measure is made its column's Aggregation or a calculated
+  // column of its own (grid-edits.ts measuresAsColumns), said; one that cannot be is left out, said -- never refused at
+  // every level, and never kept as a list no panel shows.
+  const legacy = (measures: readonly Measure[], rows: readonly string[] = ['region']): CubeDocument => {
+    const written = writeCube({
+      name: 'old', source: SOURCE,
+      snapshot: { source: RELATION, columns: SOURCE.columns, derived: [], rows, pivotOn: [], sorts: [], epoch: 1 },
       configuration: DEFAULT_CONFIGURATION, tree: TreeState.fromPaths([['EMEA']], false),
     });
-    const opened = openCube(readCube(cubeToJson(old)), RELATION,
-      now([['region', 'String'], ['desk', 'String'], ['notional', 'Float'], ['qty', 'Integer']]));
+    return readCube(cubeToJson({ ...written, query: { ...written.query, measures } }));
+  };
+  const today = now([['region', 'String'], ['desk', 'String'], ['notional', 'Float'], ['qty', 'Integer']]);
+
+  it('opens a saved measures list as Column Properties: its own column\'s Aggregation, else a calculated column', () => {
+    const opened = openCube(legacy([
+      { name: 'notional', column: 'notional', fn: 'average' },
+      { name: 'top_qty', column: 'qty', fn: 'max' },
+      { name: 'w', column: 'notional', fn: 'wavg', weight: 'qty' },
+    ]), RELATION, today);
     assert.deepEqual(opened.notes, [
-      "left out measure region: 'region' is already a column: the measure count(region) takes a name of its own",
-      "left out measure notional: 'notional' is already a column: the measure max(qty) takes a name of its own",
+      "measure notional is now notional's Aggregation, average",
+      'measure top_qty is now a calculated column of qty, its Aggregation max',
+      'measure w is now a calculated column of notional, its Aggregation wavg',
     ]);
-    assert.equal(opened.changed, true);
-    assert.deepEqual(opened.snapshot.measures, [{ name: 'notional', column: 'notional', fn: 'sum' }],
-      'the first of two of one name is kept, as the level query judges them in order');
+    assert.equal(opened.changed, true, 'the cube held is not the one saved: Python\'s page takes it');
+    assert.equal('measures' in opened.snapshot, false);
+    assert.equal(opened.configuration.columns['notional']?.aggregateFn, 'average');
+    assert.deepEqual(opened.snapshot.derived.map((d) => [d.name, d.kind]), [['top_qty', 'measure'], ['w', 'measure']]);
+    assert.equal(opened.configuration.columns['top_qty']?.aggregateFn, 'max');
+    assert.deepEqual(opened.configuration.columns['w'], { aggregateFn: 'wavg', aggregationParameters: ['qty'] });
     assert.equal(opened.tree.isOpen(['EMEA']), true, 'the grouping is the one saved: its open rows stay');
+    // written again, no list: the cube document a grid writes carries none
+    const again = writeCube({ name: 'old', source: SOURCE, snapshot: opened.snapshot, configuration: opened.configuration,
+      tree: opened.tree });
+    assert.equal('measures' in again.query, false);
   });
 
-  it('leaves out a measure whose column, as the compiler types it now, does not take its aggregate; a count fits any', () => {
-    const old = writeCube({
-      name: 'retyped', source: SOURCE,
-      snapshot: {
-        source: RELATION, columns: SOURCE.columns, derived: [], rows: ['region'], pivotOn: [],
-        measures: [{ name: 'n', column: 'notional', fn: 'sum' }, { name: 'c', column: 'desk', fn: 'count' }],
-        sorts: [], epoch: 1,
-      },
-      configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty(),
-    });
-    // the file's notional is text now
-    const opened = openCube(readCube(cubeToJson(old)), RELATION,
-      now([['region', 'String'], ['desk', 'String'], ['notional', 'String'], ['qty', 'Integer']]));
+  it('leaves out, saying why, a saved measure the screen\'s model cannot hold', () => {
+    // old Python's grid.group('region').measure('region', 'count'), a second measure of a name another has, a sum of
+    // text, and a measure of a column the source no longer has
+    const opened = openCube(legacy([
+      { name: 'region', column: 'region', fn: 'count' },
+      { name: 'notional', column: 'notional', fn: 'sum' },
+      { name: 'notional', column: 'qty', fn: 'max' },
+      { name: 'names', column: 'desk', fn: 'sum' },
+      { name: 'gone', column: 'pnl', fn: 'sum' },
+    ]), RELATION, today);
     assert.deepEqual(opened.notes, [
-      'notional is now String (it was Float)',
-      "left out measure n: 'sum' is not offered on notional, a String column",
+      "left out measure region: 'count' is not offered on region, a String column: min, max, joinStrings, unique "
+        + "(Show leaf count counts a group's rows)",
+      "measure notional is now notional's Aggregation, sum",
+      "left out measure notional: 'notional' is already a column",
+      "left out measure names: 'sum' is not offered on desk, a String column: min, max, joinStrings, unique",
+      "left out measure gone: 'pnl' is not a column of the grid (desk, notional, qty, region)",
     ]);
-    assert.deepEqual(opened.snapshot.measures, [{ name: 'c', column: 'desk', fn: 'count' }]);
     assert.equal(opened.changed, true);
+    assert.deepEqual(opened.snapshot.derived, []);
+  });
+
+  it('opens a cube saved with an empty measures list as it was', () => {
+    const opened = openCube(legacy([]), RELATION, today);
+    assert.deepEqual(opened.notes, []);
+    assert.equal(opened.changed, false);
   });
 });
 

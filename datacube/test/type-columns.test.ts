@@ -26,7 +26,6 @@ before(async () => {
     derived: [{ name: 'twice', lambda: await row('$x.amount * 2') }],
     rows: [],
     pivotOn: [],
-    measures: [],
     sorts: [],
     epoch: 1,
   };

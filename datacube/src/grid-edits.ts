@@ -5,11 +5,14 @@
 // Python's calls may.
 
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
+import { lambda, property, variable } from '../../pure-protocol/src/index.ts';
+import { nameProblem } from './calc.ts';
+import { draftColumn, newDraft } from './column-draft.ts';
 import { columnConfig, withColumn, type ColumnPatch, type CubeConfiguration } from './config.ts';
 import { takesAggregate } from './offers.ts';
 import {
   AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SORT_DIRECTIONS, rowColumns, type AggregateFn, type ColumnKind,
-  type CubeSnapshot, type SortSpec,
+  type CubeSnapshot, type DerivedColumn, type Measure, type SortSpec,
 } from './snapshot.ts';
 
 /** What an edit changes: the grid's query and its configuration (the editor's draft carries both). */
@@ -63,10 +66,13 @@ export function setGrouping<D extends GridDraft>(draft: D, rows: readonly string
 }
 
 /** `pivotOn` as the grid's pivot (the Horizontal Pivots panel, the menu's Horizontal Pivot, the Columns zone): each
- *  once, and each it did not have a dimension of the grid. */
+ *  once, and each it did not have a dimension of the grid. Unpivoted, the grid has no pivot headers: a sort of one (the
+ *  header menu's) goes with them, as the grid's rows would be sorted by a column they do not have. */
 export function setPivot<D extends GridDraft>(draft: D, pivotOn: readonly string[]): D {
   checkGroupable(draft, pivotOn, draft.snapshot.pivotOn, 'the pivot');
-  return { ...draft, snapshot: { ...draft.snapshot, pivotOn: [...pivotOn] } };
+  const columns = allColumns(draft);
+  const sorts = pivotOn.length > 0 ? draft.snapshot.sorts : draft.snapshot.sorts.filter((x) => columns.includes(x.column));
+  return { ...draft, snapshot: { ...draft.snapshot, pivotOn: [...pivotOn], sorts } };
 }
 
 function checkGroupable(draft: GridDraft, names: readonly string[], had: readonly string[], what: string): void {
@@ -89,8 +95,8 @@ function checkGroupable(draft: GridDraft, names: readonly string[], had: readonl
  */
 export function setSorts<D extends GridDraft>(draft: D, sorts: readonly SortSpec[]): D {
   const columns = allColumns(draft);
-  // a pivot's header ends with the column it spreads, under its own name
-  const spread = new Set([...columns, ...draft.snapshot.measures.map((m) => m.name)]);
+  // a pivot's header ends with the column it spreads, under its own name (a grid's aggregates are its columns')
+  const spread = new Set(columns);
   const pivoted = draft.snapshot.pivotOn.length > 0;
   const seen = new Set<string>();
   for (const { column, direction } of sorts) {
@@ -182,4 +188,86 @@ export function setColumn<D extends GridDraft>(draft: D, name: string, change: C
 /** A source or row-level calculated column's type as the compiler typed it; undefined while not yet typed. */
 function typeOf(s: CubeSnapshot, name: string): string | undefined {
   return rowColumns(s).find((x) => x.name === name)?.type;
+}
+
+/** A measure made a column of the grid's: `column` carries it (its own, or a calculated column of its name). */
+export interface MeasureMade {
+  readonly measure: Measure;
+  readonly column: string;
+}
+
+/**
+ * ONE MEASURE AS THE SCREEN'S MODEL (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.3-3.4): named as its own column,
+ * that column not a key and not in `taken`, that column's Aggregation (a dimension made a measure first, as Column
+ * Properties would); any other a calculated column of its own name reading its column (the column editor's own steps:
+ * column-draft.ts newDraft, draftColumn; its name by calc.ts nameProblem), with that Aggregation -- each by setColumn's
+ * rules. Refused in their words (CubeRefusal): a column the grid has not, a name taken, an aggregate its column's type
+ * is not offered (a count of text: "Show leaf count" counts a group's rows). Python's grid.measure(), a cube saved with
+ * a measures list (openCube) and a chart's values opened in a grid (Open in Grid) are made the grid's by this one rule.
+ */
+export function measureAsColumn<D extends GridDraft>(draft: D, m: Measure, taken: ReadonlySet<string> = new Set()): {
+  readonly draft: D;
+  readonly made: MeasureMade;
+  readonly note: string;
+} {
+  const change: ColumnChange = { aggregate: m.fn, ...(m.weight !== undefined ? { weight: m.weight } : {}) };
+  const column = rowColumns(draft.snapshot).find((c) => c.name === m.column);
+  if (!column) throw new CubeRefusal(`'${m.column}' is not a column of the grid (${listed(allColumns(draft))})`);
+  // Aggregation's offer, judged by the column it reads (the calculated column a measure may become is of its type)
+  if (column.type !== undefined && !offeredAggregates(column.type).includes(m.fn)) {
+    throw new CubeRefusal(`'${m.fn}' is not offered on ${m.column}, a ${column.type} column: `
+      + `${offeredAggregates(column.type).join(', ') || 'none'}${m.fn === 'count' ? " (Show leaf count counts a group's rows)" : ''}`);
+  }
+  const isKey = draft.snapshot.rows.includes(m.column) || draft.snapshot.pivotOn.includes(m.column);
+  if (m.name === m.column && !isKey && !taken.has(m.column)) {
+    const dimension = columnKind(draft, m.column) === 'dimension';
+    const d = setColumn(dimension ? setColumn(draft, m.column, { kind: 'measure' }) : draft, m.column, change);
+    return {
+      draft: d, made: { measure: m, column: m.column },
+      note: `measure ${m.name} is now ${m.column}'s Aggregation, ${m.fn}${dimension ? ` (${m.column} is now a measure)` : ''}`,
+    };
+  }
+  const problem = nameProblem(draft.snapshot, 'row', m.name);
+  if (problem !== null) throw new CubeRefusal(problem);
+  const copy: DerivedColumn = {
+    ...draftColumn(newDraft(m.name, '', 'measure'), lambda(['x'], property(variable('x'), m.column))),
+    // typed as its column is, so its Aggregation is offered by its type now (the compiler types it again on refresh)
+    ...(column.type !== undefined ? { type: column.type } : {}),
+  };
+  const d = setColumn({ ...draft, snapshot: { ...draft.snapshot, derived: [...draft.snapshot.derived, copy] } },
+    copy.name, change);
+  return {
+    draft: d, made: { measure: m, column: copy.name },
+    note: `measure ${m.name} is now a calculated column of ${m.column}, its Aggregation ${m.fn}`,
+  };
+}
+
+/**
+ * A LIST OF MEASURES AS THE SCREEN'S MODEL: each by measureAsColumn, in order, against what the ones before it made (a
+ * column given an Aggregation once is taken: another measure of it is a calculated column). One it cannot be is left
+ * out, said, the rest made: a cube saved with a measures list opens (cube-document.ts openCube), and Open in Grid makes
+ * what it can of a chart's values.
+ */
+export function measuresAsColumns<D extends GridDraft>(draft: D, measures: readonly Measure[]): {
+  readonly draft: D;
+  readonly made: readonly MeasureMade[];
+  readonly notes: readonly string[];
+} {
+  let d = draft;
+  const made: MeasureMade[] = [];
+  const notes: string[] = [];
+  const taken = new Set<string>();
+  for (const m of measures) {
+    try {
+      const one = measureAsColumn(d, m, taken);
+      d = one.draft;
+      if (one.made.column === m.column) taken.add(m.column);
+      made.push(one.made);
+      notes.push(one.note);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      notes.push(`left out measure ${m.name}: ${e.message}`);
+    }
+  }
+  return { draft: d, made, notes };
 }

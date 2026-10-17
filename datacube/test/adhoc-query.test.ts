@@ -43,7 +43,6 @@ const CUBE: AdHocCube = {
     derived: [],
     rows: [],
     pivotOn: [],
-    measures: [],
     sorts: [],
     epoch: 1,
   },

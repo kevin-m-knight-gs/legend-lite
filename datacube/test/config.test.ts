@@ -36,7 +36,6 @@ const CUBE: CubeSnapshot = {
   derived: [],
   rows: ['region'],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -294,7 +293,6 @@ describe('Column Properties > Aggregation reaches the query', () => {
     derived: [],
     rows: ['region'],
     pivotOn: [],
-    measures: [],
     sorts: [],
     epoch: 1,
   };
@@ -362,7 +360,6 @@ describe('renaming a calculated column that is in use', async () => {
     derived: [{ name: 'big', lambda: (await row('$x.qty > 10')), kind: 'dimension' }],
     rows: ['big'],
     pivotOn: ['big'],
-    measures: [{ name: 'n', column: 'big', fn: 'count' }],
     sorts: [{ column: 'big', direction: 'desc' }],
     filter: { kind: 'not', child: { kind: 'or', children: [
       { kind: 'condition', column: 'big', operator: 'equal', value: true },
@@ -377,7 +374,6 @@ describe('renaming a calculated column that is in use', async () => {
     assert.deepEqual(r.rows, ['large']);
     assert.deepEqual(r.pivotOn, ['large']);
     assert.equal(r.sorts[0]?.column, 'large');
-    assert.equal(r.measures[0]?.column, 'large');
     assert.match(JSON.stringify(r.filter), /"column":"large"/);
     assert.match(JSON.stringify(r.filter), /"rightColumn":"large"/);
     assert.doesNotMatch(JSON.stringify(r.filter), /"big"/);
@@ -402,7 +398,6 @@ describe('what the count counts', () => {
     derived: [],
     rows: ['region'],
     pivotOn: [],
-    measures: [],
     sorts: [],
     epoch: 1,
   };

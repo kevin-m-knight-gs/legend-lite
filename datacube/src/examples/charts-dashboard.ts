@@ -50,11 +50,7 @@ export const EXAMPLE_CUBE: CubeSnapshot = {
   derived: [],
   rows: ['region', 'country'],
   pivotOn: [],
-  measures: [
-    { name: 'revenue', column: 'revenue', fn: 'sum' },
-    { name: 'profit', column: 'profit', fn: 'sum' },
-    { name: 'units', column: 'units', fn: 'sum' },
-  ],
+  // its money and its units summed: each measure column's Aggregation, here its default (Column Properties sets another)
   groupDerived: [{ name: 'margin', lambda: MARGIN, type: 'Float' }],
   sorts: [{ column: 'revenue', direction: 'desc' }],
   epoch: 1,

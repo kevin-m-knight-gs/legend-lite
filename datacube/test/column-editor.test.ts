@@ -33,7 +33,6 @@ const CUBE: CubeSnapshot = {
   derived: [{ name: 'uplift', lambda: (await row('$x.notional * 1.1')), kind: 'measure' }],
   rows: [],
   pivotOn: [],
-  measures: [],
   sorts: [],
   epoch: 1,
 };

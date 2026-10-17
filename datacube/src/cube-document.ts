@@ -20,10 +20,11 @@
 //
 // Opening a cube RECONCILES it with what its source holds now (the user's ruling on schema
 // drift): a new column is available but hidden; a part that uses a column that is gone is
-// left out and NAMED; a changed type is reported. Nothing is refused for drift alone. A
-// measure whose name is not its own (calc.ts measureNameProblem), or whose column's type no
-// longer takes its aggregate (offers.ts measureOfferProblem), is left out and named the same
-// way, so a cube saved before those rules (2026-10-16) still opens.
+// left out and NAMED; a changed type is reported. Nothing is refused for drift alone. A cube
+// saved with a measures list (before 2026-10-17: a grid's aggregates are its Column Properties
+// now, docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md) opens with each measure made its
+// column's Aggregation or a calculated column (grid-edits.ts measuresAsColumns), said, or left
+// out, said.
 
 import {
   ExactNumber,
@@ -32,8 +33,7 @@ import {
   toJson as protocolJson,
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
-import { measureNameProblem } from './calc.ts';
-import { measureOfferProblem } from './offers.ts';
+import { measuresAsColumns } from './grid-edits.ts';
 import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, type CubeConfiguration } from './config.ts';
 import type {
   ColumnSpec,
@@ -136,8 +136,11 @@ export interface FrameSource {
 /** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe. */
 export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource;
 
-/** The cube's definition: a snapshot without its runtime state (source relation, epoch, row window). */
-export type SavedQuery = Omit<CubeSnapshot, 'source' | 'epoch' | 'window'>;
+/**
+ * The cube's definition: a snapshot without its runtime state (source relation, epoch, row window). A cube saved before
+ * 2026-10-17 can carry a list of measures, which opening it converts (openCube); one written now never does.
+ */
+export type SavedQuery = Omit<CubeSnapshot, 'source' | 'epoch' | 'window'> & { readonly measures?: readonly Measure[] };
 
 export interface CubeDocument {
   readonly kind: typeof CUBE_KIND;
@@ -344,8 +347,12 @@ function readQuery(raw: unknown): SavedQuery {
     if (k === 'derived' || k === 'groupDerived') continue;
     out[k] = plain(v);
   }
-  for (const k of ['columns', 'rows', 'pivotOn', 'measures', 'sorts']) {
+  for (const k of ['columns', 'rows', 'pivotOn', 'sorts']) {
     if (!Array.isArray(out[k])) throw new CubeDocumentError(`'query.${k}' is not a list`);
+  }
+  // a cube saved before 2026-10-17 carries its measures (openCube converts them)
+  if (out['measures'] !== undefined && !Array.isArray(out['measures'])) {
+    throw new CubeDocumentError("'query.measures' is not a list");
   }
   out['derived'] = calculated(raw['derived'], 'derived');
   if (raw['groupDerived'] !== undefined) out['groupDerived'] = calculated(raw['groupDerived'], 'groupDerived');
@@ -437,12 +444,6 @@ export function openCube(
   };
   const rows = q.rows.filter(using('grouping by'));
   const pivotOn = q.pivotOn.filter(using('pivoting on'));
-  const measures = q.measures.filter((m) => {
-    const lost = [m.column, m.weight].filter((n): n is string => n !== undefined && gone.has(n));
-    if (lost.length === 0) return true;
-    notes.push(`left out measure ${m.name} (it uses ${lost.join(', ')})`);
-    return false;
-  });
   const sorts = q.sorts.filter((s) => using('sorting by')(s.column));
   const filter = q.filter === undefined ? undefined : pruneFilter(q.filter, gone, notes);
 
@@ -469,44 +470,27 @@ export function openCube(
     pivotOn,
     // pinned pivot values belong to the keys they were pinned on
     ...(pivotValues !== undefined && pivotOn.length === q.pivotOn.length ? { pivotValues } : {}),
-    measures,
     sorts,
     ...(filter !== undefined ? { filter } : {}),
     epoch: 0,
   };
-  const snapshot: CubeSnapshot = { ...reconciled, measures: fitting(reconciled, notes) };
+  // a measures list saved before 2026-10-17: the screen's model now, each measure said (or left out, said)
+  const savedMeasures = q.measures ?? [];
+  const converted = measuresAsColumns({ snapshot: reconciled, config: configuration }, savedMeasures);
+  notes.push(...converted.notes);
+  const snapshot = converted.draft.snapshot;
+  configuration = converted.draft.config;
   // The open rows are paths through the saved grouping; a different grouping has none.
   const tree = TreeState.fromPaths(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals);
-  const changed = notes.some((n) => n.startsWith('left out'));
+  // changed: a part left out, or a saved measures list made the screen's model -- the cube held is not the one saved
+  const changed = savedMeasures.length > 0 || notes.some((n) => n.startsWith('left out'));
   return { snapshot, configuration, tree, notes, changed };
-}
-
-/**
- * A cube's measures that still fit it: each over a source column whose type, as the compiler types it now, takes its
- * aggregate (offers.ts measureOfferProblem; a calculated column's measure is judged at compile), and named by the rule
- * (calc.ts measureNameProblem), judged against those kept before it, as the level query judges them in order; any other
- * is left out, in the rule's words. A cube saved before the rules (2026-10-16) -- old Python's
- * `grid.group('region').measure('region', 'count')`, whose count the grouped level dropped without a word, or a sum of a
- * text column it dropped too -- opens without it, saying so, rather than refusing at every level: no panel shows a
- * measure to fix.
- */
-function fitting(snapshot: CubeSnapshot, notes: string[]): Measure[] {
-  const typeOf = new Map(snapshot.columns.map((c) => [c.name, c.type] as const));
-  const kept: Measure[] = [];
-  for (const m of snapshot.measures) {
-    const type = typeOf.get(m.column);
-    const problem = (type === undefined ? null : measureOfferProblem(m, type))
-      ?? measureNameProblem({ ...snapshot, measures: [...kept, m] }, kept.length);
-    if (problem === null) kept.push(m);
-    else notes.push(`left out measure ${m.name}: ${problem}`);
-  }
-  return kept;
 }
 
 /**
  * Whether a cube's grouping changed -- its row groups or its pivot, by name and order. Its open rows are paths through
  * the grouping it had, so a changed one has none: a cube reopened over a source that lost a grouping column (openCube),
- * and one regrouped by Python's call (headless gridQuery), by this one test.
+ * and one regrouped by an edit (headless gridEdit), by this one test.
  */
 export function groupingChanged(
   was: Pick<CubeSnapshot, 'rows' | 'pivotOn'>, now: Pick<CubeSnapshot, 'rows' | 'pivotOn'>,
@@ -517,7 +501,7 @@ export function groupingChanged(
 
 /** A source's rows as they are: grouped by nothing, up to the row cap (a person builds the cube up). */
 export function rawRows(query: ValueSpecification, columns: CubeSnapshot['columns']): CubeSnapshot {
-  return { source: { query }, columns, derived: [], rows: [], pivotOn: [], measures: [], sorts: [], epoch: 1 };
+  return { source: { query }, columns, derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1 };
 }
 
 /**

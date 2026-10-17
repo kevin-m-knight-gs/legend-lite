@@ -5,7 +5,7 @@
 import { buildCube } from '../src/adhoc/outline.ts';
 import { AdHocSession, type Run } from '../src/adhoc/session.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
-import type { CubeSnapshot, FilterNode } from '../src/snapshot.ts';
+import type { CubeSnapshot, FilterNode, QuerySnapshot } from '../src/snapshot.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 
 type Row = Record<string, string | number | null>;
@@ -28,7 +28,6 @@ export const SNAPSHOT: CubeSnapshot = {
   derived: [],
   rows: [],
   pivotOn: [],
-  measures: [],
   sorts: [],
   epoch: 1,
 };
@@ -61,7 +60,8 @@ export function fakeRun(calls: string[]): Run {
     const columns = [
       ...keys.map((c) => ({ name: c, type: 'String',
         values: ordered.map(([, rs]) => rs[0]?.[c] ?? null) as Scalar[] })),
-      ...snapshot.measures.map((m) => ({ name: m.name, type: 'Float',
+      // the ad hoc mode asks its own aggregates of each query (snapshot.ts QuerySnapshot)
+      ...((snapshot as QuerySnapshot).measures ?? []).map((m) => ({ name: m.name, type: 'Float',
         values: ordered.map(([, rs]) => (m.fn === 'count' ? rs.length
           : rs.reduce((n, r) => n + Number(r[m.column] ?? 0), 0))) as Scalar[] })),
     ];

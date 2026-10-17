@@ -21,11 +21,11 @@ import {
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { CALC_FACTS } from '../src/generated/offer-facts.ts';
 import { pivotColumns } from '../src/query.ts';
-import type { CubeSnapshot, Measure } from '../src/snapshot.ts';
+import type { QuerySnapshot, Measure } from '../src/snapshot.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
 import { stand } from './fake-planner.ts';
 
-const snap = (over: Partial<CubeSnapshot> = {}): CubeSnapshot => ({
+const snap = (over: Partial<QuerySnapshot> = {}): QuerySnapshot => ({
   source: { query: accessor('db', 'T') },
   columns: [
     { name: 'region', type: 'String' },

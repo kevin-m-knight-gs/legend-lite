@@ -43,7 +43,6 @@ const SNAPSHOT: CubeSnapshot = {
   derived: [{ name: 'scaled', type: 'Decimal', lambda: lambda(['x'], times(col('x', 'notional'), lit.decimal('12.30'))) }],
   rows: ['region', 'desk'],
   pivotOn: [],
-  measures: [],
   sorts: [],
   filter: {
     kind: 'and',

@@ -20,6 +20,7 @@ import {
   markConditions,
   TIME_LIMIT,
   AXIS_UPPER,
+  type ChartMeasure,
   type ChartSpec,
 } from '../src/chart-spec.ts';
 import { chartCsv, chartOption, kpiDrawing, MAX_SERIES, periodText, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
@@ -56,10 +57,14 @@ const CUBE: CubeSnapshot = {
   derived: [],
   rows: ['region', 'desk'],
   pivotOn: ['trade_date'],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   filter: { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' },
   epoch: 1,
+};
+
+/** The cube with its notional's Aggregation set to average (Column Properties, folded into its columns). */
+const AVERAGED: CubeSnapshot = {
+  ...CUBE, columns: CUBE.columns.map((c) => (c.name === 'notional' ? { ...c, aggregate: 'average' as const } : c)),
 };
 
 const BAR: ChartSpec = {
@@ -123,20 +128,16 @@ describe('the chart\'s query', () => {
 });
 
 describe('a group-level column, plotted as it is (version 2: fn \'value\')', () => {
-  // the cube's margin: its two measures' ratio, after grouping; and a running total of its notional, a window
-  const ratio = lambda(['x'], fn('divide', property(variable('x'), 'pnl_sum'), property(variable('x'), 'total')));
+  // the cube's margin: its two measure columns' ratio, after grouping (each on its Aggregation); and a running total of
+  // its notional, a window
+  const ratio = lambda(['x'], fn('divide', property(variable('x'), 'pnl'), property(variable('x'), 'notional')));
   const GROUPED: CubeSnapshot = {
     ...CUBE,
     columns: [...CUBE.columns, { name: 'pnl', type: 'Float' }],
-    measures: [
-      { name: 'total', column: 'notional', fn: 'sum' },
-      { name: 'pnl_sum', column: 'pnl', fn: 'sum' },
-      { name: 'qty_max', column: 'qty', fn: 'max' },
-    ],
     groupDerived: [
       { name: 'margin', lambda: ratio, type: 'Float' },
-      { name: 'running', window: { fn: 'sum', column: 'total', partition: [], order: [{ column: 'region', direction: 'asc' }], frame: 'running' } },
-      { name: 'smallest_desk', childAggregate: { fn: 'min', of: 'total' } },
+      { name: 'running', window: { fn: 'sum', column: 'notional', partition: [], order: [{ column: 'region', direction: 'asc' }], frame: 'running' } },
+      { name: 'smallest_desk', childAggregate: { fn: 'min', of: 'notional' } },
     ],
   };
   const MARGIN: ChartSpec = { ...BAR, y: [{ column: 'margin', fn: 'value' }] };
@@ -149,7 +150,7 @@ describe('a group-level column, plotted as it is (version 2: fn \'value\')', () 
     assert.equal(measureName({ column: 'margin', fn: 'value' }), 'margin');
     const s = chartSnapshot(GROUPED, MARGIN);
     assert.deepEqual(s.groupDerived?.map((d) => d.name), ['margin']);
-    assert.deepEqual(s.measures.map((m) => m.name), ['pnl_sum', 'total']);
+    assert.deepEqual(s.measures?.map((m) => m.name), ['pnl', 'notional']);
     assert.deepEqual(s.columns.map((c) => c.name).sort(), ['desk', 'notional', 'pnl', 'region']);
     assert.deepEqual(s.sorts, [{ column: 'margin', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
     // grouped, then extended: the ratio is of the groups' sums, never an average of the rows' ratios
@@ -161,7 +162,7 @@ describe('a group-level column, plotted as it is (version 2: fn \'value\')', () 
   it('a window over the chart\'s rows comes with what it reads', () => {
     const s = chartSnapshot(GROUPED, { ...BAR, y: [{ column: 'notional', fn: 'sum' }, { column: 'running', fn: 'value', mark: 'line' }] });
     assert.deepEqual(s.groupDerived?.map((d) => d.name), ['running']);
-    assert.deepEqual(s.measures.map((m) => m.name), ['sum_notional', 'total']);
+    assert.deepEqual(s.measures?.map((m) => m.name), ['sum_notional', 'notional']);
   });
 
   it('the chart\'s own calculations: a row-stage one is a dimension it can group by, a group-stage one it can plot', () => {
@@ -201,7 +202,6 @@ describe('the first chart of a cube', () => {
     const uploaded: CubeSnapshot = {
       ...CUBE,
       columns: [{ name: 'trade_id', type: 'Integer' }, ...CUBE.columns],
-      measures: [],
     };
     assert.deepEqual(defaultChart(uploaded)!.y, [{ column: 'notional', fn: 'sum' }]);
     // nothing to sum at all: count the rows
@@ -406,9 +406,24 @@ describe('a live chart', () => {
       { by: 'y', direction: 'desc' });
   });
 
-  it('plots the cube\'s own measure', () => {
-    const m = followCube(live, { ...CUBE, measures: [{ name: 'q', column: 'qty', fn: 'average' }] });
-    assert.deepEqual(m.y, [{ column: 'qty', fn: 'average' }]);
+  it('plots each value on the grid\'s Aggregation of its column (Column Properties)', () => {
+    assert.deepEqual(followCube(live, AVERAGED).y, [{ column: 'notional', fn: 'average' }]);
+    // a weighted average needs a weight a chart's value has not: the chart keeps its own
+    const weighted: CubeSnapshot = { ...CUBE, columns: CUBE.columns.map((c) => (c.name === 'notional'
+      ? { ...c, aggregate: 'wavg' as const, aggregateWeight: 'qty' } : c)) };
+    assert.deepEqual(followCube(live, weighted).y, live.y);
+    // a dimension the grid does not aggregate: a count of desks stays a count
+    const counted: ChartSpec = { ...live, y: [{ column: 'desk', fn: 'count' }] };
+    assert.deepEqual(followCube(counted, AVERAGED).y, counted.y);
+  });
+
+  it('reads a value back from the grid column that carries it (Open in Grid\'s Update)', () => {
+    const two: ChartSpec = { ...live, y: [{ column: 'notional', fn: 'sum' }, { column: 'notional', fn: 'max' }] };
+    // the editing grid made the second value a calculated column of its own, its Aggregation since set to min
+    const grid: CubeSnapshot = { ...CUBE, derived: [{ name: 'max_notional', kind: 'measure', type: 'Float', aggregate: 'min',
+      lambda: lambda(['x'], property(variable('x'), 'notional')) }] };
+    const carriedBy = (m: ChartMeasure): string => (m.fn === 'max' ? 'max_notional' : m.column);
+    assert.deepEqual(followCube(two, grid, carriedBy).y, [{ column: 'notional', fn: 'sum' }, { column: 'notional', fn: 'min' }]);
   });
 
   it('stays as it is when frozen, a scatter, or when nothing is grouped', () => {
@@ -445,8 +460,8 @@ describe('a KPI (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () => {
 
   it('needs no column across; follows the cube\'s measure, never its grouping', () => {
     assert.deepEqual(chartProblems(kpi, CUBE), []);
-    const followed = followCube({ ...kpi, x: 'trade_date' }, { ...CUBE, measures: [{ name: 'q', column: 'qty', fn: 'average' }] });
-    assert.deepEqual(followed.y, [{ column: 'qty', fn: 'average' }]);
+    const followed = followCube({ ...kpi, x: 'trade_date' }, AVERAGED);
+    assert.deepEqual(followed.y, [{ column: 'notional', fn: 'average' }]);
     assert.equal(followed.x, 'trade_date', 'its trend\'s column is its own');
   });
 
@@ -509,7 +524,7 @@ describe('presets in the spec: kept as words, expanded when the query is built (
     assert.deepEqual(s.rows, ['trade_date__month']);
     assert.deepEqual(s.derived.map((d) => d.name), ['trade_date__month', 'trade_date__month__upper']);
     // the period's end, the database's adjust(), carried as the most of each period's rows'
-    assert.deepEqual(s.measures.find((m) => m.name === AXIS_UPPER), { name: AXIS_UPPER, column: 'trade_date__month__upper', fn: 'max' });
+    assert.deepEqual(s.measures?.find((m) => m.name === AXIS_UPPER), { name: AXIS_UPPER, column: 'trade_date__month__upper', fn: 'max' });
     assert.deepEqual(s.sorts, [{ column: 'trade_date__month', direction: 'asc' }]);
     assert.ok(s.columns.some((c) => c.name === 'trade_date'));
     // the drawing reads its categories from the grain's column, and a period's end from the database's
@@ -555,7 +570,7 @@ describe('presets in the spec: kept as words, expanded when the query is built (
     const spec: ChartSpec = { ...BAR, split: 'desk', y: [{ column: 'notional', fn: 'sum', showAs: { kind: 'runningTotal' } }] };
     assert.equal(measureName(spec.y[0]!), 'runningTotal_sum_notional');
     const s = chartSnapshot(CUBE, spec);
-    assert.deepEqual(s.measures.map((m) => m.name), ['sum_notional']);
+    assert.deepEqual(s.measures?.map((m) => m.name), ['sum_notional']);
     assert.deepEqual(s.groupDerived, [{ name: 'runningTotal_sum_notional', window: {
       fn: 'sum', column: 'sum_notional', partition: ['desk'], order: [{ column: 'region', direction: 'asc' }], frame: 'running',
     } }]);
@@ -680,7 +695,7 @@ describe('the query of a dashboard-grade chart', () => {
       ...BAR, tooltip: [{ column: 'qty', fn: 'max' }], label: { column: 'qty', fn: 'sum' },
       layers: [{ kind: 'stat', stat: 'average' }, { kind: 'extremes' }],
     });
-    assert.deepEqual(s.measures.map((m) => m.name), ['sum_notional', 'max_qty', 'sum_qty']);
+    assert.deepEqual(s.measures?.map((m) => m.name), ['sum_notional', 'max_qty', 'sum_qty']);
     assert.deepEqual(s.groupDerived?.map((d) => d.name), ['average_of_sum_notional', 'max_of_sum_notional', 'min_of_sum_notional']);
   });
 });
@@ -947,7 +962,7 @@ describe('the audit\'s cases (batch 2): a brush by value, the last bin, refusals
   });
 
   it('a group-level column that reads a grouping the chart does not group by is refused', () => {
-    const s: CubeSnapshot = { ...CUBE, pivotOn: [], groupDerived: [{ name: 'deskRank', window: { fn: 'rank', partition: ['desk'], order: [{ column: 'total', direction: 'desc' }] } }] };
+    const s: CubeSnapshot = { ...CUBE, pivotOn: [], groupDerived: [{ name: 'deskRank', window: { fn: 'rank', partition: ['desk'], order: [{ column: 'notional', direction: 'desc' }] } }] };
     assert.match(chartProblems({ ...BAR, y: [{ column: 'deskRank', fn: 'value' }] }, s).join(' '), /reads 'desk'/);
     assert.deepEqual(chartProblems({ ...BAR, split: 'desk', y: [{ column: 'deskRank', fn: 'value' }] }, s), []);
   });

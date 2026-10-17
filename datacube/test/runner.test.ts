@@ -27,7 +27,6 @@ const SNAPSHOT: CubeSnapshot = {
   derived: [],
   rows: [],
   pivotOn: [],
-  measures: [],
   sorts: [],
   epoch: 1,
 };

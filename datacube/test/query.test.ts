@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import type {
-  CubeSnapshot,
+  QuerySnapshot,
   FilterOperator,
 } from '../src/snapshot.ts';
 import { totalOrderSorts } from '../src/snapshot.ts';
@@ -43,12 +43,12 @@ const YEARS: PivotFacts = { tuples: [['2023'], ['2024']] };
  * about something else does not give its own (the default cube pivots on
  * year). The one test of the refusal calls `printLevel` itself.
  */
-function level(s: CubeSnapshot, scope?: LevelScope, facts?: PivotFacts): Promise<string> {
+function level(s: QuerySnapshot, scope?: LevelScope, facts?: PivotFacts): Promise<string> {
   return printLevel(s, scope, facts ?? (s.pivotOn.length > 0 ? YEARS : undefined));
 }
 
 /** A minimal trades cube, overridable per test. */
-function snap(over: Partial<CubeSnapshot> = {}): CubeSnapshot {
+function snap(over: Partial<QuerySnapshot> = {}): QuerySnapshot {
   return {
     source: { query: variable('trades') },
     columns: [
@@ -71,7 +71,7 @@ function snap(over: Partial<CubeSnapshot> = {}): CubeSnapshot {
 describe('a level query', () => {
   it('refuses a measure named as another column where the level writes it under its name, and two of one name', async () => {
     // one rule at the level's top (calc.ts measureNameProblem): a grouped level writes every measure beside the keys
-    const key = (over: Partial<CubeSnapshot> = {}) => snap({ measures: [{ name: 'region', column: 'qty', fn: 'sum' }], ...over });
+    const key = (over: Partial<QuerySnapshot> = {}) => snap({ measures: [{ name: 'region', column: 'qty', fn: 'sum' }], ...over });
     await assert.rejects(async () => level(key({ pivotOn: [] }), { level: 1, parent: [] }), /'region' is already a column/);
     await assert.rejects(async () => level(key({ pivotOn: [] }), { level: 1, parent: [] }),
       /the measure sum\(qty\) takes a name of its own/);
@@ -81,7 +81,7 @@ describe('a level query', () => {
     const keptOut = key({ columns: snap().columns.map((c) => (c.name === 'qty' ? { ...c, excludedFromPivot: true } : c)) });
     await assert.rejects(async () => level(keptOut, undefined, YEARS), /'region' is already a column/);
     // two measures of one name, pivoted or not
-    const twice = (over: Partial<CubeSnapshot> = {}) => snap({
+    const twice = (over: Partial<QuerySnapshot> = {}) => snap({
       measures: [{ name: 'total', column: 'notional', fn: 'sum' }, { name: 'total', column: 'qty', fn: 'sum' }], ...over });
     await assert.rejects(async () => level(twice(), undefined, YEARS), /'total' is already a measure's name: the measure sum\(qty\)/);
     await assert.rejects(async () => level(twice({ pivotOn: [] }), { level: 1, parent: [] }), /'total' is already a column/);
@@ -886,7 +886,7 @@ describe('drilling into a TEMPORAL group', () => {
   // with `String(date)` -- the locale form -- then fed back into the
   // next level's query as a filter value. So the group appeared and
   // opening it failed, while the grid kept the previous answer.
-  const TEMPORAL: CubeSnapshot = {
+  const TEMPORAL: QuerySnapshot = {
     source: { query: element('t') },
     columns: [
       { name: 'booked_at', type: 'DateTime' },
@@ -948,7 +948,7 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
   // no grouping columns, so a guard meant for the grand total threw
   // away its sort and its row cap as well. The simplest grid was the
   // one that honoured neither.
-  const DETAIL: CubeSnapshot = {
+  const DETAIL: QuerySnapshot = {
     source: { query: element('t') },
     columns: [
       { name: 'region', type: 'String' },
@@ -967,7 +967,7 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
   });
 
   it('includes derived columns in the projection', async () => {
-    const withDerived: CubeSnapshot = {
+    const withDerived: QuerySnapshot = {
       ...DETAIL,
       derived: [{ name: 'net', lambda: (await row('$x.notional * 2')) }],
     };
@@ -975,7 +975,7 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
   });
 
   it('HONOURS its sort', async () => {
-    const sorted: CubeSnapshot = {
+    const sorted: QuerySnapshot = {
       ...DETAIL,
       sorts: [{ column: 'region', direction: 'asc' }],
     };
@@ -988,7 +988,7 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
   });
 
   it('caps AFTER sorting, so the first page is the first page', async () => {
-    const sorted: CubeSnapshot = {
+    const sorted: QuerySnapshot = {
       ...DETAIL,
       sorts: [{ column: 'notional', direction: 'desc' }],
     };
@@ -1002,7 +1002,7 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
   it('still leaves the GRAND TOTAL unsorted and uncapped', async () => {
     // One row: sorting and limiting it is noise. This is the case
     // the old guard was written for, and it must keep working.
-    const total: CubeSnapshot = {
+    const total: QuerySnapshot = {
       ...DETAIL,
       measures: [{ name: 'n', column: 'notional', fn: 'sum' }],
       sorts: [{ column: 'region', direction: 'asc' }],
@@ -1195,7 +1195,7 @@ describe('drilling into a JSON group', () => {
   // Grouping by a Variant column worked and opening a group returned
   // nothing: the key came back as `$x.customer == '{...}'`, which
   // compares the document to a JSON STRING holding its text.
-  const ORDERS: CubeSnapshot = {
+  const ORDERS: QuerySnapshot = {
     source: { query: element('t') },
     columns: [
       { name: 'region', type: 'String' },
