@@ -28,8 +28,7 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
-import { followCube, GRID_MARKS, measureName, type ChartMeasure } from '../chart-spec.ts';
-import { measuresAsColumns } from '../grid-edits.ts';
+import { chartValuesAsColumns, followCube, GRID_MARKS } from '../chart-spec.ts';
 import { applyToSnapshot, type CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
@@ -37,7 +36,7 @@ import {
   FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews,
 } from '../page-document.ts';
 import { givenName } from '../page-names.ts';
-import { withoutConditions, type CubeSnapshot, type FilterNode, type Measure } from '../snapshot.ts';
+import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
@@ -1130,28 +1129,14 @@ export class CubePage {
     const tile = `edit-${chartId}`;
     const host = this.#doc.createElement('div');
     host.className = 'dc-chart-editor';
-    const used = new Set<string>();
-    // a group-level column plotted as it is is the grid's already (its groupDerived comes with the snapshot); each other
-    // (column, aggregate) pair once -- two values of one pair (a sum and its running total) are carried by one column --
-    // named for its column, a second pair of a column for itself
-    const pairKey = (m: { readonly column: string; readonly fn: string }): string => JSON.stringify([m.column, m.fn]);
-    const asked: Measure[] = [];
-    for (const m of spec.y) {
-      if (m.fn === 'value' || asked.some((a) => pairKey(a) === pairKey(m))) continue;
-      const name = used.has(m.column) ? measureName(m) : m.column;
-      used.add(name);
-      asked.push({ name, column: m.column, fn: m.fn });
-    }
-    // THE CHART'S VALUES AS THE GRID'S COLUMN PROPERTIES (grid-edits.ts measuresAsColumns, the one rule): the first of a
-    // column its Aggregation, another a calculated column of its name with its own -- so the editing grid shows, in
-    // Column Properties, what the chart plots, and Update reads each value back from the column that carries it
-    const made = measuresAsColumns({
+    // THE CHART'S VALUES AS THE GRID'S COLUMN PROPERTIES (chart-spec.ts chartValuesAsColumns, by grid-edits.ts
+    // measuresAsColumns): so the editing grid shows, in Column Properties, what the chart plots, and Update reads each
+    // value back from the column that carries it
+    const made = chartValuesAsColumns({
       snapshot: { ...source.snapshot, rows: [spec.x, ...(spec.split !== undefined ? [spec.split] : [])], pivotOn: [] },
       config: source.configuration,
-    }, asked);
-    const carrier = new Map(made.made.map((x) => [pairKey(x.measure), x.column]));
-    // a value the grid carries in a column of its own; any other (a row's value, a pair left out) is its own column's
-    const carriedBy = (m: ChartMeasure): string => carrier.get(pairKey(m)) ?? m.column;
+    }, spec.y);
+    const carriedBy = made.carriedBy;
     // folded: the grid reads its query back over its configuration (fromSnapshot), and the source grid's query carries
     // its own Aggregations, which would replace the chart's
     const grid = source.spawn(host, applyToSnapshot(made.draft.snapshot, made.draft.config), { configuration: made.draft.config });

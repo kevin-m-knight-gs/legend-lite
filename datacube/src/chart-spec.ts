@@ -12,7 +12,7 @@
 // a chart never depends on the drawing library's version, and it holds
 // no functions (a stored formatter would need eval to come back).
 
-import { copiedColumn } from './grid-edits.ts';
+import { copiedColumn, measuresAsColumns, type GridDraft } from './grid-edits.ts';
 import { columnSpecs, defaultMeasure, levelLambda, type LevelScope } from './query.ts';
 import { binColumns, binName, grainColumn, grainEndColumn, grainName, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waterfallColumns } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
@@ -767,6 +767,32 @@ function firstMeasure(s: CubeSnapshot): ChartMeasure | undefined {
  * value, a value of a dimension (which the grid does not aggregate) and one the grid aggregates by a weighted average
  * (which needs a weight a chart's value has not) keep the chart's own.
  */
+/**
+ * A CHART'S VALUES AS A GRID'S COLUMN PROPERTIES (Open in Grid): each (column, aggregate) pair once -- two values of
+ * one pair (a sum and its running total) carried by one column -- the first of a column its Aggregation, another a
+ * calculated column named for it (grid-edits.ts measuresAsColumns, the one rule); and which column carries each
+ * value, for Update (followCube's `carriedBy`): a value no column was made for (a group-level column plotted as it is,
+ * which the grid has already, or a pair left out) is its own column's.
+ */
+export function chartValuesAsColumns<D extends GridDraft>(draft: D, y: readonly ChartMeasure[]): {
+  readonly draft: D;
+  readonly notes: readonly string[];
+  readonly carriedBy: (m: ChartMeasure) => string;
+} {
+  const pairKey = (m: { readonly column: string; readonly fn: string }): string => JSON.stringify([m.column, m.fn]);
+  const used = new Set<string>();
+  const asked: Measure[] = [];
+  for (const m of y) {
+    if (m.fn === 'value' || asked.some((a) => pairKey(a) === pairKey(m))) continue;
+    const name = used.has(m.column) ? measureName(m) : m.column;
+    used.add(name);
+    asked.push({ name, column: m.column, fn: m.fn });
+  }
+  const made = measuresAsColumns(draft, asked);
+  const carrier = new Map(made.made.map((x) => [pairKey(x.measure), x.column]));
+  return { draft: made.draft, notes: made.notes, carriedBy: (m) => carrier.get(pairKey(m)) ?? m.column };
+}
+
 /**
  * The grid's column that carries a chart's value as it is: its own column at that aggregate, else a calculated column
  * that copies it (grid-edits.ts copiedColumn, as a converted measures list or Open in Grid makes one) at that

@@ -315,6 +315,19 @@ describe('the editor', () => {
     assert.equal(weight().disabled, false);
   });
 
+  it('offers as a weight the columns the rows have, never a group-level one', () => {
+    root.replaceChildren();
+    editor = new CubeEditor(root, draftFor({ ...CUBE, groupDerived: [{ name: 'share', lambda: stand('$x.a / 2') }] }), {
+      onApply: () => true, onClose: () => undefined,
+    });
+    go('Column Properties');
+    chooseColumn(root, 'notional');
+    const weight = fieldWithLabel('Weight column:').querySelector('select') as HTMLSelectElement;
+    const offered = [...weight.options].map((o) => o.value).filter((v) => v !== '');
+    assert.ok(offered.includes('notional') && offered.includes('margin'), offered.join(', '));
+    assert.equal(offered.includes('share'), false, 'a group-level column exists only after grouping');
+  });
+
   it('keeps the width numbers when the mode changes', () => {
     go('Column Properties');
     const mode = (): HTMLSelectElement =>

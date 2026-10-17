@@ -625,6 +625,9 @@ class Document(Paged):
             grid.configure({'columns': {'desk': {'kind': None}}})
         with self.assertRaisesRegex(ValueError, "desk's excludedFromPivot is true or false"):
             grid.configure({'columns': {'desk': {'excludedFromPivot': None}}})
+        # an edit of a part DataCube does not know is refused, never ignored
+        with self.assertRaisesRegex(ValueError, r"a grid's edit is configuration, columns, .*: not pivot"):
+            grid._edit({'pivot': ['desk']})
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
         # a measure is its column's Aggregation, replacing the one it had; a named one, a calculated column with its own;
         # a weighted average with its weight; a count of a number; a sort on a calculated column
@@ -638,6 +641,11 @@ class Document(Paged):
         self.assertEqual(cube['configuration']['columns']['w_pnl'],
                          {'aggregateFn': 'wavg', 'aggregationParameters': ['notional']})
         self.assertEqual(cube['query']['sorts'][-1], {'column': 'w_pnl', 'direction': 'desc'})
+        # kept out of the pivot and back in, explicitly: each reaches the query (a measure spread again)
+        grid.configure({'columns': {'pnl': {'excludedFromPivot': True}}})
+        self.assertIs(next(c for c in grid._query['columns'] if c['name'] == 'pnl')['excludedFromPivot'], True)
+        grid.configure({'columns': {'pnl': {'excludedFromPivot': False}}})
+        self.assertIs(next(c for c in grid._query['columns'] if c['name'] == 'pnl')['excludedFromPivot'], False)
         # Column Properties' "none": the Aggregation cleared, the column on its type's default again
         grid.column('notional', aggregate=None)
         cube = page.to_dict()['cubes'][0]['cube']

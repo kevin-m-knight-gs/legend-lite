@@ -3,6 +3,7 @@
 // a mark means. The drawing is rendered for real, to SVG, in node.
 
 import assert from 'node:assert/strict';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { describe, it } from 'node:test';
 
 import { toJson, element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
@@ -11,6 +12,7 @@ import {
   chartQuery,
   chartSnapshot,
   defaultChart,
+  chartValuesAsColumns,
   followCube,
   KPI_TREND_LIMIT,
   kpiQueries,
@@ -439,6 +441,18 @@ describe('a live chart', () => {
     // a value no column carries follows its column's Aggregation
     assert.deepEqual(followCube({ ...saved, y: [{ column: 'notional', fn: 'average' }] }, grid).y,
       [{ column: 'notional', fn: 'min' }]);
+  });
+
+  it('opens a chart\'s values as Column Properties, each pair once: two values of one pair share one carrier', () => {
+    const y: ChartSpec['y'] = [
+      { column: 'notional', fn: 'sum' },
+      { column: 'notional', fn: 'sum', showAs: { kind: 'runningTotal' } },
+      { column: 'notional', fn: 'max' },
+    ];
+    const made = chartValuesAsColumns({ snapshot: CUBE, config: DEFAULT_CONFIGURATION }, y);
+    // the pair once, notional's own Aggregation; the max a calculated column named for it; no copy for the running total
+    assert.deepEqual(made.draft.snapshot.derived.map((d) => d.name), [...CUBE.derived.map((d) => d.name), measureName(y[2]!)]);
+    assert.deepEqual(y.map(made.carriedBy), ['notional', 'notional', measureName(y[2]!)]);
   });
 
   it('stays as it is when frozen, a scatter, or when nothing is grouped', () => {

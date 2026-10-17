@@ -137,6 +137,16 @@ class Grids(unittest.TestCase):
         out = self.page.grid(frame, name='trades_wide', rows=['k'], measures={'n': 'sum'}).view().to_pandas()
         self.assertEqual(out.n.tolist()[-1], 2 * (2 ** 63 - 1))
 
+    def test_a_grid_edited_over_a_frame_whose_columns_moved_says_what_opening_it_changed(self):
+        # a function frame read again at the edit: its new column comes in hidden, written with the edit and said, in
+        # DataCube's words, as a load says it
+        now = {'frame': TRADES}
+        grid = self.page.grid(lambda: now['frame'], name='trades_moving', rows=['desk'])
+        now['frame'] = TRADES.assign(extra=1)
+        with self.assertWarnsRegex(UserWarning, 'new column since this cube was saved, hidden: extra'):
+            grid.group('region')
+        self.assertIn('extra', [c['name'] for c in grid._query['columns']])
+
     def test_its_rows_read_a_live_frame_once(self):
         # one query, one read of the frame as it is then: a function frame called once (Frames.serving holds it still)
         calls = []

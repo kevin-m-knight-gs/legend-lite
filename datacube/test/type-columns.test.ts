@@ -117,6 +117,14 @@ describe("a compile types the cube first, as a refresh does: it checks the queri
     assert.ok(!compiled.some((q) => /big:x\|\$x\.big:y\|\$y->sum\(\)/.test(q)), compiled.join('\n'));
   });
 
+  it('a grid that carries a measures list is refused, by the check and by the run, never read', async () => {
+    const c = new CubeController(checking(SOURCE_TYPES, []));
+    const smuggled = { ...CUBE, rows: ['region'], measures: [{ name: 'n', column: 'amount', fn: 'sum' as const }] };
+    const out = await c.compile({ snapshot: smuggled, tree: TreeState.empty() }, null);
+    assert.match(out?.refusal ?? '', /a grid carries no measures list/);
+    await assert.rejects(c.run({ snapshot: smuggled, tree: TreeState.empty() }), /a grid carries no measures list/);
+  });
+
   it("a typing refusal is the check's answer, with the typing query", async () => {
     const c = new CubeController(checking(new Error("no property 'nope'"), []));
     const out = await c.compile({ snapshot: await drafted('$x.nope'), tree: TreeState.empty() }, null);
