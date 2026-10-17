@@ -189,10 +189,10 @@ tck/clauses/match-where/MatchWhere1/[14] Fail when filtering path with property 
 tck/clauses/match-where/MatchWhere1/[15] Fail on aggregation in WHERE	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match-where/MatchWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	REFUSED	REFUSED
-tck/clauses/match-where/MatchWhere3/[1] Join between node identities	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere3/[1] Join between node identities	PASS	PASS
 tck/clauses/match-where/MatchWhere3/[2] Join between node properties of disconnected nodes	PASS	PASS
 tck/clauses/match-where/MatchWhere3/[3] Join between node properties of adjacent nodes	PASS	PASS
-tck/clauses/match-where/MatchWhere4/[1] Join nodes on inequality	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere4/[1] Join nodes on inequality	PASS	PASS
 tck/clauses/match-where/MatchWhere4/[2] Join with disjunctive multi-part predicates including patterns	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere5/[1] Filter out on null	PASS	PASS
 tck/clauses/match-where/MatchWhere5/[2] Filter out on null if the AND'd predicate evaluates to false	PASS	PASS
@@ -1210,10 +1210,10 @@ tck/clauses/with-where/WithWhere1/[3] Filter for an unbound relationship variabl
 tck/clauses/with-where/WithWhere1/[4] Filter for an unbound node variable	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	REFUSED	REFUSED
-tck/clauses/with-where/WithWhere3/[1] Join between node identities	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere3/[1] Join between node identities	PASS	PASS
 tck/clauses/with-where/WithWhere3/[2] Join between node properties of disconnected nodes	PASS	PASS
 tck/clauses/with-where/WithWhere3/[3] Join between node properties of adjacent nodes	PASS	PASS
-tck/clauses/with-where/WithWhere4/[1] Join nodes on inequality	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere4/[1] Join nodes on inequality	PASS	PASS
 tck/clauses/with-where/WithWhere4/[2] Join with disjunctive multi-part predicates including patterns	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere5/[1] Filter out on null	PASS	PASS
 tck/clauses/with-where/WithWhere5/[2] Filter out on null if the AND'd predicate evaluates to false	PASS	PASS
@@ -1440,7 +1440,7 @@ tck/expressions/boolean/Boolean5/[8] De Morgan's law on non-null: the negation o
 tck/expressions/comparison/Comparison1/[1] Number-typed integer comparison	PASS	PASS
 tck/expressions/comparison/Comparison1/[2] Number-typed float comparison	PASS	PASS
 tck/expressions/comparison/Comparison1/[3] Any-typed string comparison	PASS	PASS
-tck/expressions/comparison/Comparison1/[4] Comparing nodes to nodes	REFUSED	REFUSED
+tck/expressions/comparison/Comparison1/[4] Comparing nodes to nodes	PASS	PASS
 tck/expressions/comparison/Comparison1/[5] Comparing relationships to relationships	REFUSED	REFUSED
 tck/expressions/comparison/Comparison1/[6] Comparing lists to lists #1	PASS	PASS
 tck/expressions/comparison/Comparison1/[6] Comparing lists to lists #2	PASS	PASS
@@ -4029,6 +4029,22 @@ lite/empty/empty_match_property	PASS	PASS
 lite/empty/empty_match_with_skip	PASS	PASS
 lite/empty/empty_optional_match	PASS	PASS
 lite/empty/empty_optional_through_with	PASS	PASS
+lite/identity/two_nodes_equal	PASS	PASS
+lite/identity/two_nodes_unequal	PASS	PASS
+lite/identity/nodes_of_different_labels_differ	PASS	PASS
+lite/identity/nodes_of_different_labels_equal_only_to_themselves	PASS	PASS
+lite/identity/a_node_equals_itself	PASS	PASS
+lite/identity/an_absent_node_has_no_identity	PASS	PASS
+lite/identity/identity_after_a_with	PASS	PASS
+lite/identity/identity_after_a_with_of_both	PASS	PASS
+lite/identity/a_hopped_node_joined_by_identity	PASS	PASS
+lite/identity/two_hops_sharing_a_node	PASS	PASS
+lite/identity/a_label_less_node_compared_to_itself	PASS	PASS
+lite/identity/comparing_relationships_over_an_association_refused	REFUSED	REFUSED
+lite/identity/comparing_relationships_of_an_edge_class	PASS	PASS
+lite/identity/an_absent_node_is_neither_equal_nor_unequal	PASS	PASS
+lite/identity/a_carried_relationship_of_an_edge_class_compared	PASS	PASS
+lite/identity/two_edge_relationships_in_one_match_are_distinct	PASS	PASS
 lite/joins/pairs_of_a_many_to_many_hop	PASS	PASS
 lite/joins/count_of_pairs	PASS	PASS
 lite/joins/where_on_the_far_node	PASS	PASS
@@ -4087,7 +4103,6 @@ lite/labels/a_label_predicate_over_a_value_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/labels/a_relationship_of_several_types	PASS	PASS
 lite/labels/a_relationship_of_several_types_from_a_labelless_node	PASS	PASS
 lite/labels/a_type_spelled_twice_is_one_type	PASS	PASS
-lite/labels/comparing_nodes_refused	REFUSED	REFUSED
 lite/labels/label_predicate_in_parentheses	PASS	PASS
 lite/labels/label_predicate_in_a_list	PASS	PASS
 lite/nodes/node_of_one_class	PASS	PASS

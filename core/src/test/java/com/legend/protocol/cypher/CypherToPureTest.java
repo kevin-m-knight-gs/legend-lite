@@ -548,7 +548,7 @@ class CypherToPureTest {
     void aNodeThroughWithIsCarriedAsItsColumns() {
         // the node's label and properties as columns of the WITH, so ORDER BY p.age sorts a typed column and the
         // RETURN reads p.name as one; the node's own name is a virtual column
-        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name])->sort([~_cypher_3->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)->extend(~['p.name':r|$r._cypher_4, p:r|fromJson(('{\"@labels\":' + $r._cypher_1->toOne()) + ((if(if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true, |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":' + if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true, |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->toOne()->toString()) + if($r._cypher_3->isEmpty(), |'', |',\"age\":' + $r._cypher_3->toOne()->toString())) + (',\"name\":' + ('\"' + $r._cypher_4->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + '}')])->select(~['p.name', p])",
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId()])->sort([~_cypher_3->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)->extend(~['p.name':r|$r._cypher_4, p:r|fromJson(('{\"@labels\":' + $r._cypher_1->toOne()) + ((if(if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true, |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->isEmpty(), |'', |',\"active\":' + if($r._cypher_2->isNotEmpty() && $r._cypher_2->toOne(), |true, |if($r._cypher_2->isNotEmpty() && !$r._cypher_2->toOne(), |false, |[]))->toOne()->toString()) + if($r._cypher_3->isEmpty(), |'', |',\"age\":' + $r._cypher_3->toOne()->toString())) + (',\"name\":' + ('\"' + $r._cypher_4->replace('\\\\', '\\\\\\\\')->replace('\"', '\\\\\"') + '\"'))) + '}')])->select(~['p.name', p])",
                 pure("MATCH (p:Person) WITH p ORDER BY p.age LIMIT 1 RETURN p.name, p"));
     }
 
@@ -558,7 +558,7 @@ class CypherToPureTest {
         // out; the graph is materialized to rows at the end of the MATCH (every node carried as its columns, the
         // fanning node's labels navigating its path so a node without a property still counts), the WHERE read over
         // those rows, and the RETURN projects them
-        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty() && $p.firm.employees->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|'[\"Firm\"]', _cypher_6:p|$p.firm.legalName, _cypher_7:p|'[\"Person\"]', _cypher_8:p|if($p.firm.employees.active->isNotEmpty() && $p.firm.employees.active->toOne(), |true, |if($p.firm.employees.active->isNotEmpty() && !$p.firm.employees.active->toOne(), |false, |[])), _cypher_9:p|$p.firm.employees.age, _cypher_10:p|$p.firm.employees.name])->filter(r|$r._cypher_9->isNotEmpty() && ($r._cypher_9->toOne() > 30))->extend(~['q.name':r|$r._cypher_10])->select(~['q.name'])",
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty() && $p.firm.employees->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId(), _cypher_6:p|'[\"Firm\"]', _cypher_7:p|$p.firm.legalName, _cypher_8:p|$p.firm->meta::legend::lite::elementId(), _cypher_9:p|'[\"Person\"]', _cypher_10:p|if($p.firm.employees.active->isNotEmpty() && $p.firm.employees.active->toOne(), |true, |if($p.firm.employees.active->isNotEmpty() && !$p.firm.employees.active->toOne(), |false, |[])), _cypher_11:p|$p.firm.employees.age, _cypher_12:p|$p.firm.employees.name, _cypher_13:p|$p.firm.employees->meta::legend::lite::elementId()])->filter(r|$r._cypher_11->isNotEmpty() && ($r._cypher_11->toOne() > 30))->extend(~['q.name':r|$r._cypher_12])->select(~['q.name'])",
                 pure("MATCH (p:Person)-[:firm]->(f:Firm)-[:employees]->(q:Person) WHERE q.age > 30 RETURN q.name"));
     }
 
@@ -591,7 +591,10 @@ class CypherToPureTest {
         String twice = pure("MATCH (p:Person)-[:firm|:firm]->(f) RETURN f.legalName AS l");
         assertTrue(twice.contains("$p.firm.legalName") && !twice.contains("->concatenate("), twice);
         assertTrue(pure("MATCH (n)-[r:firm|employees]->(x) RETURN type(r) AS t").contains("->concatenate("));
-        unsupported("MATCH (a:Person), (b:Person) WHERE a = b RETURN a.name", "Neo4j compares them by identity");
+        // (two nodes compare by identity: each carried as its elementId, the mapped instance's key)
+        String byIdentity = pure("MATCH (a:Person), (b:Person) WHERE a = b RETURN a.name AS n");
+        assertTrue(byIdentity.contains("_cypher_5:a|$a->meta::legend::lite::elementId()")
+                && byIdentity.contains("->filter(r|$r._cypher_5 == $r._cypher_10)"), byIdentity);
     }
 
     @Test
@@ -610,7 +613,7 @@ class CypherToPureTest {
     void aCartesianProductWithALabelLessPatternAndWithStar() {
         // the study's §12.33: WITH * keeps the graph; a pattern sharing no variable with it is a join of the two
         // patterns' rows (§12.28), a label-less one the union of its arms' rows
-        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name])->join(demo::Firm.all()->project(~[_cypher_5:f|'[\"Firm\"]', _cypher_6:f|$f.legalName]), meta::pure::functions::relation::JoinKind.INNER, {l, r|true})->extend(~[a:r|$r._cypher_4, b:r|$r._cypher_6])->select(~[a, b])",
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId()])->join(demo::Firm.all()->project(~[_cypher_6:f|'[\"Firm\"]', _cypher_7:f|$f.legalName, _cypher_8:f|$f->meta::legend::lite::elementId()]), meta::pure::functions::relation::JoinKind.INNER, {l, r|true})->extend(~[a:r|$r._cypher_4, b:r|$r._cypher_7])->select(~[a, b])",
                 pure("MATCH (p:Person) WITH * MATCH (f:Firm) RETURN p.name AS a, f.legalName AS b"));
         assertTrue(pure("MATCH (n), (m) RETURN n.name AS a, m.name AS b").contains("->join("));
         assertTrue(pure("MATCH (a) WITH a MATCH (b) RETURN a, b").contains("->join("));
@@ -627,10 +630,10 @@ class CypherToPureTest {
     void anUntypedHopFromABoundNodeIsOneArmPerWayTheModelReadsIt() {
         // the study's §12.32: after a WITH that carried the node (the graph kept), or a MATCH before; the arms
         // materialized to rows and concatenated (one way here: Person.firm)
-        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|'[\"Firm\"]', _cypher_6:p|$p.firm.legalName])->extend(~[n:r|$r._cypher_4, l:r|$r._cypher_6])->select(~[n, l])",
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId(), _cypher_6:p|'[\"Firm\"]', _cypher_7:p|$p.firm.legalName, _cypher_8:p|$p.firm->meta::legend::lite::elementId()])->extend(~[n:r|$r._cypher_4, l:r|$r._cypher_7])->select(~[n, l])",
                 pure("MATCH (p:Person) WITH p MATCH (p)-->(x) RETURN p.name AS n, x.legalName AS l"));
         // the relationship's type is the way's (hq, the one end leaving Firm)
-        assertEquals("demo::Firm.all()->filter(f|$f.hq->isNotEmpty())->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName, _cypher_3:f|'[\"City\"]', _cypher_4:f|$f.hq.name, _cypher_5:f|'hq'])->extend(~[l:r|$r._cypher_2, t:r|$r._cypher_5])->select(~[l, t])",
+        assertEquals("demo::Firm.all()->filter(f|$f.hq->isNotEmpty())->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName, _cypher_3:f|$f->meta::legend::lite::elementId(), _cypher_4:f|'[\"City\"]', _cypher_5:f|$f.hq.name, _cypher_6:f|$f.hq->meta::legend::lite::elementId(), _cypher_7:f|'hq'])->extend(~[l:r|$r._cypher_2, t:r|$r._cypher_7])->select(~[l, t])",
                 pure("MATCH (f:Firm) MATCH (f)-[r]->(x) RETURN f.legalName AS l, type(r) AS t"));
         unsupported("MATCH (f:Firm) WITH f.legalName AS l, f MATCH (f)-->(x) RETURN l",
                 "a MATCH after a WITH that projected its variables");
@@ -638,7 +641,7 @@ class CypherToPureTest {
                 "two ends are both bound already");
         // no way of the model leaves Firm to a Person (the study's §12.36): the rows in hand limited to none, x
         // an absent node (its labels column null)
-        assertEquals("demo::Firm.all()->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName])->limit(0)->extend(~[_cypher_3:r|[]->cast(@String)])->extend(~[n:r|[]])->select(~[n])",
+        assertEquals("demo::Firm.all()->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName, _cypher_3:f|$f->meta::legend::lite::elementId()])->limit(0)->extend(~[_cypher_4:r|[]->cast(@String)])->extend(~[n:r|[]])->select(~[n])",
                 pure("MATCH (f:Firm) MATCH (f)-->(x:Person) RETURN x.name AS n"));
         unsupported("MATCH (f:Firm) MATCH q = (f)-->(x) RETURN q", "a named path over an untyped relationship");
     }
@@ -716,7 +719,7 @@ class CypherToPureTest {
     void aPatternSharingNoVariableIsEveryPairOfRows() {
         // the study's §12.28: each pattern read as rows, the rows joined on a condition that always holds, the WHERE
         // over the pairs
-        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name])->join(demo::Firm.all()->project(~[_cypher_5:f|'[\"Firm\"]', _cypher_6:f|$f.legalName]), meta::pure::functions::relation::JoinKind.INNER, {l, r|true})->filter(r|$r._cypher_4 == $r._cypher_6)->extend(~[n:r|$r._cypher_4, l:r|$r._cypher_6])->select(~[n, l])",
+        assertEquals("demo::Person.all()->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId()])->join(demo::Firm.all()->project(~[_cypher_6:f|'[\"Firm\"]', _cypher_7:f|$f.legalName, _cypher_8:f|$f->meta::legend::lite::elementId()]), meta::pure::functions::relation::JoinKind.INNER, {l, r|true})->filter(r|$r._cypher_4 == $r._cypher_7)->extend(~[n:r|$r._cypher_4, l:r|$r._cypher_7])->select(~[n, l])",
                 pure("MATCH (p:Person), (f:Firm) WHERE p.name = f.legalName RETURN p.name AS n, f.legalName AS l"));
     }
 
@@ -782,7 +785,7 @@ class CypherToPureTest {
     void aRelationshipIsItsType() {
         // the study's §12.19: a relationship as a value is its type's JSON (the model holds no relationship
         // property); type(r) its type; carried through WITH as its type's column
-        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|'firm'])->sort([~_cypher_4->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)->extend(~[r:r|fromJson('{\"@type\":\"' + $r._cypher_5->toOne() + '\"}'), t:r|$r._cypher_5])->select(~[r, t])",
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty())->project(~[_cypher_1:p|'[\"Person\"]', _cypher_2:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_3:p|$p.age, _cypher_4:p|$p.name, _cypher_5:p|$p->meta::legend::lite::elementId(), _cypher_6:p|'firm'])->sort([~_cypher_4->ascending(meta::pure::functions::relation::NullOrder.LAST)])->limit(1)->extend(~[r:r|fromJson('{\"@type\":\"' + $r._cypher_6->toOne() + '\"}'), t:r|$r._cypher_6])->select(~[r, t])",
                 pure("MATCH (p:Person)-[r:firm]->(f:Firm) WITH p, r ORDER BY p.name LIMIT 1 RETURN r, type(r) AS t"));
     }
 
@@ -1139,7 +1142,7 @@ class CypherToPureTest {
                 + " keys(r) AS ks");
         // (the graph fans out: the relationship is carried as its type's and its properties' columns, and its
         // value is rebuilt from them)
-        assertTrue(pure.contains("'{\"@type\":' + ('\"' + $r._cypher_6->toOne()"), pure);
+        assertTrue(pure.contains("'{\"@type\":' + ('\"' + $r._cypher_7->toOne()"), pure);
         assertTrue(pure.contains(",\"role\":"), pure);
         assertTrue(pure.contains(",\"since\":"), pure);
         assertTrue(pure.contains("'ACTED_IN'"), pure);

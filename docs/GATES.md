@@ -9932,6 +9932,38 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the forty-fifth landing — identity: a node is its row's key
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's Phase 1, W2's first leg); the record is the study's
+§12.46. The product: one native, `meta::legend::lite::elementId`, the identity of a mapped instance as text
+(`'<class>:<key>'`: the class mapping's `~primaryKey`, else the main table's `PRIMARY KEY`, else a compile error
+naming the class; `<<equality.Key>>` is value equality, never identity), resolved by `StoreResolver` through the
+class source's key pseudo-bindings, null for an absent instance. The island: a node carries its identity as a
+column beside its labels and properties, and `a = b` / `a <> b` on nodes compares identities with Cypher's null
+rules; nodes of different classes never compare equal.
+
+1. **What lands.** `MATCH (a:A), (b:A) WHERE a = b`, `WHERE a <> b`, `MATCH (a), (b) WHERE a <> b RETURN a, b`,
+   `MATCH (a) WITH a MATCH (b) WHERE a = b RETURN count(b)`, `MATCH (a), (b) WITH a, b WHERE a <> b`, `RETURN a = a,
+   a <> a`, `OPTIONAL MATCH (a)-[:T]->(b:B) RETURN b = b` (null for an absent b), `MATCH (a:A)-[:T]->(b:B), (c:B)
+   WHERE b = c`, `MATCH (a:A)-[r:T]->() MATCH (b:A)-[s:T]->() WHERE r = s` over an edge class, and in one MATCH
+   the two relationships distinct (Neo4j's relationship uniqueness, spelled over the product for relationships
+   carrying an identity); in Pure, `$p->meta::legend::lite::elementId()`.
+2. **The ledger.** DuckDB: 4528 cases; PASS 2965 (from 2,945); FAIL 0; BUG 0; ERROR 0; REFUSED 652; BOTH_ERROR 730;
+   SKIP 181. Postgres: PASS 2604 (from 2,584); FAIL 0; BUG 0; ERROR 0; REFUSED 1013; BOTH_ERROR 730; SKIP 181. 16
+   lite cases in `lite/identity.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+   The TCK's agreement 3098 of 3880 (from 3,093); the showcase's §20 regenerated (its pinned examples return
+   values, not nodes: their Pure and SQL unchanged).
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:core_tests_builtin`,
+   `//core:guardrails`, `//core:core_tests_integration` green; `NativeCatalogGovernanceTest`'s ceiling 21 → 22
+   and `PlatformNamesGuardrailTest`'s function-FQN ceiling 324 → 325, each with its dated justification; the
+   integration test `theIdentityOfAMappedInstanceIsItsKey` (the key's precedence, the null of an absent
+   navigation, the keyless class's error).
+4. **Refused by name, recorded.** A relationship over an association compared (no row of its own; S74's ordered
+   pair of node identities is the next step; one over an edge class compares by the edge row's identity, carried
+   through WITH like a node's), a path compared, a composite key as an identity, DISTINCT, grouping and ORDER BY
+   over a node (the next leg). The engine's default to the main table's key is to be verified against
+   its compiler source when a reference checkout is on the machine (the plan's §5).
+
 ## 2026-10-17 — `#Cypher{...}#`: the forty-fourth landing — open and closed graphs
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's Phase A, W1); the record is the study's §12.45. The

@@ -109,7 +109,12 @@ class NativeCatalogGovernanceTest {
         // (InlineViewChecker; ClassSources' extent rule) and erased: SQL computes such windows before the enclosing
         // WHERE, which Pure's relation composition folds under them. Within the ceiling: merged with the Cypher
         // island's four (2026-10-16), whose 21 counted from the ceiling 17, the count is 16 + 4 + 1 = 21.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 21,
+        // +1 2026-10-17 (the Cypher island's identity leg, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W2):
+        // elementId — the identity of a mapped instance as a value (its class's primary key by the engine's
+        // precedence, as text), what Cypher's elementId(n) and id(n) answer and node comparisons, DISTINCT and
+        // grouping use; Pure has no expression for it. Resolved by the store resolver through the primary-key
+        // pseudo-binding; emitted by the Cypher translator only, by FQN. 21 -> 22.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 22,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

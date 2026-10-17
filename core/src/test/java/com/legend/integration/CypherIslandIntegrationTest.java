@@ -133,6 +133,10 @@ class CypherIslandIntegrationTest {
         return new QueryService().execute(model, "#Cypher{" + cypher + "}#", "test::RT", duckdb);
     }
 
+    private static ExecutionResult pure(String model, String query) throws SQLException {
+        return new QueryService().execute(model, query, "test::RT", duckdb);
+    }
+
     @Test
     void theGraphAUseNamesIsADataSpaceOpenByItsStereotype() throws SQLException {
         // the study's §12.45: USE names the graph, a DataSpace; its elements are the labels (City is outside), its
@@ -156,6 +160,42 @@ class CypherIslandIntegrationTest {
         LegendCompileException late = assertThrows(LegendCompileException.class,
                 () -> runOver(GRAPH_MODEL, "MATCH (p:Person) USE test::G RETURN p.name"));
         assertTrue(late.getMessage().contains("USE clause must be"), late.getMessage());
+    }
+
+    @Test
+    void theIdentityOfAMappedInstanceIsItsKey() throws SQLException {
+        // docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W2: a mapped instance's identity is its class's key (the
+        // mapping's ~primaryKey, else the main table's PRIMARY KEY) as '<class>:<key>', one native, elementId
+        assertEquals(List.of("test::Person:1|test::Firm:1", "test::Person:2|test::Firm:1", "test::Person:3|test::Firm:2",
+                        "test::Person:4|null"),
+                rows(pure(MODEL, "test::Person.all()->project(~[id:p|$p->meta::legend::lite::elementId(),"
+                        + " f:p|$p.firm->meta::legend::lite::elementId()])->sort(~id->ascending())")));
+        // several instances (a to-many navigation): each its own identity
+        assertEquals(List.of("Acme|test::Person:1", "Acme|test::Person:2", "Globex|test::Person:3"),
+                rows(pure(MODEL, "test::Firm.all()->project(~[n:f|$f.legalName,"
+                        + " ids:f|$f.employees->meta::legend::lite::elementId()])->sort(~ids->ascending())")));
+        // the mapping's ~primaryKey takes precedence over the table's PRIMARY KEY (the engine's rule)
+        String keyedByName = MODEL.replace("~mainTable [store::DB] T_PERSON\n",
+                "~primaryKey ([store::DB] T_PERSON.NAME)\n                    ~mainTable [store::DB] T_PERSON\n");
+        assertEquals(List.of("test::Person:Alice", "test::Person:Bob", "test::Person:Charlie", "test::Person:Diana"),
+                rows(pure(keyedByName, "test::Person.all()->project(~[id:p|$p->meta::legend::lite::elementId()])"
+                        + "->sort(~id->ascending())")));
+        // Cypher compares nodes by it: a cartesian product joined on identity, an absent node without one
+        assertEquals(List.of("4"), rows(run("MATCH (a:Person), (b:Person) WHERE a = b RETURN count(*) AS c")));
+        assertEquals(List.of("12"), rows(run("MATCH (a:Person), (b:Person) WHERE a <> b RETURN count(*) AS c")));
+        assertEquals(List.of("Alice|true", "Bob|true", "Charlie|true", "Diana|null"),
+                rows(run("MATCH (p:Person) OPTIONAL MATCH (p)-[:firm]->(f:Firm) RETURN p.name AS n, f = f AS same"
+                        + " ORDER BY n")));
+        assertEquals(List.of("Alice|Bob", "Bob|Alice"), rows(run("MATCH (a:Person)-[:firm]->(f:Firm),"
+                + " (b:Person)-[:firm]->(g:Firm) WHERE f = g AND a <> b RETURN a.name AS an, b.name AS bn"
+                + " ORDER BY an")));
+        // a class with neither key has no identity: a compile error naming it
+        String keyless = MODEL.replace("Table T_CITY (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))",
+                "Table T_CITY (ID INTEGER, NAME VARCHAR(100))");
+        LegendCompileException none = assertThrows(LegendCompileException.class,
+                () -> runOver(keyless, "MATCH (a:City), (b:City) WHERE a = b RETURN a.name AS n"));
+        assertTrue(none.getMessage().contains("the class test::City has no identity under the mapping test::M"),
+                none.getMessage());
     }
 
     private static List<String> columns(ExecutionResult result) {

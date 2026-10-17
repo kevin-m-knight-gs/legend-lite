@@ -113,6 +113,19 @@ Legs: the native and its lowering (platform, under its guards); node identity in
 DISTINCT, grouping, IN, values); re-anchoring joins (continuations, cycles, deep chains); uniqueness and the
 undirected self-association.
 
+**Progress.** Leg 1 LANDED 2026-10-17 (the study's §12.46, GATES' forty-fifth landing; TCK agreement 3093 →
+3098, DuckDB PASS 2945 → 2965): the native
+(`meta::legend::lite::elementId`, resolved by `StoreResolver` through the class source's key pseudo-bindings as
+`'<class fqn>:<key>'`, null for an absent instance, the keyless class a compile error), node comparisons in the
+island (`a = b`, `a <> b`, after WITH, in products, over arms, over an edge class's relationships), the identity
+carried as a column of every node, and of every relationship over an edge class (compared after a WITH, and
+distinct across the patterns of one MATCH: relationship uniqueness, spelled over the product for relationships
+carrying an identity). The text is class-qualified so nodes of different classes never compare equal, as Neo4j's
+`elementId` carries its type and database. Still refused by name: a relationship over an association compared
+(next: S74's ordered pair of the ends' identities, which also spells uniqueness over associations), paths
+compared, a composite key. Next legs: DISTINCT, grouping, ORDER BY and `IN` over nodes (identity as the key);
+re-anchoring joins.
+
 ### W3. Non-deterministic functions
 
 `rand()` is the database's random float in `[0, 1)` (every dialect has one); `datetime()`, `date()`, `time()`,
@@ -465,4 +478,12 @@ questions, no PRs; a blocker is logged in §5 and the line moves to the next ite
 
 What got stuck, where, and why, for later; each entry names the cases it holds back.
 
-(none yet)
+- **2026-10-17, W2 leg 1 — the engine's key precedence, unverified.** The claim that legend-engine's relational
+  mapping defaults an instance's identity to the main table's `PRIMARY KEY` when `~primaryKey` is absent (the
+  design's step 3) is implemented from memory of the engine's `PrimaryKey` inference; no reference checkout is on
+  this machine (`-Dlegend.engine.root` unset), so it is not yet verified verbatim against the engine's compiler
+  source (the verification tenet). Holds back nothing; to be checked at the next session with a checkout.
+- **2026-10-17, W2 leg 1 — a composite key as an identity.** `elementId` refuses a class whose key is several
+  columns ("a composite key (n columns) as the identity of X is not supported yet"); the harness's tables have
+  one `id` column, so no TCK case is held back; a user's composite key waits for its spelling (the columns' texts
+  joined with a separator the key's values cannot contain).

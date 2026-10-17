@@ -3337,3 +3337,78 @@ defined). The TCK: agreement 3093 of 3880 (from 3,031): 62 more scenarios, Match
 schema-optional MATCH feature), Match7 (7), Return6 (4), ReturnOrderBy6 (3), Null1 and Null2 (4), Graph5 and
 Graph6 (3), With6 (2), WithOrderBy4 (2), Match3 (2), ExistentialSubquery1, Match2, Return2, Return3, Return4,
 ReturnSkipLimit2 (one each); no case lost.
+
+### 12.46 Identity: a node is its row's key, 2026-10-17
+
+- **The frame (the TCK-to-zero plan's W2, the user's design in five turns, its §3.2 Q2):** Cypher's `a = b` on
+  nodes, DISTINCT, grouping, `IN` over nodes and relationship uniqueness mean "the same node", and a node is a
+  row: two nodes named Ann are two nodes. C5 (§4) had composed the model's `<<equality.Key>>` with the mapping's
+  key; the user drew the line between them: **value equality** (`==`, `equal`, `in`) is Pure's rule by the
+  `<<equality.Key>>` properties, unchanged, and **identity** is the store's, the mapped instance's key, in the
+  engine's order with no fallback past the last step: a constructed instance's minted `__id` (the PCT lane's,
+  `lowering/InstanceEquality`), a mapped instance's `~primaryKey(...)` when its class mapping declares one, else
+  its main table's `PRIMARY KEY` columns, else a compile error naming the class ("the class g::A has no identity
+  under the mapping g::Map: its mapping declares no ~primaryKey and its main table no PRIMARY KEY"). Never all
+  the mapped columns, never `<<equality.Key>>`: a key states meaning, and would merge distinct nodes on exactly
+  the models that declare one. The user's doubt ("a class made up of five tables joined with filters and
+  exploding rows?") is answered by the mapping's own rule: a relational class mapping has one main table and its
+  instances ARE that table's rows, every join inside a property mapping fetches columns for the same instance or
+  reaches other classes' instances, and an exploded projection still carries the main row's key, which is how
+  the engine's graph fetch rebuilds objects. **Verification pending:** the claim that the engine defaults to the
+  main table's primary key when `~primaryKey` is absent is to be checked against the engine's compiler source
+  when a reference checkout is on the machine (none is; the plan's §5).
+- **The product: one native, `meta::legend::lite::elementId`** (`instance: Any[0..1]): String[0..1]` and
+  `(instances: Any[*]): String[*]`, `Pure.Lite.ELEMENT_ID`, under the catalog's governance ceiling, with the
+  internal-desugar natives). Resolved, never lowered: `ClassSources.pseudoBindings` registers each class source's
+  key columns as pseudo-bindings (`$pk:<column>`, `ClassMapping.primaryKeyBinding`, the engine's precedence as
+  above: `binding.primaryKeyColumns()` else `RelationalRootForm.primaryKeyColumns`), and `StoreResolver`
+  rewrites `elementId(X)` anywhere in an object-space chain (`identityReads`, a pre-pass of `collectOpChain`
+  over the chain and its lambdas, so a read inside a project's or filter's lambda rides the one property funnel
+  beside the class's properties) to `'<class fqn>:' + toString(X.$pk:col)`: the text is unique across the
+  graph, as Neo4j's `elementId` carries its type and database ('4:db-uuid:0'); the class names the table, the key
+  the row. An optional instance (an optional navigation, a left join's empty side) has NO identity: the
+  concatenation would skip the empty operand (Pure's `plus` over `String[*]`, the database's `concat`), so the
+  key's presence gates it (`if($x.$pk->isNotEmpty(), |'g::B:' + ..., |[])`, the database's `CASE`). A composite
+  key is refused by name until it is spelled; a chain-level `elementId(Person.all()->first())` reads the same
+  way through `anchoredNode`. A Pure user writes `$p->meta::legend::lite::elementId()` and gets `test::Person:1`;
+  with `~primaryKey ([store::DB] T_PERSON.NAME)` declared, `test::Person:Alice` (the integration test
+  `theIdentityOfAMappedInstanceIsItsKey` pins both, the null of an absent navigation, and the keyless error).
+- **The island:** a node's parts carry its identity beside its labels and properties (`NodeParts.identity`,
+  `NodeValue`, `RelValue` for an edge class's relationship, `NodeShape` through WITH), a carried node is one more
+  column (`carry()`: `_cypher_n:a|$a->meta::legend::lite::elementId()`, null in an absent branch), and `a = b`
+  or `a <> b` on two nodes compares the identities (`equal` reads `identityOf` on each side: a bound node's from
+  the graph, a carried node's from its column), with Cypher's null rules (an absent node compares to null). Nodes
+  of different classes never compare equal (the prefix differs); a label-less pattern's arms carry each class's
+  identity; a relationship over an edge class (§5.6) carries the edge row's identity the same way (`RelShape`,
+  `RelValue`), so `MATCH (a:A)-[r:T]->(), (b:A)-[s:T]->() WHERE r = s` and the same after a WITH compare
+  relationships; a node a to-many hop reaches (`$a.T->elementId()`, the `[*]` overload) reads each instance's
+  identity element-wise (the resolver's `map`, never the concatenation over the collection, which would join
+  them). Relationship uniqueness across the patterns of one MATCH (`MATCH (a:A)-[r:T]->(), (b:A)-[s:T]->()`:
+  Neo4j binds `r` and `s` to different relationships, so `WHERE r = s` finds nothing) is spelled over the
+  product's rows for relationships carrying an identity (`cartesian`: each pair of edge-class relationships
+  distinct by it); over an association it stays unspelled (S75), as within one pattern two relationships of one
+  type stay refused by name. Refused by name, recorded: a relationship over an association compared (`MATCH ()-[a]->() WITH a
+  MATCH ()-[b]->() WHERE a = b`: no row of its own, so no identity; S74's ordered pair of node identities is the
+  next step), a path compared (Comparison1/[14]), DISTINCT, grouping and ORDER BY over a node (the next leg's).
+- **Found on the way:** the resolver's chain-level arm never sees a call inside a lambda (the substitution
+  rewrites lambda bodies with no model context), hence the pre-pass; a node carried twice (`WITH a ... WITH a`),
+  the arms' union and a carried relationship's value dropped the identity column on their way (40 cases errored
+  on the first run, WithOrderBy1 and WithWhere3-5 among them), each re-carry now keeps it; the protocol layer spells the native's name
+  (it reads no catalog, AGENTS invariant 7b), so `PlatformNamesGuardrailTest`'s function-FQN ceiling moves 324 →
+  325 with its justification, and the resolver's `toString` callee is the catalog's constant; the island's
+  labelled-pattern pins gain the identity column, and the `comparing_nodes_refused` case of `lite/labels.yaml`
+  moved to `lite/identity.yaml` as a positive case.
+
+#### 12.46.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4528 | 2965 (from 2,945) | 0 | 0 | 0 | 652 | 730 | 181 |
+| Postgres | 4528 | 2604 (from 2,584) | 0 | 0 | 0 | 1013 | 730 | 181 |
+
+16 lite cases in `lite/identity.yaml`, each judged by Neo4j (15 PASS; the relationship over an association
+compared stays REFUSED by name); `lite/labels.yaml`'s `comparing_nodes_refused` moved in as `two_nodes_equal`.
+The TCK: agreement 3098 of 3880 (from 3,093): 5 more scenarios, MatchWhere3/[1] and MatchWhere4/[1] (a join
+between node identities, on inequality), WithWhere3/[1] and WithWhere4/[1] (the same after WITH), Comparison1/[4]
+(nodes compared after WITH); no case lost. The showcase's §20 regenerated; its pinned examples return values,
+not nodes, so their pinned Pure and SQL are unchanged.
