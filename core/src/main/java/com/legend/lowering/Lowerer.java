@@ -3404,6 +3404,12 @@ public final class Lowerer {
         Map<String, Type.Column> src = new LinkedHashMap<>();
         for (Type.Column col : srcRow.columns()) {
             src.put(col.name(), col);
+            // a static pivot's column is named bare (its physical spelling); a cast names it as the engine
+            // presents it (quoted): the presented name finds the same column
+            String presented = Type.RelationType.presentPivotName(col.name());
+            if (!presented.equals(col.name())) {
+                src.put(presented, col);
+            }
         }
         boolean allKnown = tgtRow.columns().stream()
                 .allMatch(tc -> src.containsKey(tc.name()));

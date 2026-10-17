@@ -104,8 +104,7 @@ final class MongoDbPipeline {
                     + " (listCollections) is not read as a grid yet");
             case SqlSource.SourceUrl u -> throw new DialectCapability("sourceUrl reached MongoDb: no external"
                     + " source encoding");
-            case SqlSource.Pivot p -> throw new DialectCapability("a pivot reached MongoDb: no shape yet (a static"
-                    + " pivot's grouped form is a later landing)");
+            case SqlSource.Pivot p -> baseOf(p.source());
         };
     }
 
@@ -165,6 +164,9 @@ final class MongoDbPipeline {
     /** One select, clause by clause, in SQL's order of evaluation. */
     private @Nullable List<String> select(SqlWriter w, SqlSelect s, Stages st) {
         source(w, s.from(), st, Shape.WRAPPED);
+        // the row wrapped under one alias: an unqualified column reads under it until the projection flattens it
+        List<String> aliases = aliases(s.from());
+        dialect.soleAlias(aliases.size() == 1 && !(s.from() instanceof SqlSource.Join) ? aliases.get(0) : null);
         Clauses clauses = subqueries(w, s, st);
         if (clauses.where != null) {
             match(w, st, clauses.where);
@@ -176,6 +178,7 @@ final class MongoDbPipeline {
         g = windows(w, st, g, s.qualify());
         List<SortCarry> sorts = sortCarries(w, st, g);
         List<String> projected = projection(w, s, st, g, sorts);
+        dialect.soleAlias(null);
         if (s.distinct()) {
             // the sort carries are functions of the row's columns, so equal rows carry equal keys: the distinct
             // groups them with the row and the sort reads them after
@@ -382,9 +385,117 @@ final class MongoDbPipeline {
                     + " (listCollections) is not read as a grid yet");
             case SqlSource.SourceUrl u -> throw new DialectCapability("sourceUrl reached MongoDb: no external"
                     + " source encoding");
-            case SqlSource.Pivot p -> throw new DialectCapability("a pivot reached MongoDb: no shape yet (a static"
-                    + " pivot's grouped form is a later landing)");
+            case SqlSource.Pivot p -> pivot(w, p, st, shape);
         }
+    }
+
+    /**
+     * A static pivot (its values given, so its columns are known) as two groups and a projection: the source's rows
+     * grouped by the pivot's keys and its ON column, each USING aggregate accumulated as a group stage does; the
+     * groups regrouped by the keys alone, the ON value and the aggregates pushed; and each pivot column projected
+     * as the pushed aggregate of its value (null where no row had the value). The keys are the pivot's outputs that
+     * are no pivot column (a name without the separator); a pivot column's name spells its value and its USING
+     * alias (Type.RelationType.presentPivotName). A dynamic pivot (no values given) is refused by name: its columns
+     * exist only once the database is asked. One ON column: a static pivot's values are one column's.
+     */
+    private void pivot(SqlWriter w, SqlSource.Pivot p, Stages st, Shape shape) {
+        if (p.in().isEmpty()) {
+            throw new DialectCapability("a dynamic pivot reached MongoDb: its columns are known only once the"
+                    + " database is asked (a static pivot, its values given, has its grouped form)");
+        }
+        if (p.on().size() != 1) {
+            throw new DialectCapability("a static pivot over " + p.on().size() + " columns reached MongoDb: its"
+                    + " values name one column's");
+        }
+        // the source's row wrapped under its alias: the ON column and the aggregates' arguments are qualified by it
+        source(w, p.source(), st, Shape.WRAPPED);
+        String separator = PIVOT_SEPARATOR;
+        List<OutputCol> keys = p.outputs().stream().filter(c -> !c.name().contains(separator)).toList();
+        List<OutputCol> pivoted = p.outputs().stream().filter(c -> c.name().contains(separator)).toList();
+        // the first group: by the keys and the ON value, each USING aggregate accumulated
+        st.begin(w).append("{\"$group\": {\"_id\": {");
+        for (int i = 0; i < keys.size(); i++) {
+            w.append("\"k").append(i).append("\": ").append(MongoJson.path(p.source().alias(), keys.get(i).name()))
+                    .append(", ");
+        }
+        w.append("\"on\": ").expr(p.on().get(0), 0).append("}");
+        List<SqlWriter.Piece> reads = new ArrayList<>();
+        Map<String, SqlWriter.Piece> byField = new LinkedHashMap<>();
+        for (int i = 0; i < p.usings().size(); i++) {
+            String field = MongoDb.AGGREGATE_MARKER + i;
+            w.append(", ").append(MongoJson.string(field)).append(": ");
+            SqlWriter.Piece read = dialect.accumulator(w, p.usings().get(i).agg(), field);
+            reads.add(read);
+            byField.put(field, read);
+        }
+        w.append("}}");
+        // the second group: by the keys alone, the ON value and the aggregates' reads pushed
+        dialect.aggregateReads(byField);
+        st.begin(w).append("{\"$group\": {\"_id\": {");
+        for (int i = 0; i < keys.size(); i++) {
+            w.append(i > 0 ? ", " : "").append("\"k").append(i).append("\": \"$_id.k").append(i).append("\"");
+        }
+        w.append("}, \"__p\": {\"$push\": {\"on\": \"$_id.on\"");
+        for (int i = 0; i < reads.size(); i++) {
+            w.append(", \"a").append(i).append("\": ").piece(reads.get(i));
+        }
+        w.append("}}}}");
+        // the projection: the keys, and each pivot column as its value's pushed aggregate
+        st.begin(w).append("{\"$project\": {\"_id\": 0, ");
+        if (shape == Shape.WRAPPED) {
+            w.append(MongoJson.key(p.alias())).append(": {");
+        }
+        for (int i = 0; i < keys.size(); i++) {
+            w.append(i > 0 ? ", " : "").append(MongoJson.key(keys.get(i).name())).append(": \"$_id.k").append(i)
+                    .append("\"");
+        }
+        for (OutputCol c : pivoted) {
+            String bare = c.name().startsWith("'") && c.name().endsWith("'")
+                    ? c.name().substring(1, c.name().length() - 1) : c.name();
+            int sep = bare.lastIndexOf(separator);
+            String valueText = bare.substring(0, sep);
+            String alias = bare.substring(sep + separator.length());
+            int using = -1;
+            for (int i = 0; i < p.usings().size(); i++) {
+                if (p.usings().get(i).alias().equals(alias)) {
+                    using = i;
+                }
+            }
+            SqlExpr value = null;
+            for (SqlExpr v : p.in()) {
+                if (valueText.equals(pivotValueText(v))) {
+                    value = v;
+                }
+            }
+            if (using < 0 || value == null) {
+                throw new IllegalStateException("the pivot column " + c.name() + " names no USING alias and value"
+                        + " of the pivot (" + p.in() + ", " + p.usings().stream().map(SqlSource.Pivot.Using::alias)
+                        .toList() + ")");
+            }
+            w.append(keys.isEmpty() && pivoted.indexOf(c) == 0 ? "" : ", ").append(MongoJson.key(c.name()))
+                    .append(": {\"$let\": {\"vars\": {\"m\": {\"$arrayElemAt\": [{\"$filter\": {\"input\": \"$__p\","
+                            + " \"cond\": {\"$eq\": [\"$$this.on\", ").expr(value, 0).append("]}}}, 0]}}, \"in\":"
+                            + " {\"$ifNull\": [\"$$m.a").append(using).append("\", null]}}}");
+        }
+        if (shape == Shape.WRAPPED) {
+            w.append("}");
+        }
+        w.append("}}");
+    }
+
+    /** The separator of a pivot column's name (its value, then its USING alias): the Lowerer's
+     *  (Type.RelationType.PIVOT_SEPARATOR, which the MIR layer does not see). */
+    private static final String PIVOT_SEPARATOR = "__|__";
+
+    /** A pivot value's text, as the pivot column's name spells it: a number's digits, a string itself. */
+    private static String pivotValueText(SqlExpr v) {
+        return switch (v) {
+            case SqlExpr.IntLit i -> String.valueOf(i.value());
+            case SqlExpr.StringLit sl -> sl.value();
+            case SqlExpr.FloatLit f -> String.valueOf(f.value());
+            case SqlExpr.BoolLit b -> String.valueOf(b.value());
+            default -> throw new DialectCapability("a pivot value that is no literal (" + v + ") reached MongoDb");
+        };
     }
 
     /** A collection's scan: each declared column read with {@code $ifNull}, so an absent field is null (D7), under
@@ -455,74 +566,128 @@ final class MongoDbPipeline {
     }
 
     /**
-     * A join as a {@code $lookup} and an {@code $unwind}: the lookup's {@code let} binds the left row's aliases, so
-     * its pipeline -- the right source, then the ON match -- reads them as variables, which is what a lateral
-     * join's correlated right side does ({@code CROSS_LATERAL} as a cross join, {@code LEFT_LATERAL} as a left
-     * join); an as-of join keeps, of the right rows the ON admits, the one nearest the left row's key (sorted by
-     * the match inequality's right-side column, the first taken), then pads as a left join does. A right or a full
-     * join has no shape yet.
+     * A join as a {@code $lookup} and an {@code $unwind}: the outer side's row wrapped under its alias, the inner side
+     * looked up into a field named by its alias -- the lookup's {@code let} binds the outer row's aliases, so its
+     * pipeline (the inner source, then the ON match) reads them as variables, which is what a lateral join's
+     * correlated right side does ({@code CROSS_LATERAL} as a cross join, {@code LEFT_LATERAL} as a left join) --
+     * then unwound, a preserved outer row's missing inner side padded with nulls. An as-of join keeps, of the right
+     * rows the ON admits, the one nearest the left row's key ({@code $sort} by the match inequality's right-side
+     * column, the first taken). A right join looks the left side up from the right; a full join appends, by
+     * {@code $unionWith}, the right rows no left row matched (the left side padded) to the left join. Either over a
+     * joined left side is refused by name (one alias looks up one source).
      */
     private void join(SqlWriter w, SqlSource.Join j, Stages st) {
-        switch (j.kind()) {
-            case INNER, LEFT, CROSS, CROSS_LATERAL, LEFT_LATERAL, ASOF_LEFT -> {
-            }
-            case RIGHT, FULL -> throw new DialectCapability("a " + j.kind() + " join reached MongoDb: only inner,"
-                    + " left, cross, lateral and as-of joins have a shape yet");
-        }
-        boolean pads = j.kind().padsRight();
-        source(w, j.left(), st, Shape.WRAPPED);
         if (j.right() instanceof SqlSource.Join) {
             throw new DialectCapability("a join on the right side of a join reached MongoDb: a lookup over a"
                     + " joined source has no shape yet");
         }
-        String right = j.right().alias();
-        List<String> left = aliases(j.left());
-        String base = baseOf(j.right());
+        switch (j.kind()) {
+            case INNER, CROSS, CROSS_LATERAL -> lookupJoin(w, st, j.left(), j.right(), j.on(), false, null);
+            case LEFT, LEFT_LATERAL -> lookupJoin(w, st, j.left(), j.right(), j.on(), true, null);
+            case ASOF_LEFT -> lookupJoin(w, st, j.left(), j.right(), j.on(), true, asOfKey(j.on(), j.right().alias()));
+            case RIGHT -> {
+                oneSource(j);
+                lookupJoin(w, st, j.right(), j.left(), j.on(), true, null);
+            }
+            case FULL -> {
+                oneSource(j);
+                lookupJoin(w, st, j.left(), j.right(), j.on(), true, null);
+                st.begin(w).append("{\"$unionWith\": {");
+                String base = baseOf(j.right());
+                if (base != null) {
+                    w.append("\"coll\": ").append(MongoJson.string(base)).append(", ");
+                }
+                w.append("\"pipeline\": [");
+                Stages inner = new Stages();
+                source(w, j.right(), inner, Shape.WRAPPED);
+                lookup(w, inner, aliases(j.right()), j.left(), j.on(), null);
+                inner.begin(w).append("{\"$match\": {").append(MongoJson.key(j.left().alias())).append(": {\"$size\": 0}}}");
+                // the left side (an empty array here) replaced by its null columns -- under $literal, since
+                // $addFields merges a document written plainly into the field's own documents
+                inner.begin(w).append("{\"$addFields\": {").append(MongoJson.key(j.left().alias()))
+                        .append(": {\"$literal\": ");
+                nulls(w, j.left());
+                w.append("}}}");
+                w.append("]}}");
+            }
+        }
+    }
+
+    private static void oneSource(SqlSource.Join j) {
+        if (j.left() instanceof SqlSource.Join) {
+            throw new DialectCapability("a " + j.kind() + " join over a joined left side reached MongoDb: one alias"
+                    + " looks up one source");
+        }
+    }
+
+    /** The outer source wrapped, the inner looked up and unwound; the outer rows kept ({@code preserve}) with the
+     *  inner side padded, or dropped where the inner is empty. */
+    private void lookupJoin(SqlWriter w, Stages st, SqlSource outer, SqlSource inner, @Nullable SqlExpr on,
+            boolean preserve, @Nullable SqlSelect.SortKey nearest) {
+        source(w, outer, st, Shape.WRAPPED);
+        lookup(w, st, aliases(outer), inner, on, nearest);
+        st.begin(w).append("{\"$unwind\": {\"path\": ").append(MongoJson.path(inner.alias()))
+                .append(", \"preserveNullAndEmptyArrays\": ").append(preserve ? "true" : "false").append("}}");
+        if (preserve) {
+            pad(w, st, inner);
+        }
+    }
+
+    /** The {@code $lookup} of {@code inner} into the field its alias names, the outer aliases its variables. */
+    private void lookup(SqlWriter w, Stages st, List<String> outer, SqlSource inner, @Nullable SqlExpr on,
+            @Nullable SqlSelect.SortKey nearest) {
+        String as = inner.alias();
+        String base = baseOf(inner);
         st.begin(w).append("{\"$lookup\": {");
         if (base != null) {
             w.append("\"from\": ").append(MongoJson.string(base)).append(", ");
         }
         w.append("\"let\": {");
-        for (int i = 0; i < left.size(); i++) {
+        for (int i = 0; i < outer.size(); i++) {
             if (i > 0) {
                 w.append(", ");
             }
-            w.append(MongoJson.string(MongoJson.variable(left.get(i)))).append(": ")
-                    .append(MongoJson.path(left.get(i)));
+            w.append(MongoJson.string(MongoJson.variable(outer.get(i)))).append(": ")
+                    .append(MongoJson.path(outer.get(i)));
         }
         w.append("}, \"pipeline\": [");
-        dialect.pushLookupScope(left, right);
+        dialect.pushLookupScope(outer, as);
         try {
-            Stages inner = new Stages();
-            source(w, j.right(), inner, Shape.FLAT);
-            if (j.on() != null) {
-                match(w, inner, j.on());
+            Stages in = new Stages();
+            source(w, inner, in, Shape.FLAT);
+            if (on != null) {
+                match(w, in, on);
             }
-            if (j.kind() == SqlSource.Join.Kind.ASOF_LEFT) {
-                SqlSelect.SortKey nearest = asOfKey(j.on(), right);
-                inner.begin(w).append("{\"$sort\": {").append(MongoJson.key(((SqlExpr.Column) nearest.expr()).name()))
+            if (nearest != null) {
+                in.begin(w).append("{\"$sort\": {").append(MongoJson.key(((SqlExpr.Column) nearest.expr()).name()))
                         .append(": ").append(nearest.ascending() ? 1 : -1).append("}}");
-                inner.begin(w).append("{\"$limit\": 1}");
+                in.begin(w).append("{\"$limit\": 1}");
             }
         } finally {
             dialect.popScope();
         }
-        w.append("], \"as\": ").append(MongoJson.key(right)).append("}}");
-        st.begin(w).append("{\"$unwind\": {\"path\": ").append(MongoJson.path(right))
-                .append(", \"preserveNullAndEmptyArrays\": ").append(pads ? "true" : "false").append("}}");
-        if (pads) {
-            // a missed row: the right source's columns, each null, so every later read finds the field
-            st.begin(w).append("{\"$addFields\": {").append(MongoJson.key(right)).append(": {\"$ifNull\": [")
-                    .append(MongoJson.path(right)).append(", {");
-            List<OutputCol> cols = j.right().outputs();
-            for (int i = 0; i < cols.size(); i++) {
-                if (i > 0) {
-                    w.append(", ");
-                }
-                w.append(MongoJson.key(cols.get(i).name())).append(": null");
+        w.append("], \"as\": ").append(MongoJson.key(as)).append("}}");
+    }
+
+    /** A missed row: the side's columns, each null, so every later read finds the field. */
+    private static void pad(SqlWriter w, Stages st, SqlSource side) {
+        st.begin(w).append("{\"$addFields\": {").append(MongoJson.key(side.alias())).append(": {\"$ifNull\": [")
+                .append(MongoJson.path(side.alias())).append(", ");
+        nulls(w, side);
+        w.append("]}}}");
+    }
+
+    /** {@code {col: null, ...}}: the side's columns, each null. */
+    private static void nulls(SqlWriter w, SqlSource side) {
+        w.append("{");
+        List<OutputCol> cols = side.outputs();
+        for (int i = 0; i < cols.size(); i++) {
+            if (i > 0) {
+                w.append(", ");
             }
-            w.append("}]}}}");
+            w.append(MongoJson.key(cols.get(i).name())).append(": null");
         }
+        w.append("}");
     }
 
     /**

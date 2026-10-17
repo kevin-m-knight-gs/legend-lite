@@ -9,6 +9,11 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedPivot;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCDecimal;
+import com.legend.compiler.spec.typed.TypedCFloat;
+import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.protocol.spec.AppliedFunction;
 
 import java.util.ArrayList;
@@ -76,9 +81,40 @@ final class PivotChecker {
                     return new Type.Column(agg.name(), out.type(), out.multiplicity());
                 })
                 .toList();
+        // a STATIC pivot (its values given) has its columns now: one per value and aggregate, named as the database
+        // names a pivot column (value, separator, aggregate: the bare physical spelling, which the engine presents
+        // quoted -- Type.RelationType.presentPivotName, at the header; pivotColumnType matches either), so a plan
+        // carries them without asking the database (the plan path's pivot, 2026-10-17); a dynamic pivot keeps its
+        // templates
+        if (!values.isEmpty() && pivotCols.size() == 1) {
+            List<Type.Column> concrete = new ArrayList<>(groupCols);
+            for (TypedSpec v : values) {
+                for (Type.Column template : templates) {
+                    concrete.add(new Type.Column(
+                            pivotValueText(v) + Type.RelationType.PIVOT_SEPARATOR + template.name(),
+                            template.type(), template.multiplicity()));
+                }
+            }
+            return new TypedPivot(source, pivotCols, values, aggs,
+                    new ExprType(Type.relation(new Type.RelationType(concrete, List.of())),
+                            a.out().multiplicity()));
+        }
         return new TypedPivot(source, pivotCols, values, aggs,
                 new ExprType(Type.relation(new Type.RelationType(groupCols, templates)),
                         a.out().multiplicity()));
+    }
+
+    /** A pivot value's text in its column's name: a number's digits, a string itself, a boolean's word. */
+    private static String pivotValueText(TypedSpec v) {
+        return switch (v) {
+            case TypedCInteger i -> String.valueOf(i.value());
+            case TypedCString str -> str.value();
+            case TypedCFloat f -> String.valueOf(f.value());
+            case TypedCDecimal d -> d.value().toPlainString();
+            case TypedCBoolean b -> String.valueOf(b.value());
+            default -> throw new TypeInferenceException("pivot values must be literals, got "
+                    + v.getClass().getSimpleName());
+        };
     }
 
     private static List<String> pivotColumns(TypedSpec arg) {

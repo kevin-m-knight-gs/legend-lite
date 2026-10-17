@@ -79,9 +79,11 @@ public final class MongoDb extends AnsiSqlRenderer {
      *  array by the group stage and reduced at the read. */
     private static final Set<SqlAgg.Fn> PUSHED = Set.of(SqlAgg.Fn.VAR_SAMP, SqlAgg.Fn.VAR_POP, SqlAgg.Fn.VARIANCE,
             SqlAgg.Fn.MEDIAN, SqlAgg.Fn.STRING_AGG, SqlAgg.Fn.QUANTILE_CONT, SqlAgg.Fn.QUANTILE_DISC, SqlAgg.Fn.MODE,
-            SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP, SqlAgg.Fn.COVAR_POP);
-    /** The statistics over two columns, pushed as pairs ({@code {"x": .., "y": ..}}). */
-    private static final Set<SqlAgg.Fn> BIVARIATE = Set.of(SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP, SqlAgg.Fn.COVAR_POP);
+            SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP, SqlAgg.Fn.COVAR_POP, SqlAgg.Fn.ARG_MAX, SqlAgg.Fn.ARG_MIN);
+    /** The aggregates over two columns, pushed as pairs ({@code {"x": .., "y": ..}}): the statistics, and the value
+     *  at the greatest or least key. */
+    private static final Set<SqlAgg.Fn> BIVARIATE = Set.of(SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP, SqlAgg.Fn.COVAR_POP,
+            SqlAgg.Fn.ARG_MAX, SqlAgg.Fn.ARG_MIN);
 
     public MongoDb() {
         super(LEXICON);
@@ -99,6 +101,10 @@ public final class MongoDb extends AnsiSqlRenderer {
         /** The reads of this level's markers -- the group stage's aggregates, the lookup stages' subqueries -- each
          *  filled by its stage and read by the clauses after it. */
         final Map<String, SqlWriter.Piece> reads = new java.util.LinkedHashMap<>();
+        /** The one alias a select's row is wrapped under while its clauses are written (null over a join, or once
+         *  the projection has flattened the row): an unqualified column reads under it, as SQL resolves a column
+         *  over one source. */
+        @com.legend.base.Nullable String soleAlias;
 
         Scope(List<String> variableAliases, @com.legend.base.Nullable String flatAlias) {
             this.variableAliases = variableAliases;
@@ -120,6 +126,11 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     void popScope() {
         scopes.pop();
+    }
+
+    /** The alias a select's wrapped row reads unqualified columns under, or null once the row is flat. */
+    void soleAlias(@com.legend.base.Nullable String alias) {
+        scopes.getFirst().soleAlias = alias;
     }
 
     void aggregateReads(Map<String, SqlWriter.Piece> reads) {
@@ -285,6 +296,10 @@ public final class MongoDb extends AnsiSqlRenderer {
                 }
             }
             MongoJson.key(name);
+            if (scope.soleAlias != null) {
+                MongoJson.key(scope.soleAlias);
+                return writer.append(MongoJson.path(scope.soleAlias, name));
+            }
             return writer.append(MongoJson.path(name));
         }
         MongoJson.key(name);
@@ -1056,8 +1071,9 @@ public final class MongoDb extends AnsiSqlRenderer {
             case LIST_FILTER -> listFilter(writer, a);
             case LIST_TRANSFORM -> listMap(writer, a);
             case LIST_CONCAT -> listConcat(writer, a);
-            case LIST_GET -> writer.append("{\"$arrayElemAt\": [").expr(a.get(0), 0).append(", {\"$subtract\": [")
-                    .expr(a.get(1), 0).append(", 1]}]}");
+            // an element past the end is null (SqlTyping: NULL past the end), where $arrayElemAt answers nothing
+            case LIST_GET -> writer.append("{\"$ifNull\": [{\"$arrayElemAt\": [").expr(a.get(0), 0)
+                    .append(", {\"$subtract\": [").expr(a.get(1), 0).append(", 1]}]}, null]}");
             case LIST_POSITION -> listPosition(writer, a);
             case LIST_EXISTS -> listExists(writer, a);
             case LIST_FOR_ALL -> listForAll(writer, a);
@@ -1449,17 +1465,19 @@ public final class MongoDb extends AnsiSqlRenderer {
     }
 
     /** The first match, or its group; the empty string when nothing matches (the engine's answer). */
+    /** {@code regexp_extract(s, pattern[, group])}: the group's capture, the whole match for group 0 or none. */
     private static SqlWriter regexExtract(SqlWriter writer, List<SqlExpr> a) {
-        String found = a.size() > 2 ? "{\"$ifNull\": [{\"$arrayElemAt\": [\"$$m.captures\", {\"$subtract\": [" + G2
-                + ", 1]}]}, \"\"]}" : "\"$$m.match\"";
+        String found = a.size() > 2 ? "{\"$cond\": [{\"$eq\": [" + G2 + ", 0]}, \"$$m.match\", {\"$ifNull\":"
+                + " [{\"$arrayElemAt\": [\"$$m.captures\", {\"$subtract\": [" + G2 + ", 1]}]}, \"\"]}]}"
+                : "\"$$m.match\"";
         return MongoJson.guarded(writer, a, MongoJson.text("{\"$let\": {\"vars\": {\"m\": {\"$regexFind\":"
                 + " {\"input\": " + G0 + ", \"regex\": " + G1 + "}}}, \"in\": {\"$cond\": [{\"$eq\": [\"$$m\","
                 + " null]}, \"\", " + found + "]}}}"));
     }
 
     private static SqlWriter regexExtractAll(SqlWriter writer, List<SqlExpr> a) {
-        String each = a.size() > 2 ? "{\"$arrayElemAt\": [\"$$this.captures\", {\"$subtract\": [" + G2 + ", 1]}]}"
-                : "\"$$this.match\"";
+        String each = a.size() > 2 ? "{\"$cond\": [{\"$eq\": [" + G2 + ", 0]}, \"$$this.match\", {\"$arrayElemAt\":"
+                + " [\"$$this.captures\", {\"$subtract\": [" + G2 + ", 1]}]}]}" : "\"$$this.match\"";
         return MongoJson.guarded(writer, a, MongoJson.text("{\"$map\": {\"input\": {\"$regexFindAll\": {\"input\": "
                 + G0 + ", \"regex\": " + G1 + "}}, \"in\": " + each + "}}"));
     }
@@ -1703,7 +1721,9 @@ public final class MongoDb extends AnsiSqlRenderer {
             case LIST_INIT -> MongoJson.guarded(writer, List.of(a.get(0)), MongoJson.text("{\"$cond\": [{\"$gt\":"
                     + " [{\"$size\": " + G0 + "}, 1]}, {\"$slice\": [" + G0 + ", 0, {\"$subtract\": [{\"$size\": "
                     + G0 + "}, 1]}]}, []]}"));
-            case RANGE_FN -> MongoJson.op(writer, "$range", a);
+            // range(n) counts from 0 ($range takes a start)
+            case RANGE_FN -> a.size() == 1 ? writer.append("{\"$range\": [0, ").expr(a.get(0), 0).append("]}")
+                    : MongoJson.op(writer, "$range", a);
             case LIST_PRODUCT -> writer.append("{\"$reduce\": {\"input\": ").expr(a.get(0), 0)
                     .append(", \"initialValue\": 1, \"in\": {\"$multiply\": [" + VALUE + ", " + THIS + "]}}}");
             case LIST_REDUCE -> listReduce(writer, a);
@@ -1882,8 +1902,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case BOOL_AND -> accumulate(writer, "$min", r);
             case BOOL_OR -> accumulate(writer, "$max", r);
             case VAR_SAMP, VAR_POP, VARIANCE, MEDIAN, STRING_AGG, QUANTILE_CONT, QUANTILE_DISC, MODE, CORR,
-                 COVAR_SAMP, COVAR_POP -> pushed(writer, r);
-            case ARG_MAX, ARG_MIN -> throw new DialectCapability(r.fn() + " reached MongoDb: not shaped yet");
+                 COVAR_SAMP, COVAR_POP, ARG_MAX, ARG_MIN -> pushed(writer, r);
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
             case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
                  NTH_VALUE -> throw windowFunction(r);
@@ -2149,7 +2168,11 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " {\"$stdDevPop\": " + ys + "}}, \"in\": {\"$cond\": [{\"$or\": [{\"$eq\": [\"$$sx\", 0]},"
                     + " {\"$eq\": [\"$$sy\", 0]}]}, null, {\"$divide\": [" + covarPop + ", {\"$multiply\": [\"$$sx\","
                     + " \"$$sy\"]}]}]}}}");
-            case ARG_MAX, ARG_MIN -> throw new DialectCapability(fn + " reached MongoDb: not shaped yet");
+            // the value (x) of the pair with the greatest or the least key (y)
+            case ARG_MAX -> writer.append("{\"$let\": {\"vars\": {\"p\": {\"$arrayElemAt\": [{\"$sortArray\": {\"input\":"
+                    + " \"$$a\", \"sortBy\": {\"y\": -1}}}, 0]}}, \"in\": \"$$p.x\"}}");
+            case ARG_MIN -> writer.append("{\"$let\": {\"vars\": {\"p\": {\"$arrayElemAt\": [{\"$sortArray\": {\"input\":"
+                    + " \"$$a\", \"sortBy\": {\"y\": 1}}}, 0]}}, \"in\": \"$$p.x\"}}");
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw new IllegalStateException(
                     "lowering marker " + fn + " reached the renderer");
             case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,

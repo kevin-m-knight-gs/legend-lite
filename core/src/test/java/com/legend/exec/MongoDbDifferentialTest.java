@@ -281,6 +281,29 @@ class MongoDbDifferentialTest {
             new Case("bit_shift_62", "1->bitShiftLeft(53)->bitShiftRight(0)"),
             new Case("tds_time_bucket_nanos", "%2024-01-31T00:32:34.999123456+0000->timeBucket(2, DurationUnit.DAYS)",
                     TypedQuery.Output.TDS_TEXT),
+            new Case("big_float_abs", "123456789123456789.99->abs()"),
+            new Case("regex_extract_whole", "'abc'->regexpExtract('([a-z])(b)', false, 0)"),
+            new Case("regex_extract_group", "'abc'->regexpExtract('([a-z])(b)', false, 2)"),
+            new Case("regex_index", "['It was the best'->regexpIndexOf('was'), 'abc'->regexpIndexOf('zzz'), 'abc123def'->regexpIndexOf('([a-z]+)([0-9]+)', 2)]"),
+            new Case("arg_max_min", SCORES + "->groupBy(~g, ~[a: x | meta::pure::functions::math::mathUtility::rowMapper($x.n, $x.s)"
+                    + " : y | $y->maxBy(), b: x | meta::pure::functions::math::mathUtility::rowMapper($x.n, $x.s) : y | $y->minBy()])"
+                    + "->sort(~g->ascending())"),
+            new Case("join_full", "#TDS\n id, name\n 1, George\n 2, Pierre\n#->join(#TDS\n id2, col\n 1, More\n 3, Other\n#,"
+                    + " JoinKind.FULL, {x, y | $x.id == $y.id2})->sort([~id->ascending(), ~id2->ascending()])"),
+            new Case("join_right", "#TDS\n id, name\n 1, George\n 2, Pierre\n#->join(#TDS\n id2, col\n 1, More\n 3, Other\n#,"
+                    + " JoinKind.RIGHT, {x, y | $x.id == $y.id2})->sort(~id2->ascending())"),
+            new Case("range_one", "range(4)"),
+            new Case("static_pivot", "#TDS\n city, country, year, treePlanted\n NYC, USA, 2011, 5000\n NYC, USA, 2000, 5000\n"
+                    + " SAN, USA, 2011, 2600\n LDN, UK, 2011, 3000\n#->pivot(~year, [2000, 2011], ~newCol : x | $x.treePlanted"
+                    + " : y | $y->plus())->sort(~city->ascending())"),
+            new Case("tds_static_pivot", "#TDS\n city, country, year, treePlanted\n NYC, USA, 2011, 5000\n NYC, USA, 2000, 5000\n"
+                    + " SAN, USA, 2011, 2600\n LDN, UK, 2011, 3000\n#->pivot(~year, [2000, 2011], ~newCol : x | $x.treePlanted"
+                    + " : y | $y->plus())->sort(~city->ascending())", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_static_pivot_cast", "#TDS\n city, country, year, treePlanted\n NYC, USA, 2011, 5000\n"
+                    + " NYC, USA, 2000, 5000\n SAN, USA, 2011, 2600\n LDN, UK, 2011, 3000\n#->pivot(~year, [2000, 2011],"
+                    + " ~newCol : x | $x.treePlanted : y | $y->plus())->cast(@Relation<(city:String, country:String,"
+                    + " '\\'2000__|__newCol\\'':Integer, '\\'2011__|__newCol\\'':Integer)>)->sort(~city->ascending())",
+                    TypedQuery.Output.TDS_TEXT),
             new Case("window_qualify", SCORES + "->extend(over(~g, ~s->descending()), ~r: {p, w, r | $p->rank($w, $r)})"
                     + "->filter(x | $x.r == 1)->sort(~id->ascending())->select(~[id, s])"));
 

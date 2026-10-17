@@ -48,12 +48,7 @@ public class Test_LegendLite_MongoDB_UnclassifiedFunctions_PCT extends PCTReport
             one("meta::pure::functions::string::tests::levenshteinDistance::testLevenshteinDistanceEqual_Function_1__Boolean_1_", "\"LEVENSHTEIN reached MongoDb, which has no string-distance operator\""),
             one("meta::pure::functions::string::tests::levenshteinDistance::testLevenshteinDistanceNotEqual_Function_1__Boolean_1_", "\"LEVENSHTEIN reached MongoDb, which has no string-distance operator\""),
             one("meta::pure::functions::string::tests::regexpReplace::testregexpReplaceAll_Function_1__Boolean_1_", "\"a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)\""),
-            one("meta::pure::functions::string::tests::regexpReplace::testregexpReplace_Function_1__Boolean_1_", "\"a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)\""),
-            // VALUE DIFFERENCES, measured
-            one("meta::pure::functions::string::tests::regexpExtract::testRegexpExtractAll_Function_1__Boolean_1_", "\"\nexpected: ['ab', 'cb', 'cb']\nactual:   ['b', 'b', 'b']\""),
-            one("meta::pure::functions::string::tests::regexpExtract::testRegexpExtract_Function_1__Boolean_1_", "\"\nexpected: 'ab'\nactual:   'b'\""),
-            one("meta::pure::functions::string::tests::regexpIndexOf::testRegexpIndexOf_Function_1__Boolean_1_", "\"\nexpected: 3\nactual:   -1\""),
-            one("meta::pure::functions::string::tests::regexpIndexOf::testRegexpIndexOf_NoMatch_Function_1__Boolean_1_", "\"\nexpected: -1\nactual:   0\"")
+            one("meta::pure::functions::string::tests::regexpReplace::testregexpReplace_Function_1__Boolean_1_", "\"a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)\"")
     );
 
     public static Test suite() {

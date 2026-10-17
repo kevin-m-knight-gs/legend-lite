@@ -50,13 +50,9 @@ public class Test_LegendLite_MongoDB_StandardFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::hashCode::tests::testHashCode_Function_1__Boolean_1_", "\"hashCode reached MongoDb: its hashed index key is not Pure's hash\""),
             one("meta::pure::functions::math::hashCode::tests::testHashCodeAggregate_Function_1__Boolean_1_", "\"hashCode reached MongoDb: its hashed index key is not Pure's hash\""),
             one("meta::pure::functions::math::tests::max::testMax_Numbers_Function_1__Boolean_1_", "\"a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)\""),
-            one("meta::pure::functions::math::tests::maxBy::testSimpleGroupByMaxBy_Function_1__Boolean_1_", "\"ARG_MAX reached MongoDb: not shaped yet\""),
             one("meta::pure::functions::math::tests::min::testMin_Numbers_Function_1__Boolean_1_", "\"a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)\""),
-            one("meta::pure::functions::math::tests::minBy::testSimpleGroupByMinBy_Function_1__Boolean_1_", "\"ARG_MIN reached MongoDb: not shaped yet\""),
             one("meta::pure::functions::string::generation::tests::generateGuid::testGenerateGuidWithRelation_Function_1__Boolean_1_", "\"generateGuid reached MongoDb, whose pipeline has no uuid operator\""),
-            one("meta::pure::functions::string::generation::tests::generateGuid::testGenerateGuid_Function_1__Boolean_1_", "\"generateGuid reached MongoDb, whose pipeline has no uuid operator\""),
-            // MONGODB'S OWN, the server's error
-            one("meta::pure::functions::math::tests::percentile::testPercentile_Function_1__Boolean_1_", "\"Command execution failed on MongoDB server with error 28667 (Location28667): 'Expression $range takes at least 2 arguments, and at most 3, but 1 were passed in.'")
+            one("meta::pure::functions::string::generation::tests::generateGuid::testGenerateGuid_Function_1__Boolean_1_", "\"generateGuid reached MongoDb, whose pipeline has no uuid operator\"")
     );
 
     public static Test suite() {

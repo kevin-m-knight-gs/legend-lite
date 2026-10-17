@@ -2292,7 +2292,7 @@ Database types planned with it: MongoDB.
 | `LIST_FILTER` | emulated | `listFilter` |  | 0 |
 | `LIST_TRANSFORM` | emulated | `listMap` |  | 0 |
 | `LIST_CONCAT` | emulated | `listConcat` |  | 0 |
-| `LIST_GET` | emulated | `{"$arrayElemAt": […, {"$subtract": […, 1]}]}` |  | 0 |
+| `LIST_GET` | emulated | `{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}` |  | 0 |
 | `LIST_POSITION` | emulated | `listPosition` |  | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 0 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 0 |
@@ -2412,7 +2412,7 @@ Database types planned with it: MongoDB.
 | `LIST_SORT_DESC` | emulated | `{"$sortArray": {"input": …, "sortBy": -1}}` | `via MongoDb.listCall` | 0 |
 | `LIST_TAIL` | emulated | `guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 1, {"$subtract": [{"$size": , }, 1]}]}, []]}` | `via MongoDb.listCall` | 0 |
 | `LIST_INIT` | emulated | `guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 0, {"$subtract": [{"$size": , }, 1]}]}, []]}` | `via MongoDb.listCall` | 0 |
-| `RANGE_FN` | emulated | `$range` | `via MongoDb.listCall` | 0 |
+| `RANGE_FN` | emulated | `by its operands: {"$range": [0, …]} / $range` | `via MongoDb.listCall` | 0 |
 | `LIST_PRODUCT` | emulated | `{"$reduce": {"input": …, "initialValue": 1, "in": {"$multiply": [, ]}}}` | `via MongoDb.listCall` | 0 |
 | `LIST_REDUCE` | emulated | `listReduce` | `via MongoDb.listCall` | 0 |
 | `LIST_SLICE` | emulated | `listSlice` | `via MongoDb.listCall` | 0 |

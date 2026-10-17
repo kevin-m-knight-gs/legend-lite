@@ -82,7 +82,9 @@ final class PlanMaker {
      */
     private static ExecutionPlan.TextResult tdsText(SqlQuery lowered, ExprType root, SqlDialect dialect,
             ExecutionPlan.Target target) {
-        if (!com.legend.lowering.TdsTextWrap.pivots(lowered).isEmpty()) {
+        // a static pivot (its values given) has its columns at plan time; a dynamic one's are known only once the
+        // database is asked (the legacy executor's probe)
+        if (com.legend.lowering.TdsTextWrap.pivots(lowered).stream().anyMatch(p -> p.in().isEmpty())) {
             throw new com.legend.error.NotImplementedException("a pivot's columns are known only once the database is"
                     + " asked: no TDS text plan for it yet");
         }

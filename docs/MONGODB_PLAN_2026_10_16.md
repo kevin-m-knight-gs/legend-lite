@@ -1314,14 +1314,28 @@ its String cells as the quoted text itself, a cell spanning lines read whole (`q
 |---|---:|---:|---:|---|
 | Essential | 345 | 280 | 65 | 18 a List, Map or class instance crossing as text (the route's); 14 value differences (dates printed with three millisecond digits where the value has none, the error positions and messages -- the platform's own); 10 `Any`-typed values and user elements by simple name; 10 error positions and messages; 7 dates past year 9999, a month count past `$dateAdd`'s range, the microsecond unit (MongoDB's own); 3 `Pair` without type arguments; 2 the reader's cell typing; a `TypedDeactivate` |
 | Grammar | 137 | 116 | 21 | 5 instances as text; 4 Decimal arithmetic (Decimal128's 34 digits where Pure keeps 16); 3 `Any`-typed values; 2 extended primitives; 2 non-primitive equality; the rest named (a schema-qualified table, a date part, a range) |
-| Relation | 469 | 441 | 28 | 20 pivots (the plan path has no probe); 5 a Variant holding JSON null (BSON null, printed as a null cell where Pure prints `'null'`); full and right joins; currentUserId |
+| Relation | 469 | 441 | 28 | 20 pivots (the plan path has no probe); 5 a Variant holding JSON null (BSON null, printed as a null cell where Pure prints `'null'`); full and right joins; currentUserId (the second pass below: 449 and 20) |
 | Standard | 205 | 184 | 21 | 10 value differences (greatest and least over dates and mixed numbers); 4 regex replace; 2 each hashCode, generateGuid; ARG_MAX and ARG_MIN; a percentile's server error |
 | Unclassified | 93 | 74 | 19 | 5 base64; 4 string distances; 4 regex extract and index (values); 3 digests; 2 regex replace; currentUserId |
 | **all** | **1,249** | **1,095 (88%)** | **154** | 82 named refusals or the server's own errors; 417 pins fewer than the first measurement's 571 |
 
+**The second pass, the same day** (the differential at 157 EQUAL of 165 cases): right and full joins (a right join looks the left
+side up from the right; a full join appends, by `$unionWith`, the right rows no left row matched, the left side's
+null columns under `$literal` since `$addFields` merges a plain document into the field's own); `regexpExtract`'s
+group 0 (the whole match); `range(n)` from 0; `maxBy` and `minBy` on the pair route (the value at the greatest or
+least key); a list element past the end as null (`$arrayElemAt` answers nothing, which `$eq` does not read as null);
+a power as a Float (`$pow` of two integers answers an integer); and the **static pivot**: a pivot whose values are
+given has its columns at type time (`PivotChecker`: one per value and aggregate, named bare as the database names
+them, which the headers present quoted and a `cast(@Relation<...>)` names quoted -- `Lowerer.relationCast` finds the
+column under either spelling), so the plan's TDS text carries them without asking the database (`PlanMaker` refuses
+a dynamic pivot alone now), and the target shapes it as two groups and a projection (`MongoDbPipeline.pivot`: by the
+keys and the ON value with each aggregate accumulated, then by the keys with the ON value and the aggregates
+pushed, then each pivot column read as its value's aggregate). The dialect resolves an unqualified column under a
+select's one alias while the row is wrapped (`MongoDb.soleAlias`), as SQL resolves a column over one source.
+After it the lane stands at 1,111 of 1,249 (88%; 138 pinned: Essential 65, Grammar 20, Relation 20, Standard 18, Unclassified 15); the relation suite's pins are the dynamic pivots (14), the Variant holding JSON null (5) and currentUserId.
+
 **MongoDB's own, measured and named** (the pins that are the target's): a Variant holding JSON null is BSON null, so
 its cell prints as a null cell where Pure prints `'null'` (five relation tests); dates past year 9999 and the
-microsecond unit (`$dateToString`, `$dateAdd`); a pivot (the plan path has no probe, and the target no grouped form
-yet); full and right joins; regex replace, hashCode, generateGuid, base64, the string distances and digests (no
+microsecond unit (`$dateToString`, `$dateAdd`); a dynamic pivot (the plan path has no probe; a static one has its grouped form); regex replace, hashCode, generateGuid, base64, the string distances and digests (no
 operator); a List, Map or class instance crossing as text (the route's, shared with the DuckDB shadow). The
 date-precision and class-instance pins stay the user's decision (§11.2).

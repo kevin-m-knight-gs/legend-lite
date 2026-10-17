@@ -611,8 +611,8 @@ Database types planned with it: MongoDB.
 | `CORR` | emulated | `pushed` |  | 0 |
 | `COVAR_SAMP` | emulated | `pushed` |  | 0 |
 | `COVAR_POP` | emulated | `pushed` |  | 0 |
-| `ARG_MAX` | refused | `reached MongoDb: not shaped yet` |  | 0 |
-| `ARG_MIN` | refused | `reached MongoDb: not shaped yet` |  | 0 |
+| `ARG_MAX` | emulated | `pushed` |  | 0 |
+| `ARG_MIN` | emulated | `pushed` |  | 0 |
 | `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `BOOL_AND` | emulated | `accumulate: $min` |  | 0 |

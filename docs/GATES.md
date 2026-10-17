@@ -10672,6 +10672,14 @@ What changed:
    Number cells read as Pure spells them, its String cells as the quoted text (legend-pure's reader types a cell by
    its text, not by the header).
 
+The second pass, the same day (the record's "second pass"): right and full joins, `regexpExtract`'s group 0,
+`range(n)`, `maxBy` and `minBy`, a list element past the end, a power as a Float, and the static pivot (its columns
+typed at compile time by `PivotChecker`, found under either spelling by `Lowerer.relationCast`, let through the TDS
+text plan by `PlanMaker`, shaped as two groups and a projection by `MongoDbPipeline.pivot`; the dialect resolves an
+unqualified column under a select's one alias). The differential: 157 EQUAL of 165. The lane: 1,111 pass,
+138 pinned (Essential 65, Grammar 20, Relation 20, Standard 18, Unclassified 15); `//pct:pct_duckdb_relation` and
+`//core:core_tests_compiler` pass with the typing change.
+
 What judges it: `//pct:pct_mongodb` -- 1,249 tests, 1,095 pass, 154 pinned (Essential 65, Grammar 21,
 Relation 28, Standard 21, Unclassified 19; the record's table says by what; 82 of the pins are named
 refusals or the server's own errors, the rest measured values). `//core:mongodb_plan_test` (the differential),

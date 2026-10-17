@@ -35,11 +35,7 @@ public class Test_LegendLite_MongoDB_RelationFunctions_PCT extends PCTReportConf
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // MONGODB'S OWN, refused by name
             one("meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId_Function_1__Boolean_1_", "\"currentUserId reached MongoDb, whose pipeline names no user\""),
-            one("meta::pure::functions::relation::tests::join::testFullJoin_Function_1__Boolean_1_", "\"a FULL join reached MongoDb: only inner, left, cross, lateral and as-of joins have a shape yet\""),
-            one("meta::pure::functions::relation::tests::join::testRightJoin_Function_1__Boolean_1_", "\"a RIGHT join reached MongoDb: only inner, left, cross, lateral and as-of joins have a shape yet\""),
             // VALUE DIFFERENCES, measured
-            one("meta::pure::functions::relation::tests::composition::testStaticPivot_AfterConcatenate_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::composition::testStaticPivot_AfterExtendConcatenate_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
             one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\""),
             one("meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsEmptyOfModelConversion_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload\n   2,\\'{}\\'\n#'\nactual:   '#TDS\n   id,payload\n\n#'\""),
             one("meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsNotEmptyOfModelConversion_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload\n   1,\\'{\"person\":{\"name\":\"Jose\"}}\\'\n   3,\\'{\"person\":{\"name\":\"Pedro\"}}\\'\n#'\nactual:   '#TDS\n   id,payload\n   1,\\'{\"person\":{\"name\":\"Jose\"}}\\'\n   2,\\'{}\\'\n   3,\\'{\"person\":{\"name\":\"Pedro\"}}\\'\n#'\""),
@@ -47,8 +43,6 @@ public class Test_LegendLite_MongoDB_RelationFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
             one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
             one("meta::pure::functions::relation::tests::composition::test_Pivot_Filter_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::composition::test_Project_Filter_Before_Static_Pivot_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::composition::test_Static_Pivot_Filter_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
             one("meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIsEmptyOfKeyExtraction_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload\n   2,\\'{\"businessData\":{}}\\'\n#'\nactual:   '#TDS\n   id,payload\n\n#'\""),
             one("meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIsNotEmptyOfKeyExtraction_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload\n   1,\\'{\"businessData\":{\"signalId\":\"s1\"}}\\'\n   3,\\'{\"businessData\":{\"signalId\":\"s3\"}}\\'\n#'\nactual:   '#TDS\n   id,payload\n   1,\\'{\"businessData\":{\"signalId\":\"s1\"}}\\'\n   2,\\'{\"businessData\":{}}\\'\n   3,\\'{\"businessData\":{\"signalId\":\"s3\"}}\\'\n#'\""),
             one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
@@ -60,9 +54,7 @@ public class Test_LegendLite_MongoDB_RelationFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
             one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
             one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle_StringPivotValue_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\"")
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\"")
     );
 
     public static Test suite() {

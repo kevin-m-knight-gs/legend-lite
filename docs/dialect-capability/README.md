@@ -48,7 +48,7 @@ input).
 | SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 136 | 12 | 15 | 32 |
 | MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 51 | 145 | 8 | 15 | 31 |
 | MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 51 | 145 | 8 | 15 | 31 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 185 | 19 | 15 | 185 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 187 | 17 | 15 | 187 |
 | EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 104 | 82 | 18 | 15 | — |
 | EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 106 | 80 | 18 | 15 | — |
 | EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 107 | 79 | 18 | 15 | — |
@@ -260,8 +260,8 @@ input).
 | `CORR` | E | E | S | S | E | S | S | S | E | E | E | E | E· | S | S | S |
 | `COVAR_SAMP` | E | E | S | S | E | S | S | S | E | E | E | E | E· | S | S | S |
 | `COVAR_POP` | E | E | S | S | E | S | S | S | E | E | E | E | E· | S | S | S |
-| `ARG_MAX` | E | E | E | E | E | E | E | S | E | E | E | E | R | S | S | S |
-| `ARG_MIN` | E | E | E | E | E | E | E | S | E | E | E | E | R | S | S | S |
+| `ARG_MAX` | E | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
+| `ARG_MIN` | E | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
 | `WAVG` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `HASH_LIST` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `BOOL_AND` | E· | E | S· | S· | S· | E· | S· | S· | E· | E· | E· | E· | E· | S | S | S |

@@ -2662,7 +2662,7 @@ MongoDb	MongoDB	call	CONCAT_JOIN	emulated	$concat		0
 MongoDb	MongoDB	call	LIST_FILTER	emulated	listFilter		0
 MongoDb	MongoDB	call	LIST_TRANSFORM	emulated	listMap		0
 MongoDb	MongoDB	call	LIST_CONCAT	emulated	listConcat		0
-MongoDb	MongoDB	call	LIST_GET	emulated	{"$arrayElemAt": […, {"$subtract": […, 1]}]}		0
+MongoDb	MongoDB	call	LIST_GET	emulated	{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}		0
 MongoDb	MongoDB	call	LIST_POSITION	emulated	listPosition		0
 MongoDb	MongoDB	call	LIST_EXISTS	emulated	listExists		0
 MongoDb	MongoDB	call	LIST_FOR_ALL	emulated	listForAll		0
@@ -2782,7 +2782,7 @@ MongoDb	MongoDB	call	LIST_SORT	emulated	{"$sortArray": {"input": …, "sortBy": 
 MongoDb	MongoDB	call	LIST_SORT_DESC	emulated	{"$sortArray": {"input": …, "sortBy": -1}}	via MongoDb.listCall	0
 MongoDb	MongoDB	call	LIST_TAIL	emulated	guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 1, {"$subtract": [{"$size": , }, 1]}]}, []]}	via MongoDb.listCall	0
 MongoDb	MongoDB	call	LIST_INIT	emulated	guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 0, {"$subtract": [{"$size": , }, 1]}]}, []]}	via MongoDb.listCall	0
-MongoDb	MongoDB	call	RANGE_FN	emulated	$range	via MongoDb.listCall	0
+MongoDb	MongoDB	call	RANGE_FN	emulated	by its operands: {"$range": [0, …]} / $range	via MongoDb.listCall	0
 MongoDb	MongoDB	call	LIST_PRODUCT	emulated	{"$reduce": {"input": …, "initialValue": 1, "in": {"$multiply": [, ]}}}	via MongoDb.listCall	0
 MongoDb	MongoDB	call	LIST_REDUCE	emulated	listReduce	via MongoDb.listCall	0
 MongoDb	MongoDB	call	LIST_SLICE	emulated	listSlice	via MongoDb.listCall	0
@@ -2828,8 +2828,8 @@ MongoDb	MongoDB	reducer	QUANTILE_DISC	emulated	pushed		0
 MongoDb	MongoDB	reducer	CORR	emulated	pushed		0
 MongoDb	MongoDB	reducer	COVAR_SAMP	emulated	pushed		0
 MongoDb	MongoDB	reducer	COVAR_POP	emulated	pushed		0
-MongoDb	MongoDB	reducer	ARG_MAX	refused	reached MongoDb: not shaped yet		0
-MongoDb	MongoDB	reducer	ARG_MIN	refused	reached MongoDb: not shaped yet		0
+MongoDb	MongoDB	reducer	ARG_MAX	emulated	pushed		0
+MongoDb	MongoDB	reducer	ARG_MIN	emulated	pushed		0
 MongoDb	MongoDB	reducer	WAVG	not_here	lowering marker reached the renderer		0
 MongoDb	MongoDB	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
 MongoDb	MongoDB	reducer	BOOL_AND	emulated	accumulate: $min		0
