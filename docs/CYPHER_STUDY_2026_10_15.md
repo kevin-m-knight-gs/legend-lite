@@ -4847,3 +4847,48 @@ Pattern2/[1], [2], [3], [8], [9], [11] move to PASS on both lanes (Pattern2/[1] 
 cases of `lite/patternlists.yaml` and the 7 new ones of `lite/optional.yaml` PASS on both. TCK agreement DuckDB
 3520 → 3526, Postgres 3141 → 3147. Left: Pattern2/[7] (a comprehension inside a list comprehension, reading its
 variable), the nested EXISTS subqueries (ExistentialSubquery3/[1]-[3], ExistentialSubquery2/[2]).
+
+### 12.73 The expression tail: UNION over nodes, float remainders, computed SKIP and LIMIT, paths compared, range, toString of values (2026-10-17)
+
+- **UNION (distinct) over nodes and relationships** (Union1/[4]): their values carry their identities (S85), so the
+  database's DISTINCT over the parts' rows tells two nodes apart as Neo4j does. A part whose node or relationship value
+  carries no identity, a relationship over a property, is refused by name; parallel relationships of one type over an
+  association share their pair's identity (S74) and fall together, as S74 records.
+- **`%` of floats** (Precedence2/[2]): Pure's `rem` of the two as floats, a Float, the remainder with the dividend's
+  sign as Neo4j's; a spelled zero divisor is marked NaN as a division is. Postgres's dialect refuses a double
+  remainder by name, so the case passes on DuckDB and is refused on Postgres (a lane divergence, as the nanosecond
+  values are).
+- **A SKIP or LIMIT the database computes** (`SKIP toInteger(rand()*9)`, ReturnSkipLimit1/[3]; `LIMIT
+  toInteger(ceil(1.7))`, ReturnSkipLimit2/[6]): `slicedByRowNumber` numbers the rows in the sort's order (Pure's
+  `rowNumber` over the sort), computes the counts once over one row beside them (Neo4j's counts read no variable),
+  keeps the rows beyond the SKIP and within the LIMIT, and sorts them by their number. A negative count raises in the
+  database (`fail`), as Neo4j's does; a count that is not an integer is Neo4j's error, one that may be null refused.
+- **Two paths compared** (Comparison1/[14]): equal when their elements' identities are, in order (`pathIdentities`, the
+  stored directions apart). A node, a relationship or a path against a value of a known other kind (a scalar, a list
+  or map of known shape, a path against a node) is never equal, as values of different types.
+- **range(...)** (List11/[3]): a step the row computes (`computedStepRange`: the last value and the end spelled by the
+  step's sign, which the database computes), a bound or step that may be null raising where it is (Neo4j's TypeError),
+  a zero step raising. The Postgres dialect writes a raise inside generate_series's arguments with a volatile piece
+  (`SqlWriter.planned`): Postgres's planner estimates the function's rows from its arguments and evaluated the raise
+  before any row asked for it, as an unnest's argument already was.
+- **toString of a list, a map, a node, a relationship or a path** (TypeConversion4/[10]): Neo4j 2026's texts, built
+  by the database: a list's elements' texts within brackets and a map's `key: text` entries within braces, joined with
+  `", "` (a string unquoted, a null `null`); a node `(:A:B)`, its labels; a relationship `[:T]`; a path its nodes and
+  relationships with their stored directions (`(:A)-[:T]->(:B)`), each read from the value the database holds. Over a
+  graph the projection reads the graph's rows first (a class extent's projection folds no map over a Variant;
+  `textsGraphValue`); in a WHERE over a graph it is refused by name. Postgres's `->>` by a computed index casts it to
+  an integer, as its `->` did.
+- **Pinned.** `PostgresDialectTest` (the raise inside a range's arguments); `CodeShapeGuardrailTest`'s allowlist (the
+  writer's depth, dated); `lite/exprtail.yaml`'s 16 cases, each judged by Neo4j. Left: NaN inside a list or map (the
+  JSON holds none; §5), the duration multiplied or divided by a number (W5's temporal tail).
+
+#### 12.73.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4852 | 3731 (from 3,704) | 0 | 0 | 0 | 315 (from 328) | 749 (from 747) | 57 |
+| Postgres | 4852 | 3327 (from 3,302) | 0 | 0 | 0 | 719 (from 730) | 749 (from 747) | 57 |
+
+ReturnSkipLimit1/[3], ReturnSkipLimit2/[6], Union1/[4], Comparison1/[14], List11/[3] and TypeConversion4/[10]'s five
+examples move to PASS on both lanes, Precedence2/[2]'s three on DuckDB; the 16 lite cases PASS (two BOTH_ERROR, Neo4j's
+errors) on both, `float_remainders` refused on Postgres. TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157.

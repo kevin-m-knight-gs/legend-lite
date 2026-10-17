@@ -1079,11 +1079,18 @@ public final class CypherToPure {
         }
         parts.add(part);
         Rows out = null;
+        Set<String> unidentified = new java.util.TreeSet<>();
         for (List<Clause> p : parts) {
             CypherToPure reader = new CypherToPure(model);
             // (the statement's leading USE is the first part's: read as done there, the study's §12.45)
             reader.leading = leading;
             Rows rows = reader.clausesRows(p, s.pos());
+            for (Col c : rows.columns()) {
+                if (c.virtual() || c.detail() instanceof NodeValue n && n.identity() == null
+                        || c.detail() instanceof RelValue r && r.identity() == null) {
+                    unidentified.add(c.name());
+                }
+            }
             if (out == null) {
                 out = rows;
                 continue;
@@ -1114,12 +1121,13 @@ public final class CypherToPure {
         }
         Rows rows = java.util.Objects.requireNonNull(out);
         if (!java.util.Objects.requireNonNull(all)) {
-            for (Col c : rows.columns()) {
-                if (c.detail() instanceof NodeValue || c.detail() instanceof RelValue || c.virtual()) {
-                    throw CypherErrors.unsupported("UNION (distinct) over a node or relationship (" + c.name()
-                            + "; Neo4j tells them apart by identity) is not supported yet; the ALL form reads",
-                            java.util.Objects.requireNonNull(unionPos));
-                }
+            // (a node's or relationship's value carries its identity, S85, so the distinct values are the distinct
+            // nodes; one whose value carries none, a relationship over a property, is refused by name; the study's
+            // §12.73)
+            if (!unidentified.isEmpty()) {
+                throw CypherErrors.unsupported("UNION (distinct) over a node or relationship (" + String.join(", ",
+                        unidentified) + ") whose value carries no identity (Neo4j tells them apart by identity) is"
+                        + " not supported yet; the ALL form reads", java.util.Objects.requireNonNull(unionPos));
             }
             rows = new Rows(call("distinct", rows.vs()), rows.columns());
         }
@@ -4056,6 +4064,24 @@ public final class CypherToPure {
         return readsRow(pc.map(), inner);
     }
 
+    /** Whether {@code exprs} spell {@code toString} of a node, a relationship or a path of the graph (the study's
+     *  §12.73): its text is built from the value the database holds, over the graph's rows (a projection over a
+     *  class extent folds no map over a Variant). Conservatively, a toString beside such a variable read whole. */
+    private static boolean textsGraphValue(List<Expr> exprs, Graph g) {
+        return exprs.stream().anyMatch(e -> containsCall(e, "tostring") && mentionsGraphValue(e, g));
+    }
+
+    /** Whether {@code e} reads a node, a relationship or a path of the graph whole (not a property of it). */
+    private static boolean mentionsGraphValue(Expr e, Graph g) {
+        if (e instanceof CypherAst.Var v) {
+            return g.bindings().containsKey(v.name()) || g.paths().containsKey(v.name());
+        }
+        if (e instanceof CypherAst.Prop p && p.target() instanceof CypherAst.Var) {
+            return false;
+        }
+        return children(e).stream().anyMatch(c -> mentionsGraphValue(c, g));
+    }
+
     /** Whether any pattern comprehension of {@code exprs} reads through the graph's rows ({@link #throughRows}). */
     private static boolean throughRows(List<Expr> exprs, Graph g) {
         List<CypherAst.PatternComprehension> found = new ArrayList<>();
@@ -5823,7 +5849,8 @@ public final class CypherToPure {
         List<CypherAst.PatternComprehension> sorted = new ArrayList<>();
         orderBy.forEach(o -> comprehensionsIn(o.expr(), sorted));
         Graph graph = state instanceof Arms a ? a.arms().get(0) : state instanceof Graph g ? g : null;
-        if (graph != null && (throughRows(listed, graph) || !sorted.isEmpty())) {
+        if (graph != null && (throughRows(listed, graph) || !sorted.isEmpty() || textsGraphValue(listed, graph)
+                || textsGraphValue(orderBy.stream().map(SortItem::expr).toList(), graph))) {
             state = rowsOf(state, pos);
         }
         orderBy.forEach(o -> listed.add(o.expr()));
@@ -5920,23 +5947,31 @@ public final class CypherToPure {
             vs = call("extend", vs, new ColSpecArray(computed));
             hidden.addAll(computed);
         }
+        List<ValueSpecification> sortInfos = new ArrayList<>();
+        for (SortKey k : sortKeys) {
+            // Cypher orders null after every value ascending, before them descending, as Postgres does
+            sortInfos.add(call(k.descending() ? "descending" : "ascending", new ColSpec(k.column(), null, null,
+                    null), new EnumValue(NULL_ORDER, k.descending() ? "FIRST" : "LAST")));
+        }
         if (!sortKeys.isEmpty()) {
-            List<ValueSpecification> sortInfos = new ArrayList<>();
-            for (SortKey k : sortKeys) {
-                // Cypher orders null after every value ascending, before them descending, as Postgres does
-                sortInfos.add(call(k.descending() ? "descending" : "ascending", new ColSpec(k.column(), null, null,
-                        null), new EnumValue(NULL_ORDER, k.descending() ? "FIRST" : "LAST")));
-            }
             vs = call("sort", vs, new PureCollection(sortInfos));
         }
-        if (!hidden.isEmpty() || !ap.hiddenColumns().isEmpty()) {
+        boolean computedSlice = computedCount(skip) || computedCount(limit);
+        if (computedSlice) {
+            Set<String> taken = new HashSet<>();
+            columns.forEach(c -> taken.add(c.name()));
+            hidden.forEach(h -> taken.add(h.name()));
+            ap.hiddenColumns().forEach(c -> taken.add(c.name()));
+            vs = slicedByRowNumber(vs, sortInfos, skip, limit, taken);
+        }
+        if (!hidden.isEmpty() || !ap.hiddenColumns().isEmpty() || computedSlice) {
             vs = call("select", vs, new ColSpecArray(columns.stream().filter(c -> !c.virtual())
                     .map(c -> new ColSpec(c.name(), null, null, null)).toList()));
         }
-        if (skip != null) {
+        if (skip != null && !computedSlice) {
             vs = call("drop", vs, rowCount(skip, "SKIP"));
         }
-        if (limit != null) {
+        if (limit != null && !computedSlice) {
             vs = call("limit", vs, rowCount(limit, "LIMIT"));
         }
         if (!ap.carriedItems().isEmpty()) {
@@ -6431,6 +6466,74 @@ public final class CypherToPure {
             }
         }
         return null;
+    }
+
+    /** Whether a SKIP's or LIMIT's count is an expression the database computes ({@link #slicedByRowNumber}): not a
+     *  spelled integer, nor a parameter. */
+    private static boolean computedCount(@com.legend.base.Nullable Expr e) {
+        return e != null && !(e instanceof CypherAst.IntLit) && !(e instanceof CypherAst.Param);
+    }
+
+    /**
+     * {@code WITH n SKIP toInteger(rand() * 9)}, {@code WITH n LIMIT toInteger(ceil(1.7))} (the study's §12.73): a
+     * count the database computes, once -- over one row beside the rows (Neo4j's counts read no variable), its
+     * value raising as Neo4j's does where it is negative -- and the rows kept by their number in the sort's order
+     * (Pure's rowNumber over the sort, the window the database numbers), beyond the SKIP and within the LIMIT, in
+     * that order. A spelled integer beside a computed count is read as written.
+     */
+    private ValueSpecification slicedByRowNumber(ValueSpecification vs, List<ValueSpecification> sortInfos,
+            @com.legend.base.Nullable Expr skip, @com.legend.base.Nullable Expr limit, Set<String> taken) {
+        String number = freshName(taken);
+        ValueSpecification numbered = call("extend", vs, call("over", new PureCollection(sortInfos)), new ColSpec(
+                number, new LambdaFunction(List.of(new Variable("p"), new Variable("w"), new Variable("r")),
+                List.of(call("rowNumber", new Variable("p"), new Variable("r")))), null, null));
+        // the computed counts, over one row
+        String row = freshName(taken);
+        String one = "\n" + row + "\n1\n";
+        Rows single = new Rows(com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
+                List.of(new Col(row, Kind.INTEGER, false)));
+        RowScope none = new RowScope(single);
+        List<ColSpec> counts = new ArrayList<>();
+        ValueSpecification skipped = skip == null ? null : count(skip, "SKIP", none, counts, taken);
+        ValueSpecification limited = limit == null ? null : count(limit, "LIMIT", none, counts, taken);
+        ValueSpecification bounds = call("extend", single.vs(), new ColSpecArray(counts));
+        ValueSpecification joined = call("join", numbered, bounds, new EnumValue(JOIN_KIND, "INNER"),
+                new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(new CBoolean(true))));
+        ValueSpecification at = new AppliedProperty(new Variable("r"), number);
+        ValueSpecification keep = null;
+        if (skipped != null) {
+            keep = call("greaterThan", at, skipped);
+        }
+        if (limited != null) {
+            ValueSpecification within = call("lessThanEqual", at, skipped == null ? limited : plus(skipped, limited));
+            keep = keep == null ? within : call("and", keep, within);
+        }
+        ValueSpecification kept = call("filter", joined, lambda("r", java.util.Objects.requireNonNull(keep)));
+        return call("sort", kept, new PureCollection(List.of(call("ascending", new ColSpec(number, null, null,
+                null)))));
+    }
+
+    /** A SKIP's or LIMIT's count as the filter reads it: a spelled integer as written; a computed one a column of the
+     *  one row ({@code counts}), raising where it is negative. */
+    private ValueSpecification count(Expr e, String clause, RowScope none, List<ColSpec> counts, Set<String> taken) {
+        if (!computedCount(e)) {
+            return rowCount(e, clause);
+        }
+        Tx t = tx(e, none);
+        if (t.kind() != Kind.INTEGER) {
+            throw CypherErrors.invalid("Invalid input. " + clause + " must be a non-negative integer, but was "
+                    + cypherType(t.kind()), e.pos());
+        }
+        if (t.nullable()) {
+            throw CypherErrors.unsupported(clause + " with a count that may be null is not supported yet", e.pos());
+        }
+        String column = freshName(taken);
+        ValueSpecification v = t.vs();
+        ValueSpecification checked = call("if", call("greaterThanEqual", v, new CInteger(0L)), thunk(v),
+                new LambdaFunction(List.of(), List.of(call("fail", new CString("Invalid input. The value of " + clause
+                        + " must be a non-negative integer.")), v)));
+        counts.add(new ColSpec(column, lambda(none.row(), checked), null, null));
+        return new AppliedProperty(new Variable("r"), column);
     }
 
     private ValueSpecification rowCount(Expr e, String clause) {
@@ -8363,6 +8466,16 @@ public final class CypherToPure {
                 Kind.STRING, true);
     }
 
+    /** A path's elements' identities in order, as text (each element's {@code "@id"}, bar-separated), null where
+     *  the path is. */
+    private static Tx pathIdentities(Tx path) {
+        ValueSpecification v = SqlToPure.valueOf(path);
+        ValueSpecification ids = identitiesText(call("get", path.nullable() ? call("toOne", v) : v,
+                new CString("@path")));
+        return Tx.value(path.nullable() ? call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.STRING).vs()),
+                thunk(ids)) : ids, Kind.STRING, path.nullable());
+    }
+
     /** Cypher's three-valued AND: null when neither side is false and either is null. A side that is known true
      *  is left out. */
     private static Tx and3(Tx l, Tx r) {
@@ -8417,6 +8530,11 @@ public final class CypherToPure {
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
+        if (l.detail() instanceof PathValue && r.detail() instanceof PathValue) {
+            // two paths (the study's §12.73): equal when their nodes and relationships are, in order -- the
+            // identities their elements' values carry (S85), the stored directions apart, as Neo4j's path equality
+            return equal(pathIdentities(l), pathIdentities(r), pos);
+        }
         if (isNode(l) || isNode(r) || l.detail() instanceof PathValue || r.detail() instanceof PathValue) {
             // nodes and relationships compare by identity (the study's §12.46): their identities, each the
             // instance's primary key as text, null where an OPTIONAL MATCH found none
@@ -8424,6 +8542,16 @@ public final class CypherToPure {
             Tx ri = identityOf(r);
             if (isNode(l) && isNode(r) && li != null && ri != null) {
                 return equal(li, ri, pos);
+            }
+            // a node or relationship against a path, or either against a value of a known other kind (a scalar, a
+            // list or map of known shape): values of different types, never equal (the study's §12.73)
+            boolean lg = isNode(l) || l.detail() instanceof PathValue;
+            boolean rg = isNode(r) || r.detail() instanceof PathValue;
+            Tx other = lg ? r : l;
+            if (lg && rg ? isNode(l) != isNode(r) : other.kind() != Kind.JSON || other.detail() instanceof ListOf
+                    || other.detail() instanceof MapOf || other.detail() instanceof TupleOf) {
+                return l.nullable() || r.nullable() ? SqlToPure.strictTest(List.of(l, r), v -> new CBoolean(false))
+                        : constant(false);
             }
             throw CypherErrors.unsupported("comparing " + (isNode(l) && isNode(r) ? "relationships over a property"
                     + " or association (no row of their own, so no identity)" : "nodes, relationships or paths with"
@@ -8840,8 +8968,14 @@ public final class CypherToPure {
             }
             case MODULO -> {
                 if (l.kind() != Kind.INTEGER || r.kind() != Kind.INTEGER) {
-                    throw CypherErrors.unsupported("% of values that are not both integers is not supported yet",
-                            b.pos());
+                    // of a float (the study's §12.73): Pure's rem of the two as floats, the remainder with the
+                    // dividend's sign, a Float (Postgres's dialect refuses a double remainder by name); a zero
+                    // divisor spelled is NaN in Neo4j, marked as a division's is
+                    noDatabaseLambda("%", b.pos());
+                    Tx remainder = SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> call("toFloat", call("rem",
+                            call("toFloat", v.get(0)), call("toFloat", v.get(1)))));
+                    yield zeroLiteral(b.right()) ? new Tx(remainder.vs(), remainder.kind(), remainder.nullable(),
+                            remainder.whenFalse(), new NotANumber()) : remainder;
                 }
                 if (!(r.vs() instanceof CInteger ci && ci.value().longValue() != 0)) {
                     // (a literal divisor that is not zero lowers without the divide-by-zero guard)
@@ -9007,6 +9141,12 @@ public final class CypherToPure {
                 return scalar(Tx.value(call("if", call("isEmpty", type.vs()), thunk(SqlToPure.nullOf(Kind.JSON).vs()),
                         thunk(empty)), Kind.JSON, true));
             }
+        }
+        if (fn.equals("tostring") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.Var tv
+                && (scope.isPatternVariable(tv.name()) || scope.path(tv) != null)) {
+            // (a projection reads it over the graph's rows, §12.73; a WHERE over the graph does not)
+            throw CypherErrors.unsupported("toString of a node, a relationship or a path of a graph read outside a"
+                    + " projection (a WHERE over the graph) is not supported yet", c.pos());
         }
         if (fn.equals("size") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.PatternComprehension pc
                 && !patternLists.containsKey(pc)) {
@@ -9298,7 +9438,11 @@ public final class CypherToPure {
                         ? cypherType(s.tx().kind()) : "List<T>"), c.args().get(i).pos());
             }
             if (s.tx().nullable()) {
-                throw CypherErrors.unsupported("range(...) of a bound that may be null is not supported yet", c.pos());
+                // (a bound that may be null: Neo4j raises where it is, the database raises there too; the study's
+                // §12.73)
+                bounds.add(Tx.value(present(s.tx(), i == 0 ? "start" : "end"), Kind.INTEGER, false));
+                rowFree = false;
+                continue;
             }
             bounds.add(s.tx());
             rowFree &= s.literal();
@@ -9312,8 +9456,7 @@ public final class CypherToPure {
             }
             Long n = integerLiteral(s);
             if (n == null) {
-                throw CypherErrors.unsupported("range(...) with a step that is not a literal is not supported yet",
-                        c.pos());
+                return computedStepRange(bounds, s.tx(), rowFree && s.literal());
             }
             if (n == 0) {
                 throw CypherErrors.invalid("step argument to range() cannot be zero", c.pos());
@@ -9334,6 +9477,38 @@ public final class CypherToPure {
         ValueSpecification vs = args.size() == 3 ? call("range", start, end, new CInteger(step))
                 : call("range", start, end);
         return new Coll(vs, Kind.INTEGER, rowFree);
+    }
+
+    /** A range argument that may be null, read as one: the value where it is, the database's raise where it is
+     *  null (Neo4j's TypeError for a range of a null). */
+    private static ValueSpecification present(Tx t, String which) {
+        ValueSpecification v = SqlToPure.valueOf(t);
+        return raisingWhere(call("isEmpty", v), "Invalid input for " + which + " value in function 'range()':"
+                + " Expected a numeric value but got: NO_VALUE", call("toOne", v));
+    }
+
+    /** {@code value}, but the database's raise of {@code message} where {@code condition} holds. */
+    private static ValueSpecification raisingWhere(ValueSpecification condition, String message,
+            ValueSpecification value) {
+        return call("if", condition, new LambdaFunction(List.of(), List.of(call("fail", new CString(message)),
+                value)), thunk(value));
+    }
+
+    /** {@code range(start, end, step)} of a step the row computes (the study's §12.73): as a spelled step's, the
+     *  last value {@code start + ((end - start) / step) * step} and the end one past it by the step's sign, the
+     *  database's; a zero step raises as Neo4j's does. */
+    private Val computedStepRange(List<Tx> bounds, Tx step, boolean rowFree) {
+        ValueSpecification by = step.nullable() ? present(step, "step") : step.vs();
+        ValueSpecification checked = raisingWhere(call("equal", by, new CInteger(0L)), "step argument to range()"
+                + " cannot be zero", by);
+        ValueSpecification start = bounds.get(0).vs();
+        ValueSpecification steps = SqlToPure.integerQuotient(AppliedFunction.infixRun("minus", List.of(
+                bounds.get(1).vs(), start)), checked);
+        ValueSpecification last = AppliedFunction.infixRun("plus", List.of(start, AppliedFunction.infixRun("times",
+                List.of(steps, by))));
+        ValueSpecification end = AppliedFunction.infixRun("plus", List.of(last, call("if", call("greaterThan", by,
+                new CInteger(0L)), thunk(new CInteger(1L)), thunk(new CInteger(-1L)))));
+        return new Coll(call("range", start, end, by), Kind.INTEGER, rowFree);
     }
 
     /** {@code split(string, delimiter)}: the parts, a list the database computes. */
@@ -9367,22 +9542,135 @@ public final class CypherToPure {
         if (v instanceof ListVal || v instanceof MapVal || v instanceof Coll
                 || v instanceof Scalar s0 && s0.tx().kind() == Kind.JSON) {
             // Neo4j 2026 spells a list, a map, a node, a relationship or a path as text (the TCK's older
-            // InvalidArgumentValue is gone: TypeConversion4 [10] answers rows); its spelling is not read yet
-            throw CypherErrors.unsupported("toString of a list, a map, a node, a relationship or a path (its text in"
-                    + " Neo4j) is not supported yet", c.pos());
+            // InvalidArgumentValue is gone: TypeConversion4 [10] answers rows; the study's §12.73)
+            return scalar(compositeText(v, c.pos()));
         }
-        Tx t = scalarArg(c, v, "String, Boolean, Integer, Float");
+        return scalar(scalarText(scalarArg(c, v, "String, Boolean, Integer, Float"), c.pos()));
+    }
+
+    /** A scalar's text, as {@code toString} spells it: a number's or a boolean's as the database spells it, a
+     *  temporal's ISO text, a string itself. */
+    private Tx scalarText(Tx t, Pos pos) {
         return switch (t.kind()) {
-            case NULL -> scalar(SqlToPure.nullOf(Kind.STRING));
-            case STRING -> scalar(t);
-            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, BOOLEAN, DATE -> scalar(SqlToPure.strict(
-                    Kind.STRING, List.of(t), x -> call("toString", x.get(0))));
-            case DATETIME -> scalar(temporalText(t, c.pos()));
-            case DURATION -> scalar(durationText(t));
-            case TIME, ZONED, ZONED_TIME -> scalar(temporalText(t, c.pos()));
+            case NULL -> SqlToPure.nullOf(Kind.STRING);
+            case STRING -> t;
+            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, BOOLEAN, DATE -> SqlToPure.strict(Kind.STRING,
+                    List.of(t), x -> call("toString", x.get(0)));
+            case DATETIME -> temporalText(t, pos);
+            case DURATION -> durationText(t);
+            case TIME, ZONED, ZONED_TIME -> temporalText(t, pos);
             default -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind()) + " is not supported"
-                    + " yet", c.pos());
+                    + " yet", pos);
         };
+    }
+
+    /**
+     * {@code toString} of a list, a map, a node, a relationship or a path (the study's §12.73), Neo4j's text built by
+     * the database: a list's elements' texts within brackets and a map's {@code key: text} entries within braces,
+     * each joined with {@code ", "} (a string unquoted, a null {@code null}); a node its labels, {@code (:A:B)}; a
+     * relationship its type, {@code [:T]}; a path its nodes and relationships with their stored directions,
+     * {@code (:A)-[:T]->(:B)<-[:U]-()}. A list the database computes is its elements' texts the same way.
+     */
+    private Tx compositeText(Val v, Pos pos) {
+        return switch (v) {
+            case ListVal l -> {
+                ValueSpecification text = new CString("[");
+                for (int i = 0; i < l.elements().size(); i++) {
+                    text = plus(text, i == 0 ? elementText(l.elements().get(i), pos) : plus(new CString(", "),
+                            elementText(l.elements().get(i), pos)));
+                }
+                yield Tx.value(plus(text, new CString("]")), Kind.STRING, false);
+            }
+            case MapVal m -> {
+                ValueSpecification text = new CString("{");
+                int i = 0;
+                for (Map.Entry<String, Val> e : m.entries().entrySet()) {
+                    text = plus(text, new CString((i++ == 0 ? "" : ", ") + e.getKey() + ": "),
+                            elementText(e.getValue(), pos));
+                }
+                yield Tx.value(plus(text, new CString("}")), Kind.STRING, false);
+            }
+            case Coll c -> Tx.value(elementsText(c.vs(), c.kind(), pos), Kind.STRING, false);
+            case Scalar s -> graphValueText(s.tx(), pos);
+        };
+    }
+
+    /** An element's text inside a list's or a map's: a null's {@code null}. */
+    private ValueSpecification elementText(Val e, Pos pos) {
+        Tx t = e instanceof Scalar s ? (s.tx().kind() == Kind.JSON ? graphValueText(s.tx(), pos)
+                : scalarText(s.tx(), pos)) : compositeText(e, pos);
+        if (t.kind() == Kind.NULL) {
+            return new CString("null");
+        }
+        ValueSpecification v = SqlToPure.valueOf(t);
+        return t.nullable() ? call("if", call("isEmpty", v), thunk(new CString("null")), thunk(call("toOne", v)))
+                : v;
+    }
+
+    /** A collection's elements' texts within brackets, joined with {@code ", "}: of a kind {@code toString} spells. */
+    private ValueSpecification elementsText(ValueSpecification coll, Kind kind, Pos pos) {
+        if (kind != Kind.STRING && kind != Kind.INTEGER && kind != Kind.FLOAT && kind != Kind.BOOLEAN) {
+            throw CypherErrors.unsupported("toString of a list of " + cypherType(kind) + " values the database"
+                    + " computes is not supported yet", pos);
+        }
+        ValueSpecification each = kind == Kind.STRING ? new Variable("e") : call("toString", new Variable("e"));
+        return plus(new CString("["), call("joinStrings", call("map", coll, lambda("e", each)), new CString(", ")),
+                new CString("]"));
+    }
+
+    /** The text of a value the database holds as a Variant: a node's, a relationship's, a path's, or a list's of
+     *  one known element kind; null where the value is. */
+    private Tx graphValueText(Tx t, Pos pos) {
+        ValueSpecification v = SqlToPure.valueOf(t);
+        ValueSpecification one = t.nullable() ? call("toOne", v) : v;
+        ValueSpecification text;
+        if (t.detail() instanceof NodeValue) {
+            text = nodeText(one);
+        } else if (t.detail() instanceof RelValue) {
+            text = relText(one);
+        } else if (t.detail() instanceof PathValue) {
+            text = pathText(one);
+        } else if (t.detail() instanceof ListOf l && elementType(l.element()) != null && l.elementDetail() == null) {
+            text = elementsText(call("toMany", one, SqlToPure.typeArg(java.util.Objects.requireNonNull(
+                    elementType(l.element())))), l.element(), pos);
+        } else {
+            throw CypherErrors.unsupported("toString of a value the database holds as a Variant of no known shape is"
+                    + " not supported yet", pos);
+        }
+        return t.nullable() ? Tx.value(call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.STRING).vs()),
+                thunk(text)), Kind.STRING, true) : Tx.value(text, Kind.STRING, false);
+    }
+
+    /** A node's text from its value: {@code (:A:B)}, its labels each led by a colon. */
+    private static ValueSpecification nodeText(ValueSpecification node) {
+        return plus(new CString("("), call("joinStrings", call("map", call("toMany", call("get", node,
+                new CString("@labels")), SqlToPure.typeArg(VARIANT_TYPE)), lambda("l", plus(new CString(":"),
+                call("toOne", call("to", new Variable("l"), SqlToPure.typeArg("String")))))), new CString("")),
+                new CString(")"));
+    }
+
+    /** A relationship's text from its value: {@code [:T]}. */
+    private static ValueSpecification relText(ValueSpecification rel) {
+        return plus(new CString("[:"), call("toOne", call("to", call("get", rel, new CString("@type")),
+                SqlToPure.typeArg("String"))), new CString("]"));
+    }
+
+    /** A path's text from its value: its first node's, then each relationship's in its stored direction and the
+     *  node after it ({@code -[:T]->(:B)}, {@code <-[:T]-(:B)}). */
+    private static ValueSpecification pathText(ValueSpecification path) {
+        ValueSpecification elements = call("get", path, new CString("@path"));
+        ValueSpecification dirs = call("get", path, new CString("@dirs"));
+        ValueSpecification hops = call("size", call("toMany", dirs, SqlToPure.typeArg(VARIANT_TYPE)));
+        Variable i = new Variable("i");
+        ValueSpecification rel = relText(call("get", elements, AppliedFunction.infixRun("plus", List.of(
+                AppliedFunction.infixRun("times", List.of(new CInteger(2L), i)), new CInteger(1L)))));
+        ValueSpecification next = nodeText(call("get", elements, AppliedFunction.infixRun("plus", List.of(
+                AppliedFunction.infixRun("times", List.of(new CInteger(2L), i)), new CInteger(2L)))));
+        ValueSpecification forward = call("toOne", call("to", call("get", dirs, i), SqlToPure.typeArg("Boolean")));
+        ValueSpecification hop = plus(call("if", forward, thunk(plus(new CString("-"), rel, new CString("->"))),
+                thunk(plus(new CString("<-"), rel, new CString("-")))), next);
+        return plus(nodeText(call("get", elements, new CInteger(0L))), call("joinStrings", call("map", call("range",
+                new CInteger(0L), hops), lambda("i", hop)), new CString("")));
     }
 
     /** {@code toInteger(x)}: a float truncated toward zero. */

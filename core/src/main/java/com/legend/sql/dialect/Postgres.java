@@ -931,8 +931,10 @@ public final class Postgres extends AnsiSqlRenderer {
         SqlWriter.Piece start = a.size() == 1 ? w -> w.append("0") : w -> w.expr(a.get(0), 0);
         SqlWriter.Piece stop = w -> w.expr(a.get(a.size() == 1 ? 0 : 1), 0);
         SqlWriter.Piece step = a.size() > 2 ? w -> w.expr(a.get(2), 0) : w -> w.append("1");
-        return writer.append("ARRAY(SELECT g FROM generate_series(CAST(").piece(start)
-                .append(" AS BIGINT), CAST(").piece(stop).append(" AS BIGINT), CAST(").piece(step)
+        // (generate_series's arguments: Postgres's planner estimates its rows from them, so a raise within them is
+        // written as no planner evaluates, SqlWriter.planned)
+        return writer.append("ARRAY(SELECT g FROM generate_series(CAST(").planned(start)
+                .append(" AS BIGINT), CAST(").planned(stop).append(" AS BIGINT), CAST(").planned(step)
                 .append(" AS BIGINT)) AS g WHERE CASE WHEN ").piece(step).append(" > 0 THEN g < ").piece(stop)
                 .append(" ELSE g > ").piece(stop).append(" END)");
     }
@@ -1386,9 +1388,18 @@ public final class Postgres extends AnsiSqlRenderer {
         if (c.target() != SqlType.Scalar.TEMPORAL_TEXT && c.target() != SqlType.Scalar.DECIMAL_TEXT) {
             if (c.value() instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET) {
                 boolean root = call.args().get(1) instanceof SqlExpr.StringLit k && "$".equals(k.value());
+                SqlExpr key = call.args().get(1);
                 writer.append("CAST((").expr(call.args().get(0), 8);
-                return (root ? writer.append(" #>> '{}'") : writer.append(" ->> ").expr(call.args().get(1), 8))
-                        .append(") AS ").append(castTypeName(c.target())).append(")");
+                if (root) {
+                    writer.append(" #>> '{}'");
+                } else if (!(key instanceof SqlExpr.IntLit) && isNumeric(key)) {
+                    // (a computed index, BIGINT: ->> takes an int or a text, never a bigint, as -> in variantGet;
+                    // 2026-10-17, the Cypher island's path text reading its relationships' directions by place)
+                    writer.append(" ->> CAST(").expr(key, 0).append(" AS INTEGER)");
+                } else {
+                    writer.append(" ->> ").expr(key, 8);
+                }
+                return writer.append(") AS ").append(castTypeName(c.target())).append(")");
             }
             // a whole value to a scalar reads its text; to TEXT it is its JSON text, as DuckDB's cast
             if (isJson(c.value()) && c.target() != SqlType.Scalar.VARCHAR) {
@@ -1603,7 +1614,7 @@ public final class Postgres extends AnsiSqlRenderer {
                 w.expr(a.get(1), 0).append(" || chr(30) || ");
             }
             w.append("(").expr(a.get(0), 0).append(") || chr(31)")
-                    .append(unnestable ? " || left(CAST(random() AS VARCHAR), 0)" : "")
+                    .append(unnestable || w.inPlanned() ? " || left(CAST(random() AS VARCHAR), 0)" : "")
                     .append(" AS TIMESTAMPTZ) AS VARCHAR)");
         };
         // typed as its slot (never evaluated: the TIMESTAMPTZ cast raises first) -- a list of scalars too

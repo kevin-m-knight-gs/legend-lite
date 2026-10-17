@@ -9932,6 +9932,30 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the seventy-first landing — the expression tail
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the expression tail); the record is the study's
+§12.73. UNION (distinct) over nodes and relationships by the identities their values carry; `%` of floats; a SKIP or
+LIMIT the database computes once, the rows kept by their number; two paths compared by their elements' identities;
+range of a computed step or a bound that may be null; toString of lists, maps, nodes, relationships and paths. The
+Postgres dialect writes a raise inside generate_series's arguments so its planner does not evaluate it (SqlWriter's
+planned depth), and casts a computed `->>` index to an integer.
+
+1. **What lands.** ReturnSkipLimit1/[3], ReturnSkipLimit2/[6], Union1/[4], Comparison1/[14], List11/[3],
+   TypeConversion4/[10] (five examples) on both lanes, Precedence2/[2] (three examples) on DuckDB; the 16 cases of
+   `lite/exprtail.yaml`; DuckDB PASS 3,704 → 3731, Postgres 3,302 → 3327; TCK agreement DuckDB 3526 → 3537, Postgres
+   3147 → 3157.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3731
+   / REFUSED 315 / BOTH_ERROR 749 / SKIP 57; Postgres PASS 3327 / REFUSED 719 / BOTH_ERROR 749 / SKIP 57, of 4852
+   cases); the oracle check 0 problems. (A first run had five Postgres ERRORs: a range's raise its planner evaluated,
+   now written volatile there, and `->>` by a BIGINT index, now cast.)
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   writer's depth allowlisted with its date and reason), `//core:core_tests_sql` (`PostgresDialectTest`'s new pin),
+   and the Postgres suites the dialect reaches: `//core:sql_parity_postgres_test`, `//core:iq_parity_postgres_test`,
+   `//core:sql_island_postgres_test`, `//core:postgres_arm_test`.
+4. **Refused by name, recorded.** A float remainder on Postgres (its dialect's refusal); toString of a graph's node
+   in a WHERE over the graph; UNION (distinct) over a relationship whose value carries no identity.
+
 ## 2026-10-17 — `#Cypher{...}#`: the seventieth landing — pattern comprehensions over rows
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the comprehension bucket); the record is the

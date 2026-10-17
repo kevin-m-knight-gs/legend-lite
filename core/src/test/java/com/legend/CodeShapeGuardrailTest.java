@@ -66,6 +66,11 @@ class CodeShapeGuardrailTest {
             // reads in flight on an enclosing row's behalf (2026-10-15): the depth the resolvers consult so a
             // correlated read spends no pass's fold budget; raised and lowered around the read
             "Lowerer.correlatedReads",
+            // a writer's depth inside a set function's arguments the database evaluates when it plans (2026-10-17,
+            // the Cypher island's range of a bound that may be null, docs/CYPHER_STUDY_2026_10_15.md §12.73):
+            // raised and lowered around the write (SqlWriter.planned), one writer per statement; Postgres's raise
+            // reads it so no planner pre-evaluates a raise there
+            "SqlWriter.planned",
             // a LAZY value (2026-09-23): an execute() call's activity rows
             // carry a second render of its chain, computed on the first
             // read and kept — set once, never reassigned after

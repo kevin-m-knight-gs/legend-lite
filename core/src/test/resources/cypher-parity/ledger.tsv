@@ -732,7 +732,7 @@ tck/clauses/return-orderby/ReturnOrderBy6/[4] Fail if not returned variables are
 tck/clauses/return-orderby/ReturnOrderBy6/[5] Fail if more complex expressions, even if returned, are used inside an order by item which contains an aggregation expression	PASS	REFUSED
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[1] Start the result from the second row	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[2] Start the result from the second row by param	PASS	PASS
-tck/clauses/return-skip-limit/ReturnSkipLimit1/[3] SKIP with an expression that does not depend on variables	REFUSED	REFUSED
+tck/clauses/return-skip-limit/ReturnSkipLimit1/[3] SKIP with an expression that does not depend on variables	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[4] Accept skip zero	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[5] SKIP with an expression that depends on variables should fail	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[6] Negative parameter for SKIP should fail	BOTH_ERROR	BOTH_ERROR
@@ -746,7 +746,7 @@ tck/clauses/return-skip-limit/ReturnSkipLimit2/[2] Limit to two hits with explic
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[3] LIMIT 0 should return an empty result	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[4] Handle ORDER BY with LIMIT 1	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[5] ORDER BY with LIMIT 0 should not generate errors	PASS	PASS
-tck/clauses/return-skip-limit/ReturnSkipLimit2/[6] LIMIT with an expression that does not depend on variables	REFUSED	REFUSED
+tck/clauses/return-skip-limit/ReturnSkipLimit2/[6] LIMIT with an expression that does not depend on variables	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[7] Limit to more rows than actual results 1	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[8] Limit to more rows than actual results 2	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit2/[9] Fail when using non-constants in LIMIT	BOTH_ERROR	BOTH_ERROR
@@ -880,7 +880,7 @@ tck/clauses/set/Set6/[21] Aggregating in `WITH` after setting a property on rela
 tck/clauses/union/Union1/[1] Two elements, both unique, distinct	PASS	PASS
 tck/clauses/union/Union1/[2] Three elements, two unique, distinct	PASS	PASS
 tck/clauses/union/Union1/[3] Two single-column inputs, one with duplicates, distinct	PASS	PASS
-tck/clauses/union/Union1/[4] Should be able to create text output from union queries	REFUSED	REFUSED
+tck/clauses/union/Union1/[4] Should be able to create text output from union queries	PASS	PASS
 tck/clauses/union/Union1/[5] Failing when UNION has different columns	BOTH_ERROR	BOTH_ERROR
 tck/clauses/union/Union2/[1] Two elements, both unique, not distinct	PASS	PASS
 tck/clauses/union/Union2/[2] Three elements, two unique, not distinct	PASS	PASS
@@ -1476,7 +1476,7 @@ tck/expressions/comparison/Comparison1/[10] Handling inlined equality of large i
 tck/expressions/comparison/Comparison1/[11] Handling explicit equality of large integer	PASS	PASS
 tck/expressions/comparison/Comparison1/[12] Handling inlined equality of large integer, non-equal values	PASS	PASS
 tck/expressions/comparison/Comparison1/[13] Handling explicit equality of large integer, non-equal values	PASS	PASS
-tck/expressions/comparison/Comparison1/[14] Direction of traversed relationship is not significant for path equality, simple	REFUSED	REFUSED
+tck/expressions/comparison/Comparison1/[14] Direction of traversed relationship is not significant for path equality, simple	PASS	PASS
 tck/expressions/comparison/Comparison1/[15] It is unknown - i.e. null - if a null is equal to a null	PASS	PASS
 tck/expressions/comparison/Comparison1/[16] It is unknown - i.e. null - if a null is not equal to a null	PASS	PASS
 tck/expressions/comparison/Comparison1/[17] Failing when comparing to an undefined variable	BOTH_ERROR	BOTH_ERROR
@@ -1656,7 +1656,7 @@ tck/expressions/list/List11/[2] Create list from `range()` with explicitly given
 tck/expressions/list/List11/[2] Create list from `range()` with explicitly given step #24	PASS	PASS
 tck/expressions/list/List11/[2] Create list from `range()` with explicitly given step #25	PASS	PASS
 tck/expressions/list/List11/[2] Create list from `range()` with explicitly given step #26	PASS	PASS
-tck/expressions/list/List11/[3] Create an empty list if range direction and step direction are inconsistent	REFUSED	REFUSED
+tck/expressions/list/List11/[3] Create an empty list if range direction and step direction are inconsistent	PASS	PASS
 tck/expressions/list/List11/[4] Fail on invalid arguments for `range()` #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List11/[4] Fail on invalid arguments for `range()` #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List11/[4] Fail on invalid arguments for `range()` #3	BOTH_ERROR	BOTH_ERROR
@@ -2135,7 +2135,7 @@ tck/expressions/precedence/Precedence2/[1] Numeric multiplicative operations tak
 tck/expressions/precedence/Precedence2/[1] Numeric multiplicative operations takes precedence over numeric additive operations #18	PASS	PASS
 tck/expressions/precedence/Precedence2/[2] Exponentiation takes precedence over numeric multiplicative operations #1	PASS	PASS
 tck/expressions/precedence/Precedence2/[2] Exponentiation takes precedence over numeric multiplicative operations #2	PASS	PASS
-tck/expressions/precedence/Precedence2/[2] Exponentiation takes precedence over numeric multiplicative operations #3	REFUSED	REFUSED
+tck/expressions/precedence/Precedence2/[2] Exponentiation takes precedence over numeric multiplicative operations #3	PASS	REFUSED
 tck/expressions/precedence/Precedence2/[3] Exponentiation takes precedence over numeric additive operations #1	PASS	PASS
 tck/expressions/precedence/Precedence2/[3] Exponentiation takes precedence over numeric additive operations #2	PASS	PASS
 tck/expressions/precedence/Precedence2/[4] Numeric unary negative takes precedence over exponentiation	PASS	PASS
@@ -3846,11 +3846,11 @@ tck/expressions/typeConversion/TypeConversion4/[6] `toString()` on a list of int
 tck/expressions/typeConversion/TypeConversion4/[7] `toString()` on node property	PASS	PASS
 tck/expressions/typeConversion/TypeConversion4/[8] `toString()` should accept potentially correct types 1	PASS	PASS
 tck/expressions/typeConversion/TypeConversion4/[9] `toString()` should accept potentially correct types 2	PASS	PASS
-tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #1	REFUSED	REFUSED
-tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #2	REFUSED	REFUSED
-tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #3	REFUSED	REFUSED
-tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #4	REFUSED	REFUSED
-tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #5	REFUSED	REFUSED
+tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #1	PASS	PASS
+tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #2	PASS	PASS
+tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #3	PASS	PASS
+tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #4	PASS	PASS
+tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #5	PASS	PASS
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[1] Undirected match in self-relationship graph, count	PASS	PASS
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[2] Undirected match of self-relationship in self-relationship graph, count	PASS	PASS
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[3] Undirected match on simple relationship graph, count	PASS	PASS
@@ -4094,6 +4094,22 @@ lite/empty/empty_match_property	PASS	PASS
 lite/empty/empty_match_with_skip	PASS	PASS
 lite/empty/empty_optional_match	PASS	PASS
 lite/empty/empty_optional_through_with	PASS	PASS
+lite/exprtail/union_over_nodes	PASS	PASS
+lite/exprtail/union_over_relationships	PASS	PASS
+lite/exprtail/float_remainders	PASS	REFUSED
+lite/exprtail/a_computed_skip	PASS	PASS
+lite/exprtail/a_computed_limit	PASS	PASS
+lite/exprtail/a_computed_skip_and_limit	PASS	PASS
+lite/exprtail/a_negative_computed_limit	BOTH_ERROR	BOTH_ERROR
+lite/exprtail/paths_equal_by_elements	PASS	PASS
+lite/exprtail/a_path_against_a_node	PASS	PASS
+lite/exprtail/range_of_a_computed_step	PASS	PASS
+lite/exprtail/range_of_a_null_bound	BOTH_ERROR	BOTH_ERROR
+lite/exprtail/range_of_a_bound_that_may_be_null	PASS	PASS
+lite/exprtail/to_string_of_a_list	PASS	PASS
+lite/exprtail/to_string_of_a_map	PASS	PASS
+lite/exprtail/to_string_of_a_node	PASS	PASS
+lite/exprtail/to_string_of_a_relationship_and_a_path	PASS	PASS
 lite/grouping/distinct_nodes_alike_are_two	PASS	PASS
 lite/grouping/distinct_nodes_after_a_hop	PASS	PASS
 lite/grouping/distinct_over_a_label_less_pattern	PASS	PASS
@@ -4526,7 +4542,7 @@ lite/tail/collect_distinct_of_nulls_only	PASS	PASS
 lite/tail/the_size_of_a_collect_distinct	PASS	PASS
 lite/tail/a_collect_distinct_of_a_node_property_ignoring_order	PASS	PASS
 lite/tail/a_duration_text_in_the_date_time_form	PASS	PASS
-lite/tail/to_string_of_a_list_a_map_and_a_node_refused	REFUSED	REFUSED
+lite/tail/to_string_of_a_list_a_map_and_a_node_refused	PASS	PASS
 lite/tail/extreme_float_literals	PASS	PASS
 lite/tail/an_unbound_parameter_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/date_from_components	PASS	PASS
@@ -4692,7 +4708,7 @@ lite/union/union_distinct	PASS	PASS
 lite/union/union_all	PASS	PASS
 lite/union/union_over_matches	PASS	PASS
 lite/union/union_all_of_nodes	PASS	PASS
-lite/union/union_distinct_of_nodes_refused_by_name	REFUSED	REFUSED
+lite/union/union_distinct_of_nodes_refused_by_name	PASS	PASS
 lite/union/union_with_different_names_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/uniqueness/a_chain_over_a_self_loop_finds_nothing	PASS	PASS
 lite/uniqueness/a_chain_round_a_two_node_cycle_walks_no_relationship_twice	PASS	PASS

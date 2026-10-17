@@ -287,6 +287,11 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   path carried as its value; the resolver resolving a recursion's step. Left (the §5 log): a variable-length
   relationship bound to a list of relationships (Match4/[8], Match9/[6], [7]); other relationships beside the walk
   in one pattern (no TCK row).
+- The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
+  UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
+  compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships
+  and paths (ReturnSkipLimit1/[3], ReturnSkipLimit2/[6], Union1/[4], Comparison1/[14], List11/[3], Precedence2/[2],
+  TypeConversion4/[10]). Left: NaN inside lists (§5).
 - Pattern comprehensions over rows LANDED 2026-10-17 (the study's §12.72, GATES' seventieth landing; TCK agreement DuckDB 3520 → 3526, Postgres 3141 → 3147):
   a comprehension the navigations do not read is a list column of the rows (re-anchored, grouped by the shared
   identities, left-joined back; S86); a first OPTIONAL MATCH that finds nothing is one null row; `keys()` of an

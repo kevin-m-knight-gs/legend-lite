@@ -199,6 +199,16 @@ class PostgresDialectTest {
     }
 
     @Test
+    void aRaiseInARangesArgumentIsNoPlannersToEvaluate() {
+        // Postgres estimates generate_series's rows from its arguments when it plans, so a raise written as a constant
+        // there fires before any row asks for it: within those arguments it carries a volatile piece, as a raise an
+        // unnest reads does (2026-10-17, docs/CYPHER_STUDY_2026_10_15.md §12.73)
+        String sql = plan("->extend(~[l: r|range(if($r.qty->isEmpty(), {|fail('no start'); 0;}, |$r.qty->toOne()), 3)"
+                + "->toVariant()])->select(~[id, l])");
+        assertTrue(sql.contains("('no start') || chr(31) || left(CAST(random() AS VARCHAR), 0) AS TIMESTAMPTZ)"), sql);
+    }
+
+    @Test
     void intervalFramesAreQuotedSingulars() {
         assertTrue(plan("->extend(over(~ok, ~ts->ascending(), _range(-2, DurationUnit.WEEKS, 3, DurationUnit.HOURS)),"
                 + " ~[run:{p,w,r|$r.qty}:y|$y->plus()])->select(~[id, run])")
