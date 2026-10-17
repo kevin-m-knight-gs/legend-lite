@@ -208,7 +208,9 @@ describe('step 1: types from the compiler', () => {
         { name: 'sum_qty', column: 'qty', fn: 'sum' },
         { name: 'sum_amount', column: 'amount', fn: 'sum' },
         { name: 'avg_price', column: 'price', fn: 'average' },
-        { name: 'n', column: 'flag', fn: 'count' },
+        // a count is offered on an integer column only (Aggregation's offer, offers.ts takesAggregate); a group's rows
+        // are counted by "Show leaf count"
+        { name: 'n', column: 'big', fn: 'count' },
         { name: 'last_day', column: 'day', fn: 'max' },
       ],
       sorts: [],
@@ -472,7 +474,9 @@ describe('T7: one formatter on compiler types', () => {
     assert.deepEqual(o.errors, []);
     const pivot = (o.app.view?.pivot?.columns ?? [])
       .filter((c) => c.tuple !== null).map((c) => c.name).sort();
-    assert.deepEqual(pivot, ['1__|__pnl', '2__|__pnl', '3__|__pnl'], 'the pivot happened');
+    // every measure column the pivot does not keep out is spread (a grid's aggregates are its columns'): big and pnl
+    assert.deepEqual(pivot, ['1__|__big', '1__|__pnl', '2__|__big', '2__|__pnl', '3__|__big', '3__|__pnl'],
+      'the pivot happened');
   });
 
   it('an Integer that STARTED as a measure, made a dimension, GROUPS -- alone, and beside a pivot', async () => {

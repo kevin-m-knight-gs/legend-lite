@@ -130,14 +130,16 @@ try {
     // column, when shown, must say the same. Money renders to whole dollars, so each cell is
     // off by under a dollar: the tolerance is a dollar per cell.
     const money = (t) => Number(t.replace(/[$,()]/g, '')) * (/^\(/.test(t) ? -1 : 1);
-    const years = row.filter((c) => /^\d{4}__\|__/.test(c.column));
+    // notional's cells: the pivot spreads every measure column (a grid's aggregates are its Column Properties), and
+    // DuckDB's total is notional's
+    const years = row.filter((c) => /^\d{4}__\|__notional(~\d+)?$/.test(c.column));
     const sum = years.reduce((a, c) => a + money(c.text), 0);
     const tolerance = Math.max(2, years.length);
     const ok = years.length > 0 && Math.abs(sum - total) <= tolerance;
     console.log(`  ${ok ? 'MATCH ' : 'DIFFER'} ${region}: grid ${sum} over ${years.length} years`
       + ` vs duckdb ${total}`);
     if (!ok) failed = true;
-    const shown = row.find((c) => c.column.startsWith('__pivot_total__|__'));
+    const shown = row.find((c) => c.column === '__pivot_total__|__notional');
     if (shown && Math.abs(money(shown.text) - total) > tolerance) {
       console.log(`FAIL: ${region}'s Total column says ${shown.text}, duckdb ${total}`);
       failed = true;
