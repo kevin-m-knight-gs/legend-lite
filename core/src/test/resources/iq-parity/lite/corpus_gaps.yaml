@@ -1900,3 +1900,16 @@ tests:
   - id: lpad_in_sql_anywhere
     sql: "SELECT LPAD('ab', 5, 'x') AS a"
     profile: iq17-default
+
+  # ---- a ranking function's constant ORDER BY key (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
+  # 17.1): IQ's -1005028 where no key reads a column; beside one that does, answered
+  - id: row_number_by_a_constant_beside_a_column
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY MOD(5, 2), id) AS rn, RANK() OVER (ORDER BY 'a', id DESC) AS r FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dense_rank_by_a_constant_beside_a_column_in_a_partition
+    sql: "SELECT id, DENSE_RANK() OVER (PARTITION BY sm ORDER BY 1 + 1, id) AS rn FROM t ORDER BY id"
+    profile: iq17-default
+  - id: row_number_by_constants_alone
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY 'a', 'b') AS rn FROM t"
+    profile: iq17-default
+    nondeterministic: "tests an error IQ raises before any row"

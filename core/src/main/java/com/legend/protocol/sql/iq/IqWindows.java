@@ -453,11 +453,15 @@ final class IqWindows {
         if (spec.frame() != null) {
             throw frameNotAllowed(f, upper, r, iqEngine);
         }
+        // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): IQ's -1005028 where no key reads a
+        // column; a constant key beside one that does is answered (ORDER BY MOD(5, 2), id)
+        boolean anyColumn = false;
         for (SqlAst.SortItem o : spec.orderBy()) {
-            if (columns(o.expr()).isEmpty() && IqAggregates.aggregateCalls(o.expr()).isEmpty()) {
-                throw iq(upper + "'s ORDER BY keys are expressions over a column", -1005028, "QTA28",
-                        o.expr().pos());
-            }
+            anyColumn |= !columns(o.expr()).isEmpty() || !IqAggregates.aggregateCalls(o.expr()).isEmpty();
+        }
+        if (!anyColumn) {
+            throw iq(upper + "'s ORDER BY keys are expressions over a column", -1005028, "QTA28",
+                    spec.orderBy().get(0).expr().pos());
         }
     }
 
