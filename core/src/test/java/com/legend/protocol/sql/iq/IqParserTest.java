@@ -148,7 +148,6 @@ class IqParserTest {
                 // IQ island, 2026-10-15 (the corpus lane): a trailing separator reads now (below); a second statement
                 // does not
                 {"SELECT id FROM t; SELECT 1", "separator"},
-                {"SELECT TOP 10 PERCENT id FROM t", "PERCENT"},
                 {"SELECT TOP @n id FROM t", "variable"},
                 {"SELECT @v = id FROM t", "assignment"},
                 {"SELECT id '' FROM t", "empty"},

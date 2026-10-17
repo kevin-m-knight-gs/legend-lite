@@ -817,11 +817,9 @@ public final class IqParser {
         } else {
             count = limitValue("TOP");
         }
-        if (peek().isWord("percent")) {
-            // IQ has no PERCENT: it reads TOP n, then a column named PERCENT (the research's GRAMMAR S2, a parse trap)
-            throw SqlSyntaxException.unsupported("TOP n PERCENT is not read: IQ has no PERCENT keyword, it reads TOP n"
-                    + " and then a column named PERCENT", peek().pos());
-        }
+        // IQ has no PERCENT: it reads TOP n, then a column named PERCENT (the research's GRAMMAR S2). IQ island,
+        // 2026-10-17 (the corpus lane's TOP 10 PERCENT, measured on IQ 17.1): read so, as IQ reads it -- a table of no
+        // such column is its -143, TOP n PERCENT * its syntax error -131
         SqlAst.Expr offset = null;
         if (peek().is("start")) {
             IqLexer.Token start = take();

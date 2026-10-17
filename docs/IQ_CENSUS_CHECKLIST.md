@@ -266,6 +266,12 @@ island's reason, those IQ answers, and what became of them:
   - a subquery's reference to a column that is inside a GROUP BY expression but no GROUP BY item itself
     (`month(p1.CreationDate)` beside `GROUP BY month(CreationDate)`) is -1005028, where a column in no GROUP BY
     expression stays -149;
+- TOP n PERCENT (9 queries; 2026-10-17, measured): read as IQ reads it, TOP n and then a column named PERCENT. A
+  table of no such column is its -143, and `TOP n PERCENT *` its syntax error, where lite refused it by name;
+- the IQ_ERROR verification again after these rounds (the same 906 queries): IQ raises the code lite names for 813
+  (from 730), another for 69 (from 163), answers 5 (from 12; FORMAT in unread columns, 4, and SQLStorm's 11558,
+  whose join is made inner by an enclosing query's join). SQLStorm's coverage: IQ_ERROR 12,078, REFUSED 358 (from
+  601);
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's
   server rejects every one (-131, measured), while an ODBC client that processes escapes translates them before it
   sends (the syntax research's `accept-with-option:client_escapes`). Whether an island reads them as such a client

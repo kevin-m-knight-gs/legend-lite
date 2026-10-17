@@ -930,6 +930,7 @@ lite/corpus_gaps/nested_aggregates_are_iqs_156@iq17-default	BOTH_ERROR	BOTH_ERRO
 lite/corpus_gaps/like_over_a_timestamp_of_a_pattern_that_is_no_date_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/like_over_a_timestamp_of_a_timestamp_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/an_outer_reference_inside_a_group_expression_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/top_n_percent_star_is_iqs_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS
@@ -1606,8 +1607,8 @@ lite/m0/top_and_start_at_expressions@iq16-default	PASS	PASS
 lite/m0/top_and_start_at_expressions@iq17-default	BUG	BUG
 lite/m0/top_two_plus_one_is_top_two@iq16-default	PASS	PASS
 lite/m0/top_two_plus_one_is_top_two@iq17-default	PASS	PASS
-lite/m0/top_percent_is_refused@iq16-default	BOTH_ERROR	BOTH_ERROR
-lite/m0/top_percent_is_refused@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/m0/top_percent_is_a_column_named_percent@iq16-default	BOTH_ERROR	BOTH_ERROR
+lite/m0/top_percent_is_a_column_named_percent@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m0/top_with_ties@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/m0/top_with_ties@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m0/top_before_distinct@iq16-default	BOTH_ERROR	BOTH_ERROR

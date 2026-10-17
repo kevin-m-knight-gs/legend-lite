@@ -1227,3 +1227,9 @@ tests:
   - id: an_outer_reference_inside_a_group_expression_is_iqs_error
     sql: "SELECT MONTH(dt) AS m, (SELECT COUNT(*) FROM u WHERE u.id = MONTH(t.dt)) AS c FROM t GROUP BY MONTH(dt)"
     profile: iq17-default
+
+  # ---- TOP n PERCENT (IQ island, 2026-10-17; the corpus lane's 9 queries, measured on IQ 17.1): IQ reads TOP n, then a
+  # column named PERCENT -- here no such column, its -143; PERCENT * its syntax error
+  - id: top_n_percent_star_is_iqs_syntax_error
+    sql: "SELECT TOP 10 PERCENT * FROM t"
+    profile: iq17-default
