@@ -1956,6 +1956,31 @@ tests:
     sql: "SELECT REPLACE('', 'a', 'x') AS a, REPLACE(LEFT('abc', 0), 'a', 'x') AS b"
     profile: iq17-default
 
+  # ---- GREATER and LESSER in a window's keys (IQ island, 2026-10-17; the differential fuzzer, measured on IQ 17.1):
+  # IQ's engine's -1001025 as it runs the statement, itself or through a merged derived table's (a CTE's) column; read
+  # through a grouped, distinct or limited one, in ORDER BY, GROUP BY and a window's argument
+  - id: greater_in_a_window_partition
+    sql: "SELECT id, ROW_NUMBER() OVER (PARTITION BY GREATER(sm, 0) ORDER BY id) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: lesser_in_a_window_order_inside_an_expression
+    sql: "SELECT id, RANK() OVER (ORDER BY LESSER(sm, 0) + 0, id) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: lesser_through_a_cte_column_in_a_window_order
+    sql: "WITH c AS (SELECT id, LESSER(sm, 0) AS g FROM t) SELECT id, RANK() OVER (ORDER BY g, id) AS a FROM c ORDER BY id"
+    profile: iq17-default
+  - id: greater_through_a_distinct_derived_table_in_a_window_order
+    sql: "SELECT g, ROW_NUMBER() OVER (ORDER BY g) AS a FROM (SELECT DISTINCT GREATER(sm, 0) AS g FROM t) d ORDER BY g"
+    profile: iq17-default
+  - id: greater_in_order_by_group_by_and_a_window_argument
+    sql: "SELECT GREATER(sm, 0) AS a, COUNT(*) AS c, MAX(GREATER(id, 0)) AS s FROM t GROUP BY GREATER(sm, 0) ORDER BY GREATER(sm, 0)"
+    profile: iq17-default
+  - id: greater_in_a_window_argument
+    sql: "SELECT id, MAX(GREATER(sm, 0)) OVER (ORDER BY id) AS s FROM t ORDER BY id"
+    profile: iq17-default
+  - id: greater_in_a_window_key_beside_a_name_error
+    sql: "SELECT id, ROW_NUMBER() OVER (PARTITION BY GREATER(sm, 0) ORDER BY nosuch, id) AS a FROM t"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where

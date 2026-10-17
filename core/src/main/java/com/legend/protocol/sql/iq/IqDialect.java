@@ -168,6 +168,9 @@ public final class IqDialect implements InputDialect {
      *  {@link #reading}; the statement's, raised by {@link #failed} and {@link #translated}. */
     private final Map<SqlAst.Statement, Recursive> recursives = new IdentityHashMap<>();
     private final Recursive[] recursive = {null};
+    /** IQ island, 2026-10-17: an error IQ raises as it runs the statement, after every other one
+     *  ({@link #windowKeyComparisons}), raised once the statement is translated. */
+    private final SqlTranslationException[] executed = {null};
     /** The statement's calls of no function of IQ's, in order, but those read as a NULL string ({@link #failed}). */
     private final List<SqlAst.FunctionCall> unknownCalls = new ArrayList<>();
     /** IQ island, 2026-10-17: the text each concatenation of string literals alone spells, by its value's identity
@@ -553,6 +556,87 @@ public final class IqDialect implements InputDialect {
         innerNamesInOrderBy(statement);
         existsOrder(statement);
         return statement;
+    }
+
+    /**
+     * IQ island, 2026-10-17 (the differential fuzzer's fifth round; measured on IQ 17.1): under IQ's engine a window's
+     * PARTITION BY or ORDER BY that holds GREATER or LESSER -- itself, or through a derived table's column (a CTE's)
+     * that IQ merges into the query, one with no DISTINCT, grouping, aggregate, row limit or window of its own -- is its
+     * -1001025 ("Function not currently supported"), raised as it runs the statement, after every other error
+     * ({@link #executed}); ORDER BY, GROUP BY and a window's argument read them, and so does SQL Anywhere's front end.
+     */
+    private static @com.legend.base.Nullable SqlTranslationException windowKeyComparisons(
+            SqlAst.Statement statement) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s)) {
+                continue;
+            }
+            List<SqlAst.WindowSpec> specs = new ArrayList<>();
+            readExpressions(s).forEach(e -> windowSpecs(e, specs));
+            for (SqlAst.WindowSpec spec : specs) {
+                List<SqlAst.Expr> keys = new ArrayList<>(spec.partitionBy());
+                spec.orderBy().forEach(o -> keys.add(o.expr()));
+                for (SqlAst.Expr k : keys) {
+                    SqlAst.FunctionCall f = comparisonCall(k, s);
+                    if (f != null) {
+                        String name = f.name().get(f.name().size() - 1).text().toUpperCase(java.util.Locale.ROOT);
+                        return SqlTranslationException.invalid("Function not currently supported: " + name + " in a"
+                                + " window's PARTITION BY or ORDER BY under IQ's engine" + code(-1001025, "QFA25"),
+                                f.pos());
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Into {@code out}, the window specifications {@code e} holds outside its subqueries. */
+    private static void windowSpecs(SqlAst.Expr e, List<SqlAst.WindowSpec> out) {
+        if (e instanceof SqlAst.Window w) {
+            out.add(w.spec());
+        }
+        children(e).forEach(c -> windowSpecs(c, out));
+    }
+
+    /** A GREATER or LESSER call {@code e} holds in select {@code s}, itself or through a merged derived table's column
+     *  ({@link #windowKeyComparisons}); null for none. */
+    private static SqlAst.@com.legend.base.Nullable FunctionCall comparisonCall(SqlAst.Expr e, SqlAst.Select s) {
+        if (e instanceof SqlAst.FunctionCall f && Set.of("greater", "lesser").contains(IqLexer.lower(
+                f.name().get(f.name().size() - 1).text()))) {
+            return f;
+        }
+        for (SqlAst.Expr c : children(e)) {
+            SqlAst.FunctionCall found = comparisonCall(c, s);
+            if (found != null) {
+                return found;
+            }
+        }
+        if (!(e instanceof SqlAst.ColumnRef r)) {
+            return null;
+        }
+        String name = IqLexer.lower(r.parts().get(r.parts().size() - 1).text());
+        String qualifier = r.parts().size() > 1 ? IqLexer.lower(r.parts().get(r.parts().size() - 2).text()) : null;
+        for (SqlAst.FromItem f : s.from()) {
+            for (SqlAst.FromItem leaf : leaves(f)) {
+                if (!(leaf instanceof SqlAst.SubqueryFrom d) || !(d.query() instanceof SqlAst.Select ds)
+                        || qualifier != null && (d.alias() == null || !qualifier.equals(IqLexer.lower(
+                        java.util.Objects.requireNonNull(d.alias()).text()))) || ds.distinct()
+                        || !ds.groupBy().isEmpty() || ds.having() != null || ds.limit() != null || ds.offset() != null
+                        || expressions(ds).stream().anyMatch(x -> hasAggregate(x) || hasWindowCall(x))) {
+                    continue;
+                }
+                for (int i = 0; i < ds.items().size(); i++) {
+                    if (ds.items().get(i) instanceof SqlAst.SelectExpr x && name.equals(itemName(ds, i,
+                            d.columnAliases()))) {
+                        SqlAst.FunctionCall found = comparisonCall(x.expr(), ds);
+                        if (found != null) {
+                            return found;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /** The claims a reading holds from before translating: a subquery's placement error ({@link #placements}), the
@@ -1542,6 +1626,10 @@ public final class IqDialect implements InputDialect {
         read.innerJoins.addAll(innerHere);
         read.placeheld.addAll(placeheldHere);
         read.claims(placement, recursives.get(statement));
+        SqlTranslationException run = chosen == Engine.IQ ? windowKeyComparisons(statement) : null;
+        if (run != null) {
+            read.executed[0] = run;
+        }
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
                 for (SqlAst.Expr e : expressions(s)) {
@@ -6685,6 +6773,10 @@ public final class IqDialect implements InputDialect {
         }
         if (r != null) {
             throw r.error();
+        }
+        SqlTranslationException run = executed[0];
+        if (run != null) {
+            throw run;
         }
     }
 
