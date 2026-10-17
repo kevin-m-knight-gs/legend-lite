@@ -39,7 +39,8 @@ core/src/main/java/com/legend/test/StorelessRuntime.java	product-name	8
 # the target's own number texts through its dialect class; both are measurements of the named database, nothing is
 # decided by the name
 core/src/test/java/com/legend/exec/MongoDbDifferentialTest.java	database-type	1
-core/src/test/java/com/legend/exec/MongoDbDifferentialTest.java	product-name	8
+# 2026-10-17, the MongoDB line's burn-down (docs/MONGODB_PLAN_2026_10_16.md §11.4): the differential prints the pipeline of a case that is not EQUAL, its comment naming what MongoDB was asked; 8 -> 9.
+core/src/test/java/com/legend/exec/MongoDbDifferentialTest.java	product-name	9
 core/src/test/java/com/legend/exec/MongoDbPlanTest.java	dialect-class	1
 core/src/test/java/com/legend/exec/MongoDbPlanTest.java	driver	2
 core/src/test/java/com/legend/exec/MongoDbPlanTest.java	product-name	14

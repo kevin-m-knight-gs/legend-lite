@@ -55,6 +55,8 @@ public final class MongoDb extends AnsiSqlRenderer {
     /** The field a lookup stage computes a subquery into, by its index ({@code __sq0}); the expression that held the
      *  subquery reads it through the read the pipeline registers ({@link #subqueryReads}). */
     static final String SUBQUERY_MARKER = "__sq";
+    /** A window function's field, set by a {@code $setWindowFields} stage and read by the clauses after it. */
+    static final String WINDOW_MARKER = "__w";
 
     /** A group key's read after the group stage ({@code _id.k0}). */
     private static final String GROUP_KEY = "_id.k";
@@ -76,7 +78,10 @@ public final class MongoDb extends AnsiSqlRenderer {
     /** The aggregates with no native accumulator, or whose exact answer needs the group's values: pushed into an
      *  array by the group stage and reduced at the read. */
     private static final Set<SqlAgg.Fn> PUSHED = Set.of(SqlAgg.Fn.VAR_SAMP, SqlAgg.Fn.VAR_POP, SqlAgg.Fn.VARIANCE,
-            SqlAgg.Fn.MEDIAN, SqlAgg.Fn.STRING_AGG, SqlAgg.Fn.QUANTILE_CONT, SqlAgg.Fn.QUANTILE_DISC);
+            SqlAgg.Fn.MEDIAN, SqlAgg.Fn.STRING_AGG, SqlAgg.Fn.QUANTILE_CONT, SqlAgg.Fn.QUANTILE_DISC, SqlAgg.Fn.MODE,
+            SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP, SqlAgg.Fn.COVAR_POP);
+    /** The statistics over two columns, pushed as pairs ({@code {"x": .., "y": ..}}). */
+    private static final Set<SqlAgg.Fn> BIVARIATE = Set.of(SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP, SqlAgg.Fn.COVAR_POP);
 
     public MongoDb() {
         super(LEXICON);
@@ -123,6 +128,10 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     void subqueryReads(Map<String, SqlWriter.Piece> reads) {
         replaceReads(SUBQUERY_MARKER, reads);
+    }
+
+    void windowReads(Map<String, SqlWriter.Piece> reads) {
+        replaceReads(WINDOW_MARKER, reads);
     }
 
     /** This level's reads of one marker kind replaced: a select's markers are its own, and a nested select's, written
@@ -227,8 +236,9 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " MongoDb: no shape yet");
             case SqlExpr.CheckedChildValue ignored -> throw new DialectCapability("a checked child's value reached"
                     + " MongoDb: no shape yet");
-            case SqlExpr.Quantified q -> throw new DialectCapability("a quantified comparison (ANY/ALL over a"
-                    + " subquery) reached MongoDb: no shape yet");
+            case SqlExpr.Quantified q -> throw new IllegalStateException("a quantified comparison reached the"
+                    + " expression writer outside the lookup stage that computes its rows (MongoDbPipeline"
+                    + ".subqueries)");
             case SqlExpr.ScalarSubquery sq -> throw new DialectCapability("a scalar subquery reached MongoDb: no"
                     + " shape yet");
             case SqlExpr.CheckedOne co -> checkedOne(writer, co, parentPrec);
@@ -250,14 +260,16 @@ public final class MongoDb extends AnsiSqlRenderer {
     }
 
     /** A column reference as a path: an aggregate's marker reads the group field; a group key reads {@code _id};
-     *  a lambda's parameter is its variable; inside a lookup the left row's aliases are variables and the right
-     *  source's row is flat; otherwise the row holds each source under its alias. */
+     *  a lambda's parameter is its variable (a field of it, the variable's field); inside a lookup the left row's
+     *  aliases are variables and the right source's row is flat; otherwise the row holds each source under its
+     *  alias. */
     private SqlWriter column(SqlWriter writer, SqlExpr.Column c) {
         String name = c.name();
         String table = c.table();
         Scope scope = scopes.getFirst();
         if (table == null) {
-            if (name.startsWith(AGGREGATE_MARKER) || name.startsWith(SUBQUERY_MARKER)) {
+            if (name.startsWith(AGGREGATE_MARKER) || name.startsWith(SUBQUERY_MARKER)
+                    || name.startsWith(WINDOW_MARKER)) {
                 SqlWriter.Piece read = scope.reads.get(name);
                 if (read == null) {
                     throw new IllegalStateException("marker " + name + " has no read in this scope");
@@ -276,6 +288,12 @@ public final class MongoDb extends AnsiSqlRenderer {
             return writer.append(MongoJson.path(name));
         }
         MongoJson.key(name);
+        for (Map.Entry<String, String> v : lambdaVariables) {
+            if (v.getKey().equals(table)) {
+                // a lambda parameter's field (a struct element's, a pair's): the variable's field
+                return writer.append(MongoJson.string("$$" + v.getValue() + "." + name));
+            }
+        }
         if (scope.variableAliases.contains(table)) {
             return writer.append(MongoJson.string("$$" + MongoJson.variable(table) + "." + name));
         }
@@ -348,7 +366,154 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
-        throw new DialectCapability("a window function reached MongoDb: $setWindowFields is not shaped yet");
+        throw new IllegalStateException("a window function reached the expression writer outside the"
+                + " $setWindowFields stage that computes it (MongoDbPipeline.windows)");
+    }
+
+    /**
+     * A window function's outputs of a {@code $setWindowFields} stage, and the read of its field: the native window
+     * operator where MongoDB has one ({@code $sum}, {@code $avg}, {@code $min}, {@code $max}, {@code $count},
+     * {@code $stdDevSamp}, {@code $stdDevPop}, {@code $first}, {@code $last}, {@code $push}; {@code $documentNumber},
+     * {@code $rank}, {@code $denseRank}; {@code $shift} for a lag or lead), the window written after it where the
+     * operator takes one ({@code window}: the pipeline's, from the call's frame); the group's ordered and distinct
+     * reductions pushed and reduced at the read, as the {@code $group} stage does; a percent rank, a cumulative
+     * distribution and an ntile from a rank or a document number and the partition's count, read as the SQL
+     * definitions say; an nth value from the frame's values. {@code window} writes {@code , "window": {...}} or
+     * nothing (the partition entire, $setWindowFields' own default, which a partition's count takes). SUM carries
+     * its count of non-null values beside it (S72's fix), as in a group.
+     */
+    SqlWriter.Piece windowOutput(SqlWriter w, SqlExpr.WindowCall call, String field, SqlWriter.Piece window) {
+        String path = MongoJson.string("$" + field);
+        String key = MongoJson.string(field);
+        switch (call.fn()) {
+            case SqlAgg.Reducer r -> {
+                if (!pushRoute(r)) {
+                    w.append(key).append(": ");
+                    reducerOpen(w, r);
+                    w.piece(window).append("}");
+                    if (r.fn() == SqlAgg.Fn.SUM) {
+                        String count = field + "_n";
+                        w.append(", ").append(MongoJson.string(count)).append(": {\"$sum\": {\"$cond\": [{\"$eq\": [")
+                                .expr(r.args().get(0), 0).append(", null]}, 0, 1]}").piece(window).append("}");
+                        return MongoJson.text("{\"$cond\": [{\"$gt\": [" + MongoJson.string("$" + count) + ", 0]}, "
+                                + path + ", null]}");
+                    }
+                    return MongoJson.text(path);
+                }
+                w.append(key).append(": {\"$push\": ");
+                pushedValue(w, r);
+                w.piece(window).append("}");
+                return pushedRead(r, path);
+            }
+            case SqlAgg.RankingFn rf -> {
+                return switch (rf.fn()) {
+                    case ROW_NUMBER -> {
+                        w.append(key).append(": {\"$documentNumber\": {}}");
+                        yield MongoJson.text(path);
+                    }
+                    case RANK -> {
+                        w.append(key).append(": {\"$rank\": {}}");
+                        yield MongoJson.text(path);
+                    }
+                    case DENSE_RANK -> {
+                        w.append(key).append(": {\"$denseRank\": {}}");
+                        yield MongoJson.text(path);
+                    }
+                    case PERCENT_RANK -> {
+                        // (rank - 1) / (count - 1), 0 over one row
+                        String n = MongoJson.string("$" + field + "_n");
+                        w.append(key).append(": {\"$rank\": {}}, ").append(MongoJson.string(field + "_n"))
+                                .append(": {\"$count\": {}}");
+                        yield MongoJson.text("{\"$cond\": [{\"$lte\": [" + n + ", 1]}, 0.0, {\"$divide\": [{\"$subtract\": ["
+                                + path + ", 1]}, {\"$subtract\": [" + n + ", 1]}]}]}");
+                    }
+                    case CUME_DIST -> {
+                        // the rows up to and including the current row's peers, over the partition's count
+                        String n = MongoJson.string("$" + field + "_n");
+                        w.append(key).append(": {\"$count\": {}").piece(window).append("}, ")
+                                .append(MongoJson.string(field + "_n")).append(": {\"$count\": {}}");
+                        yield MongoJson.text("{\"$divide\": [" + path + ", " + n + "]}");
+                    }
+                    case NTILE -> {
+                        // SQL's buckets: floor((row - 1) * k / count) + 1, the first buckets taking the remainder
+                        String n = MongoJson.string("$" + field + "_n");
+                        w.append(key).append(": {\"$documentNumber\": {}}, ").append(MongoJson.string(field + "_n"))
+                                .append(": {\"$count\": {}}");
+                        SqlExpr k = rf.args().get(0);
+                        yield x -> x.append("{\"$add\": [{\"$floor\": {\"$divide\": [{\"$multiply\": [{\"$subtract\": ["
+                                + path + ", 1]}, ").expr(k, 0).append("]}, " + n + "]}}, 1]}");
+                    }
+                    default -> throw new DialectCapability("the window function " + rf.fn() + " reached MongoDb:"
+                            + " not shaped yet");
+                };
+            }
+            case SqlAgg.ValueFn vf -> {
+                return switch (vf.fn()) {
+                    case LAG, LEAD -> {
+                        // $shift: the value by rows before (lag) or after (lead) the current one, else the default;
+                        // its offset the literal $shift takes (the one the Lowerer passes: literals only)
+                        if (vf.args().size() > 1 && !(vf.args().get(1) instanceof SqlExpr.IntLit)) {
+                            throw new DialectCapability("a " + vf.fn() + " by a computed offset reached MongoDb,"
+                                    + " whose $shift takes a literal");
+                        }
+                        long by = vf.args().size() > 1 ? ((SqlExpr.IntLit) vf.args().get(1)).value() : 1;
+                        w.append(key).append(": {\"$shift\": {\"output\": ").expr(vf.args().get(0), 0)
+                                .append(", \"by\": ").append(vf.fn() == SqlAgg.Fn.LAG ? -by : by)
+                                .append(", \"default\": ");
+                        if (vf.args().size() > 2) {
+                            w.expr(vf.args().get(2), 0);
+                        } else {
+                            w.append("null");
+                        }
+                        w.append("}}");
+                        yield MongoJson.text(path);
+                    }
+                    case FIRST_VALUE -> {
+                        w.append(key).append(": {\"$first\": ").expr(vf.args().get(0), 0).piece(window).append("}");
+                        yield MongoJson.text(path);
+                    }
+                    case LAST_VALUE -> {
+                        w.append(key).append(": {\"$last\": ").expr(vf.args().get(0), 0).piece(window).append("}");
+                        yield MongoJson.text(path);
+                    }
+                    case NTH_VALUE -> {
+                        w.append(key).append(": {\"$push\": ").expr(vf.args().get(0), 0).piece(window).append("}");
+                        SqlExpr n = vf.args().get(1);
+                        yield x -> x.append("{\"$arrayElemAt\": [" + path + ", {\"$subtract\": [").expr(n, 0)
+                                .append(", 1]}]}");
+                    }
+                    default -> throw new DialectCapability("the window function " + vf.fn() + " reached MongoDb:"
+                            + " not shaped yet");
+                };
+            }
+        }
+    }
+
+    /** A native reducer's window operator, opened: {@code {"$sum": <arg>} without its closing brace, so the stage
+     *  writes the window inside it. */
+    private void reducerOpen(SqlWriter w, SqlAgg.Reducer r) {
+        String op = switch (r.fn()) {
+            case SUM -> "$sum";
+            case AVG -> "$avg";
+            case MIN -> "$min";
+            case MAX -> "$max";
+            case COUNT -> "$count";
+            case STDDEV_SAMP, STDDEV -> "$stdDevSamp";
+            case STDDEV_POP -> "$stdDevPop";
+            case ANY_VALUE -> "$first";
+            default -> throw new DialectCapability("the window aggregate " + r.fn() + " reached MongoDb: not shaped"
+                    + " yet");
+        };
+        if (r.fn() == SqlAgg.Fn.COUNT) {
+            if (r.args().isEmpty()) {
+                w.append("{\"$count\": {}");
+            } else {
+                // COUNT(x): the non-null values
+                w.append("{\"$sum\": {\"$cond\": [{\"$eq\": [").expr(r.args().get(0), 0).append(", null]}, 0, 1]}");
+            }
+            return;
+        }
+        w.append("{\"").append(op).append("\": ").expr(r.args().get(0), 0);
     }
 
     @Override
@@ -358,16 +523,45 @@ public final class MongoDb extends AnsiSqlRenderer {
     }
 
     /** A cast as {@code $convert} to the BSON type the target names; a date to text in Pure's date spelling; a
-     *  decimal rounded to its scale; a Variant (JSON) target is the value itself, a BSON value being the variant. */
+     *  decimal rounded to its scale; a Variant (JSON) target is the value itself, a BSON value being the variant --
+     *  a literal JSON text's value written as the document it spells ({@code $literal}: its fields are not
+     *  expressions), a computed text refused by name (MongoDB parses no JSON in a pipeline). */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         SqlType target = c.target();
         if (target == SqlType.Scalar.JSON) {
+            if (c.value() instanceof SqlExpr.StringLit json) {
+                return writer.append("{\"$literal\": ").append(json.value().strip()).append("}");
+            }
+            if (c.value().type() instanceof TypeFact.Typed t && (t.type() == SqlType.Scalar.VARCHAR
+                    || t.type() == SqlType.Scalar.LITERAL)) {
+                throw new DialectCapability("a text parsed as a Variant reached MongoDb, whose pipeline parses no"
+                        + " JSON");
+            }
             return writer.expr(c.value(), 0);
         }
         if (target instanceof SqlType.Decimal d) {
             return writer.append("{\"$round\": [{\"$convert\": {\"input\": ").expr(c.value(), 0)
                     .append(", \"to\": \"decimal\"}}, ").append(d.scale()).append("]}");
+        }
+        if (target == SqlType.Scalar.TIMESTAMPTZ) {
+            // a zoned timestamp is the instant: a text with its offset parses to it (a single-digit month or day
+            // padded first, which Pure's parser reads and $convert does not), a date is one already
+            boolean fromText = c.value() instanceof SqlExpr.StringLit || c.value().type() instanceof TypeFact.Typed t
+                    && (t.type() == SqlType.Scalar.VARCHAR || t.type() == SqlType.Scalar.LITERAL);
+            if (!fromText) {
+                return writer.append("{\"$convert\": {\"input\": ").expr(c.value(), 0).append(", \"to\": \"date\"}}");
+            }
+            String pad = "{\"$cond\": [{\"$eq\": [{\"$strLenCP\": %s}, 1]}, {\"$concat\": [\"0\", %s]}, %s]}";
+            String cap1 = "{\"$arrayElemAt\": [\"$$m.captures\", 1]}";
+            String cap2 = "{\"$arrayElemAt\": [\"$$m.captures\", 2]}";
+            return writer.append("{\"$let\": {\"vars\": {\"s\": ").expr(c.value(), 0).append("}, \"in\": {\"$let\":"
+                    + " {\"vars\": {\"m\": {\"$regexFind\": {\"input\": \"$$s\", \"regex\":"
+                    + " \"^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})(.*)$\"}}}, \"in\": {\"$convert\": {\"input\": {\"$cond\":"
+                    + " [{\"$eq\": [\"$$m\", null]}, \"$$s\", {\"$concat\": [{\"$arrayElemAt\": [\"$$m.captures\", 0]},"
+                    + " \"-\", " + String.format(java.util.Locale.ROOT, pad, cap1, cap1, cap1) + ", \"-\", "
+                    + String.format(java.util.Locale.ROOT, pad, cap2, cap2, cap2) + ", {\"$arrayElemAt\":"
+                    + " [\"$$m.captures\", 3]}]}]}, \"to\": \"date\"}}}}}}");
         }
         if (target instanceof SqlType.Array || target instanceof SqlType.Map) {
             // a BSON array or document is untyped: the cast to a list or map type is the lowering's typing of the
@@ -384,8 +578,16 @@ public final class MongoDb extends AnsiSqlRenderer {
             return jsonText(writer, c.value());
         }
         if (text && c.value().type() instanceof TypeFact.Typed t && t.type() == SqlType.Scalar.JSON) {
-            throw new DialectCapability("a Variant's JSON text reached MongoDb: no JSON text writer for a nested"
-                    + " document yet");
+            if (c.value() instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET) {
+                // a Variant element read as text is the element's own string (DuckDb: ->> strips JSON's quoting),
+                // any other kind its JSON text
+                return writer.append("{\"$let\": {\"vars\": {\"e\": ").expr(c.value(), 0).append("}, \"in\":"
+                        + " {\"$cond\": [{\"$eq\": [{\"$type\": \"$$e\"}, \"string\"]}, \"$$e\", ")
+                        .piece(x -> cellText(x, SqlExpr.Column.derived(null, "__e"), MongoJson.text("\"$$e\"")))
+                        .append("]}}}");
+            }
+            // a Variant's JSON text: the BSON value written as JSON by its kind at run time (D10)
+            return cellText(writer, c.value());
         }
         if (text && temporal(c.value()) != null) {
             return writer.append("{\"$dateToString\": {\"date\": ").expr(c.value(), 0).append(", \"format\": ")
@@ -415,6 +617,17 @@ public final class MongoDb extends AnsiSqlRenderer {
     private static boolean mayBeNumber(SqlExpr e) {
         return !(e.type() instanceof TypeFact.Typed t) || t.type() == SqlType.Scalar.DOUBLE
                 || t.type() == SqlType.Scalar.HUGEINT || t.type() instanceof SqlType.Decimal;
+    }
+
+    /** The 128 ASCII characters in code order, as a JSON string: the character-code table. */
+    private static final String ASCII;
+
+    static {
+        StringBuilder table = new StringBuilder();
+        for (int c = 0; c < 128; c++) {
+            table.append((char) c);
+        }
+        ASCII = MongoJson.string(table.toString());
     }
 
     /** The alias under which a number's text is bound once for its spelling ({@link #numberText}). */
@@ -530,26 +743,61 @@ public final class MongoDb extends AnsiSqlRenderer {
         return writer.append(", \"]\"]}");
     }
 
-    /** One value's JSON text, by its kind at run time. */
+    /** How deep a nested document's JSON text goes: the writer is unrolled, MongoDB's expressions having no
+     *  recursion, one level of text per level of nesting -- eleven BSON levels each, under the server's limit of
+     *  two hundred with the expression around it (a Pair collection's text, deep around, overflowed at eight
+     *  levels of fifteen) -- and a document nested deeper is refused by a raise. */
+    static final int JSON_DEPTH = 6;
+
+    /** One value's JSON text, by its kind at run time: null, a string escaped and quoted, a date in its format
+     *  (the value's static kind decides a date alone), a number as Pure spells it, a boolean as its word, and an
+     *  array or a document written element by element -- a document's keys escaped and quoted -- to
+     *  {@link #JSON_DEPTH} levels. */
     private SqlWriter cellText(SqlWriter writer, SqlExpr value) {
-        writer.append("{\"$let\": {\"vars\": {\"v\": ").expr(value, 0).append("}, \"in\": {\"$switch\":"
-                + " {\"branches\": [{\"case\": {\"$eq\": [\"$$v\", null]}, \"then\": \"null\"},"
-                + " {\"case\": {\"$eq\": [{\"$type\": \"$$v\"}, \"string\"]}, \"then\": {\"$concat\": [\"\\\"\", "
-                + escapedJsonString() + ", \"\\\"\"]}},"
-                + " {\"case\": {\"$eq\": [{\"$type\": \"$$v\"}, \"date\"]}, \"then\": {\"$concat\": [\"\\\"\","
-                + " {\"$dateToString\": {\"date\": \"$$v\", \"format\": ").append(MongoJson.string(dateFormat(value)))
-                .append("}}, \"\\\"\"]}},"
-                + " {\"case\": {\"$in\": [{\"$type\": \"$$v\"}, [\"object\", \"array\"]]}, \"then\": ")
-                .append(raiseText("a nested document in a JSON wire reached MongoDb: no JSON text writer for it yet"))
-                .append("}, {\"case\": {\"$in\": [{\"$type\": \"$$v\"}, [\"double\", \"decimal\"]]}, \"then\": ");
-        // a number as Pure spells it (the SQL dialects' JSON writers spell a double with its fraction and no exponent)
-        numberTextOf(writer, MongoJson.var("v"), false);
-        return writer.append("}], \"default\": {\"$toString\": \"$$v\"}}}}}");
+        return cellText(writer, value, x -> x.expr(value, 0));
     }
 
-    /** {@code $$v}, a string, with JSON's escapes: a backslash, a quote, a newline, a return, a tab. */
-    private static String escapedJsonString() {
-        String s = "\"$$v\"";
+    /** {@link #cellText(SqlWriter, SqlExpr)} over the value {@code bound} writes, whose kind {@code value} types. */
+    private SqlWriter cellText(SqlWriter writer, SqlExpr value, SqlWriter.Piece bound) {
+        writer.append("{\"$let\": {\"vars\": {\"v\": ").piece(bound).append("}, \"in\": ");
+        jsonLevel(writer, dateFormat(value), JSON_DEPTH);
+        return writer.append("}}");
+    }
+
+    /** The JSON text of {@code $$v} at one level of nesting. */
+    private void jsonLevel(SqlWriter writer, String dateFormat, int depth) {
+        writer.append("{\"$switch\":"
+                + " {\"branches\": [{\"case\": {\"$eq\": [\"$$v\", null]}, \"then\": \"null\"},"
+                + " {\"case\": {\"$eq\": [{\"$type\": \"$$v\"}, \"string\"]}, \"then\": {\"$concat\": [\"\\\"\", "
+                + escapedJsonString("\"$$v\"") + ", \"\\\"\"]}},"
+                + " {\"case\": {\"$eq\": [{\"$type\": \"$$v\"}, \"date\"]}, \"then\": {\"$concat\": [\"\\\"\","
+                + " {\"$dateToString\": {\"date\": \"$$v\", \"format\": ").append(MongoJson.string(dateFormat))
+                .append("}}, \"\\\"\"]}},"
+                + " {\"case\": {\"$in\": [{\"$type\": \"$$v\"}, [\"object\", \"array\"]]}, \"then\": ");
+        if (depth == 0) {
+            writer.append(raiseText("a document nested beyond " + JSON_DEPTH + " levels reached MongoDb's JSON"
+                    + " writer"));
+        } else {
+            // the elements -- a document's entries, an array's values -- folded into one text, each written at
+            // the next level, a document's keyed, commas between, the kind's brackets around
+            String isObject = "{\"$eq\": [{\"$type\": \"$$v\"}, \"object\"]}";
+            writer.append("{\"$concat\": [{\"$cond\": [" + isObject + ", \"{\", \"[\"]}, {\"$reduce\": {\"input\":"
+                    + " {\"$cond\": [" + isObject + ", {\"$objectToArray\": \"$$v\"}, \"$$v\"]}, \"initialValue\": \"\","
+                    + " \"in\": {\"$concat\": [\"$$value\", {\"$cond\": [{\"$eq\": [\"$$value\", \"\"]}, \"\", \",\"]},"
+                    + " {\"$cond\": [" + isObject + ", {\"$concat\": [\"\\\"\", " + escapedJsonString("\"$$this.k\"")
+                    + ", \"\\\":\"]}, \"\"]}, {\"$let\": {\"vars\": {\"v\": {\"$cond\": [" + isObject
+                    + ", \"$$this.v\", \"$$this\"]}}, \"in\": ");
+            jsonLevel(writer, "%Y-%m-%dT%H:%M:%S.%L+0000", depth - 1);
+            writer.append("}}]}}}, {\"$cond\": [" + isObject + ", \"}\", \"]\"]}]}");
+        }
+        writer.append("}, {\"case\": {\"$in\": [{\"$type\": \"$$v\"}, [\"double\", \"decimal\"]]}, \"then\": ");
+        // a number as Pure spells it (the SQL dialects' JSON writers spell a double with its fraction and no exponent)
+        numberTextOf(writer, MongoJson.var("v"), false);
+        writer.append("}], \"default\": {\"$toString\": \"$$v\"}}}");
+    }
+
+    /** The string {@code s}, with JSON's escapes: a backslash, a quote, a newline, a return, a tab. */
+    private static String escapedJsonString(String s) {
         for (String[] r : List.of(new String[] {"\\", "\\\\"}, new String[] {"\"", "\\\""},
                 new String[] {"\n", "\\n"}, new String[] {"\r", "\\r"}, new String[] {"\t", "\\t"})) {
             s = "{\"$replaceAll\": {\"input\": " + s + ", \"find\": " + MongoJson.string(r[0]) + ", \"replacement\": "
@@ -687,7 +935,9 @@ public final class MongoDb extends AnsiSqlRenderer {
             case EXP -> MongoJson.op1(writer, "$exp", a.get(0));
             case LN -> MongoJson.op1(writer, "$ln", a.get(0));
             case LOG10 -> MongoJson.op1(writer, "$log10", a.get(0));
-            case POW -> MongoJson.op(writer, "$pow", a);
+            // a power is a Float, as Pure's pow is ($pow of two integers answers an integer)
+            case POW -> MongoJson.guarded(writer, a, MongoJson.text("{\"$pow\": [{\"$toDouble\": " + G0 + "}, " + G1
+                    + "]}"));
             case PI -> writer.append("{\"$numberDouble\": \"3.141592653589793\"}");
             case SIN -> MongoJson.op1(writer, "$sin", a.get(0));
             case COS -> MongoJson.op1(writer, "$cos", a.get(0));
@@ -748,9 +998,16 @@ public final class MongoDb extends AnsiSqlRenderer {
             case REVERSE_STRING -> MongoJson.guarded(writer, a, MongoJson.text("{\"$reduce\": {\"input\":"
                     + " {\"$range\": [0, {\"$strLenCP\": " + G0 + "}]}, \"initialValue\": \"\", \"in\":"
                     + " {\"$concat\": [{\"$substrCP\": [" + G0 + ", " + THIS + ", 1]}, " + VALUE + "]}}}"));
-            case ASCII_CODE -> throw new DialectCapability("ascii reached MongoDb, which has no character-code"
-                    + " operator");
-            case CHR -> throw new DialectCapability("char reached MongoDb, which has no code-to-character operator");
+            // MongoDB has no character-code operator: the ASCII table spelled as text, a code its position in it
+            // (a character beyond it raised by name)
+            case ASCII_CODE -> MongoJson.guarded(writer, a, MongoJson.text("{\"$let\": {\"vars\": {\"c\":"
+                    + " {\"$indexOfCP\": [" + ASCII + ", {\"$substrCP\": [" + G0 + ", 0, 1]}]}}, \"in\": {\"$cond\":"
+                    + " [{\"$lt\": [\"$$c\", 0]}, " + raiseText("a character beyond ASCII reached ascii on MongoDb,"
+                            + " which has no character-code operator") + ", \"$$c\"]}}}"));
+            case CHR -> MongoJson.guarded(writer, a, MongoJson.text("{\"$cond\": [{\"$or\": [{\"$lt\": [" + G0
+                    + ", 0]}, {\"$gte\": [" + G0 + ", 128]}]}, " + raiseText("a code beyond ASCII reached char on"
+                            + " MongoDb, which has no code-to-character operator") + ", {\"$substrCP\": [" + ASCII
+                    + ", " + G0 + ", 1]}]}"));
             case UC_FIRST -> firstCased(writer, a, "$toUpper");
             case LC_FIRST -> firstCased(writer, a, "$toLower");
             case REPEAT_STR -> MongoJson.guarded(writer, a, MongoJson.text("{\"$reduce\": {\"input\": {\"$range\":"
@@ -776,9 +1033,8 @@ public final class MongoDb extends AnsiSqlRenderer {
             case MAKE_DATE, MAKE_TIMESTAMP -> dateFromParts(writer, a);
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> dateAdd(writer, a);
             case DATE_DIFF -> dateDiff(writer, a);
-            case TIME_BUCKET -> throw new DialectCapability("timeBucket reached MongoDb: $dateTrunc's bin size is"
-                    + " not mapped to the engine's bucket origin yet");
-            case TIMEZONE -> throw new DialectCapability("a time zone conversion reached MongoDb: not shaped yet");
+            case TIME_BUCKET -> timeBucket(writer, a);
+            case TIMEZONE -> timezone(writer, a);
             case DATE_AT_TIME -> throw new DialectCapability("a date at a time of day reached MongoDb, which has"
                     + " no time type");
             case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability(c.fn() + " reached MongoDb, whose date"
@@ -791,8 +1047,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case FROM_EPOCH_MS -> MongoJson.op1(writer, "$toDate", a.get(0));
             case DAYNAME -> calendarName(writer, a, DAY_NAMES, "$dayOfWeek");
             case MONTHNAME -> calendarName(writer, a, MONTH_NAMES, "$month");
-            case STRFTIME -> writer.append("{\"$dateToString\": {\"date\": ").expr(a.get(0), 0)
-                    .append(", \"format\": ").expr(a.get(1), 0).append("}}");
+            case STRFTIME -> strftime(writer, a);
             case STRPTIME -> writer.append("{\"$dateFromString\": {\"dateString\": ").expr(a.get(0), 0)
                     .append(", \"format\": ").expr(a.get(1), 0).append("}}");
             case PARSE_DATE -> writer.append("{\"$dateFromString\": {\"dateString\": ").expr(a.get(0), 0)
@@ -818,8 +1073,9 @@ public final class MongoDb extends AnsiSqlRenderer {
             // ---- maps (documents)
             case MAP_FROM_LISTS -> writer.append("{\"$arrayToObject\": {\"$zip\": {\"inputs\": [").list(a)
                     .append("]}}}");
-            case MAP_FROM_ENTRIES -> throw new DialectCapability("a map from entries reached MongoDb: the entry"
-                    + " shape is not mapped yet");
+            // the entries' pairs (first, second) as the document's fields (k, v); no entry, an empty document
+            case MAP_FROM_ENTRIES -> writer.append("{\"$arrayToObject\": {\"$map\": {\"input\": {\"$ifNull\": [")
+                    .expr(a.get(0), 0).append(", []]}, \"in\": {\"k\": \"$$this.first\", \"v\": \"$$this.second\"}}}}");
             case MAP_EMPTY -> writer.append("{\"$literal\": {}}");
             case MAP_EXTRACT -> mapExtract(writer, a);
             case MAP_KEYS -> mapSide(writer, a, "k");
@@ -920,15 +1176,19 @@ public final class MongoDb extends AnsiSqlRenderer {
                 + " [{\"$lt\": [" + G0 + ", 0]}, -1, 0]}]}"));
     }
 
-    /** {@code $bitAnd}, {@code $bitOr}, {@code $bitXor} over integers; a shift has no operator. */
+    /** {@code $bitAnd}, {@code $bitOr}, {@code $bitXor} over integers; a shift by arithmetic. */
     @Override
     protected SqlWriter bitOp(SqlWriter writer, SqlFn fnName, List<SqlExpr> a) {
         return switch (fnName) {
             case BIT_AND -> MongoJson.op(writer, "$bitAnd", a);
             case BIT_OR -> MongoJson.op(writer, "$bitOr", a);
             case BIT_XOR -> MongoJson.op(writer, "$bitXor", a);
-            case BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> throw new DialectCapability(fnName + " reached MongoDb, which"
-                    + " has no bit-shift operator");
+            // no shift operator: a shift is the product with, or the floored quotient by, the power of two -- in
+            // Decimal128, exact to 34 digits, where a double loses the bits past 2^53
+            case BIT_SHIFT_LEFT -> MongoJson.guarded(writer, a, MongoJson.text("{\"$toLong\": {\"$multiply\": [{\"$toDecimal\": "
+                    + G0 + "}, {\"$pow\": [{\"$toDecimal\": 2}, " + G1 + "]}]}}"));
+            case BIT_SHIFT_RIGHT -> MongoJson.guarded(writer, a, MongoJson.text("{\"$toLong\": {\"$floor\":"
+                    + " {\"$divide\": [{\"$toDecimal\": " + G0 + "}, {\"$pow\": [{\"$toDecimal\": 2}, " + G1 + "]}]}}}"));
             default -> throw new IllegalStateException("not a bit operation: " + fnName);
         };
     }
@@ -999,23 +1259,31 @@ public final class MongoDb extends AnsiSqlRenderer {
             throw new DialectCapability("a format that is not a literal reached MongoDb: no printf operator");
         }
         List<String> pieces = new java.util.ArrayList<>();
+        // each directive's fraction digits: -1 for %s, -2 for %d, else %.Nf's N
+        List<Integer> directives = new java.util.ArrayList<>();
         StringBuilder piece = new StringBuilder();
         String f = fmt.value();
         for (int i = 0; i < f.length(); i++) {
             char c = f.charAt(i);
             if (c != '%') {
                 piece.append(c);
-            } else if (i + 1 < f.length() && f.charAt(i + 1) == '%') {
+                continue;
+            }
+            if (i + 1 < f.length() && f.charAt(i + 1) == '%') {
                 piece.append('%');
                 i++;
-            } else if (i + 1 < f.length() && f.charAt(i + 1) == 's') {
-                pieces.add(piece.toString());
-                piece.setLength(0);
-                i++;
-            } else {
-                throw new DialectCapability("a format directive other than %s reached MongoDb (" + f + "): no printf"
-                        + " operator");
+                continue;
             }
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("%(s|d|\\.([0-9]+)f)")
+                    .matcher(f.substring(i));
+            if (!m.lookingAt()) {
+                throw new DialectCapability("a format directive other than %s, %d and %.Nf reached MongoDb (" + f
+                        + "): no printf operator");
+            }
+            pieces.add(piece.toString());
+            piece.setLength(0);
+            directives.add(m.group(1).equals("s") ? -1 : m.group(1).equals("d") ? -2 : Integer.parseInt(m.group(2)));
+            i += m.end() - 1;
         }
         pieces.add(piece.toString());
         if (pieces.size() - 1 != a.size() - 1) {
@@ -1025,10 +1293,43 @@ public final class MongoDb extends AnsiSqlRenderer {
         writer.append("{\"$concat\": [").append(MongoJson.string(pieces.get(0)));
         for (int i = 1; i < a.size(); i++) {
             writer.append(", ");
-            formatArgument(writer, a.get(i));
+            int d = directives.get(i - 1);
+            if (d == -1) {
+                formatArgument(writer, a.get(i));
+            } else if (d == -2) {
+                // %d: the integer's digits
+                writer.append("{\"$toString\": {\"$toLong\": ").expr(a.get(i), 0).append("}}");
+            } else {
+                fixedFraction(writer, a.get(i), d);
+            }
             writer.append(", ").append(MongoJson.string(pieces.get(i)));
         }
         return writer.append("]}");
+    }
+
+    /** {@code %.Nf}: the number rounded to N fraction digits and spelled with exactly N (Pure's Float spelling of
+     *  the rounded double, its fraction cut or padded with zeros; none and no point for N = 0). */
+    private void fixedFraction(SqlWriter writer, SqlExpr arg, int digits) {
+        // a negative argument rounded to zero keeps its sign (-0.00), as printf spells it
+        writer.append("{\"$let\": {\"vars\": {\"f\": ");
+        fixedFractionText(writer, arg, digits);
+        writer.append("}, \"in\": {\"$cond\": [{\"$and\": [{\"$lt\": [").expr(arg, 0).append(", 0]}, {\"$ne\":"
+                + " [{\"$substrCP\": [\"$$f\", 0, 1]}, \"-\"]}]}, {\"$concat\": [\"-\", \"$$f\"]}, \"$$f\"]}}}");
+    }
+
+    private void fixedFractionText(SqlWriter writer, SqlExpr arg, int digits) {
+        writer.append("{\"$let\": {\"vars\": {\"r\": {\"$round\": [{\"$toDouble\": ").expr(arg, 0).append("}, ")
+                .append(digits).append("]}}, \"in\": {\"$let\": {\"vars\": {\"t\": ");
+        numberTextOf(writer, MongoJson.var("r"), false);
+        writer.append("}, \"in\": {\"$let\": {\"vars\": {\"dot\": {\"$indexOfCP\": [\"$$t\", \".\"]}}, \"in\": ");
+        if (digits == 0) {
+            writer.append("{\"$substrCP\": [\"$$t\", 0, \"$$dot\"]}");
+        } else {
+            writer.append("{\"$concat\": [{\"$substrCP\": [\"$$t\", 0, \"$$dot\"]}, \".\", {\"$substrCP\": [{\"$concat\":"
+                    + " [{\"$substrCP\": [\"$$t\", {\"$add\": [\"$$dot\", 1]}, {\"$strLenCP\": \"$$t\"}]}, ")
+                    .append(MongoJson.string("0".repeat(digits))).append("]}, 0, ").append(digits).append("]}]}");
+        }
+        writer.append("}}}}}}");
     }
 
     /** One {@code %s} argument's text, by its kind at run time. */
@@ -1041,6 +1342,89 @@ public final class MongoDb extends AnsiSqlRenderer {
                 + " {\"case\": {\"$in\": [{\"$type\": \"$$g0\"}, [\"double\", \"decimal\"]]}, \"then\": ");
         numberTextOf(writer, MongoJson.var("g0"), false);
         writer.append("}], \"default\": {\"$toString\": \"$$g0\"}}}}}");
+    }
+
+    /**
+     * {@code timeBucket(unit, quantity, date)}: the engine's bucket (DuckDB's {@code time_bucket}, whose origin is
+     * 1970-01-01, a week's 1969-12-29, a Monday) by arithmetic, MongoDB's {@code $dateTrunc} binning from its own
+     * reference dates: a fixed-width unit floors the milliseconds since the origin to a multiple of the width; a
+     * month, a quarter or a year floors the months since 1970-01 to a multiple of the quantity's months. A
+     * sub-millisecond unit is refused by name (a BSON date holds milliseconds).
+     */
+    private SqlWriter timeBucket(SqlWriter writer, List<SqlExpr> a) {
+        com.legend.sql.DatePart unit = part(a.get(0));
+        Long unitMillis = switch (unit) {
+            case WEEK -> 604_800_000L;
+            case DAY -> 86_400_000L;
+            case HOUR -> 3_600_000L;
+            case MINUTE -> 60_000L;
+            case SECOND -> 1_000L;
+            case MILLISECOND -> 1L;
+            case YEAR, QUARTER, MONTH -> null;
+            case MICROSECOND, NANOSECOND -> throw new DialectCapability("a time bucket by " + unit + "s reached"
+                    + " MongoDb, whose dates hold milliseconds");
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new IllegalStateException("a time bucket by " + unit
+                    + ", which is no duration (DateShifts.durationPart)");
+        };
+        // a literal finer than a millisecond is bucketed at the millisecond: no bucket is finer, so the digits past
+        // it never decide one (the one place a BSON date may cut them; MongoJson.dateLiteral refuses elsewhere)
+        SqlExpr date = a.get(2) instanceof SqlExpr.TimestampLit t ? new SqlExpr.TimestampLit(toMillisecond(t.iso()))
+                : a.get(2);
+        List<SqlExpr> args = List.of(a.get(1), date);
+        if (unitMillis != null) {
+            long origin = unit == com.legend.sql.DatePart.WEEK ? -259_200_000L : 0L;
+            return MongoJson.guarded(writer, args, MongoJson.text("{\"$let\": {\"vars\": {\"w\": {\"$multiply\": ["
+                    + G0 + ", " + unitMillis + "]}, \"t\": {\"$subtract\": [{\"$toLong\": " + G1 + "}, " + origin
+                    + "]}}, \"in\": {\"$toDate\": {\"$add\": [" + origin + ", {\"$multiply\": [{\"$floor\": {\"$divide\":"
+                    + " [\"$$t\", \"$$w\"]}}, \"$$w\"]}]}}}}"));
+        }
+        int perUnit = switch (unit) {
+            case YEAR -> 12;
+            case QUARTER -> 3;
+            case MONTH -> 1;
+            default -> throw new IllegalStateException("a time bucket by " + unit + " counts no months");
+        };
+        return MongoJson.guarded(writer, args, MongoJson.text("{\"$let\": {\"vars\": {\"w\": {\"$multiply\": [" + G0
+                + ", " + perUnit + "]}, \"p\": {\"$dateToParts\": {\"date\": " + G1 + "}}}, \"in\": {\"$let\": {\"vars\":"
+                + " {\"b\": {\"$multiply\": [{\"$floor\": {\"$divide\": [{\"$add\": [{\"$multiply\": [{\"$subtract\":"
+                + " [\"$$p.year\", 1970]}, 12]}, {\"$subtract\": [\"$$p.month\", 1]}]}, \"$$w\"]}}, \"$$w\"]}}, \"in\":"
+                + " {\"$let\": {\"vars\": {\"y\": {\"$floor\": {\"$divide\": [\"$$b\", 12]}}}, \"in\": {\"$dateFromParts\":"
+                + " {\"year\": {\"$add\": [1970, \"$$y\"]}, \"month\": {\"$add\": [{\"$subtract\": [\"$$b\", {\"$multiply\":"
+                + " [\"$$y\", 12]}]}, 1]}, \"day\": 1}}}}}}}}"));
+    }
+
+    /** The ISO text with its fraction of a second cut to three digits. */
+    private static String toMillisecond(String iso) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\.[0-9]{3})[0-9]+").matcher(iso);
+        return m.find() ? iso.substring(0, m.start()) + m.group(1) + iso.substring(m.end()) : iso;
+    }
+
+    /**
+     * {@code timezone(zone, v)}: a BSON date is a UTC instant, the platform's one temporal carrier, so UTC is the
+     * value itself; another zone converts an instant (a zoned value: a zoned cast, or UTC pinned on it) to its wall
+     * time there, and a wall time there to its instant -- the value's kind decides, as the SQL engines' two
+     * overloads do.
+     */
+    private SqlWriter timezone(SqlWriter writer, List<SqlExpr> a) {
+        if (a.get(0) instanceof SqlExpr.StringLit z && z.value().equals("UTC")) {
+            return writer.expr(a.get(1), 0);
+        }
+        boolean instant = instantValued(a.get(1));
+        String parts = "{\"$dateToParts\": {\"date\": \"$$d\"" + (instant ? ", \"timezone\": \"$$z\"" : "") + "}}";
+        return writer.append("{\"$let\": {\"vars\": {\"d\": ").expr(a.get(1), 0).append(", \"z\": ")
+                .expr(a.get(0), 0).append("}, \"in\": {\"$let\": {\"vars\": {\"p\": " + parts + "}, \"in\":"
+                        + " {\"$dateFromParts\": {\"year\": \"$$p.year\", \"month\": \"$$p.month\", \"day\": \"$$p.day\","
+                        + " \"hour\": \"$$p.hour\", \"minute\": \"$$p.minute\", \"second\": \"$$p.second\","
+                        + " \"millisecond\": \"$$p.millisecond\"" + (instant ? "" : ", \"timezone\": \"$$z\"")
+                        + "}}}}}}");
+    }
+
+    /** Whether the value is an instant: typed as a zoned timestamp, cast to one, or a value UTC is pinned on. */
+    private static boolean instantValued(SqlExpr e) {
+        return e.type() instanceof TypeFact.Typed t && t.type() == SqlType.Scalar.TIMESTAMPTZ
+                || e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.TIMESTAMPTZ
+                || e instanceof SqlExpr.Call c && c.fn() == SqlFn.TIMEZONE
+                        && c.args().get(0) instanceof SqlExpr.StringLit z && z.value().equals("UTC");
     }
 
     /** 1-based SQL substring, its start and length clamped at zero as the engine's substring is. */
@@ -1217,6 +1601,13 @@ public final class MongoDb extends AnsiSqlRenderer {
     /** {@code $filter} over the list, the lambda's parameter its variable. */
     private SqlWriter listFilter(SqlWriter writer, List<SqlExpr> a) {
         SqlExpr.Lambda l = lambdaOf(a.get(1));
+        if (l.params().size() == 2) {
+            // the pairs kept, each read back to its element (a null list staying null)
+            writer.append("{\"$let\": {\"vars\": {\"k\": ");
+            indexed(writer, "$filter", "cond", a.get(0), l);
+            return writer.append("}, \"in\": {\"$cond\": [{\"$eq\": [\"$$k\", null]}, null, {\"$map\": {\"input\":"
+                    + " \"$$k\", \"in\": {\"$arrayElemAt\": [\"$$this\", 0]}}}]}}}");
+        }
         String v = MongoJson.variable(l.params().get(0));
         writer.append("{\"$filter\": {\"input\": ").expr(a.get(0), 0).append(", \"as\": ").append(MongoJson.string(v))
                 .append(", \"cond\": ");
@@ -1224,9 +1615,28 @@ public final class MongoDb extends AnsiSqlRenderer {
         return writer.append("}}");
     }
 
+    /** A list operator over a two-parameter lambda (the element, its 1-based position, as the SQL engines' list
+     *  lambdas count): the list zipped with its positions, each pair's sides bound to the parameters. */
+    private SqlWriter indexed(SqlWriter writer, String op, String bodyKey, SqlExpr list, SqlExpr.Lambda l) {
+        String e = MongoJson.variable(l.params().get(0));
+        String i = MongoJson.variable(l.params().get(1));
+        // a null list stays null, as the SQL engines' list lambdas answer
+        writer.append("{\"$let\": {\"vars\": {\"l\": ").expr(list, 0).append("}, \"in\": {\"$cond\": [{\"$eq\":"
+                + " [\"$$l\", null]}, null, {\"").append(op).append("\": {\"input\": {\"$zip\": {\"inputs\": [\"$$l\","
+                + " {\"$range\": [1, {\"$add\": [{\"$size\": \"$$l\"}, 1]}]}]}}, \"as\": \"p\", \"").append(bodyKey)
+                .append("\": {\"$let\": {\"vars\": {").append(MongoJson.string(e))
+                .append(": {\"$arrayElemAt\": [\"$$p\", 0]}, ").append(MongoJson.string(i))
+                .append(": {\"$arrayElemAt\": [\"$$p\", 1]}}, \"in\": ");
+        withLambda(writer, l, List.of(e, i), x -> x.expr(l.body(), 0));
+        return writer.append("}}}}]}}}");
+    }
+
     /** {@code $map} over the list. */
     private SqlWriter listMap(SqlWriter writer, List<SqlExpr> a) {
         SqlExpr.Lambda l = lambdaOf(a.get(1));
+        if (l.params().size() == 2) {
+            return indexed(writer, "$map", "in", a.get(0), l);
+        }
         String v = MongoJson.variable(l.params().get(0));
         writer.append("{\"$map\": {\"input\": ").expr(a.get(0), 0).append(", \"as\": ").append(MongoJson.string(v))
                 .append(", \"in\": ");
@@ -1281,7 +1691,8 @@ public final class MongoDb extends AnsiSqlRenderer {
             case LIST_AVG -> MongoJson.op1(writer, "$avg", a.get(0));
             case LIST_MEDIAN -> arrayReduction(writer, SqlAgg.Fn.MEDIAN, x -> nonNull(x, y -> y.expr(a.get(0), 0)),
                     List.of());
-            case LIST_MODE -> throw new DialectCapability("a list's mode reached MongoDb: not shaped yet");
+            case LIST_MODE -> arrayReduction(writer, SqlAgg.Fn.MODE, x -> nonNull(x, y -> y.expr(a.get(0), 0)),
+                    List.of());
             case LIST_SORT -> writer.append("{\"$sortArray\": {\"input\": ").expr(a.get(0), 0)
                     .append(", \"sortBy\": 1}}");
             case LIST_SORT_DESC -> writer.append("{\"$sortArray\": {\"input\": ").expr(a.get(0), 0)
@@ -1392,10 +1803,14 @@ public final class MongoDb extends AnsiSqlRenderer {
         return writer.expr(a.get(0), 0);
     }
 
-    /** {@code (value, key)}: a field by its literal name, an element by its 0-based index, or a field by a computed
-     *  name through the document's entries. */
+    /** {@code (value, key)}: the value itself under the JSON path root ({@code $}, the lowering's read of a whole
+     *  Variant), a field by its literal name, an element by its 0-based index, or a field by a computed name
+     *  through the document's entries. */
     @Override
     protected SqlWriter variantGet(SqlWriter writer, List<SqlExpr> a) {
+        if (a.get(1) instanceof SqlExpr.StringLit root && root.value().equals("$")) {
+            return writer.expr(a.get(0), 0);
+        }
         if (a.get(1) instanceof SqlExpr.StringLit key) {
             return writer.append("{\"$getField\": {\"field\": ").append(MongoJson.key(key.value()))
                     .append(", \"input\": ").expr(a.get(0), 0).append("}}");
@@ -1466,10 +1881,8 @@ public final class MongoDb extends AnsiSqlRenderer {
             case LIST -> accumulate(writer, "$push", r);
             case BOOL_AND -> accumulate(writer, "$min", r);
             case BOOL_OR -> accumulate(writer, "$max", r);
-            case VAR_SAMP, VAR_POP, VARIANCE, MEDIAN, STRING_AGG, QUANTILE_CONT, QUANTILE_DISC -> pushed(writer, r);
-            case MODE -> throw new DialectCapability("mode reached MongoDb: not shaped yet");
-            case CORR, COVAR_SAMP, COVAR_POP -> throw new DialectCapability(r.fn() + " reached MongoDb: a two-column"
-                    + " statistic is not shaped yet");
+            case VAR_SAMP, VAR_POP, VARIANCE, MEDIAN, STRING_AGG, QUANTILE_CONT, QUANTILE_DISC, MODE, CORR,
+                 COVAR_SAMP, COVAR_POP -> pushed(writer, r);
             case ARG_MAX, ARG_MIN -> throw new DialectCapability(r.fn() + " reached MongoDb: not shaped yet");
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
             case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
@@ -1496,23 +1909,50 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     /** The group's values pushed, each with its order keys when the aggregate is ordered. */
     private static SqlWriter pushed(SqlWriter writer, SqlAgg.Reducer r) {
+        writer.append("{\"$push\": ");
+        pushedValue(writer, r);
+        return writer.append("}");
+    }
+
+    /** What an aggregate on the push route pushes: its value -- a two-column statistic's pair of values -- with its
+     *  order keys when the aggregate is ordered. */
+    private static SqlWriter pushedValue(SqlWriter writer, SqlAgg.Reducer r) {
         if (r.args().isEmpty()) {
             throw new IllegalStateException(r.fn() + " accumulates no argument");
         }
-        writer.append("{\"$push\": ");
+        SqlWriter.Piece value = BIVARIATE.contains(r.fn())
+                ? x -> x.append("{\"x\": ").expr(r.args().get(0), 0).append(", \"y\": ").expr(r.args().get(1), 0)
+                        .append("}")
+                : x -> x.expr(r.args().get(0), 0);
         if (r.orderBy().isEmpty()) {
-            writer.expr(r.args().get(0), 0);
-        } else {
-            pushedWithKeys(writer, r.args().get(0), r.orderBy().stream().map(com.legend.sql.SqlSelect.SortKey::expr)
-                    .toList());
+            return writer.piece(value);
         }
-        return writer.append("}");
+        return pushedWithKeys(writer, value, r.orderBy().stream().map(com.legend.sql.SqlSelect.SortKey::expr)
+                .toList());
+    }
+
+    /** The read of a pushed aggregate: its values in their keys' order, the nulls dropped (a pair with a null side
+     *  dropped whole), made distinct where the aggregate asks, and reduced; a quantile over the value's own
+     *  descending order where the reducer orders it so (the Lowerer's DESCENDING percentile). */
+    private static SqlWriter.Piece pushedRead(SqlAgg.Reducer r, String path) {
+        List<SqlExpr> extras = BIVARIATE.contains(r.fn()) ? List.of() : r.args().subList(1, r.args().size());
+        SqlWriter.Piece values = pushedValues(path, r.orderBy());
+        SqlWriter.Piece present = BIVARIATE.contains(r.fn()) ? x -> nonNullPairs(x, values)
+                : x -> nonNull(x, values);
+        SqlWriter.Piece set = r.distinct() ? x -> distinctInOrder(x, present) : present;
+        boolean descending = !r.orderBy().isEmpty()
+                && r.orderBy().stream().noneMatch(com.legend.sql.SqlSelect.SortKey::ascending);
+        return x -> arrayReduction(x, r.fn(), set, extras, descending);
     }
 
     /** {@code {"v": value, "k0": key, "n0": <key is null>, ...}}: a pushed value with its order keys and each key's
      *  null flag, so the read's sort places nulls as the SQL engine does (S73's fix, 2026-10-17). */
     private static SqlWriter pushedWithKeys(SqlWriter writer, SqlExpr value, List<SqlExpr> keys) {
-        writer.append("{\"v\": ").expr(value, 0);
+        return pushedWithKeys(writer, x -> x.expr(value, 0), keys);
+    }
+
+    private static SqlWriter pushedWithKeys(SqlWriter writer, SqlWriter.Piece value, List<SqlExpr> keys) {
+        writer.append("{\"v\": ").piece(value);
         for (int i = 0; i < keys.size(); i++) {
             writer.append(", \"k").append(i).append("\": ").expr(keys.get(i), 0).append(", \"n").append(i)
                     .append("\": {\"$eq\": [").expr(keys.get(i), 0).append(", null]}");
@@ -1548,11 +1988,7 @@ public final class MongoDb extends AnsiSqlRenderer {
                     return MongoJson.text(path);
                 }
                 pushed(w, r);
-                List<SqlExpr> extras = r.args().subList(1, r.args().size());
-                SqlWriter.Piece values = pushedValues(path, r.orderBy());
-                SqlWriter.Piece set = r.distinct() ? x -> distinctInOrder(x, y -> nonNull(y, values))
-                        : x -> nonNull(x, values);
-                return x -> arrayReduction(x, r.fn(), set, extras);
+                return pushedRead(r, path);
             }
             case SqlExpr.OrderedListAgg ola -> {
                 w.append("{\"$push\": ");
@@ -1617,6 +2053,14 @@ public final class MongoDb extends AnsiSqlRenderer {
                 .append(", []]}, \"cond\": {\"$ne\": [" + THIS + ", null]}}}");
     }
 
+    /** The array of pairs without those a null side: a two-column statistic counts the rows where both are
+     *  present. */
+    private static SqlWriter nonNullPairs(SqlWriter writer, SqlWriter.Piece array) {
+        return writer.append("{\"$filter\": {\"input\": {\"$ifNull\": [").piece(array)
+                .append(", []]}, \"cond\": {\"$and\": [{\"$ne\": [\"$$this.x\", null]}, {\"$ne\": [\"$$this.y\","
+                        + " null]}]}}}");
+    }
+
     /** The array's distinct elements, the first occurrence of each kept in place. */
     private static SqlWriter distinctInOrder(SqlWriter writer, SqlWriter.Piece array) {
         return writer.append("{\"$reduce\": {\"input\": ").piece(array).append(", \"initialValue\": [], \"in\":"
@@ -1628,18 +2072,31 @@ public final class MongoDb extends AnsiSqlRenderer {
      *  reduction. */
     private static SqlWriter arrayReduction(SqlWriter writer, SqlAgg.Fn fn, SqlWriter.Piece array,
             List<SqlExpr> extras) {
+        return arrayReduction(writer, fn, array, extras, false);
+    }
+
+    private static SqlWriter arrayReduction(SqlWriter writer, SqlAgg.Fn fn, SqlWriter.Piece array,
+            List<SqlExpr> extras, boolean descending) {
         writer.append("{\"$let\": {\"vars\": {\"a\": ").piece(array).append("}, \"in\": ");
         if (fn == SqlAgg.Fn.COUNT) {
             return writer.append("{\"$size\": \"$$a\"}}}");
         }
         writer.append("{\"$cond\": [{\"$eq\": [{\"$size\": \"$$a\"}, 0]}, null, ");
-        reduceArray(writer, fn, extras);
+        reduceArray(writer, fn, extras, descending);
         return writer.append("]}}}");
     }
 
-    /** The reduction of the bound array {@code $$a}, by aggregate. */
-    private static SqlWriter reduceArray(SqlWriter writer, SqlAgg.Fn fn, List<SqlExpr> extras) {
-        String sorted = "{\"$sortArray\": {\"input\": \"$$a\", \"sortBy\": 1}}";
+    /** The reduction of the bound array {@code $$a}, by aggregate; a quantile or a median over the values sorted
+     *  the way the reducer orders them (a descending percentile interpolates from the top). */
+    private static SqlWriter reduceArray(SqlWriter writer, SqlAgg.Fn fn, List<SqlExpr> extras, boolean descending) {
+        String sorted = "{\"$sortArray\": {\"input\": \"$$a\", \"sortBy\": " + (descending ? -1 : 1) + "}}";
+        // the pairs' sides and their products, for the two-column statistics
+        String xs = "{\"$map\": {\"input\": \"$$a\", \"in\": \"$$this.x\"}}";
+        String ys = "{\"$map\": {\"input\": \"$$a\", \"in\": \"$$this.y\"}}";
+        String xys = "{\"$map\": {\"input\": \"$$a\", \"in\": {\"$multiply\": [\"$$this.x\", \"$$this.y\"]}}}";
+        // the population covariance: E[xy] - E[x]E[y]
+        String covarPop = "{\"$subtract\": [{\"$avg\": " + xys + "}, {\"$multiply\": [{\"$avg\": " + xs + "},"
+                + " {\"$avg\": " + ys + "}]}]}";
         return switch (fn) {
             case SUM -> writer.append("{\"$sum\": \"$$a\"}");
             case AVG -> writer.append("{\"$avg\": \"$$a\"}");
@@ -1672,9 +2129,26 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " [{\"$toInt\": {\"$ceil\": {\"$multiply\": [").piece(x -> quantile(x, extras))
                     .append(", {\"$size\": \"$$a\"}]}}}, 1]}]}]}");
             case COUNT -> writer.append("{\"$size\": \"$$a\"}");
-            case MODE -> throw new DialectCapability("mode reached MongoDb: not shaped yet");
-            case CORR, COVAR_SAMP, COVAR_POP -> throw new DialectCapability(fn + " reached MongoDb: a two-column"
-                    + " statistic is not shaped yet");
+            // the most frequent value, the smallest among equally frequent ones: the sorted values' runs counted,
+            // a longer run taking the lead (Pure's mode: a fold over the sorted numbers, a strictly greater count
+            // replacing the leader)
+            case MODE -> writer.append("{\"$let\": {\"vars\": {\"m\": {\"$reduce\": {\"input\": " + sorted
+                    + ", \"initialValue\": {\"v\": null, \"n\": 0, \"p\": null, \"c\": 0}, \"in\": {\"$let\":"
+                    + " {\"vars\": {\"c\": {\"$cond\": [{\"$eq\": [" + THIS + ", \"$$value.p\"]}, {\"$add\":"
+                    + " [\"$$value.c\", 1]}, 1]}}, \"in\": {\"$cond\": [{\"$gt\": [\"$$c\", \"$$value.n\"]}, {\"v\": "
+                    + THIS + ", \"n\": \"$$c\", \"p\": " + THIS + ", \"c\": \"$$c\"}, {\"v\": \"$$value.v\", \"n\":"
+                    + " \"$$value.n\", \"p\": " + THIS + ", \"c\": \"$$c\"}]}}}}}}, \"in\": \"$$m.v\"}}");
+            case COVAR_POP -> writer.append(covarPop);
+            // the sample covariance scales the population's by n/(n-1); null over one pair, as SQL answers
+            case COVAR_SAMP -> writer.append("{\"$cond\": [{\"$lte\": [{\"$size\": \"$$a\"}, 1]}, null, {\"$multiply\":"
+                    + " [" + covarPop + ", {\"$divide\": [{\"$size\": \"$$a\"}, {\"$subtract\": [{\"$size\": \"$$a\"},"
+                    + " 1]}]}]}]}");
+            // the correlation: the population covariance over the product of the population deviations; null
+            // where a side does not vary, as SQL answers
+            case CORR -> writer.append("{\"$let\": {\"vars\": {\"sx\": {\"$stdDevPop\": " + xs + "}, \"sy\":"
+                    + " {\"$stdDevPop\": " + ys + "}}, \"in\": {\"$cond\": [{\"$or\": [{\"$eq\": [\"$$sx\", 0]},"
+                    + " {\"$eq\": [\"$$sy\", 0]}]}, null, {\"$divide\": [" + covarPop + ", {\"$multiply\": [\"$$sx\","
+                    + " \"$$sy\"]}]}]}}}");
             case ARG_MAX, ARG_MIN -> throw new DialectCapability(fn + " reached MongoDb: not shaped yet");
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw new IllegalStateException(
                     "lowering marker " + fn + " reached the renderer");
@@ -1725,7 +2199,74 @@ public final class MongoDb extends AnsiSqlRenderer {
         throw new DialectCapability("a cast to a struct type reached MongoDb, whose documents are untyped");
     }
 
-    /** {@code $dateToString}'s codes: the date and time parts to the millisecond; a name or a 12-hour part has none. */
+    /**
+     * A date's text by a format: one {@code $dateToString} where every part has a code; a name or a 12-hour part,
+     * which has none, composed beside the coded runs -- a weekday's or a month's name by its number, the 12-hour
+     * clock and its marker from the hour.
+     */
+    private SqlWriter strftime(SqlWriter writer, List<SqlExpr> a) {
+        if (!(a.get(1) instanceof SqlExpr.FormatLit fl) || fl.parts().stream().noneMatch(MongoDb::composed)) {
+            return writer.append("{\"$dateToString\": {\"date\": ").expr(a.get(0), 0).append(", \"format\": ")
+                    .expr(a.get(1), 0).append("}}");
+        }
+        writer.append("{\"$let\": {\"vars\": {\"d\": ").expr(a.get(0), 0).append("}, \"in\": {\"$concat\": [");
+        List<com.legend.sql.DateFmt> run = new ArrayList<>();
+        boolean first = true;
+        for (com.legend.sql.DateFmt p : fl.parts()) {
+            if (!composed(p)) {
+                run.add(p);
+                continue;
+            }
+            first = codedRun(writer, run, first);
+            writer.append(first ? "" : ", ");
+            first = false;
+            writer.append(switch ((com.legend.sql.DateFmt.Part) p) {
+                case WEEKDAY_NAME -> "{\"$arrayElemAt\": [[\"Sunday\", \"Monday\", \"Tuesday\", \"Wednesday\","
+                        + " \"Thursday\", \"Friday\", \"Saturday\"], {\"$subtract\": [{\"$dayOfWeek\": \"$$d\"}, 1]}]}";
+                case MONTH_NAME -> "{\"$arrayElemAt\": [[\"January\", \"February\", \"March\", \"April\", \"May\","
+                        + " \"June\", \"July\", \"August\", \"September\", \"October\", \"November\","
+                        + " \"December\"], {\"$subtract\": [{\"$month\": \"$$d\"}, 1]}]}";
+                case MONTH_ABBREV -> "{\"$arrayElemAt\": [[\"Jan\", \"Feb\", \"Mar\", \"Apr\", \"May\", \"Jun\","
+                        + " \"Jul\", \"Aug\", \"Sep\", \"Oct\", \"Nov\", \"Dec\"], {\"$subtract\": [{\"$month\":"
+                        + " \"$$d\"}, 1]}]}";
+                case HOUR12 -> "{\"$let\": {\"vars\": {\"h\": {\"$toString\": {\"$add\": [{\"$mod\": [{\"$add\":"
+                        + " [{\"$hour\": \"$$d\"}, 11]}, 12]}, 1]}}}, \"in\": {\"$cond\": [{\"$eq\": [{\"$strLenCP\":"
+                        + " \"$$h\"}, 1]}, {\"$concat\": [\"0\", \"$$h\"]}, \"$$h\"]}}}";
+                case HOUR12_NOPAD -> "{\"$toString\": {\"$add\": [{\"$mod\": [{\"$add\": [{\"$hour\": \"$$d\"}, 11]},"
+                        + " 12]}, 1]}}";
+                case AMPM -> "{\"$cond\": [{\"$lt\": [{\"$hour\": \"$$d\"}, 12]}, \"AM\", \"PM\"]}";
+                // the minimal fraction: the milliseconds' trailing zeros trimmed, one digit kept
+                case SUBSEC_MIN -> "{\"$let\": {\"vars\": {\"f\": {\"$rtrim\": {\"input\": {\"$dateToString\": {\"date\":"
+                        + " \"$$d\", \"format\": \"%L\"}}, \"chars\": \"0\"}}}, \"in\": {\"$cond\": [{\"$eq\": [\"$$f\","
+                        + " \"\"]}, \"0\", \"$$f\"]}}}";
+                default -> throw new IllegalStateException("not a composed date part: " + p);
+            });
+        }
+        codedRun(writer, run, first);
+        return writer.append("]}}}");
+    }
+
+    /** The run of coded parts as one {@code $dateToString}, emptied; whether nothing has been written yet. */
+    private boolean codedRun(SqlWriter writer, List<com.legend.sql.DateFmt> run, boolean first) {
+        if (run.isEmpty()) {
+            return first;
+        }
+        writer.append(first ? "" : ", ").append("{\"$dateToString\": {\"date\": \"$$d\", \"format\": ")
+                .append(MongoJson.string(formatText(new SqlExpr.FormatLit(List.copyOf(run))))).append("}}");
+        run.clear();
+        return false;
+    }
+
+    /** A part {@code $dateToString} has no code for: a name, the 12-hour clock, or the minimal fraction. */
+    private static boolean composed(com.legend.sql.DateFmt p) {
+        return p instanceof com.legend.sql.DateFmt.Part part && switch (part) {
+            case MONTH_ABBREV, MONTH_NAME, WEEKDAY_NAME, HOUR12, HOUR12_NOPAD, AMPM, SUBSEC_MIN -> true;
+            default -> false;
+        };
+    }
+
+    /** {@code $dateToString}'s codes: the date and time parts to the millisecond; a name or a 12-hour part has none
+     *  (composed beside the codes by {@link #strftime}). */
     @Override
     protected String formatText(SqlExpr.FormatLit fl) {
         StringBuilder out = new StringBuilder();
@@ -1743,11 +2284,9 @@ public final class MongoDb extends AnsiSqlRenderer {
                     // is exact (the TDS text's DateTime cell reads the first three of six, 2026-10-17)
                     case SUBSEC_MICRO -> "%L000";
                     case SUBSEC_NANO -> "%L000000";
-                    case SUBSEC_MIN -> throw new DialectCapability("a date format with a " + part + " part reached"
-                            + " MongoDb, whose date holds milliseconds (%L)");
-                    case MONTH_ABBREV, MONTH_NAME, WEEKDAY_NAME, HOUR12, HOUR12_NOPAD, AMPM -> throw
-                            new DialectCapability("a date format with a " + part + " part reached MongoDb, whose"
-                                    + " $dateToString has no code for it");
+                    case SUBSEC_MIN, MONTH_ABBREV, MONTH_NAME, WEEKDAY_NAME, HOUR12, HOUR12_NOPAD, AMPM -> throw
+                            new IllegalStateException("a date format's " + part + " part reached $dateToString's"
+                                    + " codes outside its composition (MongoDb.strftime)");
                 };
             });
         }

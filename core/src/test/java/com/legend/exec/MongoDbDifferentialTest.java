@@ -42,6 +42,9 @@ class MongoDbDifferentialTest {
     private static final String PEOPLE = "#TDS\n id, name, age, city\n 1, Ann, 34, Oslo\n 2, Bob, 28, Oslo\n"
             + " 3, Cy, 41, Rome\n#";
     private static final String CITIES = "#TDS\n town, country\n Oslo, NO\n Paris, FR\n#";
+    /** Two groups with tied scores, for the ranking and ranging windows. */
+    private static final String SCORES = "#TDS\n id, g, s, n\n 1, a, 10, x\n 2, a, 20, y\n 3, a, 20, z\n"
+            + " 4, a, 30, w\n 5, b, 5, v\n 6, b, 6, u\n#";
 
     private static final List<Case> CASES = List.of(
             new Case("plus", "1 + 2"),
@@ -138,7 +141,148 @@ class MongoDbDifferentialTest {
             new Case("date_column", PEOPLE + "->extend(~d: x | %2020-01-15->adjust($x.id, DurationUnit.DAYS))"
                     + "->extend(~day: x | $x.d->dayOfMonth())->select(~[id, day])->sort(~id->ascending())"),
             new Case("pivot", PEOPLE + "->pivot(~city, ~[s: x | $x.age : y | $y->plus()])"),
-            new Case("window", PEOPLE + "->extend(over(~city), ~r: {p, w, r | $p->rowNumber($r)})->select(~[name, r])"));
+            new Case("window", PEOPLE + "->extend(over(~city), ~r: {p, w, r | $p->rowNumber($r)})"
+                    + "->sort(~name->ascending())->select(~[name, r])"),
+            new Case("window_rank", SCORES + "->extend(over(~g, ~s->descending()), ~[r: {p, w, r | $p->rank($w, $r)},"
+                    + " d: {p, w, r | $p->denseRank($w, $r)}, rn: {p, w, r | $p->rowNumber($r)}])"
+                    + "->sort(~id->ascending())->select(~[id, r, d, rn])"),
+            new Case("window_two_keys", SCORES + "->extend(over(~g, [~s->ascending(), ~id->ascending()]),"
+                    + " ~[r: {p, w, r | $p->rank($w, $r)}, rn: {p, w, r | $p->rowNumber($r)}])"
+                    + "->sort(~id->ascending())->select(~[id, r, rn])"),
+            new Case("window_running", SCORES + "->extend(over(~g, ~s->ascending()), ~t: {p, w, r | $r.s}: y | $y->plus())"
+                    + "->sort(~id->ascending())->select(~[id, t])"),
+            new Case("window_rows", SCORES + "->extend(over(~g, ~id->ascending(), rows(-1, 0)),"
+                    + " ~t: {p, w, r | $r.s}: y | $y->plus())->sort(~id->ascending())->select(~[id, t])"),
+            new Case("window_range_asc", SCORES + "->extend(over(~g, ~s->ascending(), _range(-1, 1)),"
+                    + " ~t: {p, w, r | $r.s}: y | $y->plus())->sort(~id->ascending())->select(~[id, t])"),
+            new Case("window_range_desc", SCORES + "->extend(over(~g, ~s->descending(), _range(-1, 1)),"
+                    + " ~t: {p, w, r | $r.s}: y | $y->plus())->sort(~id->ascending())->select(~[id, t])"),
+            new Case("window_range_unbounded_desc", SCORES + "->extend(over(~g, ~s->descending(),"
+                    + " _range(unbounded(), 0)), ~t: {p, w, r | $r.s}: y | $y->plus())->sort(~id->ascending())"
+                    + "->select(~[id, t])"),
+            new Case("window_lag_lead", SCORES + "->extend(over(~g, ~id->ascending()), ~[a: {p, w, r | $p->lag($r).s},"
+                    + " b: {p, w, r | $p->lead($r).s}])->sort(~id->ascending())->select(~[id, a, b])"),
+            new Case("window_first_last", SCORES + "->extend(over(~g, ~id->ascending(),"
+                    + " rows(unbounded(), unbounded())), ~[a: {p, w, r | $p->first($w, $r).s},"
+                    + " b: {p, w, r | $p->last($w, $r).s}])->sort(~id->ascending())->select(~[id, a, b])"),
+            new Case("window_percent", SCORES + "->extend(over(~g, ~s->ascending()),"
+                    + " ~[a: {p, w, r | $p->percentRank($w, $r)}, b: {p, w, r | $p->cumulativeDistribution($w, $r)},"
+                    + " c: {p, w, r | $p->ntile($r, 2)}])->sort(~id->ascending())->select(~[id, a, b, c])"),
+            new Case("window_join_strings", SCORES + "->extend(over(~g, ~id->ascending()),"
+                    + " ~t: {p, w, r | $r.n}: y | $y->joinStrings(','))->sort(~id->ascending())->select(~[id, t])"),
+            new Case("window_unordered_count", SCORES + "->extend(over(~g), ~t: {p, w, r | $r.s}: y | $y->count())"
+                    + "->sort(~id->ascending())->select(~[id, t])"),
+            new Case("window_range_nulls", "#TDS\n id, g, o, i\n 1, a, 1, 10\n 2, a, 2, 20\n 3, a, null, 30\n"
+                    + " 4, a, 3, 30\n 5, a, null, 20\n 6, b, 1, 10\n 7, b, null, 10\n#->extend(over(~g, ~o->ascending(),"
+                    + " _range(-1, 1)), ~t: {p, w, r | $r.i}: y | $y->plus())->sort(~id->ascending())->select(~[id, t])"),
+            new Case("window_range_nulls_unbounded", "#TDS\n id, g, o, i\n 1, a, 1, 10\n 2, a, 2, 20\n 3, a, null, 30\n"
+                    + " 4, a, 3, 30\n 5, a, null, 20\n 6, b, 1, 10\n 7, b, null, 10\n#->extend(over(~g, ~o->ascending(),"
+                    + " _range(-1, unbounded())), ~t: {p, w, r | $r.i}: y | $y->plus())->sort(~id->ascending())"
+                    + "->select(~[id, t])"),
+            new Case("window_range_days", "#TDS\n id:Integer, g:String, d:DateTime, i:Integer\n"
+                    + " 1, a, 2020-01-01T00:00:00.000+0000, 10\n 2, a, 2020-01-02T00:00:00.000+0000, 20\n"
+                    + " 3, a, 2020-01-05T00:00:00.000+0000, 30\n 4, b, 2020-01-01T00:00:00.000+0000, 5\n"
+                    + "#->extend(over(~g, ~d->ascending(),"
+                    + " _range(1, DurationUnit.SECONDS, 1, DurationUnit.DAYS)), ~t: {p, w, r | $r.i}: y | $y->plus())"
+                    + "->sort(~id->ascending())->select(~[id, t])"),
+            new Case("window_stats", SCORES + "->extend(over(~g), ~[a: {p, w, r | $r.s}: y | $y->mode(),"
+                    + " b: {p, w, r | $r.s}: y | $y->percentile(0.6, false, true)])->sort(~id->ascending())"
+                    + "->select(~[id, a, b])"),
+            new Case("group_mode", SCORES + "->groupBy(~g, ~m: x | $x.s : y | $y->mode())->sort(~g->ascending())"),
+            new Case("list_mode", "[3, 2, 3.0, 7.0, 2, 2, 3, 2.0, 2.0]->mode()"),
+            new Case("group_corr", SCORES + "->groupBy(~g, ~[c: x | meta::pure::functions::math::mathUtility"
+                    + "::rowMapper($x.s, $x.id) : y | $y->corr(), p: x | meta::pure::functions::math::mathUtility"
+                    + "::rowMapper($x.s, $x.id) : y | $y->covarPopulation(), q: x | meta::pure::functions::math"
+                    + "::mathUtility::rowMapper($x.s, $x.id) : y | $y->covarSample()])->sort(~g->ascending())"),
+            new Case("window_corr", SCORES + "->extend(over(~g), ~c: {p, w, r | meta::pure::functions::math"
+                    + "::mathUtility::rowMapper($r.s, $r.id)}: y | $y->corr())->sort(~id->ascending())"
+                    + "->select(~[id, c])"),
+            new Case("variant_text", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n 1, '[1,2,3]'\n 2, '{\"a\":1,\"b\":\"x\"}'\n"
+                    + " 3, '{\"n\":{\"d\":[true,null,1.5,\"q r\"]}}'\n#->extend(~t: x | $x.payload)"
+                    + "->sort(~id->ascending())->select(~[id, t])"),
+            new Case("variant_key", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n 1, '{\"a\":1,\"b\":\"x\"}'\n"
+                    + " 2, '{\"a\":2,\"b\":\"y\"}'\n#->extend(~[k: x | $x.payload->get('a'), s: x | $x.payload->get('b')])"
+                    + "->sort(~id->ascending())->select(~[id, k, s])"),
+            new Case("variant_map", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n 1, '[1,2,3]'\n 2, '[4,5,6]'\n#->extend(~m: x |"
+                    + " $x.payload->toMany(@Integer)->map(t | $t->mod(2))->toVariant())->sort(~id->ascending())"
+                    + "->select(~[id, m])"),
+            new Case("lateral", "#TDS\n did, dname\n 1, Eng\n 2, Ops\n 3, Art\n#->lateral(x | #TDS\n eid, department\n"
+                    + " 10, 1\n 11, 1\n 12, 2\n#->filter(y | $y.department == $x.did))->sort(~eid->ascending())"),
+            new Case("asof", "#TDS\n k, t\n a, 5\n a, 12\n b, 7\n#->asOfJoin(#TDS\n k2, t2, v\n a, 3, p\n a, 10, q\n"
+                    + " b, 9, r\n#, {x, y | $x.t->toOne() > $y.t2->toOne()}, {x, y | $x.k->toOne() == $y.k2->toOne()})"
+                    + "->sort([~k->ascending(), ~t->ascending()])"),
+            new Case("asof_after", "#TDS\n k, t\n a, 5\n a, 12\n b, 7\n#->asOfJoin(#TDS\n k2, t2, v\n a, 3, p\n a, 10, q\n"
+                    + " b, 9, r\n#, {x, y | $x.t->toOne() < $y.t2->toOne()})->sort([~k->ascending(), ~t->ascending()])"),
+            new Case("list_corr", "corr([1, 2], [10, 20])"),
+            new Case("list_covar", "covarPopulation([1, 3.0, 6.0], [10, -20, 30])"),
+            new Case("list_mode_mixed", "mode([3, 3.0, 3, 2, 2])"),
+            new Case("tds_mode_mixed", "mode([3, 3.0, 3, 2, 2])", TypedQuery.Output.TDS_TEXT),
+            new Case("join_no_strings", "joinStrings(['a']->tail(), ',')"),
+            new Case("join_no_strings_brackets", "joinStrings(['a']->tail(), '[', ',', ']')"),
+            new Case("reverse_empty", "''->reverseString()"),
+            new Case("left_empty", "''->left(3)"),
+            new Case("index_of_one", "'c'->indexOf('c')"),
+            new Case("right_digits", "'000123456789'->right(4)"),
+            new Case("tds_right_digits", "'000123456789'->right(4)", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_join_no_strings", "joinStrings(['a']->tail(), ',')", TypedQuery.Output.TDS_TEXT),
+            new Case("map_get", "newMap(pair('key1', 1))->get('key1')"),
+            new Case("map_keys", "newMap([pair('a', 1), pair('b', 2)])->keys()->sort()"),
+            new Case("map_put", "newMap(pair('a', 1))->put('b', 2)->get('b')"),
+            new Case("remove_duplicates_by", "[1, 2, '1', '3', 1, 3, '3', 2]->removeDuplicatesBy({x | $x->toString()})"),
+            new Case("remove_duplicates_by_prefix", "['hello', 'helloWorld', 'world']->removeDuplicatesBy(x:String[1]"
+                    + " | $x->substring(0, 1))"),
+            new Case("drop_in_list", "list([1, 2, 3]->drop(1))"),
+            new Case("parse_date_zone", "parseDate('2014-02-27T10:01:35.231-0500')"),
+            new Case("format_int", "format('the quick brown %s jumps over the lazy %d', ['fox', -3])"),
+            new Case("format_float_rounding", "format('the quick brown %s jumps over the lazy %.2f', ['fox', 1.5])"),
+            new Case("format_float_truncation", "format('%.1f and %.0f', [1.56, 2.5])"),
+            new Case("format_float_zero_padding", "format('%.4f', [1.5])"),
+            new Case("parse_date_zone_colon", "parseDate('2014-02-27T10:01:35.231+05:00')"),
+            new Case("instant_wall", "%2014-02-27T10:01:35.231+0000->toString()"),
+            new Case("find_length", "['smith', 'branche', 'doe']->find(p | $p->length() < 4)"),
+            new Case("tds_list_corr", "corr([1, 2], [10, 20])", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_list_corr_empty", "corr([1], [])", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_list_corr_three", "corr([1, 3.0, 6.0], [10, -20, 30])", TypedQuery.Output.TDS_TEXT),
+            new Case("variant_join_null", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n 1, '[\"1\",\"2\"]'\n"
+                    + " 4, 'null'\n#->extend(~joined: x | $x.payload->toMany(@String)->joinStrings(','))"
+                    + "->sort(~id->ascending())->select(~[id, joined])"),
+            new Case("tds_variant_join_null", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n"
+                    + " 1, '[\"1\",\"2\"]'\n 4, 'null'\n#->extend(~joined: x | $x.payload->toMany(@String)->joinStrings(','))"
+                    + "->sort(~id->ascending())->select(~[id, joined])", TypedQuery.Output.TDS_TEXT),
+            new Case("pair_to_string", "'(' + [pair('a', 'b'), pair('a', 1)]->map(p | $p->toString())->joinStrings(',') + ')'"),
+            new Case("ascii_char", "[('A'->ascii()), ('z'->ascii()), (' '->ascii())]->map(c | $c->char())->joinStrings('')"),
+            new Case("ascii_codes", "['A', 'z', '0', ' ']->map(c | $c->ascii())"),
+            new Case("bit_shifts", "[1->bitShiftLeft(4), 256->bitShiftRight(3), -16->bitShiftRight(2)]"),
+            new Case("time_bucket_seconds", "%2024-01-31T00:32:34.999+0000->timeBucket(18, DurationUnit.SECONDS)", TypedQuery.Output.TDS_TEXT),
+            new Case("time_bucket_seconds_old", "%1951-10-21T08:59:00.676+0000->timeBucket(3, DurationUnit.SECONDS)", TypedQuery.Output.TDS_TEXT),
+            new Case("time_bucket_minutes", "%2024-01-31T00:32:34.999+0000->timeBucket(7, DurationUnit.MINUTES)", TypedQuery.Output.TDS_TEXT),
+            new Case("time_bucket_hours", "%2024-01-31T00:32:34.999+0000->timeBucket(5, DurationUnit.HOURS)", TypedQuery.Output.TDS_TEXT),
+            new Case("time_bucket_days", "%2024-01-31T00:32:34.999+0000->timeBucket(3, DurationUnit.DAYS)", TypedQuery.Output.TDS_TEXT),
+            new Case("time_bucket_weeks", "%2024-01-31T00:32:34.999+0000->timeBucket(2, DurationUnit.WEEKS)", TypedQuery.Output.TDS_TEXT),
+            new Case("time_bucket_months", "%2024-05-31T00:32:34.999+0000->timeBucket(5, DurationUnit.MONTHS)", TypedQuery.Output.TDS_TEXT),
+            new Case("time_bucket_years", "%2024-05-31T00:32:34.999+0000->timeBucket(3, DurationUnit.YEARS)", TypedQuery.Output.TDS_TEXT),
+            new Case("time_bucket_years_old", "%1951-10-21T08:59:00.676+0000->timeBucket(2, DurationUnit.YEARS)", TypedQuery.Output.TDS_TEXT),
+            new Case("day_of_week", "[%1985-01-12->dayOfWeek(), %2025-09-22->dayOfWeek()]"),
+            new Case("format_date_12h", "[format('on %t{yyyy-MM-dd h:mm:ssa}', %2014-03-10T13:07:44.001),"
+                    + " format('on %t{yyyy-MM-dd hh:mm:ssa}', %2014-03-10T01:07:44.001)]"),
+            new Case("variant_distinct_null", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n"
+                    + " 2, '[1,2,2,3]'\n 3, 'null'\n#->extend(~[d: x | $x.payload->toMany(@Integer)->distinct()->toVariant(),"
+                    + " r: x | $x.payload->toMany(@Integer)->removeDuplicates()->toVariant()])->sort(~id->ascending())"
+                    + "->select(~[id, d, r])"),
+            new Case("variant_deep", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n"
+                    + " 1, '[{\"key\":[{\"innerKey\":[1,2]}]}]'\n#->extend(~t: x | $x.payload)->select(~[id, t])"),
+            new Case("format_negative_zero", "format('%.2f', [-0.001])"),
+            new Case("tds_variant_join_pct", "#TDS\n id, payload:meta::pure::metamodel::variant::Variant\n 1, '[1,2,3]'\n"
+                    + " 4, 'null'\n#->extend(~joined: x | $x.payload->toMany(@String)->joinStrings(','))",
+                    TypedQuery.Output.TDS_TEXT),
+            new Case("tds_char_digit", "48->char()", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_format_date_plain", "format('on %t{yyyy-MM-dd}', %2014-03-10T12:00:00)", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_format_strict_date", "format('on %t{yyyy-MM-dd}', %2014-03-10)", TypedQuery.Output.TDS_TEXT),
+            new Case("bit_shift_62", "1->bitShiftLeft(53)->bitShiftRight(0)"),
+            new Case("tds_time_bucket_nanos", "%2024-01-31T00:32:34.999123456+0000->timeBucket(2, DurationUnit.DAYS)",
+                    TypedQuery.Output.TDS_TEXT),
+            new Case("window_qualify", SCORES + "->extend(over(~g, ~s->descending()), ~r: {p, w, r | $p->rank($w, $r)})"
+                    + "->filter(x | $x.r == 1)->sort(~id->ascending())->select(~[id, s])"));
 
     @Test
     void differential() throws Exception {
@@ -179,6 +323,10 @@ class MongoDbDifferentialTest {
             }
             counts.merge(verdict, 1, Integer::sum);
             lines.add(c.name() + "\t" + verdict + "\t" + detail + "\t" + flat(reference));
+            if (!verdict.equals("EQUAL")) {
+                // the pipeline beside a verdict that is not EQUAL, so the log says what MongoDB was asked
+                System.out.println("[mongodb-differential] " + c.name() + " pipeline: " + pipelineOf(mongo, c));
+            }
         }
         String out = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         if (out != null) {
@@ -189,6 +337,28 @@ class MongoDbDifferentialTest {
             System.out.println("[mongodb-differential] " + line);
         }
         assertTrue(referenceFailures.isEmpty(), "the reference (DuckDB) did not run: " + referenceFailures);
+    }
+
+    /** The case's pipeline text, or the refusal that stood in its way. */
+    private static String pipelineOf(String model, Case c) {
+        try {
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), c.expression())
+                    .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, c.output());
+            StringBuilder sb = new StringBuilder();
+            statements(plan.root(), sb);
+            return sb.toString();
+        } catch (RuntimeException e) {
+            return e.getClass().getSimpleName() + ": " + first(e.getMessage());
+        }
+    }
+
+    private static void statements(ExecutionPlan.Node node, StringBuilder sb) {
+        switch (node) {
+            case ExecutionPlan.Sequence seq -> seq.steps().forEach(n -> statements(n, sb));
+            case ExecutionPlan.TdsResult t -> sb.append(t.sql().statement()).append(' ');
+            case ExecutionPlan.TextResult t -> sb.append(t.sql().statement()).append(' ');
+            default -> sb.append("<").append(node.getClass().getSimpleName()).append("> ");
+        }
     }
 
     private static String run(String model, String expression, TypedQuery.Output output) throws Exception {

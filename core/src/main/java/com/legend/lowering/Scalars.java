@@ -1963,9 +1963,11 @@ final class Scalars {
                             List.of());
                     var outer = new SqlSelect(List.of(
                             new SqlSelect.Projection(
+                                    // the pair's columns qualified by the subselect's alias: a target that
+                                    // keeps a subselect's row under its alias (MongoDb) reads them there
                                     new SqlAgg.Reducer(e.getValue(),
-                                            List.of(SqlExpr.Column.derived(null, "a"),
-                                                    SqlExpr.Column.derived(null, "b")), false, java.util.List.of()),
+                                            List.of(SqlExpr.Column.derived("_uz", "a"),
+                                                    SqlExpr.Column.derived("_uz", "b")), false, java.util.List.of()),
                                     null, null)),
                             false, new SqlSource.Subselect(inner, "_uz", null),
                             null, List.of(), null, null, List.of(), null, null, List.of());

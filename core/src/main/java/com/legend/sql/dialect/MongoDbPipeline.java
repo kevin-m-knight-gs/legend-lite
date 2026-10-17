@@ -15,6 +15,7 @@ import com.legend.sql.SqlUnion;
 import com.legend.sql.SqlWith;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -163,9 +164,6 @@ final class MongoDbPipeline {
 
     /** One select, clause by clause, in SQL's order of evaluation. */
     private @Nullable List<String> select(SqlWriter w, SqlSelect s, Stages st) {
-        if (s.qualify() != null) {
-            throw new DialectCapability("QUALIFY reached MongoDb: windows have no shape yet");
-        }
         source(w, s.from(), st, Shape.WRAPPED);
         Clauses clauses = subqueries(w, s, st);
         if (clauses.where != null) {
@@ -175,6 +173,7 @@ final class MongoDbPipeline {
         if (g.having != null) {
             match(w, st, g.having);
         }
+        g = windows(w, st, g, s.qualify());
         List<SortCarry> sorts = sortCarries(w, st, g);
         List<String> projected = projection(w, s, st, g, sorts);
         if (s.distinct()) {
@@ -222,7 +221,10 @@ final class MongoDbPipeline {
     }
 
     /** The subqueries of a select's expressions, each replaced by its marker: a scalar subquery and an EXISTS by a
-     *  marker column; an IN by the needle's membership in the marker's rows. */
+     *  marker column; an IN by the needle's membership in the marker's rows; a quantified comparison by the list
+     *  predicate over the marker's rows -- {@code exists} for ANY, {@code forAll} for ALL -- whose lambda compares
+     *  the value with each row (the Lowerer drops the rows' nulls and guards the value, so the two-valued
+     *  predicates are SQL's: RelationPredicates.quantifier). */
     private static final class Subqueries {
         final List<SqlExpr> found = new ArrayList<>();
 
@@ -231,6 +233,14 @@ final class MongoDbPipeline {
                 case SqlExpr.ScalarSubquery sq -> marker(sq);
                 case SqlExpr.Exists ex -> marker(ex);
                 case SqlExpr.InSubquery in -> new SqlExpr.Membership(apply(in.value()), marker(in));
+                case SqlExpr.Quantified q -> {
+                    SqlExpr value = apply(q.value());
+                    SqlExpr rows = marker(q);
+                    String row = "__q" + (found.size() - 1);
+                    SqlExpr compared = SqlExpr.Call.of(q.comparison(), value, SqlExpr.Column.derived(null, row));
+                    yield SqlExpr.Call.of(q.quantifier() == SqlExpr.Quantifier.ANY ? SqlFn.LIST_EXISTS
+                            : SqlFn.LIST_FOR_ALL, rows, new SqlExpr.Lambda(List.of(row), compared));
+                }
                 default -> e.mapChildren(this::apply);
             };
         }
@@ -246,7 +256,8 @@ final class MongoDbPipeline {
      * that read it: the row's aliases are the lookup's {@code let} variables, so a correlated subquery reads them as
      * variables (a reference the lookup does not bind fails on the server by name); the subquery's own pipeline
      * runs over its base collection, or over its literal rows. A scalar subquery reads its first row's one column
-     * (null over no row, SQL's answer); EXISTS reads whether a row came; IN reads the column of every row.
+     * (null over no row, SQL's answer); EXISTS reads whether a row came; IN and a quantified comparison read the
+     * column of every row.
      */
     private Clauses subqueries(SqlWriter w, SqlSelect s, Stages st) {
         Subqueries sub = new Subqueries();
@@ -271,6 +282,7 @@ final class MongoDbPipeline {
                     case SqlExpr.ScalarSubquery sq -> sq.subquery();
                     case SqlExpr.Exists ex -> ex.subquery();
                     case SqlExpr.InSubquery in -> in.subquery();
+                    case SqlExpr.Quantified q -> q.subquery();
                     default -> throw new IllegalStateException("not a subquery: " + sub.found.get(i));
                 };
                 String base = baseCollection(inner);
@@ -307,6 +319,8 @@ final class MongoDbPipeline {
                     + path + ", 0]}}, \"in\": " + MongoJson.string("$$r." + readField(inner, projected)) + "}}");
             case SqlExpr.Exists ex -> MongoJson.text("{\"$gt\": [{\"$size\": " + path + "}, 0]}");
             case SqlExpr.InSubquery in -> MongoJson.text("{\"$map\": {\"input\": " + path + ", \"in\": "
+                    + MongoJson.string("$$this." + readField(inner, projected)) + "}}");
+            case SqlExpr.Quantified q -> MongoJson.text("{\"$map\": {\"input\": " + path + ", \"in\": "
                     + MongoJson.string("$$this." + readField(inner, projected)) + "}}");
             default -> throw new IllegalStateException("not a subquery: " + subquery);
         };
@@ -440,14 +454,22 @@ final class MongoDbPipeline {
         return out;
     }
 
-    /** An inner, left or cross join as a {@code $lookup} and an {@code $unwind}. */
+    /**
+     * A join as a {@code $lookup} and an {@code $unwind}: the lookup's {@code let} binds the left row's aliases, so
+     * its pipeline -- the right source, then the ON match -- reads them as variables, which is what a lateral
+     * join's correlated right side does ({@code CROSS_LATERAL} as a cross join, {@code LEFT_LATERAL} as a left
+     * join); an as-of join keeps, of the right rows the ON admits, the one nearest the left row's key (sorted by
+     * the match inequality's right-side column, the first taken), then pads as a left join does. A right or a full
+     * join has no shape yet.
+     */
     private void join(SqlWriter w, SqlSource.Join j, Stages st) {
         switch (j.kind()) {
-            case INNER, LEFT, CROSS -> {
+            case INNER, LEFT, CROSS, CROSS_LATERAL, LEFT_LATERAL, ASOF_LEFT -> {
             }
-            case RIGHT, FULL, CROSS_LATERAL, LEFT_LATERAL, ASOF_LEFT -> throw new DialectCapability("a "
-                    + j.kind() + " join reached MongoDb: only inner, left and cross joins have a shape yet");
+            case RIGHT, FULL -> throw new DialectCapability("a " + j.kind() + " join reached MongoDb: only inner,"
+                    + " left, cross, lateral and as-of joins have a shape yet");
         }
+        boolean pads = j.kind().padsRight();
         source(w, j.left(), st, Shape.WRAPPED);
         if (j.right() instanceof SqlSource.Join) {
             throw new DialectCapability("a join on the right side of a join reached MongoDb: a lookup over a"
@@ -476,14 +498,19 @@ final class MongoDbPipeline {
             if (j.on() != null) {
                 match(w, inner, j.on());
             }
+            if (j.kind() == SqlSource.Join.Kind.ASOF_LEFT) {
+                SqlSelect.SortKey nearest = asOfKey(j.on(), right);
+                inner.begin(w).append("{\"$sort\": {").append(MongoJson.key(((SqlExpr.Column) nearest.expr()).name()))
+                        .append(": ").append(nearest.ascending() ? 1 : -1).append("}}");
+                inner.begin(w).append("{\"$limit\": 1}");
+            }
         } finally {
             dialect.popScope();
         }
         w.append("], \"as\": ").append(MongoJson.key(right)).append("}}");
         st.begin(w).append("{\"$unwind\": {\"path\": ").append(MongoJson.path(right))
-                .append(", \"preserveNullAndEmptyArrays\": ").append(j.kind() == SqlSource.Join.Kind.LEFT ? "true" : "false")
-                .append("}}");
-        if (j.kind() == SqlSource.Join.Kind.LEFT) {
+                .append(", \"preserveNullAndEmptyArrays\": ").append(pads ? "true" : "false").append("}}");
+        if (pads) {
             // a missed row: the right source's columns, each null, so every later read finds the field
             st.begin(w).append("{\"$addFields\": {").append(MongoJson.key(right)).append(": {\"$ifNull\": [")
                     .append(MongoJson.path(right)).append(", {");
@@ -496,6 +523,46 @@ final class MongoDbPipeline {
             }
             w.append("}]}}}");
         }
+    }
+
+    /**
+     * The right-side column an as-of join's match inequality compares, and the direction that puts the nearest
+     * right row first: the ON is the match, or the keys' condition AND the match (Lowerer.asOfJoin); the match
+     * compares a left column with a right one, either side first, each perhaps under a checked narrowing or
+     * parentheses. A left key greater than the right one wants the greatest right key: descending.
+     */
+    private static SqlSelect.SortKey asOfKey(@Nullable SqlExpr on, String right) {
+        SqlExpr match = on;
+        while (match instanceof SqlExpr.Call c && c.fn() == SqlFn.AND) {
+            match = c.args().get(c.args().size() - 1);
+        }
+        if (!(match instanceof SqlExpr.Call cmp) || cmp.args().size() != 2) {
+            throw new IllegalStateException("an as-of join's match is not a comparison: " + match);
+        }
+        SqlExpr.Column first = columnOf(cmp.args().get(0));
+        SqlExpr.Column second = columnOf(cmp.args().get(1));
+        boolean rightFirst = first != null && right.equals(first.table());
+        SqlExpr.Column key = rightFirst ? first : second;
+        if (key == null || !right.equals(key.table())) {
+            throw new DialectCapability("an as-of join matching on " + match + " reached MongoDb: its lookup sorts"
+                    + " by the right side's column");
+        }
+        boolean leftGreater = switch (cmp.fn()) {
+            case GREATER, GREATER_EQUAL -> !rightFirst;
+            case LESS, LESS_EQUAL -> rightFirst;
+            default -> throw new IllegalStateException("an as-of join's match is not an inequality: " + cmp.fn());
+        };
+        return new SqlSelect.SortKey(key, !leftGreater, null, null);
+    }
+
+    /** The column under a comparison's operand -- itself, or wrapped in a checked narrowing or parentheses. */
+    private static SqlExpr.@Nullable Column columnOf(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.Column c -> c;
+            case SqlExpr.CheckedOne co -> columnOf(co.list());
+            case SqlExpr.Group g -> columnOf(g.inner());
+            default -> null;
+        };
     }
 
     // ==================================================================
@@ -591,6 +658,379 @@ final class MongoDbPipeline {
         }
         dialect.aggregateReads(reads);
         return new Grouping(ps, having, keys);
+    }
+
+    // ==================================================================
+    // Windows
+    // ==================================================================
+
+    /** The window functions of a select's expressions, each replaced by its marker column. */
+    private static final class Windows {
+        final List<SqlExpr.WindowCall> found = new ArrayList<>();
+
+        SqlExpr apply(SqlExpr e) {
+            if (e instanceof SqlExpr.WindowCall wc) {
+                int at = found.indexOf(wc);
+                if (at < 0) {
+                    at = found.size();
+                    found.add(wc);
+                }
+                return SqlExpr.Column.derived(null, MongoDb.WINDOW_MARKER + at);
+            }
+            return e.mapChildren(this::apply);
+        }
+    }
+
+    /**
+     * What a window function asks of the stage that computes it: nothing ({@code ANY}: the partition entire); a
+     * sort of any shape ({@code SORTED}: a lag, a lead, a ROWS frame -- a {@code documents} window); the sort as ONE
+     * field ({@code SINGLE}: MongoDB's ranking operators take a {@code sortBy} of exactly one element); the peers of
+     * the current row ({@code TO_CURRENT}: SQL's RANGE between unbounded and the current row -- an unframed ordered
+     * aggregate, a cumulative distribution -- which MongoDB ranges over a numeric field: the order's dense rank,
+     * computed first); a range by offsets over the one sort key itself ({@code RANGE_KEY}).
+     */
+    private enum Need { ANY, SORTED, SINGLE, TO_CURRENT, RANGE_KEY }
+
+    private static Need need(SqlExpr.WindowCall c) {
+        return switch (c.fn()) {
+            case SqlAgg.RankingFn rf -> rf.fn() == SqlAgg.Fn.CUME_DIST ? Need.TO_CURRENT : Need.SINGLE;
+            case SqlAgg.ValueFn vf -> vf.fn() == SqlAgg.Fn.LAG || vf.fn() == SqlAgg.Fn.LEAD ? Need.SORTED : framed(c);
+            case SqlAgg.Reducer r -> framed(c);
+        };
+    }
+
+    private static Need framed(SqlExpr.WindowCall c) {
+        SqlExpr.WindowCall.Frame f = c.frame();
+        if (f == null) {
+            return c.orderBy().isEmpty() ? Need.ANY : Need.TO_CURRENT;
+        }
+        if (f.kind() == SqlExpr.WindowCall.Frame.Kind.ROWS) {
+            return Need.SORTED;
+        }
+        return offset(f.from()) || offset(f.to()) ? Need.RANGE_KEY : Need.TO_CURRENT;
+    }
+
+    private static boolean offset(SqlExpr.WindowCall.Frame.Bound b) {
+        return !(b instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.CurrentRow);
+    }
+
+    /**
+     * The window functions of the select, after its group and before its sort and projection, each a field of a
+     * {@code $setWindowFields} stage. The calls are grouped by their window specification (partition, order); a
+     * group's partition is the keys' document, and its order is computed into fields first: ONE field holding the
+     * keys' document, each key beside its null flag so the SQL engine's null placement holds, when a call needs the
+     * sort as one field or its dense rank ({@link Need}); else a field and a flag per key. That one field sorts in
+     * the first key's direction, so keys sorted both ways are refused by name. A group writes up to three stages:
+     * the sorted stage (the ranking operators, lags and leads, ROWS frames, the unframed aggregates of an unordered
+     * window, and the order's dense rank where a call ranges to the current row); the stage sorted by that dense
+     * rank (RANGE windows bounded by unbounded or the current row: the peers included, as SQL reads them); and the
+     * stage sorted by the one key itself, ascending (RANGE windows by offsets, a descending order's bounds negated
+     * and swapped). A QUALIFY is the match after the stages. The dialect spells each output and its read
+     * ({@link MongoDb#windowOutput}).
+     */
+    private Grouping windows(SqlWriter w, Stages st, Grouping g, @Nullable SqlExpr qualify) {
+        Windows rewrite = new Windows();
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (SqlSelect.Projection p : g.projections) {
+            SqlExpr e = rewrite.apply(p.expr());
+            ps.add(e == p.expr() ? p : new SqlSelect.Projection(e, p.alias() != null ? p.alias() : p.outputName(),
+                    p.out()));
+        }
+        SqlExpr qualified = qualify == null ? null : rewrite.apply(qualify);
+        List<SqlSelect.SortKey> keys = new ArrayList<>();
+        for (SqlSelect.SortKey k : g.orderBy) {
+            keys.add(new SqlSelect.SortKey(rewrite.apply(k.expr()), k.ascending(), k.nullOrder(), k.outputName()));
+        }
+        if (rewrite.found.isEmpty()) {
+            return g;
+        }
+        Map<String, SqlWriter.Piece> reads = new LinkedHashMap<>();
+        // the calls grouped by their window specification, in first-seen order
+        List<List<Integer>> groups = new ArrayList<>();
+        for (int i = 0; i < rewrite.found.size(); i++) {
+            SqlExpr.WindowCall c = rewrite.found.get(i);
+            boolean placed = false;
+            for (List<Integer> group : groups) {
+                SqlExpr.WindowCall first = rewrite.found.get(group.get(0));
+                if (first.partitionBy().equals(c.partitionBy()) && first.orderBy().equals(c.orderBy())) {
+                    group.add(i);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) {
+                groups.add(new ArrayList<>(List.of(i)));
+            }
+        }
+        for (int serial = 0; serial < groups.size(); serial++) {
+            List<Integer> group = groups.get(serial);
+            SqlExpr.WindowCall spec = rewrite.found.get(group.get(0));
+            Map<Need, List<Integer>> byNeed = new EnumMap<>(Need.class);
+            for (int i : group) {
+                byNeed.computeIfAbsent(need(rewrite.found.get(i)), n -> new ArrayList<>()).add(i);
+            }
+            boolean ordered = !spec.orderBy().isEmpty();
+            boolean one = byNeed.containsKey(Need.SINGLE) || byNeed.containsKey(Need.TO_CURRENT);
+            boolean sorted = ordered || byNeed.size() > 1 || !byNeed.containsKey(Need.ANY);
+            String sortField = "__ws" + serial;
+            String rankField = "__wd" + serial;
+            int direction = ordered && !spec.orderBy().get(0).ascending() ? -1 : 1;
+            List<String> keyFields = new ArrayList<>();
+            List<Integer> keyDirections = new ArrayList<>();
+            if (sorted) {
+                st.begin(w).append("{\"$addFields\": {");
+                if (!ordered) {
+                    // a sort every row ties: the stage's operators ask for one
+                    w.append(MongoJson.string(sortField)).append(": 0");
+                } else if (one) {
+                    w.append(MongoJson.string(sortField)).append(": {");
+                    for (int i = 0; i < spec.orderBy().size(); i++) {
+                        SqlSelect.SortKey k = spec.orderBy().get(i);
+                        if ((k.ascending() ? 1 : -1) != direction) {
+                            throw new DialectCapability("a window ranking or ranging over keys sorted both ways"
+                                    + " reached MongoDb, whose ranking operators sort by one field");
+                        }
+                        // the flag that puts the nulls where the key asks, in the one field's direction
+                        int nullFlag = nullsFirst(k) == k.ascending() ? 0 : 1;
+                        w.append(i > 0 ? ", " : "").append("\"k").append(i).append("\": {\"n\": {\"$cond\": [{\"$eq\": [")
+                                .expr(k.expr(), 0).append(", null]}, ").append(nullFlag).append(", ")
+                                .append(1 - nullFlag).append("]}, \"v\": {\"$ifNull\": [").expr(k.expr(), 0)
+                                .append(", null]}}");
+                    }
+                    w.append("}");
+                } else {
+                    for (int i = 0; i < spec.orderBy().size(); i++) {
+                        SqlSelect.SortKey k = spec.orderBy().get(i);
+                        String field = "__wk" + serial + "_" + i;
+                        w.append(i > 0 ? ", " : "").append(MongoJson.string(field)).append(": ").expr(k.expr(), 0)
+                                .append(", ").append(MongoJson.string(field + "n")).append(": {\"$eq\": [")
+                                .expr(k.expr(), 0).append(", null]}");
+                        keyFields.add(field);
+                        keyDirections.add(k.ascending() ? 1 : -1);
+                    }
+                }
+                w.append("}}");
+            }
+            // the sorted stage: the ranking operators, the lags and leads, the ROWS frames, the unordered
+            // aggregates, and the dense rank the ranges to the current row sort by
+            List<Integer> first = new ArrayList<>();
+            for (Need n : List.of(Need.ANY, Need.SORTED, Need.SINGLE)) {
+                first.addAll(byNeed.getOrDefault(n, List.of()));
+            }
+            boolean ranksForRange = byNeed.containsKey(Need.TO_CURRENT);
+            if (!first.isEmpty() || ranksForRange) {
+                st.begin(w).append("{\"$setWindowFields\": {");
+                partitionBy(w, spec);
+                if (sorted) {
+                    w.append("\"sortBy\": {");
+                    if (!ordered || one) {
+                        w.append(MongoJson.string(sortField)).append(": ").append(direction);
+                    } else {
+                        for (int i = 0; i < keyFields.size(); i++) {
+                            SqlSelect.SortKey k = spec.orderBy().get(i);
+                            w.append(i > 0 ? ", " : "").append(MongoJson.string(keyFields.get(i) + "n")).append(": ")
+                                    .append(nullsFirst(k) ? -1 : 1).append(", ").append(MongoJson.string(keyFields.get(i)))
+                                    .append(": ").append(keyDirections.get(i));
+                        }
+                    }
+                    w.append("}, ");
+                }
+                w.append("\"output\": {");
+                boolean comma = false;
+                if (ranksForRange) {
+                    w.append(MongoJson.string(rankField)).append(": {\"$denseRank\": {}}");
+                    comma = true;
+                }
+                for (int i : first) {
+                    SqlExpr.WindowCall c = rewrite.found.get(i);
+                    w.append(comma ? ", " : "");
+                    comma = true;
+                    reads.put(MongoDb.WINDOW_MARKER + i, dialect.windowOutput(w, c, MongoDb.WINDOW_MARKER + i,
+                            documentsWindow(c)));
+                }
+                w.append("}}}");
+            }
+            // the stage sorted by the dense rank: RANGE windows between unbounded and the current row
+            if (ranksForRange) {
+                st.begin(w).append("{\"$setWindowFields\": {");
+                partitionBy(w, spec);
+                w.append("\"sortBy\": {").append(MongoJson.string(rankField)).append(": 1}, \"output\": {");
+                boolean comma = false;
+                for (int i : byNeed.getOrDefault(Need.TO_CURRENT, List.of())) {
+                    SqlExpr.WindowCall c = rewrite.found.get(i);
+                    w.append(comma ? ", " : "");
+                    comma = true;
+                    reads.put(MongoDb.WINDOW_MARKER + i, dialect.windowOutput(w, c, MongoDb.WINDOW_MARKER + i,
+                            toCurrentWindow(c)));
+                }
+                w.append("}}}");
+            }
+            // the stage sorted by the one key, ascending: RANGE windows by offsets
+            if (byNeed.containsKey(Need.RANGE_KEY)) {
+                if (spec.orderBy().size() != 1) {
+                    throw new DialectCapability("a range window by offsets over " + spec.orderBy().size()
+                            + " sort keys reached MongoDb, whose range windows order by one field");
+                }
+                SqlSelect.SortKey k = spec.orderBy().get(0);
+                String keyField = "__wr" + serial;
+                // a null key sorts to its end as the infinity of the key's kind (a number, or a date beyond any),
+                // so an offset from a null row reaches its null peers alone and an unbounded side reaches the
+                // partition's edge, nulls included: the SQL engines' RANGE over nulls
+                boolean nullsLast = nullsFirst(k) != k.ascending();
+                boolean dates = byNeed.get(Need.RANGE_KEY).stream().map(rewrite.found::get)
+                        .anyMatch(c -> c.frame() != null && (unitOf(c.frame().from()) != null
+                                || unitOf(c.frame().to()) != null));
+                String infinity = dates ? "{\"$date\": \"" + (nullsLast ? "9000" : "1000") + "-01-01T00:00:00Z\"}"
+                        : "{\"$numberDouble\": \"" + (nullsLast ? "" : "-") + "Infinity\"}";
+                st.begin(w).append("{\"$addFields\": {").append(MongoJson.string(keyField)).append(": {\"$ifNull\": [")
+                        .expr(k.expr(), 0).append(", ").append(infinity).append("]}}}");
+                st.begin(w).append("{\"$setWindowFields\": {");
+                partitionBy(w, spec);
+                w.append("\"sortBy\": {").append(MongoJson.string(keyField)).append(": 1}, \"output\": {");
+                boolean comma = false;
+                for (int i : byNeed.getOrDefault(Need.RANGE_KEY, List.of())) {
+                    SqlExpr.WindowCall c = rewrite.found.get(i);
+                    SqlExpr.WindowCall.Frame f = c.frame();
+                    if (f == null) {
+                        throw new IllegalStateException("a range window by offsets without a frame (MongoDbPipeline.need)");
+                    }
+                    w.append(comma ? ", " : "");
+                    comma = true;
+                    reads.put(MongoDb.WINDOW_MARKER + i, dialect.windowOutput(w, c, MongoDb.WINDOW_MARKER + i,
+                            offsetWindow(f, k.ascending())));
+                }
+                w.append("}}}");
+            }
+        }
+        dialect.windowReads(reads);
+        if (qualified != null) {
+            match(w, st, qualified);
+        }
+        return new Grouping(ps, g.having, keys);
+    }
+
+    private static boolean nullsFirst(SqlSelect.SortKey k) {
+        return k.nullOrder() == null ? !k.ascending() : k.nullOrder() == SqlSelect.SortKey.NullOrder.NULLS_FIRST;
+    }
+
+    /** {@code "partitionBy": ...,} -- the one key's expression or the keys' document -- or nothing. */
+    private void partitionBy(SqlWriter w, SqlExpr.WindowCall spec) {
+        if (spec.partitionBy().isEmpty()) {
+            return;
+        }
+        w.append("\"partitionBy\": ");
+        if (spec.partitionBy().size() == 1) {
+            w.expr(spec.partitionBy().get(0), 0);
+        } else {
+            w.append("{");
+            for (int i = 0; i < spec.partitionBy().size(); i++) {
+                w.append(i > 0 ? ", " : "").append("\"p").append(i).append("\": ").expr(spec.partitionBy().get(i), 0);
+            }
+            w.append("}");
+        }
+        w.append(", ");
+    }
+
+    /** A sorted-stage call's {@code , "window": {"documents": [...]}} for a ROWS frame; nothing otherwise (the
+     *  partition entire -- $setWindowFields' own default -- or an operator without a window). */
+    private static SqlWriter.Piece documentsWindow(SqlExpr.WindowCall c) {
+        SqlExpr.WindowCall.Frame f = c.frame();
+        if (f == null || f.kind() != SqlExpr.WindowCall.Frame.Kind.ROWS) {
+            return MongoJson.text("");
+        }
+        return MongoJson.text(", \"window\": {\"documents\": [" + bound(f.from(), false) + ", " + bound(f.to(), false)
+                + "]}");
+    }
+
+    /** A dense-rank-sorted call's {@code , "window": {"range": [...]}}: the frame's unbounded and current bounds, or
+     *  SQL's default over an order, unbounded preceding to the current row. */
+    private static SqlWriter.Piece toCurrentWindow(SqlExpr.WindowCall c) {
+        SqlExpr.WindowCall.Frame f = c.frame();
+        String from = f == null ? "\"unbounded\"" : bound(f.from(), true);
+        String to = f == null ? "0" : bound(f.to(), true);
+        return MongoJson.text(", \"window\": {\"range\": [" + from + ", " + to + "]}");
+    }
+
+    /** A key-sorted call's {@code , "window": {"range": [...], "unit": ...}}: the frame's bounds as offsets of the
+     *  key, which the stage sorts ascending -- a descending order's bounds negated and swapped. One unit: bounds
+     *  counting in two units of fixed length (a week to a millisecond) are both counted in the finer; a month or
+     *  a year beside another unit is refused by name. */
+    private static SqlWriter.Piece offsetWindow(SqlExpr.WindowCall.Frame f, boolean ascending) {
+        String from = bound(f.from(), true);
+        String to = bound(f.to(), true);
+        String fromUnit = unitOf(f.from());
+        String toUnit = unitOf(f.to());
+        String unit = fromUnit != null ? fromUnit : toUnit;
+        if (fromUnit != null && toUnit != null && !fromUnit.equals(toUnit)) {
+            Long fromMillis = MILLIS.get(fromUnit);
+            Long toMillis = MILLIS.get(toUnit);
+            if (fromMillis == null || toMillis == null) {
+                throw new DialectCapability("a range window bounded in " + fromUnit + "s and " + toUnit + "s reached"
+                        + " MongoDb, whose range windows count in one unit");
+            }
+            unit = fromMillis < toMillis ? fromUnit : toUnit;
+            long finer = Math.min(fromMillis, toMillis);
+            from = String.valueOf(Long.parseLong(from) * (fromMillis / finer));
+            to = String.valueOf(Long.parseLong(to) * (toMillis / finer));
+        }
+        if (!ascending) {
+            String lo = negated(to);
+            to = negated(from);
+            from = lo;
+        }
+        return MongoJson.text(", \"window\": {\"range\": [" + from + ", " + to + "]"
+                + (unit == null ? "" : ", \"unit\": " + MongoJson.string(unit)) + "}");
+    }
+
+    /** The milliseconds of each unit of fixed length. */
+    private static final Map<String, Long> MILLIS = Map.of("week", 604_800_000L, "day", 86_400_000L,
+            "hour", 3_600_000L, "minute", 60_000L, "second", 1_000L, "millisecond", 1L);
+
+    private static String negated(String bound) {
+        if (bound.startsWith("\"") || bound.equals("0")) {
+            return bound;
+        }
+        return bound.startsWith("-") ? bound.substring(1) : "-" + bound;
+    }
+
+    /** A frame bound as $setWindowFields spells it. The current row of a range window is the offset 0: its
+     *  {@code "current"} is the current document alone, where SQL's RANGE reads the row's peers. */
+    private static String bound(SqlExpr.WindowCall.Frame.Bound b, boolean range) {
+        return switch (b) {
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> "\"unbounded\"";
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> "\"unbounded\"";
+            case SqlExpr.WindowCall.Frame.Bound.CurrentRow cr -> range ? "0" : "\"current\"";
+            case SqlExpr.WindowCall.Frame.Bound.Preceding p -> "-" + p.n();
+            case SqlExpr.WindowCall.Frame.Bound.Following fo -> String.valueOf(fo.n());
+            case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> "-" + p.n();
+            case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing fo -> String.valueOf(fo.n());
+        };
+    }
+
+    /** The unit of an interval bound, in $setWindowFields' names; null for a plain bound. */
+    private static @Nullable String unitOf(SqlExpr.WindowCall.Frame.Bound b) {
+        String unit = switch (b) {
+            case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> p.unit();
+            case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing fo -> fo.unit();
+            default -> null;
+        };
+        if (unit == null) {
+            return null;
+        }
+        return switch (unit.toUpperCase(java.util.Locale.ROOT)) {
+            case "YEARS", "YEAR" -> "year";
+            case "MONTHS", "MONTH" -> "month";
+            case "WEEKS", "WEEK" -> "week";
+            case "DAYS", "DAY" -> "day";
+            case "HOURS", "HOUR" -> "hour";
+            case "MINUTES", "MINUTE" -> "minute";
+            case "SECONDS", "SECOND" -> "second";
+            case "MILLISECONDS", "MILLISECOND" -> "millisecond";
+            default -> throw new DialectCapability("a range window by " + unit + " reached MongoDb, whose windows"
+                    + " range by years to milliseconds");
+        };
     }
 
     // ==================================================================

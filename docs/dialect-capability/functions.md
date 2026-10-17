@@ -2305,7 +2305,7 @@ Database types planned with it: MongoDB.
 | `EXP` | emulated | `op1: $exp` |  | 0 |
 | `LN` | emulated | `op1: $ln` |  | 0 |
 | `LOG10` | emulated | `op1: $log10` |  | 0 |
-| `POW` | emulated | `$pow` |  | 0 |
+| `POW` | emulated | `guarded: {"$pow": [{"$toDouble": , }, , ]}` |  | 0 |
 | `PI` | emulated | `{"$numberDouble": "3.141592653589793"}` |  | 0 |
 | `SIN` | emulated | `op1: $sin` |  | 0 |
 | `COS` | emulated | `op1: $cos` |  | 0 |
@@ -2325,15 +2325,15 @@ Database types planned with it: MongoDB.
 | `BIT_AND` | emulated | `$bitAnd` | `via MongoDb.bitOp` | 0 |
 | `BIT_OR` | emulated | `$bitOr` | `via MongoDb.bitOp` | 0 |
 | `BIT_XOR` | emulated | `$bitXor` | `via MongoDb.bitOp` | 0 |
-| `BIT_SHIFT_LEFT` | refused | `reached MongoDb, which has no bit-shift operator` | `via MongoDb.bitOp` | 0 |
-| `BIT_SHIFT_RIGHT` | refused | `reached MongoDb, which has no bit-shift operator` | `via MongoDb.bitOp` | 0 |
+| `BIT_SHIFT_LEFT` | emulated | `guarded: {"$toLong": {"$multiply": [{"$toDecimal": , }, {"$pow": [{"$toDecimal": 2}, , ]}]}}` | `via MongoDb.bitOp` | 0 |
+| `BIT_SHIFT_RIGHT` | emulated | `guarded: {"$toLong": {"$floor":,  {"$divide": [{"$toDecimal": , }, {"$pow": [{"$toDecimal": 2}, , ]}]}}}` | `via MongoDb.bitOp` | 0 |
 | `BIT_NOT` | emulated | `op1: $bitNot` |  | 0 |
 | `REGEXP_EXTRACT` | emulated | `regexExtract` |  | 0 |
 | `REGEXP_EXTRACT_ALL` | emulated | `regexExtractAll` |  | 0 |
 | `REGEXP_REPLACE` | refused | `a regular-expression replace reached MongoDb, which has no operator for one ($replaceAll replaces text)` |  | 0 |
 | `REGEXP_FULL_MATCH` | emulated | `regexMatch` |  | 0 |
 | `MAP_FROM_LISTS` | emulated | `{"$arrayToObject": {"$zip": {"inputs": […]}}}` |  | 0 |
-| `MAP_FROM_ENTRIES` | refused | `a map from entries reached MongoDb: the entry shape is not mapped yet` |  | 0 |
+| `MAP_FROM_ENTRIES` | emulated | `{"$arrayToObject": {"$map": {"input": {"$ifNull": […, []]}, "in": {"k": "$$th...` |  | 0 |
 | `MAP_EMPTY` | emulated | `{"$literal": {}}` |  | 0 |
 | `MAP_EXTRACT` | emulated | `mapExtract` |  | 0 |
 | `MAP_KEYS` | emulated | `mapSide: k` |  | 0 |
@@ -2357,8 +2357,8 @@ Database types planned with it: MongoDB.
 | `TRANSLATE` | refused | `translate reached MongoDb, which has no character-map operator` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 0 |
 | `REVERSE_STRING` | emulated | `guarded: {"$reduce": {"input":,  {"$range": [0, {"$strLenCP": , }]}, "initialValue": "", "in":,  {"$concat": [{"$substrCP": [, , , , 1]}, , ]}}}` |  | 0 |
-| `ASCII_CODE` | refused | `ascii reached MongoDb, which has no character-code operator` |  | 0 |
-| `CHR` | refused | `char reached MongoDb, which has no code-to-character operator` |  | 0 |
+| `ASCII_CODE` | emulated | `guarded: {"$let": {"vars": {"c":,  {"$indexOfCP": [, , {"$substrCP": [, , 0, 1]}]}}, "in": {"$cond":,  [{"$lt": ["$$c", 0]}, , a character beyond ASCII reached ascii on MongoDb,,  which has no character-code operator, , "$$c"]}}}` |  | 0 |
+| `CHR` | emulated | `guarded: {"$cond": [{"$or": [{"$lt": [, , 0]}, {"$gte": [, , 128]}]}, , a code beyond ASCII reached char on,  MongoDb, which has no code-to-character operator, , {"$substrCP": [, , , , 1]}]}` |  | 0 |
 | `UC_FIRST` | emulated | `firstCased: $toUpper` |  | 0 |
 | `LC_FIRST` | emulated | `firstCased: $toLower` |  | 0 |
 | `ENCODE_BASE64` | refused | `reached MongoDb, which has no base64 operator` |  | 0 |
@@ -2378,8 +2378,8 @@ Database types planned with it: MongoDB.
 | `DATE_TRUNC` | emulated | `dateTrunc` |  | 0 |
 | `ADD_INTERVAL` | emulated | `dateAdd` |  | 0 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 0 |
-| `TIME_BUCKET` | refused | `timeBucket reached MongoDb: $dateTrunc's bin size is not mapped to the engine's bucket origin yet` |  | 0 |
-| `TIMEZONE` | refused | `a time zone conversion reached MongoDb: not shaped yet` |  | 0 |
+| `TIME_BUCKET` | emulated | `timeBucket` |  | 0 |
+| `TIMEZONE` | emulated | `timezone` |  | 0 |
 | `DATE_AT_TIME` | refused | `a date at a time of day reached MongoDb, which has no time type` |  | 0 |
 | `EPOCH_NS` | refused | `reached MongoDb, whose date holds milliseconds` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `reached MongoDb, whose date holds milliseconds` |  | 0 |
@@ -2407,7 +2407,7 @@ Database types planned with it: MongoDB.
 | `LIST_MAX` | emulated | `op1: $max` | `via MongoDb.listCall` | 0 |
 | `LIST_AVG` | emulated | `op1: $avg` | `via MongoDb.listCall` | 0 |
 | `LIST_MEDIAN` | emulated | `arrayReduction` | `via MongoDb.listCall` | 0 |
-| `LIST_MODE` | refused | `a list's mode reached MongoDb: not shaped yet` | `via MongoDb.listCall` | 0 |
+| `LIST_MODE` | emulated | `arrayReduction` | `via MongoDb.listCall` | 0 |
 | `LIST_SORT` | emulated | `{"$sortArray": {"input": …, "sortBy": 1}}` | `via MongoDb.listCall` | 0 |
 | `LIST_SORT_DESC` | emulated | `{"$sortArray": {"input": …, "sortBy": -1}}` | `via MongoDb.listCall` | 0 |
 | `LIST_TAIL` | emulated | `guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 1, {"$subtract": [{"$size": , }, 1]}]}, []]}` | `via MongoDb.listCall` | 0 |
@@ -2423,7 +2423,7 @@ Database types planned with it: MongoDB.
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
 | `NULL_SAFE_EQUAL` | emulated | `$eq` |  | 0 |
 | `NULL_SAFE_NOT_EQUAL` | emulated | `$ne` |  | 0 |
-| `STRFTIME` | emulated | `{"$dateToString": {"date": …, "format": …}}` |  | 0 |
+| `STRFTIME` | emulated | `strftime` |  | 0 |
 | `STRPTIME` | emulated | `{"$dateFromString": {"dateString": …, "format": …}}` |  | 0 |
 | `PARSE_DATE` | emulated | `{"$dateFromString": {"dateString": …}}` |  | 0 |
 | `LIST_REVERSE` | emulated | `op1: $reverseArray` | `via MongoDb.listCall` | 0 |

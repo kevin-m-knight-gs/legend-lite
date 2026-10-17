@@ -1991,6 +1991,14 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   on MongoDB, the CSV and JSON texts compared), the 16 MB bound of the whole-text wires, channel B's statement count.
   What the differential exposed is fixed in the target (the register's S72 to S74 were defects, not decisions, and are
   gone); what it exposed on the DuckDB side is recorded for the platform (§11.2).
+- **The burn-down, 2026-10-17 (the user: "burn down pct to as close to zero as possible"; the plan's §11.4)**: in the
+  order the first measurement's pins said -- windows (`$setWindowFields`), quantified comparisons, the Variant's JSON
+  text, lateral and as-of joins, the statistics, then the long tail (two-parameter lambdas, maps from entries, time
+  zones, `format` directives, `timeBucket`, `ascii`/`char`, bit shifts, the composed date formats) -- each with its
+  differential cases, and the adapter reading the value relation's cells by the function's own return type. The lane
+  stands at 1,095 of 1,249 (154 pinned, 82 of them named refusals or the server's own errors). What
+  is left is MongoDB's own by name (§11.4's last paragraph), the pivot (the plan path has no probe), and the route's
+  (a List, a Map or an instance as text; the date precision the user decides).
 - **Homework 2, 2026-10-17 (the plan's §11.2 item 2)**: the harness-named product code renamed for what it is --
   `lowering/TdsTextWrap` (was `PctTdsWrap`), `Render.tdsText` (was `pctTds`), `exec/ColumnProbe` (was `PctProbe`),
   `ExecuteOptions.TDS_TEXT` (was `PCT_RENDER`); the plan path gains `TypedQuery.Output.TDS_TEXT`

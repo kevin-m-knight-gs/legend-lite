@@ -467,12 +467,21 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                     | $tds->cast(@X)->toMultiplicity(@[o]),
                     | // the reader builds no Date or Decimal value from a cell ("Not supported data type"), so
                       // those are read from the text's lines by Pure's own parsers, the precision kept
+                      // -- and it types a cell by its text, not by the header (a Number's 3 read as 3.0, a
+                      // String's '0' as an Integer), so a number is read as Pure spells it and a String's cells
+                      // are the quoted text itself (quotedCells; the MongoDB lane's burn-down, 2026-10-17)
                       let lines = $tdsString->split('\n')->tail()->filter(l | $l != '' && $l != 'null');
                       if($rt == Date || $rt == StrictDate || $rt == DateTime || $rt == LatestDate,
                         | $lines->map(l | $l->parseDate())->cast(@X)->toMultiplicity(@[o]),
                         | if($rt == Decimal,
                             | $lines->map(l | $l->parseDecimal())->cast(@X)->toMultiplicity(@[o]),
-                            | $tds->cast(@Relation<(value:Any)>)->map(r | $r.value)->cast(@X)->toMultiplicity(@[o]))););,
+                            | if($rt == Number || $rt == Integer || $rt == Float,
+                                | $lines->map(l | if($rt == Float || ($rt == Number && $l->contains('.')), |$l->parseFloat(), |$l->parseInteger()))->cast(@X)->toMultiplicity(@[o]),
+                                | if($rt == String,
+                                    | meta::legend::lite::pct::quotedCells($tdsString)->cast(@X)->toMultiplicity(@[o]),
+                                    | if($rt == Boolean,
+                                        | $lines->map(l | $l == 'true')->cast(@X)->toMultiplicity(@[o]),
+                                        | $tds->cast(@Relation<(value:Any)>)->map(r | $r.value)->cast(@X)->toMultiplicity(@[o])))))););,
                 | // B8 (the P7 relabel is DELETED): the platform now
                   // labels precision-exact float literals FLOAT end to
                   // end — proved against the reference source
@@ -491,3 +500,39 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
 // Java now builds the ^List<E> instance and the MapResult's Pair<K,V>
 // values from the PLATFORM's own generic returnType; newMap in the
 // adapter body is the only constructor left, fed fully-stamped pairs.)
+
+// The value relation's String cells, each quoted whole by the TDS text ('...', a backslash and a quote escaped
+// with a backslash), read from the lines after the header: a cell spans the lines up to the one ending in an
+// unescaped quote, so a string holding a line break reads whole.
+function <<access.private>> meta::legend::lite::pct::quotedCells(tdsString: String[1]): String[*]
+{
+   let folded = $tdsString->split('\n')->tail()->fold({line, acc |
+      if($acc.first == '',
+         | if($line == '' || $line == 'null',
+              | $acc,
+              | if($line->length() > 1 && meta::legend::lite::pct::closesCell($line),
+                   | ^$acc(second = ^List<String>(values = $acc.second.values->concatenate(meta::legend::lite::pct::unquoted($line)))),
+                   | ^$acc(first = $line))),
+         | {| let joined = $acc.first + '\n' + $line;
+              if(meta::legend::lite::pct::closesCell($line),
+                 | ^$acc(first = '', second = ^List<String>(values = $acc.second.values->concatenate(meta::legend::lite::pct::unquoted($joined)))),
+                 | ^$acc(first = $joined));}->eval());
+   }, ^Pair<String, List<String>>(first = '', second = ^List<String>(values = [])));
+   $folded.second.values;
+}
+
+// Whether the line ends a quoted cell: a closing quote preceded by an even run of backslashes.
+function <<access.private>> meta::legend::lite::pct::closesCell(line: String[1]): Boolean[1]
+{
+   if(!$line->endsWith('\''),
+      | false,
+      | {| let core = $line->substring(0, $line->length() - 1);
+           let run = range(0, $core->length())->fold({i, n | if($n < 0, |$n,
+                        |if($core->substring($core->length() - 1 - $i, $core->length() - $i) == '\\', |$n + 1, |-1 - $n))}, 0);
+           if($run < 0, |-1 - $run, |$run)->mod(2) == 0;}->eval());
+}
+
+function <<access.private>> meta::legend::lite::pct::unquoted(cell: String[1]): String[1]
+{
+   $cell->substring(1, $cell->length() - 1)->replace('\\\'', '\'')->replace('\\\\', '\\');
+}

@@ -10653,6 +10653,33 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-17 — The PCT burn-down on MongoDB: the relation half shaped, the long tail measured
+
+The plan: `docs/MONGODB_PLAN_2026_10_16.md` §11.4 (the record). The line: `docs/IN_FLIGHT.md`, the twelfth line.
+The user's word: "then we want to burn down pct to as close to zero as possible."
+
+What changed:
+1. **The target** (`MongoDb`, `MongoDbPipeline`, `MongoJson`): windows as `$setWindowFields` stages (one sort field
+   per ranking group, the dense rank for a RANGE to the current row, the key itself for a RANGE by offsets, a null
+   key as its kind's infinity); quantified comparisons as the list predicates over a lookup's rows; a Variant's JSON
+   text written by the value's kind at run time to six levels; lateral and as-of joins as lookups; mode, the
+   two-column statistics and the descending percentile on the push route; two-parameter lambdas, maps from entries,
+   the time zone conversion and the zoned cast, `format`'s `%d` and `%.Nf`, `timeBucket` by arithmetic, `ascii` and
+   `char` by the ASCII table, bit shifts in Decimal128, the composed date formats. Each shape a differential case:
+   `MongoDbDifferentialTest` 147 EQUAL of 154 cases (the log prints the pipeline of a case that is not EQUAL).
+2. **The Lowerer** (`Scalars`): the list correlation recipe's subselect columns qualified by their alias (`_uz.a`).
+3. **The harness** (`pct_adapter.pure`; `PctDisciplineTest`'s adapter pin 500 -> 540, dated): the value relation's
+   Number cells read as Pure spells them, its String cells as the quoted text (legend-pure's reader types a cell by
+   its text, not by the header).
+
+What judges it: `//pct:pct_mongodb` -- 1,249 tests, 1,095 pass, 154 pinned (Essential 65, Grammar 21,
+Relation 28, Standard 21, Unclassified 19; the record's table says by what; 82 of the pins are named
+refusals or the server's own errors, the rest measured values). `//core:mongodb_plan_test` (the differential),
+`//pct:pct_discipline`, the census and guardrails, `//core:core_tests_sql`, `//core:core_tests_lowering`,
+`//core:core_tests_exec`, `//core:core_tests_root`, `//docs:update_dialect_capability_test` (the matrix regenerated)
+and `//pct:pct_duckdb_standard` (the Lowerer change's lane) pass. Not run here: the other DuckDB suites, the spec
+lanes and the Windows jobs.
+
 ## 2026-10-17 — The PCT lane on MongoDB: channel A through the plan path, the first measurement pinned
 
 The plan: `docs/MONGODB_PLAN_2026_10_16.md` §11.3 (the record; §6 the design). The line: `docs/IN_FLIGHT.md`, the

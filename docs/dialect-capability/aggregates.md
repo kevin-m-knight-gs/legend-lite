@@ -603,14 +603,14 @@ Database types planned with it: MongoDB.
 | `VAR_SAMP` | emulated | `pushed` |  | 0 |
 | `VAR_POP` | emulated | `pushed` |  | 0 |
 | `MEDIAN` | emulated | `pushed` |  | 0 |
-| `MODE` | refused | `mode reached MongoDb: not shaped yet` |  | 0 |
+| `MODE` | emulated | `pushed` |  | 0 |
 | `STRING_AGG` | emulated | `pushed` |  | 0 |
 | `LIST` | emulated | `accumulate: $push` |  | 0 |
 | `QUANTILE_CONT` | emulated | `pushed` |  | 0 |
 | `QUANTILE_DISC` | emulated | `pushed` |  | 0 |
-| `CORR` | refused | `reached MongoDb: a two-column statistic is not shaped yet` |  | 0 |
-| `COVAR_SAMP` | refused | `reached MongoDb: a two-column statistic is not shaped yet` |  | 0 |
-| `COVAR_POP` | refused | `reached MongoDb: a two-column statistic is not shaped yet` |  | 0 |
+| `CORR` | emulated | `pushed` |  | 0 |
+| `COVAR_SAMP` | emulated | `pushed` |  | 0 |
+| `COVAR_POP` | emulated | `pushed` |  | 0 |
 | `ARG_MAX` | refused | `reached MongoDb: not shaped yet` |  | 0 |
 | `ARG_MIN` | refused | `reached MongoDb: not shaped yet` |  | 0 |
 | `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |

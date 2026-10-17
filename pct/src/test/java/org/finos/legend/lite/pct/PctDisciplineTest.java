@@ -71,7 +71,10 @@ class PctDisciplineTest {
     // every shape, and the Java bridge's typed value conversions are not needed on that route.
     // 490 -> 500 (2026-10-17, the lane's first run): a Date or Decimal value read from the text's lines by Pure's own
     // parsers, since the TDS reader builds neither from a cell (seven lines)
-    private static final int ADAPTER_MAX_LINES = 500;
+    // 2026-10-17, the MongoDB lane's burn-down (docs/MONGODB_PLAN_2026_10_16.md §11.4): the value relation's
+    // Number and String cells read by the function's return type (the reader types a cell by its text), the
+    // quoted String cells read whole across line breaks (quotedCells, closesCell, unquoted); 500 -> 540.
+    private static final int ADAPTER_MAX_LINES = 540;
 
     @Test
     void noJavaSideComparisonInPct() throws IOException {

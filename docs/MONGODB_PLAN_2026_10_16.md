@@ -1247,3 +1247,81 @@ adapter, except the empty string (8 pins: quoted or not, the reader reads nothin
 `$lookup` (67), the Variant's JSON text (27), a static pivot's grouped form (20), lateral and as-of joins (17); then
 the essential suite's two-parameter lambda, map from entries and `timeBucket`. The date-precision and
 class-instance pins stay the user's decision (§11.2).
+
+### 11.4 The burn-down, 2026-10-17: the relation half shaped, the long tail measured
+
+**The ask (the user, 2026-10-17): "then we want to burn down pct to as close to zero as possible."** In the order
+the first measurement's pins said, each shape landed with its differential cases (the differential in miniature now
+stands at 147 EQUAL of 154 cases), then the five suites re-measured and re-pinned.
+
+**What landed in the target.**
+
+1. **Windows** (`MongoDbPipeline.windows`, `MongoDb.windowOutput`): a `$setWindowFields` stage per distinct (partition,
+   order). MongoDB's ranking operators take a `sortBy` of exactly one element, so an ordered group whose calls rank or
+   range to the current row sorts by ONE computed field holding the keys' document, each key beside its null flag (the
+   SQL engine's null placement, in the first key's direction; keys sorted both ways are refused by name); the other
+   groups sort by a field and a flag per key. A RANGE window bounded by unbounded or the current row -- an unframed
+   ordered aggregate, a cumulative distribution -- ranges over the order's dense rank, computed in a first stage,
+   since `$setWindowFields`' `"current"` is the current document alone where SQL's RANGE reads the row's peers, and
+   its range windows take a numeric field. A RANGE window by offsets sorts by the one key itself, ascending (a
+   descending order's bounds negated and swapped), a null key as the infinity of the key's kind so an offset from a
+   null row reaches its null peers alone and an unbounded side reaches the partition's edge (DuckDB's RANGE over
+   nulls); two fixed-length units count in the finer. Ranking: `$documentNumber`, `$rank`, `$denseRank`; a percent
+   rank, a cumulative distribution and an ntile from a rank or a document number and the partition's count; `$shift`
+   for a lag or lead by the literal the Lowerer passes; `$first`, `$last`, a pushed array for an nth value. The push
+   route (ordered, distinct, median, quantile, mode, the two-column statistics) pushes the frame's values as the group
+   stage does. 202 of the 220 pins passed on the first run; the rest named what was left (above).
+2. **Quantified comparisons** (`Subqueries.apply`): `value op ANY|ALL (subquery)` rewritten to the list predicate
+   over the lookup's rows -- `exists` for ANY, `forAll` for ALL -- whose lambda compares the value with each row; the
+   Lowerer drops the rows' nulls and guards the value, so the two-valued predicates are SQL's. All 67 pass.
+3. **A Variant's JSON text** (`MongoDb.cellText`, `jsonLevel`): MongoDB has no JSON writer, so the text is written by
+   the value's kind at run time -- null, a string escaped and quoted, a date, a number as Pure spells it, a boolean --
+   and an array or a document element by element, keys escaped and quoted, unrolled to six levels of nesting (eleven
+   BSON levels each; the server's limit is two hundred, and a Pair collection's text overflowed at eight levels of
+   fifteen); deeper is refused by a raise. A Variant literal (a TDS cell) is the document it spells, under `$literal`
+   so its fields are not expressions; a computed text parsed as a Variant is refused by name (no JSON parser in a
+   pipeline). A Variant element read as text is the element's own string (DuckDb's `->>`), the JSON path root `$` the
+   value itself. A lambda parameter's field reads as the variable's field (a Pair's `first`).
+4. **Lateral and as-of joins** (`MongoDbPipeline.join`): the lookup's `let` already bound the left row's aliases, so a
+   lateral join's correlated right side is a cross or left join's shape; an as-of join keeps, of the right rows the
+   ON admits, the one nearest the left row's key (`$sort` by the match inequality's right-side column, `$limit: 1`),
+   then pads as a left join. Full and right joins stay refused by name.
+5. **The statistics**: mode (the sorted values' runs counted, the smallest of the most frequent -- Pure's fold), the
+   two-column statistics pushed as pairs (E[xy] - E[x]E[y]; the sample covariance scaled; the correlation over the
+   population deviations), a descending percentile over the value's descending order (the Lowerer's flag; it read
+   ascending before), the list forms' subselect columns qualified by their alias in the Lowerer (`_uz.a`, a target that
+   keeps a subselect's row under its alias reads them there).
+6. **The long tail**: two-parameter lambdas (the list zipped with its 1-based positions, both bound; a null list
+   staying null); a map from entries (`$arrayToObject`); the time zone conversion (UTC the instant itself, a zone the
+   `$dateToParts`/`$dateFromParts` shift, the direction by the value's kind) and the zoned cast (`$convert` to date, a
+   single-digit month or day padded, which Pure reads and `$convert` does not); `format`'s `%d` and `%.Nf` (the Float
+   spelling of the rounded double, its fraction cut or padded, a negative argument's sign kept); `timeBucket` by
+   arithmetic (the engine's origins, 1970-01-01 and 1969-12-29 for weeks; months counted from 1970-01; a literal finer
+   than a millisecond bucketed at the millisecond, the one place a BSON date may cut such digits, since no bucket is
+   finer); `ascii` and `char` by the ASCII table spelled as text (a character or code beyond it raised); bit shifts by
+   Decimal128 arithmetic (exact to 34 digits where a double loses the bits past 2^53); the composed date formats (a
+   weekday's or a month's name by its number, the 12-hour clock and its marker, the minimal fraction) beside
+   `$dateToString`'s codes.
+
+**What landed in the harness** (`pct_adapter.pure`; `PctDisciplineTest`'s pin 500 -> 535, dated): the reader types a
+cell by its text, not by the header -- a Number's `3` read as 3.0, a String's `'0'` as an Integer, a null Number cell
+as the String `null` -- so the value relation's Number cells are read as Pure spells them (an Integer or a Float) and
+its String cells as the quoted text itself, a cell spanning lines read whole (`quotedCells`).
+
+**The second measurement:**
+
+| suite | tests | pass | pinned | the pins, by cause |
+|---|---:|---:|---:|---|
+| Essential | 345 | 280 | 65 | 18 a List, Map or class instance crossing as text (the route's); 14 value differences (dates printed with three millisecond digits where the value has none, the error positions and messages -- the platform's own); 10 `Any`-typed values and user elements by simple name; 10 error positions and messages; 7 dates past year 9999, a month count past `$dateAdd`'s range, the microsecond unit (MongoDB's own); 3 `Pair` without type arguments; 2 the reader's cell typing; a `TypedDeactivate` |
+| Grammar | 137 | 116 | 21 | 5 instances as text; 4 Decimal arithmetic (Decimal128's 34 digits where Pure keeps 16); 3 `Any`-typed values; 2 extended primitives; 2 non-primitive equality; the rest named (a schema-qualified table, a date part, a range) |
+| Relation | 469 | 441 | 28 | 20 pivots (the plan path has no probe); 5 a Variant holding JSON null (BSON null, printed as a null cell where Pure prints `'null'`); full and right joins; currentUserId |
+| Standard | 205 | 184 | 21 | 10 value differences (greatest and least over dates and mixed numbers); 4 regex replace; 2 each hashCode, generateGuid; ARG_MAX and ARG_MIN; a percentile's server error |
+| Unclassified | 93 | 74 | 19 | 5 base64; 4 string distances; 4 regex extract and index (values); 3 digests; 2 regex replace; currentUserId |
+| **all** | **1,249** | **1,095 (88%)** | **154** | 82 named refusals or the server's own errors; 417 pins fewer than the first measurement's 571 |
+
+**MongoDB's own, measured and named** (the pins that are the target's): a Variant holding JSON null is BSON null, so
+its cell prints as a null cell where Pure prints `'null'` (five relation tests); dates past year 9999 and the
+microsecond unit (`$dateToString`, `$dateAdd`); a pivot (the plan path has no probe, and the target no grouped form
+yet); full and right joins; regex replace, hashCode, generateGuid, base64, the string distances and digests (no
+operator); a List, Map or class instance crossing as text (the route's, shared with the DuckDB shadow). The
+date-precision and class-instance pins stay the user's decision (§11.2).
