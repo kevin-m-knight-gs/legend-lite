@@ -1640,7 +1640,9 @@ final class IqAggregates {
             scale = ps[1] + 21;
             sumScale = ps[1];
             sumWhole = ps[0] + 1 - ps[1];
-            spelling = "NUMERIC(" + (ps[0] + 22) + "," + scale + ")";
+            // IQ island, 2026-10-17: past 38 digits IQ's type holds what lite's 38 do (longQuotient refuses at run time
+            // a value past them), so lite types the value it holds: its comparisons and arithmetic sized within 38
+            spelling = "NUMERIC(" + Math.min(ps[0] + 22, 38) + "," + scale + ")";
         } else {
             throw SqlTranslationException.unsupported("AVG of " + (x.kind() == Kind.STRING ? "a string"
                     : x.kind() == Kind.DATE || x.kind() == Kind.DATETIME ? "a date" : "a value of this type")

@@ -2094,3 +2094,13 @@ tests:
   - id: a_null_first_branch_grouped
     sql: "SELECT x, COUNT(*) AS c FROM (SELECT NULL AS x FROM t WHERE id < 3 UNION ALL SELECT sm FROM t) d GROUP BY x ORDER BY x"
     profile: iq17-default
+
+  # ---- a wide AVG compared and grouped on (IQ island, 2026-10-17; the TPC-H corpus lane's 282, measured on IQ 17.1):
+  # the AVG of a NUMERIC(17,2) is IQ's NUMERIC(39,23), which lite holds in 38 digits (a value past them refused at run
+  # time), so its comparisons size within 38
+  - id: a_wide_avg_compared_with_a_constant
+    sql: "SELECT k, AVG(CAST(n AS NUMERIC(17,2))) AS a FROM g GROUP BY k HAVING AVG(CAST(n AS NUMERIC(17,2))) > 1 ORDER BY k"
+    profile: iq17-default
+  - id: a_wide_avg_compared_with_a_column
+    sql: "SELECT g.id FROM g, (SELECT AVG(CAST(n AS NUMERIC(17,2))) AS a FROM g) d WHERE g.n > d.a ORDER BY g.id"
+    profile: iq17-default
