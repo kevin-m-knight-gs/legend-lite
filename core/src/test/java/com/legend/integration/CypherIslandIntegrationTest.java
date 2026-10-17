@@ -6,12 +6,13 @@ package com.legend.integration;
 import com.legend.error.LegendCompileException;
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -30,6 +31,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * in the source.
  */
 class CypherIslandIntegrationTest {
+
+    /** The platform's own engine: the island's session, its tables and the connection its model declares. */
+    private static final TestBackend PLATFORM = TestBackends.platform();
 
     private static final String MODEL = """
             ###Pure
@@ -74,17 +78,17 @@ class CypherIslandIntegrationTest {
                 ) }
             )
             ###Connection
-            RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+            RelationalDatabaseConnection store::Conn { %s }
             ###Runtime
             Runtime test::RT { mappings: [ test::M ]; connections: [ store::DB: [ environment: store::Conn ] ]; }
-            """;
+            """.formatted(PLATFORM.connectionBody());
 
-    private static Connection duckdb;
+    private static Connection session;
 
     @BeforeAll
     static void seed() throws SQLException {
-        duckdb = DriverManager.getConnection("jdbc:duckdb:");
-        try (Statement s = duckdb.createStatement()) {
+        session = PLATFORM.open();
+        try (Statement s = session.createStatement()) {
             s.execute("CREATE TABLE T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), AGE INTEGER, ACTIVE BOOLEAN,"
                     + " FIRM_ID INTEGER)");
             s.execute("CREATE TABLE T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100), FOUNDED INTEGER,"
@@ -99,11 +103,11 @@ class CypherIslandIntegrationTest {
 
     @AfterAll
     static void close() throws SQLException {
-        duckdb.close();
+        session.close();
     }
 
     private static ExecutionResult run(String cypher) throws SQLException {
-        return new QueryService().execute(MODEL, "#Cypher{" + cypher + "}#", "test::RT", duckdb);
+        return new QueryService().execute(MODEL, "#Cypher{" + cypher + "}#", "test::RT", session);
     }
 
     private static List<String> columns(ExecutionResult result) {
@@ -220,7 +224,7 @@ class CypherIslandIntegrationTest {
     void theIslandComposesWithPure() throws SQLException {
         ExecutionResult r = new QueryService().execute(MODEL, "#Cypher{MATCH (p:Person) RETURN p.name AS name,"
                 + " p.age AS age}#->filter(x|$x.age > 26)->select(~[name])->sort(~name->ascending())", "test::RT",
-                duckdb);
+                session);
         assertEquals(expect("Alice", "Bob"), rows(r));
     }
 

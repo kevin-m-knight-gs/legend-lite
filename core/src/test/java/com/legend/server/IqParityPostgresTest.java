@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testbackend.TestBackends;
 import com.legend.testcases.IqAnswers;
 import com.legend.testcases.IqParity;
 import com.legend.testcases.SqlParity;
@@ -49,7 +51,7 @@ class IqParityPostgresTest {
         List<String> problems = new ArrayList<>(IqAnswers.guards(runs, answers, Files.readAllBytes(schemaFile)));
         EmbeddedPostgres pg = EmbeddedPostgres.shared();
         try (Connection admin = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
-            IqParity.seed(admin, tables, true);
+            IqParity.seed(TestBackends.of(DatabaseType.Postgres), admin, tables);
             grantToThisAccount(admin, tables);
             String model = IqParity.model(tables, String.format(Locale.ROOT, "type: Postgres;\n    specification:"
                     + " Static { host: '127.0.0.1'; port: %d; name: 'postgres'; };\n    auth: Test;", pg.port()));

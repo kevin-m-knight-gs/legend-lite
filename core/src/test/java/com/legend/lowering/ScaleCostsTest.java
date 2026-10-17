@@ -15,10 +15,10 @@ import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSource;
-import com.legend.sql.dialect.DuckDb;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import com.legend.testcases.SqlIslandCases;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -41,25 +41,28 @@ import org.junit.jupiter.api.Test;
  */
 class ScaleCostsTest {
 
+    /** The platform's own engine: the table, the island's session and the answer it is held to. */
+    private static final TestBackend PLATFORM = TestBackends.platform();
+
     private static final String MODEL =
-            SqlIslandCases.model("type: DuckDB;\n specification: DuckDB { };\n auth: Test;");
+            SqlIslandCases.model(PLATFORM.connectionBody());
     private static final String EMP = SqlIslandCases.SOURCE;
     private static ModelContext ctx;
-    private static Connection duckdb;
+    private static Connection session;
 
     @BeforeAll
     static void seed() throws SQLException {
         ctx = Compiler.compileModel(MODEL);
-        duckdb = DriverManager.getConnection("jdbc:duckdb:");
-        try (Statement s = duckdb.createStatement()) {
-            s.execute(SqlIslandCases.DUCKDB_TABLE);
+        session = PLATFORM.open();
+        try (Statement s = session.createStatement()) {
+            s.execute(SqlIslandCases.table(PLATFORM));
             s.execute("INSERT INTO EMP VALUES " + SqlIslandCases.ROWS);
         }
     }
 
     @AfterAll
     static void close() throws SQLException {
-        duckdb.close();
+        session.close();
     }
 
     @Test
@@ -109,7 +112,7 @@ class ScaleCostsTest {
         assertEquals(4, reads, "reads of the base column in 12 levels");
         assertTrue(twelve.length() < 6_000, "chars: " + twelve.length());
         // the answer is DuckDB's own, across the isolation the budget forces
-        assertEquals(duckdb(nest(9)), island(nest(9)));
+        assertEquals(direct(nest(9)), island(nest(9)));
     }
 
     @Test
@@ -138,7 +141,7 @@ class ScaleCostsTest {
         // 100 nodes, so it isolates; every later block reads the aliases below it (Fibonacci's growth before)
         assertEquals(44, reads, "reads of the base column in 20 levels");
         assertTrue(twenty.length() < 12_000, "chars: " + twenty.length());
-        assertEquals(duckdb(fib(9)), island(fib(9)));
+        assertEquals(direct(fib(9)), island(fib(9)));
     }
 
     /** {@code n} levels of {@code SELECT *, c(k-2) + c(k-1) AS ck FROM (...) qk} over two copies of the age. */
@@ -167,7 +170,7 @@ class ScaleCostsTest {
                         ? lf.body() : List.of(parsed);
         var resolved = Compiler.resolveQuery(statements, new com.legend.model.ImportScope(List.of()), ctx);
         SqlQuery q = Compiler.lowerResolved(resolved, ctx, SqlIslandCases.RUNTIME, false);
-        return new DuckDb().render(q);
+        return PLATFORM.dialect().render(q);
     }
 
     private static int count(String text, String needle) {
@@ -181,7 +184,7 @@ class ScaleCostsTest {
 
     private static List<List<String>> island(String sql) throws SQLException {
         ExecutionResult result = new QueryService().execute(MODEL, "|#SQL{" + sql + "}#", SqlIslandCases.RUNTIME,
-                duckdb);
+                session);
         List<List<String>> rows = new ArrayList<>();
         for (var row : result.rows()) {
             List<String> cells = new ArrayList<>();
@@ -193,9 +196,9 @@ class ScaleCostsTest {
         return rows;
     }
 
-    private static List<List<String>> duckdb(String sql) throws SQLException {
+    private static List<List<String>> direct(String sql) throws SQLException {
         List<List<String>> rows = new ArrayList<>();
-        try (Statement s = duckdb.createStatement(); ResultSet rs = s.executeQuery(sql.replace(EMP, "EMP"))) {
+        try (Statement s = session.createStatement(); ResultSet rs = s.executeQuery(sql.replace(EMP, "EMP"))) {
             int n = rs.getMetaData().getColumnCount();
             while (rs.next()) {
                 List<String> cells = new ArrayList<>();

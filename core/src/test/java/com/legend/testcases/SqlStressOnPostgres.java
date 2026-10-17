@@ -5,6 +5,8 @@ package com.legend.testcases;
 
 import com.legend.Compiler;
 import com.legend.server.QueryService;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -22,20 +24,23 @@ import java.util.concurrent.atomic.AtomicReference;
  * the plan is sane, RUN and judged by the parity rules ({@link SqlParity#outcome}). One TSV line per query on standard
  * out. Not a test: a measurement, run by {@code sql-stress/run.sh} one query per JVM, so that a query that never ends
  * is killed with its JVM.
+ * Named for its referee, the live Postgres whose answers and fixture ({@link PostgresSeed}) it judges by (SqlStress until
+ * 2026-10-17, the dialect program's Phase 6).
  *
- * <p>usage: {@code SqlStress <parity schema dir> <queries.tsv> [id regex]}; {@code -Dstress.pg.url} names the
- * Postgres 16 that answers (default a local one on port 55432), {@code -Dstress.timeout} the seconds each plan and
- * each run may take (default 60).
+ * <p>usage: {@code SqlStressOnPostgres <parity schema dir> <queries.tsv> [id regex]}; {@code -Dstress.pg.url} names the
+ * Postgres 16 that answers (required: {@code run.sh} passes a local one on port 55432 by default), {@code
+ * -Dstress.timeout} the seconds each plan and each run may take (default 60). The island's other lane is the
+ * platform's own engine ({@code TestBackends.platform()}).
  */
-public final class SqlStress {
+public final class SqlStressOnPostgres {
 
-    private static final String PG_URL = System.getProperty("stress.pg.url",
-            "jdbc:postgresql://localhost:55432/postgres?user=postgres");
+    private static final String PG_URL = java.util.Objects.requireNonNull(System.getProperty("stress.pg.url"),
+            "-Dstress.pg.url: the Postgres 16 that answers (run.sh passes one)");
     private static final long TIMEOUT_MS = Long.getLong("stress.timeout", 60) * 1000;
     /** Generated SQL longer than this is not sent to a database: its size is the finding. */
     private static final int MAX_SQL = 2_000_000;
 
-    private SqlStress() {
+    private SqlStressOnPostgres() {
     }
 
     public static void main(String[] args) throws Exception {
@@ -48,16 +53,17 @@ public final class SqlStress {
         java.net.URI server = java.net.URI.create(PG_URL.substring(PG_URL.indexOf(':') + 1));
         String pgHost = server.getHost();
         String pgPort = String.valueOf(server.getPort());
-        String duckModel = SqlParity.model(tables, "type: DuckDB;\n specification: DuckDB { };\n auth: Test;");
+        TestBackend platform = TestBackends.platform();
+        String duckModel = SqlParity.model(tables, platform.connectionBody());
         String pgModel = SqlParity.model(tables, "type: Postgres;\n specification: Static { host: '" + pgHost
                 + "'; port: " + pgPort + "; name: 'postgres'; };\n auth: Test;");
         var duckCtx = Compiler.compileModel(duckModel);
         var pgCtx = Compiler.compileModel(pgModel);
         try (Connection seed = DriverManager.getConnection(PG_URL)) {
-            SqlParity.seed(seed, tables, true);
+            PostgresSeed.seed(seed, tables);
         }
-        try (Connection duck = DriverManager.getConnection("jdbc:duckdb:")) {
-            SqlParity.seed(duck, tables, false);
+        try (Connection duck = platform.open()) {
+            SqlParity.seed(platform, duck, tables);
             System.out.println("id\tchars\tpostgres\tpg_ms\tduck_plan_ms\tduck_sql\tduckdb\tduck_ms\tpg_plan_ms"
                     + "\tpg_sql\tpostgres_lane\tpgl_ms\tdetail");
             for (String[] q : queries) {

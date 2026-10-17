@@ -677,6 +677,7 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -717,6 +718,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -791,6 +793,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -812,6 +815,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//json",
         "//testing",
@@ -834,6 +838,7 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -906,6 +911,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -972,6 +978,8 @@ legend_java_library(
     srcs = glob(["src/test/java/com/legend/testcases/*.java"]),
     deps = [
         ":core",
+        # the cases' tables are created on a test backend's database, by its dialect
+        ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
