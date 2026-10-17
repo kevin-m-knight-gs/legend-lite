@@ -11022,3 +11022,52 @@ The record: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 6, "Done in
   - Stress: `//core:stress_suites` 4705 and `//core:stress_suites_h2` 4676 on both commits, with identical fail
     buckets and the same ledger names.
   - Each lane's per-suite census counts on the head are the ceilings above.
+
+## 2026-10-17 — The dialect program's Phase 6, part 2: the corpus's databases and the islands' tests are test backends (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main 86bbe71e (after #52), 12 commits, 86cae665 to d12474f5. The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 6, "Part 2"). Test code, test data and docs only. No
+product behaviour change was intended, and none was measured.
+- **What moved:**
+  - The relational corpus's harness takes its lane's backend: workspaces, fixture asides, the referee (`RefereeBackend`),
+    `readerOn`, and the warehouse lane as a backend of its own. `DuckWorkspaces` and `ServerWorkspaces` are deleted;
+    `H2Verify` is `RefereeVerify`.
+  - The SQL, IQ and Cypher islands' tests and the lowering tests run on the platform's backend or, where they pin
+    DuckDB's own rendering, on DuckDB's by name (`LowerRelationDuckDbTest`, `ScaleCostsDuckDbTest`). The parity lanes'
+    tables are made by the lane's dialect; Postgres keeps upstream's fixture (`PostgresSeed`).
+  - The resolver tests' 29 `sqlOf` copies are one harness (`resolver/ResolvedSql`).
+  - Defect 4: `CorpusDifferentialTest` runs each service on its runtime's database, seeded from neutral data
+    (`differential.py`'s `seed.json`) through that database's dialect. Verdict unchanged: 178 agree, 1 known
+    divergence, 0 unexpected, 179 services.
+  - Defect 5, for a fixture's unqualified names: Postgres's on-demand fixtures run in a schema aside, on a session of
+    their own, so a failed body's rollback cannot take the aside away.
+  - The server backends' sessions (Postgres, MariaDB, MySQL) open at the URL the product's connector makes from their
+    declared coordinates. `StoreTypesTest` reads `OTHER` on every implemented database. `PostgresArmTest` runs on
+    Postgres's backend.
+- **Guards:** the dialect-leak ledger loses 37 rows (19 files, 271 lines): 11 rows and 267 lines are left, of which 13
+  lines are in core's tests (the SQL translator's two tests, D11) and 24 in the warehouse's (Phase 7). parser-equivalence's
+  `own_corpus.matched` 2882 -> 2875 (seven elements of test models now take the backend's connection).
+  `HarnessDisciplineTest` scans the test backends. New: `//core:fixture_aside_postgres_test`, in `//gates:local`.
+- **The independent review of 0f4685e8**, by an agent that wrote none of it: nothing blocking. Its findings, each
+  checked against the code, were fixed in d69878bb and d12474f5:
+  - Postgres's fixture aside did not survive a failed body's rollback (Postgres's DDL and `SET` are transactional).
+    The new test fails on 0f4685e8's aside (`relation "u" does not exist`) and passes on d12474f5.
+  - `StoreTypesTest` compared each dialect with itself; the differential read a non-text cell as NULL and skipped
+    any undeclared table; four failure paths leaked a connection; the record overstated defect 5 and the referee's
+    routing.
+  - Not changed, with the reason in the record: the parser-equivalence ratchet's reason stays in its commit
+    (`ratchets.tsv` is generated); the product runner's unisolated fallback is main code's.
+- **Proof:**
+  - `bazel test //core:all` 73 of 73, `//spec:corpus_h2` 6 of 6, `//spec:corpus_duckdb` 6 of 6 (root container),
+    on d12474f5.
+  - `bazel build //...` (`--jobs=2`): green on d12474f5.
+  - `bazel test //gates:local`, less the four targets the container cannot run: 371 of 371 on d12474f5, with
+    `//datacube:verify_layout_test` passing on its one re-run (a drag's task took 115 ms against a 100 ms budget on
+    the first; this branch touches no DataCube code).
+  - The Postgres corpus lane (`bazel run //spec:corpus_on_postgres`) on its one on-demand fixture's test: the
+    fixture runs in `aside_0`, and the test passes.
+- **The measurement round, main 86bbe71e against d12474f5, every target with `dump-sql`:**
+  - BigQuery and Snowflake (10 targets each): all pass on both commits, every digest the same, census and channel B
+    lines identical; sessions open through `CloudBackend` from the same properties file. The only differing log
+    lines are the container's proxy port, one unordered result's row order and fresh UUIDs. (Snowflake's digests
+    moved between e6800ae0 and 86bbe71e on main itself: a nested `CASE` now flattened.)
