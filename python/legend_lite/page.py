@@ -264,6 +264,9 @@ class Grid(Tile):
         cube = self._cube
         cube.clear()
         cube.update(_plain(_json.loads(said['cube'])))
+        # what opening it over its frame changed, written with the edit: said, in DataCube's words, as a load says it
+        for note in said['notes']:
+            warnings.warn(f"{self.frame}: {note}", stacklevel=3)
         self._page._changed()
         return self
 
@@ -393,8 +396,9 @@ class Grid(Tile):
     def measure(self, column: str, fn: str = 'sum', name: str | None = None, *, weight: str | None = None) -> Grid:
         """``column`` aggregated by ``fn`` when the grid groups (one Aggregation offers for its type; ``wavg`` takes a
         ``weight`` column, and only it does): ``column``'s own Aggregation, as Column Properties sets it -- replacing
-        the one it had -- unless ``name`` names another column, or ``column`` is grouped: then a calculated column of
-        that name reading ``column``, with that Aggregation, as the screen would add one."""
+        the one it had; a measure's, as the panel refuses a dimension's (``column(name, kind='measure')`` makes one) --
+        unless ``name`` names another column, or ``column`` is grouped: then a calculated column of that name reading
+        ``column``, with that Aggregation, as the screen would add one."""
         measure = {'name': column if name is None else name, 'column': column, 'fn': fn,
                    **({'weight': weight} if weight is not None else {})}
         return self._edit({'measures': [measure]})
@@ -419,10 +423,10 @@ class Grid(Tile):
         return self
 
     def sort(self, column: str, direction: str = 'asc') -> Grid:
-        """A sort, after those it has, as the header menu adds one (a sort it had of ``column`` taken first):
-        ``column`` (one of the grid's columns, or a pivot's header) ``'asc'`` or ``'desc'``."""
-        kept = [x for x in self._query.get('sorts', []) if x.get('column') != column]
-        return self._edit({'sorts': [*kept, {'column': column, 'direction': direction}]})
+        """A sort, after those it has, as the header menu's Add Ascending and Add Descending add one (grid-edits.ts
+        addSort: a sort it had of ``column`` taken first; one it has already changes nothing): ``column`` (one of the
+        grid's columns, or a pivot's header) ``'asc'`` or ``'desc'``."""
+        return self._edit({'addSort': {'column': column, 'direction': direction}})
 
     def calculate(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
@@ -443,9 +447,11 @@ class Grid(Tile):
 
     def configure(self, settings: Mapping[str, Any]) -> Grid:
         """Any of the grid's configuration (its Properties), in its saved document's own keys (``reportTitle``,
-        ``maxRows``, ``columns``: each column's formats and colours, ...), set as DataCube sets a host's (its
-        ``applyConfiguration``: each column's merged into what it has; None clears a setting) and folded into its query
-        as the screen folds it, through headless gridEdit."""
+        ``maxRows``, ``appearance``, ``columns``: each column's formats and colours, ...), set as DataCube sets a host's
+        (its ``applyConfiguration``: the appearance and each column's merged into what they have; None clears a
+        setting) and folded into its query as the screen folds it, through headless gridEdit. A column's ``kind``,
+        ``aggregateFn`` and ``aggregationParameters`` go by Column Properties' rules, as ``column()`` does: a kind is
+        set, never cleared; ``excludedFromPivot`` is True or False."""
         return self._edit({'configuration': _copied(settings)})
 
     def chart(self, mark: str, *, x: Any = _KEEP, y: Sequence[Any] | None = None,
@@ -1274,8 +1280,9 @@ class Page:
 
     def _reopened(self, c: dict[str, Any], stacklevel: int) -> bool:
         """The page's cube ``c`` as DataCube opens it over its frame as the compiler types it now (``_frame_cube``:
-        cube-document.ts rebuilt -- a new column hidden; a gone one, a measure whose name is not its own, and one its
-        column's type no longer takes, left out; the open groups dropped when the grouping changed), taken when it is
+        cube-document.ts rebuilt -- a new column hidden; a gone one left out; a saved measures list made Column
+        Properties, a measure its column's type is not offered left out; the open groups dropped when the grouping
+        changed), taken when it is
         not the cube held -- the frame's columns moved, or DataCube left a part out -- each note warned once, in
         DataCube's words. So the page holds the cube every headless call opens, and no later call sends a part DataCube
         leaves out (a measure of a page saved before the naming rule, refused beside a new one). Whether it was taken.

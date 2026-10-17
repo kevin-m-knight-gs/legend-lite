@@ -178,7 +178,30 @@ class Grids(unittest.TestCase):
         self.assertEqual(edited._cube['configuration']['maxRows'], 2)
         edited.configure({'maxRows': None, 'columns': {'qty': {'hidden': None}}})
         self.assertEqual(edited._cube['configuration']['columns']['qty'], {'aggregateFn': 'max'})
-        self.assertNotEqual(edited._cube['configuration'].get('maxRows'), 2)
+        self.assertNotIn('maxRows', edited._cube['configuration'], 'the cap cleared')
+        self.assertNotIn('maxRows', edited._query, 'and out of the query')
+
+    def test_an_aggregation_set_reaches_the_view_and_a_measure_of_no_grouping_shows_the_rows(self):
+        # an aggregate that is not the column's default, set as grid.measure and Column Properties set it, reaches the
+        # grid's rows; cleared, the column is on its default again
+        grid = self.page.grid(TRADES, name='trades_max', rows=['desk'])
+        grid.measure('qty', 'max')
+        self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.max().to_dict())
+        grid.column('qty', aggregate='min')
+        self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.min().to_dict())
+        grid.column('qty', aggregate=None)
+        self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.sum().to_dict())
+        # a weighted average with its weight, and the weight cleared with it
+        grid.column('notional', aggregate='wavg', weight='qty')
+        weighted = (TRADES.notional * TRADES.qty).groupby(TRADES.desk).sum() / TRADES.qty.groupby(TRADES.desk).sum()
+        for desk, value in groups(grid.view(), 'notional').items():
+            self.assertAlmostEqual(value, weighted[desk])
+        grid.column('notional', aggregate=None, weight=None)
+        self.assertNotIn('notional', grid._cube['configuration'].get('columns', {}))
+        # with nothing grouped, a measure shows the rows as they are, as the screen does: no one-row total
+        flat = self.page.grid(TRADES, name='trades_flat_measure')
+        flat.measure('qty', 'max')
+        self.assertEqual(len(flat.view().rows), len(TRADES))
 
     def test_a_grid_read_while_another_thread_registers_frames_does_not_wait_on_it(self):
         # the session's lock and the frames' lock, taken in one order by both: a grid read beside frames registered

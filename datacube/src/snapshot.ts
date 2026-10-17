@@ -660,6 +660,17 @@ export function askedMeasures(s: QuerySnapshot): readonly Measure[] {
 }
 
 /**
+ * A grid's snapshot as its controller receives it: no measures list -- a grid's aggregates are its columns'
+ * Aggregation. The type keeps TypeScript from writing one; a JavaScript host (CubeApp.change) is not held by it, so a
+ * grid that carries one is refused, never read.
+ */
+export function refuseMeasuresList(s: CubeSnapshot): void {
+  if ((s as QuerySnapshot).measures !== undefined) {
+    throw new CubeRefusal("a grid carries no measures list: its aggregates are its columns' Aggregation (Column Properties)");
+  }
+}
+
+/**
  * Columns a snapshot actually needs from the source, in emit order.
  *
  * `groupCols` defaults to every row dimension. Passing fewer is how a

@@ -33,8 +33,9 @@ import {
   toJson as protocolJson,
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { measuresAsColumns } from './grid-edits.ts';
-import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, type CubeConfiguration } from './config.ts';
+import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, applyToSnapshot, type CubeConfiguration } from './config.ts';
 import type {
   ColumnSpec,
   CubeSnapshot,
@@ -478,8 +479,21 @@ export function openCube(
   const savedMeasures = q.measures ?? [];
   const converted = measuresAsColumns({ snapshot: reconciled, config: configuration }, savedMeasures);
   notes.push(...converted.notes);
-  const snapshot = converted.draft.snapshot;
+  // a sort of a measure left out names a column the grid no longer has: the flat level would sort by it, refused
+  const madeNames = new Set(converted.made.map((x) => x.measure.name));
+  const lost = savedMeasures.map((m) => m.name).filter((n) => !madeNames.has(n));
+  const lostSort = (column: string): boolean => lost.some((n) => column === n || column.endsWith(`${PIVOT_SEPARATOR}${n}`));
+  const keptSorts = converted.draft.snapshot.sorts.filter((s) => {
+    if (!lostSort(s.column)) return true;
+    notes.push(`left out sorting by ${s.column}`);
+    return false;
+  });
   configuration = converted.draft.config;
+  // folded when a list was converted: an opener reads the query back over the configuration (app.ts's constructor and
+  // the headless grid: fromSnapshot), so the saved query's copy of the old Column Properties would undo the conversion
+  const snapshot = savedMeasures.length > 0
+    ? applyToSnapshot({ ...converted.draft.snapshot, sorts: keptSorts }, configuration)
+    : converted.draft.snapshot;
   // The open rows are paths through the saved grouping; a different grouping has none.
   const tree = TreeState.fromPaths(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals);
   // changed: a part left out, or a saved measures list made the screen's model -- the cube held is not the one saved

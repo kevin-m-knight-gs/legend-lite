@@ -4,11 +4,13 @@ import { describe, it } from 'node:test';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { DEFAULT_CONFIGURATION, columnConfig, withColumn } from '../src/config.ts';
 import {
-  allColumns, columnKind, groupableColumns, measureAsColumn, measuresAsColumns, offeredAggregates, setColumn,
-  setGrouping, setPivot, setSorts, type GridDraft,
+  addSort, allColumns, columnKind, copiedColumn, groupableColumns, measureAsColumn, measuresAsColumns, offeredAggregates,
+  setColumn, setGrouping, setPivot, setSorts, type GridDraft,
 } from '../src/grid-edits.ts';
-import { AGGREGATE_FNS, CubeRefusal, pivotTotalColumn, type CubeSnapshot } from '../src/snapshot.ts';
-import { element } from '../../pure-protocol/src/index.ts';
+import {
+  AGGREGATE_FNS, CubeRefusal, pivotTotalColumn, refuseMeasuresList, type CubeSnapshot, type QuerySnapshot,
+} from '../src/snapshot.ts';
+import { element, lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import { stand } from './fake-planner.ts';
 
 // ONE WAY TO EDIT A GRID (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md): the screen's offers, as one module the
@@ -121,6 +123,23 @@ describe('sorting', () => {
     refused(() => setSorts(draft(), [{ column: 'desk', direction: 'up' as 'asc' }]), /a sort is 'asc' or 'desc', not 'up'/);
   });
 
+  it('pivoted, takes any pivot header the menu offers: the count a pivot of no measure fills with too', () => {
+    const pivoted = draft({ pivotOn: ['desk'] });
+    for (const header of [`EMEA${PIVOT_SEPARATOR}count`, `EMEA${PIVOT_SEPARATOR}notional~2`]) {
+      assert.deepEqual(setSorts(pivoted, [{ column: header, direction: 'desc' }]).snapshot.sorts,
+        [{ column: header, direction: 'desc' }]);
+    }
+  });
+
+  it('adds a sort last, as the menu\'s Add Ascending: the column\'s sort before taken away; one it has changes nothing', () => {
+    const two = addSort(addSort(draft(), 'qty', 'asc'), 'desk', 'desc');
+    assert.deepEqual(two.snapshot.sorts, [{ column: 'qty', direction: 'asc' }, { column: 'desk', direction: 'desc' }]);
+    assert.deepEqual(addSort(two, 'qty', 'desc').snapshot.sorts,
+      [{ column: 'desk', direction: 'desc' }, { column: 'qty', direction: 'desc' }]);
+    assert.equal(addSort(two, 'qty', 'asc'), two, 'an add that would change nothing');
+    refused(() => addSort(draft(), 'nope', 'asc'), /the sort names 'nope'/);
+  });
+
   it('keeps a sort the grid has, and changes its direction, whatever it names', () => {
     const held = draft({ sorts: [{ column: `FX${PIVOT_SEPARATOR}notional`, direction: 'asc' }] });
     const flipped = setSorts(held, [{ column: `FX${PIVOT_SEPARATOR}notional`, direction: 'desc' }]);
@@ -140,6 +159,11 @@ describe('a column\'s Column Properties', () => {
     refused(() => setColumn(draft(), 'fee', { kind: 'dimension' }), /'fee' is a calculated column: its kind is set in its editor/);
     refused(() => setColumn(draft(), 'region', { kind: 'measure' }), /'region' is grouped or pivoted on/);
     refused(() => setColumn(draft(), 'qty', { kind: 'level' as 'measure' }), /a column's kind is 'dimension' or 'measure'/);
+  });
+
+  it('takes a kind a column has already as no change, grouped too (the panel sets none)', () => {
+    const d = draft();
+    assert.equal(setColumn(d, 'region', { kind: 'dimension' }).config, d.config);
   });
 
   it('sets a measure\'s Aggregation, one offered for its type, and clears it', () => {
@@ -172,6 +196,8 @@ describe('a column\'s Column Properties', () => {
     assert.deepEqual(columnConfig(wavg.config, 'notional'), { aggregateFn: 'wavg', aggregationParameters: ['qty'] });
     refused(() => setColumn(draft(), 'notional', { weight: 'qty' }), /only a weighted average \(wavg\) takes a weight/);
     refused(() => setColumn(wavg, 'notional', { weight: 'nope' }), /notional's weight names 'nope', not a column/);
+    // a group-level column exists only after grouping: no row of the grid has it to weigh by
+    refused(() => setColumn(wavg, 'notional', { weight: 'share' }), /notional's weight names 'share', not a column the rows have/);
     const unweighted = setColumn(wavg, 'notional', { weight: null });
     assert.equal(columnConfig(unweighted.config, 'notional').aggregationParameters, undefined);
   });
@@ -187,8 +213,11 @@ describe('a measure as the screen\'s model (Python\'s grid.measure, a saved meas
     assert.equal(columnConfig(one.draft.config, 'notional').aggregateFn, 'average');
     assert.deepEqual(one.made, { measure: { name: 'notional', column: 'notional', fn: 'average' }, column: 'notional' });
     assert.equal(one.draft.snapshot.derived.length, CUBE.derived.length, 'no column made');
-    // a dimension made a measure first, as Column Properties would
-    const desk = measureAsColumn(draft({ rows: [] }), { name: 'desk', column: 'desk', fn: 'joinStrings' });
+    // asked of a grid, a dimension's Aggregation is refused, as Column Properties refuses it
+    const deskMeasure = { name: 'desk', column: 'desk', fn: 'joinStrings' } as const;
+    refused(() => measureAsColumn(draft({ rows: [] }), deskMeasure), /'desk' is a dimension, and only a measure takes/);
+    // converting what a cube held (a saved list, a chart's values), a dimension is made a measure first
+    const desk = measureAsColumn(draft({ rows: [] }), deskMeasure, new Set(), true);
     assert.deepEqual(columnConfig(desk.draft.config, 'desk'),
       { kind: 'measure', excludedFromPivot: false, aggregateFn: 'joinStrings' });
     assert.match(desk.note, /desk is now a measure/);
@@ -208,6 +237,8 @@ describe('a measure as the screen\'s model (Python\'s grid.measure, a saved meas
 
   it('refuses, in the screen\'s words: a column the grid has not, a name taken, an aggregate its type is not offered', () => {
     refused(() => measureAsColumn(draft(), { name: 'n', column: 'nope', fn: 'sum' }), /'nope' is not a column of the grid/);
+    refused(() => measureAsColumn(draft(), { name: 'n', column: 'share', fn: 'sum' }),
+      /'share' is a group-level column, computed after grouping: it takes no Aggregation/);
     refused(() => measureAsColumn(draft(), { name: 'desk', column: 'qty', fn: 'sum' }), /'desk' is already a column/);
     // region is grouped: its measure is a column of its own, and a count of text is not offered
     refused(() => measureAsColumn(draft(), { name: 'region', column: 'region', fn: 'count' }),
@@ -228,5 +259,20 @@ describe('a measure as the screen\'s model (Python\'s grid.measure, a saved meas
       "left out measure notional: 'notional' is already a column",
       'measure peak is now a calculated column of notional, its Aggregation max',
     ]);
+  });
+});
+
+describe('what a grid is', () => {
+  it('a calculated column that copies a column as it is, and no other, says which', () => {
+    const copy = { name: 'peak', lambda: lambda(['x'], property(variable('x'), 'notional')) };
+    assert.equal(copiedColumn(copy), 'notional');
+    assert.equal(copiedColumn(CUBE.derived[1]!), undefined, 'a formula is no copy');
+    assert.equal(copiedColumn({ ...copy, window: { fn: 'rank', partition: [], order: [] } as never }), undefined);
+  });
+
+  it('carries no measures list: one a JavaScript host hands it is refused, never read', () => {
+    const smuggled: QuerySnapshot = { ...CUBE, measures: [{ name: 'n', column: 'notional', fn: 'sum' }] };
+    assert.throws(() => refuseMeasuresList(smuggled), /a grid carries no measures list/);
+    refuseMeasuresList(CUBE);
   });
 });

@@ -85,6 +85,13 @@ describe('withConfiguration: a host\'s patch (CubeApp.applyConfiguration, Python
     assert.deepEqual(withConfiguration(c, { maxRows: 10 }).columns, c.columns);
   });
 
+  it('merges a part of the grid-wide appearance into what it has', () => {
+    const before = DEFAULT_CONFIGURATION.appearance;
+    const c = withConfiguration(DEFAULT_CONFIGURATION, { appearance: { fontSize: 14 } as never });
+    assert.equal(c.appearance.fontSize, 14);
+    assert.deepEqual({ ...c.appearance, fontSize: before.fontSize }, before, 'every other appearance setting kept');
+  });
+
   it('clears what it is told undefined', () => {
     const c = withConfiguration(withConfiguration(DEFAULT_CONFIGURATION, { maxRows: 10 }), { maxRows: undefined });
     assert.equal('maxRows' in c, false);

@@ -47,7 +47,7 @@ import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 import { isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
-import { setGrouping, setPivot, setSorts } from '../grid-edits.ts';
+import { addSort, setGrouping, setPivot, setSorts } from '../grid-edits.ts';
 import type { CubeConfiguration } from '../config.ts';
 
 /**
@@ -853,12 +853,7 @@ export function applyMenuAction(
         : s;
     case 'sort.addAsc':
     case 'sort.addDesc':
-      return col
-        ? sorted([
-            ...without(s.sorts, (x) => x.column === col),
-            { column: col, direction: item.direction ?? 'asc' },
-          ])
-        : s;
+      return col ? addSort(draft, col, item.direction ?? 'asc').snapshot : s;
     case 'sort.clearColumn':
       return col
         ? sorted(without(s.sorts, (x) => x.column === col))

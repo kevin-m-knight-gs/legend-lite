@@ -426,6 +426,21 @@ describe('a live chart', () => {
     assert.deepEqual(followCube(two, grid, carriedBy).y, [{ column: 'notional', fn: 'sum' }, { column: 'notional', fn: 'min' }]);
   });
 
+  it('keeps a value its grid carries as it is: a saved page\'s min and max of one column, a count made a column', () => {
+    // a measures list converted on open: notional's Aggregation min, a copy of notional at max, a copy of qty at count
+    const copy = (name: string, column: string, aggregate: 'max' | 'count'): CubeSnapshot['derived'][number] => ({
+      name, kind: 'measure', type: 'Float', aggregate, lambda: lambda(['x'], property(variable('x'), column)) });
+    const grid: CubeSnapshot = { ...CUBE,
+      columns: CUBE.columns.map((c) => (c.name === 'notional' ? { ...c, aggregate: 'min' as const } : c)),
+      derived: [copy('top', 'notional', 'max'), copy('trades', 'qty', 'count')] };
+    const saved: ChartSpec = { ...live,
+      y: [{ column: 'notional', fn: 'min' }, { column: 'notional', fn: 'max' }, { column: 'qty', fn: 'count' }] };
+    assert.deepEqual(followCube(saved, grid).y, saved.y, 'each value carried: none collapses onto another');
+    // a value no column carries follows its column's Aggregation
+    assert.deepEqual(followCube({ ...saved, y: [{ column: 'notional', fn: 'average' }] }, grid).y,
+      [{ column: 'notional', fn: 'min' }]);
+  });
+
   it('stays as it is when frozen, a scatter, or when nothing is grouped', () => {
     const frozen = { ...live, frozen: true };
     assert.equal(followCube(frozen, { ...CUBE, rows: ['desk'] }), frozen);

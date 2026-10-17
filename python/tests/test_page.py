@@ -615,6 +615,16 @@ class Document(Paged):
             grid.column('region', aggregate='unique')
         with self.assertRaisesRegex(ValueError, "'region' is grouped or pivoted on: its kind cannot change"):
             grid.column('region', kind='measure')
+        # a measure of a dimension is its Aggregation, which Column Properties refuses a dimension
+        with self.assertRaisesRegex(ValueError, "'desk' is a dimension, and only a measure takes an Aggregation"):
+            grid.measure('desk', 'unique')
+        # configure goes by the same rules for a column's kind and Aggregation: a kind is set, never cleared
+        with self.assertRaisesRegex(ValueError, "'count' is not offered on desk"):
+            grid.configure({'columns': {'desk': {'kind': 'measure', 'aggregateFn': 'count'}}})
+        with self.assertRaisesRegex(ValueError, "desk's kind is set, never cleared"):
+            grid.configure({'columns': {'desk': {'kind': None}}})
+        with self.assertRaisesRegex(ValueError, "desk's excludedFromPivot is true or false"):
+            grid.configure({'columns': {'desk': {'excludedFromPivot': None}}})
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
         # a measure is its column's Aggregation, replacing the one it had; a named one, a calculated column with its own;
         # a weighted average with its weight; a count of a number; a sort on a calculated column
@@ -660,6 +670,9 @@ class Document(Paged):
         detailed.measure('notional', 'max', name='top').sort('notional', 'desc').sort('top').sort('notional', 'asc')
         self.assertEqual(detailed._query['sorts'], [{'column': 'top', 'direction': 'asc'},
                                                     {'column': 'notional', 'direction': 'asc'}])
+        # an add that would change nothing changes nothing, as the menu offers none (grid-edits.ts addSort)
+        detailed.sort('top', 'asc')
+        self.assertEqual(detailed._query['sorts'][0], {'column': 'top', 'direction': 'asc'})
         page = ll.Page('Sorted')
         grid = page.grid(trades(), name='sorted_trades', columns=['desk'], measures={'notional': 'sum'})
         with self.assertRaisesRegex(ValueError, "the sort names 'nope', which the grid does not have"):
@@ -668,6 +681,7 @@ class Document(Paged):
         self.assertEqual(grid._query['sorts'], [{'column': 'FX__|__notional', 'direction': 'desc'}])
         grid.sort('FX__|__notional', 'asc')
         grid.pivot()
+        self.assertEqual(grid._query['sorts'], [], "unpivoted: the pivot header's sort goes with its headers")
         grid.group('region')
         # its open groups, as DataCube keeps them: the screen's edits leave them, a regrouping too (app.ts #edit) -- a
         # path the new grouping has not is shown closed
@@ -838,6 +852,9 @@ class Document(Paged):
         self.assertEqual(loaded.to_dict(), doc)
         # changed in Python: what it does not model is still there
         loaded.grids[0].group('desk')
+        # a part of the grid-wide appearance is merged into what it has, as the screen merges a host's patch
+        loaded.grids[1].configure({'appearance': {'fontSize': 14}})
+        self.assertEqual(loaded.to_dict()['cubes'][1]['cube']['configuration'].get('appearance'), {'fontSize': 14})
         loaded.charts[0].options({'labels': True})
         after = loaded.to_dict()
         self.assertEqual(after['cubes'][0]['cube']['query']['columns'], columns)

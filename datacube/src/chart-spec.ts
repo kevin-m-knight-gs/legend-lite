@@ -12,6 +12,7 @@
 // a chart never depends on the drawing library's version, and it holds
 // no functions (a stored formatter would need eval to come back).
 
+import { copiedColumn } from './grid-edits.ts';
 import { columnSpecs, defaultMeasure, levelLambda, type LevelScope } from './query.ts';
 import { binColumns, binName, grainColumn, grainEndColumn, grainName, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waterfallColumns } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
@@ -766,6 +767,20 @@ function firstMeasure(s: CubeSnapshot): ChartMeasure | undefined {
  * value, a value of a dimension (which the grid does not aggregate) and one the grid aggregates by a weighted average
  * (which needs a weight a chart's value has not) keep the chart's own.
  */
+/**
+ * The grid's column that carries a chart's value as it is: its own column at that aggregate, else a calculated column
+ * that copies it (grid-edits.ts copiedColumn, as a converted measures list or Open in Grid makes one) at that
+ * aggregate -- so a saved page's min and max of one column, converted into the column and a copy, stay two values --
+ * else its own column, whose Aggregation the value follows.
+ */
+function carrierOf(m: ChartMeasure, s: CubeSnapshot): string {
+  if (m.fn === 'value') return m.column;
+  const specs = columnSpecs(s);
+  const carries = (name: string): boolean => defaultMeasure(name, specs.get(name)).fn === m.fn;
+  if (carries(m.column)) return m.column;
+  return s.derived.find((d) => copiedColumn(d) === m.column && carries(d.name))?.name ?? m.column;
+}
+
 function followedValue(m: ChartMeasure, s: CubeSnapshot, column: string): ChartMeasure {
   if (m.fn === 'value') return m;
   if (rowColumns(s).find((c) => c.name === column)?.kind !== 'measure') return m;
@@ -948,12 +963,12 @@ export function followRefusal(told: readonly string[], made: ChartSpec, followed
 /**
  * A live chart, regrouped the way the cube is now: its first row group across; its second row group -- else its first
  * column label -- as the split; each value on the grid's Aggregation of the column carrying it (followedValue:
- * `carriedBy`, the value's own column unless Open in Grid made it a calculated column -- Update's). The mark and the
+ * `carriedBy` -- Update's, from Open in Grid; else carrierOf: a value the grid carries as it is keeps its aggregate). The mark and the
  * options are the chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots
  * values, not groups), a chart of the grid as shown and a cube with nothing grouped are left as they are.
  */
 export function followCube(spec: ChartSpec, s: CubeSnapshot,
-  carriedBy: (m: ChartMeasure) => string = (m) => m.column): ChartSpec {
+  carriedBy: (m: ChartMeasure) => string = (m) => carrierOf(m, s)): ChartSpec {
   // a drilled chart stays where it was taken until it is taken back up
   if (!live(spec) || (spec.drill?.path.length ?? 0) > 0) return spec;
   const followed = (y: readonly ChartMeasure[]): readonly ChartMeasure[] => y.map((m) => followedValue(m, s, carriedBy(m)));

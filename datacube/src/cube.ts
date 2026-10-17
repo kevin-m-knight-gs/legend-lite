@@ -20,7 +20,7 @@ import {
   type ColumnModel,
 } from './grid/columns.ts';
 import type { CubeSnapshot } from './snapshot.ts';
-import { CubeRefusal } from './snapshot.ts';
+import { CubeRefusal, refuseMeasuresList } from './snapshot.ts';
 import {
   pinnedPivotFacts,
   pivotLabel,
@@ -396,6 +396,7 @@ export class CubeController {
     // -- building the typing query's (no query to show), or the compiler's.
     let typing: Lambda;
     try {
+      refuseMeasuresList(snapshot);
       typing = sourceWithDerived(reading).lambda();
     } catch (error: unknown) {
       if (!(error instanceof CubeRefusal)) throw error;
@@ -521,6 +522,7 @@ export class CubeController {
   async run(state: RunState): Promise<CubeView | Stale> {
     const { snapshot, tree } = state;
     return this.#guard.issue(async (epoch, signal) => {
+      refuseMeasuresList(snapshot);
       // EVERY QUERY'S RECEIPT, from the engine that ran it: the view says what answered it
       // (receipt.ts). Collected by wrapping the runner for this run, so a tree's levels, a
       // pivot's values and the type query are all on it, not just the query behind the rows.

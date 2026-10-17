@@ -26,7 +26,7 @@ import {
   type RemoteSource,
   type WarehouseSource,
 } from '../src/cube-document.ts';
-import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, type CubeConfiguration } from '../src/config.ts';
+import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, fromSnapshot, type CubeConfiguration } from '../src/config.ts';
 import type { ColumnSpec, CubeSnapshot, Measure } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
@@ -351,6 +351,25 @@ describe('opening a cube over its file as it is now', () => {
     ]);
     assert.equal(opened.changed, true);
     assert.deepEqual(opened.snapshot.derived, []);
+  });
+
+  it('folds what it converted, so an opener that reads the query back keeps it (fromSnapshot: app.ts, the headless grid)', () => {
+    const saved = legacy([{ name: 'notional', column: 'notional', fn: 'average' }, { name: 'desk', column: 'desk', fn: 'max' }], []);
+    // saved from the screen with notional's Aggregation sum and desk a dimension: folded into its query, as a save folds them
+    const columns = saved.query.columns.map((c) => (c.name === 'notional' ? { ...c, aggregate: 'sum' as const }
+      : c.name === 'desk' ? { ...c, kind: 'dimension' as const } : c));
+    const opened = openCube({ ...saved, query: { ...saved.query, columns } }, RELATION, today);
+    const read = fromSnapshot(opened.snapshot, opened.configuration);
+    assert.equal(read.columns['notional']?.aggregateFn, 'average', 'the converted Aggregation, not the saved query\'s sum');
+    assert.deepEqual([read.columns['desk']?.kind, read.columns['desk']?.aggregateFn], ['measure', 'max']);
+  });
+
+  it('leaves out a sort of a measure it left out, saying so: the grid would sort by a column it has not', () => {
+    const saved = legacy([{ name: 'trades', column: 'desk', fn: 'count' }], []);
+    const sorts = [{ column: 'trades', direction: 'desc' as const }, { column: 'qty', direction: 'asc' as const }];
+    const opened = openCube({ ...saved, query: { ...saved.query, sorts } }, RELATION, today);
+    assert.deepEqual(opened.snapshot.sorts, [{ column: 'qty', direction: 'asc' }]);
+    assert.ok(opened.notes.includes('left out sorting by trades'), opened.notes.join('; '));
   });
 
   it('opens a cube saved with an empty measures list as it was', () => {
