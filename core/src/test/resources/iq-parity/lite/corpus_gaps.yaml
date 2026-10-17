@@ -2131,3 +2131,12 @@ tests:
   - id: a_wide_product_of_a_large_value
     sql: "SELECT id, CAST(nm AS NUMERIC(15,2)) * CAST(nm AS NUMERIC(16,2)) * CAST(nm AS NUMERIC(16,2)) AS a FROM t WHERE id = 1"
     profile: iq17-default
+
+  # ---- AVG over a window of a NUMERIC(15,2) and wider under IQ's engine (IQ island, 2026-10-17; the TPC-H corpus
+  # lane's 16, measured on IQ 17.1): the dividend made whole first, or divided in chunks, as a group's AVG is
+  - id: avg_over_a_window_of_a_numeric_15_2
+    sql: "SELECT id, AVG(CAST(n AS NUMERIC(15,2))) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: avg_over_a_window_of_a_numeric_17_2
+    sql: "SELECT id, AVG(CAST(n AS NUMERIC(17,2))) OVER (PARTITION BY k) AS a FROM g ORDER BY id"
+    profile: iq17-default

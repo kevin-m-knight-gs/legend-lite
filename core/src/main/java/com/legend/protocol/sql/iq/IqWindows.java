@@ -996,20 +996,34 @@ final class IqWindows {
         String count = at.fresh();
         Tx t = Tx.value(at.column(total), Kind.DECIMAL, true);
         Tx n = Tx.value(at.column(count), Kind.INTEGER, false);
-        if (IqFunctions.cutQuotient(at.column(total), s1, whole, at.column(count), 19, scale) == null) {
+        // IQ island, 2026-10-17 (the TPC-H corpus lane's 16): where one step does not fit, the dividend made whole
+        // first (IqFunctions.truncatedQuotient), or the quotient divided in chunks, a value past 38 digits refused at
+        // run time (IqFunctions.longQuotient), as the IQ engine's AVG over a group is
+        String past = IqDialect.REFUSED_AT_RUN_TIME + "an AVG over a window of more than " + (38 - scale) + " digits"
+                + " before its point is not supported: its NUMERIC(" + precision + "," + scale + ") needs more than the"
+                + " 38 digits lite's decimals hold";
+        java.util.function.BiFunction<ValueSpecification, ValueSpecification, ValueSpecification> divided = (x, y) -> {
+            ValueSpecification one = IqFunctions.cutQuotient(x, s1, whole, y, 19, scale);
+            if (one != null) {
+                return one;
+            }
+            return IqFunctions.truncatedFits(s1, whole, scale) ? IqFunctions.truncatedQuotient(x, s1, whole, y, scale)
+                    : IqFunctions.longQuotient(x, s1, whole, y, 19, scale, past);
+        };
+        if (divided.apply(at.column(total), at.column(count)) == null) {
             throw SqlTranslationException.unsupported("AVG over a window needs a step of more than the 38 digits"
                     + " lite's decimals hold here", f.pos());
         }
         Tx quotient = SqlToPure.strict(Kind.DECIMAL, List.of(t, n), v -> IqDialect.ifThen(SqlToPure.call("equal",
                 v.get(1), new CInteger(0L)), SqlToPure.nullOf(Kind.DECIMAL).vs(), java.util.Objects.requireNonNull(
-                IqFunctions.cutQuotient(v.get(0), s1, whole, SqlToPure.call("toDecimal", v.get(1)), 19, scale))));
+                divided.apply(v.get(0), SqlToPure.call("toDecimal", v.get(1))))));
         List<ColSpec> windows = List.of(
                 new ColSpec(total, at.overWindow(SqlToPure.valueOf(dec)), at.overGroup(SqlToPure.call("sum",
                         at.values())), null),
                 new ColSpec(count, at.overWindow(SqlToPure.valueOf(dec)), at.overGroup(SqlToPure.call("count",
                         at.values())), null));
         return new SqlToPure.WindowFunction(windows, new ColSpec(at.name(), at.overRow(quotient.vs()), null, null),
-                Kind.DECIMAL, true, new IqType("NUMERIC(" + precision + "," + scale + ")"));
+                Kind.DECIMAL, true, new IqType("NUMERIC(" + Math.min(precision, 38) + "," + scale + ")"));
     }
 
     /** SUM and AVG of a DOUBLE over a window: Pure's sum or average, IQ's -1001010 where the frame's positive or
