@@ -1694,6 +1694,25 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
       order rides alone, as before the landing: carried, the relational corpus's ordered compare of
       testRenameColumnsAfterGroupBy moved), so on a database that does not keep a subselect's order a later LIMIT
       may keep other rows.
+- **Announced 2026-10-17: landing 5's cross-area edits** (`claude/iq-island-5`; one PR and one CI run after review,
+  the user's merge). The corpus lane was rebuilt (the session scratchpad that held it was wiped; the private repo
+  neema2/iq-sql-research's `corpus-lane/` keeps its scripts) and its refusals the live IQ 17.1 answers were worked
+  top-down; each edit is judged by both `iq-parity` lanes, both `sql-parity` lanes and the corpus judge:
+  - **An integer quotient, a lite native.** `builtin/Pure.java`: `meta::legend::lite::quotient(Integer[1],
+    Integer[1]):Integer[1]` (`INTERNAL_DESUGAR` 21 to 22, `NOT_UPSTREAM` 48 to 49, both with dated notes; census row in
+    `docs/LITE_INVENTION_CENSUS.md`); `lowering/Scalars.java`: its rule, MIR's `INT_DIVIDE` with rem's zero-divisor
+    raise; `protocol/sql/SqlToPure.java`: `wholeQuotient`, used where both operands are integers (the function-FQN
+    literal ratchet 324 to 325, the Cypher translator's precedent). The Float estimate it replaces read each operand
+    about fourteen times.
+  - `sql/dialect/StringCountsAsInt.java` (new, Postgres): a string function's 64-bit count cast to its 32-bit integer.
+  - `sql/dialect/OuterJoinSubqueryFilters.java` (new, DuckDB): a LEFT JOIN condition's scalar subquery of the
+    null-supplying side filters that side first, which DuckDB cannot plan otherwise.
+  - `sql/dialect/ConstantKeysAsExpressions.java`: on DuckDB's GROUP BY integers too (`groupByOnly`), and a NULL key
+    grouped by as an integer's NULL.
+  - `protocol/sql/SqlToPure.java`, also: `*` in a grouped query shows its group keys; a scalar subquery a select item
+    reads on every path is computed once, a column before the item (`Output.pre`, in the item's phase), where it was
+    written once per check of each checked operation around it.
+
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):
