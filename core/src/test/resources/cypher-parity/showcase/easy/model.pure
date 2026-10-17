@@ -1,21 +1,21 @@
 ###Pure
-Class g::Duration
+Class <<graph::graph.Open>> g::Duration
 {
     months: Integer[1];
     days: Integer[1];
     seconds: Integer[1];
     nanoseconds: Integer[1];
 }
-Class g::City
+Class <<graph::graph.Open>> g::City
 {
     name: String[0..1];
 }
-Class g::Firm
+Class <<graph::graph.Open>> g::Firm
 {
     founded: Integer[0..1];
     legalName: String[0..1];
 }
-Class g::Person
+Class <<graph::graph.Open>> g::Person
 {
     active: Boolean[0..1];
     age: Integer[0..1];

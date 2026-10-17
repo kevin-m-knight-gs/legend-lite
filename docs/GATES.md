@@ -9944,7 +9944,10 @@ graph (no stereotype) keeps C4's compile errors. The parity harness's graphs are
    MATCH (a)-[:T]->(x:Nope)`, `MATCH (a:A)-[:NOPE]->(b)`, `MATCH (a:A)-[:U]->(x)` where only `B` has `U`,
    `RETURN n.nope`, `WHERE n.nope = 'a'`, `(n {nope: 'a'})`, `coalesce(n.nope, n.name)`, `[(a)-[:NOPE]->(x) |
    x.name]`, `exists((a)-[:T]->(:Nope))`.
-2. **The ledger.** (ledger: pending)
+2. **The ledger.** DuckDB: 4513 cases; PASS 2945 (from 2,854); FAIL 0; BUG 0; ERROR 0; REFUSED 657; BOTH_ERROR 730;
+   SKIP 181. Postgres: PASS 2584 (from 2,504); FAIL 0; BUG 0; ERROR 0; REFUSED 1018; BOTH_ERROR 730; SKIP 181. 29
+   lite cases in `lite/open.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems). The
+   TCK's agreement 3093 of 3880 (from 3,031); the showcase's pinned model carries the stereotype.
 3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:guardrails`,
    `//core:core_tests_integration` green; a unit test pins the open readings beside the closed pins.
 4. **Decided.** `docs/SEMANTICS_REGISTER.md` S58 rewritten as the two readings.

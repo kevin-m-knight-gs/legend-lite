@@ -3312,4 +3312,13 @@ scenarios pass (With4, Comparison1).
 
 #### 12.45.1 The ledger
 
-(ledger: pending)
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4513 | 2945 (from 2,854) | 0 | 0 | 0 | 657 | 730 | 181 |
+| Postgres | 4513 | 2584 (from 2,504) | 0 | 0 | 0 | 1018 | 730 | 181 |
+
+29 lite cases in `lite/open.yaml`, each judged by Neo4j (one BOTH_ERROR, as Neo4j errors: a variable not
+defined). The TCK: agreement 3093 of 3880 (from 3,031): 62 more scenarios, Match5 (29: the label-less and
+schema-optional MATCH feature), Match7 (7), Return6 (4), ReturnOrderBy6 (3), Null1 and Null2 (4), Graph5 and
+Graph6 (3), With6 (2), WithOrderBy4 (2), Match3 (2), ExistentialSubquery1, Match2, Return2, Return3, Return4,
+ReturnSkipLimit2 (one each); no case lost.

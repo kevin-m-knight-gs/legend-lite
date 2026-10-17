@@ -57,7 +57,7 @@ The sum exceeds 849 because W11's comprehension cases are also W3's, and W2 unlo
 
 ## 2. The workstreams
 
-### W1. Schema-optional reads (S58 overturned) — LANDED as open graphs, 2026-10-17 (the study's §12.45)
+### W1. Schema-optional reads (S58 overturned) — LANDED as open graphs, 2026-10-17 (the study's §12.45: TCK agreement 3031 → 3093, 62 scenarios; the declaration site reopened by the user, §3.2 Q1 addendum)
 
 A property declared by no candidate class of a pattern variable reads the known null (the island already reads a
 property an arm's class lacks as the known null, §12.40.2: the same mechanism, one step wider). `MATCH (n:Nope)`
@@ -416,7 +416,7 @@ F1 of W4 is exactly this, before the island's clauses.
 
 | phase | workstreams | legs | cases (cumulative agreement of 3880) |
 |---|---|---|---|
-| A — rules in the island | W1 (open graphs), W3, W12 | 5 | 3031 → ~3180 |
+| A — rules in the island | W1 (open graphs: LANDED 2026-10-17, 3031 → 3093), W3, W12 | 5 | 3031 → ~3180 |
 | B — identity | W2 | 4 | → ~3290 |
 | C — the harness's models | W5, W6, W7, W8 | 7 | → ~3440 |
 | D — the platform's limits | W9, W10, W11 | 9 | → ~3600 |
