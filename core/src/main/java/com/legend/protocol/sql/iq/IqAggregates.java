@@ -1592,6 +1592,12 @@ final class IqAggregates {
         measuredOptions(f, settings, "SUM");
         int[] ps = numeric(type);
         int p = Math.min(ps[0] + 1, 126);
+        if (p > 38 && p <= settings.precision() && ps[1] <= 37) {
+            // IQ island, 2026-10-17 (TPC-H's SUM(l_extendedprice * (1 - l_discount) * (1 + l_tax)), IQ's NUMERIC(48,6)):
+            // past 38 digits IQ's type holds what lite's 38 do at its scale; the database adds in 38, a sum past them
+            // its own overflow, so lite types the value it holds
+            p = 38;
+        }
         if (p > 38 || p > settings.precision()) {
             throw SqlTranslationException.unsupported("SUM of a NUMERIC(" + ps[0] + "," + ps[1] + ") is not supported"
                     + " under IQ's engine: its type, NUMERIC(" + p + "," + ps[1] + "), is capped by the profile or needs"

@@ -2119,3 +2119,15 @@ tests:
   - id: a_wide_sum_at_most_a_wide_avg
     sql: "SELECT k FROM g GROUP BY k HAVING SUM(CAST(n AS NUMERIC(28,4))) <= (SELECT AVG(CAST(n AS NUMERIC(17,2))) FROM g) ORDER BY k"
     profile: iq17-default
+
+  # ---- + - * whose IQ engine type passes 38 digits (IQ island, 2026-10-17; the TPC-H corpus lane's 80, measured on IQ
+  # 17.1): computed at IQ's scale in 38 digits, a value that may not fit refused at run time
+  - id: a_product_of_three_numerics
+    sql: "SELECT id, CAST(nm AS NUMERIC(15,2)) * CAST(nm AS NUMERIC(16,2)) * CAST(nm AS NUMERIC(16,2)) AS a FROM t WHERE id IN (3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: a_sum_of_a_wide_product
+    sql: "SELECT SUM(CAST(n AS NUMERIC(15,2)) * (1 - CAST(n AS NUMERIC(16,2))) * (1 + CAST(n AS NUMERIC(16,2)))) AS a FROM g WHERE id < 6"
+    profile: iq17-default
+  - id: a_wide_product_of_a_large_value
+    sql: "SELECT id, CAST(nm AS NUMERIC(15,2)) * CAST(nm AS NUMERIC(16,2)) * CAST(nm AS NUMERIC(16,2)) AS a FROM t WHERE id = 1"
+    profile: iq17-default

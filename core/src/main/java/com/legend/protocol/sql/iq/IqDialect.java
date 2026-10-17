@@ -5351,10 +5351,22 @@ public final class IqDialect implements InputDialect {
                     + " digits than profile " + settings.spelling() + "'s PRECISION (" + settings.precision() + "): its"
                     + " database cuts it to a smaller scale, which is not supported", b.pos());
         }
+        String past = null;
         if (p > 38) {
-            throw SqlTranslationException.unsupported("this " + operator + " is a NUMERIC(" + p + "," + s + "), more"
-                    + " than the 38 digits lite's decimals hold", b.pos());
+            if (engine != Engine.IQ || s > 37) {
+                throw SqlTranslationException.unsupported("this " + operator + " is a NUMERIC(" + p + "," + s + "),"
+                        + " more than the 38 digits lite's decimals hold", b.pos());
+            }
+            // IQ island, 2026-10-17 (the TPC-H corpus lane's 80 l_extendedprice * (1 - l_discount) * (1 + l_tax), IQ's
+            // NUMERIC(47,6)): past 38 digits IQ's type holds what lite's 38 do at its scale; lite computes it there and
+            // refuses at run time a value that may not fit (its size estimated in doubles, before the database
+            // computes it), typing the value it holds
+            past = REFUSED_AT_RUN_TIME + "this " + operator + " of more than " + (38 - s) + " digits before its point is"
+                    + " not supported: its NUMERIC(" + p + "," + s + ") needs more than the 38 digits lite's decimals hold";
+            p = 38;
         }
+        String guardedPast = past;
+        int guardScale = s;
         String fn = b.op() == SqlAst.BinaryOp.TIMES ? "times" : b.op() == SqlAst.BinaryOp.PLUS ? "plus" : "minus";
         boolean lInteger = !decimal(l);
         boolean rInteger = !decimal(r);
@@ -5368,10 +5380,22 @@ public final class IqDialect implements InputDialect {
         // merges their NULL guards, and keeps its own apart, so a sum of NUMERIC measures stays linear in size
         boolean merge = cannotRaise(b.left()) && cannotRaise(b.right());
         Tx result = SqlToPure.strict(Kind.DECIMAL, List.of(l, r), merge || List.of(l, r).stream().filter(Tx::nullable)
-                .count() == 1, v -> AppliedFunction.infixRun(fn,
-                List.of(lInteger ? SqlToPure.call("toDecimal", v.get(0)) : widen ? wide(v.get(0)) : v.get(0),
-                        rInteger ? SqlToPure.call("toDecimal", v.get(1)) : widen && !times ? wide(v.get(1))
-                                : v.get(1))));
+                .count() == 1, v -> {
+                    ValueSpecification value = AppliedFunction.infixRun(fn,
+                            List.of(lInteger ? SqlToPure.call("toDecimal", v.get(0)) : widen ? wide(v.get(0)) : v.get(0),
+                                    rInteger ? SqlToPure.call("toDecimal", v.get(1)) : widen && !times ? wide(v.get(1))
+                                            : v.get(1)));
+                    if (guardedPast == null) {
+                        return value;
+                    }
+                    ValueSpecification la = SqlToPure.call("abs", SqlToPure.call("toFloat", v.get(0)));
+                    ValueSpecification ra = SqlToPure.call("abs", SqlToPure.call("toFloat", v.get(1)));
+                    ValueSpecification size = AppliedFunction.infixRun(times ? "times" : "plus", List.of(la, ra));
+                    return IqFunctions.refusedPast(SqlToPure.call("greaterThanEqual", size,
+                            new com.legend.protocol.spec.CFloat(0.99 * Math.pow(10, 38 - guardScale))), guardedPast, value,
+                            SqlToPure.call("toOne", SqlToPure.call("cast", SqlToPure.empty(),
+                                    SqlToPure.typeArg("Decimal"))));
+                });
         return new Tx(result.vs(), Kind.DECIMAL, result.nullable(), null, numeric(p, s), result.guard(),
                 result.body());
     }
