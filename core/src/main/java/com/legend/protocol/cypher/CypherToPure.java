@@ -4351,10 +4351,19 @@ public final class CypherToPure {
      *  needed (a sum of nothing is 0; an average of a null column is null). */
     private record Aggregate(String argColumn, Tx arg, LambdaFunction reduce, Kind kind, boolean nullable,
             java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish,
-            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail,
+            /** a bivariate reducer's key (min and max over Variants, §12.58: the orderability key beside the
+             *  value, the map body {@code rowMapper(value, key)}); null for a reducer over the value alone */
+            @com.legend.base.Nullable String keyColumn, @com.legend.base.Nullable Tx key) {
         Aggregate(String argColumn, Tx arg, LambdaFunction reduce, Kind kind, boolean nullable,
                 java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish) {
-            this(argColumn, arg, reduce, kind, nullable, finish, null);
+            this(argColumn, arg, reduce, kind, nullable, finish, null, null, null);
+        }
+
+        Aggregate(String argColumn, Tx arg, LambdaFunction reduce, Kind kind, boolean nullable,
+                java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish,
+                com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            this(argColumn, arg, reduce, kind, nullable, finish, detail, null, null);
         }
     }
 
@@ -4513,8 +4522,8 @@ public final class CypherToPure {
                 SortItem o = ap.afterGrouping().get(k++);
                 Tx t = tx(o.expr(), after);
                 if (t.kind() == Kind.JSON) {
-                    throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant"
-                            + " is not supported yet", o.pos());
+                    // (a Variant: its orderability key, the study's §12.58)
+                    t = variantKey(t);
                 }
                 computed.add(new ColSpec(sk.column(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
             }
@@ -4651,6 +4660,9 @@ public final class CypherToPure {
         // projection
         List<SortKey> sortKeys = new ArrayList<>();
         List<ColSpec> hidden = new ArrayList<>();
+        // the orderability keys of Variant sort keys (§12.58): computed over the rows after the projection (their
+        // lambdas lower over rows, not inside a projection over a class extent)
+        List<ColSpec> keyed = new ArrayList<>();
         Map<String, Val> projected = new HashMap<>();
         for (Output out : outputs) {
             if (out.value() != null) {
@@ -4666,17 +4678,15 @@ public final class CypherToPure {
         Map<String, String> sortAggregateColumns = new LinkedHashMap<>();
         for (SortItem o : orderBy) {
             String key = outputNamed(items, o.expr(), outputs);
-            if (key != null && carried.containsKey(key)) {
-                throw CypherErrors.unsupported("ORDER BY a list or map (" + key + ") is not supported yet", o.pos());
-            }
             if (key != null && (nodes.containsKey(key) || isNode(scalars.get(key)))) {
                 throw CypherErrors.unsupported("ORDER BY a node (" + key + "; Neo4j orders nodes by identity) is not"
                         + " supported yet", o.pos());
             }
-            if (key != null && scalars.get(key) != null && scalars.get(key).kind() == Kind.JSON) {
-                // (a stored list, a path: Neo4j orders a list by its elements, which the Variant's text does not)
-                throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant ("
-                        + key + ") is not supported yet", o.pos());
+            if (key != null && (carried.containsKey(key) || scalars.get(key) != null
+                    && scalars.get(key).kind() == Kind.JSON)) {
+                // a list, a map or a path the database holds as a Variant (a carried list too): not the column
+                // itself but its orderability key, a hidden key computed below (the study's §12.58)
+                key = null;
             }
             if (key == null && (skip != null || limit != null) && o.expr() instanceof CypherAst.Prop pr
                     && pr.target() instanceof CypherAst.Var pv && nodes.containsKey(pv.name())) {
@@ -4690,13 +4700,11 @@ public final class CypherToPure {
                     throw CypherErrors.invalid("the node " + pv.name() + " has no property " + pr.name() + " (the"
                             + " graph is the model: a property no class declares is an error, not null)", o.pos());
                 }
-                if (np.kind() == Kind.JSON) {
-                    // (a stored list: Neo4j orders a list by its elements, which the Variant's text does not)
-                    throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant ("
-                            + pv.name() + "." + pr.name() + ") is not supported yet", o.pos());
+                if (np.kind() != Kind.JSON) {
+                    sortKeys.add(new SortKey(np.column(), o.descending(), false));
+                    continue;
                 }
-                sortKeys.add(new SortKey(np.column(), o.descending(), false));
-                continue;
+                // (a stored list: its orderability key, a hidden key computed below, §12.58)
             }
             if (key == null) {
                 if (grouped && containsAggregate(o.expr())) {
@@ -4723,13 +4731,7 @@ public final class CypherToPure {
                 // (a hidden key the projection drops: the lowering's result render carries it as a hidden output
                 // of the ordered relation, Render.withSortOutputs, 2026-10-17; before, only a sort under a SKIP or
                 // LIMIT, a subquery's, rendered)
-                Tx t = tx(o.expr(), sortScope);
-                if (t.kind() == Kind.JSON) {
-                    throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant"
-                            + " is not supported yet", o.pos());
-                }
-                key = freshName(names);
-                hidden.add(new ColSpec(key, lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
+                key = hiddenSortKey(tx(o.expr(), sortScope), scope, names, hidden, keyed);
                 sortKeys.add(new SortKey(key, o.descending(), true));
             } else {
                 sortKeys.add(new SortKey(key, o.descending(), false));
@@ -4776,6 +4778,9 @@ public final class CypherToPure {
             specs.addAll(hidden);
             vs = state instanceof Graph g ? call("project", source(g), new ColSpecArray(specs))
                     : reproject((Rows) state, specs);
+            if (!keyed.isEmpty()) {
+                vs = call("extend", vs, new ColSpecArray(keyed));
+            }
         } else {
             // the keys and the aggregates' arguments as columns, then the grouping
             List<ColSpec> specs = new ArrayList<>();
@@ -4840,8 +4845,14 @@ public final class CypherToPure {
         Aggregate agg = java.util.Objects.requireNonNull(out.agg());
         specs.add(new ColSpec(agg.argColumn(), lambda(scope.row(), SqlToPure.valueOf(agg.arg())), null, null));
         String computed = agg.finish() != null ? freshName(names) : out.name();
-        aggregates.add(new ColSpec(computed, lambda("x", new AppliedProperty(new Variable("x"), agg.argColumn())),
-                agg.reduce(), null));
+        ValueSpecification mapped = new AppliedProperty(new Variable("x"), agg.argColumn());
+        if (agg.keyColumn() != null) {
+            // (a bivariate reducer: the key's column beside the value's, the map body the pair)
+            specs.add(new ColSpec(agg.keyColumn(), lambda(scope.row(), SqlToPure.valueOf(
+                    java.util.Objects.requireNonNull(agg.key()))), null, null));
+            mapped = call(ROW_MAPPER, mapped, new AppliedProperty(new Variable("x"), agg.keyColumn()));
+        }
+        aggregates.add(new ColSpec(computed, lambda("x", mapped), agg.reduce(), null));
         if (agg.finish() != null) {
             finishes.add(new ColSpec(out.name(), lambda("r", agg.finish().apply(new AppliedProperty(
                     new Variable("r"), computed))), null, null));
@@ -4850,6 +4861,22 @@ public final class CypherToPure {
     }
 
     private record SortKey(String column, boolean descending, boolean hidden) {
+    }
+
+    /** A hidden sort key's column: the value itself, projected under a fresh name; a Variant's orderability key
+     *  (§12.58) computed over the rows after the projection ({@code keyed}), the Variant a hidden column of the
+     *  projection. */
+    private String hiddenSortKey(Tx t, Scope scope, Set<String> names, List<ColSpec> hidden, List<ColSpec> keyed) {
+        String key = freshName(names);
+        if (t.kind() == Kind.JSON) {
+            String raw = freshName(names);
+            hidden.add(new ColSpec(raw, lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
+            keyed.add(new ColSpec(key, lambda("r", keyOf(new AppliedProperty(new Variable("r"), raw), KEY_DEPTH)),
+                    null, null));
+        } else {
+            hidden.add(new ColSpec(key, lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
+        }
+        return key;
     }
 
     /** The items' outputs over the scope before the projection: a node carried through a WITH (into
@@ -5226,8 +5253,16 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported(c.name() + " of this value is not supported yet", c.pos());
             }
             if (arg.kind() == Kind.JSON) {
-                throw CypherErrors.unsupported(c.name() + " over lists, maps or values of several kinds (Neo4j ranks"
-                        + " them by type) is not supported yet", c.pos());
+                // over Variants (lists, maps, values of several kinds; the study's §12.58): the value at the
+                // smallest or largest orderability key (lite's minBy and maxBy over rowMapper(value, key), the
+                // lowering's ARG_MIN and ARG_MAX); a null Variant's key is null, so the reducer skips it, as
+                // Neo4j's min and max skip nulls
+                Tx key = variantKey(arg);
+                ValueSpecification keyed = call("if", call("equal", key.vs(), new CString("9")),
+                        thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(key.vs()));
+                return new Aggregate(freshName(names), arg, lambda("y", call(fn.equals("min") ? LITE_MIN_BY
+                        : LITE_MAX_BY, new Variable("y"))), Kind.JSON, true, null, arg.detail(), freshName(names),
+                        Tx.value(keyed, Kind.STRING, true));
             }
             return new Aggregate(freshName(names), arg, lambda("y", call(fn, values)), arg.kind(), true, null);
         }
@@ -5270,7 +5305,8 @@ public final class CypherToPure {
         return new Aggregate(freshName(names), piece, lambda("y", call("joinStrings", texts,
                 new CString(","))), Kind.JSON, false, raw -> call("fromJson", plus(new CString("["),
                 call("if", call("isEmpty", raw), thunk(new CString("")), thunk(call("toOne", raw))),
-                new CString("]"))), arg.kind() == Kind.JSON && arg.detail() != null
+                new CString("]"))), arg.kind() == Kind.JSON
+                        // (a list of Variants, each with its mark, or of no known shape: still a list, §12.58)
                         ? new ListOf(Kind.JSON, arg.detail())
                         : elementType(arg.kind()) == null ? null : new ListOf(arg.kind()));
     }
@@ -6756,10 +6792,13 @@ public final class CypherToPure {
             case PLUS -> {
                 Val l = val(b.left(), scope);
                 Val r = val(b.right(), scope);
-                if (l instanceof Scalar ls && r instanceof Scalar rs && !listShaped(ls) && !listShaped(rs)) {
+                if (l instanceof Scalar ls && r instanceof Scalar rs && !listShaped(ls) && !listShaped(rs)
+                        && !(unknownVariant(ls) && (unknownVariant(rs) || rs.tx().kind() == Kind.NULL))
+                        && !(unknownVariant(rs) && ls.tx().kind() == Kind.NULL)) {
                     return scalar(arithmetic(b, ls.tx(), rs.tx()));
                 }
-                // (a list the database holds as a Variant, of a known shape, concatenates as a list: §12.52)
+                // (a list the database holds as a Variant, of a known shape, concatenates as a list: §12.52; two
+                // of no known shape, two stored lists, read as lists, S81)
                 return concat(l, r, b.pos());
             }
             case MINUS, TIMES, DIVIDE, MODULO, POWER -> {
@@ -6881,6 +6920,9 @@ public final class CypherToPure {
                 return variantEqual(json, other);
             }
         }
+        if (l.kind() == Kind.JSON && r.kind() == Kind.JSON) {
+            return variantsEqual(l, r);
+        }
         if (l.kind() == Kind.JSON || r.kind() == Kind.JSON || l.kind() == Kind.OTHER || r.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("comparing a " + cypherType(l.kind()) + " with a " + cypherType(r.kind())
                     + " is not supported yet", pos);
@@ -6921,6 +6963,16 @@ public final class CypherToPure {
         };
     }
 
+    /** The mark of a float divided by a zero literal: NaN or an infinity in Neo4j, which Postgres's division raises
+     *  on and whose JSON holds neither, so a list or map holding it is refused by name. */
+    private record NotANumber() implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** Whether an expression is a zero literal ({@code 0}, {@code 0.0}). */
+    private static boolean zeroLiteral(Expr e) {
+        return e instanceof CypherAst.IntLit i && i.value() == 0 || e instanceof CypherAst.FloatLit f && f.value() == 0.0;
+    }
+
     /** {@code v = x} where {@code v} is a Variant of no known shape (a property of a node the database holds as a
      *  Variant, an element of such a list) and {@code x} a scalar the Variant reads back by type (the study's
      *  §12.57): equal where the Variant holds a value of x's kind and the two agree (a number as a float), false
@@ -6950,11 +7002,169 @@ public final class CypherToPure {
         return Tx.condition(whenTrue, whenFalse, true);
     }
 
+    /** The marks of the orderability key ({@link #variantKey}): a list's end, the separator between its elements,
+     *  and the escape before a mark inside a string (none is the NUL byte, which Postgres's text refuses). */
+    private static final String KEY_END = "\u0001";
+    private static final String KEY_SEP = "\u0002";
+    private static final String KEY_ESC = "\u0003";
+
+    /** The depth to which the orderability key spells a list's elements as keys of their own: deeper, a list is its
+     *  JSON text (S81). */
+    private static final int KEY_DEPTH = 3;
+
+    /**
+     * The orderability key of a Variant (the study's §12.58): a text the database builds that orders Variants as
+     * Cypher orders values -- by their type's rank first (a map {@code 0}, a node {@code 1}, a relationship
+     * {@code 2}, a list {@code 3}, a path {@code 4}, a string {@code 5}, a boolean {@code 6}, a number {@code 7},
+     * null {@code 9}: Cypher's order, null last ascending), then by the value: a number as a fixed-width text of
+     * its millionths offset to be positive (S81: its order holds within ±9e12 and to the millionth), a string as
+     * its text (its marks escaped), a boolean as {@code 0} or {@code 1}, a list as its elements' keys joined by the
+     * separator and ended by the end mark (so a prefix orders first, as Cypher's element-wise order does), a map,
+     * node, relationship or path as its JSON text (S81: Neo4j orders nodes and relationships by identity).
+     */
+    private static Tx variantKey(Tx v) {
+        return Tx.value(keyOf(SqlToPure.valueOf(v), KEY_DEPTH), Kind.STRING, false);
+    }
+
+    private static ValueSpecification keyOf(ValueSpecification v, int depth) {
+        java.util.function.Function<String, ValueSpecification> is = k -> call("equal", call(IS_KIND, v,
+                new CString(k)), new CBoolean(true));
+        ValueSpecification one = call("toOne", v);
+        ValueSpecification text = call("toString", one);
+        // the kind test before each place proves the conversion present: trustOne, the platform's unguarded
+        // conformance, never toOne's raise (a raise Postgres folds at PLAN time where the key sits in a
+        // subquery's WHERE over an outer row's value: the planner's estimate evaluates stable constants in
+        // every CASE arm, 2026-10-17)
+        ValueSpecification number = numberKey(call(TRUST_ONE, call("to", one, SqlToPure.typeArg("Float"))));
+        ValueSpecification bool = call("if", call(TRUST_ONE, call("to", one, SqlToPure.typeArg("Boolean"))),
+                thunk(new CString("61")), thunk(new CString("60")));
+        ValueSpecification string = plus(new CString("5"), escapedKey(call(TRUST_ONE, call("to", one,
+                SqlToPure.typeArg("String")))));
+        String var = "e" + depth;
+        ValueSpecification list = depth == 0 ? plus(new CString("3"), text, new CString(KEY_END))
+                : plus(new CString("3"), call("joinStrings", call("map", call("toMany", one,
+                        SqlToPure.typeArg(VARIANT_TYPE)), lambda(var, keyOf(new Variable(var), depth - 1))),
+                        new CString(KEY_SEP)), new CString(KEY_END));
+        java.util.function.Function<String, ValueSpecification> has = k -> call("isNotEmpty", call("get", one,
+                new CString(k)));
+        ValueSpecification map = call("if", has.apply("@path"), thunk(plus(new CString("4"), text)),
+                thunk(call("if", has.apply("@type"), thunk(plus(new CString("2"), text)),
+                        thunk(call("if", has.apply("@labels"), thunk(plus(new CString("1"), text)),
+                                thunk(plus(new CString("0"), text)))))));
+        return call("if", call("or", call("isEmpty", v), is.apply("null")), thunk(new CString("9")),
+                thunk(call("if", is.apply("number"), thunk(number),
+                        thunk(call("if", is.apply("boolean"), thunk(bool),
+                                thunk(call("if", is.apply("string"), thunk(string),
+                                        thunk(call("if", is.apply("list"), thunk(list), thunk(map))))))))));
+    }
+
+    /** A number's key: its rank {@code 7} and the text of its millionths offset by 10^18, left-padded to twenty
+     *  digits, so the texts order as the numbers do (within ±9e12, to the millionth; S81); beyond the largest
+     *  double (NaN and the infinities, which the databases order beyond every number) {@code 8}; above 9e12 the
+     *  highest text, below -9e12 the lowest (one key each: the millionths would overflow the database's integer
+     *  there, S81). */
+    private static ValueSpecification numberKey(ValueSpecification number) {
+        ValueSpecification scaled = call("floor", AppliedFunction.infixRun("times", List.of(number,
+                new CFloat(1000000.0))));
+        ValueSpecification shifted = AppliedFunction.infixRun("plus", List.of(scaled,
+                new CInteger(1000000000000000000L)));
+        ValueSpecification finite = plus(new CString("7"), call("lpad", call("toString", shifted), new CInteger(20L),
+                new CString("0")));
+        ValueSpecification beyond = call("greaterThan", number, new CFloat(Double.MAX_VALUE));
+        ValueSpecification above = call("greaterThan", number, new CFloat(NUMBER_KEY_RANGE));
+        ValueSpecification below = call("lessThan", number, new CFloat(-NUMBER_KEY_RANGE));
+        return call("if", beyond, thunk(new CString("8")), thunk(call("if", above,
+                thunk(new CString("7" + "9".repeat(20))), thunk(call("if", below,
+                        thunk(new CString("7" + "0".repeat(20))), thunk(finite))))));
+    }
+
+    /** The numbers the orderability key spells exactly: within ±9e12 (their millionths offset by 10^18 fit a
+     *  64-bit integer). */
+    private static final double NUMBER_KEY_RANGE = 9.0e12;
+
+    /** A string's place in the orderability key: its text with the key's marks escaped. */
+    private static ValueSpecification escapedKey(ValueSpecification text) {
+        ValueSpecification out = call("replace", text, new CString(KEY_ESC), new CString(KEY_ESC + KEY_ESC));
+        out = call("replace", out, new CString(KEY_SEP), new CString(KEY_ESC + KEY_SEP));
+        return call("replace", out, new CString(KEY_END), new CString(KEY_ESC + KEY_END));
+    }
+
+    /** The orderability key of a scalar the island types (what a Variant beside it compares with): a string's, a
+     *  boolean's or a number's place after its rank, {@code 9} for a null; null for a kind the key does not spell
+     *  (a temporal). */
+    private static @com.legend.base.Nullable Tx scalarKey(Tx t) {
+        if (t.kind() == Kind.NULL) {
+            return Tx.value(new CString("9"), Kind.STRING, false);
+        }
+        ValueSpecification v = SqlToPure.valueOf(t);
+        ValueSpecification one = t.nullable() ? call(TRUST_ONE, v) : v;   // under the isEmpty test below
+        ValueSpecification key;
+        if (t.kind() == Kind.STRING) {
+            key = plus(new CString("5"), escapedKey(one));
+        } else if (t.kind() == Kind.BOOLEAN) {
+            key = call("if", one, thunk(new CString("61")), thunk(new CString("60")));
+        } else if (t.kind().numeric()) {
+            key = numberKey(call("toFloat", one));
+        } else {
+            return null;
+        }
+        if (t.nullable()) {
+            key = call("if", call("isEmpty", v), thunk(new CString("9")), thunk(key));
+        }
+        return Tx.value(key, Kind.STRING, false);
+    }
+
+    /** {@code l < r} and the others where a side is a Variant (§12.58): by the orderability keys where both are
+     *  of one rank the key orders by value (a string, a boolean, a number, a list -- element-wise by the keys,
+     *  S81), null where the ranks differ (Cypher: values of different types do not order) or either is null. */
+    private static Tx variantOrdered(BinaryOp op, Tx l, Tx r, Pos pos) {
+        Tx lk = l.kind() == Kind.JSON ? variantKey(l) : scalarKey(l);
+        Tx rk = r.kind() == Kind.JSON ? variantKey(r) : scalarKey(r);
+        if (lk == null || rk == null) {
+            throw CypherErrors.unsupported("comparing a " + cypherType(l.kind()) + " with a " + cypherType(r.kind())
+                    + " (null in Neo4j) is not supported yet", pos);
+        }
+        ValueSpecification lr = call("left", lk.vs(), new CInteger(1L));
+        ValueSpecification rr = call("left", rk.vs(), new CInteger(1L));
+        ValueSpecification same = call("equal", lr, rr);
+        ValueSpecification ordered = null;
+        for (String rank : List.of("3", "5", "6", "7")) {
+            ValueSpecification one = call("equal", lr, new CString(rank));
+            ordered = ordered == null ? one : call("or", ordered, one);
+        }
+        String fn = switch (op) {
+            case LT -> "lessThan";
+            case LE -> "lessThanEqual";
+            case GT -> "greaterThan";
+            case GE -> "greaterThanEqual";
+            default -> throw new IllegalStateException("unreachable: " + op);
+        };
+        ValueSpecification holds = call("and", same, java.util.Objects.requireNonNull(ordered));
+        ValueSpecification test = call(fn, lk.vs(), rk.vs());
+        return Tx.condition(call("and", holds, test), call("and", holds, call("not", test)), true);
+    }
+
+    /** {@code l = r} where both are Variants of no known shape (§12.58): equal where their orderability keys are
+     *  (a number as a float, a list element-wise, a map, node or relationship as its text: S81), null where either
+     *  is null or holds the JSON null. */
+    private static Tx variantsEqual(Tx l, Tx r) {
+        Tx lk = variantKey(l);
+        Tx rk = variantKey(r);
+        ValueSpecification present = call("and", call("not", call("equal", lk.vs(), new CString("9"))),
+                call("not", call("equal", rk.vs(), new CString("9"))));
+        ValueSpecification same = call("equal", lk.vs(), rk.vs());
+        return Tx.condition(call("and", present, same), call("and", present, call("not", same)), true);
+    }
+
     /** {@code l < r} and the others: null when either is null, or when the values are of different types. Booleans
      *  order false before true, as the databases order them. */
     private static Tx ordered(BinaryOp op, Tx l, Tx r, Pos pos) {
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
+        }
+        if ((l.kind() == Kind.JSON || r.kind() == Kind.JSON) && !isNode(l) && !isNode(r)
+                && !(l.detail() instanceof PathValue) && !(r.detail() instanceof PathValue)) {
+            return variantOrdered(op, l, r, pos);
         }
         if (l.kind() == Kind.BOOLEAN && r.kind() == Kind.BOOLEAN) {
             String fn = switch (op) {
@@ -7047,7 +7257,14 @@ public final class CypherToPure {
                     yield SqlToPure.strict(Kind.INTEGER, List.of(l, r), v -> SqlToPure.integerQuotient(v.get(0),
                             v.get(1)));
                 }
-                yield SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> call("divide", v.get(0), v.get(1)));
+                Tx quotient = SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> call("divide", v.get(0), v.get(1)));
+                if (zeroLiteral(b.right())) {
+                    // (NaN or an infinity in Neo4j: marked, so a list or map holding it refuses by name -- Postgres's
+                    // division raises, and its JSON holds neither)
+                    yield new Tx(quotient.vs(), quotient.kind(), quotient.nullable(), quotient.whenFalse(),
+                            new NotANumber());
+                }
+                yield quotient;
             }
             case MODULO -> {
                 if (l.kind() != Kind.INTEGER || r.kind() != Kind.INTEGER) {
@@ -7895,6 +8112,11 @@ public final class CypherToPure {
             if (type == null) {
                 return v;
             }
+            if (shape.element() == Kind.DATE) {
+                // (the Variant spells a date as the oracle's text, which no database reads back as a date)
+                throw CypherErrors.unsupported("a list of dates the database holds as a Variant, read back as"
+                        + " values, is not supported yet", new Pos(0, 0));
+            }
             // (elements the database holds as Variants -- collected relationships, nodes or lists -- read back as
             // Variants, each carrying the elements' mark)
             ValueSpecification held = SqlToPure.valueOf(s.tx());
@@ -7906,6 +8128,26 @@ public final class CypherToPure {
     }
 
     private static final String VARIANT_TYPE = "meta::pure::metamodel::variant::Variant";
+
+    /** A value as the Variant the database builds of it, for a key or a comparison (§12.58): a collection the
+     *  database computes as the JSON text of its elements (as collect spells one: {@code toVariant} of a typed
+     *  collection reads back untyped on Postgres); any other value its own Variant. */
+    private Tx variantOfVal(Val v, Pos pos) {
+        if (v instanceof Coll c) {
+            ValueSpecification texts = call("map", c.vs(), lambda("e", scalarJsonText(element("e", c), pos)));
+            ValueSpecification json = call("fromJson", plus(new CString("["), call("joinStrings", texts,
+                    new CString(",")), new CString("]")));
+            return Tx.value(json, Kind.JSON, false, shapeOf(c));
+        }
+        return scalarOf(v, pos);
+    }
+
+    /** The elements of a Variant of no known shape read as Variants ({@code toMany}): what two stored lists
+     *  concatenate as (§12.58; a value that is no list reads as its one element, S81). */
+    private static Coll variantElements(Tx t) {
+        return new Coll(call("toMany", SqlToPure.valueOf(t), SqlToPure.typeArg(VARIANT_TYPE)), Kind.JSON, false,
+                null);
+    }
 
     private static Scalar scalar(Tx tx) {
         return new Scalar(tx, false, null);
@@ -7978,6 +8220,28 @@ public final class CypherToPure {
             case ListVal l -> Tx.value(call("fromJson", jsonTextOf(l, pos)), Kind.JSON, false, shapeOf(l));
             case MapVal m -> Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false, shapeOf(m));
         };
+    }
+
+    /** A scalar as the Variant the database builds of it ({@code toVariant}): a string, a boolean or a number;
+     *  a Variant or a null as it is; a temporal is not spelled (the Variant would hold its text). */
+    private static Tx asVariant(Tx t, Pos pos) {
+        if (t.kind() == Kind.JSON || t.kind() == Kind.NULL) {
+            return t;
+        }
+        if (t.detail() instanceof NotANumber) {
+            throw CypherErrors.unsupported("a float divided by a zero (NaN or an infinity in Neo4j, which Postgres's"
+                    + " JSON holds neither of) inside a list or map is not supported yet", pos);
+        }
+        if (t.kind() != Kind.STRING && t.kind() != Kind.BOOLEAN && !t.kind().numeric()) {
+            throw CypherErrors.unsupported("a list or map holding a " + cypherType(t.kind()) + ", as a value, is"
+                    + " not supported yet (the Variant spells it as text)", pos);
+        }
+        ValueSpecification v = SqlToPure.valueOf(t);
+        if (!t.nullable()) {
+            return Tx.value(call("toVariant", v), Kind.JSON, false);
+        }
+        return Tx.value(call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.JSON).vs()),
+                thunk(call("toVariant", call("toOne", v)))), Kind.JSON, true);
     }
 
     /** The shape of a value the database holds as a Variant, where its spelling says it (the study's §12.43): a
@@ -8070,6 +8334,10 @@ public final class CypherToPure {
         if (t.kind() == Kind.NULL) {
             return new CString("null");
         }
+        if (t.detail() instanceof NotANumber) {
+            throw CypherErrors.unsupported("a float divided by a zero (NaN or an infinity in Neo4j, which Postgres's"
+                    + " JSON holds neither of) inside a list or map is not supported yet", pos);
+        }
         if (t.kind() == Kind.DATETIME || t.kind() == Kind.TIME || t.kind() == Kind.ZONED
                 || t.kind() == Kind.ZONED_TIME || t.kind() == Kind.DURATION || t.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("a list or map holding a " + cypherType(t.kind()) + ", as a value, is"
@@ -8110,7 +8378,8 @@ public final class CypherToPure {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
         if (l instanceof Coll || r instanceof Coll) {
-            throw CypherErrors.unsupported("comparing a list the database computes is not supported yet", pos);
+            // (a list the database computes: the Variants' orderability keys, §12.58)
+            return equal(variantOfVal(l, pos), variantOfVal(r, pos), pos);
         }
         if (l instanceof Scalar ls && r instanceof Scalar rs) {
             return equal(ls.tx(), rs.tx(), pos);
@@ -8136,6 +8405,11 @@ public final class CypherToPure {
             }
             return all;
         }
+        if (l instanceof Scalar ls && ls.tx().kind() == Kind.JSON || r instanceof Scalar rs
+                && rs.tx().kind() == Kind.JSON) {
+            // (a list or map the database holds beside a spelled one: the Variants' orderability keys, §12.58)
+            return equal(scalarOf(l, pos), scalarOf(r, pos), pos);
+        }
         // a list, a map and a scalar are values of different types: never equal
         return constant(false);
     }
@@ -8149,7 +8423,13 @@ public final class CypherToPure {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
         if (l instanceof Coll || r instanceof Coll) {
-            throw CypherErrors.unsupported("ordering a list the database computes is not supported yet", pos);
+            // (a list the database computes: the Variants' orderability keys, §12.58)
+            return ordered(op, variantOfVal(l, pos), variantOfVal(r, pos), pos);
+        }
+        if (l instanceof Scalar ls && ls.tx().kind() == Kind.JSON || r instanceof Scalar rs
+                && rs.tx().kind() == Kind.JSON) {
+            // (a list or map the database holds beside a spelled one: the Variants' orderability keys, §12.58)
+            return ordered(op, scalarOf(l, pos), scalarOf(r, pos), pos);
         }
         if (!(l instanceof ListVal a) || !(r instanceof ListVal b)) {
             if (l instanceof MapVal && r instanceof MapVal) {
@@ -8186,6 +8466,12 @@ public final class CypherToPure {
 
     /** Whether {@code s} is a list the database holds as a Variant of a known element kind: one {@link #asCollection}
      *  reads as a collection. */
+    /** Whether a scalar is a Variant of no known shape (a stored list or map, a property of a node the database
+     *  holds as a Variant). */
+    private static boolean unknownVariant(Scalar s) {
+        return s.tx().kind() == Kind.JSON && s.tx().detail() == null;
+    }
+
     private static boolean listShaped(Scalar s) {
         return s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape
                 && (elementType(shape.element()) != null || shape.element() == Kind.JSON);
@@ -8211,13 +8497,45 @@ public final class CypherToPure {
         return s.tx();
     }
 
+    /** {@code list + x} ({@code x + list}) where {@code x} is a value the database holds as a Variant (the study's
+     *  §12.58): a list's elements in a row with the list's (Cypher concatenates two lists), any other value an
+     *  element after (before) them; null where {@code x} is null or holds the JSON null (Cypher: a list beside
+     *  null is null). The list's elements as Variants, the result a Variant list of them. */
+    private static Val concatVariant(Coll list, Tx x, boolean after, Pos pos) {
+        // (the list's JSON built as text, as collect builds one: a conditional over collections has no SQL
+        // carrier, where one over texts has)
+        ValueSpecification elements = list.kind() == Kind.JSON ? list.vs()
+                : call("toMany", call("toVariant", list.vs()), SqlToPure.typeArg(VARIANT_TYPE));
+        ValueSpecification listText = call("joinStrings", call("map", elements, lambda("e", call("toString",
+                new Variable("e")))), new CString(","));
+        ValueSpecification v = SqlToPure.valueOf(x);
+        ValueSpecification text = call("toString", call("toOne", v));
+        ValueSpecification isList = call("equal", call(IS_KIND, v, new CString("list")), new CBoolean(true));
+        // (a list's elements: its text within the brackets, the first and the last character dropped)
+        ValueSpecification inner = call("left", call("right", text, AppliedFunction.infixRun("minus",
+                List.of(call("length", text), new CInteger(1L)))), AppliedFunction.infixRun("minus",
+                List.of(call("length", text), new CInteger(2L))));
+        ValueSpecification piece = call("if", isList, thunk(inner), thunk(text));
+        List<ValueSpecification> parts = after ? List.of(listText, piece) : List.of(piece, listText);
+        ValueSpecification joined = call("joinStrings", call("filter", new PureCollection(parts), lambda("t",
+                call("not", call("equal", new Variable("t"), new CString(""))))), new CString(","));
+        ValueSpecification absent = call("or", call("isEmpty", v), call("equal", call(IS_KIND, v,
+                new CString("null")), new CBoolean(true)));
+        ValueSpecification result = call("if", absent, thunk(SqlToPure.nullOf(Kind.JSON).vs()),
+                thunk(call("fromJson", plus(new CString("["), joined, new CString("]")))));
+        return scalar(Tx.value(result, Kind.JSON, true, new ListOf(Kind.JSON, list.kind() == Kind.JSON
+                ? list.elementDetail() : null)));
+    }
+
     /** {@code list + list}, {@code list + value}, {@code value + list}: the elements in a row. */
     private Val concat(Val l, Val r, Pos pos) {
         if (isNull(l) || isNull(r)) {
             return nullValue();
         }
-        Val left = asCollection(l);
-        Val right = asCollection(r);
+        Val left = l instanceof Scalar ls && unknownVariant(ls) && r instanceof Scalar rs && unknownVariant(rs)
+                ? variantElements(ls.tx()) : asCollection(l);
+        Val right = r instanceof Scalar rs && unknownVariant(rs) && l instanceof Scalar ls && unknownVariant(ls)
+                ? variantElements(rs.tx()) : asCollection(r);
         if (left instanceof Coll || right instanceof Coll) {
             // a list the database computes, and a list or a value beside it: the elements in a row, the database's
             // concatenation (an element of another kind is refused by name: the database's lists are of one type)
@@ -8227,6 +8545,12 @@ public final class CypherToPure {
                     ? spelledCollection(lv, pos) : null;
             Coll b = right instanceof Coll c ? c : left instanceof Coll && right instanceof ListVal rv
                     ? spelledCollection(rv, pos) : null;
+            if (a != null && b == null && right instanceof Scalar rs && rs.tx().kind() == Kind.JSON) {
+                return concatVariant(a, rs.tx(), true, pos);
+            }
+            if (b != null && a == null && left instanceof Scalar ls && ls.tx().kind() == Kind.JSON) {
+                return concatVariant(b, ls.tx(), false, pos);
+            }
             Tx le = a == null ? elementOf(left, b, pos) : null;
             Tx re = b == null ? elementOf(right, a, pos) : null;
             Coll known = a != null ? a : java.util.Objects.requireNonNull(b);
@@ -8298,8 +8622,9 @@ public final class CypherToPure {
                         Tx t = scalarOf(e, ix.pos());
                         if (t.kind() != Kind.NULL) {
                             if (kind != null && kind != t.kind()) {
-                                throw CypherErrors.unsupported("indexing a list of values of different types by a"
-                                        + " value of the row is not supported yet", ix.pos());
+                                // (values of several kinds: the Variant the database builds of the list, indexed
+                                // by the platform's get, §12.58)
+                                yield variantIndex(variant(l, ix.pos()), is, ix);
                             }
                             kind = t.kind();
                         }
@@ -9241,24 +9566,28 @@ public final class CypherToPure {
         List<ValueSpecification> values = new ArrayList<>();
         Kind kind = null;
         boolean rowFree = true;
+        boolean variants = false;
         for (Val e : l.elements()) {
             if (!(e instanceof Scalar s)) {
-                throw CypherErrors.unsupported("a list of lists or maps, read by the database, is not supported yet",
-                        pos);
+                variants = true;
+                break;
             }
             Tx t = s.tx();
-            if (t.kind() == Kind.NULL || t.nullable()) {
-                throw CypherErrors.unsupported("a list holding a value that may be null, read by the database, is"
-                        + " not supported yet", pos);
+            if (t.kind() == Kind.NULL || t.nullable() || t.kind() == Kind.JSON || kind != null && kind != t.kind()) {
+                variants = true;
+                break;
             }
-            if (kind == null) {
-                kind = t.kind();
-            } else if (kind != t.kind()) {
-                throw CypherErrors.unsupported("a list holding values of different types, read by the database, is"
-                        + " not supported yet", pos);
-            }
+            kind = t.kind();
             values.add(SqlToPure.valueOf(t));
             rowFree &= s.literal();
+        }
+        if (variants) {
+            // a list of lists or maps, of values of several kinds, or holding a null (the study's §12.58): the
+            // Variant the database builds of it, its elements read back as Variants (a null among them the JSON
+            // null, an element)
+            Tx v = variant(l, pos);
+            return new Coll(call("toMany", SqlToPure.valueOf(v), SqlToPure.typeArg(VARIANT_TYPE)), Kind.JSON,
+                    rowFree(l), null);
         }
         if (kind == null) {
             return new Coll(call("cast", SqlToPure.empty(), SqlToPure.typeArg("Integer")), Kind.INTEGER, true);
@@ -9420,6 +9749,12 @@ public final class CypherToPure {
      *  value of the call, not of the data, read once per row it is spelled in. */
     private static final String RANDOM = "meta::legend::lite::random";
     private static final String IS_KIND = "meta::legend::lite::isKind";
+    /** The platform's unguarded to-one conformance ({@code Pure.Lite.TRUST_ONE}, the lowering's identity): the
+     *  island spells it where its own test proves the value present (the orderability key's places, §12.58). */
+    private static final String TRUST_ONE = "meta::legend::lite::trustOne";
+    private static final String LITE_MIN_BY = "meta::legend::lite::minBy";
+    private static final String LITE_MAX_BY = "meta::legend::lite::maxBy";
+    private static final String ROW_MAPPER = "meta::pure::functions::math::mathUtility::rowMapper";
     /** The identity of a node or an edge-class relationship (the study's §12.46): lite's elementId of the instance,
      *  its class's primary key as text; what Cypher compares nodes by. */
     private static final String ELEMENT_ID = "meta::legend::lite::elementId";
@@ -12384,7 +12719,9 @@ public final class CypherToPure {
                             elements.add(s.tx());
                             continue;
                         }
-                        elements.add(variant(e, u.pos()));
+                        // (a scalar the row computes beside Variants: a Variant too, so the places' picks are of
+                        // one type, §12.58)
+                        elements.add(e instanceof Scalar es ? asVariant(es.tx(), u.pos()) : variant(e, u.pos()));
                         if (e instanceof ListVal le && le.elements().stream().allMatch(CypherToPure::isNull)) {
                             continue;
                         }

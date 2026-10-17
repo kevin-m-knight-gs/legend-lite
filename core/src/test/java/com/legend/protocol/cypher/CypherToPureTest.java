@@ -1099,6 +1099,32 @@ class CypherToPureTest {
     }
 
     @Test
+    void variantsOrderCompareAndAggregateByTheOrderabilityKey() {
+        // ORDER BY a Variant (the study's §12.58): the orderability key -- the rank by lite's isKind, a number as a
+        // fixed-width text, a list as its elements' keys -- a hidden key computed over the rows after the projection
+        String sorted = pure("MATCH (p:Person) WITH collect(p.age) AS ages RETURN ages ORDER BY ages");
+        assertTrue(sorted.contains("meta::legend::lite::isKind(") && sorted.contains("lpad(")
+                && sorted.contains("->extend(") && sorted.contains("->sort("), sorted);
+        // min and max over Variants: lite's minBy and maxBy over rowMapper(value, key) rows, a text key
+        String extremes = pure("MATCH (p:Person) WITH [p.age, p.name] AS l UNWIND l AS a RETURN min(a) AS mn,"
+                + " max(a) AS mx");
+        assertTrue(extremes.contains("meta::legend::lite::minBy") && extremes.contains("meta::legend::lite::maxBy")
+                && extremes.contains("rowMapper("), extremes);
+        // < between Variants: by the keys where both are of one rank, null across ranks
+        String less = pure("MATCH (p:Person) WITH [p.age, p.name] AS l UNWIND l AS a UNWIND l AS b"
+                + " RETURN a < b AS lt");
+        assertTrue(less.contains("left(") && less.contains("isKind('number')"), less);
+        // a list beside a Variant in +: the list's JSON as text, x's elements within its brackets where x is a list
+        String joined = pure("MATCH (p:Person) WITH [p.age, p.name] AS l UNWIND l AS a WITH collect(a) AS vs, a"
+                + " RETURN vs + a AS joined");
+        assertTrue(joined.contains("fromJson(") && joined.contains("isKind('list')"), joined);
+        // a spelled list of several kinds read by the database: the Variant's elements
+        String mixed = pure("MATCH (p:Person) RETURN [x IN [1, 'a', [2], null] WHERE x = p.age] AS some");
+        assertTrue(mixed.contains("->toMany(@meta::pure::metamodel::variant::Variant)"), mixed);
+        unsupported("MATCH (p:Person) RETURN [1.5, 0.0 / 0.0] AS l", "a float divided by a zero");
+    }
+
+    @Test
     void anUnknownLabelPropertyOrRelationshipIsAnError() {
         invalid("MATCH (p:Nobody) RETURN p.name", "the label Nobody names no class");
         invalid("MATCH (p:Person) RETURN p.nam", "the class demo::Person has no property nam");

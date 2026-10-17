@@ -1458,6 +1458,13 @@ public final class Postgres extends AnsiSqlRenderer {
         if (args.get(1) instanceof SqlExpr.StringLit root && "$".equals(root.value())) {
             return writer.expr(args.get(0), 0);
         }
+        if (!(args.get(1) instanceof SqlExpr.IntLit) && isNumeric(args.get(1))) {
+            // a computed index (an integer the row holds, which the island types as BIGINT): Postgres's -> takes an
+            // int or a text, never a bigint; a key the row holds is text and passes as is (2026-10-17, the Cypher
+            // island's W11: a spelled list indexed by a value of the row)
+            return writer.append("(").expr(args.get(0), 8).append(" -> CAST(").expr(args.get(1), 0)
+                    .append(" AS INTEGER))");
+        }
         return writer.append("(").expr(args.get(0), 8).append(" -> ").expr(args.get(1), 8).append(")");
     }
 

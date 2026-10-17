@@ -427,6 +427,12 @@ public final class Pure {
          *  the kind, which Pure's Variant has no function for (the Cypher island's predicates over values the
          *  rows hold as Variants, 2026-10-17); null of a null Variant. */
         public static final String IS_KIND = PKG + "isKind";
+        /** The value at the smallest or the largest of text keys ({@code minBy}, {@code maxBy} over
+         *  {@code rowMapper(value, key)} rows, the lowering's ARG_MIN and ARG_MAX): what Cypher's {@code min} and
+         *  {@code max} over values of several kinds answer, the key the island's orderability text (the Cypher
+         *  island's W11, 2026-10-17); Pure's own {@code minBy} and {@code maxBy} take a number key. */
+        public static final String MIN_BY = PKG + "minBy";
+        public static final String MAX_BY = PKG + "maxBy";
         public static final String AT_TIME = PKG + "atTime";
         /** A named zone, read by the database (2026-10-16, the Cypher island's zoned date-time leg):
          *  {@code instantIn(local, zone)} the instant a wall time names in the zone, {@code localIn(instant, zone)}
@@ -557,7 +563,7 @@ public final class Pure {
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE, Lite.INLINE_VIEW, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN, Lite.LOCAL_IN,
-                    Lite.ELEMENT_ID, Lite.RANDOM, Lite.IS_KIND)
+                    Lite.ELEMENT_ID, Lite.RANDOM, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -988,6 +994,10 @@ public final class Pure {
     /** Whether a Variant holds a value of a JSON kind ({@link Lite#IS_KIND}: the kind named as Cypher names them,
      *  the lowering's JSON_TYPE test, {@code SqlExpr.JsonKindLit}); null of a null Variant. */
     public static final NativeFunctionDefinition IS_KIND__VARIANT_0_1__STRING_1 = signature("native function meta::legend::lite::isKind(variant:meta::pure::metamodel::variant::Variant[0..1], kind:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[0..1];");
+    /** The value at the smallest (largest) text key over {@code rowMapper(value, key)} rows ({@link Lite#MIN_BY},
+     *  {@link Lite#MAX_BY}: the lowering's ARG_MIN and ARG_MAX, a text key where Pure's own take a number). */
+    public static final NativeFunctionDefinition LITE_MIN_BY__ROW_MAPPER_MANY = signature("native function meta::legend::lite::minBy<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T, meta::pure::metamodel::type::String>[*]):T[0..1];");
+    public static final NativeFunctionDefinition LITE_MAX_BY__ROW_MAPPER_MANY = signature("native function meta::legend::lite::maxBy<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T, meta::pure::metamodel::type::String>[*]):T[0..1];");
     public static final NativeFunctionDefinition TIME_OF__DATE_1 = signature("native function meta::legend::lite::timeOf(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictTime[1];");
     public static final NativeFunctionDefinition AT_TIME__DATE_1__STRICT_TIME_1 = signature("native function meta::legend::lite::atTime(d:meta::pure::metamodel::type::Date[1], t:meta::pure::metamodel::type::StrictTime[1]):meta::pure::metamodel::type::DateTime[1];");
     /** A named time zone, read by the database (the Cypher island's zoned date-time leg, 2026-10-16,
@@ -2428,6 +2438,8 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RANDOM = com.legend.model.FunctionId.ofAll(RANDOM);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_KIND = com.legend.model.FunctionId.ofAll(IS_KIND__VARIANT_0_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MIN_BY = com.legend.model.FunctionId.ofAll(LITE_MIN_BY__ROW_MAPPER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MAX_BY = com.legend.model.FunctionId.ofAll(LITE_MAX_BY__ROW_MAPPER_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TRUST_ONE = com.legend.model.FunctionId.ofAll(TRUST_ONE__T_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TUPLE = com.legend.model.FunctionId.ofAll(TUPLE__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);

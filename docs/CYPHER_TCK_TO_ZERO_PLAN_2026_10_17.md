@@ -244,6 +244,11 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   (the JSON null distinguished from a missing element). One leg.
 - List comprehensions over a Variant of no known element kind: the elements read as Variants, each operation
   over a Variant element spelled by W11's typed reads. One leg (with W3, these are the quantifier scenarios).
+- LANDED 2026-10-17 in one leg (the study's §12.58, GATES' fifty-sixth landing; TCK agreement DuckDB 3314 → 3354, Postgres 2964 → 3004; DuckDB PASS 3,322 → 3386, Postgres 2,961 → 3025): one text key per
+  Variant (the rank digit, then the value; lists element-wise, a prefix first) for ORDER BY, `min`/`max` (lite's
+  `minBy`/`maxBy` over a text key), `<` and `=`; spelled lists of lists, of several kinds or with nulls read as
+  Variants; `list + x` by `x`'s kind. Refused by name: NaN inside a list (Postgres's JSON holds none), a list of
+  dates read back, ORDER BY a node; the key's number precision and text-ordered maps and nodes are S81.
 
 ### W12. The tail
 
@@ -559,6 +564,17 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   pull the bridge into its own subselect and correlate on the fanned row's key, as the one-step form does. The
   translator routes around it (a second-step hop of a fanning graph is present on the rows, the study's §12.50),
   so no TCK case is held back; the resolver fix belongs to W9 (platform limits), with the depth-two limit.
+- **2026-10-17, W11 — NaN and the infinities inside a Variant.** `UNWIND [..., 0.0 / 0.0, ...]` (ReturnOrderBy1/[11],
+  [12], WithOrderBy1/[21], [22]): DuckDB computes NaN and its JSON writes the bare token `NaN`, which the
+  harness's JSON reader refuses; Postgres's float division raises and its jsonb holds no NaN. The island refuses
+  a float divided by a zero literal inside a list or map by name (`NotANumber`). A faithful spelling would carry
+  NaN as a marked Variant (the string `"NaN"` with a kind the key ranks after every number) on both lanes and
+  teach the judge the mark; four TCK cases.
+- **2026-10-17, W11 — a list of dates the database holds as a Variant, read back.** `WITH [date(...), ...] AS
+  values ... [x IN values WHERE x < value]` (WithOrderBy1/[45]'s dates): the Variant spells a date as the
+  oracle's text (`Date('1910-05-06')`, what the judge reads), so `toMany(@StrictDate)` over it fails at runtime;
+  refused by name in `asCollection`. The spelling of temporals inside Variants (ISO texts the database reads back,
+  the judge mapping them) is W5's; one TCK case, with the lists of times and of year-1 nanosecond values beside it.
 - **2026-10-17, W12 leg 4 — a list of nodes or relationships as a grouping key.** `WITH tail(relationships(p)) AS
   relationships, COUNT(*) AS c` (Quantifier1-4/[9]) groups by a list of relationships, equal by identity in Neo4j;
   the island's Variant carries the relationships' JSON (type and properties), so two alike relationships would be

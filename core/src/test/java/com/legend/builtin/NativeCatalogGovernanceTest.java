@@ -123,7 +123,12 @@ class NativeCatalogGovernanceTest {
         // dialect's own kind name, SqlExpr.JsonKindLit), what Cypher's predicates over a value the rows hold as a
         // Variant ask first (STARTS WITH on a value that is a string, null otherwise); legend-pure's Variant has no
         // kind function. Emitted by the Cypher translator only, by FQN. 23 -> 24.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 24,
+        // +2 2026-10-17 (the Cypher island's W11, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md): minBy and maxBy over
+        // rowMapper(value, key) rows with a TEXT key (the lowering's ARG_MIN and ARG_MAX, which every dialect
+        // renders), what Cypher's min and max over values of several kinds answer by the island's orderability
+        // text; legend-pure's own minBy and maxBy take a number key, which a type rank over Variants is not.
+        // Emitted by the Cypher translator only, by FQN. 24 -> 26.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 26,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

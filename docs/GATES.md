@@ -9932,6 +9932,31 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the fifty-sixth landing — Cypher's orderability over Variants
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W11); the record is the study's §12.58. One text key
+per Variant orders values as Cypher does (a type rank, then the value, lists element by element); ORDER BY,
+`min` and `max` (two lite natives over a text key, the lowering's ARG_MIN and ARG_MAX), `<` and `=` across
+Variants read it; spelled lists of lists, of several kinds or with nulls read as Variants; a list beside a
+Variant concatenates by its kind.
+
+1. **What lands.** ReturnOrderBy1 (lists, mixed values, nodes before lists), WithOrderBy1 (sort order consistent with comparisons over
+   lists and strings, mixed values, descending with a limit), Aggregation5/[13]-[22] (`min`/`max` over mixed values
+   and lists), Comparison1-4 and List11 (comparisons across kinds, lists element-wise), Quantifier1-12's and
+   ListComprehension's mixed lists, Graph7/[1] (`n['name']`), the 23 lite cases of `lite/rank.yaml`; DuckDB PASS
+   3,322 → 3386, Postgres 2,961 → 3025; TCK agreement DuckDB 3314 → 3354, Postgres 2964 → 3004.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3386 / REFUSED 380 / BOTH_ERROR
+   731 / SKIP 181; Postgres PASS 3025 / REFUSED 741 / BOTH_ERROR 731 / SKIP
+   181, of 4678 cases); the oracle check 0 problems. The Postgres lane's three ERROR families of the first
+   chain (a key's raise folded at plan time in a comprehension's WHERE, the literal-variant fold's mistyped elements,
+   a text key cast to an integer) are the study's §12.58 lessons; the fixes are the key's `trustOne`, the strategy
+   pass's JSON-cast elements, and `variantGet`'s cast by the index's type.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `NativeCatalogGovernanceTest`'s INTERNAL_DESUGAR ceiling 24 → 26 with its dated justification (lite's
+   `minBy` and `maxBy` over a text key).
+4. **Refused by name, recorded.** NaN or an infinity (a float divided by a zero literal) inside a list or map; a
+   list of dates the database holds as a Variant read back as values; ORDER BY a node.
+
 ## 2026-10-17 — `#Cypher{...}#`: the fifty-fifth landing — named paths over the cut, variable-length chains as rows
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 leg 4, steps 2 and 3); the record is the study's

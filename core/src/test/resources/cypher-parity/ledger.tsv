@@ -703,8 +703,8 @@ tck/clauses/return-orderby/ReturnOrderBy1/[5] ORDER BY should order ints in the 
 tck/clauses/return-orderby/ReturnOrderBy1/[6] ORDER BY DESC should order ints in the expected order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy1/[7] ORDER BY should order floats in the expected order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy1/[8] ORDER BY DESC should order floats in the expected order	PASS	PASS
-tck/clauses/return-orderby/ReturnOrderBy1/[9] ORDER BY should order lists in the expected order	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy1/[10] ORDER BY DESC should order lists in the expected order	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy1/[9] ORDER BY should order lists in the expected order	PASS	PASS
+tck/clauses/return-orderby/ReturnOrderBy1/[10] ORDER BY DESC should order lists in the expected order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy1/[11] ORDER BY should order distinct types in the expected order	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy1/[12] ORDER BY DESC should order distinct types in the expected order	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy2/[1] ORDER BY should return results in ascending order	PASS	PASS
@@ -769,7 +769,7 @@ tck/clauses/return/Return2/[3] Missing node property should become null	PASS	PAS
 tck/clauses/return/Return2/[4] Returning a relationship property value	PASS	PASS
 tck/clauses/return/Return2/[5] Missing relationship property should become null	PASS	PASS
 tck/clauses/return/Return2/[6] Adding a property and a literal in projection	PASS	PASS
-tck/clauses/return/Return2/[7] Adding list properties in projection	REFUSED	REFUSED
+tck/clauses/return/Return2/[7] Adding list properties in projection	PASS	PASS
 tck/clauses/return/Return2/[8] Returning label predicate expression	PASS	PASS
 tck/clauses/return/Return2/[9] Returning a projected map	PASS	PASS
 tck/clauses/return/Return2/[10] Return count aggregation over an empty graph	PASS	PASS
@@ -911,8 +911,8 @@ tck/clauses/with-orderBy/WithOrderBy1/[5] Sort floats in ascending order	PASS	PA
 tck/clauses/with-orderBy/WithOrderBy1/[6] Sort floats in descending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[7] Sort strings in ascending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[8] Sort strings in descending order	PASS	PASS
-tck/clauses/with-orderBy/WithOrderBy1/[9] Sort lists in ascending order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[10] Sort lists in descending order	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[9] Sort lists in ascending order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[10] Sort lists in descending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[11] Sort dates in ascending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[12] Sort dates in descending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[13] Sort local times in ascending order	PASS	REFUSED
@@ -945,11 +945,11 @@ tck/clauses/with-orderBy/WithOrderBy1/[29] Sort by a string variable projected f
 tck/clauses/with-orderBy/WithOrderBy1/[29] Sort by a string variable projected from a node property in ascending order #3	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[30] Sort by a string variable projected from a node property in descending order #1	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[30] Sort by a string variable projected from a node property in descending order #2	PASS	PASS
-tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected from a node property in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected from a node property in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected from a node property in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[32] Sort by a list variable projected from a node property in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[32] Sort by a list variable projected from a node property in descending order #2	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected from a node property in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected from a node property in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[31] Sort by a list variable projected from a node property in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[32] Sort by a list variable projected from a node property in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[32] Sort by a list variable projected from a node property in descending order #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[33] Sort by a date variable projected from a node property in ascending order #1	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[33] Sort by a date variable projected from a node property in ascending order #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[33] Sort by a date variable projected from a node property in ascending order #3	PASS	PASS
@@ -979,11 +979,11 @@ tck/clauses/with-orderBy/WithOrderBy1/[43] Sort by a variable that is only parti
 tck/clauses/with-orderBy/WithOrderBy1/[43] Sort by a variable that is only partially orderable on a non-distinct binding table #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[44] Sort by a variable that is only partially orderable on a non-distinct binding table, but made distinct #1	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[44] Sort by a variable that is only partially orderable on a non-distinct binding table, but made distinct #2	PASS	PASS
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #4	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #5	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #4	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #5	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #6	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #7	REFUSED	REFUSED
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #8	REFUSED	REFUSED
@@ -1019,11 +1019,11 @@ tck/clauses/with-orderBy/WithOrderBy2/[7] Sort by a string expression in ascendi
 tck/clauses/with-orderBy/WithOrderBy2/[7] Sort by a string expression in ascending order #3	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy2/[8] Sort by a string expression in descending order #1	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy2/[8] Sort by a string expression in descending order #2	PASS	PASS
-tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending order #2	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending order #3	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[10] Sort by a list expression in descending order #1	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy2/[10] Sort by a list expression in descending order #2	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending order #2	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[9] Sort by a list expression in ascending order #3	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[10] Sort by a list expression in descending order #1	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy2/[10] Sort by a list expression in descending order #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy2/[11] Sort by a date expression in ascending order #1	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy2/[11] Sort by a date expression in ascending order #2	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy2/[11] Sort by a date expression in ascending order #3	PASS	PASS
@@ -1189,7 +1189,7 @@ tck/clauses/with-orderBy/WithOrderBy4/[11] Sort by an aggregate projection	PASS	
 tck/clauses/with-orderBy/WithOrderBy4/[12] Sort by an aliased aggregate projection	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[13] Fail on sorting by a non-projected aggregation on a variable	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[14] Fail on sorting by a non-projected aggregation on an expression	PASS	PASS
-tck/clauses/with-orderBy/WithOrderBy4/[15] Sort by an aliased aggregate projection does allow subsequent matching	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy4/[15] Sort by an aliased aggregate projection does allow subsequent matching	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[16] Handle constants and parameters inside an order by item which contains an aggregation expression	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[17] Handle projected variables inside an order by item which contains an aggregation expression	PASS	REFUSED
 tck/clauses/with-orderBy/WithOrderBy4/[18]  Handle projected property accesses inside an order by item which contains an aggregation expression	PASS	REFUSED
@@ -1231,7 +1231,7 @@ tck/clauses/with/With1/[5] Forwarding null	PASS	PASS
 tck/clauses/with/With1/[6] Forwarding a node variable possibly null	PASS	PASS
 tck/clauses/with/With2/[1] Forwarding a property to express a join	SKIP	SKIP
 tck/clauses/with/With2/[2] Forwarding a nested map literal	PASS	PASS
-tck/clauses/with/With3/[1] Forwarding multiple node and relationship variables	REFUSED	REFUSED
+tck/clauses/with/With3/[1] Forwarding multiple node and relationship variables	PASS	PASS
 tck/clauses/with/With4/[1] Aliasing relationship variable	PASS	PASS
 tck/clauses/with/With4/[2] Aliasing expression to new variable name	PASS	PASS
 tck/clauses/with/With4/[3] Aliasing expression to existing variable name	PASS	PASS
@@ -1258,14 +1258,14 @@ tck/expressions/aggregation/Aggregation2/[1] `max()` over integers	PASS	PASS
 tck/expressions/aggregation/Aggregation2/[2] `min()` over integers	PASS	PASS
 tck/expressions/aggregation/Aggregation2/[3] `max()` over floats	PASS	PASS
 tck/expressions/aggregation/Aggregation2/[4] `min()` over floats	PASS	PASS
-tck/expressions/aggregation/Aggregation2/[5] `max()` over mixed numeric values	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation2/[6] `min()` over mixed numeric values	REFUSED	REFUSED
+tck/expressions/aggregation/Aggregation2/[5] `max()` over mixed numeric values	PASS	PASS
+tck/expressions/aggregation/Aggregation2/[6] `min()` over mixed numeric values	PASS	PASS
 tck/expressions/aggregation/Aggregation2/[7] `max()` over strings	PASS	PASS
 tck/expressions/aggregation/Aggregation2/[8] `min()` over strings	PASS	PASS
-tck/expressions/aggregation/Aggregation2/[9] `max()` over list values	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation2/[10] `min()` over list values	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation2/[11] `max()` over mixed values	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation2/[12] `min()` over mixed values	REFUSED	REFUSED
+tck/expressions/aggregation/Aggregation2/[9] `max()` over list values	PASS	PASS
+tck/expressions/aggregation/Aggregation2/[10] `min()` over list values	PASS	PASS
+tck/expressions/aggregation/Aggregation2/[11] `max()` over mixed values	PASS	PASS
+tck/expressions/aggregation/Aggregation2/[12] `min()` over mixed values	PASS	PASS
 tck/expressions/aggregation/Aggregation3/[1] Sum only non-null values	PASS	PASS
 tck/expressions/aggregation/Aggregation3/[2] No overflow during summation	PASS	PASS
 tck/expressions/aggregation/Aggregation5/[1] `collect()` filtering nulls	PASS	PASS
@@ -1482,10 +1482,10 @@ tck/expressions/comparison/Comparison1/[16] It is unknown - i.e. null - if a nul
 tck/expressions/comparison/Comparison1/[17] Failing when comparing to an undefined variable	BOTH_ERROR	BOTH_ERROR
 tck/expressions/comparison/Comparison2/[1] Comparing strings and integers using > in an AND'd predicate	SKIP	SKIP
 tck/expressions/comparison/Comparison2/[2] Comparing strings and integers using > in a OR'd predicate	SKIP	SKIP
-tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #1	REFUSED	REFUSED
-tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #2	REFUSED	REFUSED
-tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #3	REFUSED	REFUSED
-tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #4	REFUSED	REFUSED
+tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #1	PASS	PASS
+tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #2	PASS	PASS
+tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #3	PASS	PASS
+tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #4	PASS	PASS
 tck/expressions/comparison/Comparison2/[4] Comparing lists #1	PASS	PASS
 tck/expressions/comparison/Comparison2/[4] Comparing lists #2	PASS	PASS
 tck/expressions/comparison/Comparison2/[4] Comparing lists #3	PASS	PASS
@@ -2269,16 +2269,16 @@ tck/expressions/quantifier/Quantifier1/[14] None quantifier is false if the pred
 tck/expressions/quantifier/Quantifier1/[15] Fail none quantifier on type mismatch between list elements and predicate #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/quantifier/Quantifier1/[15] Fail none quantifier on type mismatch between list elements and predicate #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/quantifier/Quantifier1/[15] Fail none quantifier on type mismatch between list elements and predicate #3	BOTH_ERROR	BOTH_ERROR
-tck/expressions/quantifier/Quantifier10/[1] Single quantifier is always false if the predicate is statically false and the list is not empty	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier10/[2] Single quantifier is always false if the predicate is statically true and the list has more than one element	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier10/[1] Single quantifier is always false if the predicate is statically false and the list is not empty	PASS	PASS
+tck/expressions/quantifier/Quantifier10/[2] Single quantifier is always false if the predicate is statically true and the list has more than one element	PASS	PASS
 tck/expressions/quantifier/Quantifier10/[3] Single quantifier is always true if the predicate is statically true and the list has exactly one non-null element	PASS	PASS
 tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #1	PASS	PASS
 tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #2	PASS	PASS
 tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #3	PASS	PASS
 tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #4	PASS	PASS
 tck/expressions/quantifier/Quantifier10/[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #5	PASS	PASS
-tck/expressions/quantifier/Quantifier11/[1] Any quantifier is always false if the predicate is statically false and the list is not empty	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier11/[2] Any quantifier is always true if the predicate is statically true and the list is not empty	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier11/[1] Any quantifier is always false if the predicate is statically false and the list is not empty	PASS	PASS
+tck/expressions/quantifier/Quantifier11/[2] Any quantifier is always true if the predicate is statically true and the list is not empty	PASS	PASS
 tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #1	PASS	PASS
 tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #2	PASS	PASS
 tck/expressions/quantifier/Quantifier11/[3] Any quantifier is always true if the single or the all quantifier is true #3	PASS	PASS
@@ -2299,8 +2299,8 @@ tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal wheth
 tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #3	PASS	PASS
 tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #4	PASS	PASS
 tck/expressions/quantifier/Quantifier11/[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #5	PASS	PASS
-tck/expressions/quantifier/Quantifier12/[1] All quantifier is always false if the predicate is statically false and the list is not empty	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier12/[2] All quantifier is always true if the predicate is statically true and the list is not empty	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier12/[1] All quantifier is always false if the predicate is statically false and the list is not empty	PASS	PASS
+tck/expressions/quantifier/Quantifier12/[2] All quantifier is always true if the predicate is statically true and the list is not empty	PASS	PASS
 tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #1	PASS	PASS
 tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #2	PASS	PASS
 tck/expressions/quantifier/Quantifier12/[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #3	PASS	PASS
@@ -2751,8 +2751,8 @@ tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the s
 tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #3	PASS	PASS
 tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #4	PASS	PASS
 tck/expressions/quantifier/Quantifier8/[5] All quantifier is equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #5	PASS	PASS
-tck/expressions/quantifier/Quantifier9/[1] None quantifier is always true if the predicate is statically false and the list is not empty	REFUSED	REFUSED
-tck/expressions/quantifier/Quantifier9/[2] None quantifier is always false if the predicate is statically true and the list is not empty	REFUSED	REFUSED
+tck/expressions/quantifier/Quantifier9/[1] None quantifier is always true if the predicate is statically false and the list is not empty	PASS	PASS
+tck/expressions/quantifier/Quantifier9/[2] None quantifier is always false if the predicate is statically true and the list is not empty	PASS	PASS
 tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #1	PASS	PASS
 tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #2	PASS	PASS
 tck/expressions/quantifier/Quantifier9/[3] None quantifier is always equal the boolean negative of the any quantifier #3	PASS	PASS
@@ -4347,6 +4347,29 @@ lite/products/with_star_then_a_match	PASS	PASS
 lite/products/with_star_keeps_a_path	PASS	PASS
 lite/products/labelless_product_with_a_count	PASS	PASS
 lite/products/a_match_after_a_labelless_product_refused	PASS	PASS
+lite/rank/lists_order_element_wise_a_prefix_first	PASS	PASS
+lite/rank/lists_order_descending_with_a_limit	PASS	PASS
+lite/rank/values_of_several_kinds_order_by_rank	PASS	PASS
+lite/rank/values_of_several_kinds_order_by_rank_descending	PASS	PASS
+lite/rank/nodes_and_relationships_order_before_lists	PASS	PASS
+lite/rank/a_stored_list_property_orders_its_rows	PASS	PASS
+lite/rank/a_stored_list_carried_then_ordered_descending	PASS	PASS
+lite/rank/min_and_max_over_mixed_values	PASS	PASS
+lite/rank/min_and_max_over_lists_and_numbers	PASS	PASS
+lite/rank/min_and_max_over_mixed_numbers_keep_the_values_type	PASS	PASS
+lite/rank/comparisons_across_types_are_null_except_numbers	PASS	PASS
+lite/rank/ordering_agrees_with_comparisons_over_strings	PASS	PASS
+lite/rank/ordering_agrees_with_comparisons_over_lists	PASS	PASS
+lite/rank/two_stored_lists_concatenated	PASS	PASS
+lite/rank/a_computed_list_equal_to_a_range	PASS	PASS
+lite/rank/a_variant_of_no_known_shape_ordered_by_rank_among_numbers	PASS	PASS
+lite/rank/nan_inside_a_list_is_refused	REFUSED	REFUSED
+lite/rank/a_list_of_dates_read_back_is_refused	REFUSED	REFUSED
+lite/rank/a_list_beside_a_variant_concatenates_by_its_kind	PASS	PASS
+lite/rank/a_mixed_spelled_list_read_by_the_database	PASS	PASS
+lite/rank/a_mixed_spelled_list_indexed_by_a_value_of_the_row	PASS	PASS
+lite/rank/a_list_of_the_row_ordered_against_a_spelled_list	PASS	PASS
+lite/rank/a_comprehension_comparing_the_lists_of_the_row	PASS	PASS
 lite/rels/relationship_as_a_value	PASS	PASS
 lite/rels/type_of_a_relationship	PASS	PASS
 lite/rels/untyped_relationship_as_a_value	PASS	PASS
@@ -4391,9 +4414,9 @@ lite/stored/stored_list_returned	PASS	PASS
 lite/stored/stored_lists_of_texts_and_booleans	PASS	PASS
 lite/stored/stored_list_in_a_map_under_distinct	PASS	PASS
 lite/stored/stored_list_as_a_grouping_key	PASS	PASS
-lite/stored/stored_list_ordered_by_refused	REFUSED	REFUSED
-lite/stored/stored_lists_concatenated	REFUSED	REFUSED
-lite/stored/stored_list_ordered_with_a_limit_refused	REFUSED	REFUSED
+lite/stored/stored_list_ordered_by_refused	PASS	PASS
+lite/stored/stored_lists_concatenated	PASS	PASS
+lite/stored/stored_list_ordered_with_a_limit_refused	PASS	PASS
 lite/tail/an_order_by_on_an_expression_not_returned	PASS	PASS
 lite/tail/an_order_by_on_an_expression_not_returned_descending	PASS	PASS
 lite/tail/an_order_by_on_a_dropped_item_after_a_with	PASS	PASS

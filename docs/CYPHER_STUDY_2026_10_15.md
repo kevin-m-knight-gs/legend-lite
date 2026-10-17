@@ -3996,3 +3996,107 @@ variable-length named path over edges), Match9/[2]-[4] and Path2/[1], [2] (`-[r:
 undirected, `r` and `relationships(p)`), Pattern1/[18] (a pattern predicate with a variable-length of two) and
 Quantifier1-4/[8] (`none`, `single`, `any`, `all` over `tail(nodes(p))` of a `*0..3` path, `x.name = 'a'` on a
 node the database holds); Postgres 2964 of 3880 (from 2,949).
+
+### 12.58 Cypher's orderability over Variants: the type rank as a text key, 2026-10-17
+
+- **The frame (the plan's W11):** Cypher orders values across types by a type rank -- a map before a node, a
+  node before a relationship, then a list, a path, a string, a boolean, a number, null last ascending -- and
+  within a type by the value, a list element by element with a prefix first; `ORDER BY` a Variant (a stored
+  list, a mixed `UNWIND`, a path), `min` and `max` over Variants, `<` and `=` between Variants were refused by
+  name (36 TCK scenarios: ReturnOrderBy1/[9]-[12], WithOrderBy1/[9], [10], [21], [22], [31], [32], [45],
+  WithOrderBy2/[9], [10], WithOrderBy4/[15], With3/[1], Aggregation2/[5], [6], [9]-[12], Comparison2/[3],
+  Return2/[7]).
+- **The orderability key (`variantKey`, `keyOf`):** one text the database builds per Variant, ordering as Cypher
+  does: the rank digit first (`0` map, `1` node, `2` relationship, `3` list, `4` path, `5` string, `6` boolean,
+  `7` number, `8` beyond the largest double -- NaN and the infinities, which the databases order beyond every
+  number -- `9` null), then the value: a number as the text of its millionths offset by 10^18, left-padded to
+  twenty digits (S81: exact within ±9e12 and to the millionth); a string as its text with the key's marks
+  escaped; a boolean as `0` or `1`; a list as its elements' keys joined by a separator and closed by an end mark
+  lower than the separator (so a prefix orders first, as Cypher's element-wise order does), the elements' keys
+  spelled recursively to depth three (deeper, a list is its JSON text); a map, node, relationship or path as its
+  JSON text (S81: Neo4j orders nodes and relationships by identity, which the text is not). The kinds are lite's
+  `isKind` (§12.53) and the island's `@labels`, `@type` and `@path` marks; the marks are `U+0001`, `U+0002` and
+  `U+0003` (no NUL, which Postgres's text refuses).
+- **ORDER BY (`SortKey`):** a Variant sort key is a hidden column holding the key: after a grouping or a
+  DISTINCT in the `extend` that computes the keys over the grouped rows; in a plain projection the Variant itself
+  is the hidden column of the projection and the key is an `extend` over the rows after it (`keyed`): the key's
+  lambdas (`toMany`, `map`, `joinStrings`) lower over rows, not inside a projection over a class extent, which
+  WithOrderBy2/[9], [10] (`WITH a ORDER BY a.list`) found. A carried list's and a stored list property's sort
+  keys take the same route (the refusals "ORDER BY a list or map", "ORDER BY a list, a map or a path the database
+  holds as a Variant" are gone; a node among the keys stays refused: Neo4j orders nodes by identity).
+- **min and max (`Aggregate.keyColumn`, lite's `minBy` and `maxBy`):** over Variants, the value at the smallest
+  or the largest key: two lite natives (`meta::legend::lite::minBy`, `maxBy`) over `rowMapper(value, key)` rows
+  with a TEXT key, the lowering's ARG_MIN and ARG_MAX (every dialect renders them: DuckDB's `arg_min`, Postgres's
+  ordered `array_agg`); Pure's own `minBy` and `maxBy` take a number key, which a rank is not (the governance
+  ceiling 24 → 26, `NativeCatalogGovernanceTest`, with the justification). A null Variant's key is null, so the
+  reducer skips it as Neo4j's `min` and `max` skip nulls. `max([1, 2.0, 5, null, 3.2, 0.1])` keeps the value's
+  own type (the Variant `5`, not a float).
+- **Comparisons (`variantOrdered`, `variantsEqual`, `variantEqual`):** `<` and the others where a side is a
+  Variant: by the keys where both are of one rank the key orders by value (a string, a boolean, a number, a
+  list), null where the ranks differ (Cypher: values of different types do not order) or either is null; `=`
+  between two Variants of no node shape by the keys (a number as a float, `[1] = [1.0]` true as in Cypher; a
+  list element-wise; a map, node or relationship as its text, S81); a scalar beside a Variant by its own key
+  (`scalarKey`). A list the database computes beside a spelled list, in `=` or `<`, takes the same route
+  (`equalVal`, `orderedVal`: `collect(n) = range(1, 3)`, `[x IN values WHERE x < value]`).
+- **Spelled lists read as Variants (`collection`):** a spelled list of lists or maps, of values of several
+  kinds, or holding a null, read by the database (a comprehension, a quantifier, `+`), is the Variant the
+  database builds of it with its elements read back as Variants (`toMany`): the refusals "a list of lists or
+  maps, read by the database", "a list holding values of different types", "a list holding a value that may be
+  null" are gone (a null element is the JSON null, an element, as Cypher keeps it); such a list indexed by a value
+  of the row is the Variant indexed (`variantIndex`). A mixed list's `UNWIND` makes every element a Variant
+  (`asVariant`), a scalar the row computes among literals too (`0.0 / 0.0` beside `1.5` typed the `if` chain
+  `Any`).
+- **A list beside a Variant in `+` (`concatVariant`):** `list + x` where `x` is a Variant of no known kind
+  (Quantifier9-12: `CASE ... END + x` over `UNWIND inputList AS x`) is the list's JSON built as text: the
+  elements' texts, then `x`'s elements (its text within the brackets) where `x` holds a list, else `x`'s text;
+  null where `x` is null or holds the JSON null (Cypher: a list beside null is null). Built as text because a
+  conditional over collections (`if(isList, |toMany(x), |x)`) has no SQL carrier (the Lowerer spells `if` as a
+  scalar CASE), where one over texts has. Two stored lists (`a.list2 + a.list1`, Return2/[7]), Variants of no
+  known shape, concatenate as lists (`variantElements`, S81).
+- **Refused by name, recorded:** a float divided by a zero literal inside a list or map (`NotANumber`: NaN or an
+  infinity in Neo4j, which Postgres's division raises on and whose JSON holds neither; ReturnOrderBy1/[11], [12],
+  WithOrderBy1/[21], [22]); a list of dates the database holds as a Variant read back as values (the Variant
+  spells a date as the oracle's text, which no database reads back: WithOrderBy1/[45]'s dates); lists of times
+  and of nanosecond values of the year 1 (the temporal refusals of before); ORDER BY a node.
+
+- **What the Postgres lane taught (the second chain):** three families of ERROR, each a lesson about the key.
+  (1) The key's places read a Variant as a float, a boolean or a string (`to(@Float)` and the others) under the
+  kind test that proves the value present; spelled `->toOne()`, each place is a `CASE` whose raise arm is a
+  constant (the lowering's size-0 raise, `Scalars.guarded`), and Postgres's planner, estimating the selectivity
+  of a comprehension's `WHERE` (`[x IN values WHERE x < value]`: the key of `value`, an outer row's column,
+  compared with the key of the element), evaluates every stable constant in every `CASE` arm of the operand that
+  names no column of the subquery -- the raise fires at PLAN time, "Cannot cast a collection of size 0 to
+  multiplicity [1]" with no row read (`estimate_expression_value`; the dialect's own note on `raise` records the
+  same for `unnest`'s argument, and keeps scalar raises non-volatile for the planner's sake). The key now spells
+  lite's `trustOne`, the platform's unguarded to-one conformance, at those places (its own test is the guard;
+  `PlatformNamesGuardrailTest` 330 → 331 with the justification). (2) A spelled list beside a Variant
+  (`ns = [1, 2, 4]`) keys the literal `fromJson('[1,2,4]')->toMany(@Variant)`, and the dialects' strategy pass
+  folds the elements of a literal Variant array at compile time (`CarrierStrategies`' literal-variant fold, which
+  Postgres runs and DuckDB does not): it re-emitted each scalar element as a bare SQL literal, so `isKind` reached
+  `jsonb_typeof(integer)`; the fold now re-emits every element as the JSON cast literal it is (a Variant array's
+  elements are Variants) -- the same fold had made `lite/rank/a_mixed_spelled_list_read_by_the_database` a
+  Postgres refusal (a list filter over `Unknown[]`), which it no longer is. (3) The Postgres `variantGet` of a
+  computed index cast it to an integer, which broke a computed KEY (`n[k]`, Graph7/[1]); the cast now follows the
+  index's MIR type (numeric: cast; text: as is). And one translator gap both lanes shared: `value < [1, 3]` with
+  `value` a Variant of the row answered null (`orderedVal` saw no two spelled lists); a Variant beside a spelled
+  list or map now takes the keys, as `=` did (`a_list_of_the_row_ordered_against_a_spelled_list`,
+  `a_comprehension_comparing_the_lists_of_the_row`, 23 lite cases). The number key clamps beyond ±9e12 (one key
+  each side, S81) where the millionths offset would overflow the database's integer.
+
+#### 12.58.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4678 | 3386 (from 3,322) | 0 | 0 | 0 | 380 (from 421) | 731 | 181 |
+| Postgres | 4678 | 3025 (from 2,961) | 0 | 0 | 0 | 741 (from 782) | 731 | 181 |
+
+The 23 lite cases of `lite/rank.yaml` (lists element-wise with a prefix first, descending with a limit; values of
+several kinds by rank, both ways; nodes and relationships before lists; a stored list ordering its rows, carried
+then ordered; min and max over mixed values, over lists and numbers, over mixed numbers keeping the value's type;
+comparisons across types null but numbers; ordering agreeing with comparisons over strings and over lists; two
+stored lists concatenated; a computed list equal to a range; a Variant of no known shape among numbers; a list
+beside a Variant by its kind; a mixed spelled list read by the database, and indexed by a value of the row; a list
+of the row ordered against a spelled list; a comprehension comparing the lists of the row) PASS on both lanes but
+the two designed refusals (NaN inside a list, a list of dates read back), judged by Neo4j (`snap.sh --check`: 0
+problems); the quantifier and comprehension scenarios of W3's `rand()` tail PASS where they hold no NaN. TCK
+agreement (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB 3314 → 3354, Postgres 2964 → 3004.
