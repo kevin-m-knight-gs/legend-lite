@@ -149,7 +149,13 @@ final class IqFunctions {
             // IQ island, 2026-10-17 (the TPC-H, TPC-DS and JOB corpus lane's 450; measured on IQ 17.1): PostgreSQL's,
             // Oracle's and MySQL's (IQ reads REGEXP as a search condition, and LPAD, RPAD, GREATER and LESSER)
             "regexp_replace", "regexp_like", "regexp_count", "regexp_instr", "date_part", "random", "array_length",
-            "string_to_array", "trunc", "listagg", "instr", "md5", "chr", "nth_value", "position", "array_to_string");
+            "string_to_array", "trunc", "listagg", "instr", "md5", "chr", "nth_value", "position", "array_to_string",
+            "julianday");
+
+    /** Whether {@code name} is one of the scalar functions IQ's catalog holds that the island reads ({@link Fn}). */
+    static boolean catalogued(String name) {
+        return Fn.named(name) != null;
+    }
 
     /** The refusal of a call of {@code name}, one of {@link #NO_SUCH_FUNCTION}. */
     static SqlTranslationException noSuchFunction(String name, SqlAst.Pos pos) {

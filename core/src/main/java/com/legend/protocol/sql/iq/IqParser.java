@@ -2401,7 +2401,11 @@ public final class IqParser {
         }
         if (!empty && !peek().isOp(")")) {
             do {
-                noNamedArgument();
+                // IQ island, 2026-10-17 (BIRD's SUM(Currency = 'EUR'); measured on IQ 17.1): IQ's own functions take
+                // no named argument, so x = y there is a condition, its -131 (value below)
+                if (!IqFunctions.catalogued(name)) {
+                    noNamedArgument();
+                }
                 SqlAst.Expr a = expression();
                 value(a, "a function's arguments");
                 args.add(a);
@@ -2482,7 +2486,6 @@ public final class IqParser {
                 take();
             }
             do {
-                noNamedArgument();
                 SqlAst.Expr a = expression();
                 value(a, "an aggregate's argument");
                 args.add(a);
@@ -2587,7 +2590,6 @@ public final class IqParser {
                         + " is not supported", peek().pos());
             }
             do {
-                noNamedArgument();
                 SqlAst.Expr a = expression();
                 value(a, "a function's arguments");
                 args.add(a);

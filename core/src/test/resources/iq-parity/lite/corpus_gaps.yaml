@@ -2152,3 +2152,18 @@ tests:
   - id: array_to_string_is_no_function_of_iqs
     sql: "SELECT ARRAY_TO_STRING(vc, ',') AS a FROM t WHERE id = 1"
     profile: iq17-default
+
+  # ---- a comparison as IQ's own function's argument, and JULIANDAY (IQ island, 2026-10-17; BIRD's SUM(Currency =
+  # 'EUR'), measured on IQ 17.1): -131 (IQ has no boolean values) and -265
+  - id: a_comparison_as_an_aggregates_argument
+    sql: "SELECT SUM(vc = 'a') AS a FROM t"
+    profile: iq17-default
+  - id: a_comparison_as_a_count_argument
+    sql: "SELECT COUNT(id = 1) AS a FROM t"
+    profile: iq17-default
+  - id: a_comparison_as_a_functions_argument
+    sql: "SELECT ABS(id = 1) AS a FROM t"
+    profile: iq17-default
+  - id: julianday_is_no_function_of_iqs
+    sql: "SELECT JULIANDAY(dt) AS a FROM t WHERE id = 1"
+    profile: iq17-default
