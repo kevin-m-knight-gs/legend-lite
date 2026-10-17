@@ -149,6 +149,23 @@ class IqFunctionsTest {
     }
 
     @Test
+    void aNameOfNoFunctionOfIqsIsItsErrorInIqsOrder() {
+        // IQ island, 2026-10-17 (measured on IQ 17.1): -265 once its arguments are read; a grouped query's column
+        // outside the GROUP BY first (-149); a syntax error in its arguments first of all (-131)
+        assertTrue(assertThrows(SqlTranslationException.class, () -> pure("SELECT STRING_AGG(vc, ',') AS a FROM " + T))
+                .getMessage().contains("-265"));
+        assertTrue(assertThrows(SqlTranslationException.class, () -> pure("SELECT sm, STRING_AGG(vc, ',') AS a FROM "
+                + T + " GROUP BY sm")).getMessage().contains("-149"));
+        assertTrue(assertThrows(SqlTranslationException.class, () -> pure("SELECT COUNT(*) AS n, STDEV(id) AS s FROM "
+                + T)).getMessage().contains("-149"));
+        assertTrue(assertThrows(RuntimeException.class, () -> pure("SELECT STRING_AGG(DATEPART(yyyy, dt), ',') AS a FROM "
+                + T)).getMessage().contains("-131"));
+        // the aggregates' forms after the name stay refused by name, as -265
+        assertTrue(assertThrows(RuntimeException.class, () -> pure("SELECT STRING_AGG(vc, ',') WITHIN GROUP (ORDER BY"
+                + " id) AS a FROM " + T)).getMessage().contains("-265"));
+    }
+
+    @Test
     void otherDialectsFormsIqRaises154ForAreRefusedBeforeTranslation() {
         for (String sql : List.of("SELECT CHARINDEX('b', vc, 2) AS x FROM " + T, "SELECT ROUND(nm, 1, 1) AS x FROM "
                 + T, "SELECT LOG(2, 8) AS x", "SELECT SUBSTRING('abc', 1, -1) AS x")) {

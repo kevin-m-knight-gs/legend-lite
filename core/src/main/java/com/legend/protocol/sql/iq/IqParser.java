@@ -2054,7 +2054,7 @@ public final class IqParser {
         // the GROUP BY next (-149), its -265 last, as it is translated (IqDialect.function); the aggregates' forms
         // after its name (DISTINCT, an ORDER BY inside, WITHIN GROUP, OVER) refused by name here, its -265
         boolean noSuch = IqFunctions.NO_SUCH_FUNCTION.contains(lower);
-        if (AGGREGATES.contains(lower) && !lower.equals("grouping")) {
+        if (AGGREGATES.contains(lower) && !lower.equals("grouping") && !noSuch) {
             throw SqlSyntaxException.unsupported("the aggregate or OLAP function " + name + "(...) is not supported"
                     + " yet", first.pos());
         }
