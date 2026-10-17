@@ -488,3 +488,45 @@ measured on IQ 17.1 and SQL Anywhere 17 where IQ decides (`lite/corpus_gaps.yaml
 
 Decisions for the user: none open. (Decided 2026-10-16 by the user and built, above: the window boundary, as inline
 views; TOP's select list, computed after the limit.)
+
+### The benchmark corpora and the differential fuzzer (2026-10-17)
+
+The user asked for real queries that push the island hard. Their corpora, data and answers stay private
+(`~/legend-lite-iq-private`); here are only the findings.
+
+- **Suites:** SQLStorm's TPC-H (17,036), TPC-DS (15,242) and JOB (11,714) queries, in PostgreSQL's dialect; TPC-H's 22
+  and TPC-DS's 99 canonical queries; BIRD's full dev set (1,534, SQLite's dialect). Each is kept as written, and also
+  with recorded rewrites: a trailing LIMIT as TOP; `DATE 'x'` as `CAST('x' AS DATE)`; BIRD's backticks as double
+  quotes.
+- **Data:** TPC-H at scale factor 0.01 (86,805 rows) is loaded into the live IQ as `ll_h_*`. TPC-DS at 0.01, its large
+  dimensions cut to the rows the facts read (117,631 rows), is prepared as `ll_d_*`.
+- **Coverage on the rewritten suites:**
+  - TPC-H answers 9,427 of 17,036. Before today's two fixes, 4,668 of the LIMIT-only suite.
+  - TPC-DS answers 8,568 of 15,242, and refuses 441.
+  - JOB answers 4,811 of 11,714. 3,961 of the rest are IQ's -149 (PostgreSQL's functional dependence on a grouped
+    key), to be verified against IQ on empty tables.
+- **Built from them, each measured on IQ 17.1:**
+  - the IQ engine's AVG of a NUMERIC(15,2) or (16,2) (2,500 queries: the sum made whole before it is scaled);
+  - WITH RECURSIVE as IQ raises it (-706, -922, -1001030, or plain CTEs; 1,805 queries);
+  - `SUBSTRING(s FROM a FOR n)` and `::` as -131;
+  - fifteen more other dialects' functions as -265.
+- **A recursion IQ answers** (over no IQ table, or in SQL Anywhere's front end) waits for the Cypher island's
+  recursion native to reach main (the island will lower to it).
+- **The differential fuzzer** (`fuzz.py`, private) makes random queries over the parity tables, each ordered by a
+  unique key, and judges them against the live IQ. Its first 2,000:
+  - PASS 1,892, BOTH_ERROR 60, REFUSED 11, ERROR 27, FAIL 10.
+  - Fixed: BETWEEN beside a NULL column bound (three-valued, as IQ is); an empty range of constants (FALSE for a
+    NULL too); an aggregate nested in a select item's aggregate before one in WHERE (-156; -150 where an IN reads
+    it).
+- **Measured, not built:**
+  - BIGINT arithmetic past 64 bits. IQ's engine answers a NUMERIC(20,0) (`bg + 7` over 2^63 - 1). Lite types from the
+    column, so it keeps a BIGINT and the database's overflow raises. That is D-N3: IQ sizes from the data, and
+    widening every BIGINT operation would mistype every realistic one.
+  - REPLACE of a zero-length string under IQ's engine is NULL for a constant `''` and for `LEFT(vc, 0)`, but `''` for
+    `TRIM(ch)`, a SUBSTRING past the end, or `CAST('' AS VARCHAR(5))`. The rule is not found.
+  - `NOT (sm BETWEEN sm AND 1)` holds for a NULL sm, though `NOT (sm BETWEEN sm AND sm)` does not: an optimizer
+    rewrite.
+  - ARRAY_AGG (590 queries, mostly JOB's `ARRAY_AGG(DISTINCT ...)`) under IQ's engine is -1001030. It comes after
+    -143, -154, -149 and -157, and before -1005004; in an unread derived column it is dropped. It needs ARRAY_AGG as
+    an aggregate in the grouping checks.
+  - LPAD and RPAD are IQ 17.1's own (38 queries).
