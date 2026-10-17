@@ -155,6 +155,13 @@ public final class IqParser {
     /** The CTEs being read again where they are named, the innermost last: one named again inside its own reading is
      *  IQ's error (-938 itself, -914 a cycle; measured on IQ 17.1). */
     private final List<CteDef> reading = new ArrayList<>();
+    /** IQ island, 2026-10-17: whether the statement's WITH says RECURSIVE; where its CTEs are named inside their own
+     *  readings, and those of them with no column list; the CTEs whose first branch is being read as such a name's
+     *  reading ({@link #recursion}). */
+    private final boolean[] recursiveWith = {false};
+    private final List<SqlAst.Pos> recursions = new ArrayList<>();
+    private final List<SqlAst.Pos> columnless = new ArrayList<>();
+    private final List<CteDef> standingIn = new ArrayList<>();
     /** The tokens read again for CTEs so far ({@link CteDef#read}), bounded by {@link #REREAD_LARGEST} and
      *  {@link #REREAD_RATIO}. */
     private final long[] reread = {0};
@@ -189,7 +196,17 @@ public final class IqParser {
      *  in it, as written (by identity). */
     public record Parsed(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans,
             List<SqlAst.Pos> droppedOrderKeys, List<EngineCast> engineCasts, List<SqlAst.Pos> laterals,
-            List<SqlAst.Statement> later) {
+            List<SqlAst.Statement> later, Recursion recursion) {
+    }
+
+    /** IQ island, 2026-10-17 (the TPC-H corpus lane's 1,805 WITH RECURSIVE): whether the statement's WITH says
+     *  RECURSIVE; where a CTE of it is named inside its own reading, read as its first branch ({@link #recursion});
+     *  those of them with no column list. */
+    public record Recursion(boolean with, List<SqlAst.Pos> reads, List<SqlAst.Pos> columnless) {
+        public Recursion {
+            reads = List.copyOf(reads);
+            columnless = List.copyOf(columnless);
+        }
     }
 
     /** A CAST or CONVERT of a constant only one engine cannot convert: where, and the refusal under each engine (null
@@ -217,7 +234,8 @@ public final class IqParser {
             throw e;
         }
         return new Parsed(statement, java.util.Collections.unmodifiableMap(p.spans), List.copyOf(p.droppedOrderKeys),
-                List.copyOf(p.engineCasts), List.copyOf(p.laterals), List.copyOf(p.later));
+                List.copyOf(p.engineCasts), List.copyOf(p.laterals), List.copyOf(p.later),
+                new Recursion(p.recursiveWith[0], p.recursions, p.columnless));
     }
 
     /** The statement, the whole text. */
@@ -464,7 +482,7 @@ public final class IqParser {
     /** One statement of the batch: its query and its tail clauses. */
     private SqlAst.Statement oneStatement() {
         IqLexer.Token first = peek();
-        SqlAst.Statement query = first.is("with") ? with() : queryBlock();
+        SqlAst.Statement query = first.is("with") ? with(true) : queryBlock();
         if (peek().is("for") && peek(1).isWord("xml") && peek(2).isWord("path")) {
             throw unexpected(peek());
         }
@@ -501,15 +519,23 @@ public final class IqParser {
     /**
      * {@code WITH [RECURSIVE] name [(column, ...)] AS (query), ... query} at the head of the statement or of a derived
      * table (IQ island, 2026-10-15: common table expressions, 25% of production BI queries): each a name the WITH's
-     * queries read as a table, each other's too (WITH RECURSIVE is refused by name). Measured on IQ 17.1: a CTE may
+     * queries read as a table, each other's too (WITH RECURSIVE at the statement's head: {@link #recursion}; a derived
+     * table's is refused by name). Measured on IQ 17.1: a CTE may
      * name one written after it; of two with one name (in any case) the first is read, and a CTE no query names is
      * never read (its errors but its syntax's are none); a derived table's WITH sees no CTE outside it; a WITH in a
      * subquery, a CTE's query or a set operation's branch is IQ's syntax error (-131).
      */
-    private SqlAst.Statement with() {
+    private SqlAst.Statement with(boolean head) {
         take();
+        boolean recursive = false;
         if (peek().isWord("recursive")) {
-            throw SqlSyntaxException.unsupported("WITH RECURSIVE is not supported yet", peek().pos());
+            if (!head) {
+                throw SqlSyntaxException.unsupported("WITH RECURSIVE in a derived table is not supported yet",
+                        peek().pos());
+            }
+            take();
+            recursive = true;
+            recursiveWith[0] = true;
         }
         // every CTE of the WITH sees every other, a later one too, and the first of two with one name is the one
         // read (measured on IQ 17.1); their queries are read here for their syntax only, no name resolving to a CTE
@@ -544,7 +570,8 @@ public final class IqParser {
                 }
                 int start = at;
                 queryBlock();
-                scope.putIfAbsent(IqLexer.lower(name.text()), new CteDef(name, columns, start, at, scope));
+                scope.putIfAbsent(IqLexer.lower(name.text()), new CteDef(name, columns, start, at, scope,
+                        recursive));
                 expectOp(")");
             } while (takeOp(","));
         } finally {
@@ -563,6 +590,35 @@ public final class IqParser {
     }
 
     /**
+     * IQ island, 2026-10-17 (the TPC-H corpus lane; measured on IQ 17.1): a CTE of a WITH RECURSIVE named inside its own
+     * reading, read as its first branch -- the query before its first UNION or EXCEPT -- under its column list. Not
+     * the recursion's meaning: IQ raises its error for every statement that reads one (the dialect's
+     * {@code recursion}), after the names, which bind to this as they bind to the recursion's columns. A first branch
+     * that names the CTE is refused by name.
+     */
+    private SqlAst.SubqueryFrom recursion(CteDef def, SqlAst.Ident alias, SqlAst.Pos pos) {
+        if (standingIn.contains(def)) {
+            throw SqlSyntaxException.unsupported("the recursive common table expression '" + def.name().text() + "'"
+                    + " is named in its first branch, which is not supported", pos);
+        }
+        recursions.add(pos);
+        if (def.columns().isEmpty()) {
+            columnless.add(pos);
+        }
+        int save = at;
+        cteScopes.push(def.visible());
+        standingIn.add(def);
+        try {
+            at = def.start();
+            return new SqlAst.SubqueryFrom(queryTerm(), alias, def.columns(), false, pos);
+        } finally {
+            standingIn.remove(standingIn.size() - 1);
+            cteScopes.pop();
+            at = save;
+        }
+    }
+
+    /**
      * A common table expression (IQ island, 2026-10-15), read where it is named as a table: a derived table whose
      * query is read again from the CTE's own tokens, so each reference is a tree of its own (the island's readings key
      * on its nodes); its WITH's CTEs are the names its query sees. IQ's meaning of a CTE that is not recursive is
@@ -570,7 +626,7 @@ public final class IqParser {
      * itself, -914 where CTEs name each other in a cycle), raised only where it is read, as IQ raises it.
      */
     private record CteDef(SqlAst.Ident name, List<SqlAst.Ident> columns, int start, int end,
-            Map<String, CteDef> visible) {
+            Map<String, CteDef> visible, boolean recursive) {
 
         /** One definition is itself only (2026-10-16, the landing's review): {@code visible} is the scope that holds
          *  it, so a record's equality recursed through it without end (a derived table's WITH inside a CTE of the
@@ -587,6 +643,13 @@ public final class IqParser {
 
         SqlAst.SubqueryFrom read(IqParser p, SqlAst.Ident alias, SqlAst.Pos pos) {
             int here = p.reading.indexOf(this);
+            if (here >= 0 && recursive) {
+                if (here != p.reading.size() - 1) {
+                    throw SqlSyntaxException.unsupported("the common table expressions from '" + name.text() + "'"
+                            + " name each other in a cycle: mutual recursion is not supported", pos);
+                }
+                return p.recursion(this, alias, pos);
+            }
             if (here >= 0) {
                 // IQ's error, refused by name naming it: the syntax cases call the form accept in one case and reject
                 // in others (z2_redteam-763; a6_sa_query-92, c09_statements-70, s2_query-346), as M1b's pins note;
@@ -1385,7 +1448,7 @@ public final class IqParser {
             cteScopes.push(Map.of());
             SqlAst.Statement inner;
             try {
-                inner = with();
+                inner = with(false);
             } finally {
                 cteScopes.pop();
             }

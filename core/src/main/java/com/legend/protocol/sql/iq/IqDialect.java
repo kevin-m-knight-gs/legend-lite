@@ -164,6 +164,10 @@ public final class IqDialect implements InputDialect {
     private final SqlTranslationException[] held = {null};
     /** A subquery's placement error, named before translating and held while it is ({@link #failed}). */
     private final SqlTranslationException[] placement = {null};
+    /** IQ island, 2026-10-17: each statement's WITH RECURSIVE error ({@link #recursion}), by identity, for
+     *  {@link #reading}; the statement's, raised by {@link #failed} and {@link #translated}. */
+    private final Map<SqlAst.Statement, Recursive> recursives = new IdentityHashMap<>();
+    private final Recursive[] recursive = {null};
     /** The statement's calls of no function of IQ's, in order, but those read as a NULL string ({@link #failed}). */
     private final List<SqlAst.FunctionCall> unknownCalls = new ArrayList<>();
     /** IQ island, 2026-10-17: the text each concatenation of string literals alone spells, by its value's identity
@@ -376,8 +380,25 @@ public final class IqDialect implements InputDialect {
         // what the settings would need that is not built is refused
         settings.check();
         IqParser.Parsed read = IqParser.parsed(sql, settings);
+        Engine statementEngine = engine != null ? engine : engineOf(read.statement(), settings);
+        Recursive claim = recursion(read.recursion(), read.statement(), statementEngine);
+        SqlAst.Statement statement;
+        try {
+            statement = checked(read, statementEngine);
+        } catch (SqlTranslationException e) {
+            // IQ island, 2026-10-17: what is found before translating that IQ raises after -706 or -922
+            int code = codeOf(java.util.Objects.requireNonNullElse(e.getMessage(), ""));
+            throw claim == null || claim.last() || code == 0 || claim.before().contains(code) ? e : claim.error();
+        }
+        if (claim != null) {
+            recursives.put(statement, claim);
+        }
+        return statement;
+    }
+
+    /** {@link #parse}'s checks of the statement {@code read} holds, and its rewrites: the statement translated. */
+    private SqlAst.Statement checked(IqParser.Parsed read, Engine statementEngine) {
         SqlAst.Statement statement = read.statement();
-        Engine statementEngine = engine != null ? engine : engineOf(statement, settings);
         if (!settings.tsqlOuterJoins()) {
             // IQ island, 2026-10-15 (checklist 0.6, measured on IQ 17.1): *= and =* under tsql_outer_joins Off
             for (SqlAst.Statement q : queries(statement)) {
@@ -532,6 +553,75 @@ public final class IqDialect implements InputDialect {
         innerNamesInOrderBy(statement);
         existsOrder(statement);
         return statement;
+    }
+
+    /** The claims a reading holds from before translating: a subquery's placement error ({@link #placements}), the
+     *  statement's WITH RECURSIVE error ({@link #recursion}). */
+    private void claims(@com.legend.base.Nullable SqlTranslationException placed,
+            @com.legend.base.Nullable Recursive recursion) {
+        if (placed != null) {
+            placement[0] = placed;
+        }
+        if (recursion != null) {
+            recursive[0] = recursion;
+        }
+    }
+
+    /** IQ's error for a statement's WITH RECURSIVE ({@link #recursion}), the codes IQ raises before it, and whether it
+     *  is raised after every other ({@code last}). */
+    private record Recursive(SqlTranslationException error, Set<Integer> before, boolean last) {
+    }
+
+    /**
+     * IQ island, 2026-10-17 (the TPC-H corpus lane's 1,805 WITH RECURSIVE, 1,180 of them recursing; measured on IQ
+     * 17.1): a WITH RECURSIVE is IQ's error as IQ runs it. A CTE named inside its own reading ({@link
+     * IqParser.Recursion}) is a recursion SQL Anywhere runs: with no column list -922, after -154 only; read beside an
+     * IQ table (IQ's engine) -706, after the names (-141 to -144), -154, -163 and -812 and before grouping, -265 and
+     * every other, since IQ's store cannot answer it. A WITH RECURSIVE whose CTEs recurse nowhere read, under IQ's
+     * engine, is -1001030 (recursive queries in IQ store) after every other error where IQ's engine runs the statement
+     * whole -- no DUMMY, no query without FROM anywhere in it -- and plain CTEs where SQL Anywhere runs part of it (one
+     * of those). A recursion IQ answers (over no IQ table) is refused by name: lite's recursion native, the Cypher
+     * island's {@code meta::legend::lite::recurse}, is not on main yet.
+     */
+    private static @com.legend.base.Nullable Recursive recursion(IqParser.Recursion r, SqlAst.Statement statement,
+            Engine chosen) {
+        if (!r.with()) {
+            return null;
+        }
+        if (!r.columnless().isEmpty()) {
+            return new Recursive(SqlTranslationException.invalid("a recursive common table expression needs a column"
+                    + " list" + code(-922, "42W9A"), r.columnless().get(0)), Set.of(-131, -154), false);
+        }
+        if (!r.reads().isEmpty()) {
+            if (chosen != Engine.IQ) {
+                throw SqlTranslationException.unsupported("a recursive common table expression over no IQ table is"
+                        + " not supported yet (lite's recursion native is not on main)", r.reads().get(0));
+            }
+            return new Recursive(SqlTranslationException.invalid("a recursive common table expression read beside an"
+                    + " IQ table is IQ's error -706 under its engine (SQL Anywhere runs the recursion, which IQ's store"
+                    + " cannot answer)" + code(-706, "WO012"), r.reads().get(0)),
+                    Set.of(-131, -141, -142, -143, -144, -154, -163, -812), false);
+        }
+        if (chosen != Engine.IQ) {
+            return null;
+        }
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                if (s.from().isEmpty()) {
+                    return null;
+                }
+                for (SqlAst.FromItem f : s.from()) {
+                    for (SqlAst.FromItem leaf : leaves(f)) {
+                        if (frontEndSource(leaf)) {
+                            return null;
+                        }
+                    }
+                }
+            }
+        }
+        return new Recursive(SqlTranslationException.invalid("WITH RECURSIVE over IQ's tables alone is IQ's error"
+                + " -1001030 under its engine (recursive queries in IQ store are not supported)"
+                + code(-1001030, "QFA2A"), statement.pos()), Set.of(), true);
     }
 
     /** IQ island, 2026-10-14 (found beside review 7's B1, measured on SQL Anywhere 17): an EXISTS subquery with its
@@ -1452,9 +1542,7 @@ public final class IqDialect implements InputDialect {
         read.outerLazy.addAll(outerAggregates(statement));
         read.innerJoins.addAll(innerHere);
         read.placeheld.addAll(placeheldHere);
-        if (placement != null) {
-            read.placement[0] = placement;
-        }
+        read.claims(placement, recursives.get(statement));
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
                 for (SqlAst.Expr e : expressions(s)) {
@@ -6344,6 +6432,10 @@ public final class IqDialect implements InputDialect {
 
     @Override
     public void translated() {
+        Recursive r = recursive[0];
+        if (r != null && !r.last()) {
+            throw r.error();
+        }
         SqlTranslationException p = placement[0];
         if ((p != null || held[0] != null) && !unknownCalls.isEmpty()) {
             // the landing's review (2026-10-17): a call of no function of IQ's is -265 before either
@@ -6356,6 +6448,9 @@ public final class IqDialect implements InputDialect {
         SqlTranslationException e = held[0];
         if (e != null) {
             throw e;
+        }
+        if (r != null) {
+            throw r.error();
         }
     }
 
@@ -6397,6 +6492,11 @@ public final class IqDialect implements InputDialect {
     @Override
     public SqlTranslationException failed(SqlTranslationException e) {
         int code = codeOf(java.util.Objects.requireNonNullElse(e.getMessage(), ""));
+        Recursive r = recursive[0];
+        if (r != null && !r.last()) {
+            // IQ island, 2026-10-17 (measured on IQ 17.1): -706 and -922 before all but these ({@link #recursion})
+            return code == 0 || r.before().contains(code) ? e : r.error();
+        }
         if (code == -142 || code == -143 || code == -144 || code == -149 || code == -150 || code == -154
                 || code == -265 || code == 0 && placement[0] == null) {
             return e;

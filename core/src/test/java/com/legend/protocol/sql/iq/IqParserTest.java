@@ -143,7 +143,7 @@ class IqParserTest {
                 {"SELECT dba.t.* FROM dba.t", "owner-qualified star"},
                 {"SELECT @@version", "global variables"},
                 // IQ island, 2026-10-15: WITH reads now (each CTE inlined as a derived table); RECURSIVE does not
-                {"WITH RECURSIVE q AS (SELECT 1) SELECT * FROM q", "RECURSIVE"},
+                {"SELECT x FROM (WITH RECURSIVE q AS (SELECT 1 AS x) SELECT x FROM q) d", "RECURSIVE"},
                 {"SELECT id INTO x FROM t", "INTO"},
                 // IQ island, 2026-10-15 (the corpus lane): a trailing separator reads now (below); 2026-10-17, a batch's
                 // later statements too (aBatchAnswersItsFirstStatement); a later one that is no SELECT does not
@@ -184,6 +184,27 @@ class IqParserTest {
         SqlSyntaxException e = error("SELECT id FROM t; SELECT id FROM t LIMIT 5");
         assertFalse(e.unsupported());
         assertTrue(e.getMessage().contains("SQLCODE -131"), e.getMessage());
+    }
+
+    @Test
+    void aRecursiveCteNamedInItsOwnReadingIsReadAsItsFirstBranch() {
+        // IQ island, 2026-10-17 (measured on IQ 17.1): IQ raises its error for every recursion read (the dialect's
+        // recursion); the names bind to the first branch under the CTE's column list
+        IqParser.Parsed p = IqParser.parsed("WITH RECURSIVE r(n) AS (SELECT id FROM t UNION ALL SELECT n + 1 FROM r"
+                + " WHERE n < 3) SELECT n FROM r", IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(p.recursion().with());
+        assertEquals(1, p.recursion().reads().size());
+        assertTrue(p.recursion().columnless().isEmpty());
+        SqlAst.SubqueryFrom r = (SqlAst.SubqueryFrom) ((SqlAst.Select) p.statement()).from().get(0);
+        SqlAst.SetOperation body = (SqlAst.SetOperation) r.query();
+        SqlAst.SubqueryFrom standIn = (SqlAst.SubqueryFrom) ((SqlAst.Select) body.right()).from().get(0);
+        assertEquals("n", standIn.columnAliases().get(0).text());
+        assertInstanceOf(SqlAst.Select.class, standIn.query());
+        // an unread one is never read; one with no column list is noted
+        assertTrue(IqParser.parsed("WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n FROM r) SELECT id FROM t",
+                IqProfile.IQ17_DEFAULT.settings()).recursion().reads().isEmpty());
+        assertEquals(1, IqParser.parsed("WITH RECURSIVE r AS (SELECT 1 AS n UNION ALL SELECT n FROM r) SELECT n FROM r",
+                IqProfile.IQ17_DEFAULT.settings()).recursion().columnless().size());
     }
 
     // ------------------------------------------------------------------ M1a: predicates

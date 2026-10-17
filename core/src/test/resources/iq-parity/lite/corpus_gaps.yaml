@@ -1735,3 +1735,71 @@ tests:
     sql: "SELECT *"
   - id: a_star_with_no_from_beside_a_constant
     sql: "SELECT *, 1 AS x"
+
+  # ---- WITH RECURSIVE under IQ's engine (IQ island, 2026-10-17; the TPC-H corpus lane's 1,805, measured on IQ 17.1): a
+  # CTE that recurses, read beside an IQ table, is -706 (after names, -154 and -812; before grouping, -265 and -157);
+  # one with no column list -922; one that recurses nowhere read is -1001030 (last) where IQ's engine runs the statement
+  # whole, and plain CTEs where a DUMMY or a query without FROM anywhere in it makes SQL Anywhere run part of it
+  - id: recursive_with_over_a_table_alone
+    sql: "WITH RECURSIVE c AS (SELECT id FROM t) SELECT id FROM c WHERE id < 3 ORDER BY id"
+    profile: iq17-default
+  - id: recursive_with_of_two_ctes_over_tables
+    sql: "WITH RECURSIVE c AS (SELECT id, sm FROM t), d AS (SELECT id FROM c WHERE id < 4) SELECT d.id, c.sm FROM d JOIN c ON c.id = d.id ORDER BY d.id"
+    profile: iq17-default
+  - id: recursive_with_unread_recursion_beside_a_table
+    sql: "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r WHERE n < 3) SELECT id FROM t WHERE id < 3 ORDER BY id"
+    profile: iq17-default
+  - id: recursive_with_over_a_table_grouped_wrongly
+    sql: "WITH RECURSIVE c AS (SELECT id, sm FROM t) SELECT id, sm FROM c GROUP BY id"
+    profile: iq17-default
+  - id: recursive_with_over_a_table_comparing_a_string
+    sql: "WITH RECURSIVE c AS (SELECT id FROM t) SELECT id FROM c WHERE id = 'abc'"
+    profile: iq17-default
+  - id: recursive_with_over_a_table_ordered_by_a_subquery
+    sql: "WITH RECURSIVE c AS (SELECT id FROM t) SELECT id FROM c ORDER BY (SELECT 1)"
+    profile: iq17-default
+  - id: recursive_with_over_a_table_and_dummy
+    sql: "WITH RECURSIVE c AS (SELECT id FROM t) SELECT id FROM c, DUMMY ORDER BY id"
+    profile: iq17-default
+  - id: recursive_with_of_a_constant_joined_to_a_table
+    sql: "WITH RECURSIVE c AS (SELECT 1 AS x) SELECT x, id FROM c JOIN t ON t.id = c.x"
+    profile: iq17-default
+  - id: recursive_with_of_a_constant_beside_a_table
+    sql: "WITH RECURSIVE c AS (SELECT 1 AS x), d AS (SELECT id FROM t) SELECT x, id FROM c, d ORDER BY id"
+    profile: iq17-default
+  - id: recursive_with_over_a_table_beside_a_constant_derived_table
+    sql: "WITH RECURSIVE c AS (SELECT id FROM t) SELECT d.id FROM (SELECT 1 AS id) d JOIN c ON c.id = d.id"
+    profile: iq17-default
+  - id: recursive_with_unread
+    sql: "WITH RECURSIVE c AS (SELECT id FROM t) SELECT x FROM (SELECT 1 AS x) d"
+    profile: iq17-default
+  - id: recursion_over_a_table
+    sql: "WITH RECURSIVE r(n) AS (SELECT id FROM t WHERE id = 1 UNION ALL SELECT n + 1 FROM r WHERE n < 3) SELECT n FROM r"
+    profile: iq17-default
+  - id: recursion_joining_a_table
+    sql: "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT r.n + 1 FROM r JOIN t ON t.id = r.n WHERE r.n < 3) SELECT n FROM r"
+    profile: iq17-default
+  - id: recursion_beside_a_tables_subquery
+    sql: "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r WHERE n < 3) SELECT n FROM r WHERE n IN (SELECT id FROM t)"
+    profile: iq17-default
+  - id: recursion_over_a_table_before_grouping_and_conversion
+    sql: "WITH RECURSIVE r(n) AS (SELECT id FROM t WHERE id = 1 UNION ALL SELECT n + 1 FROM r WHERE n < 3) SELECT n FROM r, t WHERE n = 'abc' GROUP BY n HAVING sm > 0"
+    profile: iq17-default
+  - id: recursion_over_a_table_after_a_missing_column
+    sql: "WITH RECURSIVE r(n) AS (SELECT id FROM t UNION ALL SELECT n + 1 FROM r WHERE nosuch < 3) SELECT n FROM r"
+    profile: iq17-default
+  - id: recursion_over_a_table_with_too_many_names
+    sql: "WITH RECURSIVE r(n, m) AS (SELECT id FROM t UNION ALL SELECT n + 1 FROM r WHERE n < 3) SELECT n FROM r"
+    profile: iq17-default
+  - id: recursion_over_a_table_with_a_union_and_two_steps
+    sql: "WITH RECURSIVE r(n) AS (SELECT id FROM t UNION SELECT n + 1 FROM r WHERE n < 3 UNION ALL SELECT n + 2 FROM r WHERE n < 2) SELECT n FROM r"
+    profile: iq17-default
+  - id: recursion_read_through_another_cte
+    sql: "WITH RECURSIVE r(n) AS (SELECT id FROM t UNION ALL SELECT n + 1 FROM r WHERE n < 3), s AS (SELECT n FROM r) SELECT n FROM s"
+    profile: iq17-default
+  - id: recursion_without_a_column_list
+    sql: "WITH RECURSIVE r AS (SELECT nosuch AS n FROM t UNION ALL SELECT n + 1 FROM r WHERE n < 3) SELECT n FROM r"
+    profile: iq17-default
+  - id: recursion_without_a_column_list_after_a_wrong_call
+    sql: "WITH RECURSIVE r AS (SELECT 1 AS n UNION ALL SELECT ABS(n, 1) FROM r) SELECT n FROM r"
+    profile: iq17-default
