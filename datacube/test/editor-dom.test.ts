@@ -404,6 +404,31 @@ describe('the editor', () => {
       assert.match(kind.title, /cannot be changed while the column is used in pivot/);
     });
 
+    it('leaves a calculated column\'s kind to its editor, which every query reads', () => {
+      // set here, it was saved and read by none: the grid groups by the editor's declared kind (grid-edits.ts)
+      choose('margin');
+      const field = fieldWithLabel('Column Kind:');
+      const kind = field.querySelector('select') as HTMLSelectElement;
+      assert.equal(kind.disabled, true);
+      assert.equal(kind.value, 'measure');
+      assert.match(field.textContent ?? '', /Set in its editor/);
+    });
+
+    it('takes no Aggregation for a group-level column, computed after grouping', () => {
+      root.replaceChildren();
+      editor = new CubeEditor(root, draftFor({
+        ...CUBE,
+        groupDerived: [{ name: 'share', lambda: stand('$x.total / 2'), type: 'Float', kind: 'measure' }],
+      }), { onApply: () => true, onClose: () => {} });
+      choose('share');
+      const field = fieldWithLabel('Aggregation:');
+      assert.equal((field.querySelector('select') as HTMLSelectElement).disabled, true);
+      assert.match(field.textContent ?? '', /Computed after grouping/);
+      // a row-level calculated measure is aggregated like any other
+      choose('margin');
+      assert.equal((fieldWithLabel('Aggregation:').querySelector('select') as HTMLSelectElement).disabled, false);
+    });
+
     it('a new kind resets the exclusion from the pivot, as upstream', () => {
       choose('desk');
       advanced();

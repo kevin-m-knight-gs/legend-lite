@@ -49,7 +49,8 @@ import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
 import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { isPivotTotalColumn, withoutConditions } from './snapshot.ts';
+import { CubeRefusal, isPivotTotalColumn, withoutConditions } from './snapshot.ts';
+import { columnKind, setGrouping, setPivot, setSorts, type GridDraft } from './grid-edits.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
@@ -923,6 +924,27 @@ export class CubeApp {
   }
 
   /**
+   * A grid edit (grid-edits.ts, the one way a grid's grouping, pivot and sorts are set) on the cube as it is when the
+   * change lands. The screen's controls offer only what its rules allow; an edit they refuse is said, in their words,
+   * and changes nothing.
+   */
+  #edit(edit: (draft: GridDraft) => GridDraft, label: string): Promise<Outcome> {
+    let refused: string | undefined;
+    const out = this.#change((s) => {
+      try {
+        const d = edit({ snapshot: s.snapshot, config: s.configuration });
+        return { ...s, snapshot: d.snapshot, configuration: d.config };
+      } catch (e) {
+        if (!(e instanceof CubeRefusal)) throw e;
+        refused = e.message;
+        return s;
+      }
+    }, { label });
+    if (refused !== undefined) this.#status(refused, 'warn');
+    return out;
+  }
+
+  /**
    * EVERY change of the cube's state reaches the screen HERE, and only here:
    * pending (paint what was asked for), committed (a view landed),
    * presentation (repaint the view with the new settings), refused or
@@ -1020,11 +1042,7 @@ export class CubeApp {
    * configuration's override is for source columns.
    */
   #kindOf(column: string, snapshot: CubeSnapshot = this.#snapshot): ColumnKind | undefined {
-    const c = rowColumns(snapshot).find((x) => x.name === column);
-    if (!c) return undefined;
-    return c.derived
-      ? c.kind
-      : columnConfig(this.#config, column).kind ?? c.kind;
+    return columnKind({ snapshot, config: this.#config }, column);
   }
 
   /** Re-fill the format map in place. See `#formats`. */
@@ -1703,13 +1721,12 @@ export class CubeApp {
 
   /** A drag in the zones: the whole new layout, one change (P2-103). */
   #onLayout(layout: ZoneLayout): void {
-    void this.#query((s) => ({ ...s, rows: [...layout.rows], pivotOn: [...layout.columns] }), 'move in the zones');
+    void this.#edit((d) => setPivot(setGrouping(d, layout.rows), layout.columns), 'move in the zones');
   }
 
   #onZoneChange(zone: Zone, columns: readonly string[]): void {
-    void this.#query((s) => (zone === 'rows'
-      ? { ...s, rows: [...columns] }
-      : { ...s, pivotOn: [...columns] }), zone === 'rows' ? 'row groups' : 'column pivots');
+    void this.#edit((d) => (zone === 'rows' ? setGrouping(d, columns) : setPivot(d, columns)),
+      zone === 'rows' ? 'row groups' : 'column pivots');
   }
 
   /**
@@ -1905,8 +1922,18 @@ export class CubeApp {
     // The query actions go through applyMenuAction, which returns the
     // SAME snapshot when nothing changed; the rest are layout,
     // clipboard and export, which never touch the query.
-    if (applyMenuAction(this.#snapshot, item) !== this.#snapshot) {
-      void this.#query((s) => applyMenuAction(s, item), item.label ?? item.id ?? 'menu');
+    let query: boolean;
+    try {
+      query = applyMenuAction(this.#snapshot, item, this.#config) !== this.#snapshot;
+    } catch (e) {
+      // the menu offers only what grid-edits.ts allows; a refusal is said, never thrown away
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(e.message, 'warn');
+      return;
+    }
+    if (query) {
+      void this.#edit((d) => ({ ...d, snapshot: applyMenuAction(d.snapshot, item, d.config) }),
+        item.label ?? item.id ?? 'menu');
       return;
     }
     const column = item.column;
@@ -2171,8 +2198,8 @@ export class CubeApp {
       });
       return;
     }
-    void this.#query((s) => {
-      const sorts = s.sorts;
+    void this.#edit((d) => {
+      const sorts = d.snapshot.sorts;
       const at = sorts.findIndex((x) => x.column === column);
       const now = sorts[at];
       const next = now === undefined
@@ -2180,7 +2207,7 @@ export class CubeApp {
         : now.direction === 'asc'
           ? sorts.map((x, i) => (i === at ? { column, direction: 'desc' as const } : x))
           : sorts.filter((_x, i) => i !== at);
-      return { ...s, sorts: next };
+      return setSorts(d, next);
     }, `sort ${column}`);
   }
 

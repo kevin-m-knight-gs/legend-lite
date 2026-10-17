@@ -34,11 +34,11 @@ import {
 import type { CubeSnapshot, SortSpec } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { button, dropdown } from './form.ts';
+import { allColumns, groupableColumns, setGrouping, setPivot, setSorts } from '../grid-edits.ts';
 import {
   SORT_DIRECTION_OPTIONS,
-  allColumns,
-  groupableColumns,
   panelShell,
+  selectable,
   selectorInto,
   type CubeDraft,
   type PanelBuilder,
@@ -302,8 +302,8 @@ export class CubeEditor {
 
 const columnsPanel: PanelBuilder = (ctx) => {
   const draft = ctx.draft();
-  const all = allColumns(draft);
-  const names = all.map((c) => c.name);
+  const names = allColumns(draft);
+  const all = selectable(names);
   const order = draft.config.columnOrder ?? names;
   // Order first, then filter: a column the configuration orders but
   // the source no longer has must not appear, and one the order
@@ -358,11 +358,8 @@ const horizontalPivotsPanel: PanelBuilder = (ctx) => {
   const draft = ctx.draft();
   const body = selectorInto(
     ctx,
-    { all: groupableColumns(draft), selected: draft.snapshot.pivotOn },
-    (pivotOn) => {
-      const s = ctx.draft().snapshot;
-      ctx.setSnapshot({ ...s, pivotOn: [...pivotOn] });
-    },
+    { all: selectable(groupableColumns(draft)), selected: draft.snapshot.pivotOn },
+    (pivotOn) => ctx.setSnapshot(setPivot(ctx.draft(), pivotOn).snapshot),
     {
       actionFor: (name) =>
         dropdown(
@@ -386,11 +383,8 @@ const verticalPivotsPanel: PanelBuilder = (ctx) => {
   const draft = ctx.draft();
   const body = selectorInto(
     ctx,
-    { all: groupableColumns(draft), selected: draft.snapshot.rows },
-    (rows) => {
-      const s = ctx.draft().snapshot;
-      ctx.setSnapshot({ ...s, rows: [...rows] });
-    },
+    { all: selectable(groupableColumns(draft)), selected: draft.snapshot.rows },
+    (rows) => ctx.setSnapshot(setGrouping(ctx.draft(), rows).snapshot),
   );
   return panelShell(ctx.doc, TAB_LABELS['Vertical Pivots'], body);
 };
@@ -414,7 +408,7 @@ const sortsPanel: PanelBuilder = (ctx) => {
   const body = selectorInto(
     ctx,
     {
-      all: allColumns(draft),
+      all: selectable(allColumns(draft)),
       selected: draft.snapshot.sorts.map((s) => s.column),
     },
     (columns) => {
@@ -426,7 +420,7 @@ const sortsPanel: PanelBuilder = (ctx) => {
         // which is what a user reordering sorts expects.
         direction: was.get(column) ?? 'asc',
       }));
-      ctx.setSnapshot({ ...s, sorts });
+      ctx.setSnapshot(setSorts(ctx.draft(), sorts).snapshot);
     },
     {
       labelFor: sortLabel,
@@ -437,14 +431,11 @@ const sortsPanel: PanelBuilder = (ctx) => {
           SORT_DIRECTION_OPTIONS,
           (direction) => {
             const s = ctx.draft().snapshot;
-            ctx.setSnapshot({
-              ...s,
-              sorts: s.sorts.map((x) =>
-                x.column === name
-                  ? { column: x.column, direction: direction ?? 'asc' }
-                  : x,
-              ),
-            });
+            ctx.setSnapshot(setSorts(ctx.draft(), s.sorts.map((x) =>
+              x.column === name
+                ? { column: x.column, direction: direction ?? 'asc' }
+                : x,
+            )).snapshot);
           },
           { width: 110 },
         ),

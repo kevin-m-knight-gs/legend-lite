@@ -38,6 +38,7 @@ import type {
   FilterOperator,
   FilterValue,
   SortDirection,
+  SortSpec,
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
@@ -46,6 +47,8 @@ import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 import { isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
+import { setGrouping, setPivot, setSorts } from '../grid-edits.ts';
+import type { CubeConfiguration } from '../config.ts';
 
 /**
  * A pivoted column's name is a PATH -- `2021__|__notional` -- and a
@@ -825,39 +828,43 @@ export function menuItems(groups: readonly MenuGroup[]): MenuItem[] {
  *
  * Actions that change nothing return the snapshot unchanged by
  * identity, so a caller can skip a refresh rather than re-running the
- * same query.
+ * same query. Sorts and pivots are set by grid-edits.ts, the one way a
+ * grid's are set (`config`: the grid's, which says a column's kind);
+ * an action its offers refuse throws its words (CubeRefusal).
  */
 export function applyMenuAction(
   s: CubeSnapshot,
   item: MenuItem,
+  config: CubeConfiguration,
 ): CubeSnapshot {
   const col = item.column;
   const without = <T>(xs: readonly T[], p: (x: T) => boolean): T[] =>
     xs.filter((x) => !p(x));
+  const draft = { snapshot: s, config };
+  const sorted = (sorts: readonly SortSpec[]): CubeSnapshot => setSorts(draft, sorts).snapshot;
+  const rows = (names: readonly string[]): CubeSnapshot => setGrouping(draft, names).snapshot;
+  const pivotOn = (names: readonly string[]): CubeSnapshot => setPivot(draft, names).snapshot;
 
   switch (item.id) {
     case 'sort.asc':
     case 'sort.desc':
       return col
-        ? { ...s, sorts: [{ column: col, direction: item.direction ?? 'asc' }] }
+        ? sorted([{ column: col, direction: item.direction ?? 'asc' }])
         : s;
     case 'sort.addAsc':
     case 'sort.addDesc':
       return col
-        ? {
-            ...s,
-            sorts: [
-              ...without(s.sorts, (x) => x.column === col),
-              { column: col, direction: item.direction ?? 'asc' },
-            ],
-          }
+        ? sorted([
+            ...without(s.sorts, (x) => x.column === col),
+            { column: col, direction: item.direction ?? 'asc' },
+          ])
         : s;
     case 'sort.clearColumn':
       return col
-        ? { ...s, sorts: without(s.sorts, (x) => x.column === col) }
+        ? sorted(without(s.sorts, (x) => x.column === col))
         : s;
     case 'sort.clearAll':
-      return { ...s, sorts: [] };
+      return sorted([]);
 
     case 'filter.add': {
       // ADDS to the filter rather than replacing it, which is what
@@ -885,26 +892,26 @@ export function applyMenuAction(
     }
 
     case 'pivot.vertical':
-      return col ? { ...s, rows: [col] } : s;
+      return col ? rows([col]) : s;
     case 'pivot.addVertical':
       return col && !s.rows.includes(col)
-        ? { ...s, rows: [...s.rows, col] }
+        ? rows([...s.rows, col])
         : s;
     case 'pivot.removeVertical':
-      return col ? { ...s, rows: without(s.rows, (x) => x === col) } : s;
+      return col ? rows(without(s.rows, (x) => x === col)) : s;
     case 'pivot.clearVertical':
-      return { ...s, rows: [] };
+      return rows([]);
 
     case 'pivot.horizontal':
-      return col ? { ...s, pivotOn: [col] } : s;
+      return col ? pivotOn([col]) : s;
     case 'pivot.addHorizontal':
       return col && !s.pivotOn.includes(col)
-        ? { ...s, pivotOn: [...s.pivotOn, col] }
+        ? pivotOn([...s.pivotOn, col])
         : s;
     case 'pivot.removeHorizontal':
-      return col ? { ...s, pivotOn: without(s.pivotOn, (x) => x === col) } : s;
+      return col ? pivotOn(without(s.pivotOn, (x) => x === col)) : s;
     case 'pivot.clearHorizontal':
-      return { ...s, pivotOn: [] };
+      return pivotOn([]);
 
     default:
       // Layout, copy and export actions do not touch the query.

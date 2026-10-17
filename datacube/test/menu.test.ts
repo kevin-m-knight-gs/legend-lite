@@ -9,6 +9,7 @@ import {
   type MenuActionId,
 } from '../src/ui/menu.ts';
 import { pivotTotalColumn, type CubeSnapshot } from '../src/snapshot.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 
 const CUBE: CubeSnapshot = {
@@ -392,20 +393,20 @@ describe('applyMenuAction', () => {
       label: '',
       ...(column ? { column } : {}),
       ...(direction ? { direction } : {}),
-    });
+    }, DEFAULT_CONFIGURATION);
 
   it('replaces the sort, or adds to it', () => {
     // Two different intentions, so two actions rather than one that
     // guesses which was meant.
     const replaced = applyMenuAction(
       { ...CUBE, sorts: [{ column: 'region', direction: 'asc' }] },
-      { id: 'sort.desc', label: '', column: 'desk', direction: 'desc' },
+      { id: 'sort.desc', label: '', column: 'desk', direction: 'desc' }, DEFAULT_CONFIGURATION,
     );
     assert.deepEqual(replaced.sorts, [{ column: 'desk', direction: 'desc' }]);
 
     const added = applyMenuAction(
       { ...CUBE, sorts: [{ column: 'region', direction: 'asc' }] },
-      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' },
+      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' }, DEFAULT_CONFIGURATION,
     );
     assert.deepEqual(added.sorts, [
       { column: 'region', direction: 'asc' },
@@ -416,7 +417,7 @@ describe('applyMenuAction', () => {
   it('re-adding a sorted column moves it rather than duplicating', () => {
     const s = applyMenuAction(
       { ...CUBE, sorts: [{ column: 'desk', direction: 'asc' }] },
-      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' },
+      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' }, DEFAULT_CONFIGURATION,
     );
     assert.deepEqual(s.sorts, [{ column: 'desk', direction: 'desc' }]);
   });
@@ -443,7 +444,7 @@ describe('applyMenuAction', () => {
     const cleared = applyMenuAction(filtered, {
       id: 'filter.clearAll',
       label: '',
-    });
+    }, DEFAULT_CONFIGURATION);
     assert.equal('filter' in cleared, false);
   });
 
@@ -514,7 +515,7 @@ describe('a pivot Total column', () => {
       assert.ok(on.includes(id), `${id}: ${on.join(' ')}`);
     }
     const next = applyMenuAction(ctx.snapshot,
-      menuItems(buildMenu(ctx)).find((i) => i.id === 'sort.desc')!);
+      menuItems(buildMenu(ctx)).find((i) => i.id === 'sort.desc')!, DEFAULT_CONFIGURATION);
     assert.deepEqual(next.sorts, [{ column: total, direction: 'desc' }]);
   });
 

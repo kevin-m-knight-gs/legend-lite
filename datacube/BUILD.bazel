@@ -390,6 +390,7 @@ _HEADLESS_TESTS = [
     "format-scale",
     "fuzz",
     "grid",
+    "grid-edits",
     "group-derived",
     "host",
     "infer",

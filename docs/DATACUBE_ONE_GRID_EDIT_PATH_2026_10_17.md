@@ -63,8 +63,15 @@ Each takes the grid's snapshot and configuration and answers the new pair, or wh
   offers for the column's type; a weight only on `wavg`, and a column.
 
 The screen calls it: the two Pivots panels and the Sorts panel (`ui/editor.ts`), the header menu's sort and pivot
-actions (`ui/menu.ts`), Column Properties' kind and Aggregation (`ui/panel-column.ts`). The screen's offers already
-keep a person inside these rules, so nothing changes on the screen; the rules now have one home.
+actions (`ui/menu.ts`), the drag zones and a header's click-to-sort (`app.ts`, whose own copy of the dimension rule,
+`#kindOf`, now asks `columnKind`), Column Properties' kind and Aggregation (`ui/panel-column.ts`). An edit judges what
+it adds: a group or a sort the grid has is kept or taken away as it is, as the screen's menus only offer what may be
+added. The screen's offers already keep a person inside these rules; the rules now have one home.
+
+Two DataCube bugs found writing it down, fixed: Column Properties set a calculated column's kind and a group-level
+column's Aggregation, and no query read either -- the grid groups by a calculated column's kind as its editor declares
+it, and aggregates source and row-level columns only. The panel now disables both, saying why ("Set in its editor",
+"Computed after grouping"), and the module refuses them.
 
 ### 3.3 Python asks it
 

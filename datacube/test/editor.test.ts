@@ -9,7 +9,7 @@ import {
 } from '../src/ui/editor.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { freshName } from '../src/ui/panel-dimensions.ts';
-import { groupableColumns } from '../src/ui/panel-kit.ts';
+import { groupableColumns } from '../src/grid-edits.ts';
 import { AGGREGATES } from '../src/ui/panel-column.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { element } from '../../pure-protocol/src/index.ts';
@@ -81,7 +81,7 @@ describe('groupableColumns', () => {
         { name: 'big', lambda: stand('$x.notional > 1'), kind: 'dimension' },
       ],
       groupDerived: [{ name: 'share', lambda: stand('$x.total / 2') }],
-    })).map((c) => c.name);
+    }));
     assert.deepEqual(names, ['region', 'desk', 'year', 'big']);
   });
 });
