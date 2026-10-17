@@ -30,8 +30,18 @@ describe('DuckDB in a Node test', () => {
     assert.throws(() => conn.query('LOAD spatial'), /spatial/);
   });
 
-  it('makes no other request: a remote file is not read', () => {
-    assert.throws(() => conn.query("SELECT * FROM read_csv('http://127.0.0.1:9/rows.csv')"));
+  it('answers no other request, and an extension that is not pinned with a 404 -- its own contract, asked directly', () => {
+    // asked of the stand-in itself: DuckDB refuses an http:// path before it makes any request, so no query reaches this
+    interface Request { open(method: string, url: string): void; send(): void; readonly status: number }
+    const Stand = (globalThis as { XMLHttpRequest?: new () => Request }).XMLHttpRequest;
+    assert.ok(Stand, 'startNodeDuckDb defines one');
+    const other = new Stand();
+    other.open('GET', 'http://127.0.0.1:9/rows.csv');
+    assert.throws(() => other.send(), /DuckDB in Node makes no request: http:\/\/127\.0\.0\.1:9\/rows\.csv/);
+    const unpinned = new Stand();
+    unpinned.open('GET', 'https://extensions.duckdb.org/v1.5.4/wasm_eh/spatial.duckdb_extension.wasm');
+    unpinned.send();
+    assert.equal(unpinned.status, 404);
   });
 
   it('is given the pinned files, each laid out as DuckDB asks for it', async () => {
