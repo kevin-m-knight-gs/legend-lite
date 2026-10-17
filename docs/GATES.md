@@ -9932,6 +9932,33 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the sixtieth landing — a property typed two ways (W7)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W7); the record is the study's §12.62. A property whose
+values differ in kind is a Variant: the harness's column per class, the island's union across the classes a
+label-less node reads (the root's read, a carried node's columns, a variable-length pattern's chains); a Variant
+of no known shape compared with a string, a boolean or a number is ordered by kind and null across kinds (Cypher's).
+
+1. **What lands.** Comparison2/[1], [2] (a string and an integer under one label compared with a string in an AND'd and an OR'd
+   predicate), MatchWhere5/[4], WithWhere5/[4] (a text node and an integer node under a label-less pattern, the
+   comparison OR'd with IS NOT NULL, the node returned), the 15 cases of `lite/twoways.yaml`; DuckDB PASS
+   3,513 → 3533, Postgres 3,140 → 3160; TCK agreement DuckDB 3442 → 3446, Postgres 3080 → 3084.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3533 / REFUSED 387 / BOTH_ERROR
+   733 / SKIP 81; Postgres PASS 3160 / REFUSED 760 / BOTH_ERROR 733 / SKIP
+   81, of 4734 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `TypeCheckerTest.anEmptyCastToAClassIsTheTypedEmptyNotNil` pins the typer's fix (an empty cast to a
+   class is the typed empty, never Nil), `LowerRelationTest` and `CastNoReWrapTest.anEmptyCastToAVariantIsTheTypedNull`
+   the lowering's (an empty typed as the Variant, and a NULL cast to it, are the typed null) and
+   `NullVariantCastTest` the dialects' (`CAST(NULL AS JSONB)` on Postgres, `CAST(NULL AS JSON)` on DuckDB), and
+   `LowerRelationTest`'s `ELEMENTS` spelling DuckDB's `variantElements` (the wildcard's list cast to `JSON[]`: a
+   constant NULL input binds the wildcard as JSON, not a list); the translator's pins unchanged (the Variant
+   conversions apply only where kinds differ); the showcase's hard pins re-rendered (`showcase/hard/duckdb.sql`,
+   `snowflake.sql`, docs/CYPHER_SHOWCASE.md: an absent node's NULL is typed, `CAST(NULL AS JSON)` and
+   `TO_VARIANT(NULL)`).
+4. **Refused by name, recorded.** A temporal or a duration beside another kind (the Variant would hold its text);
+   two Variants of no known shape ordered still by their keys (§12.58), never null across kinds (S81).
+
 ## 2026-10-17 — `#Cypher{...}#`: the fifty-ninth landing — nodes with several labels (W6)
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W6); the record is the study's §12.61. A node of several

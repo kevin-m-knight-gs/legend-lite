@@ -1810,11 +1810,16 @@ public final class CypherToPure {
                 Map<String, NodeProp> props = c.detail() instanceof NodeShape n ? n.props()
                         : c.detail() instanceof RelShape r ? r.props() : Map.of();
                 for (Map.Entry<String, NodeProp> e : props.entrySet()) {
-                    Kind before = union.putIfAbsent(e.getKey(), e.getValue().kind());
-                    if (before != null && before != e.getValue().kind()) {
-                        throw CypherErrors.unsupported("the property " + e.getKey() + " typed differently across"
-                                + " the chains of a variable-length pattern (" + cypherType(before) + " and "
-                                + cypherType(e.getValue().kind()) + ") is not supported yet", pos);
+                    Kind kind = e.getValue().kind();
+                    Kind before = union.putIfAbsent(e.getKey(), kind);
+                    if (before != null && before != kind) {
+                        // typed two ways across the chains (the study's §12.62): a Variant of each chain's value
+                        if (!variantSpelled(before) || !variantSpelled(kind)) {
+                            throw CypherErrors.unsupported("the property " + e.getKey() + " typed differently"
+                                    + " across the chains of a variable-length pattern (" + cypherType(before)
+                                    + " and " + cypherType(kind) + ") is not supported yet", pos);
+                        }
+                        union.put(e.getKey(), Kind.JSON);
                     }
                 }
             }
@@ -1866,8 +1871,11 @@ public final class CypherToPure {
             for (Map.Entry<String, Kind> k : kinds.getOrDefault(v, Map.of()).entrySet()) {
                 String column = freshName(names);
                 NodeProp np = own.get(k.getKey());
+                ValueSpecification read = new AppliedProperty(new Variable(row), np == null ? "" : np.column());
+                // (a union typed two ways, the study's §12.62: this chain's value as a Variant)
                 ValueSpecification value = np == null ? SqlToPure.nullOf(k.getValue()).vs()
-                        : new AppliedProperty(new Variable(row), np.column());
+                        : k.getValue() == Kind.JSON && np.kind() != Kind.JSON && np.kind() != Kind.NULL
+                        ? SqlToPure.valueOf(asVariant(columnLike(read, np.kind(), np.nullable()), pos)) : read;
                 boolean nullable = np == null || np.nullable() || every.size() > 1;
                 computed.add(new ColSpec(column, lambda(row, value), null, null));
                 columns.add(new Col(column, k.getValue(), nullable));
@@ -6170,7 +6178,8 @@ public final class CypherToPure {
             for (Map.Entry<String, Kind> k : kinds.entrySet()) {
                 String column = freshName(names);
                 boolean lacks = CypherToPure.this.property(cls, k.getKey()) == null;
-                Tx t = lacks ? SqlToPure.nullOf(k.getValue()) : propertyOf(b, k.getKey(), pos);
+                Tx t = lacks ? SqlToPure.nullOf(k.getValue())
+                        : asKind(propertyOf(b, k.getKey(), pos), k.getValue(), pos);
                 boolean nullable = classes.size() > 1 || t.nullable() || optional;
                 specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
                 columns.add(new Col(column, k.getValue(), nullable));
@@ -6231,7 +6240,8 @@ public final class CypherToPure {
                 for (Map.Entry<String, Kind> k : unionKinds(classes, pos).entrySet()) {
                     String col = freshName(names);
                     boolean lacks = edge == null || CypherToPure.this.property(edge, k.getKey()) == null;
-                    Tx t = lacks ? SqlToPure.nullOf(k.getValue()) : propertyOf(b, k.getKey(), pos);
+                    Tx t = lacks ? SqlToPure.nullOf(k.getValue())
+                            : asKind(propertyOf(b, k.getKey(), pos), k.getValue(), pos);
                     boolean nullableHere = classes.size() > 1 || t.nullable() || nullable;
                     specs.add(new ColSpec(col, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
                     columns.add(new Col(col, k.getValue(), nullableHere));
@@ -6320,9 +6330,14 @@ public final class CypherToPure {
                     Kind kind = duration ? Kind.DURATION : kindOf(p.type(), p.name(), pos);
                     Kind before = kinds.putIfAbsent(p.name(), kind);
                     if (before != null && before != kind) {
-                        throw CypherErrors.unsupported("the property " + p.name() + " typed differently across the"
-                                + " classes a label-less node reads (" + cypherType(before) + " and "
-                                + cypherType(kind) + ") is not supported yet", pos);
+                        // typed two ways across the classes (the study's §12.62): a Variant, each class's value as
+                        // the database spells it, where both kinds are a Variant's
+                        if (!variantSpelled(before) || !variantSpelled(kind)) {
+                            throw CypherErrors.unsupported("the property " + p.name() + " typed differently across"
+                                    + " the classes a label-less node reads (" + cypherType(before) + " and "
+                                    + cypherType(kind) + ") is not supported yet", pos);
+                        }
+                        kinds.put(p.name(), Kind.JSON);
                     }
                 }
             }
@@ -6375,12 +6390,9 @@ public final class CypherToPure {
             if (prop == null) {
                 // a label-less node of a class without the property: null (Neo4j's heterogeneous nodes), typed as
                 // the property is where a class declares it
-                for (String other : b.node() ? g.candidates() : List.<String>of()) {
-                    Property elsewhere = CypherToPure.this.property(other, name);
-                    if (elsewhere != null && !elsewhere.classTyped() && !elsewhere.enumTyped()
-                            && !elsewhere.many()) {
-                        return SqlToPure.nullOf(kindOf(elsewhere.type(), name, pos));
-                    }
+                Kind elsewhere = b.node() ? candidateKind(name, null, b.path().isEmpty(), pos) : null;
+                if (elsewhere != null) {
+                    return SqlToPure.nullOf(elsewhere);
                 }
                 if (open) {
                     // an open graph (the study's §12.45): a property no class declares is Neo4j's null
@@ -6417,7 +6429,41 @@ public final class CypherToPure {
                 v = call("if", absent(b), thunk(SqlToPure.nullOf(kind).vs()), thunk(v));
                 nullable = true;
             }
-            return columnLike(v, kind, nullable);
+            Tx own = columnLike(v, kind, nullable);
+            // typed two ways across the classes a label-less root may be (the study's §12.62): the class's own
+            // value as a Variant, so the arms agree
+            return b.node() && b.path().isEmpty() && candidateKind(name, kind, true, pos) == Kind.JSON
+                    ? asVariant(own, pos) : own;
+        }
+
+        /** The kind the candidate classes (an arm's every class) give the scalar property {@code name}, from
+         *  {@code own} (the class's, or null where it lacks the property): with {@code union}, JSON where two
+         *  classes type it two ways (both a Variant's kind: the study's §12.62), else the one kind they agree on;
+         *  without, the first class declaring it (a far node typed by a root's class); null where none declares
+         *  it. */
+        private @com.legend.base.Nullable Kind candidateKind(String name, @com.legend.base.Nullable Kind own,
+                boolean union, Pos pos) {
+            Kind found = own;
+            for (String other : g.candidates()) {
+                Property p = CypherToPure.this.property(other, name);
+                if (p == null || p.enumTyped() || p.many()) {
+                    continue;
+                }
+                boolean duration = p.classTyped() && CypherToPure.this.durationClasses().contains(p.type());
+                if (p.classTyped() && !duration) {
+                    continue;
+                }
+                Kind k = duration ? Kind.DURATION : kindOf(p.type(), name, pos);
+                if (found == null) {
+                    found = k;
+                    if (!union) {
+                        return found;
+                    }
+                } else if (union && found != k && variantSpelled(found) && variantSpelled(k)) {
+                    found = Kind.JSON;
+                }
+            }
+            return found;
         }
     }
 
@@ -7330,7 +7376,9 @@ public final class CypherToPure {
         }
         ValueSpecification holds = call("equal", call(IS_KIND, v, new CString(kind)), new CBoolean(true));
         ValueSpecification one = other.nullable() ? call("toOne", x) : x;
-        ValueSpecification read = call("to", call("toOne", v), SqlToPure.typeArg(number ? "Float"
+        // (trustOne, never toOne: an arm's typed null column is stamped [0..0], and toOne of it is the raise
+        // itself, which Postgres folds at plan time, §12.62)
+        ValueSpecification read = call("to", call(TRUST_ONE, v), SqlToPure.typeArg(number ? "Float"
                 : java.util.Objects.requireNonNull(elementType(other.kind()))));
         ValueSpecification same = call("equal", read, number ? call("toFloat", one) : one);
         ValueSpecification whenTrue = call("and", present, call("if", holds, thunk(same), thunk(new CBoolean(false))));
@@ -7366,12 +7414,13 @@ public final class CypherToPure {
     private static ValueSpecification keyOf(ValueSpecification v, int depth) {
         java.util.function.Function<String, ValueSpecification> is = k -> call("equal", call(IS_KIND, v,
                 new CString(k)), new CBoolean(true));
-        ValueSpecification one = call("toOne", v);
-        ValueSpecification text = call("toString", one);
-        // the kind test before each place proves the conversion present: trustOne, the platform's unguarded
+        // the kind test before each place proves the value present: trustOne, the platform's unguarded
         // conformance, never toOne's raise (a raise Postgres folds at PLAN time where the key sits in a
         // subquery's WHERE over an outer row's value: the planner's estimate evaluates stable constants in
-        // every CASE arm, 2026-10-17)
+        // every CASE arm, 2026-10-17; and where the column is an arm's typed null, stamped [0..0], toOne of
+        // which the lowering spells as the raise itself, §12.62)
+        ValueSpecification one = call(TRUST_ONE, v);
+        ValueSpecification text = call("toString", one);
         ValueSpecification number = numberKey(call(TRUST_ONE, call("to", one, SqlToPure.typeArg("Float"))));
         ValueSpecification bool = call("if", call(TRUST_ONE, call("to", one, SqlToPure.typeArg("Boolean"))),
                 thunk(new CString("61")), thunk(new CString("60")));
@@ -7455,6 +7504,15 @@ public final class CypherToPure {
      *  of one rank the key orders by value (a string, a boolean, a number, a list -- element-wise by the keys,
      *  S81), null where the ranks differ (Cypher: values of different types do not order) or either is null. */
     private static Tx variantOrdered(BinaryOp op, Tx l, Tx r, Pos pos) {
+        // a Variant of no known shape against a string, a boolean or a number (the study's §12.62): ordered where
+        // the Variant holds a value of that kind, null where another (Cypher: values of different types do not
+        // order), as variantEqual tells them apart; two Variants, or a list beside one, by their keys (§12.58)
+        if (l.kind() == Kind.JSON && l.detail() == null && r.kind() != Kind.JSON && jsonKindOf(r.kind()) != null) {
+            return variantOrderedScalar(op, l, r, pos);
+        }
+        if (r.kind() == Kind.JSON && r.detail() == null && l.kind() != Kind.JSON && jsonKindOf(l.kind()) != null) {
+            return variantOrderedScalar(mirrored(op), r, l, pos);
+        }
         Tx lk = l.kind() == Kind.JSON ? variantKey(l) : scalarKey(l);
         Tx rk = r.kind() == Kind.JSON ? variantKey(r) : scalarKey(r);
         if (lk == null || rk == null) {
@@ -7479,6 +7537,50 @@ public final class CypherToPure {
         ValueSpecification holds = call("and", same, java.util.Objects.requireNonNull(ordered));
         ValueSpecification test = call(fn, lk.vs(), rk.vs());
         return Tx.condition(call("and", holds, test), call("and", holds, call("not", test)), true);
+    }
+
+    /** {@code json op other}: a Variant of no known shape ordered against a string, a boolean or a number
+     *  (the study's §12.62): ordered where the Variant holds a value of the other's kind (a number as a float),
+     *  null where it holds another kind (Cypher: values of different types do not order), where either is null,
+     *  or where the Variant holds the JSON null. */
+    private static Tx variantOrderedScalar(BinaryOp op, Tx json, Tx other, Pos pos) {
+        String kind = java.util.Objects.requireNonNull(jsonKindOf(other.kind()));
+        boolean number = other.kind().numeric();
+        ValueSpecification v = SqlToPure.valueOf(json);
+        ValueSpecification x = SqlToPure.valueOf(other);
+        ValueSpecification present = call("not", call("equal", call(IS_KIND, v, new CString("null")),
+                new CBoolean(true)));
+        if (json.nullable()) {
+            present = call("and", call("isNotEmpty", v), present);
+        }
+        if (other.nullable()) {
+            present = call("and", present, call("isNotEmpty", x));
+        }
+        ValueSpecification holds = call("equal", call(IS_KIND, v, new CString(kind)), new CBoolean(true));
+        ValueSpecification one = other.nullable() ? call("toOne", x) : x;
+        Kind as = number ? Kind.FLOAT : other.kind();
+        // (a boolean as a condition, never a bare value: a bare false would read as the null constant)
+        ValueSpecification typed = call("to", call(TRUST_ONE, v), SqlToPure.typeArg(number ? "Float"
+                : java.util.Objects.requireNonNull(elementType(other.kind()))));
+        Tx read = as == Kind.BOOLEAN ? columnLike(typed, Kind.BOOLEAN, false) : Tx.value(typed, as, false);
+        Tx against = as == Kind.BOOLEAN ? other : Tx.value(number ? call("toFloat", one) : one, as, false);
+        Tx test = ordered(op, read, against, pos);
+        ValueSpecification whenTrue = call("and", present, call("if", holds, thunk(test.vs()),
+                thunk(new CBoolean(false))));
+        ValueSpecification whenFalse = call("and", present, call("if", holds, thunk(test.falseWhen()),
+                thunk(new CBoolean(false))));
+        return Tx.condition(whenTrue, whenFalse, true);
+    }
+
+    /** The comparison read from the other side ({@code a < b} is {@code b > a}). */
+    private static BinaryOp mirrored(BinaryOp op) {
+        return switch (op) {
+            case LT -> BinaryOp.GT;
+            case LE -> BinaryOp.GE;
+            case GT -> BinaryOp.LT;
+            case GE -> BinaryOp.LE;
+            default -> throw new IllegalStateException("unreachable: " + op);
+        };
     }
 
     /** {@code l = r} where both are Variants of no known shape (§12.58): equal where their orderability keys are
@@ -8557,6 +8659,17 @@ public final class CypherToPure {
             case ListVal l -> Tx.value(call("fromJson", jsonTextOf(l, pos)), Kind.JSON, false, shapeOf(l));
             case MapVal m -> Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false, shapeOf(m));
         };
+    }
+
+    /** Whether a kind is one a Variant spells (the study's §12.62): a string, a boolean, a number, or a Variant. */
+    private static boolean variantSpelled(Kind kind) {
+        return kind == Kind.STRING || kind == Kind.BOOLEAN || kind.numeric() || kind == Kind.JSON;
+    }
+
+    /** {@code t} as a column of {@code union}'s kind: itself, or the Variant of it where the union is a Variant and
+     *  it is a scalar of another kind (a property typed two ways across classes, the study's §12.62). */
+    private static Tx asKind(Tx t, Kind union, Pos pos) {
+        return union == Kind.JSON && t.kind() != Kind.JSON && t.kind() != Kind.NULL ? asVariant(t, pos) : t;
     }
 
     /** A scalar as the Variant the database builds of it ({@code toVariant}): a string, a boolean or a number;

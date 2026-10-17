@@ -2624,8 +2624,13 @@ public final class Lowerer {
                             com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT);
             // The EMPTY collection [] (Nil[0]) in scalar position IS SQL
             // NULL — a [0] value has no cell representation other than null
-            // (the mapping enum decode chain's tail: CASE ... ELSE NULL).
-            case TypedCollection c when c.elements().isEmpty() -> new SqlExpr.NullLit();
+            // (the mapping enum decode chain's tail: CASE ... ELSE NULL). An empty typed as the Variant
+            // ([]->cast(@Variant), the cast folded into the literal's type before lowering) keeps its type on the
+            // wire: Postgres's jsonb operators over an untyped NULL are ambiguous (2026-10-17, the Cypher island's
+            // arm of a class lacking a property typed two ways, docs/CYPHER_STUDY_2026_10_15.md §12.62)
+            case TypedCollection c when c.elements().isEmpty() ->
+                    c.info().type() instanceof Type.ClassType ct && PlatformTypes.isVariant(ct)
+                            ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.JSON) : new SqlExpr.NullLit();
             // A HETEROGENEOUS literal — element LUB Any ([1, 'a']) or a class
             // LUB with NO canonical layout (mixed instance kinds meeting at
             // an abstract ancestor): each element wraps as variant JSON, the

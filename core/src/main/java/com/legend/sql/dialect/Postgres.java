@@ -1373,6 +1373,11 @@ public final class Postgres extends AnsiSqlRenderer {
         // A VARIANT is jsonb: text parses into it; any other value converts (no cast from a number
         // or a boolean to jsonb exists)
         if (c.target() == SqlType.Scalar.JSON) {
+            // (a NULL typed as jsonb: to_jsonb(NULL) has no type to go on, and jsonb's operators over an untyped
+            // NULL are ambiguous: 2026-10-17)
+            if (c.value() instanceof SqlExpr.NullLit) {
+                return writer.append("CAST(NULL AS JSONB)");
+            }
             return isText(c.value()) ? writer.append("CAST(").expr(c.value(), 0).append(" AS JSONB)")
                     : writer.append("to_jsonb(").expr(c.value(), 0).append(")");
         }

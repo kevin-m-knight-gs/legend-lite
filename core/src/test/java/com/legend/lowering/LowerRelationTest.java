@@ -26,12 +26,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class LowerRelationTest {
     /** DuckDB's toMany(@Variant) of a stored Variant column (DuckDb.variantElements, 2026-10-12): JSON's null elements
-     *  kept, a value that is not an array toMany's error. */
+     *  kept, a value that is not an array toMany's error; the wildcard's list cast to JSON[] (2026-10-17: a constant
+     *  NULL input binds the wildcard as JSON, not a list). */
     private static final java.util.function.Function<String, String> ELEMENTS = col -> "(CASE WHEN json_type(CAST(t0."
-            + col + " AS JSON)) = 'ARRAY' THEN json_extract(CAST(t0." + col + " AS JSON), '$[*]') WHEN CAST(t0." + col
-            + " AS JSON) IS NULL OR json_type(CAST(t0." + col + " AS JSON)) = 'NULL' THEN NULL ELSE error('Expect"
-            + " variant that contains an ''ARRAY'', but got ''' || json_type(CAST(t0." + col + " AS JSON)) || '''')"
-            + " END)";
+            + col + " AS JSON)) = 'ARRAY' THEN CAST(json_extract(CAST(t0." + col + " AS JSON), '$[*]') AS JSON[]) WHEN"
+            + " CAST(t0." + col + " AS JSON) IS NULL OR json_type(CAST(t0." + col + " AS JSON)) = 'NULL' THEN NULL ELSE"
+            + " error('Expect variant that contains an ''ARRAY'', but got ''' || json_type(CAST(t0." + col
+            + " AS JSON)) || '''') END)";
 
 
     private static final String MODEL = """
@@ -982,5 +983,16 @@ class LowerRelationTest {
     void sortByComputedProjectionIsolates() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#->project(~[older: x|$x.AGE + 10])->sort(~older->ascending())");
         assertEquals(List.of("35", "45", "55", "65"), exec(sql));
+    }
+
+    @Test
+    void anEmptyTypedAsTheVariantIsTheTypedNull() {
+        // []->cast(@Variant), folded into the literal's own type before lowering, lowers to the TYPED null, inline
+        // under a later read too: Postgres's jsonb operators over an untyped NULL are ambiguous (2026-10-17, the
+        // Cypher island's arm of a class lacking a property typed two ways, docs/CYPHER_STUDY_2026_10_15.md §12.62)
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->project(~[v: x|[]->cast(@meta::pure::metamodel::variant::Variant)])"
+                + "->extend(~[k: r|$r.v->meta::legend::lite::trustOne()->toString()])");
+        assertTrue(sql.contains("CAST(NULL AS JSON) AS v"), sql);
+        assertFalse(sql.contains("to_json(NULL)"), sql);
     }
 }

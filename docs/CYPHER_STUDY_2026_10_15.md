@@ -4293,3 +4293,70 @@ several-label cases 12 PASS (Match1/[3], Match3/[7], [26], Match7/[23], Graph3/[
 BOTH_ERROR (Graph3/[8], [9]: Neo4j's errors, raised as its), 4 REFUSED by name (Merge1/[10], Remove2/[2], [3]: the
 writes, W4; Match4/[5]: the unbounded variable-length pattern, W10). The harness's SKIP count falls by the 18. TCK
 agreement (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB 3428 → 3442, Postgres 3066 → 3080.
+
+### 12.62 A property typed two ways: a Variant of each value, compared by kind (2026-10-17)
+
+The plan's W7. Neo4j types nothing: one label's nodes may hold `var: 0` and `var: 'xx'`, and a label-less pattern
+reads classes that type one name two ways. The model types every property once, so a property typed two ways is a
+VARIANT, as a list property already is (§12.37), and each value is the database's own spelling of it.
+
+- **The harness** (`CypherGraph.merged`): a property whose values differ in kind across one class's nodes (or one
+  edge class's relationships) is a Variant column (`JSONB` / `SEMISTRUCTURED`) holding each value's JSON, where
+  both kinds are a Variant's (an integer, a float, a string, a boolean, a list); a date beside a string stays
+  refused by name (the Variant would hold its text). The two harness SKIPs of Comparison2 fall.
+- **The island, across the classes a label-less node reads** (`unionKinds`, `candidateKind`, `asKind`): where two
+  candidate classes type a name two ways (both a Variant's kind), the union's kind is JSON: the root's own read
+  (`propertyOf`, when the candidates are an arm's every class) is the class's value as a Variant (`asVariant`:
+  `toVariant`, null kept), a class lacking it reads the JSON null, a carried node's column is the Variant of each
+  arm's value (`carry`, `carryRel`), a variable-length pattern's chains agree the same way (`chainRows`,
+  `canonical`); so the arms agree (the projection's check, §12.13, and MatchWhere5/[4], WithWhere5/[4]). A
+  temporal or duration beside another kind stays the named refusal.
+- **A comparison across kinds** (`variantOrderedScalar`, from `variantOrdered`): a Variant of no known shape
+  against a string, a boolean or a number orders where the Variant holds a value of that kind (a number read as
+  a float, the other converted; `isKind` guards the read, as `variantEqual` does in §12.57), and is NULL where
+  it holds another kind, where either is null, or where it holds the JSON null: Cypher's "values of different
+  types do not order" (so `0 > 'x'` is null and `NOT (0 > 'x')` null, where §12.58's keys answered false and
+  true). The Variant on either side (`mirrored`). Two Variants, or a list beside one, still order by their keys
+  (§12.58: a key holds a list's element-wise order); equality is §12.57's.
+- **A platform fix on the way** (`CastChecker`, pinned by `TypeCheckerTest.anEmptyCastToAClassIsTheTypedEmptyNotNil`):
+  `[]->cast(@Variant)`, the island's typed null Variant, was typed `Nil[0..0]` where `[]->cast(@String)` is
+  `String[0..0]`: the cast's identity rule (a source already conforming to the target class is the source) took
+  the []-born Nil, the bottom of every class, so a null Variant column refused to unite under a `concatenate`
+  (the arms' union). The empty is what the cast types: a Nil source is never the identity.
+- **And a second, under it** (`Lowerer`'s empty-collection arm, `CastPolicy`, `Postgres.variantAwareCast`; pinned
+  by `LowerRelationTest`, `CastNoReWrapTest.anEmptyCastToAVariantIsTheTypedNull` and `NullVariantCastTest`): the
+  typed tree folds `[]->cast(@Variant)` into the literal's own type (an empty collection typed Variant[0..0])
+  before lowering, and the lowering's empty collection was the bare, untyped NULL, which Postgres's jsonb
+  operators refuse (`operator is not unique: unknown #>> unknown`, the orderability key over the arm's column).
+  An empty typed as the Variant now lowers to the typed null (`CAST(NULL AS JSON)` on DuckDB), a NULL cast to the
+  Variant that does reach the cast policy keeps its cast, and Postgres spells a NULL cast to its JSON carrier as
+  `CAST(NULL AS JSONB)` (`to_jsonb(NULL)` has no type to go on); the showcase's hard SQL re-pinned (an absent
+  node's NULL typed: `CAST(NULL AS JSON)`, Snowflake's `TO_VARIANT(NULL)`).
+- **And a third, DuckDB's binder** (`DuckDb.variantElements`, pinned by `LowerRelationTest`'s `ELEMENTS` spelling):
+  with the typed null in the arm, the label-less read's list concatenation (`variantElements` over each arm's
+  column, S81) failed to bind on DuckDB (`Invalid LIST argument during lambda function binding`): the binder types
+  `json_extract`'s wildcard `'$[*]'` over a constant NULL input as JSON, not a list, so `list_transform` over the
+  CASE refuses it. The ARRAY branch now spells `CAST(json_extract(.., '$[*]') AS JSON[])`, the identity on a list
+  and the list type on the constant; the stored-column reads are unchanged in value.
+- **And W11's lesson again** (`keyOf`, `variantEqual`, `variantOrderedScalar`): the one read of a Variant before its
+  typed conversion is `trustOne`, never `toOne`: an arm whose class lacks the property reads the typed null,
+  stamped `[0..0]`, and `toOne` of a provably empty value is the raise itself in the lowering, which Postgres's
+  planner folds in every CASE arm (the kind test guards the place; the conformance never raises).
+- **Pinned.** `lite/twoways.yaml`: 15 cases judged by Neo4j (a property typed two ways on one
+  label, compared with a string and a number, equal to each, null-or-compared in a WHERE, NOT of a comparison
+  across kinds, the Variant on the right, a boolean beside a float, a list beside a scalar, the node value, the
+  classes of a label-less node, the node carried through WITH, returned from a hop, across a variable-length
+  pattern's chains, grouped by the Variant); `lite/labelless/property_typed_differently_reads_a_variant` (was
+  the refusal `property_typed_differently_refused_by_name`).
+
+#### 12.62.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4734 | 3533 (from 3,513) | 0 | 0 | 0 | 387 (from 388) | 733 (from 733) | 81 (from 85) |
+| Postgres | 4734 | 3160 (from 3,140) | 0 | 0 | 0 | 760 (from 761) | 733 (from 733) | 81 (from 85) |
+
+The 15 cases of `lite/twoways.yaml`: 15 PASS on DuckDB, 15 on Postgres, judged by Neo4j. Of the TCK's
+typed-two-ways cases: Comparison2/[1], [2] (the harness's), MatchWhere5/[4], WithWhere5/[4] (the island's) PASS; Match4/[4]
+waits for W10 (an unbounded variable-length pattern) and Merge1/[8] for W4. TCK agreement (PASS or BOTH_ERROR over the
+3,880 TCK rows) DuckDB 3442 → 3446, Postgres 3080 → 3084.

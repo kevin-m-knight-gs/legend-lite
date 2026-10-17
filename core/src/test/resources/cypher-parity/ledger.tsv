@@ -197,7 +197,7 @@ tck/clauses/match-where/MatchWhere4/[2] Join with disjunctive multi-part predica
 tck/clauses/match-where/MatchWhere5/[1] Filter out on null	PASS	PASS
 tck/clauses/match-where/MatchWhere5/[2] Filter out on null if the AND'd predicate evaluates to false	PASS	PASS
 tck/clauses/match-where/MatchWhere5/[3] Filter out on null if the AND'd predicate evaluates to true	PASS	PASS
-tck/clauses/match-where/MatchWhere5/[4] Do not filter out on null if the OR'd predicate evaluates to true	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere5/[4] Do not filter out on null if the OR'd predicate evaluates to true	PASS	PASS
 tck/clauses/match-where/MatchWhere6/[1] Filter node with node label predicate on multi variables with multiple bindings after MATCH and OPTIONAL MATCH	PASS	PASS
 tck/clauses/match-where/MatchWhere6/[2] Filter node with false node label predicate after OPTIONAL MATCH	PASS	PASS
 tck/clauses/match-where/MatchWhere6/[3] Filter node with property predicate on multi variables with multiple bindings after OPTIONAL MATCH	PASS	PASS
@@ -411,7 +411,7 @@ tck/clauses/match/Match3/[30] Fail when using a list or nodes as a node	BOTH_ERR
 tck/clauses/match/Match4/[1] Handling fixed-length variable length pattern	PASS	PASS
 tck/clauses/match/Match4/[2] Simple variable length pattern	REFUSED	REFUSED
 tck/clauses/match/Match4/[3] Zero-length variable length pattern in the middle of the pattern	PASS	PASS
-tck/clauses/match/Match4/[4] Matching longer variable length paths	SKIP	SKIP
+tck/clauses/match/Match4/[4] Matching longer variable length paths	REFUSED	REFUSED
 tck/clauses/match/Match4/[5] Matching variable length pattern with property predicate	REFUSED	REFUSED
 tck/clauses/match/Match4/[6] Matching variable length patterns from a bound node	REFUSED	REFUSED
 tck/clauses/match/Match4/[7] Matching variable length patterns including a bound relationship	REFUSED	REFUSED
@@ -594,7 +594,7 @@ tck/clauses/merge/Merge1/[4] Merge node should create when it doesn't match, pro
 tck/clauses/merge/Merge1/[5] Merge node should create when it doesn't match, properties and label	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[6] Merge node with prop and label	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[7] Merge should work when finding multiple elements	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[8] Merge should handle argument properly	SKIP	SKIP
+tck/clauses/merge/Merge1/[8] Merge should handle argument properly	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[9] Merge should support updates while merging	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[10] Merge must properly handle multiple labels	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[11] Merge should be able to merge using property of bound node	REFUSED	REFUSED
@@ -1218,7 +1218,7 @@ tck/clauses/with-where/WithWhere4/[2] Join with disjunctive multi-part predicate
 tck/clauses/with-where/WithWhere5/[1] Filter out on null	PASS	PASS
 tck/clauses/with-where/WithWhere5/[2] Filter out on null if the AND'd predicate evaluates to false	PASS	PASS
 tck/clauses/with-where/WithWhere5/[3] Filter out on null if the AND'd predicate evaluates to true	PASS	PASS
-tck/clauses/with-where/WithWhere5/[4] Do not filter out on null if the OR'd predicate evaluates to true	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere5/[4] Do not filter out on null if the OR'd predicate evaluates to true	PASS	PASS
 tck/clauses/with-where/WithWhere6/[1] Filter a single aggregate	PASS	PASS
 tck/clauses/with-where/WithWhere7/[1] WHERE sees a variable bound before but not after WITH	PASS	PASS
 tck/clauses/with-where/WithWhere7/[2] WHERE sees a variable bound after but not before WITH	PASS	PASS
@@ -1480,8 +1480,8 @@ tck/expressions/comparison/Comparison1/[14] Direction of traversed relationship 
 tck/expressions/comparison/Comparison1/[15] It is unknown - i.e. null - if a null is equal to a null	PASS	PASS
 tck/expressions/comparison/Comparison1/[16] It is unknown - i.e. null - if a null is not equal to a null	PASS	PASS
 tck/expressions/comparison/Comparison1/[17] Failing when comparing to an undefined variable	BOTH_ERROR	BOTH_ERROR
-tck/expressions/comparison/Comparison2/[1] Comparing strings and integers using > in an AND'd predicate	SKIP	SKIP
-tck/expressions/comparison/Comparison2/[2] Comparing strings and integers using > in a OR'd predicate	SKIP	SKIP
+tck/expressions/comparison/Comparison2/[1] Comparing strings and integers using > in an AND'd predicate	PASS	PASS
+tck/expressions/comparison/Comparison2/[2] Comparing strings and integers using > in a OR'd predicate	PASS	PASS
 tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #1	PASS	PASS
 tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #2	PASS	PASS
 tck/expressions/comparison/Comparison2/[3] Comparing across types yields null, except numbers #3	PASS	PASS
@@ -4172,7 +4172,7 @@ lite/labelless/expression_order_without_item	PASS	PASS
 lite/labelless/property_declared_nowhere_is_refused_by_name	PASS	PASS
 lite/labelless/node_as_a_value_refused_by_name	PASS	PASS
 lite/labelless/second_match_refused_by_name	PASS	PASS
-lite/labelless/property_typed_differently_refused_by_name	REFUSED	REFUSED
+lite/labelless/property_typed_differently_reads_a_variant	PASS	PASS
 lite/labelless/one_class_only	PASS	PASS
 lite/labelless/with_where_re_spells_a_distinct_key	PASS	PASS
 lite/labelless/order_by_over_a_grouping_key_expression	PASS	PASS
@@ -4613,6 +4613,21 @@ lite/temporal/datetime_to_string_with_offsets	PASS	PASS
 lite/temporal/times_to_string	PASS	PASS
 lite/temporal/to_string_in_a_named_zone_refused_by_name	REFUSED	REFUSED
 lite/temporal/a_date_moved_by_a_duration_of_more_than_a_day	PASS	PASS
+lite/twoways/a_property_typed_two_ways_on_one_label	PASS	PASS
+lite/twoways/compared_with_a_string	PASS	PASS
+lite/twoways/compared_with_a_number	PASS	PASS
+lite/twoways/equal_to_a_string_or_a_number	PASS	PASS
+lite/twoways/null_or_compared_in_a_where	PASS	PASS
+lite/twoways/not_of_a_comparison_across_kinds_is_null	PASS	PASS
+lite/twoways/the_variant_on_the_right_of_a_comparison	PASS	PASS
+lite/twoways/a_boolean_and_a_float	PASS	PASS
+lite/twoways/a_list_and_a_scalar_on_one_label	PASS	PASS
+lite/twoways/a_node_value_holding_the_variant	PASS	PASS
+lite/twoways/across_the_classes_of_a_labelless_node	PASS	PASS
+lite/twoways/across_the_classes_the_node_carried	PASS	PASS
+lite/twoways/across_the_classes_returned_from_a_hop	PASS	PASS
+lite/twoways/across_the_chains_of_a_variable_length	PASS	PASS
+lite/twoways/grouped_by_the_variant	PASS	PASS
 lite/union/union_distinct	PASS	PASS
 lite/union/union_all	PASS	PASS
 lite/union/union_over_matches	PASS	PASS

@@ -183,11 +183,8 @@ public final class CypherGraph {
                     throw new Unsupported("harness: the property " + p.getKey() + " is not a Pure identifier");
                 }
                 String type = typeOf(p.getValue(), p.getKey());
-                String before = c.propertyTypes.putIfAbsent(p.getKey(), type);
-                if (before != null && !before.equals(type)) {
-                    throw new Unsupported("harness: the property " + c.name + "." + p.getKey() + " is typed two ways ("
-                            + before + ", " + type + ")");
-                }
+                c.propertyTypes.put(p.getKey(), merged(c.propertyTypes.get(p.getKey()), type, c.name + "."
+                        + p.getKey()));
             }
         }
         for (Cls c : classes.values()) {
@@ -224,11 +221,8 @@ public final class CypherGraph {
                             + " edge class's end or type");
                 }
                 String type = typeOf(p.getValue(), p.getKey());
-                String before = t.propertyTypes.putIfAbsent(p.getKey(), type);
-                if (before != null && !before.equals(type)) {
-                    throw new Unsupported("harness: the property " + r.type() + "." + p.getKey() + " is typed two"
-                            + " ways (" + before + ", " + type + ")");
-                }
+                t.propertyTypes.put(p.getKey(), merged(t.propertyTypes.get(p.getKey()), type, r.type() + "."
+                        + p.getKey()));
             }
         }
         // a type joining several pairs: its entries numbered (each an edge class of the type)
@@ -326,7 +320,8 @@ public final class CypherGraph {
                     row.add((long) r.end());
                     for (String key : t.propertyTypes.keySet()) {
                         String text = r.props().get(key);
-                        row.add(text == null ? null : cell(text));
+                        row.add(text == null ? null : t.propertyTypes.get(key).equals(VARIANT)
+                                ? jsonOf(CypherValues.parse(text), key, text) : cell(text));
                     }
                     rows.add(row);
                 }
@@ -519,7 +514,9 @@ public final class CypherGraph {
                         }
                         continue;
                     }
-                    row.add(text == null ? null : cell(text));
+                    // (a Variant column, a list property's or a property typed two ways: the value's JSON)
+                    row.add(text == null ? null : p.getValue().equals(VARIANT)
+                            ? jsonOf(CypherValues.parse(text), p.getKey(), text) : cell(text));
                 }
                 Map<String, Long> fk = fks.getOrDefault(n.id(), Map.of());
                 for (String column : c.fkColumns.values()) {
@@ -578,6 +575,20 @@ public final class CypherGraph {
             throw new Unsupported("harness: the labels " + owner + " and " + name + " differ only in case");
         }
         return c;
+    }
+
+    /** The type of a property across its nodes: one type where they agree; a Variant where they differ and each
+     *  is one a Variant spells (Neo4j's property typed two ways, the study's §12.62); else refused by name. */
+    private static String merged(@com.legend.base.Nullable String before, String type, String property)
+            throws Unsupported {
+        if (before == null || before.equals(type)) {
+            return type;
+        }
+        if (VARIANT_SPELLED.contains(before) && VARIANT_SPELLED.contains(type)) {
+            return VARIANT;
+        }
+        throw new Unsupported("harness: the property " + property + " is typed two ways (" + before + ", " + type
+                + ")");
     }
 
     /** The model with its connection and runtime, as a lane runs it. */
@@ -698,6 +709,9 @@ public final class CypherGraph {
             "Time\\('(\\d\\d:\\d\\d:\\d\\d)\\.(\\d+)'\\)");
 
     private static final String VARIANT = "meta::pure::metamodel::variant::Variant";
+
+    /** The types a Variant column holds as JSON (an integer, a float, a string, a boolean, a list). */
+    private static final Set<String> VARIANT_SPELLED = Set.of("Integer", "Float", "String", "Boolean", VARIANT);
 
     /** A list property's JSON text, as the seed binds it (DuckDB's JSON, Postgres's JSONB): its primitives spelled
      *  as JSON spells them. */

@@ -218,6 +218,10 @@ unions arms today; whether the relational mapping reads subclasses through `A.al
 
 A property whose values differ in kind across the nodes of one label is a Variant column (as a list property is,
 §12.37), read by kind through W11's shapes; a comparison across kinds is Neo4j's (false or null). One leg, with W11.
+- LANDED 2026-10-17 in one leg (the study's §12.62, GATES' sixtieth landing; TCK agreement DuckDB 3442 → 3446, Postgres 3080 → 3084; DuckDB PASS 3,513 → 3533, Postgres 3,140 → 3160): the harness's Variant
+  column where one class's values differ in kind; the island's JSON union where candidate classes type a name two
+  ways (the root's read as a Variant, a carried node's and a chain's columns converted); a Variant against a string,
+  a boolean or a number ordered by kind, null across kinds (Cypher's; two Variants keep §12.58's keys, S81).
 
 ### W8. Procedures
 
