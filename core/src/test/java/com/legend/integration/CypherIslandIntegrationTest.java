@@ -345,4 +345,15 @@ class CypherIslandIntegrationTest {
                 () -> run("CREATE (p:Person {name: 'x'})"));
         assertTrue(create.getMessage().contains("CREATE is not supported yet"), create.getMessage());
     }
+
+    @Test
+    void anOrderByOnAnExpressionNotReturnedRendersItsHiddenKey() throws SQLException {
+        // the study's §12.53: the sort key is not an output column; the result render carries it as a hidden
+        // output of the ordered relation (Render.withSortOutputs); Cypher's null last ascending
+        assertEquals(expect("Charlie", "Alice", "Bob", "Diana"),
+                rows(run("MATCH (p:Person) RETURN p.name AS name ORDER BY p.age")));
+        assertEquals(expect("Bob", "Alice", "Charlie"),
+                rows(run("MATCH (p:Person) WHERE p.age IS NOT NULL WITH p.name AS name, p.age * 2 AS twice"
+                        + " RETURN name ORDER BY twice DESC")));
+    }
 }

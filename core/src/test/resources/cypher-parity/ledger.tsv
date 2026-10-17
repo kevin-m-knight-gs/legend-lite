@@ -714,7 +714,7 @@ tck/clauses/return-orderby/ReturnOrderBy2/[4] Support sort and distinct	PASS	PAS
 tck/clauses/return-orderby/ReturnOrderBy2/[5] Support ordering by a property after being distinct-ified	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[6] Count star should count everything in scope	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[7] Ordering with aggregation	PASS	PASS
-tck/clauses/return-orderby/ReturnOrderBy2/[8] Returning all variables with ordering	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy2/[8] Returning all variables with ordering	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[9] Using aliased DISTINCT expression in ORDER BY	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[10] Returned columns do not change from using ORDER BY	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[11] Aggregates ordered by arithmetics	PASS	PASS
@@ -722,9 +722,9 @@ tck/clauses/return-orderby/ReturnOrderBy2/[12] Aggregation of named paths	REFUSE
 tck/clauses/return-orderby/ReturnOrderBy2/[13] Fail when sorting on variable removed by DISTINCT	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-orderby/ReturnOrderBy2/[14] Fail on aggregation in ORDER BY after RETURN	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return-orderby/ReturnOrderBy3/[1] Sort on aggregate function and normal property	PASS	PASS
-tck/clauses/return-orderby/ReturnOrderBy4/[1] ORDER BY of a column introduced in RETURN should return salient results in ascending order	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy4/[2] Handle projections with ORDER BY	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy5/[1] Renaming columns before ORDER BY should return results in ascending order	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy4/[1] ORDER BY of a column introduced in RETURN should return salient results in ascending order	PASS	PASS
+tck/clauses/return-orderby/ReturnOrderBy4/[2] Handle projections with ORDER BY	PASS	PASS
+tck/clauses/return-orderby/ReturnOrderBy5/[1] Renaming columns before ORDER BY should return results in ascending order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy6/[1] Handle constants and parameters inside an order by item which contains an aggregation expression	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy6/[2] Handle returned aliases inside an order by item which contains an aggregation expression	PASS	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy6/[3] Handle returned property accesses inside an order by item which contains an aggregation expression	PASS	REFUSED
@@ -1269,7 +1269,7 @@ tck/expressions/aggregation/Aggregation2/[12] `min()` over mixed values	REFUSED	
 tck/expressions/aggregation/Aggregation3/[1] Sum only non-null values	PASS	PASS
 tck/expressions/aggregation/Aggregation3/[2] No overflow during summation	PASS	PASS
 tck/expressions/aggregation/Aggregation5/[1] `collect()` filtering nulls	PASS	PASS
-tck/expressions/aggregation/Aggregation5/[2] OPTIONAL MATCH and `collect()` on node property	REFUSED	REFUSED
+tck/expressions/aggregation/Aggregation5/[2] OPTIONAL MATCH and `collect()` on node property	PASS	PASS
 tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #1	PASS	PASS
 tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #2	PASS	PASS
 tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #3	PASS	PASS
@@ -1285,8 +1285,8 @@ tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad a
 tck/expressions/aggregation/Aggregation6/[5] `percentileDisc()` failing in more involved query	BOTH_ERROR	BOTH_ERROR
 tck/expressions/aggregation/Aggregation8/[1] Distinct on unbound node	PASS	PASS
 tck/expressions/aggregation/Aggregation8/[2] Distinct on null	PASS	PASS
-tck/expressions/aggregation/Aggregation8/[3] Collect distinct nulls	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation8/[4] Collect distinct values mixed with nulls	REFUSED	REFUSED
+tck/expressions/aggregation/Aggregation8/[3] Collect distinct nulls	PASS	PASS
+tck/expressions/aggregation/Aggregation8/[4] Collect distinct values mixed with nulls	PASS	PASS
 tck/expressions/boolean/Boolean1/[1] Conjunction of two truth values	PASS	PASS
 tck/expressions/boolean/Boolean1/[2] Conjunction of three truth values	PASS	PASS
 tck/expressions/boolean/Boolean1/[3] Conjunction of many truth values	PASS	PASS
@@ -2163,7 +2163,7 @@ tck/expressions/precedence/Precedence4/[3] Null predicate takes precedence over 
 tck/expressions/precedence/Precedence4/[3] Null predicate takes precedence over binary boolean operator #5	PASS	PASS
 tck/expressions/precedence/Precedence4/[3] Null predicate takes precedence over binary boolean operator #6	PASS	PASS
 tck/expressions/precedence/Precedence4/[3] Null predicate takes precedence over binary boolean operator #7	PASS	PASS
-tck/expressions/precedence/Precedence4/[4] String predicate takes precedence over binary boolean operator	REFUSED	REFUSED
+tck/expressions/precedence/Precedence4/[4] String predicate takes precedence over binary boolean operator	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[1] None quantifier is always true on empty list	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[2] None quantifier on list literal containing booleans #1	PASS	PASS
 tck/expressions/quantifier/Quantifier1/[2] None quantifier on list literal containing booleans #2	PASS	PASS
@@ -2776,7 +2776,7 @@ tck/expressions/string/String10/[4] Finding strings containing whitespace	PASS	P
 tck/expressions/string/String10/[5] Finding strings containing newline	PASS	PASS
 tck/expressions/string/String10/[6] No string contains null	PASS	PASS
 tck/expressions/string/String10/[7] No string does not contain null	PASS	PASS
-tck/expressions/string/String10/[8] Handling non-string operands for CONTAINS	REFUSED	REFUSED
+tck/expressions/string/String10/[8] Handling non-string operands for CONTAINS	PASS	PASS
 tck/expressions/string/String10/[9] NOT with CONTAINS	PASS	PASS
 tck/expressions/string/String11/[1] Combining prefix and suffix search	PASS	PASS
 tck/expressions/string/String11/[2] Combining prefix, suffix, and substring search	PASS	PASS
@@ -2789,7 +2789,7 @@ tck/expressions/string/String8/[4] Finding strings starting with whitespace	PASS
 tck/expressions/string/String8/[5] Finding strings starting with newline	PASS	PASS
 tck/expressions/string/String8/[6] No string starts with null	PASS	PASS
 tck/expressions/string/String8/[7] No string does not start with null	PASS	PASS
-tck/expressions/string/String8/[8] Handling non-string operands for STARTS WITH	REFUSED	REFUSED
+tck/expressions/string/String8/[8] Handling non-string operands for STARTS WITH	PASS	PASS
 tck/expressions/string/String8/[9] NOT with STARTS WITH	PASS	PASS
 tck/expressions/string/String9/[1] Finding exact matches with non-proper suffix	PASS	PASS
 tck/expressions/string/String9/[2] Finding end of string	PASS	PASS
@@ -2798,7 +2798,7 @@ tck/expressions/string/String9/[4] Finding strings ending with whitespace	PASS	P
 tck/expressions/string/String9/[5] Finding strings ending with newline	PASS	PASS
 tck/expressions/string/String9/[6] No string ends with null	PASS	PASS
 tck/expressions/string/String9/[7] No string does not end with null	PASS	PASS
-tck/expressions/string/String9/[8] Handling non-string operands for ENDS WITH	REFUSED	REFUSED
+tck/expressions/string/String9/[8] Handling non-string operands for ENDS WITH	PASS	PASS
 tck/expressions/string/String9/[9] NOT with ENDS WITH	PASS	PASS
 tck/expressions/temporal/Temporal1/[1] Should construct week date #1	PASS	PASS
 tck/expressions/temporal/Temporal1/[1] Should construct week date #2	PASS	PASS
@@ -3190,7 +3190,7 @@ tck/expressions/temporal/Temporal2/[7] Should parse duration from string #3	PASS
 tck/expressions/temporal/Temporal2/[7] Should parse duration from string #4	PASS	PASS
 tck/expressions/temporal/Temporal2/[7] Should parse duration from string #5	PASS	PASS
 tck/expressions/temporal/Temporal2/[7] Should parse duration from string #6	PASS	PASS
-tck/expressions/temporal/Temporal2/[7] Should parse duration from string #7	REFUSED	REFUSED
+tck/expressions/temporal/Temporal2/[7] Should parse duration from string #7	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #1	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #2	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #3	PASS	PASS
@@ -3947,7 +3947,7 @@ lite/basics/cypher_5_prefix	PASS	PASS
 lite/basics/version_named_outside	PASS	PASS
 lite/basics/refused_node_as_value	PASS	PASS
 lite/basics/refused_unwind	PASS	PASS
-lite/basics/error_unknown_property_is_null_in_neo4j	REFUSED	REFUSED
+lite/basics/error_unknown_property_is_null_in_neo4j	PASS	PASS
 lite/basics/error_unknown_function	BOTH_ERROR	BOTH_ERROR
 lite/basics/review_float_arithmetic_is_double	PASS	PASS
 lite/basics/review_order_by_expression_over_items_after_aggregation	PASS	PASS
@@ -3988,7 +3988,7 @@ lite/collect/collect_of_lists	PASS	PASS
 lite/collect/collect_of_strings_and_floats	PASS	PASS
 lite/collect/collect_then_unwind	PASS	PASS
 lite/collect/size_of_a_collected_list	PASS	PASS
-lite/collect/collect_distinct_is_refused	REFUSED	REFUSED
+lite/collect/collect_distinct_counts_the_distinct_values	PASS	PASS
 lite/collect/collect_with_a_count_beside	PASS	PASS
 lite/collect/unwind_a_list_of_lists	PASS	PASS
 lite/collect/unwind_a_list_of_lists_twice	PASS	PASS
@@ -4082,7 +4082,7 @@ lite/grouping/distinct_edge_relationships	PASS	PASS
 lite/grouping/an_edge_relationship_among_the_keys	PASS	PASS
 lite/grouping/distinct_association_relationships	PASS	PASS
 lite/grouping/grouping_by_an_association_relationship	PASS	PASS
-lite/grouping/collect_distinct_stays_refused	REFUSED	REFUSED
+lite/grouping/collect_distinct_stays_refused	PASS	PASS
 lite/identity/two_nodes_equal	PASS	PASS
 lite/identity/two_nodes_unequal	PASS	PASS
 lite/identity/nodes_of_different_labels_differ	PASS	PASS
@@ -4365,6 +4365,18 @@ lite/stored/stored_list_as_a_grouping_key	PASS	PASS
 lite/stored/stored_list_ordered_by_refused	REFUSED	REFUSED
 lite/stored/stored_lists_concatenated	REFUSED	REFUSED
 lite/stored/stored_list_ordered_with_a_limit_refused	REFUSED	REFUSED
+lite/tail/an_order_by_on_an_expression_not_returned	PASS	PASS
+lite/tail/an_order_by_on_an_expression_not_returned_descending	PASS	PASS
+lite/tail/an_order_by_on_a_dropped_item_after_a_with	PASS	PASS
+lite/tail/a_string_predicate_on_a_number	PASS	PASS
+lite/tail/string_predicates_over_values_the_rows_hold_as_variants	PASS	PASS
+lite/tail/string_predicates_over_two_variants	PASS	PASS
+lite/tail/collect_distinct_of_one_value_and_nulls	PASS	PASS
+lite/tail/collect_distinct_of_nulls_only	PASS	PASS
+lite/tail/the_size_of_a_collect_distinct	PASS	PASS
+lite/tail/a_collect_distinct_of_a_node_property_ignoring_order	PASS	PASS
+lite/tail/a_duration_text_in_the_date_time_form	PASS	PASS
+lite/tail/to_string_of_a_list_a_map_and_a_node_refused	REFUSED	REFUSED
 lite/temporal/date_from_components	PASS	PASS
 lite/temporal/date_from_text	PASS	PASS
 lite/temporal/localdatetime_from_components	PASS	PASS
@@ -4392,7 +4404,7 @@ lite/temporal/duration_unknown_field_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_order_refused_by_name	REFUSED	REFUSED
 lite/temporal/duration_to_string	PASS	PASS
-lite/temporal/duration_date_time_text_form_refused_by_name	REFUSED	REFUSED
+lite/temporal/duration_date_time_text_form_refused_by_name	PASS	PASS
 lite/temporal/duration_divided_refused_by_name	REFUSED	REFUSED
 lite/temporal/time_from_text	PASS	PASS
 lite/temporal/datetime_from_components	PASS	PASS

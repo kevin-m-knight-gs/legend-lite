@@ -9932,6 +9932,32 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the fifty-second landing — the tail's small shapes
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, leg 2); the record is the study's §12.53. The
+lowering's result render gives an ordered relation a hidden output per sort key its projection dropped
+(`Render.withSortOutputs`), so an ORDER BY on an expression the query does not return renders without a SKIP or
+LIMIT; a lite native `isKind` (the governance ceiling 23 → 24, the census's row), the database's reading of a
+Variant's JSON kind, under the translator's string predicates (`STARTS WITH`, `ENDS WITH`, `CONTAINS`: null on a
+value that is not a string, as Neo4j answers); `collect(DISTINCT x)` as the distinct texts joined (register row
+S78); a duration text in the date-time form.
+
+1. **What lands.** ReturnOrderBy2/[8], ReturnOrderBy4/[1] and their kin (4), String8-10/[8] and Precedence4/[4]
+   (4), Aggregation5/[2] and Aggregation8/[3], [4] (3), Temporal2/[7] #7 (1).
+2. **The ledger.** DuckDB PASS 3,232 → 3,259 (REFUSED 470 → 455; FAIL, BUG, ERROR 0), Postgres PASS 2,871 → 2,898 (REFUSED
+   831 → 816); TCK agreement 3,270 → 3,282 of 3,880 on DuckDB (ReturnOrderBy2, 4, 5: 4; String8-10, Precedence4: 4;
+   Aggregation5, 8: 3; Temporal2: 1; none lost) and 2,920 → 2,932 on Postgres; 12 lite cases in `lite/tail.yaml`
+   (11 PASS on both lanes, the `toString` probe REFUSED by name) and `lite/collect`'s `collect_distinct_is_refused`
+   renamed `collect_distinct_counts_the_distinct_values` (the order-free form: the old pin ran as `[2, 1]` on
+   DuckDB the moment the refusal went, S78's case), judged by Neo4j (`snap.sh --check`: 0 problems);
+   `docs/CYPHER_SHOWCASE.md` §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_lowering`, `//core:core_tests_sql`,
+   `//core:guardrails`, `//core:core_tests_integration` green (the integration suite executes the hidden sort key
+   on DuckDB; the guardrail refused a regex in the translator, so the duration text is read by hand).
+4. **Refused by name, recorded.** `toString` of a list, a map or a node (Neo4j's own texts, probed); SKIP with a
+   variable-free expression (the MIR's constant bounds); the time of a date-time in a named zone; an untyped
+   relationship in a MATCH of several patterns; ORDER BY and min/max over Variants by Cypher's type rank (W11).
+
 ## 2026-10-17 — `#Cypher{...}#`: the fifty-first landing — pattern predicates over rows, comprehensions over lists the database holds
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12); the record is the study's §12.52. The translator:

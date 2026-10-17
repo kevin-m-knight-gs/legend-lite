@@ -118,7 +118,12 @@ class NativeCatalogGovernanceTest {
         // random — the database's random float in [0, 1), what Cypher's rand() answers: a value of the call, not
         // of the data. legend-pure has no random native (its platform functions are pure); every dialect has one
         // (SqlFn.RANDOM, one render arm each). Emitted by the Cypher translator only, by FQN. 22 -> 23.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 23,
+        // +1 2026-10-17 (the Cypher island's tail leg 2, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W12): isKind — the
+        // database's reading of a Variant's JSON kind (SqlFn.JSON_TYPE, which every dialect spells, against the
+        // dialect's own kind name, SqlExpr.JsonKindLit), what Cypher's predicates over a value the rows hold as a
+        // Variant ask first (STARTS WITH on a value that is a string, null otherwise); legend-pure's Variant has no
+        // kind function. Emitted by the Cypher translator only, by FQN. 23 -> 24.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 24,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

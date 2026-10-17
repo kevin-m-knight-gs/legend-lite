@@ -422,6 +422,11 @@ public final class Pure {
         /** The database's random float in [0, 1) (the Cypher island's {@code rand()}, 2026-10-17): a value of the
          *  call, not of the data, which Pure has no native for. */
         public static final String RANDOM = PKG + "random";
+        /** Whether a Variant holds a value of a JSON kind, named as Cypher names them ({@code string},
+         *  {@code number}, {@code boolean}, {@code list}, {@code map}, {@code null}): the database's reading of
+         *  the kind, which Pure's Variant has no function for (the Cypher island's predicates over values the
+         *  rows hold as Variants, 2026-10-17); null of a null Variant. */
+        public static final String IS_KIND = PKG + "isKind";
         public static final String AT_TIME = PKG + "atTime";
         /** A named zone, read by the database (2026-10-16, the Cypher island's zoned date-time leg):
          *  {@code instantIn(local, zone)} the instant a wall time names in the zone, {@code localIn(instant, zone)}
@@ -552,7 +557,7 @@ public final class Pure {
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE, Lite.INLINE_VIEW, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN, Lite.LOCAL_IN,
-                    Lite.ELEMENT_ID, Lite.RANDOM)
+                    Lite.ELEMENT_ID, Lite.RANDOM, Lite.IS_KIND)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -980,6 +985,9 @@ public final class Pure {
     /** The database's random float in [0, 1) ({@link Lite#RANDOM}; the Cypher island's {@code rand()}): every
      *  dialect has one; lite's own, no upstream counterpart. */
     public static final NativeFunctionDefinition RANDOM = signature("native function meta::legend::lite::random():meta::pure::metamodel::type::Float[1];");
+    /** Whether a Variant holds a value of a JSON kind ({@link Lite#IS_KIND}: the kind named as Cypher names them,
+     *  the lowering's JSON_TYPE test, {@code SqlExpr.JsonKindLit}); null of a null Variant. */
+    public static final NativeFunctionDefinition IS_KIND__VARIANT_0_1__STRING_1 = signature("native function meta::legend::lite::isKind(variant:meta::pure::metamodel::variant::Variant[0..1], kind:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[0..1];");
     public static final NativeFunctionDefinition TIME_OF__DATE_1 = signature("native function meta::legend::lite::timeOf(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictTime[1];");
     public static final NativeFunctionDefinition AT_TIME__DATE_1__STRICT_TIME_1 = signature("native function meta::legend::lite::atTime(d:meta::pure::metamodel::type::Date[1], t:meta::pure::metamodel::type::StrictTime[1]):meta::pure::metamodel::type::DateTime[1];");
     /** A named time zone, read by the database (the Cypher island's zoned date-time leg, 2026-10-16,
@@ -2419,6 +2427,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RANDOM = com.legend.model.FunctionId.ofAll(RANDOM);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_KIND = com.legend.model.FunctionId.ofAll(IS_KIND__VARIANT_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TRUST_ONE = com.legend.model.FunctionId.ofAll(TRUST_ONE__T_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TUPLE = com.legend.model.FunctionId.ofAll(TUPLE__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);

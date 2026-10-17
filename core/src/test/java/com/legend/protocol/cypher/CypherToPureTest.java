@@ -435,9 +435,12 @@ class CypherToPureTest {
                         + "->sort([~_cypher_1->ascending(meta::pure::functions::relation::NullOrder.LAST)])"
                         + "->select(~[who])->limit(5)",
                 pure("MATCH (p:Person) RETURN p.name AS who ORDER BY p.age LIMIT 5"));
-        // the lowering's execute path renders no sort key that is not an output column (the review's finding 6)
-        unsupported("MATCH (p:Person) RETURN p.name AS who ORDER BY p.age",
-                "an ORDER BY on an expression that is not a returned item, without a SKIP or LIMIT");
+        // without a SKIP or LIMIT the same hidden key: the result render carries it as a hidden output of the
+        // ordered relation (Render.withSortOutputs, the study's §12.53; the review's finding 6 had it refused)
+        assertEquals("demo::Person.all()->project(~[who:p|$p.name, _cypher_1:p|$p.age])"
+                        + "->sort([~_cypher_1->ascending(meta::pure::functions::relation::NullOrder.LAST)])"
+                        + "->select(~[who])",
+                pure("MATCH (p:Person) RETURN p.name AS who ORDER BY p.age"));
     }
 
     @Test
@@ -1115,7 +1118,6 @@ class CypherToPureTest {
         assertTrue(collected.contains("fromJson('[' + "), collected);
         // (collect(DISTINCT ...) stays refused: the database's order of the distinct values is not Neo4j's, nor
         // the same twice; the study's §12.44)
-        unsupported("MATCH (p:Person) RETURN collect(DISTINCT p.name)", "collect(DISTINCT ...) is not supported yet");
         // count(DISTINCT x): the distinct values counted (the study's §12.47); count(DISTINCT n) the identities
         String countDistinct = pure("MATCH (p:Person) RETURN count(DISTINCT p.name) AS c");
         assertTrue(countDistinct.contains("y|$y->distinct()->count()"), countDistinct);
@@ -1376,5 +1378,26 @@ class CypherToPureTest {
         // collected relationships read back as Variants, the elements' mark on the bound variable (type(x) reads it)
         String rels = pure("MATCH (p:Person)-[r:firm]->() WITH collect(r) AS rs RETURN [x IN rs | type(x)] AS t");
         assertTrue(rels.contains("->toMany(@meta::pure::metamodel::variant::Variant)->map(x|'firm')"), rels);
+    }
+
+    @Test
+    void theTailOfSmallShapesReadsAsTheDatabasesValues() {
+        // (the study's §12.53) an ORDER BY on an expression the query does not return, without a SKIP or LIMIT:
+        // a hidden key the result render carries (Render.withSortOutputs)
+        String sorted = pure("MATCH (p:Person) RETURN p.name AS who ORDER BY p.age");
+        assertTrue(sorted.contains("->sort(") && sorted.endsWith("->select(~[who])"), sorted);
+        // a string predicate on a value that is not a string is null, with no string test spelled
+        String number = pure("MATCH (p:Person) RETURN p.age STARTS WITH '1' AS a, true CONTAINS 'r' AS b");
+        assertFalse(number.contains("startsWith") || number.contains("contains("), number);
+        // a value the rows hold as a Variant: its string when it holds one (the database's kind test), else null
+        String variant = pure("UNWIND [1, 'a'] AS x RETURN x STARTS WITH 'a' AS s");
+        assertTrue(variant.contains("meta::legend::lite::isKind(") && variant.contains("'string'")
+                && variant.contains("startsWith("), variant);
+        // collect(DISTINCT x): the distinct texts joined (S78)
+        String distinct = pure("MATCH (p:Person) RETURN collect(DISTINCT p.name) AS c");
+        assertTrue(distinct.contains("->distinct()->joinStrings("), distinct);
+        // (a duration text in the date-time form, P2012-02-02T14:37:21.545, reads as the map form's fields: this
+        // model declares no Duration class, so lite/tail.yaml's a_duration_text_in_the_date_time_form, judged by
+        // Neo4j on both lanes, is its pin)
     }
 }

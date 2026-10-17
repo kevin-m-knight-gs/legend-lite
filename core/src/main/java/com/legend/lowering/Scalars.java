@@ -1578,6 +1578,27 @@ final class Scalars {
                         eq.params().get(1), key.apply(cand)));
             });
         }
+        // lite's isKind(variant, 'kind'): the database's JSON kind test, the kind a literal named as Cypher
+        // names them (a kind of no such name, or not a literal, is the translator's bug: loud)
+        RULES.put(com.legend.model.FunctionId.of(Pure.IS_KIND__VARIANT_0_1__STRING_1), (n, args) -> {
+            if (!(args.get(1) instanceof SqlExpr.StringLit lit)) {
+                throw new IllegalStateException("isKind: the kind must be a string literal, was " + args.get(1));
+            }
+            SqlExpr type = SqlExpr.Call.of(SqlFn.JSON_TYPE, args.get(0));
+            java.util.function.Function<com.legend.sql.JsonKind, SqlExpr> is = k -> SqlExpr.Call.of(SqlFn.EQUAL,
+                    type, new SqlExpr.JsonKindLit(k));
+            return switch (lit.value()) {
+                case "string" -> is.apply(com.legend.sql.JsonKind.STRING);
+                case "boolean" -> is.apply(com.legend.sql.JsonKind.BOOLEAN);
+                case "list" -> is.apply(com.legend.sql.JsonKind.ARRAY);
+                case "map" -> is.apply(com.legend.sql.JsonKind.OBJECT);
+                case "null" -> is.apply(com.legend.sql.JsonKind.NULL);
+                case "number" -> SqlExpr.Call.of(SqlFn.OR, SqlExpr.Call.of(SqlFn.OR,
+                        is.apply(com.legend.sql.JsonKind.INTEGER), is.apply(com.legend.sql.JsonKind.UNSIGNED_INTEGER)),
+                        is.apply(com.legend.sql.JsonKind.FLOAT));
+                default -> throw new IllegalStateException("isKind: no JSON kind named " + lit.value());
+            };
+        });
         // collection::distinct = removeDuplicates (real distinct.pure) —
         // registered by the EXACT collection overload key.
         RULES.put(com.legend.model.FunctionId.of(Pure.DISTINCT__T_MANY),

@@ -4118,13 +4118,9 @@ public final class CypherToPure {
                     sortKeys.add(new SortKey(freshName(names), o.descending(), true));
                     continue;
                 }
-                if (skip == null && limit == null) {
-                    // the lowering's execute path cannot render a sort key that is not an output column (Render:
-                    // "render over an ordered relation whose sort key is not an output column"; reported to the
-                    // database owner, IN_FLIGHT 2026-10-15); with a SKIP or LIMIT the sort is a subquery's and renders
-                    throw CypherErrors.unsupported("an ORDER BY on an expression that is not a returned item, without a"
-                            + " SKIP or LIMIT, is not supported yet (the lowering renders no such sort key)", o.pos());
-                }
+                // (a hidden key the projection drops: the lowering's result render carries it as a hidden output
+                // of the ordered relation, Render.withSortOutputs, 2026-10-17; before, only a sort under a SKIP or
+                // LIMIT, a subquery's, rendered)
                 Tx t = tx(o.expr(), sortScope);
                 if (t.kind() == Kind.JSON) {
                     throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant"
@@ -4569,7 +4565,7 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Can't use non-deterministic (random) functions inside of aggregate functions.",
                     c.pos());
         }
-        if (c.distinct() && !fn.equals("count")) {
+        if (c.distinct() && !fn.equals("count") && !fn.equals("collect")) {
             throw CypherErrors.unsupported(c.name() + "(DISTINCT ...) is not supported yet", c.pos());
         }
         if (fn.equals("count") && argExpr instanceof CypherAst.Var v && scope.isPatternVariable(v.name())) {
@@ -4632,7 +4628,7 @@ public final class CypherToPure {
             return new Aggregate(freshName(names), arg, lambda("y", call(fn, values)), arg.kind(), true, null);
         }
         if (fn.equals("collect")) {
-            return collect(arg, names, c.pos());
+            return collect(arg, c.distinct(), names, c.pos());
         }
         throw CypherErrors.unsupported(c.name() + "(...) is not supported yet", c.pos());
     }
@@ -4642,7 +4638,7 @@ public final class CypherToPure {
      *  a null contributing nothing (Neo4j's {@code collect} skips nulls), joined with commas (Pure's
      *  {@code joinStrings}, the database's string aggregate) and read as a Variant between brackets; {@code []} over
      *  no value. The elements' order is the database's, as the TCK's "ignoring element order for lists" allows. */
-    private Aggregate collect(Tx arg, Set<String> names, Pos pos) {
+    private Aggregate collect(Tx arg, boolean distinct, Set<String> names, Pos pos) {
         if (arg.kind() == Kind.DATETIME || arg.kind() == Kind.TIME || arg.kind() == Kind.ZONED
                 || arg.kind() == Kind.ZONED_TIME || arg.kind() == Kind.DURATION || arg.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("collect of a " + cypherType(arg.kind()) + " is not supported yet (the"
@@ -4663,9 +4659,11 @@ public final class CypherToPure {
         } else {
             piece = Tx.value(jsonText(SqlToPure.valueOf(arg), arg.kind(), "collect", pos), Kind.STRING, false);
         }
-        // (collect(DISTINCT x) stays refused: the distinct texts joined would come in the database's order, which
-        // is not Neo4j's encounter order and not the same twice; the study's §12.44)
-        return new Aggregate(freshName(names), piece, lambda("y", call("joinStrings", new Variable("y"),
+        // collect(DISTINCT x): the distinct texts joined, in the database's order (Neo4j's is the encounter
+        // order, which the TCK reads ignoring the elements' order; the register's S78) -- tried and withdrawn in
+        // the study's §12.44 for that order, adopted 2026-10-17
+        ValueSpecification texts = distinct ? call("distinct", new Variable("y")) : new Variable("y");
+        return new Aggregate(freshName(names), piece, lambda("y", call("joinStrings", texts,
                 new CString(","))), Kind.JSON, false, raw -> call("fromJson", plus(new CString("["),
                 call("if", call("isEmpty", raw), thunk(new CString("")), thunk(call("toOne", raw))),
                 new CString("]"))), arg.kind() == Kind.JSON && arg.detail() != null
@@ -6122,13 +6120,12 @@ public final class CypherToPure {
             case STARTS_WITH, ENDS_WITH, CONTAINS -> {
                 Tx l = tx(b.left(), scope);
                 Tx r = tx(b.right(), scope);
-                if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
+                if (!stringLike(l) || !stringLike(r)) {
+                    // Neo4j: null for an operand that is not a string (a number, a boolean, a list, a map, null)
                     return scalar(SqlToPure.nullOf(Kind.BOOLEAN));
                 }
-                if (l.kind() != Kind.STRING || r.kind() != Kind.STRING) {
-                    throw CypherErrors.unsupported(op.name().replace('_', ' ') + " on a value that is not a string"
-                            + " (null in Neo4j) is not supported yet", b.pos());
-                }
+                l = stringOperand(l);
+                r = stringOperand(r);
                 String fn = switch (op) {
                     case STARTS_WITH -> "startsWith";
                     case ENDS_WITH -> "endsWith";
@@ -6143,6 +6140,24 @@ public final class CypherToPure {
             case REGEX -> throw CypherErrors.unsupported("=~ (a regular expression) is not supported yet", b.pos());
         }
         throw new IllegalStateException("unreachable: " + op);
+    }
+
+    /** Whether a string predicate's operand may be a string: one, or a Variant, whose kind the database reads. */
+    private static boolean stringLike(Tx t) {
+        return t.kind() == Kind.STRING || t.kind() == Kind.JSON;
+    }
+
+    /** A string predicate's operand that may be a string: a string as it is; a Variant its string when it holds
+     *  one (the database's kind test, lite's {@code isKind}), else null, which the predicate reads as Neo4j does
+     *  (null for an operand that is not a string). */
+    private static Tx stringOperand(Tx t) {
+        if (t.kind() == Kind.STRING) {
+            return t;
+        }
+        ValueSpecification v = SqlToPure.valueOf(t);
+        return Tx.value(call("if", call("equal", call(IS_KIND, v, new CString("string")), new CBoolean(true)),
+                thunk(call("to", v, SqlToPure.typeArg("String"))), thunk(SqlToPure.nullOf(Kind.STRING).vs())),
+                Kind.STRING, true);
     }
 
     /** Cypher's three-valued AND: null when neither side is false and either is null. A side that is known true
@@ -8667,6 +8682,7 @@ public final class CypherToPure {
     /** The database's random float in [0, 1) (lite's {@code random}, the plan's W3): Cypher's {@code rand()}, a
      *  value of the call, not of the data, read once per row it is spelled in. */
     private static final String RANDOM = "meta::legend::lite::random";
+    private static final String IS_KIND = "meta::legend::lite::isKind";
     /** The identity of a node or an edge-class relationship (the study's §12.46): lite's elementId of the instance,
      *  its class's primary key as text; what Cypher compares nodes by. */
     private static final String ELEMENT_ID = "meta::legend::lite::elementId";
@@ -9451,6 +9467,26 @@ public final class CypherToPure {
         }
         List<DurationUnit> keys = new ArrayList<>();
         List<Tx> values = new ArrayList<>();
+        List<String> dateTime = durationDateTimeFields(body);
+        if (dateTime != null) {
+            // the date-time form (P2012-02-02T14:37:21.545: Neo4j's P2012Y2M2DT14H37M21.545S): each field a unit
+            DurationUnit[] units = {DurationUnit.YEARS, DurationUnit.MONTHS, DurationUnit.DAYS, DurationUnit.HOURS,
+                DurationUnit.MINUTES, DurationUnit.SECONDS};
+            for (int g = 0; g < 6; g++) {
+                if (dateTime.get(g) == null) {
+                    continue;
+                }
+                long n = Long.parseLong(dateTime.get(g));
+                keys.add(units[g]);
+                values.add(Tx.value(lit(negated ? -n : n), Kind.INTEGER, false));
+            }
+            if (dateTime.get(6) != null) {
+                long nanos = Long.parseLong((dateTime.get(6) + "000000000").substring(0, 9));
+                keys.add(DurationUnit.NANOSECONDS);
+                values.add(Tx.value(lit(negated ? -nanos : nanos), Kind.INTEGER, false));
+            }
+            return scalar(durationOfParts(cls, keys, values));
+        }
         int i = 1;
         boolean time = false;
         boolean any = false;
@@ -9532,6 +9568,58 @@ public final class CypherToPure {
         // the text's numbers, read as written (a sign, digits): the reading of a literal, as a date's year is; the
         // sums and the normalisation are the database's
         return scalar(durationOfParts(cls, keys, values));
+    }
+
+    /** A duration text in the date-time form, {@code P<yyyy>-<MM>-<dd>T<hh>:<mm>[:<ss>[.<fraction>]]}, read
+     *  character by character (the translator grows no grammar of its own): its seven fields (years, months, days,
+     *  hours, minutes, seconds, the seconds' fraction; null where the text has none), or null for a text of
+     *  another form. */
+    private static @com.legend.base.Nullable List<String> durationDateTimeFields(String body) {
+        int[] widths = {4, 2, 2, 2, 2};
+        char[] after = {'-', '-', 'T', ':', 0};
+        List<String> fields = new ArrayList<>();
+        int i = 1;
+        for (int f = 0; f < widths.length; f++) {
+            int end = i + widths[f];
+            if (!digits(body, i, widths[f])) {
+                return null;
+            }
+            fields.add(body.substring(i, end));
+            i = end;
+            if (after[f] != 0) {
+                if (i >= body.length() || Character.toUpperCase(body.charAt(i)) != after[f]) {
+                    return null;
+                }
+                i++;
+            }
+        }
+        String seconds = null;
+        String fraction = null;
+        if (i < body.length() && body.charAt(i) == ':') {
+            if (!digits(body, i + 1, 2)) {
+                return null;
+            }
+            seconds = body.substring(i + 1, i + 3);
+            i += 3;
+            if (i < body.length() && (body.charAt(i) == '.' || body.charAt(i) == ',')) {
+                int start = i + 1;
+                int end = start;
+                while (end < body.length() && end - start < 9 && body.charAt(end) >= '0' && body.charAt(end) <= '9') {
+                    end++;
+                }
+                if (end == start) {
+                    return null;
+                }
+                fraction = body.substring(start, end);
+                i = end;
+            }
+        }
+        if (i != body.length()) {
+            return null;
+        }
+        fields.add(seconds);
+        fields.add(fraction);
+        return fields;
     }
 
     /** A field of a duration ({@code d.minutesOfHour}), by its Cypher name (case-sensitive, as properties are). */

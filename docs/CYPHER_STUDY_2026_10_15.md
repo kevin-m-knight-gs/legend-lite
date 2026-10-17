@@ -3728,3 +3728,64 @@ The 16 lite cases of `lite/overrows.yaml` PASS on both lanes, judged by Neo4j (`
 (20), Quantifier12 (15), Quantifier9 (15), Quantifier10 (5), Pattern1 (3), List12 (2), Quantifier5, 6, 7 and 8 (2
 each), Match7 (1); Postgres 2920 of 3880 (from 2,851). The Quantifier9-12 scenarios had been REFUSED on Postgres by
 the untyped empty literal and then, with that fixed, raised at planning: both findings above.
+
+### 12.53 The tail's small shapes: a hidden sort key, string predicates by kind, collect(DISTINCT), a duration's date-time text, 2026-10-17
+
+- **The frame (the plan's W12, leg 2):** the small refusals the DuckDB table showed after leg 1, each a shape of
+  its own: an ORDER BY on an expression the query does not return (ReturnOrderBy2, ReturnOrderBy4), `STARTS
+  WITH`, `ENDS WITH` and `CONTAINS` on a value that is not a string (String8-10/[8], Precedence4/[4]),
+  `collect(DISTINCT x)` (Aggregation5/[2], Aggregation8/[3], [4]), a duration text in the date-time form
+  (Temporal2/[7] #7).
+- **An ORDER BY on an expression the query does not return renders (`Render.withSortOutputs`):** the translator
+  had sorted by a hidden column and selected it away, which is legal SQL (`SELECT a FROM ... ORDER BY h`), but
+  the lowering's result render hoists an ordered relation's order out of the row subselect into the aggregate
+  that builds the wire (`hoistOrder`), where only an output column can be read, so it walled ("render over an
+  ordered relation whose sort key is not an output column"), and the translator refused the shape unless a SKIP
+  or LIMIT made the sort a subquery's (§12.4, the review's finding 6). The render now gives the ordered relation a
+  hidden output per sort key the projection dropped (`_sortN`, the key's expression, typed by its fact), before
+  it reads the hoist; the rows' rendering is built from the outputs read before, so the key never shows. The
+  translator's refusal is gone; the same hidden key spells with and without a SKIP or LIMIT.
+- **A string predicate on a value that is not a string is null (Neo4j's reading):** `12 STARTS WITH '1'`,
+  `'abc' ENDS WITH 3`, `true CONTAINS 'r'` are null, spelled as the null boolean with no string test; a value the
+  rows hold as a Variant (an UNWIND of a mixed list) is its string when it holds one, else null: lite's `isKind`
+  native, the database's reading of the Variant's JSON kind (`SqlFn.JSON_TYPE` against the dialect's own kind
+  name, `SqlExpr.JsonKindLit`; the kind named as Cypher names them, `string`, `number`, `boolean`, `list`,
+  `map`, `null`), which legend-pure's Variant has no function for (the governance ceiling 23 → 24, the census's
+  row). `x STARTS WITH y` over two Variants reads both by kind: `['ab', 1, 'b']` against itself gives two true,
+  two false and five null, as Neo4j does.
+- **`collect(DISTINCT x)` is the distinct texts joined (register row S78):** `STRING_AGG(DISTINCT ...)` over the
+  elements' JSON texts, the list rebuilt from them as `collect(x)` is (§12.44); the order is the database's,
+  where Neo4j's is the encounter order of the first occurrences, which the TCK reads ignoring the elements'
+  order (Aggregation5/[2]) or over one element (Aggregation8/[3], [4]): tried and withdrawn in §12.44 for that
+  order, adopted with the row. `size(collect(DISTINCT p.name))` counts the distinct values; §12.44's refusal pin
+  (`lite/collect`'s `collect_distinct_is_refused`, `[1, 1, 2]` collected distinct) ran as `[2, 1]` against
+  Neo4j's `[1, 2]` the moment the refusal went, the row's case in one line, and is now the order-free
+  `collect_distinct_counts_the_distinct_values`.
+- **A duration text in the date-time form reads its fields:** `duration('P2012-02-02T14:37:21.545')` is Neo4j's
+  `P2012Y2M2DT14H37M21.545S`; the text is read character by character (the translator grows no grammar of its
+  own: the guardrail refuses a regex in it), years, months, days, hours, minutes, seconds and the seconds'
+  fraction to the nanosecond, each a field of the map form, negated as a whole by a leading sign.
+- **Probed, recorded, still refused by name:** `toString` of a list, a map or a node is Neo4j's own text
+  (`[1, a, [2, true]]`: the elements' texts unquoted; `{a: 1, b: x}`; a node its labels, `(:A)`), not a JSON
+  text (lite/tail's `to_string_of_a_list_a_map_and_a_node_refused`, judged); `SKIP` with a variable-free
+  expression (`SKIP toInteger(rand()*9)`, ReturnSkipLimit1/[3]) needs a row count the MIR holds as an expression
+  (its `limit` and `offset` are constants, `ConstBounds`); the time of a date-time in a named zone
+  (Temporal3/[3] #16-20) needs the zoned time's offset read by the database at that date, where the zoned time
+  carries its zone as a written detail; an untyped relationship in a MATCH of several patterns (Match3/[10],
+  With1/[2], MatchWhere2/[1], WithWhere2/[1]) is the untyped arms' machinery over a second pattern; the ORDER BY
+  of a list the database holds as a Variant (18 cases) and min/max over mixed values are W11's, Cypher's type
+  rank. The §5 of the plan records the first three.
+
+#### 12.53.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4626 | 3259 (from 3,232) | 0 | 0 | 0 | 455 (from 470) | 731 | 181 |
+| Postgres | 4626 | 2898 (from 2,871) | 0 | 0 | 0 | 816 (from 831) | 731 | 181 |
+
+The 12 lite cases of `lite/tail.yaml`, 11 PASS on both lanes and one REFUSED by name (the `toString` probe), and
+`lite/collect`'s renamed `collect_distinct_counts_the_distinct_values`, judged by Neo4j (`snap.sh --check`: 0
+problems over 4543 cases). The TCK: agreement 3282 of 3880 (from 3,270): 12 more scenarios on each lane, none
+lost: ReturnOrderBy2/[8], ReturnOrderBy4/[1], [2], ReturnOrderBy5/[1] (the hidden sort key), String8/[8],
+String9/[8], String10/[8], Precedence4/[4] (the string predicates by kind), Aggregation5/[2], Aggregation8/[3], [4]
+(`collect(DISTINCT)`), Temporal2/[7] #7 (the duration's date-time text); Postgres 2932 of 3880 (from 2,920).

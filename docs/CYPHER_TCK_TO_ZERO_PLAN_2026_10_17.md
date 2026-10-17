@@ -252,7 +252,13 @@ predicates), comprehensions, quantifiers (`single` too), `reverse`, `tail`, `+`,
 database holds as Variants (Quantifier9-12 behind `rand()`, List12), a node carried as one of several classes
 re-anchoring from every class, `%` inside a database lambda with a literal divisor. Still refused: a pattern
 comprehension over rows (a collect per row: Pattern2/[3], [8]), `nodes(x)` of a path held in a list (List12/[4],
-[5]), a hop from a node read out of a list (Pattern2/[7]).
+[5]), a hop from a node read out of a list (Pattern2/[7]). Leg 2 LANDED 2026-10-17 (the study's §12.53, GATES'
+fifty-second landing; TCK agreement 3270 → 3282, DuckDB PASS 3232 → 3259, Postgres 2871 → 2898): an ORDER BY on an expression the query does not return (the result render's
+hidden sort output), string predicates on non-strings (null; a Variant by its kind, lite's `isKind`),
+`collect(DISTINCT x)` (S78), a duration text in the date-time form. Leg 3, the rest of the tail: a pattern
+comprehension over rows, `toString` of lists, maps and nodes (Neo4j's own texts: `[1, a]`, `{a: 1}`, `(:A)`), an
+untyped relationship in a MATCH of several patterns; ORDER BY and min/max over Variants are W11's (Cypher's type
+rank over JSON kinds, which `isKind` now reads).
 
 ## 3. Decisions asked of the user
 
@@ -533,6 +539,20 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   pull the bridge into its own subselect and correlate on the fanned row's key, as the one-step form does. The
   translator routes around it (a second-step hop of a fanning graph is present on the rows, the study's §12.50),
   so no TCK case is held back; the resolver fix belongs to W9 (platform limits), with the depth-two limit.
+- **2026-10-17, W12 leg 2 — SKIP and LIMIT with a variable-free expression.** `MATCH (n) WITH n SKIP
+  toInteger(rand()*9)` (ReturnSkipLimit1/[3]): the MIR's `limit` and `offset` are constants (`SqlSelect.limit`,
+  `ConstBounds.intOf`), so a row count the database computes has no carrier; one TCK case. The MIR would take an
+  expression bound (every dialect renders `LIMIT <expr>` for a constant-foldable one); W9.
+- **2026-10-17, W12 leg 2 — the time of a date-time in a named zone.** `time(datetime({..., timezone:
+  'Europe/Stockholm'}))` (Temporal3/[3] #16-20): the zoned time carries its zone as a written detail (§12.11), and
+  a named zone's offset at that date is the database's to read (`localIn` minus the instant); a zoned time whose
+  offset is a value of the row needs the representation to carry it as a column. Five TCK cases; W8's temporal
+  model.
+- **2026-10-17, W12 leg 2 — `toString` of a list, a map, a node.** Neo4j 2026.09 answers texts of its own
+  (TypeConversion4/[10], probed by `lite/tail`'s refused case): a list's elements' texts unquoted and
+  comma-separated (`[1, a, [2, true]]`), a map `{a: 1, b: x}`, a node its labels `(:A)`, a relationship `[:T]`,
+  a path `()-[:T]->()`. The TCK's five cases expect the error older Neo4j raised; the texts are a spelling the
+  database can build from the JSON (W11's kind reading); recorded, not built.
 - **2026-10-17, W2 leg 1 — a composite key as an identity.** `elementId` refuses a class whose key is several
   columns ("a composite key (n columns) as the identity of X is not supported yet"); the harness's tables have
   one `id` column, so no TCK case is held back; a user's composite key waits for its spelling (the columns' texts
