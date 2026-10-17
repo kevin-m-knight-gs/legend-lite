@@ -9932,6 +9932,28 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the forty-sixth landing — nodes told apart by identity under DISTINCT and grouping
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 2); the record is the study's §12.47. The
+translator alone: a returned node or relationship under DISTINCT or a grouping is carried as its columns (its
+identity among them), the DISTINCT or the grouping keys over them, its JSON rebuilt from them last;
+`count(DISTINCT x)` as Pure's distinct-then-count, `count(DISTINCT n)` over identities.
+
+1. **What lands.** `MATCH (n:A) RETURN DISTINCT n ORDER BY n.num`, `MATCH (a)-->(b) RETURN DISTINCT b ORDER BY
+   b.name`, `MATCH (n) RETURN DISTINCT n` over a label-less pattern's arms, `WITH DISTINCT a RETURN count(*)`,
+   `RETURN n, count(*)`, `RETURN a, b, count(*)`, `WITH a, count(*) AS c WHERE c > 1 RETURN a`, an absent node among
+   the keys, `RETURN a, count(a) + 3`, `count(DISTINCT n.num)`, `count(DISTINCT a)`, `RETURN DISTINCT r` and `RETURN
+   r, count(*)` over an edge class.
+2. **The ledger.** DuckDB: 4546 cases; PASS 2997 (from 2,965); FAIL 0; BUG 0; ERROR 0; REFUSED 638; BOTH_ERROR 730;
+   SKIP 181. Postgres: PASS 2636 (from 2,604); FAIL 0; BUG 0; ERROR 0; REFUSED 999; BOTH_ERROR 730; SKIP 181. 18
+   lite cases in `lite/grouping.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+   The TCK's agreement 3112 of 3880 (from 3,098); the showcase's §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pins that refused DISTINCT and grouping over a node now pin the carry, the distinct and the rebuilt JSON,
+   and the refusal of DISTINCT or a grouping over a relationship without identity.
+4. **Refused by name, recorded.** DISTINCT over, or a grouping by, a relationship over a property or an association
+   (no identity until S74's ordered pair, W2 leg 3); `collect(DISTINCT ...)`; ORDER BY a node.
+
 ## 2026-10-17 — `#Cypher{...}#`: the forty-fifth landing — identity: a node is its row's key
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's Phase 1, W2's first leg); the record is the study's

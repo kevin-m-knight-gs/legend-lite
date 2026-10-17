@@ -1099,7 +1099,12 @@ class CypherToPureTest {
         // (collect(DISTINCT ...) stays refused: the database's order of the distinct values is not Neo4j's, nor
         // the same twice; the study's §12.44)
         unsupported("MATCH (p:Person) RETURN collect(DISTINCT p.name)", "collect(DISTINCT ...) is not supported yet");
-        unsupported("MATCH (p:Person) RETURN count(DISTINCT p.name)", "count(DISTINCT ...)");
+        // count(DISTINCT x): the distinct values counted (the study's §12.47); count(DISTINCT n) the identities
+        String countDistinct = pure("MATCH (p:Person) RETURN count(DISTINCT p.name) AS c");
+        assertTrue(countDistinct.contains("y|$y->distinct()->count()"), countDistinct);
+        String countNodes = pure("MATCH (p:Person) RETURN count(DISTINCT p) AS c");
+        assertTrue(countNodes.contains("$p->meta::legend::lite::elementId()")
+                && countNodes.contains("y|$y->distinct()->count()"), countNodes);
         unsupported("MATCH (p:Person) WHERE p.name = $name RETURN p.name", "a parameter ($name)");
         unsupported("MATCH (p:Person) WHERE p.name =~ 'A.*' RETURN p.name", "regular expression");
         // a list of row values through WITH is the Variant the database builds, marked with its element kind
@@ -1110,9 +1115,19 @@ class CypherToPureTest {
                 "holding a value of the row (l) among the grouping keys");
         unsupported("MATCH (p:Person) RETURN [localtime('12:00')] AS l", "a list or map holding a LocalTime, as a value");
         invalid("MATCH (p:Person) RETURN all(x IN p.name WHERE x > 1)", "expected List<T> but was String");
-        unsupported("MATCH (p:Person) RETURN DISTINCT p", "RETURN DISTINCT over a node (p");
+        // a node under DISTINCT or among the grouping keys: its columns (its identity among them) the distinct
+        // columns or the keys, its JSON rebuilt after (the study's §12.47)
+        String distinctNode = pure("MATCH (p:Person) RETURN DISTINCT p");
+        assertTrue(distinctNode.contains("$p->meta::legend::lite::elementId()])->distinct()->extend(~[p:r|fromJson(")
+                && distinctNode.endsWith("->select(~[p])"), distinctNode);
+        String groupedNode = pure("MATCH (p:Person) RETURN p, count(*) AS c");
+        assertTrue(groupedNode.contains("->groupBy(~[_cypher_1, _cypher_2, _cypher_3, _cypher_4, _cypher_5], ~[c:x|")
+                && groupedNode.endsWith("->select(~[p, c])"), groupedNode);
         unsupported("MATCH (p:Person) RETURN p ORDER BY p", "ORDER BY a node (p");
-        unsupported("MATCH (p:Person) RETURN p, count(*) AS c", "a node among the grouping keys (p");
+        unsupported("MATCH (p:Person)-[r:firm]->(f:Firm) RETURN DISTINCT r", "DISTINCT over a relationship (r) with no"
+                + " identity of its own");
+        unsupported("MATCH (p:Person)-[r:firm]->(f:Firm) WITH r, count(*) AS c RETURN c", "grouping by a relationship"
+                + " (r) with no identity of its own");
         unsupported("MATCH (p:Person:Firm) RETURN p.name", "several labels");
         invalid("MATCH (p:Person) RETURN p.age + count(*)", "implicit grouping expressions (p.age in p.age + count(*))");
         unsupported("RETURN 1e308 AS x", "a float literal beyond 1e15");

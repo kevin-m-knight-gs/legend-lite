@@ -123,8 +123,13 @@ distinct across the patterns of one MATCH: relationship uniqueness, spelled over
 carrying an identity). The text is class-qualified so nodes of different classes never compare equal, as Neo4j's
 `elementId` carries its type and database. Still refused by name: a relationship over an association compared
 (next: S74's ordered pair of the ends' identities, which also spells uniqueness over associations), paths
-compared, a composite key. Next legs: DISTINCT, grouping, ORDER BY and `IN` over nodes (identity as the key);
-re-anchoring joins.
+compared, a composite key. Leg 2 LANDED 2026-10-17 (the study's §12.47, GATES' forty-sixth landing; TCK agreement 3098 → 3112, DuckDB
+PASS 2965 → 2997): DISTINCT
+over and grouping by nodes (a returned node carried as its columns, the identity among them, its JSON rebuilt
+last), `count(DISTINCT x)` and `count(DISTINCT n)`, the same over edge-class relationships; a relationship
+without identity stays refused under both until leg 3; ORDER BY a node stays refused (Neo4j's own ids). Next
+legs: S74's ordered pair as an association relationship's identity and uniqueness (leg 3); re-anchoring joins
+(leg 4).
 
 ### W3. Non-deterministic functions
 

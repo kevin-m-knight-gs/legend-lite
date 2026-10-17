@@ -3412,3 +3412,42 @@ The TCK: agreement 3098 of 3880 (from 3,093): 5 more scenarios, MatchWhere3/[1] 
 between node identities, on inequality), WithWhere3/[1] and WithWhere4/[1] (the same after WITH), Comparison1/[4]
 (nodes compared after WITH); no case lost. The showcase's §20 regenerated; its pinned examples return values,
 not nodes, so their pinned Pure and SQL are unchanged.
+
+### 12.47 Nodes told apart by identity: DISTINCT, grouping, count(DISTINCT), 2026-10-17
+
+- **The frame (the plan's W2, leg 2):** Neo4j's `RETURN DISTINCT n`, `RETURN n, count(*)`, `WITH n, count(*) AS c`
+  and `count(DISTINCT n)` tell nodes apart by identity: two nodes alike are two rows, two groups, two counted. The
+  island had refused each by name since the nodes-as-values leg (§12.14), because a node's JSON holds its labels
+  and properties only, and distinct JSON texts would merge nodes alike. §12.46's identity column is what was
+  missing.
+- **The reading:** a returned node or relationship under DISTINCT or a grouping is CARRIED as its columns, as a
+  node through WITH already was (`outputs`' `carryReturned`), its identity among them; the DISTINCT is over those
+  columns, a grouping takes each of them as a key (the identity makes nodes alike two groups; the other columns
+  ride along, determined by it), and the item's JSON is rebuilt from the columns LAST (`project`: an `extend` over
+  a `RowScope` of the rows after the sort, SKIP and LIMIT, then the items' columns alone, in order), so an ORDER
+  BY over the node's property after the DISTINCT reads the carried column, as the sort after a grouping already
+  did. `count(DISTINCT x)` is Pure's `y|$y->distinct()->count()` (the lowering's `COUNT(DISTINCT ...)`);
+  `count(DISTINCT n)` over a pattern variable counts its identities (an absent node's null, which count skips).
+  A relationship over an edge class is told apart by the edge row's identity the same way; one over a property
+  or an association has no identity yet, so `DISTINCT r` and a grouping by it stay refused by name until S74's
+  ordered pair is its identity (W2 leg 3), as `collect(DISTINCT ...)` stays (§12.44: the database's order).
+  ORDER BY a node stays refused (Neo4j orders nodes by its own ids).
+- **Found on the way:** the grouped projection's select after the `groupBy` named the virtual column of a carried
+  node (a column no relation bears) and now skips it; the identity read of an optional to-one navigation lowers
+  through the string-aggregate path of `plus` rather than `concat` (the `if` around it), correct and gated by the
+  key's presence, left as the lowering spells it.
+
+#### 12.47.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4546 | 2997 (from 2,965) | 0 | 0 | 0 | 638 | 730 | 181 |
+| Postgres | 4546 | 2636 (from 2,604) | 0 | 0 | 0 | 999 | 730 | 181 |
+
+18 lite cases in `lite/grouping.yaml`, each judged by Neo4j (15 PASS; a relationship over an association under
+DISTINCT or a grouping, and `collect(DISTINCT ...)`, REFUSED by name); `lite/nodes.yaml`'s two refusal cases
+renamed as positive ones. The TCK: agreement 3112 of 3880 (from 3,098): 14 more scenarios, Return6 (3: a node
+among the keys, `count(a) + 3`, counting per group), Return5 (3: `count(DISTINCT ...)` over lists in maps),
+ReturnOrderBy2 (4: sort and distinct, ordering by a property after distinct, count star in scope, the columns
+under ORDER BY), Aggregation5 and Aggregation8 (3: `collect()` filtering nulls beside a node, `count(DISTINCT a)`
+on an unbound node, on null), WithWhere6 (1: filtering a single aggregate); no case lost.

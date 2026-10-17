@@ -3126,7 +3126,8 @@ public final class CypherToPure {
             // the result's columns in the items' order (the grouping puts the keys first), the finished sums in
             // place of their raw ones; the aggregates the sort asked for beyond the items beside them until it
             List<ColSpec> selected = new ArrayList<>();
-            columns.forEach(c -> selected.add(new ColSpec(c.name(), null, null, null)));
+            columns.stream().filter(c -> !c.virtual()).forEach(c -> selected.add(new ColSpec(c.name(), null, null,
+                    null)));
             ap.hiddenColumns().forEach(c -> selected.add(new ColSpec(c.name(), null, null, null)));
             vs = call("select", vs, new ColSpecArray(selected));
         }
@@ -3187,6 +3188,26 @@ public final class CypherToPure {
         if (limit != null) {
             vs = call("limit", vs, rowCount(limit, "LIMIT"));
         }
+        if (!ap.carriedItems().isEmpty()) {
+            // a returned node or relationship carried as its columns (told apart by identity under the DISTINCT or
+            // the grouping): its JSON rebuilt from them, the result the items' columns alone, in order
+            RowScope rebuilt = new RowScope(new Rows(vs, List.copyOf(columns)));
+            List<ColSpec> json = new ArrayList<>();
+            List<Col> result = new ArrayList<>();
+            for (String name : ap.itemNames()) {
+                if (ap.carriedItems().contains(name)) {
+                    Tx t = scalarOf(rebuilt.variable(new CypherAst.Var(name, pos)), pos);
+                    json.add(new ColSpec(name, lambda(rebuilt.row(), SqlToPure.valueOf(t)), null, null));
+                    result.add(new Col(name, t.kind(), t.nullable(), null, t.detail()));
+                } else {
+                    result.add(columns.stream().filter(c -> c.name().equals(name)).findFirst().orElseThrow());
+                }
+            }
+            vs = call("extend", vs, new ColSpecArray(json));
+            vs = call("select", vs, new ColSpecArray(ap.itemNames().stream()
+                    .map(n -> new ColSpec(n, null, null, null)).toList()));
+            columns = result;
+        }
         return new Rows(vs, List.copyOf(columns));
     }
 
@@ -3195,7 +3216,9 @@ public final class CypherToPure {
     private record ArmProjection(ValueSpecification base, boolean grouped, List<Col> columns,
             List<SortKey> sortKeys, List<ColSpec> hidden, List<SortItem> afterGrouping, List<ColSpec> keys,
             List<ColSpec> aggregates, List<ColSpec> finishes, List<ColSpec> expressions, List<Col> hiddenColumns,
-            Map<String, String> sortAggregateColumns, @com.legend.base.Nullable String whereColumn) {
+            Map<String, String> sortAggregateColumns, @com.legend.base.Nullable String whereColumn,
+            /** the items' names in order, and the returned ones carried as columns (their JSON rebuilt last) */
+            List<String> itemNames, List<String> carriedItems) {
     }
 
     /** The grouping keys' spelled expressions, each to the column it is projected as (the items and the columns
@@ -3220,8 +3243,24 @@ public final class CypherToPure {
         Map<String, NodeCarry> nodes = new LinkedHashMap<>();
         // the aggregating items, by their spelling, to their names (an ORDER BY may re-spell one)
         Map<String, String> aggregateTexts = new LinkedHashMap<>();
-        List<Output> outputs = outputs(items, scope, names, nodes, aggregateTexts, returning);
+        // a returned node or relationship under DISTINCT or a grouping is told apart by identity: carried as its
+        // columns (the identity among them), the DISTINCT or the keys over them, its JSON rebuilt after (§12.47)
+        boolean carryReturned = returning && (distinct || items.stream().anyMatch(i -> i.expr() != null
+                && (isAggregate(i.expr()) || containsAggregate(i.expr()))));
+        List<Output> outputs = outputs(items, scope, names, nodes, aggregateTexts, returning, carryReturned);
         boolean grouped = outputs.stream().anyMatch(o -> o.agg() != null || o.around() != null);
+        List<String> itemNames = outputs.stream().map(Output::name).toList();
+        if (grouped || distinct) {
+            // a relationship told apart needs an identity: an edge class's row has one, a property's or an
+            // association's link has none yet (S74)
+            for (Map.Entry<String, NodeCarry> n : nodes.entrySet()) {
+                if (n.getValue().relationship() && n.getValue().shape().identity() == null) {
+                    throw CypherErrors.unsupported((grouped ? "grouping by" : "DISTINCT over") + " a relationship ("
+                            + n.getKey() + ") with no identity of its own (one over a property or an association)"
+                            + " is not supported yet", pos);
+                }
+            }
+        }
         // each non-aggregating item's scalar (a list or map returned is its Variant), or the shape it is carried as
         Map<String, Tx> scalars = new HashMap<>();
         Map<String, Val> carried = new LinkedHashMap<>();
@@ -3250,17 +3289,6 @@ public final class CypherToPure {
                         + " supported yet", pos);
             } else {
                 carried.put(out.name(), v);
-            }
-        }
-        for (Output out : outputs) {
-            boolean node = nodes.containsKey(out.name()) || isNode(scalars.get(out.name()));
-            if (node && grouped) {
-                throw CypherErrors.unsupported("a node among the grouping keys (" + out.name() + "; Neo4j groups"
-                        + " nodes by identity) is not supported yet", pos);
-            }
-            if (node && distinct) {
-                throw CypherErrors.unsupported((returning ? "RETURN" : "WITH") + " DISTINCT over a node ("
-                        + out.name() + "; Neo4j tells nodes apart by identity) is not supported yet", pos);
             }
         }
         // the sort keys: an item (by its alias or its text), else an expression over the projected aliases first
@@ -3423,6 +3451,16 @@ public final class CypherToPure {
                     Tx t = av instanceof Scalar s ? s.tx() : variant(av, pos);
                     expressions.add(new ColSpec(out.name(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
                     columns.add(new Col(out.name(), t.kind(), t.nullable(), null, t.detail()));
+                } else if (nodes.containsKey(out.name())) {
+                    // a node among the keys: each of its columns a key (its identity among them: two nodes alike
+                    // are two groups), the node itself under its name (a virtual column, as the ungrouped carry)
+                    NodeCarry node = nodes.get(out.name());
+                    specs.addAll(node.specs());
+                    node.columns().forEach(c -> keys.add(new ColSpec(c.name(), null, null, null)));
+                    columns.addAll(node.columns());
+                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship()
+                            ? new RelShape(node.shape().labels(), node.shape().props(), node.shape().identity())
+                            : node.shape()));
                 } else if (out.agg() == null) {
                     Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
                     specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
@@ -3438,10 +3476,12 @@ public final class CypherToPure {
             vs = state instanceof Graph g ? call("project", source(g), new ColSpecArray(specs))
                     : reproject((Rows) state, specs);
             return new ArmProjection(vs, true, columns, sortKeys, hidden, afterGrouping, keys, aggregates, finishes,
-                    expressions, hiddenColumns, sortAggregateColumns, null);
+                    expressions, hiddenColumns, sortAggregateColumns, null, itemNames,
+                    returning ? List.copyOf(nodes.keySet()) : List.of());
         }
         return new ArmProjection(vs, false, columns, sortKeys, hidden, afterGrouping, List.of(), List.of(), List.of(),
-                List.of(), List.of(), Map.of(), whereColumn);
+                List.of(), List.of(), Map.of(), whereColumn, itemNames, returning ? List.copyOf(nodes.keySet())
+                : List.of());
     }
 
     /** An aggregating output's pieces: its argument's column before the grouping, its reduce, its finish (a sum of
@@ -3467,7 +3507,7 @@ public final class CypherToPure {
      *  {@code nodes}), an aggregate (its spelling into {@code aggregateTexts}), an expression around aggregates, or
      *  a value; the names taken into {@code names}. */
     private List<Output> outputs(List<Item> items, Scope scope, Set<String> names, Map<String, NodeCarry> nodes,
-            Map<String, String> aggregateTexts, boolean returning) {
+            Map<String, String> aggregateTexts, boolean returning, boolean carryReturned) {
         List<Output> outputs = new ArrayList<>();
         // the grouping keys' spellings (an item that is no aggregate and holds none) to their output names: an
         // expression around aggregates may read them (Neo4j's: any other item of the projection is a grouping key;
@@ -3490,9 +3530,11 @@ public final class CypherToPure {
             if (!names.add(name)) {
                 throw CypherErrors.invalid("Multiple result columns with the same name are not supported", item.pos());
             }
-            NodeCarry node = !returning && e instanceof CypherAst.Var v ? carriedNode(v, scope, names) : null;
+            NodeCarry node = (!returning || carryReturned) && e instanceof CypherAst.Var v
+                    ? carriedNode(v, scope, names) : null;
             if (node != null) {
-                // a node through WITH: carried as its columns; its JSON only when returned or used as a value
+                // a node through WITH: carried as its columns; its JSON only when returned or used as a value (a
+                // returned node under DISTINCT or a grouping is carried too, by identity, its JSON rebuilt after)
                 nodes.put(name, node);
                 outputs.add(new Output(name, null, null));
                 continue;
@@ -3759,16 +3801,29 @@ public final class CypherToPure {
         if (containsAggregate(argExpr)) {
             throw CypherErrors.invalid("Can't use aggregate functions inside of aggregate functions.", c.pos());
         }
-        if (c.distinct()) {
+        if (c.distinct() && !fn.equals("count")) {
             throw CypherErrors.unsupported(c.name() + "(DISTINCT ...) is not supported yet", c.pos());
         }
         if (fn.equals("count") && argExpr instanceof CypherAst.Var v && scope.isPatternVariable(v.name())) {
+            if (c.distinct()) {
+                // count(DISTINCT n): the distinct identities (the study's §12.47); an absent node's is null, which
+                // count skips
+                Tx identity = scope.identity(v);
+                if (identity == null) {
+                    throw CypherErrors.unsupported("count(DISTINCT " + v.name() + ") over a relationship with no"
+                            + " identity of its own (one over a property or an association) is not supported yet",
+                            c.pos());
+                }
+                return new Aggregate(freshName(names), identity,
+                        lambda("y", call("count", call("distinct", new Variable("y")))), Kind.INTEGER, false, null);
+            }
             // count(n) for a matched node or relationship: every row has one
             return new Aggregate(freshName(names), Tx.value(new CInteger(1L), Kind.INTEGER, false),
                     lambda("y", call("count", new Variable("y"))), Kind.INTEGER, false, null);
         }
         Tx arg = tx(argExpr, scope);
-        ValueSpecification values = new Variable("y");
+        // (count(DISTINCT x): the distinct values, Pure's distinct before the count, the database's COUNT(DISTINCT))
+        ValueSpecification values = c.distinct() ? call("distinct", new Variable("y")) : new Variable("y");
         if ((fn.equals("sum") || fn.equals("avg")) && arg.kind() == Kind.NULL) {
             // of a null column (a property no node of an empty graph holds, the study's §12.24): no value to add,
             // so the rows contribute 0 to the sum (0 over no row too) and the average is null -- the grouping

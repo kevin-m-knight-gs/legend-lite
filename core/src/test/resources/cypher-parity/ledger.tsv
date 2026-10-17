@@ -710,13 +710,13 @@ tck/clauses/return-orderby/ReturnOrderBy1/[12] ORDER BY DESC should order distin
 tck/clauses/return-orderby/ReturnOrderBy2/[1] ORDER BY should return results in ascending order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[2] ORDER BY DESC should return results in descending order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[3] Sort on aggregated function	PASS	PASS
-tck/clauses/return-orderby/ReturnOrderBy2/[4] Support sort and distinct	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy2/[5] Support ordering by a property after being distinct-ified	REFUSED	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy2/[6] Count star should count everything in scope	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy2/[4] Support sort and distinct	PASS	PASS
+tck/clauses/return-orderby/ReturnOrderBy2/[5] Support ordering by a property after being distinct-ified	PASS	PASS
+tck/clauses/return-orderby/ReturnOrderBy2/[6] Count star should count everything in scope	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[7] Ordering with aggregation	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[8] Returning all variables with ordering	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy2/[9] Using aliased DISTINCT expression in ORDER BY	PASS	PASS
-tck/clauses/return-orderby/ReturnOrderBy2/[10] Returned columns do not change from using ORDER BY	REFUSED	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy2/[10] Returned columns do not change from using ORDER BY	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[11] Aggregates ordered by arithmetics	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy2/[12] Aggregation of named paths	REFUSED	REFUSED
 tck/clauses/return-orderby/ReturnOrderBy2/[13] Fail when sorting on variable removed by DISTINCT	BOTH_ERROR	BOTH_ERROR
@@ -789,19 +789,19 @@ tck/clauses/return/Return4/[2] Support column renaming	PASS	PASS
 tck/clauses/return/Return4/[3] Aliasing expressions	PASS	PASS
 tck/clauses/return/Return4/[4] Keeping used expression 1	PASS	PASS
 tck/clauses/return/Return4/[5] Keeping used expression 2	PASS	PASS
-tck/clauses/return/Return4/[6] Keeping used expression 3	REFUSED	REFUSED
+tck/clauses/return/Return4/[6] Keeping used expression 3	PASS	PASS
 tck/clauses/return/Return4/[7] Keeping used expression 4	PASS	PASS
 tck/clauses/return/Return4/[8] Support column renaming for aggregations	PASS	PASS
 tck/clauses/return/Return4/[9] Handle subexpression in aggregation also occurring as standalone expression with nested aggregation in a literal map	PASS	PASS
 tck/clauses/return/Return4/[10] Fail when returning multiple columns with same name	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return4/[11] Reusing variable names in RETURN	REFUSED	REFUSED
-tck/clauses/return/Return5/[1] DISTINCT inside aggregation should work with lists in maps	REFUSED	REFUSED
+tck/clauses/return/Return5/[1] DISTINCT inside aggregation should work with lists in maps	PASS	PASS
 tck/clauses/return/Return5/[2] DISTINCT on nullable values	PASS	PASS
-tck/clauses/return/Return5/[3] DISTINCT inside aggregation should work with nested lists in maps	REFUSED	REFUSED
-tck/clauses/return/Return5/[4] DISTINCT inside aggregation should work with nested lists of maps in maps	REFUSED	REFUSED
+tck/clauses/return/Return5/[3] DISTINCT inside aggregation should work with nested lists in maps	PASS	PASS
+tck/clauses/return/Return5/[4] DISTINCT inside aggregation should work with nested lists of maps in maps	PASS	PASS
 tck/clauses/return/Return5/[5] Aggregate on list values	PASS	PASS
 tck/clauses/return/Return6/[1] Return count aggregation over nodes	PASS	PASS
-tck/clauses/return/Return6/[2] Projecting an arithmetic expression with aggregation	REFUSED	REFUSED
+tck/clauses/return/Return6/[2] Projecting an arithmetic expression with aggregation	PASS	PASS
 tck/clauses/return/Return6/[3] Aggregating by a list property has a correct definition of equality	PASS	REFUSED
 tck/clauses/return/Return6/[4] Support multiple divisions in aggregate function	PASS	PASS
 tck/clauses/return/Return6/[5] Aggregates inside normal functions	PASS	PASS
@@ -811,7 +811,7 @@ tck/clauses/return/Return6/[8] Handle aggregation on functions	REFUSED	REFUSED
 tck/clauses/return/Return6/[9] Aggregates with arithmetics	PASS	PASS
 tck/clauses/return/Return6/[10] Multiple aggregates on same variable	PASS	PASS
 tck/clauses/return/Return6/[11] Counting matches	PASS	PASS
-tck/clauses/return/Return6/[12] Counting matches per group	REFUSED	REFUSED
+tck/clauses/return/Return6/[12] Counting matches per group	PASS	PASS
 tck/clauses/return/Return6/[13] Returning the minimum length of paths	REFUSED	REFUSED
 tck/clauses/return/Return6/[14] Aggregates in aggregates	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[15] Using `rand()` in aggregations	BOTH_ERROR	BOTH_ERROR
@@ -1219,7 +1219,7 @@ tck/clauses/with-where/WithWhere5/[1] Filter out on null	PASS	PASS
 tck/clauses/with-where/WithWhere5/[2] Filter out on null if the AND'd predicate evaluates to false	PASS	PASS
 tck/clauses/with-where/WithWhere5/[3] Filter out on null if the AND'd predicate evaluates to true	PASS	PASS
 tck/clauses/with-where/WithWhere5/[4] Do not filter out on null if the OR'd predicate evaluates to true	REFUSED	REFUSED
-tck/clauses/with-where/WithWhere6/[1] Filter a single aggregate	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere6/[1] Filter a single aggregate	PASS	PASS
 tck/clauses/with-where/WithWhere7/[1] WHERE sees a variable bound before but not after WITH	PASS	PASS
 tck/clauses/with-where/WithWhere7/[2] WHERE sees a variable bound after but not before WITH	PASS	PASS
 tck/clauses/with-where/WithWhere7/[3] WHERE sees both, variable bound before but not after WITH and variable bound after but not before WITH	PASS	PASS
@@ -1268,7 +1268,7 @@ tck/expressions/aggregation/Aggregation2/[11] `max()` over mixed values	REFUSED	
 tck/expressions/aggregation/Aggregation2/[12] `min()` over mixed values	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation3/[1] Sum only non-null values	PASS	PASS
 tck/expressions/aggregation/Aggregation3/[2] No overflow during summation	PASS	PASS
-tck/expressions/aggregation/Aggregation5/[1] `collect()` filtering nulls	REFUSED	REFUSED
+tck/expressions/aggregation/Aggregation5/[1] `collect()` filtering nulls	PASS	PASS
 tck/expressions/aggregation/Aggregation5/[2] OPTIONAL MATCH and `collect()` on node property	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #1	PASS	PASS
 tck/expressions/aggregation/Aggregation6/[1] `percentileDisc()` #2	PASS	PASS
@@ -1283,8 +1283,8 @@ tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad a
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #3	BOTH_ERROR	BOTH_ERROR
 tck/expressions/aggregation/Aggregation6/[5] `percentileDisc()` failing in more involved query	BOTH_ERROR	BOTH_ERROR
-tck/expressions/aggregation/Aggregation8/[1] Distinct on unbound node	REFUSED	REFUSED
-tck/expressions/aggregation/Aggregation8/[2] Distinct on null	REFUSED	REFUSED
+tck/expressions/aggregation/Aggregation8/[1] Distinct on unbound node	PASS	PASS
+tck/expressions/aggregation/Aggregation8/[2] Distinct on null	PASS	PASS
 tck/expressions/aggregation/Aggregation8/[3] Collect distinct nulls	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation8/[4] Collect distinct values mixed with nulls	REFUSED	REFUSED
 tck/expressions/boolean/Boolean1/[1] Conjunction of two truth values	PASS	PASS
@@ -4029,6 +4029,24 @@ lite/empty/empty_match_property	PASS	PASS
 lite/empty/empty_match_with_skip	PASS	PASS
 lite/empty/empty_optional_match	PASS	PASS
 lite/empty/empty_optional_through_with	PASS	PASS
+lite/grouping/distinct_nodes_alike_are_two	PASS	PASS
+lite/grouping/distinct_nodes_after_a_hop	PASS	PASS
+lite/grouping/distinct_over_a_label_less_pattern	PASS	PASS
+lite/grouping/with_distinct_node_then_counted	PASS	PASS
+lite/grouping/nodes_alike_group_apart	PASS	PASS
+lite/grouping/a_node_grouped_over_its_hops	PASS	PASS
+lite/grouping/a_node_grouped_then_filtered	PASS	PASS
+lite/grouping/two_nodes_among_the_keys	PASS	PASS
+lite/grouping/an_absent_node_among_the_keys	PASS	PASS
+lite/grouping/a_node_and_an_expression_around_its_count	PASS	PASS
+lite/grouping/count_distinct_values	PASS	PASS
+lite/grouping/count_distinct_nodes	PASS	PASS
+lite/grouping/count_distinct_of_absent_nodes	PASS	PASS
+lite/grouping/distinct_edge_relationships	PASS	PASS
+lite/grouping/an_edge_relationship_among_the_keys	PASS	PASS
+lite/grouping/distinct_association_relationship_refused	REFUSED	REFUSED
+lite/grouping/grouping_by_an_association_relationship_refused	REFUSED	REFUSED
+lite/grouping/collect_distinct_stays_refused	REFUSED	REFUSED
 lite/identity/two_nodes_equal	PASS	PASS
 lite/identity/two_nodes_unequal	PASS	PASS
 lite/identity/nodes_of_different_labels_differ	PASS	PASS
@@ -4115,9 +4133,9 @@ lite/nodes/return_star_over_a_pattern	PASS	PASS
 lite/nodes/node_with_a_float_and_quotes	PASS	PASS
 lite/nodes/count_of_nodes	PASS	PASS
 lite/nodes/node_with_skip_and_limit	PASS	PASS
-lite/nodes/distinct_over_nodes_refused_by_name	REFUSED	REFUSED
+lite/nodes/distinct_over_nodes	PASS	PASS
 lite/nodes/order_by_a_node_refused_by_name	REFUSED	REFUSED
-lite/nodes/node_as_a_grouping_key_refused_by_name	REFUSED	REFUSED
+lite/nodes/node_as_a_grouping_key	PASS	PASS
 lite/nodes/relationship_as_a_value_refused_by_name	PASS	PASS
 lite/odds/to_integer_of_texts	PASS	PASS
 lite/odds/to_float_of_texts	PASS	PASS
@@ -4290,7 +4308,7 @@ lite/small/map_indexed_by_a_row_value	PASS	PASS
 lite/small/map_indexed_by_a_parameter_text	PASS	PASS
 lite/stored/stored_list_returned	PASS	PASS
 lite/stored/stored_lists_of_texts_and_booleans	PASS	PASS
-lite/stored/stored_list_in_a_map_under_distinct	REFUSED	REFUSED
+lite/stored/stored_list_in_a_map_under_distinct	PASS	PASS
 lite/stored/stored_list_as_a_grouping_key	PASS	PASS
 lite/stored/stored_list_ordered_by_refused	REFUSED	REFUSED
 lite/stored/stored_lists_concatenated	REFUSED	REFUSED
