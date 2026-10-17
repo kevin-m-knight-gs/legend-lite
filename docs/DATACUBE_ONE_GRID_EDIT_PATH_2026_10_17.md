@@ -42,10 +42,13 @@ already writes. It is the one model from now on.
 
 - A grid never carries `measures`. Its aggregates are its columns' Aggregation; a second aggregate of a column is a
   calculated column (row stage, kind measure) reading it, with its own Aggregation.
-- `measures` stays an input of the query builder, for the queries a grid is not: a chart's (a chart plots
-  `(column, aggregate)` pairs, its own model, `chart-spec.ts`) and one-off queries (`app.ts`'s JSON row count).
-- `writeCube` refuses a grid snapshot that carries measures (AGENTS.md invariant 4: a grid with two models is a bug,
-  never saved).
+- **No tile stores a list of aggregates** (the user, 2026-10-17: "isn't that just keeping the second impl?"). The
+  field comes off the grid's type, `CubeSnapshot`, so the compiler refuses a grid that carries one. The query builder
+  takes the aggregates a query asks for as its own input, worked out for that query from the tile's model: a grid's
+  from its Column Properties (`query.ts groupedMeasures`, `defaultMeasure`, as today), a chart's from its value pairs
+  (`chart-spec.ts chartSnapshot`; a chart's model is its pairs, edited by its form and `chartFrom`, one path since
+  #42), and `app.ts`'s one-off JSON row count from that count. Each tile has one model and one way to edit it; the
+  builder is shared.
 
 ### 3.2 One module of grid edits: `datacube/src/grid-edits.ts` (no DOM)
 
@@ -98,9 +101,20 @@ pivot spreads every measure column not kept out of it, as the screen's pivot alw
 
 ### 3.5 Charts
 
-The chart's model is unchanged. Two readers of a grid's measures read its Column Properties instead:
-`chart-spec.ts firstMeasure` (a new chart's default value: its column's Aggregation, not always `sum`) and
-`followCube` (a following chart follows the grid's grouping; its values stay its own).
+The chart's model is unchanged: its grouping and its `(column, aggregate)` pairs. One follow rule reads the grid's
+Column Properties where it read the grid's measures:
+
+- **A following chart** (`live`: not frozen, not of rows, not drawing the grid as shown) takes the grid's grouping, as
+  today, and plots its value column at the grid's Aggregation of that column (`followCube`). Changing a column's
+  Aggregation, on the screen or from Python, redraws the chart that plots it. A kind of several values keeps its own;
+  a KPI or a gauge follows the first measure column at its Aggregation. A hand on what the grid sets freezes the chart
+  (`freezesOn`), as today.
+- **A frozen chart** keeps its own grouping and pairs, whatever the grid does.
+- **A new chart's default value** is its column at that column's Aggregation (`firstMeasure`), not always `sum`.
+- **Open in Grid** (`page/cube-page.ts #openEditor`) turns the chart's pairs into the editing grid's Column
+  Properties by `measuresAsColumns`: a pair's column its Aggregation, a second pair of a column a calculated column
+  named for it. **Update** regroups the chart by the follow rule once and freezes it again, as today: its values read
+  back from those columns' Aggregation, so a pair changed in the grid reaches the chart.
 
 ## 4. Behaviour changes
 
@@ -117,13 +131,16 @@ The chart's model is unchanged. Two readers of a grid's measures read its Column
   - A saved cube's measures are converted on open, said in its notes.
   - Open in Grid writes Column Properties and calculated columns: the grid it opens shows its aggregates in Column
     Properties.
-  - A new chart's default value takes its column's Aggregation.
+  - A new chart's default value takes its column's Aggregation, and a following chart plots its column at the
+    grid's Aggregation (it plotted the grid's first measure, which no panel showed).
+  - Update from Open in Grid carries the editing grid's aggregates back to the chart.
 
 ## 5. Steps (one commit each)
 
 1. `grid-edits.ts`, and the screen calling it: no change on the screen.
-2. `measuresAsColumns`: `openCube`'s conversion, Open in Grid, the example page's cube, the charts' two readers, and
-   `writeCube`'s refusal.
+2. `measures` off the grid's type: the builder's own input, worked out per query; `measuresAsColumns` for
+   `openCube`'s conversion and Open in Grid; the example page's cube; the follow rule (`followCube`, `firstMeasure`,
+   Update).
 3. Python onto the module: headless `gridEdit`, `page.py`'s `group`, `pivot`, `sort`, `measure`, `column` and
    `Page.grid`; `gridQuery`'s own checks deleted.
 4. Docs and the record: `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`, `docs/IN_FLIGHT.md`, the PR description.
