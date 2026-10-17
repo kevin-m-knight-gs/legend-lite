@@ -5,10 +5,10 @@
 - The owner guard and Phases 2 and 4 landed as neema2/legend-lite#45 (4fb892f).
 - Phase 3 landed as neema2/legend-lite#49 (59b547a).
 - Phase 5 landed as neema2/legend-lite#51 (6f2a0f8).
-- Phase 6's part 1 is done on branch `claude/gracious-edison-jcsvzm`, neema2/legend-lite#52 (its record is under
-  Phase 6).
-- Left: Phase 6's part 2, Phase 7, and the SQL translator's Postgres rules. neema2/legend-lite#43 and #50, which they
-  waited for, landed on 2026-10-17.
+- Phase 6's part 1 landed as neema2/legend-lite#52 (da2dd23). Its part 2 is done on branch
+  `claude/gracious-edison-jcsvzm` (both records are under Phase 6).
+- Left: Phase 7 (the warehouse and the other modules, then the absolute ratchet), the SQL translator's Postgres rules
+  (D11), and defect 11 (SQLite's plan path) in a PR of its own.
 
 (The status of 2026-10-13, on `claude/great-wright-p6t5s1`: Phase 0 done (55569df); Phase 1's 1b steps 1 to 3
 (2a4a5c8, 9373aec, 4a9f1bc, 43ad660), P1a (e64e7e8), P1c (9e6363e to 074bd95), P1d with D8 (0470214 to 1447d42) and
@@ -1107,6 +1107,14 @@ harness, the islands' tests, and what part 1 left. What it did, and where it dep
   launcher's user and settings beside it, so the declared coordinates and the session a test runs on cannot drift
   apart. Trino's and ClickHouse's keep their launchers' URLs: the product opens no session on them.
 - **`PostgresArmTest`** runs on Postgres's backend: its sessions, the connection its models declare, its dialect.
+- **Guards.** `HarnessDisciplineTest` scans the test backends (`DuckDbWorkspaces`' one sort site moved there with
+  it). parser-equivalence's `own_corpus.matched` fell 2882 -> 2875: seven elements of the islands' and lowering
+  tests' models became backend-parameterised.
+
+The ledger after part 2: 37 rows (19 files, 271 lines) left it. Core's and spec's test rows left are the SQL
+translator's two tests' (`SqlParserTest`, `SqlToPureTest`: `protocol/sql/` is not an owner, so they move with the
+translator's Postgres rules, D11). The rest are main code's (`DynaFn`, D10; the translator's three files, D11) and the
+warehouse's tests (Phase 7).
 
 ### Phase 7: the other modules
 
