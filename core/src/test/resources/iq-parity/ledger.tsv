@@ -1186,6 +1186,10 @@ lite/corpus_gaps/between_the_operand_twice@iq17-default	PASS	PASS
 lite/corpus_gaps/an_outer_join_subquery_before_a_windowed_subquery@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/an_order_by_subquery_before_a_windowed_subquery@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_windowed_subquery_before_a_select_expression_subquery@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/ilike_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_array_constructor_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_array_subscript_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_array_of_a_string_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS
@@ -1301,6 +1305,7 @@ lite/iq_engine_aggregates/avg_of_a_numeric_15_2_read_by_arithmetic@iq17-default	
 lite/iq_engine_aggregates/avg_of_a_numeric_17_2@iq17-default	PASS	PASS
 lite/iq_engine_aggregates/avg_of_a_numeric_20_2_grouped@iq17-default	PASS	PASS
 lite/iq_engine_aggregates/avg_of_a_product_of_numerics@iq17-default	REFUSED	REFUSED
+lite/iq_engine_aggregates/avg_of_an_avg_is_refused_by_name@iq17-default	REFUSED	REFUSED
 lite/iq_engine_aggregates/avg_of_a_numeric_15_2_compared_in_having@iq17-default	PASS	PASS
 lite/iq_engine_aggregates/percentiles@iq17-default	PASS	PASS
 lite/iq_engine_aggregates/percentiles_at_the_ends@iq17-default	PASS	PASS

@@ -3377,6 +3377,18 @@ public final class IqParser {
         }
         IqLexer.Token after = at + 1 < tokens.size() && tokens.get(at) == t ? tokens.get(at + 1) : null;
         IqLexer.Token third = after != null && at + 2 < tokens.size() ? tokens.get(at + 2) : null;
+        if (t.isWord("ilike")) {
+            // IQ island, 2026-10-17 (the JOB corpus lane's 35; measured on IQ 17.1): PostgreSQL's ILIKE
+            return new SqlSyntaxException("ILIKE is no syntax of IQ's (it reads LIKE)" + IqDialect.syntaxCode(),
+                    t.pos());
+        }
+        if (bracketed(t) || t.is("as") && before != null && bracketed(before)) {
+            // IQ island, 2026-10-17 (the JOB corpus lane's ARRAY[m.id] AS path, names[1], ARRAY['x']; measured on IQ
+            // 17.1): IQ reads [...] as a name in brackets, so PostgreSQL's arrays are its syntax error where that name
+            // cannot stand
+            return new SqlSyntaxException("'" + t.text() + "' cannot stand here: [...] is a name in brackets to IQ, no"
+                    + " array" + IqDialect.syntaxCode(), t.pos());
+        }
         IqLexer.Token opener = tokens.get(at) == t ? openedBy(at) : null;
         if ((t.is("from") || t.is("for")) && opener != null && opener.isName()) {
             // IQ island, 2026-10-17 (the TPC-H corpus lane's SUBSTRING(s FROM 1 FOR 10), 105 queries; measured on IQ
@@ -3422,6 +3434,11 @@ public final class IqParser {
             return limit(t);
         }
         return SqlSyntaxException.unsupported("'" + t.text() + "' here is not supported", t.pos());
+    }
+
+    /** Whether {@code t} is a name written in brackets ({@code [name]}). */
+    private boolean bracketed(IqLexer.Token t) {
+        return t.kind() == IqLexer.Kind.QUOTED && t.start() < text.length() && text.charAt(t.start()) == '[';
     }
 
     /** The token before the innermost {@code (} left open before token {@code i}; null where none is open, or it opens

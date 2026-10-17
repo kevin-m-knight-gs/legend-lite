@@ -2061,3 +2061,18 @@ tests:
   - id: a_windowed_subquery_before_a_select_expression_subquery
     sql: "SELECT id, (SELECT 1) + 1 AS a FROM t WHERE id IN (SELECT RANK() OVER (ORDER BY id) FROM u)"
     profile: iq17-default
+
+  # ---- PostgreSQL's ILIKE and arrays (IQ island, 2026-10-17; the JOB corpus lane's 60, measured on IQ 17.1): its
+  # syntax error -131 ([...] is a name in brackets to IQ)
+  - id: ilike_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE vc ILIKE 'h%'"
+    profile: iq17-default
+  - id: an_array_constructor_is_a_syntax_error
+    sql: "SELECT ARRAY[id] AS p FROM t"
+    profile: iq17-default
+  - id: an_array_subscript_is_a_syntax_error
+    sql: "SELECT vc[1] AS p FROM t"
+    profile: iq17-default
+  - id: an_array_of_a_string_is_a_syntax_error
+    sql: "SELECT COALESCE(NULL, ARRAY['x']) AS p FROM t"
+    profile: iq17-default

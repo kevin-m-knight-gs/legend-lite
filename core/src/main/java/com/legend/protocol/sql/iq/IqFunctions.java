@@ -2637,10 +2637,16 @@ final class IqFunctions {
      * {@code wholeY}. A quotient of 38 - s digits or more before its point is refused at run time ({@code refusal}):
      * lite's decimals hold no more, where IQ's type does. Null where a step would still need more than 38 digits.
      */
+    /** The most chunks {@link #longQuotient} divides in (2026-10-17: TPC-DS's AVG of an AVG took 19, and its plan did
+     *  not finish in 20 s over empty tables). */
+    private static final int LONG_QUOTIENT_CHUNKS = 3;
+
     static @com.legend.base.Nullable ValueSpecification longQuotient(ValueSpecification x, int s1, int whole1,
             ValueSpecification y, int wholeY, int s, String refusal) {
         int k = 38 - wholeY - s1 - 1;
-        if (k < 1 || s < s1 || s > 37 || whole1 + s1 > 38) {
+        // each chunk reads the rest the one before it leaves, so the expression grows with their count: past three
+        // (a quotient of many places over a dividend of many, an AVG of an AVG) the plan is refused by name
+        if (k < 1 || s < s1 || s > 37 || whole1 + s1 > 38 || (s + k - 1) / k > LONG_QUOTIENT_CHUNKS) {
             return null;
         }
         ValueSpecification ax = SqlToPure.call("abs", x);
