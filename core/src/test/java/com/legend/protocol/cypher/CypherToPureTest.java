@@ -577,6 +577,32 @@ class CypherToPureTest {
         assertTrue(e.getMessage().contains(message), e.getMessage());
     }
 
+    // ------------------------------------------------------------------ the static variable errors (the study's §12.63)
+
+    @Test
+    void theStaticVariableErrorsAreRaisedBeforeAnyClauseIsRead() {
+        // Neo4j's VariableAlreadyBound and VariableTypeConflict over the whole statement, before any clause is
+        // read: each over an unbounded variable-length pattern the clauses would refuse first (W10)
+        invalid("MATCH ()-[r*]->() MATCH (r) RETURN r", "Type mismatch: r defined with conflicting type");
+        invalid("MATCH r = ()-[*]->(), (r) RETURN r", "Type mismatch: r defined with conflicting type");
+        invalid("MATCH (r)-[]-()-[r*]-() RETURN r", "Type mismatch: r defined with conflicting type");
+        invalid("MATCH ()-[r*]->() MATCH ()-[r]->() RETURN r", "Type mismatch: r defined with conflicting type");
+        invalid("WITH 123 AS n MATCH (n)-[*]->() RETURN n", "Type mismatch: n defined with conflicting type");
+        invalid("UNWIND [1, 2] AS x MATCH (x)-[*]->() RETURN x", "Type mismatch: x defined with conflicting type");
+        invalid("MATCH ()-[p*]->() MATCH p = ()-[]-() RETURN p", "Variable `p` already declared");
+        invalid("MATCH p = ()-[p*]-() RETURN p", "Variable `p` already declared");
+        invalid("WITH 'foo' AS p MATCH p = ()-[*]->() RETURN p", "Variable `p` already declared");
+        invalid("MATCH (x:Person)-[*]->() UNWIND [1] AS x RETURN x", "Variable `x` already declared");
+        // a value never conflicts statically (an expression may well be a node), and a node named again as a node
+        // is a bound one: the clauses read on, to their own checks
+        unsupported("MATCH (a:Person) WITH head(collect(a)) AS n MATCH (n)-[*]->() RETURN n", "a variable-length relationship");
+        unsupported("MATCH (a:Person)-[:firm]->(f) MATCH (a)-[*]->() RETURN f", "a variable-length relationship");
+        // a list of variables is a value too (it may list relationships: Match4/[8]'s), a list of literals a literal
+        unsupported("MATCH ()-[r1]->()-[r2]->() WITH [r1, r2] AS rs LIMIT 1 MATCH (first)-[rs*]->(second) RETURN first",
+                "a variable-length relationship");
+        invalid("WITH [[1], 'x'] AS rs MATCH ()-[rs*]->() RETURN rs", "Type mismatch: rs defined with conflicting type");
+    }
+
     // ------------------------------------------------------------------ a time of day (the study's §12.7)
 
     @Test

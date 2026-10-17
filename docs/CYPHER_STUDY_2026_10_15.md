@@ -4360,3 +4360,48 @@ The 15 cases of `lite/twoways.yaml`: 15 PASS on DuckDB, 15 on Postgres, judged b
 typed-two-ways cases: Comparison2/[1], [2] (the harness's), MatchWhere5/[4], WithWhere5/[4] (the island's) PASS; Match4/[4]
 waits for W10 (an unbounded variable-length pattern) and Merge1/[8] for W4. TCK agreement (PASS or BOTH_ERROR over the
 3,880 TCK rows) DuckDB 3442 → 3446, Postgres 3080 → 3084.
+
+### 12.63 The static variable errors, raised before any clause is read (W10 leg 1, 2026-10-17)
+
+Neo4j's semantic analysis raises `VariableAlreadyBound` and `VariableTypeConflict` over the whole statement before
+it plans a clause: `MATCH ()-[r*]->() MATCH (r)` is the conflict, not a question of whether the unbounded pattern
+runs. The island raised the same errors inside the clauses that met the name again (the graph's `bind`, a named
+path's declaration, the continuation's start, UNWIND, YIELD), so an error scenario whose first clause the island
+refuses (an unbounded variable-length pattern, W10's) agreed with the TCK by the refusal, not by the error:
+BOTH_ERROR (the TCK's error met with a refusal) where PASS (the error) is owed. W10's second leg lifts the
+unbounded refusal, and every such scenario would then run to rows and FAIL. The scan comes first.
+
+- **The scan** (`CypherToPure.checkVariableKinds`, before any clause of a statement is read): each clause's
+  bindings and their kind, in order. A MATCH binds its nodes (NODE), its single relationships (REL), its
+  variable-length relationships (RELS: a list), then its path variable (PATH); a WITH or RETURN opens the scope of
+  its items (a bare variable keeps its kind, a literal written out is LITERAL, any other expression a VALUE the
+  scan does not type, `*` keeps every binding); an UNWIND binds a VALUE (a list of literals: LITERAL); a YIELD
+  binds VALUEs. The errors, Neo4j's texts: a name bound as a path, or a pattern's own path variable, named as a
+  node or a relationship, and a node, relationship or value named again as a path, is `Variable `p` already
+  declared` (VariableAlreadyBound); a name bound as one of NODE, REL, RELS or LITERAL and named as another is
+  `Type mismatch: r defined with conflicting type` (VariableTypeConflict); an UNWIND or a YIELD over a bound name
+  is `already declared`. A node or relationship named again as the same kind is a bound one, read again (the
+  clauses' own reads). A VALUE never conflicts here: an expression may well be a node (`WITH head(collect(n)) AS n
+  MATCH (n)`), and the clause's read keeps its check.
+- **Compare, never compute** (`docs/WORLD_MAP.md`): the scan reads names and shapes of the statement; it types no
+  expression (a literal is its own shape).
+- **Pinned.** `lite/varkinds.yaml`: 16 cases judged by Neo4j (a relationship, a path and a literal named
+  as a node, a node and a literal list named as a relationship, a variable-length named as a single relationship, a
+  relationship, a literal and a value named as a path, a path bound again in its own pattern, an unwound literal
+  named as a node, an UNWIND over a bound name, a node bound again read again, a name dropped by a WITH bound
+  afresh, a node carried by `WITH *` named as a variable-length, a list of relationships named as a variable-length
+  reading on: a list of variables is a value, Match4/[8]'s, where a list of literals is a literal); `CypherToPureTest`
+  pins the scan's errors over an unbounded pattern (the error, not the refusal). The TCK's Match1/[7]-[11], Match2/[9]-[13], Match6/[21]-[25]
+  (250 rows) stay in agreement; the ones an unbounded or deep pattern refused first now raise the error.
+
+#### 12.63.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4750 | 3535 (from 3,533) | 0 | 0 | 0 | 388 (from 387) | 746 (from 733) | 81 (from 81) |
+| Postgres | 4750 | 3162 (from 3,160) | 0 | 0 | 0 | 761 (from 760) | 746 (from 733) | 81 (from 81) |
+
+The 16 cases of `lite/varkinds.yaml`: 15 on DuckDB, 15 on Postgres in agreement with Neo4j (the error
+scenarios BOTH_ERROR, the reading ones PASS). No TCK row moves: the 250 error scenarios of Match1/[7]-[11], Match2/[9]-[13]
+and Match6/[21]-[25] agreed by the refusal and agree by the error. TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK
+rows) DuckDB 3446 → 3446, Postgres 3084 → 3084.

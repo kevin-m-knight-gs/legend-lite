@@ -858,6 +858,122 @@ public final class CypherToPure {
         return statementRows(s).vs();
     }
 
+    /** What a clause binds a variable as (the study's §12.63): a node, a relationship, the relationships of a
+     *  variable-length pattern (a list), a path, a literal (a boolean, a number, a string, a list or a map written
+     *  out: never a node, a relationship or a path), or a value whose kind the scan does not type (an expression's). */
+    private enum VarKind { NODE, REL, RELS, PATH, LITERAL, VALUE }
+
+    /**
+     * Neo4j's static variable errors over the whole statement, raised before any clause is read (the study's
+     * §12.63), so an error scenario is the error, never a refusal a clause meets first (an unbounded
+     * variable-length pattern): a path variable bound again, or a relationship variable named as a path, is
+     * VariableAlreadyBound ({@code Variable `p` already declared}); a variable bound as a node, a relationship, a
+     * variable-length relationship or a path, then named as another of those, is VariableTypeConflict
+     * ({@code Type mismatch: r defined with conflicting type}), as is a literal named as any of them ({@code WITH
+     * 123 AS n MATCH (n)}: a literal is never a node); an UNWIND or a YIELD over a bound name is
+     * VariableAlreadyBound. A WITH or RETURN opens the scope of its items (a bare variable keeps its kind, a
+     * literal is a literal, any other expression a value the scan does not type, {@code *} keeps every binding);
+     * an UNWIND of a list of literals binds a literal.
+     * A value never conflicts here (an expression may well be a node: {@code WITH head(collect(n)) AS n MATCH
+     * (n)}); the clauses' own reads keep their checks.
+     */
+    private static void checkVariableKinds(List<Clause> clauses) {
+        Map<String, VarKind> bound = new LinkedHashMap<>();
+        for (Clause c : clauses) {
+            switch (c) {
+                case CypherAst.Match m -> {
+                    for (PathPattern p : m.patterns()) {
+                        for (PatternElement e : p.elements()) {
+                            if (e instanceof NodePattern n && n.variable() != null && !hidden(n.variable())) {
+                                bindKind(bound, n.variable(), VarKind.NODE, p.variable(), n.pos());
+                            } else if (e instanceof RelPattern r && r.variable() != null && !hidden(r.variable())) {
+                                bindKind(bound, r.variable(), r.lengthRange() == null ? VarKind.REL : VarKind.RELS,
+                                        p.variable(), r.pos());
+                            }
+                        }
+                        if (p.variable() != null && !hidden(p.variable())) {
+                            if (bound.containsKey(p.variable())) {
+                                throw CypherErrors.invalid("Variable `" + p.variable() + "` already declared",
+                                        p.pos());
+                            }
+                            bound.put(p.variable(), VarKind.PATH);
+                        }
+                    }
+                }
+                case CypherAst.Unwind u -> {
+                    if (bound.containsKey(u.variable())) {
+                        throw CypherErrors.invalid("Variable `" + u.variable() + "` already declared", u.pos());
+                    }
+                    bound.put(u.variable(), u.list() instanceof CypherAst.ListLit l && !l.elements().isEmpty()
+                            && l.elements().stream().allMatch(CypherToPure::literal) ? VarKind.LITERAL : VarKind.VALUE);
+                }
+                case CypherAst.With w -> bound = projected(w.items(), bound);
+                case CypherAst.Return r -> bound = projected(r.items(), bound);
+                case CypherAst.ProcedureCall pc -> {
+                    if (pc.yields() != null) {
+                        for (CypherAst.YieldItem y : pc.yields()) {
+                            String as = y.alias() != null ? y.alias() : y.name();
+                            if (bound.containsKey(as)) {
+                                throw CypherErrors.invalid("Variable `" + as + "` already declared", y.pos());
+                            }
+                            bound.put(as, VarKind.VALUE);
+                        }
+                    }
+                }
+                case CypherAst.Use u -> { }
+                case CypherAst.OtherClause o -> { }
+            }
+        }
+    }
+
+    /** The scope a WITH or RETURN opens: its items' names, a bare variable keeping its kind, an expression a
+     *  value; {@code *} every binding in hand. */
+    private static Map<String, VarKind> projected(List<Item> items, Map<String, VarKind> before) {
+        Map<String, VarKind> after = new LinkedHashMap<>();
+        for (Item it : items) {
+            if (it.expr() == null) {
+                after.putAll(before);
+                continue;
+            }
+            String name = it.alias() != null ? it.alias() : it.expr() instanceof CypherAst.Var v ? v.name() : null;
+            if (name == null) {
+                continue;
+            }
+            VarKind kind = it.expr() instanceof CypherAst.Var v && before.containsKey(v.name()) ? before.get(v.name())
+                    : literal(it.expr()) ? VarKind.LITERAL : VarKind.VALUE;
+            after.put(name, kind);
+        }
+        return after;
+    }
+
+    /** A value written out, whose kind is never a node's, a relationship's or a path's: a boolean, a number, a
+     *  string, a map, or a list of such (a list of variables may list relationships, {@code WITH [r1, r2] AS rs
+     *  MATCH ()-[rs*]->()}: a value; a null conforms to any). */
+    private static boolean literal(Expr e) {
+        return e instanceof CypherAst.IntLit || e instanceof CypherAst.FloatLit || e instanceof CypherAst.StringLit
+                || e instanceof CypherAst.BoolLit || e instanceof CypherAst.MapLit
+                || e instanceof CypherAst.ListLit l && l.elements().stream().allMatch(CypherToPure::literal);
+    }
+
+    /** A pattern element's variable bound as {@code kind}: the pattern's own path variable, or a name bound as a
+     *  path, is VariableAlreadyBound; a name bound as another of node, relationship or relationships, or as a
+     *  literal, is VariableTypeConflict; a node or relationship named again as the same kind is a bound one, read
+     *  again. */
+    private static void bindKind(Map<String, VarKind> bound, String name, VarKind kind,
+            @com.legend.base.Nullable String pathVariable, Pos pos) {
+        if (name.equals(pathVariable)) {
+            throw CypherErrors.invalid("Variable `" + name + "` already declared", pos);
+        }
+        VarKind before = bound.get(name);
+        if (before == null || before == VarKind.VALUE) {
+            bound.put(name, kind);
+            return;
+        }
+        if (before != kind) {
+            throw CypherErrors.invalid("Type mismatch: " + name + " defined with conflicting type", pos);
+        }
+    }
+
     /** {@code rows} with the column at {@code at}, an untyped null, re-projected as the null of {@code kind}: every
      *  column read as itself, that one spelled typed. */
     private static Rows retyped(Rows rows, int at, Kind kind) {
@@ -965,6 +1081,7 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Query cannot conclude with UNION (must be a RETURN clause, a FINISH clause,"
                     + " an update clause, a unit subquery call, or a procedure call with no YIELD)", pos);
         }
+        checkVariableKinds(clauses);
         for (int i = 0; i < clauses.size(); i++) {
             Clause c = clauses.get(i);
             boolean last = i == clauses.size() - 1;

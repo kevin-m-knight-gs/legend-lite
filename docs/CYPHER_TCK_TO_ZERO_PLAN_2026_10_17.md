@@ -258,6 +258,10 @@ missing parameter or a yield of nothing. Two legs.
 A recursion native in the MIR (`WITH RECURSIVE` on every dialect that has it; a bound of the recursion's depth as
 the dialect's guard), the island spelling an unbounded or deep pattern as the recursion over the association's
 join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver work.
+- Leg 1 LANDED 2026-10-17 (the study's §12.63, GATES' sixty-first landing; TCK agreement DuckDB 3446 → 3446, Postgres 3084 → 3084; DuckDB PASS 3,533 → 3535, Postgres 3,160 → 3162): Neo4j's static variable
+  errors (VariableAlreadyBound, VariableTypeConflict) raised over the whole statement before any clause is read,
+  so the 250 error scenarios of Match1, Match2 and Match6 stay in agreement when leg 2 lifts the unbounded
+  refusal; `lite/varkinds.yaml`. No TCK row moves (the error scenarios agreed by the refusal; now by the error).
 
 ### W11. Variants of no known shape
 

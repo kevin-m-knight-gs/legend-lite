@@ -9932,6 +9932,27 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the sixty-first landing — the static variable errors before any clause (W10 leg 1)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, leg 1); the record is the study's §12.63. Neo4j's
+VariableAlreadyBound and VariableTypeConflict raised over the whole statement before any clause is read, so an error
+scenario is the error and never a refusal a clause meets first (an unbounded variable-length pattern, which W10's
+second leg lifts).
+
+1. **What lands.** No TCK row moves: the 250 error scenarios of Match1/[7]-[11], Match2/[9]-[13] and Match6/[21]-[25] agreed
+   by the refusal of the unbounded or deep pattern they hold and agree by Neo4j's error, raised first; the 16
+   cases of `lite/varkinds.yaml`; DuckDB PASS 3,533 → 3535, Postgres 3,160 → 3162; TCK agreement DuckDB
+   3446 → 3446, Postgres 3084 → 3084.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3535 / REFUSED 388 / BOTH_ERROR
+   746 / SKIP 81; Postgres PASS 3162 / REFUSED 761 / BOTH_ERROR 746 / SKIP
+   81, of 4750 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest` pins the scan (a relationship, a path and a literal named as a node, a node named
+   as a relationship, a node named as a path, a path bound again, an UNWIND over a bound name: each over an
+   unbounded pattern, the error raised and not the refusal; a value named as a node reads on).
+4. **Refused by name, recorded.** None new: the scan raises errors; what it does not type (an expression's kind) the
+   clauses' own reads keep refusing or raising as before.
+
 ## 2026-10-17 — `#Cypher{...}#`: the sixtieth landing — a property typed two ways (W7)
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W7); the record is the study's §12.62. A property whose
