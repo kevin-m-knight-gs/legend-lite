@@ -111,7 +111,7 @@ class CypherIslandIntegrationTest {
             ###Pure
             Profile graph::graph
             {
-               stereotypes: [Edge, Open, from, to, type];
+               stereotypes: [Anonymous, Edge, Open, from, to, type];
             }
             ###DataSpace
             DataSpace <<graph::graph.Open>> test::G

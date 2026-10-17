@@ -208,7 +208,7 @@ tck/clauses/match-where/MatchWhere6/[7] Join nodes on non-equality of properties
 tck/clauses/match-where/MatchWhere6/[8] Join nodes on non-equality of properties – Two OPTIONAL MATCH clauses and WHERE	PASS	PASS
 tck/clauses/match/Match1/[1] Match non-existent nodes returns empty	PASS	PASS
 tck/clauses/match/Match1/[2] Matching all nodes	PASS	PASS
-tck/clauses/match/Match1/[3] Matching nodes using multiple labels	SKIP	SKIP
+tck/clauses/match/Match1/[3] Matching nodes using multiple labels	PASS	PASS
 tck/clauses/match/Match1/[4] Simple node inline property predicate	PASS	PASS
 tck/clauses/match/Match1/[5] Use multiple MATCH clauses to do a Cartesian product	PASS	PASS
 tck/clauses/match/Match1/[6] Fail when using parameter as node predicate in MATCH	BOTH_ERROR	BOTH_ERROR
@@ -384,7 +384,7 @@ tck/clauses/match/Match3/[3] Undirected match on simple relationship graph	PASS	
 tck/clauses/match/Match3/[4] Get two related nodes	PASS	PASS
 tck/clauses/match/Match3/[5] Return two subgraphs with bound undirected relationship	PASS	PASS
 tck/clauses/match/Match3/[6] Matching a relationship pattern using a label predicate	PASS	PASS
-tck/clauses/match/Match3/[7] Matching nodes with many labels	SKIP	SKIP
+tck/clauses/match/Match3/[7] Matching nodes with many labels	PASS	PASS
 tck/clauses/match/Match3/[8] Matching using relationship predicate with multiples of the same type	PASS	PASS
 tck/clauses/match/Match3/[9] Get related to related to	PASS	PASS
 tck/clauses/match/Match3/[10] Matching using self-referencing pattern returns no result	REFUSED	REFUSED
@@ -403,7 +403,7 @@ tck/clauses/match/Match3/[22] Returning bound nodes that are not part of the pat
 tck/clauses/match/Match3/[23] Matching disconnected patterns	PASS	PASS
 tck/clauses/match/Match3/[24] Matching twice with duplicate relationship types on same relationship	PASS	PASS
 tck/clauses/match/Match3/[25] Matching twice with an additional node label	PASS	PASS
-tck/clauses/match/Match3/[26] Matching twice with a duplicate predicate	SKIP	SKIP
+tck/clauses/match/Match3/[26] Matching twice with a duplicate predicate	PASS	PASS
 tck/clauses/match/Match3/[27] Matching from null nodes should return no results owing to finding no matches	PASS	PASS
 tck/clauses/match/Match3/[28] Matching from null nodes should return no results owing to matches being filtered out	PASS	PASS
 tck/clauses/match/Match3/[29] Fail when re-using a relationship in the same pattern	REFUSED	REFUSED
@@ -412,7 +412,7 @@ tck/clauses/match/Match4/[1] Handling fixed-length variable length pattern	PASS	
 tck/clauses/match/Match4/[2] Simple variable length pattern	REFUSED	REFUSED
 tck/clauses/match/Match4/[3] Zero-length variable length pattern in the middle of the pattern	PASS	PASS
 tck/clauses/match/Match4/[4] Matching longer variable length paths	SKIP	SKIP
-tck/clauses/match/Match4/[5] Matching variable length pattern with property predicate	SKIP	SKIP
+tck/clauses/match/Match4/[5] Matching variable length pattern with property predicate	REFUSED	REFUSED
 tck/clauses/match/Match4/[6] Matching variable length patterns from a bound node	REFUSED	REFUSED
 tck/clauses/match/Match4/[7] Matching variable length patterns including a bound relationship	REFUSED	REFUSED
 tck/clauses/match/Match4/[8] Matching relationships into a list and matching variable length using the list	REFUSED	REFUSED
@@ -566,7 +566,7 @@ tck/clauses/match/Match7/[19] Optionally matching named paths with single and va
 tck/clauses/match/Match7/[20] Variable length optional relationships with bound nodes, no matches	REFUSED	REFUSED
 tck/clauses/match/Match7/[21] Handling optional matches between nulls	PASS	PASS
 tck/clauses/match/Match7/[22] MATCH after OPTIONAL MATCH	REFUSED	REFUSED
-tck/clauses/match/Match7/[23] OPTIONAL MATCH with labels on the optional end node	SKIP	SKIP
+tck/clauses/match/Match7/[23] OPTIONAL MATCH with labels on the optional end node	PASS	PASS
 tck/clauses/match/Match7/[24] Optionally matching self-loops	PASS	PASS
 tck/clauses/match/Match7/[25] Optionally matching self-loops without matches	PASS	PASS
 tck/clauses/match/Match7/[26] Handling correlated optional matches; first does not match implies second does not match	REFUSED	REFUSED
@@ -596,7 +596,7 @@ tck/clauses/merge/Merge1/[6] Merge node with prop and label	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[7] Merge should work when finding multiple elements	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[8] Merge should handle argument properly	SKIP	SKIP
 tck/clauses/merge/Merge1/[9] Merge should support updates while merging	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[10] Merge must properly handle multiple labels	SKIP	SKIP
+tck/clauses/merge/Merge1/[10] Merge must properly handle multiple labels	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[11] Merge should be able to merge using property of bound node	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[12] Merge should be able to merge using property of freshly created node	REFUSED	REFUSED
 tck/clauses/merge/Merge1/[13] Merge should bind a path	REFUSED	REFUSED
@@ -670,8 +670,8 @@ tck/clauses/remove/Remove1/[5] Ignore null when removing property from a node	RE
 tck/clauses/remove/Remove1/[6] Ignore null when removing property from a relationship	REFUSED	REFUSED
 tck/clauses/remove/Remove1/[7] Remove a missing node property	REFUSED	REFUSED
 tck/clauses/remove/Remove2/[1] Remove a single label from a node with a single label	REFUSED	REFUSED
-tck/clauses/remove/Remove2/[2] Remove a single label from a node with two labels	SKIP	SKIP
-tck/clauses/remove/Remove2/[3] Remove two labels from a node with three labels	SKIP	SKIP
+tck/clauses/remove/Remove2/[2] Remove a single label from a node with two labels	REFUSED	REFUSED
+tck/clauses/remove/Remove2/[3] Remove two labels from a node with three labels	REFUSED	REFUSED
 tck/clauses/remove/Remove2/[4] Remove a non-existent node label	REFUSED	REFUSED
 tck/clauses/remove/Remove2/[5] Ignore null when removing a node label	REFUSED	REFUSED
 tck/clauses/remove/Remove3/[1] Limiting to zero results after removing a property from nodes affects the result set but not the side effects	REFUSED	REFUSED
@@ -1537,10 +1537,10 @@ tck/expressions/graph/Graph3/[2] Creating node with two labels	REFUSED	REFUSED
 tck/expressions/graph/Graph3/[3] Ignore space when creating node with labels	REFUSED	REFUSED
 tck/expressions/graph/Graph3/[4] Create node with label in pattern	REFUSED	REFUSED
 tck/expressions/graph/Graph3/[5] Using `labels()` in return clauses	PASS	PASS
-tck/expressions/graph/Graph3/[6] `labels()` should accept type Any	SKIP	SKIP
+tck/expressions/graph/Graph3/[6] `labels()` should accept type Any	PASS	PASS
 tck/expressions/graph/Graph3/[7] `labels()` on null node	PASS	PASS
-tck/expressions/graph/Graph3/[8] `labels()` failing on a path	SKIP	SKIP
-tck/expressions/graph/Graph3/[9] `labels()` failing on invalid arguments	SKIP	SKIP
+tck/expressions/graph/Graph3/[8] `labels()` failing on a path	BOTH_ERROR	BOTH_ERROR
+tck/expressions/graph/Graph3/[9] `labels()` failing on invalid arguments	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph4/[1] `type()`	PASS	PASS
 tck/expressions/graph/Graph4/[2] `type()` on two relationships	PASS	PASS
 tck/expressions/graph/Graph4/[3] `type()` on null relationship	PASS	PASS
@@ -1552,14 +1552,14 @@ tck/expressions/graph/Graph4/[6] `type()` failing on invalid arguments #3	BOTH_E
 tck/expressions/graph/Graph4/[6] `type()` failing on invalid arguments #4	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph4/[6] `type()` failing on invalid arguments #5	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph4/[7] Failing when using `type()` on a node	BOTH_ERROR	BOTH_ERROR
-tck/expressions/graph/Graph5/[1] Single-labels expression on nodes	SKIP	SKIP
+tck/expressions/graph/Graph5/[1] Single-labels expression on nodes	PASS	PASS
 tck/expressions/graph/Graph5/[2] Single-labels expression on relationships	SKIP	SKIP
-tck/expressions/graph/Graph5/[3] Conjunctive labels expression on nodes	SKIP	SKIP
-tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #1	SKIP	SKIP
-tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #2	SKIP	SKIP
-tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #3	SKIP	SKIP
-tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #4	SKIP	SKIP
-tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #5	SKIP	SKIP
+tck/expressions/graph/Graph5/[3] Conjunctive labels expression on nodes	PASS	PASS
+tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #1	PASS	PASS
+tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #2	PASS	PASS
+tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #3	PASS	PASS
+tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #4	PASS	PASS
+tck/expressions/graph/Graph5/[4] Conjunctive labels expression on nodes with varying order and repeating labels #5	PASS	PASS
 tck/expressions/graph/Graph5/[5] Label expression on null	PASS	PASS
 tck/expressions/graph/Graph6/[1] Statically access a property of a non-null node	PASS	PASS
 tck/expressions/graph/Graph6/[2] Statically access a property of a optional non-null node	PASS	PASS
@@ -4188,6 +4188,23 @@ lite/labels/a_relationship_of_several_types_from_a_labelless_node	PASS	PASS
 lite/labels/a_type_spelled_twice_is_one_type	PASS	PASS
 lite/labels/label_predicate_in_parentheses	PASS	PASS
 lite/labels/label_predicate_in_a_list	PASS	PASS
+lite/labelsets/a_label_reads_its_class_and_the_subclasses	PASS	PASS
+lite/labelsets/two_labels_read_the_classes_carrying_both	PASS	PASS
+lite/labelsets/two_labels_in_either_order	PASS	PASS
+lite/labelsets/labels_of_a_node_with_two_labels	PASS	PASS
+lite/labelsets/a_label_predicate_over_a_node_with_two_labels	PASS	PASS
+lite/labelsets/a_node_value_with_two_labels	PASS	PASS
+lite/labelsets/a_node_value_with_many_labels	PASS	PASS
+lite/labelsets/a_typed_hop_from_a_label_with_subclasses	PASS	PASS
+lite/labelsets/an_untyped_hop_to_a_label_with_subclasses	PASS	PASS
+lite/labelsets/an_optional_match_to_a_label_with_subclasses	PASS	PASS
+lite/labelsets/a_bound_node_rematched_with_a_label_of_its_set	PASS	PASS
+lite/labelsets/a_bound_node_rematched_with_a_label_it_lacks	PASS	PASS
+lite/labelsets/labels_of_an_unlabelled_node	PASS	PASS
+lite/labelsets/a_property_only_the_two_labelled_nodes_hold	PASS	PASS
+lite/labelsets/a_label_set_class_is_no_label	PASS	PASS
+lite/labelsets/a_count_over_a_label_with_subclasses	PASS	PASS
+lite/labelsets/a_label_set_no_node_carries	PASS	PASS
 lite/nodes/node_of_one_class	PASS	PASS
 lite/nodes/nodes_of_every_class	PASS	PASS
 lite/nodes/node_with_order_and_limit	PASS	PASS

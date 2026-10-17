@@ -59,22 +59,63 @@ public final class CypherIslands {
         }
     }
 
-    /** The classes of the model by their simple names, computed once per model: what a label names. */
-    record Labels(Map<String, List<String>> bySimpleName) {
+    /** The classes of the model by their simple names (what a label names: an anonymous class, one carrying
+     *  {@code <<graph.Anonymous>>}, is named by no label), every class in a fixed order, and each class's label set
+     *  (its own simple name unless anonymous, then its superclasses' sets in declaration order, each label once:
+     *  the study's §12.61), computed once per model. */
+    record Labels(Map<String, List<String>> bySimpleName, List<String> all, Map<String, List<String>> sets) {
 
         static Labels of(ModelContext model) {
             Map<String, List<String>> out = new TreeMap<>();
+            List<String> all = new ArrayList<>();
+            java.util.Set<String> anonymous = new java.util.HashSet<>();
             for (String fqn : new java.util.TreeSet<>(model.elementFqns())) {
                 if (model.findClass(fqn).isEmpty()) {
                     continue;
                 }
-                int i = fqn.lastIndexOf("::");
-                String simple = i < 0 ? fqn : fqn.substring(i + 2);
-                out.computeIfAbsent(simple, k -> new ArrayList<>()).add(fqn);
+                all.add(fqn);
+                if (model.findClassDefinition(fqn).map(cd -> cd.stereotypes().stream().anyMatch(st -> com.legend
+                        .compiler.element.type.PlatformTypes.isProfile(st.profileName(), com.legend.compiler.element
+                        .type.PlatformTypes.GRAPH_PROFILE) && "Anonymous".equals(st.stereotypeName())))
+                        .orElse(false)) {
+                    anonymous.add(fqn);
+                    continue;
+                }
+                out.computeIfAbsent(simpleName(fqn), k -> new ArrayList<>()).add(fqn);
+            }
+            Map<String, List<String>> sets = new TreeMap<>();
+            for (String fqn : all) {
+                sets.put(fqn, List.copyOf(labelSet(model, fqn, anonymous, new java.util.LinkedHashSet<>(),
+                        new java.util.HashSet<>())));
             }
             Map<String, List<String>> frozen = new TreeMap<>();
             out.forEach((k, v) -> frozen.put(k, List.copyOf(v)));
-            return new Labels(java.util.Collections.unmodifiableMap(frozen));
+            return new Labels(java.util.Collections.unmodifiableMap(frozen), List.copyOf(all),
+                    java.util.Collections.unmodifiableMap(sets));
+        }
+
+        private static String simpleName(String fqn) {
+            int i = fqn.lastIndexOf("::");
+            return i < 0 ? fqn : fqn.substring(i + 2);
+        }
+
+        /** The class's label set into {@code out}: its own simple name unless anonymous, then each superclass's
+         *  (a class reached twice, a diamond, contributes once; a cycle is phase F's own error). */
+        private static java.util.Set<String> labelSet(ModelContext model, String fqn, java.util.Set<String> anonymous,
+                java.util.Set<String> out, java.util.Set<String> seen) {
+            if (!seen.add(fqn)) {
+                return out;
+            }
+            if (!anonymous.contains(fqn)) {
+                out.add(simpleName(fqn));
+            }
+            com.legend.compiler.element.TypedClass tc = model.findClass(fqn).orElse(null);
+            if (tc != null) {
+                for (String s : tc.superClassFqns()) {
+                    labelSet(model, s, anonymous, out, seen);
+                }
+            }
+            return out;
         }
     }
 
@@ -257,14 +298,12 @@ public final class CypherIslands {
         }
 
         @Override
-        public String labelOf(String classPath) {
-            for (Map.Entry<String, List<String>> e : model.derived(Labels.class, Labels::of).bySimpleName()
-                    .entrySet()) {
-                if (e.getValue().contains(classPath)) {
-                    return e.getKey();
-                }
+        public List<String> labels(String classPath) {
+            List<String> set = model.derived(Labels.class, Labels::of).sets().get(classPath);
+            if (set == null) {
+                throw new IllegalArgumentException("no class of the model at " + classPath);
             }
-            throw new IllegalArgumentException("no class of the model at " + classPath);
+            return set;
         }
 
         @Override
@@ -272,8 +311,7 @@ public final class CypherIslands {
             // the model's own classes: the platform's declarations (the resolver's type universe and the system
             // metamodel's elements, by their declared names) are never nodes, nor is an edge class (a relationship
             // type, the study's §5.6)
-            List<String> out = new ArrayList<>();
-            model.derived(Labels.class, Labels::of).bySimpleName().values().forEach(out::addAll);
+            List<String> out = new ArrayList<>(model.derived(Labels.class, Labels::of).all());
             GraphEdges edges = model.derived(GraphEdges.class, GraphEdges::of);
             out.removeIf(c -> com.legend.compiler.NameResolver.platformFqns().contains(c)
                     || com.legend.builtin.SystemMetamodel.elementFqns().contains(c) || edges.edgeAt(c) != null

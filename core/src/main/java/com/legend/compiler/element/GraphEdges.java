@@ -44,7 +44,7 @@ import java.util.stream.Stream;
  * disagree are errors; an association linking an edge class by an end carrying neither marker is a third link,
  * refused (a relationship has two ends); a to-many property holding a class is refused on an edge; a derived
  * end ({@code <<graph.from>> from() {...}}) is not read yet, refused by name; the profile at
- * {@link PlatformTypes#GRAPH_PROFILE} must be declared with exactly the five stereotypes ({@link #STEREOTYPES}). The engine checks every
+ * {@link PlatformTypes#GRAPH_PROFILE} must be declared with exactly the six stereotypes ({@link #STEREOTYPES}). The engine checks every
  * reference in the declaration; only lite checks the rule, since only lite runs the island. The Cypher seam reads
  * the result as a derived view of the model ({@code ModelContext.derived}).
  */
@@ -365,10 +365,12 @@ public record GraphEdges(List<Edge> edges) {
 
     /** The stereotypes the profile declares, and no tag: {@code Edge}, {@code from}, {@code to}, {@code type} (the
      *  edge classes, §5.6) and {@code Open} (2026-10-17, §12.45: on a DataSpace, the graph a Cypher island's
-     *  {@code USE} names, open; the Cypher seam reads it, this reader only checks the declaration). */
-    public static final List<String> STEREOTYPES = List.of("Edge", "Open", "from", "to", "type");
+     *  {@code USE} names, open; the Cypher seam reads it, this reader only checks the declaration) and
+     *  {@code Anonymous} (2026-10-17, §12.61: on a class, its name is no label, its instances carry its
+     *  superclasses' labels alone; the Cypher seam reads it, this reader only checks the declaration). */
+    public static final List<String> STEREOTYPES = List.of("Anonymous", "Edge", "Open", "from", "to", "type");
 
-    /** The profile at its path, declaring exactly the five stereotypes and no tag: checked for each edge class
+    /** The profile at its path, declaring exactly the six stereotypes and no tag: checked for each edge class
      *  (the island reads the stereotypes by the profile's full name). */
     private static void checkProfile(Source src, ClassDefinition cd) {
         ProfileDefinition p = src.findProfile(PlatformTypes.GRAPH_PROFILE).orElse(null);

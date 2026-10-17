@@ -30,8 +30,10 @@ import java.util.regex.Pattern;
  * two associations ({@code <<graph::graph.from>> from} with the start class's {@code T_out}, {@code <<graph::graph.to>>
  * to} with the end class's {@code T_in}), over a bridge table {@code r_t} (one row per relationship, its id the
  * key). The lanes seed the tables from the dump and never interpret a {@code CREATE}. What the inference cannot
- * model yet is said by name ({@link Unsupported}), and the case is SKIP in the ledger with that reason: a node with
- * several labels and a relationship type between several class pairs wait for PR3's inheritance.
+ * model yet is said by name ({@link Unsupported}), and the case is SKIP in the ledger with that reason (a property
+ * typed two ways across a label's nodes, a stored zoned or nanosecond value). A node of several labels is an
+ * instance of an anonymous class per label set extending each label's class (the study's §12.61); a relationship
+ * type between several class pairs is one edge class per pair (§5.6).
  */
 public final class CypherGraph {
 
@@ -59,47 +61,28 @@ public final class CypherGraph {
 
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
-    /** The class of the nodes without a label. */
+    /** The class of the nodes without a label: anonymous (the study's §12.61), so the island reads no label on
+     *  its instances. */
     private static final String UNLABELLED = "Unlabelled";
-
-    /** A value lite returned, its node labels as Neo4j's: the class of the unlabelled nodes is no label -- on a node,
-     *  and as the one element of a {@code labels(n)} list (the harness refuses a graph that labels a node so, above,
-     *  so the list is its own). */
-    static CypherValues.Value ownLabels(CypherValues.Value v) {
-        if (v instanceof CypherValues.Node n && n.labels().size() == 1 && n.labels().first().equals(UNLABELLED)) {
-            return new CypherValues.Node(new java.util.TreeSet<>(), n.props());
-        }
-        if (v instanceof CypherValues.Lst l && l.items().size() == 1 && l.items().get(0) instanceof CypherValues.Str s
-                && s.value().equals(UNLABELLED)) {
-            return new CypherValues.Lst(List.of());
-        }
-        // a node inside a list, a map or a path (the study's §12.25, §12.27) is read the same way
-        if (v instanceof CypherValues.Lst l) {
-            return new CypherValues.Lst(l.items().stream().map(CypherGraph::ownLabels).toList());
-        }
-        if (v instanceof CypherValues.Mp m) {
-            Map<String, CypherValues.Value> entries = new TreeMap<>();
-            m.entries().forEach((k, x) -> entries.put(k, ownLabels(x)));
-            return new CypherValues.Mp(entries);
-        }
-        if (v instanceof CypherValues.Path p) {
-            return new CypherValues.Path(p.nodes().stream().map(CypherGraph::ownLabels).toList(), p.rels(),
-                    p.forward());
-        }
-        return v;
-    }
 
     private static final class Cls {
         final String name;
         final String table;
+        /** Whether the class's name is no label ({@code <<graph.Anonymous>>}: the class of a label set, or of the
+         *  unlabelled nodes). */
+        final boolean anonymous;
+        /** The label classes an anonymous label-set class extends (none for a label's own class). */
+        final List<String> supers;
         final Map<String, String> propertyTypes = new TreeMap<>();
         final Set<String> keys = new HashSet<>();
         final List<CypherAnswers.GraphNode> nodes = new ArrayList<>();
         final Map<String, String> fkColumns = new LinkedHashMap<>();   // end name -> column
         final List<String> ends = new ArrayList<>();                   // "T: g::Dst[0..1];"
 
-        Cls(String name) {
+        Cls(String name, boolean anonymous, List<String> supers) {
             this.name = name;
+            this.anonymous = anonymous;
+            this.supers = List.copyOf(supers);
             this.table = "n_" + name.toLowerCase(Locale.ROOT);
         }
     }
@@ -154,29 +137,45 @@ public final class CypherGraph {
     private static final String RELATIONSHIP_TYPE = "g::RelationshipType";
 
     /** The property-graph profile, as projects/graph/model.pure declares it (inlined: the model is one text). */
-    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Edge, Open, from, to, type];\n}\n";
+    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Anonymous, Edge, Open, from, to, type];\n}\n";
 
     public static Inferred infer(CypherAnswers.Graph g) throws Unsupported {
         Map<String, Cls> classes = new TreeMap<>();
         Map<Integer, Cls> classOfNode = new HashMap<>();
         Map<String, String> tableOwner = new HashMap<>();
+        // a node's class is its label set's (the study's §12.61): the label's own class for a label no node carries
+        // among others; else an anonymous class per set (named N_ and its labels, its name no label) extending each
+        // label's class, which then holds no node of its own (a marker every class of its sets extends: so an
+        // association is always a leaf class's, never inherited)
+        Set<String> labels = new HashSet<>();
+        Set<String> amongOthers = new HashSet<>();
         for (CypherAnswers.GraphNode n : g.nodes()) {
+            labels.addAll(n.labels());
             if (n.labels().size() > 1) {
-                throw new Unsupported("harness: a node with several labels (" + String.join(":", n.labels())
-                        + ") waits for PR3's inheritance");
+                amongOthers.addAll(n.labels());
             }
-            String label = n.labels().isEmpty() ? UNLABELLED : n.labels().get(0);
-            if (!n.labels().isEmpty() && label.equals(UNLABELLED)) {
-                throw new Unsupported("harness: the label " + UNLABELLED + " is the class of the unlabelled nodes");
+        }
+        for (CypherAnswers.GraphNode n : g.nodes()) {
+            List<String> set = new ArrayList<>(new java.util.TreeSet<>(n.labels()));
+            for (String label : set) {
+                if (label.equals(UNLABELLED)) {
+                    throw new Unsupported("harness: the label " + UNLABELLED + " is the class of the unlabelled"
+                            + " nodes");
+                }
+                if (!IDENTIFIER.matcher(label).matches()) {
+                    throw new Unsupported("harness: the label " + label + " is not a Pure identifier");
+                }
+                if (amongOthers.contains(label)) {
+                    declare(classes, tableOwner, label, false, List.of());
+                }
             }
-            if (!IDENTIFIER.matcher(label).matches()) {
-                throw new Unsupported("harness: the label " + label + " is not a Pure identifier");
+            boolean own = set.size() == 1 && !amongOthers.contains(set.get(0));
+            String name = set.isEmpty() ? UNLABELLED : own ? set.get(0) : "N_" + String.join("_", set);
+            if (!own && labels.contains(name)) {
+                throw new Unsupported("harness: the label " + name + " is the class the model makes up for the label"
+                        + " set " + String.join(":", set));
             }
-            Cls c = classes.computeIfAbsent(label, Cls::new);
-            String owner = tableOwner.putIfAbsent(c.table, label);
-            if (owner != null && !owner.equals(label)) {
-                throw new Unsupported("harness: the labels " + owner + " and " + label + " differ only in case");
-            }
+            Cls c = declare(classes, tableOwner, name, !own, own ? List.of() : set);
             c.nodes.add(n);
             classOfNode.put(n.id(), c);
             for (Map.Entry<String, String> p : n.props().entrySet()) {
@@ -186,7 +185,7 @@ public final class CypherGraph {
                 String type = typeOf(p.getValue(), p.getKey());
                 String before = c.propertyTypes.putIfAbsent(p.getKey(), type);
                 if (before != null && !before.equals(type)) {
-                    throw new Unsupported("harness: the property " + label + "." + p.getKey() + " is typed two ways ("
+                    throw new Unsupported("harness: the property " + c.name + "." + p.getKey() + " is typed two ways ("
                             + before + ", " + type + ")");
                 }
             }
@@ -450,7 +449,13 @@ public final class CypherGraph {
         StringBuilder mapping = new StringBuilder();
         List<SqlParity.Table> tables = new ArrayList<>();
         for (Cls c : classes.values()) {
-            pure.append("Class g::").append(c.name).append("\n{\n");
+            pure.append("Class ").append(c.anonymous ? "<<graph::graph.Anonymous>> " : "").append("g::")
+                    .append(c.name);
+            if (!c.supers.isEmpty()) {
+                pure.append(" extends ").append(c.supers.stream().map(s -> "g::" + s)
+                        .collect(java.util.stream.Collectors.joining(", ")));
+            }
+            pure.append("\n{\n");
             scope.add("g::" + c.name);
             List<SqlParity.Column> columns = new ArrayList<>();
             columns.add(new SqlParity.Column("id", "BIGINT"));
@@ -556,6 +561,23 @@ public final class CypherGraph {
                 + "    {\n      name: 'default';\n      mapping: " + MAPPING + ";\n    }\n  ];\n"
                 + "  defaultExecutionContext: 'default';\n  elements: [ " + String.join(", ", scope) + " ];\n}\n";
         return new Inferred(model, tables, graphKey(g));
+    }
+
+    /** The class {@code name}, declared once: anonymous and extending {@code supers} as its first declaration says
+     *  (a second one disagreeing, a label spelled as a class the model makes up, is refused); two names differing
+     *  only in case are refused (one table). */
+    private static Cls declare(Map<String, Cls> classes, Map<String, String> tableOwner, String name,
+            boolean anonymous, List<String> supers) throws Unsupported {
+        Cls c = classes.computeIfAbsent(name, k -> new Cls(k, anonymous, supers));
+        if (c.anonymous != anonymous || !c.supers.equals(supers)) {
+            throw new Unsupported("harness: the label " + name + " is the class the model makes up for the label set "
+                    + String.join(":", c.anonymous ? c.supers : supers));
+        }
+        String owner = tableOwner.putIfAbsent(c.table, name);
+        if (owner != null && !owner.equals(name)) {
+            throw new Unsupported("harness: the labels " + owner + " and " + name + " differ only in case");
+        }
+        return c;
     }
 
     /** The model with its connection and runtime, as a lane runs it. */

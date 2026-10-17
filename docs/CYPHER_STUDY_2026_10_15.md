@@ -4217,3 +4217,79 @@ blocks (Neo4j snaps their graphs: `snap.sh --check` 0 problems); of the TCK's 52
 BOTH_ERROR (an unknown procedure, where Neo4j errors too) and 1 REFUSED (the implicit call whose parameter the
 scenario omits). The harness's SKIP count falls by the 50 procedure scenarios. TCK agreement (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB
 3379 → 3428, Postgres 3017 → 3066.
+
+### 12.61 Nodes with several labels: an anonymous class per label set, a label reading its class and the subclasses (2026-10-17)
+
+The plan's W6 (decision 5, option (a), 2026-10-17). Neo4j's `(:A:B)` carries two labels at once; the model has no
+class of two names. The reading, Pure's own: a node of several labels is an instance of a class that is both, a
+class extending each label's class (multiple inheritance), and `MATCH (n:A)` reads A's instances and its subclasses'
+(what every label does from now on: a label names its class and the classes under it). What such a class lacks is
+a name that is no label: the graph profile's sixth stereotype gives it one.
+
+- **`<<graph.Anonymous>>` on a class** (`projects/graph/model.pure`; `GraphEdges.STEREOTYPES` checks the profile's
+  six, no tag): the class's name is no label; its instances carry its superclasses' labels alone. A node of several
+  labels is an instance of an anonymous class extending each label's class; a node of none, of an anonymous class
+  extending nothing (the harness's `Unlabelled`, honest now: the judge's strip of its name, `ownLabels`, is gone).
+  Without the marker a class's simple name is a label its instances and its subclasses' instances carry.
+- **A class's label set** (`Model.labels(classPath)`, `CypherIslands.Labels.sets`): its own simple name unless
+  anonymous, then each superclass's set in declaration order, a label once (a diamond contributes once; a cycle is
+  phase F's error). `labels(n)` lists it (`labelsJson`), `n:B` tests it (`contains` over the JSON text, as §12.35),
+  a node value carries it. An anonymous class is named by no label (`Labels.bySimpleName` leaves it out: `MATCH
+  (n:N_A_B)` over an open graph reads no rows, over a closed one is C4's error), but is a class of the model
+  (`classes()` lists it: a label-less pattern reads its instances).
+- **A label's candidates** (`labelledClass`, `labelClasses`, `candidates`, `carries`): a label names one class (a
+  simple name: the one class of that name; a backticked path: the class at it); the classes a node pattern's
+  labels READ are every node class of the model carrying each label (a subclass of each label's class, the class
+  itself included), in the model's order; none when no class carries them all. A backticked path reads that class
+  ALONE (the register's S84: a path names a class, a simple name a label; the island's own arm patterns and
+  re-anchorings name classes by their paths, meaning exactly them). A label-less pattern reads every class as
+  before (§12.13).
+- **Reading several classes: arms.** Where a pattern's node reads one class (today's routes: a to-one graph, a
+  hop's far end checked against the class a way reaches), nothing changes; where its labels read several classes,
+  or none, the first pattern takes the arms route (`matchPattern` routes it as a label-less node's: `arms` for a
+  node alone, `untypedArms` with hops, `rootClassesOf`), one arm per class, each read as the class's own pattern and
+  unioned at the first projection. A far node's labels are a check on the class a way reaches (`carries`; a label
+  under the reached class is the narrowing refusal as before); a bound node named again with a label its class
+  does not carry matches nothing (`nodeConstraints` adds `false`: an arm of a class carrying it reads its own rows),
+  over a graph or over arms (`MATCH (n:A) WITH n MATCH (n:B)`: the second MATCH constrains each arm). Labels
+  reading several classes at a place that reads one (a hop's far end on the to-one route, a later pattern's) are
+  refused by name ("reading several classes ... in this position").
+- **The harness** (`CypherGraph.infer`): a node's class is its label set's. A label no node carries among others
+  keeps its own class (the model as before: nothing of the corpus changes shape); a label carried among others is
+  a MARKER class (empty: no property, no node, an empty table, so `MATCH (n:A)` reads it as an arm of no rows) every
+  class of a set holding it extends; each label set with a node is an anonymous class `N_<labels sorted>` (table
+  `n_n_<labels>`) extending each label's class, holding its nodes' properties (typed per set: `(:A {p: 1})` and
+  `(:A:B {p: 'x'})` type p on different classes, and `MATCH (n:A) RETURN n.p` is then §12.13's "typed differently"
+  refusal, W7's). A relationship is keyed by its ends' classes as before (§5.6: a type over several pairs, one edge
+  class per pair), so every association is a LEAF class's: an inherited association end would resolve against the
+  subclass's table (the resolver applies the superclass mapping's join to the subclass's main table: `FnProbe3`,
+  a hole of the resolver's to close under its own guard, logged in the plan's §5), and the harness declares none.
+  A label spelled as a made-up name (`N_A_B`, `Unlabelled`) or two labels differing only in case are refused by
+  name. `labels(n)` lists the model's order (the harness declares a set's labels sorted); Neo4j lists creation
+  order (S83): a lite case creates its labels alphabetically, the TCK's `labels()` cases read lists ignoring order
+  (Graph3/[6]) or over one label.
+- **Verified first, as the plan asked:** `A.all()` over a relational mapping reads A's own mapping alone (no union
+  of a subclass mapped on its own table: `FnProbe3`), so the island unions the subclasses itself; a subclass's
+  mapping maps an inherited property on its own table.
+- **Pinned.** `CypherToPureTest.aLabelReadsItsClassAndTheSubclassesAndANodeOfSeveralLabelsIsAnAnonymousClass`
+  (over a model with `demo::Manager extends demo::Person` and the anonymous `demo::N_Firm_Person`): a label's arms,
+  a path's class alone, two labels' one class, `labels(m)` as `["Manager","Person"]`, an anonymous class's set,
+  its name naming no class, a label set no class carries reading no rows. `lite/labelsets.yaml`: 17
+  cases judged by Neo4j (a label's subclasses, two labels in either order, labels and label predicates of
+  two-labelled nodes, node values of two and four labels, typed and untyped hops to a label with subclasses, an
+  OPTIONAL MATCH to one, a bound node re-matched with a label of its set and with one it lacks, the labels of an
+  unlabelled node, a property only the two-labelled nodes hold, the made-up name as a label, a label set no node
+  carries, a count over a label with subclasses).
+
+#### 12.61.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4719 | 3513 (from 3,484) | 0 | 0 | 0 | 388 (from 384) | 733 (from 731) | 85 (from 103) |
+| Postgres | 4719 | 3140 (from 3,111) | 0 | 0 | 0 | 761 (from 757) | 733 (from 731) | 85 (from 103) |
+
+The 17 cases of `lite/labelsets.yaml`: 17 PASS on DuckDB, 17 on Postgres, judged by Neo4j. Of the TCK's 18
+several-label cases 12 PASS (Match1/[3], Match3/[7], [26], Match7/[23], Graph3/[6], Graph5/[1], [3], [4] #1-#5), 2
+BOTH_ERROR (Graph3/[8], [9]: Neo4j's errors, raised as its), 4 REFUSED by name (Merge1/[10], Remove2/[2], [3]: the
+writes, W4; Match4/[5]: the unbounded variable-length pattern, W10). The harness's SKIP count falls by the 18. TCK
+agreement (PASS or BOTH_ERROR over the 3,880 TCK rows) DuckDB 3428 → 3442, Postgres 3066 → 3080.

@@ -90,8 +90,10 @@ public final class CypherToPure {
          *  what a node as a value carries. */
         void properties(String classPath, PropertySink sink);
 
-        /** The label of the class at {@code classPath}: the simple name a pattern names it by. */
-        String labelOf(String classPath);
+        /** The labels of the class at {@code classPath} (the study's §12.61): its own simple name, unless the
+         *  class is anonymous ({@code <<graph.Anonymous>>}: its name is no label), then its superclasses' labels in
+         *  declaration order, each once. What {@code labels(n)} lists and a label predicate tests. */
+        List<String> labels(String classPath);
 
         /** Reports the relationships of the class at {@code classPath} read forward, to {@code sink}: its stored
          *  properties holding a class, and the associations whose first end is its (the end a relationship type
@@ -1306,13 +1308,15 @@ public final class CypherToPure {
             return variableLength(m, state);
         }
         if (state == null && m.patterns().size() == 1 && m.patterns().get(0).elements().size() == 1
-                && ((NodePattern) m.patterns().get(0).elements().get(0)).labels().isEmpty()) {
-            // a label-less node alone: a node of any class of the model, one arm per class
+                && readsArms((NodePattern) m.patterns().get(0).elements().get(0))) {
+            // a label-less node alone: a node of any class of the model, one arm per class; labels reading several
+            // classes (a label's class and its subclasses, the study's §12.61), or none, one arm per class too
             return arms(m);
         }
         if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
                 && (r.types().size() != 1 || edgesOf(r.types().get(0)).size() > 1
-                        || r.direction() == CypherAst.Direction.BOTH && selfAssociation(r.types().get(0)))))) {
+                        || r.direction() == CypherAst.Direction.BOTH && selfAssociation(r.types().get(0)))
+                || e instanceof NodePattern n && !n.labels().isEmpty() && !boundIn(state, n) && readsArms(n)))) {
             // (a relationship of several types too: one arm per type, the study's §12.35; and a type naming several
             // edge classes, one per class pair it joins: one arm per edge class the start node's class allows, the
             // far node's label choosing, the study's §5.6)
@@ -1353,6 +1357,25 @@ public final class CypherToPure {
                 // so far are this MATCH's, distinct from the second pattern's)
                 return cartesian(g != null ? g : java.util.Objects.requireNonNull(arms), named,
                         withUniqueness(m.where(), m.pos()), m.pos(), matchFrame.relationships());
+            }
+            if (arms != null && patterns.size() == 1 && named.elements().size() == 1 && named.variable() == null
+                    && !m.optional()) {
+                // a bound node named again over arms (MATCH (n:A) WITH n MATCH (n:B)): its labels and property map
+                // constrain each arm (the study's §12.61: an arm of a class without a label reads no row), the
+                // WHERE too
+                NodePattern n = (NodePattern) named.elements().get(0);
+                Expr armsWhere = withUniqueness(m.where(), m.pos());
+                for (Graph arm : ((Arms) arms).arms()) {
+                    nodeConstraints(n, java.util.Objects.requireNonNull(arm.bindings().get(n.variable())), arm);
+                    if (armsWhere != null) {
+                        if (arm.fanning()) {
+                            arm.deferredWhere().add(armsWhere);
+                        } else {
+                            arm.conditions().add(condition(armsWhere, new GraphScope(arm), "WHERE"));
+                        }
+                    }
+                }
+                return arms;
             }
             if (arms != null) {
                 throw CypherErrors.unsupported("a MATCH after a label-less pattern (every class of the model) is not"
@@ -1421,10 +1444,7 @@ public final class CypherToPure {
         nameRepeats(elements, taken, Set.of());
         order = patternOrder(elements);
         NodePattern root = (NodePattern) elements.get(0);
-        String rootLabel = labelClass(root);
-        List<String> rootClasses = rootLabel != null ? List.of(rootLabel) : new ArrayList<>(model.classes());
-        rootClasses = new ArrayList<>(rootClasses);
-        rootClasses.removeAll(durationClasses());
+        List<String> rootClasses = rootClassesOf(root);
         List<List<PatternElement>> arms = new ArrayList<>();
         for (String cls : rootClasses) {
             List<PatternElement> head = new ArrayList<>();
@@ -1620,9 +1640,7 @@ public final class CypherToPure {
         List<Chain> armChains = new ArrayList<>();
         for (Chain chain : chains) {
             NodePattern root = (NodePattern) chain.elements().get(0);
-            String rootLabel = labelClass(root);
-            List<String> rootClasses = new ArrayList<>(rootLabel != null ? List.of(rootLabel) : model.classes());
-            rootClasses.removeAll(durationClasses());
+            List<String> rootClasses = rootClassesOf(root);
             int before = arms.size();
             for (String cls : rootClasses) {
                 List<PatternElement> start = new ArrayList<>();
@@ -2235,7 +2253,7 @@ public final class CypherToPure {
         }
         RelPattern rel = (RelPattern) elements.get(at - 1);
         NodePattern node = (NodePattern) elements.get(at);
-        String label = labelClass(node);
+        List<String> labelled = labelClasses(node);
         // (type, direction, the class reached)
         List<Object[]> ways = new ArrayList<>();
         if (!rel.types().isEmpty()) {
@@ -2276,8 +2294,8 @@ public final class CypherToPure {
         }
         for (Object[] way : ways) {
             String reached = (String) way[2];
-            if (label != null && !label.equals(reached) && !model.isSubclass(reached, label)) {
-                refuseNarrowing(label, reached, (String) way[0], node.pos());
+            if (!carries(reached, labelled)) {
+                refuseNarrowing(labelled, reached, (String) way[0], node.pos());
                 continue;
             }
             if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {
@@ -2296,10 +2314,12 @@ public final class CypherToPure {
     /** A far label that is a subclass of the class a way reaches would narrow the way's instances, which the
      *  translator does not read yet: refused by name (a label of another class leaves the way out, as a label
      *  the way cannot reach). */
-    private void refuseNarrowing(String label, String reached, String way, Pos pos) {
-        if (model.isSubclass(label, reached)) {
-            throw CypherErrors.unsupported("the label " + label + " is a subclass of " + reached + ", which " + way
-                    + " reaches: a label narrowing a relationship's end is not supported yet", pos);
+    private void refuseNarrowing(List<String> labelled, String reached, String way, Pos pos) {
+        for (String label : labelled) {
+            if (model.isSubclass(label, reached)) {
+                throw CypherErrors.unsupported("the label " + label + " is a subclass of " + reached + ", which "
+                        + way + " reaches: a label narrowing a relationship's end is not supported yet", pos);
+            }
         }
     }
 
@@ -2517,9 +2537,7 @@ public final class CypherToPure {
             } else {
                 String cls = java.util.Objects.requireNonNull(current.classPath());
                 Hop hop = optionalHop(cls, rel, next);
-                String labelled = labelClass(next);
-                if (hop == null || labelled != null && !labelled.equals(hop.target())
-                        && !model.isSubclass(hop.target(), labelled)) {
+                if (hop == null || !carries(hop.target(), labelClasses(next))) {
                     target = Binding.absentNode();
                 } else {
                     if (!hidden(rel.variable()) && !typesInThisMatch.add(rel.types().get(0))) {
@@ -2942,15 +2960,16 @@ public final class CypherToPure {
     private State arms(CypherAst.Match m) {
         PathPattern named = m.patterns().get(0).variable() == null ? null : namedPath(m.patterns().get(0), Set.of());
         NodePattern root = (NodePattern) (named != null ? named : m.patterns().get(0)).elements().get(0);
-        // every class of the model but the duration value's (a value the island carries, never a node)
-        List<String> classes = new ArrayList<>(model.classes());
-        classes.removeAll(durationClasses());
+        // every class the root's labels read (the study's §12.61), every class of the model for a label-less root,
+        // but the duration value's (a value the island carries, never a node)
+        List<String> classes = rootClassesOf(root);
         if (classes.isEmpty()) {
             if (named != null) {
                 throw CypherErrors.unsupported("a named path over a model with no class is not supported yet",
                         named.pos());
             }
-            // a model with no class (the study's §12.20): no node, so no row; the variable an absent node. The
+            // a model with no class (the study's §12.20), or none carrying the labels (§12.61): no node, so no
+            // row; the variable an absent node. The
             // WHERE and the property map are still read: Neo4j's static errors are the query's, not the data's
             String column = SYNTHETIC + "row";
             Rows rows = withAbsentNode(new Rows(noRows(column), List.of(new Col(column, Kind.STRING, true))), column,
@@ -3108,7 +3127,7 @@ public final class CypherToPure {
                     renamed.put(name, n.variable());
                 }
                 List<String> labels = i == 0 && anchor != null && anchor.classPath() != null && n.labels().isEmpty()
-                        ? List.of(model.labelOf(anchor.classPath())) : n.labels();
+                        ? List.of(anchor.classPath()) : n.labels();   // (its path: that class alone, §12.61)
                 fresh.add(new NodePattern(name, labels, n.properties(), n.pos()));
             } else {
                 RelPattern r = (RelPattern) e;
@@ -4359,32 +4378,121 @@ public final class CypherToPure {
                 + " node its navigation)", pos);
     }
 
-    /** The class a node pattern's labels name: one label's class (PR1 reads one label); null for a label-less node. */
-    private @com.legend.base.Nullable String labelClass(NodePattern n) {
-        if (n.labels().isEmpty()) {
-            return null;
-        }
-        if (n.labels().size() > 1) {
-            throw CypherErrors.unsupported("a node with several labels (" + String.join(":", n.labels()) + ") is not"
-                    + " supported yet", n.pos());
-        }
-        String label = n.labels().get(0);
-        // (the model's Duration value class, which the island carries a duration as, is no node class)
+    /** The class one label names (the study's §12.61): the one at that path for a full path (a backticked
+     *  {@code demo::Person}: that class alone), else the one class of that simple name (the label's class, whose
+     *  subclasses carry the label too; several of the name: an error naming them); never the edge class a
+     *  relationship type names, nor the model's Duration value class (which the island carries a duration as). */
+    private String labelledClass(String label, Pos pos) {
         List<String> classes = model.classesOf(label).stream().filter(c -> !durationClasses().contains(c)).toList();
         if (classes.isEmpty()) {
             throw CypherErrors.invalid("the label " + label + " names no class of the model (the graph is the model:"
-                    + " a label is a class's name)", n.pos());
+                    + " a label is a class's name)", pos);
         }
         if (classes.size() > 1) {
             throw CypherErrors.invalid("the label " + label + " names " + classes.size() + " classes ("
-                    + String.join(", ", classes) + "): write the class's full path in backticks", n.pos());
+                    + String.join(", ", classes) + "): write the class's full path in backticks", pos);
         }
         if (isEdge(classes.get(0))) {
             throw CypherErrors.invalid("the label " + label + " names the edge class " + classes.get(0) + " (a"
                     + " relationship type, not a node label; the graph is the model): a pattern reaches it by its"
-                    + " type", n.pos());
+                    + " type", pos);
         }
         return classes.get(0);
+    }
+
+    /** The classes a node pattern's labels name, one per label (a label spelled twice, once); empty for a
+     *  label-less node. */
+    private List<String> labelClasses(NodePattern n) {
+        List<String> out = new ArrayList<>();
+        for (String label : new java.util.LinkedHashSet<>(n.labels())) {
+            String cls = labelledClass(label, n.pos());
+            if (!out.contains(cls)) {
+                out.add(cls);
+            }
+        }
+        return out;
+    }
+
+    /** Whether every instance of {@code cls} carries the labels of {@code labelClasses}: the class is each, or a
+     *  subclass of each (the study's §12.61: a node's labels are its class's and its superclasses'). */
+    private boolean carries(String cls, List<String> labelClasses) {
+        for (String label : labelClasses) {
+            if (!model.isSubclass(cls, label)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The classes whose instances a node pattern's labels read (the study's §12.61): every node class of the
+     *  model carrying each label (a simple name: the label's class and its subclasses; a full path: that class
+     *  alone), in the model's order, none when no class carries them all; null for a label-less node (every
+     *  class). */
+    private @com.legend.base.Nullable List<String> candidates(NodePattern n) {
+        if (n.labels().isEmpty()) {
+            return null;
+        }
+        List<String> out = new ArrayList<>(model.classes());
+        out.removeAll(durationClasses());
+        for (String label : new java.util.LinkedHashSet<>(n.labels())) {
+            String cls = labelledClass(label, n.pos());
+            // (the label as the class's own path: that class; a simple name: the class and its subclasses)
+            boolean exact = cls.equals(label);
+            out.removeIf(c -> exact ? !c.equals(cls) : !model.isSubclass(c, cls));
+        }
+        return out;
+    }
+
+    /** The classes an arms route's root reads: its labels' candidates; every node class of the model (but the
+     *  duration value's) for a label-less root. */
+    private List<String> rootClassesOf(NodePattern root) {
+        List<String> candidates = candidates(root);
+        if (candidates != null) {
+            return new ArrayList<>(candidates);
+        }
+        List<String> all = new ArrayList<>(model.classes());
+        all.removeAll(durationClasses());
+        return all;
+    }
+
+    /** Whether the state in hand (a graph, or arms) binds the node pattern's variable: its labels are then a
+     *  constraint on the bound node, not the classes to read. */
+    private static boolean boundIn(@com.legend.base.Nullable State state, NodePattern n) {
+        if (n.variable() == null) {
+            return false;
+        }
+        if (state instanceof Graph g) {
+            return g.bindings().containsKey(n.variable());
+        }
+        if (state instanceof Arms arms) {
+            return !arms.arms().isEmpty() && arms.arms().get(0).bindings().containsKey(n.variable());
+        }
+        return false;
+    }
+
+    /** Whether a node pattern reads as arms, one per class: a label-less one (every class), or labels reading
+     *  several classes, or none. */
+    private boolean readsArms(NodePattern n) {
+        List<String> candidates = candidates(n);
+        return candidates == null || candidates.size() != 1;
+    }
+
+    /** The one class a node pattern's labels read; null for a label-less node. Where the route reads one class (a
+     *  to-one graph's root, a hop's far end): labels reading several classes, or none, are arms, which
+     *  {@link #matchPattern} routes as such from a first pattern; elsewhere they are refused by name. */
+    private @com.legend.base.Nullable String labelClass(NodePattern n) {
+        List<String> candidates = candidates(n);
+        if (candidates == null) {
+            return null;
+        }
+        if (candidates.size() != 1) {
+            throw CypherErrors.unsupported("the label" + (n.labels().size() > 1 ? "s " : " ")
+                    + String.join(":", n.labels()) + (candidates.isEmpty() ? " (no class of the model carries"
+                    + " every one)" : " reading several classes (" + String.join(", ", candidates) + ")")
+                    + " in this position of the pattern " + (n.labels().size() > 1 ? "are" : "is")
+                    + " not supported yet", n.pos());
+        }
+        return candidates.get(0);
     }
 
     private void bind(Graph g, @com.legend.base.Nullable String variable, Binding b, Pos pos) {
@@ -4405,14 +4513,11 @@ public final class CypherToPure {
     /** A node pattern's constraints: its label (a bound node's must be its class) and its property map. */
     private void nodeConstraints(NodePattern n, Binding b, Graph g) {
         String cls = java.util.Objects.requireNonNull(b.classPath());
-        String labelled = labelClass(n);
-        if (labelled != null && !labelled.equals(cls)) {
-            if (model.isSubclass(cls, labelled)) {
-                // a superclass's label: every instance of the class carries it
-                return;
-            }
-            throw CypherErrors.unsupported("the label " + labelled + " on " + cls
-                    + " (a label narrowing a node's class) is not supported yet", n.pos());
+        if (!carries(cls, labelClasses(n))) {
+            // a label no instance of the class carries (the study's §12.61: a node's labels are its class's and its
+            // superclasses'): the node matches nothing here (an arm of a class carrying it reads its own rows)
+            g.conditions().add(new CBoolean(false));
+            return;
         }
         if (b.fanning() && !n.properties().isEmpty()) {
             // read over the materialized rows, where the node's properties are typed columns
@@ -6192,9 +6297,13 @@ public final class CypherToPure {
                     new RelShape(column, props, identity, null, null, direction));
         }
 
-        /** The labels array's JSON text of a class: its label. */
+        /** The labels array's JSON text of a class: its label set (the study's §12.61). */
         private String labelsJson(String cls) {
-            return "[" + com.legend.json.Json.toCompact(model.labelOf(cls)) + "]";
+            StringBuilder out = new StringBuilder("[");
+            for (String label : model.labels(cls)) {
+                out.append(out.length() > 1 ? "," : "").append(com.legend.json.Json.toCompact(label));
+            }
+            return out.append(']').toString();
         }
 
         /** The stored properties of these classes, in first-declaration order, each of one kind across them (a
@@ -9571,18 +9680,20 @@ public final class CypherToPure {
             return new Hopped(gs, java.util.Objects.requireNonNull(start.variable()), from, List.of(),
                     end.variable(), rel.variable(), this::freshName);
         }
-        String startLabel = labelClass(start);
-        if (startLabel != null && !model.isSubclass(cls, startLabel)) {
-            if (model.isSubclass(startLabel, cls)) {
-                throw CypherErrors.unsupported("the label " + startLabel + " on " + start.variable() + " (a subclass of"
-                        + " its class " + cls + ") in a pattern comprehension or predicate is not supported yet",
-                        start.pos());
+        List<String> startLabels = labelClasses(start);
+        if (!carries(cls, startLabels)) {
+            for (String startLabel : startLabels) {
+                if (model.isSubclass(startLabel, cls)) {
+                    throw CypherErrors.unsupported("the label " + startLabel + " on " + start.variable() + " (a"
+                            + " subclass of its class " + cls + ") in a pattern comprehension or predicate is not"
+                            + " supported yet", start.pos());
+                }
             }
             // a label the bound node's class does not carry: the pattern matches nothing
             return new Hopped(gs, java.util.Objects.requireNonNull(start.variable()), from, List.of(),
                     end.variable(), rel.variable(), this::freshName);
         }
-        String label = labelClass(end);
+        List<String> endLabels = labelClasses(end);
         // the ways: (type, direction, the class reached), as an untyped pattern's arms are decided (§12.17)
         List<Object[]> candidates = new ArrayList<>();
         if (!rel.types().isEmpty()) {
@@ -9623,8 +9734,8 @@ public final class CypherToPure {
         List<Way> ways = new ArrayList<>();
         for (Object[] way : candidates) {
             String reached = (String) way[2];
-            if (label != null && !label.equals(reached) && !model.isSubclass(reached, label)) {
-                refuseNarrowing(label, reached, (String) way[0], end.pos());
+            if (!carries(reached, endLabels)) {
+                refuseNarrowing(endLabels, reached, (String) way[0], end.pos());
                 continue;
             }
             if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {

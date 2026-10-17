@@ -23,7 +23,7 @@ Class g::Person
 }
 Profile graph::graph
 {
-    stereotypes: [Edge, Open, from, to, type];
+    stereotypes: [Anonymous, Edge, Open, from, to, type];
 }
 Association g::R_HQ
 {

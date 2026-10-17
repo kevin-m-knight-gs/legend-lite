@@ -206,6 +206,13 @@ the Quantifier9-12 cases now stop at the Variant list comprehension (W12).
 table with the shared id; `MATCH (n:A)` reads `A` and its subclasses (the island unions the subclass tables as it
 unions arms today; whether the relational mapping reads subclasses through `A.all()` is to be verified first);
 `labels(n)` is the class's label set; `n:B` is a subclass test. Two legs.
+- LANDED 2026-10-17 in one leg (the study's §12.61, GATES' fifty-ninth landing; TCK agreement DuckDB 3428 → 3442, Postgres 3066 → 3080; DuckDB PASS 3,484 → 3513, Postgres 3,111 → 3140): verified first
+  that `A.all()` reads A's own mapping alone (the island unions the subclasses itself); `<<graph.Anonymous>>`, the
+  profile's sixth stereotype, marks a class whose name is no label; the harness declares an anonymous class per
+  label set extending each label's class (a label carried among others a marker class with no node of its own, so
+  every association is a leaf class's); a label reads its class and the subclasses as arms; `labels(n)` is the
+  class's label set, in the model's order (S83); a backticked path reads its class alone (S84). Of the 18: 12 PASS,
+  2 BOTH_ERROR (Graph3/[8], [9]: Neo4j's errors), 3 writes (W4), 1 unbounded variable-length pattern (W10).
 
 ### W7. A property typed two ways
 
@@ -616,3 +623,14 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   columns ("a composite key (n columns) as the identity of X is not supported yet"); the harness's tables have
   one `id` column, so no TCK case is held back; a user's composite key waits for its spelling (the columns' texts
   joined with a separator the key's values cannot contain).
+- **2026-10-17, W6 — the resolver navigates an inherited association end against the subclass's table.** With
+  `Class A_B extends A, B` mapped on its own table `n_a_b` (its inherited properties mapped there) and an
+  association `R_T` declared for A over a join on `n_a` (`Join T(n_a.r_t = n_c.id)`), `g::A_B.all()->project(~[t:
+  x|$x.T.name])` lowers the superclass's association mapping against the subclass's main table (`LEFT OUTER JOIN
+  n_c AS t1 ON t0.r_t = t1.id` with `t0` the subclass's table: a binder error where the column is absent, silently
+  wrong rows where a column of the name exists) instead of refusing the unmapped end at resolve time (AGENTS.md
+  invariant 4: legend-engine finds no property mapping for the end in the subclass's set and errors; the
+  `extends` mapping form would inherit it). Reproduced by `$S/probe2/FnProbe3.java` (DuckDB). The harness routes
+  around it: a label carried among others is a marker class with no association of its own, so no inherited end
+  is ever navigated; no TCK case is held back. The fix belongs to the resolver (W9), under its own guard: refuse
+  an inherited association end whose mapping is not the class's set's, and read the `extends` mapping form.

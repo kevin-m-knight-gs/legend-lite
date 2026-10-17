@@ -9932,6 +9932,30 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the fifty-ninth landing — nodes with several labels (W6)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W6); the record is the study's §12.61. A node of several
+labels is an instance of an anonymous class (`<<graph.Anonymous>>`, the graph profile's sixth stereotype: its name is
+no label) extending each label's class; a label reads its class and the subclasses, one arm per class; `labels(n)` is
+the class's label set; a backticked path reads its class alone.
+
+1. **What lands.** Match1/[3], Match3/[7], [26], Match7/[23], Graph3/[6], Graph5/[1], [3], [4] #1-#5 (a node of several
+   labels matched by one, by several in any order and with repeats, by a label predicate, through a typed hop, an
+   untyped hop and an OPTIONAL MATCH, re-matched after a WITH; `labels()` of such a node), Graph3/[8], [9] as Neo4j's
+   errors, the 17 cases of `lite/labelsets.yaml`; DuckDB PASS 3,484 → 3513, Postgres 3,111 → 3140; TCK agreement
+   DuckDB 3428 → 3442, Postgres 3066 → 3080; the harness's SKIP 103 → 85.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3513 / REFUSED 388 / BOTH_ERROR
+   733 / SKIP 85; Postgres PASS 3140 / REFUSED 761 / BOTH_ERROR 733 / SKIP
+   85, of 4719 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:core_tests_integration`,
+   `//core:guardrails` green (the chain's); `CypherToPureTest` pins a label's arms, a path's class alone, two labels'
+   one class, `labels(m)` over a subclass and over an anonymous class, the anonymous name naming no class, a label
+   set no class carries; `GraphEdgesTest` and the showcase models declare the profile's six stereotypes.
+4. **Refused by name, recorded.** Labels reading several classes at a place of the pattern that reads one (a hop's
+   far end on the to-one route); the writes among the bucket (Merge1/[10], Remove2/[2], [3]: W4) and the unbounded
+   variable-length pattern (Match4/[5]: W10). Logged for the resolver (the plan's §5): an inherited association end
+   navigated from a subclass mapped on its own table joins against the subclass's table.
+
 ## 2026-10-17 — `#Cypher{...}#`: the fifty-eighth landing — procedures (W8)
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W8); the record is the study's §12.60. A procedure is a

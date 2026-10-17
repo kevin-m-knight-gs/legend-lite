@@ -434,7 +434,7 @@ public final class CypherParity {
         for (var row : result.rows()) {
             List<CypherValues.Value> cells = new ArrayList<>();
             for (Object cell : row.values()) {
-                cells.add(CypherGraph.ownLabels(CypherValues.ofCell(cell)));
+                cells.add(CypherValues.ofCell(cell));
             }
             got.add(cells);
         }
@@ -487,7 +487,7 @@ public final class CypherParity {
         for (var row : result.rows()) {
             List<CypherValues.Value> cells = new ArrayList<>();
             for (Object cell : row.values()) {
-                cells.add(CypherGraph.ownLabels(CypherValues.ofCell(cell)));
+                cells.add(CypherValues.ofCell(cell));
             }
             got.add(cells);
         }

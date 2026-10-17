@@ -139,8 +139,8 @@ class CypherToPureTest {
         }
 
         @Override
-        public String labelOf(String classPath) {
-            return classPath.substring(classPath.lastIndexOf("::") + 2);
+        public List<String> labels(String classPath) {
+            return List.of(classPath.substring(classPath.lastIndexOf("::") + 2));
         }
 
         /** test.cities(name :: STRING?) :: (city :: STRING?, code :: INTEGER?) at test::cities; test.doNothing() a
@@ -211,8 +211,8 @@ class CypherToPureTest {
         }
 
         @Override
-        public String labelOf(String classPath) {
-            return inner.labelOf(classPath);
+        public List<String> labels(String classPath) {
+            return inner.labels(classPath);
         }
 
         @Override
@@ -263,8 +263,8 @@ class CypherToPureTest {
         }
 
         @Override
-        public String labelOf(String classPath) {
-            return inner.labelOf(classPath);
+        public List<String> labels(String classPath) {
+            return inner.labels(classPath);
         }
 
         @Override
@@ -280,6 +280,119 @@ class CypherToPureTest {
         @Override
         public boolean open() {
             return true;
+        }
+    }
+
+    /** The model with {@code demo::Manager extends demo::Person} ({@code grade Integer[0..1]}) and the anonymous
+     *  {@code demo::N_Firm_Person extends demo::Firm, demo::Person} (the study's §12.61: a node of the labels
+     *  Firm and Person; its name is no label). */
+    private record Subclassing(CypherToPure.Model inner) implements CypherToPure.Model {
+        private static final String MANAGER = "demo::Manager";
+        private static final String BOTH = "demo::N_Firm_Person";
+
+        @Override
+        public List<String> classesOf(String label) {
+            if (label.equals("Manager") || label.equals(MANAGER)) {
+                return List.of(MANAGER);
+            }
+            if (label.equals(BOTH)) {
+                return List.of(BOTH);   // (by its path alone: anonymous)
+            }
+            return inner.classesOf(label);
+        }
+
+        @Override
+        public void property(String classPath, String name, CypherToPure.PropertySink sink) {
+            if (classPath.equals(MANAGER)) {
+                if (name.equals("grade")) {
+                    prop("grade", "Integer", 0, 1).reportTo(sink);
+                } else {
+                    inner.property("demo::Person", name, sink);
+                }
+                return;
+            }
+            if (classPath.equals(BOTH)) {
+                boolean[] found = {false};
+                inner.property("demo::Firm", name, (n, type, classTyped, enumTyped, lower, upper) -> {
+                    found[0] = true;
+                    sink.property(n, type, classTyped, enumTyped, lower, upper);
+                });
+                if (!found[0]) {
+                    inner.property("demo::Person", name, sink);
+                }
+                return;
+            }
+            inner.property(classPath, name, sink);
+        }
+
+        @Override
+        public void inverse(String classPath, String property, CypherToPure.PropertySink sink) {
+            inner.inverse(classPath.equals(MANAGER) ? "demo::Person" : classPath, property, sink);
+        }
+
+        @Override
+        public boolean isSubclass(String classPath, String superPath) {
+            if (classPath.equals(MANAGER)) {
+                return superPath.equals(MANAGER) || superPath.equals("demo::Person");
+            }
+            if (classPath.equals(BOTH)) {
+                return superPath.equals(BOTH) || superPath.equals("demo::Firm") || superPath.equals("demo::Person");
+            }
+            return inner.isSubclass(classPath, superPath);
+        }
+
+        @Override
+        public List<String> classes() {
+            List<String> out = new java.util.ArrayList<>(inner.classes());
+            out.add(MANAGER);
+            out.add(BOTH);
+            return out.stream().sorted().toList();
+        }
+
+        @Override
+        public void properties(String classPath, CypherToPure.PropertySink sink) {
+            if (classPath.equals(MANAGER)) {
+                prop("grade", "Integer", 0, 1).reportTo(sink);
+                inner.properties("demo::Person", sink);
+            } else if (classPath.equals(BOTH)) {
+                inner.properties("demo::Firm", sink);
+                inner.properties("demo::Person", sink);
+            } else {
+                inner.properties(classPath, sink);
+            }
+        }
+
+        @Override
+        public List<String> labels(String classPath) {
+            if (classPath.equals(MANAGER)) {
+                return List.of("Manager", "Person");
+            }
+            if (classPath.equals(BOTH)) {
+                return List.of("Firm", "Person");
+            }
+            return inner.labels(classPath);
+        }
+
+        @Override
+        public void ends(String classPath, CypherToPure.PropertySink sink) {
+            if (classPath.equals(MANAGER)) {
+                inner.ends("demo::Person", sink);
+            } else if (classPath.equals(BOTH)) {
+                inner.ends("demo::Firm", sink);
+                inner.ends("demo::Person", sink);
+            } else {
+                inner.ends(classPath, sink);
+            }
+        }
+
+        @Override
+        public void edges(CypherToPure.EdgeSink sink) {
+            inner.edges(sink);
+        }
+
+        @Override
+        public boolean open() {
+            return inner.open();
         }
     }
 
@@ -318,8 +431,8 @@ class CypherToPureTest {
         }
 
         @Override
-        public String labelOf(String classPath) {
-            return MODEL.labelOf(classPath);
+        public List<String> labels(String classPath) {
+            return MODEL.labels(classPath);
         }
 
         @Override
@@ -400,6 +513,33 @@ class CypherToPureTest {
         assertTrue(moved.contains("->rem(86400)"), moved);
     }
 
+    @Test
+    void aLabelReadsItsClassAndTheSubclassesAndANodeOfSeveralLabelsIsAnAnonymousClass() {
+        // a label's class and its subclasses (the study's §12.61): one arm per class, concatenated
+        String label = sub("MATCH (p:Person) RETURN p.name AS name");
+        assertTrue(label.contains("demo::Person.all()") && label.contains("demo::Manager.all()")
+                && label.contains("demo::N_Firm_Person.all()") && label.contains("->concatenate("), label);
+        // the class's own path: that class alone
+        String own = sub("MATCH (p:`demo::Person`) RETURN p.name AS name");
+        assertTrue(own.contains("demo::Person.all()") && !own.contains("->concatenate("), own);
+        // two labels: the classes carrying both, here the anonymous one alone
+        String both = sub("MATCH (x:Person:Firm) RETURN x.name AS name, x.legalName AS legalName");
+        assertTrue(both.contains("demo::N_Firm_Person.all()") && !both.contains("->concatenate(")
+                && !both.contains("demo::Person.all()"), both);
+        // labels(n) is the class's label set: a subclass carries its superclass's label, an anonymous class's name
+        // is no label (and names no class as a label)
+        String labels = sub("MATCH (m:Manager) RETURN labels(m) AS l");
+        assertTrue(labels.contains("'[\"Manager\",\"Person\"]'"), labels);
+        String anonymous = sub("MATCH (x:Person:Firm) RETURN labels(x) AS l, x:Firm AS isFirm");
+        assertTrue(anonymous.contains("'[\"Firm\",\"Person\"]'"), anonymous);
+        SqlTranslationException e = assertThrows(SqlTranslationException.class,
+                () -> sub("MATCH (x:N_Firm_Person) RETURN x.name AS name"));
+        assertTrue(e.getMessage().contains("names no class"), e.getMessage());
+        // a label set no class carries reads no rows (the base model: no class is both)
+        String none = pure("MATCH (p:Person:Firm) RETURN p.name AS name");
+        assertTrue(!none.contains(".all()"), none);
+    }
+
     private static String pure(String cypher) {
         ValueSpecification vs = CypherToPure.translate(cypher, MODEL);
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
@@ -408,6 +548,12 @@ class CypherToPureTest {
     /** {@code cypher} over the model read as an open graph (the study's §12.45). */
     private static String open(String cypher) {
         ValueSpecification vs = CypherToPure.translate(cypher, new Open(MODEL));
+        return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
+    }
+
+    /** {@code cypher} over the model with a subclass and an anonymous label-set class (the study's §12.61). */
+    private static String sub(String cypher) {
+        ValueSpecification vs = CypherToPure.translate(cypher, new Subclassing(MODEL));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 
@@ -1362,7 +1508,6 @@ class CypherToPureTest {
                 + "::elementId()])->distinct()"), distinctRel);
         String groupedRel = pure("MATCH (p:Person)-[r:firm]->(f:Firm) WITH r, count(*) AS c RETURN c");
         assertTrue(groupedRel.contains("->groupBy(~[_cypher_1, _cypher_2, _cypher_3], ~[c:x|"), groupedRel);
-        unsupported("MATCH (p:Person:Firm) RETURN p.name", "several labels");
         invalid("MATCH (p:Person) RETURN p.age + count(*)", "implicit grouping expressions (p.age in p.age + count(*))");
         unsupported("RETURN 1e308 AS x", "a float literal beyond 1e15");
         unsupported("RETURN 1e-20 AS x", "a float literal beyond 1e15");
