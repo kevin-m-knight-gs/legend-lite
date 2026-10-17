@@ -947,7 +947,7 @@ ORDER BY title
 | 'Speed' | {role: 'Jack'} | 1 | false |
 | 'The Matrix' | {role: 'Neo', year: 1999} | 2 | true |
 
-## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.42)
+## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.43)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
@@ -958,9 +958,9 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 
 | status | cases |
 |---|---|
-| PASS | 2343 |
+| PASS | 2357 |
 | BOTH_ERROR | 670 |
-| REFUSED | 686 |
+| REFUSED | 672 |
 | SKIP | 181 |
 | total | 3880 |
 
@@ -978,7 +978,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | clauses/return-skip-limit | 31 | 11 | 16 | 4 | 0 |
 | clauses/set | 53 | 0 | 2 | 51 | 0 |
 | clauses/union | 12 | 7 | 4 | 1 | 0 |
-| clauses/unwind | 14 | 10 | 0 | 4 | 0 |
+| clauses/unwind | 14 | 11 | 0 | 3 | 0 |
 | clauses/with | 29 | 11 | 4 | 13 | 1 |
 | clauses/with-orderBy | 292 | 154 | 67 | 31 | 40 |
 | clauses/with-skip-limit | 9 | 3 | 0 | 4 | 2 |
@@ -988,7 +988,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | expressions/comparison | 72 | 59 | 1 | 10 | 2 |
 | expressions/conditional | 13 | 13 | 0 | 0 | 0 |
 | expressions/existentialSubqueries | 10 | 4 | 1 | 5 | 0 |
-| expressions/graph | 61 | 15 | 15 | 20 | 11 |
+| expressions/graph | 61 | 18 | 15 | 17 | 11 |
 | expressions/list | 185 | 117 | 59 | 9 | 0 |
 | expressions/literals | 131 | 100 | 25 | 6 | 0 |
 | expressions/map | 44 | 35 | 9 | 0 | 0 |
@@ -996,7 +996,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | expressions/null | 44 | 40 | 0 | 4 | 0 |
 | expressions/path | 7 | 3 | 2 | 2 | 0 |
 | expressions/pattern | 50 | 15 | 19 | 16 | 0 |
-| expressions/precedence | 104 | 92 | 0 | 12 | 0 |
+| expressions/precedence | 104 | 102 | 0 | 2 | 0 |
 | expressions/quantifier | 604 | 513 | 12 | 79 | 0 |
 | expressions/string | 32 | 29 | 0 | 3 | 0 |
 | expressions/temporal | 1004 | 923 | 0 | 31 | 50 |
@@ -1009,9 +1009,12 @@ and `DETACH DELETE` (241, the platform's `write` first: `docs/BI_AND_ETL_PLAN_20
 table lacks, `rand()` and the clock functions among them (50, never reproducible); a label, a property or a
 relationship type the model does not declare (52, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns
 that need node identity, which the values do not carry (a `MATCH` or `OPTIONAL MATCH` after rows, both ends bound, an
-undirected self-association, nodes among grouping keys, nodes compared: 87, the study's C5); variable-length relationships without an upper bound, past two hops in all, or under a predicate (25); a value the database holds as a Variant read by member, index, order or `IN` without a known
-shape (64: a map's member or a list's element where the shape did not travel, `ORDER BY` a Variant); a pattern
-predicate or comprehension over rows, from no bound node or over more than one hop, and `COUNT { }` (22); a list
-holding a value that may be null, read by the database (8); `%` inside a comprehension the database computes (8);
-an untyped relationship in an OPTIONAL MATCH (7); the rest (122) is small buckets of one to eight, each named in the
+undirected self-association, nodes among grouping keys, nodes compared: 93, the study's C5); variable-length
+relationships without an upper bound, past two hops in all, or under a predicate (25); a value the database holds
+as a Variant of no known shape, comprehended, ordered or compared (49: a list comprehension over a Variant list of
+no known element kind, `ORDER BY` a Variant, two Variants compared; a member or an index reads by type where the
+shape travelled, the study's §12.43); a pattern predicate or comprehension over rows, from no bound node or over
+more than one hop, and `COUNT { }` (20); a list holding a value that may be null, read by the database (8); `%`
+inside a comprehension the database computes (8); an untyped relationship in an OPTIONAL MATCH (7); the rest (117)
+is small buckets of one to seven, each named in the
 ledger.

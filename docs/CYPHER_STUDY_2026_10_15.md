@@ -3182,3 +3182,49 @@ unwinding and collected lists, Aggregation's and Return's `collect`s).
 
 16 lite cases in `lite/varlen.yaml`, each judged by Neo4j (three refused by name). The TCK: 5 more scenarios pass
 (Match4, Match6, Match9, Path2, Path3).
+
+### 12.43 A property or an index of a value the database holds as a Variant, 2026-10-17
+
+- **`m.a`, `m['b']`, `m[k]`, `l[0]`, `l[-1]`, `l[i]`, `(l[1]).name`, `n['na' + 'me']`, `type(l[0])`, `labels(n)`
+  over a value the database holds as a Variant** (a map or list carried through WITH, an UNWIND's row over a
+  spelled list of maps or of lists, a collected node, a stored list): the platform's `get` by the key or the place
+  (`get(Variant[0..1], String[1])`, `get(Variant[0..1], Integer[1])`: a negative place counted from the end, null
+  beyond either end, null for a key the value lacks; the JSON arrow on DuckDB, jsonb's on Postgres, which agree). The
+  result is read **by type where the Variant's shape says it**, through the platform's `to(@T)`: a spelled map's
+  entries (`MapOf`: each entry's kind, nullability and shape), a list of one kind's elements (`ListOf`, §12.41, now
+  carrying the elements' own shape, so a collected node unwinds as a node), a spelled list of several kinds' places
+  (`TupleOf`: `[r, 1]` carried through WITH reads `l[0]` as the relationship and `l[1]` as the Integer). The shape
+  travels as the Variant's mark: `variant(...)` attaches it to a list or map carried through WITH or returned,
+  `collect` to the list it builds, an UNWIND over a spelled list to its rows when every element's shape agrees (a
+  list spelling no element of a kind, `[]` or `[null]`, agrees with any list's; so `[[], [true], [null], [true,
+  false]]` unwinds to lists of Booleans, and the TCK's Precedence1 `b IN c` cases pass). Where the shape says
+  nothing (a map's member of a node the collect carried, a list's element by a place of the row, a key of the row),
+  the result stays a Variant: a RETURN writes it and the judge reads the value it holds; a comparison, an ORDER BY,
+  arithmetic over it stay refused by name. An entry that may be null is read only where its text is not the JSON
+  null (Postgres's cast of a jsonb null raises; DuckDB's reads none).
+- **`type`, `labels`, `properties` and `length` over values:** of a Variant whose mark says the function applies
+  (`type` of a relationship's `"@type"`, `labels` of a node's `"@labels"`, `properties` of a known map), the entry;
+  of a Variant of no known mark, a refusal by name (Neo4j raises for a value of the wrong kind, which the island
+  could not tell from a right one); of a value the function does not apply to (`type(n)` of a node, `length(r)`,
+  `properties(1)`, `labels('a')`, `type(1)` inside a comprehension), Neo4j's type error in Neo4j's words, so the
+  TCK's negative scenarios agree (Graph4, Graph9, Path3).
+- **`size` of a Variant list that may be null** tests the list and reads it only where it holds a value, without
+  `toOne`: Postgres plans a FROM function's argument (`jsonb_array_elements(CASE WHEN x IS NULL THEN <raise> ...)`)
+  before any row is read, so `toOne`'s raise inside it fired for a row whose list held a value (the Postgres lane's
+  catch on `an_unwound_map_s_list_entry_sized`; the ninth line's finding in `docs/IN_FLIGHT.md`).
+- **Refused by name, still:** a list comprehension or predicate over a list the database holds as a Variant of no
+  known element kind (the quantifier scenarios, 26: `[y IN input.list ...]` where the map's entry is a list of
+  Integers is read; `reverse(list) + x` over it is not), `ORDER BY` a Variant (18: a stored list's element by place,
+  `a.list[1]`, is a Variant of no kind), two Variants compared (Comparison2, 4), `properties` of a node or
+  relationship the database holds as a Variant (its keys would need stripping).
+
+#### 12.43.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4473 | 2840 (from 2,802) | 0 | 0 | 0 | 724 | 728 | 181 |
+| Postgres | 4473 | 2490 (from 2,452) | 0 | 0 | 0 | 1074 | 728 | 181 |
+
+35 lite cases in `lite/variants.yaml`, each judged by Neo4j (eleven Neo4j's errors, matched). The TCK: 14 more
+scenarios agree (Unwind1, Graph4, Graph6, Graph7, Precedence1; the error scenarios of Graph4, Graph9 and Path3 now
+agree by the type error, not by a refusal).

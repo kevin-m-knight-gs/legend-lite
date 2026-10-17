@@ -893,7 +893,7 @@ tck/clauses/unwind/Unwind1/[1] Unwinding a list	PASS	PASS
 tck/clauses/unwind/Unwind1/[2] Unwinding a range	PASS	PASS
 tck/clauses/unwind/Unwind1/[3] Unwinding a concatenation of lists	PASS	PASS
 tck/clauses/unwind/Unwind1/[4] Unwinding a collected unwound expression	PASS	PASS
-tck/clauses/unwind/Unwind1/[5] Unwinding a collected expression	REFUSED	REFUSED
+tck/clauses/unwind/Unwind1/[5] Unwinding a collected expression	PASS	PASS
 tck/clauses/unwind/Unwind1/[6] Creating nodes from an unwound parameter list	REFUSED	REFUSED
 tck/clauses/unwind/Unwind1/[7] Double unwinding a list of lists	PASS	PASS
 tck/clauses/unwind/Unwind1/[8] Unwinding the empty list	PASS	PASS
@@ -1545,7 +1545,7 @@ tck/expressions/graph/Graph4/[1] `type()`	PASS	PASS
 tck/expressions/graph/Graph4/[2] `type()` on two relationships	REFUSED	REFUSED
 tck/expressions/graph/Graph4/[3] `type()` on null relationship	PASS	PASS
 tck/expressions/graph/Graph4/[4] `type()` on mixed null and non-null relationships	PASS	PASS
-tck/expressions/graph/Graph4/[5] `type()` handling Any type	REFUSED	REFUSED
+tck/expressions/graph/Graph4/[5] `type()` handling Any type	PASS	PASS
 tck/expressions/graph/Graph4/[6] `type()` failing on invalid arguments #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph4/[6] `type()` failing on invalid arguments #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph4/[6] `type()` failing on invalid arguments #3	BOTH_ERROR	BOTH_ERROR
@@ -1564,7 +1564,7 @@ tck/expressions/graph/Graph5/[5] Label expression on null	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[1] Statically access a property of a non-null node	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[2] Statically access a property of a optional non-null node	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[3] Statically access a property of a null node	PASS	PASS
-tck/expressions/graph/Graph6/[4] Statically access a property of a node resulting from an expression	REFUSED	REFUSED
+tck/expressions/graph/Graph6/[4] Statically access a property of a node resulting from an expression	PASS	PASS
 tck/expressions/graph/Graph6/[5] Statically access a property of a non-null relationship	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[6] Statically access a property of a optional non-null relationship	REFUSED	REFUSED
 tck/expressions/graph/Graph6/[7] Statically access a property of a null relationship	PASS	PASS
@@ -1575,7 +1575,7 @@ tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-g
 tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-graph element #4	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-graph element #5	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-graph element #6	BOTH_ERROR	BOTH_ERROR
-tck/expressions/graph/Graph7/[1] Execute n['name'] in read queries	REFUSED	REFUSED
+tck/expressions/graph/Graph7/[1] Execute n['name'] in read queries	PASS	PASS
 tck/expressions/graph/Graph7/[2] Execute n['name'] in update queries	REFUSED	REFUSED
 tck/expressions/graph/Graph7/[3] Use dynamic property lookup based on parameters when there is lhs type information	REFUSED	REFUSED
 tck/expressions/graph/Graph8/[1] Using `keys()` on a single node, non-empty result	PASS	PASS
@@ -2105,16 +2105,16 @@ tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over
 tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #4	PASS	PASS
 tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #5	PASS	PASS
 tck/expressions/precedence/Precedence1/[25] Null predicates take precedence over binary boolean operators in every combination of truth values #6	PASS	PASS
-tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #1	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #2	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #3	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #4	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #5	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #6	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[27] List predicate takes precedence over negation in every combination of truth values	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[28] List predicate takes precedence over binary boolean operators in every combination of truth values #1	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[28] List predicate takes precedence over binary boolean operators in every combination of truth values #2	REFUSED	REFUSED
-tck/expressions/precedence/Precedence1/[28] List predicate takes precedence over binary boolean operators in every combination of truth values #3	REFUSED	REFUSED
+tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #1	PASS	PASS
+tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #2	PASS	PASS
+tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #3	PASS	PASS
+tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #4	PASS	PASS
+tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #5	PASS	PASS
+tck/expressions/precedence/Precedence1/[26] List predicate takes precedence over comparison operators in every combination of truth values #6	PASS	PASS
+tck/expressions/precedence/Precedence1/[27] List predicate takes precedence over negation in every combination of truth values	PASS	PASS
+tck/expressions/precedence/Precedence1/[28] List predicate takes precedence over binary boolean operators in every combination of truth values #1	PASS	PASS
+tck/expressions/precedence/Precedence1/[28] List predicate takes precedence over binary boolean operators in every combination of truth values #2	PASS	PASS
+tck/expressions/precedence/Precedence1/[28] List predicate takes precedence over binary boolean operators in every combination of truth values #3	PASS	PASS
 tck/expressions/precedence/Precedence2/[1] Numeric multiplicative operations takes precedence over numeric additive operations #1	PASS	PASS
 tck/expressions/precedence/Precedence2/[1] Numeric multiplicative operations takes precedence over numeric additive operations #2	PASS	PASS
 tck/expressions/precedence/Precedence2/[1] Numeric multiplicative operations takes precedence over numeric additive operations #3	PASS	PASS
@@ -4418,6 +4418,41 @@ lite/values/comparison_of_different_types_is_false	PASS	PASS
 lite/values/size_and_keys_errors_are_cyphers	BOTH_ERROR	BOTH_ERROR
 lite/values/where_in_over_rows	PASS	PASS
 lite/values/ordering_booleans	PASS	PASS
+lite/variants/an_unwound_map_s_entries_typed	PASS	PASS
+lite/variants/an_unwound_map_s_entry_it_lacks	PASS	PASS
+lite/variants/an_unwound_map_s_entry_compared	PASS	PASS
+lite/variants/an_unwound_map_s_entry_in_arithmetic	PASS	PASS
+lite/variants/an_unwound_map_s_boolean_entry_as_a_condition	PASS	PASS
+lite/variants/an_unwound_map_s_list_entry_sized	PASS	PASS
+lite/variants/an_unwound_map_s_list_entry_unwound	PASS	PASS
+lite/variants/an_unwound_map_s_list_entry_indexed	PASS	PASS
+lite/variants/an_unwound_map_s_entry_indexed_by_a_key	PASS	PASS
+lite/variants/an_unwound_map_s_entry_indexed_by_a_key_of_the_row	PASS	PASS
+lite/variants/an_unwound_map_s_scalar_entry_has_no_entries	BOTH_ERROR	BOTH_ERROR
+lite/variants/a_map_of_row_values_through_with_navigated	PASS	PASS
+lite/variants/a_map_of_row_values_through_with_navigated_where_an_entry_is_null	PASS	PASS
+lite/variants/a_list_of_row_values_through_with_indexed_from_its_end	PASS	PASS
+lite/variants/a_list_of_row_values_through_with_indexed_by_a_place_of_the_row	PASS	PASS
+lite/variants/a_collected_node_s_property	PASS	PASS
+lite/variants/a_collected_node_s_property_it_lacks	PASS	PASS
+lite/variants/a_collected_node_s_labels	PASS	PASS
+lite/variants/a_collected_node_s_type_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/variants/a_node_in_a_list_through_with_navigated	PASS	PASS
+lite/variants/a_relationship_in_a_list_through_with_typed	PASS	PASS
+lite/variants/a_list_through_with_indexed_beyond_its_end	PASS	PASS
+lite/variants/an_integer_in_a_list_through_with_has_no_type	BOTH_ERROR	BOTH_ERROR
+lite/variants/a_node_indexed_by_a_computed_key	PASS	PASS
+lite/variants/a_node_indexed_by_a_key_of_the_row	PASS	PASS
+lite/variants/a_collected_mixed_list_s_places	PASS	PASS
+lite/variants/a_collected_mixed_list_s_place_of_another_kind	PASS	PASS
+lite/variants/type_of_a_node_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/variants/type_of_an_integer_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/variants/type_in_a_comprehension_over_a_relationship_and_an_integer_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/variants/length_of_a_node_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/variants/length_of_a_relationship_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/variants/properties_of_an_integer_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/variants/properties_of_a_list_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/variants/labels_of_a_string_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/varlen/a_fixed_length_of_two	PASS	PASS
 lite/varlen/a_length_of_one_to_two	PASS	PASS
 lite/varlen/a_length_of_zero_to_one	PASS	PASS

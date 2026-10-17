@@ -9850,6 +9850,30 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the forty-second landing — a property or an index of a value the database holds as a Variant
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.43. The translator alone: a property
+or an index of a value the database holds as a Variant is the platform's `get` by the key or the place, read by
+type through `to(@T)` where the Variant's shape says it (a spelled map's entries, a list of one kind's elements, a
+spelled list of several kinds' places), else a Variant the judge reads as the value it holds; the shape travels as
+the Variant's mark through WITH, `collect` and UNWIND; `type`, `labels`, `properties` and `length` over values
+raise Neo4j's type errors in Neo4j's words.
+
+1. **What lands.** `UNWIND [{a: 1, b: 'x'}] AS m RETURN m.a, m.b`, `m['b']`, `m[k]`, `l[-1]`, `l[i]`,
+   `(list[1]).name`, `n['na' + 'me']`, `WITH [r, 1] AS l RETURN type(l[0])`, a collected node's property and
+   labels, `size(m.l)` on Postgres; `type(n)` of a node, `length(r)`, `properties(1)` as Neo4j's errors.
+2. **The ledger.** DuckDB: 4473 cases; PASS 2840 (from 2,802); FAIL 0; BUG 0; ERROR 0; REFUSED 724; BOTH_ERROR 728;
+   SKIP 181. Postgres: PASS 2490 (from 2,452); FAIL 0; BUG 0; ERROR 0; REFUSED 1074; BOTH_ERROR 728; SKIP 181. 35
+   lite cases in `lite/variants.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; two
+   unit tests pin the `get`/`to` spellings, the tuple's places, the type errors and the unknown-mark refusal.
+4. **Found and recorded.** Postgres plans a FROM function's argument before any row is read, so `toOne`'s raise
+   inside `jsonb_array_elements(...)` fires for a row that holds a value (`docs/IN_FLIGHT.md`, the ninth line); the
+   island's `size` of a Variant that may be null tests it instead of reading it as one.
+5. **Refused by name, recorded.** A comprehension or predicate over a Variant list of no known element kind, `ORDER
+   BY` a Variant, two Variants compared, `properties` of a Variant node or relationship, `type`/`labels` of a
+   Variant of no known mark.
+
 ## 2026-10-16 — `#Cypher{...}#`: the forty-first landing — variable-length relationships with an upper bound
 
 Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.42. The translator alone: a

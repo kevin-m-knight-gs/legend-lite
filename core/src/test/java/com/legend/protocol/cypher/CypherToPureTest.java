@@ -1049,4 +1049,48 @@ class CypherToPureTest {
         assertTrue(wrongWay.getMessage().contains("which no pattern from demo::Firm reads outgoing"),
                 wrongWay.getMessage());
     }
+
+    @Test
+    void aVariantsEntryIsThePlatformsGetTypedWhereTheShapeIsKnown() {
+        // an unwound map's entries (the study's §12.43): get, read by the entry's kind where it is known
+        String typed = pure("UNWIND [{a: 1, b: 'x'}] AS m RETURN m.a AS a, m.b AS b");
+        assertTrue(typed.contains("$r.m->get('a')->to(@Integer)"), typed);
+        assertTrue(typed.contains("$r.m->get('b')->to(@String)"), typed);
+        // a key the map lacks is null before the database is asked; a scalar entry has no entries
+        String lacks = pure("UNWIND [{a: 1}] AS m RETURN m.z AS z");
+        assertTrue(lacks.contains("z:r|[]"), lacks);
+        SqlTranslationException scalar = refusal("UNWIND [{a: 1}] AS m RETURN m.a.b");
+        assertEquals(SqlTranslationException.Kind.INVALID, scalar.kind(), scalar.getMessage());
+        // a collected node's property: get, a Variant (the node's class is not carried)
+        String node = pure("MATCH (p:Person) WITH collect(p) AS ps UNWIND ps AS n RETURN n.name AS name");
+        assertTrue(node.contains("$r.n->get('name')"), node);
+        assertFalse(node.contains("get('name')->to("), node);
+        // a list of several kinds carried through WITH: each place by its own kind
+        String tuple = pure("MATCH (p:Person) WITH [p.name, 1] AS l RETURN l[0] AS s, l[1] AS i, l[2] AS none");
+        assertTrue(tuple.contains("$r.l->get(0)->to(@String)"), tuple);
+        assertTrue(tuple.contains("$r.l->get(1)->to(@Integer)"), tuple);
+        assertTrue(tuple.contains("none:r|[]"), tuple);
+        // a node indexed by a key of the row: get by the key
+        String key = pure("MATCH (p:Person) UNWIND ['name', 'age'] AS k RETURN p[k] AS v");
+        assertTrue(key.contains("->get($r.k->toOne())"), key);
+    }
+
+    @Test
+    void graphFunctionsOverValuesRaiseNeo4jsTypeErrorsOrRefuseAnUnknownMark() {
+        SqlTranslationException node = refusal("MATCH (p:Person) RETURN type(p)");
+        assertEquals(SqlTranslationException.Kind.INVALID, node.kind(), node.getMessage());
+        assertTrue(node.getMessage().contains("expected Relationship but was Node"), node.getMessage());
+        SqlTranslationException length = refusal("MATCH (p:Person) RETURN length(p)");
+        assertTrue(length.getMessage().contains("expected Path but was Node"), length.getMessage());
+        SqlTranslationException properties = refusal("RETURN properties([true, false])");
+        assertTrue(properties.getMessage().contains("expected Map, Node or Relationship but was List<T>"),
+                properties.getMessage());
+        // a relationship in a list of several kinds: its place is a relationship, its type read from the Variant
+        String typed = pure("MATCH (p:Person)-[r:firm]->(f:Firm) WITH [r, 1] AS l RETURN type(l[0]) AS t");
+        assertTrue(typed.contains("$r.l->get(0)->get('@type')->to(@String)"), typed);
+        // a Variant of no known mark is refused by name, never read as a relationship
+        SqlTranslationException unknown = refusal("MATCH (p:Person) WITH [p, 1] AS l UNWIND l AS x RETURN type(x)");
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, unknown.kind(), unknown.getMessage());
+        assertTrue(unknown.getMessage().contains("of a kind the island does not know"), unknown.getMessage());
+    }
 }

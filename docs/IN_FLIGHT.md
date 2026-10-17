@@ -1624,6 +1624,10 @@ repros will be in the study's §9.
     uncast.
   - Postgres folds every branch of a CASE over constants, so an untaken branch that would raise (a DOUBLE underflow
     guard, or an overflow check over an outer column in a correlated subquery's comparison) raises at plan time.
+  - Postgres plans a FROM function's argument before any row is read: `toOne`'s raise inside
+    `jsonb_array_elements(CASE WHEN x IS NULL THEN <raise> ELSE x END)` fires for a row whose `x` holds a value
+    (the Cypher island's `size` of a Variant list that may be null, 2026-10-17; the island now tests the list and
+    reads it as a collection without `toOne`).
   - `times(times(x,a),times(y,b))` lowers as one left-to-right chain, `x*a*y*b`, which changes a DOUBLE's
     intermediate overflow and underflow.
 - **The compiler and stamp program:**

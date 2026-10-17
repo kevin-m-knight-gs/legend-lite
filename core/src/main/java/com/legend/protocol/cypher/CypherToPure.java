@@ -2693,9 +2693,32 @@ public final class CypherToPure {
         }
     }
 
-    /** The mark of a list the database holds as a Variant whose elements are all of one scalar kind (a collected
-     *  column, a spelled list of such lists): what UNWIND reads back as that kind (the study's §12.41). */
-    private record ListOf(Kind element) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    /** The mark of a list the database holds as a Variant whose elements are all of one kind (a collected column,
+     *  a spelled list of such lists): what UNWIND reads back as that kind (the study's §12.41), with the elements'
+     *  own shape when they are Variants (collected nodes, lists or maps; the study's §12.43). */
+    private record ListOf(Kind element, com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail
+            elementDetail) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+        ListOf(Kind element) {
+            this(element, null);
+        }
+    }
+
+    /** The mark of a spelled list of values of several kinds the database holds as a Variant ({@code [r, 1]}
+     *  carried through WITH): each place's kind and shape, what an index by a spelled place reads its element by
+     *  (the study's §12.43). */
+    private record TupleOf(List<Entry> entries) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** The mark of a map the database holds as a Variant whose entries are known (a spelled map of row values
+     *  carried through WITH, the maps of one shape an UNWIND reads): what a navigation into it reads an entry by
+     *  (the study's §12.43). */
+    private record MapOf(Map<String, Entry> entries) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** A known map's entry: its kind, whether it may be null (a null the Variant spells, which no typed read
+     *  survives), and its own shape when it is a list or map. */
+    private record Entry(Kind kind, boolean nullable,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
     }
 
     /** Cypher's sum of no values: 0 where the database's is null. */
@@ -2897,12 +2920,9 @@ public final class CypherToPure {
                 scalars.put(out.name(), variant(v, pos));
             } else if (!rowFree(v) && !grouped) {
                 // a list or map holding a value of the row, carried through WITH: the Variant the database builds
-                // (the study's §12.41), marked with its element kind where its elements share one, so what reads
-                // it after reads its elements by type
-                Kind element = elementKind(v);
-                Tx json = variant(v, pos);
-                scalars.put(out.name(), element == null ? json : new Tx(json.vs(), json.kind(), json.nullable(),
-                        json.whenFalse(), new ListOf(element), json.guard(), json.body()));
+                // (the study's §12.41), marked with its shape where its spelling says it (its elements' one kind, a
+                // map's entries), so what reads it after reads into it by type (the study's §12.43)
+                scalars.put(out.name(), variant(v, pos));
             } else if (!rowFree(v)) {
                 throw CypherErrors.unsupported("a list or map holding a value of the row (" + out.name() + ") among"
                         + " the grouping keys is not supported yet", pos);
@@ -3492,7 +3512,9 @@ public final class CypherToPure {
         return new Aggregate(freshName(names), piece, lambda("y", call("joinStrings", new Variable("y"),
                 new CString(","))), Kind.JSON, false, raw -> call("fromJson", plus(new CString("["),
                 call("if", call("isEmpty", raw), thunk(new CString("")), thunk(call("toOne", raw))),
-                new CString("]"))), elementType(arg.kind()) == null ? null : new ListOf(arg.kind()));
+                new CString("]"))), arg.kind() == Kind.JSON && arg.detail() != null
+                        ? new ListOf(Kind.JSON, arg.detail())
+                        : elementType(arg.kind()) == null ? null : new ListOf(arg.kind()));
     }
 
     /** The Pure type a list's elements of this kind are read back as ({@code toMany}), or null for a kind the
@@ -4462,10 +4484,8 @@ public final class CypherToPure {
                 return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
                         np.nullable()));
             }
-            if (found.kind() == Kind.JSON) {
-                throw CypherErrors.unsupported("a property of a projected value (a node or map carried through WITH)"
-                        + " is not supported yet", p.pos());
-            }
+            // (a value the database holds as a Variant, a node or map carried through WITH or read by an UNWIND:
+            // the entry the platform's get reads, the study's §12.43)
             return member(variable(v), p.name(), p.pos());
         }
 
@@ -5231,16 +5251,12 @@ public final class CypherToPure {
                 return rel != null ? nodeKeys(rel) : noKeys();
             }
         }
-        if ((fn.equals("type") || fn.equals("labels") || fn.equals("properties")) && c.args().size() == 1
-                && !(c.args().get(0) instanceof CypherAst.Var)) {
-            // of a null, null (the study's §12.24); properties of a map, the map
-            Val a = val(c.args().get(0), scope);
-            if (a instanceof Scalar s && s.tx().kind() == Kind.NULL) {
-                return scalar(SqlToPure.nullOf(fn.equals("type") ? Kind.STRING : Kind.JSON));
-            }
-            if (fn.equals("properties") && a instanceof MapVal) {
-                return a;
-            }
+        if ((fn.equals("type") || fn.equals("labels") || fn.equals("properties") || fn.equals("length"))
+                && c.args().size() == 1) {
+            // of a value: of a null, null (the study's §12.24); properties of a map, the map; of a value the
+            // database holds as a Variant, the entry its JSON carries (a relationship's type, a node's labels; the
+            // study's §12.43); of a value of another kind, Neo4j's type error
+            return graphFunction(fn, val(c.args().get(0), scope), c.pos());
         }
         Function f = FUNCTIONS_BY_NAME.get(fn);
         if (f == null) {
@@ -5319,9 +5335,15 @@ public final class CypherToPure {
                         throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was "
                                 + (s.tx().detail() instanceof PathValue ? "Path" : "Node"), c.pos());
                     }
-                    // (the elements as a collection the database counts: a JSON array's length)
-                    yield scalar(SqlToPure.strict(Kind.INTEGER, List.of(s.tx()), x -> call("size", call("toMany",
-                            x.get(0), SqlToPure.typeArg("meta::pure::metamodel::variant::Variant")))));
+                    // (the elements as a collection the database counts: a JSON array's length; a list that may be
+                    // null is tested, never read as one: Postgres plans a FROM function's argument eagerly, and
+                    // toOne's raise inside it fires before any row is read)
+                    ValueSpecification held = SqlToPure.valueOf(s.tx());
+                    ValueSpecification counted = call("size", call("toMany", held,
+                            SqlToPure.typeArg("meta::pure::metamodel::variant::Variant")));
+                    yield scalar(s.tx().nullable() ? Tx.value(call("if", call("isEmpty", held),
+                            thunk(SqlToPure.nullOf(Kind.INTEGER).vs()), thunk(counted)), Kind.INTEGER, true)
+                            : Tx.value(counted, Kind.INTEGER, false));
                 }
                 default -> throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was "
                         + cypherType(s.tx().kind()), c.pos());
@@ -5793,7 +5815,8 @@ public final class CypherToPure {
      *  that kind), so that a list predicate, IN, an index or a comprehension reads it as it reads any collection the
      *  database computes; any other value as it is. */
     private static Val asCollection(Val v) {
-        if (v instanceof Scalar s && s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape) {
+        if (v instanceof Scalar s && s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape
+                && elementType(shape.element()) != null) {
             return new Coll(call("toMany", SqlToPure.valueOf(s.tx()),
                     SqlToPure.typeArg(java.util.Objects.requireNonNull(elementType(shape.element())))),
                     shape.element(), false);
@@ -5864,14 +5887,52 @@ public final class CypherToPure {
      */
     private Tx variant(Val v, Pos pos) {
         if (isLiteral(v)) {
-            return Tx.value(call("fromJson", new CString(json(v))), Kind.JSON, false);
+            return Tx.value(call("fromJson", new CString(json(v))), Kind.JSON, false, shapeOf(v));
         }
         return switch (v) {
             case Scalar s -> s.tx();
-            case Coll c -> Tx.value(call("toVariant", c.vs()), Kind.JSON, false);
-            case ListVal l -> Tx.value(call("fromJson", jsonTextOf(l, pos)), Kind.JSON, false);
-            case MapVal m -> Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false);
+            case Coll c -> Tx.value(call("toVariant", c.vs()), Kind.JSON, false, shapeOf(c));
+            case ListVal l -> Tx.value(call("fromJson", jsonTextOf(l, pos)), Kind.JSON, false, shapeOf(l));
+            case MapVal m -> Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false, shapeOf(m));
         };
+    }
+
+    /** The shape of a value the database holds as a Variant, where its spelling says it (the study's §12.43): a
+     *  list whose elements are scalars of one kind the Variant reads back by type ({@link #elementType}),
+     *  {@link ListOf} that kind; a list of several kinds, {@link TupleOf} each place's; a map, {@link MapOf} its
+     *  entries' kinds and shapes; a collection the database computes, {@link ListOf} its kind; a scalar, its own
+     *  mark (a node's, a relationship's), null when it has none. What a navigation into the Variant reads its
+     *  result by. */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail shapeOf(Val v) {
+        return switch (v) {
+            case Scalar s -> s.tx().detail();
+            case Coll c -> elementType(c.kind()) == null ? null : new ListOf(c.kind());
+            case ListVal l -> {
+                Kind k = elementKind(l);
+                if (k != null && elementType(k) != null) {
+                    yield new ListOf(k);
+                }
+                List<Entry> entries = new ArrayList<>();
+                for (Val e : l.elements()) {
+                    entries.add(entryOf(e));
+                }
+                yield new TupleOf(entries);
+            }
+            case MapVal m -> {
+                Map<String, Entry> entries = new LinkedHashMap<>();
+                for (Map.Entry<String, Val> e : m.entries().entrySet()) {
+                    entries.put(e.getKey(), entryOf(e.getValue()));
+                }
+                yield new MapOf(entries);
+            }
+        };
+    }
+
+    /** A spelled list's or map's element as a known entry: a scalar's kind, nullability and mark; a list, map or
+     *  collection, a Variant of its shape. */
+    private static Entry entryOf(Val v) {
+        return v instanceof Scalar s ? new Entry(s.tx().kind(), s.tx().nullable(), s.tx().detail())
+                : new Entry(Kind.JSON, false, shapeOf(v));
     }
 
     /** A value's JSON text, built by the database: a scalar by its kind ({@link #jsonText}; an empty one
@@ -5932,8 +5993,7 @@ public final class CypherToPure {
                     || s.tx().kind() == Kind.TIME || s.tx().kind() == Kind.ZONED || s.tx().kind() == Kind.ZONED_TIME ->
                     scalar(temporalField(s.tx(), name, pos));
             case Scalar s when s.tx().kind() == Kind.DURATION -> scalar(durationField(s.tx(), name, pos));
-            case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("a property of a value"
-                    + " the database holds as a Variant is not supported yet", pos);
+            case Scalar s when s.tx().kind() == Kind.JSON -> variantMember(s.tx(), name, pos);
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point,"
                     + " Duration, Date, Time, LocalTime, LocalDateTime or DateTime but was "
                     + cypherType(s.tx().kind()), pos);
@@ -6052,7 +6112,8 @@ public final class CypherToPure {
     /** {@code target[index]}: a known list's element by a spelled index (from the end when negative; null beyond
      *  either end), a known map's entry by a spelled key, a computed list's element by the database. */
     private Val index(CypherAst.Index ix, Scope scope) {
-        Val target = asCollection(val(ix.target(), scope));
+        Val raw = val(ix.target(), scope);
+        Val target = asCollection(raw);
         Val idx = val(ix.index(), scope);
         if (isNull(target) || isNull(idx)) {
             return nullValue();
@@ -6148,6 +6209,10 @@ public final class CypherToPure {
                 }
                 Long n = integerLiteral(is);
                 if (n == null || n < 0) {
+                    if (raw instanceof Scalar rs && rs.tx().kind() == Kind.JSON) {
+                        // a list the database holds: its element at the place, by the platform's get (§12.43)
+                        yield variantIndex(rs.tx(), is, ix);
+                    }
                     throw CypherErrors.unsupported("indexing a list the database computes by a value that is not a"
                             + " literal, or from its end, is not supported yet", ix.pos());
                 }
@@ -6155,13 +6220,196 @@ public final class CypherToPure {
             }
             case Scalar s -> {
                 if (s.tx().kind() == Kind.JSON) {
-                    throw CypherErrors.unsupported("indexing a value the database holds as a Variant is not supported"
-                            + " yet", ix.pos());
+                    yield variantIndex(s.tx(), is, ix);
                 }
                 throw CypherErrors.invalid("Type mismatch: expected List<T> or Map but was "
                         + cypherType(s.tx().kind()), ix.target().pos());
             }
         };
+    }
+
+    /**
+     * {@code type}, {@code labels}, {@code properties} and {@code length} of a value: of a null, null (the study's
+     * §12.24); properties of a map, the map; of a value the database holds as a Variant (the study's §12.43), the
+     * entry its JSON carries where its mark says the function applies ({@code type} of a relationship's
+     * {@code "@type"}, {@code labels} of a node's {@code "@labels"}); of one whose mark the island does not know, a
+     * refusal by name (Neo4j raises for a value of the wrong kind, which the island could not); of a value the
+     * function does not apply to, Neo4j's type error.
+     */
+    private Val graphFunction(String fn, Val a, Pos pos) {
+        String expected = switch (fn) {
+            case "type" -> "Relationship";
+            case "labels" -> "Node";
+            case "properties" -> "Map, Node or Relationship";
+            case "length" -> "Path";
+            default -> throw new IllegalStateException("not a graph function: " + fn);
+        };
+        if (a instanceof Scalar s && s.tx().kind() == Kind.NULL) {
+            return scalar(SqlToPure.nullOf(fn.equals("type") ? Kind.STRING : fn.equals("length") ? Kind.INTEGER
+                    : Kind.JSON));
+        }
+        if (fn.equals("properties") && a instanceof MapVal) {
+            return a;
+        }
+        if (a instanceof Scalar s && s.tx().kind() == Kind.JSON) {
+            Tx v = s.tx();
+            if (fn.equals("length") && v.detail() instanceof AbsentPath) {
+                // a path a hop from an absent node never found (the study's §12.36)
+                return scalar(SqlToPure.nullOf(Kind.INTEGER));
+            }
+            if (v.detail() == null) {
+                throw CypherErrors.unsupported(fn + " of a value the database holds as a Variant, of a kind the"
+                        + " island does not know, is not supported yet", pos);
+            }
+            boolean applies = switch (fn) {
+                case "type" -> v.detail() instanceof RelValue;
+                case "labels" -> v.detail() instanceof NodeValue;
+                case "properties" -> v.detail() instanceof NodeValue || v.detail() instanceof RelValue
+                        || v.detail() instanceof MapOf;
+                default -> v.detail() instanceof PathValue;
+            };
+            if (!applies) {
+                throw CypherErrors.invalid("Type mismatch: expected " + expected + " but was " + variantType(v), pos);
+            }
+            switch (fn) {
+                case "type" -> {
+                    if (v.detail() instanceof RelValue rel && rel.type() != null && !v.nullable()) {
+                        return literal(Tx.value(new CString(rel.type()), Kind.STRING, false), rel.type());
+                    }
+                    return scalar(columnLike(call("to", call("get", SqlToPure.valueOf(v), new CString("@type")),
+                            SqlToPure.typeArg("String")), Kind.STRING, true));
+                }
+                case "labels" -> {
+                    return scalar(Tx.value(call("get", SqlToPure.valueOf(v), new CString("@labels")), Kind.JSON, true,
+                            new ListOf(Kind.STRING)));
+                }
+                case "properties" -> {
+                    if (v.detail() instanceof MapOf) {
+                        return a;
+                    }
+                    throw CypherErrors.unsupported("properties of a node or relationship the database holds as a"
+                            + " Variant is not supported yet", pos);
+                }
+                default -> throw CypherErrors.unsupported("length of a path the database holds as a Variant is not"
+                        + " supported yet", pos);
+            }
+        }
+        String was = switch (a) {
+            case Scalar s -> cypherType(s.tx().kind());
+            case ListVal l -> "List<T>";
+            case Coll c -> "List<T>";
+            case MapVal m -> "Map";
+        };
+        throw CypherErrors.invalid("Type mismatch: expected " + expected + " but was " + was, pos);
+    }
+
+    /**
+     * {@code v[i]} over a value the database holds as a Variant (the study's §12.43): a list's element at a place
+     * (counted from the end when negative, null beyond either end: the platform's {@code get} by an Integer, on
+     * which the databases agree), read by the elements' kind where the shape says it ({@link ListOf}); a map's, a
+     * node's or a relationship's entry by a key, as {@link #variantMember} reads it, a key of the row read as a
+     * Variant. A null place or key is null. A list indexed by a key, a map by a place, is Neo4j's type error.
+     */
+    private Val variantIndex(Tx v, Scalar index, CypherAst.Index ix) {
+        Tx i = index.tx();
+        boolean list = v.detail() instanceof ListOf || v.detail() instanceof TupleOf;
+        boolean map = v.detail() instanceof MapOf || isNode(v);
+        if (i.kind() == Kind.INTEGER) {
+            if (map || v.detail() instanceof PathValue || v.detail() instanceof AbsentPath) {
+                throw CypherErrors.invalid("Type mismatch: expected List<T> but was " + variantType(v),
+                        ix.target().pos());
+            }
+            Long n = integerLiteral(index);
+            if (v.detail() instanceof TupleOf tuple && n != null) {
+                // the place's own kind and shape; none beyond either end
+                long at = n < 0 ? n + tuple.entries().size() : n;
+                if (at < 0 || at >= tuple.entries().size()) {
+                    return nullValue();
+                }
+                Entry e = tuple.entries().get((int) at);
+                return e.kind() == Kind.NULL ? nullValue() : scalar(entryRead(navigation(v, i), e));
+            }
+            ValueSpecification got = navigation(v, i);
+            return scalar(v.detail() instanceof ListOf shape
+                    ? entryRead(got, new Entry(shape.element(), true, shape.elementDetail()))
+                    : Tx.value(got, Kind.JSON, true));
+        }
+        if (i.kind() == Kind.STRING) {
+            if (list || v.detail() instanceof PathValue || v.detail() instanceof AbsentPath) {
+                throw CypherErrors.invalid("Type mismatch: expected Map but was " + variantType(v),
+                        ix.target().pos());
+            }
+            if (index.literal()) {
+                return variantMember(v, (String) java.util.Objects.requireNonNull(index.constant()), ix.pos());
+            }
+            return scalar(Tx.value(navigation(v, i), Kind.JSON, true));
+        }
+        throw CypherErrors.invalid("Type mismatch: expected " + (list ? "Integer" : map ? "String"
+                : "Integer or String") + " but was " + cypherType(i.kind()), ix.index().pos());
+    }
+
+    /** Cypher's name for what a Variant holds, by its mark: for a type error's message. */
+    private static String variantType(Tx v) {
+        if (v.detail() instanceof NodeValue) {
+            return "Node";
+        }
+        if (v.detail() instanceof RelValue) {
+            return "Relationship";
+        }
+        if (v.detail() instanceof PathValue || v.detail() instanceof AbsentPath) {
+            return "Path";
+        }
+        return v.detail() instanceof ListOf || v.detail() instanceof TupleOf ? "List<T>" : "Map";
+    }
+
+    /** The platform's {@code get} of a Variant by a place or a key (a literal, or a value of the row: null for a
+     *  null one). */
+    private static ValueSpecification navigation(Tx v, Tx key) {
+        ValueSpecification source = SqlToPure.valueOf(v);
+        ValueSpecification k = SqlToPure.valueOf(key);
+        if (!key.nullable()) {
+            return call("get", source, k);
+        }
+        return call("if", call("isEmpty", k), thunk(SqlToPure.nullOf(Kind.JSON).vs()),
+                thunk(call("get", source, call("toOne", k))));
+    }
+
+    /**
+     * {@code v.name} over a value the database holds as a Variant (the study's §12.43): the entry the platform's
+     * {@code get} reads, null for a key the value lacks (Neo4j's null for a property a node, a relationship or a
+     * map lacks), read by its kind where the Variant's shape says it ({@link MapOf}: an entry that is never null),
+     * else as a Variant, which a RETURN writes and the judge reads as the value it holds. A list and a path have no
+     * entries (Neo4j's type error).
+     */
+    private Val variantMember(Tx v, String name, Pos pos) {
+        if (v.detail() instanceof ListOf || v.detail() instanceof TupleOf || v.detail() instanceof PathValue
+                || v.detail() instanceof AbsentPath) {
+            throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point, Duration, Date,"
+                    + " Time, LocalTime, LocalDateTime or DateTime but was " + variantType(v), pos);
+        }
+        ValueSpecification got = call("get", SqlToPure.valueOf(v), new CString(name));
+        if (v.detail() instanceof MapOf m) {
+            Entry e = m.entries().get(name);
+            return e == null || e.kind() == Kind.NULL ? nullValue() : scalar(entryRead(got, e));
+        }
+        return scalar(Tx.value(got, Kind.JSON, true));
+    }
+
+    /** A navigation's result (the platform's {@code get}: a Variant, or none) read by the entry's kind through the
+     *  platform's {@code to}, where its kind reads back by type ({@link #elementType}); else as a Variant carrying
+     *  the entry's shape (a nested list's or map's). An entry that may be null is read only where its text is not
+     *  the JSON null (a null the Variant spells, which Postgres's cast refuses and DuckDB's reads as none). */
+    private static Tx entryRead(ValueSpecification got, Entry e) {
+        String type = e.kind() == Kind.JSON ? null : elementType(e.kind());
+        if (type == null) {
+            return Tx.value(got, Kind.JSON, true, e.kind() == Kind.JSON ? e.detail() : null);
+        }
+        ValueSpecification read = call("to", got, SqlToPure.typeArg(type));
+        if (e.nullable()) {
+            read = call("if", call("or", call("isEmpty", got), call("equal", call("toString", call("toOne", got)),
+                    new CString("null"))), thunk(SqlToPure.nullOf(e.kind()).vs()), thunk(read));
+        }
+        return columnLike(read, e.kind(), true);
     }
 
     /** {@code target[from..to]}: a known list's slice by spelled bounds (from the end when negative, clamped to the
@@ -9702,12 +9950,14 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("UNWIND of a node, a relationship or a path (one row in Neo4j) is"
                             + " not supported yet", u.pos());
                 }
-                Kind element = s.tx().detail() instanceof ListOf shape ? shape.element() : null;
+                ListOf shape = s.tx().detail() instanceof ListOf l ? l : null;
+                Kind element = shape == null || elementType(shape.element()) == null ? null : shape.element();
                 String type = element == null ? "meta::pure::metamodel::variant::Variant"
                         : java.util.Objects.requireNonNull(elementType(element));
                 rel = call("flatten", call("toMany", SqlToPure.valueOf(s.tx()), SqlToPure.typeArg(type)),
                         new ColSpec(x, null, null, null));
-                col = new Col(x, element == null ? Kind.JSON : element, true);
+                col = new Col(x, element == null ? Kind.JSON : element, true, null,
+                        shape == null ? null : shape.elementDetail());
             }
             case Scalar s -> throw CypherErrors.unsupported("UNWIND of a value that is not a list (one row in Neo4j)"
                     + " is not supported yet", u.pos());
@@ -9749,8 +9999,10 @@ public final class CypherToPure {
                 }
                 com.legend.protocol.sql.InputDialect.TypeDetail shape = null;
                 if (variants) {
+                    // (the elements of one shape -- lists of one kind, maps of one shape, nodes -- read back by it,
+                    // the study's §12.43; a list spelling no element of a kind agrees with any list's)
                     elements = new ArrayList<>();
-                    Kind common = null;
+                    com.legend.protocol.sql.InputDialect.TypeDetail common = null;
                     boolean agree = true;
                     for (Val e : l.elements()) {
                         if (e instanceof Scalar s && s.tx().kind() == Kind.NULL) {
@@ -9758,12 +10010,15 @@ public final class CypherToPure {
                             continue;
                         }
                         elements.add(variant(e, u.pos()));
-                        Kind k = elementKind(e);
-                        agree &= k != null && (common == null || common == k);
-                        common = common == null ? k : common;
+                        if (e instanceof ListVal le && le.elements().stream().allMatch(CypherToPure::isNull)) {
+                            continue;
+                        }
+                        com.legend.protocol.sql.InputDialect.TypeDetail d = shapeOf(e);
+                        agree &= d != null && (common == null || common.equals(d));
+                        common = common == null ? d : common;
                     }
                     kind = Kind.JSON;
-                    shape = agree && common != null ? new ListOf(common) : null;
+                    shape = agree ? common : null;
                 }
                 // a list holding a temporal value of nanosecond precision: every element at that precision (a
                 // time of day as the date-time at it on the epoch day), the column of it

@@ -133,7 +133,9 @@ landings, twenty-one findings fixed and the Postgres lane's one catch after them
 Postgres PASS 2368, 0 FAIL, 0 BUG, 0 ERROR on both. Then `collect` as the list the database builds, and lists the
 database holds read by their element kind (§12.41); DuckDB PASS 2784, Postgres PASS 2434, 0 FAIL, 0 BUG, 0 ERROR on
 both. Then variable-length relationships with an upper bound, unrolled into the chains of each length (§12.42);
-DuckDB PASS 2802, Postgres PASS 2452, 0 FAIL, 0 BUG, 0 ERROR on both. The compact form read from the node side,
+DuckDB PASS 2802, Postgres PASS 2452, 0 FAIL, 0 BUG, 0 ERROR on both. Then a property or an index of a value the
+database holds as a Variant, the platform's `get` read by type where the Variant's shape says it (§12.43); DuckDB
+PASS 2840, Postgres PASS 2490, 0 FAIL, 0 BUG, 0 ERROR on both. The compact form read from the node side,
 inheritance (a node with several labels), identity, `USE`, named zones, and the unbounded variable-length
 relationship (the recursion native, §6.3) wait.
 
