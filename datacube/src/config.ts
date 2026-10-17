@@ -374,6 +374,22 @@ export function withSettings(
   return prune<CubeConfiguration>({ ...config, ...patch });
 }
 
+/**
+ * A configuration patch as a host applies one (CubeApp.applyConfiguration, Python's Grid.configure): its settings by
+ * withSettings, each column's by withColumn, merged into what the column has. `columns` is split out rather than passed
+ * through: withSettings prunes undefined keys, so `columns: undefined` would not leave the column map alone -- it would
+ * delete it.
+ */
+export function withConfiguration(
+  config: CubeConfiguration,
+  patch: Patch<CubeConfiguration>,
+): CubeConfiguration {
+  const { columns, ...settings } = patch;
+  let next = Object.keys(settings).length > 0 ? withSettings(config, settings) : config;
+  for (const [name, cfg] of Object.entries(columns ?? {})) next = withColumn(next, name, cfg);
+  return next;
+}
+
 /** Apply a patch to the grid-wide appearance. */
 export function withAppearance(
   config: CubeConfiguration,

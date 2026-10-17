@@ -489,8 +489,7 @@ export function openCube(
 
 /**
  * Whether a cube's grouping changed -- its row groups or its pivot, by name and order. Its open rows are paths through
- * the grouping it had, so a changed one has none: a cube reopened over a source that lost a grouping column (openCube),
- * and one regrouped by an edit (headless gridEdit), by this one test.
+ * the grouping it had, so a changed one has none: a cube reopened over a source that lost a grouping column (openCube).
  */
 export function groupingChanged(
   was: Pick<CubeSnapshot, 'rows' | 'pivotOn'>, now: Pick<CubeSnapshot, 'rows' | 'pivotOn'>,

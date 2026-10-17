@@ -165,6 +165,20 @@ class Grids(unittest.TestCase):
         self.assertIn('max()', grouped.relation)
         rows = grouped.to_pandas().set_index('desk').qty.to_dict()
         self.assertEqual(rows, TRADES.groupby('desk').qty.max().to_dict())
+        # set as DataCube sets a host's settings, then folded: after an edit wrote its query (a row cap and an Aggregation
+        # folded in), the setting still holds; each column's merged into what it has; None clears one
+        edited = self.page.grid(TRADES, name='trades_edited', rows=['desk'], measures={'qty': 'sum'},
+                                sort=[('qty', 'desc')])
+        edited.configure({'columns': {'qty': {'aggregateFn': 'max'}}})
+        self.assertEqual(groups(edited.view(), 'qty'), TRADES.groupby('desk').qty.max().to_dict())
+        edited.configure({'maxRows': 2})
+        self.assertEqual(edited._query['maxRows'], 2, 'folded into the query, as the screen folds it')
+        edited.configure({'columns': {'qty': {'hidden': True}}})
+        self.assertEqual(edited._cube['configuration']['columns']['qty'], {'aggregateFn': 'max', 'hidden': True})
+        self.assertEqual(edited._cube['configuration']['maxRows'], 2)
+        edited.configure({'maxRows': None, 'columns': {'qty': {'hidden': None}}})
+        self.assertEqual(edited._cube['configuration']['columns']['qty'], {'aggregateFn': 'max'})
+        self.assertNotEqual(edited._cube['configuration'].get('maxRows'), 2)
 
     def test_a_grid_read_while_another_thread_registers_frames_does_not_wait_on_it(self):
         # the session's lock and the frames' lock, taken in one order by both: a grid read beside frames registered

@@ -17,6 +17,7 @@ import {
   toColumnLayout,
   toFormats,
   withColumn,
+  withConfiguration,
   type CubeConfiguration,
 } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -70,6 +71,23 @@ describe('withColumn', () => {
     let c = withColumn(DEFAULT_CONFIGURATION, 'region', { hidden: true });
     c = withColumn(c, 'year', { hidden: true });
     assert.deepEqual(Object.keys(c.columns).sort(), ['region', 'year']);
+  });
+});
+
+describe('withConfiguration: a host\'s patch (CubeApp.applyConfiguration, Python\'s Grid.configure)', () => {
+  it('merges each column into what it has, and leaves the others and the column map alone', () => {
+    let c = withColumn(DEFAULT_CONFIGURATION, 'region', { pinned: 'left' });
+    c = withColumn(c, 'year', { hidden: true });
+    c = withConfiguration(c, { reportTitle: 'Trades', columns: { region: { hidden: true } } });
+    assert.equal(c.reportTitle, 'Trades');
+    assert.deepEqual(columnConfig(c, 'region'), { pinned: 'left', hidden: true });
+    assert.deepEqual(columnConfig(c, 'year'), { hidden: true });
+    assert.deepEqual(withConfiguration(c, { maxRows: 10 }).columns, c.columns);
+  });
+
+  it('clears what it is told undefined', () => {
+    const c = withConfiguration(withConfiguration(DEFAULT_CONFIGURATION, { maxRows: 10 }), { maxRows: undefined });
+    assert.equal('maxRows' in c, false);
   });
 });
 

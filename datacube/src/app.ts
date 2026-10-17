@@ -38,6 +38,7 @@ import {
   DEFAULT_MAX_ROWS,
   renameColumnConfig,
   withColumn,
+  withConfiguration,
   withSettings,
   type CubeConfiguration,
   type Patch,
@@ -2259,15 +2260,8 @@ export class CubeApp {
   async applyConfiguration(
     patch: Patch<CubeConfiguration>,
   ): Promise<void> {
-    // `columns` is split out rather than passed through: withSettings
-    // prunes undefined keys, so handing it `columns: undefined` does
-    // not mean "leave columns alone", it DELETES the column map.
-    const { columns, ...settings } = patch;
-    await this.#configure((c) => {
-      let next = Object.keys(settings).length > 0 ? withSettings(c, settings) : c;
-      for (const [name, cfg] of Object.entries(columns ?? {})) next = withColumn(next, name, cfg);
-      return next;
-    }, 'settings');
+    // the one rule a host's patch is applied by: Python's Grid.configure too (headless gridEdit)
+    await this.#configure((c) => withConfiguration(c, patch), 'settings');
   }
 
   // -- selection -------------------------------------------------------

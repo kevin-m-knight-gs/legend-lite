@@ -250,11 +250,12 @@ class Grid(Tile):
         return self
 
     def _edit(self, given: dict[str, Any]) -> Grid:
-        """The grid edited as DataCube's screen edits one -- any of ``columns`` (Column Properties), ``rows``,
-        ``pivotOn``, ``measures`` and ``sorts``, each whole -- by DataCube's own module, the one its panels, header menu
+        """The grid edited as DataCube's screen edits one -- any of ``configuration`` (its settings, as a host patches
+        them), ``columns`` (Column Properties), ``rows``, ``pivotOn``, ``measures`` and ``sorts``, each whole -- by
+        DataCube's own module, the one its panels, header menu
         and drag zones call (headless gridEdit: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md), and compiled as its
         Apply compiles: refused in DataCube's words, nothing set; else the cube document DataCube writes, its open
-        groups let go when the grouping changed."""
+        groups kept as the screen keeps them."""
         engine, frames = self._headless()
         with frames.serving():
             said = json.loads(engine.call('gridEdit', self._spec(frames), _json.dumps(given)))
@@ -379,13 +380,14 @@ class Grid(Tile):
         """Pivoted on ``columns`` (the Columns zone): dimensions, as for ``group``; none, not pivoted."""
         return self._edit({'pivotOn': list(columns)})
 
-    def column(self, name: str, *, kind: str | None = None, aggregate: str | None = None,
-               weight: str | None = None) -> Grid:
+    def column(self, name: str, *, kind: str | None = None, aggregate: Any = _KEEP, weight: Any = _KEEP) -> Grid:
         """``name``'s Column Properties, as the panel sets them: its ``kind`` (``'dimension'``, which can be grouped and
         pivoted on, or ``'measure'``; a calculated column's is its editor's), its Aggregation (``aggregate``: one the
-        panel offers for its type; a measure's only) and a weighted average's ``weight`` column. What is not given is
-        left as it is."""
-        change = {k: v for k, v in (('kind', kind), ('aggregate', aggregate), ('weight', weight)) if v is not None}
+        panel offers for its type; a measure's only) and a weighted average's ``weight`` column -- None clears either,
+        as the panel's "none" does. What is not given is left as it is."""
+        change = {**({'kind': kind} if kind is not None else {}),
+                  **({'aggregate': aggregate} if aggregate is not _KEEP else {}),
+                  **({'weight': weight} if weight is not _KEEP else {})}
         return self._edit({'columns': {name: change}})
 
     def measure(self, column: str, fn: str = 'sum', name: str | None = None, *, weight: str | None = None) -> Grid:
@@ -441,10 +443,10 @@ class Grid(Tile):
 
     def configure(self, settings: Mapping[str, Any]) -> Grid:
         """Any of the grid's configuration (its Properties), in its saved document's own keys (``reportTitle``,
-        ``showRootAggregation``, ``columns``: each column's formats and colours, ...)."""
-        self._cube.setdefault('configuration', {}).update(_copied(settings))
-        self._page._changed()
-        return self
+        ``maxRows``, ``columns``: each column's formats and colours, ...), set as DataCube sets a host's (its
+        ``applyConfiguration``: each column's merged into what it has; None clears a setting) and folded into its query
+        as the screen folds it, through headless gridEdit."""
+        return self._edit({'configuration': _copied(settings)})
 
     def chart(self, mark: str, *, x: Any = _KEEP, y: Sequence[Any] | None = None,
               split: Any = _KEEP, title: str | None = None, frozen: bool | None = None,

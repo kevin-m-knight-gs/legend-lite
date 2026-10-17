@@ -628,6 +628,11 @@ class Document(Paged):
         self.assertEqual(cube['configuration']['columns']['w_pnl'],
                          {'aggregateFn': 'wavg', 'aggregationParameters': ['notional']})
         self.assertEqual(cube['query']['sorts'][-1], {'column': 'w_pnl', 'direction': 'desc'})
+        # Column Properties' "none": the Aggregation cleared, the column on its type's default again
+        grid.column('notional', aggregate=None)
+        cube = page.to_dict()['cubes'][0]['cube']
+        self.assertNotIn('notional', cube['configuration'].get('columns', {}))
+        self.assertNotIn('aggregate', next(c for c in cube['query']['columns'] if c['name'] == 'notional'))
         names = {c['name'] for c in grid.view().columns}
         self.assertTrue({'notional', 'top_notional', 'w_pnl', 'trades'} <= names, names)
         # an integer made a dimension, as Column Properties makes one, is then grouped by
@@ -648,7 +653,7 @@ class Document(Paged):
         rows = cls['where']['samples'][asked['table']['table']]['rows']
         self.assertEqual(sorted(r[1] is None for r in rows), [False, True])
 
-    def test_a_sort_is_a_column_or_a_pivots_header_and_a_new_grouping_closes_its_groups(self):
+    def test_a_sort_is_a_column_or_a_pivots_header_and_an_edit_keeps_its_open_groups(self):
         # a sort names a column the grid has, a calculated one too, or -- pivoted -- a pivot's header, as the screen's
         # Sorts panel and header menu offer them (grid-edits.ts setSorts); a sort of a column replaces the one it had
         detailed = ll.Page('Detailed').grid(trades(), name='detailed_trades', rows=['region'])
@@ -664,12 +669,13 @@ class Document(Paged):
         grid.sort('FX__|__notional', 'asc')
         grid.pivot()
         grid.group('region')
-        # its open groups, as DataCube keeps them: a changed grouping lets them go (as a reopened cube's do)
+        # its open groups, as DataCube keeps them: the screen's edits leave them, a regrouping too (app.ts #edit) -- a
+        # path the new grouping has not is shown closed
         page._doc['cubes'][0]['cube']['tree'] = {'open': [['EMEA']], 'showTotals': True}
         grid.sort('region', 'desc')
         self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'], {'open': [['EMEA']], 'showTotals': True})
         grid.group('desk')
-        self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'], {'open': [], 'showTotals': True})
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'], {'open': [['EMEA']], 'showTotals': True})
 
     def test_names_and_values_outside_datacubes_words_are_refused_where_they_are_written(self):
         page, grid, _ = self.built()
