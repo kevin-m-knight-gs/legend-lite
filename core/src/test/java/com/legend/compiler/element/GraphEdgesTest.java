@@ -23,7 +23,7 @@ class GraphEdgesTest {
     private static final String PROFILE = """
             Profile graph::graph
             {
-               stereotypes: [Edge, from, to, type];
+               stereotypes: [Edge, Open, from, to, type];
             }
             """;
 

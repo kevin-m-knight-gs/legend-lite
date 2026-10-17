@@ -150,7 +150,7 @@ public final class CypherGraph {
     private static final String RELATIONSHIP_TYPE = "g::RelationshipType";
 
     /** The property-graph profile, as projects/graph/model.pure declares it (inlined: the model is one text). */
-    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Edge, from, to, type];\n}\n";
+    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Edge, Open, from, to, type];\n}\n";
 
     public static Inferred infer(CypherAnswers.Graph g) throws Unsupported {
         Map<String, Cls> classes = new TreeMap<>();
@@ -298,7 +298,7 @@ public final class CypherGraph {
                     edgeTypes.add(t.name);
                 }
                 String edge = t.edgeClass();
-                edgeClasses.append("Class <<graph::graph.Edge>> ").append(edge).append("\n{\n")
+                edgeClasses.append("Class <<graph::graph.Edge, graph::graph.Open>> ").append(edge).append("\n{\n")
                         .append("    <<graph::graph.type>> type() { ").append(RELATIONSHIP_TYPE).append('.')
                         .append(t.name).append(" }: ").append(RELATIONSHIP_TYPE).append("[1];\n");
                 List<SqlParity.Column> columns = new ArrayList<>();
@@ -438,13 +438,13 @@ public final class CypherGraph {
         // the classes, the tables and the mapping; the Duration class the island carries a duration as (the study's
         // §12.9: a class of the model, not a platform type)
         StringBuilder pure = new StringBuilder("###Pure\n");
-        pure.append("Class g::Duration\n{\n    months: Integer[1];\n    days: Integer[1];\n    seconds: Integer[1];\n"
+        pure.append("Class <<graph::graph.Open>> g::Duration\n{\n    months: Integer[1];\n    days: Integer[1];\n    seconds: Integer[1];\n"
                 + "    nanoseconds: Integer[1];\n}\n");
         StringBuilder tablesDdl = new StringBuilder();
         StringBuilder mapping = new StringBuilder();
         List<SqlParity.Table> tables = new ArrayList<>();
         for (Cls c : classes.values()) {
-            pure.append("Class g::").append(c.name).append("\n{\n");
+            pure.append("Class <<graph::graph.Open>> g::").append(c.name).append("\n{\n");
             List<SqlParity.Column> columns = new ArrayList<>();
             columns.add(new SqlParity.Column("id", "BIGINT"));
             StringBuilder ddl = new StringBuilder("    Table " + c.table + " (id BIGINT PRIMARY KEY");

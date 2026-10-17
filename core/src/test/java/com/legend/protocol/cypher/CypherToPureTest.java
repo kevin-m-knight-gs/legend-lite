@@ -137,7 +137,65 @@ class CypherToPureTest {
         @Override
         public void edges(CypherToPure.EdgeSink sink) {
         }
+
+        @Override
+        public boolean open() {
+            return false;
+        }
     };
+
+    /** {@code inner} as an OPEN graph (the study's §12.45): every reading its own, the openness true. */
+    private record Open(CypherToPure.Model inner) implements CypherToPure.Model {
+        @Override
+        public List<String> classesOf(String label) {
+            return inner.classesOf(label);
+        }
+
+        @Override
+        public void property(String classPath, String name, CypherToPure.PropertySink sink) {
+            inner.property(classPath, name, sink);
+        }
+
+        @Override
+        public void inverse(String classPath, String property, CypherToPure.PropertySink sink) {
+            inner.inverse(classPath, property, sink);
+        }
+
+        @Override
+        public boolean isSubclass(String classPath, String superPath) {
+            return inner.isSubclass(classPath, superPath);
+        }
+
+        @Override
+        public List<String> classes() {
+            return inner.classes();
+        }
+
+        @Override
+        public void properties(String classPath, CypherToPure.PropertySink sink) {
+            inner.properties(classPath, sink);
+        }
+
+        @Override
+        public String labelOf(String classPath) {
+            return inner.labelOf(classPath);
+        }
+
+        @Override
+        public void ends(String classPath, CypherToPure.PropertySink sink) {
+            inner.ends(classPath, sink);
+        }
+
+        @Override
+        public void edges(CypherToPure.EdgeSink sink) {
+            inner.edges(sink);
+        }
+
+        @Override
+        public boolean open() {
+            return true;
+        }
+    }
 
     /** The model with its edge class (the study's §5.6): Acting, of type ACTED_IN from Person to Firm in the
      *  association form (each end's inverse on the node class holds many edges), its properties role and since;
@@ -194,6 +252,11 @@ class CypherToPureTest {
             sink.edge("demo::LinkFirm", "LINK", "person", "demo::Person", "firmLinks", true, "firm", "demo::Firm",
                     "linkedPeople", true);
         }
+
+        @Override
+        public boolean open() {
+            return false;
+        }
     };
 
     private static String edges(String cypher) {
@@ -207,6 +270,16 @@ class CypherToPureTest {
     private static String pure(String cypher) {
         ValueSpecification vs = CypherToPure.translate(cypher, MODEL);
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
+    }
+
+    /** {@code cypher} over the model read as an open graph (the study's §12.45). */
+    private static String open(String cypher) {
+        ValueSpecification vs = CypherToPure.translate(cypher, new Open(MODEL));
+        return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
+    }
+
+    private static SqlTranslationException openRefusal(String cypher) {
+        return assertThrows(SqlTranslationException.class, () -> open(cypher));
     }
 
     private static SqlTranslationException refusal(String cypher) {

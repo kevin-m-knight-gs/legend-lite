@@ -102,6 +102,13 @@ public final class CypherToPure {
         /** Reports every edge class of the model (the study's §5.6: a class carrying {@code <<graph.Edge>>}, a
          *  relationship type with properties) to {@code sink}, in a fixed order. */
         void edges(EdgeSink sink);
+
+        /** Whether the graph is OPEN (the study's §12.45; GQL's open graph, one no graph type constrains): every
+         *  class of the model carries {@code <<graph.Open>>}. A query over an open graph reads a label or a
+         *  relationship type naming nothing of the model as no rows and a property no class declares as null, as
+         *  Neo4j does; over a closed graph (the model is its graph type) each is a compile error (C4, the
+         *  register's S58). */
+        boolean open();
     }
 
     /** Where the model reports an edge class: its path, its relationship type, and its two ends, each the property
@@ -433,6 +440,8 @@ public final class CypherToPure {
             "none", Quantifier.NONE, "single", Quantifier.SINGLE);
 
     private final Model model;
+    /** The graph is open ({@link Model#open()}): the readings of the study's §12.45. */
+    private final boolean open;
     private int fresh;
 
     /** How many lambdas the database computes (a comprehension's or predicate's over a collection it computes)
@@ -453,6 +462,7 @@ public final class CypherToPure {
 
     private CypherToPure(Model model) {
         this.model = model;
+        this.open = model.open();
     }
 
     /** The Pure Relation expression {@code cypher} means over {@code model}'s classes; a refusal is a

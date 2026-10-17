@@ -9,7 +9,7 @@ Prefixes: none (one element).
 
 | element | kind | note |
 | --- | --- | --- |
-| graph::graph | profile | stereotypes `Edge` (a class is a relationship with properties), `from` and `to` (the class-typed `[1]` properties holding its two ends, own, inherited or association-injected), `type` (a derived property whose body spells the relationship type as one enumeration value); no tags |
+| graph::graph | profile | stereotypes `Edge` (a class is a relationship with properties), `from` and `to` (the class-typed `[1]` properties holding its two ends, own, inherited or association-injected), `type` (a derived property whose body spells the relationship type as one enumeration value), `Open` (a class of an open graph, 2026-10-17: a property it does not declare reads null; every class open, the graph is open and a name the model lacks reads no rows); no tags |
 
 ## Notes for downstream projects
 

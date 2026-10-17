@@ -44,7 +44,7 @@ import java.util.stream.Stream;
  * disagree are errors; an association linking an edge class by an end carrying neither marker is a third link,
  * refused (a relationship has two ends); a to-many property holding a class is refused on an edge; a derived
  * end ({@code <<graph.from>> from() {...}}) is not read yet, refused by name; the profile at
- * {@link PlatformTypes#GRAPH_PROFILE} must be declared with exactly the four stereotypes. The engine checks every
+ * {@link PlatformTypes#GRAPH_PROFILE} must be declared with exactly the five stereotypes ({@link #STEREOTYPES}). The engine checks every
  * reference in the declaration; only lite checks the rule, since only lite runs the island. The Cypher seam reads
  * the result as a derived view of the model ({@code ModelContext.derived}).
  */
@@ -363,7 +363,12 @@ public record GraphEdges(List<Edge> edges) {
         return found != null ? found : Protocol.splitFqn(cd.qualifiedName())[1];
     }
 
-    /** The profile at its path, declaring exactly the four stereotypes and no tag: checked for each edge class
+    /** The stereotypes the profile declares, and no tag: {@code Edge}, {@code from}, {@code to}, {@code type} (the
+     *  edge classes, §5.6) and {@code Open} (2026-10-17, §12.45: a class of an open graph, which the Cypher seam
+     *  reads; this reader only checks the declaration). */
+    public static final List<String> STEREOTYPES = List.of("Edge", "Open", "from", "to", "type");
+
+    /** The profile at its path, declaring exactly the five stereotypes and no tag: checked for each edge class
      *  (the island reads the stereotypes by the profile's full name). */
     private static void checkProfile(Source src, ClassDefinition cd) {
         ProfileDefinition p = src.findProfile(PlatformTypes.GRAPH_PROFILE).orElse(null);
@@ -371,10 +376,9 @@ public record GraphEdges(List<Edge> edges) {
             throw refuse(cd, "is an edge class, but the profile " + PlatformTypes.GRAPH_PROFILE + " is not declared:"
                     + " a model with edge classes depends on the graph project");
         }
-        if (!new TreeSet<>(p.stereotypes()).equals(new TreeSet<>(List.of("Edge", "from", "to", "type")))
-                || !p.tags().isEmpty()) {
+        if (!new TreeSet<>(p.stereotypes()).equals(new TreeSet<>(STEREOTYPES)) || !p.tags().isEmpty()) {
             throw refuse(cd, "is an edge class, but the profile " + PlatformTypes.GRAPH_PROFILE + " declares "
-                    + p.stereotypes() + " and tags " + p.tags() + ", not the stereotypes [Edge, from, to, type] and no"
+                    + p.stereotypes() + " and tags " + p.tags() + ", not the stereotypes " + STEREOTYPES + " and no"
                     + " tag");
         }
     }

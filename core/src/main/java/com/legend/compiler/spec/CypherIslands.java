@@ -57,6 +57,33 @@ public final class CypherIslands {
         }
     }
 
+    /** Whether the model's graph is open (the study's §12.45), computed once per model: every class of the model
+     *  (the user's, nodes and edges alike; the platform's declarations are never nodes) carries
+     *  {@code <<graph.Open>>}; vacuously over a model with no class. */
+    record Openness(boolean open) {
+
+        static Openness of(ModelContext model) {
+            for (String fqn : new java.util.TreeSet<>(model.elementFqns())) {
+                if (com.legend.compiler.NameResolver.platformFqns().contains(fqn)
+                        || com.legend.builtin.SystemMetamodel.elementFqns().contains(fqn)) {
+                    continue;
+                }
+                com.legend.model.ClassDefinition cd = model.findClassDefinition(fqn).filter(c -> !c.isNative())
+                        .orElse(null);
+                if (cd == null) {
+                    continue;
+                }
+                boolean marked = cd.stereotypes().stream().anyMatch(st -> com.legend.compiler.element.type
+                        .PlatformTypes.isProfile(st.profileName(), com.legend.compiler.element.type.PlatformTypes
+                        .GRAPH_PROFILE) && "Open".equals(st.stereotypeName()));
+                if (!marked) {
+                    return new Openness(false);
+                }
+            }
+            return new Openness(true);
+        }
+    }
+
     /** The classes of the model by their simple names, computed once per model: what a label names. */
     record Labels(Map<String, List<String>> bySimpleName) {
 
@@ -222,6 +249,11 @@ public final class CypherIslands {
                 }
             }
             throw new IllegalArgumentException("no class of the model at " + classPath);
+        }
+
+        @Override
+        public boolean open() {
+            return model.derived(Openness.class, Openness::of).open();
         }
 
         @Override
