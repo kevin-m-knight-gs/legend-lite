@@ -235,31 +235,56 @@ public final class SqlParser {
      *  (UNION ALL is associative, and the rows keep their order). */
     private SqlAst.Statement values() {
         expectWord("values");
-        List<SqlAst.Statement> rows = new ArrayList<>();
-        int width = -1;
+        List<List<SqlAst.Expr>> cells = new ArrayList<>();
+        List<SqlAst.Pos> opens = new ArrayList<>();
         do {
             Token open = expect(Kind.LPAREN);
-            List<SqlAst.SelectItem> items = new ArrayList<>();
+            List<SqlAst.Expr> row = new ArrayList<>();
             do {
                 if (peek().is("default")) {
                     throw error("DEFAULT is not allowed in this context");
                 }
                 SqlAst.Expr cell = expr();
-                if (SqlToPure.containsSetReturning(cell)) {
-                    // a VALUES row is no select list: Postgres's 0A000, where a SELECT would expand the rows
-                    throw new SqlSyntaxException("set-returning functions are not allowed in VALUES", cell.pos());
+                // a VALUES row is no select list: a set-returning function would not expand the rows, and an
+                // aggregate or a window function has no rows to read (the review of 2026-10-17: VALUES (count(*))
+                // answered 1)
+                String not = SqlToPure.notInValues(cell);
+                if (not != null) {
+                    throw new SqlSyntaxException(not, cell.pos());
                 }
-                items.add(new SqlAst.SelectExpr(cell, new SqlAst.Ident("column" + (items.size() + 1), false,
-                        cell.pos()), cell.pos()));
+                row.add(cell);
             } while (accept(Kind.COMMA));
             expect(Kind.RPAREN);
-            if (width >= 0 && items.size() != width) {
+            if (!cells.isEmpty() && row.size() != cells.get(0).size()) {
                 throw new SqlSyntaxException("VALUES lists must all be the same length", open.pos());
             }
-            width = items.size();
-            rows.add(new SqlAst.Select(false, items, List.of(), null, List.of(), null, List.of(), List.of(), null,
-                    null, open.pos()));
+            cells.add(row);
+            opens.add(open.pos());
         } while (accept(Kind.COMMA));
+        // a column of NULLs alone is text, as Postgres types one (its rows are typed together, where a UNION ALL's
+        // are typed a pair at a time: VALUES (NULL) UNION ALL SELECT 1 is its error, and the island's rule for an
+        // untyped NULL reads a set operation's own branches only)
+        int width = cells.get(0).size();
+        for (int k = 0; k < width; k++) {
+            int column = k;
+            if (cells.stream().allMatch(row -> row.get(column) instanceof SqlAst.NullLit)) {
+                for (List<SqlAst.Expr> row : cells) {
+                    SqlAst.Expr cell = row.get(column);
+                    row.set(column, new SqlAst.Cast(cell, new SqlAst.TypeName("text", List.of(), cell.pos()),
+                            cell.pos()));
+                }
+            }
+        }
+        List<SqlAst.Statement> rows = new ArrayList<>();
+        for (int r = 0; r < cells.size(); r++) {
+            List<SqlAst.SelectItem> items = new ArrayList<>();
+            for (SqlAst.Expr cell : cells.get(r)) {
+                items.add(new SqlAst.SelectExpr(cell, new SqlAst.Ident("column" + (items.size() + 1), false,
+                        cell.pos()), cell.pos()));
+            }
+            rows.add(new SqlAst.Select(false, items, List.of(), null, List.of(), null, List.of(), List.of(), null,
+                    null, opens.get(r)));
+        }
         return unionAll(rows, 0, rows.size());
     }
 

@@ -144,6 +144,20 @@ public interface InputDialect {
         return false;
     }
 
+    /** Whether an untyped NULL that a subquery or a WITH query outputs is text to the query reading it (the column
+     *  then reads as a NULL text), else it stays untyped; false by default. */
+    default boolean untypedNullIsText() {
+        return false;
+    }
+
+    /** The detail of an integer the dialect's database types narrower than the island's integer, and computes
+     *  arithmetic of at that width, raising past it (Postgres's smallint: a cast to smallint or an int2 constant, which
+     *  the island writes as a wider integer; 2026-10-17); null where there is none, by default. The translator marks
+     *  such a value's column with it and refuses the arithmetic the database would compute narrow. */
+    default @com.legend.base.Nullable TypeDetail narrowInteger() {
+        return null;
+    }
+
     /** Whether two WINDOW definitions of one name are an error (Postgres's, by default), else the first one counts. */
     default boolean oneWindowPerName() {
         return true;

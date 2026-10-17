@@ -427,7 +427,10 @@ public final class SqlLexer {
         if (hex.length() != n) {
             throw new SqlSyntaxException("invalid Unicode escape", pos);
         }
-        return Integer.parseUnsignedInt(hex, 16);
+        // eight digits may pass an int (the review of 2026-10-17: \UFFFFDC00 read as a negative int, then a low
+        // surrogate): past the last code point, it is one no check below lets through
+        long cp = Long.parseLong(hex, 16);
+        return cp > 0x10FFFF ? Integer.MAX_VALUE : (int) cp;
     }
 
     private static char escapedByte(String digits, int radix, SqlAst.Pos pos) {
@@ -483,11 +486,21 @@ public final class SqlLexer {
         if (text.substring(at, end).equalsIgnoreCase("uescape")) {
             advance(end - at);
             skipSpaceAndComments();
-            if (at >= text.length() || text.charAt(at) != '\'') {
+            boolean escaped = at + 1 < text.length() && (text.charAt(at) == 'E' || text.charAt(at) == 'e')
+                    && text.charAt(at + 1) == '\'';
+            if (!escaped && (at >= text.length() || text.charAt(at) != '\'')) {
                 throw new SqlSyntaxException("UESCAPE must be followed by a simple string literal", pos);
             }
-            String e = quoted('\'', pos, "quoted string");
-            if (e.length() != 1 || "0123456789abcdefABCDEF+'\" \t\n\r\f".indexOf(e.charAt(0)) >= 0) {
+            String e;
+            if (escaped) {
+                advance(1);
+                e = escapeString(pos);
+            } else {
+                e = quoted('\'', pos, "quoted string");
+            }
+            // one byte (2026-10-17: U&'é0041' UESCAPE 'é' is Postgres's error)
+            if (e.length() != 1 || e.charAt(0) >= 0x80
+                    || "0123456789abcdefABCDEF+'\" \t\n\r\f".indexOf(e.charAt(0)) >= 0) {
                 throw new SqlSyntaxException("invalid Unicode escape character", pos);
             }
             escape = e.charAt(0);
@@ -511,8 +524,7 @@ public final class SqlLexer {
             boolean wide = i + 1 < raw.length() && raw.charAt(i + 1) == '+';
             int n = wide ? 6 : 4;
             int from = i + (wide ? 2 : 1);
-            if (from + n > raw.length() || !raw.substring(from, from + n).chars().allMatch(
-                    ch -> Character.digit(ch, 16) >= 0 && ch < 0x80)) {
+            if (!hexDigits(raw, from, n)) {
                 throw new SqlSyntaxException("invalid Unicode escape", pos);
             }
             int cp = Integer.parseInt(raw.substring(from, from + n), 16);
@@ -523,7 +535,8 @@ public final class SqlLexer {
                 boolean nextWide = pair && next + 1 < raw.length() && raw.charAt(next + 1) == '+';
                 int lowFrom = next + (nextWide ? 2 : 1);
                 int lowN = nextWide ? 6 : 4;
-                if (!pair || lowFrom + lowN > raw.length()) {
+                // its digits as the first's (2026-10-17: \+-02400 and a doubled escape character were read)
+                if (!pair || !hexDigits(raw, lowFrom, lowN)) {
                     throw new SqlSyntaxException("invalid Unicode surrogate pair", pos);
                 }
                 int low = Integer.parseInt(raw.substring(lowFrom, lowFrom + lowN), 16);
@@ -540,6 +553,12 @@ public final class SqlLexer {
             value.appendCodePoint(cp);
         }
         return value.toString();
+    }
+
+    /** Whether {@code raw[from, from + n)} is {@code n} ASCII hexadecimal digits. */
+    private static boolean hexDigits(String raw, int from, int n) {
+        return from + n <= raw.length() && raw.substring(from, from + n).chars().allMatch(
+                ch -> Character.digit(ch, 16) >= 0 && ch < 0x80);
     }
 
     private void skipSpaceAndComments() {

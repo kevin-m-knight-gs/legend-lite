@@ -331,9 +331,14 @@ class SqlParserTest {
                 ((SqlAst.StringLit) item("E'a\\nb\\t\\'c\\\\\\101\\u00e9\\U0001F600'")).value());
         assertEquals("d\u0061t\u0061", ((SqlAst.StringLit) item("U&'d\\0061t\\+000061'")).value());
         assertEquals("d!at", ((SqlAst.StringLit) item("U&'d!!a!0074' UESCAPE '!'")).value());
-        for (String bad : List.of("E'\\x00'", "E'\\uD83D'", "U&'\\00'", "E'\\xE9'", "1 AS U&\"\"")) {
+        // and the review's of 2026-10-17: a code point past an int, a pair's low half not hex, a doubled escape
+        // character for one, a sign, an escape character of two bytes
+        for (String bad : List.of("E'\\x00'", "E'\\uD83D'", "U&'\\00'", "E'\\xE9'", "1 AS U&\"\"",
+                "E'\\UFFFFFFFF'", "E'\\uD800\\UFFFFDC00'", "U&'\\D800\\zzzz'", "U&'\\D800\\\\abcd'",
+                "U&'\\D800\\+-02400'", "U&'\u00e90041' UESCAPE '\u00e9'")) {
             assertThrows(SqlSyntaxException.class, () -> item(bad), bad);
         }
+        assertEquals("A", ((SqlAst.StringLit) item("U&'!0041' UESCAPE E'!'")).value());
         // U&"..." is a quoted identifier of code points, not folded
         SqlAst.SelectExpr named = (SqlAst.SelectExpr) ((SqlAst.Select) SqlParser.parse(
                 "select 1 AS U&\"D\\0061t\\+000061\", 2 AS U&\"d*0061t\\+000061\" UESCAPE '*'")).items().get(1);
@@ -359,6 +364,18 @@ class SqlParserTest {
         // a row is no select list: a set-returning function in one is Postgres's error, not more rows
         assertEquals("set-returning functions are not allowed in VALUES", assertThrows(SqlSyntaxException.class,
                 () -> SqlParser.parse("values (1, generate_series(1, 2))")).getMessage());
+        // nor an aggregate or a window function (the review of 2026-10-17); in a subquery they read its rows
+        assertEquals("aggregate functions are not allowed in VALUES", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("select * from (values (count(*))) v")).getMessage());
+        assertEquals("window functions are not allowed in VALUES", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("values (row_number() over ())")).getMessage());
+        SqlParser.parse("values ((select count(*) from t))");
+        // a column of NULLs alone is text, as Postgres types one; beside a value a NULL stays untyped
+        SqlAst.SetOperation nulls = (SqlAst.SetOperation) SqlParser.parse("values (null, 1), (null, null)");
+        List<SqlAst.SelectItem> row = ((SqlAst.Select) nulls.left()).items();
+        assertInstanceOf(SqlAst.Cast.class, ((SqlAst.SelectExpr) row.get(0)).expr());
+        assertInstanceOf(SqlAst.NullLit.class, ((SqlAst.SelectExpr) ((SqlAst.Select) nulls.right()).items().get(1))
+                .expr());
         // a long list is a balanced tree: no recursion per row downstream
         StringBuilder many = new StringBuilder("values (0)");
         for (int i = 1; i < 1024; i++) {

@@ -366,6 +366,57 @@ class SqlToPureTest {
     }
 
     @Test
+    void aSmallintKeepsItsWidthThroughFunctionsAndColumns() {
+        // the review of 2026-10-17: Postgres computes a smallint's arithmetic as a smallint, raising past 32767, where
+        // the island's integer is wider; the type passes through abs, coalesce, CASE, a subquery and a VALUES column
+        String t = " from tb('s::DB.T')";
+        for (String sql : List.of(
+                "select age + abs(int2 '1') as a" + t,
+                "select age * coalesce(int2 '2', int2 '3') as a" + t,
+                "select age * case when true then int2 '2' end as a" + t,
+                "select age * (select int2 '2') as a" + t,
+                "select age::int2 + age::int2 as a" + t,
+                "select column1 + column1 as a from (values (int2 '30000')) v",
+                "select -column1 as a from (values (int2 '-32768')) v",
+                "select abs(x) as a from (select 2::smallint as x) s",
+                "select x * x as a from (select 5::int2 as x union all select 200::int2) s")) {
+            assertTrue(assertThrows(SqlTranslationException.class, () -> pure(sql), sql).getMessage()
+                    .contains("smallint"), sql);
+        }
+        // where its width cannot change the answer: a comparison, a wider constant beside it, constants alone, %
+        for (String sql : List.of(
+                "select ID as a" + t + " where age = int2 '1'",
+                "select age::int2 + 1 as a" + t,
+                "select int2 '2' * int2 '3' as a" + t,
+                "select ID % int2 '2' as a" + t)) {
+            pure(sql);
+        }
+        // a set operation's column of a smallint and an integer is refused too, though Postgres's is an integer:
+        // the island cannot tell an integer from a smallint column
+        assertThrows(SqlTranslationException.class,
+                () -> pure("select x * x as a from (select 200::int2 as x union all select 5) s"));
+    }
+
+    @Test
+    void anUntypedNullTakesASetOperationsTypeInItsOwnBranchOnly() {
+        // the review of 2026-10-17: a NULL Postgres has already typed as text (a subquery's, a nested set
+        // operation's, a DISTINCT's, a VALUES column of NULLs alone) is no untyped NULL
+        assertTrue(pure("select null as a union all select 1").contains("concatenate"));
+        for (String sql : List.of(
+                "values (null) union all select 1",
+                "select null union select null union select 1",
+                "select distinct null as x union select 1",
+                "select * from (select null as x) s union select 1",
+                "with w as (select null as x) select x from w union select 1",
+                "select x + 1 as y from (values (null)) v(x)",
+                "select x + 1 as y from (select null as x) s")) {
+            assertThrows(SqlTranslationException.class, () -> pure(sql), sql);
+        }
+        // a boolean's NULL is a condition's (it threw)
+        assertTrue(pure("values (true), (null)").contains("concatenate"));
+    }
+
+    @Test
     void aDoublePrecisionConstantPastADoublesRangeIsAnError() {
         assertEquals("\"10e-400\" is out of range for type double precision",
                 refusal("select '10e-400'::float8 from tb('s::DB.T')").getMessage());

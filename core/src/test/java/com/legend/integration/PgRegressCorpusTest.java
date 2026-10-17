@@ -245,15 +245,17 @@ class PgRegressCorpusTest {
         boolean opened = false;
         boolean savepoint = false;
         try {
-            boolean defaults = DEFAULT_DATESTYLE.equals(setting(conn, "DateStyle"));
+            boolean defaults = DEFAULT_DATESTYLE.equals(setting(conn, "DateStyle"))
+                    && "on".equals(setting(conn, "standard_conforming_strings"));
             SqlParity.Answer reference = answer;
             savepoint = open(conn, timeoutSeconds);
             opened = true;
             SqlParity.Answer second = send(conn, sql);
             reset(conn, savepoint, timeoutSeconds);
             if (!SqlParity.agrees(answer, second)) {
-                // under the script's own DateStyle a date's text reads otherwise: the island's spec is Postgres's
-                // answer under its default, which the judge runs (twice: it must be one answer)
+                // under the script's own DateStyle a date's text reads otherwise, and with its
+                // standard_conforming_strings off a string's backslashes: the island's spec is Postgres's answer
+                // under the defaults, which the judge runs (twice: it must be one answer)
                 SqlParity.Answer third = defaults ? second : send(conn, sql);
                 reset(conn, savepoint, timeoutSeconds);
                 if (defaults && answer instanceof SqlParity.Rows || !defaults && !SqlParity.agrees(second, third)) {
@@ -414,12 +416,15 @@ class PgRegressCorpusTest {
         return savepoint;
     }
 
-    /** The judge's settings, until the rollback: its statement timeout, and Postgres's default DateStyle, under which
-     *  the island reads a date's text (docs/LEGEND_SQL_STUDY_2026_10_11.md §9.4, DecodeDateTime as ISO, MDY). */
+    /** The judge's settings, until the rollback: its statement timeout, and Postgres's defaults where the island reads
+     *  text as they do: DateStyle, for a date's text (docs/LEGEND_SQL_STUDY_2026_10_11.md §9.4, DecodeDateTime as ISO,
+     *  MDY), and standard_conforming_strings, for a string's backslashes (2026-10-17: strings.sql turns it off, where
+     *  Postgres refuses U&'...', and the dialect writes its strings with it on). */
     private static void settings(Connection conn, int seconds) throws SQLException {
         try (Statement s = conn.createStatement()) {
             s.execute("SET LOCAL statement_timeout = '" + seconds + "s'");
             s.execute("SET LOCAL datestyle TO '" + DEFAULT_DATESTYLE + "'");
+            s.execute("SET LOCAL standard_conforming_strings TO on");
         }
     }
 

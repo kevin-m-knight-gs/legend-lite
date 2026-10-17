@@ -186,6 +186,19 @@ public final class PostgresDialect implements InputDialect {
         }
     }
 
+    /** A value Postgres types smallint where the island's integer is wider: a cast to smallint or an int2 constant,
+     *  or a column holding one; never a smallint column of a table, which the database reads at its own width
+     *  (2026-10-17, the review of the corpus program's step 1). */
+    record Smallint() implements InputDialect.TypeDetail {
+    }
+
+    private static final Smallint SMALLINT = new Smallint();
+
+    @Override
+    public InputDialect.TypeDetail narrowInteger() {
+        return SMALLINT;
+    }
+
     @Override
     public boolean padded(InputDialect.@com.legend.base.Nullable TypeDetail detail) {
         return detail instanceof Stored s && s.padded();
@@ -258,12 +271,20 @@ public final class PostgresDialect implements InputDialect {
             SqlToPure.ColumnType left, SqlToPure.ColumnType right) {
         Kind l = left.kind();
         Kind r = right.kind();
+        if (l == Kind.INTEGER && r == Kind.INTEGER && (SMALLINT.equals(left.detail())
+                || SMALLINT.equals(right.detail()))) {
+            // a smallint column of a set operation stays one (an operation keeps no detail it is not given), and
+            // beside another integer too, which the island cannot tell from a smallint column: arithmetic over the
+            // column is refused (2026-10-17)
+            return new SqlToPure.ColumnType(Kind.INTEGER, left.nullable() || right.nullable(), SMALLINT);
+        }
         if (l == r) {
             return null;
         }
         if (l == Kind.NULL || r == Kind.NULL) {
             SqlToPure.ColumnType other = l == Kind.NULL ? right : left;
-            return s.op() != SqlAst.SetOp.UNION || exact(other.kind()) ? null
+            return s.op() != SqlAst.SetOp.UNION || exact(other.kind())
+                    || !untypedNull(l == Kind.NULL ? s.left() : s.right(), i) ? null
                     : new SqlToPure.ColumnType(other.kind(), true, other.detail());
         }
         return toDouble(l, r) ? new SqlToPure.ColumnType(Kind.FLOAT, left.nullable() || right.nullable(), null) : null;
@@ -275,11 +296,35 @@ public final class PostgresDialect implements InputDialect {
     public @com.legend.base.Nullable Tx setValue(SqlAst.SetOperation s, int i, Tx side, SqlToPure.ColumnType other,
             boolean left) {
         if (side.kind() == Kind.NULL) {
-            return other.kind() == Kind.NULL || s.op() != SqlAst.SetOp.UNION || exact(other.kind()) ? null
-                    : Tx.value(SqlToPure.nullOf(other.kind()).vs(), other.kind(), true, other.detail());
+            if (other.kind() == Kind.NULL || s.op() != SqlAst.SetOp.UNION || exact(other.kind())
+                    || !untypedNull(left ? s.left() : s.right(), i)) {
+                return null;
+            }
+            // a boolean's NULL is a condition's, both its cases (2026-10-17: VALUES (true), (NULL) threw)
+            Tx typed = SqlToPure.nullOf(other.kind());
+            return other.kind() == Kind.BOOLEAN ? typed
+                    : Tx.value(typed.vs(), other.kind(), true, other.detail());
         }
         return side.kind() != Kind.FLOAT && toDouble(side.kind(), other.kind())
                 ? SqlToPure.strict(Kind.FLOAT, List.of(side), v -> SqlToPure.call("toFloat", v.get(0))) : null;
+    }
+
+    /** Whether column {@code i} of {@code side}, a set operation's branch, is a NULL Postgres has not typed yet: a
+     *  bare NULL in a plain SELECT of the operation's own (no DISTINCT, grouping, sort or slice). Any other NULL it
+     *  has resolved as text first: a subquery's, a WITH query's, a nested operation's, a DISTINCT's (the review of
+     *  2026-10-17: SELECT NULL UNION SELECT NULL UNION SELECT 1 is its error). */
+    private static boolean untypedNull(SqlAst.Statement side, int i) {
+        return side instanceof SqlAst.Select q && !q.distinct() && q.groupBy().isEmpty() && q.having() == null
+                && q.windows().isEmpty() && q.orderBy().isEmpty() && q.limit() == null && q.offset() == null
+                && q.items().stream().noneMatch(item -> item instanceof SqlAst.AllColumns) && i < q.items().size()
+                && q.items().get(i) instanceof SqlAst.SelectExpr x && x.expr() instanceof SqlAst.NullLit;
+    }
+
+    /** A subquery's or a WITH query's untyped NULL is text to the query reading it: Postgres resolves the untyped
+     *  outputs of a query it reads from as text (2026-10-17: x + 1 over (VALUES (NULL)) v(x) is its error). */
+    @Override
+    public boolean untypedNullIsText() {
+        return true;
     }
 
     /** A numeric's kinds, which a set operation unites with no other (see {@link #setColumn}). */
