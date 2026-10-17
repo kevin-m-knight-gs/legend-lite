@@ -1198,6 +1198,15 @@ public final class CypherToPure {
             head.add(new NodePattern(root.variable(), List.of(cls), root.properties(), root.pos()));
             assign(elements, 2, cls, head, arms);
         }
+        if (!arms.isEmpty() && !m.optional() && p.variable() == null && arms.stream().anyMatch(
+                arm -> !cuts(arm, ((NodePattern) arm.get(0)).labels().get(0)).isEmpty())) {
+            // an arm navigating more than two steps (an edge among its ways): the pattern is cut around its hops,
+            // each untyped one a segment of its own read over the rows before it (the study's §12.55)
+            List<PathPattern> segments = segments(new PathPattern(null, elements, p.pos()), null);
+            if (segments != null) {
+                return deep(m, segments, null, state);
+            }
+        }
         if (arms.isEmpty()) {
             for (PatternElement e : elements) {
                 if (e instanceof RelPattern r && r.lengthRange() != null) {
@@ -2939,10 +2948,11 @@ public final class CypherToPure {
      * segments of at most two: the resolver reads no association end past a second step in an existence filter
      * (the plan's W9), so each segment is read as a graph of its own and the segments meet on the nodes they
      * share, by identity (§12.49's re-anchoring). The steps are the hops' ({@code Hop.steps}: an edge hop is two,
-     * its edge instance and the far end, so a hop after an edge hop opens a segment too); each cut node is named
-     * (freshly where the query did not), and a relationship whose type the whole pattern repeats is named so the
-     * MATCH's relationship uniqueness is spelled across the segments. Null when the pattern needs no cut, or
-     * starts from a node whose class the walk cannot read (a label-less first node: the arms' route decides).
+     * its edge instance and the far end, so a hop after an edge hop opens a segment too); a hop without one type,
+     * or from a node whose class the walk does not know, is read as two (a segment of its own, the arms' route
+     * reads it over the rows, §12.55). Each cut node is named (freshly where the query did not), and a
+     * relationship whose type the whole pattern repeats (any, beside an untyped one) is named so the MATCH's
+     * relationship uniqueness is spelled across the segments. Null when the pattern needs no cut.
      */
     private @com.legend.base.Nullable List<PathPattern> segments(PathPattern p, @com.legend.base.Nullable Graph g) {
         List<PatternElement> elements = p.elements();
@@ -2973,50 +2983,40 @@ public final class CypherToPure {
             // a label-less first node: the class its first relationship's type leaves (rooted's reading of it)
             cls = startClassOf(r0, first.pos());
         }
-        if (cls == null) {
-            return null;
-        }
-        // the cuts: the hops walked from the first node, each the steps its navigation spells; a hop the walk
-        // cannot read (no way of the class, no inverse end) ends the walk, and the segment in hand runs to the end
-        // (its own reading says what is wrong with it, or reads nothing of an open graph)
-        List<Integer> cuts = new ArrayList<>();
-        int steps = 0;
-        for (int i = 1; i + 1 < elements.size(); i += 2) {
-            Hop hop = hop(cls, (RelPattern) elements.get(i), (NodePattern) elements.get(i + 1), false, true);
-            if (hop == null) {
-                break;
-            }
-            int width = hop.steps().size();
-            if (steps > 0 && steps + width > 2) {
-                cuts.add(i - 1);
-                steps = 0;
-            }
-            steps += width;
-            cls = hop.target();
-        }
+        List<Integer> cuts = cuts(elements, cls);
         if (cuts.isEmpty()) {
             return null;
         }
-        // the relationships' names: a type the pattern repeats names each of its relationships, so the MATCH's
-        // uniqueness is spelled across the segments; a cut node is named for the segments to meet on
+        // the relationships' names: a type the pattern repeats names each of its relationships (every
+        // relationship, where an untyped one may be of any type), so the MATCH's uniqueness is spelled across
+        // the segments; a cut node is named for the segments to meet on
         Map<String, Integer> typeCounts = new java.util.HashMap<>();
         Set<String> taken = new HashSet<>();
         if (g != null) {
             taken.addAll(g.bindings().keySet());
         }
+        int relationships = 0;
+        boolean untyped = false;
         for (PatternElement e : elements) {
             String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
             if (v != null) {
                 taken.add(v);
             }
-            if (e instanceof RelPattern r && r.types().size() == 1) {
-                typeCounts.merge(r.types().get(0), 1, Integer::sum);
+            if (e instanceof RelPattern r) {
+                relationships++;
+                if (r.types().size() == 1) {
+                    typeCounts.merge(r.types().get(0), 1, Integer::sum);
+                } else {
+                    untyped = true;
+                }
             }
         }
         List<PatternElement> named = new ArrayList<>(elements);
         for (int i = 1; i < named.size(); i += 2) {
             RelPattern r = (RelPattern) named.get(i);
-            if (r.variable() == null && r.types().size() == 1 && typeCounts.getOrDefault(r.types().get(0), 0) > 1) {
+            boolean repeated = untyped ? relationships >= 2
+                    : r.types().size() == 1 && typeCounts.getOrDefault(r.types().get(0), 0) > 1;
+            if (r.variable() == null && repeated) {
                 named.set(i, new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(),
                         r.lengthRange(), r.pos()));
             }
@@ -3044,50 +3044,76 @@ public final class CypherToPure {
         return segments;
     }
 
-    /** A MATCH of a deep pattern ({@link #segments}): the first segment a graph (over {@code g} where there is
-     *  one), materialized; each next one a MATCH over the rows so far, re-anchored on the cut node; then the
-     *  relationships of one type across segments distinct by identity, and the MATCH's WHERE over the rows. */
+    /** The cuts of a pattern walked from its first node, of class {@code cls} where the walk knows it: the
+     *  indices of the nodes that end a segment of at most two steps and start the next; empty when no cut is
+     *  needed. A hop the walk cannot read (no single type, no class before it, no way of the class, no inverse
+     *  end) counts two steps; the class after it is the next node's label, where it has one. */
+    private List<Integer> cuts(List<PatternElement> elements, @com.legend.base.Nullable String cls) {
+        List<Integer> cuts = new ArrayList<>();
+        int steps = 0;
+        for (int i = 1; i + 1 < elements.size(); i += 2) {
+            RelPattern rel = (RelPattern) elements.get(i);
+            NodePattern next = (NodePattern) elements.get(i + 1);
+            Hop hop = cls != null && rel.types().size() == 1 ? hop(cls, rel, next, false, true) : null;
+            int width = hop == null ? 2 : hop.steps().size();
+            if (steps > 0 && steps + width > 2) {
+                cuts.add(i - 1);
+                steps = 0;
+            }
+            steps += width;
+            cls = hop != null ? hop.target() : labelClass(next);
+        }
+        return cuts;
+    }
+
+    /** A MATCH of a deep pattern ({@link #segments}): the first segment a MATCH of its own (a graph over
+     *  {@code g} where there is one, the arms' route for an untyped hop), materialized; each next one a MATCH over
+     *  the rows so far, re-anchored on the cut node; then the relationships across segments distinct by identity,
+     *  and the MATCH's WHERE over the rows. */
     private State deep(CypherAst.Match m, List<PathPattern> segments, @com.legend.base.Nullable Graph g,
             @com.legend.base.Nullable State state) {
-        Graph first = pattern(segments.get(0), g);
-        if (first == null) {
-            return noneOf(m, state);
-        }
-        Expr within = withUniqueness(null, m.pos());
-        if (within != null) {
-            if (first.fanning()) {
-                first.deferredWhere().add(within);
-            } else {
-                first.conditions().add(condition(within, new GraphScope(first), "WHERE"));
-            }
-        }
-        Rows rows = materialize(first, m.pos(), List.of());
-        List<Map<String, String>> relsBySegment = new ArrayList<>();
-        relsBySegment.add(relationshipTypes(segments.get(0)));
+        State first = matchPattern(new CypherAst.Match(false, List.of(segments.get(0)), null, m.pos()), state);
+        Rows rows = rowsOf(first, m.pos());
+        List<Set<String>> relsBySegment = new ArrayList<>();
+        relsBySegment.add(relationshipVariables(segments.get(0)));
         for (int k = 1; k < segments.size(); k++) {
             PathPattern segment = segments.get(k);
             State next = matchPattern(new CypherAst.Match(false, List.of(segment), null, m.pos()), rows);
-            if (!(next instanceof Rows r)) {
-                throw new IllegalStateException("a deep pattern's segment read as " + next.getClass().getSimpleName());
-            }
-            rows = r;
-            relsBySegment.add(relationshipTypes(segment));
+            rows = rowsOf(next, m.pos());
+            relsBySegment.add(relationshipVariables(segment));
         }
         // relationship uniqueness across the segments (within one, each segment's own reading spells it): two
-        // named relationships of one type, each carried with an identity (an edge's own, or the ordered pair of
-        // its ends, S74), distinct
+        // named relationships each carried with an identity (an edge's own, or the ordered pair of its ends,
+        // S74; either names the type, so two of different types never meet) distinct
         RowScope scope = new RowScope(rows);
+        Map<String, List<String>> types = new HashMap<>();
+        for (PathPattern segment : segments) {
+            for (PatternElement e : segment.elements()) {
+                if (e instanceof RelPattern r && r.variable() != null) {
+                    types.put(r.variable(), r.types());
+                }
+            }
+        }
         Tx distinct = null;
         for (int a = 0; a < relsBySegment.size(); a++) {
             for (int b = a + 1; b < relsBySegment.size(); b++) {
-                for (Map.Entry<String, String> l : relsBySegment.get(a).entrySet()) {
-                    for (Map.Entry<String, String> r : relsBySegment.get(b).entrySet()) {
-                        Col lc = column(rows, l.getKey());
-                        Col rc = column(rows, r.getKey());
-                        if (lc == null || rc == null || !l.getValue().equals(r.getValue())
-                                || !(lc.detail() instanceof RelShape ls) || !(rc.detail() instanceof RelShape rs)
-                                || !ls.identified() || !rs.identified()) {
+                for (String l : relsBySegment.get(a)) {
+                    for (String r : relsBySegment.get(b)) {
+                        List<String> lt = types.getOrDefault(l, List.of());
+                        List<String> rt = types.getOrDefault(r, List.of());
+                        if (lt.size() == 1 && rt.size() == 1 && !lt.equals(rt)) {
+                            // (two types: never one relationship)
                             continue;
+                        }
+                        Col lc = column(rows, l);
+                        Col rc = column(rows, r);
+                        if (lc == null || rc == null || !(lc.detail() instanceof RelShape ls)
+                                || !(rc.detail() instanceof RelShape rs) || !ls.identified() || !rs.identified()) {
+                            // (a relationship over several edge classes, the arms' columns, carries no identity
+                            // yet: the uniqueness Neo4j binds the two to cannot be spelled)
+                            throw CypherErrors.unsupported("relationship uniqueness across a deep pattern's cut ("
+                                    + l + ", " + r + ") over a relationship carried without an identity of its own"
+                                    + " is not supported yet", m.pos());
                         }
                         Tx differ = SqlToPure.not(equal(java.util.Objects.requireNonNull(scope.relIdentity(ls)),
                                 java.util.Objects.requireNonNull(scope.relIdentity(rs)), m.pos()));
@@ -3102,12 +3128,12 @@ public final class CypherToPure {
         return m.where() == null ? rows : filtered(rows, m.where());
     }
 
-    /** A segment's named relationships, each with its type. */
-    private static Map<String, String> relationshipTypes(PathPattern p) {
-        Map<String, String> out = new LinkedHashMap<>();
+    /** A segment's named relationships. */
+    private static Set<String> relationshipVariables(PathPattern p) {
+        Set<String> out = new java.util.LinkedHashSet<>();
         for (PatternElement e : p.elements()) {
-            if (e instanceof RelPattern r && r.variable() != null && r.types().size() == 1) {
-                out.put(r.variable(), r.types().get(0));
+            if (e instanceof RelPattern r && r.variable() != null) {
+                out.add(r.variable());
             }
         }
         return out;
@@ -5450,6 +5476,30 @@ public final class CypherToPure {
                 // over an edge class, its identity (the study's §12.46): the edge row's, carried beside its
                 // properties (a relationship over several edge classes, the arms' columns, waits)
                 Tx id = java.util.Objects.requireNonNull(identityOf(b));
+                identity = freshName(names);
+                specs.add(new ColSpec(identity, lambda(g.row(), SqlToPure.valueOf(id)), null, null));
+                columns.add(new Col(identity, Kind.STRING, id.nullable() || nullable));
+            }
+            if (!acrossArms.isEmpty()) {
+                // over the arms (a relationship of several types or edge classes, the study's §12.55): one
+                // identity column in every arm, each arm's own text (an edge's row identity, an association's
+                // ordered pair of ends, S74; null for an absent one, or one with no ends to pair), so the union's
+                // columns agree and the rows compare relationships across it (uniqueness across a deep pattern's
+                // cut, count(DISTINCT r))
+                Tx id;
+                if (b.absent()) {
+                    id = SqlToPure.nullOf(Kind.STRING);
+                } else if (b.classPath() != null) {
+                    id = java.util.Objects.requireNonNull(identityOf(b));
+                } else if (b.type() != null && b.forward() != null && !b.path().isEmpty()) {
+                    Tx near = nodeIdentityAt(b.path().subList(0, b.path().size() - 1));
+                    Tx far = nodeIdentityAt(b.path());
+                    boolean forward = Boolean.TRUE.equals(b.forward());
+                    id = pairIdentity(java.util.Objects.requireNonNull(b.type()), forward ? near : far,
+                            forward ? far : near, b.guard() != null || b.maybeAbsent() ? absent(b) : null);
+                } else {
+                    id = SqlToPure.nullOf(Kind.STRING);
+                }
                 identity = freshName(names);
                 specs.add(new ColSpec(identity, lambda(g.row(), SqlToPure.valueOf(id)), null, null));
                 columns.add(new Col(identity, Kind.STRING, id.nullable() || nullable));

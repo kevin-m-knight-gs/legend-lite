@@ -269,7 +269,11 @@ fifty-third landing; TCK agreement 3282 → 3285, DuckDB PASS 3259 → 3273, Pos
 node, cut into segments of at most two steps met by identity (W9's depth-two limit routed around for typed
 patterns); an absent node's identity null (the resolver's `identityText` gated on the key). Leg 4: the cut under
 the arms' route (untyped hops), named paths over the segments, variable-length chains past two hops; then the
-pattern comprehension over rows and `toString` of lists, maps and nodes.
+pattern comprehension over rows and `toString` of lists, maps and nodes. Leg 4 step 1 LANDED 2026-10-17 (the
+study's §12.55, GATES' fifty-fourth landing; TCK agreement 3285 → 3299, DuckDB PASS 3273 → 3291, Postgres 2912 → 2930): the cut under the arms' route (an untyped hop a segment
+of its own), one identity column for a relationship across arms (uniqueness and `count(DISTINCT r)` over the
+union). Step 2: named paths over the segments; step 3: variable-length chains past two hops; then an untyped
+relationship in a MATCH of several patterns.
 
 ## 3. Decisions asked of the user
 

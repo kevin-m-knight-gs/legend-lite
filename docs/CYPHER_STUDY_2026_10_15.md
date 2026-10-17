@@ -3845,3 +3845,48 @@ three typed hops from a label-less node) and Return6/[16] (two edge hops from a 
 over the rows); Postgres 2935 of 3880 (from 2,932). The typed cut alone reaches few scenarios: the deep patterns
 the TCK spells mostly carry an untyped hop (the arms' route), a named path or a variable-length relationship, leg
 4's.
+
+### 12.55 The cut under the arms' route: untyped hops, and one identity for a relationship across arms, 2026-10-17
+
+- **The frame (the plan's W12 leg 4, step 1):** the deep patterns the TCK spells mostly carry an untyped hop
+  (`MATCH (a:A)-[:KNOWS]->(b:X)-->(c)`, the triadic selections; `(a:A)-->(n)-->(m)`; `(person:Person)<--(message)
+  <-[like]-(:Person)`; `()-[r1]->()<--()`), read by the arms' route (§12.17: one typed arm per way the model has),
+  where an arm with an edge among its ways runs past two steps and was refused ("a hop from X, a node reached
+  through an edge class"). §12.54's cut reached only the plain typed route.
+- **An untyped hop is a segment of its own (`cuts`, `segments`, `untypedArms`):** the walk reads a hop without
+  one type, or one from a node whose class it does not know, as two steps, so it opens a segment before and
+  after it; the arms' route, once its arms are enumerated, asks whether any arm needs a cut (an edge among its
+  ways) and, if so, cuts the written pattern instead: the first segment is a MATCH of its own (an untyped one
+  the arms' route reads, a typed one the graph's), materialized, each next segment a MATCH over the rows
+  re-anchored on the cut node (`untypedArmsFrom`'s and `reanchor`'s readings, §12.32, §12.49). A shallow untyped
+  pattern keeps the arms' route as it was. A hop with no inverse end, cut off into a segment of its own, reads
+  from its other end (`(f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm)`, refused "no inverse" since §12.4, reads).
+- **One identity column for a relationship across arms (`carryRel`):** a relationship the arms read as several
+  types or edge classes carried no identity (its edge classes differ per arm, and the pair form was the
+  association's alone), so the uniqueness across a cut could not be spelled, and `MATCH ()-[r1]->()<--() RETURN
+  sum(r1.times)` (Match8/[3]) summed the rows where the two were one relationship. The arms now carry one
+  identity column, each arm's own text (an edge's row identity, an association's ordered pair of ends, S74), the
+  same column in every arm, so the union compares relationships across rows: the cut's uniqueness, over every
+  pair of relationships that may be one (two typed differently never are), and `count(DISTINCT r)`. Where a pair
+  still carries no identity, the cut refuses by name rather than answer without the uniqueness.
+- **Still refused by name, recorded:** an untyped relationship in a MATCH of several patterns (MatchWhere2/[1],
+  Match3/[10], With1/[2], WithWhere2/[1]); a named path over more than two steps (Match6/[3], [10], [11], [16]);
+  a variable-length chain past two hops, bounded (Path2, Match9/[2]-[4], Pattern1/[18]) or not (Match4/[8],
+  Match9/[6], [7]: W10's recursion).
+
+#### 12.55.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4640 | 3291 (from 3,273) | 0 | 0 | 0 | 437 (from 451) | 731 | 181 |
+| Postgres | 4640 | 2930 (from 2,912) | 0 | 0 | 0 | 798 (from 812) | 731 | 181 |
+
+The 14 lite cases of `lite/depth.yaml` (the 10 before and four new: two untyped hops with an edge among the ways,
+a triadic selection with an OPTIONAL MATCH after the cut, an untyped chain from a label-less node with uniqueness,
+an incoming untyped hop then a named incoming relationship) PASS on both lanes, judged by Neo4j (`snap.sh --check`:
+0 problems over 4557 cases). The TCK: agreement 3299 of 3880 (from 3,285): 14 more scenarios on each lane, none
+lost: the nine triadic selections TriadicSelection1/[7]-[11] and [16]-[19] (`(a:A)-[:KNOWS]->(b)-->(c)` with an
+OPTIONAL MATCH after), Match7/[9] (a longer pattern with bound nodes), Match8/[3] (`()-[r1]->()<--()` summed over
+one relationship's identity), ReturnSkipLimit2/[8], Return4/[11] and With4/[6] (`(a)-->(b)-->(c)` reusing names);
+Postgres 2949 of 3880 (from 2,935). What the cut still refuses by name is the paragraph above's: an untyped
+relationship in a MATCH of several patterns, a named path over the cut, a variable-length chain past two hops.

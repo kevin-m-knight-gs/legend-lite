@@ -56,4 +56,25 @@ tests:
              (m)-[:ATE {times: 4}]->(v), (m)-[:ATE {times: 6}]->(b), (m)-[:ATE {times: 9}]->(t),
              (y)-[:ATE {times: 7}]->(v), (y)-[:ATE {times: 7}]->(b), (y)-[:ATE {times: 4}]->(t)
     cypher: "MATCH (me:P {name: 'm'})-[r1:ATE]->()<-[r2:ATE]-(you) WITH me, you, count(DISTINCT r1) AS h1, count(DISTINCT r2) AS h2, count(r2) AS n RETURN you.name AS yn, h1, h2, n"
+  - id: two_untyped_hops_with_an_edge_among_the_ways
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (c:C {name: 'c'}), (d:C {name: 'd'}),
+             (a)-[:E {w: 1}]->(b), (b)-[:F]->(c), (b)-[:F]->(d), (a)-[:E {w: 2}]->(:B {name: 'b2'})-[:F]->(c)
+    cypher: "MATCH (a:A)-->(n)-->(m) RETURN a.name AS an, n.name AS nn, m.name AS mn ORDER BY nn, mn"
+  - id: a_triadic_selection_with_an_optional_match_after_the_cut
+    graph: |
+      CREATE (a:A {name: 'a'}), (b1:X {name: 'b1'}), (b2:X {name: 'b2'}), (c1:X {name: 'c1'}), (c2:Y {name: 'c2'}),
+             (a)-[:KNOWS {w: 1}]->(b1), (a)-[:KNOWS {w: 2}]->(b2), (b1)-[:KNOWS {w: 3}]->(c1), (b2)-[:KNOWS {w: 4}]->(c2),
+             (a)-[:KNOWS {w: 5}]->(c1), (b1)-[:LIKES]->(c2)
+    cypher: "MATCH (a:A)-[:KNOWS]->(b)-->(c) OPTIONAL MATCH (a)-[r:KNOWS]->(c) WITH c, r RETURN c.name AS cn, r IS NULL AS unknown ORDER BY cn, unknown"
+  - id: an_untyped_chain_from_a_label_less_node_with_uniqueness
+    graph: |
+      CREATE (a {name: 'a'}), (b {name: 'b'}), (c {name: 'c'}),
+             (a)-[:T {k: 1}]->(b), (b)-[:T {k: 2}]->(c), (b)-[:T {k: 3}]->(a), (c)-[:U {k: 4}]->(a)
+    cypher: "MATCH (x)-[r1]->(y)-[r2]->(z) RETURN x.name AS xn, z.name AS zn, r1.k AS k1, r2.k AS k2 ORDER BY xn, zn, k1, k2"
+  - id: an_incoming_untyped_hop_then_a_named_incoming_relationship
+    graph: |
+      CREATE (p:Person {name: 'p'}), (m1:Message {id: 1}), (m2:Message {id: 2}), (q:Person {name: 'q'}), (s:Person {name: 's'}),
+             (m1)-[:TO]->(p), (m2)-[:TO]->(p), (q)-[:LIKES {at: 3}]->(m1), (s)-[:LIKES {at: 1}]->(m1), (s)-[:LIKES {at: 2}]->(m2)
+    cypher: "MATCH (person:Person)<--(message)<-[like]-(:Person) WITH like.at AS at, person, message ORDER BY at, message.id RETURN person.name AS pn, message.id AS mid, at"
 

@@ -9932,6 +9932,29 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the fifty-fourth landing — the cut under the arms' route
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 leg 4, step 1); the record is the study's §12.55.
+The translator cuts a pattern with an untyped hop whose arms run past two steps around its hops (an untyped hop a
+segment of its own, read over the rows before it), and carries one identity column for a relationship the arms
+read as several types or edge classes, so relationship uniqueness and `count(DISTINCT r)` hold across the union.
+
+1. **What lands.** The nine triadic selections TriadicSelection1/[7]-[11] and [16]-[19] (`(a:A)-[:KNOWS]->(b)-->(c)`, an
+   OPTIONAL MATCH after the cut), Match7/[9] (a longer pattern with bound nodes), Match8/[3] (`()-[r1]->()<--()`,
+   `sum(r1.times)` over one relationship's identity across arms), ReturnSkipLimit2/[8], Return4/[11] and With4/[6]
+   (`(a)-->(b)-->(c)` reusing variable names); four more lite cases in `lite/depth.yaml` (two untyped hops with an
+   edge among the ways, a triadic selection with an OPTIONAL MATCH after the cut, an untyped chain from a
+   label-less node with uniqueness, an incoming untyped hop then a named incoming relationship).
+2. **The ledger.** DuckDB PASS 3,273 → 3,291 (REFUSED 451 → 437; FAIL, BUG, ERROR 0), Postgres PASS 2,912 → 2,930 (REFUSED
+   812 → 798); TCK agreement 3,285 → 3,299 of 3,880 on DuckDB and 2,935 → 2,949 on Postgres (none lost); 14 lite
+   cases in `lite/depth.yaml`, all PASS on both lanes, judged by Neo4j (`snap.sh --check`: 0 problems over 4557
+   cases); `docs/CYPHER_SHOWCASE.md` unchanged.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `//core:core_tests_resolver`, `//core:core_tests_lowering`, `//core:core_tests_sql` green on the leg
+   before, untouched since.
+4. **Refused by name, recorded.** An untyped relationship in a MATCH of several patterns; a named path over more
+   than two steps; a variable-length chain past two hops; a cut whose relationships carry no identity.
+
 ## 2026-10-17 — `#Cypher{...}#`: the fifty-third landing — deep patterns cut at two steps
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 leg 3, routing around W9's depth-two limit); the

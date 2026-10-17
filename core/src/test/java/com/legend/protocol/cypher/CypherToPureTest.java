@@ -1057,6 +1057,10 @@ class CypherToPureTest {
         // node by identity (the study's §12.54)
         String deep = pure("MATCH (f:Firm)-[:employees]->(p)-[:firm]->(g)-[:hq]->(c) RETURN c.name AS n");
         assertTrue(deep.contains("->join(") && deep.contains(".hq"), deep);
+        // an untyped hop among typed ones: an arm with an edge way runs past two steps, so the pattern is cut
+        // around its hops, the untyped one a segment of its own read over the rows (the study's §12.55)
+        String untyped = edges("MATCH (p:Person)-[:ACTED_IN]->(f)-->(c) RETURN c.name AS n");
+        assertTrue(untyped.contains("->join("), untyped);
         // five hops: two cuts, two joins
         String deeper = pure("MATCH (p:Person)-[:firm]->(f)-[:employees]->(q)-[:firm]->(g)-[:employees]->(r)-[:firm]->(h)"
                 + " RETURN h.legalName AS n");
@@ -1100,7 +1104,9 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person)-[r:firm]->(f) RETURN r.since", "a property of a relationship");
         unsupported("MATCH (p:Person) RETURN p.firm", "a node as a value is not supported yet");
         unsupported("MATCH (p:Person) RETURN p.tags", "holds many values (a list)");
-        unsupported("MATCH (f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm) RETURN g.legalName", "no inverse");
+        // (a hop with no inverse end, cut off into a segment of its own, reads from its other end: the study's
+        // §12.55; "no inverse" refused it before)
+        assertTrue(pure("MATCH (f:Firm)-[:hq]->(c:City)<-[:hq]-(g:Firm) RETURN g.legalName").contains("->join("));
         // a variable-length relationship with an upper bound unrolls into the chains of each length (the study's
         // §12.42): one arm per length, concatenated; without one it is a recursion, refused by name
         String chains = pure("MATCH (p:Person)-[:firm*1..2]->(f) RETURN f.legalName AS firm");
