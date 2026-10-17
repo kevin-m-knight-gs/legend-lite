@@ -1390,6 +1390,7 @@ core_layer_queries(not_layers = {
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
     "scale_lib": "the scale benchmark's launcher (//core:scale), not product code",
     "shadow_binding": "a test-lane ServiceLoader resource",
+    "test_backends": "each database as the tests run on it (pct and spec share it), not product code",
     "test_cases": "the test cases core's tests and postgres_arm_test share, not product code",
     "toy_grammar": "a toy section grammar for the registry's own test (section_grammar_registry_test)",
 })
