@@ -2601,6 +2601,13 @@ public final class IqDialect implements InputDialect {
         if (held.isEmpty()) {
             return true;
         }
+        if (expressions(ds).stream().anyMatch(IqDialect::hasWindowCall)) {
+            // IQ island, 2026-10-17 (the lane's 9 such queries; measured on IQ 17.1): a derived table computing a
+            // window function is planned whole, so a column holding a subquery is its -1001030, read or not
+            throw SqlTranslationException.unsupported("a derived table computing a window function beside a column"
+                    + " that holds a subquery is IQ's error -1001030 under its engine (a scalar value subquery outside"
+                    + " of a top level SELECT list), read or not, refused before translating", d.pos());
+        }
         String alias = d.alias() == null ? null : IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text());
         Set<String> read = new java.util.HashSet<>();
         for (SqlAst.SelectItem i : outer.items()) {
@@ -2745,11 +2752,13 @@ public final class IqDialect implements InputDialect {
     }
 
     /** The columns of {@code ds} (named by {@code columns} where given) that hold a subquery: an item with one, or
-     *  one reading, unqualified, such a column of a derived table of its own FROM ({@link #derivedSubqueriesRead});
-     *  null where such an item has no name. */
+     *  one reading such a column of a derived table of its own FROM, unqualified or by its correlation name ({@link
+     *  #derivedSubqueriesRead}); null where such an item has no name. */
     private static @com.legend.base.Nullable Set<String> heldColumns(SqlAst.Select ds, List<SqlAst.Ident> columns,
             Map<SqlAst.Select, Set<String>> heldOf) {
+        // the held columns of the derived tables of its own FROM, all and by their correlation names
         Set<String> inner = new java.util.HashSet<>();
+        Map<String, Set<String>> innerOf = new java.util.HashMap<>();
         for (SqlAst.FromItem f : ds.from()) {
             for (SqlAst.FromItem leaf : leaves(f)) {
                 if (leaf instanceof SqlAst.SubqueryFrom d && d.query() instanceof SqlAst.Select below) {
@@ -2757,12 +2766,21 @@ public final class IqDialect implements InputDialect {
                             : heldColumns(below, d.columnAliases(), heldOf);
                     if (h != null) {
                         inner.addAll(h);
+                        if (d.alias() != null) {
+                            innerOf.put(IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text()), h);
+                        }
                     }
                 }
             }
         }
         Set<String> held = new java.util.HashSet<>();
         for (int i = 0; i < ds.items().size(); i++) {
+            if (ds.items().get(i) instanceof SqlAst.AllColumns a) {
+                // a * shows the held columns it reads under their own names (sqlstorm-5188's pd.*)
+                held.addAll(a.qualifier() == null ? inner : innerOf.getOrDefault(IqLexer.lower(
+                        java.util.Objects.requireNonNull(a.qualifier()).text()), Set.of()));
+                continue;
+            }
             if (!(ds.items().get(i) instanceof SqlAst.SelectExpr x)) {
                 continue;
             }
@@ -2770,8 +2788,11 @@ public final class IqDialect implements InputDialect {
             if (!holds && !inner.isEmpty()) {
                 List<SqlAst.ColumnRef> refs = new ArrayList<>();
                 columnRefs(x.expr(), refs);
-                holds = refs.stream().anyMatch(r -> r.parts().size() == 1 && inner.contains(IqLexer.lower(
-                        r.parts().get(0).text())));
+                holds = refs.stream().anyMatch(r -> {
+                    String name = IqLexer.lower(r.parts().get(r.parts().size() - 1).text());
+                    return r.parts().size() == 1 ? inner.contains(name) : innerOf.getOrDefault(IqLexer.lower(
+                            r.parts().get(r.parts().size() - 2).text()), Set.of()).contains(name);
+                });
             }
             if (holds) {
                 String name = itemName(ds, i, columns);

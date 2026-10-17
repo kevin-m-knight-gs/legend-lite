@@ -244,6 +244,9 @@ island's reason, those IQ answers, and what became of them:
     reading it.
   - Read in the select list it answers: beside a join, beside the outer query's own subquery, and through nested
     derived tables (`n + 1` shown and read above).
+  - A derived table computing a window function is planned whole (9 of the 154): a column holding a subquery is
+    its -1001030 there, read or not, through a `*` too. Held columns pass up through stars and qualified reads.
+  - Judged: all 154 now match IQ, 149 naming its error and 5 answering.
   - Refused by name: one read inside the outer query's own subquery (IQ's -1001030 in the case measured), or in a
     window;
 - other dialects' syntax, IQ's syntax error -131 now (2026-10-17, measured; the syntax research's `reject` cases):

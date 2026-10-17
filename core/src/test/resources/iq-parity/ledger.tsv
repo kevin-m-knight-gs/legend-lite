@@ -917,6 +917,9 @@ lite/corpus_gaps/an_alias_named_filter_and_a_column_named_both@iq16-default	PASS
 lite/corpus_gaps/an_alias_named_filter_and_a_column_named_both@iq17-default	PASS	PASS
 lite/corpus_gaps/comparing_a_date_with_literals_that_spell_no_date_is_refused@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/comparing_a_date_with_literals_that_spell_one@iq17-default	PASS	PASS
+lite/corpus_gaps/derived_subquery_column_beside_a_window_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/derived_subquery_column_read_qualified_by_an_unread_column@iq17-default	PASS	PASS
+lite/corpus_gaps/derived_subquery_columns_under_a_star_beside_a_window_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/one_cte@iq16-default	PASS	PASS
 lite/cte/one_cte@iq17-default	PASS	PASS
 lite/cte/one_cte_with_a_column_list@iq16-default	PASS	PASS

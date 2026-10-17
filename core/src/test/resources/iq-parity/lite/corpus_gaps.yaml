@@ -1182,3 +1182,14 @@ tests:
   - id: comparing_a_date_with_literals_that_spell_one
     sql: "SELECT id FROM t WHERE ts > '2026' + '-' + '03-04' + ' 05:06:07' ORDER BY id"
     profile: iq17-default
+  # a derived table computing a window function is planned whole: its subquery column is -1001030, read or not
+  - id: derived_subquery_column_beside_a_window_is_iqs_error
+    sql: "SELECT tid FROM (SELECT t.id AS tid, ROW_NUMBER() OVER (ORDER BY t.id) AS rn, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d WHERE rn <= 3 ORDER BY tid"
+    profile: iq17-default
+  # a column read qualified by a derived table that no one above reads is dropped too
+  - id: derived_subquery_column_read_qualified_by_an_unread_column
+    sql: "SELECT e.tid FROM (SELECT d.tid, d.n FROM (SELECT t.id AS tid, COUNT(*) AS c, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t GROUP BY t.id) d) e ORDER BY e.tid"
+    profile: iq17-default
+  - id: derived_subquery_columns_under_a_star_beside_a_window_is_iqs_error
+    sql: "SELECT tid, rn FROM (SELECT d.*, ROW_NUMBER() OVER (ORDER BY d.tid) AS rn FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d) e ORDER BY tid"
+    profile: iq17-default
