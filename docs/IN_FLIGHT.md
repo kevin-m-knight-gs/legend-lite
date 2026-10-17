@@ -1650,6 +1650,11 @@ repros will be in the study's §9.
     `jsonb_array_elements(CASE WHEN x IS NULL THEN <raise> ELSE x END)` fires for a row whose `x` holds a value
     (the Cypher island's `size` of a Variant list that may be null, 2026-10-17; the island now tests the list and
     reads it as a collection without `toOne`).
+  - `project` of a to-many navigation mapped to a constant (`~[c: a | $a.friends->map(f | 1)]`) stays one row
+    per root where Pure's semantics give one value per element; the rows multiply only through a navigated
+    column. The Cypher island refuses by name a pattern that fans out to a node of a class without a property
+    (21 TCK scenarios, the study's §12.16 and §12.44; measured 2026-10-15, recorded 2026-10-17): with a column of
+    the far table read the join fans out, with none the lowering drops the join.
   - `times(times(x,a),times(y,b))` lowers as one left-to-right chain, `x*a*y*b`, which changes a DOUBLE's
     intermediate overflow and underflow.
 - **The compiler and stamp program:**
