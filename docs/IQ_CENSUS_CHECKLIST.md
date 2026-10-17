@@ -164,8 +164,8 @@ island's reason, those IQ answers, and what became of them:
   group, those TOP drops too (the paused AVG decision, measured);
 - TRUE and FALSE (BIRD's `THEN TRUE ELSE FALSE`): IQ 17.1's constants 1 and 0, SMALLINTs as the literals are
   (`TRUE + 1` is 2), named `true` unaliased, no alias; the iq17 profiles read them so, and the listed true-keyword
-  divergence is gone. NULLIF of a date and a string that is no date is its engine's -1001014 for each row (its front
-  end's NULLIF(d, '') is d);
+  divergence is gone. NULLIF of a date and a string that is no date is its engine's -1001014 whether or not a row
+  reaches it (it converts the constant as it plans; its front end's NULLIF(d, '') is d);
 - a date string IQ cannot convert names both codes rather than one: which IQ reports is its evaluation order's (a
   DATEPART of a string's -1001011 may come first; a BETWEEN over a computed DATE in a grouped query is -157);
 - lite's database failing on SEDE's empty sample tables (27 of 40): each answers over the data, PASS; the other 13
@@ -247,6 +247,14 @@ Built, measured on the live IQ:
 IQ's errors raised by name, measured: a window function in a condition's subquery (-1001030); two subqueries compared
 and a subquery as BETWEEN's operand (-1001030); an alias of a select-list subquery read in WHERE, GROUP BY or HAVING
 (-1001030); a subquery inside a condition's expression, now naming IQ's -1001030.
+
+Judged again on 2026-10-17, the lane rebuilt and the live IQ asked afresh (12,536 SEDE and SQLStorm queries
+answered): PASS 10,643, PASS_UNORDERED 1,504, FAIL 357, BUG 8. The tie-broken twins of the FAILs: 166 PASS, and
+every other FAIL is a numbering of tied rows (ROW_NUMBER, RANK: 166), a clock (12) or IQ's data-dependent NUMERIC
+scale (D-N3, 12); none unexplained. The BUGs are IQ's defects and limits (its internal error -1006001 in an ORDER
+BY, three times; its Cartesian-product limit -1005015, four) and one table alias `limit` IQ reads as its clause.
+One more IQ defect found: rows tied on the ORDER BY can carry each other's columns in IQ's answer (sqlstorm-10142:
+user 508's latest post is 2011-01-27 in the data, lite's answer; IQ's row gives user 50's 2011-01-06).
 
 BIRD's answers judged too (2026-10-16). BIRD's 11 databases were sampled consistently by their foreign keys: parents
 first, a child keeping the rows that reach kept parents, then filled to 600 rows a table (32,206 rows; the scratchpad's

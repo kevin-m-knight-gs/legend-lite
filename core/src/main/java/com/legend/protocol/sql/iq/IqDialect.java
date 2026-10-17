@@ -6786,15 +6786,13 @@ public final class IqDialect implements InputDialect {
         } else if ((a.kind() == Kind.DATE || a.kind() == Kind.DATETIME) && b.vs() instanceof CString text
                 && !b.nullable() && (engine == Engine.IQ || text.value().isEmpty())) {
             // IQ island, 2026-10-17 (measured on IQ 17.1): a date and a string that is no date -- under IQ's engine
-            // its error -1001014 for each row that computes it ('' and 'x' alike); in its front end NULLIF(d, '') is d
+            // its error -1001014, whether or not a row reaches it ('' and 'x' alike: it converts the constant as it
+            // plans); in its front end NULLIF(d, '') is d
             if (engine != Engine.IQ) {
                 return a;
             }
-            String error = "NULLIF of a date and the string '" + text.value() + "', which is no date: IQ's error"
-                    + " -1001014 under its engine";
-            Tx raised = SqlToPure.strict(a.kind(), List.of(a), v -> IqFunctions.refusedPast(SqlToPure.call(
-                    "isNotEmpty", v.get(0)), error, v.get(0), v.get(0)));
-            return Tx.value(raised.vs(), a.kind(), true, a.detail());
+            throw SqlTranslationException.invalid("NULLIF of a date and the string '" + text.value() + "', which is"
+                    + " no date" + code(-1001014, "QFA14"), f.pos());
         } else if (a.kind() != b.kind() || a.kind() == Kind.DECIMAL || a.kind() == Kind.NUMBER) {
             throw SqlTranslationException.unsupported("NULLIF of " + kindName(a.kind()) + " and " + kindName(b.kind())
                     + " is not supported yet", f.pos());
