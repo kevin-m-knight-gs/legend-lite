@@ -11168,8 +11168,9 @@ only). Branch `claude/loving-euler-gjta59`; the record is `docs/LEGEND_SQL_STUDY
 
      Every SQL digest was the same. Census and channel B lines were identical. The whole logs were the same, but for
      run ids. The relational corpora's rosters and registers were byte-identical. One red: `pct_clickhouse_essential`,
-     whose `testAdjustByDaysBigNumber` pin expected the era-less text. The pin moved in 4a3ab1218, and that lane is
-     first re-run on the branch's final commit.
+     whose `testAdjustByDaysBigNumber` pin expected the era-less text. The pin moved in 4a3ab1218. On 4f704880e,
+     sibling 1a re-ran the lane: 345 of 345, the SQL digest and the census lines as base's, and the whole log the
+     same line for line.
    - On the second round's last commit, the eleven targets above, all green:
      - `core_tests_protocol`, `core_tests_compiler`, `core_tests_integration`, `guardrails`;
      - `postgres_arm_test`, `sql_island_postgres_test`;
