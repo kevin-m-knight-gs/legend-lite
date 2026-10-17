@@ -11072,3 +11072,13 @@ product behaviour change was intended, and none was measured.
     differing log lines are the container's proxy port, one unordered result's row order and fresh UUIDs.
     (Snowflake's and Databricks' essential and relation digests moved between e6800ae0 and 86bbe71e on main itself:
     a nested `CASE` in an `ELSE` is now one `CASE`, six equivalent statements.)
+  - DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres (60 lanes): 60 of 60 pass on both commits, the 60 digests,
+    the census lines and the 25 channel B lines identical. Every test log, normalised for time, heap, UUIDs, array hashes
+    and DuckDB's row order, differs only in the JVM's proxy-port banner: every statement, error, raise text and result
+    on the Postgres, MariaDB and MySQL lanes, whose sessions now open at the connector's URL, is the same. The logs print
+    no session URL, so the URL itself is checked through that effect.
+  - Stress: `//core:stress_suites` pass=4705 fail=15 and `//core:stress_suites_h2` pass=4676 fail=44 (of 4736) on both
+    commits, every fail bucket and exclusion identical.
+  - The Postgres corpus lane, every test (`bazel run //spec:corpus_on_postgres`): pass=1883 fail=716 skipped=14 of 2613
+    on both commits, every FAIL, SKIP, referee, origin and census line identical. The head sets one fixture aside
+    (`testGroupByWithWindowSubset`, `aside_0`); main ran it over the workspace. Its verdict, a pass, is the same.
