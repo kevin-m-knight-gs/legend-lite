@@ -3503,8 +3503,9 @@ on an unbound node, on null), WithWhere6 (1: filtering a single aggregate); no c
 16 lite cases in `lite/uniqueness.yaml`, each judged by Neo4j (15 PASS; the variable-length chain over a cycle
 stays REFUSED by name, the unroll past two hops); the three association refusal cases of `lite/identity.yaml`
 and `lite/grouping.yaml` renamed as positive ones. The TCK: agreement 3115 of 3880 (from 3,112): 3 more
-scenarios, Comparison1/[5] (relationships compared after WITH), Match2/[3] (a self-loop with an undirected
-pattern), Graph (the uniqueness feature); no case lost. Most uniqueness cases of the TCK run over association
+scenarios, Comparison1/[5] (relationships compared after WITH), Match6/[9] (a longer path's results in written
+order, two relationships of one type in one pattern), Graph4/[2] (`type()` on two relationships); no case
+lost. Most uniqueness cases of the TCK run over association
 graphs the harness already read correctly where the data walked no relationship twice, which is why the gain
 is small and the correctness gain large (the chain's first run flagged the product applying uniqueness across
 clauses).
