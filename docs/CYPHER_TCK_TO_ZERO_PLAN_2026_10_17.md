@@ -65,7 +65,9 @@ over a model with no such class reads no rows (the first-clause form already exi
 class, §12.20); a relationship type naming no association end or edge class reads no rows (the pattern's "no way"
 form, §12.36). `n.missing` inside a comparison folds as the known null does today. Neo4j's static errors stay
 static errors (a property on a non-map). One leg; the compile-error form kept only behind a query option if the
-user wants the typo guard back (not proposed).
+user wants the typo guard back (not proposed). **Reframed 2026-10-17 (§3.2 Q1): the open reading is the OPEN
+graph's, GQL's own distinction; the closed graph keeps C4, so the typo guard stays the default of a user's model
+and no query option is needed.**
 
 ### W2. Identity through hidden keys (C5 as the user meant it)
 
@@ -190,6 +192,10 @@ SKIP/LIMIT expressions, `STARTS WITH` on non-strings (null), temporal texts of t
 ## 3. Decisions asked of the user
 
 1. **W1:** adopt Neo4j's schema-optional reads (null, no rows) for the island, overturning S58? (Proposed: yes.)
+   **Reframed by the user, 2026-10-17 (§3.2 Q1): GQL's OPEN and CLOSED graphs.** An open graph reads an unknown
+   label or relationship type as no rows and an undeclared property as null; a closed graph keeps C4's compile
+   errors. The harness's graphs are open (a `CREATE` with no schema); an island embedded in Pure source is
+   closed; S58 becomes the two readings. Agreed.
 2. **W2:** node identity through a hidden `<<equality.Key>>` property the harness declares, relationships as
    edge classes wherever a setup holds parallel links; S74 and S75 rewritten? (Proposed: yes.)
 3. **W3:** `rand()` and the clock functions as the database's? (Proposed: yes.)
@@ -278,11 +284,139 @@ on for the harness and leaves lite's stricter defaults for users. It would keep 
 the behaviours to test and the TCK would then certify the mode rather than the island; the island is Cypher, and
 Cypher's semantics are its contract.
 
+### 3.2 The user's six questions, answered (2026-10-17)
+
+**Q1. GQL's open and closed graphs, for decision 1.** GQL (ISO/IEC 39075:2024) calls a graph *closed* when a
+graph type constrains it (it holds only the node and edge types the type declares, with their labels and property
+types) and *open* when none does (any label, any property, created on the fly). Neo4j's graphs are open: a label or
+a property exists the moment a node carries it. A lite graph is a model, and a model IS a graph type (classes with
+typed properties, associations as edge types), so every lite graph is closed by construction and C4 is the closed
+reading: a label no class has, a property no class of the label declares, a relationship type naming no association
+end is a compile error. Adopting GQL's pair: a graph declared OPEN reads an unknown label or relationship type as no
+rows and an undeclared property as null (Neo4j's answers; the island already reads a property an arm's class lacks
+as null, so the rule is one step wider); a CLOSED graph keeps C4. The verdict asked for: yes, and it is a better
+frame than the "compatibility mode" §3.1 rejected, because openness is a property of the GRAPH, in the standard's
+own words, not a switch on the engine; the TCK's fixtures are open graphs (a `CREATE` with no schema), so the TCK
+then certifies the open reading of an open graph, which is what it measures on Neo4j, and a user's model stays
+closed unless it says otherwise, so the typo guard (`p.nmae`) is lost nowhere by default. Where it is declared: GQL
+declares it on the graph; lite has no graph element yet (the model is the graph), so the translator's `Graph` takes
+its openness from its caller: the parity harness builds its model from a scenario's `CREATE` and passes OPEN; an
+island embedded in Pure source (`#Cypher{...}#`) is CLOSED. The one open point: a model-side spelling of openness
+(a graph element, which the writes of W4 may want anyway as the thing `CREATE` writes into, or a tag of the graph
+profile) when a user wants an open graph; not needed for the TCK. Cost: one leg, the closed pins kept and the open
+reading pinned beside them; S58 rewritten as the two readings.
+
+**Q2. The identity problem, and the right thing on the Legend side.** What Neo4j does: every node and relationship
+has an identity of its own (an element id the store mints), independent of its labels and properties. Two nodes
+created alike are two nodes: after `CREATE (:A {x: 1}), (:A {x: 1})`, `MATCH (a:A), (b:A) WHERE a <> b RETURN
+count(*)` is 2, `MATCH (a:A) RETURN count(DISTINCT a)` is 2, and `collect(a)` holds two. Identity is what `a = b`
+and `a <> b` compare on nodes and relationships, what `DISTINCT`, the grouping keys, `count(DISTINCT n)`, `n IN
+list` and `MERGE`'s matching use, and what relationship uniqueness is (one match never uses the same relationship
+twice: `(a)-[r1]->(b)-[r2]->(c)` has `r1 <> r2` by identity). What lite does today: a node value is its label and
+its properties, so two nodes alike are one value; the ~100 cases of W2 are the queries where that is visible (S74,
+S75: counts, distinctness, comparisons, uniqueness, the triadic selection use case), and the harness's node tables
+already hold an `id BIGINT PRIMARY KEY` the model does not see. What Legend's own notion is: a Pure instance has
+identity; `==` on two instances compares their `<<equality.Key>>` properties when the class declares them, else the
+instances themselves (the platform's `InstanceEquality`: keyed classes by their key tree, keyless by identity, which
+the verdict lane mints as `__id` for constructed instances); under a relational mapping an instance's identity is
+the class mapping's `~primaryKey` (legend-engine builds its graph-fetch objects by it; a mapping without one keys
+on every mapped column, which is exactly the "two alike nodes are one" collapse). So the right thing on the Legend
+side is: node identity = the class mapping's primary key, Legend's own identity of a mapped instance, never a
+comparison of properties. Two ways to reach it from the island's Pure: (a) the harness declares the `id` column as
+a property of the class marked `<<equality.Key>>` and hidden (a `graph.hidden` tag: `properties(n)`, `keys(n)` and a
+node value omit it), so `$a == $b`, `distinct`, grouping and `in` resolve to the key through the platform's existing
+EqualityKeys and the identity travels through `WITH` as a column; works today, no platform change, three to four
+legs; (b) the platform resolves `==` of a keyless mapped class to its mapping's primary key (reference identity
+under the mapping, the faithful semantics, not a fallback) and the island spells identity through a native
+(`identity($n)`, lowered to the key columns), so a user's model needs no extra property; the database owner's line,
+and the island still needs the native to carry identity through projections. Recommended: (a) now (the user's
+"a way to hide keys if needed"), (b) as the platform item that lets any mapped class, keyed or not, answer
+identity queries without a declared property. Relationships: an edge class gets the same hidden key; a relationship
+mapped as a bare association end (no edge class) has no row of its own and no identity, so uniqueness over it is
+the pair of endpoint identities, which is Neo4j's answer wherever the graph holds no parallel relationships (S74).
+
+**Q3. How the TCK's `rand()` and clock scenarios pass.** The 50 cases of W3 assert nothing a draw or an instant
+decides. The quantifier features (Quantifier9, 11, 12: 30 cases) build a list by random filtering and random
+reversal three times (`[y IN inputList WHERE rand() > 0.5 | y]`, `CASE WHEN rand() < 0.5 THEN reverse(list) ELSE
+list END + x`) and then assert an identity that holds for every list: `none(x IN list WHERE p) = (NOT any(x IN
+list WHERE p))` is `true`, `none(x IN list WHERE false)` on a non-empty list is `true`, `single(x IN list WHERE p) =
+(size([x IN list WHERE p | x]) = 1)` is `true`; the randomness is there to vary the list, the answer is the same
+row every run. The clock features (Temporal4/[13]: 15 cases, Temporal10/[12] and [13]: 5 cases) assert
+`date(null)`, `date.statement(null)`, `localtime.realtime(null)` ... = `null` (the argument decides, the clock is
+never read) and `duration.inSeconds(datetime(), datetime())` = `'PT0S'`, which holds because Neo4j's clock is one
+instant per statement (`.statement`, the default; `.transaction` per transaction; `.realtime` per call): both calls
+read the same instant. In SQL the statement clock exists on every dialect (`now()` and `current_timestamp` are the
+transaction's start on Postgres and DuckDB; `clock_timestamp()` is the per-call one), so `datetime()` lowered as
+the statement clock gives `PT0S` too, and `.realtime` lowered as the per-call clock gives Neo4j's semantics. So the
+judge needs nothing new: it compares final rows, and the final rows are deterministic. The two rand cases outside
+W3 already pass: `RETURN count(rand())` is a compile error on both sides (Return6/[15]) and `SKIP
+toInteger(rand()*9)` asserts only `count > 0` (ReturnSkipLimit1/[3]). Lite's own cases pin invariants only
+(`rand() >= 0 AND rand() < 1`, `date() = date()`); the database's `setseed` is a nicety for pinning a draw, not
+needed.
+
+**Q4. Times of day and Pure's `StrictTime`.** The same thing. Pure's `StrictTime` is a time of day with no date and
+no zone (`%12:34:56.789`); Cypher's `localtime` is exactly that, and the island already carries it as StrictTime (the
+MIR's `TIME`, every dialect, the nanosecond leg's `TIMESTAMP_NS` on the epoch day for sub-microsecond ones).
+Cypher's `time` is a time of day with a UTC offset (Neo4j's `OffsetTime`), which the island carries as the UTC
+StrictTime with the offset beside (§12.11). The W5 gap is not the value but the STORE: lite's `###Relational`
+grammar (legend-engine's, kept verbatim) has `TIMESTAMP` and `DATE` and no `TIME` column type (S64), so a StrictTime
+property has no column to map to, and a scenario whose `CREATE` stores a time of day is skipped by the harness.
+§3.1's decision 4 stands: a `TIMESTAMP` on the epoch day under a `graph.timeOfDay` marker, read back as StrictTime,
+keeps the grammar legend-engine's.
+
+**Q5. Labels, and what "several labels" asks.** A label is a tag a node carries: `(:Person)` carries one, `(n:Person:
+Employee)` carries two, `()` none; a node's labels are a SET, not a type, so any node may carry any labels, nodes of
+the same label may hold different properties, and `SET n:Employee` and `REMOVE n:Employee` change the set at run
+time. A pattern `(n:A)` matches every node whose set contains `A`; `(n:A:B)` every node whose set contains both;
+`labels(n)` returns the set; `n:B` tests membership. Lite today: a label is a class (the harness makes one class and
+one table per label), so a node's label set is one class, and a node carrying two labels has no class: the harness
+skips the scenario (18 cases, "harness: a node with several labels"). Match1/[3] shows the whole problem: the
+setup creates `(:A:B:C), (:A:B), (:A:C), (:B:C), (:A), (:B), (:C)` and three unlabelled nodes, and `MATCH (a:A:B)
+RETURN a` must answer `(:A:B)` and `(:A:B:C)`: seven distinct label sets, the answer two of them, and the returned
+node value shows ALL its labels, including the `C` the pattern never named. Match3/[7] creates one node of
+thirteen labels and one of six and matches both by their full sets in another order. Two shapes: (a) a class per
+LABEL SET, tagged with its labels (`g::A_B_C` with `{graph.labels = 'A,B,C'}`), `MATCH (n:A:B)` reading the arms of
+every class whose set contains both, exactly the label-less machinery (§12.13 unions every class's arm at the first
+projection) restricted by label membership; `labels(n)` is the class's set, `n:B` a constant per arm, a node value
+prints its class's set: reads need no new mechanism and one harness change, and seven classes for Match1/[3] is
+what the setup holds; writes are the cost: `SET n:C` on a node of `A_B` MOVES its row to `A_B_C`, which the model
+must already declare (the harness can, from every label set the scenario mentions; a user cannot foresee every
+set). (b) A class per LABEL and a node's row in each of its labels' tables under one identity (decision 2):
+`MATCH (n:A:B)` is a join of `A` and `B` on the id, `labels(n)` is the id's presence across the label tables,
+`SET n:C` inserts one row and `REMOVE n:C` deletes one; but a node's properties must live in one place (a node
+table keyed by the id, the label tables holding only ids, or every label table repeating the columns), so each
+read becomes id-joins and the harness's model changes shape. Recommended: (a) for the reads of Phase C (18
+cases, two legs, no identity needed), reconsidered when W4 reaches `SET n:Label` (Set3, Merge3, Merge4: 7 cases),
+where (b) is the honest relational shape and (a) a row move. Inheritance (`A_B extends A, B`) is not needed for
+either: the arms do what subclass reads would, and a relational mapping's `A.all()` reads A's table only.
+
+**Q6. DML: the "poor man's" MIR, and the right way.** What exists: `SqlDml` (`InsertValues`, `InsertFromTable`,
+`DeleteAll`, `CreateTempTableAs`) is a real MIR half, rendered by every dialect through the same writer as a query;
+what is poor about it is everything around it: it has no Pure front (Java builds the records: the CSV seed, the
+DDL seeding, the row loader, the test-data generator's temp table), no `UPDATE`, no `DELETE ... WHERE`, no `INSERT
+... SELECT` of a query, no `MERGE`, and three ad-hoc execution sites. Pure's own write native already exists in
+lite's registry: legend-engine's `write<T>(rel: Relation<T>[1], accessor: RelationElementAccessor<T>[1]): Integer[1]`
+(`#TDS ...#->write(#/db/T#)`, rows in, a count out), declared and not lowered. The right way, by the tenets (Java
+orchestrates, the database executes; one compiler): a write is a Pure relation expression like a read, planned by
+the one compiler to one DML statement the dialect renders and the database executes in a transaction, the count
+its result: `write` for insert (its relation any query: `INSERT ... SELECT`, or a `Values` source: `INSERT ...
+VALUES`), and lite natives in `meta::legend::lite::` for what legend-engine never declared: `update(accessor,
+filter-lambda, ~[col: x | expr])` → `UPDATE ... SET ... WHERE`, `delete(accessor, filter-lambda)` → `DELETE ...
+WHERE` (`deleteAll` the filter-less form, today's `DeleteAll`), `merge(rel, accessor, ~[keys])` → `MERGE` /
+`INSERT ... ON CONFLICT` per dialect; each one MIR variant (`SqlDml.InsertSelect`, `Update`, `DeleteWhere`,
+`Merge`), one render arm per dialect, one execution seam (`Execution.executeWrite`, one transaction per
+statement or per `[...]` of statements). Who uses it: the Cypher island's `CREATE`, `SET`, `REMOVE`, `DELETE`,
+`MERGE` (W4, 274 cases), the BI plan's ETL sinks ("L"), the test-data generator, and any user writing Pure. The
+Java seeding sites keep constructing the records where no Pure exists (a fixture's rows are data, and building the
+MIR directly is orchestration, not evaluation) or move to `write` of a `Values` relation; the temp table stays
+planning-internal. So: yes, real relation functions, and `SqlDml` grows into their MIR rather than being replaced;
+F1 of W4 is exactly this, before the island's clauses.
+
 ## 4. The order, and the count it would reach
 
 | phase | workstreams | legs | cases (cumulative agreement of 3880) |
 |---|---|---|---|
-| A — rules in the island | W1, W3, W12 | 5 | 3031 → ~3180 |
+| A — rules in the island | W1 (open graphs), W3, W12 | 5 | 3031 → ~3180 |
 | B — identity | W2 | 4 | → ~3290 |
 | C — the harness's models | W5, W6, W7, W8 | 7 | → ~3440 |
 | D — the platform's limits | W9, W10, W11 | 9 | → ~3600 |
