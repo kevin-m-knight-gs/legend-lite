@@ -5015,9 +5015,10 @@ public final class IqDialect implements InputDialect {
             case AND, OR -> at.logical(b);
             case EQ, NE, LT, LE, GT, GE -> {
                 Tx l = at.tx(b.left());
-                Tx compared = comparison(b.op(), l, at.tx(b.right()), b.left() instanceof SqlAst.NullLit,
+                Tx r = at.tx(b.right());
+                Tx compared = comparison(b.op(), l, r, b.left() instanceof SqlAst.NullLit,
                         b.right() instanceof SqlAst.NullLit, b, b.pos());
-                yield selfComparison(b) ? itself(b.op(), l) : twoValued(b, compared);
+                yield selfComparison(b, l, r) ? itself(b.op(), l) : twoValued(b, compared);
             }
             case PLUS -> plus(b, at);
             case CONCAT -> {
@@ -5035,12 +5036,14 @@ public final class IqDialect implements InputDialect {
 
     /** IQ island, 2026-10-17 (the differential fuzzer's IF ch = ch THEN ch ELSE '' ENDIF; measured on IQ 17.1): under
      *  IQ's engine an expression compared with itself, written alike ({@code v = v}, {@code ABS(v) = ABS(v)}, {@code
-     *  g.v = v} not yet), is two-valued outside a search condition -- an IF's or a CASE's condition, a truth test's
-     *  operand: {@code =}, {@code <=} and {@code >=} hold where it is not NULL, {@code <>}, {@code <} and {@code >}
-     *  never; reached through AND, OR and NOT from a WHERE, an ON or a HAVING it stays three-valued (NOT (v = v) keeps
-     *  no row there). One that reads no column, a subquery or a host variable is read as any other. */
-    private boolean selfComparison(SqlAst.Binary b) {
-        return engine == Engine.IQ && !filters.contains(b) && IqAggregates.same(b.left(), b.right())
+     *  g.v = v} where both read one column), is two-valued outside a search condition -- an IF's or a CASE's
+     *  condition, a truth test's operand: {@code =}, {@code <=} and {@code >=} hold where it is not NULL, {@code <>},
+     *  {@code <} and {@code >} never; reached through AND, OR and NOT from a WHERE, an ON or a HAVING it stays
+     *  three-valued (NOT (v = v) keeps no row there). One that reads no column, a subquery or a host variable is read
+     *  as any other. */
+    private boolean selfComparison(SqlAst.Binary b, Tx l, Tx r) {
+        return engine == Engine.IQ && !filters.contains(b) && (IqAggregates.same(b.left(), b.right())
+                || IqAggregates.sameUnqualified(b.left(), b.right()) && l.vs().equals(r.vs()))
                 && readsColumn(b.left()) && !readsQuery(b.left()) && !readsParameter(b.left());
     }
 

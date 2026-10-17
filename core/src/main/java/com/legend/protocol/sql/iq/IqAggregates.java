@@ -1047,6 +1047,11 @@ final class IqAggregates {
         return shape(a).equals(shape(b));
     }
 
+    /** Whether {@code a} and {@code b} are written as one expression but for their columns' qualifiers. */
+    static boolean sameUnqualified(SqlAst.Expr a, SqlAst.Expr b) {
+        return unqualifiedShape(a).equals(unqualifiedShape(b));
+    }
+
     /** {@code e}'s form as {@link #unqualifiedShape} writes it, but a chain of + or of * (and AND, OR) by its operands'
      *  forms in order, so that {@code 1 + k} and {@code k + 1} are one. */
     private static String commutedShape(SqlAst.Expr e) {

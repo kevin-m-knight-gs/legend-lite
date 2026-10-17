@@ -545,6 +545,18 @@ The user asked for real queries that push the island hard. Their corpora, data a
   - ILIKE and PostgreSQL's arrays as IQ's -131.
   - The DuckDB dialect writes an outer join's ON without the IS NOT NULL tests its comparisons make. DuckDB planned
     them as a nested loop: one TPC-H query took 55 s against 0.1 s.
+- **Built from the fuzzer's fourth round (2,877 of 3,000 PASS), measured on IQ 17.1:**
+  - BETWEEN beside two column bounds: a NULL bound leaves the row UNKNOWN unless the other bound reads no column
+    (`3 + 0` and `ABS(3)` count as constant; `j - 5` does not).
+  - An expression compared with itself, written alike (`v = v`, `ABS(v) >= ABS(v)`), is two-valued outside a search
+    condition: `= <= >=` hold where it is not NULL, and `<> < >` never hold. It stays three-valued through AND, OR and
+    NOT from a WHERE, and in SQL Anywhere's front end.
+  - `0 + x`, `x + 0` and `x - 0` are `x` for a SMALLINT, an INTEGER or a DOUBLE (typed so), and not in GROUP BY. A key
+    `0 + x` is no key of a select item or a HAVING written the same way, so IQ raises -149.
+  - REPLACE of a string typed with no width is NULL (`''`, `LEFT(vc, 0)`, `SPACE(0)`, `TRIM('')`, a derived table's
+    `''` column). REPLACE of a wider empty string stays `''`.
+  - Measured, not built: `1 + v = v + 1` is two-valued too (IQ reads the sum in either order), and lite keeps it
+    three-valued.
 - **Judged with ties broken:** TPC-H 9,131 of 9,427 match IQ; TPC-DS 8,403 of 8,647; JOB 4,554 of 4,811. What is
   left is ROW_NUMBER over ties inside CTEs (both answers valid), D-N3's places, IQ's internal errors and its
   Cartesian limit.
@@ -552,8 +564,6 @@ The user asked for real queries that push the island hard. Their corpora, data a
   - BIGINT arithmetic past 64 bits. IQ's engine answers a NUMERIC(20,0) (`bg + 7` over 2^63 - 1). Lite types from the
     column, so it keeps a BIGINT and the database's overflow raises. That is D-N3: IQ sizes from the data, and
     widening every BIGINT operation would mistype every realistic one.
-  - REPLACE of a zero-length string under IQ's engine is NULL for a constant `''`, `LEFT(vc, 0)` or `SPACE(0)`, but
-    `''` for `TRIM(ch)`, a SUBSTRING past the end, or `CAST('' AS VARCHAR(5))`. The rule is not found.
   - GREATER and LESSER: their arguments overflow as SQL Anywhere's front end's (-158 for `1 + it` past 2^31 - 1,
     where IQ's engine widens), and IQ types `LESSER(1, -32768)` a NUMERIC. Some constant subexpressions take the
     front end's type (`CEILING(100.00)` a DOUBLE).

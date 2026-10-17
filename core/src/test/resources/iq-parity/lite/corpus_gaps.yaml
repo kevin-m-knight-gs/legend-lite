@@ -1893,6 +1893,12 @@ tests:
   - id: comparisons_of_an_expression_with_itself_in_a_case
     sql: "SELECT id, CASE WHEN v = v THEN 'T' WHEN NOT (v = v) THEN 'F' ELSE 'U' END AS a, CASE WHEN v < v THEN 'T' WHEN NOT (v < v) THEN 'F' ELSE 'U' END AS b, CASE WHEN ABS(v) >= ABS(v) THEN 'T' WHEN NOT (ABS(v) >= ABS(v)) THEN 'F' ELSE 'U' END AS c, CASE WHEN v = v + 0 THEN 'T' WHEN NOT (v = v + 0) THEN 'F' ELSE 'U' END AS d FROM g ORDER BY id"
     profile: iq17-default
+  - id: a_column_compared_with_itself_qualified_once
+    sql: "SELECT id, CASE WHEN g.v = v THEN 'T' WHEN NOT (g.v = v) THEN 'F' ELSE 'U' END AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: two_columns_of_one_name_compared
+    sql: "SELECT g.id, CASE WHEN g.v = h.v THEN 'T' WHEN NOT (g.v = h.v) THEN 'F' ELSE 'U' END AS b FROM g JOIN (SELECT id AS hid, v FROM g) h ON h.hid = g.id ORDER BY g.id"
+    profile: iq17-default
   - id: a_column_compared_with_itself_in_where
     sql: "SELECT id FROM g WHERE NOT (v = v) OR NOT (s <> s) ORDER BY id"
     profile: iq17-default

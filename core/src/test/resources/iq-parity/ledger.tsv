@@ -1141,6 +1141,8 @@ lite/corpus_gaps/between_a_null_column_bound_beside_an_expression_of_a_column@iq
 lite/corpus_gaps/between_a_null_column_bound_beside_a_constant_expression@iq17-default	PASS	PASS
 lite/corpus_gaps/a_column_compared_with_itself_in_an_if@iq17-default	PASS	PASS
 lite/corpus_gaps/comparisons_of_an_expression_with_itself_in_a_case@iq17-default	PASS	PASS
+lite/corpus_gaps/a_column_compared_with_itself_qualified_once@iq17-default	PASS	PASS
+lite/corpus_gaps/two_columns_of_one_name_compared@iq17-default	PASS	PASS
 lite/corpus_gaps/a_column_compared_with_itself_in_where@iq17-default	PASS	PASS
 lite/corpus_gaps/a_column_compared_with_itself_under_a_truth_test@iq17-default	PASS	PASS
 lite/corpus_gaps/a_column_compared_with_itself_in_sql_anywhere@sqla17-default	PASS	PASS
