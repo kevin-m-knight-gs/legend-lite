@@ -3,7 +3,7 @@
 // a mark means. The drawing is rendered for real, to SVG, in node.
 
 import assert from 'node:assert/strict';
-import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import { DEFAULT_CONFIGURATION, applyToSnapshot, fromSnapshot } from '../src/config.ts';
 import { describe, it } from 'node:test';
 
 import { toJson, element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
@@ -455,6 +455,19 @@ describe('a live chart', () => {
     assert.deepEqual(y.map(made.carriedBy), ['notional', 'notional', measureName(y[2]!)]);
   });
 
+  it('keeps two values of one column apart when the grid carries one of them: neither follows onto the other', () => {
+    // a max added beside the sum on the screen, the grid's notional summed and no copy at max: followed onto the sum, the
+    // chart would plot the sum twice -- and, as a following chart keeps what it follows, never show its max again
+    const two: ChartSpec = { ...live, y: [{ column: 'notional', fn: 'sum' }, { column: 'notional', fn: 'max' }] };
+    assert.deepEqual(followCube(two, CUBE).y, two.y);
+    // a copy carrying the max, its Aggregation set to min and then undone: the max comes back with the undo
+    const copied = (aggregate: 'max' | 'min'): CubeSnapshot => ({ ...CUBE, derived: [{ name: 'top', kind: 'measure', type: 'Float',
+      aggregate, lambda: lambda(['x'], property(variable('x'), 'notional')) }] });
+    const atMin = followCube(two, copied('min'));
+    assert.deepEqual(atMin.y, two.y);
+    assert.deepEqual(followCube(atMin, copied('max')).y, two.y);
+  });
+
   it('stays as it is when frozen, a scatter, or when nothing is grouped', () => {
     const frozen = { ...live, frozen: true };
     assert.equal(followCube(frozen, { ...CUBE, rows: ['desk'] }), frozen);
@@ -466,6 +479,37 @@ describe('a live chart', () => {
   it('answers the same object when nothing changed (no redraw of the form)', () => {
     const now = followCube(live, CUBE);
     assert.equal(followCube(now, CUBE), now);
+  });
+});
+
+describe('Open in Grid, then Update with the editing grid as it opened', () => {
+  /** A chart's values after an untouched Update (page/cube-page.ts): opened as the editing grid's columns, then followed back. */
+  const updated = (spec: ChartSpec, source: CubeSnapshot): ChartSpec['y'] => {
+    const made = chartValuesAsColumns({
+      snapshot: { ...source, rows: [spec.x!, ...(spec.split !== undefined ? [spec.split] : [])], pivotOn: [] },
+      config: fromSnapshot(source, DEFAULT_CONFIGURATION),
+    }, spec.y);
+    const { frozen: _f, ...following } = spec;
+    return followCube(following, applyToSnapshot(made.draft.snapshot, made.draft.config), made.carriedBy).y;
+  };
+  const frozen = (y: ChartSpec['y'], more: Partial<ChartSpec> = {}): ChartSpec => ({ ...BAR, ...more, y, frozen: true });
+
+  it('keeps a value of the column across: a histogram counts the column it bins', () => {
+    const histogram = frozen([{ column: 'notional', fn: 'count' }], { x: 'notional', bins: { count: 5 } });
+    assert.deepEqual(updated(histogram, CUBE), histogram.y);
+  });
+
+  it('reads a value back from the copy the grid has already: a converted page\'s max of a summed column', () => {
+    const source: CubeSnapshot = { ...CUBE, derived: [{ name: 'max_notional', kind: 'measure', type: 'Float', aggregate: 'max',
+      lambda: lambda(['x'], property(variable('x'), 'notional')) }] };
+    const chart = frozen([{ column: 'notional', fn: 'sum' }, { column: 'notional', fn: 'max' }]);
+    assert.deepEqual(updated(chart, source), chart.y);
+  });
+
+  it('gives each count a column of its own: two columns\' counts are not both "count"', () => {
+    const chart = frozen([{ column: 'notional', fn: 'sum' }, { column: 'notional', fn: 'count' },
+      { column: 'qty', fn: 'sum' }, { column: 'qty', fn: 'count' }]);
+    assert.deepEqual(updated(chart, CUBE), chart.y);
   });
 });
 

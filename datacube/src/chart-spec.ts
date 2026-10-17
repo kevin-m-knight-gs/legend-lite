@@ -12,7 +12,7 @@
 // a chart never depends on the drawing library's version, and it holds
 // no functions (a stored formatter would need eval to come back).
 
-import { copiedColumn, measuresAsColumns, type GridDraft } from './grid-edits.ts';
+import { allColumns, copiedColumn, measuresAsColumns, type GridDraft } from './grid-edits.ts';
 import { columnSpecs, defaultMeasure, levelLambda, type LevelScope } from './query.ts';
 import { binColumns, binName, grainColumn, grainEndColumn, grainName, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waterfallColumns } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
@@ -762,56 +762,91 @@ function firstMeasure(s: CubeSnapshot): ChartMeasure | undefined {
 }
 
 /**
- * A chart's value as a following chart plots it: its column at the grid's Aggregation of `column`, the grid column that
- * carries the value (its own, unless Open in Grid made it a calculated column of its own: page/cube-page.ts). A row's
- * value, a value of a dimension (which the grid does not aggregate) and one the grid aggregates by a weighted average
- * (which needs a weight a chart's value has not) keep the chart's own.
- */
-/**
  * A CHART'S VALUES AS A GRID'S COLUMN PROPERTIES (Open in Grid): each (column, aggregate) pair once -- two values of
- * one pair (a sum and its running total) carried by one column -- the first of a column its Aggregation, another a
- * calculated column named for it (grid-edits.ts measuresAsColumns, the one rule); and which column carries each
- * value, for Update (followCube's `carriedBy`): a value no column was made for (a group-level column plotted as it is,
- * which the grid has already, or a pair left out) is its own column's.
+ * one pair (a sum and its running total) carried by one column. A pair a column of the grid carries already (its own
+ * column at that Aggregation, or a copy of it: a converted measures list's, an earlier Open in Grid's) is that column's;
+ * any other is made by grid-edits.ts measuresAsColumns, the one rule: the first of a column its Aggregation, unless the
+ * column is the chart's across or split (a key the grid groups by) or carries another value already, and those a
+ * calculated column named for the value, apart from every name the grid has. `carriedBy` says which column carries
+ * each value, for Update (followCube); a value no column carries -- a group-level column plotted as it is, a pair
+ * left out -- has none, and Update leaves it as it is.
  */
 export function chartValuesAsColumns<D extends GridDraft>(draft: D, y: readonly ChartMeasure[]): {
   readonly draft: D;
   readonly notes: readonly string[];
-  readonly carriedBy: (m: ChartMeasure) => string;
+  readonly carriedBy: (m: ChartMeasure) => string | undefined;
 } {
   const pairKey = (m: { readonly column: string; readonly fn: string }): string => JSON.stringify([m.column, m.fn]);
-  const used = new Set<string>();
+  const keys = new Set([...draft.snapshot.rows, ...draft.snapshot.pivotOn]);
+  const taken = new Set(allColumns(draft));
+  // the columns whose Aggregation carries a value: another value of the column is a calculated column
+  const claimed = new Set<string>();
+  const carrier = new Map<string, string>();
   const asked: Measure[] = [];
   for (const m of y) {
-    if (m.fn === 'value' || asked.some((a) => pairKey(a) === pairKey(m))) continue;
-    const name = used.has(m.column) ? measureName(m) : m.column;
-    used.add(name);
+    if (m.fn === 'value' || carrier.has(pairKey(m)) || asked.some((a) => pairKey(a) === pairKey(m))) continue;
+    const had = carryingColumn(m, draft.snapshot);
+    if (had !== undefined && !claimed.has(had)) {
+      carrier.set(pairKey(m), had);
+      claimed.add(had);
+      continue;
+    }
+    const own = !keys.has(m.column) && !claimed.has(m.column);
+    const name = own ? m.column : unusedName(m, taken);
+    claimed.add(name);
+    taken.add(name);
     asked.push({ name, column: m.column, fn: m.fn });
   }
   const made = measuresAsColumns(draft, asked);
-  const carrier = new Map(made.made.map((x) => [pairKey(x.measure), x.column]));
-  return { draft: made.draft, notes: made.notes, carriedBy: (m) => carrier.get(pairKey(m)) ?? m.column };
+  for (const x of made.made) carrier.set(pairKey(x.measure), x.column);
+  return { draft: made.draft, notes: made.notes, carriedBy: (m) => carrier.get(pairKey(m)) };
+}
+
+/** A name for a calculated column carrying `m` that the grid has not: the value's own (`max_notional`), else by its column. */
+function unusedName(m: ChartMeasure, taken: ReadonlySet<string>): string {
+  const base = baseName(m);
+  const named = taken.has(base) ? `${m.fn}_${m.column}` : base;
+  if (!taken.has(named)) return named;
+  let n = 2;
+  while (taken.has(`${named}_${n}`)) n += 1;
+  return `${named}_${n}`;
 }
 
 /**
- * The grid's column that carries a chart's value as it is: its own column at that aggregate, else a calculated column
- * that copies it (grid-edits.ts copiedColumn, as a converted measures list or Open in Grid makes one) at that
- * aggregate -- so a saved page's min and max of one column, converted into the column and a copy, stay two values --
- * else its own column, whose Aggregation the value follows.
+ * The grid's column that carries a chart's value as it is, if one does: its own column at that aggregate (not a key the
+ * grid groups by, which it does not aggregate), else a calculated column that copies it (grid-edits.ts copiedColumn,
+ * as a converted measures list or Open in Grid makes one) at that aggregate -- so a saved page's min and max of one
+ * column, converted into the column and a copy, stay two values.
  */
-function carrierOf(m: ChartMeasure, s: CubeSnapshot): string {
+function carryingColumn(m: ChartMeasure, s: CubeSnapshot): string | undefined {
   if (m.fn === 'value') return m.column;
   const specs = columnSpecs(s);
   const carries = (name: string): boolean => defaultMeasure(name, specs.get(name)).fn === m.fn;
-  if (carries(m.column)) return m.column;
-  return s.derived.find((d) => copiedColumn(d) === m.column && carries(d.name))?.name ?? m.column;
+  if (!s.rows.includes(m.column) && !s.pivotOn.includes(m.column) && carries(m.column)) return m.column;
+  return s.derived.find((d) => copiedColumn(d) === m.column && carries(d.name))?.name;
 }
 
-function followedValue(m: ChartMeasure, s: CubeSnapshot, column: string): ChartMeasure {
-  if (m.fn === 'value') return m;
+/**
+ * A chart's value as a following chart plots it: its column at the grid's Aggregation of `column`, the grid column that
+ * carries it (carryingColumn; a following chart's value no column carries follows its own column's). A row's value,
+ * a value no column carries for Update, a value of a dimension (which the grid does not aggregate), one the grid
+ * aggregates by a weighted average (which needs a weight a chart's value has not), and one whose followed pair another
+ * of the chart's values plots already (the grid carries one of two values of a column: followed, the chart would plot
+ * it twice, and lose the other for good, as a following chart keeps what it follows) keep the chart's own.
+ */
+function followedValue(m: ChartMeasure, s: CubeSnapshot, column: string | undefined,
+  plotted: readonly ChartMeasure[]): ChartMeasure {
+  if (m.fn === 'value' || column === undefined) return m;
   if (rowColumns(s).find((c) => c.name === column)?.kind !== 'measure') return m;
   const fn = defaultMeasure(column, columnSpecs(s).get(column)).fn;
-  return fn === 'wavg' || fn === m.fn ? m : { ...m, fn };
+  if (fn === 'wavg' || fn === m.fn) return m;
+  const next = { ...m, fn };
+  return plotted.some((o) => o !== m && sameValue(o, next)) ? m : next;
+}
+
+/** Whether two of a chart's values plot the same: one column, one aggregate, shown alike. */
+function sameValue(a: ChartMeasure, b: ChartMeasure): boolean {
+  return a.column === b.column && a.fn === b.fn && JSON.stringify(a.showAs ?? null) === JSON.stringify(b.showAs ?? null);
 }
 
 /** A new chart's options with `x` across: time runs left to right, and long; categories lead with the largest. */
@@ -989,15 +1024,17 @@ export function followRefusal(told: readonly string[], made: ChartSpec, followed
 /**
  * A live chart, regrouped the way the cube is now: its first row group across; its second row group -- else its first
  * column label -- as the split; each value on the grid's Aggregation of the column carrying it (followedValue:
- * `carriedBy` -- Update's, from Open in Grid; else carrierOf: a value the grid carries as it is keeps its aggregate). The mark and the
- * options are the chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots
+ * `carriedBy` -- Update's, from Open in Grid; else carryingColumn, a value the grid carries as it is keeping its
+ * aggregate, and one it does not following its own column's). The mark and the options are the chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots
  * values, not groups), a chart of the grid as shown and a cube with nothing grouped are left as they are.
  */
 export function followCube(spec: ChartSpec, s: CubeSnapshot,
-  carriedBy: (m: ChartMeasure) => string = (m) => carrierOf(m, s)): ChartSpec {
+  carriedBy: (m: ChartMeasure) => string | undefined = (m) => carryingColumn(m, s) ?? m.column): ChartSpec {
   // a drilled chart stays where it was taken until it is taken back up
   if (!live(spec) || (spec.drill?.path.length ?? 0) > 0) return spec;
-  const followed = (y: readonly ChartMeasure[]): readonly ChartMeasure[] => y.map((m) => followedValue(m, s, carriedBy(m)));
+  // each value against the others as they are and as followed before it: none is followed onto another's pair
+  const followed = (y: readonly ChartMeasure[]): readonly ChartMeasure[] => y.reduce<ChartMeasure[]>(
+    (done, m, i) => [...done, followedValue(m, s, carriedBy(m), [...done, ...y.slice(i + 1)])], []);
   // a KPI or a gauge follows the grid's Aggregation of its value; a KPI's trend's column is its own
   if (spec.mark === 'kpi' || spec.mark === 'gauge') {
     const y = followed(spec.y);
