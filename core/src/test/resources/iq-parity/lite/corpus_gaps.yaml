@@ -1193,3 +1193,22 @@ tests:
   - id: derived_subquery_columns_under_a_star_beside_a_window_is_iqs_error
     sql: "SELECT tid, rn FROM (SELECT d.*, ROW_NUMBER() OVER (ORDER BY d.tid) AS rn FROM (SELECT t.id AS tid, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t) d) e ORDER BY tid"
     profile: iq17-default
+
+  # ---- a name of no function of IQ's (IQ island, 2026-10-17; the corpus lane's 2,205 STRING_AGG and 30 STDEV queries,
+  # measured on IQ 17.1): a syntax error in its arguments first (-131), a grouped query's column outside the GROUP BY
+  # next (-149), its -265 last
+  - id: string_agg_reading_an_ungrouped_column_is_iqs_149
+    sql: "SELECT sm, STRING_AGG(vc, ',') AS a FROM t GROUP BY sm"
+    profile: iq17-default
+  - id: string_agg_alone_is_iqs_265
+    sql: "SELECT STRING_AGG(vc, ',') AS a FROM t"
+    profile: iq17-default
+  - id: stdev_beside_count_is_iqs_149
+    sql: "SELECT COUNT(*) AS n, STDEV(id) AS s FROM t"
+    profile: iq17-default
+  - id: string_agg_of_a_grouped_column_is_iqs_265
+    sql: "SELECT sm, STRING_AGG(sm, ',') AS a FROM t GROUP BY sm"
+    profile: iq17-default
+  - id: string_agg_of_a_syntax_error_is_iqs_131
+    sql: "SELECT STRING_AGG(CAST(vc AS NVARCHAR(MAX)), ',') AS a FROM t"
+    profile: iq17-default

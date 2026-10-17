@@ -1153,6 +1153,13 @@ public final class IqDialect implements InputDialect {
             if (function(name) == null) {
                 throw SqlTranslationException.unsupported("function " + name + "(...) is not supported yet", f.pos());
             }
+            if (IqFunctions.NO_SUCH_FUNCTION.contains(IqLexer.lower(name))) {
+                // IQ island, 2026-10-17: no function of IQ's, its -265 raised as it is translated (function)
+                for (SqlAst.Expr child : children(e)) {
+                    knownFunctions(child);
+                }
+                return;
+            }
             int n = f.args().size();
             Catalog fn = Catalog.named(name);
             // IQ island, 2026-10-14 (M1d): the rest of the catalog is IqFunctions'
@@ -7015,6 +7022,13 @@ public final class IqDialect implements InputDialect {
     @Override
     public InputDialect.@com.legend.base.Nullable FunctionRule function(String name) {
         Catalog fn = Catalog.named(name);
+        if (fn == null && IqFunctions.NO_SUCH_FUNCTION.contains(IqLexer.lower(name))) {
+            // IQ island, 2026-10-17 (measured on IQ 17.1): its -265, once its arguments are read -- a grouped query's
+            // column outside the GROUP BY is its -149 first (STRING_AGG(v, ',') ... GROUP BY k)
+            return (f, args, at) -> {
+                throw IqFunctions.noSuchFunction(name, f.pos());
+            };
+        }
         if (fn == null) {
             // IQ island, 2026-10-14 (M1d): the rest of the catalog
             return IqFunctions.rule(this, name);

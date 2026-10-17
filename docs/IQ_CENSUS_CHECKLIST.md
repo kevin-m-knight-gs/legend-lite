@@ -253,6 +253,11 @@ island's reason, those IQ answers, and what became of them:
   CAST to DATETIME2 or INTERVAL (other dialects' type names, unless a user-defined domain holds the name; 54
   queries), an aggregate's `FILTER (WHERE ...)` (12), TRIM's ANSI forms `TRIM(BOTH '<>' FROM Tags)` (14). FOR XML
   PATH and FOR JSON are -131 too, but the research reads FOR XML's other forms: still refused by name;
+- a name of no function of IQ's (STRING_AGG 2,205 queries, CONCAT 240, STDEV 30, ...; 2026-10-17, measured): read
+  as a call. A syntax error in its arguments comes first (-131, `NVARCHAR(MAX)`), then a grouped query's column
+  outside the GROUP BY (-149; IQ reads the name as no aggregate), then its -265, raised as it is translated, where
+  every one was -265 before (its sample: 1 of 12 STRING_AGG claims matched IQ's code). The aggregates' forms after
+  the name (DISTINCT, an ORDER BY inside, WITHIN GROUP, OVER) stay refused by name, as -265;
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's
   server rejects every one (-131, measured), while an ODBC client that processes escapes translates them before it
   sends (the syntax research's `accept-with-option:client_escapes`). Whether an island reads them as such a client

@@ -156,8 +156,8 @@
 # reject REJECTED 1,013 -> 1,014 (REFUSED 771 -> 770). Reject-parsed and accept-rejected unchanged.
 # IQ island, 2026-10-16 (measured on IQ 17.1: T-SQL's COLLATE clause and an aggregate's FILTER (WHERE ...), IQ's syntax
 # error -131): reject REJECTED 1,014 -> 1,016 (REFUSED 770 -> 768). Reject-parsed and accept-rejected unchanged.
-accept	parsed	3186
-accept	refused	1762
+accept	parsed	3201
+accept	refused	1747
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1

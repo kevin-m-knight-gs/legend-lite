@@ -2049,10 +2049,11 @@ public final class IqParser {
                     + " that loses precision for large values, which lite's databases do not reproduce", first.pos());
         }
         // IQ island, 2026-10-15 (checklist 2.16b): GROUPING(x) is read as a call, IqDialect.rolledUp's to read
-        if (IqFunctions.NO_SUCH_FUNCTION.contains(lower)) {
-            // IQ island, 2026-10-16 (measured on IQ 17.1): STRING_AGG, GROUP_CONCAT, STDEV
-            throw SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name), first.pos());
-        }
+        // IQ island, 2026-10-17 (measured on IQ 17.1): a name of no function of IQ's (STRING_AGG, STDEV, CONCAT) is read
+        // as a call -- a syntax error in its arguments comes first (-131), a grouped query's column it reads outside
+        // the GROUP BY next (-149), its -265 last, as it is translated (IqDialect.function); the aggregates' forms
+        // after its name (DISTINCT, an ORDER BY inside, WITHIN GROUP, OVER) refused by name here, its -265
+        boolean noSuch = IqFunctions.NO_SUCH_FUNCTION.contains(lower);
         if (AGGREGATES.contains(lower) && !lower.equals("grouping")) {
             throw SqlSyntaxException.unsupported("the aggregate or OLAP function " + name + "(...) is not supported"
                     + " yet", first.pos());
@@ -2069,6 +2070,9 @@ public final class IqParser {
             take();
             return new SqlAst.FunctionCall(parts, List.of(), false, true, List.of(), List.of(), null, first.pos());
         } else if (peek().is("distinct") || peek().is("all") || peek().isOp("*")) {
+            if (noSuch) {
+                throw SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name), first.pos());
+            }
             throw SqlSyntaxException.unsupported("'" + peek().text() + "' in a call (an aggregate's form) is not"
                     + " supported yet", peek().pos());
         }
@@ -2109,9 +2113,15 @@ public final class IqParser {
                 if (trims && peek().is("from")) {
                     throw ansiTrim(peek());
                 }
+                if (noSuch && peek().is("order")) {
+                    throw SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name), first.pos());
+                }
             } while (takeOp(","));
         }
         expectOp(")");
+        if (noSuch && (peek().is("over") || peek().is("within"))) {
+            throw SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name), first.pos());
+        }
         if (peek().is("over") || peek().is("within")) {
             // IQ island, 2026-10-15 (windows): a scalar function is no window function (SQL Anywhere's -131 after one
             // it knows; IQ's -265 for one it does not, as NTH_VALUE, measured)
