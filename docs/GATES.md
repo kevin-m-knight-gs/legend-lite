@@ -9932,6 +9932,27 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-17 — `#Cypher{...}#`: the forty-ninth landing — cycles, the optional fallbacks, the undirected self-association
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 5); the record is the study's §12.50. The
+translator alone: a node named again within one pattern reads under a fresh name equal to the first by identity;
+an OPTIONAL MATCH the optional hop cannot read (an untyped relationship, a property map, a bound far node)
+re-anchors over the graph's rows; an undirected relationship over a self-association reads both directions as
+arms, the rows deduped by identity so a loop matches once.
+
+1. **What lands.** `MATCH (n:A)-[r:T]->(n)`, `MATCH (a:A)-[:T]->(b:A)-[:T]->(a)`, `MATCH (a:A)-[:T]->()-[:U]->(a)`,
+   `MATCH (a:A)-[:T]->(b:B), (b)-[:U]->(a)`, `OPTIONAL MATCH (b)-[u:U]->(a)` over a graph, `OPTIONAL MATCH (a)-->(x)`,
+   `MATCH (x:A)-[r:T]-(y:A)` and `MATCH ()-[r]-()` over a self-loop, `MATCH (n)-[r]-(n)`, `MATCH (x:A)-[r1]->(y)-[r2]-(z)`
+   through a looper.
+2. **The ledger.** DuckDB PASS 3,068 → 3,110 (REFUSED 597 → 565; FAIL, BUG, ERROR 0), Postgres PASS 2,707 → 2,749 (REFUSED
+   958 → 926); TCK agreement 3,149 → 3,181 of 3,880 (Match3 (8), CountingSubgraphMatches1 (8), Match6 (3), Match7 (3), MatchWhere6 (2), Graph8 (2), MatchWhere1 (1), Match2 (1), Match9 (1), WithWhere1 (1), With7 (1), Aggregation1 (1)); 10 lite cases in `lite/cycles.yaml`, all
+   PASS, judged by Neo4j (`snap.sh --check`: 0 problems over 4,503 cases); `docs/CYPHER_SHOWCASE.md` §20
+   regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pins that refused both ends bound now pin the cycle's condition.
+4. **Refused by name, recorded.** An undirected typed relationship from a label-less node; an OPTIONAL MATCH from
+   no node the graph binds.
+
 ## 2026-10-17 — `#Cypher{...}#`: the forty-eighth landing — re-anchoring: a pattern after rows joined back by identity
 
 Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 4); the record is the study's §12.49. The

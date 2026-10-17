@@ -139,9 +139,12 @@ or OPTIONAL MATCH after rows joined back to the rows on the identity of every sh
 pattern read from the carried node's class), both ends bound, a bound relationship matched again, the fan-out
 to a property-less class lifted. Still refused: re-anchoring from a node of several classes (the arms would
 each need the join), a named path or a variable-length relationship after rows, an OPTIONAL MATCH's WHERE over
-the rows' values. W2's remaining items: the undirected self-association (15), uniqueness along variable-length
-chains, cycles within one pattern (a pattern binding a node again: `(a)-->(b)-->(a)`), hops from an
-edge-reached node.
+the rows' values. Leg 5 LANDED 2026-10-17 (the study's §12.50, GATES' forty-ninth landing; TCK agreement
+3149 → 3181, DuckDB PASS 3068 → 3110): cycles within one pattern by identity, the OPTIONAL MATCH fallbacks through
+re-anchoring, the undirected self-association deduped by identity; with them a second-step hop's presence said
+over the rows (the resolver's bridge-table limit, §5) and `head`/`last` over a Variant list. W2 is closed but for
+uniqueness along variable-length chains (the unroll's hidden relationships) and hops from an edge-reached node
+(W9's resolver depth).
 
 ### W3. Non-deterministic functions
 
@@ -500,6 +503,16 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   design's step 3) is implemented from memory of the engine's `PrimaryKey` inference; no reference checkout is on
   this machine (`-Dlegend.engine.root` unset), so it is not yet verified verbatim against the engine's compiler
   source (the verification tenet). Holds back nothing; to be checked at the next session with a checkout.
+- **2026-10-17, W2 leg 5 — the resolver's two-step existence past a bridge-table step.** `A.all()->filter(a|
+  $a.KNOWS.LIKES->isNotEmpty())` fails to lower (`Resolvers$UnfoldableRef: KNOWS_LIKES_a_dst_id`) whenever the
+  second step is an association mapped over a bridge table (`@LIKES_a > @LIKES_b`); the same filter over a
+  foreign-key step lowers (a `SELECT DISTINCT` subselect correlated per fanned row), and a one-step existence
+  over a bridge lowers too (`tools`: `$S/pprobe/ab_bridge.pure`, `knows.pure` reproduce it). The seam is
+  `NavExistsMaterial.register` (`filterTwoHop`) and `CorrelatedSubselects.compositeChainTarget`: the second
+  hop's exists material correlates on a sibling joinslot column the fanned row does not expose, where it should
+  pull the bridge into its own subselect and correlate on the fanned row's key, as the one-step form does. The
+  translator routes around it (a second-step hop of a fanning graph is present on the rows, the study's §12.50),
+  so no TCK case is held back; the resolver fix belongs to W9 (platform limits), with the depth-two limit.
 - **2026-10-17, W2 leg 1 — a composite key as an identity.** `elementId` refuses a class whose key is several
   columns ("a composite key (n columns) as the identity of X is not supported yet"); the harness's tables have
   one `id` column, so no TCK case is held back; a user's composite key waits for its spelling (the columns' texts

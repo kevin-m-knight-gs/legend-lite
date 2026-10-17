@@ -1304,4 +1304,25 @@ class CypherToPureTest {
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, unknown.kind(), unknown.getMessage());
         assertTrue(unknown.getMessage().contains("of a kind the island does not know"), unknown.getMessage());
     }
+
+    @Test
+    void aCycleInOnePatternIsTheNodeReachedAgainByIdentity() {
+        // (the study's §12.50) a node named again in one pattern reads under a fresh name, the same node by
+        // identity: a condition over the materialized rows, with the hop's node present where its identity is
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty() && $p.firm.employees->isNotEmpty())->project(~[_cypher_2:p|'[\"Person\"]', _cypher_3:p|if($p.active->isNotEmpty() && $p.active->toOne(), |true, |if($p.active->isNotEmpty() && !$p.active->toOne(), |false, |[])), _cypher_4:p|$p.age, _cypher_5:p|$p.name, _cypher_6:p|$p->meta::legend::lite::elementId(), _cypher_7:p|'[\"Firm\"]', _cypher_8:p|$p.firm.legalName, _cypher_9:p|$p.firm->meta::legend::lite::elementId(), _cypher_10:p|'[\"Person\"]', _cypher_11:p|if($p.firm.employees.active->isNotEmpty() && $p.firm.employees.active->toOne(), |true, |if($p.firm.employees.active->isNotEmpty() && !$p.firm.employees.active->toOne(), |false, |[])), _cypher_12:p|$p.firm.employees.age, _cypher_13:p|$p.firm.employees.name, _cypher_14:p|$p.firm.employees->meta::legend::lite::elementId()])->filter(r|$r._cypher_14->isNotEmpty() && ($r._cypher_14->toOne() == $r._cypher_6))->extend(~[n:r|$r._cypher_5])->select(~[n])", pure("MATCH (p:Person)-[:firm]->(f)-[:employees]->(p) RETURN p.name AS n"));
+        // the second hop of a fanning graph: its node's presence is the rows' (a two-step existence in the graph's
+        // filter the resolver reads no bridge-table step of), its properties and identity nullable there
+        assertEquals("demo::Firm.all()->filter(f|$f.employees->isNotEmpty())->project(~[_cypher_2:f|'[\"Firm\"]', _cypher_3:f|$f.legalName, _cypher_4:f|$f->meta::legend::lite::elementId(), _cypher_5:f|'[\"Person\"]', _cypher_6:f|if($f.employees.active->isNotEmpty() && $f.employees.active->toOne(), |true, |if($f.employees.active->isNotEmpty() && !$f.employees.active->toOne(), |false, |[])), _cypher_7:f|$f.employees.age, _cypher_8:f|$f.employees.name, _cypher_9:f|$f.employees->meta::legend::lite::elementId(), _cypher_10:f|'[\"Firm\"]', _cypher_11:f|$f.employees.firm.legalName, _cypher_12:f|$f.employees.firm->meta::legend::lite::elementId()])->filter(r|$r._cypher_12->isNotEmpty() && ($r._cypher_12->isNotEmpty() && ($r._cypher_12->toOne() == $r._cypher_4)))->extend(~[l:r|$r._cypher_3])->select(~[l])", pure("MATCH (f:Firm)-[:employees]->(p)-[:firm]->(f) RETURN f.legalName AS l"));
+        // a self-loop over a to-one hop: the node bound at both ends, the identities compared in the graph
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty() && ($p.firm->meta::legend::lite::elementId()->isNotEmpty() && ($p.firm->meta::legend::lite::elementId()->toOne() == $p->meta::legend::lite::elementId())))->project(~[n:p|$p.name])", pure("MATCH (p:Person)-[:firm]->(p) RETURN p.name AS n"));
+    }
+
+    @Test
+    void headAndLastOfAListTheDatabaseHoldsReadItsEnds() {
+        // a variable-length relationship's list differs across the arms (empty at length zero): the union's shape
+        // is a list of relationships, and last(r) its last place (null for the empty list), as r[-1] reads it
+        assertEquals("demo::Firm.all()->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName, _cypher_3:f|$f->meta::legend::lite::elementId(), _cypher_4:f|'[\"Firm\"]', _cypher_5:f|$f.legalName, _cypher_6:f|if(false, |true, |if(false, |false, |[])), _cypher_7:f|[]->cast(@Integer), _cypher_8:f|[]->cast(@String), _cypher_9:f|$f->meta::legend::lite::elementId(), r:f|fromJson('[]')])->concatenate(demo::Person.all()->filter(x|$x.firm->isNotEmpty())->project(~[_cypher_1:x|'[\"Firm\"]', _cypher_2:x|$x.firm.legalName, _cypher_3:x|$x.firm->meta::legend::lite::elementId(), _cypher_4:x|'[\"Person\"]', _cypher_5:x|[]->cast(@String), _cypher_6:x|if($x.active->isNotEmpty() && $x.active->toOne(), |true, |if($x.active->isNotEmpty() && !$x.active->toOne(), |false, |[])), _cypher_7:x|$x.age, _cypher_8:x|$x.name, _cypher_9:x|$x->meta::legend::lite::elementId(), r:x|fromJson(('[' + fromJson('{\"@type\":\"employees\"}')->toString()) + ']')]))->extend(~[l:r|$r.r->get(-1)])->select(~[l])", pure("MATCH (f:Firm)-[r:employees*0..1]->(x) RETURN last(r) AS l"));
+        String head = pure("MATCH (p:Person) WITH collect(p.name) AS names RETURN head(names) AS h");
+        assertTrue(head.contains("->get(0)"), head);
+    }
 }

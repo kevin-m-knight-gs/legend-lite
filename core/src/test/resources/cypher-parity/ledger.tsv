@@ -176,7 +176,7 @@ tck/clauses/match-where/MatchWhere1/[1] Filter node with node label predicate on
 tck/clauses/match-where/MatchWhere1/[2] Filter node with node label predicate on multi variables without any bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[3] Filter node with property predicate on a single variable with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[4] Filter start node of relationship with property predicate on multi variables with multiple bindings	PASS	PASS
-tck/clauses/match-where/MatchWhere1/[5] Filter end node of relationship with property predicate on multi variables with multiple bindings	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere1/[5] Filter end node of relationship with property predicate on multi variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[6] Filter node with a parameter in a property predicate on multi variables with one binding	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[7] Filter relationship with relationship type predicate on multi variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[8] Filter relationship with property predicate on multi variables with multiple bindings	PASS	PASS
@@ -199,8 +199,8 @@ tck/clauses/match-where/MatchWhere5/[2] Filter out on null if the AND'd predicat
 tck/clauses/match-where/MatchWhere5/[3] Filter out on null if the AND'd predicate evaluates to true	PASS	PASS
 tck/clauses/match-where/MatchWhere5/[4] Do not filter out on null if the OR'd predicate evaluates to true	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere6/[1] Filter node with node label predicate on multi variables with multiple bindings after MATCH and OPTIONAL MATCH	PASS	PASS
-tck/clauses/match-where/MatchWhere6/[2] Filter node with false node label predicate after OPTIONAL MATCH	REFUSED	REFUSED
-tck/clauses/match-where/MatchWhere6/[3] Filter node with property predicate on multi variables with multiple bindings after OPTIONAL MATCH	REFUSED	REFUSED
+tck/clauses/match-where/MatchWhere6/[2] Filter node with false node label predicate after OPTIONAL MATCH	PASS	PASS
+tck/clauses/match-where/MatchWhere6/[3] Filter node with property predicate on multi variables with multiple bindings after OPTIONAL MATCH	PASS	PASS
 tck/clauses/match-where/MatchWhere6/[4] Do not fail when predicates on optionally matched and missed nodes are invalid	PASS	PASS
 tck/clauses/match-where/MatchWhere6/[5] Matching and optionally matching with unbound nodes and equality predicate in reverse direction	REFUSED	REFUSED
 tck/clauses/match-where/MatchWhere6/[6] Join nodes on non-equality of properties – OPTIONAL MATCH and WHERE	PASS	PASS
@@ -294,7 +294,7 @@ tck/clauses/match/Match1/[11] Fail when matching a node variable bound to a valu
 tck/clauses/match/Match1/[11] Fail when matching a node variable bound to a value #8	BOTH_ERROR	BOTH_ERROR
 tck/clauses/match/Match2/[1] Match non-existent relationships returns empty	PASS	PASS
 tck/clauses/match/Match2/[2] Matching a relationship pattern using a label predicate on both sides	PASS	PASS
-tck/clauses/match/Match2/[3] Matching a self-loop with an undirected relationship pattern	REFUSED	REFUSED
+tck/clauses/match/Match2/[3] Matching a self-loop with an undirected relationship pattern	PASS	PASS
 tck/clauses/match/Match2/[4] Matching a self-loop with a directed relationship pattern	PASS	PASS
 tck/clauses/match/Match2/[5] Match relationship with inline property value	PASS	PASS
 tck/clauses/match/Match2/[6] Match relationships with multiple types	PASS	PASS
@@ -388,15 +388,15 @@ tck/clauses/match/Match3/[7] Matching nodes with many labels	SKIP	SKIP
 tck/clauses/match/Match3/[8] Matching using relationship predicate with multiples of the same type	PASS	PASS
 tck/clauses/match/Match3/[9] Get related to related to	PASS	PASS
 tck/clauses/match/Match3/[10] Matching using self-referencing pattern returns no result	REFUSED	REFUSED
-tck/clauses/match/Match3/[11] Undirected match in self-relationship graph	REFUSED	REFUSED
-tck/clauses/match/Match3/[12] Undirected match of self-relationship in self-relationship graph	REFUSED	REFUSED
+tck/clauses/match/Match3/[11] Undirected match in self-relationship graph	PASS	PASS
+tck/clauses/match/Match3/[12] Undirected match of self-relationship in self-relationship graph	PASS	PASS
 tck/clauses/match/Match3/[13] Directed match on self-relationship graph	PASS	PASS
-tck/clauses/match/Match3/[14] Directed match of self-relationship on self-relationship graph	REFUSED	REFUSED
-tck/clauses/match/Match3/[15] Mixing directed and undirected pattern parts with self-relationship, simple	REFUSED	REFUSED
-tck/clauses/match/Match3/[16] Mixing directed and undirected pattern parts with self-relationship, undirected	REFUSED	REFUSED
-tck/clauses/match/Match3/[17] Handling cyclic patterns	REFUSED	REFUSED
-tck/clauses/match/Match3/[18] Handling cyclic patterns when separated into two parts	REFUSED	REFUSED
-tck/clauses/match/Match3/[19] Two bound nodes pointing to the same node	REFUSED	REFUSED
+tck/clauses/match/Match3/[14] Directed match of self-relationship on self-relationship graph	PASS	PASS
+tck/clauses/match/Match3/[15] Mixing directed and undirected pattern parts with self-relationship, simple	PASS	PASS
+tck/clauses/match/Match3/[16] Mixing directed and undirected pattern parts with self-relationship, undirected	PASS	PASS
+tck/clauses/match/Match3/[17] Handling cyclic patterns	PASS	PASS
+tck/clauses/match/Match3/[18] Handling cyclic patterns when separated into two parts	PASS	PASS
+tck/clauses/match/Match3/[19] Two bound nodes pointing to the same node	PASS	PASS
 tck/clauses/match/Match3/[20] Three bound nodes pointing to the same node	REFUSED	REFUSED
 tck/clauses/match/Match3/[21] Three bound nodes pointing to the same node with extra connections	REFUSED	REFUSED
 tck/clauses/match/Match3/[22] Returning bound nodes that are not part of the pattern	PASS	PASS
@@ -454,12 +454,12 @@ tck/clauses/match/Match6/[4] Respecting direction when matching non-existent pat
 tck/clauses/match/Match6/[5] Path query should return results in written order	PASS	PASS
 tck/clauses/match/Match6/[6] Handling direction of named paths	PASS	PASS
 tck/clauses/match/Match6/[7] Respecting direction when matching existing path	PASS	PASS
-tck/clauses/match/Match6/[8] Respecting direction when matching non-existent path with multiple directions	REFUSED	REFUSED
+tck/clauses/match/Match6/[8] Respecting direction when matching non-existent path with multiple directions	PASS	PASS
 tck/clauses/match/Match6/[9] Longer path query should return results in written order	PASS	PASS
 tck/clauses/match/Match6/[10] Named path with alternating directed/undirected relationships	REFUSED	REFUSED
 tck/clauses/match/Match6/[11] Named path with multiple alternating directed/undirected relationships	REFUSED	REFUSED
-tck/clauses/match/Match6/[12] Matching path with multiple bidirectional relationships	REFUSED	REFUSED
-tck/clauses/match/Match6/[13] Matching path with both directions should respect other directions	REFUSED	REFUSED
+tck/clauses/match/Match6/[12] Matching path with multiple bidirectional relationships	PASS	PASS
+tck/clauses/match/Match6/[13] Matching path with both directions should respect other directions	PASS	PASS
 tck/clauses/match/Match6/[14] Named path with undirected fixed variable length pattern	REFUSED	REFUSED
 tck/clauses/match/Match6/[15] Variable-length named path	REFUSED	REFUSED
 tck/clauses/match/Match6/[16] Return a var length path	REFUSED	REFUSED
@@ -567,18 +567,18 @@ tck/clauses/match/Match7/[20] Variable length optional relationships with bound 
 tck/clauses/match/Match7/[21] Handling optional matches between nulls	PASS	PASS
 tck/clauses/match/Match7/[22] MATCH after OPTIONAL MATCH	REFUSED	REFUSED
 tck/clauses/match/Match7/[23] OPTIONAL MATCH with labels on the optional end node	SKIP	SKIP
-tck/clauses/match/Match7/[24] Optionally matching self-loops	REFUSED	REFUSED
+tck/clauses/match/Match7/[24] Optionally matching self-loops	PASS	PASS
 tck/clauses/match/Match7/[25] Optionally matching self-loops without matches	REFUSED	REFUSED
 tck/clauses/match/Match7/[26] Handling correlated optional matches; first does not match implies second does not match	REFUSED	REFUSED
 tck/clauses/match/Match7/[27] Handling optional matches between optionally matched entities	PASS	PASS
 tck/clauses/match/Match7/[28] Handling optional matches with inline label predicate	PASS	PASS
-tck/clauses/match/Match7/[29] Satisfies the open world assumption, relationships between same nodes	REFUSED	REFUSED
+tck/clauses/match/Match7/[29] Satisfies the open world assumption, relationships between same nodes	PASS	PASS
 tck/clauses/match/Match7/[30] Satisfies the open world assumption, single relationship	PASS	PASS
-tck/clauses/match/Match7/[31] Satisfies the open world assumption, relationships between different nodes	REFUSED	REFUSED
+tck/clauses/match/Match7/[31] Satisfies the open world assumption, relationships between different nodes	PASS	PASS
 tck/clauses/match/Match8/[1] Pattern independent of bound variables results in cross product	PASS	PASS
 tck/clauses/match/Match8/[2] Counting rows after MATCH, MERGE, OPTIONAL MATCH	REFUSED	REFUSED
 tck/clauses/match/Match8/[3] Matching and disregarding output, then matching again	REFUSED	REFUSED
-tck/clauses/match/Match9/[1] Variable length relationship variables are lists of relationships	REFUSED	REFUSED
+tck/clauses/match/Match9/[1] Variable length relationship variables are lists of relationships	PASS	PASS
 tck/clauses/match/Match9/[2] Return relationships by collecting them as a list - directed, one way	REFUSED	REFUSED
 tck/clauses/match/Match9/[3] Return relationships by collecting them as a list - undirected, starting from two extremes	REFUSED	REFUSED
 tck/clauses/match/Match9/[4] Return relationships by collecting them as a list - undirected, starting from one extreme	REFUSED	REFUSED
@@ -1207,7 +1207,7 @@ tck/clauses/with-skip-limit/WithSkipLimit3/[3] Limiting amount of rows when ther
 tck/clauses/with-where/WithWhere1/[1] Filter node with property predicate on a single variable with multiple bindings	PASS	PASS
 tck/clauses/with-where/WithWhere1/[2] Filter node with property predicate on a single variable with multiple distinct bindings	PASS	PASS
 tck/clauses/with-where/WithWhere1/[3] Filter for an unbound relationship variable	PASS	PASS
-tck/clauses/with-where/WithWhere1/[4] Filter for an unbound node variable	REFUSED	REFUSED
+tck/clauses/with-where/WithWhere1/[4] Filter for an unbound node variable	PASS	PASS
 tck/clauses/with-where/WithWhere2/[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere2/[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings	REFUSED	REFUSED
 tck/clauses/with-where/WithWhere3/[1] Join between node identities	PASS	PASS
@@ -1251,9 +1251,9 @@ tck/clauses/with/With6/[7] Handle projected property accesses inside an expressi
 tck/clauses/with/With6/[8] Fail if not projected variables are used inside an expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With6/[9] Fail if more complex expression, even if projected, are used inside expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With7/[1] A simple pattern with one bound endpoint	PASS	PASS
-tck/clauses/with/With7/[2] Multiple WITHs using a predicate and aggregation	REFUSED	REFUSED
+tck/clauses/with/With7/[2] Multiple WITHs using a predicate and aggregation	PASS	PASS
 tck/expressions/aggregation/Aggregation1/[1] Count only non-null values	PASS	PASS
-tck/expressions/aggregation/Aggregation1/[2] Counting loop relationships	REFUSED	REFUSED
+tck/expressions/aggregation/Aggregation1/[2] Counting loop relationships	PASS	PASS
 tck/expressions/aggregation/Aggregation2/[1] `max()` over integers	PASS	PASS
 tck/expressions/aggregation/Aggregation2/[2] `min()` over integers	PASS	PASS
 tck/expressions/aggregation/Aggregation2/[3] `max()` over floats	PASS	PASS
@@ -1583,8 +1583,8 @@ tck/expressions/graph/Graph8/[2] Using `keys()` on multiple nodes, non-empty res
 tck/expressions/graph/Graph8/[3] Using `keys()` on a single node, empty result	PASS	PASS
 tck/expressions/graph/Graph8/[4] Using `keys()` on an optionally matched node	PASS	PASS
 tck/expressions/graph/Graph8/[5] Using `keys()` on a relationship, non-empty result	REFUSED	REFUSED
-tck/expressions/graph/Graph8/[6] Using `keys()` on a relationship, empty result	REFUSED	REFUSED
-tck/expressions/graph/Graph8/[7] Using `keys()` on an optionally matched relationship	REFUSED	REFUSED
+tck/expressions/graph/Graph8/[6] Using `keys()` on a relationship, empty result	PASS	PASS
+tck/expressions/graph/Graph8/[7] Using `keys()` on an optionally matched relationship	PASS	PASS
 tck/expressions/graph/Graph8/[8] Using `keys()` and `IN` to check property existence	PASS	PASS
 tck/expressions/graph/Graph9/[1] `properties()` on a node	PASS	PASS
 tck/expressions/graph/Graph9/[2] `properties()` on a relationship	PASS	PASS
@@ -3851,17 +3851,17 @@ tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid
 tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #3	REFUSED	REFUSED
 tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #4	REFUSED	REFUSED
 tck/expressions/typeConversion/TypeConversion4/[10] Fail `toString()` on invalid types #Example: <exampleName> #5	REFUSED	REFUSED
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[1] Undirected match in self-relationship graph, count	REFUSED	REFUSED
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[2] Undirected match of self-relationship in self-relationship graph, count	REFUSED	REFUSED
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[1] Undirected match in self-relationship graph, count	PASS	PASS
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[2] Undirected match of self-relationship in self-relationship graph, count	PASS	PASS
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[3] Undirected match on simple relationship graph, count	PASS	PASS
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[4] Directed match on self-relationship graph, count	PASS	PASS
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[5] Directed match of self-relationship on self-relationship graph, count	REFUSED	REFUSED
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[6] Counting undirected self-relationships in self-relationship graph	REFUSED	REFUSED
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[7] Counting distinct undirected self-relationships in self-relationship graph	REFUSED	REFUSED
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[5] Directed match of self-relationship on self-relationship graph, count	PASS	PASS
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[6] Counting undirected self-relationships in self-relationship graph	PASS	PASS
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[7] Counting distinct undirected self-relationships in self-relationship graph	PASS	PASS
 tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[8] Directed match of a simple relationship, count	PASS	PASS
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[9] Counting directed self-relationships	REFUSED	REFUSED
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[10] Mixing directed and undirected pattern parts with self-relationship, count	REFUSED	REFUSED
-tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[11] Mixing directed and undirected pattern parts with self-relationship, undirected count	REFUSED	REFUSED
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[9] Counting directed self-relationships	PASS	PASS
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[10] Mixing directed and undirected pattern parts with self-relationship, count	PASS	PASS
+tck/useCases/countingSubgraphMatches/CountingSubgraphMatches1/[11] Mixing directed and undirected pattern parts with self-relationship, undirected count	PASS	PASS
 tck/useCases/triadicSelection/TriadicSelection1/[1] Handling triadic friend of a friend	PASS	PASS
 tck/useCases/triadicSelection/TriadicSelection1/[2] Handling triadic friend of a friend that is not a friend	PASS	PASS
 tck/useCases/triadicSelection/TriadicSelection1/[3] Handling triadic friend of a friend that is not a friend with different relationship type	PASS	PASS
@@ -4006,6 +4006,16 @@ lite/continue/two_untyped_hops_from_a_bound_node	PASS	PASS
 lite/continue/untyped_hop_after_a_projecting_with_refused	PASS	PASS
 lite/continue/untyped_hop_between_two_bound_nodes_refused	REFUSED	REFUSED
 lite/continue/untyped_hop_from_a_node_no_way_leaves	PASS	PASS
+lite/cycles/a_self_loop_matched	PASS	PASS
+lite/cycles/a_two_node_cycle_matched	PASS	PASS
+lite/cycles/a_cycle_through_a_label_less_node	PASS	PASS
+lite/cycles/a_cycle_in_a_second_pattern_of_one_match	PASS	PASS
+lite/cycles/an_optional_cycle	PASS	PASS
+lite/cycles/an_optional_untyped_hop	PASS	PASS
+lite/cycles/a_self_loop_undirected_matches_once	PASS	PASS
+lite/cycles/a_self_loop_undirected_untyped	PASS	PASS
+lite/cycles/a_self_loop_undirected_bound_both_ends	PASS	PASS
+lite/cycles/a_looper_in_a_chain	PASS	PASS
 lite/edges/a_relationship_property	PASS	PASS
 lite/edges/a_relationship_as_a_value	PASS	PASS
 lite/edges/properties_and_keys_of_a_relationship	PASS	PASS

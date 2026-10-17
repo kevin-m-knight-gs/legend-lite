@@ -950,7 +950,7 @@ ORDER BY title
 | 'Speed' | {role: 'Jack'} | 1 | false |
 | 'The Matrix' | {role: 'Neo', year: 1999} | 2 | true |
 
-## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.49)
+## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.50)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
@@ -961,9 +961,9 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 
 | status | cases |
 |---|---|
-| PASS | 2479 |
+| PASS | 2511 |
 | BOTH_ERROR | 670 |
-| REFUSED | 550 |
+| REFUSED | 518 |
 | SKIP | 181 |
 | total | 3880 |
 
@@ -972,8 +972,8 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | clauses/call | 52 | 0 | 2 | 0 | 50 |
 | clauses/create | 78 | 0 | 15 | 54 | 9 |
 | clauses/delete | 41 | 0 | 5 | 36 | 0 |
-| clauses/match | 381 | 80 | 240 | 55 | 6 |
-| clauses/match-where | 34 | 24 | 2 | 8 | 0 |
+| clauses/match | 381 | 96 | 240 | 39 | 6 |
+| clauses/match-where | 34 | 27 | 2 | 5 | 0 |
 | clauses/merge | 75 | 0 | 13 | 54 | 8 |
 | clauses/remove | 33 | 0 | 0 | 31 | 2 |
 | clauses/return | 63 | 46 | 11 | 6 | 0 |
@@ -982,16 +982,16 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | clauses/set | 53 | 0 | 2 | 51 | 0 |
 | clauses/union | 12 | 7 | 4 | 1 | 0 |
 | clauses/unwind | 14 | 11 | 0 | 3 | 0 |
-| clauses/with | 29 | 18 | 4 | 6 | 1 |
+| clauses/with | 29 | 19 | 4 | 5 | 1 |
 | clauses/with-orderBy | 292 | 156 | 67 | 29 | 40 |
 | clauses/with-skip-limit | 9 | 6 | 0 | 1 | 2 |
-| clauses/with-where | 19 | 14 | 0 | 5 | 0 |
-| expressions/aggregation | 35 | 18 | 7 | 10 | 0 |
+| clauses/with-where | 19 | 15 | 0 | 4 | 0 |
+| expressions/aggregation | 35 | 19 | 7 | 9 | 0 |
 | expressions/boolean | 150 | 32 | 118 | 0 | 0 |
 | expressions/comparison | 72 | 64 | 1 | 5 | 2 |
 | expressions/conditional | 13 | 13 | 0 | 0 | 0 |
 | expressions/existentialSubqueries | 10 | 5 | 1 | 4 | 0 |
-| expressions/graph | 61 | 26 | 15 | 9 | 11 |
+| expressions/graph | 61 | 28 | 15 | 7 | 11 |
 | expressions/list | 185 | 117 | 59 | 9 | 0 |
 | expressions/literals | 131 | 100 | 25 | 6 | 0 |
 | expressions/map | 44 | 35 | 9 | 0 | 0 |
@@ -1004,7 +1004,7 @@ time-of-day or zoned property, a `CALL`; a list property is modelled since §12.
 | expressions/string | 32 | 29 | 0 | 3 | 0 |
 | expressions/temporal | 1004 | 923 | 0 | 31 | 50 |
 | expressions/typeConversion | 47 | 25 | 17 | 5 | 0 |
-| useCases/countingSubgraphMatches | 11 | 3 | 0 | 8 | 0 |
+| useCases/countingSubgraphMatches | 11 | 11 | 0 | 0 | 0 |
 | useCases/triadicSelection | 19 | 10 | 0 | 9 | 0 |
 
 The refusals, by what they name (the larger buckets): the write clauses `CREATE`, `SET`, `MERGE`, `REMOVE`, `DELETE`

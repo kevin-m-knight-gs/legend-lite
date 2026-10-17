@@ -495,12 +495,18 @@ public final class CypherToPure {
         final Set<String> types = new HashSet<>();
         final Map<String, List<String>> namedRels = new HashMap<>();
         final List<Expr> uniqueness = new ArrayList<>();
+        /** The cycle conditions of the MATCH's patterns (a node named again equal to the first by identity, the
+         *  study's §12.50): named once before the arms are read, so they outlive the per-arm clear. */
+        final List<Expr> cycles = new ArrayList<>();
         final Set<String> repeatedTypes = new HashSet<>();
         boolean untyped;
         int relationships;
         /** Reading a pattern of the MATCH in hand as a MATCH of its own (the product's second pattern): its
          *  pre-scan is the whole MATCH's, kept. */
         boolean nested;
+        /** An undirected relationship over a self-association among the arms read (the study's §12.50): a loop
+         *  reads once in Neo4j, so the arms' rows are deduped by identity. */
+        boolean selfAssociation;
 
         /** The relationship variables read so far (the named ones, the fresh-named among them). */
         Set<String> relationships() {
@@ -518,6 +524,7 @@ public final class CypherToPure {
         /** The pre-scan of a MATCH's patterns for the types its relationships repeat. */
         void scan(CypherAst.Match m) {
             repeatedTypes.clear();
+            cycles.clear();
             untyped = false;
             relationships = 0;
             Set<String> seen = new HashSet<>();
@@ -550,7 +557,9 @@ public final class CypherToPure {
     /** A MATCH's WHERE with relationship uniqueness conjoined: the named relationships of one type pairwise
      *  distinct, by identity ({@code r1 <> r2}, the study's §12.48). */
     private @com.legend.base.Nullable Expr withUniqueness(@com.legend.base.Nullable Expr where, Pos pos) {
-        for (Expr u : matchFrame.uniqueness) {
+        List<Expr> conditions = new ArrayList<>(matchFrame.cycles);
+        conditions.addAll(matchFrame.uniqueness);
+        for (Expr u : conditions) {
             where = where == null ? u : new CypherAst.Binary(BinaryOp.AND, where, u, pos);
         }
         return where;
@@ -644,18 +653,24 @@ public final class CypherToPure {
             List<ValueSpecification> conditions, List<String> candidates, boolean fanning,
             List<NodeConstraint> deferredConstraints, List<Expr> deferredWhere,
             Map<String, List<String>> variableClasses, Map<String, PathSpec> paths,
-            Map<String, Boolean> forward, Map<String, List<String>> lists) implements State {
+            Map<String, Boolean> forward, Map<String, List<String>> lists,
+            /** the nodes a second-step hop of a fanning graph reaches: present on the materialized rows where
+             *  their identity is (the study's §12.50; the resolver checks no two-step existence past a bridge
+             *  table in a filter) */
+            List<String> present) implements State {
         Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
                 List<String> candidates) {
             this(rootClass, row, bindings, conditions, candidates, false, new ArrayList<>(), new ArrayList<>(),
-                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
+                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
+                    new ArrayList<>());
         }
 
         Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
                 List<String> candidates, boolean fanning, List<NodeConstraint> deferredConstraints,
                 List<Expr> deferredWhere) {
             this(rootClass, row, bindings, conditions, candidates, fanning, deferredConstraints, deferredWhere,
-                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
+                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
+                    new ArrayList<>());
         }
     }
 
@@ -1055,7 +1070,8 @@ public final class CypherToPure {
             return arms(m);
         }
         if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
-                && (r.types().size() != 1 || edgesOf(r.types().get(0)).size() > 1)))) {
+                && (r.types().size() != 1 || edgesOf(r.types().get(0)).size() > 1
+                        || r.direction() == CypherAst.Direction.BOTH && selfAssociation(r.types().get(0)))))) {
             // (a relationship of several types too: one arm per type, the study's §12.35; and a type naming several
             // edge classes, one per class pair it joins: one arm per edge class the start node's class allows, the
             // far node's label choosing, the study's §5.6)
@@ -1150,9 +1166,13 @@ public final class CypherToPure {
                 n = new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos());
                 elements.set(i, n);
             }
-            order.add(java.util.Objects.requireNonNull(n.variable()));
+            if (!order.contains(n.variable())) {
+                order.add(java.util.Objects.requireNonNull(n.variable()));   // (a node named again: once, the study's §12.50)
+            }
         }
         nameRelationshipsWithMaps(elements, taken);
+        nameRepeats(elements, taken, Set.of());
+        order = patternOrder(elements);
         NodePattern root = (NodePattern) elements.get(0);
         String rootLabel = labelClass(root);
         List<String> rootClasses = rootLabel != null ? List.of(rootLabel) : new ArrayList<>(model.classes());
@@ -1209,7 +1229,8 @@ public final class CypherToPure {
             }
             // (the WHERE read against the arm's own classes; C4 lenient across every class an arm reads)
             g = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
-                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists());
+                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists(),
+                    g.present());
             Expr where = withUniqueness(m.where(), m.pos());
             if (where != null) {
                 if (g.fanning()) {
@@ -1220,7 +1241,7 @@ public final class CypherToPure {
             }
             graphs.add(g);
         }
-        return materializeArms(graphs, order, m.pos());
+        return armsRows(graphs, order, m.pos());
     }
 
     /** The prefix of the names the unroll of a variable-length relationship makes up for the nodes and
@@ -1288,9 +1309,13 @@ public final class CypherToPure {
                 n = new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos());
                 elements.set(i, n);
             }
-            order.add(java.util.Objects.requireNonNull(n.variable()));
+            if (!order.contains(n.variable())) {
+                order.add(java.util.Objects.requireNonNull(n.variable()));   // (a node named again: once, the study's §12.50)
+            }
         }
         nameRelationshipsWithMaps(elements, taken);
+        nameRepeats(elements, taken, Set.of());
+        order = patternOrder(elements);
         int combinations = 1;
         for (int i = 1; i < elements.size(); i += 2) {
             RelPattern r = (RelPattern) elements.get(i);
@@ -1405,7 +1430,8 @@ public final class CypherToPure {
                     java.util.Objects.requireNonNull(g.bindings().get(near))));
             g.lists().putAll(chain.lists());
             Graph read = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
-                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists());
+                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists(),
+                    g.present());
             Expr where = withUniqueness(m.where(), m.pos());
             if (where != null) {
                 if (read.fanning()) {
@@ -1416,7 +1442,7 @@ public final class CypherToPure {
             }
             graphs.add(read);
         }
-        return materializeArms(graphs, order, m.pos());
+        return armsRows(graphs, order, m.pos());
     }
 
     /** The chains from {@code at} (a relationship's place in {@code elements}) on: a fixed relationship and its
@@ -1569,9 +1595,13 @@ public final class CypherToPure {
                 n = new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos());
                 ordered.set(i, n);
             }
-            order.add(java.util.Objects.requireNonNull(n.variable()));
+            if (!order.contains(n.variable())) {
+                order.add(java.util.Objects.requireNonNull(n.variable()));   // (a node named again: once, the study's §12.50)
+            }
         }
         nameRelationshipsWithMaps(ordered, taken);
+        nameRepeats(ordered, taken, any.bindings().keySet());
+        order = patternOrder(ordered);
         List<Graph> graphs = new ArrayList<>();
         for (Graph base : bases) {
             Binding from = base.bindings().get(startVar);
@@ -1603,7 +1633,8 @@ public final class CypherToPure {
                         new ArrayList<>(base.conditions()), base.candidates(), true,
                         new ArrayList<>(base.deferredConstraints()), new ArrayList<>(base.deferredWhere()),
                         base.variableClasses(), new LinkedHashMap<>(base.paths()),
-                        new LinkedHashMap<>(base.forward()), new LinkedHashMap<>(base.lists()));
+                        new LinkedHashMap<>(base.forward()), new LinkedHashMap<>(base.lists()),
+                        new ArrayList<>(base.present()));
                 Graph g = pattern(new PathPattern(null, arm, p.pos()), copy);
                 if (g == null) {
                     // (an arm is assigned from the ways the model has: none has no way; kept for the type's sake)
@@ -1628,7 +1659,75 @@ public final class CypherToPure {
             return noWay(ordered, null, m.where(), materializeArms(bases, new ArrayList<>(any.bindings().keySet()),
                     m.pos()), false, p.pos());
         }
-        return materializeArms(graphs, order, m.pos());
+        return armsRows(graphs, order, m.pos());
+    }
+
+    /** Whether {@code type} names a property of some class holding that class itself (a self-association): an
+     *  undirected relationship of the type reads both directions as arms, a loop once (the study's §12.50). */
+    private boolean selfAssociation(String type) {
+        for (String cls : model.classes()) {
+            List<Property> declared = new ArrayList<>(properties(cls));
+            declared.addAll(ends(cls));
+            for (Property p : declared) {
+                if (p.name().equals(type) && p.classTyped() && cls.equals(p.type())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The repeats of a pattern named before its arms are read, so the arms' columns agree (the study's §12.50): a
+     *  node named again within the pattern, or named already by the graph it continues ({@code bound}), reads under
+     *  a fresh name, the same node as the first by identity (a condition of the MATCH's WHERE); an unnamed
+     *  relationship of a type the MATCH repeats is named, for uniqueness to tell it from the others. */
+    private void nameRepeats(List<PatternElement> elements, Set<String> taken, Set<String> bound) {
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < elements.size(); i++) {
+            if (elements.get(i) instanceof NodePattern n && n.variable() != null) {
+                boolean again = i > 0 && (seen.contains(n.variable()) || bound.contains(n.variable()));
+                if (again) {
+                    String fresh = freshName(taken);
+                    matchFrame.cycles.add(new CypherAst.Binary(BinaryOp.EQ, new CypherAst.Var(fresh, n.pos()),
+                            new CypherAst.Var(n.variable(), n.pos()), n.pos()));
+                    elements.set(i, new NodePattern(fresh, n.labels(), n.properties(), n.pos()));
+                }
+                seen.add(n.variable());
+            } else if (elements.get(i) instanceof RelPattern r && r.variable() == null && r.lengthRange() == null
+                    && (r.types().size() != 1 ? matchFrame.relationships >= 2
+                            : matchFrame.repeated(r.types().get(0)))) {
+                elements.set(i, new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(),
+                        r.lengthRange(), r.pos()));
+            }
+        }
+    }
+
+    /** The variables of a pattern in its order, nodes and relationships, each once: the order the arms carry their
+     *  columns in, so the arms' columns agree whatever order each arm bound them in. */
+    private static List<String> patternOrder(List<PatternElement> elements) {
+        List<String> order = new ArrayList<>();
+        for (PatternElement e : elements) {
+            if (e instanceof NodePattern n && n.variable() != null && !order.contains(n.variable())) {
+                order.add(n.variable());
+            }
+        }
+        for (PatternElement e : elements) {
+            if (e instanceof RelPattern r && r.variable() != null && !order.contains(r.variable())) {
+                order.add(r.variable());
+            }
+        }
+        return order;
+    }
+
+    /** The arms' rows, deduped by identity when an undirected relationship over a self-association is among the
+     *  arms (a loop is the same row in both directions; the study's §12.50). */
+    private Rows armsRows(List<Graph> graphs, List<String> order, Pos pos) {
+        Rows rows = materializeArms(graphs, order, pos);
+        if (matchFrame.selfAssociation) {
+            matchFrame.selfAssociation = false;
+            return new Rows(call("distinct", rows.vs()), rows.columns());
+        }
+        return rows;
     }
 
     /** A relationship pattern with a property map and no variable is named before the arms are read (as the nodes
@@ -1699,9 +1798,9 @@ public final class CypherToPure {
                 continue;
             }
             if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {
-                throw CypherErrors.unsupported("an undirected relationship over a self-association (" + way[0]
-                        + " of " + cls + "; a loop matches once in Neo4j, which needs identity) is not supported"
-                        + " yet", rel.pos());
+                // (both directions are arms; a loop, the same link both ways, reads once: the rows deduped by
+                // identity after the arms are materialized, the study's §12.50)
+                matchFrame.selfAssociation = true;
             }
             List<PatternElement> next = new ArrayList<>(head);
             next.add(new RelPattern(rel.variable(), List.of((String) way[0]), (CypherAst.Direction) way[1],
@@ -1824,21 +1923,30 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("an OPTIONAL MATCH of a single node (a cartesian product) is not"
                     + " supported yet", p.pos());
         }
+        boolean viaRows = false;   // what the optional hop does not read, re-anchoring over the graph's rows does
         for (PatternElement e : elements) {
             if (e instanceof RelPattern r) {
                 if (r.lengthRange() != null) {
                     throw CypherErrors.unsupported("a variable-length relationship (*) is not supported yet",
                             r.pos());
                 }
-                if (r.types().isEmpty()) {
-                    throw CypherErrors.unsupported("an untyped relationship in an OPTIONAL MATCH is not supported"
-                            + " yet", r.pos());
-                }
-                if (!r.properties().isEmpty()) {
-                    throw CypherErrors.unsupported("properties on a relationship pattern in an OPTIONAL MATCH are not"
-                            + " supported yet", r.pos());
-                }
+                viaRows |= r.types().isEmpty() || !r.properties().isEmpty() || r.variable() != null
+                        && state instanceof Graph g0 && g0.bindings().containsKey(r.variable());
+            } else if (e instanceof NodePattern n && e != elements.get(0) && n.variable() != null
+                    && state instanceof Graph g0 && g0.bindings().containsKey(n.variable())) {
+                viaRows = true;   // (both ends bound: joined on the far node's identity)
             }
+        }
+        if (viaRows) {
+            // (the study's §12.49: the graph materialized, the pattern read as its own graph and joined back by
+            // identity, a left join)
+            Rows anchored = reanchor(m, rowsOf(state, m.pos()));
+            if (anchored != null) {
+                return anchored;
+            }
+            throw CypherErrors.unsupported("an OPTIONAL MATCH over an untyped relationship, a relationship with a"
+                    + " property map or a bound far node, from no node the graph binds, is not supported yet",
+                    p.pos());
         }
         // every node named (an unnamed one synthetically), the same names in every arm
         List<Graph> arms = state instanceof Arms a ? a.arms() : List.of((Graph) state);
@@ -2007,16 +2115,98 @@ public final class CypherToPure {
         }));
         int mark = fresh;
         Rows out = null;
+        List<List<Col>> armColumns = new ArrayList<>();
         for (Graph arm : arms) {
             fresh = mark;
             Graph g = new Graph(arm.rootClass(), arm.row(), arm.bindings(), arm.conditions(), everyClass,
                     arm.fanning(), arm.deferredConstraints(), arm.deferredWhere(), variableClasses, arm.paths(),
-                    arm.forward(), arm.lists());
+                    arm.forward(), arm.lists(), arm.present());
             Rows rows = materialize(g, pos, order);
+            armColumns.add(rows.columns());
             out = out == null ? rows : new Rows(call("concatenate", out.vs(), rows.vs()), out.columns());
         }
-        // (the union's columns: a property absent in one arm holds the other arms' values)
-        return new Rows(java.util.Objects.requireNonNull(out).vs(), withoutAbsentMarks(out.columns()));
+        // (the union's columns: a property absent in one arm holds the other arms' values; a list the arms shape
+        // differently, a list of what their places hold in common)
+        return new Rows(java.util.Objects.requireNonNull(out).vs(), withoutAbsentMarks(mergedShapes(armColumns)));
+    }
+
+    /** The arms' union's columns with the shape of a list the arms spell differently merged (a variable-length
+     *  relationship's list: empty in the zero-length arm, one relationship in the next, the study's §12.42): a list
+     *  of what the arms' places hold in common ({@link #mergedShape}), so an index, {@code head} or {@code last}
+     *  over the union reads an element by the kind every arm gives it; the first arm's shape where the arms agree. */
+    private static List<Col> mergedShapes(List<List<Col>> arms) {
+        List<Col> first = arms.get(0);
+        List<Col> out = new ArrayList<>();
+        for (int i = 0; i < first.size(); i++) {
+            Col c = first.get(i);
+            com.legend.protocol.sql.InputDialect.TypeDetail merged = c.detail();
+            for (List<Col> arm : arms.subList(1, arms.size())) {
+                // (the arms' columns align by construction: the same fresh names in every arm)
+                merged = mergedShape(merged, i < arm.size() ? arm.get(i).detail() : null);
+            }
+            out.add(merged == c.detail() ? c : new Col(c.name(), c.kind(), c.nullable(), c.carried(), merged));
+        }
+        return out;
+    }
+
+    /** Two arms' shapes of one column as one: the same shape itself; two list shapes, a list of the kind and mark
+     *  their places share (a place of no known kind, the empty list's, says nothing; two relationships of different
+     *  types, a relationship of no known type), or no shape where the places' kinds differ (the column read as a
+     *  Variant of unknown shape); a shape of another kind, the first arm's (a carried node's columns are the same
+     *  in every arm, a property an arm's class lacks marked, {@link #withoutAbsentMarks}). */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail mergedShape(
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail a,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail b) {
+        if (java.util.Objects.equals(a, b)) {
+            return a;
+        }
+        List<Entry> places = new ArrayList<>();
+        for (com.legend.protocol.sql.InputDialect.TypeDetail d : java.util.Arrays.asList(a, b)) {
+            if (d instanceof TupleOf t) {
+                places.addAll(t.entries());
+            } else if (d instanceof ListOf l) {
+                places.add(new Entry(l.element(), true, l.elementDetail()));
+            } else {
+                // (a node's or a relationship's columns, a map: the first arm's, as before the merge)
+                return a;
+            }
+        }
+        Kind kind = null;
+        com.legend.protocol.sql.InputDialect.TypeDetail detail = null;
+        for (Entry e : places) {
+            if (e.kind() == Kind.NULL) {
+                continue;
+            }
+            if (kind == null) {
+                kind = e.kind();
+                detail = e.detail();
+            } else if (kind != e.kind()) {
+                return null;
+            } else {
+                detail = mergedMark(detail, e.detail());
+            }
+        }
+        return kind == null ? null : new ListOf(kind, detail);
+    }
+
+    /** Two places' marks as one: the same mark itself; two relationships', a relationship's of their common type
+     *  (none where they differ); two nodes', a node's; two list shapes, their merge; else none. */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail mergedMark(
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail a,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail b) {
+        if (java.util.Objects.equals(a, b)) {
+            return a;
+        }
+        if (a instanceof RelValue x && b instanceof RelValue y) {
+            return new RelValue(java.util.Objects.equals(x.type(), y.type()) ? x.type() : null);
+        }
+        if (a instanceof NodeValue && b instanceof NodeValue) {
+            return new NodeValue();
+        }
+        if ((a instanceof ListOf || a instanceof TupleOf) && (b instanceof ListOf || b instanceof TupleOf)) {
+            return mergedShape(a, b);
+        }
+        return null;
     }
 
     /** {@code columns} with no carried property marked absent ({@link NodeProp#absent}): the columns of the arms'
@@ -2082,6 +2272,12 @@ public final class CypherToPure {
         Rows rows = project(items, false, List.of(), null, null, null, g, pos, false);
         RowScope scope = new RowScope(rows);
         ValueSpecification cond = null;
+        for (String name : g.present()) {
+            // a node a second-step hop reached: on the rows where its identity is
+            Tx identity = java.util.Objects.requireNonNull(scope.identity(new CypherAst.Var(name, pos)));
+            ValueSpecification x = call("isNotEmpty", identity.vs());
+            cond = cond == null ? x : call("and", cond, x);
+        }
         for (NodeConstraint c : g.deferredConstraints()) {
             for (Map.Entry<String, Expr> e : c.properties().entrySet()) {
                 Tx value = scalarOf(scope.property(new CypherAst.Prop(new CypherAst.Var(c.variable(), c.pos()),
@@ -2553,6 +2749,7 @@ public final class CypherToPure {
         Rows right;
         boolean nestedBefore = matchFrame.nested;
         matchFrame.nested = !thisMatchRels.isEmpty() || nestedBefore;
+        matchFrame.cycles.clear();   // (the first pattern's, conjoined into the WHERE in hand already)
         try {
             right = rowsOf(match(new CypherAst.Match(false, List.of(second), null, second.pos()), null), pos);
         } finally {
@@ -2681,10 +2878,6 @@ public final class CypherToPure {
         String lastVar = last.variable();
         boolean firstBound = firstVar != null && g.bindings().containsKey(firstVar);
         boolean lastBound = lastVar != null && g.bindings().containsKey(lastVar);
-        if (firstBound && lastBound && elements.size() > 1) {
-            throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared by"
-                    + " identity) is not supported yet", p.pos());
-        }
         if (!firstBound && !lastBound) {
             throw CypherErrors.unsupported("a second pattern sharing no variable with the first (a cartesian"
                     + " product) is not supported yet", p.pos());
@@ -2843,8 +3036,13 @@ public final class CypherToPure {
                 next = new NodePattern(nextVar, next.labels(), next.properties(), next.pos());
             }
             if (nextVar != null && g.bindings().containsKey(nextVar)) {
-                throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared"
-                        + " by identity) is not supported yet", next.pos());
+                // a cycle (the study's §12.50): the node reached again reads under a fresh name, the same node as
+                // the bound one by identity (a condition of the MATCH's WHERE, over the graph or the rows)
+                String again = freshName(new HashSet<>(g.bindings().keySet()));
+                matchFrame.uniqueness.add(new CypherAst.Binary(BinaryOp.EQ, new CypherAst.Var(again, next.pos()),
+                        new CypherAst.Var(nextVar, next.pos()), next.pos()));
+                nextVar = again;
+                next = new NodePattern(nextVar, next.labels(), next.properties(), next.pos());
             }
             if (!rel.properties().isEmpty() && hop.edge() == null) {
                 throw CypherErrors.unsupported("properties on a relationship pattern over a property or association"
@@ -2861,8 +3059,15 @@ public final class CypherToPure {
             }
             boolean optional = current.optional() || hop.optional();
             boolean fanning = current.fanning() || hop.many();
-            Binding target = new Binding(true, hop.target(), List.copyOf(path), optional, fanning);
-            if (hop.optional() || hop.many()) {
+            // a hop from a node a fanning hop reached: the rows carry one row per node the first hop found, and
+            // this hop's node is present on a row where its identity is (an optional navigation's identity is
+            // null where it finds none); the graph's filter cannot say it (the resolver reads no two-step
+            // existence past a bridge-table step there: the study's §12.50)
+            boolean onRows = current.fanning() && (hop.optional() || hop.many());
+            Binding target = new Binding(true, hop.target(), List.copyOf(path), optional || onRows, fanning);
+            if (onRows) {
+                g.present().add(java.util.Objects.requireNonNull(nextVar));
+            } else if (hop.optional() || hop.many()) {
                 // the hop must find a node: a row where it finds none is not a match
                 g.conditions().add(call("isNotEmpty", navigate(g.row(), path)));
             }
@@ -3293,7 +3498,7 @@ public final class CypherToPure {
             }
             Graph next = new Graph(g.rootClass(), g.row(), kept, g.conditions(), g.candidates(), g.fanning(),
                     g.deferredConstraints(), g.deferredWhere(), g.variableClasses(), keptPaths, g.forward(),
-                    new LinkedHashMap<>());
+                    new LinkedHashMap<>(), g.present());
             Expr where = w.where();
             if (where != null) {
                 next.conditions().add(condition(where, new GraphScope(next), "WHERE"));
@@ -6264,13 +6469,22 @@ public final class CypherToPure {
         };
     }
 
-    /** {@code head(list)} and {@code last(list)}: null for an empty list. */
+    /** {@code head(list)} and {@code last(list)}: null for an empty list. A list the database holds as a Variant
+     *  (a variable-length relationship's list, a collected list): its first or last place, as {@code list[0]} and
+     *  {@code list[-1]} read it (the study's §12.43: null beyond either end, so null for an empty list). */
     private Val head(CypherAst.Call c, Val v, boolean first) {
         return switch (v) {
             case ListVal l -> l.elements().isEmpty() ? nullValue()
                     : l.elements().get(first ? 0 : l.elements().size() - 1);
             case Coll col -> scalar(columnLike(call(first ? "first" : "last", col.vs()), col.kind(), true));
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            case Scalar s when s.tx().kind() == Kind.JSON
+                    && (s.tx().detail() instanceof ListOf || s.tx().detail() instanceof TupleOf) -> {
+                long at = first ? 0 : -1;
+                CypherAst.IntLit place = new CypherAst.IntLit(at, Long.toString(at), c.pos());
+                yield variantIndex(s.tx(), literal(Tx.value(new CInteger(at), Kind.INTEGER, false), at),
+                        new CypherAst.Index(c.args().get(0), place, c.pos()));
+            }
             default -> throw notAList(c, v);
         };
     }
@@ -7665,7 +7879,8 @@ public final class CypherToPure {
             Graph g = outer.g;
             Graph ext = new Graph(g.rootClass(), g.row(), new LinkedHashMap<>(g.bindings()), g.conditions(),
                     g.candidates(), g.fanning(), g.deferredConstraints(), g.deferredWhere(), g.variableClasses(),
-                    new LinkedHashMap<>(g.paths()), new LinkedHashMap<>(g.forward()), new LinkedHashMap<>(g.lists()));
+                    new LinkedHashMap<>(g.paths()), new LinkedHashMap<>(g.forward()), new LinkedHashMap<>(g.lists()),
+                    g.present());
             Set<String> taken = new HashSet<>(g.bindings().keySet());
             taken.addAll(g.paths().keySet());
             String end = endName(taken);

@@ -3554,3 +3554,66 @@ rows), Match (8), With (4), Graph (4), MatchWhere (3), WithSkipLimit (3), Return
 lost. The chain's first run had 9 TriadicSelection cases erroring in the resolver (an edge hop after an
 association hop is three navigation steps, which the translator's depth refusal had exempted): the refusal now
 counts every step, so they are REFUSED by name, as W9 records.
+
+### 12.50 Cycles, the optional fallbacks, and the undirected self-association, 2026-10-17
+
+- **The frame (the plan's W2, leg 5, the last of its identity legs):** three readings waited on identity since the
+  first PR: a node named again within one pattern (`(n)-[r]->(n)`, `(a)-[:A]->()-[:B]->(a)`: "a pattern whose two
+  ends are both bound already, a cycle compared by identity"), the OPTIONAL MATCH shapes the optional hop cannot
+  read (an untyped relationship, a relationship with a property map, a far node already bound), and the
+  undirected relationship over a self-association (`(a)-[r]-(b)` where `T` holds `A` on both ends: a loop
+  `(x)-[:T]->(x)` matches once in Neo4j, which the two directions read twice).
+- **Cycles:** a node named again reads under a fresh name, the same node as the first by identity, a condition
+  the MATCH's WHERE takes with the uniqueness conditions (§12.48's `withUniqueness`): spelled in the graph over
+  to-one hops, deferred over the materialized rows otherwise. The renaming happens once per MATCH before its
+  arms are read (`nameRepeats`, beside the naming of relationships with property maps), so the arms' columns
+  agree, and the arms' column order is the pattern's after the renaming (`patternOrder`: the nodes, then the
+  relationships, each once; an order taken before the renaming misaligned the arms, JSON garbage and wrong
+  counts in the chain's first run). The cycle conditions live on the MATCH's frame (`MatchFrame.cycles`, cleared
+  per MATCH), not the per-arm lists the arms reader wipes. The pre-checks that refused a pattern with both ends
+  bound are gone; the hop reader keeps the same rule for a pattern read directly.
+- **A second-step hop of a fanning graph is present on the rows:** `MATCH (a {name: 'A'}), (b {name: 'B'}) MATCH
+  (a)-->(x)<-->(b)` (Match3/[19]) re-anchors as `(a)-[:KNOWS]->(x)-[:KNOWS|KNOWS_in]-(b)` over a many-to-many
+  `KNOWS`, and the graph's filter `$a.KNOWS->isNotEmpty() && $a.KNOWS.KNOWS_in->isNotEmpty()` fails to resolve
+  (`UnfoldableRef: KNOWS_KNOWS_b_src_id`): the resolver checks a two-step existence in a filter per fanned row
+  over a foreign-key step but not past a bridge-table step (the plan's §5). The translator cannot see the
+  mapping, so it stops spelling such a hop's existence in the filter at all: when the graph already fans before
+  the hop, the hop's node is "present" (`Graph.present`), its identity and properties nullable, and `materialize`
+  filters the rows where its identity is (`$r._cypher_25->isNotEmpty()`, beside the deferred property maps):
+  the same rows, said over the materialized rows where the resolver's LEFT JOIN is, as the cycle's identity guard
+  already was. A first hop's existence, or a second step after a to-one first hop, stays in the filter.
+- **`head` and `last` over a list the database holds:** `MATCH ()-[r*0..1]-() RETURN last(r)` (Match9/[1]) reads
+  `last` over a variable-length relationship's list, a Variant the arms build; before, the function read only
+  spelled lists and collections ("expected List<T> but was Map"). It is the list's first or last place as `r[0]`
+  and `r[-1]` read it (§12.43's `get`, null beyond either end: null for the empty list). The union's shape: the
+  zero-length arm spells `[]` (a tuple of no places), the next `[rel]`, and the first arm's shape stood for the
+  column, so the index read a place beyond the empty tuple and answered null everywhere. `materializeArms` now
+  merges the arms' list shapes (`mergedShapes`: a list of the kind and mark the arms' places share, a relationship
+  of no known type where types differ, no shape where kinds differ; a node's or relationship's columns keep the
+  first arm's, as before).
+- **The optional fallbacks:** an OPTIONAL MATCH over a graph with an untyped relationship, a relationship with a
+  property map or a bound far node materializes the graph and re-anchors (§12.49: the pattern read as its own
+  graph, joined back by identity with a left join), so `MATCH (a:A)-[:T]->(b:B) OPTIONAL MATCH (b)-[u:U]->(a)`
+  and `OPTIONAL MATCH (a)-->(x)` read; one from no node the graph binds stays refused by name.
+- **The undirected self-association:** an undirected relationship whose type holds the node's own class
+  (`selfAssociation`, the declared properties and association ends scanned) reads through the arms reader (both
+  directions as arms, as an untyped relationship does), and the arms' materialized rows are deduped by identity
+  (`armsRows`: Pure's `distinct` over every carried column, the identities among them): a loop is the same row
+  in both arms and reads once; two nodes linked once read twice, once each way, as in Neo4j.
+- **Still refused by name, recorded:** an undirected typed relationship from a label-less node; a cycle within an
+  OPTIONAL MATCH read as a chain is routed through the fallback instead.
+
+#### 12.50.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4586 | 3110 (from 3,068) | 0 | 0 | 0 | 565 | 730 | 181 |
+| Postgres | 4586 | 2749 (from 2,707) | 0 | 0 | 0 | 926 | 730 | 181 |
+
+10 lite cases in `lite/cycles.yaml`, each judged by Neo4j (10 PASS). The TCK: agreement 3181 of 3880 (from 3,149): 32
+more scenarios, Match3 (8), CountingSubgraphMatches1 (8), Match6 (3), Match7 (3), MatchWhere6 (2), Graph8 (2),
+MatchWhere1 (1), Match2 (1), Match9 (1), WithWhere1 (1), With7 (1), Aggregation1 (1); no case lost. The chain's first
+run had 4 FAIL and 5 ERROR: the per-arm reset wiping the cycle conditions and the arms' columns ordered before the
+renaming (both fixed, the frame's `cycles` and `patternOrder`), Match3/[19] erroring in the resolver (the two-step
+existence past a bridge-table step, now said over the rows), and Match9/[1] refusing `last(r)` over the arms' list
+(now read as `r[-1]`, the arms' list shapes merged).
