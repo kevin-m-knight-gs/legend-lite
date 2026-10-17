@@ -1334,8 +1334,9 @@ tests we can". The order (IN_FLIGHT, 2026-10-17): the PostgreSQL regression suit
 SQLStorm's and BIRD's PostgreSQL sets, JOB, a SQLancer-style generator. Each step is one PR; this is the first.
 
 **The harness.** `//core:pg_regress_corpus_test` (manual, in `//gates:heavy`) replays the suite's own scripts on the
-embedded Postgres 16: REL_16_STABLE's `src/test/regress` (`sql/`, `data/`, `parallel_schedule`; the PostgreSQL
-License), kept outside the repository and named by `-Dsql.corpus.regress`. The run:
+embedded Postgres 16: the PostgreSQL repository's `src/test/regress` (https://github.com/postgres/postgres,
+REL_16_STABLE at 8e928803020e; its `sql/`, `data/` and `parallel_schedule`, not `expected/`; the PostgreSQL License),
+kept outside the repository and named by `-Dsql.corpus.regress`. The run:
 - One database, `regression` (UTF8, collation C). The schedule's files run in order, one at a time, each on a fresh
   session, so each file's setup (`CREATE`, `INSERT`, `COPY ... FROM stdin`, its `\set` variables) is Postgres's.
 - `Psql` (`core/src/test/java/com/legend/testcases/`) splits a script as psql does: quotes, `E''` and dollar quoting,
