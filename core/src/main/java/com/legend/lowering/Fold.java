@@ -623,7 +623,6 @@ final class Fold {
         }
     }
 
-    /** An expression's size as the budget counts it: its nodes. */
     /** The size, in nodes, from which a computed column substituted into two reads is written once instead
      *  ({@link #rereadsLarge}). */
     static final int LARGE_REREAD = 48;
@@ -667,6 +666,7 @@ final class Fold {
         }
     }
 
+    /** An expression's size as the budget counts it: its nodes. */
     static int nodes(SqlExpr e) {
         int n = 1;
         for (SqlExpr ch : e.children()) {

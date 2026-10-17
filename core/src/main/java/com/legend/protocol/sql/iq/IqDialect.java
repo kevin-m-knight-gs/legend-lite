@@ -4064,7 +4064,7 @@ public final class IqDialect implements InputDialect {
 
     /** {@code -x}, {@code +x}, {@code NOT c}: a minus before an integer constant is a constant typed by its value; one
      *  before any other integer negates it in its type (a BIT's is a SMALLINT), checked; a minus before a numeric
-     *  constant negates it exactly; a plus changes no number. */
+     *  constant negates it exactly; a plus changes no number and no string. */
     @Override
     public Tx unary(SqlAst.Unary u, SqlToPure.At at) {
         Tx x = at.tx(u.operand());
@@ -4080,7 +4080,9 @@ public final class IqDialect implements InputDialect {
             return typedNull("SMALLINT");
         }
         if (u.op() == SqlAst.UnaryOp.PLUS) {
-            if (x.kind().numeric()) {
+            // IQ island, 2026-10-17 (the corpus lane's '+' || ... spelled + 'x'; measured on IQ 17.1, its engine's and
+            // its front end's alike): a plus before a string is the string, of its type
+            if (x.kind().numeric() || x.kind() == Kind.STRING) {
                 return x;
             }
             throw SqlTranslationException.unsupported("a sign before " + kindName(x.kind()) + " (IQ converts it to"
@@ -5169,6 +5171,35 @@ public final class IqDialect implements InputDialect {
                 + " values, which need no check)", pos);
     }
 
+    /** What {@link #reads} finds: no column, a column, a query (a lambda: a subquery's). */
+    private static final int READS_NOTHING = 0;
+    private static final int READS_COLUMN = 1;
+    private static final int READS_QUERY = 2;
+
+    /** Whether {@code vs} reads a column ({@link #READS_COLUMN}), holds a lambda ({@link #READS_QUERY}), or reads
+     *  neither ({@link #READS_NOTHING}: constants and variables alone). */
+    private static int reads(ValueSpecification vs) {
+        List<ValueSpecification> children = switch (vs) {
+            case AppliedFunction f -> f.parameters();
+            case com.legend.protocol.spec.AppliedProperty p -> {
+                yield null;
+            }
+            case com.legend.protocol.spec.LambdaFunction l -> {
+                yield null;
+            }
+            case com.legend.protocol.spec.PureCollection c -> c.values();
+            default -> List.of();
+        };
+        if (children == null) {
+            return vs instanceof com.legend.protocol.spec.LambdaFunction ? READS_QUERY : READS_COLUMN;
+        }
+        int most = READS_NOTHING;
+        for (ValueSpecification c : children) {
+            most = Math.max(most, reads(c));
+        }
+        return most;
+    }
+
     /** The nodes of {@code vs} written out: a node shared by several parents counts once for each. */
     private static long size(ValueSpecification vs, Map<ValueSpecification, Long> memo) {
         Long known = memo.get(vs);
@@ -5510,15 +5541,34 @@ public final class IqDialect implements InputDialect {
 
     /**
      * A string compared with a date or a timestamp, as IQ reads it: a TIMESTAMP (the research's TYPING §9, measured;
-     * a DATE is compared as its midnight). Read here for a constant string only, in ISO spelling --
+     * a DATE is compared as its midnight). Read here for a constant string in ISO spelling --
      * {@code yyyy-mm-dd}, optionally a space and {@code hh:nn}, {@code :ss}, {@code .ffffff} (at most six places) --
      * which every profile's date order reads alike; with a DATE only at midnight, where the two compare as dates. Any
-     * other string is refused by name (IQ reads many more spellings, by the profile's date order).
+     * other constant is refused by name (IQ reads many more spellings, by the profile's date order). IQ island,
+     * 2026-10-17 (the corpus lane's {@code ts BETWEEN '2000-01-01' AND '2100-12-31' + ' 23:59:59'}; measured on IQ
+     * 17.1): under IQ's engine a string computed of constants alone is {@code CAST(s AS TIMESTAMP)} (over 14
+     * spellings, the same rows and the same errors), beside a DATE {@code CAST(s AS DATE)} ({@link
+     * IqFunctions#compared}); one reading a column is
+     * IQ's -1001013 (an invalid data type comparison in a predicate), and one holding a subquery is not measured: both
+     * refused by name. In SQL Anywhere's front end a string that is not a constant is refused.
      */
     private Tx dateOf(Tx text, Tx date, SqlAst.Pos pos) {
         if (!(text.vs() instanceof CString s) || text.nullable()) {
+            if (engine == Engine.IQ) {
+                int reads = reads(text.vs());
+                if (reads == READS_COLUMN) {
+                    throw SqlTranslationException.unsupported("comparing a date with a string that reads a column is"
+                            + " IQ's error -1001013 under its engine (an invalid data type comparison in a"
+                            + " predicate), refused before translating", pos);
+                }
+                if (reads == READS_QUERY) {
+                    throw SqlTranslationException.unsupported("comparing a date with a string a subquery computes is"
+                            + " not supported yet", pos);
+                }
+                return new IqFunctions(this).compared(text, date.kind() == Kind.DATE);
+            }
             throw SqlTranslationException.unsupported("comparing a string that is not a constant with a date is not"
-                    + " supported yet: IQ converts the string to TIMESTAMP", pos);
+                    + " supported yet in SQL Anywhere's front end: it converts the string to TIMESTAMP", pos);
         }
         if (IqDateTime.read(s.value(), settings, pos) == null && IqDateTime.unconvertible(s.value(), settings)) {
             // IQ island, 2026-10-17 (the corpus lane's SEDE, 55 queries; measured on IQ 17.1): numbers ending in a
@@ -5557,11 +5607,15 @@ public final class IqDialect implements InputDialect {
                     + " supported: it is no date spelling the island reads yet (IqDateTime)", pos);
         }
         String time = parts[1];
-        if (other == Kind.DATE) {
-            if (!time.equals("00:00:00")) {
-                throw SqlTranslationException.unsupported(what + " a date with a timestamp of a time other than"
-                        + " midnight is not supported yet", pos);
-            }
+        // IQ island, 2026-10-17 (measured on IQ 17.1): compared with a DATE, a column's or a computed one, IQ's engine
+        // reads the string as a DATE, its time dropped (dt = '2026-03-04 12:00' holds for 2026-03-04); SQL Anywhere's
+        // front end as a TIMESTAMP, the DATE at its midnight ({@link #compared})
+        boolean asDate = time.equals("00:00:00") || what.equals("comparing") && engine == Engine.IQ;
+        if (other == Kind.DATE && !asDate && !what.equals("comparing")) {
+            throw SqlTranslationException.unsupported(what + " a date with a timestamp of a time other than"
+                    + " midnight is not supported yet", pos);
+        }
+        if (other == Kind.DATE && asDate) {
             // IQ island, 2026-10-14 (the merge of M1e): a constant's year carried as every date constant's
             // (review 4's M2, IqFunctions.dated)
             return Tx.value(new CDate(PureDateLiteral.parse(parts[0]), parts[0], null), Kind.DATE, false,
@@ -5929,7 +5983,7 @@ public final class IqDialect implements InputDialect {
     /** A constant pattern as literal runs between wildcards: run, wildcard, run, ..., run; with {@code escape} (null
      *  for none) a constant of one character, which makes the {@code %}, {@code _}, {@code [} or escape after it
      *  literal. What IQ raises an error for is refused by name, and so is a {@code [set]} class when {@code sets}. */
-    private static List<String> likeParts(SqlAst.StringLit pattern, SqlAst.@com.legend.base.Nullable Expr esc,
+    static List<String> likeParts(SqlAst.StringLit pattern, SqlAst.@com.legend.base.Nullable Expr esc,
             boolean sets, boolean latin1) {
         char escape = 0;
         if (esc != null) {
@@ -6039,7 +6093,7 @@ public final class IqDialect implements InputDialect {
      *  startsWith, endsWith or contains; anything else the equivalent regular expression, whose {@code .} matches a
      *  line feed too ({@code (?s)}), as IQ's {@code _} does. {@code caseless}: always the regular expression, each
      *  ASCII letter a class of its two cases. */
-    private static ValueSpecification likeTest(ValueSpecification value, List<String> parts, boolean caseless) {
+    static ValueSpecification likeTest(ValueSpecification value, List<String> parts, boolean caseless) {
         List<String> wild = new ArrayList<>();
         for (int i = 1; i < parts.size(); i += 2) {
             wild.add(parts.get(i));

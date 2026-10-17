@@ -2470,6 +2470,9 @@ public final class IqParser {
     /** The name of the call a CONVERT with a style is read as (IQ island, 2026-10-15): no name a query can write. */
     static final String CONVERT_STYLE = "convert style";
 
+    /** The name of the call a CONVERT to DATE or TIMESTAMP with a style is read as (IQ island, 2026-10-17). */
+    static final String CONVERT_DATE_STYLE = "convert date style";
+
     /** The call {@link #extractCall} makes, of {@link IqFunctions}'s EXTRACT: a name no query can write. */
     static final String EXTRACT = "extract from";
 
@@ -2497,7 +2500,9 @@ public final class IqParser {
     }
 
     /** {@code CONVERT(data_type, expression [, style])} (GRAMMAR F15): without a style, a {@code Cast} whose type name
-     *  begins with {@link #CONVERT}; a style is refused by name, after the call reads. */
+     *  begins with {@link #CONVERT}; with an integer constant style, to CHAR or VARCHAR a {@link #CONVERT_STYLE} call,
+     *  to DATE or TIMESTAMP a {@link #CONVERT_DATE_STYLE} call, to a national type the {@code Cast}; any other style is
+     *  refused by name, after the call reads. */
     private SqlAst.Expr convertCall() {
         IqLexer.Token t = take();
         expectOp("(");
@@ -2518,9 +2523,23 @@ public final class IqParser {
             value(style, "CONVERT's style");
             expectOp(")");
             String target = IqLexer.lower(type.name());
+            if (style instanceof SqlAst.IntegerLit && (target.equals("nchar") || target.equals("nvarchar"))) {
+                // IQ island, 2026-10-17 (the corpus lane's CONVERT(NVARCHAR(7), d, 23); measured on IQ 17.1): to a
+                // national type as without a style -- IQ's engine converts to none, its -1001030 with a style too
+                engineCast(operand, type, "CONVERT");
+                return new SqlAst.Cast(operand, new SqlAst.TypeName(CONVERT + type.name(), type.modifiers(),
+                        type.pos()), t.pos());
+            }
+            if (style instanceof SqlAst.IntegerLit && (target.equals("date") || target.equals("timestamp"))) {
+                // IQ island, 2026-10-17: a date read by a style ({@link IqFunctions}'s CONVERT_DATE_STYLE): the
+                // operand, the style, and 1 for a DATE (0 for a TIMESTAMP)
+                return new SqlAst.FunctionCall(List.of(new SqlAst.Ident(CONVERT_DATE_STYLE, false, t.pos())), List.of(
+                        operand, style, new SqlAst.IntegerLit(java.math.BigInteger.valueOf(target.equals("date") ? 1
+                                : 0), t.pos())), false, false, t.pos());
+            }
             if (!(style instanceof SqlAst.IntegerLit n) || !target.equals("varchar") && !target.equals("char")) {
-                throw SqlSyntaxException.unsupported("CONVERT with a style is supported only to CHAR or VARCHAR with"
-                        + " an integer constant style yet", style.pos());
+                throw SqlSyntaxException.unsupported("CONVERT with a style is supported only to CHAR, VARCHAR, DATE or"
+                        + " TIMESTAMP with an integer constant style yet", style.pos());
             }
             if (n.value().bitLength() > 31 || !IqFunctions.STYLES.contains(n.value().intValue())) {
                 throw SqlSyntaxException.unsupported("CONVERT style " + n.value() + " is not supported: the island"

@@ -598,10 +598,16 @@ class IqToPureTest {
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt >= '2026-03-04 00:00:00.000'").contains("%2026-03-04"));
         // IQ island, 2026-10-16 (measured on IQ 17.1): a string of no digit is no date in any spelling, IQ's -157
         assertEquals(SqlTranslationException.Kind.INVALID, refusal("SELECT id FROM " + T + " WHERE dt = 'x'").kind());
-        for (String s : new String[] {"'2026-03-04 10:00'", "'2026-02-30'", "''", "'10:11:12'"}) {
+        for (String s : new String[] {"'2026-02-30'", "''", "'10:11:12'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE dt = " + s)
                     .kind(), s);
         }
+        // IQ island, 2026-10-17 (measured on IQ 17.1): beside a DATE, IQ's engine reads the string as a DATE, its time
+        // dropped; SQL Anywhere's front end as a TIMESTAMP, the DATE at its midnight
+        String dated = pure("SELECT id FROM " + T + " WHERE dt = '2026-03-04 10:00'");
+        assertTrue(dated.contains("%2026-03-04") && !dated.contains("10:00"), dated);
+        assertTrue(pure("SELECT id FROM " + T + " WHERE dt = '2026-03-04 10:00'", IqProfile.SQLA17_DEFAULT.settings())
+                .contains("%2026-03-04T10:00:00"));
         // IQ island, 2026-10-14 (M1e): IQ's other spellings are read now (IqDateTime, measured): '2026/03/04',
         // '2026-3-4', and a seventh place of the second, cut
         for (String s : new String[] {"'2026/03/04'", "'2026-3-4'", "'2026-03-04 00:00:00.0000009'"}) {

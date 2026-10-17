@@ -972,3 +972,102 @@ tests:
   - id: a_double_sum_overflowing_in_a_group_top_drops_is_iqs_error
     sql: "SELECT TOP 1 k, SUM(x) AS s FROM (SELECT 1 AS k, dbl * 1.5e8 AS x FROM t WHERE id = 6 UNION ALL SELECT 1, dbl * 1.5e8 FROM t WHERE id = 6 UNION ALL SELECT 2, 1.0e0 FROM t WHERE id = 1) d GROUP BY k ORDER BY k DESC"
     profile: iq17-default
+
+  # ---- PATINDEX of LIKE's _ and [set]s and a % inside (IQ island, 2026-10-17; the corpus lane's '%[^a-z]%', '%[ :,.]%'
+  # and '[^?.]', measured on IQ 17.1, its engine's and its front end's alike): a pattern not starting with % is LIKE's
+  # test, 1 or 0; one starting with % the first place from which the rest of it matches
+  - id: patindex_of_sets_and_single_characters
+    sql: "SELECT id, PATINDEX('%[^a-z]%', vc) AS a, PATINDEX('%[lp][lp]%', vc) AS b, PATINDEX('%l_o%', vc) AS c, PATINDEX('[hH]%', vc) AS d, PATINDEX('%[A-ZÉ]', vc || 'E') AS e, PATINDEX('%e%o', vc) AS f FROM t ORDER BY id"
+  - id: patindex_anchored_or_held_to_the_end
+    sql: "SELECT PATINDEX('[^?.]', 'x') AS a, PATINDEX('[^?.]', 'xy') AS b, PATINDEX('%[^?.]', 'ab?') AS c, PATINDEX('%[^?.]', 'ab') AS d, PATINDEX('%a%b', 'xaxbxb') AS e, PATINDEX('%a__%', 'xa1') AS f, PATINDEX('%_%', '') AS g, PATINDEX('a_c%', 'abcd') AS h"
+    engine: sa
+  - id: patindex_single_character_of_a_line_feed
+    sql: "SELECT PATINDEX('%a_b%', 'xa' || CHAR(10) || 'b') AS a, PATINDEX('%[0-9]%', 'ab' || CHAR(10) || '1') AS b, PATINDEX('%[ :,.]%', 'ab' || CHAR(10) || 'c:d') AS c"
+    engine: sa
+  - id: patindex_of_a_set_of_marks_over_a_column
+    sql: "SELECT id, PATINDEX('%[ :,.]%', vc || ' ') AS a, PATINDEX('%[%]%', vc || '%') AS b FROM t WHERE vc IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: patindex_single_character_without_regard_to_case
+    sql: "SELECT PATINDEX('%B_%', 'abcb') AS a, PATINDEX('%L%O', 'hello') AS b"
+    profile: sqla17-default
+  - id: patindex_of_an_empty_set_is_refused
+    sql: "SELECT PATINDEX('%[]%', vc) AS a FROM t WHERE id = 1"
+
+  # ---- ASCII in a UTF-8 database (IQ island, 2026-10-17; the corpus lane, measured on IQ 17.1): under IQ's engine the
+  # first byte of the first character's UTF-8, an INTEGER; in SQL Anywhere's front end a character above 127 is NULL
+  - id: ascii_of_a_utf8_character_under_the_iq_engine
+    sql: "SELECT id, ASCII(vc) AS a, ASCII(ch) AS b, ASCII('あ' || vc) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: ascii_above_127_in_the_front_end
+    sql: "SELECT ASCII('é') AS a, ASCII('') AS b, ASCII('あ') AS c, ASCII('a') AS d"
+    profile: iq17-default
+    engine: sa
+
+  # ---- SQUARE (IQ island, 2026-10-17; the corpus lane, measured on IQ 17.1, its engine's and its front end's alike):
+  # POWER(x, 2), a DOUBLE, NULL past the largest DOUBLE or where it underflows to 0
+  # (SQL Anywhere 17, the iq16 profiles' judge, answers Infinity and 0 there, as its POWER does: iq17 alone)
+  - id: square_of_columns
+    sql: "SELECT id, SQUARE(sm) AS a, SQUARE(dbl) AS b, SQUARE(nm) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: square_of_constants
+    sql: "SELECT SQUARE(3) AS a, SQUARE(-2.5) AS b, SQUARE(NULL) AS c, SQUARE(0) AS d"
+    profile: iq17-default
+    engine: sa
+  - id: square_in_the_front_end_of_sql_anywhere_17_is_refused
+    sql: "SELECT SQUARE(3) AS a"
+    profile: sqla17-default
+    engine: sa
+
+  # ---- a plus before a string (IQ island, 2026-10-17; the corpus lane, measured on IQ 17.1): the string itself
+  - id: plus_before_a_string
+    sql: "SELECT id, +vc AS a, + 'x' || vc AS b FROM t ORDER BY id"
+  - id: plus_before_a_string_constant
+    sql: "SELECT +'abc' AS a, +'12' AS b"
+    engine: sa
+
+  # ---- CONVERT to DATE or TIMESTAMP with a style (IQ island, 2026-10-17; the corpus lane's CONVERT(DATETIME,
+  # '01/01/2012', 103) and kin, measured on IQ 17.1): a constant string read by the style's order, a computed one by
+  # the ODBC styles under IQ's engine; a date with a style IQ's engine's -1009145, a national type its -1001030
+  - id: convert_date_style_of_constants
+    sql: "SELECT CONVERT(DATETIME, '13/01/2012', 103) AS a, CONVERT(DATE, '01/02/2012', 101) AS b, CONVERT(DATETIME, '2013.01.31', 102) AS c, CONVERT(DATETIME, ' 1/2/2012 ', 103) AS d, CONVERT(DATETIME, '13/01/49', 3) AS e, CONVERT(DATETIME, '13/01/50', 3) AS f, CONVERT(DATETIME, '20120113', 112) AS g, CONVERT(DATETIME, '2012-01-13 10:20', 120) AS h, CONVERT(DATE, '2012-01-13 10:20:30', 120) AS i, CONVERT(DATETIME, '13-01-2012', 105) AS j"
+    engine: sa
+  - id: convert_date_style_of_constants_under_the_iq_engine
+    sql: "SELECT id, CONVERT(DATETIME, '13/01/2012', 103) AS a, CONVERT(DATE, '01/13/12', 1) AS b, CONVERT(DATETIME, '12/01/13', 11) AS c FROM t WHERE id = 1"
+  - id: convert_date_style_of_a_computed_string
+    sql: "SELECT id, CONVERT(DATETIME, LEFT(CAST(ts AS VARCHAR(30)), 16), 120) AS a, CONVERT(DATE, LEFT(CAST(ts AS VARCHAR(30)), 10), 120) AS b, CONVERT(DATETIME, LEFT(CAST(ts AS VARCHAR(30)), 19), 20) AS c FROM t WHERE id <> 5 ORDER BY id"
+    profile: iq17-default
+  - id: convert_date_style_of_a_date_under_the_iq_engine_is_iqs_error
+    sql: "SELECT CONVERT(DATE, ts, 101) AS a FROM t"
+    profile: iq17-default
+  - id: convert_date_style_of_a_date_in_the_front_end
+    sql: "SELECT CONVERT(DATE, CAST('2026-01-01 10:00:00' AS TIMESTAMP), 101) AS a, CONVERT(DATETIME, CAST('2026-01-01' AS DATE), 112) AS b"
+    engine: sa
+  - id: convert_national_type_with_a_style_under_the_iq_engine_is_refused
+    sql: "SELECT CONVERT(NVARCHAR(7), ts, 23) AS a FROM t"
+    profile: iq17-default
+  - id: convert_date_style_of_a_day_that_does_not_exist_is_refused
+    sql: "SELECT CONVERT(DATETIME, '29/02/2013', 103) AS a"
+    engine: sa
+  - id: convert_date_style_of_a_computed_string_in_another_spelling_is_refused
+    sql: "SELECT CONVERT(DATETIME, '2009-11-7' || vc, 120) AS a FROM t WHERE id = 5"
+    profile: iq17-default
+  - id: convert_date_style_names
+    sql: "SELECT CONVERT(DATE, '16.03.1993', 104), YEAR(CONVERT(DATETIME, '13/01/2012', 103)), YEAR(CONVERT(SmallDateTime, '13/01/2012', 103)), YEAR(CONVERT(timestamp, '13/01/2012', 103)), MONTH(CONVERT(date, '13/01/2012', 103))"
+    engine: sa
+
+  # ---- a date compared with a string the database computes (IQ island, 2026-10-17; the corpus lane's ts BETWEEN
+  # '2000-01-01' AND '2100-12-31' + ' 23:59:59', measured on IQ 17.1): under IQ's engine CAST(s AS TIMESTAMP)
+  # one of constants alone; one reading a column is IQ's -1001013 there
+  - id: comparing_a_date_with_a_string_of_constants
+    sql: "SELECT id, CASE WHEN ts BETWEEN '2000-01-01' AND '2026-03-04' + ' 05:06:07.123456' THEN 1 ELSE 0 END AS a, CASE WHEN ts IN ('2026-12-31 ' + '23:59:59.5', '1999') THEN 1 ELSE 0 END AS c FROM t WHERE id <> 5 ORDER BY id"
+  # beside a DATE, IQ's engine reads the string as a DATE, its time dropped (SQL Anywhere 17, the iq16 profiles' judge,
+  # as a TIMESTAMP); the front end as a TIMESTAMP
+  - id: comparing_a_date_column_with_a_string_of_a_time
+    sql: "SELECT id, CASE WHEN dt < '2026-03-04' + ' 12:00' THEN 1 ELSE 0 END AS a, CASE WHEN dt = '2026-03-04 12:00' THEN 1 ELSE 0 END AS b, CASE WHEN CAST(ts AS DATE) < '2026-03-04 12:00' THEN 1 ELSE 0 END AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: comparing_a_date_with_a_string_of_a_time_in_the_front_end
+    sql: "SELECT CASE WHEN CAST('2026-03-04' AS DATE) < '2026-03-04 12:00' THEN 1 ELSE 0 END AS a, CASE WHEN CAST('2026-03-04' AS DATE) = '2026-03-04 12:00' THEN 1 ELSE 0 END AS b"
+    engine: sa
+  - id: comparing_a_date_with_a_string_of_a_column_is_refused
+    sql: "SELECT id FROM t WHERE ts > vc || '' ORDER BY id"
+    profile: iq17-default

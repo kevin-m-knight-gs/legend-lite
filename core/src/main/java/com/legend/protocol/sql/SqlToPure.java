@@ -2448,8 +2448,20 @@ public final class SqlToPure {
     }
 
     /** A query with GROUP BY or aggregates: keys and aggregates by groupBy (or aggregate), then HAVING, then as
-     *  plain. */
+     *  plain. IQ island, 2026-10-17 (the landing's review): its guards are its own -- a subquery's grouping in one of
+     *  its aggregates' arguments neither applies nor clears them. */
     private Rel grouped(SqlAst.Select s, Input in, ValueSpecification relation) {
+        List<ValueSpecification> enclosing = new ArrayList<>(guards);
+        guards.clear();
+        try {
+            return groupedRows(s, in, relation);
+        } finally {
+            guards.clear();
+            guards.addAll(enclosing);
+        }
+    }
+
+    private Rel groupedRows(SqlAst.Select s, Input in, ValueSpecification relation) {
         // the group keys: a column is a key as itself; any other expression is computed first
         Map<String, Col> byCanon = new LinkedHashMap<>();
         Map<String, Col> keyBySource = new HashMap<>();

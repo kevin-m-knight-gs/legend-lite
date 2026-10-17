@@ -324,13 +324,16 @@ final class IqNames {
         return convert ? "convert(" + type + "," + operand + ")" : "cast(" + operand + " as " + type + ")";
     }
 
-    /** Whether {@code f} is a CONVERT with a style ({@link IqParser#CONVERT_STYLE}). */
+    /** Whether {@code f} is a CONVERT with a style ({@link IqParser#CONVERT_STYLE}, {@link
+     *  IqParser#CONVERT_DATE_STYLE}). */
     private static boolean isConvertStyle(SqlAst.FunctionCall f) {
-        return f.name().size() == 1 && f.name().get(0).text().equals(IqParser.CONVERT_STYLE);
+        return f.name().size() == 1 && (f.name().get(0).text().equals(IqParser.CONVERT_STYLE)
+                || f.name().get(0).text().equals(IqParser.CONVERT_DATE_STYLE));
     }
 
     /** IQ island, 2026-10-16 (measured on IQ 17.1): a CONVERT with a style inside an item, as IQ names it --
-     *  {@code convert(varchar(12),t.ts,107)}: its type as written, its operand, its style. */
+     *  {@code convert(varchar(12),t.ts,107)}: its type as written, its operand, its style; to a date, {@code
+     *  convert(date,'13/01/2012',103)} (2026-10-17). */
     private @com.legend.base.Nullable String convertStyle(SqlAst.FunctionCall f) {
         List<IqLexer.Token> tokens = written.tokens();
         int i = 0;
@@ -342,6 +345,15 @@ final class IqNames {
             return null;
         }
         String type = writtenType(new SqlAst.TypeName("", List.of(), tokens.get(i + 2).pos()), true);
+        if (f.name().get(0).text().equals(IqParser.CONVERT_DATE_STYLE)) {
+            // IQ island, 2026-10-17 (measured on IQ 17.1): DATE and TIMESTAMP in lower case, DATETIME and
+            // SMALLDATETIME (SQL Anywhere's domains) as written (convert(SmallDateTime,'13/01/2012',103))
+            IqLexer.Token w = tokens.get(i + 2);
+            String lower = IqLexer.lower(w.text());
+            boolean alone = i + 3 < tokens.size() && tokens.get(i + 3).isOp(",");
+            type = !alone ? null : lower.equals("date") || lower.equals("timestamp") ? lower
+                    : lower.equals("datetime") || lower.equals("smalldatetime") ? w.text() : null;
+        }
         String operand = render(f.args().get(0));
         if (type == null || operand == null || !(f.args().get(1) instanceof SqlAst.IntegerLit style)) {
             return null;

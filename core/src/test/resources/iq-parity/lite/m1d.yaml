@@ -348,10 +348,10 @@ tests:
     engine: sa
   - id: patindex_over_columns
     sql: "SELECT id, PATINDEX('%l%', vc) AS a, PATINDEX('h%', vc) AS b, PATINDEX('%e', vc) AS c FROM t ORDER BY id"
-  - id: patindex_of_a_single_character_wildcard_is_refused
+  - id: patindex_of_a_single_character_wildcard
     sql: "SELECT PATINDEX('%b_', 'abc') AS a"
     engine: sa
-  - id: patindex_of_a_set_is_refused
+  - id: patindex_of_a_set
     sql: "SELECT PATINDEX('%[0-9]%', 'ab1') AS a"
     engine: sa
   - id: patindex_of_percents_alone_under_iq_is_refused
@@ -399,7 +399,7 @@ tests:
   - id: char_of_a_numeric_is_refused
     sql: "SELECT CHAR(65.7) AS c"
     engine: sa
-  - id: ascii_in_sql_anywhere_is_refused
+  - id: ascii_in_sql_anywhere
     sql: "SELECT ASCII(vc) AS a FROM t WHERE id = 1"
     profile: sqla17-default
   - id: char_below_128_in_sql_anywhere

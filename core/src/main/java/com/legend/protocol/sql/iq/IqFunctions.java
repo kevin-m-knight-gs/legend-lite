@@ -41,8 +41,9 @@ import java.util.function.Function;
  *       length is IQ's error -1090); {@code LEFT} and {@code RIGHT} (a negative count is ''); {@code TRIM},
  *       {@code LTRIM} and {@code RTRIM} of what an ISO-8859-1 database trims (the space, tab, line feed, vertical tab,
  *       form feed, carriage return), or of a constant set; {@code REPLACE}, {@code CHARINDEX}, {@code LOCATE} (a
- *       negative start finds the last occurrence) and {@code PATINDEX} (of a constant pattern of one literal
- *       between %s) case-sensitively, as an IQ database matches, a search of 255 characters or more NULL;
+ *       negative start finds the last occurrence) and {@code PATINDEX} (of a constant pattern, LIKE's parts read
+ *       as a regular expression where they are not one literal between %s) case-sensitively, as an IQ database
+ *       matches, a search of 255 characters or more NULL;
  *       {@code UPPER}, {@code LOWER}, {@code UCASE}, {@code LCASE} by IQ's ASCII-only fold, and a {@code sqla17}
  *       profile's matching without regard to the ASCII letters' case, both composed of {@code replace} (IQ island,
  *       2026-10-14: the natives' slice);
@@ -94,12 +95,13 @@ final class IqFunctions {
         CHARINDEX(2, 2), LOCATE(2, 3), PATINDEX(2, 2), STUFF(4, 4), ASCII(1, 1), CHAR(1, 1),
         STRING(1, Integer.MAX_VALUE), UPPER(1, 1), LOWER(1, 1), UCASE(1, 1), LCASE(1, 1),
         ABS(1, 1), SIGN(1, 1), CEILING(1, 1), CEIL(1, 1), FLOOR(1, 1), ROUND(2, 2), TRUNCNUM(2, 2), MOD(2, 2),
-        REMAINDER(2, 2), SQRT(1, 1), EXP(1, 1), LN(1, 1), LOG(1, 1), LOG10(1, 1), POWER(2, 2), PI(0, 0),
+        REMAINDER(2, 2), SQRT(1, 1), EXP(1, 1), LN(1, 1), LOG(1, 1), LOG10(1, 1), POWER(2, 2), SQUARE(1, 1), PI(0, 0),
         GETDATE(0, 0), NOW(0, 0), TODAY(0, 0), CURRENT_DATE(0, 0, "current date"),
         CURRENT_TIMESTAMP(0, 0, "current timestamp"), YEAR(1, 1), MONTH(1, 1), DAY(1, 1), HOUR(1, 1),
         MINUTE(1, 1), SECOND(1, 1), QUARTER(1, 1), DOW(1, 1), DATE(1, 1), DATEPART(2, 2), DATENAME(2, 2),
         DATEADD(3, 3), DATEDIFF(3, 3), ISNUMERIC(1, 1), YEARS(1, 2), MONTHS(1, 2), WEEKS(1, 2), DAYS(1, 2),
-        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE), STR(1, 3),
+        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE),
+        CONVERT_DATE_STYLE(3, 3, IqParser.CONVERT_DATE_STYLE), STR(1, 3),
         EXTRACT(2, 2, IqParser.EXTRACT), DATEFORMAT(2, 2), DAYNAME(1, 1), MONTHNAME(1, 1), DATETIME(1, 1), YMD(3, 3),
         GREATER(2, 2), LESSER(2, 2), ARGN(2, Integer.MAX_VALUE), REVERSE(1, 1), INSERTSTR(3, 3), BYTE_LENGTH(1, 1),
         REGEXP_SUBSTR(2, 5), DATALENGTH(1, 1);
@@ -373,6 +375,7 @@ final class IqFunctions {
                         + " it answers +Infinity (an overflow, a zero to a negative power) or NULL (a negative base to"
                         + " a fraction) where lite's databases raise or answer NaN", f.pos());
             }
+            case SQUARE -> square(name, f, args);
             case GREATER, LESSER -> greaterLesser(fn == Fn.GREATER, f, at);
             case ARGN -> argn(f, at);
             case REVERSE -> reverse(name, f, args);
@@ -394,6 +397,7 @@ final class IqFunctions {
             case ISNUMERIC -> isNumeric(f, args);
             case YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES, SECONDS -> dateUnit(fn, name, f, args);
             case CONVERT_STYLE -> convertStyle(f, args);
+            case CONVERT_DATE_STYLE -> convertDateStyle(f, args, at);
             case STR -> str(f, args);
             case EXTRACT -> extract(f, args);
             case DATEFORMAT -> dateFormat(f, args);
@@ -927,6 +931,196 @@ final class IqFunctions {
         ValueSpecification shown = tooLong == null ? text
                 : tooLong instanceof com.legend.protocol.spec.CBoolean ? none : ifThen(tooLong, none, text);
         return ifThen(digits.zero(x, k), zero, shown);
+    }
+
+    /**
+     * {@code CONVERT(DATE | TIMESTAMP, x, style)} (IQ island, 2026-10-17; the corpus lane's {@code CONVERT(DATETIME,
+     * '01/01/2012', 103)} and kin, measured on IQ 17.1):
+     * <ul>
+     *   <li>of a date or a timestamp: under IQ's engine its error -1009145 as it plans ("CONVERT argument does not
+     *       match the required data type"); in SQL Anywhere's front end the style is not read, a CONVERT without
+     *       it;</li>
+     *   <li>of a constant string, read by the style ({@link #styledDate});</li>
+     *   <li>of a string the database computes, under IQ's engine, by 20, 21, 120 or 121: {@code yyyy-mm-dd} and a time
+     *       {@code hh:mm[:ss]} after one space, as CAST reads them; any other spelling is refused where it is computed
+     *       -- IQ rejects most ({@code 2009-11-7}, blanks around: its -1001006) and reads others by rules of its own
+     *       (its seconds past 59 carried, its fractions dropped). Another style there, and SQL Anywhere's front end,
+     *       are refused by name.</li>
+     * </ul>
+     */
+    private Tx convertDateStyle(SqlAst.FunctionCall f, List<Tx> args, SqlToPure.At at) {
+        Tx x = args.get(0);
+        SqlAst.Expr operand = f.args().get(0);
+        BigInteger written = ((SqlAst.IntegerLit) f.args().get(1)).value();
+        boolean toDate = ((SqlAst.IntegerLit) f.args().get(2)).value().signum() > 0;
+        Kind kind = toDate ? Kind.DATE : Kind.DATETIME;
+        String target = toDate ? "DATE" : "TIMESTAMP";
+        if (isNull(x)) {
+            return Tx.value(SqlToPure.nullOf(kind).vs(), kind, true, dated(target, null));
+        }
+        if (x.kind() == Kind.DATE || x.kind() == Kind.DATETIME) {
+            if (engine == IqDialect.Engine.IQ) {
+                throw SqlTranslationException.invalid("CONVERT of " + kindName(x.kind()) + " to " + target + " with a"
+                        + " style: the data type conversion is not possible under IQ's engine (CONVERT argument does"
+                        + " not match the required data type)" + code(-1009145, "QFA2E"), f.pos());
+            }
+            return at.tx(new SqlAst.Cast(operand, new SqlAst.TypeName(IqParser.CONVERT + target, List.of(), f.pos()),
+                    f.pos()));
+        }
+        if (x.kind() != Kind.STRING) {
+            throw SqlTranslationException.unsupported("CONVERT of " + kindName(x.kind()) + " to " + target + " with a"
+                    + " style is not supported yet", f.pos());
+        }
+        int style = written.bitLength() > 31 ? -1 : written.intValue();
+        if (operand instanceof SqlAst.StringLit s) {
+            String[] parts = styledDate(s.value(), style, settings.nearestCentury());
+            if (parts == null) {
+                throw SqlTranslationException.unsupported("CONVERT of the string '" + s.value() + "' to " + target
+                        + " by style " + written + " is not supported: it is no date of that style the island reads"
+                        + " (IQ reads some other spellings by rules of its own, and raises -157 for others)", f.pos());
+            }
+            IqType type = dated(target, Integer.parseInt(parts[0].substring(0, 4)));
+            if (toDate) {
+                return Tx.value(new CDate(PureDateLiteral.parse(parts[0]), parts[0], null), Kind.DATE, false, type);
+            }
+            String body = parts[0] + "T" + parts[1];
+            return Tx.value(new CDate(PureDateLiteral.parse(body), body, null), Kind.DATETIME, false, type);
+        }
+        if (engine != IqDialect.Engine.IQ || !ODBC_STYLES.contains(style)) {
+            throw SqlTranslationException.unsupported("CONVERT of a string the database computes to " + target + " by"
+                    + " style " + written + " is not supported yet" + (engine == IqDialect.Engine.IQ ? ": the island"
+                    + " reads styles 20, 21, 120 and 121 there" : " in SQL Anywhere's front end"), f.pos());
+        }
+        List<String[]> steps = canonicalSteps(true);
+        Tx r = SqlToPure.strict(kind, List.of(x), v -> refusedPast(SqlToPure.call("not", SqlToPure.call("matches",
+                v.get(0), new CString(ODBC_TEXT))), UNREAD_STYLE_RAISE, readDate(v.get(0), toDate, steps),
+                raise(toDate ? "StrictDate" : "DateTime")));
+        return Tx.value(r.vs(), kind, r.nullable(), dated(target, null));
+    }
+
+    /** The styles whose computed strings {@link #convertDateStyle} reads: yyyy-mm-dd and a time. */
+    private static final java.util.Set<Integer> ODBC_STYLES = java.util.Set.of(20, 21, 120, 121);
+
+    /** What {@link #convertDateStyle} reads of a computed string by an {@link #ODBC_STYLES} style. */
+    private static final String ODBC_TEXT = "^[0-9]{4}-[0-9]{2}-[0-9]{2}( [0-9]{2}:[0-9]{2}(:[0-9]{2})?)?$";
+
+    /** {@link #convertDateStyle}'s refusal of another spelling, where the database computes the string. */
+    static final String UNREAD_STYLE_RAISE = IqDialect.REFUSED_AT_RUN_TIME + "CONVERT by an ODBC style (20, 21, 120,"
+            + " 121) of a string other than yyyy-mm-dd and a time hh:mm[:ss] is not supported: IQ rejects most and reads"
+            + " others by rules of its own";
+
+    /** {@link #styledDate}'s ODBC spelling, {@code d} a digit: its date alone, with hh:nn, or with hh:nn:ss. */
+    private static final String STYLED_ODBC = "dddd-dd-dd dd:dd:dd";
+
+    /**
+     * A constant string read as a date by a CONVERT style (IQ island, 2026-10-17, measured on IQ 17.1): its date
+     * {@code yyyy-mm-dd} and time {@code hh:nn:ss}, or null where the island does not read it. 1, 101, 10 and 110 read
+     * the month first, 3, 103, 4, 104, 5 and 105 the day, 2, 102, 11 and 111 the year: three numbers, the month's and
+     * the day's of one or two digits, apart by one of /, - and . twice, blanks around. A style past 100 reads the year as
+     * written, of one to four digits ({@code 13/01/012} is the year 12); one below 100 a year of two digits by
+     * NEAREST_CENTURY ({@code 13/01/49} is 2049, {@code 13/01/50} 1950), four being IQ's -157. 12 reads {@code yymmdd},
+     * 112 {@code yyyymmdd}; 20, 21, 120 and 121 {@code yyyy-mm-dd} and a time {@code hh:nn[:ss]} after a space. A date
+     * that does not exist is IQ's -157, as is a time after the day-first styles' date: null, as is any other style.
+     */
+    static String @com.legend.base.Nullable [] styledDate(String text, int style, int nearest) {
+        char order;
+        boolean century = style >= 100;
+        switch (style) {
+            case 1, 10, 101, 110 -> order = 'M';
+            case 3, 4, 5, 103, 104, 105 -> order = 'D';
+            case 2, 11, 102, 111 -> order = 'Y';
+            case 12, 112 -> order = 'C';
+            case 20, 21, 120, 121 -> order = 'I';
+            default -> {
+                return null;
+            }
+        }
+        String time = "00:00:00";
+        String y;
+        String m;
+        String d;
+        if (order == 'I') {
+            int n = text.length();
+            if (n != 10 && n != 16 && n != 19) {
+                return null;
+            }
+            for (int i = 0; i < n; i++) {
+                char c = text.charAt(i);
+                if (STYLED_ODBC.charAt(i) == 'd' ? c < '0' || c > '9' : c != STYLED_ODBC.charAt(i)) {
+                    return null;
+                }
+            }
+            y = text.substring(0, 4);
+            m = text.substring(5, 7);
+            d = text.substring(8, 10);
+            if (n > 10) {
+                int hh = Integer.parseInt(text.substring(11, 13));
+                int nn = Integer.parseInt(text.substring(14, 16));
+                int ss = n == 19 ? Integer.parseInt(text.substring(17, 19)) : 0;
+                if (hh > 23 || nn > 59 || ss > 59) {
+                    return null;
+                }
+                time = text.substring(11, 16) + (n == 19 ? text.substring(16) : ":00");
+            }
+        } else if (order == 'C') {
+            int digits = century ? 8 : 6;
+            if (text.length() != digits || !text.chars().allMatch(c -> c >= '0' && c <= '9')) {
+                return null;
+            }
+            y = text.substring(0, digits - 4);
+            m = text.substring(digits - 4, digits - 2);
+            d = text.substring(digits - 2);
+        } else {
+            // three numbers apart by one of / - . twice, blanks around
+            int from = 0;
+            int to = text.length();
+            while (from < to && text.charAt(from) == ' ') {
+                from++;
+            }
+            while (to > from && text.charAt(to - 1) == ' ') {
+                to--;
+            }
+            String[] numbers = new String[3];
+            char separator = 0;
+            int i = from;
+            for (int k = 0; k < 3; k++) {
+                int start = i;
+                while (i < to && text.charAt(i) >= '0' && text.charAt(i) <= '9') {
+                    i++;
+                }
+                if (i == start) {
+                    return null;
+                }
+                numbers[k] = text.substring(start, i);
+                if (k < 2) {
+                    char c = i < to ? text.charAt(i) : 0;
+                    if ("/.-".indexOf(c) < 0 || c == 0 || separator != 0 && c != separator) {
+                        return null;
+                    }
+                    separator = c;
+                    i++;
+                }
+            }
+            if (i != to) {
+                return null;
+            }
+            y = order == 'Y' ? numbers[0] : numbers[2];
+            m = order == 'M' ? numbers[0] : numbers[1];
+            d = order == 'D' ? numbers[0] : order == 'M' ? numbers[1] : numbers[2];
+        }
+        if (m.length() > 2 || d.length() > 2 || (century ? y.length() > 4 : y.length() != 2)) {
+            return null;
+        }
+        int year = Integer.parseInt(y);
+        if (!century) {
+            year += year < nearest ? 2000 : 1900;
+        }
+        int month = Integer.parseInt(m);
+        int day = Integer.parseInt(d);
+        if (year < 1 || month < 1 || month > 12 || day < 1 || day > IqDateTime.daysIn(year, month)) {
+            return null;
+        }
+        return new String[] {String.format(Locale.ROOT, "%04d-%02d-%02d", year, month, day), time};
     }
 
     /** The months' abbreviations IQ's engine writes in CONVERT's styles (lower case, measured on IQ 17.1). */
@@ -1559,12 +1753,79 @@ final class IqFunctions {
     }
 
     /**
+     * {@code PATINDEX} of a pattern with a {@code _}, a {@code [set]} or a {@code %} inside its run. IQ island,
+     * 2026-10-17 (the corpus lane: {@code '%[^a-z]%'}, {@code '%[ :,.]%'}, {@code '[^?.]'}; measured on IQ 17.1, its
+     * engine's and its front end's alike): a pattern that does not start with {@code %} is LIKE's test, 1 or 0; one
+     * that does is the first place from which the rest of the pattern matches the rest of s, 0 where none does
+     * ({@code PATINDEX('%a%b', 'xaxbxb')} is 2, {@code PATINDEX('%[^?.]', 'ab?')} 0) -- a regular expression's first
+     * match, held to s's end where the pattern does not end with {@code %}, and a {@code _} a line feed too. The
+     * pattern's parts are LIKE's ({@link IqDialect#likeParts}, no escape): an empty set or one that descends (IQ finds
+     * nothing) is refused as LIKE's is, and so is a set in a case-insensitive database.
+     */
+    private Tx patternIndex(String name, SqlAst.StringLit lit, SqlAst.FunctionCall f, Tx s, IqType type) {
+        List<String> parts = IqDialect.likeParts(lit, null, true, settings.latin1());
+        boolean caseless = !settings.caseSensitive();
+        for (int i = 1; caseless && i < parts.size(); i += 2) {
+            if (parts.get(i).startsWith("[")) {
+                throw SqlTranslationException.unsupported(name + "'s [set] classes in a case-insensitive database are"
+                        + " not supported yet", lit.pos());
+            }
+        }
+        Tx str = text(s, f.args().get(1), name);
+        if (str.kind() == Kind.NULL) {
+            return Tx.value(integer(0), Kind.INTEGER, false, type);
+        }
+        ValueSpecification value = SqlToPure.valueOf(str);
+        ValueSpecification x = str.nullable() ? SqlToPure.call("toOne", value) : value;
+        ValueSpecification found;
+        if (!parts.get(0).isEmpty() || !parts.get(1).equals("%")) {
+            found = ifThen(IqDialect.likeTest(x, parts, caseless), integer(1), integer(0));
+        } else {
+            int first = 0;
+            while (parts.get(first).isEmpty() && parts.get(first + 1).equals("%")) {
+                first += 2;
+            }
+            int last = parts.size() - 1;
+            boolean open = false;
+            while (last - 1 > first && parts.get(last).isEmpty() && parts.get(last - 1).equals("%")) {
+                last -= 2;
+                open = true;
+            }
+            StringBuilder regex = new StringBuilder();
+            for (int i = first; i <= last; i++) {
+                String part = parts.get(i);
+                if (i % 2 == 1) {
+                    regex.append(part.equals("%") ? "(?:.|\\n)*" : part.equals("_") ? "(?:.|\\n)" : part);
+                } else if (caseless) {
+                    regex.append(caselessPattern(part));
+                } else {
+                    for (int k = 0; k < part.length(); k++) {
+                        char c = part.charAt(k);
+                        if ("\\.[]{}()*+?^$|".indexOf(c) >= 0) {
+                            regex.append('\\');
+                        }
+                        regex.append(c);
+                    }
+                }
+            }
+            if (!open) {
+                regex.append('$');
+            }
+            found = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("regexpIndexOf", x,
+                    new CString(regex.toString())), integer(1)));
+        }
+        ValueSpecification result = str.nullable() ? ifThen(SqlToPure.call("isEmpty", value), integer(0), found)
+                : found;
+        return Tx.value(result, Kind.INTEGER, false, type);
+    }
+
+    /**
      * {@code PATINDEX(pattern, s)} of a constant pattern of one literal run between optional %s: where the run first
      * occurs ({@code '%lit%'}), 1 or 0 for {@code 'lit%'}, where it ends s for {@code '%lit'}, 1 or 0 for {@code 'lit'};
      * 0 when either argument is NULL (measured: not NULL). A pattern of %s alone (or '') is 0 in SQL Anywhere and 1 in
-     * IQ's manual: the IQ engine's is the research's D-F6, refused. Refused by name: a pattern that is no constant, one
-     * with {@code _}, a {@code [set]} or a % inside its run, one over 126 characters (SQL Anywhere's -606, IQ's NULL:
-     * D-F7). A {@code sqla17} profile's database matches without regard to the ASCII letters' case
+     * IQ's manual: the IQ engine's is the research's D-F6, refused. A {@code _}, a {@code [set]} or a % inside the run
+     * is read by {@link #patternIndex}. Refused by name: a pattern that is no constant, one over 126 characters (SQL
+     * Anywhere's -606, IQ's NULL: D-F7). A {@code sqla17} profile's database matches without regard to the ASCII letters' case
      * ({@link #asciiFold}).
      */
     private Tx patindex(String name, SqlAst.FunctionCall f, List<Tx> args) {
@@ -1602,8 +1863,7 @@ final class IqFunctions {
         }
         String run = p.substring(from, to);
         if (run.indexOf('%') >= 0 || run.indexOf('_') >= 0 || run.indexOf('[') >= 0) {
-            throw SqlTranslationException.unsupported(name + " with a pattern other than one literal between %s (a _, a"
-                    + " [set], a % inside) is not supported yet", pe.pos());
+            return patternIndex(name, lit, f, s, type);
         }
         boolean anchoredStart = from == 0;
         boolean anchoredEnd = to == p.length();
@@ -1678,15 +1938,32 @@ final class IqFunctions {
     }
 
     /** {@code ASCII(s)}: its first character's code (an ISO-8859-1 database's byte), 0 for '', a SMALLINT. In a
-     *  {@code sqla17} profile's UTF-8 database a character above 127 is NULL (measured), refused by name. */
+     *  UTF-8 database (IQ island, 2026-10-17, the corpus lane; measured on IQ 17.1): under IQ's engine the first byte
+     *  of the first character's UTF-8, an INTEGER ({@code ASCII('é')} is 195, {@code ASCII('あ')} 227); in SQL
+     *  Anywhere's front end a character above 127 is NULL. */
     private Tx ascii(String name, SqlAst.FunctionCall f, List<Tx> args) {
-        if (!settings.latin1()) {
-            throw SqlTranslationException.unsupported(name + " in profile " + settings.spelling() + "'s UTF-8 database"
-                    + " is not supported yet: a character above 127 is NULL there", f.pos());
-        }
         Tx s = text(args.get(0), f.args().get(0), name);
-        return strict(Kind.INTEGER, IqType.integer("SMALLINT", BigInteger.ZERO, BigInteger.valueOf(255), false),
-                List.of(s), v -> SqlToPure.call("ascii", v.get(0)));
+        IqType smallint = IqType.integer("SMALLINT", BigInteger.ZERO, BigInteger.valueOf(255), false);
+        if (settings.latin1()) {
+            return strict(Kind.INTEGER, smallint, List.of(s), v -> SqlToPure.call("ascii", v.get(0)));
+        }
+        if (engine == IqDialect.Engine.IQ) {
+            return strict(Kind.INTEGER, IqType.integer("INTEGER", BigInteger.ZERO, BigInteger.valueOf(255), false),
+                    List.of(s), v -> {
+                        // the code point's leading UTF-8 byte: 192, 224 or 240 beside its top 5, 4 or 3 bits
+                        ValueSpecification c = SqlToPure.call("ascii", v.get(0));
+                        return ifThen(lt(c, integer(128)), c, ifThen(lt(c, integer(2048)), lead(192, c, 64), ifThen(
+                                lt(c, integer(65536)), lead(224, c, 4096), lead(240, c, 262144))));
+                    });
+        }
+        Tx r = strict(Kind.INTEGER, smallint, List.of(s), v -> ifThen(SqlToPure.call("greaterThan", SqlToPure.call(
+                "ascii", v.get(0)), integer(127)), SqlToPure.empty(), SqlToPure.call("ascii", v.get(0))));
+        return Tx.value(r.vs(), Kind.INTEGER, true, r.detail());
+    }
+
+    /** {@code base + c / unit}, c's leading UTF-8 byte ({@link #ascii}). */
+    private static ValueSpecification lead(long base, ValueSpecification c, long unit) {
+        return AppliedFunction.infixRun("plus", List.of(integer(base), SqlToPure.wholeQuotient(c, integer(unit))));
     }
 
     /** {@code CHAR(n)}: the character of code n (an ISO-8859-1 database's), NULL outside 0 .. 255. Refused by name: a
@@ -2394,8 +2671,28 @@ final class IqFunctions {
      * A string is IQ's -1009145 (refused); in SQL Anywhere's front end POWER stays refused.
      */
     private Tx iqPower(String name, SqlAst.FunctionCall f, List<Tx> args) {
-        Tx x = asDouble(args.get(0), f.args().get(0), name);
-        Tx y = asDouble(args.get(1), f.args().get(1), name);
+        return power(asDouble(args.get(0), f.args().get(0), name), asDouble(args.get(1), f.args().get(1), name));
+    }
+
+    /**
+     * {@code SQUARE(x)} (IQ island, 2026-10-17, the corpus lane; measured on IQ 17.1, its engine's and its front
+     * end's alike): {@code POWER(x, 2)} -- IQ's own error for a string names POWER -- a DOUBLE, NULL past the largest
+     * DOUBLE or where it underflows to 0 (SQUARE(1e-162)), a subnormal kept (SQUARE(3e-162) is 1e-323). In SQL
+     * Anywhere's front end read in an iq17 profile only: SQL Anywhere 17, the other profiles' judge, answers Infinity
+     * and 0 there, as its POWER does (refused by name).
+     */
+    private Tx square(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        if (engine != IqDialect.Engine.IQ && (settings.base() != IqSettings.Base.IQ16 || settings.latin1())) {
+            throw SqlTranslationException.unsupported(name + "(...) is not supported yet in SQL Anywhere's front end"
+                    + " in profile " + settings.spelling() + ": SQL Anywhere 17 answers +Infinity past the largest"
+                    + " DOUBLE and 0 where it underflows, where IQ 17.1 answers NULL", f.pos());
+        }
+        return power(asDouble(args.get(0), f.args().get(0), name), Tx.value(new CFloat(2.0), Kind.FLOAT, false,
+                new IqType("DOUBLE")));
+    }
+
+    /** x to the power y, DOUBLEs, as {@link #iqPower} reads it. */
+    private Tx power(Tx x, Tx y) {
         Tx r = strict(Kind.FLOAT, new IqType("DOUBLE"), List.of(x, y), v -> {
             ValueSpecification b = v.get(0);
             ValueSpecification e = v.get(1);
@@ -4102,26 +4399,36 @@ final class IqFunctions {
     private Tx stringDate(Tx x, boolean toDate, IqType type) {
         Kind kind = toDate ? Kind.DATE : Kind.DATETIME;
         List<String[]> steps = canonicalSteps(engine == IqDialect.Engine.IQ);
-        Tx r = SqlToPure.strict(kind, List.of(x), v -> {
-            // each step reads the last once: the string's Pure grows with the steps, not with their groups
-            ValueSpecification text = SqlToPure.call("toLower", v.get(0));
-            for (String[] step : steps) {
-                text = SqlToPure.call("regexpReplace", text, new CString(step[0]), new CString(step[1]),
-                        new com.legend.protocol.spec.CBoolean(false));
-            }
-            ValueSpecification at = SqlToPure.call("parseDate", text);
-            ValueSpecification value = toDate ? typed(SqlToPure.call("datePart", at), "StrictDate")
-                    : typed(at, "DateTime");
-            if (!toDate) {
-                // as the constant's reader refuses it (IqDateTime.read; 2026-10-16, the landing's review): SQL
-                // Anywhere drops a timestamp's hours and minutes after the year 7910
-                value = refusedPast(SqlToPure.call("matches", text, new CString(PAST_TIMED)), PAST_TIMED_RAISE, value,
-                        raise("DateTime"));
-            }
-            return refusedPast(SqlToPure.call("not", SqlToPure.call("matches", text, new CString(CANONICAL))),
-                    UNREAD_DATE_RAISE, value, raise(toDate ? "StrictDate" : "DateTime"));
-        });
+        Tx r = SqlToPure.strict(kind, List.of(x), v -> readDate(v.get(0), toDate, steps));
         return Tx.value(r.vs(), kind, r.nullable(), type);
+    }
+
+    /** A string the database computes of constants, compared with a timestamp under IQ's engine: the TIMESTAMP CAST
+     *  reads; with a DATE ({@code date}), the DATE ({@link #stringDate}; IqDialect's comparison, IQ island,
+     *  2026-10-17). */
+    Tx compared(Tx x, boolean date) {
+        return stringDate(x, date, dated(date ? "DATE" : "TIMESTAMP", null));
+    }
+
+    /** A string's value {@code v} read as {@link #stringDate} reads it, by {@code steps}. */
+    private static ValueSpecification readDate(ValueSpecification v, boolean toDate, List<String[]> steps) {
+        // each step reads the last once: the string's Pure grows with the steps, not with their groups
+        ValueSpecification text = SqlToPure.call("toLower", v);
+        for (String[] step : steps) {
+            text = SqlToPure.call("regexpReplace", text, new CString(step[0]), new CString(step[1]),
+                    new com.legend.protocol.spec.CBoolean(false));
+        }
+        ValueSpecification at = SqlToPure.call("parseDate", text);
+        ValueSpecification value = toDate ? typed(SqlToPure.call("datePart", at), "StrictDate")
+                : typed(at, "DateTime");
+        if (!toDate) {
+            // as the constant's reader refuses it (IqDateTime.read; 2026-10-16, the landing's review): SQL
+            // Anywhere drops a timestamp's hours and minutes after the year 7910
+            value = refusedPast(SqlToPure.call("matches", text, new CString(PAST_TIMED)), PAST_TIMED_RAISE, value,
+                    raise("DateTime"));
+        }
+        return refusedPast(SqlToPure.call("not", SqlToPure.call("matches", text, new CString(CANONICAL))),
+                UNREAD_DATE_RAISE, value, raise(toDate ? "StrictDate" : "DateTime"));
     }
 
     /** A year of 1 to 9999, four digits. */

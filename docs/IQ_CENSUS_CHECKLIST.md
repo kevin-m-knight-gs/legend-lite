@@ -194,10 +194,24 @@ island's reason, those IQ answers, and what became of them:
   later columns read twice in its own select rather than into each read (`Fold.rereadsLarge`). 32 of the 44 answer
   (sede-13007: 9.6 KB of SQL, where the bound lifted wrote 1.5 MB); 8 pass the bound still; the SE judge unchanged
   but ties;
-- not built yet: the name IQ gives an
-  unaliased expression it spells with its own rules (32: tables qualified, `count()`, an inner alias kept); RAND (8,
-  in ORDER BY: no answer to judge); DATEADD's counts that may pass 32 bits (10); STR, LOG and LOG10 of an UNSIGNED
-  number (13); CONVERT's styles to other lengths (5).
+- measured and built in the landing's later round (2026-10-17, each snapped from IQ 17.1): PATINDEX of LIKE's `_`,
+  `[set]`s and a `%` inside (`'%[^a-z]%'`, `'[^?.]'`): a pattern not starting with `%` is LIKE's test, one starting
+  with it the first place from which the rest matches, held to the end without a trailing `%` (a regular
+  expression's first match, `regexpIndexOf`); ASCII in a UTF-8 database, under IQ's engine the first UTF-8 byte
+  (`ASCII('é')` is 195), in the front end NULL past 127; SQUARE, which is POWER(x, 2) (NULL past the largest DOUBLE
+  and where it underflows; SQL Anywhere 17 answers Infinity there, so its front end is read in the iq17 profiles
+  only); a plus before a string, the string; CONVERT to DATE or TIMESTAMP with a style: a constant string read by
+  the style's order (103 day first, 101 month first, 102 year first; a style past 100 reads the year as written, one
+  below it two digits by NEAREST_CENTURY), a computed one by 20, 21, 120 and 121 under IQ's engine (`yyyy-mm-dd` and
+  `hh:mm[:ss]` only: IQ rejects `2009-11-7` and blanks there, and reads seconds past 59 by its own rules), a date
+  with a style IQ's engine's -1009145, a national type its -1001030; a date compared with a string computed of
+  constants (`'2100-12-31' + ' 23:59:59'`), as CAST reads it, where one reading a column is IQ's -1001013. Beside a
+  DATE, IQ's engine reads a compared string as a DATE, its time dropped (`dt = '2026-03-04 12:00'` holds); SQL
+  Anywhere's front end and SQL Anywhere 17 read it as a TIMESTAMP;
+- out: the name IQ gives an unaliased expression (42): IQ prints it after its own rewrite, derived tables merged,
+  an inner alias folded in as `x as alias`, generated names (`users_2__`) and spacing (`COUNT( Posts.Id)`), none
+  of which the query's text holds. Not built yet: RAND (8, in ORDER BY: no answer to judge); CONVERT's styles to
+  other lengths (5).
 
 ### Phase 2: the answers judged (2026-10-16)
 

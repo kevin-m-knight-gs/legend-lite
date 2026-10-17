@@ -777,7 +777,9 @@ _IQ_SHOWCASE_DATA = [
 junit_test(
     name = "iq_parity_test",
     memory_mb = 768,
-    size = "medium",
+    # 4,100 cases, 8,500 runs by profile, each a model compiled and a query run (IQ island, 2026-10-17): 43 s alone,
+    # past medium's 300 s in //gates:local beside the other lanes (landing 5's gate run)
+    size = "large",
     srcs = ["src/test/java/com/legend/integration/IqParityTest.java"],
     data = _IQ_PARITY_DATA + _IQ_SHOWCASE_DATA,
     jvm_flags = _IQ_PARITY_FLAGS + [
@@ -819,7 +821,8 @@ junit_test(
 junit_test(
     name = "iq_parity_postgres_test",
     memory_mb = 768,
-    size = "medium",
+    # :iq_parity_test's cases on an embedded Postgres (IQ island, 2026-10-17): sized as that lane is
+    size = "large",
     srcs = ["src/test/java/com/legend/server/IqParityPostgresTest.java"],
     data = _IQ_PARITY_DATA + [
         "@embedded_postgres//:pg/PG_ROOT",
