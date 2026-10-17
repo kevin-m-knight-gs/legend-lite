@@ -90,10 +90,13 @@ layout lock, maximise) is not a command.
 - The headless entry points and their JSON are internal (Python's public methods wrap them), so swapping them for
   one `apply` later is invisible to Python users.
 - The document formats are unchanged.
-- Python's public API changes very little against `main`:
+- Python's public API changes little against `main`:
   - **added:** `Grid.column()` and `Page.grid(dimensions=)`;
-  - **changed meaning:** `Grid.measure()` (now a column's Aggregation, or a calculated column) and `Grid.sort()` (now
-    replaces that column's sort).
+  - **changed meaning:** `Grid.measure()` (now a column's Aggregation, or a calculated column; a dimension's refused),
+    `Grid.sort()` (now the menu's Add: replaces that column's sort), `Grid.group()` and `Grid.pivot()` (a column that
+    is not a dimension refused: `Page.grid(rows=['year'])` needs `dimensions=['year']`), and `Grid.configure()` (a
+    host's patch, merged and folded, with Column Properties' rules for a column's kind and Aggregation, where it wrote
+    the document raw).
 - Most public methods map one-to-one onto commands.
 
 **Before merge, fix what #47 itself introduced or made worse:**
@@ -105,11 +108,24 @@ layout lock, maximise) is not a command.
 | 3 | `Grid.column(aggregate=None)` can't clear an Aggregation or weight; the screen can | `column()` is new | **Done:** da1f546, a "keep" default, as `chart()` uses, so None clears |
 | 4 | `Grid.configure` is a raw dictionary write (**checked**). After any `gridEdit`, which now writes the folded query, a `configure({'maxRows': …})` is overridden on open, and `columns` is replaced wholesale | configure is older, but #47 made the loss likely | **Done:** da1f546, through gridEdit's `configuration` part, by `config.ts withConfiguration` (moved out of app.ts `applyConfiguration`, which calls it), then folded |
 
+**The round's independent audit (two read-only auditors, 2026-10-17, the reviewers' sessions being offline) found, and
+#47 fixed before merge:** a saved list's conversion and Open in Grid's undone by the opener reading the folded query
+back (folded now); a partial `appearance` from `configure` wiping the rest (merged now); Open in Grid's carriers
+colliding on one (column, aggregate) pair; a saved live chart's values collapsing onto one Aggregation (a value its
+grid carries as it is keeps its aggregate); `setSorts` refusing a pivot's filler count header; a sort of a measure
+left out kept on open; `measure()` making a dimension a measure; `configure` setting what `column()` refuses;
+`sort()`'s move-last rule held in Python (`grid-edits.ts addSort`, the menu's too); a grid measures list read at run
+time (refused now); unknown `gridEdit` parts ignored (refused now); reopening's notes dropped (warned now).
+
 **Known differences to record as follow-ups, not fix in #47:**
 - `gridEdit` only compiles. The screen runs the change, so a pivot past 500 values is refused on screen but accepted
   by Python until its view runs (**checked**).
 - A live chart's saved spec goes stale after a Python grid edit until a chart method touches it. The screen
   re-follows on every view (**checked**). A page-level `apply` fixes this properly.
+- Open in Grid says nothing of a chart value it could not make a column (its notes are dropped); the value is kept,
+  its own column's.
+- `gridEdit` does not move the tree with the configuration as Properties Apply does (`withTotals`, `withExpandTo`), so
+  `configure({'showRootAggregation': ...})` does not change the view (as before this round).
 
 ## 7. Screen bugs found along the way (already on main; not #47's)
 

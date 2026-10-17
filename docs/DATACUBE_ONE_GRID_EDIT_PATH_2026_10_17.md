@@ -81,16 +81,19 @@ it, and aggregates source and row-level columns only. The panel now disables bot
 Headless `gridEdit` replaces `gridQuery`. It opens the grid on the configuration the screen opens on (`fromSnapshot`,
 as `app.ts`'s constructor), turns Python's call into the module's edits -- in the order configuration, columns, rows,
 pivot, measures, sorts -- then folds and compiles the grid as `#applyDraft` does, and answers the whole cube document
-as DataCube writes it (`{cube}`), which Python's page keeps. The open groups stay, as the screen's edits keep them.
+as DataCube writes it (`{cube, notes}`: what opening it over its frame changed, which Python warns), which Python's page
+keeps. The open groups stay, as the screen's edits keep them. A part it does not know is refused. Unlike `#applyDraft`,
+it does not move the tree with the configuration (`withTotals`, `withExpandTo`), so `showRootAggregation` set from
+Python does not change the view -- as before this round; recorded in the homework doc.
 
 | Python | The module |
 |---|---|
 | `grid.group(*rows)`, `grid.pivot(*columns)` | `setGrouping`, `setPivot` (unpivoted, a sort of a pivot's header goes with its headers) |
-| `grid.sort(column, direction)` | `setSorts`: the column's sort replaced, added last (the menu's Add Ascending) |
+| `grid.sort(column, direction)` | `addSort`, the header menu's Add Ascending and Add Descending: the column's sort replaced, added last; one it has already changes nothing |
 | `grid.column(name, kind=, aggregate=, weight=)` (new) | `setColumn`, as Column Properties sets it; None clears an Aggregation or a weight |
-| `grid.measure(column, fn, weight=)` | `measureAsColumn`: `setColumn(column, {aggregate: fn, weight})` |
+| `grid.measure(column, fn, weight=)` | `measureAsColumn`: `setColumn(column, {aggregate: fn, weight})` -- a measure's, as the panel refuses a dimension's (only converting a saved list or a chart's values makes a dimension a measure) |
 | `grid.measure(column, fn, name=...)`, or of a grouped column | `measureAsColumn`: a calculated column `name` reading `column`, by the column editor's own steps (`column-draft.ts`), with that Aggregation |
-| `grid.configure(settings)` | `config.ts withConfiguration`, the rule `CubeApp.applyConfiguration` applies a host's patch by: each column's merged, None clears |
+| `grid.configure(settings)` | `config.ts withConfiguration`, the rule `CubeApp.applyConfiguration` applies a host's patch by: the appearance and each column's merged, None clears; a column's `kind`, `aggregateFn` and `aggregationParameters` by `setColumn` (a kind is set, never cleared) |
 | `Page.grid(rows=, columns=, measures=, sort=, dimensions=)` | the same, in one call (`dimensions`: `setColumn(name, {kind: 'dimension'})` first) |
 
 `gridQuery`'s own parsing and checks went (`columnsFrom`, `measuresFrom`, `sortsFrom`, `queryFrom`,
@@ -118,16 +121,21 @@ The chart's model is unchanged: its grouping and its `(column, aggregate)` pairs
 Column Properties where it read the grid's measures:
 
 - **A following chart** (`live`: not frozen, not of rows, not drawing the grid as shown) takes the grid's grouping, as
-  today, and plots its value column at the grid's Aggregation of that column (`followCube`). Changing a column's
-  Aggregation, on the screen or from Python, redraws the chart that plots it. A kind of several values keeps its own;
-  a KPI or a gauge follows the first measure column at its Aggregation. A hand on what the grid sets freezes the chart
-  (`freezesOn`), as today.
+  today, and plots each value at the grid's Aggregation of the column that carries it (`followCube`): the value's own
+  column at its aggregate, else a calculated copy of that column at it (`grid-edits.ts copiedColumn` -- so a saved
+  page's min and max of one column, converted into the column and a copy, stay two values), else its own column, whose
+  Aggregation it takes. Changing a column's Aggregation redraws a grouped grid's chart that plots it; with nothing
+  grouped, a chart is left as it is. A kind of several values (dumbbell, range, radar, parallel) keeps its own values;
+  a KPI or a gauge keeps its own column and takes that column's Aggregation. A hand on what the grid sets freezes the
+  chart (`freezesOn`), as today.
 - **A frozen chart** keeps its own grouping and pairs, whatever the grid does.
 - **A new chart's default value** is its column at that column's Aggregation (`firstMeasure`), not always `sum`.
 - **Open in Grid** (`page/cube-page.ts #openEditor`) turns the chart's pairs into the editing grid's Column
-  Properties by `measuresAsColumns`: a pair's column its Aggregation, a second pair of a column a calculated column
-  named for it. **Update** regroups the chart by the follow rule once and freezes it again, as today: its values read
-  back from those columns' Aggregation, so a pair changed in the grid reaches the chart.
+  Properties by `measuresAsColumns`, each (column, aggregate) pair once: a pair's column its Aggregation, a second pair
+  of a column a calculated column named for it; the draft is folded before the grid opens it, so the source grid's
+  own Aggregations do not replace the chart's. **Update** regroups the chart by the follow rule once and freezes it
+  again, as today: each value read back from the column that carries its pair (two values of one pair alike), so a
+  pair changed in the grid reaches the chart -- except a kind of several values, which keeps its own.
 
 ## 4. Behaviour changes
 
@@ -147,7 +155,10 @@ Column Properties where it read the grid's measures:
   - A grid's open groups stay when it is regrouped, as on the screen (Python let them go).
   - A chart told to follow its grid and told a value at another aggregate than the grid's Aggregation is refused.
 - **The browser app.**
-  - A saved cube's measures are converted on open, said in its notes.
+  - A saved cube's measures are converted on open, said in its notes, and folded, so the grid opens on them; a sort of
+    a measure left out goes too, said.
+  - A grid that carries a measures list (a JavaScript host's, through `CubeApp.change`) is refused by its controller,
+    never read.
   - Open in Grid writes Column Properties and calculated columns: the grid it opens shows its aggregates in Column
     Properties.
   - A new chart's default value takes its column's Aggregation, and a following chart plots its column at the
