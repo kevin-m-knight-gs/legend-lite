@@ -876,6 +876,17 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 ? List.of(a.get(0), a.get(1), new SqlExpr.StringLit(" ")) : a).append(")");
     }
 
+    /** {@code lpad}/{@code rpad} where the length is a 32-bit INTEGER (DuckDB's, Postgres's), which neither narrows from a
+     *  BIGINT implicitly: a length that is no literal, a computed Pure Integer (a BIGINT), cast to INTEGER (IQ island,
+     *  2026-10-15: a CHAR(n) padded to n UTF-8 bytes, rpad(s, length(s) + n - bytes(s))). */
+    protected final SqlWriter padWithSpaceToInteger(SqlWriter writer, String fn, List<SqlExpr> a) {
+        if (a.get(1) instanceof SqlExpr.IntLit) {
+            return padWithSpace(writer, fn, a);
+        }
+        writer.append(fn).append("(").expr(a.get(0), 0).append(", CAST(").expr(a.get(1), 0).append(" AS INTEGER), ");
+        return writer.expr(a.size() == 2 ? new SqlExpr.StringLit(" ") : a.get(2), 0).append(")");
+    }
+
     /** toUpperFirstCharacter / toLowerFirstCharacter: {@code fn(substr(x, 1, 1)) || substr(x, 2)}; the {@code ||}
      *  concat misbinds under +/comparison — walk-wrapped. */
     protected final SqlWriter firstCharCased(SqlWriter writer, String fn, List<SqlExpr> a, int parentPrec) {

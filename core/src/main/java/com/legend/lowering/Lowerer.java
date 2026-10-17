@@ -1404,8 +1404,24 @@ public final class Lowerer {
     /** extend(~cols): existing projections stay, computed columns APPEND. */
     private SqlSelect extend(SqlSelect src, List<TypedFuncCol> columns,
                              ExprType info) {
-        SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
+        SqlSelect base = Fold.extendFolds(src) ? src : extendOver(src);
         return computedColumns(base, columns, info, true, false);
+    }
+
+    /** The select an extend that does not fold computes its columns in: {@code src} isolated. Over a truncated
+     *  {@code src} (IQ island, 2026-10-16, the landing's review) only when the isolation keeps {@code src}'s rows as
+     *  they are read: its names apart without regard to case (a database that reads names so, DuckDB even quoted,
+     *  binds two of them to the first) and its whole order carried out ({@link Sorts#keepsOrder}). Else
+     *  the extend folds into {@code src} as before that day: the same values, computed for every row its limit
+     *  reads. */
+    private SqlSelect extendOver(SqlSelect src) {
+        if (src.distinct()) {
+            return Sorts.isolateOrdered(this, src);
+        }
+        if (!Fold.namesApartWithoutCase(src)) {
+            return src;
+        }
+        return Sorts.keepsOrder(src) ? Sorts.isolateOrdered(this, src) : src;
     }
 
     /** project(~cols): the computed columns REPLACE the projection list.
@@ -1464,6 +1480,7 @@ public final class Lowerer {
         }
         SqlSelect target = base;
         List<OutputCol> contract = outputsOf(info);
+        java.util.Map<String, OutputCol> byContract = Fold.byName(contract);
         // one fold budget for the pass (Fold.Budget): a computed projection written into the columns' reads more
         // than the budget allows makes the pass unfoldable, and the retry over the isolated base reads it by name
         Fold.Budget budget = new Fold.Budget();
@@ -1522,11 +1539,11 @@ public final class Lowerer {
                                 SqlExpr.Column.of(lat, "elem",
                                         PureSql.type(elemT), true,
                                         com.legend.sql.OutputCol.Origin.DERIVED),
-                                c.name(), Fold.named(contract, c.name())));
+                                c.name(), Fold.named(byContract, contract, c.name())));
                         continue;
                     }
                     ps.add(new SqlSelect.Projection(r.expr(), c.name(),
-                            Fold.named(contract, c.name())));
+                            Fold.named(byContract, contract, c.name())));
                 }
                 case Resolution.Unfoldable u -> {
                     miss[0] = c.name();
@@ -1648,6 +1665,10 @@ public final class Lowerer {
     private SqlExpr predicateOrThrow(SqlSelect isolated, TypedLambda lambda, String op) {
         return switch (tryPredicate(isolated, lambda)) {
             case Resolution.Resolved r -> r.expr();
+            // IQ island, 2026-10-15 (the corpus lane): a miss of an ENCLOSING row's read (its column computed over its
+            // row set, a window's, which no scope may write in place) is the enclosing boundary's to cure: it isolates
+            // its select, the column becomes a plain one, and the correlated read resolves
+            case Resolution.Unfoldable u when u.enclosing() -> throw new UnfoldableRef(u.column(), true);
             case Resolution.Unfoldable u -> throw new IllegalStateException(
                     op + " predicate references column '" + u.column()
                             + "', unresolvable even after isolation [param="
@@ -1681,7 +1702,16 @@ public final class Lowerer {
     /** Resolve refs via projections, noting whether any substituted a window call. */
     private @com.legend.base.Nullable WindowPredicate tryWindowPredicate(SqlSelect select, TypedLambda lambda) {
         var saw = new AtomicBoolean();
+        String own = lambda.parameters().isEmpty() ? null : lambda.parameters().get(0);
         return switch (attempt(() -> scalar(LambdaBinding.last(lambda), (v, name) -> {
+            if (v != null && own != null && !v.equals(own)) {
+                // IQ island, 2026-10-15 (the corpus lane's judged runs: sede-18206): only the lambda's own row reads
+                // this select's projections; an enclosing row's read here (a correlated subquery's filter, $r.rn
+                // beside the own row's window column $r1.rn) was resolved against this select by name -- the inner
+                // window in the outer row's place, ROW_NUMBER() <= ROW_NUMBER(), every row counted. A miss: the
+                // caller isolates and resolves it as the enclosing row's
+                throw new UnfoldableRef(name == null ? "<whole variable>" : name);
+            }
             SqlExpr resolved = projectionExprOrThrow(select, name);
             if (resolved instanceof SqlExpr.WindowCall) {
                 saw.set(true);
@@ -1782,8 +1812,13 @@ public final class Lowerer {
             // the silent self-correlation resolved an outer row's read
             // against a same-named INNER column (the two regressions in
             // this method's doc-comment). A genuine miss takes the
-            // designed UnfoldableRef route (isolate-or-loud).
-            throw new UnfoldableRef(name == null ? "<whole variable>" : name);
+            // designed UnfoldableRef route (isolate-or-loud). It is an
+            // enclosing row's only where an enclosing scope is (2026-10-16,
+            // the relational corpus: with none, a plan's open variable --
+            // let name = 'ok'; ...filter(f|$f.legalName == $name) -- escaped
+            // predicateOrThrow as the signal, past the plan's IllegalState
+            // fallback that binds it as a parameter)
+            throw new UnfoldableRef(name == null ? "<whole variable>" : name, !outers.isEmpty());
         };
     }
 
@@ -2508,6 +2543,23 @@ public final class Lowerer {
         }
     }
 
+    /** A CASE whose ELSE is a CASE, as one CASE of both's WHENs: {@code CASE WHEN a THEN x ELSE CASE WHEN b THEN y
+     *  ELSE z END END} is {@code CASE WHEN a THEN x WHEN b THEN y ELSE z END} in every SQL (2026-10-15). Not where the
+     *  ELSE is an enum's decode the CASE around it is no part of (2026-10-16, the relational corpus's
+     *  tdsWithEnumReturn: {@code if(c, |$p.e, |$p.e)} over an enum, flattened, read as no decode of one column, so its
+     *  plan's column type went unspelled): the decode keeps its own CASE. */
+    private static SqlExpr flatCase(SqlExpr e) {
+        if (e instanceof SqlExpr.Case c && c.otherwise() instanceof SqlExpr.Case inner
+                && (com.legend.sql.DecodeShapes.flattenDecode(inner).isEmpty()
+                        || com.legend.sql.DecodeShapes.flattenDecode(e).isPresent())) {
+            List<SqlExpr.Case.When> whens = new ArrayList<>(c.whens().size() + inner.whens().size());
+            whens.addAll(c.whens());
+            whens.addAll(inner.whens());
+            return new SqlExpr.Case(whens, inner.otherwise());
+        }
+        return e;
+    }
+
     /**
      * Literal Integer args (ntile n, lag/lead offset) ride along; variable
      * refs are the window params; anything else is LOUD, never dropped.
@@ -2964,20 +3016,23 @@ public final class Lowerer {
 
             case TypedSpec js when JsonEmission.owns(js) -> JsonEmission.lower(this, js, columns);
             // if(cond, {|then}, {|else}) — scalar position: CASE WHEN.
-            // If-chains (the mapping enum decode emission) render as NESTED
-            // CASE expressions in the otherwise slot — correct; single-CASE
-            // flattening is a cosmetic peephole if ever demanded.
+            // If-chains (the mapping enum decode emission, a SQL island's CASE
+            // of many WHENs) render as ONE CASE (flatCase): nested in the
+            // otherwise slot they were correct, but DuckDB refuses a CASE
+            // nested past its max_expression_depth (1,000), which one CASE of
+            // 1,000 WHENs is not (2026-10-15, the IQ island's census scale
+            // suite: Tableau falls back to "large IN or CASE expressions").
             case TypedIf i -> {
                 TypedSpec thenB = PureSql.thunkBody(i.thenBranch());
                 TypedSpec elseB = i.elseBranch()
                         .map(PureSql::thunkBody).orElse(null);
                 // Any-LUB branch alignment (variant carrier) lives in
                 // MixedEncoding.lubCase — the mixed-kind discipline.
-                yield MixedEncoding.lubCase(i.info().type(), thenB, elseB,
+                yield flatCase(MixedEncoding.lubCase(i.info().type(), thenB, elseB,
                         scalar(i.condition(), columns),
                         scalar(thenB, columns),
                         elseB == null ? new SqlExpr.NullLit()
-                                : scalar(elseB, columns));
+                                : scalar(elseB, columns)));
             }
 
             // An enum VALUE in scalar position renders as its name string
@@ -3345,7 +3400,7 @@ public final class Lowerer {
      */
     private SqlSelect flatten(TypedFlatten fl) {
         SqlSelect src = relation(fl.source());
-        SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
+        SqlSelect base = Fold.extendFolds(src) ? src : Sorts.isolateOrdered(this, src);
         return foldOrIsolate(base, "flatten", b -> buildFlatten(b, fl));
     }
 

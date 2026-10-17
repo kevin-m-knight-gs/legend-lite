@@ -751,6 +751,7 @@ final class Typer {
             // legacyNavigate: the pre-map rule, target table rows spelled in
             case LEGACY_NAVIGATE -> NavigateChecker.legacy(this, af, env);
             case ROUTE -> throw NavigateChecker.routeAlone();
+            case INLINE_VIEW -> InlineViewChecker.check(this, af, env);
             case IS_DISTINCT -> IsDistinctChecker.check(this, af, env);
             case GRAPH_FETCH -> GraphFetchChecker.graphFetch(this, af, env);
             case GRAPH_FETCH_CHECKED ->
@@ -1793,12 +1794,15 @@ final class Typer {
         }
         List<Type.Column> cols = new ArrayList<>(arr.colSpecs().size());
         List<String> names = new ArrayList<>(arr.colSpecs().size());
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (ColSpec cs : arr.colSpecs()) {
             if (cs.function1() != null) {
                 throw new TypeInferenceException("~" + cs.name()
                         + ": mapped/aggregate column specifications need an enclosing call to type against");
             }
-            if (names.contains(cs.name())) {
+            // a set's lookup, not the list's scan (2026-10-15, the IQ island's census scale suite: quadratic in a
+            // wide select's width)
+            if (!seen.add(cs.name())) {
                 throw new SchemaInvariantException("duplicate column '" + cs.name() + "' in ~[…]");
             }
             names.add(cs.name());

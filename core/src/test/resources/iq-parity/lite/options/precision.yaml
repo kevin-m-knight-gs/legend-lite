@@ -1,0 +1,78 @@
+# precision and scale, PUBLIC-only, at values other than the bases' (126/38 and 30/6), and precision x division
+# (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the options framework): the widest NUMERIC of a
+# computation and the scale kept when one is cut to it -- an AVG's type, a quotient's, a CAST to an unqualified NUMERIC,
+# a string read as a number. Given for the database (its PUBLIC value); given for the query, IQ's error -203 (a
+# PUBLIC-only option is never temporary). Judged by SQL Anywhere 17's answers. The SQL in YAML double quotes.
+tests:
+  - id: precision_40_scale_10_avg_of_an_integer
+    sql: "SELECT AVG(id) AS a FROM t"
+    settings: "database.precision=40, database.scale=10"
+    profile: iq16-default, sqla17-default
+  - id: precision_40_scale_10_avg_of_a_numeric
+    sql: "SELECT AVG(nm) AS b FROM t"
+    settings: "database.precision=40, database.scale=10"
+    profile: sqla17-default
+  - id: precision_20_scale_4_avg_of_a_numeric
+    sql: "SELECT AVG(nm) AS b FROM t"
+    settings: "database.precision=20, database.scale=4"
+    profile: sqla17-default
+  - id: precision_20_scale_4_cast
+    sql: "SELECT CAST('123.456789' AS NUMERIC) AS n, CAST('-0.00005' AS NUMERIC) AS m"
+    settings: "database.precision=20, database.scale=4"
+    profile: iq16-default, sqla17-default
+  - id: precision_25_scale_5_product
+    sql: "SELECT id, nm * nm AS p, nm + 1.5 AS s FROM t ORDER BY id"
+    settings: "database.precision=25, database.scale=5"
+    profile: sqla17-default
+  - id: precision_25_scale_5_sum
+    sql: "SELECT SUM(nm) AS s FROM t"
+    settings: "database.precision=25, database.scale=5"
+    profile: sqla17-default
+  - id: precision_40_scale_10_quotient
+    sql: "SELECT 1.0/3 AS q, 10.00/7 AS r"
+    settings: "database.precision=40, database.scale=10"
+    profile: iq16-default, sqla17-default
+  - id: precision_40_scale_10_cast
+    sql: "SELECT CAST('123.456789012345' AS NUMERIC) AS n"
+    settings: "database.precision=40, database.scale=10"
+    profile: iq16-default, sqla17-default
+  - id: precision_20_scale_4_quotient
+    sql: "SELECT 1.0/3 AS q, 12345678.99/7 AS r"
+    settings: "database.precision=20, database.scale=4"
+    profile: iq16-default, sqla17-default
+  - id: precision_38_scale_6_quotient
+    sql: "SELECT 1.0/3 AS q"
+    settings: "database.precision=38, database.scale=6"
+    profile: iq16-default, sqla17-default
+  - id: scale_2_avg
+    sql: "SELECT AVG(id) AS a FROM t"
+    settings: "database.scale=2"
+    profile: sqla17-default
+  - id: precision_quotient_over_a_column
+    sql: "SELECT id, nm / 7 AS q FROM t ORDER BY id"
+    settings: "database.precision=40, database.scale=10"
+    profile: sqla17-default
+  - id: scale_above_precision_is_refused
+    sql: "SELECT 1.0/3 AS q"
+    settings: "database.precision=20, database.scale=30"
+
+  # ---- a string compared with a NUMERIC column is the column's NUMERIC first (rounded to its scale), with an
+  # expression a NUMERIC(PRECISION, SCALE) (measured at every PRECISION and SCALE; found by the precision cases)
+  - id: a_string_rounded_to_a_numeric_columns_scale_is_refused
+    sql: "SELECT id FROM t WHERE nm > '0.005' ORDER BY id"
+    profile: sqla17-default
+  - id: a_string_at_a_numeric_columns_scale
+    sql: "SELECT id FROM t WHERE nm > '0.01' ORDER BY id"
+    settings: "database.precision=20, database.scale=4"
+    profile: sqla17-default
+  - id: a_string_against_a_numeric_expression
+    sql: "SELECT id FROM t WHERE nm + 0 > '0.005' ORDER BY id"
+    profile: sqla17-default
+  - id: a_string_against_a_numeric_expression_at_precision_20_scale_4
+    sql: "SELECT id FROM t WHERE nm + 0 > '0.00005' ORDER BY id"
+    settings: "database.precision=20, database.scale=4"
+    profile: sqla17-default
+  - id: a_string_against_an_integer_column
+    sql: "SELECT id FROM t WHERE id > '2.5' ORDER BY id"
+    settings: "database.precision=20, database.scale=4"
+    profile: sqla17-default

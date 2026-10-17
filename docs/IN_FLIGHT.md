@@ -1600,7 +1600,7 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     settings).
   - **Build:** `core/BUILD.bazel`, the IQ case glob reads `lite/**/*.yaml`.
   - **The tenth line's own test harness and docs:** `testcases/IqParity.java`, `IqAnswers.java`, the two Iq parity
-    tests, the study's §9.16–§9.17, `SEMANTICS_REGISTER.md` S51 and S57.
+    tests, the study's §9.16–§9.17, `SEMANTICS_REGISTER.md` S51 and S72 (S57 when it was written).
 - **Next (landing 4): conformance to real SAP IQ 17.1.** The user now has a real IQ (a HANA Cloud data lake), reached
   locally through a session the user opens. Plan:
   - It becomes the oracle for the IQ profiles; CI still judges from the committed answers.
@@ -1608,6 +1608,92 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     error codes; unaliased names; INTERSECT/EXCEPT and the other IQ restrictions.
   - The most-used features and their scale come first, including CTEs and window functions.
   - The refusal of an outer column in a subquery's select list goes now that 9bc695885 has landed.
+- **Announced 2026-10-16: landing 4's cross-area edits of the corpus lane's round** (`claude/iq-island-4-scale`;
+  one PR and one CI run after review, the user's merge). Each was found by the corpus lane against the live IQ 17.1
+  and is judged by both `iq-parity` and both `sql-parity` ledgers:
+  - `lowering/Lowerer.java`: a correlated read of an enclosing row's window column. It was a wrong answer, then a
+    crash; now fixed. `tryWindowPredicate` takes only its own lambda's columns, and `predicateOrThrow` reports an
+    enclosing miss.
+  - `protocol/sql/InputDialect.java`: `ordersByOutput` (Postgres's default: any output name). In
+    `protocol/sql/SqlToPure.java`, `sortKey` reads it. Under DISTINCT a name the dialect reads as no output is
+    resolved in the FROM scope first, for its ambiguity error only.
+  - `protocol/sql/SqlToPure.java`, also:
+    - `computedColumns`: a one-row LATERAL query without FROM is an extend of the left relation;
+    - a flattened column (`generate_series`, `unnest`) is nullable, as Pure's typer types it.
+    The Postgres island's `lateral_select_without_from` and `lateral_reads_the_item_before_it_twice` went from refused
+    to PASS on both lanes.
+  - **Inline views, both SQL islands (the user's decision, 2026-10-16).** `Fold.filterSlot` composes an extend and a
+    later filter as Pure does (legend-engine's PCT `testExtendFilterOutNull`): the filter folds into the window's
+    WHERE. A SQL derived table's windows are computed over all of its rows, so a WHERE over a windowed derived table
+    was a wrong answer in both islands (proven on the Postgres island by 4 Postgres-judged cases). The fix leaves Pure's
+    relation semantics alone; the SQL islands mark the view:
+    - `builtin/Pure.java`: a new lite-internal native, `meta::legend::lite::inlineView<T>(Relation<T>[1])`
+      (`INTERNAL_DESUGAR` 16 to 17, within the governance ceiling; census row in `docs/LITE_INVENTION_CENSUS.md`);
+    - `platform/CoreFn.java`: its form, `INLINE_VIEW`;
+    - `compiler/spec/Typer.java` and the new `compiler/spec/InlineViewChecker.java`: typed as its relation, each window
+      inside stamped `extentBoundary` (the rule `ClassSources` applies to a class extent), the marker erased;
+    - `compiler/spec/SqlIslands.java`: supplies the marker through `SqlToPure.Sources.inlineView` (identity by
+      default, so the protocol layer names no catalog function);
+    - `protocol/sql/SqlToPure.java`: a derived table or CTE whose own query computes windows is an inline view.
+    The lowerer is unchanged; the plans gain one subquery level where a view computes windows.
+  - **A computed column after a limit, all islands and Pure (the user's decision, 2026-10-16).** IQ computes the items
+    of a TOP statement's select list its ORDER BY does not read for the rows it keeps (measured on IQ 17.1 and SQL
+    Anywhere 17), so an item that raises for a dropped row raises nowhere. The IQ island refused 114 corpus queries.
+    The lowering merged an extend after a limit into the truncated select (`Fold.extendFolds`, "extend commutes with
+    truncation", true of values, not of errors); DuckDB then computed the column for every row before its top-N:
+    - `lowering/Fold.java`: `extendFolds` refuses a select with LIMIT or OFFSET (as `projectionFolds` already did);
+      `lowering/Sorts.java`'s new `isolateOrdered` carries the subselect's ORDER BY out by output name, and
+      `lowering/Lowerer.java`'s extend and flatten use it. Pure's `limit(n)->extend(...)` now computes the column for
+      the n rows; plans gain one subquery level there. No plan golden moved but the pinned rule in `FoldTest` and
+      `LowerRelationTest` (moved, dated);
+    - `protocol/sql/InputDialect.java`: `rowLimitItems` (Postgres's default: every row, before the sort; measured on
+      Postgres 16 for a division) and `protocol/sql/SqlToPure.java`'s `assemble`: the items ORDER BY does not read are
+      computed after the sort and the limit when the dialect says so. IQ's engine: the rows up to the limit's last,
+      START AT's skipped ones too, dropped after; SQL Anywhere: the rows returned;
+    - `protocol/sql/SqlToPure.java`, also: the names a relation's columns take are compared without regard to case
+      (`taken()`), as DuckDB binds `ID` beside `id` to the first (measured: a wrong answer the new nesting exposed);
+      a computed column takes a fresh name there, its own given back last;
+    - the Postgres island keeps Postgres's order. A known gap, pinned BUG in `sql-parity`: Postgres puts an item its
+      planner costs as expensive off until after its sort, and the island's checked division is one, so on Postgres
+      the island answers a zero divisor past the limit where plain Postgres raises (`lite/math.yaml`).
+  - **The local gate's drift, fixed with the above:** the generated `builtin/Pure.java` and `native-claims.tsv`
+    regenerated for `inlineView`; the ladder and `docs/dialect-capability/` regenerated for checklist 0.5's
+    `padWithSpaceToInteger` (3dce0286a); the spec ratchet's `Form` 217 to 218 and `CatalogUpstreamDiffTest`'s
+    `NOT_UPSTREAM_MAX` 43 to 44 (`inlineView`, dated); `IqCorpusTest` fails naming its missing input instead of
+    skipping (`SkipCensusTest`'s rule), runs in its manual `:iq_corpus_test` alone (`core/BUILD.bazel` excludes it from
+    `core_tests_lib`), and its database names are pinned in `dialect-leaks/ledger.tsv` (dated).
+  - **The landing's independent review (three reviewers, 2026-10-16) and its fixes**, each pinned by a test or a
+    case measured on IQ 17.1 and SQL Anywhere 17:
+    - `lowering/`: an extend after a limit isolates only where the isolation keeps the select's names apart without
+      regard to case (DuckDB binds a subselect's `ID` beside `id` to the first, even quoted) and its whole order
+      (`Fold.namesApartWithoutCase`, `Sorts.keepsOrder`); elsewhere it folds, as before the landing.
+      `Sorts.isolateOrdered` carries an ORDER BY whole or not at all (a part of an order is another order) by the
+      names the select shows its keys under. An enclosing row's miss is a flag on `UnfoldableRef`, not a count
+      (`CodeShapeGuardrailTest` loses its `Lowerer.enclosingMisses` entry), and only where an enclosing scope is: with
+      none (a plan's open variable, `let name = 'ok'; ...filter(f|$f.legalName == $name)`) it stays the loud
+      `IllegalStateException` the plan's fallback catches -- the relational corpus's 8 executionPlan tests the
+      2026-10-15 correlated-window fix (1e461f809) had broken on both lanes, found by running `//spec:corpus_duckdb`
+      and `//spec:corpus_h2` locally. `flatCase` keeps an enum's decode its own CASE where the CASE around it is no
+      part of it (`tdsWithEnumReturn`'s plan column type).
+    - `protocol/sql/SqlToPure.java`: every set of names a relation's columns take compares without regard to case
+      (`taken()`: joins renamed apart, renames, set operations, APPLY's computed columns); the island's own result is
+      an inline view too (a Pure filter after it folded under its windows). `InputDialect.ordersNothing`: IQ's ORDER
+      BY integer past an INT's range is a constant (measured), Postgres's every integer a position.
+    - `compiler/spec/InlineViewChecker.java`: only a view's outermost windows are boundaries (a level a window
+      passed DuckDB's expression depth at 1,100 windows).
+    - The IQ island: NUMBER(*) one ROW_NUMBER, the statement's last sort key (tied rows were numbered otherwise than
+      shown on large data), with no ORDER BY or a constant one too; ROLLUP's repeated key grouped where a copy is
+      (IQ's engine: its -1001030), a key written two ways or a subquery beside ROLLUP refused by name, the alias
+      facts carried over the rewrite; a named window matched without regard to case, quoted or not; window MIN/MAX of
+      strings packed as the aggregate's (escaped); a nested WITH of one name no stack overflow (`CteDef` by
+      identity); computed date strings: an upper-case month marker, one `t` before a time, a run-time refusal by
+      name for a spelling not read and for a time after 7910; every name of `NO_SUCH_FUNCTION` measured (-265).
+    - Recorded, not fixed: ROLLUP with TOP computes its items before the limit (the union's), so it may raise where
+      IQ answers; an APPLY's query reading the left side by an unqualified name its own FROM lacks may bind an
+      enclosing query's column (the parser knows no columns); `rename`'s frame carries no ORDER BY (the subselect's
+      order rides alone, as before the landing: carried, the relational corpus's ordered compare of
+      testRenameColumnsAfterGroupBy moved), so on a database that does not keep a subselect's order a later LIMIT
+      may keep other rows.
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):

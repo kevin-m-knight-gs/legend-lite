@@ -12,28 +12,46 @@
 tests:
 
   # ---- B1: a checked SUM read for some groups only (SQL Anywhere raises -158 in the aggregation, every group)
-  - id: b1_sum_inside_if_is_refused
+  - id: b1_sum_inside_if
     sql: "SELECT k, IF k = 4 THEN 0 ELSE SUM(v) ENDIF AS s FROM g GROUP BY k ORDER BY k"
-  - id: b1_sum_inside_case_is_refused
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["s", "numeric", 0]], "rows": [[null, null], ["1", "12"], ["2", "2"], ["3", "-4"], ["4", "0"]]}'
+  - id: b1_sum_inside_case
     sql: "SELECT k, CASE WHEN k = 4 THEN 0 ELSE SUM(v) END AS s FROM g GROUP BY k ORDER BY k"
-  - id: b1_sum_inside_coalesce_is_refused
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["s", "numeric", 0]], "rows": [[null, "3"], ["1", "12"], ["2", "2"], ["3", "-4"], ["4", "0"]]}'
+  - id: b1_sum_inside_coalesce
     sql: "SELECT k, COALESCE(MAX(j), SUM(v)) AS s FROM g GROUP BY k ORDER BY k"
-  - id: b1_sum_inside_isnull_is_refused
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["s", "numeric", 0]], "rows": [[null, "10"], ["1", "20"], ["2", "20"], ["3", "30"], ["4", "40"]]}'
+  - id: b1_sum_inside_isnull
     sql: "SELECT k, ISNULL(MAX(j), SUM(v)) AS s FROM g GROUP BY k ORDER BY k"
-  - id: b1_sum_under_a_count_test_is_refused
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["s", "numeric", 0]], "rows": [[null, "10"], ["1", "20"], ["2", "20"], ["3", "30"], ["4", "40"]]}'
+  - id: b1_sum_under_a_count_test
     sql: "SELECT k, IF COUNT(*) > 2 THEN SUM(v) ENDIF AS s FROM g GROUP BY k ORDER BY k"
-  - id: b1_bigint_sum_inside_if_is_refused
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["s", "numeric", 0]], "rows": [[null, null], ["1", "12"], ["2", null], ["3", null], ["4", null]]}'
+  - id: b1_bigint_sum_inside_if
     sql: "SELECT k, IF k = 4 THEN 0 ELSE SUM(w) ENDIF AS s FROM g GROUP BY k ORDER BY k"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["s", "numeric", 0]], "rows": [[null, null], ["1", "6"], ["2", "1"], ["3", "17"], ["4", "0"]]}'
   - id: b1_double_sum_inside_if_is_refused
     sql: "SELECT k, IF k = 4 THEN 0 ELSE SUM(d) ENDIF AS s FROM g GROUP BY k ORDER BY k"
-  - id: b1_sum_under_top_is_refused
+  - id: b1_sum_under_top
     sql: "SELECT TOP 1 k, SUM(v) AS s FROM g GROUP BY k ORDER BY k"
-  - id: b1_sum_under_start_at_is_refused
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["s", "numeric", 0]], "rows": [[null, "3"]]}'
+  - id: b1_sum_under_start_at
     sql: "SELECT TOP 1 START AT 2 k, SUM(v) AS s FROM g GROUP BY k ORDER BY k"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["s", "numeric", 0]], "rows": [["1", "12"]]}'
   - id: b1_sum_in_a_scalar_subquery_under_top_is_refused
     sql: "SELECT TOP 3 id, (SELECT SUM(v) FROM g WHERE g.k = t.id) AS s FROM t ORDER BY id"
-  - id: b1_sum_read_everywhere_still_raises
+  - id: b1_sum_read_everywhere_widens
     sql: "SELECT k FROM g GROUP BY k HAVING SUM(v) > 0 ORDER BY k"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0]], "rows": [[null], ["1"], ["2"], ["4"]]}'
   - id: b1_sum_read_everywhere_still_answers
     sql: "SELECT k, SUM(v) AS s FROM g WHERE k < 4 GROUP BY k ORDER BY k"
 

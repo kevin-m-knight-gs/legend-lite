@@ -485,8 +485,8 @@ Database types planned with it: Postgres.
 | `MATCHES` | emulated | `pattern: (… ~ …)` |  | 16 |
 | `LEFT` | spelled | `left` |  | 6 |
 | `RIGHT` | spelled | `right` |  | 6 |
-| `LPAD` | emulated | `padWithSpace: lpad` |  | 16 |
-| `RPAD` | emulated | `padWithSpace: rpad` |  | 45 |
+| `LPAD` | emulated | `padWithSpaceToInteger: lpad` |  | 16 |
+| `RPAD` | emulated | `padWithSpaceToInteger: rpad` |  | 45 |
 | `TRIM` | spelled | `trim` |  | 2 |
 | `LTRIM` | spelled | `ltrim` |  | 3 |
 | `RTRIM` | spelled | `rtrim` |  | 60 |
@@ -1415,8 +1415,8 @@ Database types planned with it: DuckDB.
 | `MATCHES` | spelled | `regexp_matches` |  | 16 |
 | `LEFT` | spelled | `left` |  | 6 |
 | `RIGHT` | spelled | `right` |  | 6 |
-| `LPAD` | emulated | `padWithSpace: lpad` |  | 16 |
-| `RPAD` | emulated | `padWithSpace: rpad` |  | 45 |
+| `LPAD` | emulated | `padWithSpaceToInteger: lpad` |  | 16 |
+| `RPAD` | emulated | `padWithSpaceToInteger: rpad` |  | 45 |
 | `TRIM` | spelled | `trim` |  | 2 |
 | `LTRIM` | spelled | `ltrim` |  | 3 |
 | `RTRIM` | spelled | `rtrim` |  | 60 |

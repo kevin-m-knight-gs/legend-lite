@@ -1,0 +1,23 @@
+# quoted_identifier, every value (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the options framework):
+# On, "x" is a name; Off, a string ("" a quote in it), and [x] always a name. Given for the query (settings). Judged by
+# SQL Anywhere 17's answers. The SQL in YAML double quotes.
+tests:
+  - id: off_a_double_quoted_text_is_a_string
+    sql: "SELECT \"vc\" AS s FROM t WHERE id = 1"
+    settings: "query.quoted_identifier='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_a_doubled_quote_inside
+    sql: "SELECT \"a\"\"b\" AS s"
+    settings: "query.quoted_identifier='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_brackets_still_a_name
+    sql: "SELECT [vc] FROM t WHERE id = 1"
+    settings: "query.quoted_identifier='Off'"
+  - id: on_a_double_quoted_name
+    sql: "SELECT \"vc\" FROM t WHERE id = 1"
+    settings: "query.quoted_identifier='On'"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: off_a_string_compared
+    sql: "SELECT id FROM t WHERE vc = \"hello\" ORDER BY id"
+    settings: "query.quoted_identifier='Off'"
+    profile: iq16-default, sqla17-default

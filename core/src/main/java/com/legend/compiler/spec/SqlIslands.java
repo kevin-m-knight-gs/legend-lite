@@ -68,6 +68,12 @@ final class SqlIslands {
             public void variables(java.util.function.Consumer<String> names) {
                 env.names().forEach(names);
             }
+
+            @Override
+            public ValueSpecification inlineView(ValueSpecification relation) {
+                // IQ island, 2026-10-16: the compiler's marker (InlineViewChecker)
+                return Calls.exact(com.legend.builtin.Pure.Lite.INLINE_VIEW, java.util.List.of(relation));
+            }
         };
         try {
             ValueSpecification pure = SqlToPure.translate(island.sql(), sources, dialect(island));
@@ -166,7 +172,7 @@ final class SqlIslands {
         if (profile == null) {
             throw new TypeInferenceException(IqProfile.unknown(java.util.Objects.requireNonNull(named)));
         }
-        return IqDialect.of(profile);
+        return IqDialect.of(profile.settings());
     }
 
     /** A FROM source's columns, as the translator reads them: each column's name, its type's name, whether it may hold
