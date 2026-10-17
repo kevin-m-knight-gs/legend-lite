@@ -14,6 +14,11 @@ public interface SqlDialect {
     /** A query as SQL text: a statement with no bound parameters (one reaching the text is refused). */
     String render(SqlQuery query);
 
+    /** {@link #render} on one line, its clauses separated by single spaces (written so, never collapsed: a string
+     *  literal keeps its own whitespace): the form legend-engine prints a statement it reports, such as the
+     *  test-data generator's fetches, which its tests compare with their newlines removed. */
+    String renderInline(SqlQuery query);
+
     /** A query as a statement for execution with bound values: its text with a {@code ?} for each bound parameter, and
      *  the parameters in placeholder order (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10, E). */
     RenderedStatement renderStatement(SqlQuery query);
@@ -51,6 +56,22 @@ public interface SqlDialect {
      *  a dialect whose SQL differs by version says how. Default: every version is spelled alike. */
     default SqlDialect forServer(String version) {
         return this;
+    }
+
+    /** The server versions this dialect's text is written for ({@link #forServer} keeps it for these and takes another
+     *  dialect for any other), which a plan names so its runner refuses another; null when its text depends on no
+     *  server's version (the dialect program's Phase 5, 2026-10-16: until then {@code Databases.servers} listed each
+     *  database). */
+    default @com.legend.base.Nullable java.util.List<String> serverVersions() {
+        return null;
+    }
+
+    /** Whether a target on this database loads its declared rows through the database's own bulk loader (a plan's
+     *  {@code SetupStep.Rows}, the statements that stage them this dialect's) rather than one INSERT
+     *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, "setup at plan time, one form per database"; the dialect
+     *  program's Phase 5, 2026-10-16: until then {@code Databases.loadsRowsInBulk} listed each database). */
+    default boolean loadsRowsInBulk() {
+        return false;
     }
 
     /** Whether this dialect's driver re-fetches a timestamp cell as {@code java.time.LocalDateTime} (the

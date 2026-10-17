@@ -3,7 +3,8 @@
 
 package com.legend.compiler.element;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
@@ -14,7 +15,6 @@ import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.sql.DriverManager;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,8 +59,8 @@ class ClassLayoutsDiamondTest {
     @DisplayName("the executed value follows: a [1] diamond property"
             + " reads back as a SCALAR, never a list")
     void diamondInstancePropertyIsScalar() throws Exception {
-        try (var conn = DriverManager.getConnection("jdbc:duckdb:")) {
-            ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB),
+        try (var conn = TestBackends.platform().open()) {
+            ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM),
                     "{|let d = ^m::D(w=1); $d.w;}", StorelessRuntime.RUNTIME, conn);
             Object v = ((ExecutionResult.Scalar) r).value();
             assertTrue(v instanceof Number n && n.longValue() == 1L,

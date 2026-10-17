@@ -8,7 +8,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -45,19 +44,10 @@ class CorrelatedRelationCheckerTest extends AbstractDatabaseTest {
             1, 20
             #->extend(over(~g, ~v->ascending()), ~rn:{p,w,r|$p->rowNumber($r)})""";
 
-    @Override
-    protected String getDatabaseType() {
-        return "DuckDB";
-    }
-
-    @Override
-    protected String getJdbcUrl() {
-        return "jdbc:duckdb:";
-    }
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         setupDatabase();
     }
 

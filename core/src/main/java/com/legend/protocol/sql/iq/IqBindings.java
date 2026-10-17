@@ -24,7 +24,7 @@ import java.util.Set;
  *
  * <p><b>Tables (O2).</b> An IQ owner is a schema of the model's Databases, matched as IQ matches names (ASCII
  * case-insensitively); a table declared outside any schema is the island's user's, {@code DBA} (the user IQ's and SQL
- * Anywhere's databases are created with, the oracle's): {@code DBA.t} (and an unqualified {@code t}, and T-SQL's
+ * Anywhere's databases are created with, the referee's): {@code DBA.t} (and an unqualified {@code t}, and T-SQL's
  * {@code db..t}) reads {@code tb('pkg::Db.t')}, {@code sales.orders} reads {@code tb('pkg::Db.sales.orders')}. A
  * database's and a server's qualifiers are read and ignored, as IQ ignores them ({@code srv.db.owner.t}). The model is
  * the island's catalog:
@@ -34,7 +34,9 @@ import java.util.Set;
  *   <li>a name more than one Database (or schema of one name but for case) holds is refused by name: write
  *       {@code tb('...')};</li>
  *   <li>IQ's own users ({@code SYS}, {@code dbo}, {@code PUBLIC}, ...) own its catalog, which the island does not
- *       read: refused by name, but {@code SYS.DUMMY} and {@code dbo.sa_rowgenerator(...)}.</li>
+ *       read: refused by name, but {@code SYS.DUMMY} and {@code dbo.sa_rowgenerator(...)}; IQ island, 2026-10-14 (the
+ *       third landing): a name of such a user's that is no catalog name's reads the model's table of a schema of
+ *       that user's name, when the model has one ({@code dbo.orders} in a T-SQL database).</li>
  * </ul>
  *
  * <p><b>Host variables (O3).</b> {@code @name} and {@code :name} read the enclosing Pure query's variable in scope of
@@ -85,15 +87,40 @@ final class IqBindings {
         return SYSTEM_OWNERS.contains(o) || o.startsWith("sys_");
     }
 
+    /** The beginnings (ASCII lower case) of the names of IQ's and SQL Anywhere's catalog tables and views (SQL
+     *  Anywhere 17's, listed from its own catalog; IQ's sp_iq and SYSIQ objects), and its other names of one. */
+    private static final List<String> CATALOG_PREFIXES = List.of("sys", "isys", "gtsys", "igtsys", "iq", "sp_", "sa_",
+            "satmp", "spt_", "st_", "jdbc_", "ix_consultant", "migrate_", "omni_", "synchronize_", "gtt_", "rs_");
+    private static final Set<String> CATALOG_NAMES = Set.of("dummy", "rowgenerator", "excludeobject");
+
+    /** Whether {@code name} (as written) is, or may be, the name of one of IQ's catalog tables or views. */
+    static boolean catalogName(String name) {
+        String n = IqLexer.lower(name);
+        if (CATALOG_NAMES.contains(n)) {
+            return true;
+        }
+        for (String prefix : CATALOG_PREFIXES) {
+            if (n.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Refuses by name, before translation, a table of IQ's catalog: one an owner of IQ's own qualifies (but
-     *  {@code SYS.DUMMY}, which the dialect reads). */
+     *  {@code SYS.DUMMY}, which the dialect reads). IQ island, 2026-10-14 (the third landing): one whose name is no
+     *  catalog name's is bound when translated, to a schema of the model of that owner's name ({@link #table}). */
     static void catalogTable(SqlAst.TableName t) {
         SqlAst.Ident owner = owner(t.name());
-        if (owner != null && systemOwner(owner)) {
-            throw SqlTranslationException.unsupported("the table " + written(t.name()) + " is not supported: '"
-                    + owner.text() + "' is one of IQ's own users, whose tables are its catalog, which an #IQ{...}#"
-                    + " island does not read", t.pos());
+        if (owner != null && systemOwner(owner) && catalogName(t.name().get(t.name().size() - 1).text())) {
+            throw catalogRefusal(t, owner);
         }
+    }
+
+    private static SqlTranslationException catalogRefusal(SqlAst.TableName t, SqlAst.Ident owner) {
+        return SqlTranslationException.unsupported("the table " + written(t.name()) + " is not supported: '"
+                + owner.text() + "' is one of IQ's own users, whose tables are its catalog, which an #IQ{...}#"
+                + " island does not read", t.pos());
     }
 
     /**
@@ -104,6 +131,19 @@ final class IqBindings {
         SqlAst.Ident owner = owner(t.name());
         SqlAst.Ident table = t.name().get(t.name().size() - 1);
         String wanted = IqLexer.lower(table.text());
+        if (owner != null && systemOwner(owner)) {
+            // IQ island, 2026-10-14 (the third landing): one of IQ's own users' names that is no catalog name's reads
+            // the model's table of a schema of that user's name (a T-SQL database's dbo.orders); with none, it would
+            // be IQ's catalog's, and stays refused by name
+            boolean held = false;
+            for (SqlToPure.CatalogTable c : catalog) {
+                held |= IqLexer.lower(c.schema()).equals(IqLexer.lower(owner.text()))
+                        && IqLexer.lower(c.table()).equals(wanted);
+            }
+            if (!held) {
+                throw catalogRefusal(t, owner);
+            }
+        }
         boolean user = owner == null || IqLexer.lower(owner.text()).equals(IqLexer.lower(USER));
         boolean known = user;
         List<SqlToPure.CatalogTable> found = new ArrayList<>();

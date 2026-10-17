@@ -48,22 +48,22 @@ final class IqKeys {
         }
     }
 
-    private final IqProfile profile;
+    private final IqSettings settings;
     /** The query whose clauses each column reference of the statement is written in (not a subquery's). */
     private final Map<SqlAst.ColumnRef, SqlAst.Select> owners;
 
-    private IqKeys(IqProfile profile, Map<SqlAst.ColumnRef, SqlAst.Select> owners) {
-        this.profile = profile;
+    private IqKeys(IqSettings settings, Map<SqlAst.ColumnRef, SqlAst.Select> owners) {
+        this.settings = settings;
         this.owners = owners;
     }
 
     /** No statement: every column is any string. */
-    static IqKeys none(IqProfile profile) {
-        return new IqKeys(profile, Map.of());
+    static IqKeys none(IqSettings settings) {
+        return new IqKeys(settings, Map.of());
     }
 
-    /** The keys of {@code statement}'s strings under {@code profile}. */
-    static IqKeys of(SqlAst.Statement statement, IqProfile profile) {
+    /** The keys of {@code statement}'s strings under {@code settings}. */
+    static IqKeys of(SqlAst.Statement statement, IqSettings settings) {
         Map<SqlAst.ColumnRef, SqlAst.Select> owners = new IdentityHashMap<>();
         for (SqlAst.Statement q : IqDialect.queries(statement)) {
             if (q instanceof SqlAst.Select s) {
@@ -74,21 +74,21 @@ final class IqKeys {
                 }
             }
         }
-        return new IqKeys(profile, Collections.unmodifiableMap(owners));
+        return new IqKeys(settings, Collections.unmodifiableMap(owners));
     }
 
     /** Whether every value of {@code e} is its own key: equality and order of the values are the collation's. */
     boolean own(SqlAst.Expr e) {
         Shape s = shape(e);
-        return (!profile.blankPadding() || s.noTrailingSpace()) && (profile.caseSensitive() || s.noUpper());
+        return (!settings.blankPadding() || s.noTrailingSpace()) && (settings.caseSensitive() || s.noUpper());
     }
 
     /** Whether no two different values of {@code e} share a key: equality of the values is the collation's (their
      *  order may not be: {@code UPPER(x)} in a case-insensitive database). */
     boolean distinct(SqlAst.Expr e) {
         Shape s = shape(e);
-        return (!profile.blankPadding() || s.noTrailingSpace())
-                && (profile.caseSensitive() || s.noUpper() || s.noLower());
+        return (!settings.blankPadding() || s.noTrailingSpace())
+                && (settings.caseSensitive() || s.noUpper() || s.noLower());
     }
 
     /** Whether column {@code i} of every query {@code s} unites holds its own keys only. */

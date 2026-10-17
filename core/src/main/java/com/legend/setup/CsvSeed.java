@@ -261,17 +261,17 @@ public final class CsvSeed {
             String store = binding.getKey();
             for (String connFqn : binding.getValue()) {
                 ctx.findConnection(connFqn).ifPresent(cd -> {
-                    if (cd.specification()
-                            instanceof com.legend.model.ConnectionSpecification.LocalH2 h2) {
-                        if (h2.testDataSetupSqls() != null) {
-                            for (String sql : h2.testDataSetupSqls()) {
+                    com.legend.model.ConnectionSpecification.TestData data = cd.specification().testData();
+                    if (data != null) {
+                        if (data.sqls() != null) {
+                            for (String sql : data.sqls()) {
                                 // written in the database the connection declares (D2)
                                 out.add(new Step.Sql(sql, cd.databaseType().name()));
                             }
                         }
-                        if (h2.testDataSetupCsv() != null) {
+                        if (data.csv() != null) {
                             String db = ctx.findDatabase(store).isPresent() ? store : null;
-                            out.addAll(steps(h2.testDataSetupCsv(), db, ctx, dialect));
+                            out.addAll(steps(data.csv(), db, ctx, dialect));
                         }
                     }
                 });

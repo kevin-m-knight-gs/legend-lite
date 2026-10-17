@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
@@ -9,7 +10,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -83,7 +83,7 @@ public class GetCheckerTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection("jdbc:duckdb:");
+        connection = TestBackends.platform().open();
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
                     CREATE TABLE T_EVENTS (

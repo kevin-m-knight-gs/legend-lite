@@ -356,7 +356,7 @@ public class MinimalCorpusTest {
         com.legend.harness.H2Verify.VERDICT_ROSTER.forEach((k, v) ->
                 kinds.merge(k.substring(0, k.indexOf(' ')), v.sum(), Long::sum));
         kinds.forEach((k, v) -> System.out.println("[corpus2] referee " + k + "=" + v));
-        new java.util.TreeMap<>(com.legend.harness.ReplayOracle.OUTCOMES).forEach((k, v) ->
+        new java.util.TreeMap<>(com.legend.harness.ReplayReferee.OUTCOMES).forEach((k, v) ->
                 System.out.println("[corpus2] referee-outcome " + k + "=" + v.sum()));
         new java.util.TreeMap<>(com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS).forEach((k, v) ->
                 System.out.println("[corpus2] referee-declined " + v.sum() + "x " + k));
@@ -633,7 +633,13 @@ public class MinimalCorpusTest {
     // unordered register (their rows are no longer compared by the referee at all). On main after D24 (1), whose roster
     // test testSubAggregationMultiLevelJoinString no longer reaches its later asserts, one differential fewer: LITERAL
     // 1411, DIFFERENTIAL+literal 841, DIFFERENTIAL-only 170.
-    private static final int[] DUCKDB_STRENGTH = {1011, 22, 27};
+    // DuckDB differential 1011 -> 1009 (2026-10-16, the IQ landings 3 and 4: one CASE of an if-chain's WHENs, commit
+    // 725c712cf): testSortByLambdaWithIfElseValue and testSortByLambda_QueryWithParameters_Plan now write the engine's
+    // own flat ORDER BY CASE (case when ... then 0 when ... then 10 ... else 30 end) byte-equal to the golden, so the
+    // text decides them and the referee is not appealed to (the 2026-09-21 rule). Measured against main ac946cf85 with
+    // every referee outcome named: every assert's verdict identical, LITERAL 1411 -> 1413, DIFFERENTIAL+literal 841 ->
+    // 840, DIFFERENTIAL-only 170 -> 169.
+    private static final int[] DUCKDB_STRENGTH = {1009, 22, 27};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -663,7 +669,10 @@ public class MinimalCorpusTest {
     // is plain string building, no JSON function; see DUCKDB_STRENGTH's note.
     // H2 differential 953 -> 946 (2026-10-09, E-4b): the same nine texts as DUCKDB_STRENGTH's note, now byte-equal to
     // the golden; every verdict identical, LITERAL 1219 -> 1228, DIFFERENTIAL+literal 786 -> 777.
-    private static final int[] H2_STRENGTH = {946, 22, 27};
+    // H2 differential 946 -> 944 (2026-10-16, the IQ landings 3 and 4): the same two texts as DUCKDB_STRENGTH's note,
+    // byte-equal to the golden; every verdict identical, LITERAL 1228 -> 1230, DIFFERENTIAL+literal 777 -> 776,
+    // DIFFERENTIAL-only 169 -> 168.
+    private static final int[] H2_STRENGTH = {944, 22, 27};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
@@ -772,7 +781,7 @@ public class MinimalCorpusTest {
     // platform implements #4900's semantics (IS NOT DISTINCT FROM); the
     // tag's goldens for executionPlanTest.pure's 15 optional-parameter
     // tests carry the PRE-#4900 `optionalVarPlaceHolderOperationSelector`
-    // template, which the plan-text oracle DECLINES (unbound template
+    // template, which the plan-text referee DECLINES (unbound template
     // argument) — 14 land here, all 15 are on the fail rosters with this
     // reason. Shrinks back at the 4.145.0 bump (contains #4900).
     // oracle-declined 36 -> 22 (DuckDB) / 42 -> 28 (H2), rows-underivable 29 -> 28 /
@@ -1003,7 +1012,7 @@ public class MinimalCorpusTest {
                 + " " + kind + " of " + ran.size() + (only.isEmpty() ? "" : " (scoped)")
                 // USER DECISION 2026-09-08: the H2 lane is KEPT as a
                 // PORTABILITY check — its golden runs on the same connection
-                // as our query, so it is not an independent oracle; the
+                // as our query, so it is not an independent referee; the
                 // DuckDB lane with the H2 mirror is
                 + (MinimalCorpus.H2_BACKEND ? " oracle=same-session" : " oracle=h2-mirror"));
     }

@@ -145,3 +145,15 @@ tests:
     sql: "SELECT id, sum(float_val) OVER (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW) AS s FROM numbers ORDER BY id"
   - id: window_max_of_a_boolean_is_an_error
     sql: "SELECT id, max(active) OVER () AS m FROM persons ORDER BY id"
+  # IQ island, 2026-10-16: a derived table's windows are computed over all of its rows, before the outer query's WHERE
+  # (found by the IQ island's corpus lane: a filter after an extend folded into the window's own WHERE)
+  - id: window_of_a_derived_table_then_a_filter_of_another_column
+    sql: "SELECT * FROM (SELECT id, name, dept_id, RANK() OVER (ORDER BY salary DESC NULLS LAST, id) AS company_rank FROM persons) r WHERE dept_id = 2 ORDER BY id"
+  - id: running_total_of_a_derived_table_then_a_filter
+    sql: "SELECT * FROM (SELECT id, amount, SUM(amount) OVER (ORDER BY id) AS running FROM orders) o WHERE id > 7 ORDER BY id"
+  - id: count_of_every_row_in_a_cte_then_a_filter
+    sql: "WITH c AS (SELECT id, status, COUNT(*) OVER () AS total FROM orders) SELECT id, total FROM c WHERE status = 'pending' ORDER BY id"
+  - id: windows_over_a_filter_of_a_derived_tables_rank
+    sql: "SELECT id, r, RANK() OVER (ORDER BY salary DESC NULLS LAST, id) AS s FROM (SELECT id, salary, RANK() OVER (ORDER BY id DESC) AS r FROM persons) d WHERE r <= 4 ORDER BY id"
+  - id: window_of_a_derived_table_then_a_filter_of_its_column
+    sql: "SELECT * FROM (SELECT id, dept_id, ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary DESC NULLS LAST, id) AS rn FROM persons) d WHERE rn = 1 ORDER BY id"

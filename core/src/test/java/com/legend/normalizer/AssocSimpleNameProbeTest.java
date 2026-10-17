@@ -3,13 +3,13 @@
 
 package com.legend.normalizer;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -80,7 +80,7 @@ class AssocSimpleNameProbeTest {
     @Test
     @DisplayName("simple-name AssociationMapping binds by FQN (same-package fallback)")
     void simpleNameAssociationMapping() throws SQLException {
-        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection conn = TestBackends.platform().open()) {
             try (Statement st = conn.createStatement()) {
                 st.execute("CREATE TABLE PT (ID INTEGER, NAME VARCHAR(200))");
                 st.execute("CREATE TABLE CT (ID INTEGER, PLATE VARCHAR(200), OWNER INTEGER)");

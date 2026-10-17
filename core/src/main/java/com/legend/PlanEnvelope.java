@@ -22,19 +22,20 @@ final class PlanEnvelope {
             String rootClass, String[] impl, String mappingFqn,
             TypedSpec term, @com.legend.base.Nullable String connName,
             com.legend.model.ConnectionDefinition.DatabaseType dbType,
-            com.legend.sql.dialect.EngineStyleH2 pd, boolean hasParams) {
+            com.legend.sql.dialect.EngineTextDialect pd, boolean hasParams) {
+        EngineText.InListTempTables inList = EngineText.inListTempTables(dbType);
         var inp = com.legend.plan.InProtocol.apply(es.plan(),
-                com.legend.plan.InProtocol.thresholdFor(connName, dbType),
-                dbType);
+                com.legend.plan.InProtocol.thresholdFor(connName, inList.threshold()),
+                inList.tablePrefix());
         java.util.List<String> inTexts = inp == null ? java.util.List.of()
                 : com.legend.plan.InProtocol.allNodeTexts(inp, connName,
-                        dbType, pd::collectionSplice);
+                        inList.threshold(), pd::collectionSplice, pd::inTempTableSelect);
         var planOut = inp != null ? inp.plan() : es.plan();
         boolean pushDownEnums = StatementExecutor.pushDownEnums(env, java.util.List.of(term));
         String rel = com.legend.plan.PlanText.single(env.ctx(), rootClass,
                 mappingFqn, planOut,
                 inp != null ? pd.render(planOut) : es.sql(),
-                java.util.List.of(term), connName, java.util.List.of(), planOut, pushDownEnums);
+                java.util.List.of(term), connName, java.util.List.of(), planOut, pushDownEnums, pd::selectList);
         String tb = com.legend.plan.PlanText.typeBlock(env.ctx(), rootClass,
                 impl, es.plan(), java.util.List.of(term), mappingFqn, pushDownEnums);
         boolean hasLets = children.size() > (hasParams ? 1 : 0);

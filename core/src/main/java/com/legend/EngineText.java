@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.EngineStyleH2;
+import com.legend.sql.dialect.EngineTextDialect;
 
 /**
  * THE owner of which legend-engine golden-text renderer a declared {@link DatabaseType} gets
@@ -27,7 +28,7 @@ final class EngineText {
 
     /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
      *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). */
-    static EngineStyleH2 engineText(DatabaseType type) {
+    static EngineTextDialect engineText(DatabaseType type) {
         return switch (type) {
             case H2 -> new EngineStyleH2();
             case DB2 -> new com.legend.sql.dialect.EngineStyleDB2();
@@ -39,9 +40,26 @@ final class EngineText {
         };
     }
 
+    /** legend-engine's IN-list-to-temp-table facts for a database: the temp table's name prefix and the list size past
+     *  which the engine uses one (null: never, for this database). */
+    record InListTempTables(String tablePrefix, @com.legend.base.Nullable Integer threshold) {
+    }
+
+    /** legend-engine's IN-list-to-temp-table facts for {@code type} (the dialect program's Phase 5, 2026-10-16: moved
+     *  here from {@code database.Databases}, which writes none of the engine's text; they are per declared type, not
+     *  per engine-text dialect, as Composite's plan text is DB2's and its IN lists are not). */
+    static InListTempTables inListTempTables(DatabaseType type) {
+        return switch (type) {
+            case DB2 -> new InListTempTables("SESSION.tempTableForIn_", 32767);
+            case H2, DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto,
+                 Trino, BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL ->
+                    new InListTempTables("tempTableForIn_", null);
+        };
+    }
+
     /** legend-engine's exact PLAN text for {@code type}: the plan goldens pin Composite to the DB2-family spelling
      *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
-    static EngineStyleH2 enginePlanText(DatabaseType type, boolean quoteIdentifiers,
+    static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
             @com.legend.base.Nullable String timeZone) {
         return switch (type) {
             case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);

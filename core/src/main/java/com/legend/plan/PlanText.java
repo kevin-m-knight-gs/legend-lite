@@ -28,45 +28,25 @@ public final class PlanText {
     private PlanText() {
     }
 
-    public static String single(ModelContext ctx, String rootClassFqn,
-            String mappingFqn, SqlQuery plan, String sql,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body) {
-        return single(ctx, rootClassFqn, mappingFqn, plan, sql, body,
-                "TestDatabaseConnection(type = \"H2\")");
-    }
-
-    /** {@code connectionName}: the runtime connection's full plan
-     * spelling — class simple name + declared DatabaseType (an inline
-     * {@code ^DatabaseConnection(type=DatabaseType.DB2)} prints
-     * {@code DatabaseConnection(type = "DB2")}). */
-    public static String single(ModelContext ctx, String rootClassFqn,
-            String mappingFqn, SqlQuery plan, String sql,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-            @com.legend.base.Nullable String connectionName) {
-        return single(ctx, rootClassFqn, mappingFqn, plan, sql, body,
-                connectionName, java.util.List.of());
-    }
-
-    /** {@code chainMappings}: ModelChainConnection mappings (M2M2R) —
-     * the root set's physical identity may chase through them. */
+    /** One Relational node. {@code connectionName}: the runtime
+     * connection's full plan spelling — class simple name + declared
+     * DatabaseType (an inline {@code ^DatabaseConnection(type=DatabaseType.DB2)}
+     * prints {@code DatabaseConnection(type = "DB2")}). {@code chainMappings}:
+     * ModelChainConnection mappings (M2M2R) — the root set's physical
+     * identity may chase through them. {@code colsPlan}: the IR
+     * {@code sql} was written from, which resultColumns types against —
+     * the cross-store splice passes the placeholder-bearing IR here
+     * (engine: the placeholder relation IS in the query when
+     * resultColumns is computed) while typeBlock/tdsTuples keep the
+     * pre-splice plan. {@code selectList}: the plan text's dialect's
+     * select list of a query (a scalar projection's resultColumns), passed
+     * as a function: this layer is dialect-blind. */
     public static String single(ModelContext ctx, String rootClassFqn,
             String mappingFqn, SqlQuery plan, String sql,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
             @com.legend.base.Nullable String connectionName,
-            java.util.List<String> chainMappings) {
-        return single(ctx, rootClassFqn, mappingFqn, plan, sql, body,
-                connectionName, chainMappings, plan, false);
-    }
-
-    /** {@code colsPlan}: the plan resultColumns types against — the
-     * cross-store splice passes the placeholder-bearing IR here (engine:
-     * the placeholder relation IS in the query when resultColumns is
-     * computed) while typeBlock/tdsTuples keep the pre-splice plan. */
-    public static String single(ModelContext ctx, String rootClassFqn,
-            String mappingFqn, SqlQuery plan, String sql,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-            @com.legend.base.Nullable String connectionName,
-            java.util.List<String> chainMappings, SqlQuery colsPlan, boolean pushDownEnums) {
+            java.util.List<String> chainMappings, SqlQuery colsPlan, boolean pushDownEnums,
+            java.util.function.Function<SqlQuery, @com.legend.base.Nullable String> selectList) {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
                 rootClassFqn, chainMappings);
         com.legend.compiler.element.type.Type.RelationType rrt =
@@ -79,12 +59,11 @@ public final class PlanText {
                         instanceof com.legend.compiler.element.type
                                 .Type.Primitive) {
             // scalar projection: the ONE select expression, empty doc —
-            // spelled from the emitted sql (the engine prints the raw
-            // select item text)
-            String item = sql.startsWith("select ")
-                    ? sql.substring("select ".length(),
-                            sql.indexOf(" from ")) : sql;
-            cols = "(" + item + ", \"\")";
+            // the engine prints the raw select item text, which the
+            // dialect writes from the IR the sql was written from (a
+            // query with no select list prints whole)
+            String item = selectList.apply(colsPlan);
+            cols = "(" + (item != null ? item : sql) + ", \"\")";
         } else {
             cols = resultColumns(ctx, storeDbs(ctx, mappingFqn, body,
                     chainMappings, impl[2]), colsPlan, rrt);
@@ -416,7 +395,7 @@ public final class PlanText {
      * alias-less SQL text and the post-render alias spelling. */
     public static String scalarRelational(ModelContext ctx, String dbFqn,
             SqlSelect plan, String typeName, @com.legend.base.Nullable String sizeRange, String sql,
-            java.util.function.UnaryOperator<String> aliasSpell) {
+            java.util.function.UnaryOperator<String> aliasSpell, @com.legend.base.Nullable String connectionName) {
         StringBuilder rc = new StringBuilder();
         for (SqlSelect.Projection p : plan.projections()) {
             if (rc.length() > 0) {
@@ -443,7 +422,7 @@ public final class PlanText {
                 + "  resultSizeRange = " + sizeRange + "\n"
                 + "  resultColumns = [" + rc + "]\n"
                 + "  sql = " + sql + "\n"
-                + "  connection = TestDatabaseConnection(type = \"H2\")\n"
+                + "  connection = " + connectionName + "\n"
                 + ")\n";
     }
 

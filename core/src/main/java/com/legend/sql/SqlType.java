@@ -10,7 +10,13 @@ public sealed interface SqlType {
 
     enum Scalar implements SqlType {
         BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP,
-        TIMESTAMPTZ, JSON,
+        TIMESTAMPTZ,
+        /** A time of day with no date and no zone (Pure's StrictTime): the database's TIME, to the microsecond
+         *  (DuckDB, Postgres, H2, MariaDB, Trino, Snowflake, BigQuery name one; SQLite holds its text; ClickHouse
+         *  and Databricks have none, and refuse). Lite's own: legend-engine's relational lowering refuses
+         *  StrictTime ({@code pureToSQLQuery.pure}, "not supported yet"), docs/SEMANTICS_REGISTER.md S63
+         *  (the Cypher island's time-of-day leg, 2026-10-16). */
+        TIME, JSON,
         /** The KIND-FAITHFUL CARRIER (F10 proper, docs/F10_CARRIER_
          * DESIGN.md): the cell holds a value's PURE-LITERAL SPELLING as
          * text — the six mutually disjoint source forms (bare int,

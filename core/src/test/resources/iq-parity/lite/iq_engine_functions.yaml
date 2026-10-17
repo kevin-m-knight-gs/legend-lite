@@ -1,0 +1,246 @@
+# Numeric functions under IQ's engine (IQ island, 2026-10-15; the research's D-F1 and D-F2, measured on the live IQ
+# 17.1): ROUND of a NUMERIC(p,s) is a NUMERIC(p+1,s), half away from zero, and of an integer an integer; CEILING and
+# FLOOR of a NUMERIC(p,s) a NUMERIC(p+1,s) at its scale, of an integer the integer, of a DOUBLE a DOUBLE. SQL Anywhere's
+# front end types them otherwise, so these cases are judged by the live IQ only. Every case is deterministic.
+tests:
+  - id: round_of_a_numeric
+    sql: "SELECT id, ROUND(nm, 1) AS a, ROUND(nm, 0) AS b, ROUND(nm, -2) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: round_half_away_from_zero
+    sql: "SELECT ROUND(CAST(-2.5 AS NUMERIC(5,1)), 0) AS a, ROUND(CAST(2.5 AS NUMERIC(5,1)), 0) AS b, ROUND(CAST(-0.05 AS NUMERIC(5,2)), 1) AS c FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: round_to_its_own_scale
+    sql: "SELECT id, ROUND(nm, 2) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: round_of_integers
+    sql: "SELECT id, ROUND(it, -1) AS a, ROUND(sm, 0) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: round_of_a_quantity_grouped
+    sql: "SELECT t_id, ROUND(SUM(qty), 0) AS r FROM u GROUP BY t_id ORDER BY t_id"
+    profile: iq17-default
+  - id: ceiling_and_floor_of_a_numeric
+    sql: "SELECT id, CEILING(nm) AS a, FLOOR(nm) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: ceiling_and_floor_of_integers
+    sql: "SELECT id, CEILING(it) AS a, FLOOR(sm) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: ceiling_and_floor_of_a_double
+    sql: "SELECT id, CEILING(dbl) AS a, FLOOR(dbl) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: ceiling_of_a_numeric_in_where
+    sql: "SELECT id FROM t WHERE CEILING(nm) > 100 ORDER BY id"
+    profile: iq17-default
+
+  # ---- ISNUMERIC (1 where the string reads as a number, else 0, NULL too)
+  - id: isnumeric_of_spellings
+    sql: "SELECT x, ISNUMERIC(x) AS n FROM (SELECT '12' AS x UNION ALL SELECT '1.5' UNION ALL SELECT 'abc' UNION ALL SELECT ' 7 ' UNION ALL SELECT '-3e2' UNION ALL SELECT '' UNION ALL SELECT '1,000' UNION ALL SELECT '$5' UNION ALL SELECT '.' UNION ALL SELECT '+.5') d ORDER BY 1"
+    profile: iq16-default
+    engine: sa
+  - id: isnumeric_of_a_column
+    sql: "SELECT id, ISNUMERIC(vc) AS n FROM t ORDER BY id"
+
+  # ---- YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES, SECONDS of two arguments: DATEDIFF or DATEADD
+  - id: days_between_and_after
+    sql: "SELECT id, DAYS(CAST('2026-01-01' AS DATE), dt) AS a, DAYS(dt, 3) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: months_and_years
+    sql: "SELECT id, MONTHS(dt, 1) AS a, MONTHS(CAST('2026-01-31' AS DATE), dt) AS b, YEARS(CAST('2025-12-31' AS DATE), dt) AS c, YEARS(dt, 1) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: weeks_between
+    sql: "SELECT id, WEEKS(CAST('2026-03-01' AS DATE), dt) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: hours_minutes_and_seconds
+    sql: "SELECT id, HOURS(ts, 2) AS a, HOURS(CAST('2026-03-04 04:30:30' AS TIMESTAMP), ts) AS b, MINUTES(CAST('2026-03-04 05:05:59' AS TIMESTAMP), ts) AS c, SECONDS(CAST('2026-03-04 05:06:06.5' AS TIMESTAMP), ts) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: hours_added_to_a_date
+    sql: "SELECT id, HOURS(dt, 25) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  # IQ island, 2026-10-15: STR under IQ's engine (IqFunctions.str, measured on IQ 17.1): cut toward zero, its places
+  # fewer where the whole part leaves no room, zero left-justified without a sign, too long NULL
+  - id: str_of_integers
+    sql: "SELECT id, STR(id) AS a, STR(sm) AS b, STR(sm, 6) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: str_of_a_numeric_cut_toward_zero
+    sql: "SELECT id, STR(nm) AS a, STR(nm, 14, 3) AS b, STR(nm, 12, 1) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: str_too_long_is_null
+    sql: "SELECT id, STR(nm, 4) AS a, STR(id * 123456, 3) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: str_places_fewer_to_fit
+    sql: "SELECT STR(id * 123.456, 5, 2) AS a, STR(id * 123.456, 4, 2) AS b, STR(id, 5, 5) AS c, STR(id, 6, 5) AS d, STR(id * -10.5, 4, 2) AS e FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_cuts_halves
+    sql: "SELECT STR(id * 2.5) AS a, STR(id * -2.5) AS b, STR(id * 3.5) AS c, STR(id * 99.995, 6, 2) AS d, STR(id * 0.125, 10, 2) AS e FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_zero_is_left_justified
+    sql: "SELECT STR(id * 0.5) AS a, STR(id * -0.5) AS b, STR(id * -0.001, 10, 2) AS c, STR(id * 0.05, 10, 1) AS d, STR(id - 1) AS e, STR(id * 0.5, 10, 2) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_below_one_in_a_tight_length
+    sql: "SELECT STR(id * 0.5, 3, 2) AS a, STR(id * -0.5, 4, 2) AS b, STR(id * 0.05, 4, 2) AS c, STR(id * -0.05, 4, 2) AS d, STR(id * -0.05, 5, 2) AS e FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_in_one_or_two_characters
+    sql: "SELECT STR(id * -0.5, 2, 0) AS a, STR(id * -0.5, 1, 0) AS b, STR(id * -1.5, 2, 0) AS c, STR(id * -9.5, 1, 0) AS d, STR(id * 0.001, 3, 2) AS e, STR(id * -5, 1) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_null_and_empty_arguments
+    sql: "SELECT STR(id, NULL) AS a, STR(id, 5, NULL) AS b, STR(NULL, 5) AS c, STR(id, 0) AS d, STR(id, -3) AS e, STR(id, 5, -1) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_of_constants_under_iq_engine
+    sql: "SELECT id, STR(2.5) AS a, STR(123456, 3) AS b, STR(-0.5) AS c, STR(0.125, 10, 2) AS d FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_of_a_bigint
+    sql: "SELECT id, w, STR(w, 25) AS a, STR(w, 22, 2) AS b, STR(w, 5) AS c FROM g ORDER BY id"
+    profile: iq17-default
+  - id: str_of_a_quotient
+    sql: "SELECT id, STR(100.0 * id / 3, 10, 4) AS a, STR(100.0 * id / 7, 5, 1) + '%' AS pct FROM t ORDER BY id"
+    profile: iq17-default
+  - id: str_on_the_front_end_is_refused
+    sql: "SELECT STR(2.5) AS a"
+    profile: iq16-default, iq17-default
+  - id: str_of_a_double_is_refused
+    sql: "SELECT STR(CAST(id AS DOUBLE) / 3, 10, 5) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_of_a_string_is_refused
+    sql: "SELECT STR(vc) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_longer_than_255_is_refused
+    sql: "SELECT STR(id, 300) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_with_more_decimals_than_its_length_is_refused
+    sql: "SELECT STR(id * 12.5, 10, 20) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_of_zero_cut_to_its_length
+    sql: "SELECT STR(id * 0.05, 2, 1) AS a, STR(id * 0.001, 2, 2) AS b, STR(id * 0.001, 1, 1) AS c, STR(id * 0.001, 3, 3) AS d, STR(id - 1, 2, 2) AS e, STR(id * -0.001, 4, 3) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: str_below_one_too_long_is_null
+    sql: "SELECT STR(id * 0.05, 3, 2) AS a, STR(id * 0.001, 4, 3) AS b, STR(id * 0.009, 4, 2) AS c, STR(id * -0.05, 3, 2) AS d, STR(id * 0.5, 2, 2) AS e FROM t WHERE id = 1"
+    profile: iq17-default
+  # IQ island, 2026-10-15: NULL in a concatenation under IQ's engine (measured on IQ 17.1): + and || join a NULL as
+  # nothing; only all-NULL parts give NULL (the census's Tier 0 NULL semantics)
+  - id: concatenation_with_an_untyped_null
+    sql: "SELECT id, vc + NULL AS a, NULL + vc AS b, vc || NULL AS c, NULL || vc || NULL AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: concatenation_with_null_values
+    sql: "SELECT id, vc + ch AS a, vc || ch || vc AS b FROM t ORDER BY id"
+    profile: iq17-default
+
+  # ---- IQ island, 2026-10-15 (checklist 1.10, measured on IQ 17.1): POWER under IQ's engine (a DOUBLE; NULL where it
+  # has none: a negative base to a fraction, 0 to a negative power, an overflow, an underflow to 0), GREATER, LESSER and
+  # ARGN (as CASE types them; the second of two equal values), REVERSE, INSERTSTR, BYTE_LENGTH (UTF-8 bytes)
+  - id: power_of_columns
+    sql: "SELECT id, POWER(sm, 2) AS a, POWER(2, id) AS b, POWER(nm, 2) AS c, POWER(dbl, 0.5) AS d FROM t WHERE id <> 6 ORDER BY id"
+    profile: iq17-default
+  - id: power_where_iq_has_no_double
+    sql: "SELECT id, POWER(sm, -1) AS a, POWER(dbl, 2) AS b, POWER(dbl * 0 + 10e0, -400) AS c, POWER(dbl * 0 + 10e0, 308.25) AS d, POWER(dbl * 0 + 2e0, -1074) AS e, POWER(sm * 0, -1) AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: power_of_zero_and_negatives
+    sql: "SELECT id, POWER(sm * 0, 0) AS a, POWER(sm * 0, 2) AS b, POWER(-2, 3) AS c, POWER(-8, 1.0) AS d, POWER(-8, 0.5) AS e FROM t WHERE id IN (3, 5) ORDER BY id"
+    profile: iq17-default
+  - id: power_of_a_string_is_refused
+    sql: "SELECT POWER('2', 3) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: greater_and_lesser
+    sql: "SELECT id, GREATER(sm, it) AS a, LESSER(sm, it) AS b, GREATER(nm, sm) AS c, LESSER(dt, CAST(ts AS DATE)) AS e, GREATER(sm, bg) AS f, GREATER(it, nm) AS g FROM t ORDER BY id"
+    profile: iq17-default
+  - id: greater_and_lesser_of_strings
+    sql: "SELECT id, GREATER(vc, 'hello') AS a, LESSER(vc, 'hello') AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: greater_and_lesser_take_the_second_of_equals
+    sql: "SELECT id, GREATER(vc, 'x') || '|' AS a, LESSER(vc, 'x') || '|' AS b, GREATER('x', vc) || '|' AS c FROM t WHERE id = 6"
+    profile: iq17-default
+  - id: greater_and_lesser_with_a_null
+    sql: "SELECT id, GREATER(sm, NULL) AS a, LESSER(NULL, it) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: greater_of_a_string_and_a_number_is_refused
+    sql: "SELECT GREATER(vc, it) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: argn_of_columns
+    sql: "SELECT id, ARGN(2, sm, it, bg) AS a, ARGN(id, 'a', 'b', 'c') AS b, ARGN(2, sm, nm) AS c, ARGN(1, sm, dbl) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: argn_past_its_values
+    sql: "SELECT id, ARGN(CAST(NULL AS INT), 'a', 'b') AS a, ARGN(0, 'a', 'b') AS b, ARGN(-1, 'a', 'b') AS c FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: argn_of_a_string_and_a_number_is_refused
+    sql: "SELECT ARGN(2, sm, 'x') AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: reverse
+    sql: "SELECT id, REVERSE(vc) AS a, REVERSE(ch) || '|' AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: reverse_of_a_number_is_iqs_error
+    sql: "SELECT REVERSE(it) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: insertstr
+    sql: "SELECT id, INSERTSTR(2, vc, 'XY') AS a, INSERTSTR(0, vc, 'XY') AS b, INSERTSTR(10, vc, 'XY') AS c, INSERTSTR(-1, vc, 'XY') AS d, INSERTSTR(sm, vc, 'Z') AS e, INSERTSTR(it, vc, 'Z') AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: insertstr_bounds_and_kinds
+    sql: "SELECT id, INSERTSTR(32767, vc, 'Z') AS a, INSERTSTR(32768, vc, 'Z') AS b, INSERTSTR(-32768, vc, 'Z') AS c, INSERTSTR(2, vc, NULL) AS d, INSERTSTR(1, it, 'Z') AS e, INSERTSTR(3, ch, '|') AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: byte_length
+    sql: "SELECT id, BYTE_LENGTH(vc) AS a, BYTE_LENGTH(ch) AS b, BYTE_LENGTH('') AS c, BYTE_LENGTH(vc || 'é') AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: byte_length_of_integer_columns
+    sql: "SELECT id, BYTE_LENGTH(it) AS a, BYTE_LENGTH(sm) AS b, BYTE_LENGTH(bg) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: byte_length_of_a_date_is_refused
+    sql: "SELECT BYTE_LENGTH(dt) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+
+  # ---- NUMBER(*) (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): the result's rows numbered in its order,
+  # before TOP and START AT keep theirs; IQ's -864 in WHERE, ORDER BY, DISTINCT, a derived table, a set operation
+  - id: number_in_the_order_by_order
+    sql: "SELECT NUMBER(*) AS n, id FROM t ORDER BY id DESC"
+    profile: iq17-default
+  - id: number_by_position_alias_and_expression
+    sql: "SELECT id AS k, NUMBER(*) AS n, NUMBER(*) * 10 AS m FROM t ORDER BY sm, 1"
+    profile: iq17-default
+  - id: number_before_top_and_start_at
+    sql: "SELECT TOP 3 START AT 2 NUMBER(*) AS n, id FROM t ORDER BY id"
+    profile: iq17-default
+  - id: number_of_groups
+    sql: "SELECT k, COUNT(*) AS c, NUMBER(*) AS n FROM g GROUP BY k HAVING COUNT(*) > 1 ORDER BY k DESC"
+    profile: iq17-default
+  - id: number_beside_row_number
+    sql: "SELECT id, NUMBER(*) AS n, ROW_NUMBER() OVER (ORDER BY id DESC) AS r FROM t ORDER BY id"
+    profile: iq17-default
+  - id: number_in_where_is_iqs_error
+    sql: "SELECT id FROM t WHERE NUMBER(*) > 2 ORDER BY id"
+    profile: iq17-default
+  - id: number_in_order_by_is_iqs_error
+    sql: "SELECT NUMBER(*) AS n, id FROM t ORDER BY n DESC"
+    profile: iq17-default
+  - id: number_with_distinct_is_iqs_error
+    sql: "SELECT DISTINCT NUMBER(*) AS n, k FROM g ORDER BY 1"
+    profile: iq17-default
+  - id: number_in_a_derived_table_is_iqs_error
+    sql: "SELECT d.n, d.id FROM (SELECT NUMBER(*) AS n, id FROM t) AS d ORDER BY d.id"
+    profile: iq17-default
+  - id: number_in_a_case_is_iqs_error
+    sql: "SELECT id, CASE WHEN NUMBER(*) > 3 THEN 'late' ELSE 'early' END AS c FROM t ORDER BY id"
+    profile: iq17-default
+
+  # ---- REGEXP_SUBSTR (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): the first match from the start on, of
+  # a pattern of single-character atoms with greedy quantifiers (IQ matches leftmost-longest, so alternation and groups
+  # are refused; IQ's classes are Unicode's, so the backslash and POSIX classes are refused)
+  - id: regexp_substr
+    sql: "SELECT id, REGEXP_SUBSTR(vc, '[a-z]+') AS a, REGEXP_SUBSTR(vc, 'l{2,}') AS b, REGEXP_SUBSTR(vc, '^[A-Za-z]{2}') AS c, REGEXP_SUBSTR(vc, '[a-z]$') AS d, REGEXP_SUBSTR(vc, 'e.') AS e, REGEXP_SUBSTR(vc, '[^aeiou]+') AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: regexp_substr_from_a_start
+    sql: "SELECT id, REGEXP_SUBSTR(vc, '[a-z]+', 3) AS a, REGEXP_SUBSTR(vc, '[a-z]+', 0) AS b, REGEXP_SUBSTR(vc, '[a-z]+', -1) AS c, REGEXP_SUBSTR(vc, '.', -5) AS d, REGEXP_SUBSTR(vc, '[a-z]*', 6) AS e, REGEXP_SUBSTR(vc, '^p', 3) AS f, REGEXP_SUBSTR(vc, '[a-z]+', sm) AS g FROM t ORDER BY id"
+    profile: iq17-default
+  - id: regexp_substr_empty_and_null
+    sql: "SELECT id, REGEXP_SUBSTR(vc, 'x*') AS a, REGEXP_SUBSTR(vc, 'q') AS b, REGEXP_SUBSTR(vc, NULL) AS c, REGEXP_SUBSTR(vc, '.', 1, 0) AS d, REGEXP_SUBSTR(vc, '[é]+') AS e, REGEXP_SUBSTR(vc, 'l', 1, 1) AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: regexp_substr_of_an_integer_and_line_breaks
+    sql: "SELECT id, REGEXP_SUBSTR(it, '[0-9]{3}') AS a, REGEXP_SUBSTR('a' || CHAR(10) || 'b', 'a.b') AS b, REGEXP_SUBSTR('ab' || CHAR(10), 'b$') AS c, REGEXP_SUBSTR('a.b', '\\\\.') AS d FROM t WHERE id IN (1, 7) ORDER BY id"
+    profile: iq17-default
+  - id: regexp_substr_with_alternation_is_refused
+    sql: "SELECT REGEXP_SUBSTR(vc, 'l|ll') AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: regexp_substr_with_a_word_class_is_refused
+    sql: "SELECT REGEXP_SUBSTR(vc, '\\\\w+') AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: regexp_substr_of_a_second_occurrence_is_refused
+    sql: "SELECT REGEXP_SUBSTR('a1b22c333', '[0-9]+', 1, 3) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: regexp_substr_with_a_lazy_quantifier_is_iqs_error
+    sql: "SELECT REGEXP_SUBSTR(vc, 'l+?') AS a FROM t WHERE id = 1"
+    profile: iq17-default

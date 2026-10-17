@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
  * THE SEED of the live protocol differential (upstream boundary batch 6): the
  * sources whose wire JSON core used to pin as hand-copied strings — captured
  * 2026-08-04 from engine 4.133.0 through {@code ProbeWireShapes} and
- * re-derived by nothing — compared LIVE against the oracle, byte for byte,
+ * re-derived by nothing — compared LIVE against the referee, byte for byte,
  * element by element, on every run. Exact: no ledger, no floor — a DIFF here
  * is a bug in the emitter or a real upstream change, either way red.
  *
@@ -222,7 +222,7 @@ class ProtocolSeedParityTest {
 
     @Test
     @DisplayName("every seed source emits the oracle's bytes, element by element — exact, no ledger")
-    void seedsMatchTheOracleExactly() {
+    void seedsMatchTheRefereeExactly() {
         ParserEquivalence eq = new ParserEquivalence();
         List<String> bad = new ArrayList<>();
         int matched = 0;

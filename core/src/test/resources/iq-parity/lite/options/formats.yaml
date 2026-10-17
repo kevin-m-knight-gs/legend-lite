@@ -1,0 +1,34 @@
+# date_format, timestamp_format and time_format (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the
+# options framework): the formats a DATE or a TIMESTAMP is written as text in -- read where the island writes one (a
+# CAST to a string type, ||, STRING): YYYY-MM-DD (in any case) and a TIMESTAMP's three or six places of the second; any
+# other format is accepted and refused by name where a value is written in it. A DATE or a TIMESTAMP shown as it is
+# reads no format (the oracle fetches it at YYYY-MM-DD and six places). Judged by SQL Anywhere 17's answers. The SQL in
+# YAML double quotes.
+tests:
+  - id: timestamp_six_places
+    sql: "SELECT CAST(ts AS VARCHAR(30)) AS s FROM t WHERE id IN (1, 6) ORDER BY id"
+    settings: "query.timestamp_format='YYYY-MM-DD HH:NN:SS.SSSSSS'"
+    profile: iq16-default, sqla17-default
+  - id: timestamp_three_places_lower_case
+    sql: "SELECT CAST(ts AS VARCHAR(30)) AS s FROM t WHERE id = 1"
+    settings: "query.timestamp_format='yyyy-mm-dd hh:nn:ss.sss'"
+    profile: iq16-default, sqla17-default
+  - id: date_format_lower_case
+    sql: "SELECT CAST(dt AS VARCHAR(10)) AS s FROM t WHERE id = 1"
+    settings: "query.date_format='yyyy-mm-dd'"
+    profile: iq16-default, sqla17-default
+  - id: another_date_format_shown_as_a_date
+    sql: "SELECT dt FROM t WHERE id IN (1, 2) ORDER BY id"
+    settings: "query.date_format='DD/MM/YYYY'"
+    profile: iq16-default, sqla17-default
+  - id: another_date_format_as_text_is_refused
+    sql: "SELECT CAST(dt AS VARCHAR(20)) AS s FROM t WHERE id = 1"
+    settings: "query.date_format='DD/MM/YYYY'"
+    profile: iq16-default, sqla17-default
+  - id: another_timestamp_format_shown_as_a_timestamp
+    sql: "SELECT ts FROM t WHERE id = 1"
+    settings: "query.timestamp_format='DD/MM/YYYY HH:NN'"
+    profile: iq16-default, sqla17-default
+  - id: a_time_format_with_no_time_read
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id"
+    settings: "query.time_format='HH:NN'"

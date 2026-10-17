@@ -59,17 +59,26 @@ public record AssociationDefinition(
      *
      * @param propertyName property name on the source side
      * @param targetClass  the class this property points to, as a structured AST
-     * @param lowerBound   lower multiplicity bound
-     * @param upperBound   upper multiplicity bound ({@code null} = unbounded)
+     * @param multiplicity the end's multiplicity
+     * @param stereotypes  the stereotypes written on the end (the parser reads an end as an ordinary wire property,
+     *                     annotations and all; the property-graph profile marks an edge class's ends here,
+     *                     docs/CYPHER_STUDY_2026_10_15.md §5.6)
      */
     public record AssociationEndDefinition(
             String propertyName,
             TypeExpression targetClass,
-            Multiplicity multiplicity) {
+            Multiplicity multiplicity,
+            List<StereotypeApplication> stereotypes) {
         public AssociationEndDefinition {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
             Objects.requireNonNull(targetClass, "Target class cannot be null");
             Objects.requireNonNull(multiplicity, "End multiplicity cannot be null");
+            stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
+        }
+
+        /** An end with no stereotype. */
+        public AssociationEndDefinition(String propertyName, TypeExpression targetClass, Multiplicity multiplicity) {
+            this(propertyName, targetClass, multiplicity, List.of());
         }
 
         /**

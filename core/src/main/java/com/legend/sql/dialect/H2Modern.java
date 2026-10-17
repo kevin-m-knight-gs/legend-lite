@@ -20,13 +20,22 @@ import java.util.List;
  */
 public class H2Modern extends H2 {
 
+    /** Refused: this dialect is chosen for a server at run time ({@link H2#forServer}), never planned with, and the
+     *  servers it is for (every one but {@link H2#SERVERS}) are none a plan can name (the dialect program's Phase 5,
+     *  2026-10-16, the audit of the branch). */
+    @Override
+    public java.util.List<String> serverVersions() {
+        throw new DialectCapability("H2Modern: a plan is written for H2's servers " + H2.SERVERS
+                + ", and H2Modern is chosen for any other at run time");
+    }
+
     /** Every scalar type's name: H2's (the dialect program's Phase 1, 2026-10-13: an exhaustive
      *  switch, so a new scalar type asks this dialect too). */
     @Override
     protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
         return switch (s) {
-            case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, JSON, LITERAL,
-                 TEMPORAL_TEXT, DECIMAL_TEXT ->
+            case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON,
+                 LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT ->
                     super.scalarTypeName(s);
         };
     }
@@ -100,10 +109,10 @@ public class H2Modern extends H2 {
                  SIGN, XOR, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT, REGEXP_EXTRACT,
                  REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH, MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EMPTY,
                  MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT, SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES,
-                 LEFT, RIGHT, LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, SPLIT, SPLIT_PART, PURE_SPLIT_PART,
+                 LEFT, RIGHT, LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, TRANSLATE, SPLIT, SPLIT_PART, PURE_SPLIT_PART,
                  REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST, ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH,
                  MD5, SHA1, SHA256, EXTRACT, TODAY, NOW, DATE_TRUNC_DAY, MAKE_DATE, MAKE_TIMESTAMP, DATE_TRUNC,
-                 ADD_INTERVAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, ADD_INTERVAL_TEMPORAL, EPOCH_SECONDS, EPOCH_MS,
+                 ADD_INTERVAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, DATE_AT_TIME, ADD_INTERVAL_TEMPORAL, EPOCH_SECONDS, EPOCH_MS, EPOCH_NS, FROM_EPOCH_NS,
                  FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, COT, RADIANS, DEGREES, INT_DIVIDE, REPEAT_STR,
                  JARO_WINKLER, DECODE_BASE64, CURRENT_USER_FN, LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM,
                  LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL,

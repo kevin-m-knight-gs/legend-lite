@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE OLDER JSON'S ORACLE (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 2 step 2): every model and lambda among
+ * THE OLDER JSON'S REFEREE (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 2 step 2): every model and lambda among
  * legend-engine's own test resources -- JSON written by the engine's older versions, older expression shapes
  * included -- read by the engine and written back (its own upgrade, J2), against lite's read and emit of the same
  * JSON, element by element:

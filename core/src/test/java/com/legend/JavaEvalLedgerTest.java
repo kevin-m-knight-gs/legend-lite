@@ -135,7 +135,10 @@ class JavaEvalLedgerTest {
             // 881 -> 882 (enum push-down, 2026-09-12): the TDS tuple stamps the
             // enumeration-mapping id only when the plan does NOT push the decode
             // down — one flag read, no evaluation
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 882),
+            // 882 -> 860 (2026-10-16, the dialect program's Phase 3): the three H2-defaulting single() overloads
+            // collapsed into one taking the runtime's connection, and the scalar select item is the plan text's
+            // dialect's select list (EngineTextDialect.selectList), not cut out of the rendered text
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 860),
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
@@ -187,7 +190,7 @@ class JavaEvalLedgerTest {
             // pinned below as GridProbe.)
             // 48 -> 52 (§4bZ-U follow-on, JUSTIFIED): probeTypedColumns
             // maps the LIMIT-0 metadata's SQL type names to Pure columns
-            // for the boundary resolver's oracle — SCHEMA plumbing (the
+            // for the boundary resolver's referee — SCHEMA plumbing (the
             // probe's own metadata, one lookup per column), zero value
             // evaluation; it EXISTS to delete the Any-wildcard stamp so
             // late-bound cells type and the wire ledger burns.
@@ -599,7 +602,7 @@ class JavaEvalLedgerTest {
             // evaluation, no routing change; run-scoped fact rides the
             // env (never a static sink).
             // 2566 -> 2571 (SQLTEXT charter §2, slice 1 2026-09-01):
-            // ExecEnv carries the SqlReplayOracle beside the listener
+            // ExecEnv carries the SqlReplayReferee beside the listener
             // (same seam, same nullable carriage, same env-not-static
             // discipline). Registration plumbing only — no evaluation.
             // 2571 -> 2594 (metamodel-as-relations group F burn,
@@ -685,11 +688,13 @@ class JavaEvalLedgerTest {
             // 2298 -> 2297 (2026-10-13, the dialect program's Phase 1c, decision D2): adaptRaw deleted; the language of
             // executeInDb's text and of a from()'s setup SQL is read by the context reader (ExecutionContext.rawLanguage)
             // and passed to the dialect (SqlDialect.raw); nothing evaluated
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2297),   // 2314 -> 2281 (2026-10-08, execution plan boundary step 2: the legacy plan's two parameter readers — its text form and its walkable form, each spelling optionality, types and template parameters itself, one with a dead `many` flag — replaced by QueryParameters, the one parameter list; nothing evaluated); 2382 -> 2314 (2026-10-04, C1: the effect scan, containsEffect, moved verbatim to compiler/spec/StatementEffects -- a compile-time fact about the typed program, the plan side's one reach into execution); 2377 -> 2382 (2026-10-04, C3b: one execution-resolution helper, resolvedToExecute — resolve, then check every touched store against the runtime's connections — used by all four StatementExecutor execution paths, three of which ran unchecked; the system database opened by the declared type; nothing evaluated); 2392 -> 2377 (2026-10-03, C3a: the engine-text renderer choice — the toSQLString switch and planDialect with its default -> H2 — moved to its one owner EngineText, by declared DatabaseType; nothing evaluated); 2413 -> 2392 (2026-09-27: running a connection's setup steps moved to CsvSeed.run, beside declaredSteps which builds them, so pure/v1 execute establishes a connection through the same loop); 2415 -> 2413 (2026-09-26, execution plan step 2: a callee compare against a catalog constant reads the constant's identity on one line, `FunctionId.of(Pure.X)`, where the two-line signature-key build stood, and the context-owner family is asked by the callee's identity instead of a name held in a local; nothing evaluated); 2427 -> 2415 (2026-09-23: a runtime's declared test data moved to CsvSeed.declaredSteps, beside the CSV steps it builds; test data rows load through Executor.load); 2431 -> 2427 (2026-09-23: an execute() call's activity rows are LAZY — PlanAllocations builds the second render on first read, so the two call sites hand it the chain instead of the rendered SQL); 2436 -> 2431 (2026-09-22: the driver's hand-built view accessor deleted — the compiler hands it the view's relation); 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
+            // 2296 -> 2297 (2026-10-16, the dialect program's Phase 3: the test-data generator's plan takes its engine-text dialect and connection from the caller, two arguments on a second line, where it hard-coded H2's; nothing evaluated); 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the cross-store plan's four engine-text renderers are one, which also writes each node's select list; nothing evaluated); 2314 -> 2281 (2026-10-08, execution plan boundary step 2: the legacy plan's two parameter readers — its text form and its walkable form, each spelling optionality, types and template parameters itself, one with a dead `many` flag — replaced by QueryParameters, the one parameter list; nothing evaluated); 2382 -> 2314 (2026-10-04, C1: the effect scan, containsEffect, moved verbatim to compiler/spec/StatementEffects -- a compile-time fact about the typed program, the plan side's one reach into execution); 2377 -> 2382 (2026-10-04, C3b: one execution-resolution helper, resolvedToExecute — resolve, then check every touched store against the runtime's connections — used by all four StatementExecutor execution paths, three of which ran unchecked; the system database opened by the declared type; nothing evaluated); 2392 -> 2377 (2026-10-03, C3a: the engine-text renderer choice — the toSQLString switch and planDialect with its default -> H2 — moved to its one owner EngineText, by declared DatabaseType; nothing evaluated); 2413 -> 2392 (2026-09-27: running a connection's setup steps moved to CsvSeed.run, beside declaredSteps which builds them, so pure/v1 execute establishes a connection through the same loop); 2415 -> 2413 (2026-09-26, execution plan step 2: a callee compare against a catalog constant reads the constant's identity on one line, `FunctionId.of(Pure.X)`, where the two-line signature-key build stood, and the context-owner family is asked by the callee's identity instead of a name held in a local; nothing evaluated); 2427 -> 2415 (2026-09-23: a runtime's declared test data moved to CsvSeed.declaredSteps, beside the CSV steps it builds; test data rows load through Executor.load); 2431 -> 2427 (2026-09-23: an execute() call's activity rows are LAZY — PlanAllocations builds the second render on first read, so the two call sites hand it the chain instead of the rendered SQL); 2436 -> 2431 (2026-09-22: the driver's hand-built view accessor deleted — the compiler hands it the view's relation); 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
+            // 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the test-data specification's class is the model's, ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS, one line where PlatformTypes' took two; nothing evaluated)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2296),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
-            // oracle SPI, outcome judgment + the emission census.
+            // referee SPI, outcome judgment + the emission census.
             // Zero evaluation: every text and every row computes in
             // the database; the §4 residue arms judge TEXT equality of
             // two DB-computed strings (Clause 2c judgment).
@@ -719,9 +724,9 @@ class JavaEvalLedgerTest {
             // compute in the database. The judgment-only vocabulary
             // ban (verdictFilesJudgeOnly) still binds every line.
             // 293 -> 344 (charter §8.3d): the dual-golden arm
-            // (tryArmH2Compat — replays the UPGRADED golden, the same
+            // (tryArmDualGolden — replays the UPGRADED golden, the same
             // choice the engine's own version dispatch makes on our
-            // oracle; both actual spellings owned via the existing
+            // referee; both actual spellings owned via the existing
             // findSqlRead chase). Same class: detection + sequencing +
             // judgment; the vocabulary ban binds every line.
             // 344 -> 354 (§8.3e hardening): recognized-but-
@@ -732,7 +737,7 @@ class JavaEvalLedgerTest {
             // (tryArmPlanText + findPlanProducer) — referee bindings
             // are MINTED LETS (VerdictQueries.refereeBindings), the
             // rows leg is the lambda through the one router with those
-            // lets, the golden replays hole-filled through the oracle.
+            // lets, the golden replays hole-filled through the referee.
             // Detection + sequencing + judgment; the vocabulary ban
             // binds every line; unbindable/operation-hole shapes WALL
             // counted.
@@ -751,20 +756,20 @@ class JavaEvalLedgerTest {
             // judgment or evaluation added.
             // 592 -> 628 (batch 38, 2026-09-03): the exec-read rows leg
             // recovers the executed FRAME's mapping and root class for the
-            // oracle's enum decode (frameMappingAndClass: the let-chase,
+            // referee's enum decode (frameMappingAndClass: the let-chase,
             // then the splice hook's activities read to the frame's own
             // execute() call) and the general arm let-chases a toSQLString
-            // query lambda. Recognition + routing only: the oracle still
+            // query lambda. Recognition + routing only: the referee still
             // executes both sides in their databases; no judgment added.
             // 628 -> 657 (batch 39, 2026-09-03): a plan-text golden replays
             // its ONE `sql =` node (planReplaySql: recognition of the plan
             // text's sql line; a multi-node plan stays a counted text
-            // contract) — routing only; the oracle still executes both
+            // contract) — routing only; the referee still executes both
             // sides in their databases.
             // 657 -> 669 (batch 42, 2026-09-03): the exec-read frame facts
             // carry the STATIC extent-subset fact (VerdictQueries.extentSubset
             // over the typed chain — the compiler layer owns the walk) to
-            // the oracle's pk-collapse — routing of a fact, no evaluation.
+            // the referee's pk-collapse — routing of a fact, no evaluation.
             // 669 -> 690 (batch 52, 2026-09-03): the golden-vs-render arm
             // accepts the RUNTIME overload of toSQLString (dialect read from
             // the connection, the runtime's post-processor hooks applied to
@@ -772,37 +777,37 @@ class JavaEvalLedgerTest {
             // same recogniser the frame path uses; no evaluation moved here.
             // 690 -> 765 (batch 64, 2026-09-04): the chained generator-fetch
             // arm ADDRESSES a hop ($testData.sqls->at(i) → index + the
-            // let-bound generator node) and hands the oracle SPI the
+            // let-bound generator node) and hands the referee SPI the
             // generator re-run as a supplier in the SPI's own transcript
             // terms — routing of a fact to the referee; the replay, temps
-            // and compare live in the oracle.
+            // and compare live in the referee.
             // 765 -> 830 (batch 65, 2026-09-04): the inline in-list temp
             // table — the arm reads the query's in([...]) literal (typed
-            // literals, no evaluation) into a TempTable spec for the oracle;
+            // literals, no evaluation) into a TempTable spec for the referee;
             // the frame's query rides FrameFacts to the rows leg.
             // 830 -> 842 (batch 66, 2026-09-05): the plan-text arm hands a
-            // multi-node plan and the referee bindings to the oracle's plan
+            // multi-node plan and the referee bindings to the referee's plan
             // replay (verifyPlan) — routing; the lambda's leading lets scope
             // the rows leg; the hop finder sees through sqlRemoveFormatting.
             // 842 -> 919 (batch 67, 2026-09-05): the exec-read arm ADDRESSES
             // the engine's two-statement in-list plan — the population
             // statement's rows leg is the query lambda's let expression, the
             // main statement's temp is a "population" TempTable spec for the
-            // oracle; the n>0 read is owned for that shape. Routing of typed
-            // facts; the replay and the compare stay in the oracle.
+            // referee; the n>0 read is owned for that shape. Routing of typed
+            // facts; the replay and the compare stay in the referee.
             // 919 -> 1011 (batch 69a, 2026-09-05): the engine's plan is one
             // statement per store-backed LET of the query lambda — golden(k)
             // routes to let k's own rows (statementRoute/statementLets),
             // shared by the exec-read arm and the H2Compatible arm (its
             // verdict tail extracted so the n-th read routes there too).
             // Routing of typed facts; the replay and compare stay in the
-            // oracle.
+            // referee.
             // 1011 -> 1035 (batch 69c): the engine's chained-plan warning
             // line is stripped off a golden before replay (a spec-text
             // shape), and the toSQLString arm takes MULTI-STATEMENT lambdas
             // — golden(0) routes to statement let 0's rows, the lets scope
             // the rows leg. Routing; the replay and compare stay in the
-            // oracle.
+            // referee.
             // 1035 -> 1057 (batches 75 + 81, 2026-09-06): the producer's
             // structured inputs read through SqlTextInputs (the toSQL
             // handle form — recognition, the argument positions no longer
@@ -1053,6 +1058,16 @@ class JavaEvalLedgerTest {
                     // session's product checked, a declared connection or a private
                     // in-memory database opened; reads names, computes nothing
                     "Sessions.java",
+                    // the dialect program's Phase 5 (2026-10-16, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md):
+                    // each database's sessions in a connector of its own -- its driver's product name, the URL a
+                    // declared connection opens, its private in-memory instance -- and Connectors the one place
+                    // a declared type finds its connector; Sessions asks them. Names, URLs and openings, and
+                    // MariaDbConnector's one fixed read and reset of a session's held raise (its two statements,
+                    // moved from Sessions): nothing is evaluated, produced or compared
+                    "DatabaseConnector.java", "Connectors.java", "H2Connector.java", "DuckDbConnector.java",
+                    "SqliteConnector.java", "PostgresConnector.java", "MariaDbConnector.java",
+                    "MySqlConnector.java", "SnowflakeConnector.java", "DatabricksConnector.java",
+                    "BigQueryConnector.java", "TrinoConnector.java", "ClickHouseConnector.java",
                     // block-compiler stage 3 (2026-09-21): an EFFECT SEGMENT under
                     // construction — the statements the effect natives would have
                     // sent, collected (text + the ledger's text + a statically
@@ -1092,7 +1107,8 @@ class JavaEvalLedgerTest {
                     // TestAssertions became delegations to it. It compares
                     // two produced sides and never produces a value.
                     "Equality.java",
-                    "H2Settings.java",
+                    // (H2Settings.java: H2's URL settings, DELETED 2026-10-16 -- into H2Connector.SETTINGS,
+                    // the dialect program's Phase 5)
                     "PctProbe.java",
                     // leg 3.3 (2026-09-19): the wire-decided kinds of a
                     // store-reading verdict side are the DATABASE's — one
@@ -1186,9 +1202,9 @@ class JavaEvalLedgerTest {
                     // registers nothing and a SQL-text assert walls
                     // loudly. Pure seam: no JDBC of its own, no
                     // evaluation, no verdict logic — rows come from
-                    // the ORACLE database, judgment stays in the
+                    // the REFEREE database, judgment stays in the
                     // verdict layer.
-                    "SqlReplayOracle.java",
+                    "SqlReplayReferee.java",
                     // SQLTEXT slice 3 (2026-09-01): the text-emission
                     // CENSUS — pure counters (LongAdders) the sql-text
                     // verdict arms feed and the runner prints. Under
@@ -1287,7 +1303,7 @@ class JavaEvalLedgerTest {
                     // outcome judgment ONLY (Clause 2c); both texts,
                     // our rows and the golden replay all compute in
                     // the database through evalValue and the
-                    // SqlReplayOracle SPI. Line-pinned below like its
+                    // SqlReplayReferee SPI. Line-pinned below like its
                     // sibling AssertVerdicts.
                     "SqlTextVerdicts.java", "StatementExecutor.java",
                     // batch 75 (2026-09-06): the toSQLString surface's

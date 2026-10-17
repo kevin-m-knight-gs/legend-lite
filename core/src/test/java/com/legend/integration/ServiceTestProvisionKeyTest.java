@@ -3,6 +3,8 @@
 
 package com.legend.integration;
 
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ServiceDefinition;
@@ -10,7 +12,6 @@ import com.legend.test.ServiceTestRunner;
 import com.legend.testing.Own;
 import org.junit.jupiter.api.Test;
 
-import java.sql.DriverManager;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -104,8 +105,8 @@ class ServiceTestProvisionKeyTest {
 
     private static ServiceTestRunner runner(com.legend.compiler.element.ModelContext ctx,
             ServiceTestRunner.Sessions policy) {
-        return new ServiceTestRunner(ctx, () -> DriverManager.getConnection("jdbc:duckdb:"),
-                policy, ConnectionDefinition.DatabaseType.DuckDB);
+        return new ServiceTestRunner(ctx, () -> TestBackends.platform().open(),
+                policy, Databases.PLATFORM);
     }
 
     private static ServiceDefinition service(String fqn) {

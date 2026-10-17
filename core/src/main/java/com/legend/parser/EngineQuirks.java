@@ -11,7 +11,7 @@ package com.legend.parser;
  * exists so the reproducing code site is grep-able and the decision is
  * recorded in writing at the place a future maintainer will look first.
  * A "correct mode" arrives only when a consumer that wants it AND an
- * oracle that can adjudicate it both exist; until then the single
+ * referee that can adjudicate it both exist; until then the single
  * behavior is the engine's.
  */
 public final class EngineQuirks {
@@ -41,7 +41,7 @@ public final class EngineQuirks {
      * grabs {@code plus[2,3]} whole instead of just {@code 3}.
      *
      * <p>The CORRECT behavior we would switch to (were a consumer +
-     * oracle to exist): the tighter operator claims only the
+     * referee to exist): the tighter operator claims only the
      * <em>deepest last operand</em> &mdash; rewrite {@code 3} inside the
      * inner {@code plus} collection, yielding
      * {@code lessThan(1, plus[Collection[2, times[Collection[3,4]]]])}

@@ -1,6 +1,7 @@
 package com.legend.integration;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Execution;
@@ -11,7 +12,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -88,7 +88,7 @@ class MetamodelQueryFunctionsTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection("jdbc:duckdb:");
+        connection = TestBackends.platform().open();
     }
 
     @AfterEach
@@ -97,7 +97,7 @@ class MetamodelQueryFunctionsTest {
     }
 
     private List<Object> values(String query) throws SQLException {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, connection);
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, connection);
         if (r instanceof ExecutionResult.Collection c) {
             return c.values();
         }

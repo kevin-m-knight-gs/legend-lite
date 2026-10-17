@@ -41,7 +41,7 @@ public sealed interface PackageableElement
                 MeasureDefinition,
                 PersistenceDefinition,
                 PersistenceContextDefinition,
-                SnowflakeActivatorDefinition,
+                FunctionActivatorDefinition,
                 GenericSectionElementDefinition,
                 DatabaseDefinition,
                 MappingDefinition,

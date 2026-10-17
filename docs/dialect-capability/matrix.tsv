@@ -96,6 +96,7 @@ H2	H2	call	RTRIM	spelled	rtrim		60
 H2	H2	call	REPLACE	spelled	replace		313
 H2	H2	call	SPLIT	spelled	string_split		2
 H2	H2	call	SPLIT_PART	emulated	splitPartArm		19
+H2	H2	call	TRANSLATE	emulated	translate		0
 H2	H2	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 H2	H2	call	REVERSE_STRING	spelled	reverse		2
 H2	H2	call	ASCII_CODE	spelled	ascii		10
@@ -107,9 +108,9 @@ H2	H2	call	LEVENSHTEIN	spelled	levenshtein		2
 H2	H2	call	GUID	emulated	CAST(uuid() AS VARCHAR)		2
 H2	H2	call	FORMAT	emulated	formatArm		42
 H2	H2	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	via AnsiSqlRenderer.hashSigned	5
-H2	H2	call	MD5	spelled	md5		1
-H2	H2	call	SHA1	spelled	sha1		1
-H2	H2	call	SHA256	spelled	sha256		1
+H2	H2	call	MD5	emulated	digest: MD5		1
+H2	H2	call	SHA1	emulated	digest: SHA-1		1
+H2	H2	call	SHA256	emulated	digest: SHA-256		1
 H2	H2	call	EXTRACT	emulated	datePart, part: extract(… FROM …)		24
 H2	H2	call	TODAY	spelled	current_date		0
 H2	H2	call	NOW	spelled	now		0
@@ -121,6 +122,9 @@ H2	H2	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)		93
 H2	H2	call	DATE_DIFF	emulated	dateDiffArm		53
 H2	H2	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()		109
 H2	H2	call	TIMEZONE	spelled	timezone		6
+H2	H2	call	DATE_AT_TIME	spelled	an operator (+)		0
+H2	H2	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+H2	H2	call	FROM_EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 H2	H2	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit, part: dateadd(…, …, …)		0
 H2	H2	call	EPOCH_SECONDS	emulated	EXTRACT(EPOCH FROM …)		0
 H2	H2	call	EPOCH_MS	emulated	CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)		24
@@ -311,6 +315,7 @@ H2Modern	-	call	RTRIM	spelled	rtrim	as H2	-
 H2Modern	-	call	REPLACE	spelled	replace	as H2	-
 H2Modern	-	call	SPLIT	spelled	string_split	as H2	-
 H2Modern	-	call	SPLIT_PART	emulated	splitPartArm	as H2	-
+H2Modern	-	call	TRANSLATE	emulated	translate	as H2	-
 H2Modern	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as H2	-
 H2Modern	-	call	REVERSE_STRING	spelled	reverse	as H2	-
 H2Modern	-	call	ASCII_CODE	spelled	ascii	as H2	-
@@ -322,9 +327,9 @@ H2Modern	-	call	LEVENSHTEIN	spelled	levenshtein	as H2	-
 H2Modern	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)	as H2	-
 H2Modern	-	call	FORMAT	emulated	formatArm	as H2	-
 H2Modern	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	as H2, via AnsiSqlRenderer.hashSigned	-
-H2Modern	-	call	MD5	spelled	md5	as H2	-
-H2Modern	-	call	SHA1	spelled	sha1	as H2	-
-H2Modern	-	call	SHA256	spelled	sha256	as H2	-
+H2Modern	-	call	MD5	emulated	digest: MD5	as H2	-
+H2Modern	-	call	SHA1	emulated	digest: SHA-1	as H2	-
+H2Modern	-	call	SHA256	emulated	digest: SHA-256	as H2	-
 H2Modern	-	call	EXTRACT	emulated	datePart, part: extract(… FROM …)	as H2	-
 H2Modern	-	call	TODAY	spelled	current_date	as H2	-
 H2Modern	-	call	NOW	spelled	now	as H2	-
@@ -336,6 +341,9 @@ H2Modern	-	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)	as 
 H2Modern	-	call	DATE_DIFF	emulated	dateDiffArm	as H2	-
 H2Modern	-	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()	as H2	-
 H2Modern	-	call	TIMEZONE	spelled	timezone	as H2	-
+H2Modern	-	call	DATE_AT_TIME	spelled	an operator (+)	as H2	-
+H2Modern	-	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as H2	-
+H2Modern	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as H2	-
 H2Modern	-	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit, part: dateadd(…, …, …)	as H2	-
 H2Modern	-	call	EPOCH_SECONDS	emulated	EXTRACT(EPOCH FROM …)	as H2	-
 H2Modern	-	call	EPOCH_MS	emulated	CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)	as H2	-
@@ -518,14 +526,15 @@ Postgres	Postgres	call	ENDS_WITH	emulated	(right(…, length(…)) = …)		60
 Postgres	Postgres	call	MATCHES	emulated	pattern: (… ~ …)		16
 Postgres	Postgres	call	LEFT	spelled	left		6
 Postgres	Postgres	call	RIGHT	spelled	right		6
-Postgres	Postgres	call	LPAD	emulated	padWithSpace: lpad		16
-Postgres	Postgres	call	RPAD	emulated	padWithSpace: rpad		45
+Postgres	Postgres	call	LPAD	emulated	padWithSpaceToInteger: lpad		16
+Postgres	Postgres	call	RPAD	emulated	padWithSpaceToInteger: rpad		45
 Postgres	Postgres	call	TRIM	spelled	trim		2
 Postgres	Postgres	call	LTRIM	spelled	ltrim		3
 Postgres	Postgres	call	RTRIM	spelled	rtrim		60
 Postgres	Postgres	call	REPLACE	spelled	replace		313
 Postgres	Postgres	call	SPLIT	emulated	(CASE WHEN … = '' THEN ARRAY[''] ELSE string_to_array(…, …) END)		2
 Postgres	Postgres	call	SPLIT_PART	spelled	split_part		19
+Postgres	Postgres	call	TRANSLATE	spelled	translate		0
 Postgres	Postgres	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Postgres	Postgres	call	REVERSE_STRING	spelled	reverse		2
 Postgres	Postgres	call	ASCII_CODE	spelled	ascii		10
@@ -551,6 +560,9 @@ Postgres	Postgres	call	ADD_INTERVAL	emulated	intervalUnit, part: … + … * INT
 Postgres	Postgres	call	DATE_DIFF	emulated	dateDiff		53
 Postgres	Postgres	call	TIME_BUCKET	emulated	timeBucket		109
 Postgres	Postgres	call	TIMEZONE	spelled	timezone		6
+Postgres	Postgres	call	DATE_AT_TIME	spelled	an operator (+)		0
+Postgres	Postgres	call	EPOCH_NS	refused	a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Postgres	Postgres	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Postgres	Postgres	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: … + … * INTERVAL '1 …'		0
 Postgres	Postgres	call	EPOCH_SECONDS	emulated	CAST(extract(epoch FROM …) AS DOUBLE PRECISION)		0
 Postgres	Postgres	call	EPOCH_MS	emulated	CAST(trunc(extract(epoch FROM …) * 1000) AS BIGINT)		24
@@ -741,6 +753,7 @@ Snowflake	Snowflake	call	RTRIM	spelled	rtrim		60
 Snowflake	Snowflake	call	REPLACE	spelled	replace		313
 Snowflake	Snowflake	call	SPLIT	emulated	split		2
 Snowflake	Snowflake	call	SPLIT_PART	spelled	split_part		19
+Snowflake	Snowflake	call	TRANSLATE	spelled	translate		0
 Snowflake	Snowflake	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Snowflake	Snowflake	call	REVERSE_STRING	spelled	reverse		2
 Snowflake	Snowflake	call	ASCII_CODE	spelled	ascii		10
@@ -766,6 +779,9 @@ Snowflake	Snowflake	call	ADD_INTERVAL	emulated	intervalUnit, part: CAST(DATEADD(
 Snowflake	Snowflake	call	DATE_DIFF	emulated	dateDiff		53
 Snowflake	Snowflake	call	TIME_BUCKET	emulated	timeBucket		109
 Snowflake	Snowflake	call	TIMEZONE	emulated	by its operands: CONVERT_TIMEZONE('UTC', …, CAST(… AS TIMESTAMP_NTZ)) / CAST(CONVERT_TIMEZONE(…, 'UTC', CAST(… AS TIMESTAMP_NTZ)) AS TIMESTAMP_LTZ)		6
+Snowflake	Snowflake	call	DATE_AT_TIME	spelled	TIMESTAMP_NTZ_FROM_PARTS		0
+Snowflake	Snowflake	call	EPOCH_NS	refused	a nanosecond epoch: Snowflake keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Snowflake	Snowflake	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Snowflake keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Snowflake	Snowflake	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: CAST(DATEADD(…, …, …) AS TIMESTAMP_NTZ)		0
 Snowflake	Snowflake	call	EPOCH_SECONDS	emulated	naive: (CAST(DATE_PART(EPOCH_MICROSECOND, …) AS DOUBLE) / 1000000)		0
 Snowflake	Snowflake	call	EPOCH_MS	emulated	naive: CAST(TRUNC(DATE_PART(EPOCH_MICROSECOND, …) / 1000) AS BIGINT)		24
@@ -956,6 +972,7 @@ Trino	Trino	call	RTRIM	emulated	trim		60
 Trino	Trino	call	REPLACE	spelled	replace		313
 Trino	Trino	call	SPLIT	spelled	split		2
 Trino	Trino	call	SPLIT_PART	emulated	coalesce(split_part(…), '')		19
+Trino	Trino	call	TRANSLATE	spelled	translate		0
 Trino	Trino	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Trino	Trino	call	REVERSE_STRING	spelled	reverse		2
 Trino	Trino	call	ASCII_CODE	emulated	(CASE WHEN length(…) = 0 THEN 0 ELSE codepoint(CAST(substr(…, 1, 1) AS VARCHA...		10
@@ -981,6 +998,9 @@ Trino	Trino	call	ADD_INTERVAL	emulated	addInterval		93
 Trino	Trino	call	DATE_DIFF	emulated	dateDiff		53
 Trino	Trino	call	TIME_BUCKET	emulated	timeBucket		109
 Trino	Trino	call	TIMEZONE	emulated	timezone		6
+Trino	Trino	call	DATE_AT_TIME	emulated	CAST(CAST(… AS VARCHAR) || ' ' || CAST(… AS VARCHAR) AS TIMESTAMP(6))		0
+Trino	Trino	call	EPOCH_NS	refused	a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Trino	Trino	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Trino	Trino	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval		0
 Trino	Trino	call	EPOCH_SECONDS	emulated	to_unixtime(with_timezone(…, 'UTC'))		0
 Trino	Trino	call	EPOCH_MS	emulated	CAST(truncate(to_unixtime(with_timezone(…, 'UTC')) * 1000) AS BIGINT)		24
@@ -1171,6 +1191,7 @@ BigQuery	BigQuery	call	RTRIM	spelled	RTRIM		60
 BigQuery	BigQuery	call	REPLACE	spelled	REPLACE		313
 BigQuery	BigQuery	call	SPLIT	spelled	SPLIT		2
 BigQuery	BigQuery	call	SPLIT_PART	emulated	splitPart		19
+BigQuery	BigQuery	call	TRANSLATE	spelled	TRANSLATE		0
 BigQuery	BigQuery	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 BigQuery	BigQuery	call	REVERSE_STRING	spelled	REVERSE		2
 BigQuery	BigQuery	call	ASCII_CODE	spelled	ASCII		10
@@ -1196,6 +1217,9 @@ BigQuery	BigQuery	call	ADD_INTERVAL	emulated	intervalUnit, part: (… + INTERVAL
 BigQuery	BigQuery	call	DATE_DIFF	emulated	dateDiff		53
 BigQuery	BigQuery	call	TIME_BUCKET	emulated	timeBucket		109
 BigQuery	BigQuery	call	TIMEZONE	emulated	by its operands: DATETIME(…, …) / TIMESTAMP(CAST(… AS DATETIME), …)		6
+BigQuery	BigQuery	call	DATE_AT_TIME	spelled	DATETIME		0
+BigQuery	BigQuery	call	EPOCH_NS	refused	a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+BigQuery	BigQuery	call	FROM_EPOCH_NS	refused	a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 BigQuery	BigQuery	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)		0
 BigQuery	BigQuery	call	EPOCH_SECONDS	emulated	instant: (CAST(UNIX_MICROS(…) AS FLOAT64) / 1000000)		0
 BigQuery	BigQuery	call	EPOCH_MS	emulated	instant: DIV(UNIX_MICROS(…), 1000)		24
@@ -1386,6 +1410,7 @@ Databricks	Databricks	call	RTRIM	emulated	trim		60
 Databricks	Databricks	call	REPLACE	spelled	replace		313
 Databricks	Databricks	call	SPLIT	emulated	split		2
 Databricks	Databricks	call	SPLIT_PART	spelled	split_part		19
+Databricks	Databricks	call	TRANSLATE	spelled	translate		0
 Databricks	Databricks	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Databricks	Databricks	call	REVERSE_STRING	spelled	reverse		2
 Databricks	Databricks	call	ASCII_CODE	spelled	ascii		10
@@ -1411,6 +1436,9 @@ Databricks	Databricks	call	ADD_INTERVAL	emulated	intervalUnit, part: timestampad
 Databricks	Databricks	call	DATE_DIFF	emulated	dateDiff		53
 Databricks	Databricks	call	TIME_BUCKET	emulated	timeBucket		109
 Databricks	Databricks	call	TIMEZONE	spelled	from_utc_timestamp		6
+Databricks	Databricks	call	DATE_AT_TIME	refused	a time of day: Databricks has no TIME type		0
+Databricks	Databricks	call	EPOCH_NS	refused	a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Databricks	Databricks	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Databricks	Databricks	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: timestampadd(…, …, …)		0
 Databricks	Databricks	call	EPOCH_SECONDS	emulated	(CAST(unix_micros(…) AS DOUBLE) / 1000000)		0
 Databricks	Databricks	call	EPOCH_MS	emulated	(unix_micros(…) div 1000)		24
@@ -1593,14 +1621,15 @@ DuckDb	DuckDB	call	ENDS_WITH	spelled	ends_with		60
 DuckDb	DuckDB	call	MATCHES	spelled	regexp_matches		16
 DuckDb	DuckDB	call	LEFT	spelled	left		6
 DuckDb	DuckDB	call	RIGHT	spelled	right		6
-DuckDb	DuckDB	call	LPAD	emulated	padWithSpace: lpad		16
-DuckDb	DuckDB	call	RPAD	emulated	padWithSpace: rpad		45
+DuckDb	DuckDB	call	LPAD	emulated	padWithSpaceToInteger: lpad		16
+DuckDb	DuckDB	call	RPAD	emulated	padWithSpaceToInteger: rpad		45
 DuckDb	DuckDB	call	TRIM	spelled	trim		2
 DuckDb	DuckDB	call	LTRIM	spelled	ltrim		3
 DuckDb	DuckDB	call	RTRIM	spelled	rtrim		60
 DuckDb	DuckDB	call	REPLACE	spelled	replace		313
 DuckDb	DuckDB	call	SPLIT	spelled	string_split		2
 DuckDb	DuckDB	call	SPLIT_PART	spelled	split_part		19
+DuckDb	DuckDB	call	TRANSLATE	spelled	translate		0
 DuckDb	DuckDB	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 DuckDb	DuckDB	call	REVERSE_STRING	spelled	reverse		2
 DuckDb	DuckDB	call	ASCII_CODE	spelled	ascii		10
@@ -1626,6 +1655,9 @@ DuckDb	DuckDB	call	ADD_INTERVAL	emulated	intervalFunction, part: … + …(…)	
 DuckDb	DuckDB	call	DATE_DIFF	emulated	stringLit, datePart, part: date_diff(…, …)		53
 DuckDb	DuckDB	call	TIME_BUCKET	emulated	timeBucket		109
 DuckDb	DuckDB	call	TIMEZONE	spelled	timezone		6
+DuckDb	DuckDB	call	DATE_AT_TIME	spelled	an operator (+)		0
+DuckDb	DuckDB	call	EPOCH_NS	spelled	epoch_ns		0
+DuckDb	DuckDB	call	FROM_EPOCH_NS	spelled	make_timestamp_ns		0
 DuckDb	DuckDB	call	ADD_INTERVAL_TEMPORAL	emulated	intervalFunction, part: … + …(…)		0
 DuckDb	DuckDB	call	EPOCH_SECONDS	spelled	epoch		0
 DuckDb	DuckDB	call	EPOCH_MS	spelled	epoch_ms		24
@@ -1816,6 +1848,7 @@ ClickHouse	ClickHouse	call	RTRIM	emulated	trimArm		60
 ClickHouse	ClickHouse	call	REPLACE	spelled	replaceAll		313
 ClickHouse	ClickHouse	call	SPLIT	emulated	if(isNull(…), [], splitByString(…, ifNull(…, '')))		2
 ClickHouse	ClickHouse	call	SPLIT_PART	emulated	if(isNull(…), NULL, coalesce(arrayElement(splitByString(…, ifNull(…, '')), …)...		19
+ClickHouse	ClickHouse	call	TRANSLATE	spelled	translateUTF8		0
 ClickHouse	ClickHouse	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 ClickHouse	ClickHouse	call	REVERSE_STRING	spelled	reverseUTF8		2
 ClickHouse	ClickHouse	call	ASCII_CODE	emulated	toInt64(ascii(…))		10
@@ -1841,6 +1874,9 @@ ClickHouse	ClickHouse	call	ADD_INTERVAL	emulated	composed in a block	via ClickHo
 ClickHouse	ClickHouse	call	DATE_DIFF	emulated	composed in a block	via ClickHouse.temporal	53
 ClickHouse	ClickHouse	call	TIME_BUCKET	emulated	timeBucket	via ClickHouse.temporal	109
 ClickHouse	ClickHouse	call	TIMEZONE	emulated	addSeconds(toDateTime64(…, 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(...	via ClickHouse.temporal	6
+ClickHouse	ClickHouse	call	DATE_AT_TIME	refused	a time of day: ClickHouse's Time type is experimental	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	EPOCH_NS	refused	a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	FROM_EPOCH_NS	refused	a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	via ClickHouse.temporal	0
 ClickHouse	ClickHouse	call	ADD_INTERVAL_TEMPORAL	emulated	composed in a block	via ClickHouse.temporal	0
 ClickHouse	ClickHouse	call	EPOCH_SECONDS	emulated	(toFloat64(toUnixTimestamp64Micro(toDateTime64(…, 6, 'UTC'))) / 1000000)	via ClickHouse.temporal	0
 ClickHouse	ClickHouse	call	EPOCH_MS	emulated	toUnixTimestamp64Milli(toDateTime64(…, 6, 'UTC'))	via ClickHouse.temporal	24
@@ -2031,6 +2067,7 @@ SQLite	SQLite	call	RTRIM	spelled	rtrim		60
 SQLite	SQLite	call	REPLACE	spelled	replace		313
 SQLite	SQLite	call	SPLIT	emulated	split		2
 SQLite	SQLite	call	SPLIT_PART	emulated	split: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(json_extract(…, CAS...		19
+SQLite	SQLite	call	TRANSLATE	refused	SQLite has no translate function reached SQLite:		0
 SQLite	SQLite	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 SQLite	SQLite	call	REVERSE_STRING	spelled	reverse		2
 SQLite	SQLite	call	ASCII_CODE	emulated	(CASE WHEN … IS NULL THEN NULL ELSE coalesce(unicode(…), 0) END)		10
@@ -2056,6 +2093,9 @@ SQLite	SQLite	call	ADD_INTERVAL	emulated	addInterval, raise: (CASE WHEN … IS N
 SQLite	SQLite	call	DATE_DIFF	emulated	dateDiff		53
 SQLite	SQLite	call	TIME_BUCKET	emulated	timeBucket		109
 SQLite	SQLite	call	TIMEZONE	emulated	timezone		6
+SQLite	SQLite	call	DATE_AT_TIME	emulated	… || ' ' || …		0
+SQLite	SQLite	call	EPOCH_NS	refused	a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+SQLite	SQLite	call	FROM_EPOCH_NS	refused	a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 SQLite	SQLite	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
 SQLite	SQLite	call	EPOCH_SECONDS	emulated	micros: (… / 1000000.0)		0
 SQLite	SQLite	call	EPOCH_MS	emulated	micros: (… / 1000)		24
@@ -2246,6 +2286,7 @@ MariaDb	MariaDB	call	RTRIM	emulated	trim		60
 MariaDb	MariaDB	call	REPLACE	spelled	replace		293
 MariaDb	MariaDB	call	SPLIT	emulated	split		2
 MariaDb	MariaDB	call	SPLIT_PART	emulated	valueAt, split, indexPath: (CASE WHEN … IS NULL OR … IS NULL THEN NULL WHEN … = 0 THEN '' ELSE coalesce(...		19
+MariaDb	MariaDB	call	TRANSLATE	refused	has no translate function reached :		0
 MariaDb	MariaDB	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 MariaDb	MariaDB	call	REVERSE_STRING	spelled	reverse		2
 MariaDb	MariaDB	call	ASCII_CODE	emulated	(CASE WHEN … IS NULL THEN NULL WHEN CHAR_LENGTH(…) = 0 THEN 0 ELSE CAST(CONV(...		10
@@ -2271,6 +2312,9 @@ MariaDb	MariaDB	call	ADD_INTERVAL	emulated	addInterval, raise, product, typeOf: 
 MariaDb	MariaDB	call	DATE_DIFF	emulated	dateDiff		53
 MariaDb	MariaDB	call	TIME_BUCKET	emulated	timeBucket		109
 MariaDb	MariaDB	call	TIMEZONE	emulated	timezone		6
+MariaDb	MariaDB	call	DATE_AT_TIME	spelled	TIMESTAMP		0
+MariaDb	MariaDB	call	EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+MariaDb	MariaDB	call	FROM_EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 MariaDb	MariaDB	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
 MariaDb	MariaDB	call	EPOCH_SECONDS	emulated	micros: (… / 1000000)		0
 MariaDb	MariaDB	call	EPOCH_MS	emulated	micros: (… DIV 1000)		24
@@ -2461,6 +2505,7 @@ MySql	MySQL	call	RTRIM	emulated	trim	as MariaDb	60
 MySql	MySQL	call	REPLACE	spelled	replace	as MariaDb	293
 MySql	MySQL	call	SPLIT	emulated	split	as MariaDb	2
 MySql	MySQL	call	SPLIT_PART	emulated	valueAt, split, indexPath: (CASE WHEN … IS NULL OR … IS NULL THEN NULL WHEN … = 0 THEN '' ELSE coalesce(...	as MariaDb	19
+MySql	MySQL	call	TRANSLATE	refused	has no translate function reached :	as MariaDb	0
 MySql	MySQL	call	PURE_SPLIT_PART	emulated	splitPartCall	as MariaDb	9
 MySql	MySQL	call	REVERSE_STRING	spelled	reverse	as MariaDb	2
 MySql	MySQL	call	ASCII_CODE	emulated	(CASE WHEN … IS NULL THEN NULL WHEN CHAR_LENGTH(…) = 0 THEN 0 ELSE CAST(CONV(...	as MariaDb	10
@@ -2486,6 +2531,9 @@ MySql	MySQL	call	ADD_INTERVAL	emulated	addInterval, raise, product, typeOf: (CAS
 MySql	MySQL	call	DATE_DIFF	emulated	dateDiff	as MariaDb	53
 MySql	MySQL	call	TIME_BUCKET	emulated	timeBucket	as MariaDb	109
 MySql	MySQL	call	TIMEZONE	emulated	timezone	as MariaDb	6
+MySql	MySQL	call	DATE_AT_TIME	spelled	TIMESTAMP	as MariaDb	0
+MySql	MySQL	call	EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as MariaDb	0
+MySql	MySQL	call	FROM_EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as MariaDb	0
 MySql	MySQL	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...	as MariaDb	0
 MySql	MySQL	call	EPOCH_SECONDS	emulated	micros: (… / 1000000)	as MariaDb	0
 MySql	MySQL	call	EPOCH_MS	emulated	micros: (… DIV 1000)	as MariaDb	24
@@ -2676,6 +2724,7 @@ EngineStyleH2	-	call	RTRIM	emulated	regexp_replace(…, '[ ]+$', '')		-
 EngineStyleH2	-	call	REPLACE	spelled	replace		-
 EngineStyleH2	-	call	SPLIT	spelled	string_split		-
 EngineStyleH2	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part		-
+EngineStyleH2	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell		-
 EngineStyleH2	-	call	PURE_SPLIT_PART	emulated	splitPartCall		-
 EngineStyleH2	-	call	REVERSE_STRING	spelled	legend_h2_extension_reverse_string		-
 EngineStyleH2	-	call	ASCII_CODE	spelled	ascii		-
@@ -2701,6 +2750,9 @@ EngineStyleH2	-	call	ADD_INTERVAL	emulated	dbUnitOf, part: dateadd(…, …, …
 EngineStyleH2	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)		-
 EngineStyleH2	-	call	TIME_BUCKET	emulated	timeBucket		-
 EngineStyleH2	-	call	TIMEZONE	spelled	timezone		-
+EngineStyleH2	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one		-
+EngineStyleH2	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		-
+EngineStyleH2	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		-
 EngineStyleH2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)		-
 EngineStyleH2	-	call	EPOCH_SECONDS	spelled	epoch		-
 EngineStyleH2	-	call	EPOCH_MS	spelled	epoch_ms		-
@@ -2891,6 +2943,7 @@ EngineStyleDB2	-	call	RTRIM	spelled	rtrim		-
 EngineStyleDB2	-	call	REPLACE	spelled	replace	as EngineStyleH2	-
 EngineStyleDB2	-	call	SPLIT	spelled	string_split	as EngineStyleH2	-
 EngineStyleDB2	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part	as EngineStyleH2	-
+EngineStyleDB2	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell	as EngineStyleH2	-
 EngineStyleDB2	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	REVERSE_STRING	spelled	reverse		-
 EngineStyleDB2	-	call	ASCII_CODE	spelled	ascii	as EngineStyleH2	-
@@ -2916,6 +2969,9 @@ EngineStyleDB2	-	call	ADD_INTERVAL	emulated	addInterval		-
 EngineStyleDB2	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)	as EngineStyleH2	-
 EngineStyleDB2	-	call	TIME_BUCKET	emulated	timeBucket	as EngineStyleH2	-
 EngineStyleDB2	-	call	TIMEZONE	spelled	timezone	as EngineStyleH2	-
+EngineStyleDB2	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one	as EngineStyleH2	-
+EngineStyleDB2	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleH2	-
+EngineStyleDB2	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleH2	-
 EngineStyleDB2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)	as EngineStyleH2	-
 EngineStyleDB2	-	call	EPOCH_SECONDS	spelled	epoch	as EngineStyleH2	-
 EngineStyleDB2	-	call	EPOCH_MS	spelled	epoch_ms	as EngineStyleH2	-
@@ -3106,6 +3162,7 @@ EngineStyleComposite	-	call	RTRIM	spelled	rtrim	as EngineStyleDB2	-
 EngineStyleComposite	-	call	REPLACE	spelled	replace	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	SPLIT	spelled	string_split	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	REVERSE_STRING	spelled	reverse	as EngineStyleDB2	-
 EngineStyleComposite	-	call	ASCII_CODE	spelled	ascii	as EngineStyleDB2, as EngineStyleH2	-
@@ -3131,6 +3188,9 @@ EngineStyleComposite	-	call	ADD_INTERVAL	emulated	addInterval	as EngineStyleDB2	
 EngineStyleComposite	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TIME_BUCKET	emulated	timeBucket	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TIMEZONE	spelled	timezone	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	EPOCH_SECONDS	spelled	epoch	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	EPOCH_MS	spelled	epoch_ms	as EngineStyleDB2, as EngineStyleH2	-

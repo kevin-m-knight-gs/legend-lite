@@ -1,0 +1,70 @@
+# CROSS APPLY and OUTER APPLY under IQ's engine (IQ island, 2026-10-16, checklist 2.16c, measured on the live IQ 17.1):
+# IQ answers an APPLY of a query that reads nothing before it (a CROSS JOIN, or a LEFT JOIN on a true condition), of a
+# query of one row computed from the row before it (T-SQL's computed columns: CROSS APPLY (SELECT t.id * 2 AS d) x;
+# OUTER as CROSS), and of a FROM function; a query with FROM that reads the row before it is IQ's error -1001030 (a
+# lateral derived table, a correlated UNION) or its internal error -1006000 (an aggregate, DISTINCT, a window). Judged
+# by the live IQ.
+tests:
+  - id: cross_apply_of_computed_columns
+    sql: "SELECT t.id, x.d, x.e FROM t CROSS APPLY (SELECT t.id * 2 AS d, t.sm + 1 AS e) x ORDER BY t.id"
+    profile: iq17-default
+  - id: outer_apply_of_computed_columns
+    sql: "SELECT t.id, x.d, x.e FROM t OUTER APPLY (SELECT t.id * 2 AS d, t.vc || '!' AS e) x ORDER BY t.id"
+    profile: iq17-default
+  - id: chained_computed_columns
+    sql: "SELECT t.id, x.d, y.f FROM t CROSS APPLY (SELECT t.id * 2 AS d) x CROSS APPLY (SELECT x.d + 1 AS f) y ORDER BY t.id"
+    profile: iq17-default
+  - id: computed_columns_filtered_and_grouped
+    sql: "SELECT x.c, COUNT(*) AS n FROM t CROSS APPLY (SELECT CASE WHEN t.sm > 0 THEN 'pos' ELSE 'other' END AS c) x WHERE x.c <> 'none' GROUP BY x.c ORDER BY x.c"
+    profile: iq17-default
+  - id: computed_columns_of_an_unqualified_name
+    sql: "SELECT t.id, x.d FROM t CROSS APPLY (SELECT sm * 2 AS d) x ORDER BY t.id"
+    profile: iq17-default
+  - id: computed_columns_by_star
+    sql: "SELECT t.id, x.* FROM t CROSS APPLY (SELECT t.id * 2 AS d) x ORDER BY t.id"
+    profile: iq17-default
+  - id: computed_columns_then_a_join
+    sql: "SELECT t.id, x.d, u.id AS uid FROM t CROSS APPLY (SELECT t.id * 2 AS d) x JOIN u ON u.t_id = t.id ORDER BY t.id, uid"
+    profile: iq17-default
+  - id: cross_apply_of_an_uncorrelated_aggregate
+    sql: "SELECT t.id, x.n FROM t CROSS APPLY (SELECT COUNT(*) AS n FROM u) x ORDER BY t.id"
+    profile: iq17-default
+  - id: cross_apply_of_no_rows
+    sql: "SELECT t.id, x.uid FROM t CROSS APPLY (SELECT u.id AS uid FROM u WHERE u.id > 100) x ORDER BY t.id"
+    profile: iq17-default
+  - id: outer_apply_of_no_rows
+    sql: "SELECT t.id, x.uid FROM t OUTER APPLY (SELECT u.id AS uid FROM u WHERE u.id > 100) x ORDER BY t.id"
+    profile: iq17-default
+  - id: outer_apply_of_uncorrelated_rows
+    sql: "SELECT t.id, x.uid FROM t OUTER APPLY (SELECT u.id AS uid FROM u WHERE u.id < 3) x ORDER BY t.id, x.uid"
+    profile: iq17-default
+  - id: cross_apply_of_a_function
+    sql: "SELECT t.id, x.row_num FROM t CROSS APPLY sa_rowgenerator(1, 2) x ORDER BY t.id, x.row_num"
+    profile: iq17-default
+  - id: cross_apply_of_a_function_of_the_row
+    sql: "SELECT t.id, x.row_num FROM t CROSS APPLY sa_rowgenerator(1, t.id) x WHERE t.id < 4 ORDER BY t.id, x.row_num"
+    profile: iq17-default
+  - id: cross_apply_of_correlated_rows_is_iqs_error
+    sql: "SELECT t.id, x.uid FROM t CROSS APPLY (SELECT u.id AS uid FROM u WHERE u.t_id = t.id) x ORDER BY t.id, x.uid"
+    profile: iq17-default
+  - id: outer_apply_of_correlated_rows_is_iqs_error
+    sql: "SELECT t.id, x.uid FROM t OUTER APPLY (SELECT u.id AS uid FROM u WHERE u.t_id = t.id) x ORDER BY t.id, x.uid"
+    profile: iq17-default
+  - id: cross_apply_of_a_correlated_aggregate_is_iqs_internal_error
+    sql: "SELECT t.id, x.n FROM t CROSS APPLY (SELECT COUNT(*) AS n FROM u WHERE u.t_id = t.id) x ORDER BY t.id"
+    profile: iq17-default
+  - id: cross_apply_of_a_correlated_union_is_iqs_error
+    sql: "SELECT t.id, x.v FROM t CROSS APPLY (SELECT t.sm AS v FROM u WHERE u.t_id = t.id UNION ALL SELECT t.it FROM u WHERE u.t_id = t.id) x ORDER BY t.id, x.v"
+    profile: iq17-default
+  - id: cross_apply_of_values_is_a_syntax_error
+    sql: "SELECT t.id, x.v FROM t CROSS APPLY (VALUES (t.sm), (t.it)) x(v) ORDER BY t.id, x.v"
+    profile: iq17-default
+  - id: cross_apply_without_a_name_is_a_syntax_error
+    sql: "SELECT t.id FROM t CROSS APPLY (SELECT t.id * 2 AS d)"
+    profile: iq17-default
+  - id: cross_apply_of_a_table
+    sql: "SELECT COUNT(*) AS n FROM t a CROSS APPLY u b"
+    profile: iq17-default
+  - id: outer_apply_of_a_table
+    sql: "SELECT COUNT(*) AS n, COUNT(b.id) AS m FROM t a OUTER APPLY u b"
+    profile: iq17-default

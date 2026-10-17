@@ -1563,9 +1563,12 @@ final class Substitution {
                         && com.legend.builtin.Pure.isToOneCall(c1.callee().qualifiedName())) {
                     inner = c1.args().get(0);
                 }
+                // (a Variant-typed property -- a SEMISTRUCTURED column -- is a value the column holds, not
+                // an instance: read whole, as its JSON; the Cypher island's stored lists, 2026-10-16)
                 if (inner instanceof TypedNewInstance
                         || Type.asClassType(inner.info().type())
-                                instanceof Type.ClassType) {
+                                instanceof Type.ClassType ct
+                        && !com.legend.compiler.element.type.PlatformTypes.isVariant(ct)) {
                     throw new NotImplementedException("class-typed property '$"
                             + target.userVar() + "." + prop + "' used as a whole"
                             + " value is graph output (Phase H4)");
@@ -2045,6 +2048,7 @@ final class Substitution {
             case TypedCDecimal ignored -> n;
             case TypedCBoolean ignored -> n;
             case TypedCDate ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCTime ignored -> n;
             case TypedEnumValue ignored -> n;
             // CONSTRUCTED RELATION MATERIAL (R2): a nested scope's rewrite
             // (innerRegs — R1a) builds exists/leaf relations whose nodes
@@ -2721,6 +2725,7 @@ final class Substitution {
             case TypedCDecimal ignored -> n;
             case TypedCBoolean ignored -> n;
             case TypedCDate ignored -> n;
+            case com.legend.compiler.spec.typed.TypedCTime ignored -> n;
             case TypedEnumValue ignored -> n;
             case com.legend.compiler.spec.typed.TypedTypeRef ignored -> n;
             case TypedLambda l -> {

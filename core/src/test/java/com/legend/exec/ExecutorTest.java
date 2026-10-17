@@ -1,4 +1,5 @@
 package com.legend.exec;
+import com.legend.testbackend.TestBackends;
 import com.legend.plan.ResultShape;
 
 import com.legend.Compiler;
@@ -12,7 +13,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
@@ -48,7 +48,7 @@ class ExecutorTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE T_PERSON (NAME VARCHAR NOT NULL, AGE INTEGER NOT NULL)");
             st.execute("INSERT INTO T_PERSON VALUES ('Ann', 25), ('Bob', 35)");

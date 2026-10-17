@@ -3,7 +3,8 @@
 
 package com.legend.lowering;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Execution;
@@ -11,7 +12,6 @@ import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -37,14 +37,14 @@ class Part1SemanticsTest {
             "Class my::A { name: String[1]; age: Integer[1]; }";
 
     private static Object scalar(String q, Connection conn) throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), q, StorelessRuntime.RUNTIME, conn);
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), q, StorelessRuntime.RUNTIME, conn);
         return r instanceof ExecutionResult.Scalar s ? s.value()
                 : r instanceof ExecutionResult.Collection c ? c.values() : r;
     }
 
     @Test
     void part1Semantics() throws Exception {
-        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection conn = TestBackends.platform().open()) {
             // integer / integer by zero RAISES (pure's BigDecimal lane)
             Exception dz = assertThrows(Exception.class,
                     () -> scalar("{|1 / 0}", conn));
@@ -65,7 +65,7 @@ class Part1SemanticsTest {
                     String.valueOf(scalar("{|[]->map(v|$v)}", conn)));
             // VALUE-LANE toOne over an empty RAISES (user ruling
             // 2026-08-26: "if not relational, follow the type system
-            // literally" — the interpreted lane is the oracle for
+            // literally" — the interpreted lane is the referee for
             // store-free expressions; row-lane reads keep the
             // adjudicated relational flow)
             Exception to = assertThrows(Exception.class,

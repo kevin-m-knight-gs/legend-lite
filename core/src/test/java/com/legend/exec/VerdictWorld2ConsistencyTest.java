@@ -3,7 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Execution;
@@ -14,7 +15,6 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
-import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -46,7 +46,7 @@ class VerdictWorld2ConsistencyTest {
 
     @BeforeAll
     static void open() throws Exception {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
     }
 
     @AfterAll
@@ -56,7 +56,7 @@ class VerdictWorld2ConsistencyTest {
 
     /** World 1: the pure expression through the WHOLE pipeline. */
     private static Object world1(String expr) throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{|" + expr + "}", StorelessRuntime.RUNTIME, conn);
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), "{|" + expr + "}", StorelessRuntime.RUNTIME, conn);
         return r instanceof ExecutionResult.Scalar s ? s.value()
                 : r instanceof ExecutionResult.Collection c ? c.values() : r;
     }

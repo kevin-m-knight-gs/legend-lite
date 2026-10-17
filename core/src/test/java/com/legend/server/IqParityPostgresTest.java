@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The {@code #IQ{...}#} island's parity cases on Postgres 16 ({@link IqParity}): each case under each of its profiles
  * as an island over the schema's tables in the embedded Postgres, judged against SQL Anywhere 17's snapped answer (or
  * the case's provisional decision), and held to the ledger's {@code postgres} column. Unlike sql-parity's Postgres
- * lane it has no drift step: its oracle is SQL Anywhere, which only {@code tools/iq-oracle} reaches (locally); the
+ * lane it has no drift step: its referee is SQL Anywhere, which only {@code tools/iq-oracle} reaches (locally); the
  * answers file is checked against the cases (UNSNAPPED, STALE, GONE) instead.
  *
  * <p>Its own target ({@code //core:iq_parity_postgres_test}), as {@code SqlParityPostgresTest}: it needs the embedded
@@ -60,12 +60,24 @@ class IqParityPostgresTest {
                 if (mismatch != null) {
                     problems.add(mismatch);
                 }
-                outcomes.put(r.key(), IqParity.outcome(r, answers.get(r.key()), names,
-                        island -> service.execute(model, island, IqParity.RUNTIME, admin)));
+                SqlParity.Outcome outcome = IqParity.outcome(r, answers.get(r.key()), tables, names,
+                        island -> service.execute(model, island, IqParity.RUNTIME, admin));
+                outcomes.put(r.key(), outcome);
+                // IQ island, 2026-10-14 (review 7, the user's ruling on B1): no case pins one plan's choice
+                String nondeterministic = IqParity.determinism(r, tables, outcome.status());
+                if (nondeterministic != null) {
+                    problems.add(nondeterministic);
+                }
             }
             String update = System.getProperty("iq.parity.update");
             problems.addAll(IqParity.ratchet(runs, outcomes, Runfile.property("iq.parity.ledger"), "postgres",
                     update == null ? null : Path.of(update)));
+            if (update == null) {
+                // IQ island, landing 4 (WP1), 2026-10-14: every FAIL, BUG or ERROR is a listed iq17 divergence, and
+                // the list only shrinks
+                problems.addAll(IqParity.divergences(runs, outcomes, Runfile.property("iq.parity.divergences"),
+                        "postgres"));
+            }
         }
         assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
     }

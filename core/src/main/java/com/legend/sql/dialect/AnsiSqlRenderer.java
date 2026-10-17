@@ -74,14 +74,31 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return write(query).statement();
     }
 
+    /** {@inheritDoc} This dialect's own {@link #render}, in the single-line mode {@link #inline} writes a subquery
+     *  in. */
+    @Override
+    public final String renderInline(SqlQuery query) {
+        boolean previous = inlineMode;
+        inlineMode = true;
+        try {
+            return render(query);
+        } finally {
+            inlineMode = previous;
+        }
+    }
+
     /** The query after this dialect's passes, written. */
     private SqlWriter write(SqlQuery query) {
+        return query(newWriter(), passed(query), 0);
+    }
+
+    /** The query after this dialect's passes. */
+    private SqlQuery passed(SqlQuery query) {
         SqlQuery q = query;
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             q = pass.rewriteRoot(q);
         }
-        SqlWriter writer = newWriter();
-        return query(writer, q, 0);
+        return q;
     }
 
     /**
@@ -366,6 +383,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // this session's language (raw: the engine's H2 text translated, any other as written)
             case SqlSource.RawSql r -> writer.append("(").append(raw(r.sql(), r.writtenFor()))
                     .append(") AS ").append(aliasIdent(r.alias()));
+            // a catalog grid of the session's database: where it keeps its catalog is the dialect's
+            case SqlSource.Catalog c -> catalog(writer.append("("), c).append(") AS ").append(aliasIdent(c.alias()));
             case SqlSource.SourceUrl u -> {
                 writer.append("(");
                 nl(writer, depth + 1).append(sourceUrl(u.url()));
@@ -578,6 +597,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.NullLit n -> writer.append("NULL");
             case SqlExpr.DateLit d -> writer.append(dateLit(d.iso()));
             case SqlExpr.TimestampLit t -> writer.append(timestampLit(t.iso()));
+            case SqlExpr.TimeLit t -> writer.append(timeLit(t.iso()));
             case SqlExpr.OrderedListAgg ola -> writer.append("list(").expr(ola.value(), 0).append(" ORDER BY ")
                     .expr(ola.orderBy(), 0).append(")");
             case SqlExpr.ArrayLit a -> arrayLit(writer, a.elements());
@@ -856,6 +876,17 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 ? List.of(a.get(0), a.get(1), new SqlExpr.StringLit(" ")) : a).append(")");
     }
 
+    /** {@code lpad}/{@code rpad} where the length is a 32-bit INTEGER (DuckDB's, Postgres's), which neither narrows from a
+     *  BIGINT implicitly: a length that is no literal, a computed Pure Integer (a BIGINT), cast to INTEGER (IQ island,
+     *  2026-10-15: a CHAR(n) padded to n UTF-8 bytes, rpad(s, length(s) + n - bytes(s))). */
+    protected final SqlWriter padWithSpaceToInteger(SqlWriter writer, String fn, List<SqlExpr> a) {
+        if (a.get(1) instanceof SqlExpr.IntLit) {
+            return padWithSpace(writer, fn, a);
+        }
+        writer.append(fn).append("(").expr(a.get(0), 0).append(", CAST(").expr(a.get(1), 0).append(" AS INTEGER), ");
+        return writer.expr(a.size() == 2 ? new SqlExpr.StringLit(" ") : a.get(2), 0).append(")");
+    }
+
     /** toUpperFirstCharacter / toLowerFirstCharacter: {@code fn(substr(x, 1, 1)) || substr(x, 2)}; the {@code ||}
      *  concat misbinds under +/comparison — walk-wrapped. */
     protected final SqlWriter firstCharCased(SqlWriter writer, String fn, List<SqlExpr> a, int parentPrec) {
@@ -873,7 +904,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 .append(")");
         return switch (part(a.get(0))) {
             case MONTH, YEAR, WEEK, QUARTER -> writer.append("CAST(").piece(trunc).append(" AS DATE)");
-            case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK ->
+            case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK ->
                     writer.piece(trunc);
         };
     }
@@ -1102,6 +1133,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor) ? fromEngineText(statement) : statement;
     }
 
+    /** A catalog grid's query ({@link SqlSource.Catalog}): where this database keeps its catalog and how it is read,
+     *  its columns named by the source's outputs. A dialect whose database is proven to answer it writes it; any other
+     *  refuses it (the dialect program's Phase 3, 2026-10-16). */
+    protected SqlWriter catalog(SqlWriter writer, SqlSource.Catalog c) {
+        throw new DialectCapability("a " + c.grid() + " catalog grid (fetchDb*MetaData) reached a dialect without a"
+                + " catalog reading");
+    }
+
     /** A lowering-internal pseudo-aggregate ({@link SqlAgg.Fn#marker}) reached a renderer: the lowering's bug. */
     protected static IllegalStateException loweringMarker(SqlAgg.Reducer r) {
         return new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
@@ -1177,6 +1216,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     protected String timestampLit(String iso) {
         return "TIMESTAMP '" + iso + "'";
+    }
+
+    /** A time of day, {@code TIME 'HH:mm:ss[.ffffff]'} (DuckDB, Postgres, H2, MariaDB, Trino, Snowflake, BigQuery
+     *  spell it so); a dialect without the type refuses. */
+    protected String timeLit(String iso) {
+        return "TIME '" + iso + "'";
     }
 
     protected SqlWriter arrayLit(SqlWriter writer, List<SqlExpr> elements) {
@@ -1355,6 +1400,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 case VARCHAR -> "VARCHAR";
                 case DATE -> "DATE";
                 case TIMESTAMP -> "TIMESTAMP";
+                case TIME -> "TIME";
                 case HUGEINT, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
                         "plan parameter '" + parameter + "' is typed " + scalar + ", which no parameter is bound as");
             };
@@ -1567,7 +1613,30 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da ->
                     "DELETE FROM " + ddlQualified(da.schema(), da.table(), da.quoting()) + ";";
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct);
         };
+    }
+
+    /** A temporary table holding a query's rows (the test-data generator's): refused unless the dialect's database is
+     *  measured to run {@link #createTemporaryTableAs}, as every spelling is its dialect's (D1). Until the PR audit of
+     *  2026-10-16 every dialect inherited the standard spelling. */
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        throw new DialectCapability("a temporary table from a query (CREATE TEMPORARY TABLE ... AS) on "
+                + getClass().getSimpleName() + ": no spelling measured on its database (the test-data generator's"
+                + " sessions are H2, DuckDB and SQLite)");
+    }
+
+    /** The standard {@code CREATE TEMPORARY TABLE t AS <query>}, for a dialect whose database runs it: the query
+     *  written as this dialect writes a query, its passes applied. A query with plan parameters is refused: the
+     *  statement is text. */
+    protected final String createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        RenderedStatement create = query(newWriter().append("CREATE TEMPORARY TABLE ").append(ident(ct.table()))
+                .append(" AS "), passed(ct.query()), 0).append(";").statement();
+        if (!create.binds().isEmpty()) {
+            throw new DialectCapability("plan parameters " + create.binds() + " in a temporary table's query:"
+                    + " a DML statement is text");
+        }
+        return create.sql();
     }
 
     /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every

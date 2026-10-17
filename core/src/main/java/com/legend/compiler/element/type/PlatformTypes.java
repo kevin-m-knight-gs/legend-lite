@@ -431,6 +431,12 @@ public final class PlatformTypes {
     public static final String EQUALITY_PROFILE = "meta::pure::profiles::equality";
     public static final String TEMPORAL_PROFILE = "meta::pure::profiles::temporal";
     public static final String PCT_PROFILE = "meta::pure::test::pct::PCT";
+    /** The property-graph profile (the library project {@code projects/graph}, docs/CYPHER_STUDY_2026_10_15.md
+     * §5.6): a class carrying {@code <<graph.Edge>>} is a relationship type with properties, its two ends the
+     * to-one class-typed properties carrying {@code <<graph.from>>} and {@code <<graph.to>>}, its type the
+     * enumeration value a derived property carrying {@code <<graph.type>>} spells. Read in phase F by
+     * {@code GraphEdges}, the way {@link #EQUALITY_PROFILE} is read for {@code <<equality.Key>>}. */
+    public static final String GRAPH_PROFILE = "graph::graph";
 
     /** Whether a stereotype's RESOLVED profile name is {@code profileFqn}.
      * The resolver qualifies a bare profile name through the file's
@@ -505,8 +511,6 @@ public final class PlatformTypes {
             "meta::external::store::model::ModelChainConnection";
     public static final String JSON_MODEL_CONNECTION =
             "meta::external::store::model::JsonModelConnection";
-    public static final String LOCAL_H2_DATASOURCE_SPECIFICATION =
-            "meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification";
     public static final String DATABASE_CONNECTION =
             "meta::external::store::relational::runtime::DatabaseConnection";
     public static final String RELATIONAL_DATABASE_CONNECTION =
@@ -603,11 +607,6 @@ public final class PlatformTypes {
         return JSON_MODEL_CONNECTION.equals(nameOrFqn) || "JsonModelConnection".equals(nameOrFqn);
     }
 
-    public static boolean isLocalH2DatasourceSpecification(String nameOrFqn) {
-        return LOCAL_H2_DATASOURCE_SPECIFICATION.equals(nameOrFqn)
-                || "LocalH2DatasourceSpecification".equals(nameOrFqn);
-    }
-
     /** The string/number {@code +} in a raw body: bare or either FQN
      *  spelling (math::plus for numbers, string::plus for strings). */
     public static boolean isPlus(String nameOrFqn) {
@@ -626,7 +625,9 @@ public final class PlatformTypes {
             "meta::relational::functions::asserts::assertSameSQL";
     public static final String ASSERT_SQL_EQUALS_TDG =
             "meta::relational::testDataGeneration::tests::assertSqlEquals";
-    public static final String ASSERT_EQUALS_H2_COMPATIBLE =
+    /** The engine's {@code assertEqualsH2Compatible(legacy, upgraded, $result)}: an assert with two goldens, the
+     *  engine's own body picking one by its test database's version ({@code SqlTextVerdicts.tryArmDualGolden}). */
+    public static final String ASSERT_EQUALS_DUAL_GOLDEN =
             "meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible";
     public static final String ASSERT_TDS_EQUIVALENT =
             "meta::pure::functions::relation::assertTdsEquivalent";
@@ -638,7 +639,7 @@ public final class PlatformTypes {
         return fqn.startsWith(ASSERTS_PACKAGE)
                 || ASSERT_SAME_SQL.equals(fqn)
                 || ASSERT_SQL_EQUALS_TDG.equals(fqn)
-                || ASSERT_EQUALS_H2_COMPATIBLE.equals(fqn)
+                || ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)
                 || ASSERT_TDS_EQUIVALENT.equals(fqn);
     }
 

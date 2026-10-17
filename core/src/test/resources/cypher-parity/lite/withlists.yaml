@@ -1,0 +1,23 @@
+# A list or map holding a value of the row, carried through WITH as the Variant the database builds (the study's
+# §12.41): each judged by Neo4j.
+cases:
+  - id: a_list_of_row_values_through_with
+    graph: |
+      CREATE (:P {name: 'a', age: 1}), (:P {name: 'b', age: 2})
+    cypher: "MATCH (p:P) WITH [p.age, p.age * 10] AS l RETURN l, l[0] AS first ORDER BY first"
+  - id: a_list_of_row_values_through_with_unwound
+    graph: |
+      CREATE (:P {name: 'a', age: 1}), (:P {name: 'b', age: 2})
+    cypher: "MATCH (p:P) WITH [p.age, p.age * 10] AS l UNWIND l AS x RETURN x ORDER BY x"
+  - id: a_list_of_row_values_through_with_sized_and_tested
+    graph: |
+      CREATE (:P {name: 'a', age: 1}), (:P {name: 'b', age: 2})
+    cypher: "MATCH (p:P) WITH p.name AS name, [p.age, 5] AS l RETURN name, size(l) AS n, 5 IN l AS five, all(x IN l WHERE x > 0) AS positive ORDER BY name"
+  - id: a_map_of_row_values_through_with
+    graph: |
+      CREATE (:P {name: 'a', age: 1})
+    cypher: "MATCH (p:P) WITH {name: p.name, age: p.age} AS m RETURN m"
+  - id: a_list_of_row_strings_through_with
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) WITH [p.name, 'z'] AS l UNWIND l AS s RETURN s ORDER BY s"

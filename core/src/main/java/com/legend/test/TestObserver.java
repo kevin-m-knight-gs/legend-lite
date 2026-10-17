@@ -5,14 +5,14 @@ package com.legend.test;
 
 import com.legend.ExecuteOptions;
 import com.legend.exec.AssertListener;
-import com.legend.exec.SqlReplayOracle;
+import com.legend.exec.SqlReplayReferee;
 import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
  * The seam a caller instruments a {@link PureTestRunner} through. Every
  * method has a no-op default: a user running their own tests attaches
- * nothing; the corpus harness attaches its referee (the replay oracle, the
+ * nothing; the corpus harness attaches its referee (the replay referee, the
  * H2 mirror), its raw-SQL recorder and its strength census here — and
  * nowhere else. The runner owns the judgment; the observer only watches.
  *
@@ -47,7 +47,7 @@ public interface TestObserver extends AssertListener {
     }
 
     /** The referee for this test's asserts, or null for none. */
-    default @com.legend.base.Nullable SqlReplayOracle oracle(PureTests.TestCase test) {
+    default @com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase test) {
         return null;
     }
 

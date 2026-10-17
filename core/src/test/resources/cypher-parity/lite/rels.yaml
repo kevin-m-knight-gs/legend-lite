@@ -1,0 +1,51 @@
+# The #Cypher{...}# island's relationships-as-values cases (docs/CYPHER_STUDY_2026_10_15.md §12.19): a relationship
+# returned is its type (the harness's model holds no relationship property), type(r) the type's text, an OPTIONAL
+# MATCH's relationship present where its hop finds a node. A case whose graph's relationships carry properties
+# and whose query names a relationship is skipped by the harness (an edge class the model lacks). Each case is
+# judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/rels/*'),
+# keyed lite/rels/<id>.
+tests:
+  - id: relationship_as_a_value
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1)
+    cypher: "MATCH (a:A)-[r:T]->(b:B) RETURN a.name AS a, r, b.name AS b ORDER BY a"
+  - id: type_of_a_relationship
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1)
+    cypher: "MATCH (a:A)-[r:T]->(b:B) RETURN a.name AS a, type(r) AS t ORDER BY a"
+  - id: untyped_relationship_as_a_value
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1)
+    cypher: "MATCH (a:A)-[r]->(x) RETURN a.name AS a, type(r) AS t, r ORDER BY a, t"
+  - id: optional_relationship
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[r:W]->(c:C) RETURN a.name AS a, r IS NULL AS missing, type(r) AS t, r ORDER BY a"
+  - id: relationship_through_with
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1)
+    cypher: "MATCH (a:A)-[r:T]->(b:B) WITH a, r ORDER BY a.name LIMIT 1 RETURN a.name AS a, type(r) AS t, r"
+  - id: optional_relationship_through_with
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[r:W]->(c:C) WITH a, r ORDER BY a.name LIMIT 2 RETURN a.name AS a, type(r) AS t, r IS NULL AS missing ORDER BY a"
+  - id: count_of_relationships
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1)
+    cypher: "MATCH (a:A)-[r]->() RETURN count(r) AS n"
+  - id: relationship_in_a_list
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (c1:C {name: 'c1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1), (a1)-[:W]->(c1)
+    cypher: "MATCH (a:A)-[r:T]->(b:B) RETURN [a, r, b] AS l"
+  - id: distinct_relationship_refused_by_name
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (a1)-[:T]->(b1), (a2)-[:T]->(b1)
+    cypher: "MATCH (a:A)-[r:T]->(b:B) RETURN DISTINCT r"
+  - id: relationship_property_refused_by_name
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (b1:B {name: 'b1'}), (a1)-[:T]->(b1)
+    cypher: "MATCH (a:A)-[r:T]->(b:B) RETURN r.since"
+  - id: edge_property_skipped_by_the_harness
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (b1:B {name: 'b1'}), (a1)-[:T {since: 1}]->(b1)
+    cypher: "MATCH (a:A)-[r:T]->(b:B) RETURN r"

@@ -61,6 +61,8 @@ public final class Databricks extends AnsiSqlRenderer {
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "TIMESTAMP";
             case JSON -> "VARIANT";
+            // Databricks SQL has no TIME type
+            case TIME -> throw new DialectCapability("a time of day: Databricks has no TIME type");
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -1041,6 +1043,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case RADIANS -> writer.function("radians", c.args());
             case REPEAT_STR -> writer.function("repeat", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> writer.function("translate", c.args());
             case REVERSE_STRING, LIST_REVERSE -> writer.function("reverse", c.args());
             case RIGHT -> writer.function("right", c.args());
             case SHA1 -> writer.function("sha1", c.args());
@@ -1105,12 +1108,15 @@ public final class Databricks extends AnsiSqlRenderer {
                     .append(", ").expr(a.get(2), 0).append(")");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
+            case DATE_AT_TIME -> throw new DialectCapability("a time of day: Databricks has no TIME type");
             // the zone's wall time of the instant t (the platform's timestamps are UTC instants): measured by the
             // PCT's format with a zone (13:07:44 UTC is 08:07:44 in EST)
             case TIMEZONE -> writer.append("from_utc_timestamp(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0)
                     .append(")");
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("(CAST(unix_micros(").expr(a.get(0), 0).append(") AS DOUBLE) / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Databricks keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("(unix_micros(").expr(a.get(0), 0).append(") div 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("timestamp_seconds(").expr(a.get(0), 0).append(")");
             case FROM_EPOCH_MS -> writer.append("timestamp_millis(CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
@@ -1318,7 +1324,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case SECOND -> "SECOND";
             case DAY_OF_YEAR -> "DOY";
             case ISO_DAY_OF_WEEK -> "DOW_ISO";
-            case MILLISECOND, MICROSECOND -> throw new DialectCapability("date part " + part
+            case MILLISECOND, MICROSECOND, NANOSECOND -> throw new DialectCapability("date part " + part
                     + " has no probed Databricks spelling");
         };
         return w -> w.append("CAST(floor(extract(" + field + " FROM ").expr(a.get(1), 0).append(")) AS BIGINT)");
@@ -1336,7 +1342,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case SECOND -> "SECOND";
             case MILLISECOND -> "MILLISECOND";
             case MICROSECOND -> "MICROSECOND";
-            case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit " + unit
+            case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit " + unit
                     + " has no Databricks spelling");
         };
     }
@@ -1354,7 +1360,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case SECOND -> "second";
             case MILLISECOND -> "millisecond";
             case MICROSECOND -> "microsecond";
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc to " + unit
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, NANOSECOND -> throw new DialectCapability("date_trunc to " + unit
                     + " has no Databricks spelling");
         };
     }
@@ -1380,7 +1386,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case MILLISECOND -> epochBoundaries(from, to, 1000L);
             case MICROSECOND -> w -> w.append("(unix_micros(CAST(").piece(to).append(" AS TIMESTAMP)) - unix_micros(CAST(")
                     .piece(from).append(" AS TIMESTAMP)))");
-            case WEEK, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part " + part
+            case WEEK, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part " + part
                     + " has no probed Databricks spelling");
         };
         return w -> w.append("CAST(").piece(body).append(" AS BIGINT)");
@@ -1426,7 +1432,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case SECOND -> 1000000L;
             case MILLISECOND -> 1000L;
             case MICROSECOND -> 1L;
-            case YEAR, QUARTER, MONTH, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
         };
     }
 

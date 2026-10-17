@@ -1,0 +1,53 @@
+# divide_by_zero_error, every value (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the options
+# framework): On, a zero divisor is IQ's error -628 for every type; Off, the quotient or the remainder is NULL, of the
+# operation's own type -- integers, NUMERIC, DOUBLE, %, MOD -- measured on SQL Anywhere 17. A divisor that reads a column
+# is guarded where the database computes it; a divisor of constants alone that is no literal is refused by name (a
+# database folds the operation before the guard). Judged by SQL Anywhere 17's answers. The SQL in YAML double quotes.
+tests:
+  - id: off_integer_literal_zero
+    sql: "SELECT 1/0 AS q, 7 % 0 AS r, MOD(7, 0) AS m"
+    settings: "query.divide_by_zero_error='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_numeric_literal_zero
+    sql: "SELECT 1.0/0 AS q, 1.5 % 0 AS r"
+    settings: "query.divide_by_zero_error='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_double_literal_zero
+    sql: "SELECT CAST(1 AS DOUBLE)/0 AS q"
+    settings: "query.divide_by_zero_error='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_integer_column_divisor
+    sql: "SELECT id, 100 / (id - 3) AS q, 100 % (id - 3) AS r FROM t WHERE id < 5 ORDER BY id"
+    settings: "query.divide_by_zero_error='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_smallint_column_divisor
+    sql: "SELECT id, it / sm AS q FROM t ORDER BY id"
+    settings: "query.divide_by_zero_error='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_numeric_column_divisor
+    sql: "SELECT id, nm / (id - 3) AS q FROM t WHERE id < 5 ORDER BY id"
+    settings: "query.divide_by_zero_error='Off'"
+    profile: sqla17-default
+  - id: off_double_column_divisor
+    sql: "SELECT id, dbl / (id - 3) AS q FROM t WHERE id < 5 ORDER BY id"
+    settings: "query.divide_by_zero_error='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_mod_of_a_column
+    sql: "SELECT id, MOD(id, id - 3) AS m FROM t WHERE id < 5 ORDER BY id"
+    settings: "query.divide_by_zero_error='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_null_compared
+    sql: "SELECT id FROM t WHERE (100 / (id - 3)) IS NULL ORDER BY id"
+    settings: "query.divide_by_zero_error='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_a_folded_divisor_is_refused
+    sql: "SELECT 1/(1-1) AS q"
+    settings: "query.divide_by_zero_error='Off'"
+  - id: on_integer_zero_is_628
+    sql: "SELECT 1/0 AS q"
+    settings: "query.divide_by_zero_error='On'"
+    profile: iq16-default, sqla17-default
+  - id: on_column_divisor_is_628
+    sql: "SELECT id, 100 / (id - 3) AS q FROM t WHERE id < 5 ORDER BY id"
+    settings: "query.divide_by_zero_error='On'"
+    profile: iq16-default, sqla17-default

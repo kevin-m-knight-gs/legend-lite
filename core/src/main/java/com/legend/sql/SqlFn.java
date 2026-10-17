@@ -55,6 +55,10 @@ public enum SqlFn {
     // Strings (SUBSTRING/STRPOS are 1-based SQL; frontends shift at lowering)
     SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
     LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, SPLIT, SPLIT_PART,
+    /** translate(str, from, to): each character of {@code from} in {@code str} becomes the character at its
+     *  position in {@code to}, or is removed past {@code to}'s end. One pass, so a mapping never chains. The SQL
+     *  islands' ASCII-only case folding (the tenth line's ask, answered 2026-10-15). */
+    TRANSLATE,
     /** Pure's splitPart(str, token, 1-based part): split DROPPING empty tokens,
      *  indexed; NULL past the end (batch 139). Semantic — each dialect spells it. */
     PURE_SPLIT_PART,
@@ -65,6 +69,16 @@ public enum SqlFn {
     // Temporal (part-literal-first like EXTRACT): truncation, arithmetic,
     // bucketing, epoch conversion, calendar names
     DATE_TRUNC, ADD_INTERVAL, DATE_DIFF, TIME_BUCKET, TIMEZONE,
+    /** {@code (date, time)}: the date-time at that time of that day (Pure's {@code meta::legend::lite::atTime}). */
+    DATE_AT_TIME,
+    /** {@code (ts)}: the nanoseconds since the epoch, exact where the engine keeps nanoseconds (DuckDB's
+     *  {@code epoch_ns} over a TIMESTAMP_NS); a microsecond engine refuses by name. What {@code dateDiff} with
+     *  {@code NANOSECONDS} and {@code adjust} with {@code NANOSECONDS} lower to (the Cypher island's nanosecond
+     *  leg, 2026-10-16): the nanosecond unit has no interval in any engine. */
+    EPOCH_NS,
+    /** {@code (n)}: the timestamp {@code n} nanoseconds after the epoch, to the nanosecond (DuckDB's
+     *  {@code make_timestamp_ns}, a TIMESTAMP_NS); a microsecond engine refuses by name. */
+    FROM_EPOCH_NS,
     /** milestoning adjust() shift — same semantics as ADD_INTERVAL; the
      *  engine-H2 golden spells its unit UPPERCASE (adjust/mapToDBUnitType
      *  channel: dateadd(DAY,...) vs the dynaFn's dateadd(day,...)). */

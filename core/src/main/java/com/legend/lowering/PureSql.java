@@ -106,7 +106,9 @@ final class PureSql {
             // (zero firings across the DuckDB corpus, the H2 corpus,
             // and the full PCT suite).
             case DATE_TIME, DATE, LATEST_DATE -> SqlType.Scalar.TIMESTAMP;
-            case BYTE, STRICT_TIME -> null;
+            // a time of day is the database's TIME (the Cypher island's time-of-day leg, 2026-10-16)
+            case STRICT_TIME -> SqlType.Scalar.TIME;
+            case BYTE -> null;
         };
     }
 

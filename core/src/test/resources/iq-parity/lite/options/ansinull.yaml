@@ -1,0 +1,35 @@
+# ansinull, every value (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the options framework): On, a
+# comparison with NULL is UNKNOWN; Off, x = NULL is x IS NULL and x <> NULL x IS NOT NULL in a search condition (WHERE,
+# HAVING, ON), and SQL Anywhere's front end keeps a CASE's or an IF's condition three-valued (IQ's engine rewrites it
+# there too: the research's D-L1, so such a case runs in the front end). Given for the query (settings); ansinull x engine:
+# a WHERE over a table (IQ's engine under iq16, the front end under sqla17) and a CASE without FROM. Judged by SQL
+# Anywhere 17's answers. The SQL in YAML double quotes.
+tests:
+  - id: off_where_equals_null
+    sql: "SELECT id FROM t WHERE vc = NULL ORDER BY id"
+    settings: "query.ansinull='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_where_not_equals_null
+    sql: "SELECT id FROM t WHERE nm <> NULL ORDER BY id"
+    settings: "query.ansinull='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_null_on_the_left
+    sql: "SELECT id FROM t WHERE NULL = dt ORDER BY id"
+    settings: "query.ansinull=Off"
+    profile: iq16-default, sqla17-default
+  - id: on_where_equals_null
+    sql: "SELECT id FROM t WHERE vc = NULL ORDER BY id"
+    settings: "query.ansinull='On'"
+    profile: iq16-default, sqla17-default, iq16-tds, sqla17-tds
+  - id: off_in_a_join_condition
+    sql: "SELECT t.id, u.id AS uid FROM t JOIN u ON u.t_id = NULL ORDER BY 1, 2"
+    settings: "query.ansinull='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_in_case_in_the_front_end
+    sql: "SELECT CASE WHEN NULL = NULL THEN 1 ELSE 0 END AS c"
+    settings: "query.ansinull='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_in_case_over_a_table_in_the_front_end
+    sql: "SELECT id, CASE WHEN vc = NULL THEN 1 ELSE 0 END AS c FROM t ORDER BY id"
+    settings: "query.ansinull='Off'"
+    profile: sqla17-default

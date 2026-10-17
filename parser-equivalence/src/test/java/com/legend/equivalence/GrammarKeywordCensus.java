@@ -58,7 +58,7 @@ public final class GrammarKeywordCensus {
         }
         out.println("@@ keywords harvested: " + kwToGrammars.size());
 
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         Set<String> covered = new HashSet<>();
         int accepted = 0;
         java.util.List<Corpus.Source> universe =
@@ -66,7 +66,7 @@ public final class GrammarKeywordCensus {
         universe.addAll(Corpus.engineFixtures());
         for (Corpus.Source src : universe) {
             try {
-                oracle.parseModel(src.text());
+                referee.parseModel(src.text());
             } catch (Throwable t) {
                 continue;
             }

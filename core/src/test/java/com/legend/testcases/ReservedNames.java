@@ -17,23 +17,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Tables and a schema named by reserved words (PARK-16, docs/PARKED_WORK_LEDGER.md): their model, rows, and a seed that
- * must answer a query over each. {@code ReservedNamesSeedTest} runs them on DuckDB and H2, {@code PostgresArmTest} on
- * Postgres.
+ * must answer a query over each. {@code ReservedNamesSeedTest} runs them on every in-process database,
+ * {@code PostgresArmTest} on Postgres.
  */
 public final class ReservedNames {
 
     private ReservedNames() {
     }
 
-    /** A default-schema table {@code order} and a table in a schema {@code select}; the connection's type left open. */
+    /** A default-schema table {@code order} and a table in a schema {@code select}. */
+    public static final String STORE = """
+            ###Relational
+            Database s::DB
+            (
+              Table order ( ID INTEGER PRIMARY KEY, NAME VARCHAR(10) )
+              Schema select ( Table T ( ID INTEGER PRIMARY KEY ) )
+            )
+            """;
+
+    /** {@link #STORE} with a connection to it and a runtime; the connection's type left open. */
     public static String model(String connection) {
-        return """
-                ###Relational
-                Database s::DB
-                (
-                  Table order ( ID INTEGER PRIMARY KEY, NAME VARCHAR(10) )
-                  Schema select ( Table T ( ID INTEGER PRIMARY KEY ) )
-                )
+        return STORE + """
                 ###Connection
                 RelationalDatabaseConnection s::Conn { store: s::DB; %s }
                 ###Runtime

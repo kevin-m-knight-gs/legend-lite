@@ -636,7 +636,7 @@ class NameResolverTest {
     @Test
     void connectionStoreNameResolved() {
         var cd = new ConnectionDefinition("connection::C", "DB",
-                ConnectionDefinition.DatabaseType.H2,
+                com.legend.database.Databases.PLATFORM,
                 new ConnectionSpecification.InMemory(),
                 new AuthenticationSpec.NoAuth());
         var r = (ConnectionDefinition) resolveOne(cd, WILDCARD_STORE, FQNS);

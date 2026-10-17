@@ -206,11 +206,11 @@ final class ConnectionResolver {
             throws SQLException {
         return switch (com.legend.exec.Sessions.openingFor(def)) {
             case com.legend.exec.Sessions.Opening.Url u -> Lease.owned(com.legend.exec.Sessions.open(u));
-            // a named in-memory database (H2) is kept alive by its name — the user's EmbeddedH2 name, else one
+            // a named in-memory database is kept alive by its name — the user's EmbeddedH2 name, else one
             // per model stores + definition (D5): each use opens a connection the lease closes
-            case com.legend.exec.Sessions.Opening.Named n -> Lease.owned(com.legend.exec.Sessions.openNamed(
+            case com.legend.exec.Sessions.Opening.Named n -> Lease.owned(com.legend.exec.Sessions.openNamed(n,
                     n.name() != null ? n.name() : "c_" + contentKey(storesKey, def).hex().substring(0, 16)));
-            // a held one (DuckDB, SQLite) lives as long as its connection: the HandleStore owns it -- made holding the
+            // a held one lives as long as its connection: the HandleStore owns it -- made holding the
             // model's own Data rows, as a tab's or Python's project database does (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md
             // C5), so it is kept by them too: an edited row is a fresh database
             case com.legend.exec.Sessions.Opening.Held h -> {

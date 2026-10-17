@@ -39,8 +39,8 @@ final class StatementExecutor {
 
     /** Listener overload: {@code assertListener} observes every
      * statement-root assert verdict (the runner's scoring seam —
-     * judging stays here, in one place); {@code replayOracle} is the
-     * registered SQL-replay oracle (SQLTEXT charter §2 — same
+     * judging stays here, in one place); {@code replayReferee} is the
+     * registered SQL-replay referee (SQLTEXT charter §2 — same
      * registration seam, same nullable carriage; production passes
      * neither). */
     static @com.legend.base.Nullable ExecutionResult execute(
@@ -49,9 +49,9 @@ final class StatementExecutor {
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle) {
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee) {
         return execute(resolved, ctx, runtimeFqn, dialect, connection, assertListener,
-                replayOracle, ExecuteOptions.NONE);
+                replayReferee, ExecuteOptions.NONE);
     }
 
     /** With the caller's execute OPTIONS (they ride the environment and the
@@ -62,7 +62,7 @@ final class StatementExecutor {
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> typedBody = specs.typeQueryBody(resolved);
@@ -70,8 +70,8 @@ final class StatementExecutor {
         // own from (the engine's exeCtx overload binds them onto its bound
         // context); the caller's ride the environment
         ExecEnv env0 = new ExecEnv(ctx, runtimeFqn, dialect, connection).withOptions(options);
-        ExecEnv env = assertListener == null && replayOracle == null ? env0
-                : env0.withListeners(assertListener, replayOracle);
+        ExecEnv env = assertListener == null && replayReferee == null ? env0
+                : env0.withListeners(assertListener, replayReferee);
         if (resolved instanceof com.legend.protocol.spec.LambdaFunction rlf
                 && rlf.parameters().isEmpty()) {
             env = env.withProtocolBody(rlf.body());
@@ -89,13 +89,13 @@ final class StatementExecutor {
      * failures per SETUP UNIT and keeps its emptiness guard). */
     /** The raw-SQL ledger append (Phase 2b): the caller's recorder, when it
      * handed one through the options; the executor never keeps one. */
-    /** The replay ledger records DDL in its oracle database's spelling on EVERY session. */
-    private static final com.legend.sql.dialect.SqlDialect H2_DDL =
-            com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_ORACLE);
+    /** The replay ledger records DDL in its referee database's spelling on EVERY session. */
+    private static final com.legend.sql.dialect.SqlDialect REFEREE_DDL =
+            com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_REFEREE);
 
     /** The engine's golden DDL TEXT renderer (root layer only — invariant 4d): the text of the database
      *  legend-engine's test connections declare. */
-    static final com.legend.sql.dialect.SqlDialect ENGINE_TEXT = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
+    static final com.legend.sql.dialect.EngineTextDialect ENGINE_TEXT = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
 
     private static void record(ExecEnv env, String sql, boolean query) {
         var r = env.options().recorder();
@@ -111,7 +111,7 @@ final class StatementExecutor {
             java.util.Map<String, String> tableReplace,
             com.legend.exec.InstanceIds instanceIds,
             com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
                     planRows,
             java.util.List<com.legend.protocol.spec.ValueSpecification> protocolBody,
@@ -123,14 +123,14 @@ final class StatementExecutor {
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.exec.VerdictBatch b) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace,
-                    instanceIds, assertListener, replayOracle, planRows, protocolBody, frame,
+                    instanceIds, assertListener, replayReferee, planRows, protocolBody, frame,
                     options, trace, b, effectSink);
         }
         /** Block-compiler stage 3: the effect natives' sends land in this sink (an
          * effect segment under construction) instead of the connection. */
         ExecEnv withEffectSink(com.legend.exec.@com.legend.base.Nullable EffectSink sink) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace,
-                    instanceIds, assertListener, replayOracle, planRows, protocolBody, frame,
+                    instanceIds, assertListener, replayReferee, planRows, protocolBody, frame,
                     options, trace, verdictBatch, sink);
         }
         /** Without the protocol body (a handle's rows built off the typed
@@ -142,32 +142,32 @@ final class StatementExecutor {
                 java.util.Map<String, String> tableReplace,
                 com.legend.exec.InstanceIds instanceIds,
                 com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-                com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
+                com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
                 java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
                         planRows) {
             this(ctx, runtimeFqn, dialect, connection, queryLets,
-                    tableReplace, instanceIds, assertListener, replayOracle, planRows,
+                    tableReplace, instanceIds, assertListener, replayReferee, planRows,
                     java.util.List.of(), null, ExecuteOptions.NONE,
                     new com.legend.exec.ExecutionTrace(), null, null);
         }
         /** The caller's execute options (the PCT wire render). */
         ExecEnv withOptions(ExecuteOptions o) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
-                    queryLets, tableReplace, instanceIds, assertListener, replayOracle,
+                    queryLets, tableReplace, instanceIds, assertListener, replayReferee,
                     planRows, protocolBody, frame, o, trace, verdictBatch, effectSink);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
         ExecEnv withFrame(com.legend.compiler.spec.typed.ExecutionContext f) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, assertListener, replayOracle,
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, assertListener, replayReferee,
                     planRows, protocolBody, f, options, trace, verdictBatch, effectSink);
         }
         ExecEnv withTableReplace(java.util.Map<String, String> tr) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tr, instanceIds, assertListener, replayOracle,
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tr, instanceIds, assertListener, replayReferee,
                     planRows, protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
         ExecEnv withListeners(com.legend.exec.@com.legend.base.Nullable AssertListener l,
-                com.legend.exec.@com.legend.base.Nullable SqlReplayOracle o) {
+                com.legend.exec.@com.legend.base.Nullable SqlReplayReferee o) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
         com.legend.compiler.spec.typed.ExecutionContext.PostProcessors postProcessors() {
@@ -183,7 +183,7 @@ final class StatementExecutor {
         ExecEnv withConnection(java.sql.Connection other) {
             return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
                     dialect, other, queryLets, tableReplace,
-                    instanceIds, assertListener, replayOracle, planRows,
+                    instanceIds, assertListener, replayReferee, planRows,
                     protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
 
@@ -205,7 +205,7 @@ final class StatementExecutor {
                 }
             });
             return new ExecEnv(ctx, runtimeFqn, dialect, on.connection, queryLets, renames,
-                    instanceIds, assertListener, replayOracle, planRows,
+                    instanceIds, assertListener, replayReferee, planRows,
                     protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
 
@@ -216,7 +216,7 @@ final class StatementExecutor {
                 java.util.List<com.legend.protocol.spec.ValueSpecification> body) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
                     queryLets, tableReplace, instanceIds,
-                    assertListener, replayOracle, planRows, body, frame, options, trace, verdictBatch, effectSink);
+                    assertListener, replayReferee, planRows, body, frame, options, trace, verdictBatch, effectSink);
         }
 
         ExecEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
@@ -492,7 +492,7 @@ final class StatementExecutor {
             // reader's gap, read as the engine test connection's database until the rebuild reads it
             db = dbBound == null ? EngineText.ENGINE_TEST_DATABASE.name() : dbBound;
         }
-        com.legend.sql.dialect.EngineStyleH2 renderer = EngineText.engineText(com.legend.database.Databases.named(db));
+        com.legend.sql.dialect.EngineTextDialect renderer = EngineText.engineText(com.legend.database.Databases.named(db));
         if (!(in.query()
                 instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
             throw new com.legend.error.NotImplementedException(
@@ -538,7 +538,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedLambda lam,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
-            com.legend.sql.dialect.EngineStyleH2 renderer) {
+            com.legend.sql.dialect.EngineTextDialect renderer) {
         return engineSql(lam.body(), mappingFqn, specs, env, renderer,
                 java.util.Map.of(),
                 java.util.function.UnaryOperator.identity());
@@ -550,7 +550,7 @@ final class StatementExecutor {
     static EngineSql engineSql(java.util.List<TypedSpec> raw,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
-            com.legend.sql.dialect.EngineStyleH2 renderer,
+            com.legend.sql.dialect.EngineTextDialect renderer,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
                     planParams,
             java.util.function.UnaryOperator<String> tableRenames) {
@@ -564,7 +564,7 @@ final class StatementExecutor {
     private static EngineSql engineSql(java.util.List<TypedSpec> raw,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
-            com.legend.sql.dialect.EngineStyleH2 renderer,
+            com.legend.sql.dialect.EngineTextDialect renderer,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
                     planParams,
             java.util.function.UnaryOperator<String> tableRenames,
@@ -668,7 +668,10 @@ final class StatementExecutor {
         // inside an assert — the handle is a symbolic binding)
         TypedSpec a0 = com.legend.compiler.spec.typed.Lets.bound(call.args().get(0), letPrefix);
         if (a0 instanceof com.legend.compiler.spec.typed.TypedTestDataGen tg) {
-            return com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, env.ctx());
+            // the generator's plan names the engine's test connection, as every engine test of it does (its
+            // runtime argument is not read)
+            return com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, env.ctx(), ENGINE_TEXT,
+                    "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")");
         }
         if (!(a0
                 instanceof com.legend.compiler.spec.typed.TypedNativeCall ep)
@@ -763,13 +766,14 @@ final class StatementExecutor {
         }
         boolean quote = pc != null && pc.quoteIdentifiers();
         String tz = pc != null ? pc.timeZone() : null;
-        String fromConn = pc == null
+        com.legend.compiler.spec.typed.ExecutionContext.PlanConnection fromConn = pc == null
                 ? firstFromConnectionName(
                         lam.body().get(lam.body().size() - 1))
                 : null;
-        String connName = pc != null && pc.connectionName() != null ? pc.connectionName()
-                : fromConn != null ? fromConn
-                : "TestDatabaseConnection(type = \"H2\")";
+        var conn = pc != null && pc.connectionName() != null ? pc.connectionName() : fromConn;
+        String connName = conn != null ? conn.planText()
+                // no connection instance read at all: the engine's test runtime's (the reader gap W2.1)
+                : "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")";
         com.legend.model.ConnectionDefinition.DatabaseType dbType = planDatabase(pc);
         if (!lam.parameters().isEmpty() || lam.body().size() > 1
                 // a lone LET is a sequence too (E2E §4.4 cluster 1):
@@ -811,7 +815,8 @@ final class StatementExecutor {
                         // PRE-resolution body: the TDS-vs-Class shape and
                         // the documentation channel live in the G output
                         // (post-H everything is a relation)
-                        lam.body(), connName, chainMaps, es.plan(), pushDownEnums(env, lam.body())),
+                        lam.body(), connName, chainMaps, es.plan(), pushDownEnums(env, lam.body()),
+                        EngineText.enginePlanText(dbType, quote, tz)::selectList),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
@@ -885,6 +890,7 @@ final class StatementExecutor {
         }
         java.util.List<String> allocs = new java.util.ArrayList<>();
         String prevVar = null;
+        var planText = EngineText.enginePlanText(dbType, quote, tz);
         for (int k = spine.size() - 1; k >= 0; k--) {
             TypedSpec at = k == spine.size() - 1
                     ? spine.get(k).left() : spine.get(k + 1);
@@ -898,13 +904,11 @@ final class StatementExecutor {
                 return null;
             }
             EngineSql aEs = engineSql(java.util.List.of(at), mappingFqn,
-                    specs, env, EngineText.enginePlanText(dbType, quote, tz),
+                    specs, env, planText,
                     java.util.Map.of(),
                     java.util.function.UnaryOperator.identity(), chainMaps);
             String aSql = prevVar == null ? aEs.sql()
-                    : com.legend.plan.PlanText.spliceLeftVar(aEs.plan(),
-                            prevVar,
-                            EngineText.enginePlanText(dbType, quote, tz)::render);
+                    : com.legend.plan.PlanText.spliceLeftVar(aEs.plan(), prevVar, planText::render);
             if (aSql == null) { return null; }
             String[] aImpl = com.legend.lineage.ScanRelations.rootImpl(
                     env.ctx(), mappingFqn, aRoot, chainMaps);
@@ -921,21 +925,20 @@ final class StatementExecutor {
                             prevVar == null ? aEs.plan()
                                     : com.legend.plan.PlanText.colsPlanFor(
                                             aEs.plan(), prevVar),
-                            pushDownEnums(env, java.util.List.of(at)))));
+                            pushDownEnums(env, java.util.List.of(at)), planText::selectList)));
             prevVar = var;
         }
         EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,
-                EngineText.enginePlanText(dbType, quote, tz), java.util.Map.of(),
+                planText, java.util.Map.of(),
                 java.util.function.UnaryOperator.identity(), chainMaps);
         String splicedSql = com.legend.plan.PlanText.spliceLeftVar(
-                fullEs.plan(), java.util.Objects.requireNonNull(prevVar),
-                EngineText.enginePlanText(dbType, quote, tz)::render);
+                fullEs.plan(), java.util.Objects.requireNonNull(prevVar), planText::render);
         if (splicedSql == null) { return null; }
         String terminal = com.legend.plan.PlanText.single(env.ctx(),
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,
                 lam.body(), connName, chainMaps,
                 com.legend.plan.PlanText.colsPlanFor(
-                        fullEs.plan(), prevVar), pushDownEnums(env, lam.body()));
+                        fullEs.plan(), prevVar), pushDownEnums(env, lam.body()), planText::selectList);
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
@@ -951,7 +954,7 @@ final class StatementExecutor {
 
     /** Pre-order search for the first {@code TypedFrom} carrying a
      * connection-name hint (instance-runtime from()). */
-    private static @com.legend.base.Nullable String firstFromConnectionName(
+    private static com.legend.compiler.spec.typed.ExecutionContext.@com.legend.base.Nullable PlanConnection firstFromConnectionName(
             com.legend.compiler.spec.typed.TypedSpec t) {
         return com.legend.compiler.spec.typed.ExecutionContext.froms(t).stream()
                 .map(com.legend.compiler.spec.typed.TypedFrom::connectionName)
@@ -1022,7 +1025,7 @@ final class StatementExecutor {
                         "plan: non-let intermediate statement");
             }
             children.add(PlanAllocations.node(let, mappingFqn, specs, env,
-                    params, paramSpells, quote, timeZone, dbType));
+                    params, paramSpells, quote, timeZone, dbType, connName));
             params.put(let.name(), new com.legend.sql.SqlExpr.PlanParam(
                     let.name(), com.legend.lowering.PlanParams.kindOf(
                             let.info().type())));
@@ -1035,7 +1038,7 @@ final class StatementExecutor {
             // the plan, no Sequence envelope.
             children.add(java.util.Objects.requireNonNull(PlanAllocations
                     .node(tlet, mappingFqn, specs, env, params, paramSpells,
-                            quote, timeZone, dbType)));
+                            quote, timeZone, dbType, connName)));
             if (children.size() != 1) {
                 throw new com.legend.error.NotImplementedException(
                         "plan: trailing let in a multi-node sequence"
@@ -1058,8 +1061,7 @@ final class StatementExecutor {
         // file guardrail — PlanEnvelope owns the block-vs-sequence rule)
         return PlanEnvelope.emit(es, children, env, rootClass, impl,
                 mappingFqn, term, connName, dbType,
-                (com.legend.sql.dialect.EngineStyleH2)
-                        EngineText.enginePlanText(dbType, quote, timeZone),
+                EngineText.enginePlanText(dbType, quote, timeZone),
                 !lam.parameters().isEmpty());
     }
 
@@ -1111,8 +1113,7 @@ final class StatementExecutor {
         if (ni.properties().get("datasourceSpecification")
                 instanceof com.legend.compiler.spec.typed
                         .TypedNewInstance ds
-                && com.legend.compiler.element.type.PlatformTypes
-                        .LOCAL_H2_DATASOURCE_SPECIFICATION.equals(ds.classFqn())) {
+                && com.legend.model.ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS.equals(ds.classFqn())) {
             String specCsv = ds.properties().get("testDataSetupCsv")
                     instanceof com.legend.compiler.spec.typed
                             .TypedCString sc2
@@ -1306,10 +1307,10 @@ final class StatementExecutor {
      * EXPLICIT mapping argument as the chain's execution context, and — for
      * a let binding — run it eagerly through the pipeline.
      */
-    /** The executor's SchemaOracle: the LIMIT-0 probe with its checked
+    /** The executor's SchemaReferee: the LIMIT-0 probe with its checked
      * failure wrapped — F1.3 keeps the JDBC surface (its exception type
      * included) out of the resolver. */
-    static com.legend.resolver.RawGridSchema.SchemaOracle gridOracle(
+    static com.legend.resolver.RawGridSchema.SchemaReferee gridReferee(
             java.sql.Connection connection, ExecEnv env) {
         return (sql, writtenFor) -> {
             try {
@@ -2283,9 +2284,9 @@ final class StatementExecutor {
         env = routeSystemDatabase(body, env);
         java.sql.Connection connection = env.connection();
         // late-bound grids: FIRST-query schema pin — staged compilation:
-        // the resolver pass takes the probed roster through the oracle
+        // the resolver pass takes the probed roster through the referee
         body = com.legend.resolver.RawGridSchema.stamp(body,
-                gridOracle(connection, env));
+                gridReferee(connection, env));
         // the from being executed IS the frame: its bound context carries the
         // post-processors, the connection's time zone and the options this
         // execution runs under (batch 120 — no static slot). The OUTERMOST
@@ -2945,13 +2946,18 @@ final class StatementExecutor {
      * create per family POISONED the family mirror and failed every
      * later advisory-dependent test (9 across 2 families, measured).
      * `Create schema if not exists` is valid H2 and idempotent — the
-     * replay is safe on both fresh and live mirrors. */
+     * replay is safe on both fresh and live mirrors. The statement is the
+     * IR's (SqlDdl.CreateSchema), rendered as dropAndCreateTableInDb's:
+     * the session's dialect spells the executed copy, H2 the recorded one
+     * (the dialect program's Phase 3, 2026-10-16: until then the text was
+     * written here, so a database with no schemas, SQLite, refused it). */
     static ExecutionResult dropAndCreateSchemaInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env) {
-        String schemaDdl = "Create schema if not exists "
-                + evalStringArg(body, sc.args().get(0), env);
-        sendEffect(env, schemaDdl, schemaDdl, com.legend.exec.StatementOrigin.RAW, true);
+        com.legend.sql.SqlDdl schema = new com.legend.sql.SqlDdl.CreateSchema(
+                evalStringArg(body, sc.args().get(0), env), false);
+        sendEffect(env, env.dialect().render(schema), REFEREE_DDL.render(schema),
+                com.legend.exec.StatementOrigin.RAW, true);
         return new ExecutionResult.Scalar(true, sc.info().type());
     }
 
@@ -2994,12 +3000,12 @@ final class StatementExecutor {
         // tables nobody created because this recording was gated on the
         // DuckDB session (17 `ADDRESSTABLE not found` declines)
         sendEffect(env, env.dialect().render(Ddl.dropDeclaredTable(def, schema)),
-                H2_DDL.render(Ddl.dropDeclaredTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
+                REFEREE_DDL.render(Ddl.dropDeclaredTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
         // engine parity (batch 71 experiment): the native's DDL carries the
         // declared key and nullability, exactly like the engine's
         // dropAndCreateTableInDb (applyConstraints defaults true)
         sendEffect(env, env.dialect().render(Ddl.createTable(def, schema)),
-                H2_DDL.render(Ddl.createTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
+                REFEREE_DDL.render(Ddl.createTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
         // (the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY constraints;
         // a record-only ALTER ledger carried them for a metadata replay that
         // no longer exists — deleted with the meta ledger, batch 137)
@@ -3040,7 +3046,7 @@ final class StatementExecutor {
                     com.legend.compiler.element.StoreCompiler.declaredType(datatypeLiteral(type)), false, false));
         }
         var ct = new com.legend.sql.SqlDdl.CreateTable(null, table, com.legend.sql.NameQuoting.BARE, cols, true);
-        sendEffect(env, env.dialect().render(ct), H2_DDL.render(ct), com.legend.exec.StatementOrigin.RAW, true);
+        sendEffect(env, env.dialect().render(ct), REFEREE_DDL.render(ct), com.legend.exec.StatementOrigin.RAW, true);
         return new ExecutionResult.Scalar(null, call.info().type());
     }
 
@@ -3050,7 +3056,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         String table = evalStringArg(body, call.args().get(0), env);
         com.legend.sql.SqlDdl.DropTable dt = Ddl.dropTable(null, table);
-        sendEffect(env, env.dialect().render(dt), H2_DDL.render(dt), com.legend.exec.StatementOrigin.RAW, true);
+        sendEffect(env, env.dialect().render(dt), REFEREE_DDL.render(dt), com.legend.exec.StatementOrigin.RAW, true);
         return new ExecutionResult.Scalar(null, call.info().type());
     }
 
@@ -3115,10 +3121,12 @@ final class StatementExecutor {
                         + " names are supported, got "
                         + ds.args().get(0).getClass().getSimpleName());
             }
-            return com.legend.compiler.element.type.PlatformTypes
+            // the engine text renders the IR's schema DDL, as the table statements below
+            // (the dialect program's Phase 3, 2026-10-16: until then the text was written here)
+            return ENGINE_TEXT.render(com.legend.compiler.element.type.PlatformTypes
                     .DROP_SCHEMA_STATEMENT.equals(fqn)
-                    ? "Drop schema if exists " + sc.value() + " cascade;"
-                    : "Create Schema if not exists " + sc.value() + ";";
+                    ? new com.legend.sql.SqlDdl.DropSchema(sc.value(), false)
+                    : new com.legend.sql.SqlDdl.CreateSchema(sc.value(), false));
         }
         // 2-arg forms default the schema (toDDL.pure:34-42)
         boolean twoArg = ds.args().size() == 2;

@@ -13,6 +13,9 @@ package com.legend.sql;
  */
 public enum DatePart {
     YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND,
+    /** A nanosecond: DuckDB's ({@code TIMESTAMP_NS}, the Cypher island's nanosecond leg, 2026-10-16); a dialect whose
+     *  engine keeps microseconds refuses it by name. */
+    NANOSECOND,
     /** The day of the year, 1 to 366 ({@code EXTRACT} only). */
     DAY_OF_YEAR,
     /** The ISO day of the week, Monday 1 to Sunday 7 ({@code EXTRACT} only). */

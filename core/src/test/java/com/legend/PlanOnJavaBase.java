@@ -34,24 +34,31 @@ public final class PlanOnJavaBase {
                 + "->sort(~n->ascending())").plan("x::RT").sql();
         System.out.println(sql);
         check(sql.contains("SELECT") && sql.contains("GROUP BY"), "no SQL planned: " + sql);
-        // the Postgres dialect plans on java.base too (2026-10-01 W5.5/P1 Postgres
-        // dialect): a runtime declaring Postgres, the browser planner's path
-        String pg = """
-                ###Relational
-                Database x::PG ( Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(32), SIZE INTEGER) )
-                ###Connection
-                RelationalDatabaseConnection x::PgConn { store: x::PG; type: Postgres;
-                  specification: DuckDB { }; auth: Test; }
-                ###Runtime
-                Runtime x::PgRT { mappings: []; connections: [ x::PG: [ c1: x::PgConn ] ]; }
-                """;
-        String postgres = Compiler.query(Compiler.compileModel(pg), "#>{x::PG.FIRM}#->filter(r|$r.SIZE > 10)"
-                + "->extend(over(~NAME, ~ID->ascending()), ~[rn:{p,w,r|$p->rowNumber($r)}])"
-                + "->filter(r|$r.rn == 1)->groupBy(~[NAME], ~[t: r|$r.SIZE : y|$y->plus()])").plan("x::PgRT").sql();
-        System.out.println("postgres: " + postgres);
-        // the store's bare names folded (decision D8), and QUALIFY as a wrapping select
-        check(postgres.startsWith("SELECT") && postgres.contains("FROM firm") && postgres.contains("\"qualify_src\""),
-                "no Postgres SQL planned: " + postgres);
+        // every dialect plans on java.base too (2026-10-01 W5.5/P1, the Postgres dialect, the browser planner's path;
+        // every database the platform executes on since the dialect program's Phase 6, 2026-10-16): a runtime
+        // declaring each database, the same query
+        for (com.legend.model.ConnectionDefinition.DatabaseType type : com.legend.database.Databases.implemented()) {
+            String declared = """
+                    ###Relational
+                    Database x::DB ( Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(32), SIZE INTEGER) )
+                    ###Connection
+                    RelationalDatabaseConnection x::Conn { store: x::DB; type: %s;
+                      specification: DuckDB { }; auth: Test; }
+                    ###Runtime
+                    Runtime x::DbRT { mappings: []; connections: [ x::DB: [ c1: x::Conn ] ]; }
+                    """.formatted(type.name());
+            String planned = Compiler.query(Compiler.compileModel(declared), "#>{x::DB.FIRM}#->filter(r|$r.SIZE > 10)"
+                    + "->extend(over(~NAME, ~ID->ascending()), ~[rn:{p,w,r|$p->rowNumber($r)}])"
+                    + "->filter(r|$r.rn == 1)->groupBy(~[NAME], ~[t: r|$r.SIZE : y|$y->plus()])").plan("x::DbRT").sql();
+            System.out.println(type + ": " + planned.replace('\n', ' '));
+            check(planned.toUpperCase(java.util.Locale.ROOT).startsWith("SELECT"), "no " + type + " SQL planned: "
+                    + planned);
+            // the table read as the dialect stores the name (Postgres folds a bare one, decision D8), and the window's
+            // filter a QUALIFY or the select that wraps it
+            String table = com.legend.database.Databases.dialect(type).storedName("FIRM", false);
+            check(planned.contains("FROM " + table), "no " + type + " read of " + table + ": " + planned);
+            check(planned.contains("QUALIFY") || planned.contains("qualify_src"), "no " + type + " QUALIFY: " + planned);
+        }
         System.out.println("the planner runs on java.base alone");
     }
 

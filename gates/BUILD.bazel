@@ -42,6 +42,9 @@ test_suite(
         # against SQL Anywhere 17's snapped answers, each run's status held by iq-parity/ledger.tsv
         "//core:iq_parity_test",
         "//core:iq_parity_postgres_test",
+        # the #Cypher{...}# island's parity lanes (docs/CYPHER_STUDY_2026_10_15.md §8.4)
+        "//core:cypher_parity_test",
+        "//core:cypher_parity_postgres_test",
         # the #IQ{...}# island's syntax-case ratchet: the research's derived syntax cases through the island's reader,
         # held by iq-parity/syntax-pins.tsv
         "//core:iq_syntax_cases_test",
@@ -100,6 +103,8 @@ test_suite(
         "//tools/census:tools_build_test",
         # the #IQ{}# island's oracle (tools/iq-oracle/README.md): built here, run by hand where SQL Anywhere is installed
         "//tools/iq-oracle:tools_build_test",
+        # the #Cypher{}# island's oracle (tools/neo4j-oracle/README.md): built here, run by hand where a Neo4j runs
+        "//tools/neo4j-oracle:tools_build_test",
         "//tools/junit:tools_build_test",
     ],
 )
@@ -309,6 +314,9 @@ test_suite(
         # the DataCube model design's measurement (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §11, 2026-10-10): manual
         "//datacube:model_scale_measure",
         "//parser-equivalence:diagnostics",
+        # the #IQ{...}# island's real-world corpus lane (2026-10-15; core/BUILD.bazel's iq_corpus_test): manual, it
+        # names corpora kept out of the repository (-Diq.corpus.root) and fails without them
+        "//core:iq_corpus_test",
         "//pct:update_ratchets_test",
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an

@@ -74,6 +74,7 @@ final class DuckDbSpellings {
             case SECOND -> "second";
             case MILLISECOND -> "millisecond";
             case MICROSECOND -> "microsecond";
+            case NANOSECOND -> "nanosecond";
             case DAY_OF_YEAR -> "doy";
             case ISO_DAY_OF_WEEK -> "isodow";
         };
@@ -91,8 +92,8 @@ final class DuckDbSpellings {
             case SECOND -> "to_seconds";
             case MILLISECOND -> "to_milliseconds";
             case MICROSECOND -> "to_microseconds";
-            case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("an interval of " + p
-                    + " reached DuckDB, which builds none");
+            case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("an interval of " + p
+                    + " reached DuckDB, which builds none (nanoseconds are added over the epoch: EPOCH_NS)");
         };
     }
 

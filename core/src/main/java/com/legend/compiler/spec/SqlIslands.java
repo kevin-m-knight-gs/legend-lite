@@ -39,6 +39,10 @@ final class SqlIslands {
      *  neither. */
     static ValueSpecification desugar(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
             ModelContext model, Env env) {
+        if (island.language().equals(SqlIsland.CYPHER)) {
+            // the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §5.3): its own seam, over the class model
+            return CypherIslands.desugar(island, model);
+        }
         java.util.Set<String> read = new java.util.TreeSet<>();
         SqlToPure.Sources sources = new SqlToPure.Sources() {
             @Override
@@ -63,6 +67,12 @@ final class SqlIslands {
             @Override
             public void variables(java.util.function.Consumer<String> names) {
                 env.names().forEach(names);
+            }
+
+            @Override
+            public ValueSpecification inlineView(ValueSpecification relation) {
+                // IQ island, 2026-10-16: the compiler's marker (InlineViewChecker)
+                return Calls.exact(com.legend.builtin.Pure.Lite.INLINE_VIEW, java.util.List.of(relation));
             }
         };
         try {
@@ -162,7 +172,7 @@ final class SqlIslands {
         if (profile == null) {
             throw new TypeInferenceException(IqProfile.unknown(java.util.Objects.requireNonNull(named)));
         }
-        return IqDialect.of(profile);
+        return IqDialect.of(profile.settings());
     }
 
     /** A FROM source's columns, as the translator reads them: each column's name, its type's name, whether it may hold
@@ -194,7 +204,7 @@ final class SqlIslands {
     }
 
     /** A position in the SQL text as a position in the enclosing source (the island's own when it has one). */
-    private static String position(SqlIsland island, int line, int column) {
+    static String position(SqlIsland island, int line, int column) {
         SourceInfo pos = island.pos();
         if (pos == null) {
             return "line " + line + ", column " + column + " of the SQL";

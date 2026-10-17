@@ -1,0 +1,21 @@
+# The #Cypher{...}# island's list-comprehension cases with a condition that may be null (docs/CYPHER_STUDY_2026_10_15.md
+# §12.33): an element is kept when the condition is true; null, like false, drops it. Each case is judged by
+# Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/comprehensions/*'),
+# keyed lite/comprehensions/<id>.
+tests:
+  - id: a_condition_over_a_value_of_the_row
+    graph: |
+      CREATE ()
+    cypher: "UNWIND [1, 2, 3] AS value RETURN value, size([x IN [1, 2, 3] WHERE x < value]) AS below, [x IN [1, 2, 3] WHERE x > value] AS above ORDER BY value"
+  - id: a_condition_over_a_property_that_may_be_null
+    graph: |
+      CREATE (:P {name: 'a', age: 2}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) WITH p.name AS name, p.age AS age RETURN name, [x IN [1, 2, 3] WHERE x < age] AS below, size([x IN [1, 2, 3] WHERE x >= age]) AS n ORDER BY name"
+  - id: a_null_condition_drops_every_element
+    graph: |
+      CREATE ()
+    cypher: "RETURN [x IN [1, 2, 3] WHERE x < null] AS l, size([x IN [1, 2, 3] WHERE null]) AS n"
+  - id: ranks_by_a_filtered_count
+    graph: |
+      CREATE ()
+    cypher: "WITH [3, 1, 2] AS values WITH values, size(values) AS total UNWIND values AS value WITH size([x IN values WHERE x < value]) AS rank, value, total ORDER BY value RETURN rank, value, total"

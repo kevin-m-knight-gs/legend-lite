@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * THE GENERATIVE DIFFERENTIAL GATE (2026-08-12 adversarial audit): inputs
  * the harvested corpus structurally CANNOT contain — engine/pure repos only
  * spell what their own tests spell — verdict-adjudicated against the live
- * 4.138.2 oracle in this JVM. Every family below found a real divergence on
+ * 4.138.2 referee in this JVM. Every family below found a real divergence on
  * its first run; each fixed row stays here as a regression pin, and the
  * whole suite runs in ~5s.
  *
@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * <p>This gate deliberately does NOT compare bytes — {@code CorpusSweepTest}
  * owns byte parity. Verdict asymmetry is the blind spot this class exists
- * to close (deep-audit H1: "byte parity is blind where the oracle refuses";
+ * to close (deep-audit H1: "byte parity is blind where the referee refuses";
  * GATES.md: "a corpus sweep structurally cannot find a disagreement about a
  * form the corpus never contains").
  */
@@ -229,7 +229,7 @@ class AdversarialParityTest {
     void gqlIslands() {
         // #GQL{...}# — the graphQL embedded-Pure extension (census row
         // retired 2026-08-14). Every accepted form byte-pinned against
-        // the live oracle on first implementation; inline fragments are
+        // the live referee on first implementation; inline fragments are
         // refused by BOTH grammars.
         String h = "function f::q(): Any[*]\n{\n  ";
         String t = "\n}\n";

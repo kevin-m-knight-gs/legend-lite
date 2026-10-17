@@ -33,6 +33,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
             case JSON -> "JSON";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -50,6 +51,13 @@ public final class DuckDb extends AnsiSqlRenderer {
     @Override
     protected String formatText(SqlExpr.FormatLit fl) {
         return strftimeText(fl);
+    }
+
+    /** {@inheritDoc} DuckDB's: one giant INSERT cost most of a 61 s first query (its loader, the Appender, stages the
+     *  rows as text, and one INSERT ... SELECT casts them). */
+    @Override
+    public boolean loadsRowsInBulk() {
+        return true;
     }
 
     /** {@inheritDoc} Written beside this dialect ({@code DuckDbHostOperations}). */
@@ -403,8 +411,8 @@ public final class DuckDb extends AnsiSqlRenderer {
             case FLOOR -> bigintOf(writer, "floor", c.args());
             case SIGN -> bigintOf(writer, "sign", c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
-            case LPAD -> padWithSpace(writer, "lpad", c.args());
-            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case LPAD -> padWithSpaceToInteger(writer, "lpad", c.args());
+            case RPAD -> padWithSpaceToInteger(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
             // generateGuid's contract is text: the uuid as VARCHAR
@@ -483,6 +491,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LTRIM -> writer.function("ltrim", c.args());
             case RTRIM -> writer.function("rtrim", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> writer.function("translate", c.args());
             case SPLIT -> writer.function("string_split", c.args());
             case SPLIT_PART -> writer.function("split_part", c.args());
             case REVERSE_STRING -> writer.function("reverse", c.args());
@@ -499,8 +508,14 @@ public final class DuckDb extends AnsiSqlRenderer {
             case DATE_DIFF -> writer.append("date_diff(").append(stringLit(DuckDbSpellings.datePart(part(a.get(0)))))
                     .append(", ").list(a.subList(1, a.size())).append(")");
             case TIMEZONE -> writer.function("timezone", c.args());
+            // a date plus a time of day is the timestamp at it (measured, 1.4.4)
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
+                    .expr(a.get(1), 6));
             case EPOCH_SECONDS -> writer.function("epoch", c.args());
             case EPOCH_MS -> writer.function("epoch_ms", c.args());
+            // the nanosecond epoch (exact over a TIMESTAMP_NS, measured 1.4.4) and the TIMESTAMP_NS it makes
+            case EPOCH_NS -> writer.function("epoch_ns", c.args());
+            case FROM_EPOCH_NS -> writer.function("make_timestamp_ns", c.args());
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
             case DAYNAME -> writer.function("dayname", c.args());
             case MONTHNAME -> writer.function("monthname", c.args());
@@ -657,6 +672,47 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
 
+
+    /** {@inheritDoc} DuckDB keeps the SQL standard's {@code information_schema} (and a {@code pg_catalog}, which no
+     *  grid lists): the corpus's catalog-grid tests prove it, the primary keys' {@code key_column_usage} and
+     *  {@code table_constraints} pair included (DuckDB 1.4.4, probed 2026-09-05: ordinal positions, quoted names). */
+    @Override
+    protected SqlWriter catalog(SqlWriter writer, SqlSource.Catalog c) {
+        return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
+    }
+
+    /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's
+     *  generator tests, ReservedNamesGenerationTest). */
+    @Override
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        return createTemporaryTableAs(ct);
+    }
+
+    /** DuckDB's catalog names a column's type as its JDBC driver does, a DECIMAL with its precision and scale
+     *  ({@code DECIMAL(10,2)}), whose code is DECIMAL's; each name's code is the driver's (measured 2026-10-16 against
+     *  {@code DatabaseMetaData.getColumns}, CatalogGridTest). REAL is FLOAT there. */
+    private static final InformationSchemaCatalog.Types CATALOG_GRID_TYPES = new InformationSchemaCatalog.Types(
+            "data_type", "CASE WHEN data_type LIKE 'DECIMAL%' THEN 'DECIMAL' ELSE data_type END",
+            gridTypeCodes());
+
+    private static java.util.Map<String, InformationSchemaCatalog.TypeCode> gridTypeCodes() {
+        java.util.Map<String, InformationSchemaCatalog.TypeCode> m = new java.util.LinkedHashMap<>();
+        m.put("INTEGER", InformationSchemaCatalog.TypeCode.INTEGER);
+        m.put("VARCHAR", InformationSchemaCatalog.TypeCode.VARCHAR);
+        m.put("BIGINT", InformationSchemaCatalog.TypeCode.BIGINT);
+        m.put("SMALLINT", InformationSchemaCatalog.TypeCode.SMALLINT);
+        m.put("TINYINT", InformationSchemaCatalog.TypeCode.TINYINT);
+        m.put("DOUBLE", InformationSchemaCatalog.TypeCode.DOUBLE);
+        m.put("FLOAT", InformationSchemaCatalog.TypeCode.FLOAT);
+        m.put("DECIMAL", InformationSchemaCatalog.TypeCode.DECIMAL);
+        m.put("DATE", InformationSchemaCatalog.TypeCode.DATE);
+        m.put("TIMESTAMP", InformationSchemaCatalog.TypeCode.TIMESTAMP);
+        m.put("BOOLEAN", InformationSchemaCatalog.TypeCode.BOOLEAN);
+        m.put("TIME", InformationSchemaCatalog.TypeCode.TIME);
+        m.put("TIMESTAMP WITH TIME ZONE", InformationSchemaCatalog.TypeCode.TIMESTAMP_WITH_TIMEZONE);
+        m.put("BLOB", InformationSchemaCatalog.TypeCode.BLOB);
+        return m;
+    }
 
     /**
      * {@code data:application/json,[...]} inlines the payload as a JSON
@@ -816,8 +872,14 @@ public final class DuckDb extends AnsiSqlRenderer {
      * unifying (list_reduce accumulator vs reducer struct — the fold
      * family's {@code VARCHAR[] -> "NULL"} cast wall). */
     private SqlWriter structFieldValue(SqlWriter writer, SqlExpr.StructLit.Field f) {
+        // a value built of literals under a BIGINT-declared slot spells the slot's type too: DuckDB types a bare
+        // literal by its magnitude (INT32 below 2^31), arithmetic of such literals and the struct's field with it,
+        // and arithmetic over the field then overflows at 32 bits (3,661 seconds times a billion, the Cypher
+        // island's duration leg, measured 1.4.4); a column's own type and a cast's stand
         return f.declared() != null
-                && f.value().type() instanceof com.legend.sql.TypeFact.Bottom
+                && (f.value().type() instanceof com.legend.sql.TypeFact.Bottom
+                        || f.declared() == com.legend.sql.SqlType.Scalar.BIGINT
+                                && !(f.value() instanceof SqlExpr.Column) && !(f.value() instanceof SqlExpr.Cast))
                 ? writer.append("CAST(").expr(f.value(), 0).append(" AS ").append(castTypeName(f.declared()))
                         .append(")")
                 : writer.expr(f.value(), 0);

@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * lite's MODEL printer ({@link ModelComposer}, the engine's {@code jsonToGrammar/model}) against
- * UPSTREAM'S, byte for byte (docs/STUDIO_FULL_PLAN_2026_10_04.md, B1). The oracle is upstream's own
+ * UPSTREAM'S, byte for byte (docs/STUDIO_FULL_PLAN_2026_10_04.md, B1). The referee is upstream's own
  * {@code PureGrammarComposer} on the same protocol JSON: every source of the reference corpus the
  * engine's parser accepts, plus every text of upstream's own grammar round-trip tests
  * ({@code TestGrammarRoundtrip} subclasses), printed three ways -- the whole model with its section
@@ -291,14 +291,14 @@ class ModelComposerParityTest {
         if (System.getenv("MODEL_COMPOSER_DUMP") != null) {
             dump = Files.newBufferedWriter(TestOutputs.file("model-composer-dump.jsonl"));
         }
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        PureGrammarParser referee = PureGrammarParser.newInstance();
         int sources = 0;
         for (Corpus.Source src : Corpus.all()) {
             PureModelContextData parsed;
             try {
-                parsed = oracle.parseModel(src.text());
+                parsed = referee.parseModel(src.text());
             } catch (Throwable t) {
-                continue;   // the oracle refuses the source: nothing to print
+                continue;   // the referee refuses the source: nothing to print
             }
             sources++;
             compare(src.id(), mapper.writeValueAsString(parsed));
@@ -308,7 +308,7 @@ class ModelComposerParityTest {
             for (String run : InlineSnippets.literalRuns(Files.readString(file))) {
                 PureModelContextData parsed;
                 try {
-                    parsed = oracle.parseModel(run, "", 0, 0, false);
+                    parsed = referee.parseModel(run, "", 0, 0, false);
                 } catch (Throwable t) {
                     continue;   // not a model text (an expected message, a JSON resource name)
                 }

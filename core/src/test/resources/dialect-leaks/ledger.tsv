@@ -6,579 +6,77 @@
 # 2026-10-14, the PR #39 audit's finding 6: the product pattern counts H2 and DB2 as an identifier's word (isH2, LocalH2, ENGINE_H2, h2Mode, isDb2), as it counted isPostgres; each such line was always there, uncounted, and is pinned as measured (DialectLeakRatchetTest.H2_OR_DB2).
 # 2026-10-15, the user's decisions D9 and D11 (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md §6): the model language's vocabulary (lexer, parser, protocol, model) and the SQL input languages (PostgresDialect, PostgresDateTime, protocol/sql/iq) are owners (DatabaseOwners), held to their own databases by DialectOwnerExclusivityTest; their 40 rows (368 lines) left this ledger.
 # 2026-10-15, the dialect program's Phase 4 (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): exec/SqlTypeCensus.java names no database; each database's reading of its driver (its type names, its carrier conventions, Trino's empty failed result) is its dialect's (SqlDialect.wireTypeName, deliversOwn, opensFailedResultsWithoutColumns), and its row (10 lines) left this ledger.
-core/src/main/java/com/legend/AssertVerdicts.java	product-name	4
-core/src/main/java/com/legend/BodyCompiler.java	product-name	1
-core/src/main/java/com/legend/EngineText.java	database-type	1
-core/src/main/java/com/legend/EngineText.java	dialect-class	6
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/EngineText.java	product-name	12
-core/src/main/java/com/legend/Execution.java	product-name	4
-core/src/main/java/com/legend/PlanEnvelope.java	dialect-class	1
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/PlanEnvelope.java	product-name	1
-core/src/main/java/com/legend/SeedSqlForms.java	product-name	3
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/SqlTextVerdicts.java	product-name	63
-core/src/main/java/com/legend/StatementExecutor.java	dialect-class	5
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/StatementExecutor.java	product-name	31
+# 2026-10-16, the dialect program's Phase 3: the engine-text and plan-text paths take EngineTextDialect, not EngineStyleH2 (StatementExecutor's 5 and PlanEnvelope's 1 dialect-class lines gone), and schema DDL is SqlDdl (StatementExecutor 31 -> 27, EngineText 12 -> 10 product-name lines); lowered as measured.
+# 2026-10-16, the dialect program's Phase 3: the test oracle is named the referee in code (SqlReplayOracle -> SqlReplayReferee, ReplayOracle -> ReplayReferee, OraclePins -> RefereePins, REPLAY_ORACLE -> REPLAY_REFEREE, and every oracle identifier and comment): the product pattern read each as the Oracle database. The Oracle database's own names (DatabaseType.Oracle, its connection specification) are unchanged; lowered as measured, ReplayReferee.java's rows moved with its file.
+# 2026-10-16, the dialect program's Phase 3: three locals the H2/DB2 pattern read as a database renamed for what they hold (SeedSqlForms' seed database, RelationalTypeInference's two decimals, GraphEmission's two hops); their rows (11 lines) left the ledger.
+# 2026-10-16, the dialect program's Phase 3: EngineText is an owner (DatabaseOwners: the engine-text registry, Databases' counterpart); the test-data datasource specification is the model's (ConnectionSpecification.testData, TEST_DATA_SPECIFICATION_CLASS); the dual-golden verdict, the referee's DDL, the engine's test connection and the function activator named for what they are; their 13 rows (41 lines) left the ledger.
+# 2026-10-16, the dialect program's Phase 5: each database's sessions are its connector's (exec/<Db>Connector.java, an owner: DatabaseOwners' CONNECTOR kind, held to its own database), and exec/Connectors.java the registry; Sessions asks them, H2's URL settings are H2Connector.SETTINGS (H2Settings deleted), the product-name read is Connectors.product, and StorelessRuntime's specification text is its connector's (storelessDeclaration). The lite plan format's connection codec is the model's (model/ConnectionWire, the vocabulary, D9): PlanJson names no database. Their 9 rows (118 lines) left the ledger.
+# 2026-10-16, the dialect program's Phase 6: the tests' databases are test backends (core/src/test/java/com/legend/testbackend: one per database, an owner held to its own database in code and strings, and TestBackends the registry); the PCT lanes take theirs by name, so PctBackend's lane enum and CloudLane (moved into the cloud backends) leave the ledger. Core's tests open the platform's backend, or every in-process one, or name the database they are about (a test named for a database owns it: DatabaseOwners' NAMED_TEST, held by DialectOwnerExclusivityTest); the vocabulary's own tests are vocabulary, ArchitectureTest a guard. Lowered as measured; core's test rows left are the SQL, IQ and Cypher islands' and LowerRelationTest's, each open in neema2/legend-lite#43 or #50.
 core/src/main/java/com/legend/builtin/DynaFn.java	product-name	175
-core/src/main/java/com/legend/compiler/NameResolver.java	product-name	1
-core/src/main/java/com/legend/compiler/element/RelationalTypeInference.java	product-name	6
 # 2026-10-14, the merge of neema2/legend-lite#37 (#IQ{...}#, the tenth line) into this branch at 1a36a71: the SQL front end's input dialects (InputDialect, PostgresDialect, SqlToPure, SqlIslands) and the iq-parity tests name the language of the SQL text a user writes (Postgres, SAP IQ / SQL Anywhere), not a database the platform executes on; pinned as measured. Whether protocol/sql/'s input dialects are owners was the user's question (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, Phase 1, 'after #37'): decided 2026-10-15, D11, they are, and the translator they share is not.
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/compiler/element/type/PlatformTypes.java	product-name	5
 core/src/main/java/com/legend/compiler/spec/SqlIslands.java	product-name	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/compiler/spec/typed/ContextReading.java	product-name	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/exec/H2Settings.java	product-name	2
-core/src/main/java/com/legend/exec/PlanSessions.java	product-call	1
-core/src/main/java/com/legend/exec/Sessions.java	database-type	3
-core/src/main/java/com/legend/exec/Sessions.java	jdbc-url	10
-core/src/main/java/com/legend/exec/Sessions.java	product-call	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/exec/Sessions.java	product-name	65
-core/src/main/java/com/legend/exec/SqlReplayOracle.java	product-name	3
-core/src/main/java/com/legend/executionplan/PlanJson.java	database-type	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/executionplan/PlanJson.java	product-name	27
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/lowering/AsorRef.java	product-name	2
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 # 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
 core/src/main/java/com/legend/protocol/sql/InputDialect.java	product-name	6
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 # 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
 core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	47
-core/src/main/java/com/legend/resolver/GraphEmission.java	product-name	2
-core/src/main/java/com/legend/resolver/RawGridSchema.java	product-name	12
-core/src/main/java/com/legend/setup/CsvSeed.java	product-name	5
-core/src/main/java/com/legend/test/PureTestRunner.java	product-name	5
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/test/ServiceTestRunner.java	product-name	1
-core/src/main/java/com/legend/test/StorelessRuntime.java	product-name	6
-core/src/main/java/com/legend/test/TestObserver.java	product-name	2
-core/src/test/java/com/legend/ArchitectureTest.java	dialect-class	5
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/ArchitectureTest.java	product-name	3
-core/src/test/java/com/legend/AssertErrorNativeTest.java	database-type	1
-core/src/test/java/com/legend/AssertErrorNativeTest.java	jdbc-url	1
-core/src/test/java/com/legend/AssertErrorNativeTest.java	product-name	1
-core/src/test/java/com/legend/AssertVerdictSpliceTest.java	jdbc-url	1
-core/src/test/java/com/legend/AssertVerdictsTest.java	database-type	1
-core/src/test/java/com/legend/AssertVerdictsTest.java	jdbc-url	1
-core/src/test/java/com/legend/AssertVerdictsTest.java	product-name	1
-core/src/test/java/com/legend/AuditRound3Test.java	database-type	2
-core/src/test/java/com/legend/AuditRound3Test.java	jdbc-url	2
-core/src/test/java/com/legend/AuditRound3Test.java	product-name	2
-core/src/test/java/com/legend/AuditRound5Test.java	database-type	2
-core/src/test/java/com/legend/AuditRound5Test.java	jdbc-url	1
-core/src/test/java/com/legend/AuditRound5Test.java	product-name	2
-core/src/test/java/com/legend/ConstantPlanParityTest.java	jdbc-url	1
-core/src/test/java/com/legend/PipelineStageFailureTest.java	dialect-class	2
-core/src/test/java/com/legend/PipelineStageFailureTest.java	product-name	2
-core/src/test/java/com/legend/PlanMakerTest.java	database-type	22
-core/src/test/java/com/legend/PlanMakerTest.java	jdbc-url	4
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/PlanMakerTest.java	product-name	35
-core/src/test/java/com/legend/PlanOnJavaBase.java	product-name	4
-core/src/test/java/com/legend/StoreTypesTest.java	jdbc-url	1
-core/src/test/java/com/legend/StoreTypesTest.java	product-name	2
-core/src/test/java/com/legend/SubstrIndexingTest.java	jdbc-url	1
-core/src/test/java/com/legend/TabularFunctionTest.java	jdbc-url	1
-core/src/test/java/com/legend/compiler/LeniencyD6Test.java	database-type	2
-core/src/test/java/com/legend/compiler/LeniencyD6Test.java	jdbc-url	2
-core/src/test/java/com/legend/compiler/LeniencyD6Test.java	product-name	2
-core/src/test/java/com/legend/compiler/NameResolverTest.java	database-type	1
-core/src/test/java/com/legend/compiler/NameResolverTest.java	product-name	1
-core/src/test/java/com/legend/compiler/PctFunctionSuppressionTest.java	database-type	2
-core/src/test/java/com/legend/compiler/PctFunctionSuppressionTest.java	jdbc-url	1
-core/src/test/java/com/legend/compiler/PctFunctionSuppressionTest.java	product-name	2
-core/src/test/java/com/legend/compiler/element/ClassLayoutsDiamondTest.java	database-type	1
-core/src/test/java/com/legend/compiler/element/ClassLayoutsDiamondTest.java	jdbc-url	1
-core/src/test/java/com/legend/compiler/element/ClassLayoutsDiamondTest.java	product-name	1
-core/src/test/java/com/legend/compiler/spec/CaptureStressTest.java	database-type	1
-core/src/test/java/com/legend/compiler/spec/CaptureStressTest.java	jdbc-url	1
-core/src/test/java/com/legend/compiler/spec/CaptureStressTest.java	product-name	1
-core/src/test/java/com/legend/compiler/spec/InlinerMatchCaptureTest.java	database-type	1
-core/src/test/java/com/legend/compiler/spec/InlinerMatchCaptureTest.java	jdbc-url	1
-core/src/test/java/com/legend/compiler/spec/InlinerMatchCaptureTest.java	product-name	1
-core/src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java	database-type	11
-core/src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java	jdbc-url	7
-core/src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java	product-name	11
-core/src/test/java/com/legend/compiler/spec/UserCallInlinerTest.java	jdbc-url	1
-core/src/test/java/com/legend/compiler/spec/VarianceD4Test.java	database-type	3
-core/src/test/java/com/legend/compiler/spec/VarianceD4Test.java	jdbc-url	3
-core/src/test/java/com/legend/compiler/spec/VarianceD4Test.java	product-name	3
-core/src/test/java/com/legend/exec/AuditTier1PipelineTest.java	database-type	4
-core/src/test/java/com/legend/exec/AuditTier1PipelineTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/AuditTier1PipelineTest.java	product-name	4
-core/src/test/java/com/legend/exec/ContainsOverloadTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/DynamicPivotKeyLiteralTest.java	dialect-class	2
-core/src/test/java/com/legend/exec/DynamicPivotKeyLiteralTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/DynamicPivotKeyLiteralTest.java	product-name	2
-core/src/test/java/com/legend/exec/EqualityWorldsConformanceTest.java	database-type	1
-core/src/test/java/com/legend/exec/EqualityWorldsConformanceTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/EqualityWorldsConformanceTest.java	product-name	1
-core/src/test/java/com/legend/exec/ExecuteFrameTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/ExecuteInDbProbeCountTest.java	database-type	1
-core/src/test/java/com/legend/exec/ExecuteInDbProbeCountTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/ExecuteInDbProbeCountTest.java	product-name	1
-core/src/test/java/com/legend/exec/ExecuteInDbTest.java	database-type	1
-core/src/test/java/com/legend/exec/ExecuteInDbTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/ExecuteInDbTest.java	product-name	1
-core/src/test/java/com/legend/exec/ExecutorTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/InstanceIdentityTest.java	database-type	1
-core/src/test/java/com/legend/exec/InstanceIdentityTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/InstanceIdentityTest.java	product-name	1
-core/src/test/java/com/legend/exec/LiteralChannelTest.java	database-type	1
-core/src/test/java/com/legend/exec/LiteralChannelTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/LiteralChannelTest.java	product-name	1
-core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java	database-type	3
-core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java	jdbc-url	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java	product-name	7
-core/src/test/java/com/legend/exec/Phase1AuditTest.java	database-type	5
-core/src/test/java/com/legend/exec/Phase1AuditTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/Phase1AuditTest.java	product-name	5
-core/src/test/java/com/legend/exec/PlanRunnerTest.java	database-type	17
-core/src/test/java/com/legend/exec/PlanRunnerTest.java	jdbc-url	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/exec/PlanRunnerTest.java	product-name	32
-core/src/test/java/com/legend/exec/RawGridSchemaTest.java	database-type	1
-core/src/test/java/com/legend/exec/RawGridSchemaTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/RawGridSchemaTest.java	product-name	1
-core/src/test/java/com/legend/exec/RowLoadTest.java	database-type	1
-core/src/test/java/com/legend/exec/RowLoadTest.java	dialect-class	2
-core/src/test/java/com/legend/exec/RowLoadTest.java	jdbc-url	4
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/exec/RowLoadTest.java	product-name	5
-core/src/test/java/com/legend/exec/StructValueTest.java	database-type	1
-core/src/test/java/com/legend/exec/StructValueTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/StructValueTest.java	product-name	1
-core/src/test/java/com/legend/exec/VerdictWorld2ConsistencyTest.java	database-type	1
-core/src/test/java/com/legend/exec/VerdictWorld2ConsistencyTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/VerdictWorld2ConsistencyTest.java	product-name	1
-core/src/test/java/com/legend/exec/WireTypesTest.java	dialect-class	2
-core/src/test/java/com/legend/exec/WireTypesTest.java	jdbc-url	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/exec/WireTypesTest.java	product-name	4
-core/src/test/java/com/legend/executionplan/PlanJsonTest.java	database-type	3
-core/src/test/java/com/legend/executionplan/PlanJsonTest.java	jdbc-url	1
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/executionplan/PlanJsonTest.java	product-name	12
-core/src/test/java/com/legend/integration/AsOfJoinCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/AssociationIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/ComputedProjectIntegrationTest.java	jdbc-url	6
-core/src/test/java/com/legend/integration/ConcatenateFlattenCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/CorpusDifferentialTest.java	dialect-class	1
-core/src/test/java/com/legend/integration/CorpusDifferentialTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/CorpusDifferentialTest.java	product-name	1
-core/src/test/java/com/legend/integration/CorrelatedRelationCheckerTest.java	jdbc-url	1
-# 2026-10-14, the PR #39 audit's findings 1-4 (declared quoting as data, sql.NameQuoting): regression tests that run one store's quoted names through each database's dialect and on H2/DuckDB, so they name each; pinned as measured.
-core/src/test/java/com/legend/integration/DeclaredQuotedTableTest.java	database-type	1
-core/src/test/java/com/legend/integration/DeclaredQuotedTableTest.java	dialect-class	6
-core/src/test/java/com/legend/integration/DeclaredQuotedTableTest.java	jdbc-url	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/integration/DeclaredQuotedTableTest.java	product-name	7
-core/src/test/java/com/legend/integration/DuckDBIntegrationTest.java	jdbc-url	2
-core/src/test/java/com/legend/integration/DuckDBIntegrationTest.java	product-name	3
-core/src/test/java/com/legend/integration/DuckDBStructSyntaxTest.java	jdbc-url	2
-core/src/test/java/com/legend/integration/DuckDBStructSyntaxTest.java	product-name	1
-core/src/test/java/com/legend/integration/DynaFunctionIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/EnumIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/ExecutionResultIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/ExtendCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/ExtendWindowCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/FilterCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/FoldCheckerTest.java	database-type	1
-core/src/test/java/com/legend/integration/FoldCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/FoldCheckerTest.java	product-name	1
-core/src/test/java/com/legend/integration/FromCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/GetCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/GraphFetchCheckedIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/GroupByCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/InheritanceIntegrationTest.java	jdbc-url	1
+# 2026-10-15, the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §12.1): its DuckDB end-to-end test names the database as SqlIslandIntegrationTest does, pinned as measured.
+core/src/test/java/com/legend/integration/CypherIslandIntegrationTest.java	jdbc-url	1
+# 2026-10-15, the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §12.1): its DuckDB end-to-end test names the database as SqlIslandIntegrationTest does, pinned as measured.
+core/src/test/java/com/legend/integration/CypherIslandIntegrationTest.java	product-name	6
+# 2026-10-15, the Cypher island's parity lanes (docs/CYPHER_STUDY_2026_10_15.md §12.2): the lane test names its database as the IQ lanes' do, pinned as measured.
+core/src/test/java/com/legend/integration/CypherParityTest.java	jdbc-url	1
+# 2026-10-15, the Cypher island's parity lanes (docs/CYPHER_STUDY_2026_10_15.md §12.2): the lane test names its database as the IQ lanes' do, pinned as measured.
+core/src/test/java/com/legend/integration/CypherParityTest.java	product-name	4
+# 2026-10-16, the IQ island's corpus lane (IqCorpusTest, 2026-10-15; its manual target): the DuckDB it runs the island on and the input language's name, as IqParityTest's, pinned as measured.
+core/src/test/java/com/legend/integration/IqCorpusTest.java	jdbc-url	1
+# 2026-10-16, the IQ island's corpus lane (IqCorpusTest, 2026-10-15; its manual target): the DuckDB it runs the island on and the input language's name, as IqParityTest's, pinned as measured.
+core/src/test/java/com/legend/integration/IqCorpusTest.java	product-name	8
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 core/src/test/java/com/legend/integration/IqParityTest.java	jdbc-url	1
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
-core/src/test/java/com/legend/integration/IqParityTest.java	product-name	5
-core/src/test/java/com/legend/integration/IsDistinctByTreeIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/JoinCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/JsonM2MChainIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/JsonM2MIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/JsonMappingIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/LetCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/M2M2RTabularTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/M2MChainIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/M2MIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/MetamodelMappingStoreTest.java	database-type	1
-core/src/test/java/com/legend/integration/MetamodelMappingStoreTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/MetamodelMappingStoreTest.java	product-name	1
-core/src/test/java/com/legend/integration/MetamodelQueryFunctionsTest.java	database-type	1
-core/src/test/java/com/legend/integration/MetamodelQueryFunctionsTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/MetamodelQueryFunctionsTest.java	product-name	1
-core/src/test/java/com/legend/integration/MetamodelStoreSubstitutionTest.java	database-type	2
-core/src/test/java/com/legend/integration/MetamodelStoreSubstitutionTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/MetamodelStoreSubstitutionTest.java	product-name	2
-core/src/test/java/com/legend/integration/MetamodelStoreTest.java	database-type	2
-core/src/test/java/com/legend/integration/MetamodelStoreTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/MetamodelStoreTest.java	product-name	2
-core/src/test/java/com/legend/integration/PivotCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/PivotJoinColumnTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/RelationApiIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/RelationMappingWindowSeamTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/RelationalMappingCompositionTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/RelationalMappingIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/RenameCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/RenderCsvIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/SQLiteIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/SQLiteIntegrationTest.java	product-name	3
-core/src/test/java/com/legend/integration/ScalarFunctionIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/SelectDistinctCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/ServiceTestProvisionKeyTest.java	database-type	1
-core/src/test/java/com/legend/integration/ServiceTestProvisionKeyTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/ServiceTestProvisionKeyTest.java	product-name	1
-core/src/test/java/com/legend/integration/SlicingCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/SortCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/SourceUrlUserCallableTest.java	jdbc-url	1
+core/src/test/java/com/legend/integration/IqParityTest.java	product-name	4
 core/src/test/java/com/legend/integration/SqlIslandIntegrationTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/SqlIslandIntegrationTest.java	product-name	9
 core/src/test/java/com/legend/integration/SqlParityTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/SqlParityTest.java	product-name	6
-core/src/test/java/com/legend/integration/StreamingIntegrationTest.java	jdbc-url	1
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/integration/StressServiceSuitesH2Test.java	product-name	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/integration/StressServiceSuitesTest.java	product-name	4
-core/src/test/java/com/legend/integration/StressSuites.java	database-type	2
-core/src/test/java/com/legend/integration/StressSuites.java	jdbc-url	1
-core/src/test/java/com/legend/integration/StressSuites.java	product-name	10
-core/src/test/java/com/legend/integration/StressTest.java	dialect-class	1
-core/src/test/java/com/legend/integration/StressTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/StressTest.java	product-name	1
-core/src/test/java/com/legend/integration/StressTest100K.java	dialect-class	1
-core/src/test/java/com/legend/integration/StressTest100K.java	jdbc-url	1
-core/src/test/java/com/legend/integration/StressTest100K.java	product-name	1
-core/src/test/java/com/legend/integration/StressTest10K.java	dialect-class	1
-core/src/test/java/com/legend/integration/StressTest10K.java	jdbc-url	1
-core/src/test/java/com/legend/integration/StressTest10K.java	product-name	1
-core/src/test/java/com/legend/integration/StressTestChaotic.java	dialect-class	1
-core/src/test/java/com/legend/integration/StressTestChaotic.java	jdbc-url	1
-core/src/test/java/com/legend/integration/StressTestChaotic.java	product-name	1
-core/src/test/java/com/legend/integration/StressTestComplexQueries.java	dialect-class	1
-core/src/test/java/com/legend/integration/StressTestComplexQueries.java	jdbc-url	1
-core/src/test/java/com/legend/integration/StressTestComplexQueries.java	product-name	1
-core/src/test/java/com/legend/integration/StressTestDense.java	dialect-class	1
-core/src/test/java/com/legend/integration/StressTestDense.java	jdbc-url	1
-core/src/test/java/com/legend/integration/StressTestDense.java	product-name	1
-core/src/test/java/com/legend/integration/StructFilterIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/SubsumptionWitnessTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/TypeConversionCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/UnionJoinMappedPropertyTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/UnionTargetLeanJoinTest.java	dialect-class	1
-core/src/test/java/com/legend/integration/UnionTargetLeanJoinTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/UnionTargetLeanJoinTest.java	product-name	1
-core/src/test/java/com/legend/integration/UserFunctionIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/VariantIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/WindowFunctionTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/WriteCheckerTest.java	jdbc-url	1
-core/src/test/java/com/legend/ladder/FrameQuotedColumnTest.java	jdbc-url	1
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/ladder/FrameQuotedColumnTest.java	product-name	2
-core/src/test/java/com/legend/ladder/LadderRender.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java	database-type	1
-core/src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java	product-name	1
-core/src/test/java/com/legend/lowering/AnyLiteralByteDecidabilityTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/BurnLaneTest.java	database-type	3
-core/src/test/java/com/legend/lowering/BurnLaneTest.java	dialect-class	2
-core/src/test/java/com/legend/lowering/BurnLaneTest.java	jdbc-url	2
-core/src/test/java/com/legend/lowering/BurnLaneTest.java	product-name	5
-core/src/test/java/com/legend/lowering/ComparatorConventionTest.java	database-type	1
-core/src/test/java/com/legend/lowering/ComparatorConventionTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/ComparatorConventionTest.java	product-name	1
-# 2026-10-14, the merge of main's 9bc695885 (a computed column reads the enclosing row, the compiler line) into this branch: its test judges the island against DuckDB as the oracle, so it names DuckDB and its JDBC URL; pinned as measured (main carries no ratchet yet, this branch's Phase 0 adds it).
 core/src/test/java/com/legend/lowering/CorrelatedComputedColumnTest.java	jdbc-url	1
 core/src/test/java/com/legend/lowering/CorrelatedComputedColumnTest.java	product-name	11
 # 2026-10-15, the compiler line's scale-costs landing: ScaleCostsTest judges the island against DuckDB as the oracle (as CorrelatedComputedColumnTest) and renders with DuckDb's dialect to count a render's reads, so it names DuckDB, its dialect class and its JDBC URL
 core/src/test/java/com/legend/lowering/ScaleCostsTest.java	dialect-class	2
 core/src/test/java/com/legend/lowering/ScaleCostsTest.java	jdbc-url	1
 core/src/test/java/com/legend/lowering/ScaleCostsTest.java	product-name	12
-core/src/test/java/com/legend/lowering/EmptyListAggregateTest.java	database-type	1
-core/src/test/java/com/legend/lowering/EmptyListAggregateTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/EmptyListAggregateTest.java	product-name	1
-core/src/test/java/com/legend/lowering/GroupByAverageMappingTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/JoinTortureTest.java	dialect-class	2
-core/src/test/java/com/legend/lowering/JoinTortureTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/JoinTortureTest.java	product-name	2
 core/src/test/java/com/legend/lowering/LowerRelationTest.java	dialect-class	13
 core/src/test/java/com/legend/lowering/LowerRelationTest.java	jdbc-url	1
 core/src/test/java/com/legend/lowering/LowerRelationTest.java	product-name	13
-core/src/test/java/com/legend/lowering/LowererLetScopeTest.java	database-type	1
-core/src/test/java/com/legend/lowering/LowererLetScopeTest.java	dialect-class	2
-core/src/test/java/com/legend/lowering/LowererLetScopeTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/LowererLetScopeTest.java	product-name	3
-core/src/test/java/com/legend/lowering/MapOptionalSourceTest.java	database-type	1
-core/src/test/java/com/legend/lowering/MapOptionalSourceTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/MapOptionalSourceTest.java	product-name	1
-core/src/test/java/com/legend/lowering/NullSemanticsTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/Part1SemanticsTest.java	database-type	1
-core/src/test/java/com/legend/lowering/Part1SemanticsTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/Part1SemanticsTest.java	product-name	1
-core/src/test/java/com/legend/lowering/QuotedColumnNameTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/SqlCanonConformanceTest.java	dialect-class	4
-core/src/test/java/com/legend/lowering/SqlCanonConformanceTest.java	jdbc-url	5
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/lowering/SqlCanonConformanceTest.java	product-name	8
-core/src/test/java/com/legend/lowering/ToOneLaneTest.java	database-type	1
-core/src/test/java/com/legend/lowering/ToOneLaneTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/ToOneLaneTest.java	product-name	1
-core/src/test/java/com/legend/lowering/ValueSortComparatorTest.java	database-type	1
-core/src/test/java/com/legend/lowering/ValueSortComparatorTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/ValueSortComparatorTest.java	product-name	1
-core/src/test/java/com/legend/normalizer/AssocSimpleNameProbeTest.java	jdbc-url	1
-core/src/test/java/com/legend/normalizer/AssociationSetIdTest.java	jdbc-url	1
-core/src/test/java/com/legend/normalizer/AssociationViewJoinTest.java	jdbc-url	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/normalizer/MappingNormalizerTest.java	product-name	19
-core/src/test/java/com/legend/parser/ElementParserTest.java	database-type	2
-core/src/test/java/com/legend/parser/ElementParserTest.java	product-name	4
-core/src/test/java/com/legend/protocol/OlderModelShapesTest.java	product-name	1
-core/src/test/java/com/legend/protocol/sql/PostgresDateTimeTest.java	product-name	8
 core/src/test/java/com/legend/protocol/sql/SqlParserTest.java	product-name	3
 core/src/test/java/com/legend/protocol/sql/SqlToPureTest.java	product-name	10
-core/src/test/java/com/legend/resolver/ChainTypeDispatchTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ChainTypeDispatchTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ChainTypeDispatchTest.java	product-name	2
-core/src/test/java/com/legend/resolver/NavPrefixCollisionTemporalTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/NavigationDepthTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/NavigationDepthTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/NavigationDepthTest.java	product-name	2
-core/src/test/java/com/legend/resolver/NestedExistsCorrelationStampTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/PivotOverClassQueryTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveDeepEmptinessProbeTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveDeepEmptinessProbeTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveDeepEmptinessProbeTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveDerivedLeafProbeTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveFilterDemandTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveFilterDemandTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveFilterDemandTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveGraphUnionProbeTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveM2mTest.java	dialect-class	5
-core/src/test/java/com/legend/resolver/ResolveM2mTest.java	jdbc-url	2
-core/src/test/java/com/legend/resolver/ResolveM2mTest.java	product-name	5
-core/src/test/java/com/legend/resolver/ResolveNavigationTest.java	dialect-class	5
-core/src/test/java/com/legend/resolver/ResolveNavigationTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveNavigationTest.java	product-name	5
-core/src/test/java/com/legend/resolver/ResolveNestedNavTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveNestedNavTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveNestedNavTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveNestedTemporalFrameTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveNestedTemporalFrameTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveOtherwiseTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveOtherwiseTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveOtherwiseTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveOuterDatedNavTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveOuterDatedNavTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveOuterDatedNavTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveSerializeTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveSimpleClassTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveSimpleClassTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveSimpleClassTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveTemporalContextTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveTemporalContextTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveTemporalContextTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveUnionChainTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveUnionChainTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveUnionChainTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveUnionJtcProbeTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveUnionJtcProbeTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveUnionJtcProbeTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveUnionMultiHopProbeTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveUnionMultiHopProbeTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveUnionMultiHopProbeTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveUnionOuterDateProbeTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveUnionOuterDateProbeTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveUnionOuterDateProbeTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveUnionSelfJoinProbeTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveUnionSelfJoinProbeTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveUnionSelfJoinProbeTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveUnionTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveUnionTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveUnionTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ResolveUnionV4ProbeTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ResolveUnionV4ProbeTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ResolveUnionV4ProbeTest.java	product-name	2
-core/src/test/java/com/legend/resolver/RoutedChainKeyTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/RoutedChainKeyTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/RoutedChainKeyTest.java	product-name	2
-core/src/test/java/com/legend/resolver/RoutedEquiJoinTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/RoutedNavigateTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/RoutedNavigateTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/RoutedNavigateTest.java	product-name	2
-core/src/test/java/com/legend/resolver/RuntimeIfClassQueryTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/RuntimeTypeDispatchTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/RuntimeTypeDispatchTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/RuntimeTypeDispatchTest.java	product-name	2
-core/src/test/java/com/legend/resolver/StackDesignWitnessTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/StackDesignWitnessTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/StackDesignWitnessTest.java	product-name	2
-core/src/test/java/com/legend/resolver/StackRatchetWitnessTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/StackRatchetWitnessTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/StackRatchetWitnessTest.java	product-name	2
-core/src/test/java/com/legend/resolver/StackShapeWitnessTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/StackShapeWitnessTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/StackShapeWitnessTest.java	product-name	2
-core/src/test/java/com/legend/resolver/ValueMapPlacementTest.java	dialect-class	2
-core/src/test/java/com/legend/resolver/ValueMapPlacementTest.java	jdbc-url	1
-core/src/test/java/com/legend/resolver/ValueMapPlacementTest.java	product-name	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/server/ConnectionLeaseTest.java	product-name	5
-core/src/test/java/com/legend/server/CreateClassTest.java	database-type	1
-core/src/test/java/com/legend/server/CreateClassTest.java	jdbc-url	1
-core/src/test/java/com/legend/server/CreateClassTest.java	product-name	1
-# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
-core/src/test/java/com/legend/server/IqParityPostgresTest.java	product-name	4
-core/src/test/java/com/legend/server/PostgresArmTest.java	dialect-class	3
-core/src/test/java/com/legend/server/PostgresArmTest.java	jdbc-url	1
-core/src/test/java/com/legend/server/PostgresArmTest.java	product-name	9
-core/src/test/java/com/legend/server/PureV1ApiTest.java	jdbc-url	1
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/server/PureV1ApiTest.java	product-name	1
-core/src/test/java/com/legend/server/ServerSessionsTest.java	product-name	1
-core/src/test/java/com/legend/server/SqlIslandPostgresTest.java	product-name	9
-core/src/test/java/com/legend/server/SqlParityPostgresTest.java	product-name	4
-core/src/test/java/com/legend/setup/ReservedNamesSeedTest.java	dialect-class	2
-core/src/test/java/com/legend/setup/ReservedNamesSeedTest.java	jdbc-url	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/setup/ReservedNamesSeedTest.java	product-name	4
-# 2026-10-14, the PR #39 audit's findings 1-4: a per-database regression test (the reason above DeclaredQuotedTableTest.java).
-core/src/test/java/com/legend/setup/SeedSpellingTest.java	dialect-class	5
-core/src/test/java/com/legend/setup/SeedSpellingTest.java	product-name	8
-core/src/test/java/com/legend/sql/DuckDbRenderTest.java	dialect-class	2
-core/src/test/java/com/legend/sql/DuckDbRenderTest.java	product-name	3
-core/src/test/java/com/legend/sql/DuckDbValidityTest.java	dialect-class	2
-core/src/test/java/com/legend/sql/DuckDbValidityTest.java	jdbc-url	1
-core/src/test/java/com/legend/sql/DuckDbValidityTest.java	product-name	3
-core/src/test/java/com/legend/test/PureTestRunnerTest.java	database-type	1
-core/src/test/java/com/legend/test/PureTestRunnerTest.java	jdbc-url	1
-core/src/test/java/com/legend/test/PureTestRunnerTest.java	product-name	1
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 core/src/test/java/com/legend/testcases/IqParity.java	product-name	4
 core/src/test/java/com/legend/testcases/SqlIslandCases.java	product-name	3
 core/src/test/java/com/legend/testcases/SqlParity.java	product-name	7
 # 2026-10-15, the merge of neema2/legend-lite#39 into the #SQL stress branch (neema2/legend-lite#41): the stress corpus's hand runner (core/src/test/resources/sql-stress/run.sh) compares the island with the Postgres 16 that answers each query and runs the DuckDB lane in memory, as SqlParityTest does: its two connection URLs (the answering server's default, overridable by -Dstress.pg.url, and DuckDB's in-memory jdbc:duckdb:) are pinned as measured. Its other five lines were moved: the host and port read through java.net.URI, the helper renamed.
 core/src/test/java/com/legend/testcases/SqlStress.java	jdbc-url	2
-parser-equivalence/src/test/java/com/legend/equivalence/ComparatorSelfTest.java	product-name	3
-parser-equivalence/src/test/java/com/legend/equivalence/ComposerParityTest.java	product-name	6
-parser-equivalence/src/test/java/com/legend/equivalence/Corpus.java	product-name	3
-parser-equivalence/src/test/java/com/legend/equivalence/CorpusSweepTest.java	product-name	45
-parser-equivalence/src/test/java/com/legend/equivalence/FixtureCorpusParityTest.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/GenerativeDualParseTest.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/GrammarKeywordCensus.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/ModelComposerParityTest.java	product-name	3
-parser-equivalence/src/test/java/com/legend/equivalence/ModelReaderParityTest.java	product-name	3
-parser-equivalence/src/test/java/com/legend/equivalence/MutationFuzzTest.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/OffsetCompositionParityTest.java	product-name	3
-parser-equivalence/src/test/java/com/legend/equivalence/OraclePins.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/OwnCorpusConformanceTest.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/OwnCorpusParityTest.java	product-name	1
-parser-equivalence/src/test/java/com/legend/equivalence/ParseSpeedBenchmark.java	product-name	13
-parser-equivalence/src/test/java/com/legend/equivalence/ProtocolSeedParityTest.java	product-name	1
-parser-equivalence/src/test/java/com/legend/equivalence/RosterGenerator.java	product-name	2
-parser-equivalence/src/test/java/com/legend/equivalence/Sectionize.java	product-name	1
-parser-equivalence/src/test/java/com/legend/equivalence/harvest/FixtureRecorder.java	product-name	1
-parser-equivalence/src/test/java/com/legend/equivalence/harvest/ZFixtureAdjudicationProbe.java	product-name	2
-pct/src/test/java/org/finos/legend/lite/pct/PctCensusGate.java	product-name	4
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_EssentialFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_GrammarFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_RelationFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_StandardFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_UnclassifiedFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_ClickHouse_EssentialFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_ClickHouse_GrammarFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_ClickHouse_RelationFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_ClickHouse_StandardFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_ClickHouse_UnclassifiedFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_EssentialFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_GrammarFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_RelationFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_StandardFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_UnclassifiedFunctions_PCT.java	product-name	1
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_H2_RelationFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_EssentialFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_GrammarFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_RelationFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_StandardFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_UnclassifiedFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MySQL_EssentialFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MySQL_GrammarFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MySQL_RelationFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MySQL_StandardFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MySQL_UnclassifiedFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Postgres_EssentialFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Postgres_GrammarFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Postgres_RelationFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Postgres_StandardFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Postgres_UnclassifiedFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_SQLite_EssentialFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_SQLite_GrammarFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_SQLite_RelationFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_SQLite_StandardFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_SQLite_UnclassifiedFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Snowflake_EssentialFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Snowflake_GrammarFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Snowflake_RelationFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Snowflake_StandardFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Snowflake_UnclassifiedFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_EssentialFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_GrammarFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_RelationFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_StandardFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_UnclassifiedFunctions_PCT.java	product-name	1
-pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelBEssentialTest.java	product-name	2
-pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelBLane.java	product-name	5
-pct/src/test/java/org/finos/legend/lite/pct/extension/CloudLane.java	database-type	3
-pct/src/test/java/org/finos/legend/lite/pct/extension/CloudLane.java	product-name	3
-pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	database-type	11
-pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	jdbc-url	3
+spec/src/test/java/com/legend/harness/PlanReplay.java	product-name	9
+spec/src/test/java/com/legend/harness/ReplayReferee.java	driver	1
+spec/src/test/java/com/legend/harness/ReplayReferee.java	jdbc-url	1
+spec/src/test/java/com/legend/harness/ReplayReferee.java	product-call	1
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	product-name	60
-spec/src/test/java/com/legend/generators/Phase3bProbesTest.java	product-name	3
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/harness/H2ExtensionFunctions.java	product-name	12
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/harness/H2Verify.java	product-name	6
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/harness/H2VerifyNormTest.java	product-name	7
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/harness/PlanReplay.java	product-name	12
-spec/src/test/java/com/legend/harness/ReplayOracle.java	driver	1
-spec/src/test/java/com/legend/harness/ReplayOracle.java	jdbc-url	1
-spec/src/test/java/com/legend/harness/ReplayOracle.java	product-call	1
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/harness/ReplayOracle.java	product-name	115
-spec/src/test/java/com/legend/rcorpus/Corpus.java	dialect-class	1
-spec/src/test/java/com/legend/rcorpus/Corpus.java	product-name	1
+spec/src/test/java/com/legend/harness/ReplayReferee.java	product-name	61
 spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	driver	1
 spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	jdbc-url	2
 spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	product-name	2
 spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	database-type	3
 spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	jdbc-url	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	product-name	32
+spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	product-name	22
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java	product-name	52
+spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java	product-name	51
 spec/src/test/java/com/legend/rcorpus/ServerWorkspaces.java	product-name	2
 warehouse/src/test/java/com/legend/warehouse/TestServer.java	product-name	4
 warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java	jdbc-url	2
 warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java	product-call	1
 warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java	product-name	6
-warehouse/src/test/java/com/legend/warehouse/WarehousePostgresLiveTest.java	product-name	7
 warehouse/src/test/java/com/legend/warehouse/server/AppModeTest.java	product-name	11
-warehouse/src/test/java/com/legend/warehouse/server/PostgresCatalogTest.java	product-name	22

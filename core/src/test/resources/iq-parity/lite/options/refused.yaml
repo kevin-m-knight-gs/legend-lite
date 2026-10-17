@@ -1,0 +1,58 @@
+# The settings the island refuses by name (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the options
+# framework): a Tier 1 value whose semantics need a provisional decision (conversion_error Off: D-C1; string_rtruncation
+# Off: D-C2; IQ's min_numeric_division_scale: D-N2; IQ's date_first_day_of_week: D-T9; row_count: D-Q3), a Tier 2 option
+# not built yet at another value than its default, a Tier 3 option at another value than the one it is pinned to, and
+# an IQ 16 database without blank padding. Each is judged against SQL Anywhere 17's answer: a refusal is REFUSED (or a
+# both-error where SQL Anywhere has no such option). The SQL in YAML double quotes.
+tests:
+  - id: conversion_error_off
+    sql: "SELECT CAST('x' AS INTEGER) AS n"
+    settings: "query.conversion_error='Off'"
+    profile: iq16-default, sqla17-default
+  - id: string_rtruncation_off
+    sql: "SELECT CAST('abcdef' AS VARCHAR(3)) AS s"
+    settings: "query.string_rtruncation='Off'"
+    profile: iq16-default, sqla17-default
+  - id: min_numeric_division_scale_under_iq
+    sql: "SELECT 1.0/3 AS q"
+    settings: "query.min_numeric_division_scale=4"
+  - id: date_first_day_of_week_under_iq
+    sql: "SELECT DATEPART(dw, '2026-10-11') AS w"
+    settings: "query.date_first_day_of_week=1"
+  - id: row_count_under_iq
+    sql: "SELECT id FROM t ORDER BY id"
+    settings: "query.row_count=2"
+  - id: return_date_time_as_string_on
+    sql: "SELECT dt FROM t WHERE id = 1"
+    settings: "query.return_date_time_as_string='On'"
+    profile: iq16-default, sqla17-default
+  - id: tds_empty_string_is_null_on
+    sql: "SELECT '' AS s"
+    settings: "query.tds_empty_string_is_null='On'"
+    profile: iq16-tds, sqla17-tds
+  - id: reserved_keywords_limit
+    sql: "SELECT id FROM t ORDER BY id"
+    settings: "database.reserved_keywords='LIMIT'"
+    profile: iq16-default, sqla17-default
+  - id: tsql_outer_joins_on
+    sql: "SELECT id FROM t ORDER BY id"
+    settings: "query.tsql_outer_joins='On'"
+    profile: sqla17-default
+  - id: tier3_on_charset_conversion_failure
+    sql: "SELECT id FROM t ORDER BY id"
+    settings: "query.on_charset_conversion_failure='Error'"
+    profile: iq16-default, sqla17-default
+  - id: tier3_max_temp_space
+    sql: "SELECT id FROM t ORDER BY id"
+    settings: "query.max_temp_space='10M'"
+    profile: sqla17-default
+  - id: tier3_floating_point_accumulator_under_iq
+    sql: "SELECT id FROM t ORDER BY id"
+    settings: "query.floating_point_accumulator=1"
+  - id: a_tier3_default_is_accepted
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id"
+    settings: "query.sort_collation='Internal', query.on_charset_conversion_failure='Ignore'"
+    profile: iq16-default, sqla17-default
+  - id: blank_padding_off_under_iq
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.BlankPadding='Off'"

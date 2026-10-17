@@ -1,9 +1,18 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
-**Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
-steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and so are P1a (e64e7e8), P1c (9e6363e to
-074bd95), P1d with D8 (0470214 to 1447d42) and the capability matrix (b563e84, 6ff3815). Main is merged in (beebe47)
-and every lane re-measured on it: **Phase 1 is complete and waits for the user's review (D7).**
+**Status: IN PROGRESS (2026-10-17).**
+- Phases 0 and 1 landed as neema2/legend-lite#39 (8501ccb).
+- The owner guard and Phases 2 and 4 landed as neema2/legend-lite#45 (4fb892f).
+- Phase 3 landed as neema2/legend-lite#49 (59b547a).
+- Phase 5 landed as neema2/legend-lite#51 (6f2a0f8).
+- Phase 6's part 1 is done on branch `claude/gracious-edison-jcsvzm`, neema2/legend-lite#52 (its record is under
+  Phase 6).
+- Left: Phase 6's part 2, Phase 7, and the SQL translator's Postgres rules. neema2/legend-lite#43 and #50, which they
+  waited for, landed on 2026-10-17.
+
+(The status of 2026-10-13, on `claude/great-wright-p6t5s1`: Phase 0 done (55569df); Phase 1's 1b steps 1 to 3
+(2a4a5c8, 9373aec, 4a9f1bc, 43ad660), P1a (e64e7e8), P1c (9e6363e to 074bd95), P1d with D8 (0470214 to 1447d42) and
+the capability matrix (b563e84, 6ff3815).)
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -264,11 +273,12 @@ structural, not scattered:
 | 3 | Every raw SQL on DuckDB is rewritten *as if it were H2 text*, including a user's native `executeInDb` SQL (an unaliased `count(*)` gets relabelled) | `DuckDb.java:273` → `RawSqlAdapt`; `RawSql` records no origin |
 | 4 | `CorpusDifferentialTest` renders every service with the DuckDB dialect, even services whose runtime declares H2, Postgres, Snowflake or Databricks | `CorpusDifferentialTest.java:46, 63, 81-83` |
 | 5 | On the Postgres corpus lane, on-demand fixtures run *without isolation*: `isolateBegin` returns null and the caller proceeds | `DuckWorkspaces.java:198-202`, `MinimalCorpus.java:692-696` |
-| 6 | `AbstractDatabaseTest`'s SQLite subclass declares `type: SQLite; specification: DuckDB {}` | `AbstractDatabaseTest.java:285-296` |
+| 6 | `AbstractDatabaseTest`'s SQLite subclass declares `type: SQLite; specification: DuckDB {}`. *Fixed by Phase 6, part 1 (2026-10-16): the connection declares its backend's specification.* | `AbstractDatabaseTest.java:285-296` |
 | 7 | The warehouse wraps `BEGIN`/`COMMIT` in `postgres_query` on an attached Postgres catalog (expected to fail; read, not run) | `warehouse/.../WhConnection.java:66-93` |
 | 8 | The warehouse reports engine "DuckDB" for an attached Postgres catalog | `warehouse/.../server/Sessions.java:46` |
 | 9 | ClickHouse's `concat` is NULL when any argument is NULL, where the flat concat's contract skips NULLs (H2, DuckDB, Postgres and SQLite skip them; Trino emulates it): a left-join-missed operand yields NULL on ClickHouse only. No PCT lane reaches it (found by D1, 2026-10-13; a follow-up task) | `clickhouse local` 25.8: `concat('a', NULL, 'b')` is `\N`; `ClickHouse.java` CONCAT → `concatFlat` |
 | 10 | On BigQuery an ordered collection of instances comes back in either order: the literal list lowers to a `UNION ALL` of one-row selects with no ordinal and no `ORDER BY`, and BigQuery keeps no branch order (`collection::tests::filter::testFilterInstance`, `[i1, i2]` or `[i2, i1]` from run to run; found by D1's measurement, 2026-10-13, older than it) | sibling 4's two runs of `pct_channel_b_bigquery_grammar` on 270dcfb |
+| 11 | SQLite's plan path answers differently from today's path: a list parameter's plan is refused by name ("binds no array"); a Decimal parameter answers `2.500000000000000000` in CSV and `"2.50"`, a string, in JSON, where today's path answers `2.50` and `2.5`; a Date or DateTime parameter answers with nine fraction digits in JSON (found by Phase 6, 2026-10-16, when PlanMakerTest first ran on every in-process database; no lane runs SQLite's plans) | `core/src/test/resources/plan-maker/differences.tsv`, 31 rows |
 
 ## 4. The target: what adding a 12th database touches
 
@@ -278,7 +288,7 @@ registries.** Nothing else in the codebase may need an edit.
 | layer | the one class per database | what it owns | registry (one exhaustive switch) |
 |---|---|---|---|
 | **SQL** (plan side, no JDBC) | `sql/dialect/<Db>.java` | All SQL text (queries, DDL, DML, session setup); its function names, type names, keywords and carrier capabilities, as constants in the class; reading raw engine-H2 text (`fromEngineH2`); catalog queries; identifier folding; reading the driver's type names back (`wireTypeName`) and its values (`normalize`, which exists) | `Databases.dialect(type)` |
-| **Connection** (execution side) | `exec/connect/<Db>Connector.java` *(new)* | JDBC product name, URL from a connection spec, driver, in-process private instance, bulk loader, driver cells, held raise (MariaDB/MySQL), in-memory connection declaration | `Connectors.of(type)` *(new; replaces `Sessions`' five switches)* |
+| **Connection** (execution side) | `exec/<Db>Connector.java` *(built in Phase 5)* | JDBC product name, URL from a connection spec, driver, in-process private instance, bulk loader, driver cells, held raise (MariaDB/MySQL), in-memory connection declaration | `Connectors.of(type)` *(new; replaces `Sessions`' five switches)* |
 | **Test backend** (harness) | `testing/.../<Db>Backend.java` *(new; absorbs `PctBackend.Lane`'s arms)* | Starting the server (embedded or cloud), a fresh **workspace** (DuckDB `ATTACH`, Postgres `CREATE DATABASE`, H2 a fresh in-memory database, clouds a schema per package), fixture isolation, the referee's reader, the Pure connection block, seeding via the dialect, roster and pin names, census ceilings | `TestBackends.of(type)` |
 
 The `DatabaseType` enum and the connection grammar are the Legend language (LANG). They stay where they are.
@@ -879,6 +889,64 @@ Size: about 400 lines.
 
 Size: about 600 lines. No behaviour change.
 
+**Done, 2026-10-16** (branch `claude/gracious-edison-jcsvzm`, after Phase 3 landed as neema2/legend-lite#49). What it
+did, and where it departs from the list above:
+
+- **`exec/DatabaseConnector` and one connector per database** (`DuckDbConnector`, `H2Connector`, `SqliteConnector`,
+  `PostgresConnector`, `MariaDbConnector`, `MySqlConnector` extending it, and the product-name-only `Snowflake`,
+  `Databricks`, `BigQuery`, `Trino` and `ClickHouse` connectors). **`exec/Connectors`** is the registry: one exhaustive
+  switch, a type with no connector refused by name, and the one read of which database a session is on
+  (`Connectors.product`, `Connectors.of(Connection)`). `Sessions` decides nothing by a database. Its API changed in
+  one place: `openNamed`, `openKept` and `joinKept` take the `Opening.Named`, and `Opening.Named` and `Opening.Held`
+  carry the connector that opens them.
+  - In `exec/`, not `exec/connect/`: the JDBC funnel admits `com.legend.exec` exactly
+    (`ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`), so a subpackage would need a new chartered seam for no
+    gain. The owner guard's new CONNECTOR kind holds each `exec/<Db>Connector.java` to its own database and its
+    parent's (`DatabaseOwners`); `Connectors` names every one, as `Databases` does.
+  - `ConnectionResolver` and `PlanSessions` switch on an opening's lifetime (`Named`, `Held`, `Url`), never on a
+    database.
+  - A connector refuses by name every specification it does not open. It switches over none exhaustively, because
+    the specifications are named for databases (`LocalH2`, `Snowflake`...), so an exhaustive switch would name other
+    databases in every connector. Instead `exec/ConnectorsTest` pins every type with every specification and every
+    authentication, and fails on a specification or authentication its table lacks. That forces the decision the
+    old exhaustive switches forced.
+  - Every connector answers `inProcess` and `raisedMessage` itself, with no default. The owner guard reads a
+    connector's strings as well as its code, and the driver census walks the connectors.
+  - H2's URL settings are `H2Connector.SETTINGS` (`H2Settings` is deleted; still a `String.join`, never a literal a
+    reader would inline).
+  - Authentication: each flavour answers `AuthenticationSpec.credentialFree()` (an exhaustive switch in the model);
+    `Sessions.openingFor` refuses a credential by name, as before.
+- **The held raise is the connector's, statements included** (`MariaDbConnector.raisedMessage`). The list above said
+  its SQL text comes from the dialect, but exec may not reach the dialect
+  (`ArchitectureTest.execsReachIntoPlanningOnlyShrinks`, the plan/execution boundary). The dialect writes the session
+  variable and the connector reads it back, as the raise envelope's sentinel is shared between the dialects and
+  `RaisedErrors`. The SQL-text register's row moved from `Sessions` to `MariaDbConnector`.
+- **`storelessDeclaration()`** (the list's `inMemoryDeclaration`) is `StorelessRuntime`'s specification text.
+  `server/CreateClass`'s DuckDB path fill is the protocol's tag, a string no ledger counts: it is on Phase 7's list.
+- **`bulkLoad()` and `cells()` stay beside the DuckDB driver** (`core/src/main/duckdb`, `:duckdb_load`): core compiles
+  against no driver, and those sources are already DuckDB's owner. ClickHouse's URL settings and session are the test
+  harness's: Phase 6.
+- **`Databases` is type to dialect.** A dialect answers its server versions (`SqlDialect.serverVersions`, H2's
+  `SERVERS`) and whether its rows load in bulk (`loadsRowsInBulk`, DuckDB). The IN-list temp-table facts are
+  legend-engine's, so they moved to `EngineText.inListTempTables`. They are per declared type, not per engine-text
+  dialect, because Composite's plan text is DB2's and its IN lists are not. Two layer edges died: `database` no
+  longer reaches `execution_plan`, and `plan` no longer reaches `database`. `H2Modern` refuses `serverVersions`:
+  it is chosen at run time for a server outside `H2.SERVERS`, and a plan cannot name those servers.
+- **The lite plan format's connection codec is the model's** (`model/ConnectionWire`, the vocabulary, D9). It reads
+  through a `Fields` interface because the model depends on no JSON. `PlanJson` names no database. One message
+  changed: a declared connection's unknown database type is now refused as "unknown database type 'X'", the plan
+  format's own wording, where it used to surface `valueOf`'s message.
+- **The guards:**
+  - `SqlTextRatchetTest` strips comments outside literals: a `//` in `jdbc:mariadb://` had cut its line and hidden
+    the next literal;
+  - `DialectBoundaryTest`'s type, URL and name censuses walk no connector, as they walk no dialect; its driver
+    census walks them;
+  - the JDBC surface, JavaEval and boundary registers name the new files, each with its reason.
+
+The ledger: the main code's `Sessions`, `PlanSessions`, `H2Settings`, `PlanJson` and `StorelessRuntime` rows are
+gone (9 rows, 118 lines). What remains in main code is `DynaFn` (D10) and the SQL translator's three files, which
+wait for neema2/legend-lite#43.
+
 ### Phase 6: test backends (the harnesses)
 
 - **`TestBackend` per database**, built on its connector, with these methods:
@@ -927,6 +995,74 @@ Size: about 2,500 lines, most of them the mechanical replacement of inline opens
 BigQuery is just three more `openWorkspace()` implementations. So this program unblocks the corpus-on-every-database
 work (tasks #29 and #30), rather than only delaying it.
 
+**Done in two parts.** Part 1, 2026-10-16 (branch `claude/gracious-edison-jcsvzm`, after Phase 5 landed as
+neema2/legend-lite#51): the backends, PCT and core's tests. Part 2 is the relational corpus's harness and the SQL, IQ and
+Cypher islands' tests; it waits for neema2/legend-lite#43 and #50, whose open files it would rewrite. What part 1 did,
+and where it departs from the list above:
+
+- **`TestBackend` per database** (`core/src/test/java/com/legend/testbackend`, `//core:test_backends`, a test-only
+  library that `//pct` and `//spec` see; it lives in core because `//testing` may not depend on core). Each backend
+  answers its `type()`, its `name()` (the lane's, lower case), `open()`, `inProcess()`, `openSystem()` (a server's
+  system connection), `specificationAndAuth()` (what a connection declares for the session `open()` opens; a cloud's
+  coordinates with its credential by reference) and, from them, `connectionBody()`, `withStorelessRuntime()` and
+  `dialect()`. In-process backends open their connector's private instance; servers open this JVM's embedded server;
+  clouds hold the suite's one session (`CloudLane`'s logic, moved). **`TestBackends`** is the registry: an exhaustive
+  switch, a type with no backend refused by name, `platform()`, `referee()`, `inProcess()`, `all()` (over
+  `Databases.implemented()`, new: the types with a dialect) and `named()`.
+  - Not built in part 1, because no part-1 caller needs them: `openUtc()`, `openWorkspace()`, `isolateFixture()`,
+    `readerOn()`, `seed()` and `censusCeilings()`. They are part 2's (the corpus) and are added with their callers. The
+    five embedded servers keep their own launchers (`//testing`); the backends call them.
+  - The owner guard: a BACKEND kind (`testbackend/<Db>Backend.java`) and a NAMED_TEST kind (a test source whose class
+    is named for a database, a test or its harness: `RowLoadDuckDbTest`, `H2Verify`), each held to its own database
+    in its code and its strings, its JDBC URLs included. Four crossings are registered with their reasons: legend-
+    engine's H2 text on a DuckDB session (`ExecuteInDbDuckDbTest`, D2), a helper whose overloads declare H2 and DuckDB
+    (`RawGridSchemaDuckDbTest`), and the warehouse's two (D4, Phase 7's). `TestBackends` and its test are EVERY.
+- **PCT:** `PctBackend` takes its lane's backend by name (`LEGENDLITE_PCT_BACKEND`); its lane enum and `CloudLane` are
+  gone. `PctCensusGate`'s environment-variable branches are a per-lane table that refuses a lane or suite with none.
+  Every lane's ceilings are what it measured (2026-10-17, the phase's measurement round): the platform lane's and
+  Postgres's as before, zero on every other lane, where seven lanes had carried the platform lane's numbers. The channel B suites' `isReference()` branches stay: the reference lane is the platform's
+  own engine (no database named), and its suites' deeper checks are its own.
+- **Core's tests** open the platform's backend, every in-process backend, or the database they are about.
+  - Tests that ran one battery on DuckDB and on H2 by name, or on H2 alone (`FrameQuotedColumn`), run it on every
+    in-process backend (`ReservedNamesSeed`, `WireTypes`, `MissingValueInComputedColumn`, `QuotedColumnName`,
+    `FrameQuotedColumn`, and `PlanMakerTest`'s and `PlanRunnerTest`'s runs). SQLite joined them. It passes all but the
+    plan path's: **SQLite's plans differ from today's path in 31 cases** (a list parameter refused by name, a Decimal,
+    Date or DateTime answered in another spelling), registered in `plan-maker/differences.tsv` with the plan's exact
+    answer or refusal, at most 31 rows (`PlanMakerTest.MAX_DIFFERENCES`). That is defect 11 in §3.
+  - A test of one database's own answers moved into a test named for it: `PlanMaker<Db>Test`, `PlanRunner<Db>Test`,
+    `RowLoad<Db>Test`, `StoreTypes<Db>Test`, `SqlCanonConformanceH2Test`, `ConnectionLeaseH2Test`. Tests whose session
+    is one database by construction were renamed for it: `ExecuteInDbDuckDbTest`, `RawGridSchemaDuckDbTest`,
+    `DynamicPivotKeyLiteralH2Test`, `DeclaredQuotedTableH2Test`. `SeedSpellingTest` is a dialect test now
+    (`sql/dialect`, over `Databases.implemented()`); `SqlWriterTest` and `tools/census/RenderCensus` iterate
+    `Databases.implemented()`. `PlanOnJavaBase` plans on every dialect and holds each to its own reading of the table
+    and its QUALIFY (Postgres's folded name and wrapping select, as before, and every other's).
+  - Sessions that changed, none weaker: the H2 sessions that were a bare `jdbc:h2:mem:` (WireTypes,
+    MissingValueInComputedColumn, QuotedColumnName, ReservedNamesSeed, RowLoad, SqlCanonConformance, DynamicPivotKey,
+    FrameQuotedColumn, DeclaredQuotedTable) are H2's backend's, a private instance with the engine's settings
+    (`H2Connector.SETTINGS`); PCT's and the stress harness's H2 sessions are a named private instance where they were
+    anonymous. `PlanRunnerTest`'s shared in-memory targets declare `InMemory` on every database; LocalH2's is
+    `PlanRunnerH2Test`'s. A cloud backend holds one session per cloud.
+  - `AbstractDatabaseTest` takes a `backend()`, and its connection declares the backend's specification, which fixes
+    defect 6.
+  - The stress harness takes a backend (`StressTool --backend NAME`): the referee's lane keeps its fresh session per
+    test, every other lane shares; H2's floor is `StressServiceSuitesH2Test.MIN_PASS`.
+  - The vocabulary's own tests (`lexer/`, `parser/`, `protocol/` less `protocol/sql/`, `model/`) are vocabulary owners,
+    as their main code is (D9). The lite plan format's every-specification round trip is the model codec's test
+    (`model/ConnectionWireTest`). `ArchitectureTest` is a guard owner. The warehouse's Postgres catalog test is a
+    registered crossing (D4, Phase 7's).
+  - parser-equivalence's `own_corpus.matched` fell 2862 -> 2847: 15 elements of four literal models that became
+    backend-parameterised.
+
+Left for part 2, with the corpus: the 26 resolver `sqlOf()` copies (one harness); `CorpusDifferentialTest`, which
+renders every service with the platform's dialect, not its runtime's (defect 4, still open); `StoreTypesTest`'s
+three-dialect list; `PostgresArmTest`; `scripts/corpus/differential.py`; and the list's `openUtc()`,
+`openWorkspace()`, `isolateFixture()`, `readerOn()`, `seed()` and `censusCeilings()`.
+
+The ledger after part 1: core's test rows are the SQL, IQ and Cypher islands' and `LowerRelationTest`'s, each open in
+#43 or #50 when part 1 was written (part 2; both landed on 2026-10-17). spec keeps the corpus harness's rows but `H2Verify`'s and `H2ExtensionFunctions`' (named for H2,
+they are its owners now), the warehouse its tests' (Phase 7), and main code `DynaFn` (D10) and the SQL translator's three
+files (#43).
+
 ### Phase 7: the other modules
 
 - **Warehouse** (decision D4). It is *mixed-engine*: DuckDB plus Postgres catalogs attached through DuckDB's postgres
@@ -944,6 +1080,9 @@ work (tasks #29 and #30), rather than only delaying it.
   `model-data.ts`'s file reads, `duckdb.ts`'s and `snap.ts`'s local DDL) become named operations of the DuckDB dialect
   (`readFile`, `installExtension`, `createSecret`), which every other dialect refuses by name. The five TypeScript
   copies of identifier quoting go with them.
+- **`server/CreateClass`** (found by Phase 5, 2026-10-16): a host's DuckDB specification with no path gets
+  `:memory:`, decided by the protocol's `duckDB` tag in server code. The ledger does not count it (a string), so it is
+  listed here.
 - **Dead code** (decision D6, measured 2026-10-13): they hold 255 of the 1,002 TEST-LEAK sites, and no target builds
   them.
   - **Deleted:** the orphan tools (`tools/{spikes,wrongrows,untangle,metamodel-census}`, `tools/reference/join.py`,

@@ -95,6 +95,7 @@ public abstract class SqlRewriter {
             case SqlSource.SourceUrl u -> u;
             case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql r -> r;   // carried text: a leaf
+            case SqlSource.Catalog c -> c;   // a leaf
             case SqlSource.Subselect sub -> {
                 SqlQuery i = rewrite(sub.inner());
                 yield i == sub.inner() ? sub
@@ -172,6 +173,7 @@ public abstract class SqlRewriter {
             case SqlExpr.NullLit l -> l;
             case SqlExpr.DateLit l -> l;
             case SqlExpr.TimestampLit l -> l;
+            case SqlExpr.TimeLit l -> l;
             case SqlExpr.FormatLit l -> l;
             case SqlExpr.DatePartLit l -> l;
             case SqlExpr.JsonKindLit l -> l;

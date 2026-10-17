@@ -3,6 +3,7 @@
 
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
@@ -10,7 +11,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * generated checker treats a mid-evaluation throw: a required property
  * absent on the wire yields the catch-branch defect {@code Unable to
  * evaluate constraint [id]: data not available - check your mappings}
- * (oracle: legendJavaPlatformBinding shared/constraints.pure
+ * (referee: legendJavaPlatformBinding shared/constraints.pure
  * generateConstraintMethod). Before the fix, {@code NOT NULL} was
  * not-true and an object violating EVERY constraint reported
  * {@code "defects":[]}.
@@ -38,7 +38,7 @@ class GraphFetchCheckedIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement s = conn.createStatement()) {
             s.execute("CREATE TABLE T_EDGE (ID INTEGER PRIMARY KEY,"
                     + " S_STRING VARCHAR(100), S_INT INTEGER)");
@@ -125,7 +125,7 @@ class GraphFetchCheckedIntegrationTest {
         // the EQUALITY constraint is pure-faithful null-safe: [] != ''
         // is TRUE, so the absent string SATISFIES nonEmptyStr — its
         // predicate is true, not NULL, and no defect is correct (both
-        // oracles agree: pure equal is size-aware, the engine's
+        // referees agree: pure equal is size-aware, the engine's
         // generated equal is null-safe)
         assertFalse(json.contains("Unable to evaluate constraint"
                         + " [nonEmptyStr]"),

@@ -15,8 +15,8 @@ import java.util.List;
  * The LIMIT-0 metadata probe — the ONE execution-bound ingredient of
  * late-bound raw-grid resolution (staged compilation, Invariant 7): the
  * REWRITE pass lives in {@code resolver.RawGridSchema} and takes the
- * probed column roster as INPUT through its {@code SchemaOracle}; this
- * class is the executor's oracle implementation. A schema read, never
+ * probed column roster as INPUT through its {@code SchemaReferee}; this
+ * class is the executor's referee implementation. A schema read, never
  * values (the E1 probe discipline; moved from ResultNav at its Phase 1c
  * deletion). The one {@code new SqlSource.RawSql} here is a chartered
  * construction site (RawSqlLedgerTest register); the text is the
@@ -29,7 +29,7 @@ public final class GridProbe {
     }
 
     /** The grid's projection NAMES for the authored SQL. */
-    public static List<String> probeNames(String sql, @com.legend.base.Nullable String writtenFor, Connection conn,
+    public static List<String> probeNames(String sql, String writtenFor, Connection conn,
             com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         List<String> names = new ArrayList<>();
         for (String[] c : probeColumns(sql, writtenFor, conn, dialect)) {
@@ -38,13 +38,13 @@ public final class GridProbe {
         return names;
     }
 
-    /** The grid's TYPED columns for the boundary resolver's oracle
+    /** The grid's TYPED columns for the boundary resolver's referee
      * (§4bZ-U follow-on): the database's own column type when the SQL
      * type maps to a Pure primitive; the trusted-Any wildcard column
      * otherwise — an upgrade over the old names-only stamp, never a
      * new wall. */
     public static List<com.legend.compiler.element.type.Type.Column>
-            probeTypedColumns(String sql, @com.legend.base.Nullable String writtenFor, Connection conn,
+            probeTypedColumns(String sql, String writtenFor, Connection conn,
             com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         List<com.legend.compiler.element.type.Type.Column> cols =
                 new ArrayList<>();
@@ -64,8 +64,8 @@ public final class GridProbe {
 
     /** The grid's projection (name, SQL type name) pairs — the SAME
      * LIMIT-0 metadata read, types included; the text written for the
-     * database {@code writtenFor} (decision D2; null: the session's own). */
-    public static List<String[]> probeColumns(String sql, @com.legend.base.Nullable String writtenFor,
+     * database {@code writtenFor} (decision D2). */
+    public static List<String[]> probeColumns(String sql, String writtenFor,
             Connection conn, com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         SqlSelect probe = SqlSelect.starOf(
                 new SqlSource.RawSql(sql, "_p", List.of(), writtenFor))

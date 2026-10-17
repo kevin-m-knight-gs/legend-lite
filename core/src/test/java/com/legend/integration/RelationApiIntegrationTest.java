@@ -2,7 +2,6 @@ package com.legend.integration;
 
 import org.junit.jupiter.api.*;
 
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -30,19 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Relation API E2E Integration Tests")
 class RelationApiIntegrationTest extends AbstractDatabaseTest {
 
-    @Override
-    protected String getDatabaseType() {
-        return "DuckDB";
-    }
-
-    @Override
-    protected String getJdbcUrl() {
-        return "jdbc:duckdb:";
-    }
-
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         setupDatabase();
     }
 

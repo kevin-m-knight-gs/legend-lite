@@ -24,7 +24,7 @@ import java.util.Set;
  * replaceAliasName pass), source/output aliases double-quoted, physical
  * column names bare, parenthesized ON clauses.
  */
-public class EngineStyleH2 extends AnsiSqlRenderer {
+public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect {
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
@@ -40,6 +40,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
+            // legend-engine's relational lowering refuses StrictTime (pureToSQLQuery.pure: "not supported yet")
+            case TIME -> throw new DialectCapability("a time of day: legend-engine's relational lowering refuses"
+                    + " StrictTime, so its text has no spelling for one");
             case JSON, DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -392,6 +395,64 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return physicalName(name);
     }
 
+    /** {@inheritDoc} A seed row as legend-engine's H2 {@code loadValuesToDbTableH2} writes it: one row a statement,
+     *  the table's names as the store wrote them, its columns by {@link #insertColumnName}, joined with {@code ,}, and
+     *  each cell as {@code convertValuesToCsvH2} spells it (the dialect program's Phase 3, 2026-10-16: until then
+     *  {@code setup/Ddl} wrote this text). Every other statement is the base's. */
+    @Override
+    public String render(com.legend.sql.SqlDml dml) {
+        return switch (dml) {
+            case com.legend.sql.SqlDml.InsertValues iv -> seedRow(iv);
+            case com.legend.sql.SqlDml.InsertFromTable it -> super.render(it);
+            case com.legend.sql.SqlDml.DeleteAll da -> super.render(da);
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> super.render(ct);
+        };
+    }
+
+    private String seedRow(com.legend.sql.SqlDml.InsertValues iv) {
+        if (iv.rows().size() != 1 || iv.columns().size() != iv.rows().get(0).size()) {
+            throw new DialectCapability("the engine's seed text writes one row a statement, a cell a column: "
+                    + iv.rows().size() + " rows of " + iv.columns().size() + " columns reached it");
+        }
+        java.util.List<String> columns = new java.util.ArrayList<>();
+        for (String c : iv.columns()) {
+            columns.add(insertColumnName(c, iv.quotedColumns().contains(c)));
+        }
+        java.util.List<String> cells = new java.util.ArrayList<>();
+        for (SqlExpr cell : iv.rows().get(0)) {
+            cells.add(seedCell(cell));
+        }
+        return "insert into " + (iv.schema() == null ? "" : iv.schema() + ".") + iv.table() + " ("
+                + String.join(",", columns) + ") values (" + String.join(",", cells) + ");";
+    }
+
+    /** A cell as the engine's {@code convertValuesToCsvH2} writes it: {@code null}; a string, a date and a timestamp
+     *  quoted, their quotes doubled (as the seed text did before it was IR, the PR audit of 2026-10-16); a bit's
+     *  truth; a number by its value, in plain notation ({@code 007} and {@code 1e3} are written {@code 7} and
+     *  {@code 1000}). */
+    private static String seedCell(SqlExpr cell) {
+        if (cell instanceof SqlExpr.NullLit) {
+            return "null";
+        }
+        if (cell instanceof SqlExpr.StringLit s) {
+            return "'" + s.value().replace("'", "''") + "'";
+        }
+        if (cell instanceof SqlExpr.DateLit d) {
+            return "'" + d.iso().replace("'", "''") + "'";
+        }
+        if (cell instanceof SqlExpr.TimestampLit t) {
+            return "'" + t.iso().replace("'", "''") + "'";
+        }
+        if (cell instanceof SqlExpr.BoolLit b) {
+            return b.value() ? "true" : "false";
+        }
+        if (cell instanceof SqlExpr.DecimalLit n) {
+            return n.value().toPlainString();
+        }
+        throw new DialectCapability("a " + cell.getClass().getSimpleName() + " cell reached the engine's seed text,"
+                + " which writes values only");
+    }
+
     /** The engine's rule plus the execution necessity: a name that is not a plain identifier quotes, so the insert
      *  runs on a case-sensitive session (moved here from the shared DdlSpelling, the dialect program's Phase 1d). */
     @Override
@@ -444,6 +505,23 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     @Override
     public String render(SqlQuery query) {
+        SqlQuery planned = planned(query, true);
+        SqlWriter writer = newWriter();
+        query(writer, planned, 0);
+        return writer.text();
+    }
+
+    @Override
+    public String renderAsAliased(SqlQuery query) {
+        SqlQuery planned = planned(query, false);
+        SqlWriter writer = newWriter();
+        query(writer, planned, 0);
+        return writer.text();
+    }
+
+    /** The query as this text writes it: every render pass applied, a TDS join's top wrapped, and its alias plan
+     *  made ({@code realias}: the engine's reAliasQuery) or none (it keeps the aliases it carries). */
+    private SqlQuery planned(SqlQuery query, boolean realias) {
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             query = pass.rewriteRoot(query);
         }
@@ -452,10 +530,30 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         subselects.clear();
         rootConsumed.clear();
         placeholders.clear();
-        planQuery(query, new LinkedHashMap<>());
-        SqlWriter writer = newWriter();
-        query(writer, query, 0);
-        return writer.text();
+        if (realias) {
+            planQuery(query, new LinkedHashMap<>());
+        }
+        return query;
+    }
+
+    @Override
+    public @com.legend.base.Nullable String selectList(SqlQuery query) {
+        SqlQuery q = planned(query, true);
+        while (q instanceof com.legend.sql.SqlUnion u) {
+            q = u.branches().get(0);
+        }
+        if (!(q instanceof SqlSelect s)) {
+            return null;
+        }
+        return selectHead(newWriter(), s).text();
+    }
+
+    /** {@inheritDoc} The engine aliases a table by its name, lower case, and {@code _0}, quoted. */
+    @Override
+    public String inTempTableSelect(String tempTable) {
+        String alias = "\"" + tempTable.toLowerCase(java.util.Locale.ROOT) + "_0\"";
+        return "select " + alias + ".ColumnForStoringInCollection as ColumnForStoringInCollection from " + tempTable
+                + " as " + alias;
     }
 
     /** The legacy plan text binds nothing: its parameters are the engine's template variables ({@code ${name}}),
@@ -812,6 +910,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** The engine's renderCollection template for a MANY plan param —
      * ONE spelling shared by the plain in-collection rendering and the
      * temp-table protocol's falseBlock (processInOperation). */
+    @Override
     public String collectionSplice(SqlExpr.PlanParam cp) {
         // the engine's renderCollection spells each replacement pair with a
         // TRAILING space ({"'" : "''" }); varPlaceHolderToString does not
@@ -883,6 +982,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     @Override
+    protected String timeLit(String iso) {
+        throw new DialectCapability("a time of day: legend-engine's relational lowering refuses StrictTime, so its"
+                + " text has no spelling for one");
+    }
+
+    @Override
     protected String timestampLit(String iso) {
         // the engine spells the datetime separator as a SPACE
         // (TIMESTAMP'9999-12-31 00:00:00.0000'), never ISO 'T'
@@ -918,6 +1023,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** The engine-style spelling of an alias AFTER a render pass — the
      * plan printer's resultColumns spell the renamed alias ("root", not
      * t0); call only on the instance that rendered the SQL. */
+    @Override
     public String renderedAlias(String alias) {
         return rename(alias);
     }
@@ -981,13 +1087,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return super.query(writer, q, depth);
     }
 
-    @Override
-    protected SqlWriter select(SqlWriter writer, SqlSelect s, int depth) {
-        if (s.qualify() != null) {
-            throw new IllegalStateException(
-                    "QUALIFY has no engine-H2 golden spelling");
-        }
-        writer.append("select ");
+    /** A select's head after {@code select}: its row cap as H2's {@code top} (a slice is OFFSET .. FETCH NEXT), its
+     *  {@code distinct}, its projections. */
+    private SqlWriter selectHead(SqlWriter writer, SqlSelect s) {
         // H2: a bare row cap is TOP; a slice is OFFSET .. FETCH NEXT
         if (s.limit() != null && s.offset() == null) {
             writer.append("top ").append(s.limit()).append(' ');
@@ -1008,6 +1110,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     ? new SqlSelect.Projection(p.expr(), null, p.out())
                     : p));
         }
+        return writer;
+    }
+
+    @Override
+    protected SqlWriter select(SqlWriter writer, SqlSelect s, int depth) {
+        if (s.qualify() != null) {
+            throw new IllegalStateException(
+                    "QUALIFY has no engine-H2 golden spelling");
+        }
+        selectHead(writer.append("select "), s);
         if (!(s.from() instanceof SqlSource.Dual)) {
             writer.append(" from ");
             source(writer, s.from(), depth);
@@ -1806,6 +1918,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case MICROSECOND -> "microsecond";
             case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new IllegalStateException(
                     "no H2 dateadd unit for an interval of " + unit);
+            case NANOSECOND -> throw new DialectCapability("a nanosecond interval: legend-engine's text keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
         };
     }
 
@@ -1823,6 +1937,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case SECOND -> "second";
             case MILLISECOND -> "millisecond";
             case MICROSECOND -> "microsecond";
+            case NANOSECOND -> throw new DialectCapability("a nanosecond part: legend-engine's text keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case DAY_OF_YEAR -> "doy";
             case ISO_DAY_OF_WEEK -> "isodow";
         };
@@ -1994,13 +2110,19 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case LEFT -> writer.function("left", c.args());
             case RIGHT -> writer.function("right", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> throw new DialectCapability("translate reached the engine text: legend-engine has no"
+                    + " translate dynaFunction to spell");
             case SPLIT -> writer.function("string_split", c.args());
             case ASCII_CODE -> writer.function("ascii", c.args());
             case LEVENSHTEIN -> writer.function("levenshtein", c.args());
             case FORMAT -> writer.function("printf", c.args());
             case MAKE_DATE -> writer.function("make_date", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
+            case DATE_AT_TIME -> throw new DialectCapability("a time of day: legend-engine's relational lowering"
+                    + " refuses StrictTime, so its text has no spelling for one");
             case EPOCH_SECONDS -> writer.function("epoch", c.args());
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: legend-engine's H2 text keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.function("epoch_ms", c.args());
             case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
             case DAYNAME -> writer.function("dayname", c.args());

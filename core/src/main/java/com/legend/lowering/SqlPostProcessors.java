@@ -249,6 +249,7 @@ public final class SqlPostProcessors {
                     j.on() == null ? null : expr(j.on(), m));
             case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql raw -> raw;   // carried text: opaque to rewrites
+            case SqlSource.Catalog c -> c;   // a leaf
             case SqlSource.Subselect sub -> new SqlSource.Subselect(
                     apply(sub.inner(), m), sub.alias(), sub.frameName());
             // TOTAL by construction — a Pivot's INNER source and a Values

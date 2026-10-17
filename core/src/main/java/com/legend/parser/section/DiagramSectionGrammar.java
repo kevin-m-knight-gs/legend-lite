@@ -141,7 +141,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
                 // the M2 dialect (legend-pure fixtures): capitalized view
                 // kinds with paren attribute bodies. Parse-ACCEPTED, not
                 // modeled — a diagram is presentation metadata nothing in
-                // lite opens, and the modern oracle rejects the dialect so
+                // lite opens, and the modern referee rejects the dialect so
                 // there is no wire shape to claim (corpus setup files only
                 // need acceptance)
                 case "TypeView", "AssociationView", "PropertyView",

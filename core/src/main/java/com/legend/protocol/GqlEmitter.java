@@ -7,7 +7,7 @@ import com.legend.protocol.spec.Gql;
 
 /**
  * The GraphQL AST wire ({@code executableDocument} et al.) — byte-exact
- * against the live oracle (probe gql-wire 2026-08-14; the gql-islands
+ * against the live referee (probe gql-wire 2026-08-14; the gql-islands
  * battery in AdversarialParityTest pins every shape). Fields alphabetical
  * per node; a bare-selection operation OMITS {@code type}; the alias
  * carries its colon; variable definitions keep {@code $}.

@@ -94,7 +94,22 @@ class NativeCatalogGovernanceTest {
         // route of a several-route legacyNavigate (the target set's own
         // function, its rows, the join as written); the union stops
         // publishing keys once the emitter switches (step 2). 16 -> 17.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 17,
+        // +2 2026-10-16 (the Cypher island's time-of-day leg, docs/CYPHER_STUDY_2026_10_15.md §12.7): timeOf /
+        // atTime — a time of day (Pure's StrictTime) in SQL: the date-time's time (a CAST to TIME) and the
+        // date-time at a time of a date (the database's date plus time). legend-pure declares StrictTime and only
+        // prints it; legend-engine's relational lowering refuses it (pureToSQLQuery.pure "not supported yet"), so
+        // neither has an upstream counterpart; emitted by the Cypher translator only, by FQN. 17 -> 19.
+        // +2 2026-10-16 (the Cypher island's zoned date-time leg, docs/CYPHER_STUDY_2026_10_15.md §12.8): instantIn
+        // / localIn — a named time zone read by the database: the instant a wall time names in a zone, and the
+        // wall time of an instant in it, each the convertTimeZone lowering's pair of zone conversions with a
+        // DateTime in and out. Upstream knows zones only at formatting and on the connection. Emitted by the
+        // Cypher translator only, by FQN. 19 -> 21.
+        // +1 2026-10-16 (the SQL islands' inline views; docs/LITE_INVENTION_CENSUS.md): inlineView — a derived
+        // table or CTE whose own query computes windows, typed as its relation with each window a boundary
+        // (InlineViewChecker; ClassSources' extent rule) and erased: SQL computes such windows before the enclosing
+        // WHERE, which Pure's relation composition folds under them. Within the ceiling: merged with the Cypher
+        // island's four (2026-10-16), whose 21 counted from the ceiling 17, the count is 16 + 4 + 1 = 21.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 21,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

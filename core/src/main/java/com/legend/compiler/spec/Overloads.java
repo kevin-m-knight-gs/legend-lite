@@ -189,10 +189,11 @@ final class Overloads {
     }
 
     /** Phase 1c (One-Platform Plan): {@code executeInDb} with a LITERAL
-     * single READ — and a {@code fetchDb*} catalog call with literal
-     * patterns — types as the RELATION it produces, columns late-bound
+     * single READ types as the RELATION it produces, columns late-bound
      * (the dynamic-pivot rule; the execution boundary stamps the real
-     * schema). The spec surface stays byte-identical
+     * schema), and a {@code fetchDb*} catalog call with literal patterns
+     * as its grid, of the declared schema ({@link CatalogGrids#grid}).
+     * The spec surface stays byte-identical
      * ({@code executeInDb: ResultSet[1]}); the TYPE is the platform's,
      * exactly as TDS types as its relation. Statement shapes (DDL, DML,
      * multi-statement blobs) keep the declared opaque handle — they are
@@ -211,23 +212,15 @@ final class Overloads {
                 && com.legend.sql.RawSql.isSingleQuery(lit.value())) {
             sql = com.legend.sql.RawSql.splitStatements(lit.value()).get(0);
         } else if (com.legend.builtin.NativeFn.Carrier.fetchDbGrid(nc.callee().id()) != null) {
-            sql = CatalogGrids.sql(nc);
-            if (sql != null) {
-                // §4bZ-U leg 4: the JDBC spec fixes the metadata result
-                // shape and the catalog projections are OURS — a
-                // DECLARED table-function schema, never late-bound (no
-                // LIMIT-0 probe, reads stamp statically)
-                return new com.legend.compiler.spec.typed
-                        .TypedRawSqlRelation(sql, false, null, ExprType.one(
-                                Type.relation(CatalogGrids.gridSchema(java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(nc.callee().id()))))));
-            }
+            TypedSpec grid = CatalogGrids.grid(nc);
+            return grid != null ? grid : call;
         }
         if (sql == null) {
             return call;
         }
         // the text's language: the database its connection argument declares (decision D2)
         return new com.legend.compiler.spec.typed.TypedRawSqlRelation(
-                sql, true, nc.args().size() > 1 ? declaredDatabase(nc.args().get(1), env) : null,
+                sql, nc.args().size() > 1 ? declaredDatabase(nc.args().get(1), env) : null,
                 ExprType.one(Type.relation(Type.RelationType.lateBound())));
     }
 
@@ -1100,12 +1093,15 @@ final class Overloads {
 
         List<TypedFuncCol> cols = new ArrayList<>(specs.size());
         List<Type.Column> schema = new ArrayList<>(specs.size());
+        // the names so far, looked up rather than scanned (2026-10-15, the IQ island's census scale suite: a
+        // 4 MB report's ~[…] of thousands of columns spent most of its compile in the scan, quadratic in its width)
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (ColSpec cs : specs) {
             if (cs.function1() == null) {
                 throw new TypeInferenceException(
                         "~" + cs.name() + " needs a mapping expression (alias:x|…) here");
             }
-            if (schema.stream().anyMatch(c -> c.name().equals(cs.name()))) {
+            if (!seen.add(cs.name())) {
                 throw new SchemaInvariantException("duplicate column '" + cs.name() + "' in ~[…]");
             }
             TypedLambda lam = (TypedLambda) typeLambda(cs.function1(), f, b, env);

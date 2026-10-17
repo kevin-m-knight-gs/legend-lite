@@ -105,6 +105,39 @@ class SqlIslandIntegrationTest {
     }
 
     @Test
+    void theIslandsOwnWindowsAreComputedBeforeAPureFilterAfterIt() throws SQLException {
+        // 2026-10-16 (the IQ landing's review): the island's result is an inline view; the filter after it once folded
+        // under its window, which then numbered the filtered rows (1, 2, 3)
+        com.legend.exec.ExecutionResult result = run("#SQL{select id, row_number() over (order by id) as rn"
+                + " from tb('store::HR.EMP')}#->filter(x|$x.ID > 3)->sort(~ID->ascending())");
+        assertEquals(List.of(List.of("4", "4"), List.of("5", "5"), List.of("6", "6")), rows(result));
+    }
+
+    @Test
+    void aNameApartFromAColumnOnlyInCaseIsReadAsItself() throws SQLException {
+        // 2026-10-16 (the IQ landing's review): "Id" beside ID; DuckDB reads names without regard to case, even quoted,
+        // so a select over a subselect showing both read the first. An extend after the island's limit keeps the
+        // names apart (it folds where they are not)
+        com.legend.exec.ExecutionResult result = run("#SQL{select id, age as \"Id\" from tb('store::HR.EMP')"
+                + " order by \"ID\" limit 3}#->extend(~z: x|$x.Id->toOne() + 1)");
+        assertEquals(List.of(List.of("1", "30", "31"), List.of("2", "40", "41"), List.of("3", "25", "26")),
+                rows(result));
+    }
+
+    @Test
+    void aViewsWindowsShareOneSubqueryLevel() throws SQLException {
+        // 2026-10-16 (the IQ landing's review): only the view's outermost window is a boundary; a level each window
+        // passed DuckDB's expression depth at 1,100 windows
+        String query = "#SQL{select * from (select id, row_number() over (order by id) as a, rank() over (order by age)"
+                + " as b, count(*) over () as c from tb('store::HR.EMP')) d where d.id > 4}#->sort(~ID->ascending())";
+        assertEquals(List.of(List.of("5", "5", "4", "6"), List.of("6", "6", "2", "6")), rows(run(query)));
+        String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(MODEL), query)
+                .plan(SqlIslandCases.RUNTIME).sql();
+        // the windows' select and the one over it
+        assertEquals(2, sql.split("SELECT", -1).length - 1, sql);
+    }
+
+    @Test
     void aSyntaxErrorIsAParseErrorAtItsPlaceInTheSource() {
         LegendCompileException e = assertThrows(LegendCompileException.class,
                 () -> run("#SQL{select ID from tb('store::HR.EMP') where}#"));

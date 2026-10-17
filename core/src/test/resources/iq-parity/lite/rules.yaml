@@ -834,9 +834,11 @@ tests:
   - id: c05_fn_b-414
     sql: "SELECT LAG(row_num) OVER () FROM sa_rowgenerator(1, 3)"
     engine: sa
+    nondeterministic: "tests IQ's error"
   - id: c05_fn_b-446
     sql: "SELECT LEAD(row_num) OVER () FROM sa_rowgenerator(1, 3)"
     engine: sa
+    nondeterministic: "tests IQ's error"
   - id: c05_fn_b-458
     sql: "SELECT LEN(CAST('abc  ' AS VARBINARY(5)))"
     engine: sa
@@ -1119,6 +1121,7 @@ tests:
   - id: c07_fn_d-49
     sql: "SELECT ROW_NUMBER() OVER () FROM sa_rowgenerator( 1, 3 )"
     engine: sa
+    nondeterministic: "tests IQ's error"
   - id: c07_fn_d-53
     sql: "SELECT EXPRTYPE('SELECT ROWID( dummy ) FROM dummy', 1)"
     engine: sa

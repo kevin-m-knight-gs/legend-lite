@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * legend-ENGINE ({@code core_functions_standard}), importing the
  * legend-pure platform tree — {@code ChannelB.run}'s multi-root form
  * compiles the union. Diffed against channel A's ledger and the
- * engine's relational-DuckDB manifest (the frontier oracle).
+ * engine's relational-DuckDB manifest (the frontier referee).
  */
 class ChannelBStandardTest {
 

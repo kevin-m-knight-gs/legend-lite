@@ -118,6 +118,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case TIMESTAMP -> "DATETIME";
             case TIMESTAMPTZ -> "TIMESTAMP";
             case JSON -> "JSON";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -1404,6 +1405,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case RTRIM -> writer.function("RTRIM", c.args());
             case TRIM -> writer.function("TRIM", c.args());
             case REPLACE -> writer.function("REPLACE", c.args());
+            case TRANSLATE -> writer.function("TRANSLATE", c.args());
             case STARTS_WITH -> writer.function("STARTS_WITH", c.args());
             case ENDS_WITH -> writer.function("ENDS_WITH", c.args());
             case STRPOS -> writer.function("STRPOS", c.args());
@@ -1502,6 +1504,8 @@ public final class BigQuery extends AnsiSqlRenderer {
                     .append(")");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
+            // DATETIME(date, time): the date-time at that time of that day
+            case DATE_AT_TIME -> writer.function("DATETIME", c.args());
             // DuckDB's timezone(zone, t): a naive t read in the zone (its instant); an instant to the zone's time
             // (an operand is an instant by its type, or as a timezone() of a naive one: format's zone shift is
             // timezone(zone, timezone('UTC', t)), whose inner call is typed naive but renders a TIMESTAMP)
@@ -1512,6 +1516,8 @@ public final class BigQuery extends AnsiSqlRenderer {
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero (measured), as DIV does
             case EPOCH_SECONDS -> writer.append("(CAST(UNIX_MICROS(").piece(instant(a.get(0)))
                     .append(") AS FLOAT64) / 1000000)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: BigQuery keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("DIV(UNIX_MICROS(").piece(instant(a.get(0))).append("), 1000)");
             case FROM_EPOCH_SECONDS -> writer.piece(naiveUnlessZoned(c, w -> w.append("TIMESTAMP_MICROS(CAST(")
                     .expr(a.get(0), 6).append(" * 1000000 AS INT64))")));
@@ -2187,7 +2193,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case WEEK -> w -> w.append("EXTRACT(ISOWEEK FROM ").piece(t).append(")");
             case DAY_OF_YEAR -> w -> w.append("EXTRACT(DAYOFYEAR FROM ").piece(t).append(")");
             case ISO_DAY_OF_WEEK -> w -> w.append("(MOD(EXTRACT(DAYOFWEEK FROM ").piece(t).append(") + 5, 7) + 1)");
-            case MILLISECOND, MICROSECOND -> throw new DialectCapability("date part " + part
+            case MILLISECOND, MICROSECOND, NANOSECOND -> throw new DialectCapability("date part " + part
                     + " has no measured BigQuery spelling");
         };
     }
@@ -2202,7 +2208,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND -> w -> w
                     .append("DATETIME_TRUNC(CAST(").expr(a.get(1), 0)
                     .append(" AS DATETIME), " + unit(part) + ")");
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part " + part
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, NANOSECOND -> throw new DialectCapability("date_trunc part " + part
                     + " has no measured BigQuery spelling");
         };
     }
@@ -2220,7 +2226,7 @@ public final class BigQuery extends AnsiSqlRenderer {
                             .append(" AS DATETIME), " + unit(part) + ")");
             case WEEK -> w -> w.append("DIV(DATE_DIFF(CAST(").piece(to).append(" AS DATE), CAST(").piece(from)
                     .append(" AS DATE), DAY), 7)");
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part " + part
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, NANOSECOND -> throw new DialectCapability("date_diff part " + part
                     + " has no measured BigQuery spelling");
         };
     }
@@ -2238,7 +2244,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case SECOND -> "SECOND";
             case MILLISECOND -> "MILLISECOND";
             case MICROSECOND -> "MICROSECOND";
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("a " + part
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, NANOSECOND -> throw new DialectCapability("a " + part
                     + " unit has no BigQuery spelling");
         };
     }
@@ -2292,7 +2298,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case SECOND -> 1000000L;
             case MILLISECOND -> 1000L;
             case MICROSECOND -> 1L;
-            case YEAR, QUARTER, MONTH, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
         };
     }
 

@@ -6,7 +6,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -30,15 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class WriteCheckerTest extends AbstractDatabaseTest {
 
-    @Override
-    protected String getDatabaseType() { return "DuckDB"; }
-
-    @Override
-    protected String getJdbcUrl() { return "jdbc:duckdb:"; }
-
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         setupDatabase();
         setupWriteTargets();
     }

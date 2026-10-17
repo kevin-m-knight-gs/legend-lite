@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
@@ -9,7 +10,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -58,7 +58,7 @@ class UserCallInlinerTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE P (NAME VARCHAR, AGE INTEGER)");
             st.execute("INSERT INTO P VALUES ('Ann', 30), ('Bob', 15), ('Cat', 45)");

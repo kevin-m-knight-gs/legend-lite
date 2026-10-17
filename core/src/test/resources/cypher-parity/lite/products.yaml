@@ -1,0 +1,45 @@
+# The #Cypher{...}# island's product cases (docs/CYPHER_STUDY_2026_10_15.md §12.33): a cartesian product with a
+# label-less pattern on either side (the arms' rows joined), WITH * keeping the graph for the MATCH after it. Each
+# case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/products/*'), keyed lite/products/<id>.
+tests:
+  - id: two_labelless_nodes
+    graph: |
+      CREATE ({num: 1}), ({num: 2}), ({num: 3})
+    cypher: "MATCH (n), (m) RETURN n.num AS n, m.num AS m ORDER BY n, m"
+  - id: labelless_nodes_of_several_classes
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (n), (m) RETURN n.name AS n, m.name AS m, labels(n) AS ln, labels(m) AS lm ORDER BY n, m"
+  - id: a_labelless_node_beside_a_labelled_one
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'}), (:B {name: 'c'})
+    cypher: "MATCH (n), (b:B) RETURN n.name AS n, b.name AS b ORDER BY n, b"
+  - id: a_labelled_node_beside_a_labelless_one_with_a_where
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'}), (:B {name: 'c'})
+    cypher: "MATCH (a:A), (n) WHERE n.name <> a.name RETURN a.name AS a, n.name AS n ORDER BY n"
+  - id: a_labelless_node_beside_a_pattern
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:C {name: 'c'})
+    cypher: "MATCH (n), (a:A)-[:T]->(b) RETURN n.name AS n, a.name AS a, b.name AS b ORDER BY n"
+  - id: labelless_match_after_a_with
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (a) WITH a MATCH (b) RETURN a.name AS an, b.name AS bn, a, b ORDER BY an, bn"
+  - id: with_star_then_a_match
+    graph: |
+      CREATE (:Person {name: '42'}), (:Person {name: 'x'}), (:Movie {rating: 4})
+    cypher: "MATCH (p:Person {name: '42'}) WITH * MATCH (n) RETURN p.name AS p, n.name AS n, n.rating AS r ORDER BY n, r"
+  - id: with_star_keeps_a_path
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH q = (a:A)-[:T]->(b) WITH * MATCH (c:B) RETURN q, c.name AS c"
+  - id: labelless_product_with_a_count
+    graph: |
+      CREATE ({num: 1}), ({num: 2}), ({num: 3})
+    cypher: "MATCH (n), (m) RETURN count(*) AS c"
+  - id: a_match_after_a_labelless_product_refused
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (n), (m) WITH n, m MATCH (n)-->(x) RETURN x"

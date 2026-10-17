@@ -950,7 +950,7 @@ public final class SpecParser implements TokenStreamCursor {
         try {
             // Component-range validation by dialect (D6b): LEGEND_ENGINE
             // defers like the engine's parser (%2024-02-30 parses there —
-            // oracle byte-parity; THEIR compiler validates downstream);
+            // referee byte-parity; THEIR compiler validates downstream);
             // LEGEND_PLATFORM and LEGEND_LITE validate at parse — the
             // product surface must not ship a date the database later
             // refuses with an unattributed conversion error.
@@ -2506,7 +2506,7 @@ public final class SpecParser implements TokenStreamCursor {
         // @(x:String, …) — a bare relation-shape annotation (addColumns.pure);
         // the same shape @Relation<(…)> spells with its name. EVERY dialect:
         // the engine's own grammar accepts it (probed 2026-09-10 against the
-        // 4.138.2 oracle — bare, `->cast(@(a:Integer))`, and
+        // 4.138.2 referee — bare, `->cast(@(a:Integer))`, and
         // `@(name:Varchar(200))->genericType()` all ACCEPT; the engine's
         // core_external_query_sql/server/tests/testSchema.pure carries the
         // last form). The earlier "engine refuses bare @(…)" note on
@@ -3027,7 +3027,7 @@ public final class SpecParser implements TokenStreamCursor {
         // NO dialect gate: #TDS is REAL — legend-pure ships the TDS DSL
         // (platform_dsl_tds) and the ENGINE's xts-tds extension parses
         // the accessor forms (the 2026-08-14 gate attempt refused six
-        // oracle-ACCEPTED corpus sources; the invention audit's "engine
+        // referee-ACCEPTED corpus sources; the invention audit's "engine
         // refuses #TDS" held only for a bare parser without extensions)
         // NOT platform-gated: the ENGINE's xt-tds extension parses #TDS
         // accessors (6 oracle-accepted TestTDSAccessor/TestTDSCompiler
@@ -3123,6 +3123,21 @@ public final class SpecParser implements TokenStreamCursor {
      * island takes the place of legend-pure's legacy graph-fetch reading of the same spelling (a tree rooted at a class
      * named {@code IQ}, which nothing here writes), so the own-corpus census sees it as the lite extension it is.
      */
+    /**
+     * {@code #Cypher{ MATCH ... }#}: legend-lite's Cypher island (docs/CYPHER_STUDY_2026_10_15.md §4, C1), carried
+     * like the SQL island, its text UNTRIMMED: a Cypher query as Neo4j accepts it, its {@code CYPHER 5} or
+     * {@code CYPHER 25} prefix included. Upstream has no such island: the LEGEND_ENGINE surface refuses it as it
+     * refuses any unknown island type; on the LEGEND_PLATFORM surface it takes the place of legend-pure's legacy
+     * graph-fetch reading of the same spelling, as the IQ island does.
+     */
+    private ValueSpecification cypherIsland(String dslType, String cypher, int islandStart) {
+        if (dialect().refusesLiteExtensions()) {
+            throw error("unknown DSL island type: '#" + dslType + "{'");
+        }
+        return new com.legend.protocol.spec.SqlIsland(cypher, spanOf(islandStart, pos - 1),
+                com.legend.protocol.spec.SqlIsland.CYPHER, null);
+    }
+
     private ValueSpecification iqIsland(String dslType, String sql, int islandStart) {
         if (dialect().refusesLiteExtensions()) {
             throw error("unknown DSL island type: '#" + dslType + "{'");
@@ -3176,6 +3191,9 @@ public final class SpecParser implements TokenStreamCursor {
 
         if (dslType.equals("IQ") || dslType.startsWith("IQ:")) {
             return iqIsland(dslType, content.toString(), islandStart);
+        }
+        if (dslType.equals("Cypher")) {
+            return cypherIsland(dslType, content.toString(), islandStart);
         }
         ValueSpecification result = switch (dslType) {
             // the tree is the source between the opener '#{' and the closer '}#'

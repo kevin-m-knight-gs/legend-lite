@@ -80,6 +80,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
             case JSON -> "JSONB";
+            case TIME -> "TIME";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -672,15 +673,15 @@ public final class Postgres extends AnsiSqlRenderer {
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PARSE_INT -> castAs(writer, typedText(c.args().get(0)), "BIGINT");
             // parseDate(text): the ISO text as a timestamp
-            case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
+            case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
             case SIGN -> bigintOf(writer, "sign", c.args());
-            case LPAD -> padWithSpace(writer, "lpad", c.args());
-            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case LPAD -> padWithSpaceToInteger(writer, "lpad", c.args());
+            case RPAD -> padWithSpaceToInteger(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
             case TODAY -> writer.append("current_date");
@@ -714,6 +715,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case RADIANS -> writer.function("radians", c.args());
             case REPEAT_STR -> writer.function("repeat", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> writer.function("translate", c.args());
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case RIGHT -> writer.function("right", c.args());
             case RTRIM -> writer.function("rtrim", c.args());
@@ -726,6 +728,9 @@ public final class Postgres extends AnsiSqlRenderer {
             case TAN -> writer.function("tan", c.args());
             case TANH -> writer.function("tanh", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());
+            // a date plus a time of day is the timestamp at it
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
+                    .expr(a.get(1), 6));
             case TRIM -> writer.function("trim", c.args());
             case UPPER -> writer.function("upper", c.args());
             // a Float, as DuckDB's answers; each of these has a numeric overload on Postgres, which a
@@ -812,6 +817,8 @@ public final class Postgres extends AnsiSqlRenderer {
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("CAST(extract(epoch FROM ").expr(a.get(0), 0)
                     .append(") AS DOUBLE PRECISION)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Postgres keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("CAST(trunc(extract(epoch FROM ").expr(a.get(0), 0)
                     .append(") * 1000) AS BIGINT)");
             // epoch arithmetic on a naive timestamp: no session zone involved
@@ -1379,7 +1386,23 @@ public final class Postgres extends AnsiSqlRenderer {
             super.variantAwareCast(writer, c);
             return writer.append(", '^(-?[0-9]+)$', '\\1.0')");
         }
+        if (c.value() instanceof SqlExpr.StringLit && c.target() != SqlType.Scalar.VARCHAR
+                && c.target() != SqlType.Scalar.TEMPORAL_TEXT && c.target() != SqlType.Scalar.DECIMAL_TEXT) {
+            return super.variantAwareCast(writer, new SqlExpr.Cast(typedText(c.value()), c.target()));
+        }
         return super.variantAwareCast(writer, c);
+    }
+
+    /**
+     * A text literal under a cast, spelled as a text first: Postgres reads a bare literal under a cast as a
+     * constant of the cast's type WHEN IT PARSES the statement, before any CASE around it is weighed, so
+     * {@code CASE WHEN 'x' ~ '[0-9]+' THEN CAST('x' AS BIGINT) END} is the parse's error, not NULL (measured
+     * 2026-10-16 on Postgres 16, the Cypher island's toInteger of a text, docs/CYPHER_STUDY_2026_10_15.md §12.23).
+     * A typed text's cast is the planner's, which drops a CASE arm whose test is false before it folds the arm.
+     * Any other value is itself.
+     */
+    private static SqlExpr typedText(SqlExpr x) {
+        return x instanceof SqlExpr.StringLit ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR) : x;
     }
 
     /** A value to a list of scalars: a Variant array's elements read as the element type, in order (a
@@ -1827,6 +1850,8 @@ public final class Postgres extends AnsiSqlRenderer {
             case SECOND -> "second";
             case MILLISECOND -> "millisecond";
             case MICROSECOND -> "microsecond";
+            case NANOSECOND -> throw new DialectCapability("a nanosecond part: Postgres keeps microseconds (the"
+                    + " Cypher island's nanosecond leg is DuckDB's)");
             case DAY_OF_YEAR -> "doy";
             case ISO_DAY_OF_WEEK -> "isodow";
         };
@@ -1844,7 +1869,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case SECOND -> "second";
             case MILLISECOND -> "millisecond";
             case MICROSECOND -> "microsecond";
-            case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit '" + unit
+            case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit '" + unit
                     + "' has no Postgres spelling");
         };
     }

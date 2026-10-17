@@ -182,6 +182,15 @@ are set with `SET TEMPORARY OPTION` before each case:
 A caveat the research records (SEMANTICS §4.7): TDS and ODBC behaviour was reproduced by setting the options, never
 over a real TDS or ODBC connection.
 
+IQ island, landing 4 (WP1), 2026-10-14: three more profiles, `iq17-default`, `iq17-odbc` and `iq17-tds`, are the IQ
+base with the database properties of the real SAP IQ 17.1 the island is now judged against (the user's HANA Cloud data
+lake: CaseSensitive On, BlankPadding On, UTF8BIN, UTF-8, precision 126, scale 38). `tools/iq-oracle/snap.sh --oracle
+iq` snaps their answers from that server, and every case run under an `iq16-*` profile also runs under the matching
+`iq17-*` one. The `iq16-*` profiles stay judged by SQL Anywhere (ISO_BINENG and ISO-8859-1, which that server cannot
+be), not verified on a real IQ 16. Where lite follows SQL Anywhere and IQ differs, the `iq17-*` run is listed, with its
+cause, in `iq-parity/iq17-divergences.tsv`, which only shrinks. `iq17-tds` too sets the TDS login's options on a
+CmdSeq connection (dbcapi cannot log in over TDS).
+
 ### 2.3 Snapped answers; CI judges from the file
 
 - **The file:** `core/src/test/resources/iq-parity/iq-answers.jsonl`, one line per case and profile: the column names
@@ -296,8 +305,9 @@ source; there is nothing to port.
 
 - **I1. The island: `#IQ{...}#`, and `#IQ:<profile>{...}#`.** The default profile is `iq16-default`. The LEGEND_ENGINE
   surface keeps its refusal of unknown island types; upstream has no IQ island.
-- **I2. A closed profile set:** `iq16-default`, `iq16-odbc`, `iq16-tds`, `sqla17-default`, `sqla17-tds` (§2.2). Any
-  other name is refused by name. A profile is fixed for the island; per-island option overrides are not offered.
+- **I2. A closed profile set:** `iq16-default`, `iq16-odbc`, `iq16-tds`, `sqla17-default`, `sqla17-tds` (§2.2), and
+  (landing 4, WP1) `iq17-default`, `iq17-odbc`, `iq17-tds`, judged by a real IQ 17.1. Any other name is refused by
+  name. A profile is fixed for the island; per-island option overrides are not offered.
 - **I3. `engine=auto`.** An island over `tb()` sources is `engine=iq`; one with no FROM, or over DUMMY or
   `sa_rowgenerator`, is `engine=sa`; a mix is `iq` (D-E1). **Only the typing and function layer reads the engine,
   never the parser**, because IQ's parser is shared (§1.1).
@@ -534,6 +544,12 @@ never Java computing a value:
   fails the lane: its answer depends on IQ's plan, so it is skipped or rewritten.
 - **An `engine: iq` pin needs a decision:** a case SQL Anywhere judges must translate alike under both engines' rules,
   which a pin to the IQ engine alone would hide.
+- **Determinism (since review 7, §9.16):** a case whose answer may be one plan's choice fails the lane
+  (`IqParity.determinism`): a TOP, FIRST or START AT without ORDER BY, or whose ORDER BY reaches no column unique in
+  its source (each table's `id`, `sa_rowgenerator`'s `row_num`, a grouped query's keys), and a LIST without its own
+  ORDER BY but of a GROUP BY key or a constant. Lite answers such a query with its database's choice, which is right
+  for a user (any answer IQ could return is), but a case judged so would pin one plan. A case that tests a refusal or
+  an error opts out with its reason (`nondeterministic:`) and must then not PASS.
 - **The judge** compares a both-error's SQLCODE when legend-lite's error names IQ's (`(IQ: SQLCODE n, ...)`): another
   code than SQL Anywhere's is a FAIL. It compares a NUMERIC column's scale with each of lite's decimal cells.
 
@@ -1796,3 +1812,365 @@ before the landing, found one blocker, two majors and three minors. Each fix is 
 **Evidence:** both lanes identical, 3,095 runs: PASS 1,913, REFUSED 789, BOTH_ERROR 389, SKIP 4; FAIL, BUG, ERROR 0.
 No earlier run moved. The answers: 2,705 cases, 3,091 answers (89 new; every earlier answer identical). The syntax
 verdicts are unchanged. The measurements and the before/after of each case are kept with the private research.
+
+### 9.16 The third landing, first part: the M1 gaps
+
+Built 2026-10-14 on `claude/iq-island-3`, over the second landing (§9.15). It reads the SELECT features the island
+refused though they need no decision, each measured on SQL Anywhere 17 first; catalog tables, server-state procedures
+and procedural wrappers stay refused by name. Every case answers what SQL Anywhere 17 answers, is refused by name, or
+is an error both raise: `lite/m1gaps.yaml` (356 cases, 360 runs) pins each item and its near misses.
+
+**Where it lives.** One new file, `protocol/sql/iq/IqAliases` (the select-list aliases, read when parsing). The seam
+gains two hooks, each Postgres's answer what it was (its generated Pure byte-identical): `InputDialect.columnNotHere`
+(a name the dialect refuses before it is looked up in an enclosing query) and `InputDialect.namesUnread` (a SELECT
+whose output names no one reads); and two `Problem`s (`DISTINCT_ORDER_KEY`, `SET_WIDTHS`) whose Postgres messages are
+the texts they replace. `SqlToPure.Grouping.groupKey` says whether an expression is a GROUP BY key.
+
+1. **A select-list alias read where IQ reads it** (`IqAliases`): in WHERE, ON, the select list (a later item's alias
+   too), GROUP BY, HAVING and inside an ORDER BY expression, an alias is its expression, written there, before a
+   column of its name (measured: the alias wins at its own level; a name inside its own definition is the column; a
+   definition through itself is IQ's -831; an aggregate's alias in WHERE -150; an ON reading an item outside its join
+   -824; a qualified name is never an alias). Inside a subquery IQ reads the subquery's own columns first, then the
+   enclosing query's alias, then the enclosing query's columns: that read is refused by name
+   (`IqDialect.columnNotHere`). **A latent wrong answer fixed:** the second landing answered such a read with the
+   enclosing column (found by this landing's probes; no committed case read one). Under ansinull Off an alias whose
+   expression reads a host variable is refused in WHERE and ON: where SQL Anywhere reads such a comparison
+   two-valued (§9.15) is measured for comparisons written in place only.
+2. **The name of an unaliased item** (`IqNames`): an alias the item reads is written as written (double quotes only
+   for a name that is not regular; `id AS id` read in `id+1` is `id+1`, not `t.id+1`: **a latent wrong name of the
+   second landing, fixed**). An item written over several lines or with comments is named as SQL Anywhere's printer
+   marks its line breaks: a leaf's line is its last token's (`\n`, `\r\n` and a lone `\r` each a break; a comment with
+   a line break counts); a break between two operands writes a space and the indentation before the operator, inside
+   a CASE or an IF value two spaces more for each level; a call's argument, CASE's THEN, WHEN, ELSE and END each by
+   their own measured rule. Measured over about 2,900 generated items (random and realistic): every name lite gives
+   matches. Refused by name: a break SQL Anywhere marks otherwise (inside a call named by a reserved word, LEFT's,
+   an aggregate's ORDER BY, a chain of `+`/`-` with parentheses, an ELSE after a value that ends in END, IS DISTINCT
+   FROM, a truth test, ESCAPE, an IN list it reorders), and SQL Anywhere's folding of a CASE or an IF whose test is a
+   constant and whose value is not, over a table (**a latent wrong name of the second landing**: it names the folded
+   value).
+3. **`owner.table.column`** (`IqAliases.owned`): bound to the FROM item its owner and table name (an unaliased table, or
+   `tb()` with the same name: the island's spelling of the table unaliased); none is IQ's -845, a name of no FROM item
+   -142. (Corrected by review 7, measured: a procedure's column, `sa_rowgenerator`'s, is -845 whatever the owner, `dbo`
+   as `DBA`, whether or not FROM writes `dbo` -- read it unqualified or by its correlation name; IQ's own `t AS t` is an
+   aliased table, -845 for `DBA.t.id`, which the parity harness now leaves to the island.) An owner of IQ's own (`dbo`,
+   `sys`, ...) qualifying a name that is no catalog name's (`IqBindings.catalogName`) reads the model's table of a
+   schema of that owner's name when the model has one (`IqBindingsTest`; the parity model has no such schema); the
+   catalog's names, and such a name the model does not hold, stay refused with the same message as before.
+4. **Two output columns of one name** are answered where no one reads the names: an EXISTS's query, a set
+   operation's later branch, a derived table given a full column list (renamed internally). Where the result shows
+   them (the statement's own SELECT, an IN's or a scalar subquery's single column) the refusal stays: a relation's
+   names are distinct.
+5. **LIKE with a pattern the database computes** (`IqDialect.runtimePattern`, `runtimeLike`): a column, a host
+   variable, `'%' || x || '%'`: the regular expression is built in the database -- each character itself (a
+   backslash and the regular expression's own characters escaped), `%` any run, `_` one character (a line feed
+   too), matched whole. A pattern holding `[` (IQ's set class: measured, `[b]` is a set and an unclosed `[` UNKNOWN)
+   or longer than 126 characters (SQL Anywhere's -606 for some values) raises an error, never answers otherwise
+   (since review 7, by name: the harness counts it a refusal).
+   Refused by name: ESCAPE, a profile that matches without case (`sqla17-*`), a CHAR(n) operand or pattern under
+   IQ's engine (D-S5), a pattern that is no string.
+6. **LIST forms** (`IqAggregates.list`): LIST of a GROUP BY key, in any order or none (its group's values are one
+   value), and LIST(DISTINCT key) of an integer key (the value once). Still refused: LIST without ORDER BY of
+   anything else (its order is the plan's), LIST(DISTINCT) of anything else (lite's Postgres orders a DISTINCT
+   aggregate only by its argument's text), LIST(DISTINCT) of a string key (one collation key, several spellings).
+   (Review 7: a keyed LIST's ORDER BY is read for its errors -- an aggregate there is -156, a key that may raise is
+   refused, as SQL Anywhere evaluates it for each row -- and a keyed LIST(DISTINCT ... ORDER BY ...) is refused in a
+   statement with an ORDER BY, which SQL Anywhere may then not keep.)
+7. **A checked SUM or AVG (D-E3) read for every group** is answered: a CASE's or an IF's first test, the first
+   argument of COALESCE, ISNULL, IFNULL or ARGN, both of NULLIF's, a NOT's or a truth test's operand, BETWEEN's and
+   IN's tested value; and an aggregate also read so elsewhere in its query (`IqDialect.lazyCalls`). Read only for
+   some groups (a CASE's value or later test, a later argument, under AND or OR, BETWEEN's bounds, IN's list) it
+   stays refused.
+8. **TOP or FIRST in a subquery or a derived table** with ORDER BY (or under EXISTS, where only whether a row exists
+   is read) is answered in SQL Anywhere's front end (`sa_rowgenerator`, `DUMMY`, a `sqla17-*` profile). Under IQ's
+   engine it stays refused (the research's D-R1: IQ may ignore it there), and so does one without ORDER BY outside
+   EXISTS and one in a set operation's branch. (Corrected by review 7: where the limit's boundary cuts through rows
+   whose ORDER BY keys tie, which of them it keeps is the plan's choice -- SQL Anywhere, DuckDB and Postgres keep
+   different ones, as for the statement's own TOP since the first landing. By the user's ruling any answer IQ could
+   return there is right, so lite returns its database's, and the harness's determinism lint keeps every committed
+   case off such a choice (§6.3). An ORDER BY inside EXISTS is SQL Anywhere's syntax error -131.)
+9. **A subquery without FROM** is its one item's value: a whole select item `(SELECT expr)` under every engine,
+   anywhere in SQL Anywhere's front end (IQ's engine restricts subquery positions, §9.4). (Corrected by review 7,
+   measured: unaliased, the item is named by that query's own alias where it has one -- `(SELECT id + 1 AS z)` is
+   `z`, a name no clause reads, WHERE or ORDER BY `z` -143 -- else as its item is written; and in the select list
+   that names a derived table's columns it names none, alias or not: -163.) One with WHERE, an
+   aggregate, a row limit, DISTINCT or two items stays refused. TIME and REAL stay refused: lite has no time-of-day
+   lowering, and SQL Anywhere computes and prints REAL in single precision, which no Pure type holds.
+10. **IQ's codes for errors lite raised in Postgres's words**: an ORDER BY key no SELECT DISTINCT item shows is -854;
+    set-operation branches of different widths -153 (SQLSTATE 53026, both where it is found); a column neither grouped
+    nor aggregated -149, and -854 when ORDER BY reads one, reported before the select list's and HAVING's (measured;
+    review 7). `SELECT ... FROM t INTO x` is refused as INTO (a statement, not a value);
+    DATEPART, DATENAME, DATEADD and DATEDIFF with the wrong number of arguments are -154 (before the date part is
+    read).
+
+**Moved runs.** Eighteen REFUSED runs are PASS on both lanes, none otherwise: `basics/alias_read_in_where`; ten of
+`m0.yaml`'s alias reads in an ORDER BY expression or WHERE (`alias_after_a_plus_sign_in_order_by`,
+`alias_inside_an_order_by_sum`, `alias_inside_case_in_order_by`, `alias_inside_if_in_order_by`,
+`alias_inside_isnull_in_order_by`, `alias_inside_nullif_in_order_by`, `alias_negated_in_order_by`,
+`alias_of_another_case_inside_order_by`, `alias_of_no_column_inside_order_by`, `tsql_alias_read_in_where`);
+`m1a/like_column_pattern_is_refused`; `m1b/name_with_a_comment_is_refused`;
+`m1c/having_an_alias_before_a_column_of_its_name`; `m1e/owner_qualified_column_is_refused`;
+`m1e/host_string_like_pattern_is_refused`; `rules/c01_language-220`; `rules/c09_statements-81` (all `@iq16-default`).
+The four whose ids say "refused" keep their ids, the ledger's keys, with a dated comment. Every other run is unchanged.
+
+**The syntax cases.** Accept PARSED 2,674 -> 2,687 (REFUSED 2,274 -> 2,261), thirteen cases: alias reads, FROM-less
+subqueries with TOP and ORDER BY, and `tempdb.dbo.#t` (parsed now, refused by name when translated). Flag, reject and
+both lists unchanged. The thirteen were snapped on SQL Anywhere 17 and run on both lanes: PASS 9, REFUSED 3, BOTH_ERROR
+1, none otherwise.
+
+**Evidence:** both lanes identical, 3,455 runs: PASS 2,184, REFUSED 835, BOTH_ERROR 432, SKIP 4; FAIL, BUG, ERROR 0
+(was 3,095: PASS 1,913, REFUSED 789, BOTH_ERROR 389, SKIP 4). `m1gaps.yaml` alone: PASS 253, REFUSED 64, BOTH_ERROR 43.
+The answers: 360 new; every earlier answer identical. The Postgres island's Pure is byte-identical and both
+`sql-parity` ledgers unchanged. The measurements (the probe sets and the naming datasets) are kept with the private
+research.
+
+#### Review 7 (2026-10-14)
+
+An independent review of this part found two blockers, two majors and five minors, each re-measured on SQL Anywhere
+17 before a fix; `lite/review7.yaml` (66 cases, 67 runs) pins them. Items 3, 5, 6, 8, 9 and 10 above carry the
+corrections.
+
+- **B1, a TOP's boundary through tied rows: lite returns its database's answer (the user's ruling).** Which of the
+  rows whose ORDER BY keys tie a TOP, FIRST or START AT keeps is the plan's choice: SQL Anywhere, DuckDB and Postgres
+  keep different ones, in a subquery or a derived table (item 8, ten measured differences) and in the statement's own
+  TOP (since the first landing; on main too). IQ's own answer is not determined there, so any answer IQ could return
+  is right: lite returns its database's, with no guard (one built for the other choice was set aside, never
+  committed), and TOP or FIRST in a subquery or a derived table stays answered as item 8 has it. What is not allowed is
+  a committed case that depends on such a choice: the harness's **determinism lint** (`IqParity.determinism`, both
+  lanes, §6.3; pinned by `IqParityTest.aCaseWhoseAnswerIsThePlansChoiceIsNotCommitted`) fails a case with a row limit
+  without ORDER BY, or whose ORDER BY reaches no column unique in each FROM item's rows (a table's `id`,
+  `sa_rowgenerator`'s `row_num`, a derived table's column unique in its query, a grouped query's keys, every item of
+  a SELECT DISTINCT; a FROM item an inner join's ON or the WHERE equates by its unique column with an ordered one
+  needs none; a source of at most one row and an EXISTS's query need none), and a LIST without its own ORDER BY but
+  of a GROUP BY key or a constant. A case that tests a refusal or an error opts out with its reason
+  (`nondeterministic:`, a case key `tools/iq-oracle` reads too) and must not PASS; one with nothing to opt out of may
+  not. Of the committed cases it found eleven: three fixed by the unique key as the last ORDER BY key
+  (`m0/top_two_plus_one_is_top_two` and `m0/top_ordered_by_an_overflowing_key`, `ORDER BY ..., id`;
+  `m1gaps/first_in_a_derived_table`, `ORDER BY sm, id`), re-snapped, their statuses unchanged; eight refusal tests of
+  an unordered TOP, START AT or LIST opted out (`m0/top_without_order_by`, `m0/start_at_without_order_by`,
+  `m1b/union_branch_with_top_is_refused`, `m1c/list_without_order_by_is_refused`,
+  `m1gaps/list_distinct_unordered_is_refused`, `m1gaps/list_distinct_filtered_is_refused`,
+  `m1gaps/top_in_a_derived_table_without_order_by_is_refused`, `m1gaps/top_in_a_union_branch_is_refused`). Review 7's
+  tie probes are not pinned.
+- **Beside B1: an ORDER BY inside EXISTS** (with or without TOP, under NOT) is SQL Anywhere's syntax error -131; lite
+  answered it since EXISTS was read. Now IQ's -131 (`IqDialect.existsOrder`).
+- **B2, a query without FROM read as its item** (item 9): unaliased, the item is named by that query's own alias
+  (`AS z`, `z = ...`, a quoted or bracketed name, a string alias), a name no clause reads (WHERE or the select list
+  -143; ORDER BY of it refused by name); in the select list that names a derived table's columns (its first branch,
+  without a column list) it names none, alias or not: -163 (`IqAliases.select`, `IqDialect.derivedNames`). The seam
+  gains `InputDialect.namedAsColumn` (Postgres's: always).
+- **M1, an enclosing query's column read in a subquery's select list, GROUP BY or ORDER BY** (outside an aggregate):
+  refused by name (`IqDialect.enclosingColumn`; the seam's `InputDialect.enclosingColumn`, a no-op for Postgres). The
+  planner computes such a value as a column of the subquery's rows and reads the enclosing row's column by its name
+  among the subquery's own columns: the subquery's column of that name where it has one (a wrong answer -- the plain
+  `t.id IN (SELECT t.id FROM u ...)` form since the second landing; `DBA.t.id`, a correlated TOP over
+  `sa_rowgenerator`), an error where it has none. The fix, a computed column resolving the enclosing row as a
+  predicate does, is pending on the compiler line (`core/correlated-columns`); WHERE, ON and HAVING read such a column
+  right and answer. When it lands the refusal goes and these cases are re-run.
+- **M2.** An owner-qualified column of `sa_rowgenerator` is -845 whatever the owner (item 3). A keyed LIST's ORDER BY
+  is read: an aggregate there is -156, and a key that may raise is refused (SQL Anywhere evaluates it for each row:
+  `v + 1` over INTEGER's largest is -158), a column or a constant answers (item 6).
+- **Minor.** m1: `LIST(DISTINCT key ORDER BY ...)` is refused in a statement with an ORDER BY (SQL Anywhere then
+  returns the rows out of that order). m2: two aliases of one name are -831 where each reads the name, else -830;
+  a grouped query's ORDER BY reference not grouped is -854, reported before the select list's and HAVING's -149; -153
+  carries SQLSTATE 53026 on both paths. m3: a computed LIKE pattern IQ matches otherwise raises by name (the harness
+  counts such a raise a refusal where SQL Anywhere answers, never a PASS; any other database error there stays an
+  ERROR). m4: the parity harness leaves `FROM t AS t` to the island, which binds `t` and keeps the alias (-845 for
+  `DBA.t.id`), where `tb('...t') AS t` is the island's spelling of `t` unaliased. m5: these corrections, register row
+  S51, and the syntax pins' note (its BOTH_ERROR is a refusal against SQL Anywhere's -141).
+
+**Evidence:** both lanes identical, 3,522 runs: PASS 2,206, REFUSED 851, BOTH_ERROR 461, SKIP 4; FAIL, BUG, ERROR 0.
+Every earlier run's status unchanged (the three cases the determinism lint fixed keep theirs: PASS, BOTH_ERROR,
+PASS); `review7.yaml`'s 67 runs PASS 22, REFUSED 16, BOTH_ERROR 29, of which 45 failed before (FAIL 23, BUG 16,
+ERROR 6). The answers: 67 new; the three fixed cases re-snapped, their rows and errors identical (only `sqlSha`
+moves); every other answer identical; no syntax case's verdict moves. The Postgres island's Pure is byte-identical and
+both `sql-parity` ledgers unchanged. The measurements are kept with the private research.
+
+### 9.17 Settings: IQ's options, by IQ's own names
+
+Built 2026-10-14 on `claude/iq-island-3`, over the M1 gaps (§9.16): the third landing's second part, the in-area core of
+the options framework. An island is read under one **settings vector**, built the way IQ builds a connection's, and every
+rule of the translator that depends on a setting reads the vector, never a profile's name. The five profile names stay,
+as presets of it. The settings themselves will come from Pure: tagged values of a platform Profile whose tags are IQ's
+exact names, on a Database element (the database's level) and on the enclosing function (the query's); that plumbing
+touches the model and the compiler and lands separately. **No header**: no Legend syntax is added (the user's ruling,
+2026-10-14: no Legend parser feature that upstream lacks), so an island still opens `#IQ{` or `#IQ:<preset>{`, and
+nothing between `#IQ` and its brace sets anything. Inside the island, IQ's own SET statements may come before the SELECT
+(below): that is IQ's syntax, read by the island's IQ reader, not the Legend parser's. Every case answers what SQL
+Anywhere 17 answers, is refused by name, or is an error both raise: `lite/options/*.yaml`.
+The measurements behind it (each name, level, value and error below on SQL Anywhere 17, in an IQ-like and a default
+database) are kept with the private research.
+
+**The names are IQ's own**, matched without regard to case, as IQ matches them; values are IQ's spellings (`On`,
+`Off`, an integer, `DMY`), read back as `CONNECTION_PROPERTY` and `DB_PROPERTY` spell them:
+
+- **database properties**, `DB_PROPERTY`'s names: `CaseSensitive`, `BlankPadding` (`On`/`Off`), `Collation`
+  (`ISO_BINENG`, `UTF8BIN`), `CharSet` (`ISO_8859-1:1987`, `UTF-8`), `AccentSensitive`. The oracle's IQ-like database
+  reads On / On / ISO_BINENG / ISO_8859-1:1987 / Off, its SQL Anywhere one Off / Off / UTF8BIN / UTF-8 / Off;
+- **the connection**: `CommProtocol` (`'TDS'` or `'CmdSeq'`), `CONNECTION_PROPERTY`'s name;
+- **options**: `SET OPTION`'s and `SYSOPTIONS`'s names, in lower case (`ansinull`, `date_order`, `precision`, ...).
+
+**Where it lives.** `protocol/sql/iq/IqOption` is the closed registry: each database property, the connection's
+protocol, and each Tier 1 to 3 option of the research's (and `tsql_variables`, which the island reads), with its level
+(database property, connection, PUBLIC-only option, option), tier, kind of value, default under each engine base (IQ
+16, SQL Anywhere 17: an option of SQL Anywhere's that IQ's documentation does not name is IQ's too, with SQL
+Anywhere's default; an IQ-only one is absent from SQL Anywhere 17), TDS and ODBC login values, and status (built,
+some values built, provisional with its decision, not built yet, pinned, ignored); and, by name only, the 318 Tier 4
+options (IQ's documentation's, SQL Anywhere 17's, both), which change no SELECT. `IqSettings` is the vector, with IQ's
+levels; `IqSetPrefix` reads the SET statements before a SELECT. `IqProfile` is the five presets: a base and a client (one at the database's defaults, IQ's ODBC driver, a TDS
+login). A first commit made the translator read the vector with no other change (every ledger row, answer, syntax
+verdict and the Postgres island's Pure identical).
+
+**The one entry point**, `IqSettings.resolve(preset, settings)`: each setting `(level, name, value)`, its value text (a
+tagged value's), built by IQ's precedence -- the base's defaults, the database's level, the login's overrides, the
+query's level -- with IQ's errors, as SQL Anywhere 17 raises them:
+
+- **the database's level** (`DATABASE`): a database property is the database's; any option (a PUBLIC-only one too) its
+  PUBLIC value, which the login's temporary values hide, as in IQ (measured: a TDS login's `date_order` MDY stays MDY
+  over `PUBLIC.date_order = 'DMY'`); `CommProtocol` the login (`'TDS'` a TDS login's `sp_tsql_environment` overrides,
+  `'CmdSeq'` none; `'TDS'` with `iq16-odbc` refused). A name of no setting is an error (an unknown tag);
+- **the query's level** (`QUERY`): an option is the connection's temporary value, after the login's. A database
+  property, `CommProtocol`, a name of no option, an option the base lacks (an IQ-only option under SQL Anywhere 17) and a
+  PUBLIC-only option is IQ's error for that option: -202 (reserved_keywords, truncate_timestamp_values, round_to_even,
+  temp_space_limit_check, ...) or -203 (precision, scale, blob_threshold, ...), per option as measured (review 8);
+- **at either level**: a value the setting does not take is IQ's -201 -- On and Off only (in any case, never 1 or
+  'yes'), YMD, MDY or DMY, an integer in its range written as a whole number or as a string IQ reads as one (leading
+  blanks, at most one `+`, digits: `' +60'` and `'060'` are 60, `''` is 0; `'60 '`, `'-1'`, `'+ 60'`, `'6e1'` and
+  `'60.0'` are -201), a fraction -201 under either base (the research's D-Q2, "IQ cuts a fraction", is refuted by IQ
+  17.1, which raises -201 as SQL Anywhere does); an option with no effect on a SELECT (Tier 4) is accepted and ignored,
+  its value unchecked but for `isolation_level` (0 to 3 or a snapshot level); a setting given twice at one level is
+  refused by name.
+
+**IQ's SET statements before the SELECT**, so that an IQ script's SET lines read as written, and for the wire protocol
+to come (a client sends them before its query): a run of them, each ended by `;`, then exactly one SELECT, after the
+settings given. They are IQ's syntax, inside the island's SQL, read by the island's IQ reader (`IqSetPrefix`, through
+`IqLexer`, when `IqDialect` parses the SQL), never by the Legend parser. Each is read under the settings the ones before
+it made (a `quoted_identifier` or `escape_character` a statement sets changes how the next is lexed), the SELECT under
+the last. The SELECT is the island's text with the statements blanked, line breaks kept, so every position is the
+island's own. An option has IQ's four levels here, measured: the connection's temporary value, the user's, a temporary
+PUBLIC one and PUBLIC's, the first of them set being the value (a user's value, `SET OPTION x`, replaces the
+connection's temporary one at once, the login's included; a PUBLIC value is hidden by either). Read:
+
+- `SET [EXISTING] [TEMPORARY] OPTION [PUBLIC.]name = [value]`: the name plain, `"quoted"` or `[bracketed]`; the value a
+  word (`On`, `DMY`), a number (`6e1`, `60.0` and the string `'060'` are 60), a string, `NULL` or none (a reset).
+  Measured errors: a sign or a parenthesis before the value, or a second value, -131; a name of no option -203 when set
+  temporarily (also `TEMPORARY ... PUBLIC.`), -200 for the user, and for PUBLIC IQ's own new option, which no SELECT
+  reads -- so are a database property and `CommProtocol`, no options of IQ's; a PUBLIC-only option (`precision`,
+  `scale`, `reserved_keywords`, ...) set temporarily -203, for the user -202; a value the option does not take -201
+  (On/Off only, never 1 or 'yes'; an integer's range). A reset of a temporary value falls back to the user's or
+  PUBLIC's; of the user's, to PUBLIC's (the login's temporary value is gone too). Refused by name: a reset of a PUBLIC
+  value (SQL Anywhere then reads its server's own default, no base's), an owner other than `PUBLIC`, a variable as the
+  value.
+- T-SQL's forms SQL Anywhere 17 reads as options: `SET ANSINULL ON|OFF` (and `ANSI_NULLS`), `SET QUOTED_IDENTIFIER
+  ON|OFF`, `SET STRING_RTRUNCATION ON|OFF`, `SET DATEFIRST n` (`first_day_of_week`; outside 1-7 -201), `SET DATEFORMAT
+  ymd|mdy|dmy` (`date_order`; another word -201), `SET ROWCOUNT n` (`row_count`; n an integer literal up to
+  2147483647), each as the connection's temporary value; and the ones of no effect on a SELECT, accepted: `SET
+  CHAINED`, `ANSI_PERMISSIONS`, `SELF_RECURSION`, `PREFETCH`, `NOCOUNT`, `ARITHABORT`, `ARITHIGNORE` (`ON|OFF`), `SET
+  TEXTSIZE n`, `SET TRANSACTION ISOLATION LEVEL ...`, `SET STATISTICS IO ON`, `SET SHOWPLAN ON`. A form SQL Anywhere 17
+  does not read (`SET CLOSE_ON_ENDTRANS`, `SET ESCAPE_CHARACTER`, `SET DATE_ORDER`, SQL Server's `SET XACT_ABORT` and
+  the like) is -131, `SET LANGUAGE` -611; another SET (a variable's), a SET without its `;`, and SET statements with no
+  SELECT after them are refused by name.
+
+`lite/options/set_statements.yaml` runs each form, each level, the errors, and each option of `lite/options` set by a
+statement; a statement over the settings given (`query.date_order='DMY'`, then `SET TEMPORARY OPTION date_order`)
+follows IQ's levels too.
+
+What the settings need that is not built is refused by name when the SELECT is read (`IqSettings.check`, for the
+settings it is read under):
+
+| option | values read | refused by name |
+|---|---|---|
+| `ansinull` | On, Off (both engines: Off in a CASE's condition stays three-valued in SQL Anywhere's front end, D-L1 under IQ's) | -- |
+| `quoted_identifier`, `escape_character` | On, Off (each changes how the SQL is lexed) | -- |
+| `date_order` | YMD, MDY, DMY | -- |
+| `nearest_century` | 0 to 100 | -- (a fraction is -201 under either base: D-Q2 refuted by IQ 17.1) |
+| `date_format`, `timestamp_format`, `time_format` | any value accepted; a value is written as text in `YYYY-MM-DD` (any case) and three or six places of a second | another format where a date or a timestamp is written in it |
+| `precision`, `scale` | any PRECISION and SCALE (each construct refuses what needs more than lite's 38 digits) | a SCALE above the PRECISION |
+| `divide_by_zero_error` | On (-628); Off: NULL of the operation's type for every type, `/`, `%` and MOD, guarded where the database computes it | Off with a divisor of constants alone that is no literal (a database folds it before the guard) |
+| `ansi_substring` | On; Off: a negative start counts from the end, 0 is the first position (the last for a negative length), a negative length takes the characters ending at the start (measured over every start from -10 to 10 and length from -3 to 10) | -- |
+| `first_day_of_week` | 1 to 7: DATEPART's weekday counts from it (no other part moves, nor DATENAME, nor DOW) | a value other than 7 under IQ's engine (it documents DATE_FIRST_DAY_OF_WEEK: D-T9) |
+| `tsql_variables` | On, Off (§9.15) | -- |
+| `conversion_error`, `string_rtruncation` | On | Off (D-C1, D-C2) |
+| `min_numeric_division_scale`, `date_first_day_of_week` (IQ 16 only) | the default | another value (D-N2, D-T9) |
+
+Tier 2 options are read at their default (`row_count` 0, `return_date_time_as_string` Off, ...) and any other value is
+refused by name (`row_count`'s needs D-Q3); Tier 3 options are pinned to theirs. A setting a later level hides changes
+nothing and is no refusal.
+
+**Database properties as independent knobs.** The translator read them separately already; two reads tied to the
+base are now the charset's (`CharSet`): a name's length in bytes (IQ's -250 past 128) and where SQL Anywhere cuts an
+unaliased item's name at 255 bytes. Every combination is read, each judged on a database the oracle makes for it: on
+the IQ 16 base, CaseSensitive On or Off with ISO_BINENG or UTF8BIN (always blank-padded: BlankPadding Off is refused by
+name, as IQ creates no other); on the SQL Anywhere base, each of CaseSensitive, BlankPadding and the two collations.
+Refused by name: AccentSensitive On, a collation other than ISO_BINENG and UTF8BIN, a charset other than their two, a
+collation and a charset that disagree. `lite/options/database_properties.yaml` runs fourteen string queries
+(equality with and without trailing blanks, an ordering, LIKE, IN, an accented letter, ORDER BY, UPPER and LOWER,
+LOCATE, REPLACE, COUNT DISTINCT, a grouping key) under each of the ten combinations beyond the two bases'.
+
+**A real IQ 17.1's database.** A HANA Cloud data lake (IQ 17.1) reads back CaseSensitive On, BlankPadding On,
+Collation UTF8BIN, CharSet UTF-8 and CommProtocol CmdSeq. Given at the database's level over the IQ base, every one of
+them is read and none is refused (`IqSettingsTest.anIq17DataLakesSettingsAreExpressed`; `settings.yaml`'s
+`an_iq_17_data_lakes_database`, on the oracle's database of that combination, under both IQ presets: CmdSeq drops a TDS
+preset's login). The presets themselves stay IQ 16's and SQL Anywhere 17's in this part.
+
+**A latent wrong answer fixed.** A string compared with a column of a NUMERIC(p, s) is that NUMERIC first, rounded to s
+places, where with an integer column or an expression of any type it is a NUMERIC of the PRECISION and SCALE (measured
+at five pairs of them: against a NUMERIC(10,2) column `'0.005'` is 0.01, so `nm > '0.005'` is false for 0.01). The
+island read it at PRECISION and SCALE everywhere; such a string with more places (or more whole digits) than the column
+holds is now refused by name (no committed case compared one: every earlier run is as it was).
+
+**The harness and the oracle.** A case's `settings` key gives its settings, `database.<name>=<value>` and
+`query.<name>=<value>`, as the tagged values will. Until they reach an island, the lanes give them to
+`IqSettings.resolve` and translate the case's SQL under the result as the island's seam does (the schema's tables its
+sources), then run the translation; its answer is stamped with them (`sqlSha`'s one more part).
+`tools/iq-oracle/snap.py` runs such a case on a connection of its own: the database its properties need (made with
+`dbinit`'s `-c`, `-b` and `-z`, IQ 16's PUBLIC precision and scale on the IQ base; eleven beyond the two), the login
+`CommProtocol` gives, each other database-level option for PUBLIC and each query-level setting temporarily, then the
+case's SET statements, each in turn; then every option the case set is restored from the catalog's `SYSOPTIONS` (a
+temporary PUBLIC value reset). A case whose SQL begins with SET statements runs so too. The case files may now sit in `lite/`'s subdirectories.
+
+**Moved runs.** None: every earlier run is as it was on both lanes, and every earlier answer and syntax verdict.
+
+**Evidence:** both lanes identical, 3,925 runs: PASS 2,552, REFUSED 880, BOTH_ERROR 489, SKIP 4; FAIL, BUG, ERROR 0
+(was 3,455: PASS 2,184, REFUSED 835, BOTH_ERROR 432, SKIP 4). `lite/options/` alone, 339 cases, 470 runs: PASS 368,
+REFUSED 45, BOTH_ERROR 57, of which the SET statements' 63 cases, 101 runs: PASS 72, REFUSED 2, BOTH_ERROR 27 (without
+them, 3,824 runs: PASS 2,480, REFUSED 878, BOTH_ERROR 462). The answers: 470 new; every earlier answer identical; the
+answers file's meta line lists the new databases and how settings and SET statements are applied. The Postgres island's Pure is byte-identical and both `sql-parity` ledgers
+unchanged.
+
+**Not in this part.** The Pure plumbing (the platform Profile and the tagged values on a Database and a function, read
+where the island is compiled); the presets' move to IQ 17.1 (the fourth landing); and a lite-only assertion that the
+data's strings are canonical (for grouping over strings): each waits on the user's decision or on other lines' files.
+
+#### Combined with review 7 (2026-10-14)
+
+The two halves of the third landing were built side by side over the M1 gaps: this part, and review 7's fixes (§9.16's
+addendum). Combined, each keeps what it built. A case carries both keys, `settings` and `nondeterministic`. The
+determinism lint reads a run's SELECT after its SET statements, under the settings its case and those statements make
+(with quoted_identifier Off, `ORDER BY "id"` orders by a string, so it reaches no unique column); a SET statement IQ
+raises an error for keeps no rows. Review 7's rules (B2's names, M1's refusal, -831, -854, EXISTS's -131) read the
+settings vector as every other rule does. The lint flags none of `lite/options/`'s 339 cases (470 runs, the SET
+statements' 63 cases and 101 runs among them): none has a TOP, FIRST, START AT or LIST. A row limit set as an option
+(`SET ROWCOUNT n`, `row_count`) is not one the lint reads; it is refused at any value but its default, 0
+(`tsql_set_rowcount_is_not_supported_yet`, its SELECT ordered by `id`), and the lint must learn it when it is built.
+
+**Evidence:** both lanes identical, 3,992 runs: PASS 2,574, REFUSED 896, BOTH_ERROR 518, SKIP 4; FAIL, BUG, ERROR 0.
+These are the two halves' runs (3,925 here, review 7's 67), each with its half's status. The answers: 3,988 (3,466
+cases, 4 skipped), regenerated on SQL Anywhere 17, each as its half snapped it. The Postgres island's Pure is
+byte-identical, both `sql-parity` ledgers are unchanged, and the showcase's pinned SQL is unchanged.
+
+**Review 8 (2026-10-14), fixed; measured on the user's real IQ 17.1 as well as SQL Anywhere 17.**
+- **B1:** a quoted whole decimal (`nearest_century = '60.0'`) was read as 60 under IQ 16 through D-Q2's branch. It is now -201, as IQ 17.1 and SQL Anywhere answer. D-Q2 is refuted: IQ 17.1 raises -201 for `60.8` too.
+- **M1:** an integer option's string is read as IQ reads it: leading blanks, at most one `+`, digits. `''` is 0.
+- **M2:** `SET EXISTING OPTION PUBLIC.<name of no option>` is -200 (SQL Anywhere; HDLADMIN may not set PUBLIC options on the HANA Cloud data lake, -121).
+- **M3:** an option with no temporary level gets its own error, as measured: -202 or -203 per option. On IQ 17.1 `round_to_even` is -202 and `time_zone` is IQ's -1924 (left at -202: pinned, refused before a SELECT reads it).
+- **Minor:**
+  - an overflowing number value (`1e400`) is the syntax error -131;
+  - `isolation_level` is checked (0 to 3, or a snapshot level);
+  - `upgrade_database_capability` is a known option;
+  - tools/iq-oracle never snaps SQL Anywhere's `?` cell;
+  - a `;` in a comment before the SELECT is no separator for the tool either.
+- **Measured on IQ 17.1, not changed:** `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED` is accepted by IQ 17.1, though SQL Anywhere raises -676, so lite keeps accepting it.
+- **Recorded, not fixed:**
+  - the determinism lint's false positives on some deterministic forms (a LEFT JOIN on a unique key, `ORDER BY 1` over `*`, `ORDER BY -id`, a one-row LIST);
+  - a quoted `"PUBLIC".x` owner, still refused by name.
+- **Pinned by:** 17 cases in `lite/options/set_statements.yaml` and 2 in `settings.yaml` (the `r8_` ids), and `IqSettingsTest`'s three new tests.

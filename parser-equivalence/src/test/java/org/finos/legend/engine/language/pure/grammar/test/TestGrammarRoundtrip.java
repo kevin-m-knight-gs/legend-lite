@@ -1,7 +1,7 @@
 // CLASSPATH SHADOW of the engine's roundtrip test base (same FQN wins
 // over the tests-jar): every fixture the engine's suites assemble flows
 // through these statics — we RECORD instead of asserting. The fixtures
-// are adjudicated downstream by the production oracle (corpus tier C6).
+// are adjudicated downstream by the production referee (corpus tier C6).
 package org.finos.legend.engine.language.pure.grammar.test;
 
 import com.legend.equivalence.harvest.FixtureRecorder;

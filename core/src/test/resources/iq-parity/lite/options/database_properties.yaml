@@ -1,0 +1,596 @@
+# The database properties as independent knobs: CaseSensitive x BlankPadding x Collation (and its CharSet) over strings
+# (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the options framework). Each combination the
+# translator reads, on an IQ 16 base (always blank-padded; created case-sensitive or not, ISO_BINENG or UTF8BIN) and a
+# SQL Anywhere 17 base (each of the eight): comparisons, LIKE, IN, ORDER BY, UPPER and LOWER, LOCATE, REPLACE, COUNT
+# DISTINCT and a grouping key. The oracle makes a database of each combination (dbinit's -c, -b, -z; IQ 16's PUBLIC
+# precision and scale on the IQ base). AccentSensitive is Off (the binary collations); another collation, an accent-
+# insensitive one, and an IQ 16 database without blank padding are refused by name (refused.yaml). Judged by SQL
+# Anywhere 17's answers. The SQL in YAML double quotes.
+tests:
+
+  # ---- iq16-default: CaseSensitive='Off'
+  - id: iq_ci_equal
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_equal_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_not_equal
+    sql: "SELECT id FROM t WHERE vc <> 'hello' ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_like_range
+    sql: "SELECT id FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'Apple') ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_accented
+    sql: "SELECT id FROM t WHERE vc = 'résumé' ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_order_by
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_upper_lower
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_locate
+    sql: "SELECT id, LOCATE(vc, 'L') AS p FROM t ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_replace
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_count_distinct
+    sql: "SELECT COUNT(DISTINCT s) AS n FROM g"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+  - id: iq_ci_group_by_a_key
+    sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
+    settings: "database.CaseSensitive='Off'"
+    profile: iq16-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+
+  # ---- iq16-default: Collation='UTF8BIN'
+  - id: iq_utf8_equal
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_equal_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_not_equal
+    sql: "SELECT id FROM t WHERE vc <> 'hello' ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_like_range
+    sql: "SELECT id FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'Apple') ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_accented
+    sql: "SELECT id FROM t WHERE vc = 'résumé' ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_order_by
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_upper_lower
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_locate
+    sql: "SELECT id, LOCATE(vc, 'L') AS p FROM t ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_replace
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_count_distinct
+    sql: "SELECT COUNT(DISTINCT s) AS n FROM g"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_utf8_group_by_a_key
+    sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
+    settings: "database.Collation='UTF8BIN'"
+    profile: iq16-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+
+  # ---- iq16-default: CaseSensitive='Off', Collation='UTF8BIN'
+  - id: iq_ci_utf8_equal
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_equal_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_not_equal
+    sql: "SELECT id FROM t WHERE vc <> 'hello' ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_like_range
+    sql: "SELECT id FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'Apple') ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_accented
+    sql: "SELECT id FROM t WHERE vc = 'résumé' ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_order_by
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_upper_lower
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_locate
+    sql: "SELECT id, LOCATE(vc, 'L') AS p FROM t ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_replace
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_count_distinct
+    sql: "SELECT COUNT(DISTINCT s) AS n FROM g"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+  - id: iq_ci_utf8_group_by_a_key
+    sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
+    settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
+    profile: iq16-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+
+  # ---- sqla17-default: CaseSensitive='On'
+  - id: sa_cs_equal
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_equal_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_not_equal
+    sql: "SELECT id FROM t WHERE vc <> 'hello' ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_like_range
+    sql: "SELECT id FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'Apple') ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_accented
+    sql: "SELECT id FROM t WHERE vc = 'résumé' ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_order_by
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_upper_lower
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_locate
+    sql: "SELECT id, LOCATE(vc, 'L') AS p FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_replace
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_count_distinct
+    sql: "SELECT COUNT(DISTINCT s) AS n FROM g"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+  - id: sa_cs_group_by_a_key
+    sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
+    settings: "database.CaseSensitive='On'"
+    profile: sqla17-default
+
+  # ---- sqla17-default: BlankPadding='On'
+  - id: sa_bp_equal
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_equal_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_not_equal
+    sql: "SELECT id FROM t WHERE vc <> 'hello' ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_like_range
+    sql: "SELECT id FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'Apple') ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_accented
+    sql: "SELECT id FROM t WHERE vc = 'résumé' ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_order_by
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_upper_lower
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_locate
+    sql: "SELECT id, LOCATE(vc, 'L') AS p FROM t ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_replace
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_count_distinct
+    sql: "SELECT COUNT(DISTINCT s) AS n FROM g"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_bp_group_by_a_key
+    sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
+    settings: "database.BlankPadding='On'"
+    profile: sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+
+  # ---- sqla17-default: CaseSensitive='On', BlankPadding='On'
+  - id: sa_cs_bp_equal
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_equal_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_not_equal
+    sql: "SELECT id FROM t WHERE vc <> 'hello' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_like_range
+    sql: "SELECT id FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'Apple') ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_accented
+    sql: "SELECT id FROM t WHERE vc = 'résumé' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_order_by
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_upper_lower
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_locate
+    sql: "SELECT id, LOCATE(vc, 'L') AS p FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_replace
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_count_distinct
+    sql: "SELECT COUNT(DISTINCT s) AS n FROM g"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+  - id: sa_cs_bp_group_by_a_key
+    sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On'"
+    profile: sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+
+  # ---- sqla17-default: Collation='ISO_BINENG'
+  - id: sa_latin1_equal
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_equal_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_not_equal
+    sql: "SELECT id FROM t WHERE vc <> 'hello' ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_like_range
+    sql: "SELECT id FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'Apple') ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_accented
+    sql: "SELECT id FROM t WHERE vc = 'résumé' ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_order_by
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_upper_lower
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_locate
+    sql: "SELECT id, LOCATE(vc, 'L') AS p FROM t ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_replace
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_count_distinct
+    sql: "SELECT COUNT(DISTINCT s) AS n FROM g"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_latin1_group_by_a_key
+    sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
+    settings: "database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+
+  # ---- sqla17-default: CaseSensitive='On', CharSet='ISO_8859-1:1987'
+  - id: sa_cs_latin1_equal
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_equal_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_not_equal
+    sql: "SELECT id FROM t WHERE vc <> 'hello' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_like_range
+    sql: "SELECT id FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'Apple') ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_accented
+    sql: "SELECT id FROM t WHERE vc = 'résumé' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_order_by
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_upper_lower
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_locate
+    sql: "SELECT id, LOCATE(vc, 'L') AS p FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_replace
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_count_distinct
+    sql: "SELECT COUNT(DISTINCT s) AS n FROM g"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+  - id: sa_cs_latin1_group_by_a_key
+    sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
+    settings: "database.CaseSensitive='On', database.CharSet='ISO_8859-1:1987'"
+    profile: sqla17-default
+
+  # ---- sqla17-default: BlankPadding='On', Collation='ISO_BINENG'
+  - id: sa_bp_latin1_equal
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_equal_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_not_equal
+    sql: "SELECT id FROM t WHERE vc <> 'hello' ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_like_range
+    sql: "SELECT id FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'Apple') ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_accented
+    sql: "SELECT id FROM t WHERE vc = 'résumé' ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_order_by
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_upper_lower
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_locate
+    sql: "SELECT id, LOCATE(vc, 'L') AS p FROM t ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_replace
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_count_distinct
+    sql: "SELECT COUNT(DISTINCT s) AS n FROM g"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_bp_latin1_group_by_a_key
+    sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
+    settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+
+  # ---- sqla17-default: CaseSensitive='On', BlankPadding='On', Collation='ISO_BINENG'
+  - id: sa_cs_bp_latin1_equal
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_equal_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_not_equal
+    sql: "SELECT id FROM t WHERE vc <> 'hello' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_like_range
+    sql: "SELECT id FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'Apple') ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_accented
+    sql: "SELECT id FROM t WHERE vc = 'résumé' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_order_by
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_upper_lower
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_locate
+    sql: "SELECT id, LOCATE(vc, 'L') AS p FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_replace
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_count_distinct
+    sql: "SELECT COUNT(DISTINCT s) AS n FROM g"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+  - id: sa_cs_bp_latin1_group_by_a_key
+    sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
+    profile: sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"

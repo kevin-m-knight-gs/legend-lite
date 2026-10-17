@@ -73,10 +73,34 @@ public interface InputDialect {
         SqlAst.@com.legend.base.Nullable Ident table(SqlAst.ColumnRef ref);
     }
 
+    /** IQ island, 2026-10-14 (the third landing): {@code ref}, a column reference, names no column of its own query's
+     *  FROM items, and the enclosing queries' are searched next: nothing unless the dialect reads such a name
+     *  otherwise there (IQ reads an enclosing query's select-list alias before its columns: refused by name). */
+    default void columnNotHere(SqlAst.ColumnRef ref) {
+    }
+
+    /** IQ island, 2026-10-14 (review 7's M1): {@code ref}, a column reference, reads an enclosing query's column (found
+     *  there after {@link #columnNotHere}): nothing unless the dialect refuses such a read where it stands. */
+    default void enclosingColumn(SqlAst.ColumnRef ref) {
+    }
+
+    /** IQ island, 2026-10-14 (the third landing): whether no one reads {@code s}'s output names, so that two of one
+     *  name are no error (an EXISTS subquery's, a set operation's later branch's): never, unless the dialect says so
+     *  (Postgres's: a relation's column names are distinct). */
+    default boolean namesUnread(SqlAst.Select s) {
+        return false;
+    }
+
     /** The output name of a select item that is a column reference written without an alias: {@code written} is the
      *  reference's last part as written, {@code label} the name the column has where it is read (Postgres's). */
     default String columnName(SqlAst.Ident written, String label) {
         return label;
+    }
+
+    /** IQ island, 2026-10-14 (review 7's B2): whether {@code item}, an unaliased column reference, is named as a
+     *  column ({@link #columnName}), else by {@link #defaultName(SqlAst.SelectExpr, Tables)}: always (Postgres's). */
+    default boolean namedAsColumn(SqlAst.SelectExpr item) {
+        return true;
     }
 
     // ------------------------------------------------------------------ types
@@ -194,6 +218,55 @@ public interface InputDialect {
         return null;
     }
 
+    /** IQ island, 2026-10-15: column {@code i} of one side of {@code s} ({@code left}'s or the right's), its value
+     *  {@code side}, converted to the type the column takes beside the other side's {@code other} ({@link #setColumn}):
+     *  null where its values are already that type's. */
+    default SqlToPure.@com.legend.base.Nullable Tx setValue(SqlAst.SetOperation s, int i, SqlToPure.Tx side,
+            SqlToPure.ColumnType other, boolean left) {
+        return null;
+    }
+
+    /** Whether an ORDER BY key orders nothing: a constant the dialect does not read as a position (IQ island,
+     *  2026-10-16, measured on IQ 17.1 and SQL Anywhere 17: an integer past an INT's range orders nothing, 2147483647
+     *  past the items is IQ's -152). Postgres's: none, every integer is a position. */
+    default boolean ordersNothing(SqlAst.Expr key) {
+        return false;
+    }
+
+    /** Which rows a statement with a row limit computes the items of its select list for that its ORDER BY does not
+     *  read ({@code SqlToPure.assemble}; IQ island, 2026-10-16, the user's decision). An item that can raise raises
+     *  for those rows only. Postgres's: every row, before its sort and its limit, as SQL's order has it (measured on
+     *  Postgres 16 for a division, which it computes before the sort; it puts off an item its planner costs as
+     *  expensive, as {@code sql-parity/lite/math.yaml} records). */
+    default RowLimitItems rowLimitItems(SqlAst.Select s) {
+        return RowLimitItems.EVERY_ROW;
+    }
+
+    /** {@link #rowLimitItems}' answers. An ORDER BY's items, and all of a DISTINCT's, are computed for every row
+     *  whatever the answer: the sort and the DISTINCT read them all. */
+    enum RowLimitItems {
+        /** every row, before the sort and the limit */
+        EVERY_ROW,
+        /** the rows the limit returns */
+        ROWS_RETURNED,
+        /** the rows up to the limit's last, the ones its offset skips too */
+        ROWS_UP_TO_THE_LAST
+    }
+
+    /** IQ island, 2026-10-15: whether an ORDER BY's unqualified name that is {@code output}'s name reads that output
+     *  ({@code SqlToPure.sortKey}); otherwise it is a column of the FROM clause, resolved (an ambiguous one an error) as
+     *  any column is. Postgres's: any output name. */
+    default boolean ordersByOutput(SqlAst.Select s, String output) {
+        return true;
+    }
+
+    /** Whether {@code *=} and {@code =*} at the top level of a query's WHERE are T-SQL outer joins, which the
+     *  translator makes the query's joins (IQ island, 2026-10-15, checklist 0.6: IQ's, under its tsql_outer_joins
+     *  option); Postgres has no such operators. */
+    default boolean readsTsqlOuterJoins() {
+        return false;
+    }
+
     /** Whether a NATURAL join shows the columns its two sides share once, merged (the standard's, Postgres's); a
      *  dialect that keeps both sides' columns, each read qualified, joining on their equality, says false. */
     default boolean mergesNaturalJoin() {
@@ -214,6 +287,27 @@ public interface InputDialect {
     default java.util.function.@com.legend.base.Nullable UnaryOperator<com.legend.protocol.spec.ValueSpecification> key(
             String clause, SqlToPure.Tx value, SqlAst.@com.legend.base.Nullable Expr expr, SqlAst.Pos pos) {
         return null;
+    }
+
+    /**
+     * Whether a GROUP BY key the dialect answers a {@link #key} for shows a member of each group (IQ island,
+     * 2026-10-15): the groups are the key's, and where the query reads the key's value it reads one value of the group
+     * -- the least of the values themselves, which is one of them -- rather than the key. A dialect whose database
+     * shows a group's first value it meets (its plan's choice) may answer true: any value of the group is an answer
+     * that database could give. Postgres's keys are its values (false).
+     */
+    default boolean representative(String clause, SqlToPure.Tx value, SqlAst.@com.legend.base.Nullable Expr expr) {
+        return false;
+    }
+
+    /**
+     * A set operation's key for its column {@code i} (IQ island, 2026-10-15): as {@link #key} of the operation's name,
+     * where the dialect needs the column's place to know it. A UNION column keyed so shows one value of each group
+     * ({@link #representative}); INTERSECT and EXCEPT read no key.
+     */
+    default java.util.function.@com.legend.base.Nullable UnaryOperator<com.legend.protocol.spec.ValueSpecification>
+            setKey(SqlAst.SetOperation s, int i, SqlToPure.Tx value) {
+        return key(s.op().name(), value, null, s.pos());
     }
 
     // ------------------------------------------------------------------ grouping
@@ -240,6 +334,15 @@ public interface InputDialect {
      *  grouped query; null for the translator's own reading (Postgres's). */
     default SqlToPure.@com.legend.base.Nullable Aggregation aggregate(SqlAst.FunctionCall f,
             SqlToPure.Grouping at) {
+        return null;
+    }
+
+    // ------------------------------------------------------------------ windows
+
+    /** IQ island, 2026-10-15 (windows): the call {@code f} of a window function (its OVER clause read: a key of the
+     *  window that is a string is the dialect's {@link #key} for clause {@code PARTITION BY} or {@code ORDER BY}) as
+     *  the dialect computes it {@code at} its window; null for the translator's own reading (Postgres's). */
+    default SqlToPure.@com.legend.base.Nullable WindowFunction window(SqlAst.FunctionCall f, SqlToPure.Windowing at) {
         return null;
     }
 
@@ -272,7 +375,8 @@ public interface InputDialect {
         AMBIGUOUS_TABLE,
         /** A qualifier no FROM item has: the qualifier as written. */
         NO_SUCH_TABLE,
-        /** A column of a grouped query that is no group key: the reference as written. */
+        /** A column of a grouped query that is no group key: the reference as written (IQ island, 2026-10-14, the third
+         *  landing: and the reference itself). */
         NOT_GROUPED,
         /** Two FROM items of one name: the name as written. */
         DUPLICATE_TABLE,
@@ -281,6 +385,11 @@ public interface InputDialect {
         /** A USING column one side does not have: the column as written, and the side. */
         NO_SUCH_USING_COLUMN,
         /** A window reference to no named window: the name as written. */
-        NO_SUCH_WINDOW
+        NO_SUCH_WINDOW,
+        /** IQ island, 2026-10-14 (the third landing): a SELECT DISTINCT's ORDER BY key that is none of its items. */
+        DISTINCT_ORDER_KEY,
+        /** IQ island, 2026-10-14 (the third landing): a set operation's two sides of different widths: the operation
+         *  ({@code UNION}, {@code INTERSECT}, {@code EXCEPT}). */
+        SET_WIDTHS
     }
 }

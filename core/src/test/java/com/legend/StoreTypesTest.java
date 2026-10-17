@@ -10,9 +10,6 @@ import com.legend.sql.SqlDdl;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlRewriter;
 import com.legend.sql.SqlSource;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,7 +35,7 @@ import org.junit.jupiter.api.Test;
  */
 class StoreTypesTest {
 
-    private static final String MODEL = """
+    static final String MODEL = """
             ###Pure
             Class s::Host { id: Integer[1]; name: String[0..1]; addr: String[0..1]; }
             ###Relational
@@ -151,16 +148,16 @@ class StoreTypesTest {
     // ---- step 4: the read ----
 
     /** {@code CAST(<qualified ref to col> AS VARCHAR)}, however the dialect quotes the reference. */
-    private static String textRead(String col) {
+    static String textRead(String col) {
         // the column as the dialect spells it: Postgres folds a store's bare name to lower case (Postgres.physicalName)
         return "CAST\\(\"?\\w+\"?\\.\"?(?i:" + col + ")\"?\\s+AS VARCHAR\\)";
     }
 
-    private static String sql(String model, String query) {
+    static String sql(String model, String query) {
         return Compiler.query(Compiler.compileModel(model), query).plan("s::RT").sql();
     }
 
-    private static String on(String type) {
+    static String on(String type) {
         return type.equals("H2") ? MODEL.replace("type: DuckDB;\n  specification: DuckDB { }; auth: Test;",
                 "type: H2;\n  specification: LocalH2 { }; auth: DefaultH2;") : MODEL.replace("type: DuckDB;", "type: " + type + ";");
     }
@@ -207,13 +204,12 @@ class StoreTypesTest {
                 sql(view, "#>{s::DB.HOST_ADDRS}#")).find());
     }
 
+    /** A nested value is read as stored on the model's own database (Postgres reads it as JSONB:
+     *  {@code StoreTypesPostgresTest}). */
     @Test
-    void aNestedValueIsReadAsStoredOnDuckDbAndAsJsonbOnPostgres() {
-        String duck = sql(MODEL, "#>{s::DB.HOSTS}#->select(~[META])");
-        assertFalse(duck.contains("JSONB"), duck);
-        String pg = sql(on("Postgres"), "#>{s::DB.HOSTS}#->select(~[META])");
-        // Postgres folds the store's bare META to lower case (Postgres.physicalName)
-        assertTrue(java.util.regex.Pattern.compile("CAST\\(\"\\w+\"\\.meta AS JSONB\\)").matcher(pg).find(), pg);
+    void aNestedValueIsReadAsStored() {
+        String stored = sql(MODEL, "#>{s::DB.HOSTS}#->select(~[META])");
+        assertFalse(stored.contains("JSONB"), stored);
     }
 
     @Test
@@ -229,30 +225,6 @@ class StoreTypesTest {
                 """;
         String q = sql(plain, "#>{s::DB.HOSTS}#");
         assertFalse(q.contains("CAST"), q);
-    }
-
-    @Test
-    void aUuidDeclaredOtherFiltersAndGroupsAsTheTextItShowsOnDuckDb() throws Exception {
-        String model = """
-                ###Relational
-                Database s::DB ( Table HOSTS (ID INTEGER PRIMARY KEY, REF OTHER) )
-                ###Connection
-                RelationalDatabaseConnection s::Conn { store: s::DB; type: DuckDB;
-                  specification: DuckDB { }; auth: Test; }
-                ###Runtime
-                Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
-                """;
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            try (Statement st = c.createStatement()) {
-                st.execute("CREATE TABLE HOSTS (ID INTEGER, REF UUID)");
-                st.execute("INSERT INTO HOSTS VALUES (1, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'),"
-                        + " (2, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'), (3, 'b1ffcd00-0000-4000-8000-000000000001')");
-            }
-            var r = Execution.execute(model, "|#>{s::DB.HOSTS}#->filter(x|$x.REF->toOne()->startsWith('a0ee'))"
-                    + "->groupBy(~[REF], ~[n: x|$x.ID : y|$y->count()])", "s::RT", c);
-            assertEquals(List.of("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11|2"),
-                    r.rows().stream().map(row -> row.get(0) + "|" + row.get(1)).toList());
-        }
     }
 
     /** The stored types the ONE scan of {@code table} carries, in the query's lowered MIR. */

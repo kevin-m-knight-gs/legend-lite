@@ -717,6 +717,9 @@ public sealed interface Type permits
         if (t == SqlType.Scalar.DATE) {
             return Type.Primitive.STRICT_DATE;
         }
+        if (t == SqlType.Scalar.TIME) {
+            return Type.Primitive.STRICT_TIME;
+        }
         if (t == SqlType.Scalar.TEMPORAL_TEXT) {
             // the precision-faithful temporal-text carrier (partials,
             // written subsecond digits): a temporal value, kind by its

@@ -124,7 +124,7 @@ public final class SQLite extends AnsiSqlRenderer {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT -> "INTEGER";
             case DOUBLE -> "REAL";
-            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
+            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -658,6 +658,12 @@ public final class SQLite extends AnsiSqlRenderer {
     @Override
     protected String timestampLit(String iso) {
         return "'" + iso.replace('T', ' ') + "'";
+    }
+
+    /** A time of day is its text. */
+    @Override
+    protected String timeLit(String iso) {
+        return "'" + iso + "'";
     }
 
     /** A Float literal is a REAL; the infinities are REALs past the range ({@code 9e999}, measured: Infinity); NaN has
@@ -1268,6 +1274,10 @@ public final class SQLite extends AnsiSqlRenderer {
                             .append(" FROM (SELECT ").piece(padded(dateTimeText(value))).append(" AS t) AS __u)")
                     : value;
             case JSON -> w -> w.append("json_quote(").piece(value).append(")");
+            // a time of day is its text: a date-time text's from its twelfth character, a date's midnight
+            case TIME -> from == SqlType.Scalar.TIMESTAMP || from == SqlType.Scalar.TIMESTAMPTZ
+                    ? w -> w.append("substr(").piece(value).append(", 12)")
+                    : from == SqlType.Scalar.DATE ? w -> w.append("'00:00:00'") : value;
             case TEMPORAL_TEXT, DECIMAL_TEXT -> value;
         };
     }
@@ -1470,6 +1480,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case RTRIM -> writer.function("rtrim", c.args());
             case TRIM -> writer.function("trim", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> throw wall(c.fn(), "SQLite has no translate function");
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case CHR -> writer.function("char", c.args());
             case FLOOR_RAW -> writer.function("floor", c.args());
@@ -1562,7 +1573,12 @@ public final class SQLite extends AnsiSqlRenderer {
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC text: UTC's wall time is the instant's, either way
             case TIMEZONE -> timezone(writer, c, parentPrec);
+            // a date's text, a space, a time's text: the date-time text SQLite's date functions read
+            case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 3).append(" || ' ' || ")
+                    .expr(a.get(1), 3));
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000.0)");
+            case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: SQLite keeps"
+                    + " microseconds (the Cypher island's nanosecond leg is DuckDB's)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("datetime(").expr(a.get(0), 0).append(", 'unixepoch')");
             case FROM_EPOCH_MS -> writer.append("strftime('%Y-%m-%d %H:%M:%f', ").expr(a.get(0), 6)
@@ -2311,7 +2327,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case DAY_OF_YEAR -> "%j";
             case ISO_DAY_OF_WEEK -> "%u";
             case QUARTER -> null;
-            case MILLISECOND, MICROSECOND -> throw new DialectCapability("date part '"
+            case MILLISECOND, MICROSECOND, NANOSECOND -> throw new DialectCapability("date part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured SQLite spelling");
         };
         if (code == null) {
@@ -2336,7 +2352,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case MINUTE -> w -> w.append("strftime('%Y-%m-%d %H:%M:00', ").expr(t, 0).append(")");
             case SECOND -> w -> w.append("strftime('%Y-%m-%d %H:%M:%S', ").expr(t, 0).append(")");
             case MILLISECOND -> w -> w.append("strftime('%Y-%m-%d %H:%M:%f', ").expr(t, 0).append(")");
-            case MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part '"
+            case MICROSECOND, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured SQLite spelling");
         };
     }
@@ -2353,8 +2369,8 @@ public final class SQLite extends AnsiSqlRenderer {
         String months = switch (unit) {
             case YEAR -> "years";
             case MONTH -> "months";
-            case QUARTER, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK ->
-                    null;
+            case QUARTER, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, DAY_OF_YEAR,
+                    ISO_DAY_OF_WEEK -> null;
         };
         if (months != null) {
             SqlWriter.Piece modifier = w -> w.append("printf('%+d " + months + "', ").expr(n, 0).append(")");
@@ -2386,7 +2402,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case SECOND -> 1000000L;
             case MILLISECOND -> 1000L;
             case MICROSECOND -> 1L;
-            case YEAR, QUARTER, MONTH, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
         };
     }
 
@@ -2414,7 +2430,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case SECOND -> boundaries(from, to, 1000000L);
             case MILLISECOND -> boundaries(from, to, 1000L);
             case MICROSECOND -> boundaries(from, to, 1L);
-            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part '"
+            case NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part '"
                     + part.name().toLowerCase(Locale.ROOT) + "' has no measured SQLite spelling");
         };
     }
@@ -3053,7 +3069,22 @@ public final class SQLite extends AnsiSqlRenderer {
             case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO " + qualified(it.schema(), it.table(), it.quoting())
                     + columns(it.columns(), it.quotedColumns()) + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + ";";
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct);
         };
+    }
+
+    /** {@inheritDoc} SQLite runs the standard spelling (measured: ReservedNamesGenerationTest), its query a root as
+     *  {@link #render(SqlQuery)} writes one, so its labels are delivered as the trail's text shows them. */
+    @Override
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        roots.push(ct.query().outputs());
+        rootSelects.push(new IdentityHashMap<>());
+        try {
+            return createTemporaryTableAs(ct);
+        } finally {
+            roots.pop();
+            rootSelects.pop();
+        }
     }
 
     private String columns(List<String> columns, java.util.Set<String> quoted) {

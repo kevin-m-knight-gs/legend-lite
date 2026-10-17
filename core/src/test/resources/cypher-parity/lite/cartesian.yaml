@@ -1,0 +1,33 @@
+# The #Cypher{...}# island's cartesian-product cases (docs/CYPHER_STUDY_2026_10_15.md §12.28): MATCH (a:A), (b:B),
+# or a MATCH after a MATCH sharing no variable with it, is every pair of the two patterns' rows (Pure's join on a
+# condition that always holds), the WHERE over the pairs. Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/cartesian/*'), keyed lite/cartesian/<id>.
+tests:
+  - id: two_classes_joined_on_a_property
+    graph: |
+      CREATE (:A {id: 1}), (:A {id: 2}), (:B {id: 2}), (:B {id: 3})
+    cypher: "MATCH (a:A), (b:B) WHERE a.id = b.id RETURN a, b"
+  - id: counts_over_every_pair
+    graph: |
+      CREATE (:A), (:X), (:X)
+    cypher: "MATCH (a:A), (b:X) RETURN count(a) * 10 + count(b) * 5 AS x"
+  - id: every_pair
+    graph: |
+      CREATE (:A {id: 1}), (:A {id: 2}), (:B {id: 3}), (:B {id: 4})
+    cypher: "MATCH (a:A), (b:B) RETURN a.id AS x, b.id AS y ORDER BY x, y"
+  - id: a_match_after_a_match
+    graph: |
+      CREATE (:A {id: 1}), (:A {id: 2}), (:B {id: 3}), (:B {id: 4})
+    cypher: "MATCH (a:A) MATCH (b:B) WHERE b.id > 3 RETURN a.id AS x, b.id AS y ORDER BY x, y"
+  - id: a_hop_beside_a_lone_node
+    graph: |
+      CREATE (:A {id: 1})-[:T]->(:C {id: 9}), (:B {id: 2})
+    cypher: "MATCH (a:A)-[:T]->(c:C), (b:B) RETURN a.id AS x, c.id AS z, b.id AS y"
+  - id: a_map_around_an_aggregate_over_pairs
+    graph: |
+      CREATE (:A {num: 1}), (:B {num: 42})
+    cypher: "MATCH (a:A), (b:B) RETURN a.num AS foo, b.num AS bar, {name: count(b)} AS baz"
+  - id: a_path_beside_a_lone_node
+    graph: |
+      CREATE (:A {id: 1})-[:T]->(:C {id: 9}), (:B {id: 2})
+    cypher: "MATCH p = (a:A)-[:T]->(c:C), (b:B) RETURN p, b"

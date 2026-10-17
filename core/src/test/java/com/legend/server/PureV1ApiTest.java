@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -609,10 +608,9 @@ class PureV1ApiTest {
     }
 
     private static List<List<Object>> rows(List<String> setup, String sql) throws SQLException {
-        // legend-engine's own H2 settings (its NON_KEYWORDS list, MODE=LEGACY): the setup
-        // data names a `year` column, reserved in a bare H2 2.x
-        try (Connection c = DriverManager.getConnection(
-                "jdbc:h2:mem:" + com.legend.exec.H2Settings.SETTINGS);
+        // legend-engine's text, replayed on the referee's database with its session settings (the engine's own: its
+        // NON_KEYWORDS list, MODE=LEGACY): the setup data names a `year` column, reserved in a bare session
+        try (Connection c = com.legend.testbackend.TestBackends.referee().open();
                 Statement st = c.createStatement()) {
             for (String s : setup) {
                 st.execute(s);

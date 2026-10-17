@@ -31,7 +31,7 @@ public class Test_LegendLite_ClickHouse_GrammarFunctions_PCT extends PCTReportCo
     // First measured 2026-10-12 (ClickHouse 25.8, the pinned server).
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // getAll's testBasic passes through the harness's connection, not the dialect: the system store's tables
-            // are a session's own, so PctBackend.openSystem opens a session (EmbeddedClickHouse.sessionJdbcUrl). The
+            // are a session's own, so its test backend's openSystem opens a session (EmbeddedClickHouse.sessionJdbcUrl). The
             // ClickHouse connector owns it (the dialect plan's P5), and with it the session's idle expiry and its
             // one-statement-at-a-time lock (PR #34's review, 2026-10-13)
             // INSTANCE IDENTITY (as on DuckDB): the asserts want the interpreter's ORIGINAL instances back, or eq/==
