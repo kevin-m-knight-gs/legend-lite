@@ -302,9 +302,9 @@ public final class IqParser {
                     + IqDialect.syntaxCode(), peek().pos());
         }
         if (peek().isWord("limit")) {
-            // a syntax error too (measured on IQ 17.1), but a clause where the reserved_keywords option names it
-            throw SqlSyntaxException.unsupported("LIMIT is not supported: IQ reads it only where the reserved_keywords"
-                    + " option names it (its syntax error otherwise)", peek().pos());
+            // a syntax error (measured on IQ 17.1), a clause only where the reserved_keywords option names it, which
+            // no profile does (IqOption.RESERVED_KEYWORDS, not yet read: its default alone)
+            throw limit(peek());
         }
         // IQ island, 2026-10-15 (the corpus lane: 1,691 of SEDE's 11,708 queries end so; measured on IQ 17.1): a
         // statement's one trailing separator is read, as IQ reads it; a second statement after it is refused
@@ -2029,9 +2029,6 @@ public final class IqParser {
         return new SqlAst.ColumnRef(parts, first.pos());
     }
 
-    /** {@code name(value, ...)}: a scalar function's call, which the dialect's catalog reads (or refuses by name). An
-     *  owner-qualified name, an aggregate, {@code DISTINCT} or {@code *} in the call, and a window ({@code OVER}) are
-     *  refused by name. */
     /** TRIM and its one-sided forms ({@link #ansiTrim}). */
     private static final Set<String> TRIMS = Set.of("trim", "ltrim", "rtrim");
 
@@ -2043,6 +2040,9 @@ public final class IqParser {
                 + " reads TRIM(s) and TRIM(s, set)" + IqDialect.syntaxCode(), at.pos());
     }
 
+    /** {@code name(value, ...)}: a scalar function's call, which the dialect's catalog reads (or refuses by name). An
+     *  owner-qualified name, an aggregate, {@code DISTINCT} or {@code *} in the call, and a window ({@code OVER}) are
+     *  refused by name. */
     private SqlAst.Expr call(List<SqlAst.Ident> parts, IqLexer.Token first) {
         String name = parts.get(parts.size() - 1).text();
         if (parts.size() > 1) {
@@ -2113,7 +2113,7 @@ public final class IqParser {
         }
         boolean trims = TRIMS.contains(IqLexer.lower(name));
         if (trims && (peek().isWord("both") || peek().isWord("leading") || peek().isWord("trailing"))
-                && !peek(1).isOp(",") && !peek(1).isOp(")")) {
+                && (peek(1).kind() == IqLexer.Kind.STRING || peek(1).is("from"))) {
             throw ansiTrim(peek(1));
         }
         if (!empty && !peek().isOp(")")) {
@@ -2610,6 +2610,9 @@ public final class IqParser {
                 t.pos());
     }
 
+    /** Other dialects' type names IQ raises its syntax error for (IQ island, 2026-10-17, measured on IQ 17.1). */
+    private static final Set<String> FOREIGN_TYPES = Set.of("datetime2", "interval");
+
     /**
      * A data type (GRAMMAR T1-T11), as the name the dialect reads and its sizes: {@code CHAR}, {@code VARCHAR} (with a
      * length, and 1 after it for a CHAR length unit), {@code LONG VARCHAR} ({@code TEXT}), {@code SMALLINT},
@@ -2619,9 +2622,6 @@ public final class IqParser {
      * binary, national and other types by their own names (refused when translated). A size outside its type's range
      * is IQ's syntax error; any other name (a domain) is refused by name.
      */
-    /** Other dialects' type names IQ raises its syntax error for (IQ island, 2026-10-17, measured on IQ 17.1). */
-    private static final Set<String> FOREIGN_TYPES = Set.of("datetime2", "interval");
-
     private SqlAst.TypeName dataType() {
         IqLexer.Token first = peek();
         if (first.kind() != IqLexer.Kind.KEYWORD && first.kind() != IqLexer.Kind.WORD) {
@@ -3065,6 +3065,18 @@ public final class IqParser {
             return new SqlSyntaxException("OFFSET and FETCH are no clauses of IQ's (its row limit is TOP n START AT m)"
                     + IqDialect.syntaxCode(), t.pos());
         }
+        if (t.isWord("limit") || before != null && before.isWord("limit") && t.kind() == IqLexer.Kind.NUMBER) {
+            // IQ island, 2026-10-17 (the corpus lane's subqueries' ORDER BY x LIMIT 1 and FROM t LIMIT 5; measured on
+            // IQ 17.1): LIMIT is a name under the reserved_keywords option's default, so a row limit spelled so is its
+            // syntax error, inside a subquery as after a table (its alias then)
+            return limit(t);
+        }
         return SqlSyntaxException.unsupported("'" + t.text() + "' here is not supported", t.pos());
+    }
+
+    /** LIMIT as a row limit: IQ's syntax error under the reserved_keywords option's default ({@link #unexpected}). */
+    private static SqlSyntaxException limit(IqLexer.Token t) {
+        return new SqlSyntaxException("LIMIT is no clause of IQ's under the reserved_keywords option's default (its row"
+                + " limit is TOP n START AT m)" + IqDialect.syntaxCode(), t.pos());
     }
 }

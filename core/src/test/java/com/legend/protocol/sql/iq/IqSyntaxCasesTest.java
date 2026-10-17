@@ -62,8 +62,8 @@ class IqSyntaxCasesTest {
             String probe = ((Json.Str) o.get("probe")).value();
             String policy = ((Json.Str) o.get("policy")).value();
             String family = policy.contains(":") ? policy.substring(0, policy.indexOf(':')) : policy;
-            IqProfile profile = profile((Json.Obj) o.get("options"));
-            Verdict v = verdict(probe, profile, crashed, id);
+            Json.Obj options = (Json.Obj) o.get("options");
+            Verdict v = refusedOption(options) ? Verdict.REFUSED : verdict(probe, profile(options), crashed, id);
             counts.computeIfAbsent(family, k -> new TreeMap<>()).merge(v, 1, Integer::sum);
             if (family.equals("reject") && v == Verdict.PARSED) {
                 rejectParsed.add(id);
@@ -106,6 +106,24 @@ class IqSyntaxCasesTest {
             }
         }
         return IqProfile.IQ16_DEFAULT;
+    }
+
+    /** Whether a case's options set one that changes what parses and that the island refuses a database for (IQ
+     *  island, 2026-10-17: reserved_keywords, which makes LIMIT a clause -- under its default IQ 17.1 raises its syntax
+     *  error for a row limit spelled LIMIT, and a database setting it is refused by name, {@code IqSettingsTest}). */
+    private static boolean refusedOption(Json.Obj options) {
+        for (Map.Entry<String, Json.Node> e : options.fields().entrySet()) {
+            if (e.getKey().equalsIgnoreCase("reserved_keywords") && e.getValue() instanceof Json.Str s
+                    && !s.value().isEmpty()) {
+                try {
+                    IqSettings.resolve(IqProfile.IQ16_DEFAULT, List.of(new IqSettings.Setting(
+                            IqSettings.Level.DATABASE, e.getKey(), s.value()))).check();
+                } catch (SqlTranslationException refused) {
+                    return refused.kind() == SqlTranslationException.Kind.UNSUPPORTED;
+                }
+            }
+        }
+        return false;
     }
 
     private static Verdict verdict(String probe, IqProfile profile, List<String> crashed, String id) {

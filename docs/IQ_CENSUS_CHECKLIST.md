@@ -280,6 +280,19 @@ island's reason, those IQ answers, and what became of them:
 - IQ's order among its errors (2026-10-17, from the IQ_ERROR verification): a row limit in a subquery or a derived
   table (-1001030) before an outer join's ON subquery (-1001047; 7 of 7), and a held item's own subquery inside a
   conditional expression or an aggregate (-1001030) before a qualified read of it (-1005004; 4 of 4);
+- TO_CHAR and LIMIT (BIRD's TO_CHAR(date, 'YYYY'), 19, and LIMIT, 13 beside SEDE's and SQLStorm's 18; 2026-10-17,
+  measured): IQ's TO_CHAR is SQL Anywhere's conversion of a binary string by a character set, so of a date it is its
+  -157 as it plans, and of a string the string. LIMIT is a name under the reserved_keywords option's default, so a
+  row limit spelled so is its syntax error -131, in a subquery and after a table too. With these, BIRD's errors
+  are named as IQ names them, except a few: SQLite's `Match` table (IQ's reserved word, which the answers driver
+  delimits, 11), a Postgres `::` cast, a 38-digit CAST and a table of no island (one each);
+- the landing's review (2026-10-17; each measured on IQ 17.1 and pinned in `corpus_gaps.yaml`): a derived table's
+  subquery column read under another subquery, or held by a DISTINCT derived table, is refused or IQ's -1001030 (not
+  read as read once); a NATURAL or USING join over one is refused; a column list beside `*` names no item; a grouped
+  outer query's qualified key is matched by its qualifier; CONVERT styles 20 and 21 read a four-digit year; TRIM's
+  ANSI form needs a string or FROM after BOTH, LEADING or TRAILING (a column named so is a column). The review's
+  claim that a string `+` keeps an outer join outer was measured false: under WHERE, `b.label + 'x' = 'x'` drops the
+  rows the join supplies NULLs for, though a stored NULL concatenates as ''; `||` keeps them (both pinned);
 - not built yet: PIVOT (IQ 17.1 reads it, both engines; an IN list of literals, COUNT shown as a NUMERIC(20,0)).
   The corpus's 10 are SQL Server's `IN ([Question], [Answer])`, IQ's -143 (a name) or -1816 (a number);
 - open, a decision: ODBC escapes (`{d '2010-03-01'}`, `{ts ...}`, `{fn NOW()}`; 19 of the corpus's queries). IQ 17.1's

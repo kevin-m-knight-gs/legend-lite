@@ -1243,3 +1243,36 @@ tests:
     sql: "SELECT x FROM t AS d(x, y)"
   - id: a_from_call_of_a_tables_name_is_iqs_error
     sql: "SELECT id FROM t (NOLOCK)"
+
+  # ---- TO_CHAR and LIMIT (IQ island, 2026-10-17; BIRD's TO_CHAR(date, 'YYYY') and ... LIMIT 1, measured on IQ 17.1):
+  # TO_CHAR converts a binary string by a character set, so a date is its -157 as it plans; LIMIT is a name under the
+  # reserved_keywords option's default, a row limit spelled so its syntax error
+  - id: to_char_of_a_date_is_iqs_error
+    sql: "SELECT TO_CHAR(dt, 'YYYY') AS a FROM t WHERE 1 = 0"
+  - id: to_char_of_a_string
+    sql: "SELECT id, TO_CHAR(vc) AS a FROM t ORDER BY id"
+  - id: limit_in_a_subquery_is_iqs_syntax_error
+    sql: "SELECT id FROM t WHERE id = (SELECT id FROM t ORDER BY id LIMIT 1)"
+  - id: limit_after_a_table_is_iqs_syntax_error
+    sql: "SELECT id FROM t LIMIT 5"
+
+  # ---- the landing's review (2026-10-17): a string + under a WHERE makes an outer join inner, though it reads a stored
+  # NULL as '' (measured; || keeps it outer); a subquery's outer query and a DISTINCT derived table keep a derived
+  # subquery column IQ's; styles 20 and 21 read a constant; TRIM of a column of a table named both
+  - id: outer_join_under_a_string_plus_is_inner
+    sql: "SELECT a.id, b.id AS bid FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = b.t_id) WHERE b.label + 'x' = 'x' ORDER BY a.id"
+    profile: iq17-default
+  - id: outer_join_under_a_concatenation_operator_stays_outer
+    sql: "SELECT a.id, b.id AS bid FROM t a LEFT JOIN u b ON b.t_id = a.id AND b.id = (SELECT MAX(c.id) FROM u c WHERE c.t_id = b.t_id) WHERE b.label || 'x' = 'x' ORDER BY a.id"
+    profile: iq17-default
+  - id: derived_subquery_column_under_a_subquery_is_refused
+    sql: "SELECT id FROM t WHERE id IN (SELECT x FROM (SELECT (SELECT MAX(u.id) FROM u) AS x FROM t) d)"
+    profile: iq17-default
+  - id: derived_subquery_column_of_a_distinct_table_is_iqs_error
+    sql: "SELECT COUNT(*) AS n FROM (SELECT DISTINCT t.id, (SELECT MAX(u.id) FROM u WHERE u.t_id = t.id) AS x FROM t) d"
+    profile: iq17-default
+  - id: convert_date_styles_20_and_21_of_constants
+    sql: "SELECT CONVERT(DATE, '2012-01-13', 20) AS a, CONVERT(DATETIME, '2012-01-13 10:20', 21) AS b"
+    engine: sa
+  - id: trim_of_a_column_of_a_table_named_both
+    sql: "SELECT TRIM(both.vc) AS a FROM t AS both WHERE both.id = 6"

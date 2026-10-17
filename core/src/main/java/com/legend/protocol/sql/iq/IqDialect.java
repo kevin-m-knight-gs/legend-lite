@@ -1442,7 +1442,10 @@ public final class IqDialect implements InputDialect {
                     if (!(k instanceof SqlAst.ColumnRef)) {
                         List<SqlAst.ColumnRef> refs = new ArrayList<>();
                         columnRefs(k, refs);
-                        refs.forEach(r -> inKeys.add(IqLexer.lower(r.parts().get(r.parts().size() - 1).text())));
+                        // a qualified column by its qualifier too (the landing's review, 2026-10-17)
+                        refs.forEach(r -> inKeys.add(r.parts().size() == 1 ? IqLexer.lower(r.parts().get(0).text())
+                                : IqLexer.lower(r.parts().get(r.parts().size() - 2).text()) + "." + IqLexer.lower(
+                                r.parts().get(r.parts().size() - 1).text())));
                     }
                 }
                 if (!inKeys.isEmpty()) {
@@ -1455,8 +1458,11 @@ public final class IqDialect implements InputDialect {
                             for (SqlAst.Expr e : expressions(ss)) {
                                 List<SqlAst.ColumnRef> refs = new ArrayList<>();
                                 columnRefs(e, refs);
-                                refs.stream().filter(r -> inKeys.contains(IqLexer.lower(r.parts().get(
-                                        r.parts().size() - 1).text()))).forEach(read.outerGroupRefs::add);
+                                refs.stream().filter(r -> {
+                                    String name = IqLexer.lower(r.parts().get(r.parts().size() - 1).text());
+                                    return inKeys.contains(name) || r.parts().size() >= 2 && inKeys.contains(
+                                            IqLexer.lower(r.parts().get(r.parts().size() - 2).text()) + "." + name);
+                                }).forEach(read.outerGroupRefs::add);
                             }
                         }
                     }
@@ -2633,13 +2639,33 @@ public final class IqDialect implements InputDialect {
      * outer query, or in a window; an item holding a subquery without a name.
      */
     private static boolean derivedSubqueriesRead(SqlAst.Select ds, SqlAst.Select outer, SqlAst.SubqueryFrom d,
-            Map<SqlAst.Select, Set<String>> heldOf, Set<SqlAst.SelectExpr> unread) {
+            Map<SqlAst.Select, Set<String>> heldOf, Set<SqlAst.SelectExpr> unread, Set<SqlAst.Select> shownFrom) {
         Set<String> held = heldColumns(ds, d.columnAliases(), heldOf);
         if (held == null) {
             return false;
         }
         if (held.isEmpty()) {
             return true;
+        }
+        // the landing's review (2026-10-17): measured where the outer query is the statement's own SELECT or a derived
+        // table's under it, through FROM alone; a subquery's outer query, and a NATURAL or USING join's columns (read
+        // by no expression), are refused by name
+        if (!shownFrom.contains(outer)) {
+            return false;
+        }
+        for (SqlAst.FromItem f : outer.from()) {
+            List<SqlAst.Join> joins = new ArrayList<>();
+            joins(f, joins);
+            if (joins.stream().anyMatch(j -> j.natural() || !j.using().isEmpty())) {
+                return false;
+            }
+        }
+        if (ds.distinct()) {
+            // IQ island, 2026-10-17 (measured on IQ 17.1: a DISTINCT derived table's FORMAT column no one reads is
+            // its -265): every column makes its rows, read or not
+            throw SqlTranslationException.unsupported("a column of a DISTINCT derived table that holds a subquery is"
+                    + " IQ's error -1001030 under its engine (a scalar value subquery outside of a top level SELECT"
+                    + " list), read or not, refused before translating", d.pos());
         }
         if (expressions(ds).stream().anyMatch(IqDialect::hasWindowCall)) {
             // IQ island, 2026-10-17 (the lane's 9 such queries; measured on IQ 17.1): a derived table computing a
@@ -2694,8 +2720,8 @@ public final class IqDialect implements InputDialect {
             }
             return true;
         }
-        if (ds.distinct() || !ds.groupBy().isEmpty() || expressions(ds).stream().anyMatch(IqDialect::hasAggregate)) {
-            throw SqlTranslationException.unsupported("a column of a grouped, aggregating or DISTINCT derived table"
+        if (!ds.groupBy().isEmpty() || expressions(ds).stream().anyMatch(IqDialect::hasAggregate)) {
+            throw SqlTranslationException.unsupported("a column of a grouped or aggregating derived table"
                     + " that holds a subquery, read by its outer query, is IQ's error -1001030 under its engine (a"
                     + " scalar value subquery outside of a top level SELECT list), refused before translating",
                     d.pos());
@@ -2791,7 +2817,9 @@ public final class IqDialect implements InputDialect {
     /** The name a derived table shows its {@code i}-th item as: its column list's, its alias, its column's; null for
      *  none. */
     private static @com.legend.base.Nullable String itemName(SqlAst.Select ds, int i, List<SqlAst.Ident> columns) {
-        if (!(ds.items().get(i) instanceof SqlAst.SelectExpr x)) {
+        if (!(ds.items().get(i) instanceof SqlAst.SelectExpr x)
+                || !columns.isEmpty() && ds.items().stream().anyMatch(it -> it instanceof SqlAst.AllColumns)) {
+            // the landing's review (2026-10-17): beside a *, a column list's names stand at no item's position
             return null;
         }
         SqlAst.Ident name = i < columns.size() ? columns.get(i) : x.alias() != null ? x.alias()
@@ -2935,6 +2963,23 @@ public final class IqDialect implements InputDialect {
         Map<SqlAst.Select, Set<String>> heldOf = new IdentityHashMap<>();
         // a derived table's items whose columns no one reads: IQ drops them before it plans them
         Set<SqlAst.SelectExpr> unread = Collections.newSetFromMap(new IdentityHashMap<>());
+        // the statement's own SELECTs and the derived tables' under them, through FROM alone
+        Set<SqlAst.Select> shownFrom = Collections.newSetFromMap(new IdentityHashMap<>());
+        java.util.ArrayDeque<SqlAst.Select> pending = new java.util.ArrayDeque<>(top);
+        while (!pending.isEmpty()) {
+            SqlAst.Select s = pending.pop();
+            if (shownFrom.add(s)) {
+                for (SqlAst.FromItem f : s.from()) {
+                    for (SqlAst.FromItem leaf : leaves(f)) {
+                        if (leaf instanceof SqlAst.SubqueryFrom d) {
+                            List<SqlAst.Select> own = new ArrayList<>();
+                            branches(d.query(), own);
+                            own.forEach(pending::push);
+                        }
+                    }
+                }
+            }
+        }
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
                 for (SqlAst.FromItem f : s.from()) {
@@ -2946,7 +2991,7 @@ public final class IqDialect implements InputDialect {
                                 }
                             });
                             if (d.query() instanceof SqlAst.Select ds && derivedSubqueriesRead(ds, s, d, heldOf,
-                                    unread)) {
+                                    unread, shownFrom)) {
                                 readable.add(ds);
                             }
                         }
@@ -3239,6 +3284,8 @@ public final class IqDialect implements InputDialect {
         if (sideColumn(e, side)) {
             return true;
         }
+        // a + of strings too, though it concatenates a stored NULL as '' (D-S3): measured on IQ 17.1 (the landing's
+        // review, 2026-10-17), b.label + 'x' = 'x' drops the rows the join supplies NULLs for; b.label || 'x' keeps them
         return e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS
                 || b.op() == SqlAst.BinaryOp.TIMES || b.op() == SqlAst.BinaryOp.DIVIDE)
                 && !(b.left() instanceof SqlAst.NullLit) && !(b.right() instanceof SqlAst.NullLit)

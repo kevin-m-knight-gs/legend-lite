@@ -104,6 +104,7 @@ final class IqFunctions {
         CONVERT_DATE_STYLE(3, 3, IqParser.CONVERT_DATE_STYLE), STR(1, 3),
         EXTRACT(2, 2, IqParser.EXTRACT), DATEFORMAT(2, 2), DAYNAME(1, 1), MONTHNAME(1, 1), DATETIME(1, 1), YMD(3, 3),
         GREATER(2, 2), LESSER(2, 2), ARGN(2, Integer.MAX_VALUE), REVERSE(1, 1), INSERTSTR(3, 3), BYTE_LENGTH(1, 1),
+        TO_CHAR(1, 2),
         REGEXP_SUBSTR(2, 5), DATALENGTH(1, 1);
 
         final int min;
@@ -170,9 +171,6 @@ final class IqFunctions {
     static int[] arity(SqlAst.FunctionCall f, boolean ansiSubstring) {
         SqlAst.Ident name = f.name().get(f.name().size() - 1);
         Fn fn = Fn.named(name.text());
-        if (fn == null && NO_SUCH_FUNCTION.contains(IqLexer.lower(name.text()))) {
-            throw noSuchFunction(name.text(), f.pos());
-        }
         if (fn == null || name.quoted() && name.text().indexOf(' ') >= 0) {
             throw SqlTranslationException.unsupported("function " + name.text() + "(...) is not supported yet",
                     f.pos());
@@ -385,6 +383,7 @@ final class IqFunctions {
             case GREATER, LESSER -> greaterLesser(fn == Fn.GREATER, f, at);
             case ARGN -> argn(f, at);
             case REVERSE -> reverse(name, f, args);
+            case TO_CHAR -> toChar(name, f, args);
             case INSERTSTR -> insertstr(name, f, args);
             case BYTE_LENGTH -> byteLength(name, f, args);
             case DATALENGTH -> dataLength(name, f, args);
@@ -1030,7 +1029,7 @@ final class IqFunctions {
      */
     static String @com.legend.base.Nullable [] styledDate(String text, int style, int nearest) {
         char order;
-        boolean century = style >= 100;
+        boolean century = style >= 100 || style == 20 || style == 21;
         switch (style) {
             case 1, 10, 101, 110 -> order = 'M';
             case 3, 4, 5, 103, 104, 105 -> order = 'D';
@@ -1133,20 +1132,22 @@ final class IqFunctions {
     private static final List<String> MONTHS_SHORT = List.of("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug",
             "sep", "oct", "nov", "dec");
 
+    /** The styles {@link #convertStyle} reads; {@link IqParser} refuses another by name (IQ raises -1009145 for some,
+     *  "CONVERT format style ... is invalid", and writes others the island does not read). */
+    static final java.util.Set<Integer> STYLES = java.util.Set.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20,
+            21, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 120, 121);
+
     /**
      * {@code CONVERT(VARCHAR(n), d, style)} of a DATE or a TIMESTAMP under IQ's engine (IQ island, 2026-10-15; each
      * style measured on IQ 17.1): 1 mm/dd/yy (101 mm/dd/yyyy), 2 yy.mm.dd (102), 3 dd/mm/yy (103), 4 dd.mm.yy (104),
      * 5 dd-mm-yy (105), 10 mm-dd-yy (110), 11 yy/mm/dd (111), 12 yymmdd (112); 20 and 120 yyyy-mm-dd and a timestamp's
      * hh:nn:ss, 21 and 121 its hh:nn:ss.sss; 108 a timestamp's hh:nn:ss (a date's yyyy-mm-dd); 0 and 100 mon dd yyyy
      * and a timestamp's hh:nnAM (the hour of twelve), 106 dd mon yyyy, 107 mon dd, yyyy -- the month's abbreviation in
-     * lower case; 6, 7, 8, 9, 109, 13, 113, 14 and 114 too (2026-10-17, below). A date shows no time in any style. Refused by name: another style, another operand, a target too
-     * short for the text, SQL Anywhere's front end (whose styles differ: its month names are capitalized).
+     * lower case; 2026-10-17, 6 dd mon yy, 7 mon dd, yy, 8 as 108, 9 and 109 mon dd yyyy hh:nn:ss:sssAM, 13 and 113
+     * dd mon yyyy hh:nn:ss:sss, 14 and 114 hh:nn:ss:sss (a date's as 108's). A date shows no time in any style.
+     * Refused by name: another style, another operand, a target too short for the text, SQL Anywhere's front end
+     * (whose styles differ: its month names are capitalized).
      */
-    /** The styles {@link #convertStyle} reads; {@link IqParser} refuses another by name (IQ raises -1009145 for some,
-     *  "CONVERT format style ... is invalid", and writes others the island does not read). */
-    static final java.util.Set<Integer> STYLES = java.util.Set.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20,
-            21, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 120, 121);
-
     private Tx convertStyle(SqlAst.FunctionCall f, List<Tx> args) {
         if (engine != IqDialect.Engine.IQ) {
             throw SqlTranslationException.unsupported("CONVERT with a style is supported under IQ's engine only yet:"
@@ -2763,6 +2764,25 @@ final class IqFunctions {
                     i), f.pos()), f.pos()), f.args().get(i)));
         }
         return at.tx(new SqlAst.Case(null, whens, null, f.pos()));
+    }
+
+    /** {@code TO_CHAR(x [, charset])} (IQ island, 2026-10-17; BIRD's TO_CHAR(date, 'YYYY'), 19 queries, measured on IQ
+     *  17.1): SQL Anywhere's conversion of a binary string to text by a character set, not other dialects' format --
+     *  a date or a timestamp is IQ's -157 as it plans (no conversion to a binary string), over no rows too; a string
+     *  alone is itself, a LONG VARCHAR. Refused by name: a character set, and a number (its bytes). */
+    private Tx toChar(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx x = args.get(0);
+        if (x.kind() == Kind.DATE || x.kind() == Kind.DATETIME) {
+            throw SqlTranslationException.invalid("cannot convert " + kindName(x.kind()) + " to long binary: " + name
+                    + " converts a binary string by a character set, not by a format" + code(-157, "53018"), f.pos());
+        }
+        if (args.size() == 1 && (x.kind() == Kind.STRING || x.kind() == Kind.NULL)) {
+            return x.kind() == Kind.NULL ? nullString() : Tx.value(x.vs(), Kind.STRING, x.nullable(),
+                    new IqType("VARCHAR"));
+        }
+        throw SqlTranslationException.unsupported(name + " of " + kindName(x.kind()) + (args.size() > 1 ? " by a"
+                + " character set" : "") + " is not supported yet: SQL Anywhere's conversion of a binary string",
+                f.pos());
     }
 
     /** {@code REVERSE(s)} (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): its characters in reverse, a

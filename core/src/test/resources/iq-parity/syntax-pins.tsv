@@ -156,13 +156,19 @@
 # reject REJECTED 1,013 -> 1,014 (REFUSED 771 -> 770). Reject-parsed and accept-rejected unchanged.
 # IQ island, 2026-10-16 (measured on IQ 17.1: T-SQL's COLLATE clause and an aggregate's FILTER (WHERE ...), IQ's syntax
 # error -131): reject REJECTED 1,014 -> 1,016 (REFUSED 770 -> 768). Reject-parsed and accept-rejected unchanged.
-accept	parsed	3202
-accept	refused	1746
+# IQ island, 2026-10-17 (measured on IQ 17.1: a row limit spelled LIMIT, in a subquery or after a table, is IQ's
+# syntax error -131 under the reserved_keywords option's default, where it was refused): a case run under
+# reserved_keywords is now REFUSED, as the island refuses a database that sets it (IqSettingsTest): flag PARSED 80 -> 79
+# (s1_lexical-183, SELECT 1 AS limit, which that option makes an error; REFUSED 54 -> 55), and the two accept-with-option
+# LIMIT cases stay REFUSED. And TO_CHAR now reads (a5_sa_fn3-490 and -493, z2_redteam-678): accept PARSED 3,202 ->
+# 3,205 (REFUSED 1,746 -> 1,743). Reject-parsed and accept-rejected unchanged.
+accept	parsed	3205
+accept	refused	1743
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
-flag	parsed	80
-flag	refused	54
+flag	parsed	79
+flag	refused	55
 reject	parsed	25
 reject	refused	758
 reject	rejected	1026
