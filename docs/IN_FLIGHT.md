@@ -942,6 +942,22 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   gone), `chart-spec.ts` (a version 1 spec refused), `config.ts` (the settings' lists configure checks names against),
   `tools/link-dictionary/make.ts` (the next dictionary's chart at CHART_VERSION), their tests, and
   `docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` (a dated note).
+  **Landed 2026-10-18: neema2/legend-lite#47, merged by the user as c401fe3f** (branch run 39099277708 and main's own
+  39106971526, green on every job; GATES "Python asks DataCube").
+  **Open 2026-10-18: neema2/legend-lite#57**, header sorting (a click sorts, Ctrl or Cmd chains, Shift selects) and
+  pivot totals as ordinary columns, with the fixes of its independent review. Files: `datacube/src/grid-edits.ts`,
+  `grid/grid.ts`, `grid/columns.ts`, `app.ts`, `ui/menu.ts`, `export-render.ts`, `headless/grid.ts`, their tests,
+  `test/bundle-budget.test.ts` (the engine page 270,000 -> 271,000, its dated note), `docs/UPSTREAM_CENSUS.md`,
+  `demo/verify-features.mjs`, `test/typed-values/typed-values.ts`, `python/tests/test_headless.py`. A preview site
+  built into the Pages deploy was tried in it and reverted (`.github`, `site` and `gates` are main's); previews move to
+  a hosted service, per branch, in a PR of their own.
+  **Announced 2026-10-18: the command program's stage 1a, its test foundation**
+  (`docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md` §11), branch `claude/datacube-command-tests`, stacked on #57, its
+  own PR. Tests only: the screen and Python writing the same cube document for each grid edit; round trips as seeded
+  properties, with the invariants on duplicated state; a corpus of saved pages; a coverage report kept as a report.
+  Files: new tests and fixtures under `datacube/test/`, `python/tests/` for the corpus through `Page.load`,
+  `datacube/BUILD.bazel` and `datacube/test_imports.bzl` for their registration (the Compiler Rewrite line's OK asked),
+  and a fix wherever a test finds a bug, each named in its commit. Still not touched: the SQL plan's ground.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
