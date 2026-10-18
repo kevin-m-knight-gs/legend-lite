@@ -5210,3 +5210,43 @@ Pattern2/[7] moves to PASS on both lanes; TCK agreement DuckDB 3569 → 3570, Po
 
 The eleven rows move to PASS on Postgres (they passed on DuckDB); TCK agreement DuckDB 3570, Postgres 3178 → 3189.
 The 10 cases of `lite/nullkeys.yaml` pass on both lanes.
+
+### 12.83 A walk beside single hops (2026-10-18)
+
+- **The case.** `MATCH (a {name: 'A'}) OPTIONAL MATCH p = (a)-->(b)-[*]->(c) RETURN p` (Match7/[19]): the walk
+  (§12.68) read a pattern of one variable-length relationship between two nodes, so a pattern with single hops
+  beside it was refused by name (§12.78, the plan's §5).
+- **The pattern cut at the walk** (`CypherToPure.walk`): the part before the walked relationship (its first node to
+  the walk's start node) is the start node's rows and the part after it (the walk's far node to the last) the far
+  node's, each read as a MATCH of its own, as the node alone was; the walk joins the first on the start node's
+  identity and the second on the node it reaches. Every node and every single hop is named first (synthetic names,
+  which no `*` lists), so the rows carry each with its identity.
+- **Relationship uniqueness across the cut.** Each side's own reading spells its own; across, a single hop's
+  relationship is never one the walk walked (its identity, an edge's own or the ordered pair of its ends', S74,
+  between bars in the text of the identities walked, as the walk's own step reads it), and a hop before the walk
+  never one after it (their identities differ). Two hops each of one type, and not the same, are never one
+  relationship and are not compared. A hop whose rows carry no identity of its own (over several edge classes, the
+  arms' columns) is refused by name.
+- **The named path across the three parts.** Its JSON (§12.27's shape) is the part before the walk (its nodes and
+  relationships in order), the walk's text (each relationship and the node it reaches), then the part after the far
+  node; the stored directions and the relationships the same three, joined by commas where the walk's is not empty
+  (depth zero); its length the walk's depth plus the single hops; its nodes the three parts' nodes. The single hops
+  are read as segments of the path (§12.56) where the path is named, so each carries its stored direction.
+- **The walk's length.** `CypherToPure.walk` grew past `//core:guardrails`' 250 lines; the uniqueness across the
+  cut is its own method (`uniqueAcrossTheWalk`).
+- **Refused by name, still:** another variable-length relationship in the pattern, a node named on both sides of
+  the walk (a cycle through it), the walk's two ends one node.
+- **Pinned.** `lite/walkbeside.yaml`'s 11 cases, each judged by Neo4j; CypherToPureTest's pinned refusal of a walk in
+  a pattern of other relationships turned into a translation check (the hop's uniqueness against the walk) and a
+  refusal of a second variable-length relationship; `lite/varlen/an_unbounded_walk_in_a_pattern_of_other_relationships_is_refused`
+  renamed `an_unbounded_walk_then_a_hop` (its answer carried); Match7/[19] on both lanes.
+
+#### 12.83.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4951 | 3878 (from 3,865) | 0 | 0 | 0 | 267 (from 269) | 750 | 56 |
+| Postgres | 4951 | 3466 (from 3,453) | 0 | 0 | 0 | 679 (from 681) | 750 | 56 |
+
+Match7/[19] moves to PASS on both lanes; TCK agreement DuckDB 3570 → 3571, Postgres 3189 → 3190. The 11 cases of
+`lite/walkbeside.yaml` and `lite/varlen/an_unbounded_walk_then_a_hop` pass on both lanes.

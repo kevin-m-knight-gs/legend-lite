@@ -562,7 +562,7 @@ tck/clauses/match/Match7/[15] Variable length patterns and nulls	PASS	PASS
 tck/clauses/match/Match7/[16] Optionally matching named paths - null result	PASS	PASS
 tck/clauses/match/Match7/[17] Optionally matching named paths - existing result	PASS	PASS
 tck/clauses/match/Match7/[18] Named paths inside optional matches with node predicates	PASS	PASS
-tck/clauses/match/Match7/[19] Optionally matching named paths with single and variable length patterns	REFUSED	REFUSED
+tck/clauses/match/Match7/[19] Optionally matching named paths with single and variable length patterns	PASS	PASS
 tck/clauses/match/Match7/[20] Variable length optional relationships with bound nodes, no matches	PASS	PASS
 tck/clauses/match/Match7/[21] Handling optional matches between nulls	PASS	PASS
 tck/clauses/match/Match7/[22] MATCH after OPTIONAL MATCH	PASS	PASS
@@ -4908,7 +4908,7 @@ lite/varlen/an_unbounded_walk_in_an_optional_match	PASS	PASS
 lite/varlen/an_unbounded_walk_between_bound_nodes	PASS	PASS
 lite/varlen/an_unbounded_walk_as_a_pattern_predicate	PASS	PASS
 lite/varlen/an_unbounded_walk_no_way_reads	PASS	PASS
-lite/varlen/an_unbounded_walk_in_a_pattern_of_other_relationships_is_refused	REFUSED	REFUSED
+lite/varlen/an_unbounded_walk_then_a_hop	PASS	PASS
 lite/varlen/a_variable_length_round_a_cycle	PASS	PASS
 lite/varlen/a_variable_length_from_a_labelless_start_over_several_types	PASS	PASS
 lite/varlen/a_property_map_on_a_variable_length_is_refused	REFUSED	REFUSED
@@ -4918,6 +4918,17 @@ lite/varlen/an_undirected_fixed_length_pattern_as_a_predicate	PASS	PASS
 lite/varlen/a_negated_variable_length_predicate	PASS	PASS
 lite/varlen/a_relationship_of_an_edge_type_and_an_association_type	PASS	PASS
 lite/varlen/an_optional_walk_with_a_lower_bound_past_its_reach	PASS	PASS
+lite/walkbeside/a_hop_then_a_walk	PASS	PASS
+lite/walkbeside/a_hop_then_a_walk_as_a_path	PASS	PASS
+lite/walkbeside/a_walk_then_a_hop	PASS	PASS
+lite/walkbeside/hops_on_both_sides_of_a_walk	PASS	PASS
+lite/walkbeside/the_hop_never_one_the_walk_walks	PASS	PASS
+lite/walkbeside/a_hop_then_a_walk_of_zero_or_more	PASS	PASS
+lite/walkbeside/the_hop_and_the_walk_by_their_variables	PASS	PASS
+lite/walkbeside/an_optional_hop_then_a_walk_finding_none	PASS	PASS
+lite/walkbeside/an_optional_hop_then_a_walk_finding_some	PASS	PASS
+lite/walkbeside/the_parts_of_a_path_across_a_walk	PASS	PASS
+lite/walkbeside/an_undirected_hop_then_a_walk	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with_unwound	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with_sized_and_tested	PASS	PASS

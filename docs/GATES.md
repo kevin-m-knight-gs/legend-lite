@@ -11758,3 +11758,23 @@ every row ordering nothing.
    (`lite/twoways/across_the_classes_of_a_labelless_node`): the marks and the drops hold over one arm only. And a
    snap run while the chain's oracle check ran shared the one Neo4j database (both empty it and seed their graphs):
    the check reported a drift and the snap an empty graph; both re-run alone, clean.
+
+## 2026-10-18 — `#Cypher{...}#`: the eightieth landing — a walk beside single hops
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10 tail); the record is the study's §12.83. A
+variable-length relationship without an upper bound in a pattern of single hops, the pattern cut at the walk.
+
+1. **What lands.** Match7/[19] moves to PASS on both lanes; the 11 cases of `lite/walkbeside.yaml`, and
+   `lite/varlen/an_unbounded_walk_then_a_hop` (renamed from the refusal it was). DuckDB PASS 3,865 → 3878, Postgres
+   3,453 → 3466; TCK agreement DuckDB 3570 → 3571, Postgres 3189 → 3190.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3878 /
+   REFUSED 267 / BOTH_ERROR 750 / SKIP 56; Postgres PASS 3466 / REFUSED 679 / BOTH_ERROR 750 / SKIP 56, of 4951
+   cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests`, `//core:guardrails`, `//spec:spec_tests`, `//core:update_generated_tests`,
+   `//spec:update_ratchets_tests`, the IQ and SQL parity lanes on DuckDB and on Postgres,
+   `//core:iq_syntax_cases_test` and `//core:corpus_differential_test` green (40 targets).
+4. **Found in the run.** `//core:guardrails` held `CypherToPure.walk` to 250 lines (it grew to 267): the uniqueness
+   across the cut is its own method, `uniqueAcrossTheWalk`, and the chain re-ran over the split.
+5. **What the DuckDB lane has left outside the writes** (the plan's §5): nanosecond values outside TIMESTAMP_NS's
+   years (26 rows, a design decision), years beyond the databases' dates (2, out of the types' reach), three
+   setups Neo4j refuses; the Postgres lane besides holds S71's nanoseconds by the user's decision and `%` of floats.

@@ -1587,7 +1587,14 @@ class CypherToPureTest {
         assertTrue(afterMatch.contains("JoinKind.INNER, {l, r|$l._cypher_"), afterMatch);
         String predicate = pure("MATCH (p:Person) WHERE (p)-[:firm*]->() RETURN p.name AS name");
         assertTrue(predicate.contains("recurse(") && predicate.contains("JoinKind.LEFT"), predicate);
-        unsupported("MATCH (p:Person)-[:firm*]->(f)-[:firm]->(g) RETURN g.legalName", "other relationships");
+        // a walk beside single hops (the study's §12.83): the pattern cut at the walk, the hop after it the far
+        // node's rows (a MATCH of its own), its relationship never one the walk walked
+        String beside = pure("MATCH (p:Person)-[:firm*]->(f)-[r:firm]->(g) RETURN g.legalName AS g");
+        assertTrue(beside.contains("recurse("), beside);
+        // (the step's own uniqueness over the identities walked, and the hop's against them)
+        assertEquals(2, beside.split("_cypher_walk_rels->contains\\('\\|' \\+ ", -1).length - 1, beside);
+        unsupported("MATCH (p:Person)-[:firm*]->(f)-[:firm*1..2]->(g) RETURN g.legalName",
+                "beside another variable-length relationship");
         // a MATCH of several patterns the graph route does not read as one graph: each pattern as rows, joined on the
         // identities of the variables they share, else their product (the study's §12.70)
         String three = pure("MATCH (p:Person), (f:Firm), (c:City) RETURN p.name AS p, f.legalName AS f, c.name AS c");

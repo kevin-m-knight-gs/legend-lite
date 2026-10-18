@@ -328,6 +328,10 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   3570, Postgres 3178 → 3189): a NULL grouping key typed by its plan (the lowering), a projected typed null read back
   as that null (the island), a sort key null on every row ordering nothing (Return6/[3], [6], [18], [19],
   ReturnOrderBy6/[2], [3], [5], WithOrderBy4/[17], [18], With6/[6], [7] on Postgres).
+- A walk beside single hops LANDED 2026-10-18 (the study's §12.83, GATES' eightieth landing; TCK agreement DuckDB
+  3570 → 3571, Postgres 3189 → 3190): a variable-length relationship without an upper bound in a pattern of single
+  hops, the pattern cut at the walk, the hops' relationships never one the walk walked, the named path assembled
+  across (Match7/[19]). The DuckDB lane's rows outside the writes are now §5's alone.
 - The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
   UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships
@@ -682,7 +686,7 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   them run (IQ-safe); ReturnOrderBy6/[5] then needs `toOne` of the null column not spelled at all (a raise in a CASE
   arm Postgres types when it plans), which the island can do by reading an item that is a null constant back as
   one; typing the raise in the lowering broke the IQ corpus (§12.80). Eleven Postgres rows; the next island leg.
-- **2026-10-17, W10 (§12.78) — a variable-length relationship beside another relationship in one pattern.** `MATCH
+- **2026-10-17, W10 (§12.78) — a variable-length relationship beside another relationship in one pattern.** RESOLVED 2026-10-18 (§12.83: the pattern cut at the walk, each side a MATCH of its own, uniqueness across the cut by identity, the path assembled across). `MATCH
   (a {name: 'A'}) OPTIONAL MATCH p = (a)-->(b)-[*]->(c) RETURN p` (Match7/[19]): the walk (§12.68) reads a pattern
   of one variable-length relationship between two nodes; beside a single relationship, the pattern is cut at the
   walk (each part its rows, met on the shared node's identity), and two things are unspelled there. Relationship

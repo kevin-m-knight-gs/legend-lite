@@ -1824,9 +1824,12 @@ public final class CypherToPure {
      * walk on its identity, the far node's rows on the node reached, the depth at least the lower bound (zero binds
      * the far node to the start) and under the upper where there is one. The relationship's variable is the list
      * of the relationships walked; a named path is assembled from the texts, its length the depth, its nodes and
-     * relationships the lists. The WHERE is read over the rows. Refused by name: other relationships in the
-     * pattern, a property map on the relationship, a MATCH after another clause, several patterns, an OPTIONAL
-     * MATCH, the pattern's two ends one node.
+     * relationships the lists. The pattern's single hops before and after the walk are the start node's rows and
+     * the far node's (each side read as a MATCH of its own), their relationships never one the walk walked, the
+     * path assembled across the three (the study's §12.83). The WHERE is read over the rows. Refused by name:
+     * another variable-length relationship in the pattern, a property map on the relationship, a MATCH after
+     * another clause from no node the rows carry, several patterns, an OPTIONAL MATCH as the first clause, the walk's
+     * two ends one node, a node named on both of its sides.
      */
     private Rows walk(CypherAst.Match m, @com.legend.base.Nullable State state) {
         if (state != null) {
@@ -1849,23 +1852,19 @@ public final class CypherToPure {
         }
         PathPattern p = m.patterns().get(0);
         Pos pos = p.pos();
-        if (p.elements().size() != 3) {
-            throw CypherErrors.unsupported("a variable-length relationship without an upper bound in a pattern of"
-                    + " other relationships is not supported yet", pos);
-        }
-        NodePattern a = (NodePattern) p.elements().get(0);
-        RelPattern rel = (RelPattern) p.elements().get(1);
-        NodePattern x = (NodePattern) p.elements().get(2);
-        CypherAst.LengthRange range = java.util.Objects.requireNonNull(rel.lengthRange());
-        int lower = range.lower() < 0 ? 1 : range.lower();
-        int upper = range.upper();
-        String spelled = "*" + (range.lower() < 0 ? "" : range.lower()) + ".." + (upper < 0 ? "" : upper);
-        if (upper >= 0 && lower > upper) {
-            throw CypherErrors.invalid("Invalid input '" + spelled + "': the lower bound exceeds the upper", rel.pos());
-        }
-        if (a.variable() != null && a.variable().equals(x.variable())) {
-            throw CypherErrors.unsupported("a variable-length relationship without an upper bound from a node back"
-                    + " to itself is not supported yet", pos);
+        // the walked relationship; the pattern's other relationships single hops, read before and after it (the
+        // study's §12.83)
+        int w = -1;
+        for (int i = 1; i < p.elements().size(); i += 2) {
+            RelPattern r = (RelPattern) p.elements().get(i);
+            if (r.lengthRange() == null) {
+                continue;
+            }
+            if (w >= 0 || !walked(r)) {
+                throw CypherErrors.unsupported("a variable-length relationship without an upper bound beside another"
+                        + " variable-length relationship in one pattern is not supported yet", pos);
+            }
+            w = i;
         }
         Set<String> taken = new HashSet<>();
         for (PatternElement e : p.elements()) {
@@ -1877,11 +1876,46 @@ public final class CypherToPure {
         if (p.variable() != null) {
             taken.add(p.variable());
         }
-        String aName = a.variable() != null ? a.variable() : freshName(taken);
-        String xName = x.variable() != null ? x.variable() : freshName(taken);
-        // the start node's rows and the far node's: each the node alone, read as a MATCH of its own (a label-less
-        // one every class's arms, the study's §12.13), each carried with its identity; the hop read as a segment of
-        // a path (§12.56), so its relationship carries its identity and its stored direction
+        // (every node named, and every single hop: the rows carry each, with its identity)
+        List<PatternElement> elements = new ArrayList<>(p.elements());
+        for (int i = 0; i < elements.size(); i++) {
+            if (elements.get(i) instanceof NodePattern n && n.variable() == null) {
+                elements.set(i, new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos()));
+            } else if (i != w && elements.get(i) instanceof RelPattern r && r.variable() == null) {
+                elements.set(i, new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(), null,
+                        r.pos()));
+            }
+        }
+        List<PatternElement> before = List.copyOf(elements.subList(0, w));
+        List<PatternElement> after = List.copyOf(elements.subList(w + 1, elements.size()));
+        NodePattern a = (NodePattern) elements.get(w - 1);
+        RelPattern rel = (RelPattern) elements.get(w);
+        NodePattern x = (NodePattern) elements.get(w + 1);
+        CypherAst.LengthRange range = java.util.Objects.requireNonNull(rel.lengthRange());
+        int lower = range.lower() < 0 ? 1 : range.lower();
+        int upper = range.upper();
+        String spelled = "*" + (range.lower() < 0 ? "" : range.lower()) + ".." + (upper < 0 ? "" : upper);
+        if (upper >= 0 && lower > upper) {
+            throw CypherErrors.invalid("Invalid input '" + spelled + "': the lower bound exceeds the upper", rel.pos());
+        }
+        if (java.util.Objects.equals(a.variable(), x.variable())) {
+            throw CypherErrors.unsupported("a variable-length relationship without an upper bound from a node back"
+                    + " to itself is not supported yet", pos);
+        }
+        Set<String> beforeNodes = nodeVariables(before);
+        for (String n : nodeVariables(after)) {
+            if (beforeNodes.contains(n)) {
+                throw CypherErrors.unsupported("a variable-length relationship without an upper bound in a pattern"
+                        + " naming a node (" + n + ") on both its sides is not supported yet", pos);
+            }
+        }
+        String aName = java.util.Objects.requireNonNull(a.variable());
+        String xName = java.util.Objects.requireNonNull(x.variable());
+        // the start node's rows and the far node's: each the part of the pattern on its side (the node alone, or
+        // the node with the single hops before or after the walk), read as a MATCH of its own (a label-less node
+        // every class's arms, the study's §12.13), each node carried with its identity, each single hop as a
+        // segment of the path (§12.56) where the path is named, so it carries its stored direction; the walk's hop
+        // read as a segment too, so its relationship carries its identity and its stored direction
         String s = freshName(taken);
         String d = freshName(taken);
         String e = freshName(taken);
@@ -1891,10 +1925,12 @@ public final class CypherToPure {
         Rows far;
         Rows edges;
         try {
-            start = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(null, List.of(new NodePattern(aName,
-                    a.labels(), a.properties(), a.pos())), pos)), null, pos), null), pos);
-            far = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(null, List.of(new NodePattern(xName,
-                    x.labels(), x.properties(), x.pos())), pos)), null, pos), null), pos);
+            start = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(before.size() > 1
+                    && p.variable() != null ? SEGMENT + p.variable() + "_before" : null, before, pos)), null, pos),
+                    null), pos);
+            far = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(after.size() > 1
+                    && p.variable() != null ? SEGMENT + p.variable() + "_after" : null, after, pos)), null, pos),
+                    null), pos);
             edges = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(SEGMENT + "walk", List.of(
                     new NodePattern(s, List.of(), Map.of(), pos),
                     new RelPattern(e, rel.types(), rel.direction(), rel.properties(), null, rel.pos()),
@@ -1979,6 +2015,7 @@ public final class CypherToPure {
             }
             columns.add(c);
         }
+        vs = uniqueAcrossTheWalk(vs, columns, before, after, rel, pos);
         // the relationship's list, and the named path with its length, nodes and relationships beside it
         List<ColSpec> values = new ArrayList<>();
         com.legend.protocol.sql.InputDialect.TypeDetail relValue = new RelValue(rel.types().size() == 1
@@ -1989,18 +2026,27 @@ public final class CypherToPure {
             columns.add(new Col(rel.variable(), Kind.JSON, false, null, new ListOf(Kind.JSON, relValue)));
         }
         if (p.variable() != null) {
+            // the path in its written order: the part before the walk (its nodes and relationships), the walk's
+            // (each relationship and the node it reaches), the part after the far node; the stored directions
+            // and the relationships the same three parts, joined where the walk's is not empty
             RowScope scope = new RowScope(new Rows(vs, columns));
-            ValueSpecification aJson = nodeJsonText(scope.parts(aShape), pos);
+            PathPieces pre = pathPieces(before, false, scope, pos);
+            PathPieces post = pathPieces(after, true, scope, pos);
             String length = PATH_PART + "length_" + p.variable();
             String nodesColumn = PATH_PART + "nodes_" + p.variable();
             String relsColumn = PATH_PART + "relationships_" + p.variable();
+            ValueSpecification dirs = aroundWalk(pre.dirs(), WALK_DIRS, post.dirs());
+            ValueSpecification rels = aroundWalk(pre.rels(), WALK_RELS_JSON, post.rels());
             values.add(new ColSpec(p.variable(), lambda("r", call("fromJson", plus(new CString("{\"@path\":["),
-                    aJson, read(WALK_PATH_JSON), new CString("],\"@dirs\":["), read(WALK_DIRS),
+                    pre.elements(), read(WALK_PATH_JSON), post.elements(), new CString("],\"@dirs\":["), dirs,
                     new CString("]}")))), null, null));
-            values.add(new ColSpec(length, lambda("r", read(WALK_DEPTH)), null, null));
-            values.add(new ColSpec(nodesColumn, lambda("r", call("fromJson", plus(new CString("["), aJson,
-                    read(WALK_NODES_JSON), new CString("]")))), null, null));
-            values.add(new ColSpec(relsColumn, lambda("r", relList), null, null));
+            int hops = pre.rels().size() + post.rels().size();
+            values.add(new ColSpec(length, lambda("r", hops == 0 ? read(WALK_DEPTH) : plus(read(WALK_DEPTH),
+                    new CInteger((long) hops))), null, null));
+            values.add(new ColSpec(nodesColumn, lambda("r", call("fromJson", plus(new CString("["), pre.nodes(),
+                    read(WALK_NODES_JSON), post.nodes(), new CString("]")))), null, null));
+            values.add(new ColSpec(relsColumn, lambda("r", hops == 0 ? relList : call("fromJson", plus(
+                    new CString("["), rels, new CString("]")))), null, null));
             columns.add(new Col(p.variable(), Kind.JSON, false, null, new PathValue()));
             columns.add(new Col(length, Kind.INTEGER, false));
             columns.add(new Col(nodesColumn, Kind.JSON, false, null, new ListOf(Kind.JSON, new NodeValue())));
@@ -2026,6 +2072,153 @@ public final class CypherToPure {
     /** A column of the row in hand, read. */
     private static ValueSpecification read(String column) {
         return new AppliedProperty(new Variable("r"), column);
+    }
+
+    /** The walk's rows kept where relationship uniqueness holds across the cut: a single hop's relationship never one
+     *  the walk walked (its identity, an edge's own or the ordered pair of its ends', S74, between bars in the text
+     *  of those walked), and the hops before the walk never one of those after (each side's own reading spells its
+     *  own); two hops each of one type, and not the same, never compared. */
+    private ValueSpecification uniqueAcrossTheWalk(ValueSpecification vs, List<Col> columns,
+            List<PatternElement> before, List<PatternElement> after, RelPattern rel, Pos pos) {
+        RowScope across = new RowScope(new Rows(vs, columns));
+        List<RelPattern> beforeRels = singleHops(before);
+        List<RelPattern> afterRels = singleHops(after);
+        ValueSpecification unique = null;
+        List<RelPattern> fixed = new ArrayList<>(beforeRels);
+        fixed.addAll(afterRels);
+        for (RelPattern f : fixed) {
+            if (differentTypes(f, rel)) {
+                continue;
+            }
+            ValueSpecification id = call("toOne", identifiedRel(across, f, pos).vs());
+            ValueSpecification notWalked = call("not", call("contains", read(WALK_RELS), plus(new CString("|"), id,
+                    new CString("|"))));
+            unique = unique == null ? notWalked : call("and", unique, notWalked);
+        }
+        for (RelPattern l : beforeRels) {
+            for (RelPattern r : afterRels) {
+                if (differentTypes(l, r)) {
+                    continue;
+                }
+                ValueSpecification differ = call("not", call("equal", call("toOne", identifiedRel(across, l,
+                        pos).vs()), call("toOne", identifiedRel(across, r, pos).vs())));
+                unique = unique == null ? differ : call("and", unique, differ);
+            }
+        }
+        return unique == null ? vs : call("filter", vs, lambda("r", unique));
+    }
+
+    /** The node variables of a part of a pattern. */
+    private static Set<String> nodeVariables(List<PatternElement> elements) {
+        Set<String> out = new java.util.LinkedHashSet<>();
+        for (PatternElement e : elements) {
+            if (e instanceof NodePattern n && n.variable() != null) {
+                out.add(n.variable());
+            }
+        }
+        return out;
+    }
+
+    /** The single hops of a part of a pattern, in order. */
+    private static List<RelPattern> singleHops(List<PatternElement> elements) {
+        List<RelPattern> out = new ArrayList<>();
+        for (PatternElement e : elements) {
+            if (e instanceof RelPattern r) {
+                out.add(r);
+            }
+        }
+        return out;
+    }
+
+    /** Whether two relationship patterns each name one type, and not the same: never one relationship. */
+    private static boolean differentTypes(RelPattern l, RelPattern r) {
+        return l.types().size() == 1 && r.types().size() == 1 && !l.types().equals(r.types());
+    }
+
+    /** A single hop's identity over the rows; refused by name where the rows carry it without one (a relationship
+     *  over several edge classes, the arms' columns). */
+    private static Tx identifiedRel(RowScope scope, RelPattern r, Pos pos) {
+        String name = java.util.Objects.requireNonNull(r.variable());
+        Col c = scope.column(name);
+        if (c == null || !(c.detail() instanceof RelShape shape) || !shape.identified()) {
+            throw CypherErrors.unsupported("relationship uniqueness between a variable-length relationship without an"
+                    + " upper bound and a relationship (" + name + ") carried without an identity of its own is not"
+                    + " supported yet", pos);
+        }
+        return java.util.Objects.requireNonNull(scope.relIdentity(shape));
+    }
+
+    /** A part of a walk's named path beside the walk: its elements' JSON texts in order (each after a comma when
+     *  the part follows the walk's far node, whose own text the walk wrote), its nodes' texts likewise, and its
+     *  relationships' texts and stored directions, one each. */
+    private record PathPieces(ValueSpecification elements, ValueSpecification nodes, List<ValueSpecification> rels,
+            List<ValueSpecification> dirs) {
+    }
+
+    /** The pieces of the part of a walk's named path before the walk ({@code afterWalk} false: from its first node
+     *  to the walk's start, inclusive) or after it (true: past the walk's far node). */
+    private PathPieces pathPieces(List<PatternElement> part, boolean afterWalk, RowScope scope, Pos pos) {
+        ValueSpecification elements = new CString("");
+        ValueSpecification nodes = new CString("");
+        List<ValueSpecification> rels = new ArrayList<>();
+        List<ValueSpecification> dirs = new ArrayList<>();
+        boolean first = true;
+        for (int i = afterWalk ? 1 : 0; i < part.size(); i++) {
+            ValueSpecification text;
+            if (part.get(i) instanceof NodePattern n) {
+                Col nc = scope.column(java.util.Objects.requireNonNull(n.variable()));
+                if (nc == null || !(nc.detail() instanceof NodeShape ns) || ns.absent()) {
+                    throw new IllegalStateException("the walk's path's node " + n.variable() + " is not carried by"
+                            + " the rows");
+                }
+                text = nodeJsonText(scope.parts(ns), pos);
+                nodes = afterWalk || !first ? plus(nodes, new CString(","), text) : plus(nodes, text);
+            } else {
+                RelPattern r = (RelPattern) part.get(i);
+                Col rc = scope.column(java.util.Objects.requireNonNull(r.variable()));
+                if (rc == null || !(rc.detail() instanceof RelShape rs) || rs.forward() == null) {
+                    throw new IllegalStateException("the walk's path's relationship " + r.variable() + " is carried"
+                            + " without its direction");
+                }
+                text = nodeJsonText(scope.relParts(rs, pos), pos);
+                rels.add(text);
+                dirs.add(jsonTextOf(scalar(columnLike(new AppliedProperty(new Variable(scope.row()), rs.forward()),
+                        Kind.BOOLEAN, false)), pos));
+            }
+            elements = afterWalk || !first ? plus(elements, new CString(","), text) : plus(elements, text);
+            first = false;
+        }
+        return new PathPieces(elements, nodes, rels, dirs);
+    }
+
+    /** A list's text of three parts, the walk's column between (empty at depth zero), each part's texts joined by
+     *  commas and the parts joined where both have some. */
+    private static ValueSpecification aroundWalk(List<ValueSpecification> before, String walkColumn,
+            List<ValueSpecification> after) {
+        ValueSpecification walked = read(walkColumn);
+        ValueSpecification none = call("equal", read(WALK_DEPTH), new CInteger(0L));
+        ValueSpecification out;
+        if (before.isEmpty()) {
+            out = walked;
+        } else {
+            out = joinedTexts(before);
+            out = plus(out, call("if", none, thunk(new CString("")), thunk(plus(new CString(","), walked))));
+        }
+        if (!after.isEmpty()) {
+            ValueSpecification rest = joinedTexts(after);
+            out = before.isEmpty() ? call("if", none, thunk(rest), thunk(plus(walked, new CString(","), rest)))
+                    : plus(out, new CString(","), rest);
+        }
+        return out;
+    }
+
+    /** Texts joined by commas. */
+    private static ValueSpecification joinedTexts(List<ValueSpecification> texts) {
+        ValueSpecification out = texts.get(0);
+        for (int i = 1; i < texts.size(); i++) {
+            out = plus(out, new CString(","), texts.get(i));
+        }
+        return out;
     }
 
     /** The shape of a node of the walk's pattern the rows carry with its identity; null for one carried absent (a

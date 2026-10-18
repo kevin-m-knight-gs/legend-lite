@@ -130,7 +130,7 @@ cases:
     graph: |
       CREATE (:A {name: 'a'}), (:B {name: 'b'})
     cypher: "MATCH p = (a:A)-[*0..]->(x) RETURN x.name AS x, length(p) AS n"
-  - id: an_unbounded_walk_in_a_pattern_of_other_relationships_is_refused
+  - id: an_unbounded_walk_then_a_hop
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:U]->(:C {name: 'c'})
     cypher: "MATCH (a:A)-[:T*]->(x)-[:U]->(y) RETURN y.name AS y"
