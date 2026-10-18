@@ -20,9 +20,10 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * The reference differential's JOIN, call by call (a port of {@code tools/reference/join.py}, plan W1.1): the key is
- * (source id, line, column) of the call-name token, which both dumps print. At the pinned release the two sides read
- * the same source text (the H3 spike: SOURCE_DRIFT gone), so there is no drift file and no elision list.
+ * The reference differential's JOIN, call by call (a port of {@code tools/reference/join.py}, plan W1.1; the script
+ * was deleted 2026-10-18): the key is (source id, line, column) of the call-name token, which both dumps print. At the
+ * pinned release the two sides read the same source text (the H3 spike: SOURCE_DRIFT gone), so there is no drift file
+ * and no elision list.
  *
  * <p>Buckets: AGREE (same declaration id); OVERLOAD (same declaration name, other overload); PACKAGE (other
  * declaration); DRIFT (the reference's declaration is absent on our side and ours on its side); ABSENT (no call of ours

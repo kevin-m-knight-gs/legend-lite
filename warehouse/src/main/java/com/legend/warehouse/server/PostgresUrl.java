@@ -34,6 +34,13 @@ record PostgresUrl(String catalog, String dsn) {
         return new PostgresUrl(database, keyValues(params));
     }
 
+    /** The catalog {@code arg} names when it is a Postgres URL ({@link Attachment#byUrl}), else null. */
+    static @com.legend.base.Nullable Attachment.Named named(String arg) {
+        if (!isUrl(arg)) return null;
+        PostgresUrl url = parse(arg);
+        return new Attachment.Named(url.catalog(), new Catalogs.Attach(Attachment.POSTGRES, url.dsn()));
+    }
+
     /** A Postgres URL's connection parameters, in libpq's key=value names ({@code host}, {@code dbname}, ...). */
     static Map<String, String> params(String url) {
         URI u;

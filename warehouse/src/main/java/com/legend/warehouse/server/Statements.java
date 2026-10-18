@@ -522,15 +522,10 @@ public final class Statements implements AutoCloseable {
         return "'" + s.replace("'", "''") + "'";
     }
 
-    /** DuckDB's error kinds, as the API's codes. */
+    /** DuckDB's error kinds ({@link DuckException}'s), as the API's codes. */
     static ApiError classify(DuckException e) {
-        String m = String.valueOf(e.getMessage());
-        String first = m.split("\n", 2)[0];
-        ErrorCode code;
-        if (first.startsWith("Parser Error")) code = ErrorCode.SQL_PARSE;
-        else if (first.startsWith("Binder Error") || first.startsWith("Catalog Error")) code = ErrorCode.SQL_BIND;
-        else code = ErrorCode.SQL_EXECUTE;
-        return new ApiError(code, m.strip());
+        ErrorCode code = e.parse() ? ErrorCode.SQL_PARSE : e.bind() ? ErrorCode.SQL_BIND : ErrorCode.SQL_EXECUTE;
+        return new ApiError(code, String.valueOf(e.getMessage()).strip());
     }
 
     private void finish(Run run, State state, @Nullable ApiError error) {

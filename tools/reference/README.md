@@ -4,9 +4,10 @@
 8 GB, about 45 s once the reference dump is cached). The reference side is the build output
 `//tools/reference:ref_dump`, legend-pure's compiler run from the pinned `@maven_upstream` jars (4.145.0 / 5.99.0), so
 the jar-versus-pin skew and the source-drift file below are history. `ReferenceLaneTest` types our side, joins in Java
-(`ReferenceJoin`, a port of `join.py`), and compares the whole report (coverage, buckets, every disagreement class) to
+(`ReferenceJoin`, a port of the Python join this folder held), and compares the whole report (coverage, buckets, every disagreement class) to
 `spec/src/test/resources/reference-lane/core_relational.txt`; every class needs a reason in `reasons.tsv` there. The
-text below describes the earlier hand-run tooling, kept for ad-hoc joins.
+text below describes the earlier hand-run tooling. Its join (`join.py`) and its source-drift script were deleted on
+2026-10-18 (the dialect program's D6: no target ran them, and `ReferenceJoin` is the join); git keeps them.
 
 `RefResolutions.java` compiles every module on the classpath with the real Pure compiler (the
 interpreted runtime inside legend-engine's shaded server jar, over the jar's own `.pure` sources
@@ -19,8 +20,8 @@ is right when it equals this, and every difference is either our bug or an upstr
 not know. `spec/.../OurResolutionsDump` produces our side in the same shape
 (`bazel run //spec:our_resolutions -- core_relational [--out FILE]`; by default the dump lands in
 `our-resolutions-core_relational.txt` where it is run). Since 2026-09-26 (execution plan step 1) the join is CALL BY CALL, by the
-call-name token's (source, line, column): `join.py`'s docstring has the rules, `source_drift.py`
-marks the sources whose text differs between the jar's version and our pinned trees (241 of
+call-name token's (source, line, column): `ReferenceJoin`'s javadoc has the rules, and the source-drift script
+marked the sources whose text differs between the jar's version and our pinned trees (241 of
 1,218: a position there means nothing), and the docstring names the two spellings that need
 their own rule (operator runs, property reads).
 
