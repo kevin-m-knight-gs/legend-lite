@@ -35,7 +35,9 @@ export type ChartMark =
   | 'bar' | 'line' | 'area' | 'scatter' | 'pie' | 'heatmap' | 'treemap' | 'kpi'
   // batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): drawn by chart-kinds.ts, a chunk of its own
   | 'lollipop' | 'dumbbell' | 'range' | 'waterfall' | 'pareto' | 'funnel' | 'rose' | 'polar' | 'radar' | 'parallel'
-  | 'sankey' | 'chord' | 'stream' | 'calendar' | 'gauge' | 'sunburst' | 'tree' | 'matrix';
+  | 'sankey' | 'chord' | 'stream' | 'calendar' | 'gauge' | 'sunburst' | 'tree' | 'matrix'
+  // batch 4 (statistics): a box per category, its five figures the database's (BOX_FNS)
+  | 'boxplot';
 
 /** The kinds that draw the GRID'S rows as shown, with no query of their own: a treemap, a sunburst, a tree. */
 export const GRID_MARKS: ReadonlySet<ChartMark> = new Set(['treemap', 'sunburst', 'tree']);
@@ -43,7 +45,7 @@ export const GRID_MARKS: ReadonlySet<ChartMark> = new Set(['treemap', 'sunburst'
 /** Batch 3's kinds: drawn by chart-kinds.ts, fetched with the first of them (the rarer ECharts charts with it). */
 export const KIND_MARKS: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'radar', 'parallel',
-  'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix',
+  'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix', 'boxplot',
 ]);
 
 /** The kinds that plot ROWS, not groups: a scatter, and a scatter matrix (every pair of its values). */
@@ -54,19 +56,32 @@ export function plotsRows(spec: Pick<ChartSpec, 'mark'>): boolean {
 /** The most values a scatter matrix compares: five make twenty scatters. */
 export const MAX_MATRIX = 5;
 
+/**
+ * A box plot's five figures of its one column, in the order its boxes are drawn: the least, the first quartile, the
+ * median, the third quartile, the most -- each an aggregate the database computes per category (`percentile(0.25)`,
+ * `median()`, ...), never a figure computed here.
+ */
+export const BOX_FNS = ['min', 'percentile25', 'median', 'percentile75', 'max'] as const satisfies readonly AggregateFn[];
+
+/** A box plot's values: its column's five figures (BOX_FNS). */
+export function boxMeasures(column: string): ChartMeasure[] {
+  return BOX_FNS.map((fn) => ({ column, fn }));
+}
+
 /** The kinds whose marks are the categories across, one per value: a click drills down from one. */
 const DRILLABLE: ReadonlySet<ChartMark> = new Set([
   'bar', 'line', 'area', 'pie', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose',
-  'polar',
+  'polar', 'boxplot',
 ]);
 
 /** The kinds that draw one series of categories: no split (a colour per value) has a place on them. */
 export const UNSPLIT: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel', 'calendar', 'gauge',
+  'boxplot',
 ]);
 
 /** The kinds that plot several values of their own: following the cube, they keep them. */
-const SEVERAL_VALUES: ReadonlySet<ChartMark> = new Set(['dumbbell', 'range', 'radar', 'parallel']);
+const SEVERAL_VALUES: ReadonlySet<ChartMark> = new Set(['dumbbell', 'range', 'radar', 'parallel', 'boxplot']);
 
 /** The kinds that need a second grouping (the split): a heatmap's rows, a flow's target, a stream's layers. */
 export const SPLIT_NEEDED: Readonly<Partial<Record<ChartMark, string>>> = {
@@ -509,6 +524,7 @@ export const CHART_MARKS: readonly { value: ChartMark; label: string }[] = [
   { value: 'sunburst', label: 'Sunburst' },
   { value: 'tree', label: 'Tree' },
   { value: 'matrix', label: 'Scatter matrix' },
+  { value: 'boxplot', label: 'Box plot' },
 ];
 
 /** A kind's name, as a sentence says it ("a Pareto", "a polar bar"). */
@@ -928,7 +944,8 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
 /**
  * A chart taking another kind, as the form's change of kind has always made it: a gauge and a scatter matrix drop the
  * column across (and its grain or bins with it, as a change of the column across takes them), a gauge and a kind of one
- * series the split, and a Pareto runs from the largest. Only those: every other slot (a layer, a facet, a label, a size,
+ * series the split, a Pareto runs from the largest, and a box plot plots its first value's column's five figures
+ * (boxMeasures; a group-level column, already one figure per group, has none: kept, for the rules to refuse). Only those: every other slot (a layer, a facet, a label, a size,
  * a hover's measures) stays, for the rules to judge on the new kind -- refused by name where it has no place, never
  * dropped without a word. Part of a change by hand (editChart).
  */
@@ -943,6 +960,7 @@ function asMark(spec: ChartSpec, mark: ChartMark): ChartSpec {
     ...(keepX ? { x, ...(grain !== undefined ? { grain } : {}), ...(bins !== undefined ? { bins } : {}) } : {}),
     ...(keepSplit ? { split } : {}),
     ...(mark === 'pareto' ? { options: { ...rest.options, sort: { by: 'y', direction: 'desc' } } } : {}),
+    ...(mark === 'boxplot' && rest.y[0] !== undefined && rest.y[0].fn !== 'value' ? { y: boxMeasures(rest.y[0].column) } : {}),
   };
 }
 
@@ -1117,6 +1135,15 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   if ((spec.mark === 'dumbbell' || spec.mark === 'range') && spec.y.length !== 2) {
     out.push(`${article} ${kind} plots two values per category: its low and its high (pick two).`);
   }
+  if (spec.mark === 'boxplot') {
+    const column = spec.y[0]?.column;
+    if (column === undefined || !same(spec.y, boxMeasures(column))) {
+      out.push('A box plot plots five figures of one column: its min, percentile25, median, percentile75 and max, in that order.');
+    } else {
+      const type = rowColumns(s).find((c) => c.name === column)?.type;
+      if (known.has(column) && !isNumeric(type)) out.push(`'${column}' is not a number: it has no quartiles.`);
+    }
+  }
   if (spec.mark === 'radar' && spec.y.length < 3) out.push('A radar needs three values or more, one per spoke.');
   if (spec.mark === 'parallel' && spec.y.length < 2) out.push('Parallel coordinates need two values or more, one per axis.');
   if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge' || spec.mark === 'calendar'
@@ -1131,7 +1158,8 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   if (spec.mark === 'gauge' && spec.options.target === undefined) {
     out.push('A gauge needs a target: its scale runs from zero to it.');
   }
-  if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge') && spec.y.some((m) => m.showAs)) {
+  if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge' || spec.mark === 'boxplot')
+    && spec.y.some((m) => m.showAs)) {
     out.push(`${article} ${kind} computes its own figures: a value shown as something else has no place on it.`);
   }
   // a grain takes a date to its period, bins a number to its bin: on any other column they mean nothing
@@ -1329,7 +1357,8 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
     ...rowCalcs.flatMap(columnsRead),
     ...filterColumns(filter),
   ]);
-  const first = spec.y[0];
+  // a box plot's value is its median (BOX_FNS' third)
+  const first = spec.mark === 'boxplot' ? spec.y[2] : spec.y[0];
   // the chart's order, ties broken by the category: a waterfall's running total runs along this very order; small
   // multiples panel by panel first
   const sorts = scatter ? [] : [...panels.map((column) => ({ column, direction: 'asc' as const })), ...(spec.options.sort.by === 'y' && first

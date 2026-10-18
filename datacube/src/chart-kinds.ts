@@ -1,6 +1,7 @@
 // BATCH 3'S KINDS (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): a chart spec and its rows as the ECharts option of
 // a kind the first seven do not draw -- lollipop, dumbbell, range, waterfall, Pareto, funnel, rose, polar bar, radar,
-// parallel coordinates, Sankey, chord, streamgraph, calendar, gauge -- and the grid's rows as a sunburst or a tree.
+// parallel coordinates, Sankey, chord, streamgraph, calendar, gauge, and batch 4's box plot -- and the grid's rows as a
+// sunburst or a tree.
 //
 // Its own module, fetched with the first chart of one of these kinds (ui/chart-panel.ts), as is the registration of the
 // rarer ECharts charts it draws with (chart-render-kinds.ts): a page of bars never downloads either. PURE and
@@ -112,7 +113,7 @@ export function kindOption(
   };
   const categoryAxis = { ...axisCommon, type: 'category' as const, data: catLabels, splitLine: { show: false } };
   const valueAxis = (m: ChartMeasure) => ({
-    ...axisCommon, type: 'value' as const, scale: spec.mark === 'dumbbell' || spec.mark === 'range',
+    ...axisCommon, type: 'value' as const, scale: spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'boxplot',
     axisLabel: { ...axisCommon.axisLabel, formatter: (v: number) => write(m, v) },
   });
   const axes = (m: ChartMeasure) => (horizontal
@@ -196,6 +197,37 @@ export function kindOption(
         ...axes(lo),
         series: [span, ...dots],
       }, (_s, i) => keyOf(i));
+    }
+
+    // -- the spread of a column per category: a box from its first quartile to its third, the median across it, a
+    // whisker to its least and its most -- five figures the database computed (BOX_FNS), placed here ----------------
+    case 'boxplot': {
+      const five = spec.y.slice(0, 5);
+      const median = five[2] ?? first;
+      const boxes = categories.map((_, ci) => five.map((m) => num(m, at(ci))));
+      const colour = theme.series[0]!;
+      const words = ['least', 'first quartile', 'median', 'third quartile', 'most'];
+      // a category with no numbers has no box: ECharts' empty value, never a box drawn at zero
+      const data = boxes.map((b, ci) => ({ value: b.some((v) => v === null) ? ['-', '-', '-', '-', '-'] : b, ci }));
+      return done({
+        ...base,
+        tooltip: {
+          ...tooltip, trigger: 'item' as const,
+          formatter: (p: { dataIndex: number; data?: { ci?: number } }) => {
+            const ci = p.data?.ci ?? p.dataIndex;
+            return [
+              `<b>${escapeHtml(catLabels[ci] ?? '')}</b>`,
+              ...five.map((m, k) => `${words[k]}: <b>${escapeHtml(write(m, boxes[ci]?.[k] ?? null))}</b>`),
+            ].join('<br>');
+          },
+        },
+        ...axes(median),
+        series: [{
+          type: 'boxplot', name: first.column, data, boxWidth: [8, 40],
+          itemStyle: { color: theme.surface, borderColor: colour, borderWidth: 1.5 },
+          emphasis: { itemStyle: { borderColor: colour, borderWidth: 2.5 } },
+        }],
+      });
     }
 
     // -- a bridge: each bar from where the one before ended, then the total ------------------------------------------

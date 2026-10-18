@@ -9,7 +9,7 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import { chartQuery, DEFAULT_OPTIONS, GRID_MARKS, measureName, type ChartSpec } from '../src/chart-spec.ts';
+import { boxMeasures, chartQuery, DEFAULT_OPTIONS, GRID_MARKS, measureName, type ChartSpec } from '../src/chart-spec.ts';
 import { paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
@@ -359,5 +359,32 @@ describe('batch 3\'s kinds, planned and run: the database computes each kind\'s 
     }
     // the average line is each panel's: 200 a month in each
     assert.deepEqual([...new Set(values(t, 'average_of_percentOfTotal_sum_revenue').map((v) => Number(v).toFixed(6)))], [(1 / 3).toFixed(6)]);
+  });
+});
+
+describe('batch 4, planned and run: a box plot\'s figures are the database\'s', () => {
+  it('each region\'s least, quartiles (continuous, as Pure\'s percentile), median and most, ordered by the median', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'boxplot', y: boxMeasures('revenue'), options: { ...DEFAULT_OPTIONS, sort: { by: 'y', direction: 'desc' } } });
+    // EMEA sold 100, 200, 300 and AMER 50, 150, 400: a quartile between two sales is the point between them
+    assert.deepEqual(values(t, 'region'), ['EMEA', 'AMER']);
+    assert.deepEqual(values(t, 'min_revenue').map(Number), [100, 50]);
+    assert.deepEqual(values(t, 'percentile25_revenue').map(Number), [150, 100]);
+    assert.deepEqual(values(t, 'median_revenue').map(Number), [200, 150]);
+    assert.deepEqual(values(t, 'percentile75_revenue').map(Number), [250, 275]);
+    assert.deepEqual(values(t, 'max_revenue').map(Number), [300, 400]);
+  });
+  it('a grid column on the first or third quartile, planned and run at its level', async () => {
+    const { levelLambda } = await import('../src/query.ts');
+    const s: CubeSnapshot = {
+      ...cube,
+      columns: cube.columns.map((c) => (c.name === 'cost' ? { ...c, aggregate: 'percentile25' as const }
+        : c.name === 'revenue' ? { ...c, aggregate: 'percentile75' as const } : c)),
+      sorts: [{ column: 'region', direction: 'asc' }],
+    };
+    const t = await engine.execute(await planner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
+    // AMER's costs 40, 90, 100 and EMEA's 60, 150, 200; revenues 50, 150, 400 and 100, 200, 300
+    assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
+    assert.deepEqual(values(t, 'cost').map(Number), [65, 105]);
+    assert.deepEqual(values(t, 'revenue').map(Number), [275, 250]);
   });
 });

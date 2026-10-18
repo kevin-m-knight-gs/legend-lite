@@ -209,6 +209,9 @@ export type AggregateFn =
   | 'min'
   | 'max'
   | 'median'
+  /** The first and third quartiles: `$y->percentile(0.25)` and `(0.75)`, a box plot's box (chart batch 4). */
+  | 'percentile25'
+  | 'percentile75'
   | 'stdDevSample'
   | 'stdDevPopulation'
   | 'varianceSample'
@@ -228,7 +231,7 @@ export type AggregateFn =
 
 /** Every aggregate, once: exhaustive by construction (a Record over the union). */
 const EVERY_AGGREGATE: Readonly<Record<AggregateFn, true>> = {
-  sum: true, average: true, count: true, min: true, max: true, median: true,
+  sum: true, average: true, count: true, min: true, max: true, median: true, percentile25: true, percentile75: true,
   stdDevPopulation: true, stdDevSample: true, variancePopulation: true, varianceSample: true,
   joinStrings: true, wavg: true, unique: true,
 };

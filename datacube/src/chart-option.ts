@@ -1018,6 +1018,7 @@ const MARK_WORDS: Record<ChartSpec['mark'], string> = {
   pareto: 'Pareto chart', funnel: 'Funnel', rose: 'Rose chart', polar: 'Polar bar chart', radar: 'Radar chart',
   parallel: 'Parallel coordinates', sankey: 'Sankey diagram', chord: 'Chord diagram', stream: 'Streamgraph',
   calendar: 'Calendar heatmap', gauge: 'Gauge', sunburst: 'Sunburst', tree: 'Tree', matrix: 'Scatter matrix',
+  boxplot: 'Box plot',
 };
 
 /** A KPI as drawn: its number as the grid writes it, how it stands against its target, and its trend's line. */
@@ -1115,6 +1116,7 @@ export function kpiDrawing(
 /** The chart in one sentence: what is plotted against what, and how much of it. */
 export function describe(spec: ChartSpec, rows: ResultTable): string {
   const what = spec.mark === 'matrix' ? `each pair of ${spec.y.map((m) => m.column).join(', ')}`
+    : spec.mark === 'boxplot' ? `the spread of ${spec.y[0]?.column ?? ''} by ${spec.x ?? ''}`
     : spec.mark === 'scatter'
     ? `${spec.y[0]?.column ?? ''} against ${spec.x ?? ''}`
     : `${spec.y.map(measureName).join(', ')} by ${spec.x ?? ''}`;

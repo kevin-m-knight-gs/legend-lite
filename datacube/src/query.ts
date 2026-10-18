@@ -186,6 +186,10 @@ function aggregateSpec(m: Measure, when?: ValueSpecification): ColSpec {
       return agg(m.name, lambda(['x'], only(ref('x', m.column))), lambda(['y'], fn('joinStrings', y, lit.string(', '))));
     case 'unique':
       return agg(m.name, lambda(['x'], only(ref('x', m.column))), lambda(['y'], fn('uniqueValueOnly', y)));
+    case 'percentile25':
+    case 'percentile75':
+      return agg(m.name, lambda(['x'], only(ref('x', m.column))),
+        lambda(['y'], fn('percentile', y, lit.float(m.fn === 'percentile25' ? 0.25 : 0.75))));
     default:
       return agg(m.name, lambda(['x'], only(ref('x', m.column))), lambda(['y'], fn(m.fn, y)));
   }

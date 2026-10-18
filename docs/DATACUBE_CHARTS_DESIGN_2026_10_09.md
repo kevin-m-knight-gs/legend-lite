@@ -146,8 +146,8 @@ The gaps, and what each step closes:
    each adding the columns to the cube, editable afterwards as Pure; a new column may start from a preset.
 5. **The editor's vocabulary** (`CALC_FUNCTIONS`) gains the date functions, each with an example the build compiles.
 6. **Batch 4's aggregates** -- `percentile` (quartiles), `corr`, `covarSample`/`covarPopulation`, `maxBy`/`minBy`
-   (first and last by time) -- are natives of the compiler already; DataCube's `AggregateFn` and Python's `AGGREGATES`
-   gain them. A trend line needs no regression function: its slope is the covariance over the variance, its intercept
+   (first and last by time) -- are natives of the compiler already; DataCube's `AggregateFn` gains them (Python takes
+   DataCube's; the quartiles are built, the two-column ones are not -- see Batch 4). A trend line needs no regression function: its slope is the covariance over the variance, its intercept
    the mean of y less the slope times the mean of x -- two aggregates and a group-level column.
 
 #### 3.3 An example page per batch
@@ -297,6 +297,22 @@ The audit of the other twins is `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`.
 
 The rule holds -- the database computes, the chart draws. The aggregates (§3.2 item 6) join `AggregateFn` and Python's
 `AGGREGATES`; then:
+
+**Built (2026-10-18, the roadmap run's phase 5, `docs/DATACUBE_ROADMAP_RUN_2026_10_18.md`):** the quartiles
+`percentile25` and `percentile75` (Pure's `percentile(0.25)` and `(0.75)`, continuous; offered on every number column by
+the compiler's own answers, `generated/offer-facts.ts`) as aggregates of the grid and of a chart; the **box plot**
+(`mark: 'boxplot'`): one number column's five figures -- `min`, `percentile25`, `median`, `percentile75`, `max`, in that
+order (`BOX_FNS`) -- per category, drawn by ECharts' boxplot series, ordered by its median, drillable, one series; a
+chart told the kind takes its first value's column's five figures (`editChart`); and the histogram, the bins preset
+with a count. Both on the Statistics sheet of the "more kinds" example page. Python writes a box plot as any chart
+(`grid.chart('boxplot', x=...)`), and an Integer's quartile -- a `Number` the database may answer as an exact decimal --
+reaches `GridView` as a `Decimal`.
+
+**Not built (left for a later pass):** `corr`, `covarSample`/`covarPopulation` and `maxBy`/`minBy` read a SECOND column
+per measure (a measure names one; `wavg`'s weight is the only second column a measure has), so the correlation
+heatmap, the trend line and the candlestick wait on a measure with two columns; the candlestick also on the `prices`
+sample. Percentile lines need a percentile window (a new `WindowFunction`, in the window form and Python's words); the
+ECDF a `cumeDist` show-as; the violin, error bars, hexbin and KPI change were not started.
 
 | Kind | What the query computes |
 |---|---|

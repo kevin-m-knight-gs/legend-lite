@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { element } from '../../pure-protocol/src/index.ts';
-import { chartProblems, chartSnapshot, drillLevels, followCube, type ChartSpec } from '../src/chart-spec.ts';
-import { chartOption, kpiDrawing, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
+import { boxMeasures, chartProblems, chartSnapshot, drillLevels, editChart, followCube, type ChartSpec } from '../src/chart-spec.ts';
+import { chartOption, describe as describeChart, kpiDrawing, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
 import { facetOption, gridKindOption, kindOption } from '../src/chart-kinds.ts';
 import { paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
 import * as echarts from 'echarts/core';
@@ -455,3 +455,61 @@ describe('a KPI by a period', () => {
   });
 });
 
+
+describe('batch 4: a box plot, its five figures the database\'s', () => {
+  const BOX = of('boxplot', { y: boxMeasures('revenue') });
+  const problems = (spec: ChartSpec) => chartProblems(spec, CUBE).join(' ');
+  it('plots its one number column\'s five figures, in order; one series; no show-as', () => {
+    assert.deepEqual(chartProblems(BOX, CUBE), []);
+    assert.match(problems(of('boxplot')), /five figures of one column/);
+    assert.match(problems(of('boxplot', { y: [...boxMeasures('revenue')].reverse() })), /in that order/);
+    assert.match(problems(of('boxplot', { y: [...boxMeasures('revenue').slice(0, 4), { column: 'cost', fn: 'max' }] })), /five figures of one column/);
+    assert.match(problems(of('boxplot', { y: boxMeasures('channel') })), /'channel' is not a number: it has no quartiles/);
+    assert.match(problems({ ...BOX, split: 'channel' }), /A box plot draws one series/);
+    assert.match(problems({ ...BOX, y: BOX.y.map((m) => ({ ...m, showAs: { kind: 'rank' as const } })) }), /computes its own figures/);
+  });
+  it('a chart told the kind takes its first value\'s column\'s five figures; a group-level column has none', () => {
+    const made = editChart(of('bar', { y: [{ column: 'cost', fn: 'sum' }] }), { mark: 'boxplot' }, CUBE);
+    assert.deepEqual(made.y, boxMeasures('cost'));
+    assert.deepEqual(chartProblems(made, CUBE), []);
+    const group = editChart(of('bar', { y: [{ column: 'margin', fn: 'value' }] }), { mark: 'boxplot' }, CUBE);
+    assert.deepEqual(group.y, [{ column: 'margin', fn: 'value' }]);
+    assert.match(chartProblems(group, CUBE).join(' '), /five figures of one column/);
+  });
+  it('asks the database for each figure per category, ordered by its median; keeps its five as the cube regroups; drills', () => {
+    const s = chartSnapshot(CUBE, BOX);
+    assert.deepEqual(s.measures?.map((m) => `${m.name}:${m.fn}`), [
+      'min_revenue:min', 'percentile25_revenue:percentile25', 'median_revenue:median',
+      'percentile75_revenue:percentile75', 'max_revenue:max',
+    ]);
+    assert.deepEqual(s.sorts, [{ column: 'median_revenue', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
+    const followed = followCube({ ...BOX, x: 'channel' }, CUBE);
+    assert.equal(followed.x, 'region');
+    assert.deepEqual(followed.y, BOX.y);
+    assert.deepEqual(drillLevels(BOX, CUBE), ['region', 'channel']);
+  });
+  it('is drawn: a box per category, whiskers to the least and the most; a category with no numbers has no box', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'LATAM'] },
+      { name: 'min_revenue', type: 'Float', values: [10, 5, null] },
+      { name: 'percentile25_revenue', type: 'Float', values: [20, 15, null] },
+      { name: 'median_revenue', type: 'Float', values: [30, 25, null] },
+      { name: 'percentile75_revenue', type: 'Float', values: [40, 35, null] },
+      { name: 'max_revenue', type: 'Float', values: [90, 45, null] },
+    ]);
+    const d = kindOption(BOX, rows);
+    const series = (d.option as { series: { type: string; data: { value: unknown[] }[] }[] }).series;
+    assert.equal(series[0]?.type, 'boxplot');
+    assert.deepEqual(series[0]?.data.map((b) => b.value), [[10, 20, 30, 40, 90], [5, 15, 25, 35, 45], ['-', '-', '-', '-', '-']]);
+    const out = svg(d);
+    assert.ok(out.includes('EMEA') && out.includes('APAC'));
+    assert.deepEqual(d.keyAt(0, 1), { region: 'APAC' });
+    const tip = (d.option as { tooltip: { formatter: (p: unknown) => string } }).tooltip.formatter({ dataIndex: 0, data: { ci: 0 } });
+    assert.match(tip, /least: <b>10<\/b>.*first quartile: <b>20<\/b>.*median: <b>30<\/b>.*third quartile: <b>40<\/b>.*most: <b>90<\/b>/);
+    assert.match(describeChart(BOX, rows), /^Box plot of the spread of revenue by region: 3 rows\.$/);
+    // side on: the categories down, the values across
+    const side = kindOption({ ...BOX, options: { ...OPTIONS, orientation: 'horizontal' } }, rows);
+    assert.equal((side.option as { yAxis: { type: string } }).yAxis.type, 'category');
+    assert.ok(svg(side).includes('EMEA'));
+  });
+});

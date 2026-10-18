@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _json
-from ._types import is_boolean, is_decimal, is_float, is_integer
+from ._types import is_boolean, is_decimal, is_float, is_integer, is_number
 from .frames import LIVE, SNAPPED
 
 _KEEP: Any = object()
@@ -451,7 +451,9 @@ class Grid(Tile):
         ``tooltip`` further measures a hover lists; ``layers`` reference lines, bands, thresholds and pinned extremes
         (each a dict, its ``kind`` saying which); ``size`` a scatter's third column, each point sized by it (a bubble);
         ``facet`` small multiples of bars, lines or areas, a chart per value of ``{'column': ...}`` and/or
-        ``{'row': ...}``. Every word is DataCube's (datacube/src/chart-spec.ts): one it does not know -- a mark, an
+        ``{'row': ...}``. A ``'boxplot'`` plots one number column's five figures -- ``min``, ``percentile25``,
+        ``median``, ``percentile75``, ``max``, in that order -- taking those of the measure it would plot unless ``y``
+        says them. Every word is DataCube's (datacube/src/chart-spec.ts): one it does not know -- a mark, an
         axis, a show-as, a grain, a layer's kind or statistic -- is refused by its reader, naming the words it takes.
 
         DataCube makes the chart -- its own new chart, changed as its options form changes one (a date across runs in time
@@ -556,10 +558,11 @@ class GridView:
     def __init__(self, view: Mapping[str, Any]) -> None:
         self.columns: list[dict[str, Any]] = list(view['columns'])
         # each value as its column's type says (by legend-lite's lattice, either compiler's name: _types): a Decimal's
-        # text (DataCube's exact decimals) a Decimal, a Float a float even when JSON wrote it as a whole number (10.0 is
+        # text (DataCube's exact decimals) a Decimal -- a Number's too, which is one when the database answered an exact
+        # decimal (an Integer's quartile) --, a Float a float even when JSON wrote it as a whole number (10.0 is
         # written 10)
         def typed(v: Any, type: str) -> Any:
-            if is_decimal(type) and isinstance(v, str):
+            if (is_decimal(type) or is_number(type)) and isinstance(v, str):
                 return Decimal(v)
             if is_float(type) and isinstance(v, int) and not isinstance(v, bool):
                 return float(v)

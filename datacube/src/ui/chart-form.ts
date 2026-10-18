@@ -5,6 +5,7 @@
 // the form was painted from.
 
 import {
+  boxMeasures,
   CHART_MARKS,
   chartColumns,
   GRID_MARKS,
@@ -73,6 +74,8 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   const { dimensions, measures, groupLevel } = chartColumns(s, spec ?? undefined);
   const dims = dimensions.map((c) => ({ value: c.name, label: c.name }));
   const scatter = spec.mark === 'scatter';
+  // a box plot plots one number column's five figures (chart-spec.ts BOX_FNS): the column is its one choice
+  const box = spec.mark === 'boxplot';
   const across = scatter
     ? [...measures, ...dimensions].map((c) => ({ value: c.name, label: c.name }))
     : dims;
@@ -180,11 +183,11 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
     // every handler reads the spec as it is AT THE EVENT, never the one
     // this form was painted from: a stale copy undid the edit before it
     field(doc, scatter ? 'Y:' : 'Value:', dropdown<string>(
-      doc, scatter ? first?.column : plottedValue,
-      scatter ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
-      (v) => pick(v, currentFn()),
+      doc, scatter || box ? first?.column : plottedValue,
+      scatter || box ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
+      (v) => (box ? v && h.set({ y: boxMeasures(v) }, true) : pick(v, currentFn())),
     )),
-    ...(scatter || first?.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
+    ...(scatter || box || first?.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
       doc, currentFn(), fns,
       (v) => {
         const now = h.spec()?.y[0];
@@ -221,7 +224,8 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   if (spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'radar' || spec.mark === 'parallel' || spec.mark === 'polar') {
     form.append(...measureRows(h, spec, plotted, typeOf, false));
   }
-  if (spec.mark === 'bar' || spec.mark === 'lollipop' || spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'polar') {
+  if (spec.mark === 'bar' || spec.mark === 'lollipop' || spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'polar'
+    || box) {
     form.append(field(doc, 'Orientation:', dropdown(doc, spec.options.orientation, spec.mark === 'polar' ? [
       { value: 'vertical', label: 'Around (a polar bar)' },
       { value: 'horizontal', label: 'Radial bars' },

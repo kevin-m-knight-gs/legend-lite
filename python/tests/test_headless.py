@@ -43,6 +43,23 @@ class Grids(unittest.TestCase):
     def setUp(self):
         self.page = ll.Page('Headless trades')
 
+    def test_a_column_on_a_quartile_is_the_databases_as_pandas_computes_it(self):
+        # chart batch 4's aggregates, a box plot's box: Pure's percentile, continuous -- between two values, the point
+        # between them, as pandas' quantile
+        grid = self.page.grid(TRADES, name='trades_quartiles', rows=['region'],
+                              measures={'notional': 'percentile25', 'qty': 'percentile75'})
+        view = grid.view()
+        by_region = TRADES.groupby('region')
+        first, third = by_region.notional.quantile(0.25), by_region.qty.quantile(0.75)
+        self.assertEqual(set(groups(view, 'notional')), set(first.index))
+        for region, value in groups(view, 'notional').items():
+            self.assertAlmostEqual(value, first[region])
+        for region, value in groups(view, 'qty').items():
+            # an Integer's quartile is a Number: a number in Python whichever the database answered, an exact decimal
+            # (its text in the view) a Decimal, as a Decimal column's
+            self.assertIsInstance(value, (int, float, Decimal), region)
+            self.assertAlmostEqual(float(value), third[region])
+
     def test_a_grouped_grid_shows_what_pandas_computes(self):
         grid = self.page.grid(TRADES, name='trades_grouped', rows=['region'], measures={'notional': 'sum', 'qty': 'sum'})
         view = grid.view()

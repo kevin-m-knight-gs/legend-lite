@@ -523,6 +523,22 @@ class Document(Paged):
             with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
                 grid.chart(mark, **given)
 
+    def test_batch_4_a_box_plot_plots_one_columns_five_figures_as_datacube_draws_it(self):
+        page, grid, _ = self.built()
+        # told the kind alone, the five figures of what DataCube's own new chart would plot: the grid's measure
+        grid.chart('boxplot', x='desk')
+        spec = [v['spec'] for v in page.to_dict()['views'] if v['kind'] == 'chart'][-1]
+        five = ('min', 'percentile25', 'median', 'percentile75', 'max')
+        self.assertEqual((spec['mark'], [(m['column'], m['fn']) for m in spec['y']]),
+                         ('boxplot', [('notional', fn) for fn in five]))
+        grid.chart('boxplot', x='region', y=[('pnl', fn) for fn in five])
+        # and what DataCube would refuse to draw, refused in its words
+        for given, why in [({'y': [('pnl', 'sum')]}, 'five figures of one column'),
+                           ({'y': [('desk', fn) for fn in five]}, 'not a number'),
+                           ({'split': 'region'}, 'one series')]:
+            with self.subTest(given=given), self.assertRaisesRegex(ValueError, why):
+                grid.chart('boxplot', x='desk', **given)
+
     def test_a_chart_plots_what_it_is_told_and_a_frozen_one_stays_when_its_grid_goes(self):
         page, grid, chart = self.built()
         # a hand on its split freezes it, as in DataCube's options

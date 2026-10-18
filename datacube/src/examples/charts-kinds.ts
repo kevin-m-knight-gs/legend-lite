@@ -1,8 +1,9 @@
 // The example page of batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3, §3.3): every new kind over the sales
-// sample, a sheet per family, each simple to complex. Built as batch 2's page is (charts-dashboard.ts salesPage), so it
+// sample, a sheet per family, each simple to complex -- and batch 4's box plots, with a histogram, on Statistics. Built as batch 2's page is (charts-dashboard.ts salesPage), so it
 // moves with the spec; test/examples.test.ts reads it back and finds every chart drawable, and
 // test/chart-queries.test.ts plans and runs each chart's query on the sample.
 
+import { boxMeasures } from '../chart-spec.ts';
 import type { PageDocument } from '../page-document.ts';
 import { BY_TIME, chart, PROFIT, REVENUE, salesPage, type ExampleSheet } from './charts-dashboard.ts';
 
@@ -83,6 +84,23 @@ const SHEETS: readonly ExampleSheet[] = [
       }),
       chart('k-matrix', 'Each sale\'s revenue, cost, profit and discount against each other: a scatter matrix', {
         mark: 'matrix', y: [REVENUE, COST, PROFIT, { column: 'discount', fn: 'sum' }], split: 'channel',
+      }),
+    ],
+  },
+  {
+    name: 'Statistics',
+    views: [
+      chart('k-box', 'The spread of each sale\'s revenue by category: a box plot', {
+        mark: 'boxplot', x: 'category', y: boxMeasures('revenue'),
+      }),
+      chart('k-box-side', 'The spread of each sale\'s discount by region, side on: a box plot', {
+        mark: 'boxplot', x: 'region', y: boxMeasures('discount'), options: { orientation: 'horizontal' },
+      }),
+      chart('k-box-month', 'The spread of each sale\'s revenue, month by month: a box plot', {
+        mark: 'boxplot', x: 'sold', grain: 'month', y: boxMeasures('revenue'), options: BY_TIME,
+      }),
+      chart('k-histogram', 'How many sales of each size: a histogram, in 20 bins', {
+        x: 'revenue', bins: { count: 20 }, y: [{ column: 'order_id', fn: 'count' }], options: BY_TIME,
       }),
     ],
   },
