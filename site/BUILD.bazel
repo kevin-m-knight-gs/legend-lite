@@ -90,20 +90,6 @@ browser_test(
     tags = ["ci-linux-only"],
 )
 
-# the same, served one folder deeper as Pages serves the preview (/legend-lite/preview/, .github/workflows/pages.yml):
-# a path that climbs out of the site, or names /legend-lite/ itself, fails here (the user, 2026-10-18)
-browser_test(
-    name = "verify_preview_test",
-    size = "large",
-    data = [
-        ":dist",
-        "//datacube:node_modules/playwright",
-    ],
-    entry_point = "verify.mjs",
-    env = {"SITE_BASE": "/legend-lite/preview/"},
-    tags = ["ci-linux-only"],
-)
-
 # `bazel run //site:verify`: the same by hand (manual, 2026-10-07)
 js_binary(
     name = "verify",

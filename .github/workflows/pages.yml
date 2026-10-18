@@ -2,10 +2,6 @@
 # DataCube and Studio running entirely in the visitor's browser (the planner, DuckDB and the model store are
 # WebAssembly; no server, nothing behind the pages). It is //site:dist as built (site/BUILD.bazel), published as is.
 #
-# THE PREVIEW: the `preview` branch's site, built beside main's on every deploy, at /legend-lite/preview/ (the steps
-# after main's build say how; preview.yml asks for a deploy when that branch moves). It shares the playground's origin,
-# so its browser storage too: a page or query saved in one is listed in the other.
-#
 # WHAT IS PUBLISHED: main as of its last green gate run. The deploy follows the gates (gate.yml), not a push: a push
 # to main runs them, and so does every night's run, which is what publishes a PR merged with [skip ci] in its message
 # (its gates already ran on the branch) -- or a run by hand, sooner. A gate run re-run to green publishes too (its
@@ -86,53 +82,6 @@ jobs:
           # the folder as files, never the links into Bazel's tree it may hold
           cp -RL bazel-bin/site/dist "$RUNNER_TEMP/site"
           du -sh "$RUNNER_TEMP/site"
-      # THE PREVIEW (the user, 2026-10-18: "a permanent place to stage changes to datacube before we go to main"; named
-      # preview by the user): the `preview` branch's own site, one folder deeper, /legend-lite/preview/ -- built on every
-      # deploy beside main's, since Pages publishes the whole site at once. preview.yml asks for a deploy when the branch
-      # moves. A preview build that fails never holds main's deploy back: the preview then says which commit failed.
-      - name: the preview branch, if there is one
-        id: preview
-        run: |
-          set -euo pipefail
-          sha=$(git ls-remote --heads origin preview | cut -f1)
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "preview: ${sha:-no preview branch}"
-      - uses: actions/checkout@v4
-        if: steps.preview.outputs.sha != ''
-        with:
-          ref: ${{ steps.preview.outputs.sha }}
-          path: preview-src
-      - name: bazel build //site:dist, the preview branch's
-        id: preview_build
-        if: steps.preview.outputs.sha != ''
-        continue-on-error: true
-        working-directory: preview-src
-        env:
-          LOW_MEMORY: "false"
-          PLATFORM: linux
-          LINUX_ONLY_TESTS: ci-policy
-        run: |
-          set -euo pipefail
-          . tools/ci/lane-flags.sh
-          bazel build "${flags[@]}" //site:dist
-          cp -RL bazel-bin/site/dist "$RUNNER_TEMP/site/preview"
-          du -sh "$RUNNER_TEMP/site/preview"
-      - name: a preview build that failed, said in the preview
-        if: steps.preview_build.outcome == 'failure'
-        env:
-          SHA: ${{ steps.preview.outputs.sha }}
-          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          rm -rf "$RUNNER_TEMP/site/preview"
-          mkdir -p "$RUNNER_TEMP/site/preview"
-          cat > "$RUNNER_TEMP/site/preview/index.html" <<EOF
-          <!doctype html><meta charset="utf-8"><title>Preview</title>
-          <body style="font: 16px system-ui; margin: 2rem">
-          <h1>The preview build failed</h1>
-          <p>The preview branch at <code>$SHA</code> did not build, so there is no preview. <a href="$RUN">The run</a>
-          says why. The site itself is <a href="../">one folder up</a>.</p>
-          EOF
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ runner.temp }}/site

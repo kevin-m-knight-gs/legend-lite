@@ -24,10 +24,8 @@ const { chromium } = createRequire(fileURLToPath(new URL('../datacube/node_modul
 hermetic(chromium);
 
 const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), 'dist');
-/** Where the site is served: GitHub Pages serves a project's site under its name, and the preview one folder deeper
- *  (SITE_BASE=/legend-lite/preview/: //site:verify_preview_test, .github/workflows/pages.yml). */
-const BASE = process.env['SITE_BASE'] ?? '/legend-lite/';
-if (!/^\/([a-z0-9-]+\/)+$/.test(BASE)) throw new Error(`SITE_BASE ${JSON.stringify(BASE)} is not a folder path like /legend-lite/`);
+/** Where the site is served: GitHub Pages serves a project's site under its name. */
+const BASE = '/legend-lite/';
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm',
   '.pure': 'text/plain', '.sql': 'text/plain', '.json': 'application/json', '.woff2': 'font/woff2',
