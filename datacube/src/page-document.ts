@@ -386,8 +386,11 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
   };
 }
 
-/** A layout of bands (`what` names it in what is said): its tiles, each a view of this page, the bands' rules kept. */
-function readLayout(l: unknown, views: ReadonlySet<string>, what: string): PageLayout {
+/**
+ * A layout of bands (`what` names it in what is said): its tiles, each a view of this page, the bands' rules kept. A
+ * page's reader reads each sheet's by it, and a page command's layout is read by it too (page-commands.ts `layout`).
+ */
+export function readLayout(l: unknown, views: ReadonlySet<string>, what: string): PageLayout {
   if (!isObject(l)) throw new PageDocumentError(`${what} is not a layout`);
   if (l['kind'] !== 'bands') throw new PageDocumentError(`${what} is not a layout of bands`);
   if (typeof l['fit'] !== 'boolean') throw new PageDocumentError(`${what}'s fit is not true or false`);

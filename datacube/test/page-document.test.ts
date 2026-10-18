@@ -327,6 +327,16 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
     const laid = (JSON.parse(applied.page) as PageDocument).sheets[0]!.layout;
     assert.deepEqual(laid, startingViews({ id: 'grid-1', cube: 'grid-1' }).sheets[0]!.layout);
   });
+
+  it("an added grid's cube keeps its exact numbers, and a cube its reader refuses is refused in its words", () => {
+    // (the phase 1 audit's 3) the commands are read from their exact numbers, as the page's cubes are: 12.30 stays 12.30
+    const started = JSON.parse(pageNew('Q3 review')).page as string;
+    const add = (document: string): { page?: string; problems?: string[] } => JSON.parse(pageApply(started, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${document},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`));
+    assert.match(cubeToJson(CUBE), /12\.30/);
+    assert.match(add(cubeToJson(CUBE)).page!, /12\.30/);
+    assert.match(add('{"bogus":1}').problems![0]!, /cannot read saved cube/);
+  });
 });
 
 describe("a name a person gives, by DataCube's one rule (givenName: the screen's renames and Python's ask it)", () => {

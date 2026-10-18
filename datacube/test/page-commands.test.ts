@@ -36,6 +36,20 @@ describe('ids and titles: one allocator, after every id the page has held', () =
     assert.equal(chartTitle('chart-12'), 'Chart 12');
   });
 
+  it("a cube kept for a detached chart has no view, and its id is taken all the same (the phase 1 audit's 2)", () => {
+    // grid-2 removed: chart-2, frozen, keeps its cube with no grid view
+    const detached = apply({ kind: 'removeTile', tile: 'grid-2' }).page;
+    assert.ok(idsOf(detached).includes('grid-2'), "the kept cube's id");
+    const added = (d: PageDraft, id?: string): string => (applyPageCommand(d, {
+      kind: 'addGrid', ...(id !== undefined ? { id } : {}), document: trades.cubes[0]!.cube, sheet: 'sheet-1', near: null, title: null, columns: null,
+    }).command as { id: string }).id;
+    assert.equal(added(draft(detached)), 'grid-3');
+    // a host whose held left it out gets no second grid-2 either, nor may it name one
+    const forgetful: PageDraft = { page: detached, held: detached.views.map((v) => v.id) };
+    assert.equal(added(forgetful), 'grid-3');
+    refused(() => added(forgetful, 'grid-2'), /'grid-2' is an id the page has held already/);
+  });
+
   it('a command that makes a tile carries the id it was given, as applied (what a live channel replays)', () => {
     const { draft: d, applied } = applyPageCommands(draft(), [
       { kind: 'addSheet', name: 'More' },
@@ -123,6 +137,16 @@ describe('each command gives the page the screen\'s rules give it', () => {
     const side = apply({ kind: 'arrange', sheet: 'sheet-1', preset: 'stacked', order: null }).page;
     assert.equal(sheet(side, 'sheet-1').layout.bands.length, 2);
     refused(() => apply({ kind: 'layout', sheet: 'sheet-2', layout: sheet(trades, 'sheet-1').layout }), /holds its tiles, each once/);
+    // (the phase 1 audit's 1) read as a saved page's sheet is: its shape refused in the page reader's words, never kept
+    const odd = (layout: unknown): PageCommand => ({ kind: 'layout', sheet: 'sheet-2', layout: layout as PageCommand & never });
+    refused(() => apply(odd({ kind: 'bands', fit: 'yes', bands: [{ height: 1, node: { tile: 'grid-2' } }] })), /the layout's fit is not true or false/);
+    refused(() => apply(odd({ kind: 'bands', fit: true })), /the layout's bands are not a list/);
+    refused(() => apply(odd({ kind: 'bands', fit: true, bands: [{ height: '1', node: { tile: 'grid-2' } }] })), /band 1 is not a height and its tiles/);
+    refused(() => apply(odd({ kind: 'bands', fit: true, bands: [{ height: 1, node: { tiles: 'grid-2' } }] })), /band 1 is not a tile, a stack or a split/);
+    refused(() => apply(odd({ kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'nope' } }] })), /a tile shows no view of this page \(nope\)/);
+    // a node's stray keys are not kept: the page's reader rebuilds it
+    const kept = apply(odd({ kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid-2', extra: 1 } }] })).page;
+    assert.deepEqual(sheet(kept, 'sheet-2').layout, sheet(trades, 'sheet-2').layout);
     const same = apply({ kind: 'layout', sheet: 'sheet-1', layout: sheet(side, 'sheet-1').layout }, draft()).page;
     assert.deepEqual(sheet(same, 'sheet-1').layout, sheet(side, 'sheet-1').layout);
   });
@@ -157,5 +181,8 @@ describe('a page command read from JSON is the same command, and what DataCube d
     refused(() => readPageCommand({ kind: 'removeTile', tiles: 'x' }), /a 'removeTile' command takes tile, not tiles/);
     refused(() => readPageCommand({ kind: 'moveTile', tile: 'x', sheet: 'sheet-1', columns: 0 }), /columns is a whole number/);
     refused(() => readPageCommand({ kind: 'renameTile', tile: 'x', title: 3 }), /a tile's title is text/);
+    // a grid's cube, read by its own reader (the phase 1 audit's 3)
+    refused(() => readPageCommand({ kind: 'addGrid', document: { bogus: 1 }, sheet: 'sheet-1', near: null, title: null, columns: null }),
+      /cannot read saved cube/);
   });
 });

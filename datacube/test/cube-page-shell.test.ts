@@ -20,6 +20,7 @@ import type { ExportPage } from '../src/export-model.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
 import { pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
 import type { ChartMeasure } from '../src/chart-spec.ts';
 import type { FilterNode } from '../src/snapshot.ts';
 import { getInstanceByDom } from 'echarts/core';
@@ -791,6 +792,41 @@ describe('titles and ids: renamed tiles moved and saved, a new grid beside a kep
     assert.equal(tile(a).querySelector('.dc-tile-title')?.textContent, 'Trades');
     assert.equal(chartView(chart)!.title, 'Desk mix');
     assert.deepEqual(tabs(), ['trades.csv', 'Sheet 2']);
+  });
+
+  it('a rename or a move tells its page command as the page saves it: a grid given its made title back none; an editing grid nothing', async () => {
+    // (the phase 1 audit's 4 and 5) what the screen tells replays to the page it writes
+    const told: PageCommand[] = [];
+    const { b } = await twoGrids({ onPageCommand: (c) => told.push(c) });
+    const chart = await chartOf(b);
+    await togglePill(chart);
+    await openInGrid(chart);
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    const [first, second] = pg().sheets;
+    clickTab('trades.csv');
+    await settle();
+    const start = pg().document('Q3')!;
+    told.length = 0;
+    rename(b, 'Sales');
+    rename(b, 'Grid 2');
+    rename(`edit-${chart}`, 'My edit');
+    // the editing grid dragged by its title bar onto the second sheet's tab (each tab placed along the bar: jsdom lays
+    // nothing out)
+    [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].forEach((tab, i) => {
+      const left = 100 + 100 * i;
+      tab.getBoundingClientRect = () => ({ left, right: left + 80, top: 0, bottom: 20, x: left, y: 0, width: 80, height: 20, toJSON: () => ({}) });
+    });
+    const head = tile(`edit-${chart}`).querySelector<HTMLElement>('.dc-tile-head')!;
+    for (const [type, x, y] of [['pointerdown', 600, 300], ['pointermove', 240, 10], ['pointerup', 240, 10]] as const) {
+      head.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, clientX: x, clientY: y, button: 0, bubbles: true }));
+    }
+    await settle();
+    assert.equal(sheetOf(`edit-${chart}`), second, 'the editing grid moved');
+    assert.equal(pg().shownSheet, first);
+    assert.deepEqual(told, [{ kind: 'renameTile', tile: b, title: 'Sales' }, { kind: 'renameTile', tile: b, title: null }]);
+    const replayed = applyPageCommands({ page: start, held: idsOf(start) }, told).draft.page;
+    assert.deepEqual({ views: replayed.views, sheets: replayed.sheets }, pg().views());
   });
 
   it('a new grid never takes the id of a grid kept off the board for a detached chart', async () => {

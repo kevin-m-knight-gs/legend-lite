@@ -307,6 +307,12 @@ class Document(Paged):
         # a layout leaving a tile of the sheet out, refused by the layout command (page-commands.ts): every tile once
         with self.assertRaisesRegex(ValueError, "a sheet's layout holds its tiles, each once"):
             sheet.layout_from({'kind': 'bands', 'fit': True, 'bands': [{'height': 1, 'node': {'tile': grid.id}}]})
+        # its shape read as a saved page's sheet is, refused in the page reader's words -- never kept to be refused only
+        # when the page is saved, nor a JavaScript error (the phase 1 audit's 1)
+        with self.assertRaisesRegex(ValueError, "the layout's fit is not true or false"):
+            sheet.layout_from({'kind': 'bands', 'fit': 'yes', 'bands': [{'height': 1, 'node': {'tile': grid.id}}]})
+        with self.assertRaisesRegex(ValueError, "the layout's bands are not a list"):
+            sheet.layout_from({'kind': 'bands', 'fit': True})
 
     def test_a_sheet_gone_is_refused_its_layout_and_an_empty_one_laid_out_in_no_bands_is_as_it_was(self):
         # (the audit of neema2/legend-lite#47) an empty sheet laid out in no bands is as it is -- no shape names no

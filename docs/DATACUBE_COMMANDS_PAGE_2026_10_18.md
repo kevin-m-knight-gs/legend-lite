@@ -32,7 +32,7 @@ Python still copies (the homework's §8):
 | `removeSheet {sheet}` | a sheet and its tiles; the last sheet is refused |
 | `renameTile {tile, title}` | a tile's title; null takes a grid's off (a chart has one) |
 | `addGrid {id?, document, sheet, near, title, columns}` | a grid of its own cube (the document, made first) |
-| `addChart {id?, cube, spec, near, title, columns}` | a chart of a grid, beside it |
+| `addChart {id?, near, spec, title, columns}` | a chart of a grid, beside it |
 | `setChart {chart, spec}` | a chart's spec, made first by `editChart` |
 | `moveTile {tile, sheet, columns}` | a tile onto another sheet |
 | `stack {tiles}` | tiles in one place, as tabs |

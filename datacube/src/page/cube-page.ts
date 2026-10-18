@@ -299,7 +299,9 @@ export class CubePage {
         this.#options.onChange();
       },
       onRename: (tile, title) => {
-        this.#tell({ kind: 'renameTile', tile, title });
+        // a grid given its made title back has none of its own again (views() writes none); an editing grid, which a
+        // page does not save, is no tile of the page's to tell
+        if (this.#saved(tile)) this.#tell({ kind: 'renameTile', tile, title: title === this.#titles.get(tile) ? null : title });
         this.#options.onChange();
       },
       onLayout: (tileId, anchor) => this.showLayouts(anchor, tileId),
@@ -331,6 +333,11 @@ export class CubePage {
   /** A page edit told as its command (onPageCommand), unless it is part of one told already. */
   #tell(command: PageCommand): void {
     if (this.#quiet === 0) this.#options.onPageCommand?.(command);
+  }
+
+  /** Whether a tile is one the page saves (views() writes it): not a chart's editing grid, a moment's work. */
+  #saved(tile: string): boolean {
+    return this.views((g) => g).views.some((v) => v.id === tile);
   }
 
   /** A sheet's layout told whole, as views() writes it: its saved tiles alone, as a page saves them. */
@@ -481,7 +488,8 @@ export class CubePage {
     const target = to === null ? this.#newSheet(nextPageId([...this.#held], 'sheet')) : this.#sheets.find((s) => s.id === to);
     if (!target || target === from) return;
     if (to === null) this.#tell({ kind: 'addSheet', id: target.id, name: null });
-    this.#tell({ kind: 'moveTile', tile, sheet: target.id, columns: target.board.columns ?? null });
+    // an editing grid moved is no tile of the page's to tell (the page does not save it)
+    if (this.#saved(tile)) this.#tell({ kind: 'moveTile', tile, sheet: target.id, columns: target.board.columns ?? null });
     const title = from.board.title(tile) ?? spec.title;
     from.board.remove(tile);
     target.board.add({ ...spec, title });

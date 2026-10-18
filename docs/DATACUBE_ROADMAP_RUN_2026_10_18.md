@@ -22,10 +22,10 @@ on the newest branch of the stack and updated as each phase lands on its branch.
 
 | # | Phase | Branch | State |
 |---|---|---|---|
-| — | #57: header sorting, pivot totals (PR open, green) | `claude/epic-rubin-ay7upl` | waiting on the user's merge |
+| — | #57: header sorting, pivot totals | `claude/epic-rubin-ay7upl` | merged |
 | — | Command program stage 1a: the test foundation | `claude/datacube-command-tests` | done, audited |
 | — | Command program stage 1: the grid half | `claude/datacube-commands` | done, audited |
-| 1 | Command program stage 1: the page half (page parity tests first) | `claude/datacube-page-commands` | in progress |
+| 1 | Command program stage 1: the page half (page parity tests first) | `claude/datacube-page-commands` | done, audited |
 | 2 | Command program stage 2: one page state, page-level undo | | |
 | 3 | Command program stage 3: the live channel between Python and an open page | | |
 | 4 | Graph mode: design note, then the G0 spike over main's Cypher island | | |
@@ -50,3 +50,10 @@ on the newest branch of the stack and updated as each phase lands on its branch.
   left as it is until the user says which.
 - **Phase 1, left to stage 2:** the screen tells `addChart`, `addGrid` and `setChart` once one page state holds a
   chart's spec and a grid's cube document as they are made.
+- **Phase 1's audit** (an independent reviewer, six findings, each fixed with a test checked to fail without it): a
+  `layout` command read as a saved page's sheet is (`readLayout`), so Python's `layout_from` refuses a bad shape in
+  the page reader's words again; a cube kept for a detached chart has its id taken (`idsOf`, `freshId`); `addGrid`'s
+  document read by `readCube`, from the commands' exact numbers; an editing grid's rename or move told as nothing; a
+  grid given its made title back told as no title; the design note's `addChart` row. Answered, not changed: Python's
+  refusal for a tile not on a sheet (`Sheet.layout`) and for a stack across sheets (`Page.stack`) are DataCube's words
+  now, naming the tile's id and "move them there first" rather than Python's handle and `sheet.add(tile)`.

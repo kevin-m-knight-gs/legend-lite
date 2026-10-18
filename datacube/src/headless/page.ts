@@ -65,7 +65,10 @@ export function pageApply(page: string, held: string, commands: string): string 
   let read;
   try {
     const doc = heldPage(page);
-    read = (JSON.parse(commands) as unknown[]).map(readPageCommand);
+    // a grid's cube read from the commands' exact numbers (a calculated column's 1.10 kept), as the page's cubes are
+    const exact = fromJson(commands) as unknown[];
+    read = (JSON.parse(commands) as unknown[]).map((c, i) => readPageCommand((c as { kind?: unknown } | null)?.kind === 'addGrid'
+      ? { ...(c as object), document: (exact[i] as Record<string, unknown>)['document'] } : c));
     const done = applyPageCommands({ page: doc, held: JSON.parse(held) as string[] }, read);
     return `{"page":${JSON.stringify(pageToJson(done.draft.page))},"held":${JSON.stringify(done.draft.held)},`
       + `"commands":[${done.applied.map((c) => toJson(c)).join(',')}]}`;

@@ -6,11 +6,14 @@
 // command is built, as a grid command's calculated column is parsed first (grid-commands.ts).
 
 import { readChart, type ChartSpec } from './chart-spec.ts';
-import type { CubeDocument } from './cube-document.ts';
+import { CubeDocumentError, readCube, type CubeDocument } from './cube-document.ts';
 import {
-  MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, problems, remove, stackTiles, tiles, type Bands, type Preset,
+  MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, tiles, type Bands, type Preset,
 } from './layout/bands.ts';
-import { keptFor, writePageOf, type ChartView, type PageDocument, type PageLayout, type PageSheet, type PageView } from './page-document.ts';
+import {
+  PageDocumentError, keptFor, readLayout, writePageOf, type ChartView, type PageDocument, type PageLayout, type PageSheet,
+  type PageView,
+} from './page-document.ts';
 import { givenName } from './page-names.ts';
 import { CubeRefusal, withoutConditions, type FilterNode } from './snapshot.ts';
 
@@ -115,10 +118,14 @@ function viewNamed(page: PageDocument, id: string): PageView {
 const withSheet = (page: PageDocument, id: string, change: (s: PageSheet) => PageSheet): PageDocument =>
   ({ ...page, sheets: page.sheets.map((s) => (s.id === id ? change(s) : s)) });
 
-/** A fresh id for a command that makes one, or the one it names -- refused when the page has held it. */
+/**
+ * A fresh id for a command that makes one, or the one it names -- refused when the page has held it, or a cube of the
+ * page has it (a cube kept for a detached chart has no view of its own: its id is taken all the same).
+ */
 function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'chart' | 'sheet'): string {
-  if (given === undefined) return nextPageId(draft.held, kind);
-  if (draft.held.includes(given)) throw new CubeRefusal(`'${given}' is an id the page has held already`);
+  const taken = [...draft.held, ...draft.page.cubes.map((c) => c.id)];
+  if (given === undefined) return nextPageId(taken, kind);
+  if (taken.includes(given)) throw new CubeRefusal(`'${given}' is an id the page has held already`);
   if (!new RegExp(`^${kind}-\\d+$`).test(given)) throw new CubeRefusal(`a ${kind}'s id is ${kind}-N, not '${given}'`);
   return given;
 }
@@ -289,10 +296,16 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
     }
     case 'layout': {
       const sheet = sheetNamed(page, command.sheet);
-      const { kind, ...bands } = command.layout;
-      if (kind !== 'bands') throw new CubeRefusal("a sheet's layout is of bands: {kind: 'bands', fit, bands}");
-      const wrong = problems(bands);
-      if (wrong.length > 0) throw new CubeRefusal(`the layout cannot be laid out: ${wrong.join('; ')}`);
+      // read as a saved page's sheet is (page-document.ts readLayout): its shape, its tiles views of the page, its bands'
+      // rules -- a layout the page's reader would refuse never reaches the page
+      let read: PageLayout;
+      try {
+        read = readLayout(command.layout, new Set(page.views.map((v) => v.id)), 'the layout');
+      } catch (e) {
+        if (e instanceof PageDocumentError) throw new CubeRefusal(e.message);
+        throw e;
+      }
+      const { kind: _kind, ...bands } = read;
       const had = [...tiles(sheet.layout)].sort();
       const has = [...tiles(bands)].sort();
       if (JSON.stringify(had) !== JSON.stringify(has)) {
@@ -315,9 +328,12 @@ export function applyPageCommands(draft: PageDraft, commands: readonly PageComma
   return { draft: d, applied };
 }
 
-/** Every id a page holds now: its tiles' and its sheets' (a draft's `held` starts from these, and grows). */
+/**
+ * Every id a page holds now: its tiles', its sheets' and its cubes' -- a cube kept for a detached chart has no view, and
+ * its id is taken (a draft's `held` starts from these, and grows).
+ */
 export function idsOf(page: PageDocument): string[] {
-  return [...page.views.map((v) => v.id), ...page.sheets.map((s) => s.id)];
+  return [...new Set([...page.views.map((v) => v.id), ...page.cubes.map((c) => c.id), ...page.sheets.map((s) => s.id)])];
 }
 
 // ---------------------------------------------------------------- reading a command from JSON
@@ -338,6 +354,17 @@ const textOrNull = (v: unknown, what: string): string | null => (v === null ? nu
 
 const optionalId = (v: unknown, what: string): { id?: string } => (v === undefined ? {} : { id: text(v, what) });
 
+/** A grid's cube, read by its own reader (cube-document.ts readCube): what it refuses, refused in its words. */
+function cubeOf(v: unknown): CubeDocument {
+  if (!isObject(v)) throw new CubeRefusal("a grid's cube is its document");
+  try {
+    return readCube(v);
+  } catch (e) {
+    if (e instanceof CubeDocumentError) throw new CubeRefusal(e.message);
+    throw e;
+  }
+}
+
 function columnsFrom(v: unknown): number | null {
   if (v === null) return null;
   if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) throw new CubeRefusal(`columns is a whole number, one or more, or null, not ${JSON.stringify(v)}`);
@@ -346,8 +373,8 @@ function columnsFrom(v: unknown): number | null {
 
 /**
  * A page command read from JSON (Python's, a live channel's): its kind one this module applies, its fields exactly those
- * the kind takes, each of its type -- or refused in words. What a field NAMES (a tile the page has, a chart's spec) is
- * the apply's to judge.
+ * the kind takes, each of its type -- a grid's cube read by its own reader -- or refused in words. What a field NAMES (a
+ * tile the page has, a chart's spec, a layout's tiles) is the apply's to judge.
  */
 export function readPageCommand(given: unknown): PageCommand {
   if (!isObject(given) || typeof given['kind'] !== 'string') {
@@ -377,9 +404,8 @@ export function readPageCommand(given: unknown): PageCommand {
       return { kind, tile: text(o['tile'], 'a tile'), title: textOrNull(o['title'], "a tile's title") };
     case 'addGrid':
       fields(o, kind, ['id', 'document', 'sheet', 'near', 'title', 'columns']);
-      if (!isObject(o['document'])) throw new CubeRefusal("a grid's cube is its document");
       return {
-        kind, ...optionalId(o['id'], "a grid's id"), document: o['document'] as unknown as CubeDocument,
+        kind, ...optionalId(o['id'], "a grid's id"), document: cubeOf(o['document']),
         sheet: text(o['sheet'], 'a sheet'), near: textOrNull(o['near'], 'a tile'), title: textOrNull(o['title'], "a tile's title"),
         columns: columnsFrom(o['columns']),
       };
