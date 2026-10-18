@@ -147,8 +147,8 @@ could not fail.
 
 ## 7. Screen bugs found along the way (already on main; not #47's)
 
-- Unticking **Exclude from horizontal pivot** in Column Properties does nothing: it writes `undefined`, and the query
-  keeps the exclusion. The menu's Include works. (**checked**, panel-column.ts:312)
+- ~~Unticking **Exclude from horizontal pivot** in Column Properties does nothing~~: **fixed 2026-10-18 on #47**
+  (e2e3ce8). `applyToSnapshot` now takes the exclusion from the configuration alone, as it takes the aggregate.
 - **View ▸ Dimensions** skips the grouping rules (app.ts:2997 calls `useDimension` through `#query`, not `setGrouping`).
   (**checked**)
 - The pivoted measure's parent checkbox makes N changes and N undo steps for one click (columns-panel.ts:368-372).
@@ -161,6 +161,20 @@ could not fail.
 - A header's click refuses a sort of a pivot total, while the header menu sorts by it.
 - `setSorts` takes a pivot's header while pivoted, as the screen offers it; a header a pivoted level does not produce
   is left out of that level's query without a word (round 2's Python refused it; the screen never did).
+
+**Found and fixed on #47 by the test-gap round (2026-10-18)**, each with a test that fails without its fix:
+- unticking "Show grouped columns" left the query keeping them;
+- a weighted average whose weight column is gone was kept on reopen, so the planner refused the whole cube;
+- a cleared setting every grid has read as off;
+- a grain or bins left on a chart with no column across;
+- a layer reading a value before the chart's first;
+- axis breaks that were not ranges, which threw at the drawing;
+- option flags and `frozen` not checked as true or false;
+- a drilled chart given another column across kept drawing the drill;
+- a big integer's bin, clicked, threw;
+- Open in grid offered on a frozen KPI with no trend, opening nothing.
+
+These are commits e2e3ce8, 57b653a and f130b8e.
 
 ## 8. Python still holds copies of rules (the twins program's leftovers)
 
