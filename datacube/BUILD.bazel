@@ -217,6 +217,8 @@ _EXTRA_ENV = {
 _DUCKDB_USERS = [
     # chart queries planned and run (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2)
     "chart-queries",
+    # graph mode's G0: a Cypher query planned in the tab and run on its DuckDB (docs/DATACUBE_GRAPH_MODE_2026_10_18.md)
+    "cypher-spike",
     "duckdb",
     "group-derived",
     # the screen's grid over a real DuckDB, its document held to Python's (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11)
@@ -289,6 +291,7 @@ _EXTRA_DATA = {
 _WASM_TESTS = [
     "calc-fix",
     "chart-queries",
+    "cypher-spike",
     "infer",
     "offer-facts",
     "upload",
