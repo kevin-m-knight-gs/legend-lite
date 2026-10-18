@@ -616,7 +616,10 @@ The user asked for real queries that push the island hard. Their corpora, data a
     and about 50 corpus queries. The long division works, with the divisor bound to 18 digits and refused past them
     at run time, but its plan repeats each chunk's rest. It is 91,571 nodes even with one-estimate chunks, past the
     20,000-node limit. It needs intermediate values bound once (columns computed before the projection, as
-    `Windowing.computed` does for windows), which the translator's select items do not have yet.
+    `Windowing.computed` does for windows), which the translator's select items do not have yet. Checked 2026-10-17:
+    that alone would not do, since the Lowerer merges an `extend` into its consumer by substitution (a window's
+    computed key is written as its column and again inside PARTITION BY). The Lowerer would also have to keep a
+    SELECT level for a complex column read more than once.
 - **The canonical queries, judged over the data:** TPC-H's 22 give 19 PASS and Q22's -131. Q8 and Q14 are refused
   (above). TPC-DS's 99 give 62 PASS and 19 matching error codes; 4 differ only in decimal places IQ derives from the
   data (D-N3: its window SUM is NUMERIC(10,2) over the parity tables, wider over TPC-DS's), and 14 are refused.
