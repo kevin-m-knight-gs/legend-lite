@@ -5277,6 +5277,11 @@ Match7/[19] moves to PASS on both lanes; TCK agreement DuckDB 3570 → 3571, Pos
   snapping `SHOW FUNCTIONS` into `cypher-parity/neo4j-functions.txt`, every `--check` comparing it with the server,
   and `CypherParityTest` holding the constant to the file. A name Neo4j defines that the island does not read
   stays a refusal by name.
+- **Two crashes behind BOTH_ERROR, fixed** (found scanning lite's errors beside Neo4j's): `size()` of a path
+  (List6/[5]) threw a NullPointerException and is Neo4j's type mismatch in the statement scan; a float literal
+  beyond the largest double (Literals5/[27]) threw a NumberFormatException and is the parser's FloatingPointOverflow.
+  Every BOTH_ERROR row now stands behind a syntax error, a compile error, a raise of the database's or (one) a
+  refusal by name.
 - **Left (the plan's §5):** `percentileDisc(0.90, deg)` with the percentile read from the rows (Aggregation6/[5]):
   Neo4j raises at run time where the percentile falls outside 0 to 1; the island spells a percentile the database
   takes as a constant only.

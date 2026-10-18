@@ -80,3 +80,15 @@ tests:
     graph: |
       CREATE (:N {name: 'a'})
     cypher: "RETURN date.yesterday() AS d"
+  - id: size_of_a_path
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})
+    cypher: "MATCH p = (a:N)-->(b) RETURN size(p) AS s"
+  - id: a_float_literal_too_large
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "RETURN 1.5e400 AS f"
+  - id: a_float_literal_at_the_largest
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "RETURN 1.7976931348623157e308 AS f"

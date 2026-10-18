@@ -775,7 +775,12 @@ public final class CypherParser {
             }
             case FLOAT -> {
                 advance();
-                return new CypherAst.FloatLit(Double.parseDouble(t.text()), t.text(), pos);
+                double value = Double.parseDouble(t.text());
+                if (Double.isInfinite(value)) {
+                    // (Neo4j's FloatingPointOverflow, the study's §12.84)
+                    throw CypherErrors.syntax("floating point number is too large", pos);
+                }
+                return new CypherAst.FloatLit(value, t.text(), pos);
             }
             case STRING -> {
                 advance();

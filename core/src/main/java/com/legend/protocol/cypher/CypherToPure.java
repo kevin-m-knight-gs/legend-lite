@@ -1030,8 +1030,9 @@ public final class CypherToPure {
 
     /**
      * Neo4j's static expression errors, raised with the variable errors before any clause is read (the study's
-     * §12.84): {@code size()} of a pattern (a pattern expression only tests existence, UnexpectedSyntax), a property
-     * of a path (InvalidArgumentType). A comprehension's or a quantifier's variable shadows the name it binds.
+     * §12.84): {@code size()} of a pattern (a pattern expression only tests existence, UnexpectedSyntax), {@code size()}
+     * of a path and a property of a path (InvalidArgumentType). A comprehension's or a quantifier's variable shadows
+     * the name it binds.
      */
     private static void checkExpression(Expr e, Map<String, VarKind> bound) {
         if (e instanceof CypherAst.Call c && c.name().equalsIgnoreCase("size") && c.args().size() == 1
@@ -1039,6 +1040,11 @@ public final class CypherToPure {
             throw CypherErrors.invalid("A pattern expression should only be used in order to test the existence of a"
                     + " pattern. It can no longer be used inside the function size(), an alternative is to replace"
                     + " size() with COUNT {}.", pp.pos());
+        }
+        if (e instanceof CypherAst.Call c && c.name().equalsIgnoreCase("size") && c.args().size() == 1
+                && unwrapped(c.args().get(0)) instanceof CypherAst.Var v && bound.get(v.name()) == VarKind.PATH) {
+            throw CypherErrors.invalid("Type mismatch: expected String, Vector or List<T> but was Path",
+                    c.args().get(0).pos());
         }
         if (e instanceof CypherAst.Prop p && unwrapped(p.target()) instanceof CypherAst.Var v
                 && bound.get(v.name()) == VarKind.PATH) {

@@ -584,6 +584,10 @@ class CypherToPureTest {
         // Neo4j's static errors, raised before any clause is read
         invalid("MATCH (a:Person) RETURN size((a)-->()) AS s", "It can no longer be used inside the function size()");
         invalid("MATCH p = (a:Person)-->(b) RETURN p.name AS n", "but was Path");
+        invalid("MATCH p = (a:Person)-->(b) RETURN size(p) AS s", "expected String, Vector or List<T> but was Path");
+        SqlTranslationException overflow = refusal("RETURN 1.5e400 AS f");
+        assertEquals(SqlTranslationException.Kind.SYNTAX, overflow.kind(), overflow.getMessage());
+        assertTrue(overflow.getMessage().contains("floating point number is too large"), overflow.getMessage());
         String shadowing = pure("MATCH p = (a:Person)-->(b) RETURN [p IN [{name: 'x'}] | p.name] AS l");
         // (the comprehension's p an element of its list, not the path: it translates)
         assertTrue(shadowing.contains("x"), shadowing);

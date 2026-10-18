@@ -4270,6 +4270,9 @@ lite/neo4jerrors/an_update_inside_exists	BOTH_ERROR	BOTH_ERROR
 lite/neo4jerrors/an_unknown_function	BOTH_ERROR	BOTH_ERROR
 lite/neo4jerrors/an_unknown_function_in_a_where	BOTH_ERROR	BOTH_ERROR
 lite/neo4jerrors/an_unknown_member_of_a_temporal_namespace	BOTH_ERROR	BOTH_ERROR
+lite/neo4jerrors/size_of_a_path	BOTH_ERROR	BOTH_ERROR
+lite/neo4jerrors/a_float_literal_too_large	BOTH_ERROR	BOTH_ERROR
+lite/neo4jerrors/a_float_literal_at_the_largest	PASS	PASS
 lite/nodes/node_of_one_class	PASS	PASS
 lite/nodes/nodes_of_every_class	PASS	PASS
 lite/nodes/node_with_order_and_limit	PASS	PASS

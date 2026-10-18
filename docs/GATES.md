@@ -11797,3 +11797,12 @@ counted BOTH_ERROR only because the island refused by name what Neo4j rejects; 2
    `//spec:update_ratchets_tests`, the IQ and SQL parity lanes on DuckDB and on Postgres,
    `//core:iq_syntax_cases_test` and `//core:corpus_differential_test` green (40 targets).
 4. **Left.** A percentile read from the rows (Aggregation6/[5], the plan's §5).
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-second landing — two crashes behind BOTH_ERROR
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.84. `size()` of a path (List6/[5]) threw a
+NullPointerException and a float literal beyond the largest double (Literals5/[27]) a NumberFormatException, both
+counted BOTH_ERROR beside Neo4j's errors; now Neo4j's type mismatch and FloatingPointOverflow. Three cases join
+`lite/neo4jerrors.yaml` (22). Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3886 / REFUSED 267 /
+BOTH_ERROR 764 / SKIP 56; Postgres PASS 3474 / REFUSED 679 / BOTH_ERROR 764 / SKIP 56, of 4973 cases), TCK agreement
+unchanged (DuckDB 3571, Postgres 3190); the oracle check 0 problems; the chain's 40 guard targets green.
