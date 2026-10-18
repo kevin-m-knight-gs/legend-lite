@@ -11885,3 +11885,17 @@ classes. Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3968 / R
 Postgres 3552 → 3596; the oracle check 0 problems; the chain's 40 guard targets green. What the TCK still holds
 outside the write clauses (and the control queries of their scenarios) on either lane: the 2 signed years past every
 database's dates, 3 setups Neo4j refuses, and on Postgres one remainder of a float.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-eighth landing — the remainder of floats, exact on every lane
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.90. Cypher's `%` of floats is Java's exact
+remainder; Postgres has no remainder of doubles and casts a double to the shortest decimal, so its dialect refused one
+by name (§12.73). It now spells it exactly: each operand an integer times a power of two, the NUMERIC remainder of the
+two integers, scaled back (each operand written once, in a scalar subquery; one holding a window function refused by
+name), measured equal to `fmod` over 4,000 pairs of doubles. Found by the cases: by zero the island raised Pure's
+`rem` error where Neo4j answers NaN (a Float divisor, a spelled zero); now NaN there, the error for an Integer zero of
+the row. `lite/exprtail.yaml` (3 cases). Both lanes in update mode, FAIL/BUG/ERROR at zero, and for the first time the
+same census on both (PASS 3970 / REFUSED 259 / BOTH_ERROR 770 / SKIP 36, of 5035 cases); TCK agreement DuckDB 3597 →
+3597, Postgres 3596 → 3597 (Precedence2/[2] #3); the oracle check 0 problems; the chain's 40 guard targets green.
+What the TCK holds outside the write clauses (and the control queries of their scenarios) on either lane: the 2
+signed years past every database's dates and 3 setups Neo4j refuses.

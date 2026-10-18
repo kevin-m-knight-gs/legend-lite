@@ -2135,7 +2135,7 @@ tck/expressions/precedence/Precedence2/[1] Numeric multiplicative operations tak
 tck/expressions/precedence/Precedence2/[1] Numeric multiplicative operations takes precedence over numeric additive operations #18	PASS	PASS
 tck/expressions/precedence/Precedence2/[2] Exponentiation takes precedence over numeric multiplicative operations #1	PASS	PASS
 tck/expressions/precedence/Precedence2/[2] Exponentiation takes precedence over numeric multiplicative operations #2	PASS	PASS
-tck/expressions/precedence/Precedence2/[2] Exponentiation takes precedence over numeric multiplicative operations #3	PASS	REFUSED
+tck/expressions/precedence/Precedence2/[2] Exponentiation takes precedence over numeric multiplicative operations #3	PASS	PASS
 tck/expressions/precedence/Precedence2/[3] Exponentiation takes precedence over numeric additive operations #1	PASS	PASS
 tck/expressions/precedence/Precedence2/[3] Exponentiation takes precedence over numeric additive operations #2	PASS	PASS
 tck/expressions/precedence/Precedence2/[4] Numeric unary negative takes precedence over exponentiation	PASS	PASS
@@ -4129,7 +4129,10 @@ lite/existsnested/counted_none_is_no_group	PASS	PASS
 lite/existsnested/counted_with_a_where_and_not	PASS	PASS
 lite/exprtail/union_over_nodes	PASS	PASS
 lite/exprtail/union_over_relationships	PASS	PASS
-lite/exprtail/float_remainders	PASS	REFUSED
+lite/exprtail/float_remainders	PASS	PASS
+lite/exprtail/float_remainders_exact	PASS	PASS
+lite/exprtail/float_remainders_by_zero	PASS	PASS
+lite/exprtail/a_float_remainder_by_an_integer_zero_of_the_row	BOTH_ERROR	BOTH_ERROR
 lite/exprtail/a_computed_skip	PASS	PASS
 lite/exprtail/a_computed_limit	PASS	PASS
 lite/exprtail/a_computed_skip_and_limit	PASS	PASS

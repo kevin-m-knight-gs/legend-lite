@@ -17,6 +17,22 @@ tests:
     graph: |
       CREATE (:A {x: 7.5, y: 2})
     cypher: "MATCH (a:A) RETURN a.x % a.y AS m, a.x % 2.0 AS f, -7.5 % 2 AS n, 7 % 2.5 AS i"
+  # (exact as Java's %, on every lane: where the quotient is near an integer, huge or tiny, and a zero's sign)
+  - id: float_remainders_exact
+    graph: |
+      CREATE (:A {x: 0.3, y: 0.1}), (:A {x: 1.0e300, y: 3.0}), (:A {x: -4.0, y: 2.0}),
+             (:A {x: 1.7976931348623157e308, y: 2.2250738585072014e-308}), (:A {x: 4.9e-324, y: 3.0}),
+             (:A {x: 123456789.125, y: 0.001}), (:A {x: -1.0e-300, y: 7.0e-301}), (:A {x: 2.5, y: 0.0})
+    cypher: "MATCH (a:A) RETURN a.x AS x, a.y AS y, a.x % a.y AS r, (a.x % a.y) % 0.25 AS nested ORDER BY x"
+  # (by zero, Java's: NaN for a Float divisor or a spelled zero; an Integer zero of the row is Neo4j's error)
+  - id: float_remainders_by_zero
+    graph: |
+      CREATE (:A {x: 2.5, z: 0.0, i: 0})
+    cypher: "MATCH (a:A) RETURN a.x % a.z AS f, 5 % a.z AS g, 2.5 % 0 AS h, a.x % 0.0 AS k, a.x % -0.0 AS n"
+  - id: a_float_remainder_by_an_integer_zero_of_the_row
+    graph: |
+      CREATE (:A {x: 2.5, i: 0})
+    cypher: "MATCH (a:A) RETURN a.x % a.i AS e"
   - id: a_computed_skip
     graph: |
       UNWIND range(1, 5) AS i CREATE (:A {v: i})

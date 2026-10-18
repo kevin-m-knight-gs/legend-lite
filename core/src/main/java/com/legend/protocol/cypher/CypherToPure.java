@@ -10138,12 +10138,25 @@ public final class CypherToPure {
             case MODULO -> {
                 if (l.kind() != Kind.INTEGER || r.kind() != Kind.INTEGER) {
                     // of a float (the study's §12.73): Pure's rem of the two as floats, the remainder with the
-                    // dividend's sign, a Float (Postgres's dialect refuses a double remainder by name); a zero
-                    // divisor spelled is NaN in Neo4j, marked as a division's is
+                    // dividend's sign, a Float (exact as Java's on every lane, Postgres's dialect spelling it over
+                    // integers, the study's §12.90). By zero, Java's: NaN for a Float divisor and a spelled zero
+                    // (measured: `2.5 % 0.0`, `WITH 0.0 AS z RETURN 5 % z`, `2.5 % 0` are NaN), the database's
+                    // parse of the text as `Infinity` is; an Integer zero of the row is Neo4j's error (`WITH 0 AS
+                    // i RETURN 2.5 % i` is "/ by zero"), Pure's rem's. A spelled zero is marked as a division's is.
                     noDatabaseLambda("%", b.pos());
-                    Tx remainder = SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> call("toFloat", call("rem",
-                            call("toFloat", v.get(0)), call("toFloat", v.get(1)))));
-                    yield zeroLiteral(b.right()) ? new Tx(remainder.vs(), remainder.kind(), remainder.nullable(),
+                    boolean spelledZero = zeroLiteral(b.right());
+                    boolean nanByZero = r.kind() == Kind.FLOAT;
+                    Tx remainder = SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> {
+                        ValueSpecification nan = call("parseFloat", new CString("NaN"));
+                        if (spelledZero) {
+                            return nan;
+                        }
+                        ValueSpecification rem = call("toFloat", call("rem", call("toFloat", v.get(0)),
+                                call("toFloat", v.get(1))));
+                        return nanByZero ? call("if", call("equal", call("toFloat", v.get(1)), new CFloat(0.0)),
+                                thunk(nan), thunk(rem)) : rem;
+                    });
+                    yield spelledZero ? new Tx(remainder.vs(), remainder.kind(), remainder.nullable(),
                             remainder.whenFalse(), new NotANumber()) : remainder;
                 }
                 if (!(r.vs() instanceof CInteger ci && ci.value().longValue() != 0)) {

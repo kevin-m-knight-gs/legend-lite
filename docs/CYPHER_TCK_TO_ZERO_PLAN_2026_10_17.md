@@ -342,6 +342,10 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships
   and paths (ReturnSkipLimit1/[3], ReturnSkipLimit2/[6], Union1/[4], Comparison1/[14], List11/[3], Precedence2/[2],
   TypeConversion4/[10]). Left: NaN inside lists (§5).
+- The remainder of floats on Postgres LANDED 2026-10-18 (the study's §12.90, GATES' eighty-eighth landing; TCK
+  agreement Postgres 3596 → 3597): exact as Java's `%` on every lane (the dialect's spelling over integers times powers
+  of two), and Java's NaN by a Float zero (the island raised Pure's error there). The two lanes' censuses are the same
+  since.
 - Pattern comprehensions over rows LANDED 2026-10-17 (the study's §12.72, GATES' seventieth landing; TCK agreement DuckDB 3520 → 3526, Postgres 3141 → 3147):
   a comprehension the navigations do not read is a list column of the rows (re-anchored, grouped by the shared
   identities, left-joined back; S86); a first OPTIONAL MATCH that finds nothing is one null row; `keys()` of an

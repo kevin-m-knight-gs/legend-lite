@@ -1511,10 +1511,73 @@ public final class Postgres extends AnsiSqlRenderer {
     private SqlWriter modArm(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
         if (a.stream().anyMatch(Postgres::isDouble)) {
-            throw new DialectCapability(c.fn() + " over a Float reached Postgres,"
-                    + " which has no double-precision remainder");
+            if (c.fn() == SqlFn.MOD) {
+                throw new DialectCapability("MOD over a Float reached Postgres, which has no double-precision"
+                        + " floored remainder");
+            }
+            return exactRemainder(writer, a);
         }
         return c.fn() == SqlFn.MOD ? modFloored(writer, a) : modTruncated(writer, a);
+    }
+
+    /**
+     * Pure's {@code rem} of two Floats, exact as Java's {@code %} (C's {@code fmod}): Postgres has no remainder of
+     * doubles, and its double-to-numeric cast is the shortest decimal, not the double's value. Each operand is
+     * written as an integer times a power of two (the power from its logarithm, kept 60 bits above the mantissa so
+     * an estimate off by one still leaves an integer: the scaling by powers of two and the cast to BIGINT are exact),
+     * both are scaled to the one power, the numeric remainder of the two integers is taken (exact), and the result
+     * scaled back, a double exactly (the numeric quotient to a thousand places, far below the least double's unit).
+     * The sign is the dividend's (a zero too); NaN for a NaN, an infinite dividend or a zero divisor; the dividend
+     * for an infinite divisor, a zero dividend or one smaller than the divisor. Each operand is written once, in a
+     * scalar subquery (so a nested remainder does not double its text); one holding a window function is refused,
+     * since the subquery would compute it over its own one row.
+     */
+    private SqlWriter exactRemainder(SqlWriter writer, List<SqlExpr> a) {
+        if (a.stream().anyMatch(Postgres::windowed)) {
+            throw new DialectCapability("REM over a Float of a window function reached Postgres: its exact"
+                    + " remainder is a subquery, which would compute the window over one row");
+        }
+        String two = "power(CAST(2 AS NUMERIC), ";
+        String scaledX = "__mx * " + two + "__k - __kx)";
+        String scaledY = "__my * " + two + "__k - __ky)";
+        writer.append("(SELECT CASE WHEN __x = 'NaN' OR __y = 'NaN' OR __y = 0 OR abs(__x) = 'Infinity'"
+                + " THEN CAST('NaN' AS DOUBLE PRECISION)"
+                + " WHEN abs(__y) = 'Infinity' OR __x = 0 OR abs(__x) < abs(__y) THEN __x"
+                + " WHEN __x < 0 THEN -__r ELSE __r END"
+                + " FROM (SELECT __x, __y, CASE WHEN __k >= 0 THEN CAST(round(mod(" + scaledX + ", " + scaledY
+                + "), 1000) / " + two + "__k) AS DOUBLE PRECISION)"
+                + " ELSE CAST(mod(" + scaledX + ", " + scaledY + ") * " + two + "-__k) AS DOUBLE PRECISION) END"
+                + " AS __r FROM (SELECT __x, __y, __kx, __ky, greatest(__kx, __ky) AS __k, " + mantissa("__x", "__kx")
+                + " AS __mx, " + mantissa("__y", "__ky") + " AS __my FROM (SELECT __x, __y, " + exponent("__x")
+                + " AS __kx, " + exponent("__y") + " AS __ky FROM (SELECT CAST(");
+        writer.expr(a.get(0), 0).append(" AS DOUBLE PRECISION) AS __x, CAST(").expr(a.get(1), 0);
+        return writer.append(" AS DOUBLE PRECISION) AS __y) AS __rem0) AS __rem1) AS __rem2) AS __rem3)");
+    }
+
+    /** The power of two {@link #exactRemainder} scales a finite non-zero double {@code v} by: 60 less its
+     *  logarithm's floor (null for a zero, an infinity or a NaN, which take no part in it). */
+    private static String exponent(String v) {
+        return "CASE WHEN abs(" + v + ") > 0 AND abs(" + v + ") < 'Infinity' THEN 60 - CAST(floor(ln(abs(" + v
+                + ")) / ln(2)) AS INTEGER) END";
+    }
+
+    /** {@code |v|} times two to the {@code k} (two steps, so neither overflows), an integer, as a NUMERIC. */
+    private static String mantissa(String v, String k) {
+        return "CAST(CAST(abs(" + v + ") * power(CAST(2 AS DOUBLE PRECISION), div(" + k + ", 2)) * power(CAST(2 AS"
+                + " DOUBLE PRECISION), " + k + " - div(" + k + ", 2)) AS BIGINT) AS NUMERIC)";
+    }
+
+    /** Whether {@code e} holds a window function (a scalar subquery's own query is not searched). */
+    private static boolean windowed(SqlExpr e) {
+        if (e instanceof SqlExpr.WindowCall) {
+            return true;
+        }
+        for (SqlExpr k : e.children()) {
+            if (windowed(k)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The {@code ACOS}, {@code ASIN} arm of {@link #call}. */

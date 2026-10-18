@@ -5583,3 +5583,31 @@ values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every dat
   it; measured, the compact, week and ordinal forms too); the island refused the text. Now read at midnight; a zone
   without a time stays the parse error Neo4j raises.
 - **Pinned.** `lite/nanostored.yaml`'s 12 cases, each judged by Neo4j.
+
+### 12.90 The remainder of floats, exact on every lane (2026-10-18)
+
+- **What Neo4j answers.** Cypher's `%` of floats is Java's `%`: the remainder with the dividend's sign, exact (C's
+  `fmod`: `0.3 % 0.1` is `0.09999999999999998`, `-4.0 % 2.0` is `-0.0`, `1.7976931348623157e308 %
+  2.2250738585072014e-308` is `0.0`, measured). By zero it is Java's too: NaN for a Float divisor (`2.5 % 0.0`, `WITH
+  0.0 AS z RETURN 5 % z`) and for a spelled zero (`2.5 % 0`, which Neo4j folds as a double); an Integer zero of the row
+  is its error (`WITH 0 AS i RETURN 2.5 % i` is `/ by zero`).
+- **Postgres.** It has no remainder of doubles (`mod` takes integers and numerics), and its cast of a double to
+  NUMERIC is the shortest decimal that reads back as the double, not the double's value (`0.1::float8::numeric(70,60)`
+  is `0.1000…0`, measured); `x - trunc(x / y) * y` is not exact and overflows ("value out of range: underflow",
+  measured over extreme values). §12.73 refused it by name, the lanes' divergence. The dialect now spells it exactly:
+  each operand an integer times a power of two (the power 60 less the floor of its logarithm, so an estimate off by
+  one still leaves an integer; the scaling by powers of two and the cast to BIGINT are exact), both scaled to the one
+  power, the NUMERIC remainder of the two integers (exact), scaled back to a double (the quotient to a thousand
+  places, far below the least double's unit; a larger power a product, exact). The special values as Java's: NaN for
+  a NaN, an infinite dividend or a zero divisor, the dividend for an infinite divisor, a zero dividend or one smaller
+  than the divisor; the sign the dividend's, a zero's too. Each operand is written once, in a scalar subquery (a
+  nested remainder does not double its text); an operand holding a window function is refused by name, since the
+  subquery would compute the window over its own one row (measured). Measured against `fmod` over 4,000 pairs
+  (random bit patterns, the extremes, subnormals, signed zeros, infinities, NaN): every result the same double.
+  The floored `mod` of floats (no Cypher spelling) stays refused by name on Postgres.
+- **The island, by zero.** The float `%` was Pure's `rem`, whose lowering raises "Cannot divide x by zero" (Pure's
+  rule); it is now NaN for a Float divisor equal to zero (`if`, the database's parse of `'NaN'`, as §12.79 reads an
+  infinity) and for a spelled zero, Pure's `rem` and its error for an Integer zero of the row.
+- **Pinned.** `lite/exprtail.yaml`'s `float_remainders_exact` (eight pairs of the extremes, a remainder of a
+  remainder), `float_remainders_by_zero` and `a_float_remainder_by_an_integer_zero_of_the_row`, each judged by Neo4j;
+  Precedence2/[2] #3 passes on Postgres.
