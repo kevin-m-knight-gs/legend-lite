@@ -383,6 +383,8 @@ _HEADLESS_TESTS = [
     "config-fold",
     "create-class",
     "cube-document",
+    # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
+    "cube-round-trip",
     "cube-state",
     "dimensions",
     "drill",
