@@ -10686,9 +10686,13 @@ engine does not have either (`~[year]` with values); the engine's form types and
 
 **Verdicts (this tree).** `//core:core_tests_root` (54.8s) and `//core:core_tests_lowering` (22.4s) pass -- the pivot cases of
 `PlanMakerTest` on DuckDB among them (the dynamic pivot's TDS text, CSV and JSON; the static pivot's CSV and JSON; the
-cast cases). The chain -- `//gates:core` under the Postgres wrapper, `//pct:pct_duckdb` and `//gates:pct_channel_b`,
-`//spec:corpus_h2`, `//spec:corpus_duckdb` -- runs on this tree as this lands; its verdicts are appended to this entry
-by the commit that follows. Not run: the manual MongoDB plan test (no pivot among its cases). The corpus holds no
+cast cases). The chain on this tree (the commit that follows, 2026-10-18 20:50 to 21:20 in the cloud container, root behind
+the proxy): `//gates:core` under the unprivileged Postgres wrapper 45 of 45 (the integration lane 218s, the Cypher
+parity lanes 224s and 165s); `//pct:pct_duckdb` and `//gates:pct_channel_b` 11 of 11 (the discipline guard cached;
+the DuckDB relation suite 150s); `//spec:corpus_h2` 6 of 6 and `//spec:corpus_duckdb` 6 of 6 -- all four judges
+ran (their verdict files written 21:08 to 21:20), each verdict 0, and every measured roster byte-identical to its
+committed one (the five roster diff-tests of each lane reported cached on identical inputs: exact, the host
+engine-order register included). Not run: the manual MongoDB plan test (no pivot among its cases). The corpus holds no
 pivot, so the wires' change there is the name rule's identity on every separator-free name and the JSON members'
 equal-output factoring.
 

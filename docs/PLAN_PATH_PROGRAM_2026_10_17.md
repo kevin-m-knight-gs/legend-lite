@@ -303,7 +303,8 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
   the absent cast key and the composite key hold. The defect found: the CSV wire's header and the JSON wires' keys
   printed the bare physical name while the TDS text presented the engine's -- fixed, every wire presents the name as
   the engine labels it, and the dynamic pivot's JSON wire is built from its cells as its CSV is (step 4's named
-  residue retired). Register S78 to S80. Step 7 continues as announced below.
+  residue retired). Register S78 to S80. Verdicts: the core gate 45 of 45, PCT channels A and B 11 of 11, both
+  corpus lanes exact (every judge 0). Step 7 continues as announced below.
 - **2026-10-18, step 7 announced; its first landing: the judges onto the typed seam, the dynamic pivot's holes**
   (GATES "step 7, first landing"): `Statements.rows` (typed cells by the plan's columns) on JDBC (`exec.JdbcDecode`)
   and MongoDB (`exec.MongoDbDecode`); `PlanRunner.rows` through it; the judges' plans the statements themselves, the
