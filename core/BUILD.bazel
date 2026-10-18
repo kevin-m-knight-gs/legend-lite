@@ -852,6 +852,7 @@ _CYPHER_PARITY_DATA = glob(
     exclude = ["src/test/resources/cypher-parity/tck/**/*.md"],
 ) + [
     "src/test/resources/cypher-parity/neo4j-answers.jsonl",
+    "src/test/resources/cypher-parity/neo4j-functions.txt",
     "src/test/resources/cypher-parity/ledger.tsv",
     "src/test/resources/cypher-parity/decisions.tsv",
 ]
@@ -860,6 +861,7 @@ _CYPHER_PARITY_FLAGS = [
     # the TCK's directory: the directory of its LICENSE
     "-Dcypher.parity.tck=$(rlocationpath src/test/resources/cypher-parity/tck/LICENSE)",
     "-Dcypher.parity.answers=$(rlocationpath src/test/resources/cypher-parity/neo4j-answers.jsonl)",
+    "-Dcypher.parity.functions=$(rlocationpath src/test/resources/cypher-parity/neo4j-functions.txt)",
     "-Dcypher.parity.ledger=$(rlocationpath src/test/resources/cypher-parity/ledger.tsv)",
     "-Dcypher.parity.decisions=$(rlocationpath src/test/resources/cypher-parity/decisions.tsv)",
     # the case files: the directory of this file

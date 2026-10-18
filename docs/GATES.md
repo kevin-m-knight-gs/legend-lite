@@ -11778,3 +11778,22 @@ variable-length relationship without an upper bound in a pattern of single hops,
 5. **What the DuckDB lane has left outside the writes** (the plan's §5): nanosecond values outside TIMESTAMP_NS's
    years (26 rows, a design decision), years beyond the databases' dates (2, out of the types' reach), three
    setups Neo4j refuses; the Postgres lane besides holds S71's nanoseconds by the user's decision and `%` of floats.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-first landing — Neo4j's own errors where the island refused
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 tail); the record is the study's §12.84. 23 TCK rows
+counted BOTH_ERROR only because the island refused by name what Neo4j rejects; 22 now raise Neo4j's error.
+
+1. **What lands.** Conversions of values they do not take as the database's raise (Neo4j's TypeError), `toBoolean`
+   of an integer and `toInteger` of a boolean, `size()` of a pattern, a property of a path and an update inside
+   EXISTS as Neo4j's static errors, an unknown function as Neo4j's (`Neo4jFunctions`, the snapped list of its
+   functions, checked by the oracle and held by CypherParityTest); the 19 cases of `lite/neo4jerrors.yaml`. DuckDB
+   PASS 3,878 → 3885, Postgres 3,466 → 3473; TCK agreement unchanged (DuckDB 3571, Postgres 3190): the rows
+   were BOTH_ERROR before and are now.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3885 / REFUSED 267 / BOTH_ERROR 762 / SKIP 56; Postgres PASS 3473 / REFUSED 679 /
+   BOTH_ERROR 762 / SKIP 56, of 4970 cases); the
+   oracle check 0 problems, the function list among them.
+3. **The guards.** `//core:core_tests`, `//core:guardrails`, `//spec:spec_tests`, `//core:update_generated_tests`,
+   `//spec:update_ratchets_tests`, the IQ and SQL parity lanes on DuckDB and on Postgres,
+   `//core:iq_syntax_cases_test` and `//core:corpus_differential_test` green (40 targets).
+4. **Left.** A percentile read from the rows (Aggregation6/[5], the plan's §5).

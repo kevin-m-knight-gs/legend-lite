@@ -55,6 +55,9 @@ public final class CypherParser {
     private static final Set<String> LIST_PREDICATES = Set.of("all", "any", "none", "single", "filter", "extract",
             "reduce");
 
+    /** The clauses that update the graph: none may stand inside an EXISTS subquery (Neo4j's InvalidClauseComposition). */
+    private static final Set<String> UPDATES = Set.of("CREATE", "MERGE", "SET", "REMOVE", "DELETE", "DETACH", "FOREACH");
+
     private static final Set<String> RESERVED = Set.of("AND", "OR", "XOR", "NOT", "IS", "NULL", "TRUE", "FALSE",
             "IN", "STARTS", "ENDS", "CONTAINS", "AS", "ASC", "ASCENDING", "DESC", "DESCENDING", "DISTINCT", "CASE",
             "WHEN", "THEN", "ELSE", "CYPHER");
@@ -914,6 +917,9 @@ public final class CypherParser {
                 // row's existence is what counts)
                 advance();
                 advance();
+                if (UPDATES.contains(peek().text().toUpperCase(java.util.Locale.ROOT))) {
+                    throw CypherErrors.invalid("An Exists Expression cannot contain any updates", pos);
+                }
                 if (peek().isWord("OPTIONAL") || peek().isWord("WITH") || peek().isWord("UNWIND")
                         || peek().isWord("CALL")) {
                     throw CypherErrors.unsupported("an EXISTS subquery starting with " + peek().text().toUpperCase(
@@ -942,6 +948,10 @@ public final class CypherParser {
                             }
                         }
                     }
+                }
+                if (UPDATES.contains(peek().text().toUpperCase(java.util.Locale.ROOT))) {
+                    // (Neo4j's InvalidClauseComposition, the study's §12.84)
+                    throw CypherErrors.invalid("An Exists Expression cannot contain any updates", pos);
                 }
                 if (!peek().is(Type.RBRACE)) {
                     throw CypherErrors.unsupported("an EXISTS subquery with more than one pattern, a WHERE and a RETURN"

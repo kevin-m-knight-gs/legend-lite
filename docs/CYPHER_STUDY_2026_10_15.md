@@ -5250,3 +5250,46 @@ The 10 cases of `lite/nullkeys.yaml` pass on both lanes.
 
 Match7/[19] moves to PASS on both lanes; TCK agreement DuckDB 3570 → 3571, Postgres 3189 → 3190. The 11 cases of
 `lite/walkbeside.yaml` and `lite/varlen/an_unbounded_walk_then_a_hop` pass on both lanes.
+
+### 12.84 Neo4j's own errors where the island refused (2026-10-18)
+
+- **What hid.** The harness counts a case as BOTH_ERROR when lite and Neo4j both err, a refusal by name of lite's
+  included: 23 TCK rows were "agreeing" only because the island refused what Neo4j rejects (CypherParity's
+  `outcome`: a `NotImplementedException` beside Neo4j's error). The rows' status does not move; what the island
+  raises does: Neo4j's error, where it has one.
+- **A conversion of a value it does not take** (TypeConversion1/[5], TypeConversion2/[8], TypeConversion3/[6]: 12
+  rows). Neo4j's `toBoolean`, `toInteger` and `toFloat` raise a TypeError (InvalidArgumentValue) at run time for a
+  node, a relationship, a path, a list or a map (`toBoolean` a float too, `toFloat` a boolean): the island's
+  `invalidArgument` spells the database's raise (`fail`, behind the value's presence: null stays null) with Neo4j's
+  message, so a query over no rows raises nothing, as Neo4j's does not (measured on DuckDB and Postgres). Which
+  values are rejected is what the translation knows them to be (`rejectedByConversions`: a Variant of no known
+  shape is not one of them, and stays refused by name). A literal argument is Neo4j's type mismatch at compile time
+  (`toFloat(true)`), the accepted types listed as Neo4j's compiler lists them.
+- **Two conversions Neo4j takes, read.** `toBoolean` of an integer (false for 0, true for any other) and `toInteger`
+  of a boolean (1 or 0), refused by name before.
+- **Neo4j's static errors**, raised with the variable errors before any clause is read (`checkExpression`, §12.63's
+  scan): `size()` of a pattern (List6/[6], 8 rows: a pattern expression only tests existence) and a property of a
+  path (MatchWhere1/[14]); a list comprehension's or a quantifier's variable shadows a path of its name. An update
+  clause inside EXISTS (ExistentialSubquery2/[3]) is the parser's InvalidClauseComposition.
+- **A function Neo4j does not define** (Return2/[18]): `Unknown function 'foo'`, Neo4j's error, where the island
+  refused every function it does not read by name. The island tells the two apart by Neo4j's own list of its
+  functions (`Neo4jFunctions`, 173 names lower-cased): spec by verification, the oracle's `snap.sh --functions`
+  snapping `SHOW FUNCTIONS` into `cypher-parity/neo4j-functions.txt`, every `--check` comparing it with the server,
+  and `CypherParityTest` holding the constant to the file. A name Neo4j defines that the island does not read
+  stays a refusal by name.
+- **Left (the plan's §5):** `percentileDisc(0.90, deg)` with the percentile read from the rows (Aggregation6/[5]):
+  Neo4j raises at run time where the percentile falls outside 0 to 1; the island spells a percentile the database
+  takes as a constant only.
+- **Pinned.** `lite/neo4jerrors.yaml`'s 19 cases, each judged by Neo4j; CypherToPureTest's
+  `neo4jsOwnErrorsWhereTheTranslatorRefused`.
+
+#### 12.84.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4970 | 3885 (from 3,878) | 0 | 0 | 0 | 267 | 762 (from 750) | 56 |
+| Postgres | 4970 | 3473 (from 3,466) | 0 | 0 | 0 | 679 | 762 (from 750) | 56 |
+
+The TCK's rows keep their statuses (agreement DuckDB 3571, Postgres 3190); 22 of the 23 BOTH_ERROR rows a refusal
+stood behind now stand behind Neo4j's error, on both lanes. The 19 cases of `lite/neo4jerrors.yaml`: 7 PASS and 12
+BOTH_ERROR on each lane, as Neo4j answers them.

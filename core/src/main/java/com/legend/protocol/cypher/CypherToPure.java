@@ -976,16 +976,29 @@ public final class CypherToPure {
                             bound.put(p.variable(), VarKind.PATH);
                         }
                     }
+                    if (m.where() != null) {
+                        checkExpression(m.where(), bound);
+                    }
                 }
                 case CypherAst.Unwind u -> {
                     if (bound.containsKey(u.variable())) {
                         throw CypherErrors.invalid("Variable `" + u.variable() + "` already declared", u.pos());
                     }
+                    checkExpression(u.list(), bound);
                     bound.put(u.variable(), u.list() instanceof CypherAst.ListLit l && !l.elements().isEmpty()
                             && l.elements().stream().allMatch(CypherToPure::literal) ? VarKind.LITERAL : VarKind.VALUE);
                 }
-                case CypherAst.With w -> bound = projected(w.items(), bound);
-                case CypherAst.Return r -> bound = projected(r.items(), bound);
+                case CypherAst.With w -> {
+                    checkItems(w.items(), w.orderBy(), bound);
+                    bound = projected(w.items(), bound);
+                    if (w.where() != null) {
+                        checkExpression(w.where(), bound);
+                    }
+                }
+                case CypherAst.Return r -> {
+                    checkItems(r.items(), r.orderBy(), bound);
+                    bound = projected(r.items(), bound);
+                }
                 case CypherAst.ProcedureCall pc -> {
                     if (pc.yields() != null) {
                         for (CypherAst.YieldItem y : pc.yields()) {
@@ -1001,6 +1014,58 @@ public final class CypherToPure {
                 case CypherAst.OtherClause o -> { }
             }
         }
+    }
+
+    /** A projection's items and sort keys, checked over the scope before it ({@link #checkExpression}). */
+    private static void checkItems(List<Item> items, List<SortItem> orderBy, Map<String, VarKind> bound) {
+        for (Item it : items) {
+            if (it.expr() != null) {
+                checkExpression(it.expr(), bound);
+            }
+        }
+        for (SortItem o : orderBy) {
+            checkExpression(o.expr(), bound);
+        }
+    }
+
+    /**
+     * Neo4j's static expression errors, raised with the variable errors before any clause is read (the study's
+     * §12.84): {@code size()} of a pattern (a pattern expression only tests existence, UnexpectedSyntax), a property
+     * of a path (InvalidArgumentType). A comprehension's or a quantifier's variable shadows the name it binds.
+     */
+    private static void checkExpression(Expr e, Map<String, VarKind> bound) {
+        if (e instanceof CypherAst.Call c && c.name().equalsIgnoreCase("size") && c.args().size() == 1
+                && unwrapped(c.args().get(0)) instanceof CypherAst.PatternPredicate pp) {
+            throw CypherErrors.invalid("A pattern expression should only be used in order to test the existence of a"
+                    + " pattern. It can no longer be used inside the function size(), an alternative is to replace"
+                    + " size() with COUNT {}.", pp.pos());
+        }
+        if (e instanceof CypherAst.Prop p && unwrapped(p.target()) instanceof CypherAst.Var v
+                && bound.get(v.name()) == VarKind.PATH) {
+            throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point, Duration, Date, Time,"
+                    + " LocalTime, LocalDateTime or DateTime but was Path", p.pos());
+        }
+        String shadowed = e instanceof CypherAst.ListComprehension lc ? lc.variable()
+                : e instanceof CypherAst.Quantifier q ? q.variable() : null;
+        Expr outer = e instanceof CypherAst.ListComprehension lc ? lc.list()
+                : e instanceof CypherAst.Quantifier q ? q.list() : null;
+        Map<String, VarKind> inner = bound;
+        if (shadowed != null && bound.containsKey(shadowed)) {
+            inner = new LinkedHashMap<>(bound);
+            inner.remove(shadowed);
+        }
+        for (Expr child : children(e)) {
+            checkExpression(child, child == outer ? bound : inner);
+        }
+    }
+
+    /** An expression without the parentheses written around it. */
+    private static Expr unwrapped(Expr e) {
+        Expr out = e;
+        while (out instanceof CypherAst.Paren p) {
+            out = p.inner();
+        }
+        return out;
     }
 
     /** The scope a WITH or RETURN opens: its items' names, a bare variable keeping its kind, an expression a
@@ -10037,8 +10102,9 @@ public final class CypherToPure {
         }
         Function f = FUNCTIONS_BY_NAME.get(fn);
         if (f == null) {
-            // refused by name before its arguments are read: the refusal names the function, not an argument
-            throw CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos());
+            // a name Neo4j does not define is its error (the study's §12.84); one it does is refused by name before
+            // its arguments are read: the refusal names the function, not an argument
+            throw unknownOrUnsupported(c);
         }
         List<Val> args = new ArrayList<>();
         for (Expr a : c.args()) {
@@ -10493,8 +10559,18 @@ public final class CypherToPure {
                                     new CFloat(0.0)), thunk(call("floor", call("parseFloat", x.get(0)))),
                                     thunk(call("ceiling", call("parseFloat", x.get(0))))))),
                             thunk(SqlToPure.nullOf(Kind.INTEGER).vs()))))).vs(), Kind.INTEGER, true));
-            default -> throw CypherErrors.unsupported("toInteger of a " + cypherType(t.kind()) + " (null for text"
-                    + " that is not a number) is not supported yet", c.pos());
+            // of a boolean: 1 or 0 (Neo4j's)
+            case BOOLEAN -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(t), x -> call("if", x.get(0),
+                    thunk(new CInteger(1L)), thunk(new CInteger(0L)))));
+            default -> {
+                String rejected = rejectedByConversions(t);
+                if (rejected == null) {
+                    throw CypherErrors.unsupported("toInteger of a " + cypherType(t.kind()) + " (null for text"
+                            + " that is not a number) is not supported yet", c.pos());
+                }
+                yield invalidArgument(c, t, "toInteger", "a String, Float, Integer or Boolean",
+                        "Boolean, Float, Integer or String", rejected, Kind.INTEGER);
+            }
         };
     }
 
@@ -10514,8 +10590,15 @@ public final class CypherToPure {
             case STRING -> scalar(Tx.value(SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call("if",
                     call("matches", x.get(0), new CString(FLOAT_TEXT)), thunk(call("parseFloat", x.get(0))),
                     thunk(SqlToPure.nullOf(Kind.FLOAT).vs()))).vs(), Kind.FLOAT, true));
-            default -> throw CypherErrors.unsupported("toFloat of a " + cypherType(t.kind()) + " (null for text"
-                    + " that is not a number) is not supported yet", c.pos());
+            default -> {
+                String rejected = t.kind() == Kind.BOOLEAN ? "Boolean" : rejectedByConversions(t);
+                if (rejected == null) {
+                    throw CypherErrors.unsupported("toFloat of a " + cypherType(t.kind()) + " (null for text"
+                            + " that is not a number) is not supported yet", c.pos());
+                }
+                yield invalidArgument(c, t, "toFloat", "a String, Float or Integer", "Float, Integer or String", rejected,
+                        Kind.FLOAT);
+            }
         };
     }
 
@@ -10536,9 +10619,69 @@ public final class CypherToPure {
                         SqlToPure.empty(), SqlToPure.typeArg("Boolean"))), thunk(read)) : read;
                 yield scalar(SqlToPure.booleanValue(value, true));
             }
-            default -> throw CypherErrors.unsupported("toBoolean of a " + cypherType(t.kind()) + " is not supported"
-                    + " yet", c.pos());
+            // of an integer: false for 0, true for any other (Neo4j's)
+            case INTEGER, WHOLE -> {
+                ValueSpecification number = SqlToPure.valueOf(t);
+                ValueSpecification nonZero = call("not", call("equal", t.nullable() ? call("toOne", number) : number,
+                        new CInteger(0L)));
+                yield scalar(SqlToPure.booleanValue(t.nullable() ? call("if", call("isEmpty", number), thunk(call(
+                        "cast", SqlToPure.empty(), SqlToPure.typeArg("Boolean"))), thunk(nonZero)) : nonZero,
+                        t.nullable()));
+            }
+            default -> {
+                String rejected = t.kind() == Kind.FLOAT ? "Float" : rejectedByConversions(t);
+                if (rejected == null) {
+                    throw CypherErrors.unsupported("toBoolean of a " + cypherType(t.kind()) + " is not supported"
+                            + " yet", c.pos());
+                }
+                yield invalidArgument(c, t, "toBoolean", "a Boolean, Integer or String", "Boolean, Integer or String",
+                        rejected, Kind.BOOLEAN);
+            }
         };
+    }
+
+    /** The Cypher type of a value none of {@code toBoolean}, {@code toInteger} and {@code toFloat} takes: a node, a
+     *  relationship, a path, a list or a map (by what the translation knows the value to be), a temporal value or a
+     *  duration; null for any other (a Variant of no known shape, read at run time, is not one of them). */
+    private static @com.legend.base.Nullable String rejectedByConversions(Tx t) {
+        if (t.kind() == Kind.JSON) {
+            return switch (t.detail()) {
+                case NodeValue n -> "Node";
+                case RelValue r -> "Relationship";
+                case PathValue p -> "Path";
+                case ListOf l -> "List";
+                case TupleOf tu -> "List";
+                case MapOf m -> "Map";
+                case null, default -> null;
+            };
+        }
+        return switch (t.kind()) {
+            case DATE, DATETIME, TIME, ZONED, ZONED_TIME, DURATION -> cypherType(t.kind());
+            default -> null;
+        };
+    }
+
+    /** A conversion of a value it does not take: Neo4j's TypeError (InvalidArgumentValue), raised by the database
+     *  where a row holds the value (null where it is null), its message listing what the function takes as Neo4j's
+     *  run time does; a literal argument is Neo4j's type mismatch at compile time, listing them as its compiler does
+     *  (the study's §12.84). */
+    private static Scalar invalidArgument(CypherAst.Call c, Tx t, String fn, String expected, String typed,
+            String got, Kind result) {
+        if (literal(c.args().get(0))) {
+            throw CypherErrors.invalid("Type mismatch: expected " + typed + " but was " + got, c.args().get(0).pos());
+        }
+        ValueSpecification present = t.nullable() ? call("isNotEmpty", SqlToPure.valueOf(t)) : new CBoolean(true);
+        ValueSpecification raised = raisingWhere(present, "Invalid input for function '" + fn + "()': Expected "
+                + expected + ", got: " + got, SqlToPure.nullOf(result).vs());
+        return scalar(result == Kind.BOOLEAN ? SqlToPure.booleanValue(raised, true) : Tx.value(raised, result, true));
+    }
+
+    /** A function the translator does not read: Neo4j's own error where Neo4j defines no function of the name
+     *  ({@link Neo4jFunctions}), else a refusal by name. */
+    private static com.legend.protocol.sql.SqlTranslationException unknownOrUnsupported(CypherAst.Call c) {
+        return Neo4jFunctions.defines(c.name())
+                ? CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos())
+                : CypherErrors.invalid("Unknown function '" + c.name() + "'", c.pos());
     }
 
     private static Tx scalarArg(CypherAst.Call c, Val v, String expected) {
@@ -14123,7 +14266,7 @@ public final class CypherToPure {
         boolean withTime = family == TemporalFamily.LOCALDATETIME;
         TemporalMember member = TEMPORAL_MEMBERS.get(suffix);
         if (member == null) {
-            throw CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos());
+            throw unknownOrUnsupported(c);
         }
         if (family == TemporalFamily.DURATION) {
             return switch (member) {

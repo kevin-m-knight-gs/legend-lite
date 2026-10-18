@@ -35,7 +35,8 @@ answers file.
 ```sh
 tools/neo4j-oracle/snap.sh --write                    # every case: write the answers file
 tools/neo4j-oracle/snap.sh --write --only 'lite/*'    # one glob of case keys, merged into the file
-tools/neo4j-oracle/snap.sh --check                    # the live drift check: DRIFT, UNSNAPPED, STALE, GONE, VERSION
+tools/neo4j-oracle/snap.sh --check                    # the live drift check: DRIFT, UNSNAPPED, STALE, GONE, VERSION, FUNCTIONS
+tools/neo4j-oracle/snap.sh --functions                # write cypher-parity/neo4j-functions.txt: SHOW FUNCTIONS's names
 tools/neo4j-oracle/snap.sh --census                   # the cases by what they expect; no server needed
 bazel run //tools/neo4j-oracle:snap -- --check        # the same through Bazel
 ```

@@ -1,7 +1,10 @@
 """The #Cypher{...}# island's oracle: Neo4j Community's answers for the cypher-parity cases, snapped (README.md).
 
   snap.sh --write [--only GLOB]   run the cases, write core/src/test/resources/cypher-parity/neo4j-answers.jsonl
-  snap.sh --check [--only GLOB]   run the cases, report DRIFT, UNSNAPPED, STALE and GONE; exit 1 on any
+  snap.sh --check [--only GLOB]   run the cases, report DRIFT, UNSNAPPED, STALE and GONE (and FUNCTIONS when the
+                                  server's function names are not neo4j-functions.txt's); exit 1 on any
+  snap.sh --functions             write core/src/test/resources/cypher-parity/neo4j-functions.txt: the server's
+                                  function names (SHOW FUNCTIONS), lower-cased, which Neo4jFunctions must list
 
 The cases are the openCypher TCK's scenarios (core/src/test/resources/cypher-parity/tck, Apache 2.0, read by the
 Gherkin subset below, which the Java reader CypherTck mirrors step for step: the two must produce the same keys and
@@ -489,6 +492,24 @@ def connect(url):
     return GraphDatabase.driver(url)
 
 
+FUNCTIONS_HEADER = ("# Neo4j's built-in functions on the pinned release (SHOW FUNCTIONS), lower-cased, one per line:"
+                    " written by\n# tools/neo4j-oracle/snap.sh --functions, checked by every --check; CypherParityTest"
+                    " holds\n# com.legend.protocol.cypher.Neo4jFunctions to this file.\n")
+
+
+def function_names(driver):
+    """The server's function names, lower-cased (Cypher's function names are case-insensitive), sorted."""
+    with driver.session() as s:
+        return sorted({r["name"].lower() for r in s.run("SHOW FUNCTIONS YIELD name RETURN name").data()})
+
+
+def read_function_names(path):
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return [l.strip() for l in f if l.strip() and not l.startswith("#")]
+
+
 def server_version(driver):
     with driver.session() as s:
         rows = s.run("CALL dbms.components() YIELD name, versions, edition RETURN name, versions[0] AS v, edition").data()
@@ -652,6 +673,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--functions", action="store_true", help="write the server's function names and exit")
     ap.add_argument("--only", default=None, help="a glob over case keys")
     ap.add_argument("--url", default="bolt://127.0.0.1:7687")
     ap.add_argument("--parity", default=PARITY)
@@ -667,8 +689,17 @@ def main():
             kinds[k] = kinds.get(k, 0) + 1
         print(len(cases), "cases", kinds)
         return 0
+    functions_file = os.path.join(args.parity, "neo4j-functions.txt")
+    if args.functions:
+        driver = connect(args.url)
+        names = function_names(driver)
+        driver.close()
+        with open(functions_file, "w", encoding="utf-8") as f:
+            f.write(FUNCTIONS_HEADER + "".join(n + "\n" for n in names))
+        print("wrote", functions_file, "-", len(names), "names")
+        return 0
     if not (args.write or args.check):
-        ap.error("--write or --check")
+        ap.error("--write, --check or --functions")
     answers_file = os.path.join(args.parity, "neo4j-answers.jsonl")
     old_meta, old = read_answers(answers_file)
     driver = connect(args.url)
@@ -680,6 +711,7 @@ def main():
         live[c["key"]] = run_case(driver, c)
         if n % 100 == 0:
             print("  ", n, "of", len(runnable), file=sys.stderr)
+    names = function_names(driver)
     driver.close()
     meta = {"tool": "tools/neo4j-oracle/snap.py", "format": FORMAT, "server": version, "edition": edition,
             "defaultCypher": DEFAULT_CYPHER}
@@ -704,6 +736,8 @@ def main():
             problems.append("STALE: " + c["key"])
         elif not same_answer(a, live[c["key"]], bool((c.get("expect") or {}).get("ignoreListOrder"))):
             problems.append("DRIFT: " + c["key"])
+    if read_function_names(functions_file) != names:
+        problems.append("FUNCTIONS: the server's function names are not " + functions_file + "'s (snap.sh --functions)")
     keys = {c["key"] for c in runnable}
     for k in old:
         if (not args.only or fnmatch.fnmatchcase(k, args.only)) and k not in keys:

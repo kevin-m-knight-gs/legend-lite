@@ -570,6 +570,32 @@ class CypherToPureTest {
         assertFalse(p.contains("->sort("), p);
     }
 
+    @Test
+    void neo4jsOwnErrorsWhereTheTranslatorRefused() {
+        // (the study's §12.84) a conversion of a value it does not take is Neo4j's TypeError, the database's raise on
+        // the rows that hold one; a literal argument is Neo4j's type mismatch at compile time
+        String raised = pure("MATCH (p:Person) RETURN [x IN [1, p] | toInteger(x)] AS l");
+        assertTrue(raised.contains("fail('Invalid input for function \\'toInteger()\\': Expected a String, Float,"
+                + " Integer or Boolean, got: Node')"), raised);
+        invalid("RETURN toFloat(true) AS f", "Type mismatch: expected Float, Integer or String but was Boolean");
+        // toBoolean of an integer and toInteger of a boolean, which Neo4j takes
+        assertTrue(pure("RETURN toBoolean(7) AS b").contains("b:r|7 != 0"), pure("RETURN toBoolean(7) AS b"));
+        assertTrue(pure("RETURN toInteger(true) AS i").contains("if(true, |1, |0)"), pure("RETURN toInteger(true) AS i"));
+        // Neo4j's static errors, raised before any clause is read
+        invalid("MATCH (a:Person) RETURN size((a)-->()) AS s", "It can no longer be used inside the function size()");
+        invalid("MATCH p = (a:Person)-->(b) RETURN p.name AS n", "but was Path");
+        String shadowing = pure("MATCH p = (a:Person)-->(b) RETURN [p IN [{name: 'x'}] | p.name] AS l");
+        // (the comprehension's p an element of its list, not the path: it translates)
+        assertTrue(shadowing.contains("x"), shadowing);
+        invalid("MATCH (n:Person) WHERE EXISTS { MATCH (n)-->(m) SET m.prop = 1 } RETURN n",
+                "An Exists Expression cannot contain any updates");
+        // a name Neo4j defines no function of is its error; one it defines that the translator does not read is
+        // refused by name
+        invalid("RETURN foo(1) AS x", "Unknown function 'foo'");
+        invalid("RETURN date.yesterday() AS d", "Unknown function 'date.yesterday'");
+        unsupported("RETURN vector_norm([1.0], 'EUCLIDEAN') AS n", "the function vector_norm");
+    }
+
     private static String pure(String cypher) {
         ValueSpecification vs = CypherToPure.translate(cypher, MODEL);
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);

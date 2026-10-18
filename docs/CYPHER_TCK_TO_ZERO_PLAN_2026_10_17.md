@@ -332,6 +332,11 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   3570 → 3571, Postgres 3189 → 3190): a variable-length relationship without an upper bound in a pattern of single
   hops, the pattern cut at the walk, the hops' relationships never one the walk walked, the named path assembled
   across (Match7/[19]). The DuckDB lane's rows outside the writes are now §5's alone.
+- Neo4j's own errors where the island refused LANDED 2026-10-18 (the study's §12.84, GATES' eighty-first landing;
+  agreement unchanged): 23 TCK rows were BOTH_ERROR behind a refusal of lite's; 22 now raise Neo4j's error (the
+  conversions' TypeError as the database's raise, `size()` of a pattern, a property of a path, an update inside
+  EXISTS, an unknown function by Neo4j's snapped list of its functions), and `toBoolean` of an integer and
+  `toInteger` of a boolean read.
 - The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
   UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships
@@ -659,6 +664,13 @@ questions, no PRs; a blocker is logged in §5 and the line moves to the next ite
 ## 5. Blockers log
 
 What got stuck, where, and why, for later; each entry names the cases it holds back.
+
+- **2026-10-18, W12 (§12.84) — a percentile read from the rows.** `RETURN percentileDisc(0.90, deg), deg`
+  (Aggregation6/[5]): the percentile is the grouping key `deg`, so Neo4j raises at run time where it falls outside 0
+  to 1 ("Invalid input '3.0' is not a valid argument"). The island spells a percentile the database takes as a
+  constant only (`PERCENTILE_DISC(p) WITHIN GROUP`); a percentile of each group needs either the database to take a
+  per-group fraction or the range check spelled as the database's raise beside a constant one. One TCK row, a
+  BOTH_ERROR behind a refusal (the last such).
 
 - **2026-10-17, W5 (§12.74) — nanosecond values outside the databases' nanosecond range.** `localdatetime({year: 1,
   ..., nanosecond: 1})` and year 9999 beside nanosecond values (WithOrderBy1/[17]-[20], [39]-[42], [45] #9 and #10,
