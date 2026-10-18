@@ -315,6 +315,9 @@ test_suite(
         "//spec:phase3b_probes",
         # the DataCube model design's measurement (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §11, 2026-10-10): manual
         "//datacube:model_scale_measure",
+        # the DataCube screenshot tour (docs/DATACUBE_TOUR.md, 2026-10-17): manual, run from time to time; its gallery
+        # in the test's outputs
+        "//datacube:tour_test",
         "//parser-equivalence:diagnostics",
         # the #IQ{...}# island's real-world corpus lane (2026-10-15; core/BUILD.bazel's iq_corpus_test): manual, it
         # names corpora kept out of the repository (-Diq.corpus.root) and fails without them

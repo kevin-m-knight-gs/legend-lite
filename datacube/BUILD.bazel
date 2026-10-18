@@ -1602,6 +1602,8 @@ _HARNESSES = [
     "run-stress",
     "shots",
     "torture",
+    # the screenshot tour (docs/DATACUBE_TOUR.md): each step checked and shot, a gallery beside the pictures
+    "tour",
     "verify-calc-vocabulary",
     "verify-charts",
     "verify-class",
@@ -1652,7 +1654,7 @@ _BROWSER_TESTS = {
         "//tools/js:runfiles",
     ] + (["//fixtures/saved-queries:records"] if h == "verify-features" else []) + (
         # it imports pinned-chromium.mjs first, a no-op under bazel run
-        ["//tools/browser:pinned_chromium"] if h in ["verify-smoke", "verify-remote", "verify-real-data", "verify-features"] or h in _BROWSER_TESTS else []
+        ["//tools/browser:pinned_chromium"] if h in ["tour", "verify-smoke", "verify-remote", "verify-real-data", "verify-features"] or h in _BROWSER_TESTS else []
     ) + (
         # DuckDB in Node builds their fixture, its extensions the pinned ones (as node_test gives a test that takes it)
         ["//engine-client:duckdb_extensions"] if h in _NODE_DUCKDB_HARNESSES else []
@@ -1744,6 +1746,25 @@ browser_test(
     entry_point = "demo/verify-features.mjs",
     env = _SITE_ENV | {"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"},
     tags = ["ci-linux-only"],
+    wasm = True,
+)
+
+# THE SCREENSHOT TOUR AS A TEST (the user, 2026-10-17; docs/DATACUBE_TOUR.md): every flow a person meets, each step
+# checked and shot, the gallery (index.html and a picture per step) in the test's outputs. Manual, in //gates:heavy:
+# run from time to time, and by hand before a DataCube change lands; the checks it makes are verify-*'s own, so no lane
+# loses a check by its being manual.
+browser_test(
+    name = "tour_test",
+    size = "large",
+    data = _HARNESS_HELPERS + [
+        "demo/index.html",
+        ":node_modules/playwright",
+        ":site",
+        ":src",
+    ],
+    entry_point = "demo/tour.mjs",
+    env = _SITE_ENV,
+    tags = ["manual"],
     wasm = True,
 )
 
