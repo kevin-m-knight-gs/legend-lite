@@ -949,14 +949,19 @@ export class CubeApp {
    * ANOTHER EDITOR'S GRID COMMANDS (Python's, on a page it serves: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md), applied
    * as the screen's own edits are: one change, named `label`. The refusal, in its words or the planner's, or null.
    */
-  applyGridCommands(commands: readonly GridCommand[], label: string): Promise<string | null> {
-    return this.#apply(commands, label);
+  async applyGridCommands(commands: readonly GridCommand[], label: string): Promise<string | null> {
+    const { refused, outcome } = await this.#applyCommands(commands, label, (s) => s, false);
+    const why = refused ?? refusal(outcome);
+    // another editor's change is no step of this grid's own history, which starts again from it (an undo past it would
+    // take it back unseen)
+    if (why === null) this.#owner.clearHistory();
+    return why;
   }
 
   /** #apply's change, `then` its tree (the Properties window's settings move it: #applyDraft), and how it ended: a
    *  refusal of the commands in their words, or the change's outcome. */
   async #applyCommands(commands: readonly GridCommand[], label: string,
-    then: (s: CubeState) => CubeState = (s) => s): Promise<{ refused: string | null; outcome: Outcome }> {
+    then: (s: CubeState) => CubeState = (s) => s, record = true): Promise<{ refused: string | null; outcome: Outcome }> {
     let refused: string | null = null;
     const applying = { commands, taken: false };
     this.#applying = applying;
@@ -971,7 +976,7 @@ export class CubeApp {
           refused = e.message;
           return s;
         }
-      }, { label });
+      }, { label, record });
     } finally {
       this.#applying = null;
     }

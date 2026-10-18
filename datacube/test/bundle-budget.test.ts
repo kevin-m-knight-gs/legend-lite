@@ -166,8 +166,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  docs/DATACUBE_PAGE_STATE_2026_10_18.md): a page of its own has one page state and page-level undo -- page-state.ts,
  *  CubePage.sync putting the screen at a step (sheets, tiles made again, titles, specs, layouts), PageApp keeping the
  *  state and each grid's maker, the screen telling a grid and a chart added and a chart's spec. The page commands'
- *  rules stay out (applyToState lives beside them, not in the state). Measured 287,626. */
-const BUDGET = 288_500;
+ *  rules stay out (applyToState lives beside them, not in the state). Measured 287,626.
+ *  288,500 -> 289,500 (2026-10-18, the command program's stage 3 and its audit: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md):
+ *  DataCube's app follows a page Python serves by its commands (app/live-follow.ts: which way a move is followed, and
+ *  each grid closed or frame moved refused so the page opens again), with its page name and "changed since saved".
+ *  Imported, not fetched: a chunk of its own costs more than it saves (its shared code split out with it). Measured
+ *  288,919. */
+const BUDGET = 289_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

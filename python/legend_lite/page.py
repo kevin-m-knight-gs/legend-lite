@@ -224,13 +224,16 @@ class Grid(Tile):
         """The cube document DataCube wrote for an edit, kept whole -- never a part of it Python sets itself -- and what
         opening it over its frame changed, said in DataCube's words, as a load says it."""
         cube = self._cube
+        source = _copied(cube.get('source', {}))
         cube.clear()
         cube.update(_plain(_json.loads(said['cube'])))
         # the commands DataCube applied, as the screen would have built them: the page's record of its edits, and what a
-        # page open on it applies to this grid (none: a change by no command, which it follows by opening the page again)
+        # page open on it applies to this grid -- unless the cube was opened again over a frame that changed (its source
+        # is another, or opening it left something out): a change by no command, which it follows by opening the page
+        # again (the phase 3 audit's 8)
         applied = [_plain(c) for c in said['commands']]
         self._page._commands.extend(applied)
-        if applied:
+        if applied and not said['notes'] and cube.get('source') == source:
             self._page._note([{'grid': self._id, 'command': c} for c in applied])
         else:
             self._page._unnoted()
@@ -1142,8 +1145,9 @@ class Page:
             self._forget(_ids(self._doc) - _ids(doc))
             self._doc = doc
             self._ids |= _ids(doc)
-            # the page open is this one already: Python's next change is told as commands from it
-            self._unserved = []
+            # the page as one open view said it is: another view may not have that view's changes, so Python's next change
+            # is served whole, every view opening it again (the phase 3 audit's 5)
+            self._unnoted()
         return self
 
     @property

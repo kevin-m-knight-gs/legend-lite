@@ -1031,6 +1031,36 @@ class Live(Paged):
         self.assertIn('page', since(before + 1))
         tab.close()
 
+    def test_what_python_serves_whole_rather_than_as_commands(self):
+        # (the phase 3 audit's 5, 8 and test gaps) a refused grid serves nothing, and none of it later; what one open view
+        # said, read back, is served whole next; a grid's edit over a Live frame that changed in place, whole
+        page, grid, _ = self.built()
+        tab = ll.show(page, browser=False)
+        since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
+        version = lambda: self.get(f'/version.json?page={page._key}')[1]['version']
+        with self.assertRaises(ValueError):
+            page.grid(trades(), name='refused', rows=['nope'])
+        self.assertEqual(since(1), {'version': 1, 'commands': []}, 'the refused grid served nothing')
+        page.sheet('Next')
+        self.assertEqual([c['page']['kind'] for c in since(1)['commands']], ['addSheet'], 'and none of it later')
+        # one open view says the page is as it renamed it; Python reads it, and its next change is served whole
+        doc = page.to_dict()
+        doc['sheets'][0]['name'] = 'Renamed in a view'
+        self.assertEqual(self.said(page, doc), 204)
+        page.read()
+        at = version()
+        page.sheet('After the read')
+        self.assertIn('page', since(at))
+        # a grid over a Live frame (a function) whose rows gained a column in place: its edit opens the cube again over
+        # the frame as it is, which is no command
+        holder = {'df': trades()}
+        live = page.grid(lambda: holder['df'], name='livef')
+        at = version()
+        holder['df'] = trades().assign(extra=1)
+        live.group('desk')
+        self.assertIn('page', since(at))
+        tab.close()
+
     def test_an_empty_page_is_not_shown(self):
         # DataCube opens no page without a grid: refused in its words, then Python's call that makes one, and never
         # written either

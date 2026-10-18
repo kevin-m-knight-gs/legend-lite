@@ -29,6 +29,21 @@ roadmap run, on branch `claude/datacube-live-commands`, stacked on phase 2.
 - Python's change is the other editor's, not a step of the page's own history: the page's undo starts again from it
   (an undo past it would take Python's change back without Python knowing).
 
+## The rules the audit set (2026-10-18)
+
+- **Served whole, not as commands:** a change by no command (a cube reopened over a frame that changed -- a grid's edit
+  that reopened it too -- or the page's model written); and Python's first change after `page.read()` took what one
+  open view said, since another view may not have that view's changes.
+- **Opened again, not followed by commands:** a frame that moved in the same poll as the page (a grid the commands add
+  would read it as it is now, the others as it was); a frame that moved while a grid over it was being added; a grid
+  command for a grid closed here (kept off the board for a detached chart counts as closed); any command that does not
+  apply.
+- **What following keeps:** the page's name as Python renamed it; "changed since saved" from the page as followed, as
+  an open of it was -- unless the person had changed it here, when it stays changed.
+- **No step of anyone's own history:** Python's grid commands are no step of the grid's undo, and its page commands none
+  of the page's; each history starts again from Python's change (an undo past it would take it back unseen).
+- **Exact numbers:** an added grid's cube and a calculated column's lambda are read from the answer's exact JSON.
+
 ## Wire
 
 - `page.json?page=K&since=v` -> `{"version": n, "commands": [{"page": <PageCommand>} | {"grid": "<id>", "command":

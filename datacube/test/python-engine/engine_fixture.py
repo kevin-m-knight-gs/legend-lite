@@ -5,7 +5,8 @@ source, the rows (the page loads the same rows into the tab's DuckDB), and each 
 the test's commands until its standard input closes: `update`, `columns`, `widget-update`, `page <json>` (a page of
 its frames served, as `q3`), `page-again` (that page served again, its second sheet renamed), `desks-update` (the second
 frame a row more), `py-page` (a page built with ll.Page and shown; answered `done py-page <its link as JSON>`),
-`py-page-sheet` (a sheet added to it in Python), `py-page-group` (its first grid grouped by desk in Python),
+`py-page-sheet` (a sheet added to it in Python), `py-page-group` and `py-page-regroup` (its first grid grouped by desk,
+then by region, in Python), `py-page-rename` and `py-page-name-back` (it renamed in Python, and named back),
 `widget-page-sheet` (a sheet added to the notebook's page),
 `show-closing` (a frame of two rows shown, `closing`; answered `done show-closing <its link as JSON>`), `close-closing`
 (that frame's cube closed in Python), `py-page-read` (answered `done py-page-read <its sheets' names, as
@@ -197,6 +198,12 @@ def main() -> None:
                 pypage.sheet('Added in Python')
             elif command == 'py-page-group':
                 pygrid.group('desk')
+            elif command == 'py-page-regroup':
+                pygrid.group('region')
+            elif command == 'py-page-rename':
+                pypage.name = 'Renamed in Python'
+            elif command == 'py-page-name-back':
+                pypage.name = 'Built in Python'
             elif command == 'show-closing':
                 with contextlib.redirect_stdout(io.StringIO()):
                     closing = ll.show(frame.slice(0, 2), name='closing', browser=False)

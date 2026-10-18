@@ -610,6 +610,8 @@ describe('a page of its own', () => {
       { kind: 'renameSheet', sheet: second, name: 'From Python' },
       { kind: 'addGrid', id: 'grid-7', document: page.document('Q3')!.cubes[0]!.cube, sheet: second, near: null, title: 'Orders', columns: null },
       { kind: 'renameTile', tile: a, title: 'Trades' },
+      // (the phase 3 audit's 1) its name too: the host reads it back
+      { kind: 'renamePage', name: 'Q4' },
     ];
     const expected = applyPageCommands(page.state, commands).draft.page;
     const madeBefore = made.length;
@@ -619,11 +621,29 @@ describe('a page of its own', () => {
     assert.deepEqual(made.slice(madeBefore), [['grid-7', false]], 'one grid made, the one added: none made again');
     assert.equal(tile('grid-7').querySelector('.dc-tile-title')?.textContent, 'Orders');
     assert.equal(page.undoLabel, undefined, "its history starts again from the other editor's change");
-    assert.deepEqual(page.state.page, page.document('Q3'), 'the state is the page on screen');
+    assert.equal(page.title, 'Q4', 'renamed as Python renamed it');
+    assert.deepEqual(page.state.page, page.document('Q4'), 'the state is the page on screen');
     // a command naming a tile closed here: refused in its words, nothing changed
     const before = page.views();
     await assert.rejects(page.follow([{ kind: 'removeTile', tile: 'grid-9' }], new Map()), CubeRefusal);
     assert.deepEqual(page.views(), before);
+  });
+
+  it("another editor's grid commands: applied as one change, no step of the grid's own history, which starts again from them", async () => {
+    // (the phase 3 audit's 7) an undo past Python's change would take it back unseen
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    const grid = page.grid(a) as unknown as CubeApp;
+    // an edit of the grid's own (a change as its screen makes one): a step
+    await grid.change((st) => ({ ...st, snapshot: { ...st.snapshot, rows: ['desk'] } }), { label: 'group' });
+    await settle();
+    assert.equal(grid.canUndo, true, "the grid's own edit: a step");
+    assert.equal(await grid.applyGridCommands([{ kind: 'group', rows: ['region'] }], 'Python'), null);
+    await settle();
+    assert.deepEqual(grid.snapshot.rows, ['region']);
+    assert.equal(grid.canUndo, false, "Python's change: none, and none before it");
+    assert.match(String(await grid.applyGridCommands([{ kind: 'group', rows: ['nope'] }], 'Python')), /nope/, 'refused in words');
   });
 
   it('its menu: New > Data Source adds a grid through the host\'s picker; the host\'s entries; Page File exports it', async () => {

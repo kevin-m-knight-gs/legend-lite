@@ -723,6 +723,8 @@ export class PageApp {
     const from = this.#state.draft.page;
     const to = applyPageCommands(this.#state.draft, commands).draft.page;
     const views = (page: PageDocument): PageViews => ({ views: page.views, sheets: page.sheets });
+    // its name too (a page renamed in Python): the host reads it back (`title`)
+    if (to.name !== from.name) this.setTitle(to.name);
     this.#syncing = true;
     try {
       this.#page.sync(views(to), views(from), (grid) => {

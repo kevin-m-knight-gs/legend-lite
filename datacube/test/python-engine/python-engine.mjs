@@ -608,11 +608,27 @@ try {
   })();
   console.log(`${read ? 'ok  ' : 'FAIL'} a sheet renamed in DataCube is in page.read() in Python${read ? ` (${read.join(', ')})` : ''}`);
   if (!read) failed = true;
-  // a grid's edit in Python, applied to that grid on the open page as its grid command: grouped by desk, not opened again
+  // Python's first change after it read the page is served whole (another view may not have what this one said): the
+  // page opened again, grouped by desk
   await python('py-page-group');
-  await seen('a grid grouped in Python is grouped on the open page by its grid command, the page not opened again',
+  await seen('a change in Python after page.read() opens the page again, as Python has it',
     () => document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="desk"]') !== null
+      && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === undefined);
+  // then a grid's edit in Python is applied to that grid on the open page as its grid command, not opened again
+  await tabbed.evaluate(() => { document.querySelector('[data-tile="grid-1"]').dataset.kept = 'yes'; });
+  await python('py-page-regroup');
+  await seen('a grid grouped in Python is grouped on the open page by its grid command, the page not opened again',
+    () => document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="region"]') !== null
+      && document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="desk"]') === null
       && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
+  // (the phase 3 audit's 1 and 6) renamed in Python: the open page takes the name, by its command, and is not changed
+  // since it was opened -- Python's change is the page as Python has it
+  await python('py-page-rename');
+  await seen('a page renamed in Python takes the name on the open page, not marked changed, not opened again',
+    () => document.querySelector('.dc-page-name')?.textContent === 'Renamed in Python' && !document.title.startsWith('\u2022')
+      && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
+  await python('py-page-name-back');
+  await seen('and named back', () => document.querySelector('.dc-page-name')?.textContent === 'Built in Python');
 
   // SAVED FROM PYTHON (D, B6): page.save() keeps the page in this user's saved pages by the rules the tab's own Save
   // keeps it by; DataCube's Open… lists it, and it opens -- its sheets as Python saved them, its grid over its frame

@@ -544,7 +544,7 @@ function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
 }
 
 /** The page Python serves (`page.json`), as the protocol's exact JSON reads it: a calculated column's `12.30` stays. */
-function livePage(link: PythonLink, key: string): LivePage {
+export function livePage(link: PythonLink, key: string): LivePage {
   const at = `page.json?page=${encodeURIComponent(key)}`;
   /** The page as Python serves it now, read from the answer's exact JSON. */
   const read = (text: string): { version: number; page: PageDocument } => {
@@ -556,8 +556,8 @@ function livePage(link: PythonLink, key: string): LivePage {
   return {
     read: async () => read(await asked(link, at)),
     // what moved it since (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): each command read by its own reader, a grid
-    // added's cube from the answer's exact numbers (a calculated column's 12.30 kept); the page's rules fetched with
-    // the first commands, not with the page
+    // added's cube and a calculated column's lambda from the answer's exact numbers (12.30 kept, an integer past 2^53
+    // every digit) -- the rest as the screen holds its own commands; the page's rules fetched with the first commands
     changes: async (since) => {
       const text = await asked(link, `${at}&since=${since}`);
       const plain = JSON.parse(text) as { version: number; commands?: unknown[] };
@@ -570,7 +570,14 @@ function livePage(link: PythonLink, key: string): LivePage {
           return { page: readPageCommand(o.page['kind'] === 'addGrid' ? { ...o.page, document: exact[i]!['page']!['document'] } : o.page) };
         }
         if (typeof o.grid !== 'string') throw new Error(`the engine said a command of no page and no grid: ${JSON.stringify(c)}`);
-        return { grid: o.grid, command: readGridCommand(o.command) };
+        const command = o.command as Record<string, unknown> | null;
+        const column = command?.['kind'] === 'calculate' ? command['column'] as Record<string, unknown> | null : null;
+        return {
+          grid: o.grid,
+          command: readGridCommand(column && typeof column === 'object'
+            ? { ...command, column: { ...column, lambda: (exact[i]!['command'] as Record<string, Record<string, unknown>>)['column']!['lambda'] } }
+            : command),
+        };
       });
       return { version: plain.version, commands };
     },

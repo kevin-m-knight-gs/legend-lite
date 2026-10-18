@@ -1022,6 +1022,11 @@ class Page(Cube):
         engine.close_page('q3')
         engine.serve_page('q3', self.DOC, [sheet])
         self.assertEqual(asked(4), {'version': 5, 'page': self.DOC})
+        # the commands of its last 64 versions are kept: a page open at an older one opens it again
+        for _ in range(70):
+            engine.serve_page('q3', self.DOC, [sheet])
+        self.assertIn('page', asked(5))
+        self.assertEqual(len(asked(75 - 63)['commands']), 63)
 
     def test_a_page_asked_with_the_token_only(self):
         self.server.engine.serve_page('q3', self.DOC)
