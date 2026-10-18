@@ -529,8 +529,14 @@ _CORE_TEST_PACKAGES = [
 
 # Measured 2026-10-05: every package's live heap peak is under 342 MB (the largest, root, 264 MB), so P1-21's rule
 # (the live peak plus half again, at least 512 MB, rounded up to 256 MB) gives each 512 MB. The longest, integration,
-# runs 31 s on a desk: no shards, and `medium` (300 s) leaves CI's slower runners room.
+# ran 31 s on a desk then: no shards, and `medium` (300 s) left CI's slower runners room. 2026-10-18: integration has
+# grown to 95-100 s on a Linux desk, and on CI's Windows runner it reached its 300 s limit, timing out on main's own
+# push run of da2dd235 (300.3 s) and on #54's first run (300.8 s), passing on re-runs of the same commits: it is
+# `large` (900 s); the other packages stay `medium`.
 _CORE_TEST_MEMORY_MB = 512
+
+# the packages whose run outgrew `medium`'s 300 s on CI's slowest runner (above)
+_CORE_TEST_LARGE = ["integration"]
 
 _CORE_TEST_EXCLUDED_TAGS = [
     "census",
@@ -542,7 +548,7 @@ _CORE_TEST_EXCLUDED_TAGS = [
 [junit_test(
     name = "core_tests_" + p,
     memory_mb = _CORE_TEST_MEMORY_MB,
-    size = "medium",
+    size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared
         ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
