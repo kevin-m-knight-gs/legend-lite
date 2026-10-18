@@ -46,11 +46,15 @@ sheet deleted, a tile moved to another sheet or renamed could not be undone.
   Ctrl+Shift+Z on a tile's frame -- move the state a step and put the screen at it: `CubePage.sync(to, from)`, going
   from the page on screen to the step's page. Sheets added or removed, named and ordered as it says; tiles removed (a
   chart's selection taken off its grid's filter as its own remove does); tiles added; a tile's title, its sheet, each
-  sheet's layout; a chart's spec. A tile the state never held (a chart with no spec yet, a chart's editing grid) is
-  left where it is.
+  sheet's layout; a chart's spec, its selection, which grid it reads. A tile the state never held (a chart with no spec
+  yet) is left where it is; a chart's editing grid goes back beside its chart, and closes when an undo makes its chart
+  follow its grid again (as the pill's own click closes it).
 - **A grid brought back** by an undo is made again by the host's maker that made it, starting where it was when it
-  went (its query and configuration): PageApp keeps each grid's maker and start while the page is open. A grid kept
-  off the board for a detached chart is replaced by the one made again, and its detached charts follow it once more.
+  went -- its query, its configuration and its open groups: the same grid, not a copy. PageApp keeps each grid's maker
+  and start while a step of the history can bring it back, and says which grids those are (`recoverable`): the host
+  keeps what each reads -- a file's table, its planner -- until none can (DataCube's app drops a file's table with its
+  last grid). A grid kept off the board for a detached chart is replaced by the one made again, and its detached
+  charts follow it once more, their selections with them.
 - **A chart brought back** with a selection puts that selection back on its grid's filter, by the grid's own change
   (`refilter`, as a click on its mark does): one more step of the grid's own history.
 - A locked page (view mode) undoes nothing, as Undo Layout did not.
@@ -71,8 +75,11 @@ sheet deleted, a tile moved to another sheet or renamed could not be undone.
 
 - `page-state.test.ts`: apply, undo, redo, a new step clearing what was undone, a refused step changing nothing,
   begin and keep, ids only growing, the history's limit.
-- `page-app.test.ts`: every edit the screen tells, undone and redone, puts the page back as it was (`views()` and the
-  cubes); the state is the page on screen after each; each told edit replays to the page it made.
+- `cube-page-shell.test.ts`: every edit the screen tells, undone and redone, puts the page back as it was (`views()`
+  and the cubes), the state the page on screen after each, each told edit one step that replays to the page it made
+  (its views and its cubes); and the independent review's findings, each pinned (a grid's source kept while it can
+  come back, a frozen chart's selection, a chart following again told as it draws, a grid's open groups, a detached
+  chart's Update undone past its grid's removal, an editing grid beside its chart, a chart's form one step).
 
 ## Not in this phase
 
@@ -82,3 +89,6 @@ sheet deleted, a tile moved to another sheet or renamed could not be undone.
 - **A detached chart's Update** is undone as its spec; the query it keeps after the Update stays (no page command says
   which query a detached chart reads).
 - **Stage 3**, the live channel: commands from Python applied to the open page's state, the screen synced to it.
+- **An undo or a redo told as commands** to a host following the page by them (`onPageCommand`): the state holds the
+  pages, not the inverse commands. No host follows the page by them yet; the reverse channel (the screen's edits sent
+  to Python) will need it, or will send the page whole after an undo.
