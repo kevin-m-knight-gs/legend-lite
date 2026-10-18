@@ -9,8 +9,8 @@
   (both records are under Phase 6).
 - Phase 7 is done on branch `claude/gracious-edison-jcsvzm` (its record is under Phase 7).
 - Left:
-  - the absolute ratchet: the ledger's six rows are the compiler line's `DynaFn` (D10) and the SQL translator's
-    Postgres rules (D11, five files);
+  - the absolute ratchet: the ledger's seven rows are the compiler line's `DynaFn` (D10), the SQL translator's
+    Postgres rules (D11, five files) and the island's regression corpus test (`PgRegressCorpusTest`, with D11);
   - defect 11 (SQLite's plan path), in a PR of its own.
 
 (The status of 2026-10-13, on `claude/great-wright-p6t5s1`: Phase 0 done (55569df); Phase 1's 1b steps 1 to 3
@@ -1221,9 +1221,10 @@ did, and where it departs from the list above:
   line's. The query demo's warehouse seed (`query/demo/models/trading-seed.sql`) still runs DuckDB text on the
   configured catalog: the Query line's.
 
-The ledger after Phase 7: 6 rows, 243 lines. `DynaFn` is D10's (the compiler line's); the SQL translator's five files
-are D11's (task #85). The absolute ratchet, the pins and the ledger replaced by an assertion that nothing is counted,
-lands with them.
+The ledger after Phase 7: 7 rows, 245 lines. `DynaFn` is D10's (the compiler line's). The SQL translator's five files
+are D11's (task #85), and so is `PgRegressCorpusTest` (2 lines: the `#SQL{...}#` island's regression corpus, landed
+with neema2/legend-lite#53 the same day, which opens `EmbeddedPostgres` itself). The absolute ratchet, the pins and the
+ledger replaced by an assertion that nothing is counted, lands with them.
 
 ### Order and size
 
