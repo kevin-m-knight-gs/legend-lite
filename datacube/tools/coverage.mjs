@@ -4,7 +4,7 @@
 // reach code these do not -- the app shell, the headless bridge -- and are not counted here.
 //
 //   bazel build //wasm:planner_dir //engine-client:duckdb_extensions   # the planner and DuckDB the tests load
-//   node datacube/tools/coverage.mjs [out-dir]                          # default: datacube-coverage/ where you run it
+//   node datacube/tools/coverage.mjs [out-dir]                          # default: datacube-coverage/ in the system's temp folder
 //
 // Writes <out>/lcov.info (any lcov viewer reads it), <out>/tests.txt (each test's outcome: a test that needs what
 // only its Bazel target gives -- a built bundle, a server -- fails here and is listed, not hidden) and
@@ -12,12 +12,13 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const datacube = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repo = resolve(datacube, '..');
-const out = resolve(process.argv[2] ?? 'datacube-coverage');
+const out = resolve(process.argv[2] ?? join(tmpdir(), 'datacube-coverage'));
 mkdirSync(out, { recursive: true });
 
 /** Every file under `dir`, recursively. */

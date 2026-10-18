@@ -955,9 +955,13 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   (`docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md` §11), branch `claude/datacube-command-tests`, stacked on #57, its
   own PR. Tests only: the screen and Python writing the same cube document for each grid edit; round trips as seeded
   properties, with the invariants on duplicated state; a corpus of saved pages; a coverage report kept as a report.
-  Files: new tests and fixtures under `datacube/test/`, `python/tests/` for the corpus through `Page.load`,
-  `datacube/BUILD.bazel` and `datacube/test_imports.bzl` for their registration (the Compiler Rewrite line's OK asked),
-  and a fix wherever a test finds a bug, each named in its commit. Still not touched: the SQL plan's ground.
+  Files: new tests and fixtures under `datacube/test/` (parity, round trips, the page corpus), `datacube/tools/coverage.mjs`
+  and `docs/DATACUBE_COVERAGE_2026_10_18.md`; `python/tests/test_headless.py`, `test_page.py` and `main.py`;
+  `datacube/BUILD.bazel`, `python/BUILD.bazel` and `datacube/test_imports.bzl` for their registration (the Compiler
+  Rewrite line's OK asked); and the fixes the tests and the stage's review found, each named in its commit:
+  `datacube/src/cube-state.ts` (`openedState`, the one open path), `src/headless/grid.ts` (gridCube folds as the screen
+  opens; gridCalculate writes the cube document), `python/legend_lite/page.py` (calculate keeps DataCube's document),
+  `src/examples/charts-dashboard.ts` (the example pages written folded). Still not touched: the SQL plan's ground.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

@@ -21,10 +21,12 @@ file list or a warehouse, and the script lists them.
 
 | Files | Reached by |
 |---|---|
-| `src/headless/*` (grid, page, model, layout, data-in, host, calls, entry, the installers) | Python's suite (`//python:headless_test`, `engine_test`) |
+| `src/headless/` grid, model, data-in, host, calls, entry, and the installers | Python's suite (`//python:headless_test`, `engine_test`) |
 | `src/app/datacube-app.ts`, `src/app/sources.ts`, `src/app/services.ts` | the browser harnesses (`verify_app`, `verify_cubes`, `verify_features`, the tour) |
 | `src/services/browser.ts`, `browser-basics.ts`, `src/file-handles.ts`, `src/embed.ts` | the browser harnesses |
-| `src/infer.ts` | no Node test loads it, though `test/infer.test.ts` exists. Look into this next. |
+| `src/infer.ts` | nothing to run: it declares interfaces only. |
+
+The headless page and layout calls are loaded by `test/page-document.test.ts`, so they appear in the next table.
 
 ## The least covered of the files the tests load
 
@@ -42,5 +44,7 @@ file list or a warehouse, and the script lists them.
 ## What to do with it
 
 The command program will rewrite how three places edit: `app.ts`'s handlers, `chart-panel.ts` and `chart-form.ts`.
-Each needs tests on its dark branches before its commands land, by the same rule as stage 1a. The first step is
-parity cases for each chart edit; `datacube/test/fixtures/parity/parity.json` takes a case per edit.
+Each needs tests on its dark branches before its commands land, by the same rule as stage 1a.
+
+The parity file covers the grid only for now: both of its drivers compare a page's first cube, never its views. A
+chart edit becomes a parity case once the drivers compare the page's views too. That comes before the chart commands.
