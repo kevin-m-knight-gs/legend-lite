@@ -1185,13 +1185,17 @@ did, and where it departs from the list above:
   - **The warehouse is a host owner** (`DatabaseOwners`' HOST kind): one DuckDB, the host of every catalog. Its sources
     name DuckDB, in their code and their strings; another database only in a file named for it; and `Attachment`, the
     registry, every one it attaches. The guards read its main code too. Its 5 ledger rows (24 lines) and its two
-    registered crossings are gone.
+    registered crossings are gone. `Attachment`, which no census reads (a registry), names a database only in its
+    rows and its switches' one-line arms (`DialectOwnerExclusivityTest.theWarehouseRegistryNamesADatabaseOnlyInItsRowsAndArms`,
+    as `DialectBoundaryTest` pins `Databases`).
   - Departure: the "one warehouse-owned class" is two, `Postgres` and `PostgresUrl` (a URL's reading is its own
     record), both reached only through `Attachment`.
 - **`server/CreateClass`.** The path a pathless in-memory specification is written with is the declared database's
   dialect's (`SqlDialect.inMemoryPath`): DuckDB's `:memory:`, which legend-engine needs (its DuckDB opens the path a
   specification names, and refuses one with none); the other dialects name none. `CreateClass` is plan side
-  (`//core:pure_v1`), so the dialect, not the connector, answers. Same output.
+  (`//core:pure_v1`, which reaches `//core:database` for it: `tools/deps/core-layers.txt`), so the dialect, not the
+  connector, answers. Same output for every connection the tab writes; a declared database the platform does not run
+  on is written as it is, the writer running nothing (`CreateClassTest.anInMemoryDatabaseIsWrittenWithItsDatabasesPath`).
 - **Phase 3's two wasm items**, left until now. `Boundary.testDataSql` seeds the tab with the platform's own dialect
   (`Databases.PLATFORM`: the tab's engine is the platform's in-process one). The catalog question is
   `SqlDialect.catalogColumnsQuery` (DuckDB's; the others refuse by name), no longer `DuckDb.CATALOG_COLUMNS_SQL` read off
@@ -1201,13 +1205,18 @@ did, and where it departs from the list above:
   `EmbeddedMySql`, which opens MySQL with MariaDB's driver, is a registered crossing. Not read: the build's tools and the
   other products (sdlc-server, depot-server, query-store, json, base, site, datacube's tools). Their hits that day were
   two false positives, the census renderer and a tool named for Postgres (`DialectLeakRatchetTest.ROOTS`).
-- **Dead code (D6): 36 files, 17,582 lines deleted.** They are `tools/spikes`, `tools/metamodel-census`,
+- **Dead code (D6): 39 files, 18,499 lines deleted.** They are `tools/spikes`, `tools/metamodel-census`,
   `tools/reference/join.py`, `scripts/corpus`'s codemods and their library (`add_taxonomy_edges`, `brokerage`,
   `coverage`, `curves`, `curves2`, `largeexp`, `mutate`, `refdata`, `schedule`, `taxa_*`, `timeseries`) and
-  `scripts/{census_gate,generate_pure_constants,outstanding,walldepth}.py`. Departure: the rest of D6's list is left for
-  the build program's script review (`docs/build-inventory/program/PHASE_8.md` End-1), because two decisions conflict
-  on it. D6 (2026-10-13) deletes those files, but the build program's old D3 (2026-10-03) decided to repair or wire
-  them, and its P3-25 wiring is uncommitted elsewhere. They are:
+  `scripts/{census_gate,generate_pure_constants,outstanding,walldepth}.py`; with them what only they used:
+  `tools/reference/source_drift.py` (its output was `join.py`'s input) and `docs/{corpus-coverage,census-baseline}.json`
+  (`coverage.py`'s and `census_gate.py`'s). No target builds them, no kept file imports them, and no live document
+  tells anyone to run them; git keeps them. 26 of them are rows the build program's script review marked "keep as
+  history" (`docs/bazel-audit-2026-10-02/script-review.md`; its old P7-04): D6, the user's later decision, deletes them,
+  and the review's End-1 records those rows done (`docs/IN_FLIGHT.md`). Departure: the rest of D6's list is left for that
+  review (`docs/build-inventory/program/PHASE_8.md` End-1), because there the two decisions conflict outright. D6
+  (2026-10-13) deletes those files, but the build program's old D3 (2026-10-03) decided to repair or wire them, and its
+  P3-25 wiring is uncommitted elsewhere. They are:
   - `scripts/corpus/run.py` and its 16 probes, the recipes behind 14 kept repros (old D3 rows 1 and 2);
   - `scripts/projects/*` (rows 5 and D18);
   - `tools/untangle` (row 9);
@@ -1250,7 +1259,7 @@ Decided by the user, 2026-10-13. The recommendation each row first carried is ke
 | **D3** | The IR's *meanings* are DuckDB's in places: its typing rules, LIST_SLICE's end, H2's scan order, strftime codes. Is that a leak? | **Agreed.** Keep the meanings as the platform's written contract; every dialect already emulates them. Replace only the DuckDB *strings* inside the IR (`"to_days"`, strftime codes, json_type and typeof names) with typed values. |
 | **D4** | Warehouse: share core's dialect, or keep its own per-engine classes? | **Agreed for now.** Keep the closure rule and gather its Postgres knowledge into one owner behind `Attachment`. On the backlog: revisit whether the warehouse can use core's dialects once the platform can carry it. **Done in Phase 7 (2026-10-18).** **The direction, the user's, 2026-10-18** (after a review of how the warehouse works: today a Postgres catalog is DuckDB acting as Postgres's client, its SQL passed through `postgres_query` and its rows typed by DuckDB). The warehouse keeps DuckDB as its host. The databases worth hosting natively, Postgres and MySQL, become first class through their own native clients, not DuckDB's extensions. ClickHouse (its own HTTP server), BigQuery and Snowflake (HTTP with CORS) are reached directly. Databricks needs a relay until it answers CORS. Trino gains nothing from a native client. Open: whether Snowflake's HTTP API carries Arrow; if not, a native or ODBC client for Arrow is the case for hosting it. A plan of its own. |
 | **D5** | TypeScript apps: must every SQL go through the planner? | **Decided: yes, all of it.** The tab's DuckDB-only operations become named operations of the DuckDB dialect, refused by the others; a guard bans SQL text in TypeScript. (First recommended: no for tab-only setup, which `snap.ts`'s count on a warehouse catalog had already disproved.) |
-| **D6** | Delete the dead trees? | **Decided: only the orphan tools and scripts** (about 24,000 lines, listed in Phase 7). `experiments/` stays (its own decision of 2026-10-02) and so does the code under `docs/`, the harnesses behind each folder's evidence. **Applied in Phase 7 (2026-10-18)** to the 36 files no other plan keeps; the rest conflict with the build program's script review and wait for the user (Phase 7's record). |
+| **D6** | Delete the dead trees? | **Decided: only the orphan tools and scripts** (about 24,000 lines, listed in Phase 7). `experiments/` stays (its own decision of 2026-10-02) and so does the code under `docs/`, the harnesses behind each folder's evidence. **Applied in Phase 7 (2026-10-18)** to the 36 files no plan repairs or wires (and three files only they used); the rest conflict with the build program's script review, which decided to repair or wire them, and wait for the user (Phase 7's record). |
 | **D7** | Land phase by phase on the branch, each green, then pause for review after P1 (the most visible restructuring)? | **Agreed.** |
 | **D8** | Which case does a store's bare name have on Postgres? The engine emits it unquoted, so Postgres folds it to lower case; the corpus's setup text assumes that. Main's `#SQL{...}#` Postgres fixture and DataCube's `infer.test.ts` assume the opposite: the name is kept as declared and quoted. Folding was tried and reverted on 2026-10-12 (neema2/legend-lite#30's CI). | **Decided: fold**, as legend-engine does (more correct for a drop-in replacement: most Postgres tables are created unquoted). Decide it once, as the dialect's own rule (P1). The two kinds of test then follow whichever rule is chosen. Folding matches the engine and the corpus; keeping case matches `#SQL{...}#`. If folding returns, the PR's independent review named two prerequisites: `CatalogModel.ident` must quote a mixed-case catalog name (or a Postgres table `"Orders"` is read as `orders`), and a star-expanded column's label must take the spelling its references take (`Stars.java:54`). |
 | **P1b** | The base renderer's shape. | **Decided: an exhaustive switch per concrete dialect, families included**, a base with no spellings, a guard that enforces it, and a capability matrix generated from the code (Phase 1b). |

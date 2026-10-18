@@ -138,6 +138,40 @@ class DialectOwnerExclusivityTest {
                 + failures);
     }
 
+    /** The warehouse's registry of the databases a catalog attaches ({@code Attachment}, an EVERY owner, which neither
+     *  census reads) names an attached database only in its rows and in its switches' one-line arms (DuckDB, the
+     *  warehouse's host, anywhere, as in every warehouse source), as DialectBoundaryTest pins
+     *  {@code Databases}' cases: a decision for one database written anywhere else in it belongs in that database's own
+     *  class (2026-10-18, the dialect program's Phase 7, the review of its branch). */
+    @Test
+    void theWarehouseRegistryNamesADatabaseOnlyInItsRowsAndArms() throws IOException {
+        String rel = "warehouse/src/main/java/com/legend/warehouse/server/Attachment.java";
+        DialectLeakRatchetTest.Lines lines = DialectLeakRatchetTest.lex(Files.readString(SourceFiles.file(rel)));
+        Pattern row = Pattern.compile("^\\s*[A-Z][A-Z0-9_]*\\s*\\(");
+        Pattern arm = Pattern.compile("^\\s*case\\s+[A-Z][A-Z0-9_]*\\s*->[^;{]*;\\s*$");
+        List<String> failures = new ArrayList<>();
+        // the warehouse's host: what a warehouse source not named for a database may name
+        Set<String> host = DatabaseOwners.of("warehouse/src/main/java/com/legend/warehouse/server/Catalogs.java", "")
+                .databases();
+        int rows = 0;
+        for (int i = 0; i < lines.code().size(); i++) {
+            String code = lines.code().get(i);
+            Set<String> named = new java.util.HashSet<>(DatabaseOwners.named(code));
+            named.removeAll(host);
+            if (named.isEmpty()) {
+                continue;
+            }
+            if (row.matcher(code).find()) {
+                rows++;
+            } else if (!arm.matcher(code).find()) {
+                failures.add(rel + ":" + (i + 1) + " " + code.strip());
+            }
+        }
+        assertTrue(rows > 0, "the registry's rows were not found: " + rel);
+        assertTrue(failures.isEmpty(), "the warehouse's registry names a database outside a row or a one-line arm: move"
+                + " the decision into that database's class (Postgres, PostgresUrl) and call it from the arm: " + failures);
+    }
+
     /** A question about which dialect a value is, by its class: {@code instanceof} or {@code .class} of a dialect
      *  class, or its simple name compared. A dialect answers for itself; asking which one it is decides by a name
      *  this guard cannot read when the class's name holds no database's (2026-10-15, the audit of the owner guard's

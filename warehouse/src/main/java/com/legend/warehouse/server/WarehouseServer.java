@@ -782,13 +782,15 @@ public final class WarehouseServer implements AutoCloseable {
     private static Config withPasswordAsked(Config config, Catalogs.AttachFailed failed) throws IOException {
         Catalogs.Attach attach = config.attached().get(failed.catalog);
         java.io.Console console = System.console();
-        if (!failed.missingPassword || console == null || attach == null) throw failed;
+        if (!failed.missingPassword || console == null || attach == null
+                || !attach.kind().takesPassword(attach.connection())) {
+            throw failed;
+        }
         char[] password = console.readPassword("%s password for %s: ", failed.kind.databaseType, failed.catalog);
         if (password == null) throw failed;
-        String connection = attach.kind().withPassword(attach.connection(), password);
-        if (connection == null) throw failed;
         LinkedHashMap<String, Catalogs.Attach> attached = new LinkedHashMap<>(config.attached());
-        attached.put(failed.catalog, new Catalogs.Attach(attach.kind(), connection));
+        attached.put(failed.catalog, new Catalogs.Attach(attach.kind(), attach.kind().withPassword(attach.connection(),
+                password)));
         return config.withAttached(attached, config.duckdbExtensions());
     }
 

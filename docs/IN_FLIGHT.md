@@ -1560,13 +1560,16 @@ pause for the user's review after Phase 1.
     `:database`.
   - `wasm/src/main/java/planner/Boundary.java` (the DataCube and Python lines' boundary): `testDataSql` and
     `catalogColumnsSql` keep their signatures and ask the platform's dialect; `DuckDb.CATALOG_COLUMNS_SQL` is private,
-    `SqlDialect.catalogColumnsQuery` its reader. `wasm/`, `native/` and `testing/` each gain a `main_java` (wasm:
-    `planner_java`) filegroup that the census reads.
-  - Deleted (D6): `tools/spikes`, `tools/metamodel-census`, `tools/reference/join.py`, `scripts/corpus`'s codemods and
-    `refdata`, and `scripts/{census_gate,generate_pure_constants,outstanding,walldepth}.py` (36 files). **To the build
-    rebuild's script review (End-1):** `run.py` and the probes, `scripts/projects`, `tools/{untangle,wrongrows}`,
-    `tools/{native-axes,upstream-drift}.py` and `scripts/parser` are not deleted. D6 and old D3 conflict on them, and the
-    user decides.
+    `SqlDialect.catalogColumnsQuery` its reader. `warehouse/`, `native/` and `testing/` each gain a `main_java`
+    filegroup (wasm: `planner_java`) that the census reads; `tools/deps/core-layers.txt` lets `pure_v1` reach
+    `database`.
+  - Deleted (D6): `tools/spikes`, `tools/metamodel-census`, `tools/reference/{join,source_drift}.py`,
+    `scripts/corpus`'s codemods and `refdata`, `scripts/{census_gate,generate_pure_constants,outstanding,walldepth}.py`
+    and `docs/{corpus-coverage,census-baseline}.json` (39 files). **To the build rebuild's script review (End-1):** the
+    sheet's rows for these files are done; 26 of them were "keep as history", and D6 (the user's, 2026-10-13) deletes
+    them. PHASE_8's Short-22 cites `coverage.py`, `mutate.py` and `census_gate.py`, which are gone. `run.py` and the
+    probes, `scripts/projects`, `tools/{untangle,wrongrows}`, `tools/{native-axes,upstream-drift}.py` and
+    `scripts/parser` are not deleted: D6 and old D3 conflict on them, and the user decides.
 - **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move: #43 and #48 have landed** (D11:
   "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
   lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate

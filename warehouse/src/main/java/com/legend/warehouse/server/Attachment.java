@@ -69,11 +69,7 @@ public enum Attachment {
     /** The catalog {@code arg} names when it is one of this kind's URLs, else null. */
     private @Nullable Named fromUrl(String arg) {
         return switch (this) {
-            case POSTGRES -> {
-                if (!PostgresUrl.isUrl(arg)) yield null;
-                PostgresUrl url = PostgresUrl.parse(arg);
-                yield new Named(url.catalog(), new Catalogs.Attach(this, url.dsn()));
-            }
+            case POSTGRES -> PostgresUrl.named(arg);
         };
     }
 
@@ -91,10 +87,17 @@ public enum Attachment {
         };
     }
 
-    /** {@code connection} with the {@code password} the terminal was asked for; null when it cannot carry one. */
-    @Nullable String withPassword(String connection, char[] password) {
+    /** Whether {@code connection} can carry a password asked for on the terminal: asked only then. */
+    boolean takesPassword(String connection) {
         return switch (this) {
-            case POSTGRES -> PostgresUrl.isUrl(connection) ? null : PostgresUrl.withPassword(connection, password);
+            case POSTGRES -> !PostgresUrl.isUrl(connection);
+        };
+    }
+
+    /** {@code connection} with the {@code password} the terminal was asked for ({@link #takesPassword}). */
+    String withPassword(String connection, char[] password) {
+        return switch (this) {
+            case POSTGRES -> PostgresUrl.withPassword(connection, password);
         };
     }
 
