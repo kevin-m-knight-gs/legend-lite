@@ -12,15 +12,15 @@ import { describe, it } from 'node:test';
 
 import { element } from '../../pure-protocol/src/index.ts';
 import { chartProblems, defaultChart, followCube } from '../src/chart-spec.ts';
-import { DEFAULT_CONFIGURATION, applyToSnapshot, fromSnapshot, withConfiguration, type CubeConfiguration } from '../src/config.ts';
+import { DEFAULT_CONFIGURATION, withConfiguration } from '../src/config.ts';
 import { cubeToJson, frameSource, openCube, readCube, writeCube } from '../src/cube-document.ts';
-import { fold, queryKey, stateKey, type CubeState } from '../src/cube-state.ts';
+import { fold, openedState, queryKey, stateKey, type CubeState } from '../src/cube-state.ts';
 import {
   addSort, allColumns, clickSort, clickTreeSort, firstSortDirection, groupableColumns, headerSorts, offeredAggregates,
   setColumn, setGrouping, setPivot, type GridDraft,
 } from '../src/grid-edits.ts';
 import {
-  CubeRefusal, pivotTotalColumn, rowColumns, totalOrderSorts, type CubeSnapshot, type SortDirection,
+  CubeRefusal, pivotTotalColumn, rowColumns, totalOrderSorts, type CubeSnapshot, type FilterNode, type SortDirection,
 } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { stand } from './fake-planner.ts';
@@ -105,6 +105,30 @@ function randomEdit(rand: () => number, d: GridDraft): [string, (d: GridDraft) =
       const kind = rand() < 0.5 ? 'dimension' : 'measure';
       return [`kind ${column} ${kind}`, (x) => setColumn(x, column, { kind })];
     }],
+    ['a filter', () => {
+      const filters: FilterNode[] = [
+        { kind: 'condition', column: 'region', operator: pick(['equal', 'notEqual'] as const), value: pick(['EMEA', 'APAC']) },
+        { kind: 'condition', column: 'traded', operator: 'greaterThan', value: '2024-02-01' },
+        { kind: 'condition', column: 'qty', operator: 'lessThanEqual', value: 5 },
+      ];
+      const filter = rand() < 0.2 ? undefined : rand() < 0.5 ? pick(filters)
+        : { kind: 'and' as const, children: [pick(filters), pick(filters)] };
+      return [`filter ${JSON.stringify(filter)}`, (x) => {
+        const { filter: _was, ...rest } = x.snapshot;
+        return { ...x, snapshot: filter === undefined ? rest : { ...rest, filter } };
+      }];
+    }],
+    ['a calculated column', () => {
+      // added, as the column editor adds one (a row-level measure), or the last one taken away
+      const add = rand() < 0.6;
+      const name = `calc${Math.floor(rand() * 3)}`;
+      return [`${add ? 'add' : 'remove'} a calculated column`, (x) => {
+        const derived = x.snapshot.derived.filter((d) => d.name !== name);
+        return { ...x, snapshot: { ...x.snapshot, derived: add
+          ? [...derived, { name, lambda: stand('$x.qty * 3'), kind: 'measure', type: 'Integer' }]
+          : x.snapshot.derived.slice(0, -1) } };
+      }];
+    }],
     ['a setting', () => {
       const column = pick(columns);
       const patches: [string, Parameters<typeof withConfiguration>[1]][] = [
@@ -118,6 +142,10 @@ function randomEdit(rand: () => number, d: GridDraft): [string, (d: GridDraft) =
         ['leaf count', { showLeafCount: rand() < 0.5 }],
         ['root row', { showRootAggregation: rand() < 0.5 }],
         ['total heatmap', { columns: { [pivotTotalColumn('notional')]: { heatmap: { from: '#ffffff', to: '#00ff00' } } } }],
+        ['pivot exclusion', { columns: { [column]: { excludedFromPivot: rand() < 0.5 } } }],
+        ['pivot sort', { columns: { [column]: { pivotSortDirection: pick(['asc', 'desc'] as const) } } }],
+        ['leaf count mode', { leafCountMode: pick(['children', 'leaves'] as const) }],
+        ['grouped columns kept', { showGroupedColumns: rand() < 0.5 }],
       ];
       const [name, patch] = pick(patches);
       return [`setting ${name}`, (x) => ({ ...x, config: withConfiguration(x.config, patch) })];
@@ -126,8 +154,8 @@ function randomEdit(rand: () => number, d: GridDraft): [string, (d: GridDraft) =
   return pick(choices)[1]();
 }
 
-/** A grid after `STEPS` random edits from `seed`, and the edits made (the refused ones marked). */
-function editedGrid(seed: number): { draft: GridDraft; steps: string[] } {
+/** A grid after `STEPS` random edits from `seed`, the edits made (the refused ones marked), and its open groups. */
+function editedGrid(seed: number): { draft: GridDraft; steps: string[]; tree: TreeState } {
   const rand = mulberry32(seed);
   let d: GridDraft = { snapshot: CUBE, config: DEFAULT_CONFIGURATION };
   const steps: string[] = [];
@@ -144,7 +172,9 @@ function editedGrid(seed: number): { draft: GridDraft; steps: string[] } {
       steps.push(`${name} (refused)`);
     }
   }
-  return { draft: d, steps };
+  // some groups open, as a person leaves a grid: a value of each grouping level, or none
+  const open = d.snapshot.rows.length > 0 && rand() < 0.5 ? [['EMEA'], ...(d.snapshot.rows.length > 1 ? [['EMEA', 'Rates']] : [])] : [];
+  return { draft: d, steps, tree: TreeState.fromPaths(open, rand() < 0.5) };
 }
 
 /** The grid as the screen's state owner holds it: its configuration folded into its query (cube-state.ts fold). */
@@ -162,8 +192,7 @@ function written(s: CubeState): string {
  *  from what the query carries (app.ts's constructor, headless/grid.ts opened). */
 function reopened(text: string): { state: CubeState; notes: readonly string[]; changed: boolean } {
   const cube = openCube(readCube(text), { query: element('t') }, CUBE.columns);
-  const configuration: CubeConfiguration = fromSnapshot(cube.snapshot, cube.configuration);
-  return { state: fold({ snapshot: cube.snapshot, configuration, tree: cube.tree }), notes: cube.notes, changed: cube.changed };
+  return { state: openedState(cube.snapshot, cube.configuration, cube.tree), notes: cube.notes, changed: cube.changed };
 }
 
 const why = (seed: number, steps: readonly string[]): string => `seed ${seed}: ${steps.join(' -> ')}`;
@@ -171,8 +200,8 @@ const why = (seed: number, steps: readonly string[]): string => `seed ${seed}: $
 describe('a grid edited at random comes back as it was (written, read, opened again)', () => {
   it(`${SEEDS} seeds of ${STEPS} edits: the same queries, the same settings, the same document`, () => {
     for (let seed = 1; seed <= SEEDS; seed += 1) {
-      const { draft, steps } = editedGrid(seed);
-      const state = stateOf(draft);
+      const { draft, steps, tree } = editedGrid(seed);
+      const state = stateOf(draft, tree);
       const text = written(state);
       const again = reopened(text);
       // a document it just wrote opens with nothing to say and nothing left out
@@ -189,13 +218,42 @@ describe('a grid edited at random comes back as it was (written, read, opened ag
 });
 
 describe('the state a grid keeps twice agrees with itself', () => {
-  it('the configuration read back from the folded query changes nothing a query reads (fromSnapshot after applyToSnapshot)', () => {
+  it('what a document carries only in its query survives the open path (#47\'s first blocker: openedState reads it back)', () => {
+    // a document whose configuration says nothing -- an older writer's, or one that left it behind -- and whose query
+    // carries the grid's settings: opened as the screen opens it, each setting the query carries is kept, never folded
+    // away with a configuration that does not name it (what fromSnapshot reads back: each column's kind, pivot
+    // exclusion, Aggregation and weight, the row limit, the tree's order, a pivot total and the pivot sorts)
+    const carried = (s: CubeSnapshot): unknown => ({
+      columns: [...s.columns, ...s.derived].map((c) => ({ name: c.name, kind: c.kind, aggregate: c.aggregate,
+        aggregateWeight: c.aggregateWeight, excludedFromPivot: 'excludedFromPivot' in c ? c.excludedFromPivot : undefined })),
+      maxRows: s.maxRows, treeColumnSort: s.treeColumnSort, pivotSort: s.pivotSort ?? {},
+      ...(s.pivotTotal ? { pivotTotal: s.pivotTotal } : {}),
+    });
     for (let seed = 1; seed <= SEEDS; seed += 1) {
       const { draft, steps } = editedGrid(seed);
-      const folded = applyToSnapshot(draft.snapshot, draft.config);
-      const readBack = fromSnapshot(folded, draft.config);
-      assert.deepEqual(JSON.parse(queryKey(fold({ snapshot: folded, configuration: readBack, tree: TreeState.empty() }))),
-        JSON.parse(queryKey(stateOf(draft))), why(seed, steps));
+      const state = stateOf(draft);
+      const text = written({ ...state, configuration: DEFAULT_CONFIGURATION });
+      const again = reopened(text);
+      const want = carried(state.snapshot) as { pivotTotal?: unknown };
+      const got = carried(again.state.snapshot) as { pivotTotal?: unknown };
+      // a pivot total the query carries is read back; one it does not carry is the configuration's to decide
+      if (want.pivotTotal === undefined) delete got.pivotTotal;
+      assert.deepEqual(got, want, why(seed, steps));
+    }
+  });
+
+  it('opened again over a source with a column more, it says so, hides it, and keeps everything else', () => {
+    const wider = [...CUBE.columns, { name: 'book', type: 'String' }];
+    for (let seed = 1; seed <= SEEDS; seed += 1) {
+      const { draft, steps, tree } = editedGrid(seed);
+      const state = stateOf(draft, tree);
+      const cube = openCube(readCube(written(state)), { query: element('t') }, wider);
+      assert.deepEqual(cube.notes, ['1 new column since this cube was saved, hidden: book'], why(seed, steps));
+      const again = openedState(cube.snapshot, cube.configuration, cube.tree);
+      assert.equal(again.configuration.columns['book']?.hidden, true, why(seed, steps));
+      const { book: _book, ...columns } = again.configuration.columns;
+      assert.deepEqual(JSON.parse(JSON.stringify({ ...again.configuration, columns })), JSON.parse(JSON.stringify(state.configuration)),
+        why(seed, steps));
     }
   });
 
