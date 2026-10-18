@@ -1421,7 +1421,7 @@ pause for the user's review after Phase 1.
   and a vocabulary owner names no specific `DatabaseType`, dialect, driver or URL. The leak ratchet now counts only
   what no owner holds: 1,964 lines.
 - **For the compiler line (D10, the user's decision of 2026-10-15; `builtin/` is that line's, so this program does not
-  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 17
+  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 18
   databases (175 of the leak ratchet's lines). It splits in two:
   - the engine's table stays as reference data, generated from or verified against the engine's source (spec by
     verification, the reference-checkout tenet);
@@ -1434,7 +1434,7 @@ pause for the user's review after Phase 1.
     platform's resolution (`DynaFnDecisions`, unchanged), and names no database. The engine's table, which engine
     dialect extension registers each name, becomes a generated reference ledger, `docs/engine-dynafunctions.tsv`,
     written by the same generator from the pinned engine tree and held by `//docs:update_generated`'s diff test. Its
-    one reader in the product, `RelOpTranslator`'s refusal of an UNSUPPORTED name, points at the ledger instead of
+    one reader in the product, `RelOpTranslator`'s refusal of an UNSUPPORTED name, points at that table instead of
     printing the engine's dialect list. No other behaviour changes. Files: `builtin/DynaFn.java` (generated),
     `spec`'s `DynaFnGenerator` and BUILD, `docs/BUILD.bazel`, `normalizer/RelOpTranslator.java`.
 - **Announced 2026-10-15, Phases 2 and 4 (one PR, branch `claude/gracious-edison-jcsvzm`).**

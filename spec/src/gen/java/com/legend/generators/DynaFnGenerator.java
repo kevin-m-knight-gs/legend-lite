@@ -117,7 +117,7 @@ public final class DynaFnGenerator {
     }
 
     /** The engine's reference table: each name, whether the engine's type-inference map knows it, and the engine dialect
-     *  extensions that register it (none for a name only the inference map knows). */
+     *  extensions that register it ({@code none} for a name only the inference map knows). */
     public static String engineTable(TreeMap<String, Upstream> up) {
         requireSome(up);
         StringBuilder out = new StringBuilder("""
@@ -130,7 +130,8 @@ public final class DynaFnGenerator {
                 """);
         for (Map.Entry<String, Upstream> e : up.entrySet()) {
             out.append(e.getKey()).append('\t').append(e.getValue().inferred() ? "MAPPED" : "NONE").append('\t')
-                    .append(String.join(",", e.getValue().dialects())).append('\n');
+                    .append(e.getValue().dialects().isEmpty() ? "none" : String.join(",", e.getValue().dialects()))
+                    .append('\n');
         }
         return out.toString();
     }

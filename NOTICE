@@ -22,7 +22,9 @@ the Apache License, Version 2.0:
     //spec:gen_prelude. It is compiled into legend-lite's compiler and its WebAssembly planner.
   - Function signatures, registry names and import lists extracted from them by the generators in spec/:
     core/src/main/java/com/legend/builtin/Pure.java, DynaFn.java, core/src/main/java/com/legend/compiler/
-    CoreImports.java, core/src/main/resources/com/legend/builtin/engine-handlers.tsv and native-claims.tsv.
+    CoreImports.java, core/src/main/resources/com/legend/builtin/engine-handlers.tsv and native-claims.tsv, and the
+    engine's table of which of its dialect extensions register each dynafunction, docs/engine-dynafunctions.tsv
+    (//spec:gen_engine_dynafunctions).
   - legend-engine's H2 connection defaults (core/src/main/java/com/legend/exec/H2Connector.java, its SETTINGS) and
     its classifier path map (sdlc-server/data/classifier-paths.json).
   - Test fixtures: parser-equivalence/src/test/resources/composition-pct-stripped.pure and
