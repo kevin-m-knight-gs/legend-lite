@@ -130,7 +130,13 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         }
       ],
       "cube": {
@@ -302,13 +308,25 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "pivot",
           "columns": [
             "desk"
-          ]
+          ],
+          "command": {
+            "columns": [
+              "desk"
+            ],
+            "kind": "pivot"
+          }
         }
       ],
       "cube": {
@@ -395,12 +413,23 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "addSort",
           "column": "notional",
-          "direction": "desc"
+          "direction": "desc",
+          "command": {
+            "column": "notional",
+            "direction": "desc",
+            "kind": "addSort"
+          }
         }
       ],
       "cube": {
@@ -490,7 +519,13 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "headerSort",
@@ -585,7 +620,13 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "aggregate",
@@ -781,13 +822,32 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "heatmap",
           "column": "notional",
           "from": "#ffffff",
-          "to": "#ff8a65"
+          "to": "#ff8a65",
+          "command": {
+            "kind": "configure",
+            "patch": {
+              "columns": {
+                "notional": {
+                  "heatmap": {
+                    "from": "#ffffff",
+                    "to": "#ff8a65"
+                  }
+                }
+              }
+            }
+          }
         }
       ],
       "cube": {
@@ -880,11 +940,27 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "hide",
-          "column": "qty"
+          "column": "qty",
+          "command": {
+            "kind": "configure",
+            "patch": {
+              "columns": {
+                "qty": {
+                  "hidden": true
+                }
+              }
+            }
+          }
         }
       ],
       "cube": {
@@ -974,19 +1050,44 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "pivot",
           "columns": [
             "desk"
-          ]
+          ],
+          "command": {
+            "columns": [
+              "desk"
+            ],
+            "kind": "pivot"
+          }
         },
         {
           "do": "heatmap",
           "column": "__pivot_total____|__notional",
           "from": "#ffffff",
-          "to": "#ff8a65"
+          "to": "#ff8a65",
+          "command": {
+            "kind": "configure",
+            "patch": {
+              "columns": {
+                "__pivot_total____|__notional": {
+                  "heatmap": {
+                    "from": "#ffffff",
+                    "to": "#ff8a65"
+                  }
+                }
+              }
+            }
+          }
         }
       ],
       "cube": {
@@ -1541,7 +1642,13 @@
           "do": "group",
           "rows": [
             "desk"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "desk"
+            ]
+          }
         }
       ],
       "cube": {
@@ -1632,17 +1739,33 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "addSort",
           "column": "notional",
-          "direction": "desc"
+          "direction": "desc",
+          "command": {
+            "column": "notional",
+            "direction": "desc",
+            "kind": "addSort"
+          }
         },
         {
           "do": "addSort",
           "column": "qty",
-          "direction": "asc"
+          "direction": "asc",
+          "command": {
+            "column": "qty",
+            "direction": "asc",
+            "kind": "addSort"
+          }
         }
       ],
       "cube": {
@@ -1736,22 +1859,43 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "addSort",
           "column": "notional",
-          "direction": "desc"
+          "direction": "desc",
+          "command": {
+            "column": "notional",
+            "direction": "desc",
+            "kind": "addSort"
+          }
         },
         {
           "do": "addSort",
           "column": "qty",
-          "direction": "asc"
+          "direction": "asc",
+          "command": {
+            "column": "qty",
+            "direction": "asc",
+            "kind": "addSort"
+          }
         },
         {
           "do": "addSort",
           "column": "notional",
-          "direction": "asc"
+          "direction": "asc",
+          "command": {
+            "column": "notional",
+            "direction": "asc",
+            "kind": "addSort"
+          }
         }
       ],
       "cube": {
@@ -1845,18 +1989,35 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "addSort",
           "column": "notional",
-          "direction": "desc"
+          "direction": "desc",
+          "command": {
+            "column": "notional",
+            "direction": "desc",
+            "kind": "addSort"
+          }
         },
         {
           "do": "group",
           "rows": [
             "desk"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "desk"
+            ]
+          }
         }
       ],
       "cube": {
@@ -1946,13 +2107,25 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "pivot",
           "columns": [
             "desk"
-          ]
+          ],
+          "command": {
+            "columns": [
+              "desk"
+            ],
+            "kind": "pivot"
+          }
         },
         {
           "do": "headerSort",
@@ -2054,13 +2227,25 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "pivot",
           "columns": [
             "desk"
-          ]
+          ],
+          "command": {
+            "columns": [
+              "desk"
+            ],
+            "kind": "pivot"
+          }
         }
       ],
       "cube": {
@@ -2158,13 +2343,25 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "pivot",
           "columns": [
             "qty"
-          ]
+          ],
+          "command": {
+            "columns": [
+              "qty"
+            ],
+            "kind": "pivot"
+          }
         }
       ],
       "cube": {
@@ -2346,17 +2543,46 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "hide",
-          "column": "desk"
+          "column": "desk",
+          "command": {
+            "kind": "configure",
+            "patch": {
+              "columns": {
+                "desk": {
+                  "hidden": true
+                }
+              }
+            }
+          }
         },
         {
           "do": "heatmap",
           "column": "qty",
           "from": "#ffffff",
-          "to": "#ff8a65"
+          "to": "#ff8a65",
+          "command": {
+            "kind": "configure",
+            "patch": {
+              "columns": {
+                "qty": {
+                  "heatmap": {
+                    "from": "#ffffff",
+                    "to": "#ff8a65"
+                  }
+                }
+              }
+            }
+          }
         }
       ],
       "cube": {
@@ -2452,7 +2678,13 @@
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "wavg",
@@ -2551,7 +2783,61 @@
         {
           "do": "calculate",
           "name": "double",
-          "expression": "x|$x.qty->toOne() * 2"
+          "expression": "x|$x.qty->toOne() * 2",
+          "command": {
+            "column": {
+              "kind": "measure",
+              "lambda": {
+                "_type": "lambda",
+                "body": [
+                  {
+                    "_type": "func",
+                    "function": "times",
+                    "parameters": [
+                      {
+                        "_type": "collection",
+                        "multiplicity": {
+                          "lowerBound": 2,
+                          "upperBound": 2
+                        },
+                        "values": [
+                          {
+                            "_type": "func",
+                            "function": "toOne",
+                            "parameters": [
+                              {
+                                "_type": "property",
+                                "parameters": [
+                                  {
+                                    "_type": "var",
+                                    "name": "x"
+                                  }
+                                ],
+                                "property": "qty"
+                              }
+                            ]
+                          },
+                          {
+                            "_type": "integer",
+                            "value": 2
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "parameters": [
+                  {
+                    "_type": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              "name": "double"
+            },
+            "kind": "calculate",
+            "level": "row"
+          }
         }
       ],
       "cube": {
@@ -2686,13 +2972,73 @@
         {
           "do": "calculate",
           "name": "double",
-          "expression": "x|$x.qty->toOne() * 2"
+          "expression": "x|$x.qty->toOne() * 2",
+          "command": {
+            "column": {
+              "kind": "measure",
+              "lambda": {
+                "_type": "lambda",
+                "body": [
+                  {
+                    "_type": "func",
+                    "function": "times",
+                    "parameters": [
+                      {
+                        "_type": "collection",
+                        "multiplicity": {
+                          "lowerBound": 2,
+                          "upperBound": 2
+                        },
+                        "values": [
+                          {
+                            "_type": "func",
+                            "function": "toOne",
+                            "parameters": [
+                              {
+                                "_type": "property",
+                                "parameters": [
+                                  {
+                                    "_type": "var",
+                                    "name": "x"
+                                  }
+                                ],
+                                "property": "qty"
+                              }
+                            ]
+                          },
+                          {
+                            "_type": "integer",
+                            "value": 2
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "parameters": [
+                  {
+                    "_type": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              "name": "double"
+            },
+            "kind": "calculate",
+            "level": "row"
+          }
         },
         {
           "do": "group",
           "rows": [
             "region"
-          ]
+          ],
+          "command": {
+            "kind": "group",
+            "rows": [
+              "region"
+            ]
+          }
         },
         {
           "do": "aggregate",
@@ -2840,7 +3186,77 @@
         {
           "do": "calculate",
           "name": "label",
-          "expression": "x|$x.region->toOne() + '-' + $x.desk->toOne()"
+          "expression": "x|$x.region->toOne() + '-' + $x.desk->toOne()",
+          "command": {
+            "column": {
+              "kind": "measure",
+              "lambda": {
+                "_type": "lambda",
+                "body": [
+                  {
+                    "_type": "func",
+                    "function": "plus",
+                    "parameters": [
+                      {
+                        "_type": "collection",
+                        "multiplicity": {
+                          "lowerBound": 3,
+                          "upperBound": 3
+                        },
+                        "values": [
+                          {
+                            "_type": "func",
+                            "function": "toOne",
+                            "parameters": [
+                              {
+                                "_type": "property",
+                                "parameters": [
+                                  {
+                                    "_type": "var",
+                                    "name": "x"
+                                  }
+                                ],
+                                "property": "region"
+                              }
+                            ]
+                          },
+                          {
+                            "_type": "string",
+                            "value": "-"
+                          },
+                          {
+                            "_type": "func",
+                            "function": "toOne",
+                            "parameters": [
+                              {
+                                "_type": "property",
+                                "parameters": [
+                                  {
+                                    "_type": "var",
+                                    "name": "x"
+                                  }
+                                ],
+                                "property": "desk"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "parameters": [
+                  {
+                    "_type": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              "name": "label"
+            },
+            "kind": "calculate",
+            "level": "row"
+          }
         }
       ],
       "cube": {

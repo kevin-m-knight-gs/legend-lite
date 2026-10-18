@@ -646,7 +646,8 @@ class ParityWithTheScreen(unittest.TestCase):
     case of DataCube's parity.json -- a new grid over its frame, then its actions -- done through Python's Page and
     Grid, and the cube document the page writes held to the case's, which datacube/test/parity-screen.test.ts holds
     the screen's to. The screen and Python write one document for one edit, tested at the edges a person and a program
-    use."""
+    use; and an action that is one edit on both sides builds one grid command, the case's (the command program's stage
+    1, docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md)."""
 
     @classmethod
     def setUpClass(cls):
@@ -668,9 +669,20 @@ class ParityWithTheScreen(unittest.TestCase):
                 grid = page.grid(self.frame, name=self.fixture['frame'])
                 filters = []
                 for action in case['actions']:
+                    before = len(page._commands)
                     _act(grid, action, filters)
+                    # an action that is one edit on both sides holds the grid command the screen built for it: Python's
+                    # call built the same one (datacube/test/parity-screen.test.ts names which actions those are)
+                    if 'command' in action:
+                        self.assertEqual(page._commands[before:], [action['command']], action['do'])
                 written = json.loads(page.to_json())['cubes'][-1]['cube']
                 self.assertEqual(written, case['cube'])
+
+    def test_the_cases_hold_commands(self):
+        # the screen writes each one-edit action's command into the cases (PARITY_UPDATE): none held, none compared
+        held = [a['do'] for case in self.fixture['cases'] for a in case['actions'] if 'command' in a]
+        self.assertGreater(len(held), 15)
+        self.assertEqual({'group', 'pivot', 'addSort', 'heatmap', 'hide', 'calculate'}, set(held))
 
 if __name__ == '__main__':
     unittest.main()

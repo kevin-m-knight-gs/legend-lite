@@ -83,7 +83,21 @@ Python sends it and the stage-3 live channel can carry it.
   must build. The screen's comes from `onCommand`, and Python's from its `_apply`. A case action that is two steps on
   the screen and one call in Python (`group region, desk`: two menu entries, one `group` call) is held to the document
   alone.
-- **The round trips** generate commands instead of calling grid-edits directly.
+- **The round trips** generate commands instead of calling grid-edits directly, and read each one back from its JSON
+  (`readGridCommand`) as the same command.
+
+### Where it stands (2026-10-18)
+
+- Steps 1 to 4 are on the branch: the module and its tests; headless `gridApply` and Python's calls; the screen's
+  `#apply` and `onCommand`; the parity file's commands (39 actions, each built alike by the screen and by Python) and the
+  round trips over commands.
+- A command read from JSON keeps JSON's numbers: a calculated column's lambda sent as JSON (none is today: Python's
+  `calculate` sends its text, parsed headless) would carry plain numbers where a parsed lambda carries exact ones. Safe
+  for the integers and short decimals an expression holds; one past 2^53 is not, and the live channel (stage 3) reads
+  its commands exactly.
+- Step 3b, each its own step with the parity file as judge: the Properties window's Apply as `column` and `configure`
+  commands (its merge onto the cube as it is now, `mergeDraft`, is what the commands do already); the column editor's
+  edit, rename and delete; the columns panel's settings (`#patchColumn`).
 
 ## Not in stage 1's grid half
 

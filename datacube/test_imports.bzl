@@ -1274,6 +1274,7 @@ TEST_IMPORTS = {
         "src/epoch.ts",
         "src/format.ts",
         "src/generated/offer-facts.ts",
+        "src/grid-commands.ts",
         "src/grid-edits.ts",
         "src/grid/columns.ts",
         "src/infer.ts",

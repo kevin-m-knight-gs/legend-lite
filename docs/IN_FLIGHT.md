@@ -952,8 +952,9 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   built into the Pages deploy was tried in it and reverted (`.github`, `site` and `gates` are main's); previews move to
   a hosted service, per branch, in a PR of their own.
   **Announced 2026-10-18: the command program's stage 1a, its test foundation**
-  (`docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md` §11), branch `claude/datacube-command-tests`, stacked on #57, its
-  own PR. Tests only: the screen and Python writing the same cube document for each grid edit; round trips as seeded
+  (`docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md` §11), branch `claude/datacube-command-tests`, stacked on #57 (its
+  PR, neema2/legend-lite#59, closed unmerged: the user, 2026-10-18, wants work on branches, stacked, with no PR until
+  asked, as CI is contended). Tests only: the screen and Python writing the same cube document for each grid edit; round trips as seeded
   properties, with the invariants on duplicated state; a corpus of saved pages; a coverage report kept as a report.
   Files: new tests and fixtures under `datacube/test/` (parity, round trips, the page corpus), `datacube/tools/coverage.mjs`
   and `docs/DATACUBE_COVERAGE_2026_10_18.md`; `python/tests/test_headless.py`, `test_page.py` and `main.py`;
@@ -962,6 +963,15 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `datacube/src/cube-state.ts` (`openedState`, the one open path), `src/headless/grid.ts` (gridCube folds as the screen
   opens; gridCalculate writes the cube document), `python/legend_lite/page.py` (calculate keeps DataCube's document),
   `src/examples/charts-dashboard.ts` (the example pages written folded). Still not touched: the SQL plan's ground.
+  **Announced 2026-10-18: the command program's stage 1, its grid half** (`docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md`),
+  branch `claude/datacube-commands`, stacked on stage 1a, no PR until the user asks. Every grid edit a value
+  (`GridCommand`), applied by one pure function both the screen and Python call. Files: `datacube/src/grid-commands.ts`
+  (new), `grid-edits.ts` (`pivotHeaderMeasure`), `app.ts` (`#apply`, `onCommand`), `ui/menu.ts` (`menuCommand`),
+  `ui/column-editor.ts` (`add`), `headless/grid.ts` and `headless/entry.ts` (`gridApply` for `gridEdit`),
+  `python/legend_lite/page.py` (each call a command), their tests, the parity file (each one-edit action's command),
+  `test/bundle-budget.test.ts` (the grid page 283,500 -> 285,500, the engine page 271,000 -> 272,500, dated), and
+  `test/guardrails.test.ts` (`menuCommand(`, dated). Not yet commands (its step 3b): the Properties window's Apply, the
+  column editor's edit, rename and delete, the columns panel's settings. Still not touched: the SQL plan's ground.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

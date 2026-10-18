@@ -1,8 +1,9 @@
 // ROUND TRIPS, AS PROPERTIES (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2): a grid edited at random
-// through the functions the screen and Python both edit with (grid-edits.ts, config.ts's patches), then written, read
-// and opened again, must come back as it was -- and the state a grid keeps twice must agree with itself. Every bug the
-// audits of neema2/legend-lite#47 found lived between pieces like these: the configuration against its copy folded into
-// the query, a saved document against what reopens.
+// by the grid commands the screen and Python both build (grid-commands.ts; docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md),
+// then written, read and opened again, must come back as it was -- and the state a grid keeps twice must agree with
+// itself. Every bug the audits of neema2/legend-lite#47 found lived between pieces like these: the configuration
+// against its copy folded into the query, a saved document against what reopens. Each command is also read back from
+// its JSON (readGridCommand: what Python sends) as the same command.
 //
 // Seeded (mulberry32), so a failure names its seed and reproduces from it alone. A refused edit (CubeRefusal) is the
 // screen's own refusal and is skipped; it must leave the draft as it was.
@@ -10,14 +11,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { element } from '../../pure-protocol/src/index.ts';
+import { element, toJson } from '../../pure-protocol/src/index.ts';
 import { chartProblems, defaultChart, followCube } from '../src/chart-spec.ts';
-import { DEFAULT_CONFIGURATION, withConfiguration } from '../src/config.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { cubeToJson, frameSource, openCube, readCube, writeCube } from '../src/cube-document.ts';
 import { fold, openedState, queryKey, stateKey, type CubeState } from '../src/cube-state.ts';
+import { applyGridCommand, readGridCommand, type GridCommand, type SettingsPatch } from '../src/grid-commands.ts';
 import {
-  addSort, allColumns, clickSort, clickTreeSort, firstSortDirection, groupableColumns, headerSorts, offeredAggregates,
-  setColumn, setGrouping, setPivot, type GridDraft,
+  allColumns, firstSortDirection, groupableColumns, headerSorts, offeredAggregates, type GridDraft,
 } from '../src/grid-edits.ts';
 import {
   CubeRefusal, pivotTotalColumn, rowColumns, totalOrderSorts, type CubeSnapshot, type FilterNode, type SortDirection,
@@ -63,47 +64,55 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/** An edit: a grid command, or one the screen does not make a command yet (the column editor's delete: step 3b). */
+type Edit = GridCommand | ((d: GridDraft) => GridDraft);
+
+/** An edit made: a command applied as the screen and Python apply it. */
+const applied = (d: GridDraft, edit: Edit): GridDraft => (typeof edit === 'function' ? edit(d) : applyGridCommand(d, edit));
+
 /** One edit a person (or Python) could make, picked at random, and its name for a failure's message. */
-function randomEdit(rand: () => number, d: GridDraft): [string, (d: GridDraft) => GridDraft] {
+function randomEdit(rand: () => number, d: GridDraft): [string, Edit] {
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)] as T;
   const columns = allColumns(d);
   const type = (name: string): string | undefined => rowColumns(d.snapshot).find((c) => c.name === name)?.type;
   const sortable = [...columns, ...(d.snapshot.pivotOn.length > 0 ? [pivotTotalColumn('notional')] : [])];
-  const choices: [string, () => [string, (d: GridDraft) => GridDraft]][] = [
+  const choices: [string, () => [string, Edit]][] = [
     ['group', () => {
       const offered = groupableColumns(d);
       const rows = offered.filter(() => rand() < 0.35).slice(0, 2);
-      return [`group ${rows.join(',')}`, (x) => setGrouping(x, rows)];
+      return [`group ${rows.join(',')}`, { kind: 'group', rows }];
     }],
     ['pivot', () => {
       const offered = groupableColumns(d).filter((c) => !d.snapshot.rows.includes(c));
       const on = rand() < 0.4 ? [] : offered.filter(() => rand() < 0.3).slice(0, 1);
-      return [`pivot ${on.join(',')}`, (x) => setPivot(x, on)];
+      return [`pivot ${on.join(',')}`, { kind: 'pivot', columns: on }];
     }],
     ['click a header', () => {
       const column = pick(sortable);
       const chained = rand() < 0.5;
-      return [`click ${column}${chained ? ' chained' : ''}`, (x) => clickSort(x, column, firstSortDirection(type(column)), chained)];
+      // the first direction as the screen reads it off the header's type
+      return [`click ${column}${chained ? ' chained' : ''}`,
+        { kind: 'clickSort', column, first: firstSortDirection(type(column)), chained }];
     }],
     ['click the tree', () => {
       const chained = rand() < 0.5;
-      return [`click the tree${chained ? ' chained' : ''}`, (x) => clickTreeSort(x, chained)];
+      return [`click the tree${chained ? ' chained' : ''}`, { kind: 'clickTreeSort', chained }];
     }],
     ['add a sort', () => {
       const column = pick(sortable);
       const direction: SortDirection = rand() < 0.5 ? 'asc' : 'desc';
-      return [`add sort ${column} ${direction}`, (x) => addSort(x, column, direction)];
+      return [`add sort ${column} ${direction}`, { kind: 'addSort', column, direction }];
     }],
     ['an Aggregation', () => {
       const column = pick(columns);
       const fn = pick([...offeredAggregates(type(column)), null]);
       const weight = fn === 'wavg' ? { weight: 'qty' } : {};
-      return [`aggregate ${column} ${String(fn)}`, (x) => setColumn(x, column, { aggregate: fn, ...weight })];
+      return [`aggregate ${column} ${String(fn)}`, { kind: 'column', name: column, change: { aggregate: fn, ...weight } }];
     }],
     ['a kind', () => {
       const column = pick(CUBE.columns.map((c) => c.name));
       const kind = rand() < 0.5 ? 'dimension' : 'measure';
-      return [`kind ${column} ${kind}`, (x) => setColumn(x, column, { kind })];
+      return [`kind ${column} ${kind}`, { kind: 'column', name: column, change: { kind } }];
     }],
     ['a filter', () => {
       const filters: FilterNode[] = [
@@ -111,32 +120,28 @@ function randomEdit(rand: () => number, d: GridDraft): [string, (d: GridDraft) =
         { kind: 'condition', column: 'traded', operator: 'greaterThan', value: '2024-02-01' },
         { kind: 'condition', column: 'qty', operator: 'lessThanEqual', value: 5 },
       ];
-      const filter = rand() < 0.2 ? undefined : rand() < 0.5 ? pick(filters)
+      const filter = rand() < 0.2 ? null : rand() < 0.5 ? pick(filters)
         : { kind: 'and' as const, children: [pick(filters), pick(filters)] };
-      return [`filter ${JSON.stringify(filter)}`, (x) => {
-        const { filter: _was, ...rest } = x.snapshot;
-        return { ...x, snapshot: filter === undefined ? rest : { ...rest, filter } };
-      }];
+      return [`filter ${JSON.stringify(filter)}`, { kind: 'filter', filter }];
     }],
     ['a calculated column', () => {
-      // added, as the column editor adds one (a row-level measure), or the last one taken away
-      const add = rand() < 0.6;
+      // added, as the column editor adds one (a row-level measure: a name the grid has is refused), or the last one
+      // taken away (the editor's delete, not a command yet)
       const name = `calc${Math.floor(rand() * 3)}`;
-      return [`${add ? 'add' : 'remove'} a calculated column`, (x) => {
-        const derived = x.snapshot.derived.filter((d) => d.name !== name);
-        return { ...x, snapshot: { ...x.snapshot, derived: add
-          ? [...derived, { name, lambda: stand('$x.qty * 3'), kind: 'measure', type: 'Integer' }]
-          : x.snapshot.derived.slice(0, -1) } };
-      }];
+      return rand() < 0.6
+        ? ['add a calculated column',
+          { kind: 'calculate', level: 'row', column: { name, lambda: stand('$x.qty * 3'), kind: 'measure', type: 'Integer' } }]
+        : ['remove a calculated column', (x) => ({ ...x, snapshot: { ...x.snapshot, derived: x.snapshot.derived.slice(0, -1) } })];
     }],
     ['a setting', () => {
       const column = pick(columns);
-      const patches: [string, Parameters<typeof withConfiguration>[1]][] = [
+      // as the configure command takes them: null clears a setting
+      const patches: [string, SettingsPatch][] = [
         ['heatmap', { columns: { [column]: { heatmap: { from: '#ffffff', to: '#ff8a65' } } } }],
         ['hidden', { columns: { [column]: { hidden: rand() < 0.7 } } }],
         ['width', { columns: { [column]: { width: 40 + Math.floor(rand() * 200) } } }],
         ['totals', { pivotStatisticColumnPlacement: pick(['left', 'right'] as const) }],
-        ['no totals', { pivotStatisticColumnPlacement: undefined }],
+        ['no totals', { pivotStatisticColumnPlacement: null }],
         ['row limit', { maxRows: pick([10, 100, 5000]) }],
         ['tree order', { treeColumnSort: pick(['asc', 'desc'] as const) }],
         ['leaf count', { showLeafCount: rand() < 0.5 }],
@@ -148,7 +153,7 @@ function randomEdit(rand: () => number, d: GridDraft): [string, (d: GridDraft) =
         ['grouped columns kept', { showGroupedColumns: rand() < 0.5 }],
       ];
       const [name, patch] = pick(patches);
-      return [`setting ${name}`, (x) => ({ ...x, config: withConfiguration(x.config, patch) })];
+      return [`setting ${name}`, { kind: 'configure', patch }];
     }],
   ];
   return pick(choices)[1]();
@@ -161,9 +166,13 @@ function editedGrid(seed: number): { draft: GridDraft; steps: string[]; tree: Tr
   const steps: string[] = [];
   for (let i = 0; i < STEPS; i += 1) {
     const [name, edit] = randomEdit(rand, d);
+    if (typeof edit !== 'function') {
+      // what Python sends is the same command (its JSON, read)
+      assert.equal(toJson(readGridCommand(JSON.parse(toJson(edit)))), toJson(edit), `seed ${seed}, step ${i} (${name})`);
+    }
     const before = JSON.stringify(d);
     try {
-      d = edit(d);
+      d = applied(d, edit);
       steps.push(name);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw new Error(`seed ${seed}, step ${i} (${name}): ${String(e)}`);
@@ -199,8 +208,10 @@ const why = (seed: number, steps: readonly string[]): string => `seed ${seed}: $
 
 describe('a grid edited at random comes back as it was (written, read, opened again)', () => {
   it(`${SEEDS} seeds of ${STEPS} edits: the same queries, the same settings, the same document`, () => {
+    let refused = 0;
     for (let seed = 1; seed <= SEEDS; seed += 1) {
       const { draft, steps, tree } = editedGrid(seed);
+      refused += steps.filter((s) => s.endsWith('(refused)')).length;
       const state = stateOf(draft, tree);
       const text = written(state);
       const again = reopened(text);
@@ -214,6 +225,8 @@ describe('a grid edited at random comes back as it was (written, read, opened ag
       // and written again it is the same document, character for character
       assert.equal(written(again.state), text, why(seed, steps));
     }
+    // most edits are made, so the trips are of grids edited (about one in eight is refused, 2026-10-18)
+    assert.ok(refused < SEEDS * STEPS / 4, `${refused} of ${SEEDS * STEPS} edits refused`);
   });
 });
 
@@ -286,7 +299,7 @@ describe('the state a grid keeps twice agrees with itself', () => {
       for (let i = 0; i < 4; i += 1) {
         const [, edit] = randomEdit(rand, d);
         try {
-          d = edit(d);
+          d = applied(d, edit);
         } catch (e) {
           if (!(e instanceof CubeRefusal)) throw e;
         }

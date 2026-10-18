@@ -4,7 +4,14 @@
 // CubeApp) over legend-lite's planner and a real DuckDB -- and the cube document the grid writes held to the case's
 // `cube`. python/tests/test_headless.py does each case through Python's Page and Grid and holds Python's document to
 // the same `cube`: so the screen and Python write one document for one edit, and the cases are tested at the edges a
-// person and a program use, which the coming command program leaves as they are.
+// person and a program use, which the command program leaves as they are.
+//
+// THE COMMANDS TOO (docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md, step 4): an action that is one edit on both sides --
+// a sort added, a heatmap, a hidden column, a calculated column, a grouping or a pivot on one column -- holds the grid
+// command (grid-commands.ts) both must build for it, `command`: the screen's, told by onCommand, and Python's, which its
+// page records. An action that is two steps on the screen and one call in Python (a grouping on two columns: two menu
+// entries), or a different call (a header click; a cell's filter added, where Python sets the filter whole), or one the
+// screen does not make a command yet (Column Properties: step 3b), is held to the document alone.
 //
 // The documents are regenerated, deliberately, by running this test with PARITY_UPDATE naming the fixture to write:
 //   RUNFILES_DIR=/ WASM_PLANNER=<repo>/bazel-bin/wasm/planner_dir PARITY=<repo>/datacube/test/fixtures/parity/parity.json \
@@ -19,7 +26,7 @@ import { openDatabase } from '#test-host';
 import { JSDOM } from 'jsdom';
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
-import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { toJson, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeApp } from '../src/app.ts';
 import { cubeToJson, frameSource, rebuilt } from '../src/cube-document.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
@@ -29,8 +36,9 @@ import { columnLabel, valueLabel } from '../src/ui/menu.ts';
 import { ingestFile } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 
-/** An action, as the case file names it: what a person does, and what Python's call is. */
-type Action =
+/** An action, as the case file names it: what a person does, and what Python's call is; and, when it is one edit on
+ *  both sides (sameCommand), the grid command both build for it. */
+type Action = { command?: unknown } & (
   | { readonly do: 'group'; readonly rows: readonly string[] }
   | { readonly do: 'pivot'; readonly columns: readonly string[] }
   | { readonly do: 'addSort'; readonly column: string; readonly direction: 'asc' | 'desc' }
@@ -41,7 +49,28 @@ type Action =
   | { readonly do: 'hide'; readonly column: string }
   | { readonly do: 'filter'; readonly column: string; readonly operator: 'equal'; readonly value: string | number; readonly cell?: string }
   | { readonly do: 'wavg'; readonly column: string; readonly weight: string }
-  | { readonly do: 'calculate'; readonly name: string; readonly expression: string };
+  | { readonly do: 'calculate'; readonly name: string; readonly expression: string });
+
+/** Whether an action is one edit on the screen and one call in Python, the same grid command on both sides. */
+function sameCommand(a: Action): boolean {
+  switch (a.do) {
+    case 'group':
+      return a.rows.length === 1;
+    case 'pivot':
+      return a.columns.length === 1;
+    case 'addSort':
+    case 'heatmap':
+    case 'hide':
+    case 'calculate':
+      return true;
+    case 'headerSort':
+    case 'filter':
+    case 'aggregate':
+    case 'kind':
+    case 'wavg':
+      return false;
+  }
+}
 
 interface Case {
   readonly name: string;
@@ -94,6 +123,8 @@ after(async () => {
 class Screen {
   readonly dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
   readonly statuses: [string, string][] = [];
+  /** Each grid command the screen applied, as JSON (onCommand). */
+  readonly commands: unknown[] = [];
   readonly app: CubeApp;
 
   constructor(capped: boolean) {
@@ -114,6 +145,7 @@ class Screen {
       compact: true,
       showColumnZone: true,
       onStatus: (text, kind) => this.statuses.push([text, kind]),
+      onCommand: (command) => this.commands.push(JSON.parse(toJson(command))),
       writeClipboard: () => {},
       download: () => {},
     });
@@ -257,7 +289,19 @@ describe('the screen writes the cube document Python writes, case by case (parit
       try {
         await screen.app.open();
         await screen.idle();
-        for (const a of c.actions) await screen.act(a);
+        for (const a of c.actions) {
+          const before = screen.commands.length;
+          await screen.act(a);
+          if (!sameCommand(a)) continue;
+          const built = screen.commands.slice(before);
+          if (update) {
+            assert.equal(built.length, 1, `${a.do}: one edit, one command (${JSON.stringify(built)})`);
+            a.command = built[0];
+          } else {
+            assert.ok(a.command !== undefined, `${a.do} is one edit on both sides: the case holds its command`);
+            assert.deepEqual(built, [a.command], `${a.do}: the command the screen built`);
+          }
+        }
         const doc = screen.app.cubeDocument(fixture.page);
         assert.ok(doc, 'the grid knows its source, so it writes a document');
         const written: unknown = JSON.parse(cubeToJson(doc));
