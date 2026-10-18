@@ -1,0 +1,23 @@
+# THE PREVIEW'S TRIGGER (the user, 2026-10-18): a push to the `preview` branch asks for a Pages deploy (pages.yml),
+# which builds main's site at the root and the preview branch's under /legend-lite/preview/. The deploy
+# runs on main, never here: the github-pages environment deploys the default branch alone. A workflow_dispatch is the
+# one event the run's own token may start.
+#
+# To preview a commit, move the branch to it: `git push origin <commit>:preview` (--force when it is not a descendant).
+name: preview
+on:
+  push:
+    branches: [preview]
+
+permissions:
+  actions: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: ask pages.yml, on main, for a deploy with this preview branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
