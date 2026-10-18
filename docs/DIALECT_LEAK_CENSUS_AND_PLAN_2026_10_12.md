@@ -5,10 +5,10 @@
 - The owner guard and Phases 2 and 4 landed as neema2/legend-lite#45 (4fb892f).
 - Phase 3 landed as neema2/legend-lite#49 (59b547a).
 - Phase 5 landed as neema2/legend-lite#51 (6f2a0f8).
-- Phase 6's part 1 is done on branch `claude/gracious-edison-jcsvzm`, neema2/legend-lite#52 (its record is under
-  Phase 6).
-- Left: Phase 6's part 2, Phase 7, and the SQL translator's Postgres rules. neema2/legend-lite#43 and #50, which they
-  waited for, landed on 2026-10-17.
+- Phase 6's part 1 landed as neema2/legend-lite#52 (da2dd23). Its part 2 is done on branch
+  `claude/gracious-edison-jcsvzm` (both records are under Phase 6).
+- Left: Phase 7 (the warehouse and the other modules, then the absolute ratchet), the SQL translator's Postgres rules
+  (D11), and defect 11 (SQLite's plan path) in a PR of its own.
 
 (The status of 2026-10-13, on `claude/great-wright-p6t5s1`: Phase 0 done (55569df); Phase 1's 1b steps 1 to 3
 (2a4a5c8, 9373aec, 4a9f1bc, 43ad660), P1a (e64e7e8), P1c (9e6363e to 074bd95), P1d with D8 (0470214 to 1447d42) and
@@ -1062,6 +1062,78 @@ The ledger after part 1: core's test rows are the SQL, IQ and Cypher islands' an
 #43 or #50 when part 1 was written (part 2; both landed on 2026-10-17). spec keeps the corpus harness's rows but `H2Verify`'s and `H2ExtensionFunctions`' (named for H2,
 they are its owners now), the warehouse its tests' (Phase 7), and main code `DynaFn` (D10) and the SQL translator's three
 files (#43).
+
+**Part 2, 2026-10-17** (the same branch, after part 1 landed as neema2/legend-lite#52): the relational corpus's
+harness, the islands' tests, and what part 1 left. What it did, and where it departs from the list above:
+
+- **The corpus's databases are test backends.** A backend answers the corpus's questions itself:
+  - `openWorkspace()`, a package's session: DuckDB's is an `ATTACH`ed catalog in UTC (`DuckDbWorkspaces`, the old
+    `DuckWorkspaces` made per instance), H2's a fresh in-memory database, Postgres's a database of its own, dropped
+    when its session closes. H2's and Postgres's run in the zone the lanes give the JVM, as before.
+  - `setFixtureAside()`, a clashing fixture set apart from the workspace's tables (a `FixtureAside`). DuckDB's is an
+    attached catalog on a connection of its own, as before. H2's is a schema on the workspace's session, as before,
+    now kept per session (it was one list per run, shared by a package's shared and private sessions). Postgres's
+    is a schema made and filled by a session of its own, which commits each statement: a test body's attempt holds
+    the workspace's transaction, and Postgres's DDL and `SET` are transactional, so a failed body's rollback would
+    otherwise take the aside away while the run counts the fixture provided. The workspace's search path names
+    its asides from its first statement (at most 64 a workspace; a 65th is refused by name);
+    `//core:fixture_aside_postgres_test` holds it (on the aside before this, it fails: the rolled-back aside's table
+    is gone), and the Postgres corpus lane's one on-demand fixture (`testGroupByWithWindowSubset`) now runs in
+    `aside_0` and passes. **Defect 5 is fixed for
+    a fixture's unqualified names**: Postgres's on-demand fixtures ran over the workspace's own tables, and a backend
+    that cannot set a fixture aside now refuses by name. A fixture's schema-qualified names are not set aside on any
+    backend. The product's runner still runs a fixture unisolated when an observer offers no aside
+    (`PureTestRunner.runFixture`): the corpus's observer never does so, and that rule is main code's, left for its
+    own change.
+  - `readerOn()`, a second reader of a session's rows: DuckDB's duplicates the session.
+  - The referee is a kind of backend (`RefereeBackend`, H2's): it opens the referee's database, and replays the
+    fixture's aside and restore. `ReplayReferee` routes a session by `TestBackends.of(session)`: the product name its
+    driver reports, matched against each database's connector's (`Sessions.jdbcProduct`); the warehouse's sessions
+    report DuckDB, and decline a second reader as they did. It opens its reader with `readerOn`.
+  - The warehouse lane is a backend of its own (`DuckDbWarehouseBackend`, `-Drcorpus.backend=warehouse`), not a
+    second system property.
+  - `MinimalCorpusTest` holds each lane to its own rosters and ceilings (a `Lane` record); a lane with none is held
+    to its fail roster alone. One change: such a lane no longer takes DuckDB's database-mode accepted register,
+    which main's code gave it beside a comment saying it accepts nothing the reference lanes accept. `H2Verify` is `RefereeVerify`: its microsecond floor is a referee rule (it fires on
+    the H2 lane), not a backend's precision fact.
+  - Departures: `openUtc()` is part of `openWorkspace()`; `isolateFixture()` is `setFixtureAside()`;
+    `censusCeilings()` stayed with the test's policy (the `Lane` record), not the backend; `CorpusOne` stays (it runs
+    one test on any named lane) and validates its lane through `TestBackends.named`.
+- **The islands' and lowering tests** run on the platform's backend: the session, the connection a model declares
+  (`connectionBody()`), and the table, rendered by the dialect from the store's declaration
+  (`SqlIslandCases.table(backend)`, `setup.Ddl.createTable`). `SqlIslandIntegrationTest`,
+  `CypherIslandIntegrationTest` and `CorrelatedComputedColumnTest`. Two lowering tests pin DuckDB's own rendering
+  (its JSON reads, `UNNEST`, its array and struct DDL; the reads of a column in its SQL) and are named for it:
+  `LowerRelationDuckDbTest`, `ScaleCostsDuckDbTest`.
+- **The parity lanes' tables are made by the lane's dialect** (`SqlParity.seed(backend, ...)`,
+  `IqParity.seed(backend, ...)`), from the store the cases declare. Departure: the Postgres lanes, where upstream
+  snapped its answers, keep upstream's own fixture verbatim (`PostgresSeed`: its setup, its declared types, `JSON` and
+  `JSONB` apart, as the snapped answers read them). The stress harness is `SqlStressOnPostgres`, named for the
+  database it compares against; its Postgres URL is a required property.
+- **The resolver tests' 26 `sqlOf()` copies** are one harness, `resolver/ResolvedSql`.
+- **Defect 4 is fixed.** `CorpusDifferentialTest` runs each service on the database its runtime declares
+  (`Compiler.executesOn`), with that database's dialect and backend. The seed is data, not DuckDB SQL:
+  `differential.py` writes `diff/seed.json` (each table's columns with the type the seed gives each, and its rows as
+  text), and the test makes each table as its store declares it and fills it through `setup.RowLoad`. A seed table
+  no store legend-lite loads declares is not made only when a file it excludes declares it (six tables); any
+  other is refused, as is a cell that is neither text nor null. The verdict is unchanged: 178 agree, 1 known
+  divergence, 179 services. Every runtime in the corpus declares DuckDB.
+- **`StoreTypesTest`** reads an `OTHER` column on every database `Databases.implemented()` names: each dialect's
+  stored read must arrive at the type the same dialect casts a column to for a Pure String. The DuckDB cases still
+  pin `VARCHAR` itself.
+- **The server backends' sessions have one route.** Postgres's, MariaDB's and MySQL's sessions open at the URL the
+  product's connector makes from the coordinates their connections declare (`Sessions.openingFor`), with only the
+  launcher's user and settings beside it, so the declared coordinates and the session a test runs on cannot drift
+  apart. Trino's and ClickHouse's keep their launchers' URLs: the product opens no session on them.
+- **`PostgresArmTest`** runs on Postgres's backend: its sessions, the connection its models declare, its dialect.
+- **Guards.** `HarnessDisciplineTest` scans the test backends (`DuckDbWorkspaces`' one sort site moved there with
+  it). parser-equivalence's `own_corpus.matched` fell 2882 -> 2875: seven elements of the islands' and lowering
+  tests' models became backend-parameterised.
+
+The ledger after part 2: 37 rows (19 files, 271 lines) left it. Core's and spec's test rows left are the SQL
+translator's two tests' (`SqlParserTest`, `SqlToPureTest`: `protocol/sql/` is not an owner, so they move with the
+translator's Postgres rules, D11). The rest are main code's (`DynaFn`, D10; the translator's three files, D11) and the
+warehouse's tests (Phase 7).
 
 ### Phase 7: the other modules
 

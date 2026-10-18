@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testbackend.TestBackends;
 import com.legend.testcases.SqlIslandCases;
 import com.legend.testing.EmbeddedPostgres;
 import org.junit.jupiter.api.BeforeAll;
@@ -52,7 +54,7 @@ class SqlIslandPostgresTest {
             }
             try (Statement s = admin.createStatement()) {
                 s.execute("DROP TABLE IF EXISTS EMP");
-                s.execute(SqlIslandCases.POSTGRES_TABLE);
+                s.execute(SqlIslandCases.table(TestBackends.of(DatabaseType.Postgres)));
                 s.execute("INSERT INTO EMP VALUES " + SqlIslandCases.ROWS);
                 s.execute("GRANT SELECT ON EMP TO " + account);
             }
@@ -70,7 +72,7 @@ class SqlIslandPostgresTest {
     void theRecordedAnswerIsPostgres(String sql, SqlIslandCases.Case c) throws SQLException {
         try (Connection pg = DriverManager.getConnection(EmbeddedPostgres.shared().jdbcUrl("postgres"));
                 Statement s = pg.createStatement();
-                ResultSet r = s.executeQuery(c.postgres())) {
+                ResultSet r = s.executeQuery(c.plain())) {
             int n = r.getMetaData().getColumnCount();
             List<String> columns = new ArrayList<>();
             for (int i = 1; i <= n; i++) {

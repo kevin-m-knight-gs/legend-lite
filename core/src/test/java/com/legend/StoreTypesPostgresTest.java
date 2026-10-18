@@ -15,7 +15,8 @@ class StoreTypesPostgresTest {
 
     @Test
     void aNestedValueIsReadAsJsonb() {
-        String pg = StoreTypesTest.sql(StoreTypesTest.on("Postgres"), "#>{s::DB.HOSTS}#->select(~[META])");
+        String pg = StoreTypesTest.sql(StoreTypesTest.on(com.legend.model.ConnectionDefinition.DatabaseType.Postgres),
+                "#>{s::DB.HOSTS}#->select(~[META])");
         // Postgres folds the store's bare META to lower case (Postgres.physicalName)
         assertTrue(java.util.regex.Pattern.compile("CAST\\(\"\\w+\"\\.meta AS JSONB\\)").matcher(pg).find(), pg);
     }

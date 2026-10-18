@@ -72,12 +72,7 @@ class ResolveM2mTest {
     }
 
     private static String sqlOf(String query) {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, "m::RT");
-        return TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
+        return ResolvedSql.of(MODEL, query, "m::RT");
     }
 
     private List<String> exec(String sql) throws SQLException {

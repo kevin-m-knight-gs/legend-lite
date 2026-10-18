@@ -7,6 +7,7 @@ import com.legend.exec.ExecutionResult;
 import com.legend.json.Json;
 import com.legend.protocol.sql.SqlLexer;
 import com.legend.protocol.sql.SqlSyntaxException;
+import com.legend.testbackend.TestBackend;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -123,9 +124,17 @@ public final class SqlParity {
 
     // ------------------------------------------------------------------ the model and the data
 
-    /** The Pure model of the schema: one database, each table's columns typed as legend-lite's relational store
-     *  types them, a connection and a runtime. */
+    /** The Pure model of the schema: its store ({@link #store}), a connection and a runtime. */
     public static String model(List<Table> tables, String connection) {
+        StringBuilder m = new StringBuilder(store(tables));
+        m.append("###Connection\nRelationalDatabaseConnection e2e::Conn\n{\n    ").append(connection)
+                .append("\n}\n###Runtime\nRuntime ").append(RUNTIME).append("\n{\n    mappings: [];\n    connections: [ ")
+                .append(DATABASE).append(": [ environment: e2e::Conn ] ];\n}\n");
+        return m.toString();
+    }
+
+    /** The schema's store: one database, each table's columns typed as legend-lite's relational store types them. */
+    public static String store(List<Table> tables) {
         StringBuilder m = new StringBuilder("###Relational\nDatabase " + DATABASE + "\n(\n");
         for (Table t : tables) {
             m.append("    Table ").append(t.name()).append("\n    (\n");
@@ -136,10 +145,7 @@ public final class SqlParity {
             }
             m.append("    )\n");
         }
-        m.append(")\n###Connection\nRelationalDatabaseConnection e2e::Conn\n{\n    ").append(connection)
-                .append("\n}\n###Runtime\nRuntime ").append(RUNTIME).append("\n{\n    mappings: [];\n    connections: [ ")
-                .append(DATABASE).append(": [ environment: e2e::Conn ] ];\n}\n");
-        return m.toString();
+        return m.append(")\n").toString();
     }
 
     private static String relationalType(String sqlType) {
@@ -156,48 +162,57 @@ public final class SqlParity {
         };
     }
 
-    /** Creates and fills the tables as upstream's {@code SchemaManager} does: its DDL, and each value bound by its
-     *  YAML type. On DuckDB, which has no JSONB, a JSONB column is JSON. */
-    public static void seed(Connection c, List<Table> tables, boolean postgres) throws SQLException {
-        if (postgres) {
-            // upstream's Postgres setup (TestPostgresParity): the digest functions, and the sequence the sequence
-            // functions' cases use, fresh (the cases run in corpus order, so their answers are fixed)
-            try (Statement s = c.createStatement()) {
-                s.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto");
-                s.execute("DROP SEQUENCE IF EXISTS test_seq");
-                s.execute("CREATE SEQUENCE test_seq START 1");
+    /** Creates and fills the tables on {@code backend}'s database as the product creates a declared table: each table as
+     *  the schema's {@link #store} declares it, rendered by the backend's dialect ({@code setup.Ddl}), and each value
+     *  bound by its YAML type. On Postgres, the database the answers were snapped on, the lanes seed upstream's own
+     *  fixture instead ({@link PostgresSeed}). */
+    public static void seed(TestBackend backend, Connection c, List<Table> tables) throws SQLException {
+        com.legend.sql.dialect.SqlDialect dialect = backend.dialect();
+        Map<String, com.legend.model.DatabaseDefinition.TableDefinition> declared = new LinkedHashMap<>();
+        for (var element : com.legend.Compiler.parseModel(store(tables)).elements()) {
+            if (element instanceof com.legend.model.DatabaseDefinition db) {
+                for (var table : db.tables()) {
+                    declared.put(table.name(), table);
+                }
             }
         }
         for (Table t : tables) {
-            StringBuilder ddl = new StringBuilder("CREATE TABLE " + t.name() + " (");
-            for (int i = 0; i < t.columns().size(); i++) {
-                Column col = t.columns().get(i);
-                String type = !postgres && col.type().equalsIgnoreCase("JSONB") ? "JSON" : col.type();
-                ddl.append(i > 0 ? ", " : "").append(col.name()).append(' ').append(type);
-            }
+            var table = java.util.Objects.requireNonNull(declared.get(t.name()), t.name());
             try (Statement s = c.createStatement()) {
-                s.execute("DROP TABLE IF EXISTS " + t.name() + (postgres ? " CASCADE" : ""));
-                s.execute(ddl.append(')').toString());
+                s.execute(dialect.render(new com.legend.sql.SqlDdl.DropTable(null, table.name(),
+                        com.legend.setup.Ddl.quoting(table, null))));
+                s.execute(dialect.render(com.legend.setup.Ddl.createTable(table, null)));
             }
-            if (t.rows().isEmpty()) {
-                continue;
-            }
-            String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
-            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + t.name() + " VALUES (" + marks + ")")) {
-                for (List<Object> row : t.rows()) {
-                    for (int i = 0; i < row.size(); i++) {
-                        bind(c, ps, i + 1, row.get(i), t.columns().get(i).type().toUpperCase(Locale.ROOT), postgres);
-                    }
-                    ps.addBatch();
+            fill(c, dialect.storedName(table.name(), table.quoted()), t, (ps, i, type, json) -> ps.setString(i, json));
+        }
+    }
+
+    /** How a JSON value is bound: its column's declared type ({@code JSON} or {@code JSONB}) and its text. */
+    public interface JsonBinding {
+        void bind(PreparedStatement ps, int i, String type, String json) throws SQLException;
+    }
+
+    /** Fills {@code t}'s rows into {@code target} (the table as the session's SQL spells it), each value bound as
+     *  upstream's {@code SchemaManager} binds it, by its YAML type: a JSON value by {@code json}. */
+    public static void fill(Connection c, String target, Table t, JsonBinding json) throws SQLException {
+        if (t.rows().isEmpty()) {
+            return;
+        }
+        String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
+        try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + target + " VALUES (" + marks + ")")) {
+            for (List<Object> row : t.rows()) {
+                for (int i = 0; i < row.size(); i++) {
+                    bind(ps, i + 1, row.get(i), t.columns().get(i).type().toUpperCase(Locale.ROOT), json);
                 }
-                ps.executeBatch();
+                ps.addBatch();
             }
+            ps.executeBatch();
         }
     }
 
     /** One value, bound as SchemaManager binds it. */
-    private static void bind(Connection c, PreparedStatement ps, int i, @com.legend.base.Nullable Object val,
-            String type, boolean postgres) throws SQLException {
+    private static void bind(PreparedStatement ps, int i, @com.legend.base.Nullable Object val, String type,
+            JsonBinding json) throws SQLException {
         if (val == null) {
             ps.setNull(i, java.sql.Types.NULL);
         } else if (val instanceof Integer n) {
@@ -212,17 +227,8 @@ public final class SqlParity {
             ps.setDate(i, java.sql.Date.valueOf(val.toString()));
         } else if (type.contains("TIMESTAMP")) {
             ps.setTimestamp(i, java.sql.Timestamp.valueOf(val.toString()));
-        } else if (type.contains("JSON") && postgres) {
-            try {
-                // a PGobject, as upstream binds it, made by reflection: core's tests do not compile against pgjdbc
-                Object json = Class.forName("org.postgresql.util.PGobject").getConstructor().newInstance();
-                json.getClass().getMethod("setType", String.class).invoke(json, type.contains("JSONB") ? "jsonb"
-                        : "json");
-                json.getClass().getMethod("setValue", String.class).invoke(json, val.toString());
-                ps.setObject(i, json);
-            } catch (ReflectiveOperationException e) {
-                throw new IllegalStateException("pgjdbc's PGobject", e);
-            }
+        } else if (type.contains("JSON")) {
+            json.bind(ps, i, type, val.toString());
         } else {
             ps.setString(i, val.toString());
         }

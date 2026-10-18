@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
  * here by its published body). The FINAL Relational node's filled SQL
  * is the statement the caller replays for rows. Everything here is
  * golden-side: a parse of the engine's spec text, never an emission of
- * ours. Unmodeled shapes throw {@link H2Verify.Unverifiable} with the
+ * ours. Unmodeled shapes throw {@link RefereeVerify.Unverifiable} with the
  * reason named (counted declines).
  */
 final class PlanReplay {
@@ -56,7 +56,7 @@ final class PlanReplay {
         if (plan.contains("sql=select") || plan.contains("Sequence(type=")) {
             // planToStringWithoutFormatting strips the SQL's own spaces
             // (select"root".LEGALNAMEas"name"...) — text, never a statement
-            throw new H2Verify.Unverifiable("plan-text unformatted"
+            throw new RefereeVerify.Unverifiable("plan-text unformatted"
                     + " (planToStringWithoutFormatting) — its SQL is not"
                     + " a statement", null);
         }
@@ -121,7 +121,7 @@ final class PlanReplay {
             }
         }
         if (lastSql == null) {
-            throw new H2Verify.Unverifiable("plan-text: no Relational sql"
+            throw new RefereeVerify.Unverifiable("plan-text: no Relational sql"
                     + " node to replay", null);
         }
         return lastSql;
@@ -175,7 +175,7 @@ final class PlanReplay {
                 }
             }
             if (j >= sql.length()) {
-                throw new H2Verify.Unverifiable("plan-text: unterminated hole", null);
+                throw new RefereeVerify.Unverifiable("plan-text: unterminated hole", null);
             }
             out.append(evaluate(sql.substring(start + 2, j).strip(), sc));
             i = j + 1;
@@ -198,7 +198,7 @@ final class PlanReplay {
                 rest = rest.substring(close + 1);
             }
             if (!rest.isBlank()) {
-                throw new H2Verify.Unverifiable("plan-text: template builtin"
+                throw new RefereeVerify.Unverifiable("plan-text: template builtin"
                         + " not modeled: " + rest, null);
             }
             return base;
@@ -215,7 +215,7 @@ final class PlanReplay {
             Map<String, String> row = sc.rows().get(name.substring(0, dot));
             String col = name.substring(dot + 1);
             if (row == null || !row.containsKey(col)) {
-                throw new H2Verify.Unverifiable("plan-text: hole ${" + expr
+                throw new RefereeVerify.Unverifiable("plan-text: hole ${" + expr
                         + "} reads no bound row column", null);
             }
             return row.get(col);
@@ -226,7 +226,7 @@ final class PlanReplay {
         }
         List<String> v = sc.bindings().get(name);
         if (v == null) {
-            throw new H2Verify.Unverifiable("plan-text: unbound hole ${"
+            throw new RefereeVerify.Unverifiable("plan-text: unbound hole ${"
                     + expr + "}", null);
         }
         return String.join(", ", v);
@@ -249,7 +249,7 @@ final class PlanReplay {
                 }
             }
         }
-        throw new H2Verify.Unverifiable("plan-text: unbalanced template call", null);
+        throw new RefereeVerify.Unverifiable("plan-text: unbalanced template call", null);
     }
 
     /** Freemarker call arguments: quoted strings, {@code {"k":"v"}}
@@ -302,7 +302,7 @@ final class PlanReplay {
                 }
                 List<String> v = sc.bindings().get(id);
                 if (v == null) {
-                    throw new H2Verify.Unverifiable("plan-text: unbound"
+                    throw new RefereeVerify.Unverifiable("plan-text: unbound"
                             + " template argument " + id, null);
                 }
                 out.add(v);
@@ -375,7 +375,7 @@ final class PlanReplay {
                 }
                 return String.join(", ", out);
             }
-            default -> throw new H2Verify.Unverifiable("plan-text: template"
+            default -> throw new RefereeVerify.Unverifiable("plan-text: template"
                     + " operation " + fn + " not modeled", null);
         }
     }

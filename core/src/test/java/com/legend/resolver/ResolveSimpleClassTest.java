@@ -5,11 +5,8 @@ import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.MappingResolutionException;
-import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
-import com.legend.sql.SqlQuery;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -99,15 +96,7 @@ class ResolveSimpleClassTest {
 
     /** Direct resolver + Lowerer composition (the driver seam is M-H2c). */
     private static String sqlOf(String query) {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        // Context comes from the query's ->from(...); the driver-runtime
-        // path is exercised by driverSeamNoFrom through Compiler.execute.
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        SqlQuery plan = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved);
-        return TestBackends.platform().dialect().render(plan);
+        return ResolvedSql.of(MODEL, query);
     }
 
     private List<String> exec(String sql) throws SQLException {

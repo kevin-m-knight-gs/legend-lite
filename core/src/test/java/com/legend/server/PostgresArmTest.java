@@ -3,9 +3,10 @@ package com.legend.server;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.legend.testing.EmbeddedPostgres;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -21,14 +22,16 @@ import org.junit.jupiter.api.Test;
  */
 class PostgresArmTest {
 
+    /** Postgres's test backend: this JVM's embedded server, its sessions, the connection a model declares for them. */
+    private static final TestBackend POSTGRES = TestBackends.of(DatabaseType.Postgres);
+
     @Test
     @DisplayName("a Postgres connection resolves through the product path and runs a query")
     void thePostgresArmOpensARealPostgres() throws Exception {
-        EmbeddedPostgres pg = EmbeddedPostgres.shared();
         // The arm sends no user (its connections authenticate as Test or NoAuth), so the driver logs in
         // as the operating-system account: give that account a login role on the test's own server.
         String account = System.getProperty("user.name");
-        try (Connection admin = DriverManager.getConnection(pg.jdbcUrl("postgres"));
+        try (Connection admin = POSTGRES.open();
                 PreparedStatement exists = admin.prepareStatement("SELECT 1 FROM pg_roles WHERE rolname = ?")) {
             exists.setString(1, account);
             try (ResultSet r = exists.executeQuery()) {
@@ -40,15 +43,13 @@ class PostgresArmTest {
             }
         }
 
-        String model = String.format(java.util.Locale.ROOT, """
+        String model = """
                 ###Relational
                 Database store::PgDB ( Table T ( ID INTEGER PRIMARY KEY ) )
 
                 ###Connection
                 RelationalDatabaseConnection store::PgConn {
-                    type: Postgres;
-                    specification: Static { host: '127.0.0.1'; port: %d; name: 'postgres'; };
-                    auth: Test;
+                    %s
                 }
 
                 ###Runtime
@@ -56,7 +57,7 @@ class PostgresArmTest {
                     mappings: [ ];
                     connections: [ store::PgDB: [ environment: store::PgConn ] ];
                 }
-                """, pg.port());
+                """.formatted(POSTGRES.connectionBody());
 
         try (ConnectionResolver.Lease lease = ConnectionResolver.lease(com.legend.Compiler.compileModel(model), "test::PgRuntime");
                 Statement s = lease.connection().createStatement();
@@ -71,12 +72,9 @@ class PostgresArmTest {
     @Test
     @DisplayName("a table and a schema named by reserved words seed and answer a query on Postgres (PARK-16)")
     void reservedNamesSeedAndAnswer() throws Exception {
-        EmbeddedPostgres pg = EmbeddedPostgres.shared();
-        try (Connection c = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
-            com.legend.testcases.ReservedNames.seedsAndAnswers(com.legend.testcases.ReservedNames.model(
-                    String.format(java.util.Locale.ROOT, "type: Postgres; specification: Static { host: '127.0.0.1';"
-                            + " port: %d; name: 'postgres'; }; auth: Test;", pg.port())),
-                    new com.legend.sql.dialect.Postgres(), c);
+        try (Connection c = POSTGRES.open()) {
+            com.legend.testcases.ReservedNames.seedsAndAnswers(
+                    com.legend.testcases.ReservedNames.model(POSTGRES.connectionBody()), POSTGRES.dialect(), c);
         }
     }
 
@@ -92,8 +90,7 @@ class PostgresArmTest {
                 id: [s::DB] PLAN_T.ID, name: [s::DB] PLAN_T.NAME, price: [s::DB] PLAN_T.PRICE } )
             ###Connection
             RelationalDatabaseConnection s::Conn {
-                store: s::DB; type: Postgres;
-                specification: Static { host: '127.0.0.1'; port: %d; name: 'postgres'; }; auth: Test; }
+                store: s::DB; %s }
             ###Runtime
             Runtime s::RT { mappings: [s::M]; connections: [ s::DB: [ c1: s::Conn ] ]; }
             """;
@@ -101,14 +98,13 @@ class PostgresArmTest {
     @Test
     @DisplayName("a query's plan answers on Postgres exactly as today's wire and streaming paths do")
     void aPlanAnswersAsTodaysPaths() throws Exception {
-        EmbeddedPostgres pg = EmbeddedPostgres.shared();
-        String model = String.format(java.util.Locale.ROOT, PLANNED, pg.port());
+        String model = PLANNED.formatted(POSTGRES.connectionBody());
         var ctx = com.legend.Compiler.compileModel(model);
-        try (Connection c = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
+        try (Connection c = POSTGRES.open()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : com.legend.setup.CsvSeed.sqls("default\nPLAN_T\nID,NAME,PRICE\n1,a,1.50\n"
                         + "2,O'Brien,---null---\n3,---null---,3.25\n", "s::DB", ctx,
-                        new com.legend.sql.dialect.Postgres())) {
+                        POSTGRES.dialect())) {
                     s.execute(sql);
                 }
             }
@@ -144,13 +140,11 @@ class PostgresArmTest {
                 assertPlanAnswersAsToday(model, ctx, q, c);
             }
             // an enumeration parameter, compared through a value table of the column's codes
-            String enums = com.legend.testcases.PlanCases.enumModel(String.format(java.util.Locale.ROOT, "type: Postgres;"
-                    + " specification: Static { host: '127.0.0.1'; port: %d; name: 'postgres'; }; auth: Test;",
-                    pg.port()), "PLAN_E");
+            String enums = com.legend.testcases.PlanCases.enumModel(POSTGRES.connectionBody(), "PLAN_E");
             var enumCtx = com.legend.Compiler.compileModel(enums);
             try (Statement s = c.createStatement()) {
                 for (String sql : com.legend.setup.CsvSeed.sqls(com.legend.testcases.PlanCases.enumRows("PLAN_E"), "s::DB",
-                        enumCtx, new com.legend.sql.dialect.Postgres())) {
+                        enumCtx, POSTGRES.dialect())) {
                     s.execute(sql);
                 }
             }

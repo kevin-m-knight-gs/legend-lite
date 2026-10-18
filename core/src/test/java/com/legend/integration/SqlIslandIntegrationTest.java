@@ -5,6 +5,8 @@ package com.legend.integration;
 
 import com.legend.error.LegendCompileException;
 import com.legend.server.QueryService;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import com.legend.testcases.SqlIslandCases;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -14,7 +16,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -32,27 +33,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SqlIslandIntegrationTest {
 
-    private static final String MODEL =
-            SqlIslandCases.model("type: DuckDB;\n specification: DuckDB { };\n auth: Test;");
+    /** The platform's own engine: the table, the island's session and the answer it is held to. */
+    private static final TestBackend PLATFORM = TestBackends.platform();
 
-    private static Connection duckdb;
+    private static final String MODEL =
+            SqlIslandCases.model(PLATFORM.connectionBody());
+
+    private static Connection session;
 
     @BeforeAll
     static void seed() throws SQLException {
-        duckdb = DriverManager.getConnection("jdbc:duckdb:");
-        try (Statement s = duckdb.createStatement()) {
-            s.execute(SqlIslandCases.DUCKDB_TABLE);
+        session = PLATFORM.open();
+        try (Statement s = session.createStatement()) {
+            s.execute(SqlIslandCases.table(PLATFORM));
             s.execute("INSERT INTO EMP VALUES " + SqlIslandCases.ROWS);
         }
     }
 
     @AfterAll
     static void close() throws SQLException {
-        duckdb.close();
+        session.close();
     }
 
     private static com.legend.exec.ExecutionResult run(String query) throws SQLException {
-        return new QueryService().execute(MODEL, query, SqlIslandCases.RUNTIME, duckdb);
+        return new QueryService().execute(MODEL, query, SqlIslandCases.RUNTIME, session);
     }
 
     private static List<List<String>> rows(com.legend.exec.ExecutionResult result) {
@@ -73,7 +77,7 @@ class SqlIslandIntegrationTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
-    void returnsWhatPostgresReturns(String sql, SqlIslandCases.Case c) throws SQLException {
+    void returnsTheRecordedAnswer(String sql, SqlIslandCases.Case c) throws SQLException {
         com.legend.exec.ExecutionResult result = run(c.island());
         assertEquals(c.columns(), result.columns().stream().map(col -> col.name()).toList(), sql);
         List<List<String>> actual = rows(result);
@@ -146,7 +150,7 @@ class SqlIslandIntegrationTest {
     }
 
     @Test
-    void aQueryPostgresRejectsIsATypeError() {
+    void aQueryTheSpecRejectsIsATypeError() {
         LegendCompileException e = assertThrows(LegendCompileException.class,
                 () -> run("#SQL{select dept, age from tb('store::HR.EMP') group by dept}#"));
         assertEquals(LegendCompileException.Phase.TYPE, e.phase());
@@ -163,7 +167,7 @@ class SqlIslandIntegrationTest {
     }
 
     @Test
-    void anAverageIsAFloatWherePostgresGivesANumeric() throws SQLException {
+    void anAverageIsAFloatWhereTheSpecGivesANumeric() throws SQLException {
         // A KNOWN DIFFERENCE (docs/LEGEND_SQL_STUDY_2026_10_11.md §3.4): Pure's average is a Float, so avg over
         // integers is 33.333333333333336 here where Postgres's numeric gives 33.3333333333333333
         com.legend.exec.ExecutionResult result = run("#SQL{select avg(age) as a from tb('store::HR.EMP')"
