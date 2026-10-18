@@ -8462,8 +8462,10 @@ public final class IqDialect implements InputDialect {
     }
 
     /** IQ's {@code NULLIF(a, b)}: NULL when {@code a = b}, else {@code a}, typed as {@code a}; {@code b} is read as
-     *  {@code a}'s type (an integer outside its range is IQ's error -158). A CHAR {@code a} (the conversion may cut
-     *  {@code b}) and every pair of kinds IQ converts are refused by name. */
+     *  {@code a}'s type (an integer outside its range is IQ's error -158). A CHAR {@code a} in SQL Anywhere's front end
+     *  (the conversion may cut {@code b}) and every pair of kinds IQ converts are refused by name. IQ island,
+     *  2026-10-17 (the corpus lane's TPC-DS; measured on IQ 17.1): under IQ's engine a CHAR {@code a} is compared as
+     *  {@code =} compares, blank-padded, {@code b} not cut (NULLIF(ch, 'ab   Q') of 'ab   ' is 'ab   '). */
     private Tx nullif(SqlAst.FunctionCall f, List<Tx> args) {
         arguments("NULLIF", f, args, 2, 2);
         Tx a = args.get(0);
@@ -8478,9 +8480,9 @@ public final class IqDialect implements InputDialect {
         if (b.kind() == Kind.NULL) {
             return a;
         }
-        if (a.kind() == Kind.STRING && at.family().equals("CHAR")) {
-            throw SqlTranslationException.unsupported("NULLIF of a CHAR is not supported yet: IQ reads the second"
-                    + " argument as the CHAR, which may cut it", f.pos());
+        if (a.kind() == Kind.STRING && at.family().equals("CHAR") && engine != Engine.IQ) {
+            throw SqlTranslationException.unsupported("NULLIF of a CHAR is not supported in SQL Anywhere's front end"
+                    + " yet: it reads the second argument as the CHAR, which may cut it", f.pos());
         }
         boolean signedIntegers = a.kind() == Kind.INTEGER && at.isInteger() && b.kind() == Kind.INTEGER
                 && b.detail() instanceof IqType bt && bt.isInteger();

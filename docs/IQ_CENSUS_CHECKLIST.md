@@ -561,6 +561,28 @@ The user asked for real queries that push the island hard. Their corpora, data a
     overflowed `w + 2000 - 2020`).
   - IQ's own defect, not copied: its window SUM over a ROWS frame of an INTEGER wraps at 32 bits and shows the value
     unsigned (18446744069414584319 where the frame's sum is -1).
+  - Built after round 5, measured on IQ 17.1 (re-judged: 2,584 PASS, refusals 60 to 27, FAILs 22 to 13):
+    - STUFF under IQ's engine: it appends at a start just past the string, as the front end does, where its manual
+      says NULL (D-F3); a length past 32,767 is NULL.
+    - DAYS, WEEKS, YEARS, MONTHS, HOURS, MINUTES and SECONDS of one argument count from 0000-01-01, proleptic
+      Gregorian (the front end counts from another epoch; refused there).
+    - CHAR of a computed code: the DuckDB and Postgres dialects cast `chr`'s code to INTEGER. Under IQ's engine in a
+      UTF-8 database CHAR is the code's byte modulo 256, refused for a row whose byte is 0 or above 127.
+    - LIST of a string column ordered by itself in IQ 17.1's UTF8BIN database: the list drops trailing spaces, so
+      values of one collation key read alike. A row holding a tab or a line break is refused at run time.
+    - A column string read as a REAL under IQ's engine: its float spelling rounded to single precision, `''` or
+      blanks 0.0, any other spelling -1009145. As a DOUBLE it stays refused: IQ's reading is not correctly rounded
+      (`'1.555'` is 1.5550000000000002), and an equality test could tell.
+    - DATEADD's type, checked (2026-10-17): under IQ's engine a DATE stays a DATE (an hour added keeps its day) and
+      a string constant is a TIMESTAMP; in the front end a DATE is a TIMESTAMP. Lite already read all three; the
+      earlier note that "a constant date is a TIMESTAMP under IQ's engine" was about the string constant.
+    - NULLIF of a CHAR under IQ's engine: compared blank-padded as `=` compares, the second argument not cut (the
+      front end cuts it; still refused there).
+  - Measured, not built: IQ's engine writes a DOUBLE as text (`||`, CAST, STRING) with 18 significant digits and
+    trailing zeros kept, C's `%#.18g` (`-0.100000000000000006`, `1.00000000000000005e+300`), zero as `'0'`. DuckDB's
+    printf could write it; Postgres has no such format.
+  - IQ's own quirk, not copied: `ROW_NUMBER() OVER (ORDER BY bg - bg, id)` over BIGINT extremes does not honor the
+    `id` tiebreak (RANK sees the rows equal).
   - Measured, not built: `1 + v = v + 1` is two-valued too (IQ reads the sum in either order), and lite keeps it
     three-valued.
 - **Judged with ties broken:** TPC-H 9,131 of 9,427 match IQ; TPC-DS 8,403 of 8,647; JOB 4,554 of 4,811. What is
@@ -578,7 +600,6 @@ The user asked for real queries that push the island hard. Their corpora, data a
     statements to lite's front-end reading is the fix, but that reading refuses a CASE of a NUMERIC (D-N1, not
     verified on SQL Anywhere), so `GREATER(nm, sm)`, which passes now, would be refused. It waits on SQL Anywhere's
     NUMERIC unification being measured.
-  - DATEADD of a constant date is a TIMESTAMP under IQ's engine.
   - A sum far past its declared type (a triple join's fan-out, 2e20) defeats lite's type-sized division steps, and the
     database raises; IQ answers. A ROUND of a quotient whose declared type is narrower than IQ's data-sized one raises
     lite's range check, where IQ answers (both D-N3).

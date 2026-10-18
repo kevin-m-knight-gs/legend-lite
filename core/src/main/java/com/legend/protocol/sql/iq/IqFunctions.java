@@ -4466,11 +4466,38 @@ final class IqFunctions {
             return x;
         }
         if (x.kind() == Kind.STRING) {
-            throw SqlTranslationException.unsupported(what + " of a string to REAL is not supported yet: IQ reads it by"
-                    + " its own rules", c.operand().pos());
+            if (engine != IqDialect.Engine.IQ) {
+                throw SqlTranslationException.unsupported(what + " of a string to REAL is not supported in SQL"
+                        + " Anywhere's front end yet: it reads it by its own rules", c.operand().pos());
+            }
+            return stringToReal(x, type);
         }
         Tx d = asDouble(x, c.operand(), what);
         Tx r = SqlToPure.strict(Kind.FLOAT, List.of(d), v -> single(v.get(0)));
+        return Tx.value(r.vs(), Kind.FLOAT, r.nullable(), type);
+    }
+
+    /** IQ's engine's spelling of a float: blanks or tabs around a sign, digits with one point (a digit on one side),
+     *  an exponent of digits ({@link #stringToReal}). */
+    private static final String FLOAT_TEXT = "^[ \\t]*[+-]?([0-9]+[.]?[0-9]*|[.][0-9]+)([eE][+-]?[0-9]+)?[ \\t]*$";
+
+    /**
+     * IQ island, 2026-10-17 (the corpus lane's JOB, 26 queries; measured on IQ 17.1): under IQ's engine a string read
+     * as a REAL is its float spelling ({@link #FLOAT_TEXT}: ' 7.5 ', '+.5', '5.', '-.5E+2', a tab around it) rounded to
+     * single precision ('1.555' is 1.5549999475479126), '' or blanks alone 0.0, any other spelling IQ's -1009145 ('.',
+     * '1e', 'inf', '1,5') raised for its row; past the largest REAL IQ answers Infinity, refused for its row.
+     */
+    private static Tx stringToReal(Tx x, IqType type) {
+        String past = IqDialect.REFUSED_AT_RUN_TIME + "a string past the largest REAL read as one: IQ answers Infinity";
+        Tx r = SqlToPure.strict(Kind.FLOAT, List.of(x), v -> {
+            ValueSpecification bare = SqlToPure.call("trim", SqlToPure.call("replace", v.get(0), new CString("\t"),
+                    new CString("")));
+            ValueSpecification parsed = SqlToPure.call("parseFloat", bare);
+            ValueSpecification read = refusedPast(SqlToPure.call("greaterThan", SqlToPure.call("abs", parsed),
+                    new CFloat(SINGLE_MAX)), past, single(parsed), raise("Float"));
+            return ifThen(SqlToPure.call("equal", bare, new CString("")), new CFloat(0.0), ifThen(SqlToPure.call(
+                    "matches", v.get(0), new CString(FLOAT_TEXT)), read, raise("Float")));
+        });
         return Tx.value(r.vs(), Kind.FLOAT, r.nullable(), type);
     }
 

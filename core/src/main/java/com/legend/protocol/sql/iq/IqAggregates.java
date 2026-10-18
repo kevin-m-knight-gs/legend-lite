@@ -2130,9 +2130,8 @@ final class IqAggregates {
         boolean strings = x.kind() == Kind.STRING;
         // IQ island, 2026-10-17 (the differential fuzzer's fifth round; measured on IQ 17.1's UTF8BIN database): under
         // IQ's engine in a case-sensitive database the values of one collation key differ only in trailing spaces,
-        // which the list drops, so their
-        // order is not seen; ordered by the values' bytes, as IQ's blank-padded order is but for a character below
-        // a space (a tab, a line break), whose row is refused at run time
+        // which the list drops, so their order is not seen; ordered by the values' bytes, as IQ's blank-padded order
+        // is but for a character below a space (a tab, a line break), whose row is refused at run time
         boolean byBytes = strings && order != null && !dialect.keys().own(value)
                 && dialect.engine() == IqDialect.Engine.IQ && dialect.settings().caseSensitive()
                 && !dialect.settings().latin1();

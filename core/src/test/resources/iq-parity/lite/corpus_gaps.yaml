@@ -2066,6 +2066,36 @@ tests:
     sql: "SELECT LIST(vc, '' ORDER BY vc) AS b FROM t"
     profile: iq17-default
 
+  # ---- a string read as a REAL (IQ island, 2026-10-17; the corpus lane's JOB, measured on IQ 17.1): under IQ's engine
+  # its float spelling rounded to single precision, '' or blanks 0.0, any other spelling -1009145 for its row
+  - id: a_string_column_read_as_a_real
+    sql: "SELECT id, x, CAST(x AS REAL) AS r FROM (SELECT id, CASE id WHEN 1 THEN '1.555' WHEN 2 THEN ' 7.5 ' WHEN 3 THEN '1e3' WHEN 4 THEN '0.1' WHEN 5 THEN '-.5E+2' WHEN 6 THEN '' ELSE '+.5' END AS x FROM t) d ORDER BY id"
+    profile: iq17-default
+  - id: a_string_column_that_is_no_float_read_as_a_real
+    sql: "SELECT id, CAST(x AS REAL) AS r FROM (SELECT id, CASE id WHEN 1 THEN '1e' ELSE '1' END AS x FROM t) d ORDER BY id"
+    profile: iq17-default
+
+  # ---- DATEADD's type (IQ island, 2026-10-17; measured on IQ 17.1): under IQ's engine a DATE stays a DATE (an hour
+  # added to one keeps its day), a string constant is a TIMESTAMP; in SQL Anywhere's front end a DATE is a TIMESTAMP
+  - id: dateadd_of_a_date_under_iqs_engine
+    sql: "SELECT id, DATEADD(day, 1, CAST('2020-01-15' AS DATE)) AS a, DATEADD(month, 1, CAST('2020-01-15' AS DATE)) AS b, DATEADD(day, 1, dt) AS d, DATEADD(day, id, CAST('2020-01-15' AS DATE)) AS e FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_of_hours_to_a_date_under_iqs_engine
+    sql: "SELECT id, DATEADD(hour, 1, CAST('2020-01-15' AS DATE)) AS f, DATEADD(minute, 90, dt) AS g FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_of_a_date_string_under_iqs_engine
+    sql: "SELECT id, DATEADD(day, 1, '2020-01-15') AS c FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: dateadd_of_a_date_in_sql_anywhere
+    sql: "SELECT DATEADD(day, 1, CAST('2020-01-15' AS DATE)) AS a"
+    profile: iq17-default
+
+  # ---- NULLIF of a CHAR (IQ island, 2026-10-17; the corpus lane's TPC-DS, measured on IQ 17.1): under IQ's engine
+  # compared blank-padded as = compares, the second argument not cut, the CHAR's padding kept
+  - id: nullif_of_a_char_under_iqs_engine
+    sql: "SELECT id, NULLIF(ch, 'ab') AS a, NULLIF(ch, 'ab   ') AS b, NULLIF(ch, 'abXYZ123') AS c, NULLIF(ch, 'ab   Q') AS d, NULLIF(ch, vc) AS e, LENGTH(NULLIF(ch, 'x')) AS n FROM t ORDER BY id"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where

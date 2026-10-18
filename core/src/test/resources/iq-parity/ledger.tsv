@@ -1188,6 +1188,13 @@ lite/corpus_gaps/list_of_strings_ordered_by_themselves@iq17-default	PASS	PASS
 lite/corpus_gaps/list_of_strings_ordered_by_themselves_descending@iq17-default	PASS	PASS
 lite/corpus_gaps/list_of_strings_with_trailing_blanks_ordered_by_themselves@iq17-default	PASS	PASS
 lite/corpus_gaps/list_of_strings_with_no_delimiter_ordered_by_themselves@iq17-default	PASS	PASS
+lite/corpus_gaps/a_string_column_read_as_a_real@iq17-default	PASS	PASS
+lite/corpus_gaps/a_string_column_that_is_no_float_read_as_a_real@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/dateadd_of_a_date_under_iqs_engine@iq17-default	PASS	PASS
+lite/corpus_gaps/dateadd_of_hours_to_a_date_under_iqs_engine@iq17-default	PASS	PASS
+lite/corpus_gaps/dateadd_of_a_date_string_under_iqs_engine@iq17-default	PASS	PASS
+lite/corpus_gaps/dateadd_of_a_date_in_sql_anywhere@iq17-default	PASS	PASS
+lite/corpus_gaps/nullif_of_a_char_under_iqs_engine@iq17-default	PASS	PASS
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR
