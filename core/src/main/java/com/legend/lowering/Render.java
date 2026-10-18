@@ -1371,6 +1371,12 @@ public final class Render {
             rendered = quoteStrings ? dateTimeText(c) : LiteralSpelling.dateTimeTextTds(c);
         } else if (t == Type.Primitive.FLOAT) {
             rendered = Scalars.pureToString(Type.Primitive.FLOAT, c);
+        } else if (quoteStrings && t == Type.Primitive.NUMBER && slot instanceof SqlType.Decimal) {
+            // a VALUE root typed Number whose cell is a Decimal (the slot the lowering labels it with) spells
+            // Pure's literal with its D, the kind the Number's text alone cannot say -- as a Number-LUB mix and a
+            // store-read Decimal already cross; a Decimal-typed root stays bare, as Pure prints it (the output
+            // matrix); the DuckDB PCT lane on the plan route, step 9, 2026-10-18
+            rendered = LiteralSpelling.decimalPrintD(c);
         } else if (t == Type.Primitive.STRING
                 || t instanceof Type.EnumType) {
             rendered = quoteStrings && t == Type.Primitive.STRING ? pureQuoted(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR))

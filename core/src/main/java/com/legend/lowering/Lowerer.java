@@ -361,7 +361,7 @@ public final class Lowerer {
                             relation(ValueCollections.valueColumnProject(
                                     m.source(), ml, spec.info().type(), colMult)),
                             spec.info().type()),
-                    LiteralSpelling.ValueLane.MAP_CHANNEL, spec.info().type() == Type.Primitive.NUMBER);
+                    LiteralSpelling.ValueLane.MAP_CHANNEL);
             // SCALAR-STAMPED cells (C1) are one element per row ALREADY —
             // the explode is identity, and UNNEST(scalar) does not bind.
             boolean scalarCells = ml.body().get(ml.body().size() - 1)
@@ -383,7 +383,7 @@ public final class Lowerer {
         }
         return Fold.conformValueEgress(
                 Fold.declaredKindEnvelope(scalarRoot(spec), spec.info().type()),
-                LiteralSpelling.ValueLane.SCALAR_ROOT, spec.info().type() == Type.Primitive.NUMBER);
+                LiteralSpelling.ValueLane.SCALAR_ROOT);
     }
 
     /**
@@ -451,6 +451,17 @@ public final class Lowerer {
                         || (jt.type() instanceof com.legend.sql.SqlType.Array ja
                                 && ja.element() == SqlType.Scalar.LITERAL))) {
             label = SqlType.Scalar.LITERAL;
+        } else if (spec.info().type() == Type.Primitive.NUMBER
+                && e.type() instanceof com.legend.sql.TypeFact.Typed nt
+                && (nt.type() instanceof com.legend.sql.SqlType.Decimal || nt.type() == SqlType.Scalar.DOUBLE
+                        || nt.type() == SqlType.Scalar.BIGINT || nt.type() == SqlType.Scalar.INTEGER
+                        || nt.type() == SqlType.Scalar.HUGEINT)) {
+            // an unrefined NUMBER root labelled by its cell's own numeric slot, the kind the database answers
+            // (the engine reads a Number by its result-set type; the judges refine a Number side by the slot): a
+            // Decimal cell is a Decimal to every reader, and the value lane's text spells its D
+            // (Render.tdsTextCell; min([1.0d]) is 1.0D -- the DuckDB PCT lane on the plan route, step 9,
+            // 2026-10-18); until then the Number's DOUBLE, which read the cell as a Float
+            label = nt.type();
         }
         // COLLECTION roots explode to N rows (the result-shape contract:
         // Executor reads a collection as N rows x 1 column); the carrier
@@ -2992,19 +3003,22 @@ public final class Lowerer {
                     && pa.source().info().type() instanceof Type.EnumType ->
                     scalarStructural(pa.source(), columns);
 
-            // a TYPE written as a value ([String, Integer] vs columns.type; Car): a type VALUE travels as its
-            // PATH (a primitive's is its name) -- the text carrier compiles the cell, and a simple name is
-            // ambiguous there (the PCT's TestClass has five namesakes; the DuckDB lane on the plan route, step 9,
-            // 2026-10-18; until then the canonical simple name, which the legacy bridge could not resolve either)
+            // a TYPE written as a value ([String, Integer] vs columns.type;
+            // Car): type VALUES travel as canonical simple names (the value
+            // lane's convention, which the corpus's asserts compare against a
+            // TDS's cells and the store's names; a path here moved eight H2
+            // bodies and seven DuckDB ones, 2026-10-18 -- the text carrier
+            // takes the path from the static type instead, LiteralSpelling)
             case com.legend.compiler.spec.typed.TypedTypeRef tr ->
-                    new SqlExpr.StringLit(tr.target().typeName());
+                    new SqlExpr.StringLit(MixedEncoding.simpleName(tr.target().typeName()));
             case com.legend.compiler.spec.typed.TypedPackageableRef pr
                     when pr.info().type() instanceof
                             com.legend.compiler.element.type.Type.GenericType g
                     && g.rawFqn().equals(
                             com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)
                     && g.arguments().size() == 1 ->
-                    new SqlExpr.StringLit(g.arguments().get(0).typeName());
+                    new SqlExpr.StringLit(MixedEncoding.simpleName(
+                            g.arguments().get(0).typeName()));
 
             default -> scalarRelationalArms(spec, columns);
         };

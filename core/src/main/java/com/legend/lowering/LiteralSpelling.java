@@ -196,7 +196,7 @@ public final class LiteralSpelling {
     enum ValueLane { SCALAR_ROOT, MAP_CHANNEL, GRID_FETCH }
 
     static SqlExpr.@com.legend.base.Nullable Cast wireValueEgress(SqlExpr e,
-            SqlType declared, ValueLane lane, boolean numberRoot) {
+            SqlType declared, ValueLane lane) {
         // the DECLARED egress label (the pure type's SQL mapping) keys
         // the decode — the engine transformer's own key (R8 dispatches
         // by pure property type); a tree-typed expr that KNOWS it is a
@@ -250,19 +250,6 @@ public final class LiteralSpelling {
                     lane != ValueLane.SCALAR_ROOT);
             return lit == null ? null
                     : new SqlExpr.Cast(lit, SqlType.Scalar.TEMPORAL_TEXT);
-        }
-        // a COMPUTED or WRITTEN Decimal under a NUMBER-typed root (its declared label the Number's DOUBLE, the
-        // cell's own slot a DECIMAL) keeps its scale and carries its D, the kind a Number's text alone cannot say
-        // (min([1.0d]) is 1.0D, as a Number-LUB mix already spells its Decimal element; the DuckDB PCT lane on the
-        // plan route, step 9, 2026-10-18); under a Decimal-typed root the text stays Pure's own, bare (the output
-        // matrix); a column-rooted cell takes the store-read decode below
-        if (numberRoot && !columnRooted(e)
-                && ((declared instanceof SqlType.Decimal) || (e.type() instanceof com.legend.sql.TypeFact.Typed dt
-                        && dt.type() instanceof SqlType.Decimal))) {
-            return new SqlExpr.Cast(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                    SqlExpr.Call.of(SqlFn.IS_NULL, e), new SqlExpr.NullLit())),
-                    SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR),
-                            new SqlExpr.StringLit("D"))), SqlType.Scalar.DECIMAL_TEXT);
         }
         if (declared instanceof SqlType.Decimal) {
             // COLUMN-ROOTED cells only: the erasure is a STORE-READ
@@ -948,9 +935,13 @@ public final class LiteralSpelling {
                         text("])"));
             }
             if (com.legend.compiler.element.type.PlatformTypes.isClassMetaclass(g) && g.arguments().size() == 1) {
-                // a Type value: its path, which the cell carries (the lowering's type reference, 2026-10-18); until
-                // then the typed fact's argument, which named a collection of types by their common ancestor (Any)
-                return new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
+                // a Type value: its path from the typed fact where the fact names one class (Class<my::X>); where it
+                // names their common ancestor (a collection of types, Class<Any>) the cell, the type's simple name
+                // (the value lane's convention), which the reader resolves unless it has a namesake (refused by
+                // name there; register S82; 2026-10-18)
+                Type arg = g.arguments().get(0);
+                return arg instanceof Type.ClassType ac && !com.legend.compiler.element.type.PlatformTypes.isAny(ac)
+                        ? text(ac.fqn()) : new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
             }
             throw new IllegalStateException("the text carrier has no form for a " + g.rawFqn() + " value");
         }

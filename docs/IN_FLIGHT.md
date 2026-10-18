@@ -2108,7 +2108,6 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   "flip and let's fix everything"): `pct/.../extension/PctBackend.java` (`throughThePlan`), then whatever the
   first run's failures name in the plan path (`lowering/`, `exec/`, the adapter `pct_adapter.pure`); the five
   DuckDB suites' pins move only with a named residue, shrink-only.  **First landing 2026-10-18** (GATES "step 9, first landing"): `lowering/LiteralSpelling.java`
-  (`wireValueEgress`'s `numberRoot`, the `Class<T>` cell), `lowering/Fold.java`, `lowering/Lowerer.java` (the type
-  reference arms), `lowering/Scalars.java` (a type's name), `lowering/MixedEncoding.java` (`simpleName` deleted),
+  (the `Class<T>` arm), `lowering/Lowerer.java` (the Number root's label), `lowering/Render.java` (a Number-typed Decimal cell's D),
   `PlanMaker.java` (`metamodelSteps`), `core/BUILD.bazel` (`MetamodelSeeds`, `OpSeeds` into the planner), the adapter
-  (the header's type; `PctDisciplineTest`'s ceiling), the essential suite's pins, register S81.
+  (the header's type; `PctDisciplineTest`'s ceiling), the essential and grammar suites' pins, registers S81 and S82.

@@ -10668,21 +10668,25 @@ function's return type (the MongoDB line's) carried the DuckDB lane as it was.
 essential 5, grammar 5, standard 2), in five causes:
 1. **A Decimal read as a Float (6: `rem`, `minus`, `plus`, `times`, `min`, `max`).** The adapter read a value typed
    `Number` by its text alone, so a Decimal-typed value's bare text (`0.14` for Pure's `rem(3.14, 1.5d)`, which is
-   `0.14D`; `353791.470` losing its scale as a Float) read a Float. Fixed in two places: the adapter reads such a
-   value by the wire header's type (`value:Decimal[1]`: Pure's `parseDecimal`, the header being the typed fact; the
-   `ADAPTER_MAX_LINES` ceiling 557 -> 561 with the reason), and a Number-typed root's computed or written Decimal
-   cell carries its `D` by its own slot (`LiteralSpelling.wireValueEgress` with `Fold.conformValueEgress`'s
-   `numberRoot`; `min([1.0d])` is `1.0D`), as a column-rooted cell and a Number-LUB mix already spelled theirs. A
-   Decimal-typed root prints bare, as Pure does: the output matrix holds (its first run caught the `D` spelled on
-   every Decimal root, reverted).
-2. **A type written as a value (1: `letChainedWithAnotherFunction`; `testClassToString` on the way).** The lowering
-   spelled a type value by its simple name, and the text carrier's reader, compiling the cell, found five
-   `TestClass`es. Fixed: a type value carries its path (`Lowerer`'s two reference arms; `MixedEncoding.simpleName`
-   deleted); the carrier spells the cell rather than the static type argument (`LiteralSpelling.pureValueText`'s
-   `Class<T>` arm had named a collection of types by their common ancestor, `Any`); and `toString` of a type prints
-   its name, the database stripping the package (`Scalars.pureToString`'s new arm: the second run's
-   `testClassToString` showed the path leaking into the text). The legacy bridge could not resolve the simple name
-   either: the test had passed with a String where a Class was due.
+   `0.14D`; `353791.470` losing its scale as a Float) read a Float, and a Number-typed root's Decimal cell
+   (`min([1.0d])`) crossed bare under the Number's DOUBLE label. Fixed in two places: the adapter reads such a value
+   by the wire header's type (`value:Decimal[1]`: Pure's `parseDecimal`, the header being the typed fact; the
+   `ADAPTER_MAX_LINES` ceiling 557 -> 561 with the reason), and an unrefined Number root is labelled by its cell's
+   own numeric slot (`Lowerer.scalarRoot`: the engine reads a Number by its result-set type, and the judges refine a
+   Number side by its slot), so the value lane's text writer spells that cell's `D` (`Render.tdsTextCell`:
+   `min([1.0d])` is `1.0D`) as a Number-LUB mix and a store-read Decimal already did. A Decimal-typed root prints
+   bare, as Pure does: the output matrix holds. Two forms tried on the way and withdrawn by the gates: the `D` on
+   every Decimal root (the output matrix: Pure prints `2.50`), and the `D` carried by the lowering's value egress as
+   `DECIMAL_TEXT` (channel B's database judge, which maps that slot to no kind, left two asserts unjudged).
+2. **A type written as a value (1: `letChainedWithAnotherFunction`).** The text carrier's `Class<T>` arm spelled the
+   STATIC type argument, which named a collection of types by their common ancestor (`Any`), and a model element
+   referenced as a value crosses by its simple name (the value lane's convention). Fixed: the carrier spells the
+   path from the static type where it names one class and the cell's name where it names an ancestor
+   (`LiteralSpelling.pureValueText`); the one case left -- a user element whose simple name has namesakes (five
+   `TestClass`es in the PCT) -- is pinned by name, register S82. Tried and withdrawn: the path in the cell
+   (`Lowerer`'s type reference arms), which the corpus's asserts compare against a TDS's cells and the store's
+   names, both simple (eight H2 bodies and seven DuckDB bodies moved, and `testClassToString` printed the path).
+   The legacy route had passed the namesake test with a String where a Class was due.
 3. **The system metamodel store (1: `Class.all()`).** The legacy route seeded the graph's facts into a system
    database of its own (`exec.SystemDatabase`); the plan path had no such tables. Fixed at plan time: the plan maker
    writes each referenced store table as setup steps of the plan's target (its DDL and its rows,
@@ -10699,16 +10703,17 @@ essential 5, grammar 5, standard 2), in five causes:
    instances in Java. Pinned by name; register S81 names the form (each element spelled as its own class's literal
    before the union, or the JSON carrying `__type` and a JSON-to-grammar speller).
 
-**Verdicts (this tree).** The five DuckDB suites on the plan route 1,249 of 1,249 (essential 345, grammar 137,
-relation 469, standard 205, unclassified 93; the essential suite's pins 24 -> 25 entries: one added by name, three
-messages moved, each with its reason), `//pct:pct_discipline` (the adapter's ceiling moved with its reason),
-`//core:core_tests_root` (the output matrix among it: every Decimal root still Pure's bare text) and
-`//core:core_tests_lowering` pass. The chain -- `//gates:core` under the Postgres wrapper, `//gates:pct_channel_b`,
-`//spec:corpus_h2`, `//spec:corpus_duckdb` -- runs on this tree as this lands; its verdicts are appended to this
-entry by the commit that follows.
+**Verdicts (this tree, the corrected design; the first cut, `06444d1`, carried the two withdrawn forms and moved
+channel B's standard suite and both corpus lanes).** The five DuckDB suites on the plan route 1,249 of 1,249
+(essential 345, grammar 137, relation 469, standard 205, unclassified 93; the essential suite's pins 24 -> 25 entries
+and the grammar suite's 9 -> 10, each added by name with its reason, three messages moved), `//gates:pct_channel_b`
+5 of 5, `//pct:pct_discipline` (the adapter's ceiling moved with its reason), `//core:core_tests_root` (the output
+matrix among it: every Decimal root still Pure's bare text) and `//core:core_tests_lowering` pass. `//gates:core`
+under the Postgres wrapper, `//spec:corpus_h2` and `//spec:corpus_duckdb` run on this tree as this lands; their
+verdicts are appended to this entry by the commit that follows.
 
 **Not changed, recorded.** The value lane's DOUBLE conversion of a Float root (the `testBigFloatAbs` pin's reason, an
-item of step 9); the heterogeneous class collection's form (S81); the other JDBC lanes (H2, Postgres, the rest) stay
+item of step 9); the heterogeneous class collection's form (S81); the namesake's resolution (S82); the other JDBC lanes (H2, Postgres, the rest) stay
 on the legacy route until this one is exact on its chain; the shadow plan (`PctShadowPlan`) is deleted with the
 legacy route (R8).
 

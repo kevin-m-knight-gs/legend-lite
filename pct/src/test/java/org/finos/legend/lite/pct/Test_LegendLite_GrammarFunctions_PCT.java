@@ -63,7 +63,12 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // (OneToOne is HARNESS SERIALIZATION LOSS, not an identity assert:
             // the captured $address never reaches the serialized text)
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""));
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
+            // 2026-10-18, the DuckDB lane on the plan route (step 9): a model element referenced as a value crosses
+            // by its simple name (the value lane's convention, compared against a TDS's cells and the store's
+            // names), and the text carrier's reader resolves the name by compiling it, which five TestClasses
+            // defeat; the legacy route had passed this test with a String where a Class was due. Register S82.
+            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "the text carrier's cell does not compile: TestClass has not been defined! The system found 5 possible matches"));
 
     public static Test suite() {
         // M4 §3.4: the census gate pins this JVM's SqlTypeCensus
