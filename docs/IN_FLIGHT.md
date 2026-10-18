@@ -1547,6 +1547,26 @@ pause for the user's review after Phase 1.
 
   A branch that calls `SqlParity.seed` or `IqParity.seed` passes the backend; one that reads `diff/seed.sql` reads
   `diff/seed.json`; one that runs the corpus on the warehouse passes `-Drcorpus.backend=warehouse`.
+- **Announced 2026-10-18, Phase 7: the warehouse, the model writer, the planner boundary and the dead code** (branch
+  `claude/gracious-edison-jcsvzm`, after Phase 6 landed as #54; the plan's Phase 7 and its record there). Files other
+  lines also edit:
+  - `warehouse/` (the second line's, which touches `WarehouseServer` and `Statements`): `Attachment` gains the command
+    line's option and URL, the password prompt and libpq's words (`Postgres`); `WarehouseServer.Config.postgres` and
+    `withPostgres` are `attached` and `withAttached` (a `Catalogs.Attach` per catalog: `Attachment.POSTGRES` and its
+    connection string); `Statements.classify` reads `DuckException.parse`/`bind`; `Sessions` names `DuckLibrary.NAME`.
+    Tests: `TestServer.start` takes attached catalogs; `PostgresUrlTest` (new) takes `AppModeTest`'s Postgres URL tests.
+    A branch that calls `withPostgres` or reads `config().postgres()` calls `withAttached` and reads `attached()`.
+  - `core/.../server/CreateClass.java` (the model writer) asks `SqlDialect.inMemoryPath`; `//core:pure_v1` gains
+    `:database`.
+  - `wasm/src/main/java/planner/Boundary.java` (the DataCube and Python lines' boundary): `testDataSql` and
+    `catalogColumnsSql` keep their signatures and ask the platform's dialect; `DuckDb.CATALOG_COLUMNS_SQL` is private,
+    `SqlDialect.catalogColumnsQuery` its reader. `wasm/`, `native/` and `testing/` each gain a `main_java` (wasm:
+    `planner_java`) filegroup that the census reads.
+  - Deleted (D6): `tools/spikes`, `tools/metamodel-census`, `tools/reference/join.py`, `scripts/corpus`'s codemods and
+    `refdata`, and `scripts/{census_gate,generate_pure_constants,outstanding,walldepth}.py` (36 files). **To the build
+    rebuild's script review (End-1):** `run.py` and the probes, `scripts/projects`, `tools/{untangle,wrongrows}`,
+    `tools/{native-axes,upstream-drift}.py` and `scripts/parser` are not deleted. D6 and old D3 conflict on them, and the
+    user decides.
 - **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move: #43 and #48 have landed** (D11:
   "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
   lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate

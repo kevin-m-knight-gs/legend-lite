@@ -1,14 +1,17 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
-**Status: IN PROGRESS (2026-10-17).**
+**Status: IN PROGRESS (2026-10-18).**
 - Phases 0 and 1 landed as neema2/legend-lite#39 (8501ccb).
 - The owner guard and Phases 2 and 4 landed as neema2/legend-lite#45 (4fb892f).
 - Phase 3 landed as neema2/legend-lite#49 (59b547a).
 - Phase 5 landed as neema2/legend-lite#51 (6f2a0f8).
-- Phase 6's part 1 landed as neema2/legend-lite#52 (da2dd23). Its part 2 is done on branch
-  `claude/gracious-edison-jcsvzm` (both records are under Phase 6).
-- Left: Phase 7 (the warehouse and the other modules, then the absolute ratchet), the SQL translator's Postgres rules
-  (D11), and defect 11 (SQLite's plan path) in a PR of its own.
+- Phase 6 landed in two parts: part 1 as neema2/legend-lite#52 (da2dd23), part 2 as neema2/legend-lite#54 (c607cf6)
+  (both records are under Phase 6).
+- Phase 7 is done on branch `claude/gracious-edison-jcsvzm` (its record is under Phase 7).
+- Left:
+  - the absolute ratchet: the ledger's six rows are the compiler line's `DynaFn` (D10) and the SQL translator's
+    Postgres rules (D11, five files);
+  - defect 11 (SQLite's plan path), in a PR of its own.
 
 (The status of 2026-10-13, on `claude/great-wright-p6t5s1`: Phase 0 done (55569df); Phase 1's 1b steps 1 to 3
 (2a4a5c8, 9373aec, 4a9f1bc, 43ad660), P1a (e64e7e8), P1c (9e6363e to 074bd95), P1d with D8 (0470214 to 1447d42) and
@@ -274,8 +277,8 @@ structural, not scattered:
 | 4 | `CorpusDifferentialTest` renders every service with the DuckDB dialect, even services whose runtime declares H2, Postgres, Snowflake or Databricks | `CorpusDifferentialTest.java:46, 63, 81-83` |
 | 5 | On the Postgres corpus lane, on-demand fixtures run *without isolation*: `isolateBegin` returns null and the caller proceeds | `DuckWorkspaces.java:198-202`, `MinimalCorpus.java:692-696` |
 | 6 | `AbstractDatabaseTest`'s SQLite subclass declares `type: SQLite; specification: DuckDB {}`. *Fixed by Phase 6, part 1 (2026-10-16): the connection declares its backend's specification.* | `AbstractDatabaseTest.java:285-296` |
-| 7 | The warehouse wraps `BEGIN`/`COMMIT` in `postgres_query` on an attached Postgres catalog (expected to fail; read, not run) | `warehouse/.../WhConnection.java:66-93` |
-| 8 | The warehouse reports engine "DuckDB" for an attached Postgres catalog | `warehouse/.../server/Sessions.java:46` |
+| 7 | The warehouse wraps `BEGIN`/`COMMIT` in `postgres_query` on an attached Postgres catalog (expected to fail; read, not run). *Unreachable, and it was at the census commit (Phase 7, 2026-10-18): the census read `WhConnection` without its caller. A JDBC connection opens a session first, and `WarehouseServer.openSession` refuses a session on an attached catalog by name. Pinned by `WarehousePostgresLiveTest.aJdbcConnectionToTheAttachedCatalogIsRefusedByName`.* | `warehouse/.../WhConnection.java:66-93` |
+| 8 | The warehouse reports engine "DuckDB" for an attached Postgres catalog. *Unreachable for the same reason (Phase 7): a session, and so the engine it reports, exists only on a native catalog. The name is the DuckDB binding's now (`DuckLibrary.NAME`), and `WarehouseJdbcTest.theDatabaseIsTheEngineBehindTheSession` holds it to DuckDB's own driver.* | `warehouse/.../server/Sessions.java:46` |
 | 9 | ClickHouse's `concat` is NULL when any argument is NULL, where the flat concat's contract skips NULLs (H2, DuckDB, Postgres and SQLite skip them; Trino emulates it): a left-join-missed operand yields NULL on ClickHouse only. No PCT lane reaches it (found by D1, 2026-10-13; a follow-up task) | `clickhouse local` 25.8: `concat('a', NULL, 'b')` is `\N`; `ClickHouse.java` CONCAT → `concatFlat` |
 | 10 | On BigQuery an ordered collection of instances comes back in either order: the literal list lowers to a `UNION ALL` of one-row selects with no ordinal and no `ORDER BY`, and BigQuery keeps no branch order (`collection::tests::filter::testFilterInstance`, `[i1, i2]` or `[i2, i1]` from run to run; found by D1's measurement, 2026-10-13, older than it) | sibling 4's two runs of `pct_channel_b_bigquery_grammar` on 270dcfb |
 | 11 | SQLite's plan path answers differently from today's path: a list parameter's plan is refused by name ("binds no array"); a Decimal parameter answers `2.500000000000000000` in CSV and `"2.50"`, a string, in JSON, where today's path answers `2.50` and `2.5`; a Date or DateTime parameter answers with nine fraction digits in JSON (found by Phase 6, 2026-10-16, when PlanMakerTest first ran on every in-process database; no lane runs SQLite's plans) | `core/src/test/resources/plan-maker/differences.tsv`, 31 rows |
@@ -1163,6 +1166,65 @@ warehouse's tests (Phase 7).
   - **Kept:** `experiments/` (kept by decision, 2026-10-02, `.bazelignore`) and the code under `docs/` (the harnesses
     that produced each folder's evidence, `docs/parked/` included). The leak ratchet skips them by path.
 
+**Done, 2026-10-18** (branch `claude/gracious-edison-jcsvzm`, after Phase 6 landed as neema2/legend-lite#54). What it
+did, and where it departs from the list above:
+
+- **The warehouse (D4).**
+  - Its Postgres knowledge is behind `Attachment`, the registry of the databases a catalog attaches, each operation an
+    exhaustive switch into the database's own class. That now includes the command line (a kind's option, `--postgres
+    NAME=CONNECTION`, and its URL alone, `postgresql://...`), the password prompt, where a password goes without a
+    terminal, and libpq's "no password supplied" (`Postgres`). `Config` carries attached catalogs of any kind
+    (`Config.attached`, `withAttached`); `WarehouseServer` and `Catalogs` name no attached database.
+  - The DuckDB binding owns DuckDB's facts: its error kinds (`DuckException.parse` and `bind`, read from its kind or,
+    for a statement refused while it was prepared, from its message's lead; `Statements.classify` matches no text) and
+    its name (`DuckLibrary.NAME`, the engine a session reports).
+  - **Defects 7 and 8 were never reachable** (§3): a session, and so a JDBC connection, exists only on a native
+    catalog. A test pins the refusal.
+  - Its tests: `TestServer` takes attached catalogs of any kind; `AppModeTest`'s Postgres URL tests are
+    `PostgresUrlTest`'s, and the URL on the app's command line is `PostgresCatalogTest`'s.
+  - **The warehouse is a host owner** (`DatabaseOwners`' HOST kind): one DuckDB, the host of every catalog. Its sources
+    name DuckDB, in their code and their strings; another database only in a file named for it; and `Attachment`, the
+    registry, every one it attaches. The guards read its main code too. Its 5 ledger rows (24 lines) and its two
+    registered crossings are gone.
+  - Departure: the "one warehouse-owned class" is two, `Postgres` and `PostgresUrl` (a URL's reading is its own
+    record), both reached only through `Attachment`.
+- **`server/CreateClass`.** The path a pathless in-memory specification is written with is the declared database's
+  dialect's (`SqlDialect.inMemoryPath`): DuckDB's `:memory:`, which legend-engine needs (its DuckDB opens the path a
+  specification names, and refuses one with none); the other dialects name none. `CreateClass` is plan side
+  (`//core:pure_v1`), so the dialect, not the connector, answers. Same output.
+- **Phase 3's two wasm items**, left until now. `Boundary.testDataSql` seeds the tab with the platform's own dialect
+  (`Databases.PLATFORM`: the tab's engine is the platform's in-process one). The catalog question is
+  `SqlDialect.catalogColumnsQuery` (DuckDB's; the others refuse by name), no longer `DuckDb.CATALOG_COLUMNS_SQL` read off
+  the class. The tab's and Python's signatures are unchanged.
+- **The guards read every module that plans, renders or runs SQL.** wasm's planner, native and testing join core, pct,
+  spec, parser-equivalence and the warehouse. `testing`'s test-database launchers are owners named for their database;
+  `EmbeddedMySql`, which opens MySQL with MariaDB's driver, is a registered crossing. Not read: the build's tools and the
+  other products (sdlc-server, depot-server, query-store, json, base, site, datacube's tools). Their hits that day were
+  two false positives, the census renderer and a tool named for Postgres (`DialectLeakRatchetTest.ROOTS`).
+- **Dead code (D6): 36 files, 17,582 lines deleted.** They are `tools/spikes`, `tools/metamodel-census`,
+  `tools/reference/join.py`, `scripts/corpus`'s codemods and their library (`add_taxonomy_edges`, `brokerage`,
+  `coverage`, `curves`, `curves2`, `largeexp`, `mutate`, `refdata`, `schedule`, `taxa_*`, `timeseries`) and
+  `scripts/{census_gate,generate_pure_constants,outstanding,walldepth}.py`. Departure: the rest of D6's list is left for
+  the build program's script review (`docs/build-inventory/program/PHASE_8.md` End-1), because two decisions conflict
+  on it. D6 (2026-10-13) deletes those files, but the build program's old D3 (2026-10-03) decided to repair or wire
+  them, and its P3-25 wiring is uncommitted elsewhere. They are:
+  - `scripts/corpus/run.py` and its 16 probes, the recipes behind 14 kept repros (old D3 rows 1 and 2);
+  - `scripts/projects/*` (rows 5 and D18);
+  - `tools/untangle` (row 9);
+  - `tools/wrongrows` (P3-25);
+  - `tools/native-axes.py` (row 8) and `tools/upstream-drift.py` (old D19);
+  - `scripts/parser`, which moves to history whole (old D3b).
+
+  The user decides which decision stands for them.
+- **D5** landed on 2026-10-13 (fbd216a3f, `HostSqlTest`). Its follow-up, D5b (`HostOperation.Source.Query`,
+  `Conversion`, `MakeRelation.selectList`; the `snap.ts` preflight count planned like any query), is the DataCube
+  line's. The query demo's warehouse seed (`query/demo/models/trading-seed.sql`) still runs DuckDB text on the
+  configured catalog: the Query line's.
+
+The ledger after Phase 7: 6 rows, 243 lines. `DynaFn` is D10's (the compiler line's); the SQL translator's five files
+are D11's (task #85). The absolute ratchet, the pins and the ledger replaced by an assertion that nothing is counted,
+lands with them.
+
 ### Order and size
 
 | order | phase | rough lines | behaviour change |
@@ -1185,9 +1247,9 @@ Decided by the user, 2026-10-13. The recommendation each row first carried is ke
 | **D1** | A dialect that silently inherits a DuckDB arm from the base renderer today: copy the arm into it, or make it refuse? | **Agreed.** Copy it where that dialect's PCT lanes prove the spelling works there. Refuse with a named `DialectCapability` everywhere else (H2's GUID, TIME_BUCKET and MAP_EMPTY, for example). Behaviour changes only for statements that already produce wrong text. |
 | **D2** | Raw SQL comes from two places: legend-engine-style **H2 text** (corpus test data, `testDataSetupSqls`) and a user's **native** SQL (`executeInDb`). Today both are rewritten as H2 text. | **Decided: by the declared database.** Raw text is in the language of the database its connection declares; it is translated only when it runs on another (an H2 test connection on DuckDB), and passes untouched otherwise (`executeInDb` on a Snowflake connection, as legend-engine does). The DDL for CSV test data is rendered from the IR. Measure the corpus before and after. (First recommended: record the origin on `RawSql`.) |
 | **D3** | The IR's *meanings* are DuckDB's in places: its typing rules, LIST_SLICE's end, H2's scan order, strftime codes. Is that a leak? | **Agreed.** Keep the meanings as the platform's written contract; every dialect already emulates them. Replace only the DuckDB *strings* inside the IR (`"to_days"`, strftime codes, json_type and typeof names) with typed values. |
-| **D4** | Warehouse: share core's dialect, or keep its own per-engine classes? | **Agreed for now.** Keep the closure rule and gather its Postgres knowledge into one owner behind `Attachment`. On the backlog: revisit whether the warehouse can use core's dialects once the platform can carry it. |
+| **D4** | Warehouse: share core's dialect, or keep its own per-engine classes? | **Agreed for now.** Keep the closure rule and gather its Postgres knowledge into one owner behind `Attachment`. On the backlog: revisit whether the warehouse can use core's dialects once the platform can carry it. **Done in Phase 7 (2026-10-18).** **The direction, the user's, 2026-10-18** (after a review of how the warehouse works: today a Postgres catalog is DuckDB acting as Postgres's client, its SQL passed through `postgres_query` and its rows typed by DuckDB). The warehouse keeps DuckDB as its host. The databases worth hosting natively, Postgres and MySQL, become first class through their own native clients, not DuckDB's extensions. ClickHouse (its own HTTP server), BigQuery and Snowflake (HTTP with CORS) are reached directly. Databricks needs a relay until it answers CORS. Trino gains nothing from a native client. Open: whether Snowflake's HTTP API carries Arrow; if not, a native or ODBC client for Arrow is the case for hosting it. A plan of its own. |
 | **D5** | TypeScript apps: must every SQL go through the planner? | **Decided: yes, all of it.** The tab's DuckDB-only operations become named operations of the DuckDB dialect, refused by the others; a guard bans SQL text in TypeScript. (First recommended: no for tab-only setup, which `snap.ts`'s count on a warehouse catalog had already disproved.) |
-| **D6** | Delete the dead trees? | **Decided: only the orphan tools and scripts** (about 24,000 lines, listed in Phase 7). `experiments/` stays (its own decision of 2026-10-02) and so does the code under `docs/`, the harnesses behind each folder's evidence. |
+| **D6** | Delete the dead trees? | **Decided: only the orphan tools and scripts** (about 24,000 lines, listed in Phase 7). `experiments/` stays (its own decision of 2026-10-02) and so does the code under `docs/`, the harnesses behind each folder's evidence. **Applied in Phase 7 (2026-10-18)** to the 36 files no other plan keeps; the rest conflict with the build program's script review and wait for the user (Phase 7's record). |
 | **D7** | Land phase by phase on the branch, each green, then pause for review after P1 (the most visible restructuring)? | **Agreed.** |
 | **D8** | Which case does a store's bare name have on Postgres? The engine emits it unquoted, so Postgres folds it to lower case; the corpus's setup text assumes that. Main's `#SQL{...}#` Postgres fixture and DataCube's `infer.test.ts` assume the opposite: the name is kept as declared and quoted. Folding was tried and reverted on 2026-10-12 (neema2/legend-lite#30's CI). | **Decided: fold**, as legend-engine does (more correct for a drop-in replacement: most Postgres tables are created unquoted). Decide it once, as the dialect's own rule (P1). The two kinds of test then follow whichever rule is chosen. Folding matches the engine and the corpus; keeping case matches `#SQL{...}#`. If folding returns, the PR's independent review named two prerequisites: `CatalogModel.ident` must quote a mixed-case catalog name (or a Postgres table `"Orders"` is read as `orders`), and a star-expanded column's label must take the spelling its references take (`Stars.java:54`). |
 | **P1b** | The base renderer's shape. | **Decided: an exhaustive switch per concrete dialect, families included**, a base with no spellings, a guard that enforces it, and a capability matrix generated from the code (Phase 1b). |
