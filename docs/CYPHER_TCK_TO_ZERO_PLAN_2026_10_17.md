@@ -520,8 +520,8 @@ rows (S71's 372 at render, 38 at seeding, 7 by year); not the 2 signed years (be
   unchanged; PASS 3976 on both): a relationship's temporal values as a node's (embedded value classes, carried as
   parts and zones); a model's marked `TIMESTAMP_NS` column read into the parts at the property, so the epoch carriage
   is minted nowhere (each former mint a loud check, green on both lanes). The profile's marks stay: a model's own
-  `TIMESTAMP_NS` column is read through them (S64). Left: deleting the carriage's now-unreachable branches (the
-  operations spelled over the nanosecond epoch), a cleanup with no behavior.
+  `TIMESTAMP_NS` column is read through them (S64). The carriage's now-unreachable branches (the operations spelled
+  over the nanosecond epoch) deleted after it, 2026-10-18: no row moved, the chain green on both lanes. W13 is done.
 
 ## 3. Decisions asked of the user
 

@@ -9703,10 +9703,6 @@ public final class CypherToPure {
             // zoned values of nanosecond precision: by their instants' parts (W13; by the instants alone, S66)
             return splitZonedCompared(l, r, "equal", null);
         }
-        if (l.kind() == Kind.TIME && (nanos(l) || nanos(r))) {
-            // a nanosecond time of day is the date-time at it on the epoch day: both compare so
-            return SqlToPure.strictTest(List.of(atEpoch(l), atEpoch(r)), v -> call("equal", v.get(0), v.get(1)));
-        }
         if (l.kind() == Kind.DURATION) {
             // two durations are equal when their four components are (Neo4j's: months, days, seconds, nanoseconds)
             return SqlToPure.strictTest(List.of(l, r), v -> {
@@ -10282,15 +10278,6 @@ public final class CypherToPure {
                 Tx eq = SqlToPure.truth(equal(element("e", held), ls.tx(), b.pos()), "IN", b.pos());
                 return SqlToPure.strictTest(List.of(ls.tx()), v -> call("isNotEmpty", call("filter", held.vs(),
                         lambda("e", eq.vs()))));
-            }
-            boolean listNanos = c.elementDetail() instanceof Carried cc && cc.nanos();
-            if (spelledTemporal(c.kind()) && listNanos != nanos(ls.tx())) {
-                // a time or date-time of one precision among those of another (the study's §12.76): the
-                // microsecond side read at nanosecond precision, as the comparisons read both
-                Kind kind = c.kind();
-                return SqlToPure.strictTest(List.of(ls.tx()), v -> listNanos ? call("in", asNanos(v.get(0), kind),
-                        c.vs()) : call("in", v.get(0), call("map", c.vs(), lambda("e", asNanos(new Variable("e"),
-                        kind)))));
             }
             return SqlToPure.strictTest(List.of(ls.tx()), v -> call("in", v.get(0), c.vs()));
         }
@@ -13139,18 +13126,7 @@ public final class CypherToPure {
         return call(AT_TIME, epoch(), time);
     }
 
-    /** A microsecond time or date-time at nanosecond precision: a time of day the date-time at it on the epoch
-     *  day, the database's nanosecond step of none. */
-    private static ValueSpecification asNanos(ValueSpecification x, Kind kind) {
-        return call("adjust", kind == Kind.TIME ? atEpoch(x) : x, lit(0), unit("NANOSECONDS"));
-    }
-
     private static Tx atEpoch(Tx time) {
-        if (nanos(time)) {
-            // a nanosecond time of day is the date-time at it on the epoch day already
-            return new Tx(time.vs(), Kind.DATETIME, time.nullable(), time.whenFalse(), time.detail(), time.guard(),
-                    time.body());
-        }
         return SqlToPure.strict(Kind.DATETIME, List.of(time), x -> atEpoch(x.get(0)));
     }
 
@@ -14003,35 +13979,13 @@ public final class CypherToPure {
 
     // ------------------------------------------------------------------ nanoseconds (the study's §12.12)
 
-    /** The nanoseconds since the epoch, the database's ({@code dateDiff} with {@code NANOSECONDS}: exact where the
-     *  engine keeps nanoseconds, refused by name by a microsecond engine). */
-    private static ValueSpecification epochNanos(ValueSpecification x) {
-        return call("dateDiff", epochInstant(), x, unit("NANOSECONDS"));
-    }
-
-    /** {@code moved}, a microsecond result of a calendar step or a zone conversion of {@code source}, with the
-     *  source's sub-microsecond digits put back (an interval step and a zone conversion keep microseconds). */
-    private static ValueSpecification remainderKept(ValueSpecification moved, ValueSpecification source) {
-        return call("adjust", moved, integer(call("rem", epochNanos(source), new CInteger(1000L))),
-                unit("NANOSECONDS"));
-    }
-
-    /** The time of day of a nanosecond date-time, as the date-time at it on the epoch day. */
-    private static ValueSpecification timeOfNanos(ValueSpecification dt) {
-        return call("adjust", epochInstant(), integer(call("dateDiff", call("datePart", dt), dt,
-                unit("NANOSECONDS"))), unit("NANOSECONDS"));
-    }
-
-    /** The time of day of a date-time (Pure's StrictTime; of nanosecond precision, the date-time at it on the epoch
-     *  day). */
+    /** The time of day of a date-time (Pure's StrictTime; of nanosecond precision, its parts'). */
     private static Tx timeOf(Tx dt) {
         if (split(dt)) {
             // a split date-time's nanoseconds since midnight, a split time of day (W13)
             return splitTime(ofDay(dt));
         }
-        boolean nanos = nanos(dt);
-        return withNanos(SqlToPure.strict(Kind.TIME, List.of(dt), x -> nanos ? timeOfNanos(x.get(0))
-                : call(TIME_OF, x.get(0))), nanos);
+        return SqlToPure.strict(Kind.TIME, List.of(dt), x -> call(TIME_OF, x.get(0)));
     }
 
     /** A written fraction of a second as its nanoseconds (its nine digits, the missing ones zeros: the digits
@@ -14052,18 +14006,17 @@ public final class CypherToPure {
             // an instant of nanosecond precision (W13): its UTC parts, the zone beside
             return splitZoned(t.kind() == Kind.ZONED ? utcParts(t) : t, z);
         }
-        return new Tx(t.vs(), Kind.ZONED, t.nullable(), t.whenFalse(), new Carried(z, nanos(t)), t.guard(),
+        return new Tx(t.vs(), Kind.ZONED, t.nullable(), t.whenFalse(), new Carried(z, false), t.guard(),
                 t.body());
     }
 
     /** The wall time of a zoned date-time in its zone (Pure's DateTime): the instant shifted by the offset, or the
-     *  database's reading of it in the named zone (a nanosecond value's sub-microsecond digits put back after it). */
+     *  database's reading of it in the named zone (a split one's over its parts, W13). */
     private static Tx localOf(Tx zoned, Zone z) {
         if (split(zoned)) {
             return splitWall(zoned, z);
         }
-        boolean nanos = nanos(zoned);
-        return withNanos(SqlToPure.strict(Kind.DATETIME, List.of(zoned), x -> toWall(x.get(0), z, nanos)), nanos);
+        return SqlToPure.strict(Kind.DATETIME, List.of(zoned), x -> toWall(x.get(0), z));
     }
 
     /** The instant a wall time names in a zone, as a zoned date-time of that zone (a zone whose region the
@@ -14072,30 +14025,28 @@ public final class CypherToPure {
         if (split(local)) {
             return splitInstant(local, z);
         }
-        boolean nanos = nanos(local);
-        Tx instant = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(local), x -> toInstant(x.get(0), z, nanos)),
-                nanos);
+        Tx instant = SqlToPure.strict(Kind.DATETIME, List.of(local), x -> toInstant(x.get(0), z));
         return zoned(instant, after(z, instant));
     }
 
     /** The wall time of the instant {@code x} of a value of zone {@code z}: the database's reading of it in a named
      *  zone, else the instant shifted by the offset (a read one the offset at that very instant). */
-    private static ValueSpecification toWall(ValueSpecification x, Zone z, boolean nanos) {
-        return z.named() ? inZone(LOCAL_IN, x, z, nanos) : shifted(x, z, 1, nanos);
+    private static ValueSpecification toWall(ValueSpecification x, Zone z) {
+        return z.named() ? inZone(LOCAL_IN, x, z) : shifted(x, z, 1);
     }
 
     /** The instant the wall time {@code wall} names in the zone {@code z}: the database's reading of it in a named
      *  zone or, where a read region names one, in that region; else the wall time shifted back by the offset. */
-    private static ValueSpecification toInstant(ValueSpecification wall, Zone z, boolean nanos) {
+    private static ValueSpecification toInstant(ValueSpecification wall, Zone z) {
         if (z.named()) {
-            return inZone(INSTANT_IN, wall, z, nanos);
+            return inZone(INSTANT_IN, wall, z);
         }
         ValueSpecification region = z.region();
         if (region != null) {
-            return call("if", call("isEmpty", region), thunk(shifted(wall, z, -1, nanos)), thunk(inZone(INSTANT_IN,
-                    wall, call("toOne", region), nanos)));
+            return call("if", call("isEmpty", region), thunk(shifted(wall, z, -1)), thunk(inZone(INSTANT_IN,
+                    wall, call("toOne", region))));
         }
-        return shifted(wall, z, -1, nanos);
+        return shifted(wall, z, -1);
     }
 
     /** The zone of a value of zone {@code z} moved to the instant {@code moved}: a read region's offset at that
@@ -14110,22 +14061,19 @@ public final class CypherToPure {
             return splitAfter(z, moved.kind() == Kind.ZONED ? utcParts(moved) : moved);
         }
         ValueSpecification offset = call("if", call("isEmpty", region), thunk(java.util.Objects.requireNonNull(
-                z.read())), thunk(call("dateDiff", one(moved), inZone(LOCAL_IN, one(moved), call("toOne", region),
-                nanos(moved)), unit("SECONDS"))));
+                z.read())), thunk(call("dateDiff", one(moved), inZone(LOCAL_IN, one(moved), call("toOne", region)),
+                unit("SECONDS"))));
         return Zone.read(offset, region);
     }
 
-    /** The database's reading of {@code x} in a named zone ({@code instantIn}, {@code localIn}: microseconds), a
-     *  nanosecond value's sub-microsecond digits put back. */
-    private static ValueSpecification inZone(String fn, ValueSpecification x, Zone z, boolean nanos) {
-        return inZone(fn, x, new CString(java.util.Objects.requireNonNull(z.name())), nanos);
+    /** The database's reading of {@code x} in a named zone ({@code instantIn}, {@code localIn}: microseconds). */
+    private static ValueSpecification inZone(String fn, ValueSpecification x, Zone z) {
+        return inZone(fn, x, new CString(java.util.Objects.requireNonNull(z.name())));
     }
 
     /** {@link #inZone} in the zone the database names {@code zoneName} (String[1]). */
-    private static ValueSpecification inZone(String fn, ValueSpecification x, ValueSpecification zoneName,
-            boolean nanos) {
-        ValueSpecification converted = fn.equals(INSTANT_IN) ? regionInstant(x, zoneName) : call(fn, x, zoneName);
-        return nanos ? remainderKept(converted, x) : converted;
+    private static ValueSpecification inZone(String fn, ValueSpecification x, ValueSpecification zoneName) {
+        return fn.equals(INSTANT_IN) ? regionInstant(x, zoneName) : call(fn, x, zoneName);
     }
 
     /** The instant a wall time names in a region, as java.time reads it (Neo4j's): the database's reading, but for a
@@ -14145,31 +14093,23 @@ public final class CypherToPure {
     }
 
     /** A date-time shifted by an offset's parts ({@code direction} 1 towards the wall time, -1 towards the
-     *  instant), each part an {@code adjust} step the database computes; a zero part is no step. A nanosecond
-     *  value steps over the nanosecond epoch (an interval step keeps microseconds). */
-    private static ValueSpecification shifted(ValueSpecification x, Zone z, int direction, boolean nanos) {
+     *  instant), each part an {@code adjust} step the database computes; a zero part is no step. */
+    private static ValueSpecification shifted(ValueSpecification x, Zone z, int direction) {
         if (z.read() != null) {
-            // an offset the database reads: one step of its seconds (of nanosecond precision, of their nanoseconds)
+            // an offset the database reads: one step of its seconds
             ValueSpecification secs = direction > 0 ? z.read() : integer(minus(lit(0), z.read()));
-            return nanos ? call("adjust", x, integer(times(NANOS, secs)), unit("NANOSECONDS"))
-                    : call("adjust", x, secs, unit("SECONDS"));
+            return call("adjust", x, secs, unit("SECONDS"));
         }
         ValueSpecification out = x;
         int sign = z.sign * direction;
         if (z.hours != 0) {
-            out = nanos ? call("adjust", out, integer(times(3_600_000_000_000L, new CInteger((long) sign
-                    * z.hours))), unit("NANOSECONDS"))
-                    : call("adjust", out, new CInteger((long) sign * z.hours), unit("HOURS"));
+            out = call("adjust", out, new CInteger((long) sign * z.hours), unit("HOURS"));
         }
         if (z.minutes != 0) {
-            out = nanos ? call("adjust", out, integer(times(60_000_000_000L, new CInteger((long) sign
-                    * z.minutes))), unit("NANOSECONDS"))
-                    : call("adjust", out, new CInteger((long) sign * z.minutes), unit("MINUTES"));
+            out = call("adjust", out, new CInteger((long) sign * z.minutes), unit("MINUTES"));
         }
         if (z.seconds != 0) {
-            out = nanos ? call("adjust", out, integer(times(1_000_000_000L, new CInteger((long) sign
-                    * z.seconds))), unit("NANOSECONDS"))
-                    : call("adjust", out, new CInteger((long) sign * z.seconds), unit("SECONDS"));
+            out = call("adjust", out, new CInteger((long) sign * z.seconds), unit("SECONDS"));
         }
         return out;
     }
@@ -14191,8 +14131,8 @@ public final class CypherToPure {
 
     /** A named zone's offset at the instant {@code instant}, its seconds: the database's wall time of it in the zone
      *  against it. */
-    private static ValueSpecification namedOffset(ValueSpecification instant, Zone z, boolean nanos) {
-        return call("dateDiff", instant, inZone(LOCAL_IN, instant, z, nanos), unit("SECONDS"));
+    private static ValueSpecification namedOffset(ValueSpecification instant, Zone z) {
+        return call("dateDiff", instant, inZone(LOCAL_IN, instant, z), unit("SECONDS"));
     }
 
     /** The zone of the zoned date-time {@code zoned} as an offset: a named zone's offset at its instant, which the
@@ -14200,7 +14140,7 @@ public final class CypherToPure {
      *  that date's offset); an offset stays. */
     private static Zone fixedAt(Tx zoned, Zone z) {
         if (z.named()) {
-            return Zone.read(namedOffset(instantMicros(zoned), z, nanos(zoned) && !split(zoned)));
+            return Zone.read(namedOffset(instantMicros(zoned), z));
         }
         // (a read region: its offset alone, which is the one at the value's instant)
         return z.read() != null && z.region() != null ? Zone.read(z.read()) : z;
@@ -14240,7 +14180,7 @@ public final class CypherToPure {
             return splitZonedTime(fromEpochDay(instant), z);
         }
         return new Tx(instant.vs(), Kind.ZONED_TIME, instant.nullable(), instant.whenFalse(),
-                new Carried(z, nanos(instant)), instant.guard(), instant.body());
+                new Carried(z, false), instant.guard(), instant.body());
     }
 
     /** A zoned time of day's instant on the epoch day, as the date-time it is (no zone beside). */
@@ -14252,8 +14192,8 @@ public final class CypherToPure {
                 zt.guard(), zt.body());
     }
 
-    /** The wall time of a zoned time of day (Pure's StrictTime; of nanosecond precision, the date-time at it on the
-     *  epoch day): the instant shifted by the offset. */
+    /** The wall time of a zoned time of day (Pure's StrictTime; of nanosecond precision, its parts'): the instant
+     *  shifted by the offset. */
     private static Tx wallTimeOf(Tx zt, Zone z) {
         if (split(zt)) {
             // its UTC nanoseconds moved by the offset, within the day (a converted time's wall time wraps, as
@@ -14261,9 +14201,7 @@ public final class CypherToPure {
             return splitTime(SqlToPure.strict(Kind.INTEGER, List.of(ofDay(zt)), v -> integer(call("mod", plus(v.get(0),
                     secondsAsNanos(fixedSeconds(z))), lit(DAY_NANOS)))));
         }
-        boolean nanos = nanos(zt);
-        return withNanos(SqlToPure.strict(Kind.TIME, List.of(zt), x -> nanos ? shifted(x.get(0), z, 1, true)
-                : call(TIME_OF, shifted(x.get(0), z, 1, false))), nanos);
+        return SqlToPure.strict(Kind.TIME, List.of(zt), x -> call(TIME_OF, shifted(x.get(0), z, 1)));
     }
 
     /** The wall time of a zoned time of day as the date-time at it on the epoch day: what its fields and its
@@ -14272,8 +14210,7 @@ public final class CypherToPure {
         if (split(zt)) {
             return wallTimeOf(zt, z);
         }
-        boolean nanos = nanos(zt);
-        return withNanos(SqlToPure.strict(Kind.DATETIME, List.of(zt), x -> shifted(x.get(0), z, 1, nanos)), nanos);
+        return SqlToPure.strict(Kind.DATETIME, List.of(zt), x -> shifted(x.get(0), z, 1));
     }
 
     /** A zoned time of day from its wall time (Pure's StrictTime) in an offset: the instant on the epoch day. */
@@ -14283,9 +14220,7 @@ public final class CypherToPure {
             return splitZonedTime(SqlToPure.strict(Kind.INTEGER, List.of(ofDay(wall)), v -> integer(minus(v.get(0),
                     secondsAsNanos(fixedSeconds(z))))), z);
         }
-        boolean nanos = nanos(wall);
-        return zonedTime(withNanos(SqlToPure.strict(Kind.DATETIME, List.of(wall), x -> shifted(nanos ? x.get(0)
-                : atEpoch(x.get(0)), z, -1, nanos)), nanos), z);
+        return zonedTime(SqlToPure.strict(Kind.DATETIME, List.of(wall), x -> shifted(atEpoch(x.get(0)), z, -1)), z);
     }
 
     /** A time of day's zone: an offset. A region's name is refused by name: Neo4j takes its offset at the current
@@ -15172,62 +15107,44 @@ public final class CypherToPure {
             Tx moved = splitMoved(utcParts(instantOf(wall, zone)), d, subtract, false, true);
             return zoned(moved, after(zone, moved));
         }
-        boolean temporalNanos = nanos(temporal);
-        // of nanosecond precision when either is: the seconds and nanoseconds as one nanosecond step, a calendar
-        // step or a zone conversion with the sub-microsecond digits put back after it
-        boolean fine = temporalNanos || nanos(d);
-        Tx out = withNanos(SqlToPure.strict(kind == Kind.ZONED ? Kind.DATETIME : kind == Kind.ZONED_TIME ? Kind.TIME
-                : kind, List.of(temporal, d), v -> {
+        // (of nanosecond precision, either, the parts' above: the rest microseconds, the database's steps)
+        Tx out = SqlToPure.strict(kind == Kind.ZONED ? Kind.DATETIME : kind == Kind.ZONED_TIME ? Kind.TIME : kind,
+                List.of(temporal, d), v -> {
             ValueSpecification x = v.get(0);
             ValueSpecification dur = v.get(1);
             ValueSpecification months = slot(dur, "months");
             ValueSpecification days = slot(dur, "days");
             ValueSpecification seconds = slot(dur, "seconds");
             ValueSpecification micros = SqlToPure.integerQuotient(slot(dur, "nanoseconds"), lit(1000));
-            ValueSpecification nanos = slot(dur, "nanoseconds");
             if (subtract) {
                 months = minus(lit(0), months);
                 days = minus(lit(0), days);
                 seconds = minus(lit(0), seconds);
                 micros = minus(lit(0), micros);
-                nanos = minus(lit(0), nanos);
             }
             ValueSpecification secs = seconds;
-            ValueSpecification ns = nanos;
+            ValueSpecification us = micros;
             return switch (kind) {
                 // a date: the months, then the days and the whole days of the seconds (Neo4j's, the fraction of a
                 // day cut toward zero: a duration of 29 days and 33 hours moves a date by 30; the study's §12.59)
                 case DATE -> day(call("adjust", call("adjust", x, integer(months), unit("MONTHS")),
                         integer(plus(days, SqlToPure.integerQuotient(seconds, lit(86400)))), unit("DAYS")));
-                case TIME -> fine ? timeOfNanos(secondsAndNanos(temporalNanos ? x : atEpoch(x), secs, ns,
-                        temporalNanos))
-                        : call(TIME_OF, call("adjust", call("adjust", atEpoch(x), integer(seconds),
-                                unit("SECONDS")), integer(micros), unit("MICROSECONDS")));
+                case TIME -> call(TIME_OF, call("adjust", call("adjust", atEpoch(x), integer(secs), unit("SECONDS")),
+                        integer(us), unit("MICROSECONDS")));
                 // a zoned time of day: its wall time moved by the seconds, wrapping within the day (Neo4j's)
-                case ZONED_TIME -> fine ? timeOfNanos(secondsAndNanos(shifted(x,
-                        java.util.Objects.requireNonNull(zone), 1, temporalNanos), secs, ns, temporalNanos))
-                        : call(TIME_OF, call("adjust", call("adjust", shifted(x,
-                                java.util.Objects.requireNonNull(zone), 1, false), integer(seconds),
-                                unit("SECONDS")), integer(micros), unit("MICROSECONDS")));
+                case ZONED_TIME -> call(TIME_OF, call("adjust", call("adjust", shifted(x,
+                        java.util.Objects.requireNonNull(zone), 1), integer(secs), unit("SECONDS")), integer(us),
+                        unit("MICROSECONDS")));
                 case ZONED -> {
                     Zone z = java.util.Objects.requireNonNull(zone);
-                    ValueSpecification wall = toWall(x, z, temporalNanos);
-                    ValueSpecification moved = step(step(wall, months, "MONTHS", temporalNanos), days, "DAYS",
-                            temporalNanos);
-                    ValueSpecification instant = toInstant(moved, z, temporalNanos);
-                    yield fine ? secondsAndNanos(instant, secs, ns, temporalNanos)
-                            : call("adjust", call("adjust", instant, integer(seconds), unit("SECONDS")),
-                                    integer(micros), unit("MICROSECONDS"));
+                    ValueSpecification moved = step(step(toWall(x, z), months, "MONTHS"), days, "DAYS");
+                    yield call("adjust", call("adjust", toInstant(moved, z), integer(secs), unit("SECONDS")),
+                            integer(us), unit("MICROSECONDS"));
                 }
-                default -> {
-                    ValueSpecification moved = step(step(x, months, "MONTHS", temporalNanos), days, "DAYS",
-                            temporalNanos);
-                    yield fine ? secondsAndNanos(moved, secs, ns, temporalNanos)
-                            : call("adjust", call("adjust", moved, integer(seconds), unit("SECONDS")),
-                                    integer(micros), unit("MICROSECONDS"));
-                }
+                default -> call("adjust", call("adjust", step(step(x, months, "MONTHS"), days, "DAYS"),
+                        integer(secs), unit("SECONDS")), integer(us), unit("MICROSECONDS"));
             };
-        }), fine);
+        });
         if (kind == Kind.ZONED_TIME) {
             return zonedTimeOf(out, java.util.Objects.requireNonNull(zone));
         }
@@ -15301,8 +15218,7 @@ public final class CypherToPure {
             // of nanosecond precision, two local values (W13): over the parts
             return scalar(splitBetween(member, sa.tx(), sb.tx(), cls));
         }
-        if (split(sa.tx()) || split(sb.tx()) || zonedOrTime(sa.tx()) && zonedOrTime(sb.tx())
-                && (nanos(sa.tx()) || nanos(sb.tx()))) {
+        if (split(sa.tx()) || split(sb.tx())) {
             // of nanosecond precision, a zoned value among them (W13): over the parts
             return scalar(partsBetween(member, sa.tx(), sb.tx(), cls, c.pos()));
         }
@@ -15326,16 +15242,14 @@ public final class CypherToPure {
             Tx otherSide;
             if (other.kind() == Kind.TIME) {
                 placed = instantOfTime(zt);
-                boolean otherNanos = nanos(other);
-                otherSide = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(other), v -> shifted(otherNanos
-                        ? v.get(0) : atEpoch(v.get(0)), tz, -1, otherNanos)), otherNanos);
+                otherSide = SqlToPure.strict(Kind.DATETIME, List.of(other), v -> shifted(atEpoch(v.get(0)), tz,
+                        -1));
             } else if (isDateLike(other.kind())) {
                 Zone oz = other.kind() == Kind.ZONED ? zoneKnown(other, c.pos()) : null;
                 Tx otherWall = oz == null ? asDateTime(other) : localOf(other, oz);
                 Tx wallTime = wallTimeOf(zt, tz);
-                boolean timeNanos = nanos(wallTime);
-                Tx onDate = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(otherWall, wallTime),
-                        v -> atTimeOf(call("datePart", v.get(0)), v.get(1), timeNanos)), timeNanos || nanos(otherWall));
+                Tx onDate = SqlToPure.strict(Kind.DATETIME, List.of(otherWall, wallTime),
+                        v -> call(AT_TIME, call("datePart", v.get(0)), v.get(1)));
                 placed = instantOf(onDate, tz);
                 otherSide = oz != null ? other : instantOf(otherWall, tz);
             } else {
@@ -15364,9 +15278,8 @@ public final class CypherToPure {
             Tx other = timeFirst ? y : x;
             Zone z = other.kind() == Kind.ZONED ? zoneKnown(other, c.pos()) : null;
             Tx wall = z == null ? asDateTime(other) : localOf(other, z);
-            boolean timeNanos = nanos(time);
-            Tx onDate = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(wall, time), v -> atTimeOf(call("datePart",
-                    v.get(0)), v.get(1), timeNanos)), timeNanos || nanos(wall));
+            Tx onDate = SqlToPure.strict(Kind.DATETIME, List.of(wall, time), v -> call(AT_TIME, call("datePart",
+                    v.get(0)), v.get(1)));
             Tx placed = z == null ? onDate : instantOf(onDate, z);
             Tx otherSide = z == null ? wall : other;
             x = timeFirst ? placed : otherSide;
@@ -15382,50 +15295,38 @@ public final class CypherToPure {
         } else if (zy != null && zx == null) {
             x = instantOf(asDateTime(x), zy);
         }
-        // of nanosecond precision when either is: the calendar steps with the sub-microsecond digits put back, the
-        // rest the nanoseconds' difference
-        boolean fine = nanos(x) || nanos(y);
-        return scalar(withNanos(SqlToPure.strict(Kind.DURATION, List.of(x, y), v -> {
+        // (of nanosecond precision, either, the parts' above: the rest the microseconds' difference)
+        return scalar(SqlToPure.strict(Kind.DURATION, List.of(x, y), v -> {
             ValueSpecification from = v.get(0);
             ValueSpecification to = v.get(1);
             ValueSpecification months = lit(0);
             if (member == TemporalMember.BETWEEN || member == TemporalMember.IN_MONTHS) {
-                months = wholeUnits(from, to, "MONTHS", fine);
-                from = step(from, months, "MONTHS", fine);
+                months = wholeUnits(from, to, "MONTHS");
+                from = step(from, months, "MONTHS");
             }
             if (member == TemporalMember.IN_MONTHS) {
                 return duration(cls, months, lit(0), lit(0), lit(0));
             }
             ValueSpecification days = lit(0);
             if (member == TemporalMember.BETWEEN || member == TemporalMember.IN_DAYS) {
-                days = wholeUnits(from, to, "DAYS", fine);
-                from = step(from, days, "DAYS", fine);
+                days = wholeUnits(from, to, "DAYS");
+                from = step(from, days, "DAYS");
             }
             if (member == TemporalMember.IN_DAYS) {
                 return duration(cls, lit(0), days, lit(0), lit(0));
-            }
-            if (fine) {
-                ValueSpecification all = call("dateDiff", from, to, unit("NANOSECONDS"));
-                ValueSpecification seconds = call("floor", call("divide", all, lit(1_000_000_000)));
-                return duration(cls, months, days, seconds, minus(all, times(1_000_000_000L, seconds)));
             }
             ValueSpecification micros = call("dateDiff", from, to, unit("MICROSECONDS"));
             ValueSpecification seconds = call("floor", call("divide", micros, lit(1_000_000)));
             ValueSpecification nanos = times(1000, minus(micros, times(1_000_000, seconds)));
             return duration(cls, months, days, seconds, nanos);
-        }), fine));
+        }));
     }
 
-    /** Whether a value is a temporal {@link #partsBetween} reads (any but a duration). */
-    private static boolean zonedOrTime(Tx t) {
-        return isDateLike(t.kind()) || t.kind() == Kind.TIME || t.kind() == Kind.ZONED_TIME;
-    }
-
-    /** {@link #between} over the parts (W13) where a zoned value is among the operands, as the old carriage reads
-     *  them: two zoned times their instants on the epoch day; a zoned time and a local time, the local one read in
-     *  the zoned one's zone; a zoned time and a date or date-time, the time placed on the other's wall date in its
-     *  own zone; a time of day and a date or date-time, the time on the other's date; a zoned and a local value, the
-     *  local one read in the zoned one's zone; then the instants', or the wall times', parts. */
+    /** {@link #between} over the parts (W13) where a zoned value is among the operands, as §12.11 reads them: two
+     *  zoned times their instants on the epoch day; a zoned time and a local time, the local one read in the zoned
+     *  one's zone; a zoned time and a date or date-time, the time placed on the other's wall date in its own zone; a
+     *  time of day and a date or date-time, the time on the other's date; a zoned and a local value, the local one
+     *  read in the zoned one's zone; then the instants', or the wall times', parts. */
     private Tx partsBetween(TemporalMember member, Tx a, Tx b, String cls, Pos pos) {
         Tx x = a;
         Tx y = b;
@@ -15565,10 +15466,10 @@ public final class CypherToPure {
 
     /** The whole units of {@code unit} from {@code from} to {@code to}: the calendar count, one back when stepping
      *  it from {@code from} overshoots {@code to} (forward), one on when it undershoots (backward). */
-    private static ValueSpecification wholeUnits(ValueSpecification from, ValueSpecification to, String unitName,
-            boolean nanos) {
+    private static ValueSpecification wholeUnits(ValueSpecification from, ValueSpecification to,
+            String unitName) {
         ValueSpecification count = call("dateDiff", from, to, unit(unitName));
-        ValueSpecification stepped = step(from, count, unitName, nanos);
+        ValueSpecification stepped = step(from, count, unitName);
         ValueSpecification forward = call("if", call("greaterThan", stepped, to), thunk(minus(count, lit(1))),
                 thunk(count));
         ValueSpecification backward = call("if", call("lessThan", stepped, to), thunk(plus(count, lit(1))),
@@ -15802,11 +15703,10 @@ public final class CypherToPure {
                             + text)), v.get(1)))));
             return scalar(splitZoned(splitDateTime(datePartOf(utc), checkedClock), named));
         }
-        boolean fine = nanos(instant);
-        Tx checked = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(instant, ws.tx()), v -> call("if",
-                call("equal", inZone(LOCAL_IN, v.get(0), named, fine), v.get(1)), thunk(v.get(0)),
+        Tx checked = SqlToPure.strict(Kind.DATETIME, List.of(instant, ws.tx()), v -> call("if",
+                call("equal", inZone(LOCAL_IN, v.get(0), named), v.get(1)), thunk(v.get(0)),
                 new LambdaFunction(List.of(), List.of(call("fail", new CString("Timezone and offset do not match: "
-                        + text)), v.get(0))))), fine);
+                        + text)), v.get(0)))));
         return scalar(zoned(checked, named));
     }
 
@@ -15956,11 +15856,9 @@ public final class CypherToPure {
             return scalar(printed);
         }
         if (!s.literal()) {
-            boolean fine = nanos(t);
-            // (a nanosecond time is the date-time at it on the epoch day, §12.12)
-            return scalar(withNanos(SqlToPure.strict(Kind.TIME, List.of(t), x -> fine
-                    ? parsedWithNanos(x.get(0), 15, true, "1970-01-01T")
-                    : call(TIME_OF, parsedWithNanos(x.get(0), 15, false, "1970-01-01T"))), fine));
+            // (a text a nanosecond value was printed as, marked so: the parts it spells, W13)
+            return scalar(nanos(t) ? splitOfIso(t, Kind.TIME) : SqlToPure.strict(Kind.TIME, List.of(t),
+                    x -> call(TIME_OF, call("parseDate", plus(new CString("1970-01-01T"), x.get(0))))));
         }
         String text = (String) java.util.Objects.requireNonNull(s.constant());
         com.legend.values.PureTimeLiteral lit = timeLiteral(text);
@@ -16096,12 +15994,9 @@ public final class CypherToPure {
         }
         boolean hasBase = base != null;
         boolean baseIsTime = base != null && base.kind() == Kind.TIME;
-        boolean baseNanos = base != null && nanos(base);
-        boolean fine = baseNanos || nanosComponent;
         Set<Component> keys = parts.keySet();
-        if (fine && (base == null || !baseNanos || split(base))) {
-            // of nanosecond precision: the nanoseconds since midnight the components spell over the base's (W13; a
-            // base in the epoch-nanosecond carriage keeps it until W13's stored leg)
+        if (base != null && nanos(base) || nanosComponent) {
+            // of nanosecond precision: the nanoseconds since midnight the components spell over the base's (W13)
             List<Tx> clockInputs = new ArrayList<>(parts.values());
             if (base != null) {
                 clockInputs.add(0, ofDay(base));
@@ -16109,18 +16004,16 @@ public final class CypherToPure {
             return scalar(splitTime(SqlToPure.strict(Kind.INTEGER, clockInputs, v -> clockOf(hasBase ? v.get(0)
                     : null, components(keys, v, hasBase ? 1 : 0)))));
         }
-        return scalar(withNanos(SqlToPure.strict(Kind.TIME, inputs, v -> {
+        return scalar(SqlToPure.strict(Kind.TIME, inputs, v -> {
             Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
             int i = hasBase ? 1 : 0;
             for (Component k : keys) {
                 p.put(k, v.get(i++));
             }
-            // (a nanosecond time of day is the date-time at it on the epoch day already)
-            ValueSpecification baseTime = hasBase ? baseIsTime && !baseNanos ? atEpoch(v.get(0)) : v.get(0) : null;
+            ValueSpecification baseTime = hasBase ? baseIsTime ? atEpoch(v.get(0)) : v.get(0) : null;
             ValueSpecification one = new CInteger(1L);
-            ValueSpecification at = timeParts(new CInteger(1970L), one, one, baseTime, p, baseNanos, nanosComponent);
-            return fine ? at : call(TIME_OF, at);
-        }), fine));
+            return call(TIME_OF, timeParts(new CInteger(1970L), one, one, baseTime, p));
+        }));
     }
 
     /** A date-time: the date (its year, month and day) at the time the components spell — each of hour, minute and
@@ -16130,7 +16023,7 @@ public final class CypherToPure {
      *  and microseconds. */
     private static ValueSpecification timeParts(ValueSpecification year, ValueSpecification month,
             ValueSpecification day, @com.legend.base.Nullable ValueSpecification baseTime,
-            Map<Component, ValueSpecification> p, boolean baseNanos, boolean nanosComponent) {
+            Map<Component, ValueSpecification> p) {
         ValueSpecification h = p.containsKey(Component.HOUR) ? p.get(Component.HOUR) : baseTime != null
                 ? call("hour", baseTime) : new CInteger(0L);
         ValueSpecification mi = p.containsKey(Component.MINUTE) ? p.get(Component.MINUTE) : baseTime != null
@@ -16140,9 +16033,8 @@ public final class CypherToPure {
         ValueSpecification dt = call("date", year, month, day, integer(h), integer(mi), integer(s));
         if (baseTime != null && !p.containsKey(Component.MILLISECOND) && !p.containsKey(Component.MICROSECOND)
                 && !p.containsKey(Component.NANOSECOND)) {
-            String u = baseNanos ? "NANOSECONDS" : "MICROSECONDS";
             dt = call("adjust", dt, call("dateDiff", call("firstMillisecondOfSecond", baseTime), baseTime,
-                    unit(u)), unit(u));
+                    unit("MICROSECONDS")), unit("MICROSECONDS"));
         }
         if (p.containsKey(Component.MILLISECOND)) {
             dt = call("adjust", dt, integer(p.get(Component.MILLISECOND)), unit("MILLISECONDS"));
@@ -16151,9 +16043,9 @@ public final class CypherToPure {
             dt = call("adjust", dt, integer(p.get(Component.MICROSECOND)), unit("MICROSECONDS"));
         }
         if (p.containsKey(Component.NANOSECOND)) {
-            dt = nanosComponent ? call("adjust", dt, integer(p.get(Component.NANOSECOND)), unit("NANOSECONDS"))
-                    : call("adjust", dt, integer(call("divide", p.get(Component.NANOSECOND), new CInteger(1000L))),
-                            unit("MICROSECONDS"));
+            // (a multiple of a thousand: a nanosecond component that is not one makes the value its parts, W13)
+            dt = call("adjust", dt, integer(call("divide", p.get(Component.NANOSECOND), new CInteger(1000L))),
+                    unit("MICROSECONDS"));
         }
         return dt;
     }
@@ -16168,10 +16060,9 @@ public final class CypherToPure {
         return !(t.vs() instanceof CInteger n) || n.value().longValue() % 1000 != 0;
     }
 
-    /** {@code dt} with the sub-second fields written over it added, the nanoseconds as the database's nanosecond
-     *  step when of nanosecond precision, else as the microseconds they are. */
-    private static ValueSpecification withSubSecond(ValueSpecification dt, Map<Component, ValueSpecification> o,
-            boolean nanosField) {
+    /** {@code dt} with the sub-second fields written over it added, the nanoseconds as the microseconds they are
+     *  (a nanosecond field that is not a multiple of a thousand makes the value its parts, W13). */
+    private static ValueSpecification withSubSecond(ValueSpecification dt, Map<Component, ValueSpecification> o) {
         ValueSpecification out = dt;
         if (o.containsKey(Component.MILLISECOND)) {
             out = call("adjust", out, integer(o.get(Component.MILLISECOND)), unit("MILLISECONDS"));
@@ -16180,31 +16071,15 @@ public final class CypherToPure {
             out = call("adjust", out, integer(o.get(Component.MICROSECOND)), unit("MICROSECONDS"));
         }
         if (o.containsKey(Component.NANOSECOND)) {
-            out = nanosField ? call("adjust", out, integer(o.get(Component.NANOSECOND)), unit("NANOSECONDS"))
-                    : call("adjust", out, SqlToPure.integerQuotient(o.get(Component.NANOSECOND), new CInteger(
-                            1000L)), unit("MICROSECONDS"));
+            out = call("adjust", out, SqlToPure.integerQuotient(o.get(Component.NANOSECOND), new CInteger(1000L)),
+                    unit("MICROSECONDS"));
         }
         return out;
     }
 
-    /** {@code x} moved by a duration's seconds and nanoseconds: the seconds an interval step (a nanosecond value's
-     *  sub-microsecond digits put back after it), the nanoseconds a nanosecond step — two steps, so no product of
-     *  the seconds and a billion (which the database folds to 32 bits over a literal-built slot). */
-    private static ValueSpecification secondsAndNanos(ValueSpecification x, ValueSpecification seconds,
-            ValueSpecification nanos, boolean xNanos) {
-        ValueSpecification moved = call("adjust", x, integer(seconds), unit("SECONDS"));
-        if (xNanos) {
-            moved = remainderKept(moved, x);
-        }
-        return call("adjust", moved, integer(nanos), unit("NANOSECONDS"));
-    }
-
-    /** A calendar step of a value ({@code adjust} by months, days, ...: an interval, microseconds), a nanosecond
-     *  value's sub-microsecond digits put back. */
-    private static ValueSpecification step(ValueSpecification x, ValueSpecification n, String unitName,
-            boolean nanos) {
-        ValueSpecification moved = call("adjust", x, integer(n), unit(unitName));
-        return nanos ? remainderKept(moved, x) : moved;
+    /** A calendar step of a value ({@code adjust} by months, days, ...: an interval, microseconds). */
+    private static ValueSpecification step(ValueSpecification x, ValueSpecification n, String unitName) {
+        return call("adjust", x, integer(n), unit(unitName));
     }
 
     /** A temporal value from a text: a literal in the ISO calendar form is Pure's date literal; any other literal
@@ -16217,10 +16092,12 @@ public final class CypherToPure {
             return scalar(printed);
         }
         if (!s.literal()) {
-            boolean fine = withTime && nanos(t);
-            return scalar(withNanos(SqlToPure.strict(withTime ? Kind.DATETIME : Kind.DATE, List.of(t), x -> withTime
-                    ? parsedWithNanos(x.get(0), 26, fine, null) : call("datePart", call("parseDate", x.get(0)))),
-                    fine));
+            if (withTime && nanos(t)) {
+                // (a text a nanosecond value was printed as, marked so: the parts it spells, W13)
+                return scalar(splitOfIso(t, Kind.DATETIME));
+            }
+            return scalar(SqlToPure.strict(withTime ? Kind.DATETIME : Kind.DATE, List.of(t), x -> withTime
+                    ? call("parseDate", x.get(0)) : call("datePart", call("parseDate", x.get(0)))));
         }
         String text = (String) java.util.Objects.requireNonNull(s.constant());
         com.legend.values.PureDateLiteral lit = isoLiteral(text, withTime);
@@ -16524,7 +16401,7 @@ public final class CypherToPure {
             p.put(Component.MICROSECOND, lit(Long.parseLong((fraction + "000000").substring(0, 6))));
         }
         return scalar(Tx.value(timeParts(call("year", date), call("monthNumber", date), call("dayOfMonth", date),
-                null, p, false, false), Kind.DATETIME, false));
+                null, p), Kind.DATETIME, false));
     }
 
     /** The ISO calendar form read character by character: {@code yyyy-mm-dd}, and with a time
@@ -16668,18 +16545,16 @@ public final class CypherToPure {
         boolean hasBaseTime = baseHasTime;
         boolean hasTimeBase = timeBase != null;
         boolean timeBaseIsTime = timeBase != null && timeBase.kind() == Kind.TIME;
-        boolean timeBaseNanos = timeBase != null && nanos(timeBase);
-        boolean baseNanos = timeBase != null ? timeBaseNanos : baseHasTime && base != null && nanos(base);
+        boolean baseNanos = timeBase != null ? nanos(timeBase) : baseHasTime && base != null && nanos(base);
         boolean fine = withTime && (baseNanos || nanosComponent);
         Set<Component> keys = parts.keySet();
         if (hasBaseTime && keys.isEmpty() && !hasTimeBase) {
             return scalar(java.util.Objects.requireNonNull(base));
         }
         Tx clockSource = timeBase != null ? timeBase : hasBaseTime ? base : null;
-        if (fine && (clockSource == null || !nanos(clockSource) || split(clockSource))) {
+        if (fine) {
             // of nanosecond precision: its parts (W13), the date the components spell over the base's date, the
-            // nanoseconds since midnight they spell over the base time's (a base in the epoch-nanosecond carriage
-            // keeps it until W13's stored leg)
+            // nanoseconds since midnight they spell over the base time's
             Tx dateBase = base == null ? null : base.kind() == Kind.DATE ? base : datePartOf(base);
             Tx clockBase = timeBase != null ? ofDay(timeBase) : hasBaseTime ? ofDay(java.util.Objects.requireNonNull(
                     base)) : null;
@@ -16702,13 +16577,10 @@ public final class CypherToPure {
             return scalar(splitDateTime(date, clock, year));
         }
         if (hasBase && !hasBaseTime && timeBaseIsTime && keys.isEmpty()) {
-            // localdatetime({date: d, time: t}): the date-time at that time of that day (a nanosecond time's
-            // nanoseconds since its midnight on the date's)
-            return scalar(withNanos(SqlToPure.strict(result, inputs, v -> timeBaseNanos
-                    ? call("adjust", asMidnight(v.get(0)), integer(epochNanos(v.get(1))), unit("NANOSECONDS"))
-                    : call(AT_TIME, v.get(0), v.get(1))), fine));
+            // localdatetime({date: d, time: t}): the date-time at that time of that day
+            return scalar(SqlToPure.strict(result, inputs, v -> call(AT_TIME, v.get(0), v.get(1))));
         }
-        return scalar(withNanos(SqlToPure.strict(result, inputs, v -> {
+        return scalar(SqlToPure.strict(result, inputs, v -> {
             Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
             int i = (hasBase ? 1 : 0) + (hasTimeBase ? 1 : 0);
             for (Component k : keys) {
@@ -16719,24 +16591,10 @@ public final class CypherToPure {
                 return date;
             }
             ValueSpecification tb = hasTimeBase ? v.get(hasBase ? 1 : 0) : null;
-            ValueSpecification baseTime = tb != null ? timeBaseIsTime && !timeBaseNanos ? atEpoch(tb) : tb
+            ValueSpecification baseTime = tb != null ? timeBaseIsTime ? atEpoch(tb) : tb
                     : hasBaseTime ? v.get(0) : null;
-            return timeParts(call("year", date), call("monthNumber", date), call("dayOfMonth", date), baseTime, p,
-                    baseNanos, nanosComponent);
-        }), fine));
-    }
-
-    /** The date-time at a time of day of a date ({@code atTime}); a nanosecond time's nanoseconds since its
-     *  midnight added to the date's. */
-    private static ValueSpecification atTimeOf(ValueSpecification date, ValueSpecification time, boolean nanos) {
-        return nanos ? call("adjust", asMidnight(date), integer(epochNanos(time)), unit("NANOSECONDS"))
-                : call(AT_TIME, date, time);
-    }
-
-    /** A date as the date-time at its midnight. */
-    private static ValueSpecification asMidnight(ValueSpecification d) {
-        return call(AT_TIME, d, new com.legend.protocol.spec.CTime(
-                new com.legend.values.PureTimeLiteral.TimeWithMinute(0, 0), "00:00", null));
+            return timeParts(call("year", date), call("monthNumber", date), call("dayOfMonth", date), baseTime, p);
+        }));
     }
 
     /** The date (Pure's StrictDate) the components spell: over a base date, its fields written over; else the
@@ -16878,16 +16736,8 @@ public final class CypherToPure {
                 }
                 // the whole fraction of the second in that unit (Neo4j's millisecond of 12:31:14.645876 is 645,
                 // its microsecond 645876): the database's distance from the second's start; nanoseconds are the
-                // microseconds a thousandfold (the database keeps microseconds)
-                boolean fine = nanos(x);
+                // microseconds a thousandfold (the database keeps microseconds; a nanosecond value is its parts)
                 yield field(x, v -> {
-                    if (fine) {
-                        // the nanoseconds since the second's start, the database's; the coarser fields their quotients
-                        ValueSpecification ns = call("dateDiff", call("firstMillisecondOfSecond", v), v,
-                                unit("NANOSECONDS"));
-                        return field == TemporalField.NANOSECOND ? ns : SqlToPure.integerQuotient(ns,
-                                new CInteger(field == TemporalField.MILLISECOND ? 1_000_000L : 1000L));
-                    }
                     ValueSpecification micros = call("dateDiff", call("firstMillisecondOfSecond", v), v,
                             unit(field == TemporalField.MILLISECOND ? "MILLISECONDS" : "MICROSECONDS"));
                     return field == TemporalField.NANOSECOND ? integer(AppliedFunction.infixRun("times",
@@ -16933,7 +16783,7 @@ public final class CypherToPure {
                             z.region()))) : z.offsetSpelled());
             // (a named zone's offset at the instant, the database's text: the study's §12.75)
             case OFFSET -> SqlToPure.strict(Kind.STRING, List.of(t), x -> z.named()
-                    ? offsetTextOf(namedOffset(x.get(0), z, nanos(t))) : z.offsetSpelled());
+                    ? offsetTextOf(namedOffset(x.get(0), z)) : z.offsetSpelled());
             case OFFSET_MINUTES, OFFSET_SECONDS -> {
                 ValueSpecification read = z.read();
                 if (read != null) {
@@ -16943,7 +16793,7 @@ public final class CypherToPure {
                 }
                 String u = field == TemporalField.OFFSET_MINUTES ? "MINUTES" : "SECONDS";
                 yield field(t, v -> call("dateDiff", v, z.named() ? call(LOCAL_IN, v, new CString(
-                        java.util.Objects.requireNonNull(z.name()))) : shifted(v, z, 1, false), unit(u)));
+                        java.util.Objects.requireNonNull(z.name()))) : shifted(v, z, 1), unit(u)));
             }
             case EPOCH_SECONDS, EPOCH_MILLIS -> field(t, v -> call("dateDiff", epochInstant(), v,
                     unit(field == TemporalField.EPOCH_SECONDS ? "SECONDS" : "MILLISECONDS")));
@@ -16999,7 +16849,6 @@ public final class CypherToPure {
      *  by name. */
     private static Tx temporalText(Tx t, Pos pos) {
         Zone zone = t.kind() == Kind.ZONED || t.kind() == Kind.ZONED_TIME ? zoneKnown(t, pos) : null;
-        boolean fine = nanos(t);
         boolean time = t.kind() == Kind.TIME || t.kind() == Kind.ZONED_TIME;
         Tx wall = t.kind() == Kind.TIME ? split(t) ? t : atEpoch(t)
                 : t.kind() == Kind.ZONED_TIME ? wallAtEpoch(t, java.util.Objects.requireNonNull(zone))
@@ -17010,8 +16859,7 @@ public final class CypherToPure {
             // (print then parse is the identity, §12.74: a parse of the text reads the value back, a local one's too)
             return printedFrom(withNanos(splitText(wall, zone, time, named ? utcParts(t) : null), true), t);
         }
-        // (the text of a nanosecond value is marked as one: a parse of it reads the digits past the microsecond)
-        Tx printed = withNanos(SqlToPure.strict(Kind.STRING, named ? List.of(wall, t) : List.of(wall), x -> {
+        Tx printed = SqlToPure.strict(Kind.STRING, named ? List.of(wall, t) : List.of(wall), x -> {
             ValueSpecification v = x.get(0);
             // the zone as Java prints it: the offset (a named zone's at the instant, its wall time against the
             // instant, then its name in brackets: the study's §12.75), none for a local value
@@ -17020,11 +16868,10 @@ public final class CypherToPure {
                     ? plus(zone.offsetSpelled(), call("if", call("isEmpty", zone.region()), thunk(new CString("")),
                             thunk(plus(new CString("["), call("toOne", zone.region()), new CString("]")))))
                     : zone.offsetSpelled();
-            // the digits of the fraction: the nanoseconds since the second's start (the microseconds a thousandfold
-            // when the value keeps microseconds), behind a leading 1 that keeps the zeros, then cut to the three,
-            // six or nine Java prints
-            ValueSpecification ns = fine ? call("dateDiff", call("firstMillisecondOfSecond", v), v,
-                    unit("NANOSECONDS")) : integer(AppliedFunction.infixRun("times", List.of(call("dateDiff",
+            // the digits of the fraction: the nanoseconds since the second's start (the microseconds a thousandfold:
+            // the value keeps microseconds), behind a leading 1 that keeps the zeros, then cut to the three, six or
+            // nine Java prints
+            ValueSpecification ns = integer(AppliedFunction.infixRun("times", List.of(call("dateDiff",
                     call("firstMillisecondOfSecond", v), v, unit("MICROSECONDS")), new CInteger(1000L))));
             // (Neo4j trims the fraction's trailing zeros to the digit, as a duration's: 10 microseconds is .00001)
             ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(ns,
@@ -17042,7 +16889,7 @@ public final class CypherToPure {
                     new CInteger(2L)), new CString("-"), two(call("monthNumber", v)), new CString("-"),
                     two(call("dayOfMonth", v)));
             return plus(date, new CString("T"), clock);
-        }), fine);
+        });
         // (a zoned value's text read back by a parse is the value itself, §12.74)
         return zone != null ? printedFrom(printed, t) : printed;
     }
@@ -17313,14 +17160,14 @@ public final class CypherToPure {
         inputs.add(t);
         inputs.addAll(over.values());
         Set<Component> keys = over.keySet();
-        Tx truncated = withNanos(SqlToPure.strict(result, inputs, v -> {
+        Tx truncated = SqlToPure.strict(result, inputs, v -> {
             ValueSpecification x = v.get(0);
             Map<Component, ValueSpecification> o = new java.util.EnumMap<>(Component.class);
             int i = 1;
             for (Component k : keys) {
                 o.put(k, v.get(i++));
             }
-            ValueSpecification start = truncated(unit, x, sourceNanos);
+            ValueSpecification start = truncated(unit, x);
             // a day of the week, quarter or year written over the unit's start: that many days on
             for (Component positional : List.of(Component.DAY_OF_WEEK, Component.DAY_OF_QUARTER,
                     Component.ORDINAL_DAY)) {
@@ -17352,11 +17199,10 @@ public final class CypherToPure {
                         ? call("second", start) : zero));
                 dt = call("date", y, mo, d, h, mi, s);
             }
-            // the sub-second fields written over the start (a nanosecond one makes the result of nanosecond
-            // precision: the date-time at it on the epoch day for a time)
-            dt = withSubSecond(dt, o, nanosField);
-            return toTime ? nanosField ? timeOfNanos(dt) : call(TIME_OF, dt) : dt;
-        }), nanosField);
+            // the sub-second fields written over the start (a nanosecond one, the parts' above)
+            dt = withSubSecond(dt, o);
+            return toTime ? call(TIME_OF, dt) : dt;
+        });
         if (toZonedTime) {
             // the zone written over a truncation replaces the source's (Neo4j's: no conversion)
             return scalar(zonedTimeOf(truncated, written != null ? written : sourceZone));
@@ -17400,7 +17246,7 @@ public final class CypherToPure {
             if (fine) {
                 return d;
             }
-            ValueSpecification start = unit.time() ? d : truncated(unit, d, false);
+            ValueSpecification start = unit.time() ? d : truncated(unit, d);
             // a day of the week, quarter or year written over the unit's start: that many days on
             for (Component positional : List.of(Component.DAY_OF_WEEK, Component.DAY_OF_QUARTER,
                     Component.ORDINAL_DAY)) {
@@ -17432,7 +17278,7 @@ public final class CypherToPure {
     }
 
     /** The start of a value's unit, as the database computes it. */
-    private static ValueSpecification truncated(TruncateUnit unit, ValueSpecification x, boolean nanos) {
+    private static ValueSpecification truncated(TruncateUnit unit, ValueSpecification x) {
         ValueSpecification one = new CInteger(1L);
         return switch (unit) {
             case MILLENNIUM, CENTURY, DECADE -> {
@@ -17458,9 +17304,8 @@ public final class CypherToPure {
             // microsecond's start is the value itself
             case MILLISECOND -> call("adjust", call("firstMillisecondOfSecond", x), call("dateDiff",
                     call("firstMillisecondOfSecond", x), x, unit("MILLISECONDS")), unit("MILLISECONDS"));
-            // a nanosecond value's microsecond start: the second's start plus the whole microseconds since it
-            case MICROSECOND -> nanos ? call("adjust", call("firstMillisecondOfSecond", x), call("dateDiff",
-                    call("firstMillisecondOfSecond", x), x, unit("MICROSECONDS")), unit("MICROSECONDS")) : x;
+            // (a nanosecond value's is its parts', W13)
+            case MICROSECOND -> x;
         };
     }
 

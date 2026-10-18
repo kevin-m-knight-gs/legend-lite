@@ -5633,6 +5633,12 @@ values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every dat
   chain ran with them green on both lanes. A text printed from a nanosecond value and a duration of nanosecond
   precision keep their marks (neither is a temporal held whole). The unit tests over a marked model
   (CypherToPureTest) pin the parts' spelling.
+- **The carriage deleted.** With nothing minting it, the operations §12.12 spelled over the nanosecond epoch (the
+  sub-microsecond digits put back after a calendar step or a zone conversion, a time of day as the date-time at it
+  on the epoch day, the epoch's nanoseconds) are gone from comparison, `IN`, the zone conversions, duration
+  arithmetic, `between`, construction, fields, `toString` and truncation: each reads a value held whole at the
+  microsecond, a value of nanosecond precision being its parts, handled before. A text a nanosecond value was
+  printed as is read back as the parts it spells. No row moved.
 - **Pinned.** `lite/edgevalues.yaml`'s 6 cases, each judged by Neo4j: a relationship's nanosecond local values over
   the years 1 and 2015, zoned values of an offset and a region, a duration, through two WITHs, an OPTIONAL MATCH and a
   variable-length pattern.
