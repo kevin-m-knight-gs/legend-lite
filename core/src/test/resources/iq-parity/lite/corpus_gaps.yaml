@@ -2096,6 +2096,21 @@ tests:
     sql: "SELECT id, NULLIF(ch, 'ab') AS a, NULLIF(ch, 'ab   ') AS b, NULLIF(ch, 'abXYZ123') AS c, NULLIF(ch, 'ab   Q') AS d, NULLIF(ch, vc) AS e, LENGTH(NULLIF(ch, 'x')) AS n FROM t ORDER BY id"
     profile: iq17-default
 
+  # ---- ROLLUP or CUBE beside a DISTINCT aggregate (IQ island, 2026-10-17; the differential fuzzer's sixth round,
+  # measured on IQ 17.1): IQ's -1001030, after the names' errors and a constant's conversion
+  - id: rollup_beside_a_distinct_aggregate
+    sql: "SELECT k, j, COUNT(DISTINCT s) AS a, GROUPING(k) AS gk FROM g GROUP BY ROLLUP(k, j) ORDER BY k, j, gk"
+    profile: iq17-default
+  - id: cube_beside_a_distinct_sum
+    sql: "SELECT k, SUM(DISTINCT v) AS a FROM g GROUP BY CUBE(k) ORDER BY k"
+    profile: iq17-default
+  - id: rollup_beside_a_distinct_aggregate_and_a_name_error
+    sql: "SELECT k, SUM(DISTINCT v) AS a FROM g GROUP BY CUBE(k) HAVING nosuch > 0"
+    profile: iq17-default
+  - id: rollup_beside_a_distinct_aggregate_and_a_conversion
+    sql: "SELECT k, COUNT(DISTINCT s) AS a, CAST('x' AS INTEGER) AS b FROM g GROUP BY ROLLUP(k)"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where

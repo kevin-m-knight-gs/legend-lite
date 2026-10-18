@@ -167,6 +167,9 @@ public final class IqDialect implements InputDialect {
     /** IQ island, 2026-10-17: each statement's WITH RECURSIVE error ({@link #recursion}), by identity, for
      *  {@link #reading}; the statement's, raised by {@link #failed} and {@link #translated}. */
     private final Map<SqlAst.Statement, Recursive> recursives = new IdentityHashMap<>();
+    /** IQ island, 2026-10-17: each statement {@link #parse} read whose ROLLUP or CUBE reads a DISTINCT aggregate under
+     *  IQ's engine, by identity, with that error ({@link #rollupDistinct}), raised late ({@link #executed}). */
+    private final Map<SqlAst.Statement, SqlTranslationException> rolledDistinct = new IdentityHashMap<>();
     private final Recursive[] recursive = {null};
     /** The comparisons simple CASEs' WHENs read as (IqParser.Parsed#simpleWhens), by identity ({@link #simpleWhen}). */
     final Set<SqlAst.Expr> simpleWhens = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -387,6 +390,7 @@ public final class IqDialect implements InputDialect {
         IqParser.Parsed read = IqParser.parsed(sql, settings);
         Engine statementEngine = engine != null ? engine : engineOf(read.statement(), settings);
         Recursive claim = recursion(read.recursion(), read.statement(), statementEngine);
+        SqlTranslationException distinct = statementEngine == Engine.IQ ? rollupDistinct(read.statement()) : null;
         SqlAst.Statement statement;
         try {
             statement = checked(read, statementEngine);
@@ -397,6 +401,9 @@ public final class IqDialect implements InputDialect {
         }
         if (claim != null) {
             recursives.put(statement, claim);
+        }
+        if (distinct != null) {
+            rolledDistinct.put(statement, distinct);
         }
         return statement;
     }
@@ -587,6 +594,41 @@ public final class IqDialect implements InputDialect {
                                 + " window's PARTITION BY or ORDER BY under IQ's engine" + code(-1001025, "QFA25"),
                                 f.pos());
                     }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The error IQ raises for {@code statement} after every other ({@link #executed}): a ROLLUP's or a CUBE's DISTINCT
+     *  aggregate ({@link #rollupDistinct}), else a GREATER or LESSER in a window's keys ({@link #windowKeyComparisons});
+     *  null for none. */
+    private @com.legend.base.Nullable SqlTranslationException lateClaim(SqlAst.Statement statement, Engine chosen) {
+        SqlTranslationException distinct = rolledDistinct.get(statement);
+        return distinct != null ? distinct : chosen == Engine.IQ ? windowKeyComparisons(statement) : null;
+    }
+
+    /** IQ island, 2026-10-17 (the differential fuzzer's sixth round; measured on IQ 17.1): under IQ's engine a ROLLUP or
+     *  a CUBE beside a DISTINCT aggregate is its -1001030 (CUBE or ROLLUP with DISTINCT Aggregate function), after the
+     *  names' errors (-143, -265) and a constant's conversion (-1009145). */
+    private static @com.legend.base.Nullable SqlTranslationException rollupDistinct(SqlAst.Statement statement) {
+        if (!(statement instanceof SqlAst.Select s) || rollup(s) == null) {
+            return null;
+        }
+        List<SqlAst.Expr> read = new ArrayList<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x) {
+                read.add(x.expr());
+            }
+        }
+        if (s.having() != null) {
+            read.add(java.util.Objects.requireNonNull(s.having()));
+        }
+        for (SqlAst.Expr e : read) {
+            for (SqlAst.FunctionCall f : IqAggregates.aggregateCalls(e)) {
+                if (f.distinct()) {
+                    return SqlTranslationException.invalid("Feature 'CUBE or ROLLUP with DISTINCT Aggregate function'"
+                            + " is not supported under IQ's engine" + code(-1001030, "QFA2A"), f.pos());
                 }
             }
         }
@@ -1630,7 +1672,7 @@ public final class IqDialect implements InputDialect {
         read.innerJoins.addAll(innerHere);
         read.placeheld.addAll(placeheldHere);
         read.claims(placement, recursives.get(statement));
-        SqlTranslationException run = chosen == Engine.IQ ? windowKeyComparisons(statement) : null;
+        SqlTranslationException run = lateClaim(statement, chosen);
         if (run != null) {
             read.executed[0] = run;
         }

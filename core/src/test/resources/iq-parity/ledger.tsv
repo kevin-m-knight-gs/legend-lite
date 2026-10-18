@@ -1195,6 +1195,10 @@ lite/corpus_gaps/dateadd_of_hours_to_a_date_under_iqs_engine@iq17-default	PASS	P
 lite/corpus_gaps/dateadd_of_a_date_string_under_iqs_engine@iq17-default	PASS	PASS
 lite/corpus_gaps/dateadd_of_a_date_in_sql_anywhere@iq17-default	PASS	PASS
 lite/corpus_gaps/nullif_of_a_char_under_iqs_engine@iq17-default	PASS	PASS
+lite/corpus_gaps/rollup_beside_a_distinct_aggregate@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/cube_beside_a_distinct_sum@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/rollup_beside_a_distinct_aggregate_and_a_name_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/rollup_beside_a_distinct_aggregate_and_a_conversion@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR
