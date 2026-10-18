@@ -152,8 +152,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  one way to edit a grid -- grid-edits.ts, the screen's grouping, pivot, sort and Column Properties rules in one module
  *  the panels, the header menu, the drag zones and Python all call, with their refusals in words, and measuresAsColumns
  *  (a cube saved with a measures list converted on open; Open in Grid's values as Column Properties). Measured 282,270;
- *  278,151 on 2026-10-15, before #47's rounds 2 and 3. */
-const BUDGET = 283_500;
+ *  278,151 on 2026-10-15, before #47's rounds 2 and 3.
+ *  283,500 -> 285,500 (2026-10-18, the command program's stage 1, step 3: docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md):
+ *  the screen applies its edits as grid commands (grid-commands.ts applyGridCommand, the one function Python's calls are
+ *  applied by), so it carries every command's rule -- the configure command's checks and setting lists, the measures
+ *  command's measureAsColumn -- though it builds only some; and #57's header clicks (no bump of their own here).
+ *  Measured 284,959. */
+const BUDGET = 285_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -177,8 +182,10 @@ const BUDGET = 283_500;
  *  tree 390,443.
  *  270,000 -> 271,000 (2026-10-18, neema2/legend-lite#57 and its audit: a header click sorts (grid-edits.ts clickSort,
  *  clickTreeSort), the header's marks from the order the query applies (headerSorts), and a child group's aggregate
- *  refused as a sort). Measured 270,114. */
-const ENGINE_BUDGET = 271_000;
+ *  refused as a sort). Measured 270,114.
+ *  271,000 -> 272,500 (2026-10-18, the command program's stage 1, step 3: as the grid's -- the screen applies its edits
+ *  as grid commands, by the one function Python's calls are applied by). Measured 272,184. */
+const ENGINE_BUDGET = 272_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
