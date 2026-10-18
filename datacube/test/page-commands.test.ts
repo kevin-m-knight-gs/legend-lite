@@ -184,5 +184,8 @@ describe('a page command read from JSON is the same command, and what DataCube d
     // a grid's cube, read by its own reader (the phase 1 audit's 3)
     refused(() => readPageCommand({ kind: 'addGrid', document: { bogus: 1 }, sheet: 'sheet-1', near: null, title: null, columns: null }),
       /cannot read saved cube/);
+    // a grid whose source the page cannot write down is the screen's own: never one Python sends (the phase 2 audit's 9)
+    refused(() => readPageCommand({ kind: 'addGrid', document: null, sheet: 'sheet-1', near: null, title: null, columns: null }),
+      /a grid's cube is its document/);
   });
 });

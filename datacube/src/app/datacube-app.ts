@@ -202,13 +202,14 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         ...(place.hostSnap ? { hostSnap: place.hostSnap } : {}),
         ...(place.signInAgain ? { signInAgain: place.signInAgain } : {}),
         ...(place.cubeSource ? { cubeSource: place.cubeSource } : {}),
-        // the groups a saved cube had open: its own grid's, not a copy's (a copy starts collapsed, as a new grid)
-        ...(place.tree && !start ? { tree: place.tree } : {}),
+        // the groups a saved cube had open: its own grid's, not a copy's (a copy starts collapsed, as a new grid) -- or, the
+        // same grid made again by an undo, its own as they were
+        ...(start?.tree ? { tree: start.tree } : place.tree && !start ? { tree: place.tree } : {}),
         ...(place.heldCopy ? { heldCopy: place.heldCopy } : {}),
         ...(place.label !== undefined ? { sourceLabel: place.label } : {}),
         compact: true,
-        // a copy is a grid added beside others
-        foldPanel: start !== undefined || place.foldPanel === true,
+        // a copy is a grid added beside others; the same grid made again folds as it did
+        foldPanel: (start !== undefined && start.tree === undefined) || place.foldPanel === true,
         // WHERE THE PLANNER RUNS, changed where it is read: the status bar's readout offers the planes; and, where the
         // page has a model home and the host writes models, Create a Class… of the grid's rows
         hostMenu: () => [

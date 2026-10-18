@@ -39,6 +39,7 @@ import type { CubeDocument } from '../cube-document.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { SettingValues } from '../settings.ts';
+import type { TreeState } from '../tree.ts';
 
 /** What the page needs of a grid on it (a CubeApp in a tile). */
 export interface PageGrid extends SpawnedGrid {
@@ -51,15 +52,21 @@ export interface PageGrid extends SpawnedGrid {
   useSettings(values: SettingValues): void;
   /** Its configuration: a lone grid's report title names the page, and its title bar setting folds the page's bar. */
   readonly configuration: CubeConfiguration;
+  /** Its open groups: what it starts with again when an undo makes it again. */
+  readonly tree: TreeState;
   setChrome(patch: { readonly showTitleBar?: boolean }): void;
   /** Its status bar's readout from the host asked for again: the page's first grid changed. */
   refreshHostStatus(): void;
 }
 
-/** Where a copy of a grid starts: that grid's query and configuration as they are now. */
+/**
+ * Where a copy of a grid starts: that grid's query and configuration as they are now -- or, with its open groups
+ * (`tree`), where the SAME grid starts when an undo makes it again: its own, not a copy's.
+ */
 export interface GridStart {
   readonly snapshot: CubeSnapshot;
   readonly configuration: CubeConfiguration;
+  readonly tree?: TreeState;
 }
 
 /**
@@ -642,6 +649,9 @@ export class PageApp {
       onChange: () => {
         // the page's state is the page on screen: kept after every change, one an edit began a step for or not
         if (!this.#syncing) this.#state.keep(this.#seen());
+        // a grid let go that no step can bring back any more is forgotten (its host lets its source go)
+        const reachable = this.#state.reachable;
+        for (const id of [...this.#gone.keys()]) if (!reachable.has(id)) this.#gone.delete(id);
         // a layout change can make another grid the first
         this.#rehomeStatus();
         this.#onGridChange();
@@ -703,6 +713,16 @@ export class PageApp {
     return this.#page.editing ? this.#state.redoLabel : undefined;
   }
 
+  /**
+   * The grids the page let go that an undo or a redo can bring back: a host keeps what each reads (its table, its
+   * planner) while they are, as it keeps a grid's on the page.
+   */
+  get recoverable(): readonly string[] {
+    const reachable = this.#state.reachable;
+    // its maker known: let go already, or -- the change that let it go still telling its host -- about to be
+    return [...new Set([...this.#gone.keys(), ...this.#grids.keys()])].filter((id) => reachable.has(id));
+  }
+
   /** The page as its state holds it (page-state.ts): the page on screen, with its history. */
   get state(): PageDraft {
     return this.#state.draft;
@@ -731,7 +751,7 @@ export class PageApp {
   /** A grid made again, by the maker that made it, starting where it was (on the board, kept, or let go). */
   #remake(id: string): ((host: HTMLElement, options: SpawnOptions) => PageGrid) | undefined {
     const live = this.#grids.get(id);
-    const was = live ? { make: live.make, start: { snapshot: live.grid.snapshot, configuration: live.grid.configuration } } : this.#gone.get(id);
+    const was = live ? { make: live.make, start: startOf(live.grid) } : this.#gone.get(id);
     if (!was) return undefined;
     this.#gone.delete(id);
     return this.#maker(was.make, was.start);
@@ -743,7 +763,7 @@ export class PageApp {
     for (const [id, { grid, make }] of [...this.#grids]) {
       if (live.has(id)) continue;
       // let go: kept to be made again by an undo, starting where it was
-      this.#gone.set(id, { make, start: { snapshot: grid.snapshot, configuration: grid.configuration } });
+      this.#gone.set(id, { make, start: startOf(grid) });
       this.#grids.delete(id);
     }
     this.#paintEmpty();
@@ -859,6 +879,11 @@ export class PageApp {
         this.#options.onHostMenu?.(item);
     }
   }
+}
+
+/** Where a grid starts again when an undo makes it again: its query, its configuration and its open groups. */
+function startOf(grid: PageGrid): GridStart {
+  return { snapshot: grid.snapshot, configuration: grid.configuration, tree: grid.tree };
 }
 
 /** A fold's chevron, drawn rather than typed, as the cube's own folds draw theirs. */

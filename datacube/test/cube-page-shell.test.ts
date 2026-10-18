@@ -20,6 +20,8 @@ import type { ExportPage } from '../src/export-model.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
 import { pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { pageSources } from '../src/app/sources.ts';
+import type { TreeState } from '../src/tree.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
 import type { ChartMeasure } from '../src/chart-spec.ts';
 import type { FilterNode } from '../src/snapshot.ts';
@@ -97,6 +99,8 @@ const over = (name: string, saved?: CubeDocument): GridMaker => (gridHost, spawn
   return new CubeApp(gridHost, start?.snapshot ?? opened?.snapshot ?? SNAPSHOT, {
     engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
     configuration: start?.configuration ?? opened?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
+    // the same grid made again by an undo starts with its own open groups, as DataCube's app makes it
+    ...(start?.tree ? { tree: start.tree as TreeState } : {}),
     ...(page ? { windowHost: page.root } : {}), ...spawned,
   });
 };
@@ -778,6 +782,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
   async function step(what: string, told: PageCommand[], edit: () => Promise<void> | void, label: string): Promise<void> {
     const before = saved();
     const n = told.length;
+    const labelBefore = pg().undoLabel;
     await edit();
     await drawn();
     const after = saved();
@@ -785,8 +790,10 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     assert.equal(pg().undoLabel, label, `${what}: one step, named`);
     const replayed = applyPageCommands({ page: before, held: idsOf(before) }, told.slice(n)).draft.page;
     assert.deepEqual(viewsOf(replayed), viewsOf(after), `${what}: what it told replays to the page it made`);
+    assert.deepEqual(replayed.cubes.map((c) => c.id), after.cubes.map((c) => c.id), `${what}: and to its cubes (a grid added, its document)`);
     pg().undo();
     await drawn();
+    assert.equal(pg().undoLabel, labelBefore, `${what}, undone: one step, no other told with it`);
     assert.deepEqual(viewsOf(saved()), viewsOf(before), `${what}, undone: the page as it was`);
     assert.deepEqual(saved().cubes, before.cubes, `${what}, undone: its cubes as they were`);
     assert.deepEqual(pg().state.page, saved(), `${what}, undone: the state is the page on screen`);
@@ -890,6 +897,190 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     frame.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
     await drawn();
     assert.equal(pg().grids.length, 2, 'the grid back');
+  });
+
+  // -- the phase 2 audit's findings, each pinned ------------------------------------------------------------------
+
+  it("a grid's source is kept while an undo can bring the grid back, and let go once none can (the audit's 1)", async () => {
+    const forgotten: string[] = [];
+    const disposed: string[] = [];
+    const services = { engine: { database: { forgetFile: async (f: string, t: string) => { forgotten.push(`${f}:${t}`); } } } } as never;
+    let sources: ReturnType<typeof pageSources> | undefined;
+    const planner = Object.assign(new StubPlanner(), { dispose: () => { disposed.push('orders'); } });
+    const place = { planner, label: 'orders.csv', cubeSource: file('orders.csv'),
+      file: { file: new dom.window.File(['x'], 'orders.csv') as unknown as File, table: 'orders' } };
+    // as DataCube's app makes a grid over a file: its planner, its file's table, told to its sources
+    const orders: GridMaker = (gridHost, spawned, start) => {
+      const grid = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
+        engine, planner, compact: true, cubeSource: place.cubeSource, sourceLabel: 'orders.csv',
+        configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: 'orders.csv' }, ...spawned,
+      });
+      if (spawned.id !== undefined) sources?.madeGrid(spawned.id, place as never);
+      return grid;
+    };
+    newPage({ onChange: () => sources?.dropUnread() });
+    sources = pageSources({ services, page: pg(), gridMaker: (() => { throw new Error('unused'); }) as never, taken: [], ask: () => {} });
+    const a = pg().addGrid(over('trades.csv'));
+    const b = pg().addGrid(orders, { near: a });
+    await settle();
+    await removeTile(b);
+    assert.deepEqual([forgotten, disposed], [[], []], 'removed, its table and planner kept: an undo can bring it back');
+    pg().undo();
+    await drawn();
+    assert.deepEqual(pg().grids, [a, b]);
+    pg().redo();
+    await drawn();
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.deepEqual([forgotten, disposed], [[], []], 'removed again: still a step an undo takes back');
+    // the page cleared: no step can bring it back, and what it read goes
+    pg().clear();
+    await settle();
+    assert.deepEqual(forgotten, ['orders.csv:orders']);
+    assert.deepEqual(disposed, ['orders']);
+  });
+
+  it("a frozen chart's selection, cleared when its grid went, comes back with it (the audit's 2)", async () => {
+    const { b } = await twoGrids();
+    const chart = await chartOf(b);
+    await drawn();
+    await togglePill(chart);
+    clickMark(tile(chart), 0, 0);
+    await settle();
+    const before = pg().document('Q3')!;
+    assert.ok(chartView(chart)!.selection, 'the chart filters its grid');
+    await removeTile(b);
+    assert.equal(pill(chart), 'Detached');
+    pg().undo();
+    await drawn();
+    assert.equal(pill(chart), 'Frozen');
+    assert.deepEqual(pg().document('Q3')!.views, before.views, 'its selection back, as before the removal');
+    assert.equal((tile(chart).querySelector('.dc-tile-chip') as HTMLElement).hidden, false, 'its chip shown');
+    assert.deepEqual(pg().grid(b)!.snapshot.filter, before.cubes.find((c) => c.id === b)!.cube.query.filter, 'its grid filtered by it once');
+  });
+
+  it("a chart following its grid again takes the grid's grouping in the step it tells (the audit's 3)", async () => {
+    const told: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => told.push(c) });
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    await drawn();
+    await togglePill(chart);
+    await ungroup(a, 'desk');
+    await drawn();
+    const n = told.length;
+    await togglePill(chart);
+    await drawn();
+    assert.deepEqual(pg().state.page, pg().document('Q3'), 'the state is the page on screen');
+    assert.equal((told.at(-1) as { spec: { split?: string } }).spec.split, chartView(chart)!.spec.split, 'told as it draws');
+    assert.equal(told.length, n + 1, 'one command');
+  });
+
+  it("a grid made again by an undo has its own open groups and its own query (the audit's 4)", async () => {
+    const { b } = await twoGrids();
+    await ungroup(b, 'desk');
+    const row = [...tile(b).querySelectorAll<HTMLElement>('.dc-row')].find((r) => (r.querySelector('.dc-tree-label')?.textContent ?? '').startsWith('EMEA'));
+    if (row?.querySelector('.dc-chevron')) {
+      (row.querySelector('.dc-chevron') as HTMLElement).click();
+      await settle();
+    }
+    const before = pg().document('Q3')!;
+    await removeTile(b);
+    pg().undo();
+    await drawn();
+    assert.deepEqual(rowChips(b), ['region'], 'regrouped as it was');
+    assert.deepEqual(pg().document('Q3')!.cubes, before.cubes, 'its cube as it was, its open groups among it');
+  });
+
+  it("a detached chart's Update, then its grid's removal, undone: it follows its grid again (the audit's 5)", async () => {
+    const { b } = await twoGrids();
+    const chart = await chartOf(b);
+    await togglePill(chart);
+    const frozen = pg().document('Q3')!;
+    await removeTile(b);
+    await openInGrid(chart);
+    await ungroup(`edit-${chart}`, 'desk');
+    await update(chart);
+    pg().undo();
+    await drawn();
+    pg().undo();
+    await drawn();
+    assert.equal(pill(chart), 'Frozen');
+    assert.deepEqual(pg().views().views, frozen.views, 'the page as it was before its grid was removed');
+    assert.deepEqual([...pg().cubes], pg().grids, "the Update's own query let go");
+  });
+
+  it("an undo leaves an editing grid beside its chart, and closes it when the chart follows its grid again (the audit's 7, 8)", async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    await togglePill(chart);
+    await openInGrid(chart);
+    const frame = (id: string): string | null | undefined => tile(id)?.closest('.dc-band-tile')?.getAttribute('style');
+    const where = frame(`edit-${chart}`);
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    clickTab('trades.csv');
+    await settle();
+    pg().undo();
+    await drawn();
+    assert.equal(frame(`edit-${chart}`), where, 'beside its chart, where it was');
+    assert.equal(pg().undoLabel, 'Chart Change');
+    pg().undo();
+    await drawn();
+    assert.equal(pill(chart), 'Dynamic');
+    assert.equal(tile(`edit-${chart}`), null, 'following its grid again: its editing grid closed');
+  });
+
+  it("a chart changed in its options form is one step, told once (the test gap: both its callbacks fire)", async () => {
+    const told: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => told.push(c) });
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    await drawn();
+    chartMenu(chart).find((i) => label(i) === 'Options...')!.click();
+    await settle();
+    const across = [...tile(chart).querySelectorAll<HTMLElement>('.dc-field')]
+      .find((f) => f.querySelector('.dc-field-label')?.textContent === 'Across:')?.querySelector('select');
+    assert.ok(across, "the form's Across");
+    const labelBefore = pg().undoLabel;
+    const n = told.length;
+    across.value = 'desk';
+    across.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    await drawn();
+    assert.equal(chartView(chart)!.spec.x, 'desk');
+    assert.equal(pill(chart), 'Frozen', 'a hand on its grouping froze it');
+    assert.deepEqual(told.slice(n).map((c) => c.kind), ['setChart'], 'told once');
+    assert.equal(pg().undoLabel, 'Chart Change');
+    pg().undo();
+    await drawn();
+    assert.equal(pg().undoLabel, labelBefore, 'one step');
+    assert.equal(pill(chart), 'Dynamic');
+  });
+
+  it('a renamed page keeps no step; reopened or cleared, its history starts again; a sheet an undo brings back is shown', async () => {
+    const { a } = await twoGrids();
+    pg().setTitle('Renamed');
+    assert.equal(pg().undoLabel, 'Add Grid', 'the name is its host\'s: no step');
+    assert.equal(pg().state.page.name, 'Renamed');
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    clickTab('trades.csv');
+    await settle();
+    tabMenu('Sheet 2', 'Delete');
+    await settle();
+    pg().undo();
+    await drawn();
+    assert.equal(pg().shownSheet, pg().sheets[1], 'the sheet brought back is shown');
+    reopen(pg().document('Q3')!);
+    await settle();
+    assert.equal(pg().undoLabel, undefined, 'reopened: no history');
+    void a;
+    pg().clear();
+    assert.equal(pg().undoLabel, undefined, 'cleared: none');
   });
 });
 

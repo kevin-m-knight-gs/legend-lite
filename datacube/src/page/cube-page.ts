@@ -490,10 +490,33 @@ export class CubePage {
         const title = view.kind === 'grid' ? view.title ?? this.#titles.get(view.id) : view.title;
         if (title !== undefined && sheet.board.title(view.id) !== title) sheet.board.rename(view.id, title);
         const chart = this.#charts.get(view.id);
-        if (chart && view.kind === 'chart' && JSON.stringify(chart.panel.spec) !== JSON.stringify(view.spec)) {
-          chart.told = JSON.stringify(view.spec);
-          chart.panel.setSpec(view.spec);
-          chart.paint();
+        if (chart && view.kind === 'chart') {
+          // detached here and following its grid there (a grid's removal undone; past an Update's own query too): it
+          // reads its grid again
+          if (chart.link.grid === null && this.#grids.has(view.cube)) {
+            chart.link.grid = view.cube;
+            delete chart.link.detached;
+            chart.paint();
+          }
+          if (JSON.stringify(chart.panel.spec) !== JSON.stringify(view.spec)) {
+            chart.told = JSON.stringify(view.spec);
+            chart.panel.setSpec(view.spec);
+            // following its grid again, an open editing grid has nothing to edit (as the pill's own click closes it)
+            if (!chart.panel.frozen) this.#closeEditor(view.id);
+            chart.paint();
+          }
+          // its selection as the step has it: a frozen chart's, cleared when its grid went, comes back with it -- put on
+          // its grid's filter where that filter has lost it
+          const selection = view.selection ?? [];
+          if (chart.link.grid !== null && JSON.stringify(selection) !== JSON.stringify(chart.conditions)) {
+            const source = this.#sourceOf(chart.link);
+            if (selection.length > 0 && withoutConditions(source.snapshot.filter, selection, true) === null) {
+              source.refilter([], selection, 'filter to chart mark');
+            }
+            chart.conditions = [...selection];
+            chart.key = selection.length > 0 ? JSON.stringify(selection) : '';
+            this.#paintSelection(view.id);
+          }
         }
         const on = board(sheetFor.get(view.id));
         const spec = this.#specs.get(view.id);
@@ -524,6 +547,16 @@ export class CubePage {
       for (const s of to.sheets) {
         const { kind: _kind, ...bands } = s.layout;
         board(s.id)!.board.setLayout(bands);
+      }
+      // a chart's editing grid, which no step holds, back beside its chart (a layout puts what it does not name below)
+      for (const [id, chart] of this.#charts) {
+        const editor = chart.editor;
+        const spec = editor ? this.#specs.get(editor.tile) : undefined;
+        const sheet = editor ? this.#sheetOf(editor.tile) : undefined;
+        if (!editor || !spec || !sheet || sheet !== this.#sheetOf(id)) continue;
+        const title = sheet.board.title(editor.tile) ?? spec.title;
+        sheet.board.remove(editor.tile);
+        sheet.board.add({ ...spec, title }, id);
       }
       // the charts in its order (views() writes them in the order they came: one opened again comes where it was)
       const order = (id: string): number => (wanted.has(id) ? to.views.findIndex((v) => v.id === id) : to.views.length);

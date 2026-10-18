@@ -140,8 +140,11 @@ export interface SignedIn {
 
 export interface SourcesOf {
   readonly services: Services;
-  /** The page: the cubes it holds now (a file's table goes with its last grid). */
-  readonly page: { readonly cubes: readonly string[] };
+  /**
+   * The page: the cubes it holds now (a file's table goes with its last grid), and the grids it let go that an undo can
+   * bring back (theirs are kept while it can).
+   */
+  readonly page: { readonly cubes: readonly string[]; readonly recoverable?: readonly string[] };
   /** How a grid is made over a source: the app's grid maker. */
   readonly gridMaker: (snapshot: CubeSnapshot, configuration: CubeConfiguration, dimensions: { name: string; columns: string[] }[],
     place: GridPlace) => GridMaker;
@@ -336,8 +339,9 @@ export function pageSources(d: SourcesOf): PageSources {
    * table, not three. Told of every change on the page.
    */
   const dropUnread = (): void => {
-    const read = new Set(filesNow().map((f) => f.table));
-    const live = new Set(page.cubes);
+    // the grids on the page, and those an undo can bring back: what they read stays
+    const live = new Set([...page.cubes, ...(page.recoverable ?? [])]);
+    const read = new Set([...live].flatMap((grid) => files.get(grid)?.table ?? []));
     for (const grid of [...files.keys()]) if (!live.has(grid)) files.delete(grid);
     for (const [table, fileName] of [...held]) {
       if (read.has(table)) continue;
