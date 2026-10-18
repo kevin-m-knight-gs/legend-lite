@@ -127,9 +127,14 @@ export async function gridCube(spec: FrameSpec, saved: string | null, name: stri
   try {
     const was = saved === null ? undefined : readCube(fromJson(saved));
     const made = rebuilt(was, relation, columns, label, gridCapped(gridsOnPage));
+    // written as the screen writes a grid's state: its configuration folded into its query (cube-state.ts fold), as
+    // the screen's state owner holds every state -- a new grid's raw rows written unfolded were another document than
+    // the screen's for the same grid (parity.json's "a new grid")
+    const tree = made.tree ?? TreeState.empty();
+    const { snapshot } = fold({ snapshot: made.snapshot, configuration: made.configuration, tree });
     const cube = writeCube({
-      name, source: frameSource(spec.frame, columns), snapshot: made.snapshot, configuration: made.configuration,
-      tree: made.tree ?? TreeState.empty(), ...(was?.unknown ? { unknown: was.unknown } : {}),
+      name, source: frameSource(spec.frame, columns), snapshot, configuration: made.configuration,
+      tree, ...(was?.unknown ? { unknown: was.unknown } : {}),
     });
     return JSON.stringify({ cube: cubeToJson(cube), notes: made.notes, changed: made.changed });
   } finally {

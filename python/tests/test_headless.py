@@ -603,3 +603,53 @@ class Remote(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def _act(grid, action):
+    """One action of DataCube's parity.json, through Python's Page and Grid: the call a program makes for what a
+    person does on the screen (datacube/test/parity-screen.test.ts names the screen's)."""
+    do = action['do']
+    if do == 'group':
+        grid.group(*action['rows'])
+    elif do == 'pivot':
+        grid.pivot(*action['columns'])
+    elif do in ('addSort', 'headerSort'):
+        # a header click sorts the column alone, in its first direction; with no sort before it, as sort() adds one
+        grid.sort(action['column'], action['direction'])
+    elif do == 'aggregate':
+        grid.column(action['column'], aggregate=action['fn'])
+    elif do == 'kind':
+        grid.column(action['column'], kind=action['kind'])
+    elif do == 'heatmap':
+        grid.configure({'columns': {action['column']: {'heatmap': {'from': action['from'], 'to': action['to']}}}})
+    elif do == 'hide':
+        grid.configure({'columns': {action['column']: {'hidden': True}}})
+    elif do == 'filter':
+        grid.filter((action['column'], action['operator'], action['value']))
+    else:
+        raise AssertionError(f'parity.json names an action Python does not do: {do!r}')
+
+
+class ParityWithTheScreen(unittest.TestCase):
+    """SCREEN AND PYTHON, ONE EDIT, ONE DOCUMENT (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 1): each
+    case of DataCube's parity.json -- a new grid over its frame, then its actions -- done through Python's Page and
+    Grid, and the cube document the page writes held to the case's, which datacube/test/parity-screen.test.ts holds
+    the screen's to. The screen and Python write one document for one edit, tested at the edges a person and a program
+    use."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.fixture = json.loads(Path(os.environ['LEGEND_LITE_PARITY']).read_text('utf-8'))
+        # one frame for every case: a name served again serves the same frame (Page.grid)
+        cls.frame = pd.DataFrame(cls.fixture['rows'], columns=cls.fixture['columns'])
+
+    def test_each_case_writes_the_screens_document(self):
+        self.assertGreater(len(self.fixture['cases']), 10)
+        for case in self.fixture['cases']:
+            with self.subTest(case['name']):
+                page = ll.Page(self.fixture['page'])
+                grid = page.grid(self.frame, name=self.fixture['frame'])
+                for action in case['actions']:
+                    _act(grid, action)
+                written = json.loads(page.to_json())['cubes'][0]['cube']
+                self.assertEqual(written, case['cube'])
