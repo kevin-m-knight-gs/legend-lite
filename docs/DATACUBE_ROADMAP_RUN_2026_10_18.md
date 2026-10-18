@@ -26,8 +26,8 @@ on the newest branch of the stack and updated as each phase lands on its branch.
 | — | Command program stage 1a: the test foundation | `claude/datacube-command-tests` | done, audited |
 | — | Command program stage 1: the grid half | `claude/datacube-commands` | done, audited |
 | 1 | Command program stage 1: the page half (page parity tests first) | `claude/datacube-page-commands` | done, audited |
-| 2 | Command program stage 2: one page state, page-level undo | | |
-| 3 | Command program stage 3: the live channel between Python and an open page | | |
+| 2 | Command program stage 2: one page state, page-level undo | `claude/datacube-page-state` | done, audited |
+| 3 | Command program stage 3: the live channel between Python and an open page | `claude/datacube-live-commands` | done, audited |
 | 4 | Graph mode: design note, then the G0 spike over main's Cypher island | | |
 | 5 | Charts batch 4: the statistics aggregates and the kinds they unlock | | |
 | 6 | Charts batch 5: maps | | |
@@ -57,3 +57,14 @@ on the newest branch of the stack and updated as each phase lands on its branch.
   grid given its made title back told as no title; the design note's `addChart` row. Answered, not changed: Python's
   refusal for a tile not on a sheet (`Sheet.layout`) and for a stack across sheets (`Page.stack`) are DataCube's words
   now, naming the tile's id and "move them there first" rather than Python's handle and `sheet.add(tile)`.
+- **Phase 2** (`docs/DATACUBE_PAGE_STATE_2026_10_18.md`): one page state on a page of its own, Undo and Redo for every
+  structural edit. Its audit: nine findings, eight fixed with a test each (checked to fail without it); one answered:
+  an undo or a redo is told to a host following the page by commands as no command (no host follows it yet; the
+  reverse channel will need it). Left to stage 2's next step (not built): one undo for a grid's own edits and the
+  page's together.
+- **Phase 3** (`docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md`): Python serves each change as the commands it was, and an
+  open page applies them rather than opening the whole page again. Its audit: eight findings, all fixed with a test
+  each (checked to fail without it). Answered, not changed: two views of one page can still differ after both edit
+  without reporting (each keeps its own edits under Python's; the first `page.read()` after one reports serves the
+  page whole). Next, not built: the reverse channel -- the open page's edits sent to Python as commands rather than its
+  whole document.
