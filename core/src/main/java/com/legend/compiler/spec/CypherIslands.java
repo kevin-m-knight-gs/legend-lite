@@ -311,7 +311,10 @@ public final class CypherIslands {
                     continue;
                 }
                 for (Property p : tc.properties()) {
+                    // (a Variant is a value, as report reads it, never an end: an untyped pattern over a node holding
+                    // one read a class named Variant, 2026-10-18, the study's §12.94)
                     if (p instanceof Property.Stored s && s.type() instanceof Type.ClassType c
+                            && !com.legend.compiler.element.type.PlatformTypes.isVariant(c)
                             && edges.edgeAt(c.fqn()) == null && seen.add(s.name())) {
                         report(sink, s.name(), s.type(), s.multiplicity());
                     }

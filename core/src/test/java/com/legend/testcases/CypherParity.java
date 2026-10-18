@@ -690,8 +690,11 @@ public final class CypherParity {
 
     /** The lane's graph read back through the island, by the oracle's own dump queries: each node by its
      *  {@code elementId}, its labels and properties; each relationship by its {@code elementId}, its ends', its type
-     *  and properties. Two elements read back with one identity is the harness's error (the side effects count
-     *  identities). */
+     *  and properties. Two nodes read back with one identity is the harness's error (the side effects count
+     *  identities). Two relationships with one are two links of an association between the same two nodes (S74:
+     *  its identity is its type and its ends'), which nothing else tells apart: no property (that would be an edge
+     *  class, keyed by its own row), so they are numbered by occurrence ({@code #2}, ...), and any pairing of them
+     *  between two reads is the same. */
     public static Read readBack(String model, Lane lane) throws Exception {
         String use = "USE " + CypherGraph.DATASPACE + " ";
         Map<String, CypherValues.Node> nodes = new LinkedHashMap<>();
@@ -710,10 +713,19 @@ public final class CypherParity {
         for (var row : lane.run(model, "#Cypher{" + use + READ_RELS + "}#").rows()) {
             List<Object> v = row.values();
             String id = String.valueOf(v.get(0));
-            if (rels.put(id, new Edge(String.valueOf(v.get(1)), String.valueOf(v.get(2)),
-                    new CypherValues.Rel(String.valueOf(v.get(3)), props(v.get(4))))) != null) {
-                throw new IllegalStateException("harness: two relationships read back with the identity " + id);
+            Edge e = new Edge(String.valueOf(v.get(1)), String.valueOf(v.get(2)),
+                    new CypherValues.Rel(String.valueOf(v.get(3)), props(v.get(4))));
+            Edge first = rels.get(id);
+            if (first != null && (!first.start().equals(e.start()) || !first.end().equals(e.end())
+                    || !CypherValues.equal(first.rel(), e.rel(), false))) {
+                throw new IllegalStateException("harness: two relationships read back with the identity " + id
+                        + " that differ: " + CypherValues.text(first.rel()) + ", " + CypherValues.text(e.rel()));
             }
+            String key = id;
+            for (int k = 2; rels.containsKey(key); k++) {
+                key = id + "#" + k;
+            }
+            rels.put(key, e);
         }
         return new Read(nodes, rels);
     }

@@ -2834,8 +2834,13 @@ public final class CypherToPure {
                     selected.add(new ColSpec(column, null, null, null));
                     carried[i] = column;
                 }
+                // (absent in every chain: absent; else null only where a chain's hop found none)
+                boolean absent = every.stream().allMatch(o -> {
+                    Col oc = column(o, v);
+                    return oc != null && oc.detail() instanceof RelShape os && os.absent();
+                });
                 columns.add(new Col(v, c.kind(), c.nullable(), null, new RelShape(head, props, carried[0],
-                        carried[1], carried[2], carried[3])));
+                        carried[1], carried[2], carried[3], absent)));
             }
         }
         for (String k : kept) {
@@ -3697,7 +3702,7 @@ public final class CypherToPure {
             } else if (c.detail() instanceof RelShape rel && rel.props().values().stream().anyMatch(NodeProp::absent)) {
                 out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
                         new RelShape(rel.type(), withoutAbsentMarks(rel.props()), rel.identity(), rel.source(),
-                                rel.target(), rel.forward())));
+                                rel.target(), rel.forward(), rel.absent())));
             } else {
                 out.add(c);
             }
@@ -3902,7 +3907,8 @@ public final class CypherToPure {
                 String type = freshName(names);
                 nulls.add(new ColSpec(type, lambda("r", SqlToPure.nullOf(Kind.STRING).vs()), null, null));
                 columns.add(new Col(type, Kind.STRING, true));
-                columns.add(new Col(var, Kind.JSON, true, null, new RelShape(type, Map.of())));
+                columns.add(new Col(var, Kind.JSON, true, null, new RelShape(type, Map.of(), null, null, null, null,
+                        true)));
             }
         }
         if (pathVar != null) {
@@ -5014,7 +5020,7 @@ public final class CypherToPure {
             detail = new NodeShape(n.labels(), nullableProps(n.props()), n.absent(), n.identity(), n.classPath());
         } else if (detail instanceof RelShape r) {
             detail = new RelShape(r.type(), nullableProps(r.props()), r.identity(), r.source(), r.target(),
-                    r.forward());
+                    r.forward(), r.absent());
         }
         return new Col(c.name(), c.kind(), true, c.carried(), detail);
     }
@@ -9086,6 +9092,10 @@ public final class CypherToPure {
             Col c = column(v.name());
             if (c != null && c.detail() instanceof NodeShape shape) {
                 return shape.absent() ? SqlToPure.nullOf(Kind.STRING) : identityOf(shape);
+            }
+            if (c != null && c.detail() instanceof RelShape shape && shape.absent()) {
+                // (a relationship a hop that found nothing binds: none, null, as an absent node's)
+                return SqlToPure.nullOf(Kind.STRING);
             }
             if (c != null && c.detail() instanceof RelShape shape && shape.identified()) {
                 // a relationship the rows carry with an identity (an edge's own, or the ordered pair of its
@@ -13485,19 +13495,28 @@ public final class CypherToPure {
             /** read in a segment of a cut path (the study's §12.56): the column of its stored direction in the
              *  path's written order (true when the node before it holds the node after), what the path assembled
              *  over the rows prints; null when the rows carry none */
-            @com.legend.base.Nullable String forward)
+            @com.legend.base.Nullable String forward,
+            /** a relationship a hop that found nothing binds (null everywhere, its identity too, as an absent
+             *  node's) */
+            boolean absent)
             implements com.legend.protocol.sql.InputDialect.TypeDetail {
         RelShape(String type, Map<String, NodeProp> props) {
-            this(type, props, null, null, null, null);
+            this(type, props, null, null, null, null, false);
         }
 
         RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity) {
-            this(type, props, identity, null, null, null);
+            this(type, props, identity, null, null, null, false);
         }
 
         RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity,
                 @com.legend.base.Nullable String source, @com.legend.base.Nullable String target) {
-            this(type, props, identity, source, target, null);
+            this(type, props, identity, source, target, null, false);
+        }
+
+        RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity,
+                @com.legend.base.Nullable String source, @com.legend.base.Nullable String target,
+                @com.legend.base.Nullable String forward) {
+            this(type, props, identity, source, target, forward, false);
         }
 
         /** Whether the rows tell this relationship apart from another (an identity or a pair of its own). */
