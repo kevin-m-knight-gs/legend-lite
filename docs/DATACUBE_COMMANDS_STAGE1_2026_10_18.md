@@ -66,10 +66,13 @@ Python sends it and the stage-3 live channel can carry it.
     presets (`calculate`);
   - an `onCommand` option tells a host each command the cube kept, once its change landed or was taken over by the next
     (the parity test, and the live channel later); one refused or cancelled is not told.
-- **Not yet commands (step 3b):** the Properties window's Apply, which merges its draft's changes onto the cube as it is
-  now (`mergeDraft`); the column editor's edit, rename and delete, which offer the cube's two lists whole; and the
-  columns panel's visibility, widths, pins and pivot exclusion (`#patchColumn`). Each is its own step, so the parity
-  file stays the judge of each.
+- **The Properties window's Apply** (step 3b): its draft's changes are the commands `draftCommands(base, edited)`
+  builds -- a column made a dimension, the row groups and the pivot, the other kinds, Aggregations and weights
+  (`column`), the settings beyond those (`configure`, null clearing one), the sorts -- applied to the cube as it is now,
+  so another window's edit made meanwhile stays, as the three-way merge (`mergeDraft`, gone) kept it. Column
+  Properties' Apply is then the `column` command Python's `column(...)` builds.
+- **Not yet commands:** the column editor's edit, rename and delete, which offer the cube's two lists whole; and the
+  columns panel's visibility, widths, pins and pivot exclusion (`#patchColumn`).
 
 ## How it is tested
 
@@ -89,15 +92,17 @@ Python sends it and the stage-3 live channel can carry it.
 ### Where it stands (2026-10-18)
 
 - Steps 1 to 4 are on the branch: the module and its tests; headless `gridApply` and Python's calls; the screen's
-  `#apply` and `onCommand`; the parity file's commands (39 actions, each built alike by the screen and by Python) and the
-  round trips over commands.
+  `#apply` and `onCommand`; the parity file's commands (45 actions, each built alike by the screen and by Python, Column
+  Properties' among them since step 3b's Properties Apply) and the round trips over commands.
 - A command read from JSON keeps JSON's numbers: a calculated column's lambda sent as JSON (none is today: Python's
   `calculate` sends its text, parsed headless) would carry plain numbers where a parsed lambda carries exact ones. Safe
   for the integers and short decimals an expression holds; one past 2^53 is not, and the live channel (stage 3) reads
   its commands exactly.
-- Step 3b, each its own step with the parity file as judge: the Properties window's Apply as `column` and `configure`
-  commands (its merge onto the cube as it is now, `mergeDraft`, is what the commands do already); the column editor's
-  edit, rename and delete; the columns panel's settings (`#patchColumn`).
+- Step 3b's rest, each its own step with the parity file as judge: the column editor's edit, rename and delete; the
+  columns panel's settings (`#patchColumn`).
+- A difference from the three-way merge it replaced: a column's setting that is an object (its format, its
+  appearance) is set whole by `configure`, where the merge went key by key inside it. Two windows changing different
+  keys of one column's format at once keep the later window's whole format.
 
 ## Not in stage 1's grid half
 

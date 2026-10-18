@@ -6,7 +6,7 @@
 
 import { nameProblem } from './calc.ts';
 import {
-  APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, withConfiguration, type CubeConfiguration, type Patch,
+  APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, columnConfig, withConfiguration, type CubeConfiguration, type Patch,
 } from './config.ts';
 import {
   addSort, allColumns, clickSort, clickTreeSort, measureAsColumn, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
@@ -116,6 +116,79 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
 /** Commands applied in order: the first refusal stops them, in its words. */
 export function applyGridCommands<D extends GridDraft>(draft: D, commands: readonly GridCommand[]): D {
   return commands.reduce<D>((d, c) => applyGridCommand(d, c), draft);
+}
+
+// ---------------------------------------------------------------- an editor's draft, as commands
+
+/**
+ * THE COMMANDS AN EDITOR'S DRAFT MAKES (the Properties window's Apply, app.ts #applyDraft): what changed between `base`,
+ * the grid the window opened on, and `edited`, its draft -- so, applied to the grid as it is NOW, they land only what the
+ * window changed, and an edit another window made meanwhile stays. In the order a person makes them: a column made a
+ * dimension (it can then be grouped); the row groups and the pivot; the other kinds, Aggregations and weights (a column
+ * ungrouped can then be a measure); the settings the draft changed beyond what those set (null clears one); the sorts
+ * last (one may name a pivot's header the settings decide). A list is set whole; the settings key by key -- the grid's,
+ * its appearance's, each column's. Refused, in the screen's words, when the draft is not one its rules reach.
+ */
+export function draftCommands(base: GridDraft, edited: GridDraft): GridCommand[] {
+  const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+  // Column Properties: a kind, an Aggregation, a weight -- by the column command, its rules setColumn's
+  const early: GridCommand[] = [];
+  const late: GridCommand[] = [];
+  for (const name of new Set([...Object.keys(base.config.columns), ...Object.keys(edited.config.columns)])) {
+    const was = columnConfig(base.config, name);
+    const now = columnConfig(edited.config, name);
+    const change: ColumnChange = {
+      // a kind is set, never cleared: one cleared is left to configure, which refuses it in words
+      ...(now.kind !== undefined && now.kind !== was.kind ? { kind: now.kind } : {}),
+      ...(!same(now.aggregateFn, was.aggregateFn) ? { aggregate: now.aggregateFn ?? null } : {}),
+      ...(!same(now.aggregationParameters, was.aggregationParameters) ? { weight: now.aggregationParameters?.[0] ?? null } : {}),
+    };
+    if (Object.keys(change).length === 0) continue;
+    (change.kind === 'dimension' ? early : late).push({ kind: 'column', name, change });
+  }
+  const structure: GridCommand[] = [
+    ...early,
+    ...(same(base.snapshot.rows, edited.snapshot.rows) ? [] : [{ kind: 'group', rows: [...edited.snapshot.rows] } as const]),
+    ...(same(base.snapshot.pivotOn, edited.snapshot.pivotOn) ? [] : [{ kind: 'pivot', columns: [...edited.snapshot.pivotOn] } as const]),
+    ...late,
+  ];
+  // the settings beyond those: what the draft has that the grid it opened on, so edited, has not
+  const patch = settingsPatch(applyGridCommands(base, structure).config, edited.config);
+  return [
+    ...structure,
+    ...(patch === undefined ? [] : [{ kind: 'configure', patch } as const]),
+    ...(same(base.snapshot.sorts, edited.snapshot.sorts) ? []
+      : [{ kind: 'sorts', sorts: edited.snapshot.sorts.map((x) => ({ column: x.column, direction: x.direction })) } as const]),
+  ];
+}
+
+/** What `to` sets that `from` has not, as a configure command's patch (null clears a setting), or undefined: nothing. */
+function settingsPatch(from: CubeConfiguration, to: CubeConfiguration): SettingsPatch | undefined {
+  const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+  const changed = (a: object, b: object): Record<string, unknown> | undefined => {
+    const was = a as Record<string, unknown>;
+    const now = b as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const key of new Set([...Object.keys(was), ...Object.keys(now)])) {
+      if (!same(was[key], now[key])) out[key] = now[key] === undefined ? null : now[key];
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  };
+  const { columns: fromColumns, appearance: fromAppearance, ...fromSettings } = from;
+  const { columns: toColumns, appearance: toAppearance, ...toSettings } = to;
+  const settings = changed(fromSettings, toSettings);
+  const appearance = changed(fromAppearance, toAppearance);
+  const columns: Record<string, unknown> = {};
+  for (const name of new Set([...Object.keys(fromColumns), ...Object.keys(toColumns)])) {
+    const one = changed(columnConfig(from, name), columnConfig(to, name));
+    if (one !== undefined) columns[name] = one;
+  }
+  const patch = {
+    ...settings,
+    ...(appearance !== undefined ? { appearance } : {}),
+    ...(Object.keys(columns).length > 0 ? { columns } : {}),
+  };
+  return Object.keys(patch).length > 0 ? patch : undefined;
 }
 
 // ---------------------------------------------------------------- configure

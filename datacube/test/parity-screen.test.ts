@@ -7,11 +7,11 @@
 // person and a program use, which the command program leaves as they are.
 //
 // THE COMMANDS TOO (docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md, step 4): an action that is one edit on both sides --
-// a sort added, a heatmap, a hidden column, a calculated column, a grouping or a pivot on one column -- holds the grid
-// command (grid-commands.ts) both must build for it, `command`: the screen's, told by onCommand, and Python's, which its
-// page records. An action that is two steps on the screen and one call in Python (a grouping on two columns: two menu
-// entries), or a different call (a header click; a cell's filter added, where Python sets the filter whole), or one the
-// screen does not make a command yet (Column Properties: step 3b), is held to the document alone.
+// a sort added, a heatmap, a hidden column, a calculated column, a grouping or a pivot on one column, a column's
+// Aggregation, kind or weighted average (Column Properties' Apply) -- holds the grid command (grid-commands.ts) both
+// must build for it, `command`: the screen's, told by onCommand, and Python's, which its page records. An action that
+// is two steps on the screen and one call in Python (a grouping on two columns: two menu entries), or a different call
+// (a header click; a cell's filter added, where Python sets the filter whole), is held to the document alone.
 //
 // The documents are regenerated, deliberately, by running this test with PARITY_UPDATE naming the fixture to write:
 //   RUNFILES_DIR=/ WASM_PLANNER=<repo>/bazel-bin/wasm/planner_dir PARITY=<repo>/datacube/test/fixtures/parity/parity.json \
@@ -62,12 +62,12 @@ function sameCommand(a: Action): boolean {
     case 'heatmap':
     case 'hide':
     case 'calculate':
-      return true;
-    case 'headerSort':
-    case 'filter':
     case 'aggregate':
     case 'kind':
     case 'wavg':
+      return true;
+    case 'headerSort':
+    case 'filter':
       return false;
   }
 }

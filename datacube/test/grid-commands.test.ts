@@ -8,9 +8,9 @@ import { describe, it } from 'node:test';
 
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { element } from '../../pure-protocol/src/index.ts';
-import { DEFAULT_CONFIGURATION, withConfiguration } from '../src/config.ts';
+import { DEFAULT_CONFIGURATION, withColumn, withConfiguration } from '../src/config.ts';
 import {
-  GRID_COMMAND_KINDS, applyGridCommand, applyGridCommands, readGridCommand, type GridCommand,
+  GRID_COMMAND_KINDS, applyGridCommand, applyGridCommands, draftCommands, readGridCommand, type GridCommand,
 } from '../src/grid-commands.ts';
 import {
   addSort, clickSort, clickTreeSort, measureAsColumn, setColumn, setGrouping, setPivot, setSorts, type GridDraft,
@@ -131,6 +131,69 @@ describe('each command gives what the screen\'s own edit gives', () => {
     assert.deepEqual(done.snapshot.pivotOn, ['desk']);
     assert.deepEqual(done.snapshot.sorts, [{ column: 'qty', direction: 'asc' }]);
     refused(() => applyGridCommands(d, [{ kind: 'group', rows: ['nope'] }, { kind: 'pivot', columns: ['desk'] }]), /nope/);
+  });
+});
+
+describe("an editor's draft as commands (the Properties window's Apply: draftCommands)", () => {
+  const d = draft();
+  const patched = (x: GridDraft, patch: Parameters<typeof withConfiguration>[1]): GridDraft =>
+    ({ ...x, config: withConfiguration(x.config, patch) });
+
+  it('builds nothing for a draft unchanged', () => {
+    assert.deepEqual(draftCommands(d, d), []);
+  });
+
+  it('builds only what the draft changed, and lands it on the grid as it is now: another window\'s edit stays', () => {
+    const edited = patched(setGrouping(d, ['region', 'desk']), { reportTitle: 'Trades', appearance: { fontSize: 13 } });
+    const commands = draftCommands(d, edited);
+    assert.deepEqual(commands, [
+      { kind: 'group', rows: ['region', 'desk'] },
+      { kind: 'configure', patch: { reportTitle: 'Trades', appearance: { fontSize: 13 } } },
+    ]);
+    // meanwhile: a row limit set, a column pinned, a sort clicked -- each kept, as the three-way merge kept them
+    const now = clickSort(patched(d, { maxRows: 50, columns: { qty: { pinned: 'left' } } }), 'qty', 'desc', false);
+    const landed = applyGridCommands(now, commands);
+    assert.deepEqual(landed.snapshot.rows, ['region', 'desk']);
+    assert.deepEqual(landed.snapshot.sorts, [{ column: 'qty', direction: 'desc' }]);
+    assert.equal(landed.config.maxRows, 50);
+    assert.equal(landed.config.columns['qty']?.pinned, 'left');
+    assert.equal(landed.config.appearance.fontSize, 13);
+  });
+
+  it('a column made a dimension comes before the grouping on it; one ungrouped, before it is made a measure', () => {
+    const grouped = setGrouping(setColumn(d, 'qty', { kind: 'dimension' }), ['region', 'qty']);
+    assert.deepEqual(draftCommands(d, grouped), [
+      { kind: 'column', name: 'qty', change: { kind: 'dimension' } },
+      { kind: 'group', rows: ['region', 'qty'] },
+    ]);
+    assert.deepEqual(applyGridCommands(d, draftCommands(d, grouped)), grouped);
+    const back = setColumn(setGrouping(grouped, ['region']), 'qty', { kind: 'measure' });
+    assert.deepEqual(draftCommands(grouped, back), [
+      { kind: 'group', rows: ['region'] },
+      { kind: 'column', name: 'qty', change: { kind: 'measure' } },
+    ]);
+    assert.deepEqual(applyGridCommands(grouped, draftCommands(grouped, back)), back);
+  });
+
+  it("Column Properties is the column command alone -- what setColumn sets with it (a kind's pivot exclusion) is not said again", () => {
+    assert.deepEqual(draftCommands(d, setColumn(d, 'desk', { kind: 'measure' })),
+      [{ kind: 'column', name: 'desk', change: { kind: 'measure' } }]);
+    const wavg = setColumn(setColumn(d, 'notional', { aggregate: 'wavg' }), 'notional', { weight: 'qty' });
+    assert.deepEqual(draftCommands(d, wavg), [{ kind: 'column', name: 'notional', change: { aggregate: 'wavg', weight: 'qty' } }]);
+    // and cleared, as the panel's "none" clears them
+    assert.deepEqual(draftCommands(wavg, d), [{ kind: 'column', name: 'notional', change: { aggregate: null, weight: null } }]);
+  });
+
+  it('a setting cleared is null in the patch, an appearance and a column key by key, the sorts last', () => {
+    const was = patched(d, { reportTitle: 'Trades', columns: { qty: { width: 90, hidden: true } } });
+    const cleared = patched(was, { reportTitle: undefined });
+    const edited = setSorts({ ...cleared, config: withColumn(cleared.config, 'qty', { width: undefined }) },
+      [{ column: 'qty', direction: 'asc' }]);
+    assert.deepEqual(draftCommands(was, edited), [
+      { kind: 'configure', patch: { reportTitle: null, columns: { qty: { width: null } } } },
+      { kind: 'sorts', sorts: [{ column: 'qty', direction: 'asc' }] },
+    ]);
+    assert.deepEqual(applyGridCommands(was, draftCommands(was, edited)), edited);
   });
 });
 

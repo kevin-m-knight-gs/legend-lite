@@ -631,7 +631,14 @@
         {
           "do": "aggregate",
           "column": "notional",
-          "fn": "average"
+          "fn": "average",
+          "command": {
+            "change": {
+              "aggregate": "average"
+            },
+            "kind": "column",
+            "name": "notional"
+          }
         }
       ],
       "cube": {
@@ -721,7 +728,14 @@
         {
           "do": "kind",
           "column": "qty",
-          "kind": "dimension"
+          "kind": "dimension",
+          "command": {
+            "change": {
+              "kind": "dimension"
+            },
+            "kind": "column",
+            "name": "qty"
+          }
         },
         {
           "do": "group",
@@ -2221,7 +2235,14 @@
         {
           "do": "aggregate",
           "column": "notional",
-          "fn": "average"
+          "fn": "average",
+          "command": {
+            "change": {
+              "aggregate": "average"
+            },
+            "kind": "column",
+            "name": "notional"
+          }
         },
         {
           "do": "group",
@@ -2337,7 +2358,14 @@
         {
           "do": "kind",
           "column": "qty",
-          "kind": "dimension"
+          "kind": "dimension",
+          "command": {
+            "change": {
+              "kind": "dimension"
+            },
+            "kind": "column",
+            "name": "qty"
+          }
         },
         {
           "do": "group",
@@ -2689,7 +2717,15 @@
         {
           "do": "wavg",
           "column": "notional",
-          "weight": "qty"
+          "weight": "qty",
+          "command": {
+            "change": {
+              "aggregate": "wavg",
+              "weight": "qty"
+            },
+            "kind": "column",
+            "name": "notional"
+          }
         }
       ],
       "cube": {
@@ -3043,7 +3079,14 @@
         {
           "do": "aggregate",
           "column": "double",
-          "fn": "max"
+          "fn": "max",
+          "command": {
+            "change": {
+              "aggregate": "max"
+            },
+            "kind": "column",
+            "name": "double"
+          }
         }
       ],
       "cube": {

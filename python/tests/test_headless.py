@@ -682,7 +682,8 @@ class ParityWithTheScreen(unittest.TestCase):
         # the screen writes each one-edit action's command into the cases (PARITY_UPDATE): none held, none compared
         held = [a['do'] for case in self.fixture['cases'] for a in case['actions'] if 'command' in a]
         self.assertGreater(len(held), 15)
-        self.assertEqual({'group', 'pivot', 'addSort', 'heatmap', 'hide', 'calculate'}, set(held))
+        self.assertEqual({'group', 'pivot', 'addSort', 'heatmap', 'hide', 'calculate', 'aggregate', 'kind', 'wavg'},
+                         set(held))
 
 if __name__ == '__main__':
     unittest.main()

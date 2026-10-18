@@ -51,8 +51,8 @@ import { AdHocSession } from './adhoc/session.ts';
 import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, withoutConditions, type QuerySnapshot } from './snapshot.ts';
-import { columnKind, firstSortDirection, headerSorts } from './grid-edits.ts';
-import { applyGridCommands, type GridCommand } from './grid-commands.ts';
+import { columnKind, firstSortDirection, headerSorts, type GridDraft } from './grid-edits.ts';
+import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
@@ -939,27 +939,34 @@ export class CubeApp {
    * nothing. A host is told each command the cube kept (onCommand). The refusal, its words or the planner's, or null.
    */
   async #apply(commands: readonly GridCommand[], label: string): Promise<string | null> {
-    let refused: string | undefined;
+    const { refused, outcome } = await this.#applyCommands(commands, label);
+    return refused ?? refusal(outcome);
+  }
+
+  /** #apply's change, `then` its tree (the Properties window's settings move it: #applyDraft), and how it ended: a
+   *  refusal of the commands in their words, or the change's outcome. */
+  async #applyCommands(commands: readonly GridCommand[], label: string,
+    then: (s: CubeState) => CubeState = (s) => s): Promise<{ refused: string | null; outcome: Outcome }> {
+    let refused: string | null = null;
     const out = this.#change((s) => {
       try {
         const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration }, commands);
-        return { ...s, snapshot: d.snapshot, configuration: d.config };
+        return then({ ...s, snapshot: d.snapshot, configuration: d.config });
       } catch (e) {
         if (!(e instanceof CubeRefusal)) throw e;
         refused = e.message;
         return s;
       }
     }, { label });
-    if (refused !== undefined) {
+    if (refused !== null) {
       this.#status(refused, 'warn');
-      await out;
-      return refused;
+      return { refused, outcome: await out };
     }
     const outcome = await out;
     if (outcome.kind !== 'refused' && outcome.kind !== 'cancelled') {
       for (const command of commands) this.#options.onCommand?.(command);
     }
-    return refusal(outcome);
+    return { refused, outcome };
   }
 
   /**
@@ -3236,27 +3243,32 @@ export class CubeApp {
     // a calculated column added -- and applying a draft taken before
     // them wholesale would silently put the cube back. So the editor's
     // edits (the difference between its draft and what it opened on)
-    // land on the cube as it is NOW.
+    // land on the cube as it is NOW: as the grid commands they are
+    // (grid-commands.ts draftCommands), the ones Python's calls build.
+    let commands: GridCommand[];
+    try {
+      commands = draftCommands(asGridDraft(base), asGridDraft(edited));
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(e.message, 'warn');
+      return false;
+    }
+    // "Show root aggregation" is a SETTING in their General Properties,
+    // and it decides whether the level-0 query is issued at all;
+    // "Initially expand to level" decides which groups open as they
+    // load (upstream's isServerSideGroupOpenByDefault). Both reach the
+    // TREE in the same transaction as the rest of the draft: they used
+    // to be a refresh of their own before the draft's, which lost the
+    // draft's rows, pivots and sorts on a refusal (P2-169).
+    const tree = (s: CubeState): CubeState => ({
+      ...s,
+      tree: s.tree
+        .withTotals(s.configuration.showRootAggregation)
+        .withExpandTo(s.configuration.initialExpandToLevel ?? 0),
+    });
     const merge = (s: CubeState): CubeState => {
-      const draft = mergeDraft(
-        { snapshot: s.snapshot, config: s.configuration, dimensions: edited.dimensions },
-        base,
-        edited,
-      );
-      // "Show root aggregation" is a SETTING in their General Properties,
-      // and it decides whether the level-0 query is issued at all;
-      // "Initially expand to level" decides which groups open as they
-      // load (upstream's isServerSideGroupOpenByDefault). Both reach the
-      // TREE in the same transaction as the rest of the draft: they used
-      // to be a refresh of their own before the draft's, which lost the
-      // draft's rows, pivots and sorts on a refusal (P2-169).
-      return {
-        snapshot: draft.snapshot,
-        configuration: draft.config,
-        tree: s.tree
-          .withTotals(draft.config.showRootAggregation)
-          .withExpandTo(draft.config.initialExpandToLevel ?? 0),
-      };
+      const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration }, commands);
+      return tree({ snapshot: d.snapshot, configuration: d.config, tree: s.tree });
     };
     // COMPILED FIRST, as upstream's editor does: the whole query the
     // draft makes, planned and not run. A refusal applies nothing,
@@ -3264,7 +3276,15 @@ export class CubeApp {
     // editor open on the draft. A plane that cannot compile without
     // running falls to the transaction's own refusal, never to a guess.
     const endValidate = this.#startTask('Validating query...');
-    const target = merge(this.#owner.current);
+    let target: CubeState;
+    try {
+      target = merge(this.#owner.current);
+    } catch (e) {
+      endValidate();
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(e.message, 'warn');
+      return false;
+    }
     let checked: Awaited<ReturnType<CubeController['compile']>>;
     try {
       checked = await this.#check(this.#controller.compile({
@@ -3289,10 +3309,10 @@ export class CubeApp {
     }
     // ONE TRANSACTION: it lands whole, or is refused and everything --
     // snapshot, configuration, tree, chrome -- repaints from what was on
-    // screen. The draft is merged again onto the cube as it is when it is
+    // screen. The commands apply again to the cube as it is when they are
     // sent, not as it was before the compile.
-    const out = await this.#change(merge, { label: 'Properties' });
-    return out.kind === 'applied' || out.kind === 'nothing';
+    const { refused, outcome } = await this.#applyCommands(commands, 'Properties', tree);
+    return refused === null && (outcome.kind === 'applied' || outcome.kind === 'nothing');
   }
 
   /**
@@ -4147,52 +4167,11 @@ function isTextEntry(target: EventTarget | null): boolean {
 const STATS_FORMAT: ColumnFormat = { kind: 'number', maximumFractionDigits: 2 };
 
 /**
- * A three-way merge of an editor's draft: what changed between `base`
- * and `edited`, laid over `current`.
- *
- * The editor owns three things in the snapshot -- the row and column
- * pivots and the sorts -- and the whole configuration. Each is taken
- * from the edit only where the edit differs from its base, key by
- * key down through the configuration's objects, so two windows that
- * touched different settings both keep what they did.
+ * An editor's draft as a grid draft: its Dimensions tab's hierarchies on its configuration, where Apply keeps them (a
+ * configure command's `dimensions`, when the tab changed them: untouched, the host's stay in charge).
  */
-export function mergeDraft(current: CubeDraft, base: CubeDraft, edited: CubeDraft):
-CubeDraft {
-  const same = (a: unknown, b: unknown): boolean =>
-    JSON.stringify(a) === JSON.stringify(b);
-  const plain = (v: unknown): v is Record<string, unknown> =>
-    typeof v === 'object' && v !== null && !Array.isArray(v);
-  const merge = (now: unknown, was: unknown, next: unknown): unknown => {
-    if (same(was, next)) return now;
-    if (!plain(now) || !plain(was) || !plain(next)) return next;
-    const out: Record<string, unknown> = { ...now };
-    for (const key of new Set([...Object.keys(was), ...Object.keys(next)])) {
-      const merged = merge(now[key], was[key], next[key]);
-      if (merged === undefined) delete out[key];
-      else out[key] = merged;
-    }
-    return out;
-  };
-  const snapshot: CubeSnapshot = {
-    ...current.snapshot,
-    rows: merge(current.snapshot.rows, base.snapshot.rows,
-      edited.snapshot.rows) as CubeSnapshot['rows'],
-    pivotOn: merge(current.snapshot.pivotOn, base.snapshot.pivotOn,
-      edited.snapshot.pivotOn) as CubeSnapshot['pivotOn'],
-    sorts: merge(current.snapshot.sorts, base.snapshot.sorts,
-      edited.snapshot.sorts) as CubeSnapshot['sorts'],
-  };
-  // The Dimensions tab's edit is KEPT, on the configuration: it went
-  // nowhere before, so a hierarchy defined there was gone on Apply.
-  const merged = merge(current.config, base.config, edited.config) as CubeConfiguration;
-  const config: CubeConfiguration = same(base.dimensions, edited.dimensions)
-    ? merged
-    : { ...merged, dimensions: edited.dimensions };
-  return {
-    snapshot: applyToSnapshot(snapshot, config),
-    config,
-    dimensions: edited.dimensions,
-  };
+export function asGridDraft(d: CubeDraft): GridDraft {
+  return { snapshot: d.snapshot, config: { ...d.config, dimensions: [...d.dimensions] } };
 }
 
 
