@@ -458,13 +458,14 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                   // (docs/PCT_HEADER_DIFFERENTIAL.md) adjudicated the
                   // classes; the producers were fixed, never the overlay.
                   let tdsString = $single->cast(@TDSResult).tdsString;
-                  let tds = $tdsString->stringToTDS();
                   // ONE representation (the MongoDB line, 2026-10-17): a lane whose results all cross as Pure's
                   // TDS text (the plan path) carries a value as the one-column relation `value`, unwrapped HERE by
-                  // the function's own return type -- never guessed from the text
+                  // the function's own return type -- never guessed from the text. The TDS reader reads a relation
+                  // alone: a value's column may be typed by a class, a List, a Map or Any, which it refuses
+                  // ("Pure Type: 'X' is not supported yet"), so a value's text is read from its lines below
                   let rt = $f->functionReturnType().rawType->toOne();
                   if($rt != meta::pure::metamodel::type::Nil && $rt->subTypeOf(Relation),
-                    | $tds->cast(@X)->toMultiplicity(@[o]),
+                    | $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]),
                     | // the reader builds no Date or Decimal value from a cell ("Not supported data type"), so
                       // those are read from the text's lines by Pure's own parsers, the precision kept
                       // -- and it types a cell by its text, not by the header (a Number's 3 read as 3.0, a
@@ -482,7 +483,14 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                                     | meta::legend::lite::pct::quotedCells($tdsString)->cast(@X)->toMultiplicity(@[o]),
                                     | if($rt == Boolean,
                                         | $lines->map(l | $l == 'true')->cast(@X)->toMultiplicity(@[o]),
-                                        | $tds->cast(@Relation<(value:Any)>)->map(r | $r.value)->cast(@X)->toMultiplicity(@[o])))))););,
+                                        | if($rt->instanceOf(Enumeration),
+                                            | $lines->map(l | $rt->cast(@Enumeration<Any>)->extractEnumValue($l))->cast(@X)->toMultiplicity(@[o]),
+                                            | // the text carrier (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, 2026-10-18): a class
+                                              // instance, a List, a Pair, a Map, an Any-typed value, a Type -- each line is
+                                              // Pure's own literal grammar, spelled by the database; Pure compiles it and
+                                              // reactivates the value (both natives on the classpath: legend-engine's
+                                              // core_functions_unclassified compileValueSpecification, the platform's reactivate)
+                                              $lines->map(l | meta::legend::lite::pct::readPureLiteral($l))->cast(@X)->toMultiplicity(@[o]))))))););,
                 | // B8 (the P7 relabel is DELETED): the platform now
                   // labels precision-exact float literals FLOAT end to
                   // end — proved against the reference source
@@ -495,6 +503,16 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     );
 }
 
+
+// A cell of the text carrier read back: the text compiled as a value specification and reactivated; a text that
+// does not compile fails by name with the compiler's message, never a guessed value.
+function <<access.private>> meta::legend::lite::pct::readPureLiteral(text: String[1]): Any[*]
+{
+  let compiled = meta::pure::functions::meta::compileValueSpecification($text);
+  if($compiled.failure->isNotEmpty(),
+    | meta::pure::functions::asserts::fail('the text carrier\'s cell does not compile: ' + $compiled.failure.message->toOne() + ' -- ' + $text); [];,
+    | $compiled.result->toOne()->meta::pure::functions::meta::reactivate());
+}
 
 // (wrapPctList and wrapPctMap DELETED — truthfulness burn B2: the
 // combo-enumeration tables read the TEST's declared type arguments.

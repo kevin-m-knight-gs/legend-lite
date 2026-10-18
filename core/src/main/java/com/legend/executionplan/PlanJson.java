@@ -425,8 +425,15 @@ public final class PlanJson {
 
     // ---- read -------------------------------------------------------------------------------------------------------
 
+    /** How deep a plan's JSON may nest: its typed SQL tree nests as the query does (a class instance's text, spelled
+     *  over its layout, nests a CASE and a CONCAT per property per level), far past the reader's default of 64, which
+     *  guards a server against hostile input; a plan is the planner's own text. */
+    static final int MAX_DEPTH = 4096;
+
     public static ExecutionPlan read(String json) {
-        Json.Obj o = Json.parseObject(json);
+        if (!(Json.parse(json, new Json.Config(MAX_DEPTH)) instanceof Json.Obj o)) {
+            throw new IllegalArgumentException("a plan's JSON is an object");
+        }
         String format = o.getStringOr("format", null);
         if (!FORMAT.equals(format) || o.getIntOr("version", -1) != VERSION) {
             throw new IllegalArgumentException("not a " + FORMAT + " v" + VERSION + " plan (format " + format

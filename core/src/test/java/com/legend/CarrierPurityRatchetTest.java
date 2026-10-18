@@ -178,7 +178,11 @@ class   CarrierPurityRatchetTest {
             // (SqlExpr.CheckedDefects / CheckedChildValue) spelled by the
             // DuckDB strategy CheckedDefectsToLists — and the envelope's
             // own-defects list emission folded one direct site away
-            "SqlFn\\.LIST_", 141,
+            // 141→144 (2026-10-18, the plan path program's step 3, the text carrier): a List's elements and a Map's
+            // keys are spelled one by one in Pure's grammar (LIST_TRANSFORM with the element's text as the lambda,
+            // twice), a Map's value read as the existing idiom (LIST_GET over MAP_EXTRACT); the forms are the
+            // carrier's own shapes, no new encoding
+            "SqlFn\\.LIST_", 144,
             // 12→13 (disagree-9 burn 2026-08-31): staticTemporalText
             // SEE-THROUGH pattern-MATCHES the existing literal-list
             // egress (UNNEST/LIST_FILTER wrappers) to restore written

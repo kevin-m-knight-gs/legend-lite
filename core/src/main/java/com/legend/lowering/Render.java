@@ -684,9 +684,7 @@ public final class Render {
      *  day; a DATE read into a timestamp) its day. The one residue, a true midnight DateTime under an abstract Date
      *  printing date-only, is F5.4's slot erasure, identical on the engine's own relational read-back. */
     private static SqlExpr timed(SqlExpr c) {
-        return SqlExpr.Call.of(SqlFn.NOT_EQUAL,
-                SqlExpr.Call.of(SqlFn.STRFTIME, c, new SqlExpr.FormatLit(DateFmt.TIME_ONLY)),
-                new SqlExpr.StringLit("00:00:00"));
+        return LiteralSpelling.timed(c);
     }
 
     private static SqlExpr strictDateText(SqlExpr c) {
@@ -903,6 +901,13 @@ public final class Render {
      *  relation, TdsTextWrap). */
     public static SqlSelect tdsText(SqlSelect inner, List<Type.Column> typedCols,
             String rowAlias, boolean quoteStrings) {
+        return tdsText(inner, typedCols, rowAlias, quoteStrings, t -> java.util.Optional.empty());
+    }
+
+    /** {@link #tdsText(SqlSelect, List, String, boolean)} with {@code layouts}, the classes' canonical layouts a
+     *  class instance's text is spelled over (the text carrier, docs/PLAN_PATH_PROGRAM_2026_10_17.md §4). */
+    public static SqlSelect tdsText(SqlSelect inner, List<Type.Column> typedCols,
+            String rowAlias, boolean quoteStrings, LiteralSpelling.Layouts layouts) {
         List<OutputCol> cols = inner.outputs();
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
         for (Type.Column c : typedCols) {
@@ -926,11 +931,11 @@ public final class Render {
         }
         String aggAlias = rowAlias + "_a";
         SqlExpr line = tdsTextCell(SqlExpr.Column.of(rowAlias, cols.get(0)),
-                relCols.get(0), cols.get(0).type(), quoteStrings);
+                relCols.get(0), cols.get(0).type(), quoteStrings, layouts);
         for (int i = 1; i < cols.size(); i++) {
             line = cat(line, new SqlExpr.StringLit(","),
                     tdsTextCell(SqlExpr.Column.of(rowAlias, cols.get(i)),
-                            relCols.get(i), cols.get(i).type(), quoteStrings));
+                            relCols.get(i), cols.get(i).type(), quoteStrings, layouts));
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         rowProjs.add(new SqlSelect.Projection(line, "_pct_line",
@@ -1017,12 +1022,18 @@ public final class Render {
      *  their commas under the 5.92.0 reader ("Row 2 has too many
      *  columns" — 28 variant tests, batch 1 of the upstream boundary
      *  program, 2026-09-10). */
-    private static SqlExpr tdsTextCell(SqlExpr c, Type.Column col, SqlType slot, boolean quoteStrings) {
+    private static SqlExpr tdsTextCell(SqlExpr c, Type.Column col, SqlType slot, boolean quoteStrings,
+            LiteralSpelling.Layouts layouts) {
         Type t = col.type();
         SqlExpr rendered;
         if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
             // pure prints VARIANT cells ALWAYS quoted
             rendered = pureQuoted(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+        } else if (t instanceof Type.GenericType
+                || (t instanceof Type.ClassType && !com.legend.compiler.element.type.PlatformTypes.isAny(t))) {
+            // the text carrier (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, 2026-10-18): a class instance, a Pair, a
+            // List, a Map, a Type, in Pure's own literal grammar, which the reader compiles and reactivates
+            rendered = LiteralSpelling.pureValueText(c, t, slot, layouts);
         } else if (dateKind(t) && textSlot(slot)) {
             // a date carried as its own text (a value root: the lowering spells a date value in Pure's literal form,
             // with the precision the value has -- a year, a month, a microsecond -- which no DATE or TIMESTAMP slot

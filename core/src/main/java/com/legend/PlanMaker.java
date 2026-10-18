@@ -62,13 +62,13 @@ final class PlanMaker {
                 case JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
                 case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, relation(WireRender.schema(root), lowered),
                         WireRender.rows(lowered, WireRender.schema(root)), dialect, target);
-                case TDS_TEXT -> tdsText(lowered, root, dialect, target);
+                case TDS_TEXT -> tdsText(lowered, root, dialect, l.ctx(), target);
             };
             // a value's text is the one-column relation `value`, whole: no row to stream
             case SCALAR, COLLECTION -> switch (output) {
                 case CSV -> wire(WireRender.Format.CSV, lowered, root, dialect, target);
                 case JSON, STREAMED_JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
-                case TDS_TEXT -> tdsText(lowered, root, dialect, target);
+                case TDS_TEXT -> tdsText(lowered, root, dialect, l.ctx(), target);
             };
         };
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(), node);
@@ -81,6 +81,7 @@ final class PlanMaker {
      * the database is asked (the legacy executor's probe, ColumnProbe), so a plan with one is refused by name.
      */
     private static ExecutionPlan.TextResult tdsText(SqlQuery lowered, ExprType root, SqlDialect dialect,
+            com.legend.compiler.element.ModelContext ctx,
             ExecutionPlan.Target target) {
         // a static pivot (its values given) has its columns at plan time; a dynamic one's are known only once the
         // database is asked (the legacy executor's probe)
@@ -103,7 +104,8 @@ final class PlanMaker {
         SqlQuery wrapped = com.legend.lowering.TdsTextWrap.wrap(lowered, schema, null, sqlType -> {
             throw new IllegalStateException("TDS text: an output column outside the query's typed schema (SQL type "
                     + sqlType + "): the lowering's typed slot is missing");
-        }, own == null);   // a value's strings quoted whole: the reader types an unquoted cell by its text
+        }, own == null,   // a value's strings quoted whole: the reader types an unquoted cell by its text
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t));
         return text(ExecutionPlan.Format.TDS_TEXT, relation(schema, lowered), wrapped, dialect, target);
     }
 

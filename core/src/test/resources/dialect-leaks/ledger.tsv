@@ -77,6 +77,8 @@ core/src/test/java/com/legend/StoreTypesTest.java	jdbc-url	1
 core/src/test/java/com/legend/StoreTypesTest.java	product-name	2
 core/src/test/java/com/legend/SubstrIndexingTest.java	jdbc-url	1
 core/src/test/java/com/legend/TabularFunctionTest.java	jdbc-url	1
+# 2026-10-18, the plan path program's step 3 (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4): the text carrier's test opens an in-memory DuckDB, the database it judges the cells on.
+core/src/test/java/com/legend/TextCarrierTest.java	jdbc-url	1
 core/src/test/java/com/legend/compiler/LeniencyD6Test.java	database-type	2
 core/src/test/java/com/legend/compiler/LeniencyD6Test.java	jdbc-url	2
 core/src/test/java/com/legend/compiler/LeniencyD6Test.java	product-name	2

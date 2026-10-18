@@ -2057,4 +2057,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   DateTime's text landed 2026-10-18** (GATES "step 2, the DateTime's text"): one owner in `LiteralSpelling`, the last
   44 pins deleted, the matrix all Pure's text; `DateFmt.CSV_DATETIME` and `ISO_PURE_UTC` deleted. **`pure/v1`'s text landed 2026-10-18**
   (GATES "step 2, `pure/v1`'s text"): `WireRender.Spelling` at the two engine-API seams, `floatPrintJava` and
-  `dateTimeTextEngine`, register S76 and S77; step 2 complete, PARK-24 closed. Next: step 3, the text carrier.
+  `dateTimeTextEngine`, register S76 and S77; step 2 complete, PARK-24 closed. **Step 3 announced 2026-10-18: the
+  text carrier** (the program's §4; its §9 names the files): `lowering/LiteralSpelling.java` (`pureValueText`),
+  `lowering/Render.java` (the cell arm; `timed` moved to the owner), `lowering/TdsTextWrap.java` (the layouts),
+  `PlanMaker.java`, `StatementExecutor.java` (handing them), the PCT adapter `pct_adapter.pure` and its module
+  definition (`core_legend_lite_pct.definition.json`: `core_functions_unclassified`), `MongoDbDifferentialTest`,
+  `TextCarrierTest` (new), the MongoDB lane's pins. **Step 3 landed 2026-10-18** (GATES "step 3, the text carrier"):
+  files touched beyond the announced list: `executionplan/PlanJson.java` (the reader's depth, 4096), the MongoDB
+  lane's two pin classes' headers. Next: step 4, dynamic pivots (a probe plan and an identifier hole).

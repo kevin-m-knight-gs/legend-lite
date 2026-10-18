@@ -39,6 +39,10 @@ class MongoDbDifferentialTest {
         }
     }
 
+    /** A class and an enumeration for the text carrier's forms (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, step 3). */
+    private static final String CLASSES = "Class diff::P { name: String[1]; age: Integer[1]; when: StrictDate[0..1];"
+            + " tags: String[*]; boss: diff::P[0..1]; kind: diff::E[0..1]; }\nEnum diff::E { A, B }\n";
+
     private static final String PEOPLE = "#TDS\n id, name, age, city\n 1, Ann, 34, Oslo\n 2, Bob, 28, Oslo\n"
             + " 3, Cy, 41, Rome\n#";
     private static final String CITIES = "#TDS\n town, country\n Oslo, NO\n Paris, FR\n#";
@@ -130,6 +134,17 @@ class MongoDbDifferentialTest {
             new Case("tds_empty", PEOPLE + "->filter(x | $x.age > 100)->select(~[name])", TypedQuery.Output.TDS_TEXT),
             new Case("tds_null_cells", PEOPLE + "->extend(~n: x | if($x.age > 30, |$x.age, |[]))->select(~[name, n])"
                     + "->sort(~name->ascending())", TypedQuery.Output.TDS_TEXT),
+            // the text carrier (the plan path program's step 3, 2026-10-18): a value root that is no primitive crosses
+            // as Pure's own literal grammar, one case per form
+            new Case("tds_instance", "^diff::P(name='a\\'b', age=1, when=%2024-01-02, tags=['x', 'y'],"
+                    + " boss=^diff::P(name='b', age=2), kind=diff::E.B)", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_instances", "[^diff::P(name='a', age=1), ^diff::P(name='b', age=2)]", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_pair", "pair(1, 'a')", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_list", "list([1, 2])", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_map", "newMap([pair('k', 1)])", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_type", "diff::P", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_any", "[1, 'a', %2015-01-01, 1.5, true]", TypedQuery.Output.TDS_TEXT),
+            new Case("tds_enum", "diff::E.A", TypedQuery.Output.TDS_TEXT),
             new Case("distinct", PEOPLE + "->select(~city)->distinct()->sort(~city->ascending())"),
             new Case("inner_join", PEOPLE + "->join(" + CITIES + ", JoinKind.INNER, {a, b | $a.city == $b.town})"
                     + "->select(~[name, country])->sort(~name->ascending())"),
@@ -340,8 +355,8 @@ class MongoDbDifferentialTest {
     void differential() throws Exception {
         EmbeddedMongoDb db = EmbeddedMongoDb.shared();
         System.setProperty(PASSWORD_PROPERTY, EmbeddedMongoDb.PASSWORD);
-        String duck = com.legend.test.StorelessRuntime.with("", DatabaseType.DuckDB);
-        String mongo = com.legend.test.StorelessRuntime.onMongo("", "127.0.0.1", db.port(), EmbeddedMongoDb.DATABASE,
+        String duck = com.legend.test.StorelessRuntime.with(CLASSES, DatabaseType.DuckDB);
+        String mongo = com.legend.test.StorelessRuntime.onMongo(CLASSES, "127.0.0.1", db.port(), EmbeddedMongoDb.DATABASE,
                 EmbeddedMongoDb.USER, PASSWORD_PROPERTY);
         List<String> lines = new ArrayList<>();
         Map<String, Integer> counts = new TreeMap<>();

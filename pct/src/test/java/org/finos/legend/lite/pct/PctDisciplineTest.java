@@ -74,7 +74,11 @@ class PctDisciplineTest {
     // 2026-10-17, the MongoDB lane's burn-down (docs/MONGODB_PLAN_2026_10_16.md §11.4): the value relation's
     // Number and String cells read by the function's return type (the reader types a cell by its text), the
     // quoted String cells read whole across line breaks (quotedCells, closesCell, unquoted); 500 -> 540.
-    private static final int ADAPTER_MAX_LINES = 540;
+    // 2026-10-18, the text carrier (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, step 3): the TDS reader reads a relation
+    // alone; an enumeration's values by extractEnumValue; every other value read by compileValueSpecification and
+    // reactivate (readPureLiteral, seven lines, with its reason) -- Pure reads what the database spelled, no
+    // comparison, no Java; 540 -> 557.
+    private static final int ADAPTER_MAX_LINES = 557;
 
     @Test
     void noJavaSideComparisonInPct() throws IOException {

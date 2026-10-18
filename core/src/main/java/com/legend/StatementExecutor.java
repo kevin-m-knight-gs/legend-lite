@@ -2799,7 +2799,8 @@ final class StatementExecutor {
                 com.legend.lowering.TdsTextWrap.wrap(plan,
                         com.legend.compiler.element.type.Type
                                 .requireRelationSchema(root.info().type()),
-                        probe, com.legend.exec.Executor::pureOfSqlType);
+                        probe, com.legend.exec.Executor::pureOfSqlType, false,
+                        t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t));
         ExecutionResult text = Executor.execute(renderFor(env, rendered), rendered,
                 com.legend.compiler.element.type.ExprType.one(
                         com.legend.compiler.element.type.Type.Primitive

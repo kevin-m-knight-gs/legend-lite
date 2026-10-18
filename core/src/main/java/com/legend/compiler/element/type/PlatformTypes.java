@@ -704,6 +704,11 @@ public final class PlatformTypes {
     }
 
     /** The bottom type (the []-born element type). */
+    /** Whether {@code g} is the metaclass {@code Class<...>} (a class referenced as a value). */
+    public static boolean isClassMetaclass(Type.GenericType g) {
+        return g.rawFqn().equals(CLASS_METACLASS);
+    }
+
     public static boolean isNil(Type t) {
         return t instanceof Type.ClassType c && c.fqn().equals(NIL);
     }

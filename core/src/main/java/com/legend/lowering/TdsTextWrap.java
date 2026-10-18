@@ -47,6 +47,16 @@ public final class TdsTextWrap {
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
             com.legend.sql.@com.legend.base.Nullable PlanProbe probe,
             java.util.function.Function<String, Type> sqlTypeToPure, boolean quoteStrings) {
+        return wrap(plan, schema, probe, sqlTypeToPure, quoteStrings, t -> java.util.Optional.empty());
+    }
+
+    /** {@link #wrap(SqlQuery, Type.RelationType, PlanProbe, Function, boolean)} with {@code layouts}, the classes'
+     *  canonical layouts a class instance's cell is spelled over (the text carrier,
+     *  docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, 2026-10-18); without them an instance's cell is refused by name. */
+    public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
+            com.legend.sql.@com.legend.base.Nullable PlanProbe probe,
+            java.util.function.Function<String, Type> sqlTypeToPure, boolean quoteStrings,
+            LiteralSpelling.Layouts layouts) {
         List<SqlSelect.SortKey> lifted = List.of();
         SqlQuery inner0 = plan;
         if (plan instanceof SqlSelect ps && !ps.orderBy().isEmpty()) {
@@ -65,7 +75,7 @@ public final class TdsTextWrap {
                         new SqlSource.Subselect(inner0, alias, null))
                 .withOutputs(outs)
                 .withOrderBy(lift.remapped());
-        return Render.tdsText(inner, typedCols, "_pct1", quoteStrings);
+        return Render.tdsText(inner, typedCols, "_pct1", quoteStrings, layouts);
     }
 
     /** Per-output pure types: static schema by name → the plan's pivot

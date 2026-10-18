@@ -155,7 +155,7 @@ audit's largest compensation): value work in Java, the opposite of R6.
 
 | value | the cell's text | how it is spelled | how it is read |
 |---|---|---|---|
-| a class instance | `^my::CO_Person(firstName='Fabrice', lastName='Smith')`, nested instances and collections inside | the TDS writer's concatenation over the instance's columns (the graph shape the JSON wire already lowers); on MongoDB the nested-document writer that writes the Variant JSON today, with Pure's brackets | `compileValueSpecification(text).result->reactivate()` (both natives on the classpath: `core_functions_unclassified/meta/compileValueSpecification.pure`, `platform/.../reactivate.pure`) |
+| a class instance | `^my::CO_Person(firstName='Fabrice', lastName='Smith')`, nested instances and collections inside | the TDS writer's concatenation over the instance's columns (the graph shape the JSON wire already lowers); on MongoDB the nested-document writer that writes the Variant JSON today, with Pure's brackets | `compileValueSpecification(text).result->reactivate()` (both natives on the PCT classpath: `compileValueSpecification` is legend-engine's, `legend-engine-pure-functions-unclassified-pure`'s `core_functions_unclassified/meta/compileValueSpecification.pure` with its interpreted native, which the adapter module declares as a dependency; `reactivate` is the platform's, `platform/pure/essential/meta/reflect/reactivate.pure` -- corrected 2026-10-18: the pinned legend-pure has no `compileValueSpecification` of its own) |
 | a List, a Pair, a Map | `list([1, 2])`, `pair(1, 'a')`, `newMap([pair('k', 1)])` | the same concatenation over the collection's elements | the same |
 | an `Any`-typed value | each element in its own literal spelling by the type fact of its branch: `1`, `1.0`, `1.0D`, `'a'`, `%2015-01-01`, `true` | the TDS writer, by the lowering's type fact per branch (a union's branches are typed) | the same |
 | a `Type` or another model element | its path, `my::TestClass` | a string literal | the same; it reactivates to the element |
@@ -258,6 +258,19 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 - **2026-10-17** -- the program written (this document), the rulings R1 to R6 recorded, the representation decided
   (JSON stays, §2). Step 1 announced: types in the plan.
+- **2026-10-18, step 3 landed: the text carrier** (GATES "step 3, the text carrier"): every form spelled by the
+  database and read by Pure; the MongoDB lane's pins 29 deleted and 9 moved to what stays named (the identity tests,
+  a user element by its simple name, an instance past the layout's depth); the text-carried date's `+0000` corrected
+  (after seconds only, never twice); `PlanJson` reads a plan as deep as it nests. Next: step 4, dynamic pivots.
+- **2026-10-18, step 3 announced: the text carrier** (§4): the forms spelled by the database in
+  `lowering/LiteralSpelling.pureValueText` (a class instance over its canonical layout, a Pair, a List, a Map, a
+  Type's path, an enum value's path inside a value; the TDS text's cell arm in `lowering/Render.tdsTextCell`; the
+  classes' layouts handed through `TdsTextWrap.wrap` by the plan maker and the legacy executor), the adapter's
+  reader (`pct_adapter.pure`: the TDS reader for relations alone; an enumeration by `extractEnumValue`; every other
+  value `compileValueSpecification(text).result->reactivate()`, the adapter module depending on
+  `core_functions_unclassified`), a differential case per form (`MongoDbDifferentialTest`), `TextCarrierTest` (new)
+  on DuckDB; judged by the MongoDB lane (its pins on "Pure Type: 'X' is not supported yet", `Any`, `Pair` and the
+  user elements by simple name expected to go) and the DuckDB and H2 lanes (unchanged: the legacy route).
 - **2026-10-18, step 2, `pure/v1`'s text** (GATES "step 2, `pure/v1`'s text"): the JSON wire has a spelling
   (`WireRender.Spelling`, `PURE` on lite's outputs, `ENGINE` at the two engine-API seams); two more owners,
   `floatPrintJava` (Java's layout over the database's digits) and `dateTimeTextEngine` (nine digits, `+0000`); the

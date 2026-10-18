@@ -1362,3 +1362,11 @@ its cell prints as a null cell where Pure prints `'null'` (five relation tests);
 microsecond unit (`$dateToString`, `$dateAdd`); a dynamic pivot (the plan path has no probe; a static one has its grouped form); the digests and currentUserId (no
 operator; regex replace, hashCode, generateGuid, base64 and the string distances were composed, above); a List, Map or class instance crossing as text (the route's, shared with the DuckDB shadow). The
 class-instance pins stay the user's decision (§11.2); the date-precision pins were the plan path's and are gone.
+
+**The text carrier, 2026-10-18 (the thirteenth line's step 3, `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §4; GATES "step 3,
+the text carrier"):** the route's own refusal -- "a List, Map or class instance crossing as text", the `Any` values,
+the `Pair`s, the user elements -- is gone from this lane: a value that is no primitive crosses as Pure's own literal
+grammar, which the pipeline writes (`$concat` over the document's fields, the same owner as DuckDB's; the
+differential's one case per form EQUAL) and the adapter compiles and reactivates. 29 pins deleted, 9 moved to what
+stays named (the identity tests, as on the DuckDB lane; a user element by its simple name; an instance nested past
+the layout's depth). The lane: 1,249 tests, 75 pinned.

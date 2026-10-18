@@ -10653,6 +10653,60 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 3, the text carrier: a value that is no primitive crosses as Pure's grammar
+
+The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §4 (the carrier) and §7 step 3. The line: `docs/IN_FLIGHT.md`, the
+thirteenth line. The user's ruling R6 (no Java evaluation of values): the database spells, Pure reads.
+
+What changed:
+1. **The writer** (`lowering/LiteralSpelling.pureValueText`, the one owner of Pure's value-spelling grammar): on the
+   TDS text output a value root that is no primitive is spelled by the database in Pure's own literal grammar -- a
+   class instance `^my::P(name='a',age=1,when=%2024-01-02,tags=['x', 'y'],boss=^my::P(name='b',age=2),kind=my::E.B,
+   score=1.50D)` over its canonical layout (`ClassLayouts.layoutOf`, handed through `TdsTextWrap.wrap` by the plan
+   maker and the legacy executor; the synthetic fields skipped, an absent property omitted, a to-many one bracketed,
+   a nested instance the same over the struct slot's nested fields); a Pair `pair(1, 'a')`; a List `list([1, 2])`; a
+   Map `newMap([pair('k', 1)])` over its keys; a Type its path, from the typed fact (`Class<my::P>`); an `Any` value
+   the literal its branch carries; an enum value's path inside a value. A String inside is a quoted literal with its
+   escapes (`pureStringLiteral`); a date its `%` form through the DateTime owner; a Decimal its `D`. The cell arm is
+   `Render.tdsTextCell`'s; the CONCATs are one n-ary node per level (a chain nested the plan's JSON past its depth).
+   Refused by name, never guessed: a value whose slot is not the shape its type needs; an instance present past the
+   depth the layout unrolls (the database raises it, `SqlFn.ERROR`; a NULL there is fine); a Variant inside a value.
+2. **The reader** (`pct/src/main/resources/core_legend_lite_pct/pct_adapter.pure`): the TDS reader (`stringToTDS`)
+   reads a relation alone; a value's lines are read by the function's return type -- the primitives as before, an
+   enumeration by `extractEnumValue`, everything else `compileValueSpecification(text).result->reactivate()`
+   (`readPureLiteral`; a text that does not compile fails by name with the compiler's message). The natives are on
+   the PCT classpath: `compileValueSpecification` is legend-engine's (`core_functions_unclassified`, which the adapter
+   module now declares in `core_legend_lite_pct.definition.json`), `reactivate` the platform's. §4's note said
+   legend-pure had the first; corrected.
+3. **The text-carried date's `+0000`** (`dateTimeTextOfText`, the DateTime landing's rule, judged then on DuckDB and
+   H2 only, whose lanes do not text-carry): appended only after seconds and never twice (`%1973-11-13T23`,
+   `%2025-02-10T20:10:20+0000` and `%2025-02-10` are read as written: the MongoDB lane's standard suite, 6 tests, and
+   `testDateFromHour`).
+4. **An empty collection's type** (`Nil`) and a model element referenced by name (a `Type`, a `ModelElement`: the
+   lowering carries its simple name) take the cell's text; 20 MongoDB tests over empty collections hit the first.
+5. **The plan reader's depth** (`PlanJson.MAX_DEPTH` 4096, over the JSON library's default 64): a plan's typed tree
+   nests as the query does; the nested instance's plan did not read back under 64.
+6. **Judges and pins**: `TextCarrierTest` (new, DuckDB, with the round trip); `MongoDbDifferentialTest` gains one case
+   per form (`tds_instance`, `tds_instances`, `tds_pair`, `tds_list`, `tds_map`, `tds_type`, `tds_any`, `tds_enum`: the
+   MongoDB target renders the same owner -- `tds_instances`, `tds_pair`, `tds_list`, `tds_map`, `tds_type`,
+   `tds_any`, `tds_enum` EQUAL at run 2, `tds_instance` behind the depth fix); the MongoDB lane's pins: 29 deleted
+   (26 essential -- the "Pure Type: 'X' is not supported yet" refusals, the `Any` values, the `Pair`s, the empty
+   collections -- and 3 grammar), 9 moved to what remains named (the identity tests, 7, pinned as the DuckDB lane
+   pins them: `instanceOf ...CO_Person`, `M_Location`, `M_Address`; a user element by its simple name, 1; an
+   instance nested past the layout's depth, 1); the standard, relation and unclassified suites pass with no pin
+   moved. The lane: 1,249 tests, 75 pinned.
+
+What judges it: `//pct:pct_mongodb` (five suites), `//core:mongodb_plan_test` (the differential, the round trip on
+every case), `//core:core_tests_root` (`TextCarrierTest`), `_exec`, `_server`, `_integration`, `_lowering`, `_sql`,
+`//core:corpus_differential_test`, `//core:sql_parity_test`, `//core:guardrails`, `//core:census`,
+`//pct:pct_discipline`, `//pct:pct_duckdb` (five suites) and `//pct:pct_h2` (the legacy route's TDS text shares the
+cell arm). All pass on the final tree: the core targets 12 of 12, the PCT suites 12 of 12 (DuckDB's five and H2's with no
+verdict moved; MongoDB's five on their rewritten pins). Guard pins moved with dated reasons: `JavaEvalLedgerTest`
+(`StatementExecutor` 2296 -> 2297, the layouts handed on one line), `CarrierPurityRatchetTest` (`SqlFn.LIST_` 141 ->
+144), `PctDisciplineTest` (the adapter 540 -> 557 lines), the dialect-leak ledger (`TextCarrierTest`, one in-memory
+DuckDB); `IdentityGuardrailTest` kept at its pins by asking the declaration (`PlatformTypes.isClassMetaclass`, used
+by `ChainNormalizer` too) and the slot (a class-typed value with a text slot is a model element by name).
+
 ## 2026-10-18 — The plan path program, step 2, `pure/v1`'s text in the engine's conventions over Pure's values
 
 The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 2; the design `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md` §5

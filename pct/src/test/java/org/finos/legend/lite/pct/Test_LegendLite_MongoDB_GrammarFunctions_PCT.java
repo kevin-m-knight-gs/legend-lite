@@ -34,6 +34,10 @@ public class Test_LegendLite_MongoDB_GrammarFunctions_PCT extends PCTReportConfi
     // reading the value relation's cells by the function's return type).
     // Re-measured 2026-10-17 after the cross-lane pass (§11.4: base64 and the string distances composed, a value
     // root's date precision, the day truncation typed DATE).
+    // Re-measured 2026-10-18 after the text carrier (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, step 3): a class
+    // instance, a List, a Pair, a Map, an Any value and a Type cross as Pure's own literal grammar; what stays
+    // pinned is the identity tests (instances compared by reference, as on the DuckDB lane), a user element
+    // referenced by its simple name, and an instance nested past the layout's depth.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // VALUE DIFFERENCES, measured
             one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
@@ -47,19 +51,16 @@ public class Test_LegendLite_MongoDB_GrammarFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
             one("meta::pure::functions::collection::tests::range::testRangeStepError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Command execution failed on MongoDB server with error 34449 (Location34449): 'Failed to optimize pipeline :: caused by :: $range requires a non-zero step value'"),
-            // MONGODB'S OWN, the server's error
-            one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "\"Command execution failed on MongoDB server with error 241 (ConversionFailure): 'PlanExecutor error during aggregation :: caused by :: Unsupported conversion from object to string in $convert with no onError value'"),
-            one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "\"Command execution failed on MongoDB server with error 241 (ConversionFailure): 'PlanExecutor error during aggregation :: caused by :: Unsupported conversion from object to string in $convert with no onError value'"),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "\"Command execution failed on MongoDB server with error 241 (ConversionFailure): 'PlanExecutor error during aggregation :: caused by :: Unsupported conversion from object to string in $convert with no onError value'"),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "\"Command execution failed on MongoDB server with error 241 (ConversionFailure): 'PlanExecutor error during aggregation :: caused by :: Unsupported conversion from object to string in $convert with no onError value'"),
+            // THE IDENTITY TESTS: instances compared by reference, which no wire carries (the program's §4)
+            one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
+            one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"Command execution failed on MongoDB server with error 40523 (Location40523): 'PlanExecutor error during aggregation :: caused by :: 'year' must evaluate to an integer in the range 1 to 9999, found 10999'"),
-            one("meta::pure::functions::lang::tests::letFn::testAssignNewInstance_Function_1__Boolean_1_", "\"Command execution failed on MongoDB server with error 241 (ConversionFailure): 'PlanExecutor error during aggregation :: caused by :: Unsupported conversion from object to string in $convert with no onError value'"),
             // MONGODB'S OWN, refused by name
             one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"a schema-qualified table (metamodel.classes) reached MongoDb: a collection has no schema (its database is the connection's)\""),
             // THE TDS TEXT ROUTE: a value the text does not carry (an empty string, a class instance, a List, a Map, an Any)
-            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "\"ERROR. Pure Type: 'meta::pure::metamodel::ModelElement' is not supported yet.\""),
-            one("meta::pure::functions::math::tests::minus::testSingleMinusType_Function_1__Boolean_1_", "\"ERROR. Pure Type: 'meta::pure::metamodel::type::Type' is not supported yet.\""),
-            one("meta::pure::functions::math::tests::plus::testSinglePlusType_Function_1__Boolean_1_", "\"ERROR. Pure Type: 'meta::pure::metamodel::type::Type' is not supported yet.\"")
+            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "the text carrier's cell does not compile: TestClass has not been defined!")
     );
 
     public static Test suite() {
