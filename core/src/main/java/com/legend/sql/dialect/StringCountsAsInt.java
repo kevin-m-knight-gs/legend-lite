@@ -18,7 +18,7 @@ import java.util.Map;
  * casts a {@code bigint} to {@code integer} only on assignment, so {@code substr(s, 2, length(s) - 2)} computed in 64
  * bits (Pure's Integer) names no function there. This pass casts each such argument that is no literal to an
  * {@code integer}: a value past its range is Postgres's error, as a count past it is in other engines (IQ island,
- * 2026-10-17, the corpus lane: 23 of SEDE's and SQLStorm's queries, {@code SUBSTRING(Tags, 2, LEN(Tags) - 2)}; IQ
+ * 2026-10-17, the corpus lane: 23 of SEDE's and SQLStorm's queries, {@code SUBSTRING(s, 2, LEN(s) - 2)}; IQ
  * raises past the range too). It runs after {@link SubstringClamp}, whose start it casts too.
  */
 public final class StringCountsAsInt extends SqlRewriter {

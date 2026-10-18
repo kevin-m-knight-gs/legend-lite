@@ -3427,7 +3427,7 @@ final class IqFunctions {
             }
         }
         if (x.kind() == Kind.STRING && engine == IqDialect.Engine.IQ) {
-            // IQ island, 2026-10-17 (BIRD's DATE(SUBSTR(event_date, 1, 10)); measured on IQ 17.1): DATE, DATEPART,
+            // IQ island, 2026-10-17 (BIRD's DATE(SUBSTR(s, 1, 10)); measured on IQ 17.1): DATE, DATEPART,
             // YEAR and DATEADD read a computed string as CAST to TIMESTAMP reads it (stringDate), their -1001006 alike
             return stringDate(x, false, dated("TIMESTAMP", null));
         }
@@ -5020,7 +5020,7 @@ final class IqFunctions {
 
     /**
      * A count or a position argument: an integer (a SMALLINT, an INTEGER, a BIGINT, a BIT, a constant, one computed in
-     * 64 bits), or a NULL. IQ island, 2026-10-17 (the corpus lane: 23 queries, {@code SUBSTRING(Tags, 2, LEN(Tags) -
+     * 64 bits), or a NULL. IQ island, 2026-10-17 (the corpus lane: 23 queries, {@code SUBSTRING(s, 2, LEN(s) -
      * 2)}; measured on IQ 17.1): IQ takes a 32-bit one. Past its range IQ is not consistent -- a constant's or a
      * computed value's is its error (-1009145 under its engine, -1001014 in SUBSTRING, -158 in its front end), a BIGINT
      * column's extremes give '' -- so the island refuses such a value by name where the row computes it. Postgres's
@@ -5112,7 +5112,7 @@ final class IqFunctions {
                         + " yet: its DOUBLE may round otherwise in lite's databases", e.pos());
             }
         } else if (!(x.detail() instanceof IqType t && t.spelling().equals("UNSIGNED BIGINT"))) {
-            // IQ island, 2026-10-17 (the corpus lane: LOG10(COUNT(Score)), 8 queries): a COUNT's UNSIGNED BIGINT
+            // IQ island, 2026-10-17 (the corpus lane: LOG10(COUNT(x)), 8 queries): a COUNT's UNSIGNED BIGINT
             // under IQ's engine is a DOUBLE as a BIGINT is
             integerType(x, e, fn);
         }

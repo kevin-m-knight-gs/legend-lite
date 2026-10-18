@@ -110,7 +110,7 @@ Measured on the live IQ 17.1 and built (parity cases: `lite/corpus_gaps.yaml`):
 - DATALENGTH: a string's bytes, and a column's storage width under IQ's engine;
 - a table's `WITH (NOLOCK)` and `WITH (READUNCOMMITTED)`, read and dropped. After a derived table or a FROM function a hint is IQ's -131;
 - a constant date string beside a DATE or a TIMESTAMP in COALESCE, ISNULL or CASE, read as one. `COALESCE(ts, '1900-01-01')` is a TIMESTAMP.
-- a string function's count or position computed in 64 bits or a BIGINT (2026-10-17, 23 queries, `SUBSTRING(Tags, 2, LEN(Tags) - 2)`): read. Postgres's dialect narrows it to the 32-bit integer its substr, left, right, repeat, lpad and rpad take (`StringCountsAsInt`). A value past 32 bits is refused by name where the row computes it: IQ raises for a computed one and gives `''` for a BIGINT column's extremes. CHAR of a computed code stays refused (DuckDB's chr).
+- a string function's count or position computed in 64 bits or a BIGINT (2026-10-17, 23 queries, `SUBSTRING(s, 2, LEN(s) - 2)`): read. Postgres's dialect narrows it to the 32-bit integer its substr, left, right, repeat, lpad and rpad take (`StringCountsAsInt`). A value past 32 bits is refused by name where the row computes it: IQ raises for a computed one and gives `''` for a BIGINT column's extremes. CHAR of a computed code stays refused (DuckDB's chr).
 - a year alone, or a year and a month, as a date (2026-10-17): the month's first day. `'2010'`, `'2010-05'`, `'2010/5'`, `'2010 May'` and `'May 2010'` are read in comparisons, CAST and CONVERT, with a time after them or not.
 
 Measured to be IQ's own errors, raised or named by the island:
@@ -162,7 +162,7 @@ island's reason, those IQ answers, and what became of them:
   17-digit string one unit off in 6 of 267 Tableau-style constants (its front end exactly), so such a CAST stays
   refused: an equality filter on it may match no row in IQ. A DOUBLE sum's overflow is its engine's -1001010 in every
   group, those TOP drops too (the paused AVG decision, measured);
-- DATE, YEAR, DATEPART and DATEADD of a computed string (BIRD's `DATE(SUBSTR(event_date, 1, 10))`): read as CAST to
+- DATE, YEAR, DATEPART and DATEADD of a computed string (BIRD's `DATE(SUBSTR(s, 1, 10))`): read as CAST to
   TIMESTAMP reads it under IQ's engine (measured: the same values, its -1001006 alike);
 - TRUE and FALSE (BIRD's `THEN TRUE ELSE FALSE`): IQ 17.1's constants 1 and 0, SMALLINTs as the literals are
   (`TRUE + 1` is 2), named `true` unaliased, no alias; the iq17 profiles read them so, and the listed true-keyword
@@ -216,7 +216,7 @@ island's reason, those IQ answers, and what became of them:
   DATE, IQ's engine reads a compared string as a DATE, its time dropped (`dt = '2026-03-04 12:00'` holds); SQL
   Anywhere's front end and SQL Anywhere 17 read it as a TIMESTAMP;
 - out: the name IQ gives an unaliased expression (42): IQ prints it after its own rewrite, derived tables merged,
-  an inner alias folded in as `x as alias`, generated names (`users_2__`) and spacing (`COUNT( Posts.Id)`), none
+  an inner alias folded in as `x as alias`, generated names (`u_2__`) and spacing (`COUNT( u.id)`), none
   of which the query's text holds. Not built yet: RAND (8, in ORDER BY: no answer to judge). CONVERT's styles 6,
   7, 8, 9, 109, 13, 113, 14 and 114 are read now (`:mmm` milliseconds, the hour of twelve and AM or PM for 9 and
   109); 22 to 25, 126, 127, 130 and 131 are IQ's engine's -1009145 ("CONVERT format style ... is invalid"),
@@ -258,7 +258,7 @@ island's reason, those IQ answers, and what became of them:
     window;
 - other dialects' syntax, IQ's syntax error -131 now (2026-10-17, measured; the syntax research's `reject` cases):
   CAST to DATETIME2 or INTERVAL (other dialects' type names, unless a user-defined domain holds the name; 54
-  queries), an aggregate's `FILTER (WHERE ...)` (12), TRIM's ANSI forms `TRIM(BOTH '<>' FROM Tags)` (14). FOR XML
+  queries), an aggregate's `FILTER (WHERE ...)` (12), TRIM's ANSI forms `TRIM(BOTH '<>' FROM s)` (14). FOR XML
   PATH and FOR JSON are -131 too, but the research reads FOR XML's other forms: still refused by name;
 - a name of no function of IQ's (STRING_AGG 2,205 queries, CONCAT 240, STDEV 30, ...; 2026-10-17, measured): read
   as a call. A syntax error in its arguments comes first (-131, `NVARCHAR(MAX)`), then a grouped query's column
@@ -280,9 +280,9 @@ island's reason, those IQ answers, and what became of them:
   whose join is made inner by an enclosing query's join). SQLStorm's coverage: IQ_ERROR 12,078, REFUSED 358 (from
   601);
 - FROM items IQ reads no other way (2026-10-17, measured): VALUES as a FROM item, and a column list after a
-  table's, a CTE's or a function's correlation name (`STRING_SPLIT(...) AS t(TagName)`, `[u] (NOLOCK)`), are its
+  table's, a CTE's or a function's correlation name (`STRING_SPLIT(...) AS t(name)`, `[u] (NOLOCK)`), are its
   syntax error -131, where only a derived table takes a column list. An index hint there (`r (INDEX i)`) is SQL
-  Anywhere's, refused by name. A call of a name that is no system procedure in FROM (`FROM Users (NOLOCK)`) is its
+  Anywhere's, refused by name. A call of a name that is no system procedure in FROM (`FROM u (NOLOCK)`) is its
   -265;
 - IQ's order among its errors (2026-10-17, from the IQ_ERROR verification): a row limit in a subquery or a derived
   table (-1001030) before an outer join's ON subquery (-1001047; 7 of 7), and a held item's own subquery inside a
@@ -318,7 +318,7 @@ island's reason, those IQ answers, and what became of them:
   qualified or not is one there (CAST(d.ts AS DATE) under GROUP BY CAST(ts AS DATE): answered, 4 of the 20); where
   no expression around the column is a key even written otherwise, IQ's -149 (the other 15); one that is a key with
   its + or * operands in another order (1 + k under GROUP BY k + 1, which IQ answers) stays refused by name;
-- a reserved word qualifying a column (SQLStorm's top.TotalPosts) and a reserved type's name standing as a value
+- a reserved word qualifying a column (SQLStorm's top.n) and a reserved type's name standing as a value
   (SEDE's TRY_CONVERT(int, ...); measured on IQ 17.1, 2026-10-17): IQ's -131 (datetime, timestamp, money and text are
   names there, a column's -143); CONTAINS's correlation name (contains.score) stays refused;
 - CONVERT's styles under IQ's engine (the corpus lane's style 126, 8; every style from -1 to 400 and 1000 measured
@@ -326,7 +326,7 @@ island's reason, those IQ answers, and what became of them:
   365 (36-40 and 136-140 to the microsecond, 365 yyyyjjj), now all read; every other style is its -1009145 as it
   plans, over no rows too. Its front end reads 126 and 127 as 121 (not built: the island refuses its styles);
 - known, D-N3 (the judge's NUMERIC places, 9 of the tiebreak's remaining FAILs): IQ's engine types arithmetic on a
-  column by its data's range (AnswerCount + 1.0 is a NUMERIC(3,0) over the sample, an INTEGER column); over tables
+  column by its data's range (n + 1.0 is a NUMERIC(3,0) over the sample, an INTEGER column); over tables
   holding each type's extremes, as the parity tables do, its types are the declared ones', which the island's are;
   under its engine an integer column enters + - * with its own type's digits (100.0 * sm a NUMERIC(8,0), sm + 1.0
   a NUMERIC(6,0)), now read so, and so the quotient over it (it / (sm + 1.0) a NUMERIC(17,7));
@@ -382,7 +382,7 @@ island's reason, those IQ answers, and what became of them:
 - IQ raises a CTE's recursion (-938, -914) and a decorated call of no function of its (STRING_AGG(...) WITHIN GROUP,
   DISTINCT, OVER; -265) once it has read the whole statement (SQLStorm's 6, found by verifying the claims; measured on
   IQ 17.1, 2026-10-17): a syntax error after either is its first. The reader reads on past them for one;
-- a string constant against an integer column (SEDE's Reputation >= 'x', found by verifying the claims; measured on
+- a string constant against an integer column (SEDE's n >= 'x', n an INTEGER, found by verifying the claims; measured on
   IQ 17.1 over 40 spellings and every number type, 2026-10-17): IQ's engine converts it first, so one that is no number
   by its grammar (spaces, a sign, digits and a point, an exponent: '', '+', '.', 'e5' are numbers; '5e', '- 5', a tab,
   a comma are not) is its -157, before any -1001013 of the statement and after a missing column's -143. Against a

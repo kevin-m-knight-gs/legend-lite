@@ -140,8 +140,8 @@ final class IqAggregates {
         }
         for (SqlAst.Expr e : placed) {
             List<SqlAst.FunctionCall> misplaced = new ArrayList<>(aggregateCalls(e));
-            // IQ island, 2026-10-17 (the claim verification's SEDE (SELECT TOP 1 Id FROM Posts WHERE ViewCount =
-            // max(p.ViewCount)), p the outer query's): an aggregate of the outer query's columns alone, qualified by its
+            // IQ island, 2026-10-17 (the claim verification's corpus: (SELECT TOP 1 id FROM u WHERE v =
+            // max(p.v)), p the outer query's): an aggregate of the outer query's columns alone, qualified by its
             // names, is the outer query's (IQ raised its subquery's -1001030 there, not -150)
             misplaced.removeIf(a -> {
                 List<SqlAst.ColumnRef> refs = new ArrayList<>();
@@ -1022,8 +1022,8 @@ final class IqAggregates {
 
     /** A GROUP BY of constants only: IQ's error -149 when the select list reads a column outside an aggregate (it
      *  groups by the constant, not by a select-list position: measured); else every row is one group. IQ island,
-     *  2026-10-17 (the corpus lane's SQLStorm, measured on IQ 17.1): IQ's engine reads it too ({@code GROUP BY 'Total
-     *  Posts'}, {@code GROUP BY 1}, {@code GROUP BY NULL}), where the research's D-R1 held that it restricts it; the
+     *  2026-10-17 (the corpus lane's SQLStorm, measured on IQ 17.1): IQ's engine reads it too ({@code GROUP BY 'a
+     *  b'}, {@code GROUP BY 1}, {@code GROUP BY NULL}), where the research's D-R1 held that it restricts it; the
      *  key is computed as a column, which lite's databases never read as a position. */
     private static void constantKeys(SqlAst.Select s, IqDialect.Engine engine) {
         if (s.groupBy().isEmpty() || !s.groupBy().stream().allMatch(IqAggregates::constant)) {
@@ -1658,7 +1658,7 @@ final class IqAggregates {
         int[] ps = numeric(type);
         int p = Math.min(ps[0] + 1, 126);
         if (p > 38 && p <= settings.precision() && ps[1] <= 37) {
-            // IQ island, 2026-10-17 (TPC-H's SUM(l_extendedprice * (1 - l_discount) * (1 + l_tax)), IQ's NUMERIC(48,6)):
+            // IQ island, 2026-10-17 (a benchmark's SUM(a * (1 - b) * (1 + c)) of NUMERIC(15,2)s, IQ's NUMERIC(48,6)):
             // past 38 digits IQ's type holds what lite's 38 do at its scale; the database adds in 38, a sum past them
             // its own overflow, so lite types the value it holds
             p = 38;

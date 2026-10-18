@@ -588,7 +588,7 @@ public final class IqDialect implements InputDialect {
                         String lower = IqLexer.lower(fn);
                         if (f.name().size() == 1 && !lower.startsWith("sa_") && !lower.startsWith("sp_")
                                 && !lower.startsWith("xp_")) {
-                            // IQ island, 2026-10-17 (the corpus lane's FROM Users (NOLOCK); measured on IQ 17.1): a
+                            // IQ island, 2026-10-17 (the corpus lane's FROM u (NOLOCK); measured on IQ 17.1): a
                             // name of no system procedure called in FROM is IQ's -265 (a table's name too)
                             throw SqlTranslationException.unsupported("the FROM call " + fn + "(...) is IQ's error -265"
                                     + " (procedure '" + fn + "' not found: no procedure of IQ's, unless a user procedure"
@@ -3612,7 +3612,7 @@ public final class IqDialect implements InputDialect {
     private static final Set<Integer> FRONT_END_STYLES = Set.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20,
             21, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 120, 121);
 
-    /** IQ island, 2026-10-17 (the corpus lane's SQLStorm, GROUP BY (SELECT COUNT(*) FROM Posts), ...; measured on IQ
+    /** IQ island, 2026-10-17 (the corpus lane's SQLStorm, GROUP BY (SELECT COUNT(*) FROM u), ...; measured on IQ
      *  17.1, correlated or not, with or without a FROM): a subquery in a GROUP BY item is IQ's -1001030 under its engine
      *  (a scalar value subquery outside of a top level SELECT list); the front end's reading is not built. */
     private static void groupBySubqueries(SqlAst.Statement statement, Engine engine) {
@@ -5615,7 +5615,7 @@ public final class IqDialect implements InputDialect {
         }
         SqlAst.Expr x = engine == Engine.IQ ? identityOperand(b) : null;
         SqlAst.Expr zero = x == null ? null : x == b.left() ? b.right() : b.left();
-        // IQ island, 2026-10-17 (the corpus lane's SEDE: AVG(Score + 0.0); measured on IQ 17.1): a zero written with a
+        // IQ island, 2026-10-17 (the corpus lane's SEDE: AVG(x + 0.0); measured on IQ 17.1): a zero written with a
         // point is folded only in the type a shown item takes (it + 0.0 shown is an INTEGER); inside another
         // expression it is a NUMERIC of scale 0 (AVG(it + 0.0) of scale 21, (it + 0.0) / (sm + 0.0) a NUMERIC quotient)
         if (zero != null && integerLiteral(zero) == null && !shownValues.contains(b)) {
@@ -5815,7 +5815,7 @@ public final class IqDialect implements InputDialect {
                 throw SqlTranslationException.unsupported("this " + operator + " is a NUMERIC(" + p + "," + s + "),"
                         + " more than the 38 digits lite's decimals hold", b.pos());
             }
-            // IQ island, 2026-10-17 (the TPC-H corpus lane's 80 l_extendedprice * (1 - l_discount) * (1 + l_tax), IQ's
+            // IQ island, 2026-10-17 (the TPC-H corpus lane's 80 a * (1 - b) * (1 + c) of NUMERIC(15,2)s, IQ's
             // NUMERIC(47,6)): past 38 digits IQ's type holds what lite's 38 do at its scale; lite computes it there and
             // refuses at run time a value that may not fit (its size estimated in doubles, before the database
             // computes it), typing the value it holds
@@ -6976,7 +6976,7 @@ public final class IqDialect implements InputDialect {
         return Tx.value(new CDecimal(d), Kind.DECIMAL, false, IqTypes.ofNumericConstant(d));
     }
 
-    /** IQ island, 2026-10-17 (found by verifying the corpus lane's IQ_ERROR claims: SEDE's Reputation >= 'x';
+    /** IQ island, 2026-10-17 (found by verifying the corpus lane's IQ_ERROR claims: SEDE's n >= 'x', n an INTEGER;
      *  measured on IQ 17.1 over 40 spellings and every number type): under IQ's engine a string constant compared with
      *  a column of an integer type (BIT, SMALLINT, INTEGER, BIGINT) is converted to a number first, so one that is no
      *  number ({@link #iqNumber}) is its -157 -- before any -1001013 of the statement, wherever each stands. Compared

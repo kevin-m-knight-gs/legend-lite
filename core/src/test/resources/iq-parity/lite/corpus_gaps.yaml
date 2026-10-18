@@ -842,7 +842,7 @@ tests:
     profile: iq17-default
 
   # ---- a string function's count or position computed in 64 bits, or a BIGINT (IQ island, 2026-10-17; the corpus
-  # lane: SUBSTRING(Tags, 2, LEN(Tags) - 2), measured on IQ 17.1): Postgres's lane narrows it to its 32-bit integer
+  # lane: SUBSTRING(s, 2, LEN(s) - 2), measured on IQ 17.1): Postgres's lane narrows it to its 32-bit integer
   - id: a_substring_of_a_computed_length
     sql: "SELECT id, SUBSTRING(vc, 2, LEN(vc) - 2) AS a, LEFT(vc, LEN(vc) - 1) AS b, RIGHT(vc, LEN(vc) / 2) AS c FROM t WHERE id <> 5 ORDER BY id"
     profile: iq17-default
@@ -1161,7 +1161,7 @@ tests:
     profile: iq17-default
 
   # ---- other dialects' syntax IQ raises its syntax error for (IQ island, 2026-10-17; the corpus lane's CAST(x AS
-  # DATETIME2), COUNT(*) FILTER (WHERE ...) and TRIM(BOTH '<>' FROM Tags), measured on IQ 17.1): -131
+  # DATETIME2), COUNT(*) FILTER (WHERE ...) and TRIM(BOTH '<>' FROM s), measured on IQ 17.1): -131
   - id: cast_to_datetime2_is_iqs_syntax_error
     sql: "SELECT CAST(dt AS DATETIME2) AS a FROM t"
   - id: cast_to_interval_is_iqs_syntax_error
@@ -1235,7 +1235,7 @@ tests:
     profile: iq17-default
 
   # ---- FROM items IQ reads no other way (IQ island, 2026-10-17; the corpus lane's FROM (VALUES ...), STRING_SPLIT(...) AS
-  # t(TagName) and FROM Users (NOLOCK), measured on IQ 17.1): VALUES and a column list after a table's name are its
+  # t(name) and FROM u (NOLOCK), measured on IQ 17.1): VALUES and a column list after a table's name are its
   # syntax errors, a call of a table's name its -265
   - id: values_as_a_from_item_is_iqs_syntax_error
     sql: "SELECT a FROM (VALUES (1), (2)) v(a)"
@@ -1277,7 +1277,7 @@ tests:
   - id: trim_of_a_column_of_a_table_named_both
     sql: "SELECT TRIM(both.vc) AS a FROM t AS both WHERE both.id = 6"
 
-  # ---- a subquery in GROUP BY (SQLStorm's GROUP BY (SELECT COUNT(*) FROM Posts), ...; measured on IQ 17.1, 2026-10-17):
+  # ---- a subquery in GROUP BY (SQLStorm's GROUP BY (SELECT COUNT(*) FROM u), ...; measured on IQ 17.1, 2026-10-17):
   # IQ's -1001030 under its engine, correlated or not
   - id: group_by_a_subquery_is_iqs_error
     sql: "SELECT id, COUNT(*) AS n FROM t GROUP BY id, (SELECT COUNT(*) FROM u)"
@@ -1367,7 +1367,7 @@ tests:
     sql: "SELECT STRING_AGG(vc, ',') WITHIN GROUP (ORDER BY vc) AS s FROM t"
     profile: iq17-default
 
-  # ---- a string constant against an integer column (SEDE's Reputation >= 'x'; measured on IQ 17.1, 2026-10-17): IQ's
+  # ---- a string constant against an integer column (SEDE's n >= 'x', n an INTEGER; measured on IQ 17.1, 2026-10-17): IQ's
   # engine converts it first, so one that is no number is its -157, before any -1001013 of the WHERE; against NUMERIC,
   # DOUBLE or an expression, -1001013; LIKE converts a pattern without a wildcard
   - id: an_integer_column_against_a_string_that_is_no_number
@@ -1474,7 +1474,7 @@ tests:
     sql: "SELECT sm, ISNULL(it, 0) it, COUNT(*) n FROM t GROUP BY sm, ISNULL(it, 0)"
     profile: iq17-default
 
-  # ---- a reserved word qualifying a column, or a reserved type's name as a value (SQLStorm's top.TotalPosts, SEDE's
+  # ---- a reserved word qualifying a column, or a reserved type's name as a value (SQLStorm's top.n, SEDE's
   # TRY_CONVERT(int, ...); measured on IQ 17.1, 2026-10-17): IQ's -131; datetime is a name there (-143)
   - id: a_reserved_word_qualifying_a_column_is_iqs_131
     sql: "SELECT ISNULL(top.id, 0) AS v FROM t top"
@@ -1486,8 +1486,8 @@ tests:
     sql: "SELECT FOO(1, bigint) AS x FROM t"
     profile: iq17-default
 
-  # ---- NUMERIC division's type under IQ's engine (the corpus judge's NUMERIC places: SEDE's Score / (AnswerCount +
-  # 1.0), ROUND(100.0 * UpVotes / (UpVotes + DownVotes), 2); measured on IQ 17.1, 2026-10-17)
+  # ---- NUMERIC division's type under IQ's engine (the corpus judge's NUMERIC places: SEDE's x / (n +
+  # 1.0), ROUND(100.0 * a / (a + b), 2); measured on IQ 17.1, 2026-10-17)
   - id: division_types_an_integer_by_a_sum_with_a_decimal
     sql: "SELECT it / (sm + 1.0) AS r FROM t WHERE id = 1"
     profile: iq17-default
@@ -1652,7 +1652,7 @@ tests:
     profile: iq17-default
 
   # ---- an aggregate of the outer query's columns in a subquery's WHERE is the outer query's (the claim verification's
-  # SEDE (SELECT TOP 1 Id FROM Posts WHERE ViewCount = max(p.ViewCount)); measured on IQ 17.1, 2026-10-17)
+  # SEDE (SELECT TOP 1 id FROM u WHERE v = max(p.v)); measured on IQ 17.1, 2026-10-17)
   - id: an_outer_aggregate_in_a_subquery_where_beside_its_top
     sql: "SELECT a.sm, (SELECT TOP 1 u.id FROM u WHERE u.t_id = MAX(a.id) ORDER BY u.id) AS x FROM t a GROUP BY a.sm"
     profile: iq17-default

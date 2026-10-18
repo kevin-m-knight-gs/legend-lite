@@ -1262,7 +1262,7 @@ public final class IqParser {
                         + " supported yet", peek().pos());
             }
             if (fromItem && peek().isOp("(")) {
-                // IQ island, 2026-10-17 (the corpus lane's STRING_SPLIT(...) AS t(TagName), [u] (NOLOCK); measured on IQ
+                // IQ island, 2026-10-17 (the corpus lane's STRING_SPLIT(...) AS t(name), [u] (NOLOCK); measured on IQ
                 // 17.1): only a derived table takes a column list; after a table's, a CTE's or a function's name it is
                 // IQ's syntax error
                 throw new SqlSyntaxException("a column list follows only a derived table's correlation name"
@@ -2051,7 +2051,7 @@ public final class IqParser {
                 }
                 if (peek(1).isOp(".") && !t.is("contains") || TYPE_WORDS.contains(IqLexer.lower(t.text()))
                         && (peek(1).isOp(",") || peek(1).isOp(")"))) {
-                    // IQ island, 2026-10-17 (the corpus lane's top.TotalPosts, TRY_CONVERT(int, ...); measured on IQ
+                    // IQ island, 2026-10-17 (the corpus lane's top.n, TRY_CONVERT(int, ...); measured on IQ
                     // 17.1): a reserved word qualifying a column, or a reserved type's name standing as a value, is
                     // IQ's -131 (top.id, order.id; FOO(int), FOO(1, bigint)); but CONTAINS, whose clause in FROM is
                     // a correlation name (contains.score)
@@ -2344,7 +2344,7 @@ public final class IqParser {
     /** TRIM and its one-sided forms ({@link #ansiTrim}). */
     private static final Set<String> TRIMS = Set.of("trim", "ltrim", "rtrim");
 
-    /** IQ island, 2026-10-17 (the corpus lane's TRIM(BOTH '<>' FROM Tags); measured on IQ 17.1): the ANSI forms of
+    /** IQ island, 2026-10-17 (the corpus lane's TRIM(BOTH '<>' FROM s); measured on IQ 17.1): the ANSI forms of
      *  TRIM -- BOTH, LEADING or TRAILING, a FROM -- are no syntax of IQ's (TRIM(s), TRIM(s, set) are), its syntax error
      *  at {@code at}. */
     private static SqlSyntaxException ansiTrim(IqLexer.Token at) {
@@ -2453,7 +2453,7 @@ public final class IqParser {
                     throw ansiTrim(peek());
                 }
                 if (peek().is("as") && !IqLexer.lower(name).startsWith("xml") && !IqLexer.lower(name).equals("treat")) {
-                    // IQ island, 2026-10-17 (the corpus lane's COALESCE(COUNT(a.Id) AS AnswerCount, 0); measured on IQ
+                    // IQ island, 2026-10-17 (the corpus lane's COALESCE(COUNT(a.id) AS n, 0); measured on IQ
                     // 17.1): AS after an argument (but an XML function's or TREAT's) is its syntax error
                     throw new SqlSyntaxException("AS cannot follow a function's argument" + IqDialect.syntaxCode(),
                             peek().pos());
