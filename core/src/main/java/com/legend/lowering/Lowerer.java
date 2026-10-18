@@ -881,7 +881,14 @@ public final class Lowerer {
                     : resolveOrThrow(base, k.column());
             // an enum-DECODE key groups on its RAW source (C1.4, engine
             // parity); the projection keeps the decoded name
-            keys.add(com.legend.sql.DecodeShapes.sourceExpr(e).orElse(e));
+            SqlExpr key = com.legend.sql.DecodeShapes.sourceExpr(e).orElse(e);
+            // a NULL key (a typed empty: a property no class declares) groups
+            // as a value of the contract's declared type, CAST(NULL AS t): a
+            // constant key is an expression only where it is typed (Postgres,
+            // ConstantKeysAsExpressions), and the type is the plan's own
+            keys.add(key instanceof SqlExpr.NullLit
+                    ? new SqlExpr.Cast(key, Fold.named(contract, k.column()).type())
+                    : key);
             // a self-aliased key drops the alias (view-frame goldens) —
             // EXCEPT reads of a union frame's outputs, which keep it
             // ("unionalias_0"."lastName" as "lastName")

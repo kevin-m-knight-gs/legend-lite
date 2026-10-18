@@ -11738,3 +11738,23 @@ them red unnoticed.
    `//core:iq_syntax_cases_test` and `//core:corpus_differential_test` green (40 targets).
 4. **The chain from now on** runs `//core:core_tests`, `//spec:spec_tests`, the generated files' and the ratchets'
    diff tests, and the IQ and SQL parity lanes on both databases, besides the Cypher lanes.
+
+## 2026-10-18 — `#Cypher{...}#`: the seventy-ninth landing — keys null on every row
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 tail); the record is the study's §12.82. A grouping
+key null on every row typed by its plan for Postgres; such a column read back as the null it is; a sort key null on
+every row ordering nothing.
+
+1. **What lands.** Return6/[3], [6], [18], [19], ReturnOrderBy6/[2], [3], [5], WithOrderBy4/[17], [18], With6/[6],
+   [7] move to PASS on Postgres; the 10 cases of `lite/nullkeys.yaml`. DuckDB PASS 3,855 → 3865, Postgres 3,432 →
+   3453; TCK agreement DuckDB 3570, Postgres 3178 → 3189.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3865 /
+   REFUSED 269 / BOTH_ERROR 750 / SKIP 56; Postgres PASS 3453 / REFUSED 681 / BOTH_ERROR 750 / SKIP 56, of 4940
+   cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests`, `//core:guardrails`, `//spec:spec_tests`, `//core:update_generated_tests`,
+   `//spec:update_ratchets_tests`, the IQ and SQL parity lanes on DuckDB and on Postgres,
+   `//core:iq_syntax_cases_test` and `//core:corpus_differential_test` green (40 targets).
+4. **Found in the run.** A sort key dropped in one arm of a label-less read only broke the arms' union
+   (`lite/twoways/across_the_classes_of_a_labelless_node`): the marks and the drops hold over one arm only. And a
+   snap run while the chain's oracle check ran shared the one Neo4j database (both empty it and seed their graphs):
+   the check reported a drift and the snap an empty graph; both re-run alone, clean.

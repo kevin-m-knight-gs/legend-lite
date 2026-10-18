@@ -726,10 +726,10 @@ tck/clauses/return-orderby/ReturnOrderBy4/[1] ORDER BY of a column introduced in
 tck/clauses/return-orderby/ReturnOrderBy4/[2] Handle projections with ORDER BY	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy5/[1] Renaming columns before ORDER BY should return results in ascending order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy6/[1] Handle constants and parameters inside an order by item which contains an aggregation expression	PASS	PASS
-tck/clauses/return-orderby/ReturnOrderBy6/[2] Handle returned aliases inside an order by item which contains an aggregation expression	PASS	REFUSED
-tck/clauses/return-orderby/ReturnOrderBy6/[3] Handle returned property accesses inside an order by item which contains an aggregation expression	PASS	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy6/[2] Handle returned aliases inside an order by item which contains an aggregation expression	PASS	PASS
+tck/clauses/return-orderby/ReturnOrderBy6/[3] Handle returned property accesses inside an order by item which contains an aggregation expression	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy6/[4] Fail if not returned variables are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
-tck/clauses/return-orderby/ReturnOrderBy6/[5] Fail if more complex expressions, even if returned, are used inside an order by item which contains an aggregation expression	PASS	REFUSED
+tck/clauses/return-orderby/ReturnOrderBy6/[5] Fail if more complex expressions, even if returned, are used inside an order by item which contains an aggregation expression	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[1] Start the result from the second row	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[2] Start the result from the second row by param	PASS	PASS
 tck/clauses/return-skip-limit/ReturnSkipLimit1/[3] SKIP with an expression that does not depend on variables	PASS	PASS
@@ -802,10 +802,10 @@ tck/clauses/return/Return5/[4] DISTINCT inside aggregation should work with nest
 tck/clauses/return/Return5/[5] Aggregate on list values	PASS	PASS
 tck/clauses/return/Return6/[1] Return count aggregation over nodes	PASS	PASS
 tck/clauses/return/Return6/[2] Projecting an arithmetic expression with aggregation	PASS	PASS
-tck/clauses/return/Return6/[3] Aggregating by a list property has a correct definition of equality	PASS	REFUSED
+tck/clauses/return/Return6/[3] Aggregating by a list property has a correct definition of equality	PASS	PASS
 tck/clauses/return/Return6/[4] Support multiple divisions in aggregate function	PASS	PASS
 tck/clauses/return/Return6/[5] Aggregates inside normal functions	PASS	PASS
-tck/clauses/return/Return6/[6] Handle aggregates inside non-aggregate expressions	PASS	REFUSED
+tck/clauses/return/Return6/[6] Handle aggregates inside non-aggregate expressions	PASS	PASS
 tck/clauses/return/Return6/[7] Aggregate on property	PASS	PASS
 tck/clauses/return/Return6/[8] Handle aggregation on functions	PASS	PASS
 tck/clauses/return/Return6/[9] Aggregates with arithmetics	PASS	PASS
@@ -817,8 +817,8 @@ tck/clauses/return/Return6/[14] Aggregates in aggregates	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[15] Using `rand()` in aggregations	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[16] Aggregation on complex expressions	PASS	PASS
 tck/clauses/return/Return6/[17] Handle constants and parameters inside an expression which contains an aggregation expression	PASS	PASS
-tck/clauses/return/Return6/[18] Handle returned variables inside an expression which contains an aggregation expression	PASS	REFUSED
-tck/clauses/return/Return6/[19] Handle returned property accesses inside an expression which contains an aggregation expression	PASS	REFUSED
+tck/clauses/return/Return6/[18] Handle returned variables inside an expression which contains an aggregation expression	PASS	PASS
+tck/clauses/return/Return6/[19] Handle returned property accesses inside an expression which contains an aggregation expression	PASS	PASS
 tck/clauses/return/Return6/[20] Fail if not returned variables are used inside an expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return6/[21] Fail if more complex expressions, even if returned, are used inside expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return7/[1] Return all variables	PASS	PASS
@@ -1191,8 +1191,8 @@ tck/clauses/with-orderBy/WithOrderBy4/[13] Fail on sorting by a non-projected ag
 tck/clauses/with-orderBy/WithOrderBy4/[14] Fail on sorting by a non-projected aggregation on an expression	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[15] Sort by an aliased aggregate projection does allow subsequent matching	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[16] Handle constants and parameters inside an order by item which contains an aggregation expression	PASS	PASS
-tck/clauses/with-orderBy/WithOrderBy4/[17] Handle projected variables inside an order by item which contains an aggregation expression	PASS	REFUSED
-tck/clauses/with-orderBy/WithOrderBy4/[18]  Handle projected property accesses inside an order by item which contains an aggregation expression	PASS	REFUSED
+tck/clauses/with-orderBy/WithOrderBy4/[17] Handle projected variables inside an order by item which contains an aggregation expression	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy4/[18]  Handle projected property accesses inside an order by item which contains an aggregation expression	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[19] Fail if not projected variables are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy4/[20] Fail if more complex expressions, even if projected, are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-skip-limit/WithSkipLimit1/[1] Handle dependencies across WITH with SKIP	SKIP	SKIP
@@ -1246,8 +1246,8 @@ tck/clauses/with/With6/[2] Implicit grouping with single relationship variable a
 tck/clauses/with/With6/[3] Implicit grouping with multiple node and relationship variables as grouping key and single aggregation	PASS	PASS
 tck/clauses/with/With6/[4] Implicit grouping with single path variable as grouping key and single aggregation	PASS	PASS
 tck/clauses/with/With6/[5] Handle constants and parameters inside an expression which contains an aggregation expression	PASS	PASS
-tck/clauses/with/With6/[6] Handle projected variables inside an expression which contains an aggregation expression	PASS	REFUSED
-tck/clauses/with/With6/[7] Handle projected property accesses inside an expression which contains an aggregation expression	PASS	REFUSED
+tck/clauses/with/With6/[6] Handle projected variables inside an expression which contains an aggregation expression	PASS	PASS
+tck/clauses/with/With6/[7] Handle projected property accesses inside an expression which contains an aggregation expression	PASS	PASS
 tck/clauses/with/With6/[8] Fail if not projected variables are used inside an expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With6/[9] Fail if more complex expression, even if projected, are used inside expression which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With7/[1] A simple pattern with one bound endpoint	PASS	PASS
@@ -4273,6 +4273,16 @@ lite/nonfinite/nan_and_infinities_ordered	PASS	PASS
 lite/nonfinite/nan_and_infinities_ordered_descending	PASS	PASS
 lite/nonfinite/collect_of_a_quotient_by_zero	PASS	PASS
 lite/nonfinite/nan_from_a_row_value_in_a_list	PASS	PASS
+lite/nullkeys/a_key_no_class_declares	PASS	PASS
+lite/nullkeys/a_key_no_class_declares_over_no_rows	PASS	PASS
+lite/nullkeys/a_key_no_class_declares_in_a_with	PASS	PASS
+lite/nullkeys/such_a_key_beside_a_real_one	PASS	PASS
+lite/nullkeys/such_a_key_around_an_aggregate	PASS	PASS
+lite/nullkeys/a_sum_of_such_keys_ordered_with_an_aggregate	PASS	PASS
+lite/nullkeys/a_computed_key_of_one_ordered_after_a_with	PASS	PASS
+lite/nullkeys/ordered_by_a_property_no_class_declares_then_a_name	PASS	PASS
+lite/nullkeys/ordered_by_such_an_item_then_a_name_with_a_limit	PASS	PASS
+lite/nullkeys/a_key_null_on_some_classes_only	PASS	PASS
 lite/odds/to_integer_of_texts	PASS	PASS
 lite/odds/to_float_of_texts	PASS	PASS
 lite/odds/unwind_after_a_match	PASS	PASS

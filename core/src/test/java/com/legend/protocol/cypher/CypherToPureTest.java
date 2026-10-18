@@ -558,6 +558,18 @@ class CypherToPureTest {
         assertTrue(!none.contains(".all()"), none);
     }
 
+    @Test
+    void aTypedNullItemReadsBackAsTheNullItIs() {
+        // (the study's §12.82) a projected item that is a typed null (here no way of the model reads the pattern) is
+        // read back as that null where the clauses after read it, so its column is never read to one (a statically
+        // empty to-one, which the lowering spells as a raise); a sort key null on every row orders nothing
+        String p = pure("MATCH (me:City)--(you:City) RETURN me.age + you.age, count(*) AS cnt"
+                + " ORDER BY me.age + you.age + count(*)");
+        assertTrue(p.contains("groupBy(~['me.age + you.age'], ~[cnt:x|$x._cypher_2:y|$y->count()])"), p);
+        assertFalse(p.contains("toOne"), p);
+        assertFalse(p.contains("->sort("), p);
+    }
+
     private static String pure(String cypher) {
         ValueSpecification vs = CypherToPure.translate(cypher, MODEL);
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);

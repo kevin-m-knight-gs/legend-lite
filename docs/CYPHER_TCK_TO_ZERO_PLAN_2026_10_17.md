@@ -324,6 +324,10 @@ join, uniqueness by W2's keys. Two to three legs, after W2 and W9's resolver wor
   and TimestampNs declared in the system metamodel, the prelude regenerated, elementId claimed as a resolver form,
   rand() as legend-pure's own `math::random` (lite's twin left), the pins moved with dated reasons; the per-leg
   chain runs those suites and the IQ and SQL lanes from now on.
+- Keys null on every row LANDED 2026-10-18 (the study's §12.82, GATES' seventy-ninth landing; TCK agreement DuckDB
+  3570, Postgres 3178 → 3189): a NULL grouping key typed by its plan (the lowering), a projected typed null read back
+  as that null (the island), a sort key null on every row ordering nothing (Return6/[3], [6], [18], [19],
+  ReturnOrderBy6/[2], [3], [5], WithOrderBy4/[17], [18], With6/[6], [7] on Postgres).
 - The expression tail LANDED 2026-10-17 (the study's §12.73, GATES' seventy-first landing; TCK agreement DuckDB 3526 → 3537, Postgres 3147 → 3157):
   UNION over nodes by identity, `%` of floats (DuckDB; Postgres's dialect refuses), computed SKIP and LIMIT, paths
   compared by identity, range of a computed step or a nullable bound, toString of lists, maps, nodes, relationships
@@ -671,7 +675,7 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   one variable); spelling it over the join's two needs either a scope reading each column off its side, or the
   rows' values the WHERE reads joined into the pattern's rows first (on the shared identities) and the left join
   matched on them too. Two TCK rows.
-- **2026-10-17, W12 (§12.80) — a null grouping key on Postgres.** `MATCH (a) WITH a.num AS a, count(*) AS count
+- **2026-10-17, W12 (§12.80) — a null grouping key on Postgres.** RESOLVED 2026-10-18 (§12.82: the key typed by its plan, the column read back as its null, a sort key null on every row dropped). `MATCH (a) WITH a.num AS a, count(*) AS count
   RETURN count` and ten more (Return6/[3], [6], [18], [19], ReturnOrderBy6/[2], [3], [5], WithOrderBy4/[17], [18],
   With6/[6], [7]) group by a property no class declares, a typed null; Postgres refuses a bare NULL key, and its
   dialect refuses it by name (`ConstantKeysAsExpressions`). Casting the key to the plan's declared type lets ten of

@@ -6213,7 +6213,8 @@ public final class CypherToPure {
         for (State arm : arms) {
             // the same fresh names in every arm, so the arms' columns agree
             fresh = mark;
-            ArmProjection ap = projectArm(items, distinct, orderBy, skip, limit, where, arm, pos, returning);
+            ArmProjection ap = projectArm(items, distinct, orderBy, skip, limit, where, arm, pos, returning,
+                    arms.size() == 1);
             if (first == null) {
                 first = ap;
                 vs = ap.base();
@@ -6278,6 +6279,7 @@ public final class CypherToPure {
             texts.putAll(ap.sortAggregateColumns());
             Scope after = new KeyedScope(new Rows(vs, readable), texts);
             List<ColSpec> computed = new ArrayList<>();
+            List<SortKey> orderless = new ArrayList<>();
             int k = 0;
             for (SortKey sk : sortKeys) {
                 if (!sk.hidden()) {
@@ -6285,13 +6287,22 @@ public final class CypherToPure {
                 }
                 SortItem o = ap.afterGrouping().get(k++);
                 Tx t = tx(o.expr(), after);
+                if (SqlToPure.isNullConstant(t)) {
+                    // (null on every row: it orders nothing, as an open graph's absent property, §12.82)
+                    orderless.add(sk);
+                    continue;
+                }
                 if (t.kind() == Kind.JSON) {
                     // (a Variant: its orderability key, the study's §12.58)
                     t = variantKey(t);
                 }
                 computed.add(new ColSpec(sk.column(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
             }
-            vs = call("extend", vs, new ColSpecArray(computed));
+            sortKeys = new ArrayList<>(sortKeys);
+            sortKeys.removeAll(orderless);
+            if (!computed.isEmpty()) {
+                vs = call("extend", vs, new ColSpecArray(computed));
+            }
             hidden.addAll(computed);
         }
         List<ValueSpecification> sortInfos = new ArrayList<>();
@@ -6370,7 +6381,7 @@ public final class CypherToPure {
 
     private ArmProjection projectArm(List<Item> items, boolean distinct, List<SortItem> orderBy,
             @com.legend.base.Nullable Expr skip, @com.legend.base.Nullable Expr limit,
-            @com.legend.base.Nullable Expr where, State state, Pos pos, boolean returning) {
+            @com.legend.base.Nullable Expr where, State state, Pos pos, boolean returning, boolean oneArm) {
         Scope scope = state instanceof Graph g ? new GraphScope(g) : new RowScope((Rows) state);
         Set<String> names = new HashSet<>();
         Map<String, NodeCarry> nodes = new LinkedHashMap<>();
@@ -6503,11 +6514,18 @@ public final class CypherToPure {
                 // (a hidden key the projection drops: the lowering's result render carries it as a hidden output
                 // of the ordered relation, Render.withSortOutputs, 2026-10-17; before, only a sort under a SKIP or
                 // LIMIT, a subquery's, rendered)
-                key = hiddenSortKey(tx(o.expr(), sortScope), scope, names, hidden, keyed);
+                Tx sortTx = tx(o.expr(), sortScope);
+                if (oneArm && SqlToPure.isNullConstant(sortTx)) {
+                    // (null on every row: it orders nothing, §12.82; over several arms the key is null in some
+                    // only, and every arm keeps it, so the arms' columns agree)
+                    continue;
+                }
+                key = hiddenSortKey(sortTx, scope, names, hidden, keyed);
                 sortKeys.add(new SortKey(key, o.descending(), true));
-            } else {
+            } else if (!oneArm || scalars.get(key) == null || !SqlToPure.isNullConstant(scalars.get(key))) {
                 sortKeys.add(new SortKey(key, o.descending(), false));
             }
+            // (else an item null on every row: it orders nothing, §12.82)
         }
         // the WHERE of a WITH over an ungrouped projection: a hidden column, read before the sort
         String whereColumn = null;
@@ -6539,7 +6557,7 @@ public final class CypherToPure {
                 Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
                 specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
                 // (a zoned date-time's zone rides with its column, so the clauses after read its fields in it)
-                columns.add(new Col(out.name(), t.kind(), t.nullable(), null, t.detail()));
+                columns.add(new Col(out.name(), t.kind(), t.nullable(), null, columnDetail(t, oneArm)));
             }
             if (specs.isEmpty()) {
                 // every item carried: the rows stay (one per row in hand), under a column nothing names
@@ -6577,7 +6595,7 @@ public final class CypherToPure {
                     // (a list or map around aggregates, {name: count(b)}: the Variant it is as a value)
                     Tx t = av instanceof Scalar s ? s.tx() : variant(av, pos);
                     expressions.add(new ColSpec(out.name(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
-                    columns.add(new Col(out.name(), t.kind(), t.nullable(), null, t.detail()));
+                    columns.add(new Col(out.name(), t.kind(), t.nullable(), null, columnDetail(t, oneArm)));
                 } else if (nodes.containsKey(out.name())) {
                     // a node among the keys: each of its columns a key (its identity among them: two nodes alike
                     // are two groups), the node itself under its name (a virtual column, as the ungrouped carry)
@@ -6591,7 +6609,7 @@ public final class CypherToPure {
                     Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
                     specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
                     keys.add(new ColSpec(out.name(), null, null, null));
-                    columns.add(new Col(out.name(), t.kind(), t.nullable(), null, t.detail()));
+                    columns.add(new Col(out.name(), t.kind(), t.nullable(), null, columnDetail(t, oneArm)));
                 } else {
                     groupedAggregate(out, scope, names, specs, aggregates, finishes, columns);
                 }
@@ -8332,6 +8350,10 @@ public final class CypherToPure {
                         // a null the query named: null wherever it is read
                         return nullValue();
                     }
+                    if (c.detail() instanceof NullConstant) {
+                        // a typed null the projection computed: that null wherever it is read (§12.82)
+                        return scalar(SqlToPure.nullOf(c.kind()));
+                    }
                     Tx read = columnLike(new AppliedProperty(new Variable(row()), c.name()), c.kind(),
                             c.nullable());
                     Col zone = column(ZONE_PART + c.name());
@@ -9171,6 +9193,21 @@ public final class CypherToPure {
      *  Variant the database builds of it (the study's §12.79): DuckDB's JSON writes {@code NaN}, {@code Infinity},
      *  {@code -Infinity}, which no JSON number spells; Postgres's division raises first (S60). */
     private record NotANumber() implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** The mark of a projected column whose value is a typed null constant (a property no class declares, a null the
+     *  query computes from one): read back as that null wherever the clauses after read it, never as the column
+     *  (whose to-one read would be a statically empty one, §12.82); the column itself stays, a grouping's key. */
+    private record NullConstant() implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** A projected column's detail: a typed null constant marked so ({@link NullConstant}) where the projection has
+     *  one arm (over several, the rows keep the first arm's columns, and the value is null in some arms only), else
+     *  the value's own. */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail columnDetail(Tx t,
+            boolean oneArm) {
+        return oneArm && t.kind() != Kind.NULL && t.detail() == null && SqlToPure.isNullConstant(t)
+                ? new NullConstant() : t.detail();
     }
 
     /** Whether an expression is a zero literal ({@code 0}, {@code 0.0}). */

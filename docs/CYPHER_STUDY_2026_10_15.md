@@ -5172,3 +5172,41 @@ Pattern2/[7] moves to PASS on both lanes; TCK agreement DuckDB 3569 → 3570, Po
   `ratchets.tsv` re-measured (Form 218 → 219, Intrinsic 702 → 708, Unimplemented 71 → 70).
 - **The chain from now on** runs `//core:core_tests`, `//spec:spec_tests`, the generated files' and ratchets' diff
   tests, and the IQ and SQL parity lanes on both databases, besides the Cypher lanes.
+
+### 12.82 Keys null on every row (2026-10-17)
+
+- **The case.** `MATCH (me:Person)--(you:Person) WITH me.age AS age, you RETURN age, age + count(you.age)` over a
+  graph with no such property (the open graph's typed null, §12.45) groups by a key that is null on every row: one
+  group over the rows, none over no rows. Postgres refuses a bare constant key (`ConstantKeysAsExpressions`: a
+  constant is an expression only where it is typed), so eleven TCK rows were refused by name there (§12.80).
+- **The key typed by its plan (the lowering).** A grouping key the lowering finds to be `NULL` (a typed empty)
+  groups as `CAST(NULL AS t)`, `t` the plan's declared type of its column (`Lowerer`, the group-by keys; the type
+  read off the contract, never inferred). DuckDB answers the same; the IQ and SQL corpora unchanged.
+- **The key read back as the null it is (the island).** A projected column whose value is a typed null constant
+  carries the mark `NullConstant` (`CypherToPure.columnDetail`): the clauses after read it as that null
+  (`RowScope.variable`), never as the column, so `age + count(...)` is null by the island's own rule and no
+  `toOne` of the column is spelled. That `toOne` of a column the typer stamps `[0..0]` lowers to the raise, which
+  Postgres types as text inside a CASE when it plans (`varchar + bigint`, ReturnOrderBy6/[5]); typing the raise in
+  the lowering instead broke the IQ corpus (§12.80), so the island spells nothing to raise. The column itself
+  stays: it is the grouping's key, which keeps "no groups over no rows".
+- **A sort key null on every row orders nothing.** An ORDER BY item, a hidden key or a key after a grouping whose
+  value is a null constant is dropped (as an open graph's absent property under a SKIP or LIMIT was, §12.45):
+  every row ties on it, so the sort is the rest of the keys, or none. Nothing is computed: the null is the
+  expression's own static value.
+- **One arm only.** A label-less read projects one arm per class, and the rows keep the first arm's columns: a value
+  null in some arms only is not marked, and a sort key null in some arms only is kept in every arm, so the arms'
+  columns agree (a key dropped in one arm only was the one regression the first run found,
+  `lite/twoways/across_the_classes_of_a_labelless_node`).
+- **Pinned.** `lite/nullkeys.yaml`'s 10 cases, each judged by Neo4j; CypherToPureTest's
+  `aTypedNullItemReadsBackAsTheNullItIs`; Return6/[3], [6], [18], [19], ReturnOrderBy6/[2], [3], [5],
+  WithOrderBy4/[17], [18], With6/[6], [7] on Postgres.
+
+#### 12.82.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4940 | 3865 (from 3,855) | 0 | 0 | 0 | 269 | 750 | 56 |
+| Postgres | 4940 | 3453 (from 3,432) | 0 | 0 | 0 | 681 (from 692) | 750 | 56 |
+
+The eleven rows move to PASS on Postgres (they passed on DuckDB); TCK agreement DuckDB 3570, Postgres 3178 → 3189.
+The 10 cases of `lite/nullkeys.yaml` pass on both lanes.
