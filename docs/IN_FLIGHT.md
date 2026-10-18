@@ -973,6 +973,14 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   module 290,000 -> 291,000, each dated), and `test/guardrails.test.ts` (`menuCommand(`, dated). The Properties
   window's Apply is commands too (`draftCommands`; `mergeDraft` gone), and the columns' presentation. Not yet
   commands: the column editor's edit, rename and delete. Still not touched: the SQL plan's ground.
+  **Announced 2026-10-18: the DataCube roadmap run** (`docs/DATACUBE_ROADMAP_RUN_2026_10_18.md`, its ledger): the
+  roadmap's phases one after another, each on its own branch stacked on the one before (`claude/datacube-page-commands`,
+  then `claude/datacube-page-state`, and on), each audited and pushed with no PR until the user asks. Phase 1, the
+  command program's page half (`docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md`), done and audited. Files: `datacube/src/page-commands.ts`
+  (new), `page-document.ts` (`readLayout` exported), `headless/page.ts` (`pageApply`), `headless/layout.ts` and
+  `headless/model.ts` (the walkers Python no longer needs gone), `page/cube-page.ts` and `page/page-app.ts`
+  (`onPageCommand`, one id allocator), `layout/band-board.ts` (`columns`), `python/legend_lite/page.py` (each page
+  edit a command), their tests, and `datacube/BUILD.bazel` for the new test. Still not touched: the SQL plan's ground.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
