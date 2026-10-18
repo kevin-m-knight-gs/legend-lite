@@ -76,6 +76,9 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   const scatter = spec.mark === 'scatter';
   // a box plot plots one number column's five figures (chart-spec.ts BOX_FNS): the column is its one choice
   const box = spec.mark === 'boxplot';
+  // a map's column across names each row's country; a bubble map's names each place, put where two columns say
+  const map = spec.mark === 'map';
+  const bubbles = spec.mark === 'bubblemap';
   const across = scatter
     ? [...measures, ...dimensions].map((c) => ({ value: c.name, label: c.name }))
     : dims;
@@ -175,7 +178,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   }
   form.append(
     markField,
-    field(doc, scatter ? 'X:' : 'Across:', dropdown<string>(doc, spec.x, across, (v) => {
+    field(doc, scatter ? 'X:' : map ? 'Country:' : bubbles ? 'Place:' : 'Across:', dropdown<string>(doc, spec.x, across, (v) => {
       // a new column across takes its own order, and a grain or bins go with the old one (editChart)
       if (v) h.set({ x: v }, true);
     })),
@@ -200,6 +203,19 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       { allowNone: SPLIT_NEEDED[spec.mark] === undefined },
     ))]),
   );
+  if (bubbles) {
+    // where each place is: a number column of its latitude, another of its longitude (the chart groups by them)
+    const numbers = [...dimensions, ...measures].filter((c) => isNumeric(c.type)).map((c) => ({ value: c.name, label: c.name }));
+    const place = (which: 'lat' | 'lon', text: string): HTMLElement => field(doc, text, dropdown<string>(
+      doc, spec.at?.[which], numbers, (v) => {
+        // the one chosen so far, or both: the rules ask for the other by name until it is chosen
+        const { [which]: _old, ...other } = current(h).at ?? {};
+        const next = v ? { ...other, [which]: v } : other;
+        h.set({ at: Object.keys(next).length > 0 ? next : null });
+      }, { allowNone: true },
+    ));
+    form.append(place('lat', 'Latitude:'), place('lon', 'Longitude:'));
+  }
   if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area') {
     form.append(...measureRows(h, spec, plotted, typeOf), ...layerFields(h, spec, plotted));
     // SMALL MULTIPLES: a chart per value of a column, in a row of charts or a column of them (both: a matrix)
@@ -267,8 +283,9 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       { value: 'right', label: 'Right' },
       { value: 'none', label: 'None' },
     ] as const, (v) => { if (v) h.setOption('legend', v); })),
-    // a box plot writes none of its five figures on its box (the phase 5 audit): no checkbox that does nothing
-    ...(box ? [] : [checkbox(doc, 'Show values', spec.options.labels, (v) => h.setOption('labels', v))]),
+    // a box plot writes none of its five figures on its box (the phase 5 audit), nor a map its values on its places:
+    // no checkbox that does nothing
+    ...(box || map || bubbles ? [] : [checkbox(doc, 'Show values', spec.options.labels, (v) => h.setOption('labels', v))]),
   );
   if (!scatter) {
     const hint = doc.createElement('p');

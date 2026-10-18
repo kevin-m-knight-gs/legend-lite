@@ -335,6 +335,23 @@ And its example page.
 
 ### Batch 5: maps (§4), with its example page
 
+**Built (2026-10-18, the roadmap run's phase 6, `docs/DATACUBE_ROADMAP_RUN_2026_10_18.md`):** two kinds on Natural
+Earth's 1:110m countries, in the Equal Earth projection, zoomed and panned. A **map** (`mark: 'map'`) colours each
+country its column across names -- an ISO code exactly (alpha-3 or alpha-2), else one of Natural Earth's names, case
+aside -- by one value, and says the values it found no country for, and a country two rows named (the first drawn). A
+**bubble map** (`mark: 'bubblemap'`) puts a bubble at each place its column across names, where a new slot says --
+`at: {lat, lon}`, two number columns -- sized by one value; its query groups by the place's name, latitude and
+longitude (never an average of positions), and a row with no position is said. Both draw one series of one value,
+ask for 250 places (`MAP_LIMIT`), and are placed by their own columns: they do not follow the grid's grouping. A click
+filters to the place, as a bar's does. Drawn by `chart-maps.ts`; ECharts' map chart, its geo component and the shapes
+are a chunk of their own (`chart-render-maps.ts`), fetched with the first map. Python writes them as any chart
+(`grid.chart('map', x=...)`, `grid.chart('bubblemap', x=..., at={'lat': ..., 'lon': ...})`). On the Maps sheet of the
+"more kinds" example page.
+
+**Not built (left for a later pass):** provinces and states (one file per country, item 1); the borders as each of
+31 countries draws them (item 4: Natural Earth's views, a deployment's default and a user's setting); the US with
+Alaska and Hawaii set in (item 5); a user's own shapes (item 6).
+
 ### After the batches
 
 Program step F1 rebuilds page filters and cross-filtering on classes (its own line); this work's clicks, brushes and
@@ -409,5 +426,12 @@ Batch 2 is built on the session branch `claude/epic-rubin-ay7upl`, from main.
 1. **Regions beyond countries and their provinces** (UK regions, EU regions): not planned; Natural Earth's provinces
    cover most countries, and a user's own shapes cover the rest.
 2. **The map-preparation tool**: a pinned Python tool run at build time, or files prepared once and committed with how
-   they were made. To be chosen when batch 5 starts, with the measured sizes.
+   they were made. To be chosen when batch 5 starts, with the measured sizes. **Taken for now, for the user to confirm
+   (the roadmap run's phase 6):** prepared once and committed -- `datacube/tools/maps/prepare.py` (standard library
+   only) reads the published 1:110m countries of release 5.1.2, its sha256 pinned, keeps the geometry with every
+   coordinate rounded to 2 decimals (a shared border's vertices stay the same on both sides: no simplification, so no
+   slivers) and five fields, and writes `datacube/src/maps/world-110m.ts`: 183 KB, 60 KB gzipped, fetched only with
+   the first map. A build-time run would need Natural Earth's file at build time, which a cloud session's network
+   may refuse; the committed file needs nothing. Provinces (41 MB published) will need simplification, and so a real
+   tool, when they come.
 3. **The notebook widget's chart code fetched lazily** (batch 2 item 13): measured, asked, built (2026-10-14).

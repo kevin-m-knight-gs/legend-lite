@@ -1,9 +1,10 @@
 // The example page of batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3, §3.3): every new kind over the sales
-// sample, a sheet per family, each simple to complex -- and batch 4's box plots, with a histogram, on Statistics. Built as batch 2's page is (charts-dashboard.ts salesPage), so it
+// sample, a sheet per family, each simple to complex -- and batch 4's box plots, with a histogram, on Statistics, and
+// batch 5's maps on Maps. Built as batch 2's page is (charts-dashboard.ts salesPage), so it
 // moves with the spec; test/examples.test.ts reads it back and finds every chart drawable, and
 // test/chart-queries.test.ts plans and runs each chart's query on the sample.
 
-import { boxMeasures } from '../chart-spec.ts';
+import { boxMeasures, MAP_LIMIT } from '../chart-spec.ts';
 import type { PageDocument } from '../page-document.ts';
 import { BY_TIME, chart, PROFIT, REVENUE, salesPage, type ExampleSheet } from './charts-dashboard.ts';
 
@@ -101,6 +102,27 @@ const SHEETS: readonly ExampleSheet[] = [
       }),
       chart('k-histogram', 'How many sales of each size: a histogram, in 20 bins', {
         x: 'revenue', bins: { count: 20 }, y: [{ column: 'order_id', fn: 'count' }], options: BY_TIME,
+      }),
+    ],
+  },
+  {
+    name: 'Maps',
+    views: [
+      chart('k-map', 'Revenue by country, by its ISO code: a map', {
+        mark: 'map', x: 'country_code', options: { limit: MAP_LIMIT },
+      }),
+      chart('k-map-names', 'Profit by country, by its name: a map', {
+        mark: 'map', x: 'country', y: [PROFIT], options: { limit: MAP_LIMIT },
+      }),
+      chart('k-map-share', 'Each country\'s share of the units sold: a map', {
+        mark: 'map', x: 'country_code', y: [{ ...UNITS, showAs: { kind: 'percentOfTotal' } }], options: { limit: MAP_LIMIT },
+      }),
+      chart('k-bubbles', 'Revenue by city, at each city: a bubble map', {
+        mark: 'bubblemap', x: 'city', at: { lat: 'lat', lon: 'lon' }, options: { limit: MAP_LIMIT },
+      }),
+      chart('k-bubbles-orders', 'Orders by city: a bubble map', {
+        mark: 'bubblemap', x: 'city', at: { lat: 'lat', lon: 'lon' }, y: [{ column: 'order_id', fn: 'count' }],
+        options: { limit: MAP_LIMIT },
       }),
     ],
   },

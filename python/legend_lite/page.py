@@ -435,7 +435,7 @@ class Grid(Tile):
               options: Mapping[str, Any] | None = None, grain: str | None = None,
               bins: Mapping[str, float] | None = None, tooltip: Sequence[Any] | None = None,
               layers: Sequence[Mapping[str, Any]] | None = None, label: Any = None, size: Any = None,
-              facet: Mapping[str, str] | None = None) -> Chart:
+              facet: Mapping[str, str] | None = None, at: Mapping[str, str] | None = None) -> Chart:
         """A chart of this grid, beside it: ``mark`` (a mark DataCube draws), its category ``x``, what it plots ``y`` --
         ``[(column, aggregate), ...]``, the measure DataCube's own new chart would plot unless given -- and a ``split``
         (one series per value), each DataCube's own new chart's unless given (None: none); ``frozen`` keeps its own
@@ -453,14 +453,16 @@ class Grid(Tile):
         ``facet`` small multiples of bars, lines or areas, a chart per value of ``{'column': ...}`` and/or
         ``{'row': ...}``. A ``'boxplot'`` plots one number column's five figures -- ``min``, ``percentile25``,
         ``median``, ``percentile75``, ``max``, in that order -- taking those of the measure it would plot unless ``y``
-        says them. Every word is DataCube's (datacube/src/chart-spec.ts): one it does not know -- a mark, an
+        says them. A ``'map'`` colours each country its ``x`` names (an ISO code or a name); a ``'bubblemap'`` puts a
+        bubble at each place ``x`` names, where ``at={'lat': ..., 'lon': ...}`` -- two number columns -- says it is.
+        Every word is DataCube's (datacube/src/chart-spec.ts): one it does not know -- a mark, an
         axis, a show-as, a grain, a layer's kind or statistic -- is refused by its reader, naming the words it takes.
 
         DataCube makes the chart -- its own new chart, changed as its options form changes one (a date across runs in time
         order) -- and judges it as it will draw it, by its own rules run in V8 (the datacube extra; the bundle's
         gridChart): what it would refuse to draw is refused here, in its words, and nothing is kept."""
         given = {**_given(mark, x, y, split, frozen), **({'options': _carried(options)} if options is not None else {}),
-                 **_slots(grain, bins, tooltip, layers, label, size, facet)}
+                 **_slots(grain, bins, tooltip, layers, label, size, facet, at)}
         # made as DataCube makes a new chart (what is not given is its own default), and judged as it will draw it: what
         # DataCube would refuse to draw is refused here, in its words, before the chart is kept
         spec = _made(self._page, self._view['cube'], given)
@@ -538,12 +540,12 @@ def _cube_spec(cube: Mapping[str, Any], frames: Any) -> dict[str, Any]:
 
 def _slots(grain: str | None, bins: Mapping[str, float] | None, tooltip: Sequence[Any] | None,
            layers: Sequence[Mapping[str, Any]] | None, label: Any = None, size: Any = None,
-           facet: Mapping[str, str] | None = None) -> dict[str, Any]:
+           facet: Mapping[str, str] | None = None, at: Mapping[str, str] | None = None) -> dict[str, Any]:
     """The spec's version 2 slots a chart was given, in the spec's own keys and as given: DataCube's reader and rules
     judge each (_made), in their words."""
     given = {'size': None if size is None else _measure(size), 'facet': facet, 'grain': grain, 'bins': bins,
              'label': None if label is None else _measure(label),
-             'tooltip': None if tooltip is None else _measures(tooltip), 'layers': layers}
+             'tooltip': None if tooltip is None else _measures(tooltip), 'layers': layers, 'at': at}
     return {key: _carried(value) for key, value in given.items() if value is not None}
 
 

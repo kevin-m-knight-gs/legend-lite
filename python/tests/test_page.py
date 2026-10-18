@@ -539,6 +539,27 @@ class Document(Paged):
             with self.subTest(given=given), self.assertRaisesRegex(ValueError, why):
                 grid.chart('boxplot', x='desk', **given)
 
+    def test_batch_5_maps_are_written_and_refused_as_datacube_draws_them(self):
+        page = ll.Page('Maps')
+        sales = pd.DataFrame({'country': ['USA', 'FRA', 'GBR'], 'city': ['New York', 'Paris', 'London'],
+                              'lat': [40.71, 48.86, 51.51], 'lon': [-74.01, 2.35, -0.13], 'revenue': [500.0, 300.0, 200.0]})
+        grid = page.grid(sales, name='sales_geo', rows=['country'], measures={'revenue': 'sum'})
+        # a map of each country by its code; a bubble at each city, where its latitude and longitude say
+        grid.chart('map', x='country')
+        grid.chart('bubblemap', x='city', at={'lat': 'lat', 'lon': 'lon'})
+        specs = [v['spec'] for v in page.to_dict()['views'] if v['kind'] == 'chart']
+        self.assertEqual([s['mark'] for s in specs], ['map', 'bubblemap'])
+        self.assertEqual(specs[1]['at'], {'lat': 'lat', 'lon': 'lon'})
+        # a map asks for the world's countries, not DataCube's first fifty
+        self.assertEqual(specs[0]['options']['limit'], 250)
+        for mark, given, why in [('map', {'x': 'revenue'}, 'not text'),
+                                 ('bubblemap', {'x': 'city'}, 'latitude'),
+                                 ('bubblemap', {'x': 'city', 'at': {'lat': 'city', 'lon': 'lon'}}, 'not a number'),
+                                 ('bubblemap', {'x': 'city', 'at': {'lat': 'lat', 'height': 'lon'}}, 'its places'),
+                                 ('bar', {'x': 'city', 'at': {'lat': 'lat', 'lon': 'lon'}}, 'places nothing')]:
+            with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
+                grid.chart(mark, **given)
+
     def test_a_chart_plots_what_it_is_told_and_a_frozen_one_stays_when_its_grid_goes(self):
         page, grid, chart = self.built()
         # a hand on its split freezes it, as in DataCube's options

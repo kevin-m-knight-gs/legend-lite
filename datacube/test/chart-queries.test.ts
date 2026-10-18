@@ -232,6 +232,12 @@ describe('the example pages\' charts, planned and run on their own sample (docs/
         assert.ok(t.rowCount > 0, `${v.title}: rows`);
         // a value on a bin's edge is in its own bin: 0.15 / 0.05 is 2.9999999999999996 in floating point, and the
         // database rounds the quotient before its floor (calc-presets.ts floorOf)
+        // a bubble map groups by each place's latitude and longitude with its name: the sample's ten cities, each once
+        if (v.id === 'k-bubbles') {
+          assert.equal(t.rowCount, 10);
+          assert.equal(new Set(values(t, 'city')).size, 10);
+          assert.deepEqual(values(t, 'lat').filter((_, i) => values(t, 'city')[i] === 'Tokyo').map(Number), [35.68]);
+        }
         if (v.id === 'b-discount') {
           assert.deepEqual(values(t, 'discount__bin').map((d) => Number(Number(d).toFixed(2))).sort(), [0, 0.05, 0.1, 0.15, 0.2]);
         }

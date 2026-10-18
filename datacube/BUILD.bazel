@@ -481,6 +481,7 @@ _HEADLESS_LEFT_OUT = {
     # the chart renderer (ECharts) draws on a DOM canvas: a screen test, though it imports no jsdom itself
     "chart-echarts": "ECharts draws on a DOM canvas",
     "chart-kinds": "ECharts draws on a DOM canvas",
+    "chart-maps": "ECharts draws on a DOM canvas",
     # a picked File read as a stream (Blob, TextDecoderStream: upload.ts fileParts) is the page's: headless reads a file
     # by its path (readFileInto, run by //python:headless_test's Files)
     "upload": "a picked File, read as the page's stream",

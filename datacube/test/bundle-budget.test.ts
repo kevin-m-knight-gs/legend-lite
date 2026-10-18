@@ -175,8 +175,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  289,500 -> 290,000 (2026-10-18, chart batch 4, the roadmap run's phase 5: docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md
  *  Batch 4): the quartile aggregates (their labels and the compiler's offers for them) and the box plot's rules in
  *  chart-spec.ts, which the grid carries for its charts' panel; the box plot's drawing is chart-kinds.ts's chunk.
- *  Measured 289,651 before the phase's audit fixes. */
-const BUDGET = 290_000;
+ *  Measured 289,651 before the phase's audit fixes.
+ *  290,000 -> 291,000 (2026-10-18, chart batch 5, the roadmap run's phase 6: the design note's Batch 5): the maps' rules
+ *  in chart-spec.ts (a map reads a country's code or name; a bubble map's places, `at`) and the panel's routing to
+ *  them; their drawing, shapes and ECharts are chunks of their own (MAPS_BUDGET). Measured 290,341. */
+const BUDGET = 291_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -211,8 +214,10 @@ const BUDGET = 290_000;
  *  them (datacube-app.ts followLive). The page commands' rules come only with the first commands (a chunk of their
  *  own: page-ids.ts keeps the screen's ids apart from them). Measured 277,563.
  *  278,500 -> 279,000 (2026-10-18, chart batch 4: the quartiles and the box plot's rules -- the grid's note of the same
- *  date). Measured 278,735 before the phase's audit fixes. */
-const ENGINE_BUDGET = 279_000;
+ *  date). Measured 278,735 before the phase's audit fixes.
+ *  279,000 -> 280,000 (2026-10-18, chart batch 5: the maps' rules -- the grid's note of the same date). Measured
+ *  279,416. */
+const ENGINE_BUDGET = 280_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -235,8 +240,12 @@ const ENGINE_BUDGET = 279_000;
  *  compress less well than one; and a pie in two rings or half a ring (chart-option.ts). Measured 445,666.
  *  447,000 -> 301,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's
  *  "does minify buy anything if already zipped?" -- it does, about a third). Measured 298,386; unminified, the same
- *  tree 446,304. */
-const CHART_BUDGET = 301_000;
+ *  tree 446,304.
+ *  301,000 -> 303,000 (2026-10-18, chart batch 5, the roadmap run's phase 6): the ECharts code a first chart shares with
+ *  the maps' chunk is a file of its own (three files compress less well than two), and the drawing grew with batches 4
+ *  and 5's words; the measure counts only the chunks a first chart fetches (one only batch 3's kinds and the maps share
+ *  is theirs). Measured 302,497. */
+const CHART_BUDGET = 303_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -249,6 +258,12 @@ const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+
  *  "does minify buy anything if already zipped?" -- it does, about a third): batch 3's kinds all in. Measured 62,426;
  *  unminified, the same tree 95,848. */
 const KINDS_BUDGET = 66_000;
+
+const isMaps = (file: string): boolean => /[\\/]chart-(?:render-)?maps-[^\\/]+\.js$/.test(file);
+/** Set 2026-10-18 at its first measure (chart batch 5, the roadmap run's phase 6), 75,526: the drawing with the world's
+ *  countries (Natural Earth 1:110m, prepared by tools/maps/prepare.py: about 60,000 of it) and ECharts' map chart and
+ *  geo component, a chunk each. */
+const MAPS_BUDGET = 78_000;
 
 /** The charts' options form (ui/chart-form.ts), fetched the first time a chart's options are shown: set 2026-10-14 at
  *  its first measure, 4,872, with room for batch 3's fields.
@@ -298,8 +313,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  293,000 -> 296,000 (2026-10-18, the command program's stage 3: a notebook's page follows Python's changes by their
  *  commands -- the engine page's note of the same date). Measured 295,033.
  *  296,000 -> 296,500 (2026-10-18, chart batch 4: the quartiles and the box plot's rules -- the grid's note of the same
- *  date). Measured 296,208 before the phase's audit fixes. */
-const WIDGET_BUDGET = 296_500;
+ *  date). Measured 296,208 before the phase's audit fixes.
+ *  296,500 -> 297,500 (2026-10-18, chart batch 5: the maps' rules -- the grid's note of the same date). Measured
+ *  296,883. */
+const WIDGET_BUDGET = 297_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
@@ -326,7 +343,17 @@ describe('the page loads ECharts only when a chart draws', () => {
 
   it(`the first chart fetches at most ${CHART_BUDGET.toLocaleString()} bytes more, gzipped: ECharts and the drawing`, () => {
     // what a chart adds to the page, beside the grid's own budget (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5)
-    const chart = chunksOf().filter((f) => (holds(f, 'echarts') || holds(f, 'src/chart-option.ts')) && !isKinds(f));
+    // ECharts' chunks and the drawing's that a first chart fetches: those its renderer and drawing import, so a chunk
+    // only batch 3's kinds and the maps share (ECharts code of their own) is theirs, not a first chart's
+    const fetched = new Set<string>();
+    const visit = (f: string): void => {
+      if (fetched.has(f)) return;
+      fetched.add(f);
+      for (const s of PAGE.get(f)?.statics ?? []) visit(s);
+    };
+    chunksOf().filter((f) => holds(f, 'src/chart-render.ts') || holds(f, 'src/chart-option.ts')).forEach(visit);
+    const chart = chunksOf().filter((f) => (holds(f, 'echarts') || holds(f, 'src/chart-option.ts')) && !isKinds(f) && !isMaps(f)
+      && fetched.has(f));
     assert.ok(chart.length >= 1, 'the chart\'s chunks are found');
     const size = chart.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= CHART_BUDGET, `a first chart fetches ${size.toLocaleString()} bytes gzipped, over its budget of ${CHART_BUDGET.toLocaleString()}`);
@@ -339,6 +366,16 @@ describe('the page loads ECharts only when a chart draws', () => {
     assert.ok(kinds.length >= 1, 'the kinds\' chunks are found');
     const size = kinds.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= KINDS_BUDGET, `batch 3's kinds fetch ${size.toLocaleString()} bytes gzipped, over their budget of ${KINDS_BUDGET.toLocaleString()}`);
+  });
+
+  it(`batch 5's maps are chunks of their own, fetched with the first of them: at most ${MAPS_BUDGET.toLocaleString()} bytes more`, () => {
+    for (const f of startup()) assert.ok(!isMaps(f) && !holds(f, 'src/chart-maps.ts') && !holds(f, 'src/maps/world-110m.ts'), `${f} carries the maps`);
+    const maps = chunksOf().filter(isMaps);
+    assert.equal(maps.length, 2, 'the maps\' drawing with their shapes, and their ECharts chart, a chunk each');
+    // the shapes come with the drawing alone: in no chunk a first chart or batch 3's kinds fetch
+    assert.deepEqual(chunksOf().filter((f) => holds(f, 'src/maps/world-110m.ts')).map((f) => isMaps(f)), [true]);
+    const size = maps.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    assert.ok(size <= MAPS_BUDGET, `batch 5's maps fetch ${size.toLocaleString()} bytes gzipped, over their budget of ${MAPS_BUDGET.toLocaleString()}`);
   });
 
   it(`the options form and an example page are chunks of their own, each within its budget`, () => {
