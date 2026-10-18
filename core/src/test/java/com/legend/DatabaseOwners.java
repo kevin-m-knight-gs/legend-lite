@@ -113,10 +113,18 @@ final class DatabaseOwners {
     private static final Map<String, Set<String>> NAMED_BY_ROLE = Map.of(
             MAIN + "sql/dialect/RawSqlBoundary.java", Set.of("H2"));
 
-    /** The input languages (D11): each file and the database whose SQL it reads. */
+    /** The input languages (D11): each file and the database whose SQL it reads. 2026-10-18, the dialect program's
+     *  D11: Postgres's rules that were the translator's (SqlToPure's) are its own files' (operators, casts, functions,
+     *  dates, jsonb, aggregates). */
     private static final Map<String, Set<String>> INPUT_LANGUAGES = Map.of(
             MAIN + "protocol/sql/PostgresDialect.java", Set.of("Postgres"),
-            MAIN + "protocol/sql/PostgresDateTime.java", Set.of("Postgres"));
+            MAIN + "protocol/sql/PostgresDateTime.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresOperators.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresCasts.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresFunctions.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresDates.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresJsonb.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresAggregates.java", Set.of("Postgres"));
 
     private static final String IQ = MAIN + "protocol/sql/iq/";
 
@@ -145,6 +153,9 @@ final class DatabaseOwners {
             // 2026-10-16, the dialect program's Phase 5: the connector registry, Databases' counterpart on the
             // execution side (a declared type to the connector that opens its sessions)
             MAIN + "exec/Connectors.java",
+            // 2026-10-18, the dialect program's D11: the input-language registry, Databases' counterpart for the SQL a
+            // user writes (an island's language to the dialect it is read in)
+            MAIN + "protocol/sql/InputLanguages.java",
             // 2026-10-16, the dialect program's Phase 6: the tests' registry of databases, and its test (which compares
             // every database's backend by design, as ConnectorsTest compares their connectors)
             TEST + "testbackend/TestBackends.java",

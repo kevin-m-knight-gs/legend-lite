@@ -8,13 +8,16 @@ import java.util.List;
 /**
  * A SQL dialect as {@link SqlToPure} reads one: its parse, and the rules the dialects differ on -- which name an
  * identifier means, where NULLs sort when the query does not say, what an unnamed column is called, what a source
- * column's and a constant's types are, what an operator, a function, a cast and LIKE mean, how CASE's results take one
- * type, and the wording of the refusals that are the dialect's own. The rest of the translation is every dialect's:
- * the scopes, the query's shape (FROM, WHERE, grouping, windows, set operations, WITH), three-valued logic,
- * subqueries.
+ * column's and a constant's types are, what an operator, a function, a cast, LIKE and an aggregate mean, how CASE's
+ * results take one type, and the wording of the refusals that are the dialect's own. The rest of the translation is
+ * every dialect's: the scopes, the query's shape (FROM, WHERE, grouping, windows, set operations, WITH), three-valued
+ * logic, subqueries. A default here is the translator's plain reading, which a dialect overrides where it reads
+ * otherwise; every rule that is a language's own -- its operators, casts, functions and aggregates, how it reads a
+ * string as a value, its type names -- is that dialect's to state (the dialect program's D11, 2026-10-18, moved
+ * Postgres's out of the translator and out of the defaults that called them).
  *
- * <p>{@link PostgresDialect} is the {@code #SQL{...}#} island's, and {@link SqlToPure#translate(String,
- * SqlToPure.Sources)}'s: Postgres is that island's spec. A dialect read under options (an engine's profile) is one
+ * <p>{@link InputLanguages} says which dialect an island's language is read in ({@link PostgresDialect} for
+ * {@code #SQL{...}#}: Postgres is that island's spec). A dialect read under options (an engine's profile) is one
  * instance per profile, so no method here takes one.
  */
 public interface InputDialect {
@@ -127,6 +130,15 @@ public interface InputDialect {
      *  {@link SqlAst.BooleanLit}, {@link SqlAst.NullLit} or {@link SqlAst.TypedLit}. */
     SqlToPure.Tx literal(SqlAst.Expr constant);
 
+    /** A string constant the translator compares with a value of {@code kind} (a simple CASE's operand, a window
+     *  function's default beside its argument), read as a value of that kind by the dialect's input rules, or the
+     *  dialect's refusal (the dialect program's D11, 2026-10-18). */
+    SqlToPure.Tx readString(SqlAst.StringLit s, SqlToPure.Kind kind);
+
+    /** A kind's name in the dialect's own wording, for the translator's refusals that name a value's type
+     *  ({@code function lag(text, integer) does not exist}; the dialect program's D11, 2026-10-18). */
+    String typeName(SqlToPure.Kind kind);
+
     // ------------------------------------------------------------------ meanings
 
     /** {@code b}'s translation: its operands are translated {@code at} its place. */
@@ -163,10 +175,8 @@ public interface InputDialect {
         return true;
     }
 
-    /** {@code u}'s translation ({@code -x}, {@code +x}, {@code NOT c}): Postgres's unless the dialect says otherwise. */
-    default SqlToPure.Tx unary(SqlAst.Unary u, SqlToPure.At at) {
-        return at.postgresUnary(u);
-    }
+    /** {@code u}'s translation ({@code -x}, {@code +x}, {@code NOT c}). */
+    SqlToPure.Tx unary(SqlAst.Unary u, SqlToPure.At at);
 
     /** The count of a row limit, {@code clause} {@code LIMIT} or {@code OFFSET} (the query's {@link SqlAst.Select#limit}
      *  and {@link SqlAst.Select#offset}): Postgres's is a non-negative integer constant, as written. */
@@ -189,20 +199,27 @@ public interface InputDialect {
     /** {@code x [NOT] LIKE pattern}'s translation. */
     SqlToPure.Tx like(SqlAst.Like l, SqlToPure.At at);
 
-    /** {@code x [NOT] BETWEEN low AND high}'s translation: Postgres's unless the dialect says otherwise. */
-    default SqlToPure.Tx between(SqlAst.Between b, SqlToPure.At at) {
-        return at.postgresBetween(b);
+    /** {@code o}'s translation, an operator the translator reads as no other node ({@link SqlAst.Operator}: a jsonb
+     *  navigation, a regular expression match); null where the dialect reads no such operator, refused as not
+     *  supported (the dialect program's D11, 2026-10-18). */
+    default SqlToPure.@com.legend.base.Nullable Tx operator(SqlAst.Operator o, SqlToPure.At at) {
+        return null;
     }
 
-    /** {@code x [NOT] IN (value, ...)}'s translation: Postgres's unless the dialect says otherwise. */
-    default SqlToPure.Tx inList(SqlAst.InList in, SqlToPure.At at) {
-        return at.postgresInList(in);
+    /** {@code s}'s translation, a subscript ({@code x[i]}); null where the dialect reads none, refused (the dialect
+     *  program's D11, 2026-10-18). */
+    default SqlToPure.@com.legend.base.Nullable Tx subscript(SqlAst.Subscript s, SqlToPure.At at) {
+        return null;
     }
 
-    /** {@code x IS [NOT] DISTINCT FROM y}'s translation: Postgres's unless the dialect says otherwise. */
-    default SqlToPure.Tx isDistinct(SqlAst.IsDistinct d, SqlToPure.At at) {
-        return at.postgresIsDistinct(d);
-    }
+    /** {@code x [NOT] BETWEEN low AND high}'s translation. */
+    SqlToPure.Tx between(SqlAst.Between b, SqlToPure.At at);
+
+    /** {@code x [NOT] IN (value, ...)}'s translation. */
+    SqlToPure.Tx inList(SqlAst.InList in, SqlToPure.At at);
+
+    /** {@code x IS [NOT] DISTINCT FROM y}'s translation. */
+    SqlToPure.Tx isDistinct(SqlAst.IsDistinct d, SqlToPure.At at);
 
     /** A FROM item that is one of the dialect's own relations (a system table, a system procedure), as the dialect
      *  reads it; null when it is none and the translator reads the item (Postgres's: never one). */
@@ -234,12 +251,9 @@ public interface InputDialect {
     }
 
     /** One row of a subquery compared, for {@code x op ANY | ALL (query)} and {@code x [NOT] IN (query)}:
-     *  {@code left op each}, {@code each} the subquery's column read in that row. Postgres's unless the dialect says
-     *  otherwise. */
-    default SqlToPure.Tx quantifiedTest(SqlAst.BinaryOp op, SqlAst.Expr left, SqlToPure.Tx each, SqlAst.Pos pos,
-            SqlToPure.At at) {
-        return at.postgresQuantifiedTest(op, left, each, pos);
-    }
+     *  {@code left op each}, {@code each} the subquery's column read in that row. */
+    SqlToPure.Tx quantifiedTest(SqlAst.BinaryOp op, SqlAst.Expr left, SqlToPure.Tx each, SqlAst.Pos pos,
+            SqlToPure.At at);
 
     /** The type of column {@code i} of {@code s}, a set operation, from its two sides' ({@code left}, {@code right}):
      *  null for the translator's own rule (Postgres's: one kind on both sides). A dialect that unifies the two (or
@@ -355,18 +369,13 @@ public interface InputDialect {
         return true;
     }
 
-    /** Whether a call of {@code name} (a function's name as the translator reads one: folded when unquoted) is an
-     *  aggregate: one of Postgres's, unless the dialect says otherwise. */
-    default boolean isAggregate(String name) {
-        return SqlToPure.postgresAggregate(name);
-    }
+    /** Whether a call of {@code name} (a function's name as the translator reads one: folded when unquoted) is one of
+     *  the dialect's aggregates. */
+    boolean isAggregate(String name);
 
-    /** A call of one of the dialect's own aggregates ({@link #isAggregate}), as the dialect computes it {@code at} its
-     *  grouped query; null for the translator's own reading (Postgres's). */
-    default SqlToPure.@com.legend.base.Nullable Aggregation aggregate(SqlAst.FunctionCall f,
-            SqlToPure.Grouping at) {
-        return null;
-    }
+    /** A call of one of the dialect's aggregates ({@link #isAggregate}), as the dialect computes it {@code at} its
+     *  grouped query (the dialect program's D11, 2026-10-18: every dialect's own; the translator has none). */
+    SqlToPure.Aggregation aggregate(SqlAst.FunctionCall f, SqlToPure.Grouping at);
 
     // ------------------------------------------------------------------ windows
 

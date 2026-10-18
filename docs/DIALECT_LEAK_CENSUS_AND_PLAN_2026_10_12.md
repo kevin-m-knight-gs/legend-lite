@@ -1,19 +1,17 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
-**Status: IN PROGRESS (2026-10-18).**
+**Status: DONE (2026-10-18): the ledger is empty and the leak ratchet is a ban.**
 - Phases 0 and 1 landed as neema2/legend-lite#39 (8501ccb).
 - The owner guard and Phases 2 and 4 landed as neema2/legend-lite#45 (4fb892f).
 - Phase 3 landed as neema2/legend-lite#49 (59b547a).
 - Phase 5 landed as neema2/legend-lite#51 (6f2a0f8).
 - Phase 6 landed in two parts: part 1 as neema2/legend-lite#52 (da2dd23), part 2 as neema2/legend-lite#54 (c607cf6)
   (both records are under Phase 6).
-- Phase 7 and D10 (taken over from the parked compiler line, the user's, 2026-10-18) are done on branch
-  `claude/gracious-edison-jcsvzm` (their records are under Phase 7).
-- Left:
-  - the absolute ratchet: the ledger's six rows (70 lines) are all D11's: the SQL translator's Postgres rules (five
-    files) and the island's regression corpus test (`PgRegressCorpusTest`). The move is scheduled with the SQL line
-    (`docs/IN_FLIGHT.md`, the ninth line);
-  - defect 11 (SQLite's plan path), in a PR of its own.
+- Phase 7, D10 (taken over from the parked compiler line, the user's, 2026-10-18) and D11 (with the seventh line) are
+  done on branch `claude/gracious-edison-jcsvzm`, neema2/legend-lite#56 (their records are under Phase 7). With D11 the
+  ledger is empty and `DialectLeakRatchetTest` bans a database's name outside its owners.
+- Left, outside the ban: defect 11 (SQLite's plan path), in a PR of its own; the scripts and tools D6 left, kept for
+  now (the user); the translator's window and FROM-function readings, named under D11.
 
 (The status of 2026-10-13, on `claude/great-wright-p6t5s1`: Phase 0 done (55569df); Phase 1's 1b steps 1 to 3
 (2a4a5c8, 9373aec, 4a9f1bc, 43ad660), P1a (e64e7e8), P1c (9e6363e to 074bd95), P1d with D8 (0470214 to 1447d42) and
@@ -1241,10 +1239,67 @@ which no build reads. This platform's answer for each of its databases is that d
 `RelOpTranslator`'s refusal of an UNSUPPORTED name, points at that table instead of printing them. The 232 names and
 every decision (`DynaFnDecisions`) are unchanged. `DynaFn`'s row (175 lines) left the ledger.
 
-The ledger after Phase 7 (before D10): 7 rows, 245 lines. `DynaFn` is D10's (the compiler line's). The SQL translator's five files
-are D11's (task #85), and so is `PgRegressCorpusTest` (2 lines: the `#SQL{...}#` island's regression corpus, landed
-with neema2/legend-lite#53 the same day, which opens `EmbeddedPostgres` itself). The absolute ratchet, the pins and the
-ledger replaced by an assertion that nothing is counted, lands with them.
+**D11 and the absolute ban, 2026-10-18** (the same branch; scheduled with the seventh line, which named its quiet
+point after #53): the SQL translator names no database.
+- **What moved, no rule rewritten:** `SqlToPure` (7,961 lines, 4,852 after) keeps the framework every input language
+  shares -- scopes, the query's shape, three-valued logic, subqueries, windows -- and Postgres's rules are six files of
+  its own in `protocol/sql/`, beside `PostgresDialect` and `PostgresDateTime`:
+  - `PostgresOperators`: arithmetic, comparison, concatenation, IS DISTINCT FROM, IN, BETWEEN, LIKE, the quantified
+    test, CASE's one type, Postgres's type names in messages;
+  - `PostgresCasts`: CAST and `::`, typed constants, smallint, integer and bigint widths, a string read as a value;
+  - `PostgresFunctions`: the scalar function catalog;
+  - `PostgresDates`: date arithmetic, intervals and date_trunc;
+  - `PostgresJsonb`: jsonb's operators, subscripts, constants and functions;
+  - `PostgresAggregates`: the aggregates, the translator's own reading until now.
+
+  The moved text is the same text. An instance method became a static one that takes the translator first, and reads
+  it as `translator.`; a private member that another file reads became package-private.
+- **The seam, `InputDialect`:**
+  - The six defaults that called Postgres's rules (unary, BETWEEN, IN, IS DISTINCT FROM, the quantified test,
+    `isAggregate`) are abstract, and so is `aggregate`: every dialect answers its own, and the translator's fallback
+    is gone.
+  - New: `readString`, a string compared with a value read by the language's input rules (a simple CASE's WHEN,
+    lag's default); `typeName`, a kind in the dialect's messages; `operator` and `subscript`, null where a dialect
+    reads none, which is refused.
+  - IQ answers `typeName` in its own wording and refuses `readString` by name. Until now the translator read such a
+    string by Postgres's rules; no IQ test reached it.
+- **Named, not moved:** the translator's window functions and its FROM set-returning functions stay its own reading.
+  The `window` hook's shape cannot carry the EXCLUDE frames' several `over()` steps. They name no database, and their
+  messages take the dialect's type names. Two Postgres-flavoured tables stay in `SqlToPure` because shared code reads
+  them: `AGGREGATES`, which `SqlParser`'s VALUES check reads (`notInValues`) besides Postgres's `isAggregate`, and
+  `SMALL_INTEGERS`, which the smallint-width check (`widened`, active only where a dialect has a `narrowInteger`)
+  reads.
+- **The island's entry:** `InputLanguages` is the input-language registry, `Databases`' counterpart (`SqlIslands` asks
+  it for `#SQL{}`'s dialect), and `SqlToPure.translate(sql, sources)`, Postgres's entry, is gone.
+- **Tests named for their language:** `PostgresToPureTest` (was `SqlToPureTest`), `PostgresParserTest`
+  (`SqlParserTest`) and `PostgresRegressCorpusTest` (`PgRegressCorpusTest`; its target is still
+  `//core:pg_regress_corpus_test`).
+- **Guards:** `DatabaseOwners` lists the six files as Postgres's input language and `InputLanguages` among the
+  registries. `DialectLeakRatchetTest` is a ban (`noDatabaseIsNamedOutsideItsOwners`), and its ledger is deleted.
+- **Proof:** every translation that `//core:core_tests`, the parity lanes and the Postgres regression corpus make was
+  dumped (the statement, the dialect, the Pure or the refusal) before the move and after each of its two steps:
+  37,378 translations, 20,052 Postgres's and 17,326 IQ's. The IQ corpus lane (`//core:iq_corpus_test`, manual, its
+  corpora outside the repository) was not run: a simple CASE there comparing a string constant with a number or a date
+  answered by Postgres's rules before, and is refused by name now (IQ's `readString`).
+  - The dumps are identical apart from two kinds of input. Statements whose text the regression suite writes from live
+    values (OIDs, timestamps) differ between any two runs. One IQ test calls the translator once or twice depending on
+    a `Set.of` order.
+  - The regression corpus (`//core:pg_regress_corpus_test`, PostgreSQL REL_16_STABLE 8e928803020e) is identical in
+    every row's status, and in every message but five, whose statement's text carries a live timestamp (its length
+    moves a column number). Its counts, before and after: PASS 2,905, REFUSED 7,038, BOTH_ERROR 2,260,
+    UNMODELED 1,453, CATALOG 1,237, ERROR 420, NONDETERMINISTIC 160, SKIP 7, REGISTERED 6, KNOWN 5, HARNESS 2.
+
+  - The local gate on the D11 commit: 373 of 373 (the four targets the container cannot run left out, as for Phase
+    7).
+  - An independent review (an agent that wrote none of it) found no drift in the code. Its findings are fixed:
+    - two Postgres-only helpers left in `SqlToPure` (`dateArithmetic`, `numberConstant`), now in `PostgresDates` and
+      `PostgresFunctions`;
+    - nine members left wider than their readers need, made private again;
+    - stale comments;
+    - the ban now fails when a root it reads yields no source;
+    - the records' overclaims (above).
+
+The ledger's last state, before D11: 6 rows, 70 lines, all D11's. After: none, and no ledger.
 
 ### Order and size
 
@@ -1276,7 +1331,7 @@ Decided by the user, 2026-10-13. The recommendation each row first carried is ke
 | **P1b** | The base renderer's shape. | **Decided: an exhaustive switch per concrete dialect, families included**, a base with no spellings, a guard that enforces it, and a capability matrix generated from the code (Phase 1b). |
 | **D9** | The connection grammar, the protocol and the model name every database (`type: Postgres;`, `PSnowflakeSpec`, the `DatabaseType` enum), because the user's model language does. Are they leaks? | **Decided (the user, 2026-10-15): they are vocabulary owners.** They may parse and carry a database's name and never decide anything by it. A guard holds both halves: their dependency allowlists already keep them from reaching a dialect, a connection or `Databases` (`ArchitectureTest`, invariants 6j and 7a to 7c); and in their code a database is named only as the vocabulary's own identifiers, never as a specific `DatabaseType` constant, a dialect class, a driver, a JDBC URL or a product-name call (`DialectOwnerExclusivityTest`). The alternative, each database's parsing in its own classes, would split the grammar across eleven places. |
 | **D10** | `builtin/DynaFn` (175 lines) is legend-engine's own table of which database supports which dynaFunction, across 18 databases, several of which this platform does not run. | **Decided (the user, 2026-10-15): split it.** The engine's table stays as reference data, generated from or verified against the engine source (spec by verification, the reference-checkout tenet). Our databases' answers come from each dialect's capability, so the capability matrix and `DynaFn` cannot disagree. `builtin/` is the compiler line's: this program does not edit it; the decision is posted to that line (`docs/IN_FLIGHT.md`, the ninth line) for it to schedule. **Taken over by this program (the user, 2026-10-18)**: the compiler line is parked, and the absolute ban needs it. **Done the same day** (Phase 7's record: `docs/engine-dynafunctions.tsv`). |
-| **D11** | The SQL input dialects (`protocol/sql/`: `#SQL{...}#`'s Postgres, `#IQ{...}#`'s IQ) name a database because they read its language. Owners? | **Decided (the user, 2026-10-15): yes, each the owner of its own input language, under the same exclusivity guard.** `PostgresDialect` and `PostgresDateTime` name only Postgres, the `iq` package only IQ. The translator they share (`SqlToPure`, `InputDialect`) is no owner: the Postgres rules still inside it (`postgresBinary`, `postgresName` and the rest, 47 lines) are counted by the leak ratchet, to move into `PostgresDialect` with the seventh and tenth lines, whose code it is. |
+| **D11** | The SQL input dialects (`protocol/sql/`: `#SQL{...}#`'s Postgres, `#IQ{...}#`'s IQ) name a database because they read its language. Owners? | **Decided (the user, 2026-10-15): yes, each the owner of its own input language, under the same exclusivity guard.** `PostgresDialect` and `PostgresDateTime` name only Postgres, the `iq` package only IQ. The translator they share (`SqlToPure`, `InputDialect`) is no owner: the Postgres rules still inside it (`postgresBinary`, `postgresName` and the rest, 47 lines) are counted by the leak ratchet, to move into `PostgresDialect` with the seventh and tenth lines, whose code it is. **Done 2026-10-18** at the seventh line's quiet point, with the absolute ban (Phase 7's record: Postgres's rules in six Postgres files, the translator naming no database). |
 
 
 ## 7. The misses (leaks the patterns could not see; each slice's reviewers found them by reading)

@@ -1606,6 +1606,28 @@ pause for the user's review after Phase 1.
     `SqlIslands` 2), and a new one fails it.
   - **After it** the ledger is empty (D10, taken over by this program above, is done) and the leak ratchet becomes an
     absolute ban.
+  - **Done, 2026-10-18 (#56)**, at the quiet point the seventh line named (after #53). The SQL front end now reads so:
+    - Postgres's rules are Postgres's files in `protocol/sql/`: `PostgresOperators`, `PostgresCasts`,
+      `PostgresFunctions`, `PostgresDates`, `PostgresJsonb` and `PostgresAggregates`, beside `PostgresDialect` and
+      `PostgresDateTime`. `SqlToPure` keeps the framework (4,852 lines, from 7,961). A new Postgres rule goes in one of
+      these files: the translator names no database, and a name there now fails `//core:census` (the ratchet is a
+      ban, its ledger deleted).
+    - `InputDialect`: `unary`, `between`, `inList`, `isDistinct`, `quantifiedTest`, `isAggregate` and `aggregate` are
+      abstract (the translator has no aggregate fallback); new `readString`, `typeName`, `operator` and `subscript`.
+      IQ refuses `readString` by name: a simple CASE comparing a string constant with a non-string value, which the
+      translator read by Postgres's rules until now (no IQ test reached it).
+    - `SqlToPure.translate(sql, sources)` is gone: pass `PostgresDialect.INSTANCE`. An island's language to its
+      dialect is `InputLanguages`.
+    - The tests: `PostgresToPureTest` (was `SqlToPureTest`), `PostgresParserTest` (`SqlParserTest`),
+      `PostgresRegressCorpusTest` (`PgRegressCorpusTest`; the target is still `//core:pg_regress_corpus_test`).
+    - Not moved: the translator's window functions and FROM set-returning functions stay its own reading.
+    - Proof: every translation the tests make, dumped before and after, identical but for the inputs the regression
+      suite writes from live values and one IQ test's `Set.of`-ordered second call; the regression corpus identical in
+      every row's status (the plan's Phase 7 record).
+    - **To the tenth line:** the IQ corpus lane (`//core:iq_corpus_test`) was not run here (its corpora are not in this
+      container). A simple CASE comparing a string constant with a number or a date, which the translator read by
+      Postgres's rules, is now `IqDialect.readString`'s refusal by name; IQ's own reading (`dateConstant`, the number
+      rules of its comparisons) can replace it when you want it.
 - **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
   platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
   `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),

@@ -11305,3 +11305,50 @@ Branch `claude/gracious-edison-jcsvzm`, from main c607cf61 (after #54), with mai
     `//docs:update_generated_tests` (the new table): all pass.
   - Not re-measured locally: the PCT, corpus and stress lanes. No SQL any of them renders or reads changed (the two
     new `SqlDialect` methods render no statement a lane runs); the branch's CI runs every lane.
+
+## 2026-10-18 — The dialect program's D11 and the absolute ban: the SQL translator names no database (the ninth line)
+
+The same branch (neema2/legend-lite#56), at the seventh line's quiet point after #53. The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 7, "D11 and the absolute ban"; status DONE).
+- **What moved, no rule rewritten:** Postgres's rules leave `SqlToPure` (7,961 lines to 4,852) for six Postgres files in
+  `protocol/sql/`: `PostgresOperators`, `PostgresCasts`, `PostgresFunctions`, `PostgresDates`, `PostgresJsonb` and
+  `PostgresAggregates`. An instance method became a static one taking the translator first; the text is otherwise the
+  same. `AGGREGATES` and `SMALL_INTEGERS` stay in `SqlToPure`, which shared code reads (`SqlParser`'s VALUES check, the
+  `narrowInteger`-gated smallint check).
+- **The seam:** `InputDialect` loses the defaults that called Postgres's rules (`unary`, `between`, `inList`,
+  `isDistinct`, `quantifiedTest`, `isAggregate`) and the aggregate fallback (`aggregate` is abstract). It gains
+  `readString`, `typeName`, `operator` and `subscript`. IQ refuses `readString` by name (a simple CASE comparing a
+  string with a non-string, read by Postgres's rules until now; no IQ test reached it). `InputLanguages` maps an
+  island's language to its dialect; `SqlToPure.translate(sql, sources)` is gone.
+- **Named, not moved:** the translator's window functions and FROM set-returning functions stay its own reading.
+- **Tests:** `PostgresToPureTest`, `PostgresParserTest` and `PostgresRegressCorpusTest` (renamed, for the language they
+  test; the corpus target is still `//core:pg_regress_corpus_test`).
+- **Guards:** `DatabaseOwners` lists the six files as Postgres's input language and `InputLanguages` among the
+  registries. `DialectLeakRatchetTest` is a ban (`noDatabaseIsNamedOutsideItsOwners`), and
+  `dialect-leaks/ledger.tsv` is deleted (6 rows, 70 lines before D11, none after).
+- **Proof:**
+  - A dump of every translation the tests make (the statement, its dialect, the Pure or the refusal), taken through a
+    hook that was never committed. It covered `//core:core_tests`, the SQL, IQ and Cypher parity lanes on DuckDB and
+    Postgres, `//core:iq_syntax_cases_test`, `//core:sql_island_postgres_test`, `//core:postgres_arm_test` and
+    `//core:pg_regress_corpus_test`, before the move and after each of its two steps: 37,378 translations, all 35
+    targets passing each time. The IQ corpus lane (`//core:iq_corpus_test`, manual) was not run: its corpora are not in
+    the container, and a simple CASE comparing a string constant with a number or a date there is refused by name now
+    where it was read by Postgres's rules. The dumps are identical apart from two kinds of input:
+    - the statements the regression suite writes from live values (OIDs, timestamps);
+    - one IQ test that calls the translator once or twice by a `Set.of` order.
+  - The regression corpus (PostgreSQL REL_16_STABLE 8e928803020e under `tools/postgres/as_unprivileged.sh`), row by
+    row, status and message: identical, but for five statements whose text carries a live timestamp. Its counts,
+    before and after: PASS 2,905, REFUSED 7,038, BOTH_ERROR 2,260, UNMODELED 1,453, CATALOG 1,237, ERROR 420,
+    NONDETERMINISTIC 160, SKIP 7, REGISTERED 6, KNOWN 5, HARNESS 2. These are the seventh line's numbers for main
+    after #53.
+  - `//core:census` (the ban, the owner guard), the protocol, compiler and architecture tests.
+  - `bazel test //gates:local //warehouse:postgres_live`, less the four targets the container cannot run: 373 of 373
+    on the D11 commit.
+  - An independent review, by an agent that wrote none of it, against the code: no drift found (the aggregates' side
+    effects in order, the operator and subscript refusals word for word, `readString` and `typeName` equal to the old
+    helpers for Postgres, no static-initialisation cycle, no overload rebound by the static imports). Fixed from it:
+    - `dateArithmetic` and `numberConstant` moved to `PostgresDates` and `PostgresFunctions`;
+    - nine members made private again;
+    - stale comments;
+    - the ban fails when a root it reads yields no source;
+    - the records' wording.

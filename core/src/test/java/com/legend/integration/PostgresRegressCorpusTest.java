@@ -32,7 +32,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The {@code #SQL{...}#} island over the PostgreSQL regression suite (the corpus program's first corpus, 2026-10-17:
- * the yardstick Postgres-compatible projects publish): its read-only statements, judged live against Postgres 16.
+ * the yardstick Postgres-compatible projects publish): its read-only statements, judged live against Postgres 16. Named
+ * for Postgres, whose suite and database it runs (the dialect program's D11, 2026-10-18; it was PgRegressCorpusTest).
  *
  * <p>The suite under {@code -Dsql.corpus.regress} (a {@code src/test/regress} directory: {@code parallel_schedule},
  * {@code sql/}, {@code data/}) is replayed as {@code pg_regress} runs it, serially: {@code test_setup} first, then each
@@ -55,7 +56,7 @@ import org.junit.jupiter.api.Test;
  * normalized and ranked -- is written to {@code -Dsql.corpus.report}. The suite is not this repository's: the lane runs
  * where the property names it (core/BUILD.bazel's {@code pg_regress_corpus_test}).
  */
-class PgRegressCorpusTest {
+class PostgresRegressCorpusTest {
 
     private record Judged(String file, int line, String status, long millis, String detail, String sql) {
     }
