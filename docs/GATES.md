@@ -11260,3 +11260,41 @@ product behaviour change was intended, and none was measured.
     `-Drcorpus.backend=warehouse` and `legend.warehouse.*` on the head. Host pass 2471/108/14, database pass
     2473/108/14 of 2613 on both, the failures identical between the commits and equal to the DuckDB lane's, test by
     test.
+
+## 2026-10-18 — The dialect program's Phase 7: the warehouse, the model writer, the planner boundary and the dead code (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main c607cf61 (after #54), with main's #53 merged in (7a7a0096). The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 7, "Done, 2026-10-18"; §3 defects 7 and 8; §6 D4 and D6).
+- **What moved:**
+  - The warehouse's Postgres knowledge is behind `Attachment`: its command line (`--postgres`, a `postgresql://` URL),
+    the password prompt and libpq's words. `WarehouseServer.Config` carries attached catalogs of any kind. DuckDB's
+    error kinds and engine name are the DuckDB binding's (`duck/`). Behaviour is unchanged but for two command-line
+    refusals' wording (`NAME=CONNECTION`; "an attached catalog needs --duckdb-extensions").
+  - Defects 7 and 8 were never reachable: a session, and so a JDBC connection, exists only on a native catalog.
+    `WarehousePostgresLiveTest.aJdbcConnectionToTheAttachedCatalogIsRefusedByName` pins the refusal.
+  - `server/CreateClass` asks the declared database's dialect for the path an in-memory specification is written with
+    (`SqlDialect.inMemoryPath`); `//core:pure_v1` reaches `//core:database` (`tools/deps/core-layers.txt`).
+  - The planner boundary (`wasm` `Boundary`, the tab's and Python's) seeds the tab with the platform's dialect and asks
+    the catalog question of it (`SqlDialect.catalogColumnsQuery`), its signatures unchanged.
+  - D6: 39 dead files deleted (18,499 lines); the rest of D6's list is left for the build program's script review,
+    whose old D3 decided to repair or wire it (the record).
+- **Guards:** the warehouse is a host owner (`DatabaseOwners`' HOST kind); the leak ratchet and the owner guard read
+  the warehouse's main code, wasm's planner, native and testing; `Attachment` names an attached database only in its
+  rows and one-line arms (a new pin); `EmbeddedMySql`'s MariaDB driver is a registered crossing; the warehouse's two
+  crossings are gone. The ledger loses the warehouse's 5 rows (24 lines) and gains #53's `PgRegressCorpusTest` (2): 7
+  rows, 245 lines, all D10's or D11's.
+- **The independent review of the branch**, by an agent that wrote none of it, against the code, without Bazel:
+  - Blocking: the layering policy did not allow `pure_v1` to reach `database` (`//tools/deps:core_layering_test`,
+    which the first local gate run failed on, 370 of 371). Fixed.
+  - Fixed as well: `CreateClass` would have thrown for a declared database with no dialect (now written as it is,
+    pinned by a test); the password prompt asked before learning that a URL cannot carry the password (now refused
+    first, as on main); `Attachment` was a registry no guard read (now pinned); the D6 record misstated which
+    deletions the script review had kept as history; three files only the deleted ones used; stale `join.py` pointers.
+  - Checked and found equal to main: the command line's parsing and duplicate rules, `AttachFailed`, the error
+    classification (`DuckException.parse`/`bind`, read from its kind or its message's lead), the catalog question's
+    text, `testDataSql`'s output, the guards' counts (a Python replica: 7 rows, 245 lines; 4 crossings).
+- **Proof:**
+  - `bazel test //gates:local //warehouse:postgres_live`, less the four targets the container cannot run: 372 of 372 on
+    the final tree (from a clean build: `bazel clean` freed the disk first).
+  - Not re-measured locally: the PCT, corpus and stress lanes. No SQL any of them renders or reads changed (the two
+    new `SqlDialect` methods render no statement a lane runs); the branch's CI runs every lane.
