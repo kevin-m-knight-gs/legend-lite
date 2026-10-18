@@ -139,7 +139,6 @@ engine-order meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGro
 engine-order meta::relational::tests::fromMapping::testEnumProjection
 engine-order meta::relational::tests::fromMapping::testFromWithMapping
 engine-order meta::relational::tests::fromMapping::testFromWithMappingAndIntermediateFuncCall
-engine-order meta::relational::tests::fromMapping::testMappingFromQueriesViaMappingWithAssociationsOnly
 engine-order meta::relational::tests::functions::sqlstring::testNonExecutableSQLString
 engine-order meta::relational::tests::functions::sqlstring::testToSQLStringJoinStrings
 engine-order meta::relational::tests::getter::testGetterTwice
@@ -854,7 +853,6 @@ engine-order meta::relational::tests::query::routing::testCompositionInJoin
 engine-order meta::relational::tests::query::routing::testCompositionInMultiStatementRelationalQuery
 engine-order meta::relational::tests::query::routing::testCompositionInProject
 engine-order meta::relational::tests::query::routing::testCompositionInProjectAndNestedFilter
-engine-order meta::relational::tests::query::routing::testCompositionInUnion
 engine-order meta::relational::tests::query::routing::testEvalFunctionAsVariable
 engine-order meta::relational::tests::query::routing::testSimpleEval
 engine-order meta::relational::tests::query::sort::testSortByLambdaDeepOptional
@@ -978,9 +976,5 @@ engine-order meta::relational::validation::showcase::standalone::validateAllCons
 engine-order meta::relational::validation::showcase::standalone::validateAllConstraintsWithInnerJoinInFilter
 engine-order meta::relational::validation::showcase::standalone::validateAllConstraintsWithPostTDSOperation2
 engine-order meta::relational::validation::tests::milestoning::testValidateQueryOpenVariableInColAndExtraProjection
-engine-order meta::relational::validation::tests::milestoning::testValidateQueryWithMilestoning
-engine-order meta::relational::validation::tests::milestoning::testValidateQueryWithMilestoningAndAggregationAll
 engine-order meta::relational::validation::tests::milestoning::testValidateQueryWithMilestoningAndAggregationSingle
 engine-order meta::relational::validation::tests::milestoning::testValidateQueryWithMilestoningAndAggregationSingleAndNestedDynaFunction
-engine-order meta::relational::validation::tests::milestoning::testValidateQueryWithMilestoningWithMultipleVariables
-engine-order meta::relational::validation::tests::milestoning::testValidateQueryWithMilestoningWithVariable

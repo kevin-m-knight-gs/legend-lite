@@ -17,7 +17,9 @@ import java.util.List;
 /**
  * A JDBC session's {@link Statements} (2026-10-17, out of {@code PlanRunner}, whose JDBC this was): the statement
  * prepared, each slot bound to its value as the slot says (a date-time in a cast passed as its text), and each row's
- * one text read -- the one {@code getString} of the plan path, carriage (Charter C1.2).
+ * one text read -- the one {@code getString} of the plan path, carriage (Charter C1.2) -- or, since the plan path
+ * program's step 7 (2026-10-18), each row's typed cells read from the driver by the plan's columns
+ * ({@link JdbcDecode}: one carrier conversion per cell, nothing computed).
  */
 final class JdbcStatements implements Statements {
 
@@ -66,6 +68,33 @@ final class JdbcStatements implements Statements {
             try (ResultSet rs = st.executeQuery()) {
                 while (rs.next()) {
                     rows.row(rs.getString(1));
+                }
+            }
+        } catch (SQLException e) {
+            throw PlanSessions.dataError(e);
+        }
+    }
+
+    /** {@inheritDoc} Each row's cells read from the driver by the plan's columns ({@link JdbcDecode}), the i-th
+     *  column from the i-th result column; a statement answering another number of columns than the plan declares
+     *  is refused by name before a row is read. */
+    @Override
+    public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
+        try (PreparedStatement st = c.prepareStatement(statement)) {
+            for (int i = 0; i < slots.size(); i++) {
+                bind(st, i + 1, slots.get(i), values.get(i));
+            }
+            StatementOrigin.sent(statement);
+            try (ResultSet rs = st.executeQuery()) {
+                int answered = rs.getMetaData().getColumnCount();
+                if (answered != columns.size()) {
+                    throw new IllegalStateException("the statement answers " + answered + " columns, and the plan"
+                            + " declares " + columns.size() + " " + columns.stream().map(ExecutionPlan.Column::name)
+                            .toList() + ": a typed-rows statement answers the plan's columns in their order");
+                }
+                while (rs.next()) {
+                    cells.row(JdbcDecode.row(rs, columns));
                 }
             }
         } catch (SQLException e) {

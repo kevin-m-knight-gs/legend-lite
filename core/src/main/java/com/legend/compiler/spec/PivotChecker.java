@@ -9,6 +9,7 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedPivot;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCDecimal;
 import com.legend.compiler.spec.typed.TypedCFloat;
@@ -19,7 +20,6 @@ import com.legend.protocol.spec.AppliedFunction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Relation {@code pivot(~cols, ~agg:map:reduce)} (engine {@code PivotChecker}).
@@ -56,13 +56,18 @@ final class PivotChecker {
                 : List.of();
         List<TypedAggCol> aggs = Args.aggCols(args.get(args.size() - 1));
 
-        // Group-by columns = source − pivot − aggregate value columns (a value column is
-        // identified when the aggregate's map body is a direct column access, engine rule).
-        Set<String> removed = aggs.stream()
-                .map(agg -> agg.map().body().get(0))
-                .filter(b -> b instanceof TypedPropertyAccess)
-                .map(b -> ((TypedPropertyAccess) b).property())
-                .collect(Collectors.toSet());
+        // Group-by columns = source − pivot − every column an aggregate's map READS: the engine's rule (its
+        // relational pivot groups by what no aggregate touches; DuckDB's PIVOT shares it, a column the USING
+        // references being no implicit group key). Until 2026-10-18 only a map that was a bare column access removed
+        // its column, and a pivot over an expression (the PCT's testPivot_SingleMultiple_Dynamic_Aggregation:
+        // treePlanted * coefficient) kept both columns as static ones the database no longer answered (the plan
+        // path program's step 7, found by the channel A shadow run).
+        Set<String> removed = new java.util.HashSet<>();
+        for (TypedAggCol agg : aggs) {
+            for (TypedSpec b : agg.map().body()) {
+                columnsRead(b, agg.map().parameters(), removed);
+            }
+        }
         removed.addAll(pivotCols);
 
         List<Type.Column> groupCols = new ArrayList<>();
@@ -102,6 +107,17 @@ final class PivotChecker {
         return new TypedPivot(source, pivotCols, values, aggs,
                 new ExprType(Type.relation(new Type.RelationType(groupCols, templates)),
                         a.out().multiplicity()));
+    }
+
+    /** Every column {@code n} reads off the map's row parameter ({@code $x.col}), anywhere in it. */
+    private static void columnsRead(TypedSpec n, List<String> params, Set<String> out) {
+        if (n instanceof TypedPropertyAccess pa && pa.source() instanceof TypedVariable v
+                && params.contains(v.name())) {
+            out.add(pa.property());
+        }
+        for (TypedSpec c : n.children()) {
+            columnsRead(c, params, out);
+        }
     }
 
     /** A pivot value's text in its column's name: a number's digits, a string itself, a boolean's word. */

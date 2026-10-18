@@ -111,6 +111,10 @@ class JdbcSurfaceCensusTest {
             // here whole -- prepare, bind, execute, the one getString of the plan path (carriage, C1.2) -- so the
             // runner holds a plan and a session's Statements, never a connection; a connector's session gives its own
             "core/src/main/java/com/legend/exec/JdbcStatements.java",
+            // 2026-10-18 (the plan path program's step 7, docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3): the typed
+            // seam's decode -- a row's cells read from the driver's ResultSet by the plan's columns, one carrier
+            // conversion each; carriage, nothing computed
+            "core/src/main/java/com/legend/exec/JdbcDecode.java",
             // 2026-10-17 (D12): MongoDB's connector answers Session.connection() with a refusal (it names the JDBC
             // type to refuse it: a MongoDB session has none); its statements run the pipeline through the driver's
             // cursor and carry each row's one text, as the JDBC statements carry getString's

@@ -13,7 +13,9 @@ import java.util.List;
  * the plan -- it checks the caller's values, fills the type holes, writes the result's punctuation -- and the session's
  * statements carry text in and text out. JDBC's are {@link JdbcStatements}, over the session's connection; a database
  * that speaks no JDBC gives its own through its connector ({@link DatabaseConnector}), and the runner never knows
- * which it holds.
+ * which it holds. Since the plan path program's step 7 (2026-10-18) a session answers typed rows too
+ * ({@link #rows}): text in, rows out, a row a text or the plan's typed cells (D12 amended by
+ * docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3).
  */
 public interface Statements {
 
@@ -35,5 +37,26 @@ public interface Statements {
     @FunctionalInterface
     interface Rows {
         void row(@com.legend.base.Nullable String text) throws IOException;
+    }
+
+    /**
+     * The plan's statement, each slot bound as {@link #query} binds it, and each row's TYPED CELLS handed to
+     * {@code cells} in order, one list per row, each cell read by the plan's column (the typed method of
+     * docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3; the decode of its §4, slot first; the plan path program's step 7,
+     * 2026-10-18): the statement answers {@code columns} in their order, and a cell is the carrier its column's slot
+     * and Pure type say -- an integral slot a {@code long} (a {@code BigInteger} past 63 bits), a floating slot a
+     * {@code double}, a decimal slot an exact {@code BigDecimal}, a date or timestamp slot a {@code PureDateLiteral},
+     * a time slot a {@code PureTimeLiteral}, a text slot a {@code String}, a structure its map or list, a null a
+     * null. The session CONVERTS the driver's value to the carrier and computes nothing (Charter C1.2; the Z2
+     * ruling's carrier-decode bridge, docs/TENET_CHARTER.md Clause 2c); a cell no rule reads is refused by name,
+     * never guessed (AGENTS.md invariant 4).
+     */
+    void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            List<ExecutionPlan.Column> columns, Cells cells) throws IOException;
+
+    /** Where a query's typed rows go. */
+    @FunctionalInterface
+    interface Cells {
+        void row(List<Object> cells) throws IOException;
     }
 }

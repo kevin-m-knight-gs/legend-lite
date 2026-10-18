@@ -2090,5 +2090,15 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   2026-10-18** (GATES "The plan and the result, the §8 measurement"; the design note's §8.1): `exec/SeamBenchmarkTest`
   (new; the manual targets `//core:seam_benchmark` and `//core:seam_benchmark_small_heap`, the `benchmark` tag
   excluded from the core suite), `diagnostics/Diagnostics.java` (the `plan-sizes` switch),
-  `testcases/PlanRoundTrip.java` (the sizes recorded under it). Next: step 7, the query service (the program's §7),
-  its first landing the judges onto the typed seam.
+  `testcases/PlanRoundTrip.java` (the sizes recorded under it). **Step 7 announced and its first landing cut
+  2026-10-18** (GATES "step 7, first landing"): `exec/Statements.java` (the typed method), `exec/JdbcDecode.java`
+  (new), `exec/JdbcStatements.java`, `exec/RowDecode.java` (the structured slots' spelling, shared),
+  `exec/DriverCells.java`, `exec/PlanRunner.java`, `executionplan/ExecutionPlan.java` (the TdsResult contract),
+  `values/PureDateLiteral.java` (`fromDatabaseTimestamp`, `trimmed`), `JudgePlans.java` (the statement itself,
+  the value lane), `lowering/WireRender.java` and `lowering/Render.java` (the carrier spellings deleted, the
+  lifting factored, `typedRows`), `lowering/LiteralSpelling.java` (`nonFinite`), `compiler/spec/PivotChecker.java`
+  (every column a map reads), `lowering/Lowerer.java` (`castOverDynamicPivot`), `lowering/TdsTextWrap.java`,
+  `src/main/mongodb/.../MongoDbStatements.java` and `MongoDbDecode.java` (new), the DuckDB host engine-order
+  register (-6, re-pinned with the reason), the guards' registers (`JdbcDecode.java`). Next in step 7: the query
+  service's switch and the deletions (the program's §7), the whole-text wires retired, the H2 session's lazy
+  execution (D2), the streaming gate.

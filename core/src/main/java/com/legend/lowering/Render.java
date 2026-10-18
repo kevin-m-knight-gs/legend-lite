@@ -339,24 +339,7 @@ public final class Render {
             WireRender.Spelling spelling) {
         boolean engine = spelling == WireRender.Spelling.ENGINE;
         SqlExpr token;
-        boolean carrier = spelling == WireRender.Spelling.CARRIER || spelling == WireRender.Spelling.CARRIER_GRID;
-        if (carrier && carriedAsItsOwnToken(slot)) {
-            // the judges' typed rows: a JSON, a structured or a literal-labelled slot's own token, which the decode
-            // reads by the plan's column (the label is the decode instruction: the legacy executor's own rule)
-            token = jsonToken(c);
-        } else if (carrier && (t != null && dateKind(t) || slot == SqlType.Scalar.DATE
-                || slot == SqlType.Scalar.TIMESTAMP || slot == SqlType.Scalar.TIMESTAMPTZ)) {
-            // the carrier's date, by the database's own type of the cell (a DATE a day; anything else timed: a
-            // midnight is no day, and a column declared DATE may hold timestamps -- the canon's own dispatch), at
-            // nine digits for a grid's cell and the value's text for a value root
-            SqlExpr timedText = spelling == WireRender.Spelling.CARRIER_GRID
-                    ? SqlExpr.Call.of(SqlFn.STRFTIME, c, new SqlExpr.FormatLit(DateFmt.ISO_NANO))
-                    : dateTimeText(c);
-            token = jsonToken(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                    SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.TYPEOF, c),
-                            new SqlExpr.TypeNameLit(SqlType.Scalar.DATE)),
-                    strictDateText(c))), timedText));
-        } else if (t == Type.Primitive.FLOAT) {
+        if (t == Type.Primitive.FLOAT) {
             token = engine ? LiteralSpelling.floatPrintJava(c) : Scalars.pureToString(t, c);
         } else if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
             token = new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
@@ -367,15 +350,6 @@ public final class Render {
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c), new SqlExpr.StringLit("null"))), token);
-    }
-
-    /** A slot whose cell the carrier spelling writes as the database's own token: JSON and the structured slots
-     *  (the structure is the value), the literal-labelled texts ({@code LITERAL}, {@code DECIMAL_TEXT},
-     *  {@code TEMPORAL_TEXT}: the decode reads the label). */
-    private static boolean carriedAsItsOwnToken(SqlType slot) {
-        return slot == SqlType.Scalar.JSON || slot == SqlType.Scalar.LITERAL || slot == SqlType.Scalar.DECIMAL_TEXT
-                || slot == SqlType.Scalar.TEMPORAL_TEXT || slot instanceof SqlType.Array || slot instanceof SqlType.Struct
-                || slot instanceof SqlType.Map;
     }
 
     /** {@code x}'s JSON token as the database's JSON writer spells it: a one-element JSON array's text without its
@@ -395,10 +369,30 @@ public final class Render {
             WireRender.Spelling spelling) {
         List<OutputCol> cols = inner.outputs();
         SqlExpr obj = jsonRow(rowAlias, cols, relCols, spelling);
+        Lifted l = liftOrder(inner, rowAlias, "json wire");
+        if (l == null) {
+            throw new com.legend.error.NotImplementedException("json wire over an ordered relation whose sort key is"
+                    + " not an output column, under a " + (inner.distinct() ? "DISTINCT" : "star")
+                    + " select: a hidden order column would change its rows");
+        }
+        return SqlSelect.starOf(new SqlSource.Subselect(l.source(), rowAlias, null))
+                .withProjections(List.of(new SqlSelect.Projection(obj, "_wire_row",
+                        new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false))))
+                .withOrderBy(l.keys());
+    }
+
+    /** A select's order carried outside it: {@code source} the select with its hidden order columns, {@code keys}
+     *  the sort keys over {@code rowAlias}, each addressing an output of the source. */
+    record Lifted(SqlSelect source, List<SqlSelect.SortKey> keys) {
+    }
+
+    /** {@code inner}'s order lifted over the alias {@code rowAlias}: a sort key that is no output (a sort by an
+     *  expression, or by a column the select drops; the plan path program's step 6, 2026-10-18) is carried as a
+     *  hidden column of the inner select and ordered by outside, never written into the row. Null where a hidden
+     *  column would change the rows (a star or a DISTINCT select) -- the caller says what it does then. */
+    static @com.legend.base.Nullable Lifted liftOrder(SqlSelect inner, String rowAlias, String what) {
+        List<OutputCol> cols = inner.outputs();
         List<SqlSelect.SortKey> lifted = new ArrayList<>();
-        // a sort key that is no output (a sort by an expression, or by a column the select drops; the plan path
-        // program's step 6, 2026-10-18): carried as a hidden column of the inner select, ordered by outside, never
-        // written into the row
         List<SqlSelect.Projection> hidden = new ArrayList<>();
         List<OutputCol> hiddenOut = new ArrayList<>();
         for (SqlSelect.SortKey k : inner.orderBy()) {
@@ -409,13 +403,11 @@ public final class Render {
                     .orElse(null);
             if (outCol == null) {
                 if (!(k.expr().type() instanceof com.legend.sql.TypeFact.Typed typed)) {
-                    throw new com.legend.error.NotImplementedException("json wire over an ordered relation whose sort"
+                    throw new com.legend.error.NotImplementedException(what + " over an ordered relation whose sort"
                             + " key is not an output column and carries no typed slot");
                 }
                 if (inner.projections().isEmpty() || inner.distinct()) {
-                    throw new com.legend.error.NotImplementedException("json wire over an ordered relation whose sort"
-                            + " key is not an output column, under a " + (inner.distinct() ? "DISTINCT" : "star")
-                            + " select: a hidden order column would change its rows");
+                    return null;
                 }
                 String oname = "_ord" + hidden.size();
                 outCol = new OutputCol(oname, typed.type(), true);
@@ -434,10 +426,27 @@ public final class Render {
             outs.addAll(hiddenOut);
             source = inner.withProjections(ps, outs);
         }
-        return SqlSelect.starOf(new SqlSource.Subselect(source, rowAlias, null))
-                .withProjections(List.of(new SqlSelect.Projection(obj, "_wire_row",
-                        new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false))))
-                .withOrderBy(lifted);
+        return new Lifted(source, lifted);
+    }
+
+    /** {@code inner} as a typed-rows statement (the plan path program's step 7, 2026-10-18): itself, unless a sort
+     *  key is no output -- then the select with that key hidden, wrapped once over {@code rowAlias} projecting the
+     *  select's own outputs and ordered by the hidden key, as the JSON rows wire carried it (a dialect that emulates
+     *  a join by a union, H2's FULL OUTER JOIN, addresses a sort key among the outputs only). Where a hidden column
+     *  would change the rows the statement stays as it is. */
+    static SqlSelect typedRows(SqlSelect inner, String rowAlias) {
+        Lifted l = liftOrder(inner, rowAlias, "typed rows");
+        if (l == null || l.source() == inner) {
+            return inner;
+        }
+        List<OutputCol> cols = inner.outputs();
+        List<SqlSelect.Projection> projs = new ArrayList<>(cols.size());
+        for (OutputCol oc : cols) {
+            projs.add(new SqlSelect.Projection(SqlExpr.Column.of(rowAlias, oc), oc.name(), oc));
+        }
+        return SqlSelect.starOf(new SqlSource.Subselect(l.source(), rowAlias, null))
+                .withProjections(projs, cols)
+                .withOrderBy(l.keys());
     }
 
     /** The SNAPSHOT product JSON wire: the whole result as one

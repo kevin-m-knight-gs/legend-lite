@@ -10653,6 +10653,82 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 7, first landing: the judges onto the typed seam, the dynamic pivot's two holes, the Float that is no number
+
+The design: `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §3 (the session seam: text in, rows out), §4 (the decode: by
+the plan's facts, slot first) and §9 (step 7's first landing moves the judges onto the typed method, so the JSON rows
+wire has no caller left before the service is switched). Announced in the program's §9 and `docs/IN_FLIGHT.md` with
+this landing.
+
+**What landed.**
+1. **The typed method on the seam**: `Statements.rows(statement, slots, values, columns, Cells)` beside `query` -- each
+   row's typed cells by the plan's columns. `JdbcStatements` reads them from the driver by the plan's column
+   (`exec.JdbcDecode`, the twin of step 6's `RowDecode`: the slot first, the Pure type where the slot is none, the
+   driver's own kind where both are silent; the legacy executor's fetch and unwrap rules kept with their reasons -- a
+   timestamp or a time re-read as `java.time`, a text under a numeric slot the column's own text unless the Pure type
+   is numeric, an integral slot's scale-0 BigDecimal its exact integral, H2's DOUBLE aggregate the double, a JSON
+   cell's text from the driver or beside it (`DriverCells.jsonTextOf`), a list or a struct carried as JSON by the
+   slot's declared layout, SQLite's 1 or 0 the boolean). `MongoDbStatements` reads them from each document
+   (`exec.MongoDbDecode`, the same rules over BSON's kinds). The structured slots' spelling (`ARRAY<...>`,
+   `STRUCT<name slot, ...>`, `MAP<k,v>`, which `ColumnFacts.slot` writes) is read back in one place (`RowDecode`),
+   and the JSON decode's ARRAY, STRUCT and MAP arms decode by it too.
+2. **A timestamp's digits**: a TIMESTAMP slot's cell carries NINE subsecond digits
+   (`PureDateLiteral.fromDatabaseTimestamp`: the engine's own relational read, `fromSQLTimestamp`'s `%09d`); the
+   first corpus run on the typed seam had read the minimal form and lost six DuckDB bodies and one H2 body whose
+   grids compare with the engine's nine-digit literals (`%2014-12-05T21:00:00.000000000`). The judges' VALUE lane
+   trims them (`PureDateLiteral.trimmed`, applied in `JudgePlans.values`): the database judge's value-lane canon
+   spells a timestamp so (`dateTimeText`), and so did step 6's carrier of a value root, where a grid's cell keeps
+   the nine (the GRID_FETCH canon). A text-carried temporal (a literal's own digits) is read as written.
+3. **The runner's typed rows through it**: `PlanRunner.rows` asks the session for cells (`Statements.rows`); the
+   text paths ask for text; one `send` serves both. `ExecutionPlan.TdsResult`'s contract: a statement that answers
+   the plan's columns in their order.
+4. **The judges' plans are the statements themselves**: `JudgePlans.rowsPlan` makes a `TdsResult` over the bare
+   statement (frames and the assert-boundary scan order applied as before), checking that the plan's columns are the
+   statement's outputs in order; a sort key that is no output is carried as a hidden column of the inner select and
+   ordered by outside (`WireRender.typedRows`, the JSON rows wire's lifting factored out: H2's FULL OUTER JOIN
+   emulation addresses its sort key among the outputs, and `tdsJoin::testFullOuterJoinSimple` had failed without
+   it). The JSON rows wire's CARRIER and CARRIER_GRID spellings, `Render.jsonCell`'s carrier arms and
+   `carriedAsItsOwnToken` are deleted (PURE and ENGINE stay for the per-row JSON text).
+5. **The dynamic pivot's two holes** (the channel A shadow run's six errors, reproduced outside Bazel on the built
+   jars): (a) the typer kept every column an aggregate's map READS as a static column when the map was an
+   expression (`treePlanted * coefficient`), where the engine's rows and DuckDB's PIVOT drop them --
+   `PivotChecker` now removes every column a map reads (the PCT's `testPivot_SingleMultiple_Dynamic_Aggregation`
+   answers as the engine expects); (b) a cast naming the pivot's generated columns (`->cast(@Relation<(...,
+   '2000__|__newCol':Integer)>)`) was type-only, so a filter, a sort or a groupBy over it met a pivot with no
+   outputs and the text wrap took the dynamic road, which wants templates a cast no longer carries --
+   `Lowerer.castOverDynamicPivot` projects each cast column from the pivot's output by its physical name, typed by
+   the pivot's USING, labelled as the cast spells it. The dynamic road is taken only where the typed schema still
+   carries the pivot's templates (`WireRender.dynamicPivotUnnamed`; `TdsTextWrap.wrap`, `WireRender.wrap`,
+   `JudgePlans.evalSide`).
+6. **The Float that is no number** (the shadow run's `nan.0`): `LiteralSpelling.floatPrint` and `floatPrintJava`
+   spell the database's `nan`, `inf` and `-inf` (DuckDB) or Java's own (H2, Postgres) as Pure and Java spell them,
+   `NaN`, `Infinity`, `-Infinity`, by comparing the spelled tokens (`nonFinite`).
+7. **Guards**: `JavaEvalLedgerTest`'s closed exec register and `JdbcSurfaceCensusTest`'s register take
+   `JdbcDecode.java` (dated). The `mongodb_connector` library reads `//json` and `:values`.
+8. **Tests**: `exec.JdbcDecodeTest` (new: each kind's carrier on DuckDB and H2, a text under a numeric slot, no slot,
+   refusals by name), `PlanRunnerTest.typedRowsAreReadFromTheDriverByThePlansColumns`,
+   `PlanMakerTest.aDoubleThatIsNoNumberPrintsAsPurePrintsIt` (DuckDB and H2),
+   `PlanMakerTest.aPivotOverAnExpressionAndACastOverADynamicPivotAnswerAsTheEngine` (the PCT's rows; a filter, a
+   sort, a groupBy and the CSV wire over the cast); `JudgesOnPlansTest` runs on the new seam; `SeamBenchmarkTest`'s
+   path 2 takes the PURE spelling (the carrier one is gone; the §8 numbers stand as measured).
+
+**Verdicts (local, this tree).** `//core:core_tests_exec`, `//core:core_tests_root`, `//core:core_tests_lowering`
+green. `bazel test --lockfile_mode=error //gates:core` 39 of its 45 targets green, the six Postgres targets refusing root in this
+container and rerun green under `tools/postgres/as_unprivileged.sh ubuntu` (`--strategy=TestRunner=standalone`): 45 of
+45. `//pct:pct_duckdb` (channel A's five suites and the discipline guard) and `//gates:pct_channel_b` (channel B's five
+suites under the agreement gate): 11 of 11.
+`//spec:corpus_h2` 6 of 6: every pass verdict 0, the fail roster and every register exact (the H2 fail roster
+holds 356 bodies, as step 6 left it). `//spec:corpus_duckdb`: every pass verdict 0, the fail roster exact (108 of
+2,613), every register exact but the host pass's engine-order register, which SHRANK by six bodies
+(`fromMapping::testMappingFromQueriesViaMappingWithAssociationsOnly`, `routing::testCompositionInUnion`, four
+`validation::tests::milestoning::testValidateQueryWithMilestoning*`): the lane's scan-order emulation had fired on
+the JSON rows wire's derived-table wrapper around those bodies' statements, counting the order the assert-boundary
+rule had already put in place inside; the bare typed-rows statement is ordered where it stands, and the pass finds
+nothing to add (the step-6 entry's accounting correction, the same way). Re-pinned from the lane's measured file
+(986 to 980 rows); the database pass's engine-order register is exact. The first run of this landing on the lanes
+had lost six DuckDB bodies and one H2 body (the timestamp's digits, item 2) and `tdsJoin::testFullOuterJoinSimple`
+on H2 (the sort key, item 4); both fixed before this run, no roster line accepted.
+
 ## 2026-10-18 — The plan and the result, the §8 measurement: the seam's cost per row, the whole text's ceiling, the plans' sizes
 
 The design: `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` (ratified 2026-10-18); its §8 named four measurements before

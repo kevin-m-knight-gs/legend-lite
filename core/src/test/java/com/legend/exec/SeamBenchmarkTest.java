@@ -42,8 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * at the same row count to show which of them drains.
  *
  * <p>The paths: (1) typed columns read from the driver by the plan's slot (the typed method of the design's §3,
- * prototyped here); (2) the JSON rows wire as step 6 built it (the database writes one object per row, Java decodes
- * it by the plan's columns); (3) the same statement counted as text only, so the database's formatting and Java's
+ * prototyped here); (2) the JSON rows wire (the database writes one object per row, Java decodes it by the plan's
+ * columns: step 6's seam, retired for typed rows by step 7's typed method); (3) the same statement counted as text only, so the database's formatting and Java's
  * parsing are told apart; (4) a CSV line per row written by the database (§5's per-row rule); (5) the whole CSV
  * text in one value, as the CSV wire builds it today. Arrow is not measured: the build has no Java Arrow dependency,
  * and adding one is a decision of its own.
@@ -132,14 +132,15 @@ final class SeamBenchmarkTest {
             String agg) throws Exception {
         System.out.println("[seam] " + db + " rows=" + rows + " heap=" + (SMALL_HEAP ? "small" : "default")
                 + " maxHeapMB=" + Runtime.getRuntime().maxMemory() / (1024 * 1024));
-        // the typed-rows plan's statement, as step 6 builds it: the JSON rows wire over the relation
+        // the JSON rows wire over the relation (the per-row JSON text the product writes; the judges' typed rows
+        // rode it in a carrier spelling until step 7's typed seam)
         boolean upper = type == DatabaseType.H2;
         List<OutputCol> outs = outs(upper);
         SqlSource.Table table = new SqlSource.Table(n("bench", upper), "t0", outs, false, Map.of(), NameQuoting.BARE);
         SqlSelect select = new SqlSelect(outs.stream().map(o -> new SqlSelect.Projection(
                 SqlExpr.Column.of("t0", o), o.name(), o)).toList(),
                 false, table, null, List.of(), null, null, List.of(), null, null, outs);
-        SqlQuery wire = WireRender.rows(select, schema(upper), WireRender.Spelling.CARRIER);
+        SqlQuery wire = WireRender.rows(select, schema(upper), WireRender.Spelling.PURE);
         String jsonRows = Databases.dialect(type).render(wire);
         String plain = "SELECT id, name, amount, ts, bucket FROM bench";
         String csvRows = "SELECT " + csvLine + " AS line FROM bench";

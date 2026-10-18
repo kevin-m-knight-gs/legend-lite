@@ -18,8 +18,9 @@ import java.util.Map;
 
 /**
  * THE ROW DECODE (the plan path program's step 6, docs/PLAN_PATH_PROGRAM_2026_10_17.md §6, 2026-10-18): a tabular
- * result's row, written by the database as one JSON object ({@link ExecutionPlan.TdsResult}), read into cells by the
- * plan's own columns -- each cell by its column's declared Pure type and, where the type alone does not say the
+ * result's row written as one JSON object -- a document's row (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3: since
+ * step 7 a JDBC session's cells come typed from the driver, {@link JdbcDecode}, the twin of this decode), a JSON cell
+ * of such a row, or a list or a struct a database carries as JSON text -- read into cells by the plan's own columns -- each cell by its column's declared Pure type and, where the type alone does not say the
  * carrier (a {@code Number}, a literal-spelled or text-carried cell), by its slot. No model: the plan's three type
  * facts are the whole instruction. The cells are the carriers the host adjudication layer reads (the Z2 ruling's
  * carrier-decode bridge, docs/TENET_CHARTER.md Clause 2c): a date kind as {@link PureDateLiteral}, a time as
@@ -33,7 +34,7 @@ public final class RowDecode {
     }
 
     /** The variant class's path (the plan's type vocabulary names a class by its path; no model here). */
-    private static final String VARIANT = "meta::pure::metamodel::variant::Variant";
+    static final String VARIANT = "meta::pure::metamodel::variant::Variant";
 
     /** One row's cells, in {@code columns}' order: each column read from the object's field of its name, or, when no
      *  field is named after any column and the counts agree, by position (a value root's one column, which the wire
@@ -84,8 +85,7 @@ public final class RowDecode {
                 return LiteralText.parse(text(node, c));
             }
             case "DECIMAL_TEXT" -> {
-                String s = text(node, c);
-                return new BigDecimal(s.endsWith("D") || s.endsWith("d") ? s.substring(0, s.length() - 1) : s);
+                return decimalText(text(node, c));
             }
             case "TEMPORAL_TEXT", "DATE", "TIMESTAMP", "TIMESTAMPTZ" -> {
                 return PureDateLiteral.parse(text(node, c).trim().replace(' ', 'T'));
@@ -112,8 +112,53 @@ public final class RowDecode {
             case "VARCHAR", "CHAR", "TEXT" -> {
                 return text(node, c);
             }
+            // the structured slots: each element or field by its own declared slot (the slot's spelling read back,
+            // {@link #element}, {@link #fields}, {@link #mapSlots}; the legacy executor's unwrap by the declared layout)
+            case "ARRAY" -> {
+                if (node instanceof Json.Arr a) {
+                    ExecutionPlan.Column element = element(c);
+                    List<Object> out = new ArrayList<>(a.items().size());
+                    for (Json.Node item : a.items()) {
+                        out.add(cell(item, element));
+                    }
+                    return out;
+                }
+                throw refused(node, c);
+            }
+            case "STRUCT" -> {
+                if (node instanceof Json.Obj o) {
+                    Map<String, Object> out = new LinkedHashMap<>();
+                    for (ExecutionPlan.Column f : fields(c)) {
+                        Json.Node fv = o.fields().get(f.name());
+                        out.put(f.name(), fv == null ? null : cell(fv, f));
+                    }
+                    return out;
+                }
+                throw refused(node, c);
+            }
+            case "MAP" -> {
+                ExecutionPlan.Column[] kv = mapSlots(c);
+                Map<Object, Object> out = new LinkedHashMap<>();
+                if (node instanceof Json.Obj o) {
+                    o.fields().forEach((k, v) -> out.put(cell(new Json.Str(k), kv[0]), cell(v, kv[1])));
+                    return out;
+                }
+                if (node instanceof Json.Arr a) {
+                    // a map carried as its entries, each a {key, value} object
+                    for (Json.Node entry : a.items()) {
+                        if (!(entry instanceof Json.Obj e) || e.fields().size() != 2 || !e.fields().containsKey("key")
+                                || !e.fields().containsKey("value")) {
+                            throw new IllegalStateException("column '" + c.name() + "': a map cell's entry is not a"
+                                    + " {key, value} object: " + excerpt(entry));
+                        }
+                        out.put(cell(e.fields().get("key"), kv[0]), cell(e.fields().get("value"), kv[1]));
+                    }
+                    return out;
+                }
+                throw refused(node, c);
+            }
             default -> {
-                // no slot, or a JSON or structured one: the Pure type decides
+                // no slot, or a JSON one: the Pure type decides
             }
         }
         if (type.equals("Integer")) {
@@ -160,9 +205,14 @@ public final class RowDecode {
         };
     }
 
+    /** The value-lane's decimal text ({@code DECIMAL_TEXT}: the canonical D-suffixed spelling) as its exact decimal. */
+    static BigDecimal decimalText(String s) {
+        return new BigDecimal(s.endsWith("D") || s.endsWith("d") ? s.substring(0, s.length() - 1) : s);
+    }
+
     /** Whether the Pure type {@code type} is a number's: Integer, Float, Decimal (with or without its digits) or
      *  Number. */
-    private static boolean numericPure(String type) {
+    static boolean numericPure(String type) {
         return type.equals("Integer") || type.equals("Float") || type.equals("Decimal") || type.startsWith("Decimal(")
                 || type.equals("Number");
     }
@@ -243,7 +293,7 @@ public final class RowDecode {
     }
 
     /** The slot's leading word: {@code DECIMAL} of {@code DECIMAL(10,2)}, {@code ARRAY} of {@code ARRAY<...>}. */
-    private static String slotWord(@com.legend.base.Nullable String slot) {
+    static String slotWord(@com.legend.base.Nullable String slot) {
         if (slot == null) {
             return "";
         }
@@ -256,6 +306,73 @@ public final class RowDecode {
             }
         }
         return slot.substring(0, end);
+    }
+
+    // ------------------------------------------------------------------
+    // the structured slots' spelling (ColumnFacts.slot writes it; both decodes read it back here)
+    // ------------------------------------------------------------------
+
+    /** The element column of a list column: the column's name and type, the element slot of {@code ARRAY<...>}. */
+    static ExecutionPlan.Column element(ExecutionPlan.Column c) {
+        return new ExecutionPlan.Column(c.name(), c.type(), c.multiplicity(), inside(c, "ARRAY"), null);
+    }
+
+    /** The key and value columns of a map column ({@code MAP<key,value>}): each its slot, its type Any. */
+    static ExecutionPlan.Column[] mapSlots(ExecutionPlan.Column c) {
+        List<String> parts = topLevel(inside(c, "MAP"));
+        if (parts.size() != 2) {
+            throw new IllegalStateException("column '" + c.name() + "': its slot " + c.slot() + " is no MAP<key,value>");
+        }
+        return new ExecutionPlan.Column[] {any("key", parts.get(0).trim()), any("value", parts.get(1).trim())};
+    }
+
+    /** The fields of a struct column ({@code STRUCT<name slot, ...>}) as columns: each its name and its slot, its
+     *  type Any (a field declares no Pure type; the slot, then the carrier's own kind, decides). */
+    static List<ExecutionPlan.Column> fields(ExecutionPlan.Column c) {
+        List<ExecutionPlan.Column> out = new ArrayList<>();
+        for (String part : topLevel(inside(c, "STRUCT"))) {
+            String f = part.trim();
+            int space = f.indexOf(' ');
+            if (space <= 0) {
+                throw new IllegalStateException("column '" + c.name() + "': its slot " + c.slot()
+                        + " has a field with no type: '" + f + "'");
+            }
+            out.add(any(f.substring(0, space), f.substring(space + 1).trim()));
+        }
+        return out;
+    }
+
+    private static ExecutionPlan.Column any(String name, String slot) {
+        return new ExecutionPlan.Column(name, "meta::pure::metamodel::type::Any", new ExecutionPlan.Multiplicity(0, 1),
+                slot, null);
+    }
+
+    private static String inside(ExecutionPlan.Column c, String word) {
+        String slot = c.slot();
+        if (slot == null || !slot.startsWith(word + "<") || !slot.endsWith(">")) {
+            throw new IllegalStateException("column '" + c.name() + "': its slot " + slot + " is no " + word + "<...>");
+        }
+        return slot.substring(word.length() + 1, slot.length() - 1);
+    }
+
+    /** {@code s} split at its top-level commas (none inside {@code <...>} or {@code (...)}). */
+    private static List<String> topLevel(String s) {
+        List<String> out = new ArrayList<>();
+        int depth = 0;
+        int from = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (ch == '<' || ch == '(') {
+                depth++;
+            } else if (ch == '>' || ch == ')') {
+                depth--;
+            } else if (ch == ',' && depth == 0) {
+                out.add(s.substring(from, i));
+                from = i + 1;
+            }
+        }
+        out.add(s.substring(from));
+        return out;
     }
 
     private static IllegalStateException refused(Json.Node node, ExecutionPlan.Column c) {

@@ -339,10 +339,12 @@ legend_java_library(
     resource_strip_prefix = "core/src/main/mongodb",
     deps = [
         "//base",
+        "//json",
         ":error",
         ":exec",
         ":execution_plan",
         ":model",
+        ":values",
         "@bson//jar",
         "@mongodb_driver_core//jar",
         "@mongodb_driver_sync//jar",

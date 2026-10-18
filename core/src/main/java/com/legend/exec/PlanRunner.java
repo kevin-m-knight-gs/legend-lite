@@ -20,7 +20,8 @@ import java.util.Map;
  * statement's target ({@link PlanSessions}: shared, set up once, by the target's content), checks it is the database and
  * server version the statement is written for, runs the target's session statements, binds each slot to its
  * parameter's value as the slot says (writing a value's type where the statement leaves it to the value, H2's), and
- * passes on the text the database writes.
+ * passes on the text the database writes, or its typed rows ({@link #rows}: each cell read by the session from the
+ * driver by the plan's column, docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3, the plan path program's step 7).
  */
 public final class PlanRunner {
 
@@ -54,8 +55,8 @@ public final class PlanRunner {
 
     /**
      * Runs {@code plan}, whose answer is typed rows ({@link ExecutionPlan.TdsResult}; the plan path program's step 6,
-     * 2026-10-18), with {@code values}, on a session of {@code sessions}: each row the database writes, one JSON
-     * object, decoded into cells by the plan's columns ({@link RowDecode}).
+     * 2026-10-18), with {@code values}, on a session of {@code sessions}: each row's cells read by the session's
+     * typed method ({@link Statements#rows}: from the driver by the plan's columns, step 7).
      */
     public static Rows rows(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions)
             throws IOException {
@@ -63,12 +64,8 @@ public final class PlanRunner {
         return switch (plan.root()) {
             case ExecutionPlan.TdsResult tds -> {
                 List<List<Object>> out = new java.util.ArrayList<>();
-                send(tds.sql(), checked, sessions, row -> {
-                    if (row == null) {
-                        throw new IllegalStateException("the plan's statement wrote no object for a row");
-                    }
-                    out.add(RowDecode.cells(row, tds.columns()));
-                });
+                send(tds.sql(), checked, sessions, (st, statement, bound) ->
+                        st.rows(statement, tds.sql().slots(), bound, tds.columns(), out::add));
                 yield new Rows(tds.columns(), out);
             }
             case ExecutionPlan.TextResult text -> throw new IllegalArgumentException("a plan whose answer is a text"
@@ -83,12 +80,13 @@ public final class PlanRunner {
         switch (text.format()) {
             case CSV, JSON, TDS_TEXT -> {
                 boolean[] written = {false};
-                send(text.sql(), checked, sessions, row -> {
-                    if (!written[0]) {
-                        written[0] = true;
-                        out.write(row == null ? "" : row);
-                    }
-                });
+                send(text.sql(), checked, sessions, (st, statement, bound) ->
+                        st.query(statement, text.sql().slots(), bound, row -> {
+                            if (!written[0]) {
+                                written[0] = true;
+                                out.write(row == null ? "" : row);
+                            }
+                        }));
                 if (!written[0]) {
                     throw new IllegalStateException("the plan's statement wrote no text: no row");
                 }
@@ -97,24 +95,31 @@ public final class PlanRunner {
                 // one JSON object per row: the array's brackets and commas are the runner's
                 out.write('[');
                 boolean[] first = {true};
-                send(text.sql(), checked, sessions, row -> {
-                    if (!first[0]) {
-                        out.write(',');
-                    }
-                    first[0] = false;
-                    out.write(row != null ? row : "null");
-                    out.flush();
-                });
+                send(text.sql(), checked, sessions, (st, statement, bound) ->
+                        st.query(statement, text.sql().slots(), bound, row -> {
+                            if (!first[0]) {
+                                out.write(',');
+                            }
+                            first[0] = false;
+                            out.write(row != null ? row : "null");
+                            out.flush();
+                        }));
                 out.write(']');
             }
         }
         out.flush();
     }
 
+    /** What a statement's session is asked, once the session is checked and its own statements have run: the
+     *  statement with its type holes filled, and the slots' checked values in slot order. */
+    private interface Ask {
+        void of(Statements st, String statement, List<PlanParameters.Checked> values) throws IOException;
+    }
+
     /** {@code sql} sent on a session of {@code sessions}: the slots bound to the checked values, the type holes
-     *  filled, each row's text handed to {@code rows}. */
+     *  filled, the session asked ({@code ask}: each row's text, or each row's typed cells). */
     private static void send(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> checked,
-            PlanSessions.Source sessions, Statements.Rows rows) throws IOException {
+            PlanSessions.Source sessions, Ask ask) throws IOException {
         // every null type checked before any session is opened: a plan whose null is of no type is refused whole
         for (ExecutionPlan.Slot slot : sql.slots()) {
             if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
@@ -138,7 +143,7 @@ public final class PlanRunner {
             }
             String statement = statement(sql, checked);
             StatementOrigin.sent(statement);
-            st.query(statement, sql.slots(), values, rows);
+            ask.of(st, statement, values);
         }
     }
 

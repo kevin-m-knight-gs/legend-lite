@@ -1048,6 +1048,12 @@ class JavaEvalLedgerTest {
                     // the one getString: carriage); DatabaseConnector is the seam a database with no JDBC joins
                     // through, beside the drivers, Connectors finding them as BulkLoads finds the loaders. No value
                     // is computed or compared: the database executes
+                    // the typed seam (2026-10-18, the plan path program's step 7,
+                    // docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3 and §4): JdbcDecode reads a row's cells from
+                    // the driver by the plan's columns, one carrier conversion each (the legacy executor's fetch
+                    // and unwrap rules, the slot first); nothing computed, nothing compared. RowDecode (step 6)
+                    // stays for a document's row and a JSON-carried cell
+                    "JdbcDecode.java",
                     "Statements.java", "JdbcStatements.java", "DatabaseConnector.java", "Connectors.java",
                     "DynamicPivot.java",
                     "ExecutionResult.java", "Executor.java",

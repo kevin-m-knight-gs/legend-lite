@@ -37,7 +37,8 @@ import java.util.Map;
  * own encoding of each value); an {@code aggregate} command runs through the driver's cursor, and each row's one
  * field is the text the pipeline wrote (D10): carried, never read as a value. A raise the pipeline wrote (a
  * conversion of a message between the platform's sentinels) comes back as the platform's own text, as a SQL raise
- * does through the executor's funnel.
+ * does through the executor's funnel. Since the plan path program's step 7 (2026-10-18) the session answers typed
+ * rows too ({@link #rows}: each document's fields read by the plan's columns, {@link MongoDbDecode}).
  */
 final class MongoDbStatements implements Statements {
 
@@ -79,6 +80,32 @@ final class MongoDbStatements implements Statements {
     @Override
     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
+        try (MongoCursor<BsonDocument> cursor = cursor(statement, slots, values)) {
+            while (cursor.hasNext()) {
+                rows.row(text(cursor.next()));
+            }
+        } catch (MongoException e) {
+            throw failure(e);
+        }
+    }
+
+    /** {@inheritDoc} Each document's fields read by the plan's columns ({@link MongoDbDecode}: a field by its
+     *  column's name, its value by the slot and the Pure type). */
+    @Override
+    public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
+        try (MongoCursor<BsonDocument> cursor = cursor(statement, slots, values)) {
+            while (cursor.hasNext()) {
+                cells.row(MongoDbDecode.row(cursor.next(), columns));
+            }
+        } catch (MongoException e) {
+            throw failure(e);
+        }
+    }
+
+    /** The aggregate command's cursor: the plan's command with its markers bound, run through the driver. */
+    private MongoCursor<BsonDocument> cursor(String statement, List<ExecutionPlan.Slot> slots,
+            List<PlanParameters.Checked> values) {
         BsonDocument command = bound(command(statement), slots, values).asDocument();
         BsonValue aggregate = command.get("aggregate");
         BsonValue pipeline = command.get("pipeline");
@@ -89,15 +116,9 @@ final class MongoDbStatements implements Statements {
         for (BsonValue stage : pipeline.asArray()) {
             stages.add(stage.asDocument());
         }
-        try (MongoCursor<BsonDocument> cursor = (aggregate.isString()
+        return (aggregate.isString()
                 ? database.getCollection(aggregate.asString().getValue(), BsonDocument.class).aggregate(stages)
-                : database.aggregate(stages, BsonDocument.class)).iterator()) {
-            while (cursor.hasNext()) {
-                rows.row(text(cursor.next()));
-            }
-        } catch (MongoException e) {
-            throw failure(e);
-        }
+                : database.aggregate(stages, BsonDocument.class)).iterator();
     }
 
     /** The row's one text: its one field, a string or null; anything else is not text, refused by name. */

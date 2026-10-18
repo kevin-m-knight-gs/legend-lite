@@ -602,12 +602,25 @@ public final class LiteralSpelling {
         SqlExpr bare = SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, hasExp),
                 SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, s, new SqlExpr.StringLit(".")),
                         new SqlExpr.IntLit(0)));
-        return new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.AND, hasExp, fractionFree), intPlain),
-                new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed),
-                new SqlExpr.Case.When(bare, SqlExpr.Call.of(SqlFn.CONCAT, s, new SqlExpr.StringLit(".0")))), s);
+        List<SqlExpr.Case.When> whens = new java.util.ArrayList<>(nonFinite(s));
+        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, fractionFree), intPlain));
+        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed));
+        whens.add(new SqlExpr.Case.When(bare, SqlExpr.Call.of(SqlFn.CONCAT, s, new SqlExpr.StringLit(".0"))));
+        return new SqlExpr.Case(whens, s);
+    }
+
+    /** The text of a double that is no number, in Pure's spelling, which is Java's ({@code NaN}, {@code Infinity},
+     *  {@code -Infinity}), from the database's own: DuckDB writes {@code nan}, {@code inf} and {@code -inf}, H2 and
+     *  Postgres write Java's (the channel A shadow run of 2026-10-18 found {@code acos(2.0)} printed {@code nan.0};
+     *  the plan path program's step 7). The spelled tokens are compared, nothing computed (docs/WORLD_MAP.md). */
+    private static List<SqlExpr.Case.When> nonFinite(SqlExpr s) {
+        SqlExpr lower = SqlExpr.Call.of(SqlFn.LOWER, s);
+        return List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("nan"), text("-nan")), text("NaN")),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("inf"), text("+inf"), text("infinity")),
+                        text("Infinity")),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IN, lower, text("-inf"), text("-infinity")),
+                        text("-Infinity")));
     }
 
     /** Whether {@code t} is one of the integral SQL kinds. */
@@ -775,7 +788,7 @@ public final class LiteralSpelling {
      * {@code 2.5E-7}). The database spells it: its own text of the value (shortest round-trip digits in its own
      * layout: DuckDB's {@code 1.5e+15}, H2's {@code 1.5E15}, a decimal slot's {@code 2.50}) is taken apart into
      * its sign, its significant digits and the exponent of the first one, and laid out again. A text that is not a
-     * number's ({@code nan}, {@code inf}) is passed as the database wrote it.
+     * number's is spelled as Java spells it ({@link #nonFinite}: {@code NaN}, {@code Infinity}, {@code -Infinity}).
      */
     public static SqlExpr floatPrintJava(SqlExpr x) {
         SqlExpr t = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
@@ -824,18 +837,15 @@ public final class LiteralSpelling {
                 SqlExpr.Call.of(SqlFn.RPAD, text(""), SqlExpr.Call.of(SqlFn.MINUS,
                         SqlExpr.Call.of(SqlFn.NEGATE, e10), new SqlExpr.IntLit(1)), text("0")),
                 sig);
-        SqlExpr notANumber = SqlExpr.Call.of(SqlFn.GREATER,
-                SqlExpr.Call.of(SqlFn.STRPOS, SqlExpr.Call.of(SqlFn.LOWER, body), text("n")), new SqlExpr.IntLit(0));
-        return new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(notANumber, t),
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, x, new SqlExpr.IntLit(0)), text("0.0")),
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND,
+        List<SqlExpr.Case.When> whens = new java.util.ArrayList<>(nonFinite(t));
+        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, x, new SqlExpr.IntLit(0)), text("0.0")));
+        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND,
                         SqlExpr.Call.of(SqlFn.GREATER_EQUAL, e10, new SqlExpr.IntLit(-3)),
                         SqlExpr.Call.of(SqlFn.LESS, e10, new SqlExpr.IntLit(7))),
                         new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                                 SqlExpr.Call.of(SqlFn.GREATER_EQUAL, e10, new SqlExpr.IntLit(0)), plainWhole)),
-                                plainFraction))),
-                scientific);
+                                plainFraction)));
+        return new SqlExpr.Case(whens, scientific);
     }
 
     // ==================================================================

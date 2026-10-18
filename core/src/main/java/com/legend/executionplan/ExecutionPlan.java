@@ -69,13 +69,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /**
-     * A tabular result the runner reads as TYPED ROWS (legend-engine's {@code relationalTdsInstantiation}; the plan
-     * path program's step 6, docs/PLAN_PATH_PROGRAM_2026_10_17.md §6, 2026-10-18): the statement writes each row as
-     * ONE JSON OBJECT, its keys the columns' names and each cell's token as the JSON wire spells the cell's Pure type
-     * (a Float's Pure text, a Decimal's own scale, a date kind's text, the database's token for the rest, {@code null}
-     * for a null cell), and the runner decodes each cell by its column's declared type and slot
-     * ({@code exec.RowDecode}) -- the plan's own type facts, no model. A session carries text in and text out
-     * (docs/MONGODB_PLAN_2026_10_16.md D12), so this is the one form a typed row crosses in.
+     * A result the runner answers as TYPED ROWS (the plan path program's step 6, docs/PLAN_PATH_PROGRAM_2026_10_17.md
+     * §6; its seam the typed method of docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3, step 7): {@code columns} the
+     * relation's columns with their three type facts, and {@code sql} a statement that answers those columns in
+     * their order. The session reads each row's cells from its driver by the plan's columns -- the slot first, the
+     * Pure type where the slot is none -- and the runner holds the plan's facts, no model and no dialect. (Until
+     * step 7 the statement wrote each row as one JSON object the runner parsed back; a document's row still reads
+     * that way, {@code exec.RowDecode}.)
      */
     public record TdsResult(List<Column> columns, Sql sql) implements Node {
         public TdsResult {

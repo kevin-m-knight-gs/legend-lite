@@ -18,6 +18,7 @@ import com.legend.executionplan.ExecutionPlan;
 import com.legend.lowering.VerdictSql;
 import com.legend.lowering.WireRender;
 import com.legend.plan.PlanColumns;
+import com.legend.sql.OutputCol;
 import com.legend.sql.SqlQuery;
 
 import java.util.ArrayList;
@@ -29,8 +30,9 @@ import java.util.Map;
  * statement a judge sends is an {@link ExecutionPlan} the model-free runner executes on the body's own session.
  * The DATABASE judge's verdict statement (the lowering's {@link VerdictSql}, composed over both sides' plans) is a
  * typed-rows plan whose one row is the verdict; the HOST judge receives each side as a plan's result -- the side's
- * lowered query as a typed-rows plan, or a graph fetch's JSON text -- decoded by the plan's declared types
- * ({@code exec.RowDecode}: the Z2 ruling's carrier-decode bridge at the plan boundary), then compares. The legacy
+ * lowered query as a typed-rows plan, or a graph fetch's JSON text -- its cells read from the driver by the plan's
+ * declared types ({@code exec.JdbcDecode}, the typed seam of step 7: the Z2 ruling's carrier-decode bridge at the
+ * plan boundary), then compares. The legacy
  * executor still PLANS a side ({@link StatementExecutor#planHostSide}: the let prefix, the inliner's splice, the
  * natives' staging, the store resolution, the wire reconciliation) -- the one road both judges' sides take, until the
  * test runners emit plan sequences (step 8) and it is deleted (step 11).
@@ -57,18 +59,29 @@ final class JudgePlans {
         return new ExecutionPlan.Target(database, Databases.servers(decided.type()), List.of(), List.of());
     }
 
-    /** {@code statement}'s typed-rows plan: it writes each row as one JSON object (the JSON rows wire in the
-     *  CARRIER spelling: each cell as its slot holds it, for the decode), its columns {@code schema}'s with their
-     *  three type facts. */
+    /** {@code statement}'s typed-rows plan: the statement itself, its columns {@code schema}'s with their three
+     *  type facts, each row's cells read by the session's typed method (the plan path program's step 7,
+     *  docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3, 2026-10-18; until then the JSON rows wire wrapped the statement
+     *  and the runner parsed each row back). A typed-rows statement answers the plan's columns in their order, and
+     *  that is checked here where the statement's outputs are known: a column out of its output's place is a
+     *  planner defect, refused by name. A sort key that is no output is carried as a hidden column
+     *  ({@link WireRender#typedRows}: H2's FULL OUTER JOIN emulation addresses its sort key among the outputs). */
     static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
             StatementExecutor.ExecEnv env) {
-        return rowsPlan(statement, schema, env, WireRender.Spelling.CARRIER);
-    }
-
-    static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
-            StatementExecutor.ExecEnv env, WireRender.Spelling spelling) {
-        return new ExecutionPlan.TdsResult(PlanColumns.of(schema, statement),
-                PlanMaker.sql(WireRender.rows(statement, schema, spelling), env.dialect(), target(env)));
+        List<ExecutionPlan.Column> columns = PlanColumns.of(schema, statement);
+        List<OutputCol> outs = statement.outputs();
+        boolean anyByName = columns.stream().anyMatch(c -> outs.stream().anyMatch(o -> o.name().equals(c.name())));
+        if (anyByName && columns.size() == outs.size()) {
+            for (int i = 0; i < columns.size(); i++) {
+                if (!columns.get(i).name().equals(outs.get(i).name())) {
+                    throw new IllegalStateException("the plan's columns " + columns.stream()
+                            .map(ExecutionPlan.Column::name).toList() + " are not the statement's outputs "
+                            + outs.stream().map(OutputCol::name).toList() + " in order");
+                }
+            }
+        }
+        return new ExecutionPlan.TdsResult(columns,
+                PlanMaker.sql(WireRender.typedRows(statement), env.dialect(), target(env)));
     }
 
     /** {@code plan} with the definitions of the frames it references at its head -- the verdict batch's, in
@@ -125,9 +138,9 @@ final class JudgePlans {
      * a plan (a literal-only side the compiler folds, a host constant) is that answer, nothing sent. {@code identity}:
      * the identity lane (an assert-condition side whose in-SQL equality needs instance identity).
      *
-     * <p>The one named residue: a side whose plan holds a DYNAMIC PIVOT keeps the legacy route -- its columns are
-     * named by the database, and a typed-rows plan carries no column it cannot name (step 6; the typer's templates,
-     * step 9).
+     * <p>The one named residue: a side whose plan answers a DYNAMIC PIVOT's columns unnamed keeps the legacy route
+     * -- its columns are named by the database, and a typed-rows plan carries no column it cannot name (step 6; the
+     * typer's templates, step 9). A cast over the pivot names them, and such a side is a plan's result (step 7).
      */
     static ExecutionResult evalSide(TypedSpec value, List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env, boolean identity, boolean fold,
@@ -139,7 +152,8 @@ final class JudgePlans {
         if (side == null) {
             return java.util.Objects.requireNonNull(pv.answered(), "a side neither planned nor answered");
         }
-        if (WireRender.hasDynamicPivot(side.plan())) {
+        Type.RelationType sideSchema = Type.relationSchema(side.shapeInfo().type());
+        if (sideSchema != null && WireRender.dynamicPivotUnnamed(side.plan(), sideSchema)) {
             return java.util.Objects.requireNonNull(StatementExecutor.evalValue(value, letPrefix, specs, env, null,
                     identity, hook), "a dynamic pivot side without a result");
         }
@@ -215,9 +229,8 @@ final class JudgePlans {
         plan = withFrames(plan, env);
         // a row-struct column is typed nesting over a flat physical reality: the prefixed columns the join emitted
         schema = com.legend.exec.Executor.flattenStructColumns(schema);
-        // a grid's cells in the grid carrier: a temporal cell at nine digits by the database's own type
-        PlanRunner.Rows rows = run(rowsPlan(plan, schema, env, WireRender.Spelling.CARRIER_GRID),
-                PlanSessions.given(w.connection()));
+        // a grid's cells typed from the driver: a temporal cell by the database's own kind (a DATE a day)
+        PlanRunner.Rows rows = run(rowsPlan(plan, schema, env), PlanSessions.given(w.connection()));
         List<Column> columns = new ArrayList<>(schema.columns().size());
         for (Type.Column c : schema.columns()) {
             columns.add(new Column(c.name(), c.type(), c.multiplicity()));
@@ -229,6 +242,33 @@ final class JudgePlans {
         return new ExecutionResult.Tabular(columns, out, info.type());
     }
 
+    /** A value root's rows in the VALUE lane's carrier: a timestamp slot's cell with its digits trimmed
+     *  ({@link com.legend.values.PureDateLiteral#trimmed}) -- the database judge's value-lane canon spells a
+     *  timestamp so ({@code dateTimeText}: a whole second none, {@code .123} three), and so did the JSON rows
+     *  wire's carrier spelling of a value root (step 6), where a grid's cell keeps the nine digits of the engine's
+     *  relational read (its GRID_FETCH canon; step 7, 2026-10-18). A text-carried temporal (a literal's own digits)
+     *  is read as written and stays. */
+    private static PlanRunner.Rows valueLane(PlanRunner.Rows rows) {
+        List<ExecutionPlan.Column> columns = rows.columns();
+        boolean any = columns.stream().anyMatch(c -> c.slot() != null && c.slot().startsWith("TIMESTAMP"));
+        if (!any) {
+            return rows;
+        }
+        List<List<Object>> out = new ArrayList<>(rows.rows().size());
+        for (List<Object> r : rows.rows()) {
+            List<Object> cells = new ArrayList<>(r);
+            for (int i = 0; i < columns.size(); i++) {
+                String slot = columns.get(i).slot();
+                if (slot != null && slot.startsWith("TIMESTAMP")
+                        && cells.get(i) instanceof com.legend.values.PureDateLiteral d) {
+                    cells.set(i, d.trimmed());
+                }
+            }
+            out.add(cells);
+        }
+        return new PlanRunner.Rows(columns, out);
+    }
+
     /** A value root's cells: the one-column relation {@code value}, shaped as a scalar or a collection with the
      *  legacy executor's rules (a required root of no rows refuses; a scalar of two rows refuses; a null cell in a
      *  collection is the TDSNull value under a TDSNull root, a null slot on the Any and variant lanes, a lowering
@@ -236,8 +276,8 @@ final class JudgePlans {
     private static ExecutionResult values(StatementExecutor.WrappedSide w, StatementExecutor.ExecEnv env) {
         ExprType info = w.shapeInfo();
         Type type = info.type();
-        PlanRunner.Rows rows = run(rowsPlan(withFrames(w.plan(), env), WireRender.schema(info), env),
-                PlanSessions.given(w.connection()));
+        PlanRunner.Rows rows = valueLane(run(rowsPlan(withFrames(w.plan(), env), WireRender.schema(info), env),
+                PlanSessions.given(w.connection())));
         long lower = info.multiplicity().requireBounded("result shape").lower();
         boolean tdsNullRoot = type.equals(new Type.ClassType(PlatformTypes.TDS_NULL_FQN));
         boolean anyRoot = PlatformTypes.isAny(type) || tdsNullRoot;

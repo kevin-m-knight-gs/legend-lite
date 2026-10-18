@@ -3393,11 +3393,69 @@ public final class Lowerer {
         return CastPolicy.lower(c, value, Stamps.isMany(c), engineText);
     }
 
-    /** A Pure type with a direct scalar SQL carrier (primitives and sized decimals). */
+    /**
+     * A cast naming a dynamic pivot's generated columns -- the pivot idiom,
+     * {@code ->cast(@Relation<(city:String, '2000__|__sum':Integer, ...)>)} -- PROJECTS them (the plan path program's
+     * step 7, 2026-10-18; until then the cast was type-only, and every consumer of the plan -- the TDS text, the CSV
+     * and JSON wires, the judges' typed rows -- met a pivot with no outputs and took the dynamic road, which wants
+     * the typer's templates a cast no longer carries). Each target column is read from the pivot's output by its
+     * PHYSICAL name (a generated name bare, as the database spells it; a static column as it is) and labelled as the
+     * cast spells it (a generated name presented quoted, {@link Type.RelationType#presentPivotName}); its slot is
+     * the pivot's USING's for a generated column (nullable: a group may have no row for a key) and the source's for
+     * a static one. A name that is neither is refused.
+     */
+    private SqlSelect castOverDynamicPivot(SqlSelect base, Map<String, Type.Column> src, Type.RelationType tgtRow) {
+        List<SqlSource.Pivot> dynamic = TdsTextWrap.pivots(base).stream().filter(p -> p.in().isEmpty()).toList();
+        if (dynamic.size() != 1) {
+            throw new NotImplementedException("cast(@Relation<...>) over " + dynamic.size()
+                    + " dynamic pivots: the generated columns' pivot is ambiguous");
+        }
+        SqlSource.Pivot pivot = dynamic.get(0);
+        String sep = Type.RelationType.PIVOT_SEPARATOR;
+        SqlSelect isolated = isolate(base);
+        String alias = ((SqlSource.Subselect) isolated.from()).alias();
+        List<SqlSelect.Projection> projs = new ArrayList<>();
+        for (Type.Column tc : tgtRow.columns()) {
+            Type.Column known = src.get(tc.name());
+            SqlExpr.Column read;
+            OutputCol out;
+            if (known != null) {
+                SqlExpr.Column sc = Fold.sourceColumn(pivot.source(), known.name());
+                if (sc == null || !(sc.type() instanceof com.legend.sql.TypeFact.Typed typed)) {
+                    throw new IllegalStateException("cast(@Relation<...>): the pivot's static column '"
+                            + known.name() + "' has no typed slot in the pivot's source");
+                }
+                OutputCol.Origin origin = sc.origin();
+                if (origin == null) {
+                    throw new IllegalStateException("cast(@Relation<...>): the pivot's static column '"
+                            + known.name() + "' carries no origin in the pivot's source");
+                }
+                read = SqlExpr.Column.of(alias, known.name(), typed.type(), typed.nullable(), origin);
+                out = new OutputCol(tc.name(), typed.type(), typed.nullable());
+            } else {
+                String physical = tc.name().length() >= 2 && tc.name().startsWith("'") && tc.name().endsWith("'")
+                        ? tc.name().substring(1, tc.name().length() - 1) : tc.name();
+                int at = physical.lastIndexOf(sep);
+                String tail = at < 0 ? "" : physical.substring(at + sep.length());
+                SqlSource.Pivot.Using using = pivot.usings().stream().filter(u -> u.alias().equals(tail)).findFirst()
+                        .orElseThrow(() -> new NotImplementedException("cast(@Relation<...>) names '" + tc.name()
+                                + "', which is no column of the pivot's source and no generated column of its"
+                                + " aggregates " + pivot.usings().stream().map(SqlSource.Pivot.Using::alias).toList()));
+                if (using.type() == null) {
+                    throw new IllegalStateException("the pivot's USING '" + using.alias() + "' carries no typed slot");
+                }
+                read = SqlExpr.Column.of(alias, physical, using.type(), true, OutputCol.Origin.DERIVED);
+                out = new OutputCol(tc.name(), using.type(), true);
+            }
+            projs.add(new SqlSelect.Projection(read, tc.name(), out));
+        }
+        return isolated.withProjections(projs);
+    }
+
     /**
      * A relation cast whose target columns ALL exist in the source projects
      * them (SQL-CAST where the type changed); any absent name means the
-     * pivot idiom's dynamic columns — type-only pass-through.
+     * pivot idiom's dynamic columns, which {@link #castOverDynamicPivot} projects.
      */
     private SqlSelect relationCast(TypedCast c,
                                    Type.RelationType srcRow, Type.RelationType tgtRow) {
@@ -3429,7 +3487,7 @@ public final class Lowerer {
                         + " — only a dynamic-column (pivot) source admits"
                         + " unknown cast columns");
             }
-            return base;   // dynamic (pivot) columns: re-type only
+            return castOverDynamicPivot(base, src, tgtRow);
         }
         // Identity is POSITIONAL: a cast that merely REORDERS columns must
         // project (the executor matches result columns to the schema by

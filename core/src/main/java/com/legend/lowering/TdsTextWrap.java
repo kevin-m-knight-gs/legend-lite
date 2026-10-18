@@ -65,7 +65,10 @@ public final class TdsTextWrap {
         }
         List<OutputCol> outs = probe != null ? probe.outs()
                 : inner0.outputs();
-        SqlSource.Pivot dynamic = probe == null
+        // the dynamic road only where nothing names the pivot's columns (the typed schema still carries the
+        // pivot's templates): a cast over the pivot names them and the lowering projects them (step 7,
+        // 2026-10-18), and the text is then an ordinary relation's
+        SqlSource.Pivot dynamic = probe == null && !schema.dynamicColumns().isEmpty()
                 ? pivots(plan).stream().filter(p -> p.in().isEmpty()).findFirst().orElse(null) : null;
         List<Type.Column> typedCols = dynamic != null ? staticColumns(outs, schema)
                 : typedColumns(outs, schema, plan, probe, sqlTypeToPure);

@@ -135,6 +135,12 @@ The rule the step-6 corpus measured, kept for the typed method:
    `double`, a decimal slot an exact `BigDecimal`, a date or timestamp slot a `PureDateLiteral`, a time slot a
    `PureTimeLiteral`, a text slot a `String`, a JSON slot the document or text as it is, the labels `LITERAL`,
    `DECIMAL_TEXT` and `TEMPORAL_TEXT` their own parse.
+1a. A **timestamp slot's cell carries nine subsecond digits** (`PureDateLiteral.fromDatabaseTimestamp`: the
+   engine's relational read, `fromSQLTimestamp`'s `%09d`); a date slot's is a day; a text-carried temporal keeps
+   its written digits. The judges' VALUE lane trims a timestamp's digits (`trimmed`), as the database judge's
+   value-lane canon does and as step 6's carrier of a value root did; a grid's cell keeps the nine (step 7's first
+   landing, 2026-10-18: measured on the corpus, six DuckDB grid comparisons against the engine's nine-digit
+   literals).
 2. A value the database holds as **text under a numeric slot** is the text, unless the Pure type is itself numeric: a
    store may declare a column INT over a VARCHAR, and legend-engine's own test store does (the step-6 finding).
 3. A **Float the store holds as an integer** is the integer the database holds (the step-6 finding on the Float's

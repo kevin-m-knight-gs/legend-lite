@@ -91,6 +91,19 @@ class PlanMakerTest {
         }
     }
 
+    /** A double that is no number prints as Pure prints it ({@code NaN}; {@code Infinity} and {@code -Infinity}
+     *  the same way), whatever the database writes for it: the channel A shadow run of 2026-10-18 found
+     *  {@code acos(2.0)} printed {@code nan.0} on DuckDB (the plan path program's step 7). */
+    @Test
+    void aDoubleThatIsNoNumberPrintsAsPurePrintsIt() throws Exception {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+            try (Connection c = fresh(type)) {
+                assertEquals("value:Float[1]\nNaN",
+                        PlanCases.run(plan(type, "|2.0->acos()", TypedQuery.Output.TDS_TEXT), c), type.name());
+            }
+        }
+    }
+
     @Test
     void theTargetIsWhole_itsDatabaseVersionsSessionAndSetup() {
         ExecutionPlan.Target duck = target(plan(DatabaseType.DuckDB, RELATION, TypedQuery.Output.JSON));
@@ -265,6 +278,59 @@ class PlanMakerTest {
             ExecutionPlan json = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT", TypedQuery.Output.JSON);
             assertEquals("[{\"city\":\"NYC\",\"2000__|__newCol\":15,\"2011__|__newCol\":5},"
                     + "{\"city\":\"SAN\",\"2000__|__newCol\":3,\"2011__|__newCol\":2}]", PlanCases.run(json, c));
+        }
+    }
+
+    /** The PCT's trees by city, country and year, with a coefficient (testPivot_SingleMultiple_Dynamic_Aggregation). */
+    private static final String TREES_PCT = "#TDS\n city, country, year, treePlanted, coefficient\n NYC, USA, 2011, 5000, 1\n"
+            + " NYC, USA, 2000, 5000, 2\n SAN, USA, 2000, 2000, 1\n SAN, USA, 2011, 100, 2\n LDN, UK, 2011, 3000, 2\n"
+            + " SAN, USA, 2011, 2500, 1\n NYC, USA, 2000, 10000, 2\n NYC, USA, 2012, 7600, 1\n NYC, USA, 2012, 7600, 2\n#";
+
+    /** The same trees without the coefficient (the PCT's cast cases): a column no aggregate reads stays a group key. */
+    private static final String TREES_4 = "#TDS\n city, country, year, treePlanted\n NYC, USA, 2011, 5000\n NYC, USA, 2000, 5000\n"
+            + " SAN, USA, 2000, 2000\n SAN, USA, 2011, 100\n LDN, UK, 2011, 3000\n SAN, USA, 2011, 2500\n"
+            + " NYC, USA, 2000, 10000\n NYC, USA, 2012, 7600\n NYC, USA, 2012, 7600\n#";
+
+    private static final String CAST_PIVOT = "->cast(@meta::pure::metamodel::relation::Relation<(city:String[0..1],"
+            + " country:String[0..1], '\\'2000__|__newCol\\'':Integer[0..1], '\\'2011__|__newCol\\'':Integer[0..1],"
+            + " '\\'2012__|__newCol\\'':Integer[0..1])>)";
+
+    /**
+     * Two holes the channel A shadow run found (2026-10-18; the plan path program's step 7): an aggregate over an
+     * EXPRESSION removes every column it reads from the pivot's static columns (the engine's expected rows of
+     * testPivot_SingleMultiple_Dynamic_Aggregation), and a cast naming a dynamic pivot's generated columns projects
+     * them, so a filter, a sort or a groupBy over the cast answers through the plan as an ordinary relation.
+     */
+    @Test
+    void aPivotOverAnExpressionAndACastOverADynamicPivotAnswerAsTheEngine() throws Exception {
+        String model = model(DatabaseType.DuckDB.name());
+        var ctx = Compiler.compileModel(model);
+        try (Connection c = fresh(DatabaseType.DuckDB)) {
+            String expression = TREES_PCT + "->pivot(~[year], ~[sum: x | $x.treePlanted->toOne() * $x.coefficient->toOne()"
+                    + " : y | $y->plus(), count: x | 1 : y | $y->plus()])->sort(~city->ascending())";
+            String text = PlanCases.run(Compiler.query(ctx, expression).executionPlan("s::RT", TypedQuery.Output.TDS_TEXT), c);
+            assertTrue(text.startsWith("city:String[1],country:String[1],'\\'2000__|__sum\\'':Integer[1],"
+                    + "'\\'2000__|__count\\'':Integer[1],'\\'2011__|__sum\\'':Integer[1],'\\'2011__|__count\\'':Integer[1],"
+                    + "'\\'2012__|__sum\\'':Integer[1],'\\'2012__|__count\\'':Integer[1]\n"), text);
+            assertTrue(text.endsWith("\nLDN,UK,null,null,6000,1,null,null\nNYC,USA,30000,2,5000,1,22800,2"
+                    + "\nSAN,USA,2000,1,2700,2,null,null"), text);
+
+            String pivot = TREES_4 + "->pivot(~[year], ~[newCol: x | $x.treePlanted : y | $y->plus()])" + CAST_PIVOT;
+            String filtered = PlanCases.run(Compiler.query(ctx, pivot + "->filter(x | $x.city == 'NYC')")
+                    .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT), c);
+            assertEquals("city:String[0..1],country:String[0..1],'\\'2000__|__newCol\\'':Integer[0..1],"
+                    + "'\\'2011__|__newCol\\'':Integer[0..1],'\\'2012__|__newCol\\'':Integer[0..1]\nNYC,USA,15000,5000,15200",
+                    filtered);
+            String sorted = PlanCases.run(Compiler.query(ctx, pivot + "->sort(~city->ascending())")
+                    .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT), c);
+            assertTrue(sorted.endsWith("\nLDN,UK,null,3000,null\nNYC,USA,15000,5000,15200\nSAN,USA,2000,2600,null"), sorted);
+            String grouped = PlanCases.run(Compiler.query(ctx, pivot + "->groupBy(~[country], ~['\\'2011__|__newCol\\'': x |"
+                    + " $x.'\\'2011__|__newCol\\'' : y | $y->plus()])->sort(~country->ascending())")
+                    .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT), c);
+            assertEquals("country:String[0..1],'\\'2011__|__newCol\\'':Integer[1]\nUK,3000\nUSA,7600", grouped);
+            ExecutionPlan csv = Compiler.query(ctx, pivot + "->filter(x | $x.city == 'NYC')").executionPlan("s::RT", TypedQuery.Output.CSV);
+            assertEquals("city,country,'2000__|__newCol','2011__|__newCol','2012__|__newCol'\r\nNYC,USA,15000,5000,15200\r\n",
+                    PlanCases.run(csv, c));
         }
     }
 

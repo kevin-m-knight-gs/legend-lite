@@ -29,16 +29,12 @@ public final class WireRender {
      *  {@code PURE}, interpreted Pure's own print forms, on lite's own outputs; {@code ENGINE}, legend-engine's
      *  conventions -- a Float as Java prints a double, a DateTime with nine fraction digits -- on the engine's API
      *  ({@code pure/v1} execute, served and hosted). The VALUES are Pure's either way. */
-    /** The JSON wire's text of a value: Pure's ({@code PURE}), legend-engine's ({@code ENGINE}: the pure/v1 API), or
-     *  the CARRIER's -- each cell as its slot holds it, for a decode by the plan's column (the judges' typed rows,
-     *  the plan path program's step 6, 2026-10-18): a JSON or literal-labelled slot's own token, a timestamp slot
-     *  always timed (a midnight is no day), a Float's and a Decimal's text by their Pure type. */
+    /** The JSON wire's text of a value: Pure's ({@code PURE}), or legend-engine's ({@code ENGINE}: the pure/v1 API).
+     *  (The CARRIER spellings of the judges' typed rows, step 6, went with the JSON rows wire's typed use: since
+     *  step 7, 2026-10-18, a session answers typed rows from the driver,
+     *  docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3.) */
     public enum Spelling {
-        PURE, ENGINE, CARRIER,
-        /** The carrier of a GRID's cells: a temporal cell by the database's own type -- a DATE a day, anything else
-         *  nine fraction digits, the canon the legacy host route decoded a grid's cell from (the setup's DDL can
-         *  diverge from the store's declaration, so the slot does not say). */
-        CARRIER_GRID
+        PURE, ENGINE
     }
 
     private WireRender() {
@@ -66,7 +62,7 @@ public final class WireRender {
      *  the CSV is lite's own and has one. */
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema, Format format, Spelling spelling) {
         SqlSelect inner = asSelect(plan);
-        boolean dynamicPivot = hasDynamicPivot(plan);
+        boolean dynamicPivot = dynamicPivotUnnamed(plan, schema);
         if (format == Format.JSON) {
             // a dynamic pivot's rows are their own JSON (the database's tokens: the plan path program's step 4,
             // 2026-10-18; Pure's Float text on such a wire is a named residue)
@@ -145,6 +141,27 @@ public final class WireRender {
             out.add(byName.get(oc.name()));
         }
         return out;
+    }
+
+    /** A typed-rows plan's statement (the judges', the plan path program's step 7, 2026-10-18): the statement
+     *  itself, its outputs unchanged, but for a sort key that is no output, carried as a hidden column of the inner
+     *  select and ordered by outside ({@link Render#typedRows}); a WITH keeps its CTEs at the head. */
+    public static SqlQuery typedRows(SqlQuery plan) {
+        if (plan instanceof com.legend.sql.SqlWith w) {
+            return w.with(w.ctes(), typedRows(w.body()));
+        }
+        if (plan instanceof SqlSelect s && !s.orderBy().isEmpty()) {
+            return Render.typedRows(s, "_rows1");
+        }
+        return plan;
+    }
+
+    /** Does {@code plan} answer a dynamic pivot's columns UNNAMED: a pivot whose columns the database names (no
+     *  {@code IN} list), and a typed schema that still carries the pivot's templates (its dynamic columns)? A cast
+     *  over such a pivot names its columns statically and the lowering projects them (the plan path program's step
+     *  7, 2026-10-18): the schema then has no templates, and the plan is an ordinary relation. */
+    public static boolean dynamicPivotUnnamed(SqlQuery plan, Type.RelationType schema) {
+        return !schema.dynamicColumns().isEmpty() && hasDynamicPivot(plan);
     }
 
     /** Does {@code plan} hold a pivot whose columns the database names (no {@code IN} list)? */

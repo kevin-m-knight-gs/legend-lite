@@ -297,6 +297,17 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-18, step 7 announced; its first landing: the judges onto the typed seam, the dynamic pivot's holes**
+  (GATES "step 7, first landing"): `Statements.rows` (typed cells by the plan's columns) on JDBC (`exec.JdbcDecode`)
+  and MongoDB (`exec.MongoDbDecode`); `PlanRunner.rows` through it; the judges' plans the statements themselves, the
+  JSON rows wire's carrier spellings deleted; a timestamp read carries the engine's nine digits, trimmed in the
+  judges' value lane as its database canon is; the Float that is no number spelled `NaN`; the typer removes every
+  column a pivot's aggregate reads, and a cast over a dynamic pivot projects the columns it names; the structured
+  slots' spelling read back in one place. Verdicts: the core gate 45 of 45 (the six Postgres targets under the
+  unprivileged wrapper), PCT channels A and B 11 of 11, the H2 corpus lane exact, the DuckDB lane exact but for its
+  host engine-order register, six bodies fewer by an accounting correction (re-pinned with the reason). Next in step 7: the query
+  service's switch and the deletions (§7), the whole-text wires retired, the H2 session's lazy execution (D2), the
+  streaming gate.
 - **2026-10-18, the §8 measurement taken** (GATES "The plan and the result, the §8 measurement"; the design note's
   §8.1): the seam's cost per row on DuckDB (10 million rows) and H2 (2 million) by each path a result can cross the
   session seam, the whole text's ceiling under a 256 MB heap, the plans' sizes (452 judged plans; the corpus's
