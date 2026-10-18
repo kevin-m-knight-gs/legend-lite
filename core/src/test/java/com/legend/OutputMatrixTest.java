@@ -78,55 +78,13 @@ class OutputMatrixTest {
             TypedQuery.Output.STREAMED_JSON, TypedQuery.Output.TDS_TEXT);
 
     /**
-     * Today's deviations from Pure's text, by {@code kind/form/output/database}, each the text lite writes
-     * (measured 2026-10-18 at the matrix's first run; docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3 names the four gaps).
-     * Shrink-only: a landing of the output layer deletes the pins it fixes, and a pin that no longer holds fails.
+     * Today's deviations from Pure's text, by {@code kind/form/output/database}, each the text lite writes.
+     * Measured 2026-10-18 at the matrix's first run: 76 (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3 names the four
+     * gaps); 44 after the Float's landing; NONE after the DateTime's (the one owner, 2026-10-18): every cell writes
+     * Pure's text. Shrink-only: a landing of the output layer deletes the pins it fixes, a pin that no longer holds
+     * fails, and a cell that starts deviating fails -- a new pin needs a dated reason naming its gap.
      */
-    private static final Map<String, String> PINNED = Map.ofEntries(
-            Map.entry("datetime_whole/value/CSV/DuckDB", "2024-01-02 10:30:00"),
-            Map.entry("datetime_whole/value/JSON/DuckDB", "2024-01-02 10:30:00"),
-            Map.entry("datetime_whole/value/STREAMED_JSON/DuckDB", "2024-01-02 10:30:00"),
-            Map.entry("datetime_whole/column/CSV/DuckDB", "2024-01-02 10:30:00"),
-            Map.entry("datetime_whole/column/JSON/DuckDB", "2024-01-02 10:30:00"),
-            Map.entry("datetime_whole/column/STREAMED_JSON/DuckDB", "2024-01-02 10:30:00"),
-            Map.entry("datetime_whole/column/TDS_TEXT/DuckDB", "2024-01-02T10:30:00.000+0000"),
-            Map.entry("datetime_millis/value/CSV/DuckDB", "ERROR DataError: Binder Error: Could not choose a best candidate function for the function call \"strftime(VARCHAR, STRING_LITERAL)\". In order to select one, please add explicit type casts."),
-            Map.entry("datetime_millis/value/JSON/DuckDB", "2024-01-02T10:30:00.123"),
-            Map.entry("datetime_millis/value/STREAMED_JSON/DuckDB", "2024-01-02T10:30:00.123"),
-            Map.entry("datetime_millis/value/TDS_TEXT/DuckDB", "2024-01-02T10:30:00.123"),
-            Map.entry("datetime_millis/column/CSV/DuckDB", "2024-01-02 10:30:00"),
-            Map.entry("datetime_millis/column/JSON/DuckDB", "2024-01-02 10:30:00.123"),
-            Map.entry("datetime_millis/column/STREAMED_JSON/DuckDB", "2024-01-02 10:30:00.123"),
-            Map.entry("datetime_nanos/value/CSV/DuckDB", "ERROR DataError: Binder Error: Could not choose a best candidate function for the function call \"strftime(VARCHAR, STRING_LITERAL)\". In order to select one, please add explicit type casts."),
-            Map.entry("datetime_nanos/value/JSON/DuckDB", "2024-01-02T10:30:00.123456789"),
-            Map.entry("datetime_nanos/value/STREAMED_JSON/DuckDB", "2024-01-02T10:30:00.123456789"),
-            Map.entry("datetime_nanos/value/TDS_TEXT/DuckDB", "2024-01-02T10:30:00.123456789"),
-            Map.entry("datetime_nanos/column/CSV/DuckDB", "2024-01-02 10:30:00"),
-            Map.entry("datetime_nanos/column/JSON/DuckDB", "2024-01-02 10:30:00.123456789"),
-            Map.entry("datetime_nanos/column/STREAMED_JSON/DuckDB", "2024-01-02 10:30:00.123456789"),
-            Map.entry("datetime_nanos/column/TDS_TEXT/DuckDB", "2024-01-02T10:30:00.123+0000"),
-            Map.entry("datetime_whole/value/CSV/H2", "2024-01-02 10:30:00"),
-            Map.entry("datetime_whole/value/JSON/H2", "2024-01-02T10:30:00"),
-            Map.entry("datetime_whole/value/STREAMED_JSON/H2", "2024-01-02T10:30:00"),
-            Map.entry("datetime_whole/column/CSV/H2", "2024-01-02 10:30:00"),
-            Map.entry("datetime_whole/column/JSON/H2", "2024-01-02T10:30:00"),
-            Map.entry("datetime_whole/column/STREAMED_JSON/H2", "2024-01-02T10:30:00"),
-            Map.entry("datetime_whole/column/TDS_TEXT/H2", "2024-01-02T10:30:00.000+0000"),
-            Map.entry("datetime_millis/value/CSV/H2", "2024-01-02 10:30:00"),
-            Map.entry("datetime_millis/value/JSON/H2", "2024-01-02T10:30:00.123"),
-            Map.entry("datetime_millis/value/STREAMED_JSON/H2", "2024-01-02T10:30:00.123"),
-            Map.entry("datetime_millis/value/TDS_TEXT/H2", "2024-01-02T10:30:00.123"),
-            Map.entry("datetime_millis/column/CSV/H2", "2024-01-02 10:30:00"),
-            Map.entry("datetime_millis/column/JSON/H2", "2024-01-02T10:30:00.123"),
-            Map.entry("datetime_millis/column/STREAMED_JSON/H2", "2024-01-02T10:30:00.123"),
-            Map.entry("datetime_nanos/value/CSV/H2", "2024-01-02 10:30:00"),
-            Map.entry("datetime_nanos/value/JSON/H2", "2024-01-02T10:30:00.123456789"),
-            Map.entry("datetime_nanos/value/STREAMED_JSON/H2", "2024-01-02T10:30:00.123456789"),
-            Map.entry("datetime_nanos/value/TDS_TEXT/H2", "2024-01-02T10:30:00.123456789"),
-            Map.entry("datetime_nanos/column/CSV/H2", "2024-01-02 10:30:00"),
-            Map.entry("datetime_nanos/column/JSON/H2", "2024-01-02T10:30:00.123456789"),
-            Map.entry("datetime_nanos/column/STREAMED_JSON/H2", "2024-01-02T10:30:00.123456789"),
-            Map.entry("datetime_nanos/column/TDS_TEXT/H2", "2024-01-02T10:30:00.123+0000"));
+    private static final Map<String, String> PINNED = Map.ofEntries();
 
     @Test
     void everyKindOnEveryOutputWritesPuresText_orIsPinnedByName() throws Exception {

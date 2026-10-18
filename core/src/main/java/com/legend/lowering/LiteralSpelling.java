@@ -665,4 +665,36 @@ public final class LiteralSpelling {
                 SqlExpr.Call.of(SqlFn.STRFTIME, x, fmt),
                 new SqlExpr.StringLit("+0000"));
     }
+
+    /**
+     * THE DateTime's text (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, the one owner, 2026-10-18): Pure's print form
+     * of a DateTime read from a database -- {@code T}, the fraction's digits with their trailing zeros trimmed (a
+     * timestamp carries no written precision: {@code .123} prints {@code .123}, {@code .123456789} all nine, a whole
+     * second none), {@code +0000}. Every output of a timestamp slot writes this (the CSV, the JSON wires, Pure's TDS
+     * text, {@code toString}); a literal's own digits are {@link #dateTimePrint}'s, spelled statically where the
+     * typer knows them. The fraction is read at nine digits, which every SQL dialect spells.
+     */
+    public static SqlExpr dateTimeText(SqlExpr x) {
+        SqlExpr digits = SqlExpr.Call.of(SqlFn.RTRIM,
+                SqlExpr.Call.of(SqlFn.STRFTIME, x,
+                        new SqlExpr.FormatLit(List.of(com.legend.sql.DateFmt.Part.SUBSEC_NANO))),
+                new SqlExpr.StringLit("0"));
+        SqlExpr fraction = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL, digits, new SqlExpr.StringLit("")), new SqlExpr.StringLit(""))),
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), digits));
+        return SqlExpr.Call.of(SqlFn.CONCAT,
+                SqlExpr.Call.of(SqlFn.CONCAT,
+                        SqlExpr.Call.of(SqlFn.STRFTIME, x,
+                                new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
+                        fraction),
+                new SqlExpr.StringLit("+0000"));
+    }
+
+    /** A date value carried as its own text (a value root spelled at the precision it has, no zone): a timed one
+     *  takes Pure's {@code +0000}; a day, a month or a year is its text. */
+    public static SqlExpr dateTimeTextOfText(SqlExpr text) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.LENGTH, text), new SqlExpr.IntLit(10)),
+                SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit("+0000")))), text);
+    }
 }

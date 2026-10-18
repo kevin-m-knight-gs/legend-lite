@@ -314,20 +314,24 @@ public final class Render {
             parts.add(jsonToken(new SqlExpr.StringLit(cols.get(i).name())));
             parts.add(new SqlExpr.StringLit(":"));
             Type.Column typed = relCols.get(i);
-            parts.add(jsonCell(SqlExpr.Column.of(rowAlias, cols.get(i)), typed == null ? null : typed.type()));
+            parts.add(jsonCell(SqlExpr.Column.of(rowAlias, cols.get(i)), typed == null ? null : typed.type(),
+                    cols.get(i).type()));
         }
         parts.add(new SqlExpr.StringLit("}"));
         return cat(parts.toArray(new SqlExpr[0]));
     }
 
-    /** A cell's JSON token by its Pure type: Pure's text for a Float, its own scale for a Decimal, the database's
-     *  token otherwise; null as {@code null}. */
-    private static SqlExpr jsonCell(SqlExpr c, @com.legend.base.Nullable Type t) {
+    /** A cell's JSON token by its Pure type: Pure's text for a Float, its own scale for a Decimal, a date kind's
+     *  Pure text as a JSON string (a StrictDate's day, a DateTime's {@link #dateTimeText}, a text-carried value's
+     *  own text; the one owner, 2026-10-18), the database's token otherwise; null as {@code null}. */
+    private static SqlExpr jsonCell(SqlExpr c, @com.legend.base.Nullable Type t, SqlType slot) {
         SqlExpr token;
         if (t == Type.Primitive.FLOAT) {
             token = Scalars.pureToString(t, c);
         } else if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
             token = new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
+        } else if (t != null && dateKind(t)) {
+            token = jsonToken(dateText(c, t, slot));
         } else {
             token = jsonToken(c);
         }
@@ -627,31 +631,38 @@ public final class Render {
      * in miniature). Channel-specific QUOTING/ESCAPING stays with each
      * renderer; the SPELLING of a value lives here once. */
     private static SqlExpr dateTimeText(SqlExpr c) {
-        // fixed THREE millisecond digits + '+0000' — the engine's own
-        // DateTime wire spelling (measured in the F4.4 attempt)
-        return cat(
-                SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                        new SqlExpr.FormatLit(
-                                com.legend.sql.DateFmt.ISO_DOT)),
-                SqlExpr.Call.of(SqlFn.SUBSTRING,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                                new SqlExpr.FormatLit(List.of(
-                                        com.legend.sql.DateFmt.Part
-                                                .SUBSEC_MICRO))),
-                        new SqlExpr.IntLit(1), new SqlExpr.IntLit(3)),
-                new SqlExpr.StringLit("+0000"));
+        // the one owner (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, 2026-10-18): Pure's text of a DateTime read
+        // from a database -- 'T', the fraction's digits with trailing zeros trimmed, '+0000' -- on every output
+        // (the fixed three millisecond digits, "the engine's own wire spelling", and the value root's own
+        // whole-second case are both gone into it)
+        return LiteralSpelling.dateTimeText(c);
     }
 
-    /** A value root's DateTime cell (the one-column relation the value route reads by {@code parseDate}): the
-     *  precision the value has, as the legacy route prints one (the MongoDB line's burn-down, 2026-10-17: 170 of the
-     *  shadow run's value differences were a whole second printed {@code .000}) -- an exact second with no fraction,
-     *  otherwise {@link #dateTimeText}'s three millisecond digits. */
-    private static SqlExpr valueDateTimeText(SqlExpr c) {
-        SqlExpr wholeSecond = SqlExpr.Call.of(SqlFn.EQUAL, c, SqlExpr.Call.of(SqlFn.DATE_TRUNC,
-                new SqlExpr.DatePartLit(com.legend.sql.DatePart.SECOND), c));
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(wholeSecond,
-                cat(SqlExpr.Call.of(SqlFn.STRFTIME, c, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
-                        new SqlExpr.StringLit("+0000")))), dateTimeText(c));
+    /** A date kind's Pure text over its slot: a text-carried value's own text (timed: {@code +0000}); a DATE slot's
+     *  or a StrictDate's day; an abstract Date over a timestamp slot by the value's time of day ({@link #timed}: a
+     *  parameter bound to a day prints its day, as Pure prints the StrictDate it holds); a timestamp's
+     *  {@link #dateTimeText}. */
+    private static SqlExpr dateText(SqlExpr c, Type t, SqlType slot) {
+        if (textSlot(slot)) {
+            return LiteralSpelling.dateTimeTextOfText(c);
+        }
+        if (dateOnly(t, slot)) {
+            return strictDateText(c);
+        }
+        if (t == Type.Primitive.DATE) {
+            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed(c), dateTimeText(c))), strictDateText(c));
+        }
+        return dateTimeText(c);
+    }
+
+    /** Whether a timestamp's time of day is not midnight: the engine's {@code formatDateTime} rule for an ABSTRACT
+     *  Date, defined over the value (hasHour) -- a timed value is a DateTime, a date-only one (a parameter bound to a
+     *  day; a DATE read into a timestamp) its day. The one residue, a true midnight DateTime under an abstract Date
+     *  printing date-only, is F5.4's slot erasure, identical on the engine's own relational read-back. */
+    private static SqlExpr timed(SqlExpr c) {
+        return SqlExpr.Call.of(SqlFn.NOT_EQUAL,
+                SqlExpr.Call.of(SqlFn.STRFTIME, c, new SqlExpr.FormatLit(DateFmt.TIME_ONLY)),
+                new SqlExpr.StringLit("00:00:00"));
     }
 
     private static SqlExpr strictDateText(SqlExpr c) {
@@ -812,7 +823,11 @@ public final class Render {
             SqlType slot, boolean renderTdsNull) {
         Type t = col.type();
         SqlExpr rendered;
-        if (t == Type.Primitive.STRICT_DATE
+        if (dateKind(t) && textSlot(slot)) {
+            // a date carried as its own text (a value root spelled at the precision it has): the text is the cell,
+            // a timed one with Pure's '+0000' (the one owner's rule, 2026-10-18)
+            rendered = LiteralSpelling.dateTimeTextOfText(c);
+        } else if (t == Type.Primitive.STRICT_DATE
                 || (t == Type.Primitive.DATE
                         && slot == SqlType.Scalar.DATE)) {
             // date-only branch: format WITHOUT escape (engine
@@ -823,28 +838,15 @@ public final class Render {
             rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
                     new SqlExpr.FormatLit(DateFmt.DATE));
         } else if (t == Type.Primitive.DATE) {
-            // ABSTRACT Date over a TIMESTAMP slot: the engine's
-            // formatDateTime rule is DEFINED OVER THE VALUE (hasHour) —
-            // date-only values print yyyy-MM-dd, timed values print the
-            // datetime form. The SQL spells the engine's own rule; the
-            // one residue (a TRUE midnight DateTime under an abstract
-            // Date slot prints date-only) is the F5.4 slot-erasure,
-            // identical on the engine's own relational read-back of a
-            // DATE-precision-less TIMESTAMP.
-            SqlExpr timed = SqlExpr.Call.of(SqlFn.NOT_EQUAL,
-                    SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                            new SqlExpr.FormatLit(DateFmt.TIME_ONLY)),
-                    new SqlExpr.StringLit("00:00:00"));
-            rendered = new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed,
-                    escapeCsv(SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                            new SqlExpr.FormatLit(DateFmt.CSV_DATETIME))))),
-                    SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                            new SqlExpr.FormatLit(DateFmt.DATE)));
+            // ABSTRACT Date over a TIMESTAMP slot: the engine's formatDateTime rule, defined over the value
+            // (timed); the JSON wires spell the same (dateText)
+            rendered = new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed(c), dateTimeText(c))),
+                    strictDateText(c));
         } else if (t == Type.Primitive.DATE_TIME
                 || t == Type.Primitive.LATEST_DATE) {
-            // the DateTime kinds: datetime spelling
-            rendered = escapeCsv(SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                    new SqlExpr.FormatLit(DateFmt.CSV_DATETIME)));
+            // the DateTime kinds: Pure's DateTime text (the one owner, 2026-10-18; the engine's own CSV wrote
+            // 'yyyy-MM-dd HH:mm:ss', the fraction dropped: docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3, gap 4)
+            rendered = dateTimeText(c);
         } else {
             rendered = escapeCsv(Scalars.pureToString(t, c));
         }
@@ -863,7 +865,7 @@ public final class Render {
      *  quoting incl. pivot identities, pure type names — Variant FQN —
      *  and data-independent multiplicity); rows '\n'-PREFIXED (no
      *  trailing newline), cells comma-joined with the pure print forms:
-     *  DateTime = fixed-3-millis '+0000', StrictDate = yyyy-MM-dd,
+     *  DateTime = Pure's text (the fraction trimmed, '+0000'), StrictDate = yyyy-MM-dd,
      *  Float = the pure minimal-decimal repr (Scalars.floatRepr),
      *  Variant = always-quoted JSON with doubled quotes, SQL NULL =
      *  bare {@code null}, strings quote only when they carry
@@ -1001,13 +1003,14 @@ public final class Render {
             // a date carried as its own text (a value root: the lowering spells a date value in Pure's literal form,
             // with the precision the value has -- a year, a month, a microsecond -- which no DATE or TIMESTAMP slot
             // holds): the text is the cell, as the legacy route reads it (the MongoDB line's homework 2, 2026-10-17:
-            // the shadow run's 114 strftime errors and 69 precision differences over date values)
-            rendered = c;
+            // the shadow run's 114 strftime errors and 69 precision differences over date values); a timed one
+            // takes Pure's '+0000' (the one owner's rule, 2026-10-18)
+            rendered = LiteralSpelling.dateTimeTextOfText(c);
         } else if (dateOnly(t, slot)) {
             rendered = strictDateText(c);
         } else if (t == Type.Primitive.DATE_TIME
                 || t == Type.Primitive.DATE) {
-            rendered = quoteStrings ? valueDateTimeText(c) : dateTimeText(c);
+            rendered = dateTimeText(c);
         } else if (t == Type.Primitive.FLOAT) {
             rendered = Scalars.pureToString(Type.Primitive.FLOAT, c);
         } else if (t == Type.Primitive.STRING

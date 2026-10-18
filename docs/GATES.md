@@ -10653,6 +10653,46 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 2, the DateTime's text: one owner, the matrix's last 44 pins deleted
+
+The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 2; the design `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md` §5
+step 4 (the DateTime's text owner), §3 gap 4 (five spellings of one DateTime across the outputs). The line:
+`docs/IN_FLIGHT.md`, the thirteenth line.
+
+What changed:
+1. **The DateTime's text has one owner** (`lowering/LiteralSpelling.dateTimeText`): Pure's print form of a DateTime
+   read from a database -- `T`, the fraction's digits with their trailing zeros trimmed (a timestamp carries no written
+   precision: `.123` prints `.123`, `.123456789` all nine, a whole second none), `+0000`. The fraction is read at nine
+   digits (`SUBSEC_NANO`, which every SQL dialect spells) and trimmed by the database (`RTRIM(..., '0')`). A date value
+   carried as its own text (a value root spelled at the precision it has) takes `+0000` when timed
+   (`dateTimeTextOfText`). Deleted into it: `Render.dateTimeText`'s fixed three millisecond digits ("the engine's own
+   wire spelling"), `Render.valueDateTimeText` (the value root's whole-second case), the CSV's `yyyy-MM-dd HH:mm:ss`
+   with the fraction dropped (`DateFmt.CSV_DATETIME`, deleted), `toString`'s `ISO_PURE_UTC` (deleted; its `SUBSEC_MIN`
+   threw on H2 and was DuckDB's three fixed digits, not a trim).
+2. **Every output writes it**: the CSV (`Render.cell`, which also takes a text-carried date now -- the matrix's two
+   DuckDB binder errors), the JSON wires (`jsonCell` over the slot: a date kind's Pure text as a JSON string through
+   the database's own JSON writer), Pure's TDS text (`tdsTextCell`, `tdsCell`), `toString` of a DateTime (`Scalars`,
+   two sites).
+3. **An abstract `Date` over a timestamp slot on the JSON wires** takes the CSV's rule (`Render.timed`, the engine's
+   `formatDateTime` rule defined over the value): a timed value prints as a DateTime, a date-only one as its day -- a
+   `Date[1]` parameter bound to a day answers `2024-01-02`, as Pure prints the StrictDate it holds
+   (`PlanMakerTest.aScalarParametersPlanAnswersAsTheQueryWithItsValue_everyOutput`, which the first judge run failed
+   on this case). The residue is the CSV's since F5.4: a true midnight DateTime under an abstract Date prints
+   date-only. Pure's TDS text keeps printing an abstract Date as a DateTime (judged by PCT; aligning it is a landing
+   of its own, with the lanes as its judge).
+4. `OutputMatrixTest`: the last 44 pins deleted (76 -> 44 -> 0). Every one of the 192 cells writes Pure's text on
+   DuckDB and on H2; the pin map stays, empty and shrink-only, so a new deviation fails by name.
+5. `PostgresDialectTest.whatPostgresCannotSayIsAWall`: the `toString` pin moves from `to_char`'s `MS` (three fixed
+   digits; the comment called DuckDB's `%g` a trim, which it is not) to the owner's nine digits trimmed.
+6. `docs/SEMANTICS_REGISTER.md`: row S75 (the JSON wire printing a date-time as the database's JSON writer does)
+   removed -- its own closing condition, "the JSON wire spelling dates by Pure's rule on every database", is met:
+   the MongoDB target renders the same owner (`//core:mongodb_plan_test`'s differential, `json_dates`).
+
+What judges it: `OutputMatrixTest` (0 pinned, 0 deviating), `//core:core_tests_root`, `_exec`, `_server`,
+`_integration`, `_lowering`, `_sql`, `//core:corpus_differential_test`, `//core:sql_parity_test`,
+`//core:mongodb_plan_test`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`; the PCT lanes `//pct:pct_duckdb`
+(the five suites) and `//pct:pct_h2`: all pass, no verdict moved -- the trimmed fraction prints every TDS DateTime the suites compare as their expectations spell it (the lanes judged the tree before change 3, which touches only the JSON wires they do not run; the core judges ran again on the final tree).
+
 ## 2026-10-18 — The plan path program, step 2, the Float's text and the JSON wires from their cells (32 pins deleted)
 
 The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 2; the design `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md` §5

@@ -218,8 +218,10 @@ class PostgresDialectTest {
                         + " / power(CAST(10 AS DOUBLE PRECISION), CAST(2 AS INTEGER)))"));
         // a dynamic pivot needs a key-discovery round trip a planner cannot make
         assertThrows(DialectCapability.class, () -> plan("->pivot(~[ok], ~[t: r|$r.qty : y|$y->sum()])"));
-        // DuckDB's %g is the milliseconds, three digits (the part's engine convention, Snowflake's FF3): to_char's MS
-        assertTrue(plan("->extend(~[s: r|$r.ts->toOne()->toString()])->select(~[id, s])").contains("SS\".\"MS"));
+        // a DateTime's text (the one owner, 2026-10-18): the fraction read at nine digits -- to_char's US, six, and
+        // three written zeros -- and trimmed of its trailing zeros by the database
+        String toString = plan("->extend(~[s: r|$r.ts->toOne()->toString()])->select(~[id, s])");
+        assertTrue(toString.contains("rtrim(to_char(") && toString.contains("'US\"000\"'), '0')"), toString);
     }
 
     @Test

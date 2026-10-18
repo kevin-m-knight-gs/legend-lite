@@ -258,6 +258,11 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 - **2026-10-17** -- the program written (this document), the rulings R1 to R6 recorded, the representation decided
   (JSON stays, §2). Step 1 announced: types in the plan.
+- **2026-10-18, step 2, the DateTime's text** (GATES "step 2, the DateTime's text"): one owner,
+  `LiteralSpelling.dateTimeText` (`T`, the fraction read at nine digits and trimmed of trailing zeros by the database,
+  `+0000`), on the CSV, the JSON wires, Pure's TDS text and `toString`; a text-carried date value takes `+0000` when
+  timed. The matrix's last 44 pins deleted: 192 of 192 cells write Pure's text on DuckDB and H2. The design's steps 2
+  to 4 are landed; step 5 (`pure/v1`'s text in the engine's conventions) is next, then the program's step 3.
 - **2026-10-18, step 2, the Float's text and the JSON wires from their cells** (GATES "step 2, the Float's text"):
   `floatPrint` finds the exponent in either case (H2's `E`); the JSON wires are assembled from their cells' texts, a
   Float's Pure's, a Decimal's its own scale, the rest the database's own JSON token read off a one-element array --

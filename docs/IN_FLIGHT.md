@@ -2052,4 +2052,8 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   matrix measured first (`OutputMatrixTest`, new, in `core/src/test/java/com/legend/`), then one text owner per kind
   per API in `lowering/LiteralSpelling.java` and the wires (`lowering/Render.java`, `WireRender.java`), the `pure/v1`
   text in `server/PureV1Api.java`; each landing judged by the matrix's pins it removes. **The matrix landed
-  2026-10-18** (GATES "The plan path program, step 2 begins"): 192 cells, 76 pinned.
+  2026-10-18** (GATES "The plan path program, step 2 begins"): 192 cells, 76 pinned. **The Float's text and the JSON
+  wires from their cells landed 2026-10-18** (`8672529`; GATES "step 2, the Float's text"): 32 pins deleted. **The
+  DateTime's text landed 2026-10-18** (GATES "step 2, the DateTime's text"): one owner in `LiteralSpelling`, the last
+  44 pins deleted, the matrix all Pure's text; `DateFmt.CSV_DATETIME` and `ISO_PURE_UTC` deleted. Next: the design's
+  step 5, `pure/v1`'s text in the engine's conventions (`server/PureV1Api.java`).

@@ -2208,8 +2208,7 @@ final class Scalars {
                     return lit;
                 }
                 if (t == Type.Primitive.DATE_TIME) {
-                    return SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
-                            new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_PURE_UTC));
+                    return LiteralSpelling.dateTimeText(args.get(0));
                 }
                 if (t == Type.Primitive.FLOAT) {
                     return floatRepr(args.get(0));
@@ -3349,8 +3348,7 @@ final class Scalars {
             return lit;
         }
         if (t == Type.Primitive.DATE_TIME) {
-            return SqlExpr.Call.of(SqlFn.STRFTIME, e,
-                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_PURE_UTC));
+            return LiteralSpelling.dateTimeText(e);
         }
         return null;
     }
