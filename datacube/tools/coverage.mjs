@@ -43,6 +43,7 @@ const env = {
   DUCKDB_EXTENSIONS: files(extensions).map(runfile).join(' '),
   CHART_RULES: runfile(join(datacube, 'test', 'fixtures', 'chart-rules.json')),
   PARITY: runfile(join(datacube, 'test', 'fixtures', 'parity', 'parity.json')),
+  CORPUS: files(join(datacube, 'test', 'fixtures', 'pages')).filter((f) => f.endsWith('.page.json')).map(runfile).join(' '),
   UPSTREAM_PLANS: runfile(join(datacube, 'test', 'fixtures', 'upstream-plans.json')),
 };
 
