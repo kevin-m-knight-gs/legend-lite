@@ -404,6 +404,7 @@ _HEADLESS_TESTS = [
     "create-class",
     "cube-document",
     # a grid edit as a value (docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md)
+    "cypher-spike",
     "grid-commands",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
     "cube-round-trip",

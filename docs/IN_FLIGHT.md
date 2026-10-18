@@ -981,6 +981,12 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `headless/model.ts` (the walkers Python no longer needs gone), `page/cube-page.ts` and `page/page-app.ts`
   (`onPageCommand`, one id allocator), `layout/band-board.ts` (`columns`), `python/legend_lite/page.py` (each page
   edit a command), their tests, and `datacube/BUILD.bazel` for the new test. Still not touched: the SQL plan's ground.
+  Phases 2 and 3 done and audited (`docs/DATACUBE_PAGE_STATE_2026_10_18.md`, `docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md`):
+  page-level undo; Python's changes served as commands and applied by an open page. Files: `datacube/src/page-state.ts`,
+  `page-ids.ts`, `app/live-follow.ts` (new), `page/cube-page.ts`, `page/page-app.ts`, `app/datacube-app.ts`,
+  `app/sources.ts`, `services/python-host.ts`, `app.ts`, `ui/chart-panel.ts`, `python/legend_lite/page.py`, `engine.py`
+  (page serving only), `datacube.py`, their tests, the bundle budgets (dated). Phase 4, graph mode's design note and G0
+  spike (`docs/DATACUBE_GRAPH_MODE_2026_10_18.md`), main merged into the stack: a test and a note, nothing of core.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

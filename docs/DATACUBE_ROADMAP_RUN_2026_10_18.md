@@ -28,7 +28,7 @@ on the newest branch of the stack and updated as each phase lands on its branch.
 | 1 | Command program stage 1: the page half (page parity tests first) | `claude/datacube-page-commands` | done, audited |
 | 2 | Command program stage 2: one page state, page-level undo | `claude/datacube-page-state` | done, audited |
 | 3 | Command program stage 3: the live channel between Python and an open page | `claude/datacube-live-commands` | done, audited |
-| 4 | Graph mode: design note, then the G0 spike over main's Cypher island | | |
+| 4 | Graph mode: design note, then the G0 spike over main's Cypher island | `claude/datacube-graph-mode` | done, audited |
 | 5 | Charts batch 4: the statistics aggregates and the kinds they unlock | | |
 | 6 | Charts batch 5: maps | | |
 | 7 | Charts batch 3's leftovers: Marimekko, waffle, Gantt | | |
@@ -68,3 +68,9 @@ on the newest branch of the stack and updated as each phase lands on its branch.
   without reporting (each keeps its own edits under Python's; the first `page.read()` after one reports serves the
   page whole). Next, not built: the reverse channel -- the open page's edits sent to Python as commands rather than its
   whole document.
+- **Phase 4** (`docs/DATACUBE_GRAPH_MODE_2026_10_18.md`): main merged into the stack (one conflict, `docs/GATES.md`,
+  both sections kept); the G0 spike -- Cypher planned by the tab's own planner and run on its DuckDB, and the island
+  as a node of the tree DataCube sends -- and a design note proposed to the Cypher line, its questions for them. Its
+  audit: seven findings, all taken (the headless roster, the note's claims on identities, `USE` and paths corrected
+  against main, the spike's G1 case through `plan`). **For the user / the Cypher line:** the note's questions (an
+  identity a drawing can key by within the study's decision C5; which graphs G1 lists); G1-G4 are not built.

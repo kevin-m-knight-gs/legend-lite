@@ -1,17 +1,18 @@
 // GRAPH MODE'S G0 (docs/DATACUBE_GRAPH_MODE_2026_10_18.md): a Cypher query planned in the tab -- by the same compiler
 // the page plans every grid with, in WebAssembly -- and run on the tab's DuckDB, answering as the island's own
-// integration test holds (core: CypherIslandIntegrationTest, its rows derived from Cypher's semantics there). No server:
-// what DataCube needs to take a Cypher query as a grid's source is already in the tab. And a Cypher result composes with
-// Pure, as a grid's query would compose with it (G1).
+// integration test holds (core: CypherIslandIntegrationTest, its rows derived by hand from Cypher's semantics there). No
+// server. And the island as a node of the tree DataCube sends (its `plan`, never text: the tab's grammar parse refuses
+// lite's islands), composed with Pure as a grid's query composes with its source (G1).
 
 import assert from 'node:assert/strict';
-import { before, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 import { plannerFor } from './catalog-builder.ts';
+import { agg, asc, col, fn, from, lambda, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 
 // the island's integration model (core/src/test/java/com/legend/integration/CypherIslandIntegrationTest.java): people,
 // firms and cities -- a person's firm an association, a firm's city a class-typed property -- over three tables
@@ -81,9 +82,14 @@ before(async () => {
   planner = plannerFor(MODEL, 'test::RT');
 });
 
+after(async () => engine?.close());
+
 /** A query's rows, each its cells joined by '|' (null as 'null'), as the island's integration test writes them. */
 async function rows(query: string): Promise<string[]> {
-  const t: ResultTable = await engine.execute(await planner.planText(query), 0);
+  return written(await engine.execute(await planner.planText(query), 0));
+}
+
+function written(t: ResultTable): string[] {
   return Array.from({ length: t.rowCount }, (_, i) => t.columns.map((c) => {
     const v = c.values[i];
     return v === null || v === undefined ? 'null' : String(v);
@@ -106,10 +112,14 @@ describe("a Cypher query planned in the tab and run on its DuckDB, answering as 
     assert.deepEqual(await rows('#Cypher{MATCH (a:Person), (b:Person) WHERE a = b RETURN count(*) AS c}#'), ['4']);
   });
 
-  it("a Cypher result composes with Pure -- grouped, sorted -- as a grid's query composes with its source (G1)", async () => {
-    assert.deepEqual(await rows(
-      "#Cypher{MATCH (p:Person)-[:firm]->(f:Firm) RETURN f.legalName AS firm, p.age AS age}#"
-        + '->groupBy(~[firm], ~[total:x|$x.age:y|$y->sum()])->sort(~firm->ascending())',
-    ), ['Acme|70', 'Globex|25']);
+  it("the island as a node of the tree DataCube sends, composed with Pure -- grouped, sorted -- as a grid's query composes with its source (G1)", async () => {
+    // the node a Cypher source would be in a grid's query (the protocol's form of #Cypher{...}#), built as DataCube
+    // builds the rest of the query; its rows computed for the data: Acme's people 30 and 40, Globex's 25
+    const cypher = { _type: 'classInstance', type: 'Cypher', value: { cypher: 'MATCH (p:Person)-[:firm]->(f:Firm) RETURN f.legalName AS firm, p.age AS age' } };
+    const query = from(cypher as unknown as ValueSpecification)
+      .groupBy(['firm'], [agg('total', lambda(['x'], col('x', 'age')), lambda(['y'], fn('sum', variable('y'))))])
+      .sort([asc('firm')])
+      .lambda();
+    assert.deepEqual(written(await engine.execute(await planner.plan(query), 0)), ['Acme|70', 'Globex|25']);
   });
 });
