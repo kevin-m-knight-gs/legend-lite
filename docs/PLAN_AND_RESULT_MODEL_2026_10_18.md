@@ -208,6 +208,41 @@ compression is wanted:
 Decision rule: the typed seam lands in step 7 whatever the first row shows, because it also removes a formatting
 step the tenet never wanted; Arrow and compression land only with a measured gap, each as its own recorded decision.
 
+### 8.1 Measured (2026-10-18; GATES "The plan and the result, the §8 measurement")
+
+| Path, DuckDB at 10,000,000 rows | Wall | Drains under 256 MB |
+|---|---|---|
+| 1 typed columns, the driver's values by slot | 10 to 12 s | not run there (the small-heap run keeps to the text paths) |
+| 2 the JSON rows wire, decoded by the plan's columns (step 6's seam) | 50 to 61 s | yes, 77 to 78 MB peak |
+| 3 the same statement, text counted only | 32 to 35 s | yes, 75 to 76 MB |
+| 4 a CSV line per row by the database | 14 to 18 s | yes, 75 to 76 MB |
+| 5 the whole CSV text in one value | 24 to 32 s, 1.77 GB peak | no: the driver hands back no value for the 615 MB text |
+
+H2 at 2,000,000 rows, with `LAZY_QUERY_EXECUTION` on: typed columns 2.9 to 3.3 s, the JSON rows wire 29 to 30 s, a
+CSV line per row 7.4 to 7.8 s, the whole text 8.6 to 9.0 s at 1.1 to 1.2 GB peak; under 256 MB the streaming paths
+drain at 77 to 78 MB and the whole text runs H2 out of memory. As our sessions open H2 today (no lazy execution), H2
+buffers every result whole in the JVM's heap: the typed columns peak at 1.1 to 1.3 GB, the JSON rows wire at 2.1 GB, a
+CSV line per row runs H2 itself out of memory, and under 256 MB no path drains at all. The plans: 452 judged by
+the round-trip gate, their JSON a median of 27 KB with the tree and 4 KB without (the tree a median of 5.5 times
+the rest, up to 40 times); the corpus's 16,810 statements a median of 662 characters, a p99 of 15 KB, a maximum of
+74 KB.
+
+**Decided from the numbers:**
+
+- **The typed seam lands in step 7** (D1): typed columns drain in a fifth of the JSON rows wire's time on DuckDB
+  (10 to 12 s against 50 to 61 s), and the wire's own formatting is well over half of its cost (32 to 35 s of text
+  alone), Java's parse the rest. The seam's cost per row is pinned as a ceiling at the first typed-seam landing.
+- **Per-row formatting replaces the whole text** (F1, F2): a CSV line per row drains under 256 MB where the whole
+  text cannot, on DuckDB in half to three quarters of the whole text's time (14 to 18 s against 24 to 32 s) at a
+  twentieth of its heap, on H2 lazy in 7.4 s against 8.6 s at an eighth.
+- **H2's session takes lazy execution** (new, D2): the plan's target for an H2 database carries
+  `SET LAZY_QUERY_EXECUTION 1` among its session statements, because H2 buffers a result whole otherwise and no
+  streaming claim holds on it. Recorded here; landed with step 7's typed seam.
+- **No compression, no binary format** (P4 stands): the corpus never makes a statement over 74 KB; the plans past
+  100 KB are two MongoDB lowerings and the tree, and the tree stays off the wire (P3, measured as the bulk).
+- **Arrow is not measured** and not built: the build has no Java Arrow dependency; the gap it could close is the
+  10 to 12 s of typed columns, which is already the floor of this table. A later measurement is a decision of its own.
+
 ## 9. How this lands in the program
 
 - **Step 7, the query service**, is built on this note: the typed method on `Statements` (JDBC and MongoDB), the

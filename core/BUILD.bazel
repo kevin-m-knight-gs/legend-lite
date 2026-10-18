@@ -550,6 +550,7 @@ _CORE_TEST_PACKAGES = [
 _CORE_TEST_MEMORY_MB = 512
 
 _CORE_TEST_EXCLUDED_TAGS = [
+    "benchmark",   # the seam measurement (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18): its own manual targets below
     "census",
     "differential",
     "guardrail",
@@ -659,6 +660,43 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# THE SEAM MEASUREMENT (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18): one generated relation drained
+# through a counting sink by each way a result can cross the session seam (typed columns, the JSON rows wire, a CSV
+# line per row, the whole CSV text), on DuckDB and H2; wall time, the heap's peak, the characters that crossed. Manual:
+# a measurement recorded in GATES, never a gate. The small-heap variant shows which paths drain under 256 MB.
+junit_test(
+    name = "seam_benchmark",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/exec/SeamBenchmarkTest.java"],
+    jvm_flags = ["-Duser.timezone=GMT"],
+    select = ["--select-class=com.legend.exec.SeamBenchmarkTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+junit_test(
+    name = "seam_benchmark_small_heap",
+    memory_mb = 256,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/exec/SeamBenchmarkTest.java"],
+    jvm_flags = [
+        "-Duser.timezone=GMT",
+        "-Dseam.heap=small",
+    ],
+    select = ["--select-class=com.legend.exec.SeamBenchmarkTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )
 
 # THE MONGODB END-TO-END (docs/MONGODB_PLAN_2026_10_16.md §11, 2026-10-17): a model with a ###MongoDB store and a

@@ -297,6 +297,14 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-18, the §8 measurement taken** (GATES "The plan and the result, the §8 measurement"; the design note's
+  §8.1): the seam's cost per row on DuckDB (10 million rows) and H2 (2 million) by each path a result can cross the
+  session seam, the whole text's ceiling under a 256 MB heap, the plans' sizes (452 judged plans; the corpus's
+  16,810 statements); Arrow not measured (the build has no Java Arrow dependency; adding one is a decision of its
+  own). Decided: the typed seam lands in step 7 (D1); per-row formatting replaces the whole text (F1, F2); an H2
+  session takes lazy execution (D2, new); no compression and no binary format (P4 stands). The measurement is a
+  manual target (`//core:seam_benchmark`, `//core:seam_benchmark_small_heap`), never a gate. Step 7's first landing
+  is next.
 - **2026-10-18, the plan and the result ratified** (`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`, with the user): one
   plan record and three renderers (the tree only when asked; JSON stays, no binary format, compression only with a
   measured number); one result model, a stream of rows (typed cells, a text row, a document) consumed by one sink,

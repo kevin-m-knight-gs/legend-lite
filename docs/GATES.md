@@ -10653,6 +10653,92 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan and the result, the §8 measurement: the seam's cost per row, the whole text's ceiling, the plans' sizes
+
+The design: `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` (ratified 2026-10-18); its §8 named four measurements before
+step 7's design is final. Three are taken here and recorded in its §8.1; the fourth (Arrow on DuckDB) is not: the
+build has no Java Arrow dependency, and adding one is a decision of its own, taken only against a measured gap it
+would close. The measurement is a manual target, never a gate: `//core:seam_benchmark` and
+`//core:seam_benchmark_small_heap` (`SeamBenchmarkTest`, tag `benchmark`, excluded from the core suite), run with
+`--test_output=all`; the numbers below are two runs of each (ranges where they differed).
+
+**1. The seam's cost per row** (`//core:seam_benchmark`, a 2 GB heap): one generated relation of an integer, a text,
+a decimal, a date-time and a nullable integer, drained through a counting sink by each way a result can cross the
+session seam; wall time, the heap's peak, the characters that crossed; DuckDB at 10,000,000 rows, H2 at 2,000,000:
+
+| Database, rows | Path | Wall | Peak heap | Characters across the seam |
+|---|---|---|---|---|
+| DuckDB, 10,000,000 | 1 typed columns, the driver's values by slot | 10 to 12 s | 97 to 110 MB | none (values) |
+| DuckDB, 10,000,000 | 2 JSON rows wire, decoded by the plan's columns (step 6's seam) | 50 to 61 s | 153 to 186 MB | 1,059 MB |
+| DuckDB, 10,000,000 | 3 the same statement, text counted only | 32 to 35 s | 101 to 113 MB | 1,059 MB |
+| DuckDB, 10,000,000 | 4 a CSV line per row by the database | 14 to 18 s | 92 to 113 MB | 595 MB |
+| DuckDB, 10,000,000 | 5 the whole CSV text in one value | 24 to 32 s | 1,765 MB | 615 MB, one value |
+| H2 lazy, 2,000,000 | 1 typed columns | 2.9 to 3.3 s | 1,785 MB (garbage, see below) | none |
+| H2 lazy, 2,000,000 | 2 JSON rows wire, decoded | 29 to 30 s | 158 to 206 MB | 235 MB |
+| H2 lazy, 2,000,000 | 3 the same, text counted only | 22 to 24 s | 139 to 215 MB | 235 MB |
+| H2 lazy, 2,000,000 | 4 a CSV line per row | 7.4 to 7.8 s | 132 to 237 MB | 142 MB |
+| H2 lazy, 2,000,000 | 5 the whole CSV text | 8.6 to 9.0 s | 1,084 to 1,182 MB | 146 MB, one value |
+| H2 as our sessions open it, 2,000,000 | 1 typed columns | 3.7 to 4.9 s | 1,144 to 1,277 MB | none |
+| H2 as our sessions open it, 2,000,000 | 2 JSON rows wire, decoded | 27 to 30 s | 2,058 to 2,065 MB | 235 MB |
+| H2 as our sessions open it, 2,000,000 | 3 the same, text counted only | 0.09 s (H2's query cache answers the statement of path 2 from its buffered result) | 1,337 MB | 235 MB |
+| H2 as our sessions open it, 2,000,000 | 4 a CSV line per row | H2 itself out of memory after 50 to 52 s | 2,591 MB | none |
+| H2 as our sessions open it, 2,000,000 | 5 the whole CSV text | H2 itself out of memory after 4 s | 2,122 MB | none |
+
+"H2 lazy" is the same connection after `SET LAZY_QUERY_EXECUTION 1`. The peak heap is the pools' peak usage, garbage
+included: under a 2 GB heap the JVM lets garbage sit (H2 lazy's typed columns at 1,785 MB is that). The memory
+claim is the 256 MB run's, below.
+
+**2. The whole text's ceiling** (`//core:seam_benchmark_small_heap`, the same paths under a 256 MB heap; the typed
+columns are not run there, the run keeps to the text paths):
+
+| Database, rows | Path | Wall | Peak heap | Outcome |
+|---|---|---|---|---|
+| DuckDB, 10,000,000 | 2 JSON rows wire, decoded | 52 to 53 s | 77 to 78 MB | drained |
+| DuckDB, 10,000,000 | 3 the same, text counted only | 30 to 31 s | 75 to 76 MB | drained |
+| DuckDB, 10,000,000 | 4 a CSV line per row | 13 to 14 s | 75 to 76 MB | drained |
+| DuckDB, 10,000,000 | 5 the whole CSV text | 19 to 20 s | 5 MB | not drained: the driver hands back no value (a null) for the 615 MB text |
+| H2 lazy, 2,000,000 | 2 JSON rows wire, decoded | 29 to 31 s | 78 MB | drained |
+| H2 lazy, 2,000,000 | 3 the same, text counted only | 22 to 23 s | 77 MB | drained |
+| H2 lazy, 2,000,000 | 4 a CSV line per row | 7.3 to 7.7 s | 77 MB | drained |
+| H2 lazy, 2,000,000 | 5 the whole CSV text | 21 to 25 s | 351 to 364 MB | H2 itself out of memory |
+| H2 as our sessions open it, 2,000,000 | 2, 3, 4 and 5 | 4 to 5 s each | 307 to 313 MB | H2 itself out of memory before the first row: the result buffered whole |
+
+(A peak above 256 MB is the pools' peaks summed at different moments, not a live heap over the limit.)
+
+**3. The plans' sizes** (`-Dlegend.diagnostics=plan-sizes`, recorded by the round-trip gate for every plan it judges:
+452 plans from `//core:core_tests_root` and `//core:mongodb_plan_test`): the JSON with its typed tree has a median
+of 27 KB, a p90 of 110 KB, a p99 of 473 KB and a maximum of 1.25 MB; without the tree a median of 4 KB, a p90 of 29
+KB, a p99 of 313 KB; the statements themselves a median of 2.8 KB. The tree is the bulk of a plan's JSON: a median
+of 5.5 times the plan without it, up to 40 times (a class instance over a deep layout). The largest plans are the
+MongoDB target's pipelines (`format` at 1.03 MB of statement, `mode` at 346 KB, the variant extends at about 270
+KB) and nothing of DuckDB's. The corpus's own statements (`LEGEND_LITE_DUMP_SQL=1`, the DuckDB host pass, 16,810
+statements): a median of 662 characters, a p90 of 2.2 KB, a p99 of 15 KB, a maximum of 74 KB; none over 100 KB.
+
+**Decided from the numbers** (recorded in the design note's §8.1):
+- **The typed seam lands in step 7** (D1): typed columns drain in a fifth of the JSON rows wire's time on DuckDB
+  (10 to 12 s against 50 to 61 s), and the wire's own formatting is well over half of its cost (32 to 35 s as text
+  alone), Java's parse the rest. The seam's cost per row is pinned as a ceiling at the first typed-seam landing.
+- **Per-row formatting replaces the whole text** (F1, F2): a CSV line per row drains under 256 MB where the whole
+  text cannot, on DuckDB in half to three quarters of the whole text's time (14 to 18 s against 24 to 32 s) at a
+  twentieth of its heap, on H2 lazy in 7.4 s against 8.6 s at an eighth.
+- **An H2 session takes lazy execution** (D2, new): as our sessions open H2 it buffers each result whole in the
+  JVM's heap, and under 256 MB no path drains 2,000,000 rows; with `LAZY_QUERY_EXECUTION` every streaming path
+  drains at 77 MB. The plan's target for an H2 database carries `SET LAZY_QUERY_EXECUTION 1` among its session
+  statements; landed with step 7's typed seam.
+- **P3 confirmed with a number**: the wire plan carries no tree; that alone takes a typical plan from 27 KB to 4 KB.
+- **No compression, no binary format** (P4 stands): the corpus never makes a statement over 74 KB; the megabyte
+  plans are two MongoDB lowerings whose size is the lowering's to shrink, not the format's to hide.
+- **Arrow is not measured** and not built: the gap it could close is the 10 to 12 s of typed columns, already the
+  floor of the table; a later measurement is a decision of its own.
+
+**Verdicts**: `//core:seam_benchmark` PASSED in 314 s and `//core:seam_benchmark_small_heap` PASSED in 222 s (the
+paths that must drain drained; the whole text and the plain-H2 paths are recorded, never asserted). The sizes run:
+`//core:core_tests_root` and `//core:mongodb_plan_test` under `--jvmopt=-Dlegend.diagnostics=plan-sizes`, green,
+452 lines of `plan-sizes.tsv`. The committed change (the benchmark, its two manual targets and the `benchmark` tag's
+exclusion, the `plan-sizes` switch, the round-trip gate's recording): `bazel test --lockfile_mode=error //gates:core` 39 of its 45 targets green, the six Postgres targets refusing root in
+this container and rerun green under `tools/postgres/as_unprivileged.sh ubuntu` (`--strategy=TestRunner=standalone`):
+45 of 45.
+
 ## 2026-10-18 — The plan path program, step 6, both judges on plans: the verdict a plan's row, each side a plan's result, the agreement gate
 
 The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §6 (R2; its "as built" paragraph written at this landing) and §7

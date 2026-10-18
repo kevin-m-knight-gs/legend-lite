@@ -2086,5 +2086,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   **The plan and the result ratified 2026-10-18** (`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`): governs step 7 on; the corpus rosters named in GATES (the H2 fail roster and database-gained register -1 each, the DuckDB
   host-mode engine-order register -13), `rcorpus/MinimalCorpusTest.java` (the gate pins no engine-order register), `exec/CanonicalDivergence.java` (the judged and unjudged counts), `exec/PrepTrace.java`,
   the guard pins named in GATES, channel B's five suites (the agreement gate, the unjudged ceilings),
-  `rcorpus/CorpusOne.java` (`both`), `OutputMatrixTest` (the TDS-text reference). Next: step 7, the query
-  service (the program's §7).
+  `rcorpus/CorpusOne.java` (`both`), `OutputMatrixTest` (the TDS-text reference). **The §8 measurement taken
+  2026-10-18** (GATES "The plan and the result, the §8 measurement"; the design note's §8.1): `exec/SeamBenchmarkTest`
+  (new; the manual targets `//core:seam_benchmark` and `//core:seam_benchmark_small_heap`, the `benchmark` tag
+  excluded from the core suite), `diagnostics/Diagnostics.java` (the `plan-sizes` switch),
+  `testcases/PlanRoundTrip.java` (the sizes recorded under it). Next: step 7, the query service (the program's §7),
+  its first landing the judges onto the typed seam.

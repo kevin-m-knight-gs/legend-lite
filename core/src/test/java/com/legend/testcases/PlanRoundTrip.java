@@ -22,9 +22,54 @@ public final class PlanRoundTrip {
     }
 
     public static void assertRoundTrips(ExecutionPlan plan, String what) {
-        ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
+        String json = PlanJson.write(plan);
+        ExecutionPlan back = PlanJson.read(json);
         assertEquals(plan, back, what + ": the plan read back differs");
         assertRenders(back.root(), what);
+        recordSizes(plan, json, what);
+    }
+
+    /** The {@code plan-sizes} measurement (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8): one line per plan in
+     *  {@code plan-sizes.tsv} in the test's outputs -- the JSON's size with its tree, without it, and the statements'
+     *  characters -- the distribution that decides whether a plan ever wants compressing. */
+    private static void recordSizes(ExecutionPlan plan, String json, String what) {
+        if (!com.legend.diagnostics.Diagnostics.on("plan-sizes")) {
+            return;
+        }
+        String dir = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
+        if (dir == null) {
+            return;
+        }
+        ExecutionPlan bare = new ExecutionPlan(plan.parameters(), withoutTrees(plan.root()));
+        long statementChars = statementChars(plan.root());
+        String line = what.replace('\t', ' ') + "\t" + json.length() + "\t" + PlanJson.write(bare).length() + "\t"
+                + statementChars + "\n";
+        try {
+            java.nio.file.Files.writeString(java.nio.file.Path.of(dir, "plan-sizes.tsv"), line,
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    private static ExecutionPlan.Node withoutTrees(ExecutionPlan.Node node) {
+        return switch (node) {
+            case ExecutionPlan.Sequence s -> new ExecutionPlan.Sequence(s.steps().stream().map(PlanRoundTrip::withoutTrees).toList());
+            case ExecutionPlan.TdsResult t -> new ExecutionPlan.TdsResult(t.columns(), withoutTree(t.sql()));
+            case ExecutionPlan.TextResult t -> new ExecutionPlan.TextResult(t.format(), t.type(), withoutTree(t.sql()));
+        };
+    }
+
+    private static ExecutionPlan.Sql withoutTree(ExecutionPlan.Sql sql) {
+        return new ExecutionPlan.Sql(sql.statement(), sql.slots(), sql.target(), null);
+    }
+
+    private static long statementChars(ExecutionPlan.Node node) {
+        return switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().stream().mapToLong(PlanRoundTrip::statementChars).sum();
+            case ExecutionPlan.TdsResult t -> t.sql().statement().length();
+            case ExecutionPlan.TextResult t -> t.sql().statement().length();
+        };
     }
 
     private static void assertRenders(ExecutionPlan.Node node, String what) {
