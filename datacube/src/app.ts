@@ -39,7 +39,6 @@ import {
   renameColumnConfig,
   withColumn,
   withConfiguration,
-  withSettings,
   type CubeConfiguration,
   type Patch,
 } from './config.ts';
@@ -52,7 +51,7 @@ import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, withoutConditions, type QuerySnapshot } from './snapshot.ts';
 import { columnKind, firstSortDirection, headerSorts, type GridDraft } from './grid-edits.ts';
-import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
+import { applyGridCommands, draftCommands, type GridCommand, type SettingsPatch } from './grid-commands.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
@@ -644,9 +643,7 @@ export class CubeApp {
       // own header drag goes through: the panel reports the columns
       // it lists, which is not all of them either.
       onReorder: (order) => {
-        void this.applyConfiguration({
-          columnOrder: mergeColumnOrder(this.#columnOrder(), order),
-        });
+        this.#configureColumns({}, 'reorder columns', { columnOrder: mergeColumnOrder(this.#columnOrder(), order) });
       },
       // Dragged out of a zone and back to the list: off that axis.
       onRemoveFromZone: (zone, column) => {
@@ -733,10 +730,8 @@ export class CubeApp {
         // the panel, which sorts by it, threw them to the end of the
         // list. One drag and the grouped columns jumped. One change:
         // the unhide and the order together.
-        void this.#configure((c) => withSettings(
-          added !== undefined ? withColumn(c, added, { hidden: false }) : c,
-          { columnOrder: mergeColumnOrder(this.#columnOrder(), order) },
-        ), 'reorder columns');
+        this.#configureColumns(added !== undefined ? { [added]: { hidden: false } } : {}, 'reorder columns',
+          { columnOrder: mergeColumnOrder(this.#columnOrder(), order) });
       },
       cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value),
       rowMeta: (abs) => this.#rowMeta(abs),
@@ -1642,8 +1637,7 @@ export class CubeApp {
     readonly showTitleBar?: boolean;
   }): void {
     // Presentation: no query, one undo step, painted by `#onState`.
-    void this.#configure((c) => ({ ...c, ...patch }),
-      patch.showTitleBar !== undefined ? 'title bar' : 'drag zones');
+    this.#configureColumns({}, patch.showTitleBar !== undefined ? 'title bar' : 'drag zones', patch);
   }
 
   /**
@@ -2029,14 +2023,13 @@ export class CubeApp {
         if (column) this.#patchColumn(column, { pinned: undefined });
         return;
       case 'pivot.measuresFirst':
-        void this.applyConfiguration({
-          pivotMeasuresFirst: this.#config.pivotMeasuresFirst ? undefined : true,
-        });
+        this.#configureColumns({}, 'settings', { pivotMeasuresFirst: this.#config.pivotMeasuresFirst ? null : true });
         return;
-      case 'column.unpinAll':
-        void this.#configure((c) => Object.keys(c.columns)
-          .reduce((next, name) => withColumn(next, name, { pinned: undefined }), c), 'unpin all');
+      case 'column.unpinAll': {
+        const pinned = Object.keys(this.#config.columns).filter((name) => this.#config.columns[name]?.pinned !== undefined);
+        if (pinned.length > 0) this.#configureColumns(Object.fromEntries(pinned.map((n) => [n, { pinned: undefined }])), 'unpin all');
         return;
+      }
       case 'copy.selection':
         this.#copy(this.#selectionCsv());
         return;
@@ -2232,8 +2225,7 @@ export class CubeApp {
       this.#status('nothing to resize', 'warn');
       return;
     }
-    void this.#configure((c) => widths.reduce((next, [name, width]) => withColumn(next, name, { width }), c),
-      'auto-size');
+    this.#configureColumns(Object.fromEntries(widths.map(([name, width]) => [name, { width }])), 'auto-size');
   }
 
   /**
@@ -2307,7 +2299,23 @@ export class CubeApp {
     column: string,
     patch: Parameters<typeof withColumn>[2],
   ): void {
-    void this.#configure((c) => withColumn(c, column, patch), `column ${column}`);
+    this.#configureColumns({ [column]: patch }, `column ${column}`);
+  }
+
+  /**
+   * Columns' presentation, each patched as a person sets it (undefined clearing a setting), by the configure command
+   * Python's configure builds (grid-commands.ts: null clears one there, as JSON cannot write undefined), with any
+   * settings of the grid's beside them.
+   */
+  #configureColumns(columns: Readonly<Record<string, Parameters<typeof withColumn>[2]>>, label: string,
+    settings: SettingsPatch = {}): void {
+    const json = (patch: object): Record<string, unknown> =>
+      Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, v === undefined ? null : v]));
+    const named = Object.entries(columns).map(([name, patch]) => [name, json(patch)] as const);
+    void this.#apply([{ kind: 'configure', patch: {
+      ...settings,
+      ...(named.length > 0 ? { columns: Object.fromEntries(named) } : {}),
+    } }], label);
   }
 
   /**
@@ -2447,10 +2455,11 @@ export class CubeApp {
       ?? (this.#view?.columns.leaves ?? [])
         .map((l) => l.name)
         .filter((n) => n !== TREE_COLUMN);
-    void this.#configure((config) => names.reduce((next, name) => {
-      const c = columnConfig(next, name);
-      return c.widthMode === 'fixed' ? next : withColumn(next, name, { width: c.minWidth ?? MINIMIZED_WIDTH });
-    }, config), 'minimize');
+    const config = this.#config;
+    this.#configureColumns(Object.fromEntries(names.flatMap((name) => {
+      const c = columnConfig(config, name);
+      return c.widthMode === 'fixed' ? [] : [[name, { width: c.minWidth ?? MINIMIZED_WIDTH }]];
+    })), 'minimize');
   }
 
   /**
@@ -2469,9 +2478,9 @@ export class CubeApp {
     const current = flexible.reduce((sum, n) => sum + (widths[n] ?? 0), 0);
     if (viewport <= 0 || current <= 0 || flexible.length === 0) return;
     const factor = Math.max(0, viewport - taken) / current;
-    void this.#configure((config) => flexible.reduce((next, name) => withColumn(next, name, {
+    this.#configureColumns(Object.fromEntries(flexible.map((name) => [name, {
       width: Math.max(MINIMIZED_WIDTH, Math.floor((widths[name] ?? 0) * factor)),
-    }), config), 'size to fit');
+    }])), 'size to fit');
   }
 
   #copy(text: string): void {

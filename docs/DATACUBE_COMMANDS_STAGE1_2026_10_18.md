@@ -71,8 +71,12 @@ Python sends it and the stage-3 live channel can carry it.
   (`column`), the settings beyond those (`configure`, null clearing one), the sorts -- applied to the cube as it is now,
   so another window's edit made meanwhile stays, as the three-way merge (`mergeDraft`, gone) kept it. Column
   Properties' Apply is then the `column` command Python's `column(...)` builds.
-- **Not yet commands:** the column editor's edit, rename and delete, which offer the cube's two lists whole; and the
-  columns panel's visibility, widths, pins and pivot exclusion (`#patchColumn`).
+- **The columns' presentation** (step 3b): the columns panel's visibility and order, a width dragged, Auto-Size,
+  Minimize and Size to Fit, a pin, Remove All Pinnings, a pivot exclusion, the zones and title bar folded, Measures
+  First -- each a `configure` command (`#configureColumns`: a setting cleared is null).
+- **Not commands:** the column editor's edit, rename and delete, which offer the cube's two lists whole -- they wait
+  for a vocabulary of their own (no call of Python's makes them yet); and a host's `applyConfiguration`, which is its
+  set-up of the grid, not a person's edit.
 
 ## How it is tested
 
@@ -107,8 +111,8 @@ Python sends it and the stage-3 live channel can carry it.
   `calculate` sends its text, parsed headless) would carry plain numbers where a parsed lambda carries exact ones. Safe
   for the integers and short decimals an expression holds; one past 2^53 is not, and the live channel (stage 3) reads
   its commands exactly.
-- Step 3b's rest, each its own step with the parity file as judge: the column editor's edit, rename and delete; the
-  columns panel's settings (`#patchColumn`).
+- Step 3b's rest: the column editor's edit, rename and delete, with commands of their own when something asks for
+  them (Python, or stage 3's live channel).
 - A difference from the three-way merge it replaced: a column's setting that is an object (its format, its
   appearance) is set whole by `configure`, where the merge went key by key inside it. Two windows changing different
   keys of one column's format at once keep the later window's whole format.

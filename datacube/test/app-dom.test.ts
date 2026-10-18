@@ -701,6 +701,21 @@ describe('the app', () => {
     assert.deepEqual(commands, [notional, notional]);
   });
 
+  it("a column's presentation from the menu -- pinned, every pin taken off -- is the configure command Python builds", async () => {
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Pin Left');
+    assert.equal(app.configuration.columns['notional']?.pinned, 'left');
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Remove All Pinnings');
+    assert.equal(app.configuration.columns['notional']?.pinned, undefined);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(commands, [
+      { kind: 'configure', patch: { columns: { notional: { pinned: 'left' } } } },
+      // null takes a setting off, as JSON cannot write undefined
+      { kind: 'configure', patch: { columns: { notional: { pinned: null } } } },
+    ]);
+  });
+
   it('adds and removes a heatmap from the menu', async () => {
     rightClick('.dc-cell:not(.dc-dim)');
     pick('Add Heatmap to notional');
