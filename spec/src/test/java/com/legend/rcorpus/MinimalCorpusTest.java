@@ -3,6 +3,8 @@
 
 package com.legend.rcorpus;
 
+import com.legend.testbackend.TestBackends;
+
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +18,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * The minimal harness's run (docs/HARNESS_FROM_SCRATCH_AUDIT_2026_09_06.md):
@@ -49,32 +52,70 @@ public class MinimalCorpusTest {
      * //spec:update_rcorpus_<lane>'s diff tests, never edited by hand. The pass skips its own exact check (the diff test is it), so
      * an action never reads what it writes: these files are no classpath resources. The other rcorpus files are
      * POLICY (allowances, reasons, ceilings, shrink-only work lists) and stay hand-owned with dated rows. */
-    private static final Set<String> MEASURED = Set.of(
-            "/rcorpus/duckdb-fail-roster.txt", "/rcorpus/h2-fail-roster.txt",
-            "/rcorpus/duckdb-skipped-roster.txt", "/rcorpus/h2-skipped-roster.txt",
-            "/rcorpus/duckdb-unordered-register.txt", "/rcorpus/h2-unordered-register.txt",
-            "/rcorpus/duckdb-engine-order-register.txt", "/rcorpus/h2-engine-order-register.txt",
-            "/rcorpus/duckdb-database-engine-order-register.txt", "/rcorpus/h2-database-engine-order-register.txt");
+    private static final Set<String> MEASURED = Stream.of(TestBackends.platform(), TestBackends.referee())
+            .flatMap(lane -> Stream.of("fail-roster", "skipped-roster", "unordered-register", "engine-order-register",
+                    "database-engine-order-register").map(kind -> "/rcorpus/" + lane.name() + "-" + kind + ".txt"))
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
-    /** The roster files: one test FQN per line, sorted, no messages. */
-    private static final String DUCKDB_ROSTER = "/rcorpus/duckdb-fail-roster.txt";
-    private static final String H2_ROSTER = "/rcorpus/h2-fail-roster.txt";
+    /**
+     * THE LANE (the dialect program's Phase 6): the corpus lane's backend ({@code MinimalCorpus.BACKEND}) by its role.
+     * The REFERENCE lanes are the platform's database (a lane on it through the warehouse included: its passes check
+     * against the platform lane's committed rosters) and the referee's: each held to its own rosters and registers,
+     * {@code rcorpus/<its backend's name>-*}, and to the strength floors and verdict-channel ceilings below. A lane on
+     * any other database has no ceilings: it is held to its own fail roster alone ({@link #holdToLaneRoster}).
+     */
+    private record Lane(String rosters, @com.legend.base.Nullable Ceilings ceilings) {
+
+        boolean reference() {
+            return ceilings != null;
+        }
+    }
+
+    /** A reference lane's strength floors, its text-decided verdict ceilings by reason, and its referee-leniency
+     *  ceilings by tag. */
+    private record Ceilings(int[] strength, java.util.Map<String, Integer> textDecided,
+            java.util.Map<String, Integer> leniency) {
+    }
+
+    /** The lane, decided once at first use: a holder, because the ceilings it reads are this class's later statics. */
+    private static final class LaneHolder {
+        static final Lane LANE = lane();
+    }
+
+    private static Lane lane() {
+        com.legend.testbackend.TestBackend backend = MinimalCorpus.BACKEND;
+        if (backend.type() == TestBackends.platform().type()) {
+            return new Lane(TestBackends.platform().name(),
+                    new Ceilings(PLATFORM_STRENGTH, PLATFORM_TEXT_DECIDED, PLATFORM_LENIENCY));
+        }
+        if (backend == TestBackends.referee()) {
+            return new Lane(backend.name(), new Ceilings(REFEREE_STRENGTH, REFEREE_TEXT_DECIDED, REFEREE_LENIENCY));
+        }
+        return new Lane(backend.name(), null);
+    }
+
+    /** The lane's {@code kind} file: {@code /rcorpus/<lane>-<kind>.txt}. */
+    private static String laneFile(String kind) {
+        return "/rcorpus/" + LaneHolder.LANE.rosters() + "-" + kind + ".txt";
+    }
+
+    private static Ceilings ceilings() {
+        return java.util.Objects.requireNonNull(LaneHolder.LANE.ceilings(), "only a reference lane has ceilings");
+    }
+
+    /** The roster files ({@link #laneFile}): one test FQN per line, sorted, no messages. */
     /** The SKIPPED rosters (Phase 0.3): tests whose program reaches no
      * verdict function and that adjudicated none — never a pass. */
     /** ACCEPTED DIVERGENCES (batch 144, USER-decided 2026-09-08): one row per
      * lane and test — {@code fqn ||| bucket ||| witness}; the failure must
      * carry the witness or the row is an ordinary FAIL (the divergence
      * changed: re-decide); a row that stops failing is GAINED (trim it). */
-    private static final String DUCKDB_ACCEPTED = "/rcorpus/duckdb-accepted-roster.txt";
-    private static final String H2_ACCEPTED = "/rcorpus/h2-accepted-roster.txt";
-    private static final String DUCKDB_SKIPPED = "/rcorpus/duckdb-skipped-roster.txt";
-    private static final String H2_SKIPPED = "/rcorpus/h2-skipped-roster.txt";
+    private static final String ACCEPTED = "accepted-roster";
     /** The ORDER-LENIENCY registers (Phase 0.5): "ordered-keys-unmappable
      * <test>" per ORDERED row verdict that fell back to the multiset compare
      * because its sort keys were not derivable or not carried by the compared
      * output — 0 firings or every one registered (the arrival-order class,
      * unordered-leniency, is run-dependent and has a ceiling instead). */
-    private static final String DUCKDB_ORD = "/rcorpus/duckdb-ord-register.txt";
     /** The ENGINE-ORDER registers (leg 3.4 step 2, user ruling 2026-09-20):
      * "engine-order <test>" per test at least one of whose statements the
      * TEST-LANE scan-order emulation ({@code StableScanOrder}, behind
@@ -85,22 +126,13 @@ public class MinimalCorpusTest {
      * lane and per judge mode (generated by each pass and diff-tested, P2-15;
      * the database mode's was never checked before: 52 stale rows when it was) (database mode sends one statement per body,
      * so the set of changed statements differs from host mode's). */
-    private static final String DUCKDB_ENGINE_ORDER = "/rcorpus/duckdb-engine-order-register.txt";
-    private static final String H2_ENGINE_ORDER = "/rcorpus/h2-engine-order-register.txt";
-    private static final String DUCKDB_DATABASE_ENGINE_ORDER =
-            "/rcorpus/duckdb-database-engine-order-register.txt";
-    private static final String H2_DATABASE_ENGINE_ORDER =
-            "/rcorpus/h2-database-engine-order-register.txt";
     private static final String ENGINE_ORDER = "engine-order";
-    private static final String H2_ORD = "/rcorpus/h2-ord-register.txt";
     /** The UNORDERED-CHAIN registers (2026-09-10): "unordered-chain <test>"
      * per test whose row verdicts compare as multisets because its chain
      * has no sort — a compile-time fact of the query, the same set on every
      * platform. Replaces a CEILING on "unordered-leniency" firings, which
      * counted arrival-order coincidences (104–109 across runs and platforms)
      * and broke the first Windows CI run. Exact, like the ord register. */
-    private static final String DUCKDB_UNORDERED = "/rcorpus/duckdb-unordered-register.txt";
-    private static final String H2_UNORDERED = "/rcorpus/h2-unordered-register.txt";
 
     /** The denominator per lane (the ceiling's other half: a pass-count jump is either a GAINED name or a bigger
      * corpus, and both must be explained): the corpus census -- declared {@code <<test.Test>>} functions, those the
@@ -157,19 +189,17 @@ public class MinimalCorpusTest {
         List<String> fail = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
         List<String> accepted = new ArrayList<>();
-        // a lane on another database (MinimalCorpus.OTHER_LANE) accepts nothing the reference lanes accept: its
+        // a lane on another database (not a reference lane) accepts nothing the reference lanes accept: its
         // failures are its own, held to its own roster below
-        java.util.Map<String, String[]> acceptedRegister = MinimalCorpus.OTHER_LANE ? new java.util.HashMap<>()
-                : readAccepted(MinimalCorpus.H2_BACKEND ? H2_ACCEPTED : DUCKDB_ACCEPTED);
+        java.util.Map<String, String[]> acceptedRegister = !LaneHolder.LANE.reference() ? new java.util.HashMap<>()
+                : readAccepted(laneFile(ACCEPTED));
         // -Drcorpus.tests=<file>: the tests named there, one fully qualified name a line (a covering subset)
         java.util.Set<String> listed = testList();
-        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+        if (LaneHolder.LANE.reference() && "database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
             // a divergence the DATABASE verdict names and the host's kept
             // tolerance hides (homework §4j: the calendar goldens computed
             // in H2's decimal arithmetic) is accepted in database mode only
-            acceptedRegister.putAll(readAccepted("/rcorpus/"
-                    + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")
-                    + "-database-accepted-register.txt"));
+            acceptedRegister.putAll(readAccepted(laneFile("database-accepted-register")));
         }
         /** the strength census of the passes (Phase 0.7) */
         java.util.Map<String, Integer> strength = new java.util.LinkedHashMap<>();
@@ -353,12 +383,12 @@ public class MinimalCorpusTest {
         // the referee's own roster: row verdicts by kind and the decline
         // buckets — DISPLAYED, no verdict flows through it
         java.util.Map<String, Long> kinds = new java.util.TreeMap<>();
-        com.legend.harness.H2Verify.VERDICT_ROSTER.forEach((k, v) ->
+        com.legend.harness.RefereeVerify.VERDICT_ROSTER.forEach((k, v) ->
                 kinds.merge(k.substring(0, k.indexOf(' ')), v.sum(), Long::sum));
         kinds.forEach((k, v) -> System.out.println("[corpus2] referee " + k + "=" + v));
         new java.util.TreeMap<>(com.legend.harness.ReplayReferee.OUTCOMES).forEach((k, v) ->
                 System.out.println("[corpus2] referee-outcome " + k + "=" + v.sum()));
-        new java.util.TreeMap<>(com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS).forEach((k, v) ->
+        new java.util.TreeMap<>(com.legend.harness.RefereeVerify.UNVERIFIABLE_CENSUS).forEach((k, v) ->
                 System.out.println("[corpus2] referee-declined " + v.sum() + "x " + k));
         // the slowest tests (wall time includes the package session's setups
         // when this test opened it) — the timing ledger a slow run reads
@@ -368,7 +398,7 @@ public class MinimalCorpusTest {
                 .forEach(e -> System.out.println("[corpus2] slow " + e.getValue() + "ms " + e.getKey()));
         // (no per-test wall-clock ceiling, Bazel workplan P3-15: elapsed time is a machine's, not the code's; each
         // test's time stays in corpus2-elapsed.txt for reading, and a runaway is the lane's Bazel timeout)
-        if (MinimalCorpus.OTHER_LANE || listed != null) {
+        if (!LaneHolder.LANE.reference() || listed != null) {
             // a lane on another database, or a listed subset: measured, and held to its own roster when it has one;
             // the reference lanes' censuses below are DuckDB's and H2's, and a whole corpus's
             holdToLaneRoster(fail, ran);
@@ -388,12 +418,9 @@ public class MinimalCorpusTest {
                     + " a seeding setup read as inert unseeds its package silently;"
                     + " explain, then re-pin. Names: " + corpus.inertSetups());
         }
-        pinRoster(only, ran, fail, "fail",
-                MinimalCorpus.H2_BACKEND ? H2_ROSTER : DUCKDB_ROSTER, true);
-        pinRoster(only, ran, skipped, "skipped",
-                MinimalCorpus.H2_BACKEND ? H2_SKIPPED : DUCKDB_SKIPPED, false);
-        pinRoster(only, ran, accepted, "accepted",
-                MinimalCorpus.H2_BACKEND ? H2_ACCEPTED : DUCKDB_ACCEPTED, false);
+        pinRoster(only, ran, fail, "fail", laneFile("fail-roster"), true);
+        pinRoster(only, ran, skipped, "skipped", laneFile("skipped-roster"), false);
+        pinRoster(only, ran, accepted, "accepted", laneFile(ACCEPTED), false);
         java.util.Map<String, Integer> acceptedByBucket = new java.util.TreeMap<>();
         for (String a : accepted) {
             String bucket = a.substring(a.indexOf(" :: ") + 4);
@@ -412,7 +439,7 @@ public class MinimalCorpusTest {
         // hit 109 > 108). Tagging the chain makes it the same set everywhere.
         List<String> unmappable = new ArrayList<>();
         List<String> unorderedChains = new ArrayList<>();
-        for (var e : com.legend.harness.H2Verify.ORD_CENSUS.entrySet()) {
+        for (var e : com.legend.harness.RefereeVerify.ORD_CENSUS.entrySet()) {
             System.out.println("[corpus2] ord " + e.getKey() + " x" + e.getValue().sum());
             if (e.getKey().startsWith(ORD_UNMAPPABLE + " ")) {
                 unmappable.add(e.getKey() + " :: x" + e.getValue().sum());
@@ -427,10 +454,8 @@ public class MinimalCorpusTest {
             ranTagged.add(ORD_UNMAPPABLE + " " + t);
             ranTaggedUnordered.add(ORD_UNORDERED + " " + t);
         }
-        pinRoster(only, ranTagged, unmappable, "ord",
-                MinimalCorpus.H2_BACKEND ? H2_ORD : DUCKDB_ORD, false);
-        pinRoster(only, ranTaggedUnordered, unorderedChains, "unordered",
-                MinimalCorpus.H2_BACKEND ? H2_UNORDERED : DUCKDB_UNORDERED, false);
+        pinRoster(only, ranTagged, unmappable, "ord", laneFile("ord-register"), false);
+        pinRoster(only, ranTaggedUnordered, unorderedChains, "unordered", laneFile("unordered-register"), false);
         List<String> ranTaggedEngineOrder = new ArrayList<>();
         for (String t : ran) {
             ranTaggedEngineOrder.add(ENGINE_ORDER + " " + t);
@@ -438,14 +463,11 @@ public class MinimalCorpusTest {
         boolean databaseMode = "database".equalsIgnoreCase(
                 System.getProperty("legend.judge.mode", "host"));
         pinRoster(only, ranTaggedEngineOrder, engineOrder, ENGINE_ORDER,
-                MinimalCorpus.H2_BACKEND
-                        ? (databaseMode ? H2_DATABASE_ENGINE_ORDER : H2_ENGINE_ORDER)
-                        : (databaseMode ? DUCKDB_DATABASE_ENGINE_ORDER : DUCKDB_ENGINE_ORDER), false);
+                laneFile(databaseMode ? "database-engine-order-register" : "engine-order-register"), false);
         if (databaseMode) {
             Files.write(com.legend.testing.TestOutputs.file("corpus2-outside-body.txt"), artifactRows);
             pinArtifactRegister(only, ran, artifactRows,
-                    "/rcorpus/" + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")
-                            + "-database-outside-body-register.txt");
+                    laneFile("database-outside-body-register"));
             // THE HOST-COMPARED REGISTER (2026-09-21): under the database judge, every test
             // with an assert decided WITHOUT a verdict row (a comparison in Java over two
             // database-computed sides — the lineage, TDG, identity and metadata arms) is a
@@ -453,8 +475,7 @@ public class MinimalCorpusTest {
             Files.write(com.legend.testing.TestOutputs.file("corpus2-host-compared.txt"), hostComparedRows);
 
             pinArtifactRegister(only, ran, hostComparedRows,
-                    "/rcorpus/" + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")
-                            + "-database-host-compared-register.txt", "host-compared",
+                    laneFile("database-host-compared-register"), "host-compared",
                     "an assert was decided outside a verdict row and its test is not registered");
         }
         pinChannels(only, corpus);
@@ -472,7 +493,7 @@ public class MinimalCorpusTest {
         if (!only.isEmpty() || !"database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
             return;
         }
-        String lane = MinimalCorpus.H2_BACKEND ? "h2" : "duckdb";
+        String lane = LaneHolder.LANE.rosters();
         JudgeLedger.Differential x = JudgeLedger.diff(
                 JudgeLedger.read(JudgeLedger.input("legend.judge.ledger.host")),
                 JudgeLedger.read(JudgeLedger.path()));
@@ -485,7 +506,7 @@ public class MinimalCorpusTest {
         for (String r : List.of("lost", "gained", "accepted", "differential")) {
             registered.addAll(registerTests("/rcorpus/" + lane + "-database-" + r + "-register.txt"));
         }
-        registered.addAll(registerTests(MinimalCorpus.H2_BACKEND ? H2_ACCEPTED : DUCKDB_ACCEPTED));
+        registered.addAll(registerTests(laneFile(ACCEPTED)));
         // UNTRIAGED: disagreements recorded as found but not yet explained — a
         // work list, not a reason. Shrink-only: an entry whose test no longer
         // disagrees must be deleted (below), so the list cannot outlive its cause.
@@ -549,7 +570,7 @@ public class MinimalCorpusTest {
                 + strength.getOrDefault("DIFFERENTIAL-only", 0);
         int spelling = strength.getOrDefault("SPELLING", 0);
         int weak = strength.getOrDefault("CARDINALITY", 0);
-        int[] floor = MinimalCorpus.H2_BACKEND ? H2_STRENGTH : DUCKDB_STRENGTH;
+        int[] floor = ceilings().strength();
         if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
             // leg 3.1: database mode reports its strength against host mode's
             // floors; the differential gate (leg 3.3) pins it
@@ -578,7 +599,7 @@ public class MinimalCorpusTest {
     // {1512, 49, 22} -> {1491, 45, 20} on 2026-09-10 (upstream boundary batch 1):
     // the SOURCE pin moved to the 4.138.2 TAG — 17 discovered tests left the
     // corpus (2575 -> 2558) and the 19 pre-#4900 goldens moved to the fail
-    // roster (see DUCKDB_TEXT_DECIDED), taking their row verdicts with them:
+    // roster (see PLATFORM_TEXT_DECIDED), taking their row verdicts with them:
     // differential 1512 -> 1491. The spelling (49 -> 45) and cardinality
     // (22 -> 20) ceilings shrank with the departed tests and are ratcheted
     // down in the same commit (shrink-only means shrink); they grow back,
@@ -599,7 +620,7 @@ public class MinimalCorpusTest {
     // assert(planText->contains(...)), the engine's plan-test shape — a boolean
     // assert this census counts as cardinality-only; measured, both lanes
     // {1533, 49, 25} -> {1539, 44, 25} on 2026-09-12 (fixture on demand): nine
-    // more tests per lane derive their rows (see DUCKDB_TEXT_DECIDED); the
+    // more tests per lane derive their rows (see PLATFORM_TEXT_DECIDED); the
     // differential floor follows the measurement up and the spelling ceiling
     // shrinks with the passes that are now row-judged — measured, both lanes
     // spelling 44 -> 46 (join order by first read + StrictDate plan
@@ -618,7 +639,7 @@ public class MinimalCorpusTest {
     // oracle-declined ceiling note) — seven of them are passes whose every
     // verdict is text-decided; the same passes, now counted where they belong
     // DuckDB differential 1543 -> 1020, spelling 60 -> 22 (2026-09-21, rung 2a + option 1):
-    // see H2_STRENGTH — 523 passes witnessed by a referee row match are now decided by
+    // see REFEREE_STRENGTH — 523 passes witnessed by a referee row match are now decided by
     // the held text row (LITERAL); text-decided (SPELLING) passes fall the same way.
     // DuckDB cardinality 26 -> 27 (2026-09-22, views stage 4): testRelationStoreAccessorOnView
     // passes as ORDINARY compiled Pure — its two asserts are `assert($json->contains(…))` over
@@ -628,7 +649,7 @@ public class MinimalCorpusTest {
     // DuckDB differential 1020 -> 1011 (2026-10-09, E-4b: the legacy engine-text printer writes legend-engine's exact
     // spellings, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10): nine SQL-text asserts are now byte-equal to the
     // engine's golden (listagg, lowercase keywords), so the text decides them and the referee is not appealed to --
-    // the 2026-09-21 rule (see H2_STRENGTH). Measured before/after on E-4b's own base: every assert's verdict
+    // the 2026-09-21 rule (see REFEREE_STRENGTH). Measured before/after on E-4b's own base: every assert's verdict
     // identical, LITERAL 1402 -> 1411, DIFFERENTIAL+literal 851 -> 842; the eight joinStrings tests among them leave the
     // unordered register (their rows are no longer compared by the referee at all). On main after D24 (1), whose roster
     // test testSubAggregationMultiLevelJoinString no longer reaches its later asserts, one differential fewer: LITERAL
@@ -639,7 +660,7 @@ public class MinimalCorpusTest {
     // text decides them and the referee is not appealed to (the 2026-09-21 rule). Measured against main ac946cf85 with
     // every referee outcome named: every assert's verdict identical, LITERAL 1411 -> 1413, DIFFERENTIAL+literal 841 ->
     // 840, DIFFERENTIAL-only 170 -> 169.
-    private static final int[] DUCKDB_STRENGTH = {1009, 22, 27};
+    private static final int[] PLATFORM_STRENGTH = {1009, 22, 27};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -648,11 +669,11 @@ public class MinimalCorpusTest {
     // the non-null / compact carriers) made 9 query::filter::exists tests pass
     // on H2; their asserts are assertSize — the same 22 the DuckDB lane carries
     // {1279, 56, 22} -> {1264, 51, 20} on 2026-09-10 (upstream boundary batch 1):
-    // the same denominator move as DUCKDB_STRENGTH above, measured on the H2 lane
+    // the same denominator move as PLATFORM_STRENGTH above, measured on the H2 lane
     // {1264, 51, 20} -> {1378, 55, 22} on 2026-09-12 (batch 8): the same
-    // return of the #4900 goldens on the H2 lane (see DUCKDB_STRENGTH)
+    // return of the #4900 goldens on the H2 lane (see PLATFORM_STRENGTH)
     // {1378, 55, 25} -> {1384, 50, 25} on 2026-09-12 (fixture on demand): the
-    // same move on the H2 lane (see DUCKDB_STRENGTH)
+    // same move on the H2 lane (see PLATFORM_STRENGTH)
     // spelling 50 -> 52 (the same two calendar plan rows on the H2 lane)
     // {1384, 52, 25} -> {1387, 60, 25}: the same bucket move on the H2 lane
     // (LITERAL 684 -> 675, SPELLING 52 -> 60, differential 1384 -> 1387)
@@ -666,13 +687,13 @@ public class MinimalCorpusTest {
     // row itself (LITERAL strength). A rows leg did not stop being judged: it is no
     // longer needed for a held text. The DuckDB floor moves the same way.
     // H2 cardinality 26 -> 27 (2026-09-22, views stage 4): the same pass on H2 — the envelope
-    // is plain string building, no JSON function; see DUCKDB_STRENGTH's note.
-    // H2 differential 953 -> 946 (2026-10-09, E-4b): the same nine texts as DUCKDB_STRENGTH's note, now byte-equal to
+    // is plain string building, no JSON function; see PLATFORM_STRENGTH's note.
+    // H2 differential 953 -> 946 (2026-10-09, E-4b): the same nine texts as PLATFORM_STRENGTH's note, now byte-equal to
     // the golden; every verdict identical, LITERAL 1219 -> 1228, DIFFERENTIAL+literal 786 -> 777.
-    // H2 differential 946 -> 944 (2026-10-16, the IQ landings 3 and 4): the same two texts as DUCKDB_STRENGTH's note,
+    // H2 differential 946 -> 944 (2026-10-16, the IQ landings 3 and 4): the same two texts as PLATFORM_STRENGTH's note,
     // byte-equal to the golden; every verdict identical, LITERAL 1228 -> 1230, DIFFERENTIAL+literal 777 -> 776,
     // DIFFERENTIAL-only 169 -> 168.
-    private static final int[] H2_STRENGTH = {944, 22, 27};
+    private static final int[] REFEREE_STRENGTH = {944, 22, 27};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
@@ -691,18 +712,18 @@ public class MinimalCorpusTest {
         corpus.fixturesProvided().forEach((k, setup) ->
                 System.out.println("[corpus2] fixture-on-demand " + k + " <- " + setup));
         long faults = 0;
-        for (var e : com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS.entrySet()) {
+        for (var e : com.legend.harness.RefereeVerify.UNVERIFIABLE_CENSUS.entrySet()) {
             if (e.getKey().startsWith("FAULT ")) {
                 faults += e.getValue().sum();
             }
         }
         System.out.println("[corpus2] referee-faults=" + faults);
         java.util.Map<String, Integer> lenTests = new java.util.LinkedHashMap<>();
-        for (String k : com.legend.harness.H2Verify.LENIENCY_CENSUS.keySet()) {
+        for (String k : com.legend.harness.RefereeVerify.LENIENCY_CENSUS.keySet()) {
             lenTests.merge(k.substring(0, k.indexOf(' ')), 1, Integer::sum);
         }
         for (var kind : List.of("golden-fanout-collapsed", "golden-stitch-keys-dropped")) {
-            int n = (int) com.legend.harness.H2Verify.VERDICT_ROSTER.keySet().stream()
+            int n = (int) com.legend.harness.RefereeVerify.VERDICT_ROSTER.keySet().stream()
                     .filter(k -> k.startsWith(kind + " ")).count();
             if (n > 0) {
                 lenTests.put(kind, n);
@@ -730,9 +751,9 @@ public class MinimalCorpusTest {
                 + com.legend.exec.Census.count(com.legend.exec.Census.Key.SQL_ROUND_TRIPS) + " (every statement the executor"
                 + " sent this JVM: setups, sides, frames, referee replays)"
                 + " sql-chars=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.SQL_CHARS)
-                + " detaches=" + DuckWorkspaces.DETACHES.get()
-                + " detach-ms=" + DuckWorkspaces.DETACH_NANOS.get() / 1_000_000L
-                + " detach-max-ms=" + DuckWorkspaces.DETACH_MAX_NANOS.get() / 1_000_000L);
+                + " detaches=" + com.legend.testbackend.WorkspaceCensus.DETACHES.get()
+                + " detach-ms=" + com.legend.testbackend.WorkspaceCensus.DETACH_NANOS.get() / 1_000_000L
+                + " detach-max-ms=" + com.legend.testbackend.WorkspaceCensus.DETACH_MAX_NANOS.get() / 1_000_000L);
         com.legend.exec.CanonicalDivergence.sqlDisagreeSamples().forEach(
                 r -> System.out.println("[corpus2] sql-disagree " + r.family() + " " + r.detail()));
         if (!only.isEmpty()) {
@@ -741,10 +762,9 @@ public class MinimalCorpusTest {
         org.junit.jupiter.api.Assertions.assertEquals(0, faults,
                 "referee FAULTS (our own machinery failed — a seed would not replay,"
                 + " an extension function we ship is missing, the session failed) must"
-                + " be ZERO: " + com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS.keySet()
+                + " be ZERO: " + com.legend.harness.RefereeVerify.UNVERIFIABLE_CENSUS.keySet()
                         .stream().filter(k -> k.startsWith("FAULT ")).toList());
-        java.util.Map<String, Integer> ceilings = MinimalCorpus.H2_BACKEND
-                ? H2_TEXT_DECIDED : DUCKDB_TEXT_DECIDED;
+        java.util.Map<String, Integer> ceilings = ceilings().textDecided();
         List<String> over = new ArrayList<>();
         byReason.forEach((r, n) -> {
             if (n > ceilings.getOrDefault(r, 0)) {
@@ -754,8 +774,7 @@ public class MinimalCorpusTest {
         org.junit.jupiter.api.Assertions.assertTrue(over.isEmpty(),
                 "text-decided verdicts grew past their ceilings (a rows leg stopped"
                 + " being judged): " + over + " — explain, then re-pin");
-        java.util.Map<String, Integer> lenCeil = MinimalCorpus.H2_BACKEND
-                ? H2_LENIENCY : DUCKDB_LENIENCY;
+        java.util.Map<String, Integer> lenCeil = ceilings().leniency();
         List<String> overLen = new ArrayList<>();
         lenTests.forEach((t, n) -> {
             if (n > lenCeil.getOrDefault(t, 0)) {
@@ -830,7 +849,7 @@ public class MinimalCorpusTest {
     // text assert used to raise in Java at the assert, now the row is judged at the
     // flush, so the later Composite text assert is reached and counted. The DB2 row
     // fails at the flush as before (fail rosters unchanged).
-    private static final java.util.Map<String, Integer> DUCKDB_TEXT_DECIDED = java.util.Map.of(
+    private static final java.util.Map<String, Integer> PLATFORM_TEXT_DECIDED = java.util.Map.of(
             "rows-underivable", 24, "plan-params-unbindable", 6, "oracle-declined", 39,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 9);
     // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
@@ -856,16 +875,16 @@ public class MinimalCorpusTest {
     // assert now evaluates before the body's end raises the same first failure.
     // H2 foreign-dialect:Composite 8 -> 9 (2026-09-21, leg 2): the same testSortQuotes
     // row as the DuckDB lane (its DB2 text is a verdict row judged at the flush).
-    private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
+    private static final java.util.Map<String, Integer> REFEREE_TEXT_DECIDED = java.util.Map.of(
             "rows-underivable", 27, "plan-params-unbindable", 6, "oracle-declined", 48,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 9);
     /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
     // float-10-digits 48 -> 49 (DuckDB) / 32 -> 33 (H2), 2026-09-12 (fixture on
     // demand): one of the newly row-judged tests compares a float column
-    private static final java.util.Map<String, Integer> DUCKDB_LENIENCY = java.util.Map.of(
+    private static final java.util.Map<String, Integer> PLATFORM_LENIENCY = java.util.Map.of(
             "float-2ulp", 23, "micro-floor", 7,
             "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
-    private static final java.util.Map<String, Integer> H2_LENIENCY = java.util.Map.of(
+    private static final java.util.Map<String, Integer> REFEREE_LENIENCY = java.util.Map.of(
     // float-10-digits 33 -> 34 (2026-09-17): one of the twelve group-by/average
     // rows the H2 lane gained (H2AvgDelivers: H2's DECFLOAT average cast to
     // DOUBLE on its own wire) is judged with the H2 float leniency
@@ -930,7 +949,7 @@ public class MinimalCorpusTest {
      * to the tests that ran when scoped); the denominator when not scoped. */
     private static void pinRoster(String only, List<String> ran, List<String> rows,
             String kind, String resource, boolean denominator) throws IOException {
-        String lane = MinimalCorpus.H2_BACKEND ? "h2" : "duckdb";
+        String lane = LaneHolder.LANE.rosters();
         Set<String> failNames = new LinkedHashSet<>();
         for (String f : rows) {
             failNames.add(f.substring(0, f.indexOf(" :: ")));
@@ -1014,7 +1033,7 @@ public class MinimalCorpusTest {
                 // PORTABILITY check — its golden runs on the same connection
                 // as our query, so it is not an independent referee; the
                 // DuckDB lane with the H2 mirror is
-                + (MinimalCorpus.H2_BACKEND ? " oracle=same-session" : " oracle=h2-mirror"));
+                + (MinimalCorpus.refereeLane() ? " oracle=same-session" : " oracle=h2-mirror"));
     }
 
     /** THE ARTIFACT RULE (block-compiler program, 2026-09-21): a test body is ONE
@@ -1063,7 +1082,7 @@ public class MinimalCorpusTest {
 
     private static void pinArtifactRegister(String only, List<String> ran, List<String> rows,
             String resource, String kind, String newMeans) throws IOException {
-        String lane = MinimalCorpus.H2_BACKEND ? "h2" : "duckdb";
+        String lane = LaneHolder.LANE.rosters();
         Set<String> registered = registerTests(resource);
         Set<String> ranNames = new HashSet<>(ran);
         Set<String> now = new LinkedHashSet<>();
@@ -1199,10 +1218,10 @@ public class MinimalCorpusTest {
      *  has one, over the tests that ran: a failure off the roster fails the run, and so does a rostered test that
      *  passes (its row is deleted); until then its failures are only printed (the measurement). */
     private static void holdToLaneRoster(List<String> fail, List<String> ran) throws IOException {
-        String resource = "/rcorpus/" + MinimalCorpus.BACKEND + "-fail-roster.txt";
+        String resource = laneFile("fail-roster");
         try (InputStream in = MinimalCorpusTest.class.getResourceAsStream(resource)) {
             if (in == null) {
-                System.out.println("[corpus2] " + MinimalCorpus.BACKEND + ": no " + resource + " yet -- measured only");
+                System.out.println("[corpus2] " + MinimalCorpus.BACKEND.name() + ": no " + resource + " yet -- measured only");
                 return;
             }
             java.util.Set<String> roster = new java.util.TreeSet<>();
@@ -1217,7 +1236,7 @@ public class MinimalCorpusTest {
             }
             java.util.Set<String> ranNames = new HashSet<>(ran);
             org.junit.jupiter.api.Assertions.assertEquals(roster.stream().filter(ranNames::contains).toList(),
-                    failing.stream().toList(), "[" + MinimalCorpus.BACKEND + "] the failing tests moved against "
+                    failing.stream().toList(), "[" + MinimalCorpus.BACKEND.name() + "] the failing tests moved against "
                     + resource + " (a new failure, or a rostered test that passes)");
         }
     }
@@ -1231,13 +1250,13 @@ public class MinimalCorpusTest {
         if (out.isEmpty() || !only.isEmpty()) {
             return;
         }
-        String lane = MinimalCorpus.H2_BACKEND ? "h2" : "duckdb";
+        String lane = LaneHolder.LANE.rosters();
         if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
             writeRoster(out, lane + "-database-engine-order-register.txt", engineOrder);
             return;
         }
         List<String> unordered = new ArrayList<>();
-        for (String key : com.legend.harness.H2Verify.ORD_CENSUS.keySet()) {
+        for (String key : com.legend.harness.RefereeVerify.ORD_CENSUS.keySet()) {
             if (key.startsWith(ORD_UNORDERED + " ")) {
                 unordered.add(key);
             }

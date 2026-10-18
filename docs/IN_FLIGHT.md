@@ -1624,6 +1624,29 @@ pause for the user's review after Phase 1.
   `jdbc:duckdb:` in a new core test opens `TestBackends.platform()`. **Part 2** (the corpus harness:
   `MinimalCorpus`, `MinimalCorpusTest`, `ReplayReferee`, `DuckWorkspaces`, `ServerWorkspaces`; and the SQL, IQ and Cypher
   islands' tests) is next: #43 and #50, which it waited for, landed on 2026-10-17.
+- **Announced 2026-10-17, Phase 6 part 2: the corpus's databases, the islands' tests and what part 1 left are test
+  backends** (branch `claude/gracious-edison-jcsvzm`, after #52; the plan's Phase 6 and its record there). Test code
+  and test data only; no product behaviour changes.
+  - `core/src/test/java/com/legend/testbackend/`: `TestBackend` gains `openWorkspace()`, `setFixtureAside()` (a
+    `FixtureAside`) and `readerOn()`; new `RefereeBackend` (H2's), `DuckDbWorkspaces`, `DuckDbWarehouseBackend`
+    (the warehouse lane, `-Drcorpus.backend=warehouse`, `legend.warehouse.server/library/data`), `WorkspaceCensus`;
+    `H2ExtensionFunctions` moved in from spec. The server backends' sessions (Postgres, MariaDB, MySQL) open at the
+    URL the product's connector makes from their declared coordinates; Trino's and ClickHouse's keep their
+    launchers' (the product opens none on them).
+  - `spec/`: `H2Verify` is `RefereeVerify`, `H2VerifyNormTest` `RefereeVerifyNormTest`; `rcorpus/DuckWorkspaces` and
+    `ServerWorkspaces` are deleted; `MinimalCorpus`, `MinimalCorpusTest`, `ReplayReferee` and `CorpusOne` take the
+    lane's backend.
+  - `core/src/test/java/com/legend/testcases/`: `SqlParity.seed(backend, ...)` and `IqParity.seed(backend, ...)`
+    render the tables through the lane's dialect; new `PostgresSeed` (upstream's Postgres fixture, verbatim);
+    `SqlIslandCases.table(backend)` and `Case.plain()` (was `postgres()`); `SqlStress` is `SqlStressOnPostgres`, which
+    needs `-Dstress.pg.url` (`core/src/test/resources/sql-stress/run.sh` passes it).
+  - New `resolver/ResolvedSql` (the resolver tests' one `sqlOf`). `CorpusDifferentialTest` runs each service on its
+    runtime's database; `scripts/corpus/differential.py` writes `diff/seed.json` in place of `diff/seed.sql`.
+    `StoreTypesTest.on` takes a `DatabaseType`. `LowerRelationTest` and `ScaleCostsTest` are
+    `LowerRelationDuckDbTest` and `ScaleCostsDuckDbTest`; `SqlParity.fill` takes the table as the session spells it.
+
+  A branch that calls `SqlParity.seed` or `IqParity.seed` passes the backend; one that reads `diff/seed.sql` reads
+  `diff/seed.json`; one that runs the corpus on the warehouse passes `-Drcorpus.backend=warehouse`.
 - **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move: #43 and #48 have landed** (D11:
   "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
   lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate

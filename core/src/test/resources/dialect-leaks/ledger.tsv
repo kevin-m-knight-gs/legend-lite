@@ -12,6 +12,7 @@
 # 2026-10-16, the dialect program's Phase 3: EngineText is an owner (DatabaseOwners: the engine-text registry, Databases' counterpart); the test-data datasource specification is the model's (ConnectionSpecification.testData, TEST_DATA_SPECIFICATION_CLASS); the dual-golden verdict, the referee's DDL, the engine's test connection and the function activator named for what they are; their 13 rows (41 lines) left the ledger.
 # 2026-10-16, the dialect program's Phase 5: each database's sessions are its connector's (exec/<Db>Connector.java, an owner: DatabaseOwners' CONNECTOR kind, held to its own database), and exec/Connectors.java the registry; Sessions asks them, H2's URL settings are H2Connector.SETTINGS (H2Settings deleted), the product-name read is Connectors.product, and StorelessRuntime's specification text is its connector's (storelessDeclaration). The lite plan format's connection codec is the model's (model/ConnectionWire, the vocabulary, D9): PlanJson names no database. Their 9 rows (118 lines) left the ledger.
 # 2026-10-16, the dialect program's Phase 6: the tests' databases are test backends (core/src/test/java/com/legend/testbackend: one per database, an owner held to its own database in code and strings, and TestBackends the registry); the PCT lanes take theirs by name, so PctBackend's lane enum and CloudLane (moved into the cloud backends) leave the ledger. Core's tests open the platform's backend, or every in-process one, or name the database they are about (a test named for a database owns it: DatabaseOwners' NAMED_TEST, held by DialectOwnerExclusivityTest); the vocabulary's own tests are vocabulary, ArchitectureTest a guard. Lowered as measured; core's test rows left are the SQL, IQ and Cypher islands' and LowerRelationTest's, each open in neema2/legend-lite#43 or #50.
+# 2026-10-17, the dialect program's Phase 6, part 2: the relational corpus's databases are test backends (workspaces, fixture asides, the referee, the warehouse lane: core/src/test/java/com/legend/testbackend), the SQL, IQ and Cypher islands' and the lowering tests run on the platform's backend, and the parity lanes' tables are made by the lane's dialect (Postgres's, upstream's fixture verbatim: testcases/PostgresSeed, an owner); rcorpus/DuckWorkspaces and ServerWorkspaces are deleted and SqlStress is SqlStressOnPostgres. Their 37 rows (19 files, 271 lines) left the ledger. Core's and spec's test rows left are the SQL translator's tests' (#85); the rest are main code's (DynaFn, D10; the translator's three, #85) and the warehouse's tests (Phase 7).
 core/src/main/java/com/legend/builtin/DynaFn.java	product-name	175
 # 2026-10-14, the merge of neema2/legend-lite#37 (#IQ{...}#, the tenth line) into this branch at 1a36a71: the SQL front end's input dialects (InputDialect, PostgresDialect, SqlToPure, SqlIslands) and the iq-parity tests name the language of the SQL text a user writes (Postgres, SAP IQ / SQL Anywhere), not a database the platform executes on; pinned as measured. Whether protocol/sql/'s input dialects are owners was the user's question (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, Phase 1, 'after #37'): decided 2026-10-15, D11, they are, and the translator they share is not.
 core/src/main/java/com/legend/compiler/spec/SqlIslands.java	product-name	2
@@ -21,60 +22,10 @@ core/src/main/java/com/legend/protocol/sql/InputDialect.java	product-name	6
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 # 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
 core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	47
-# 2026-10-15, the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §12.1): its DuckDB end-to-end test names the database as SqlIslandIntegrationTest does, pinned as measured.
-core/src/test/java/com/legend/integration/CypherIslandIntegrationTest.java	jdbc-url	1
-# 2026-10-15, the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §12.1): its DuckDB end-to-end test names the database as SqlIslandIntegrationTest does, pinned as measured.
-core/src/test/java/com/legend/integration/CypherIslandIntegrationTest.java	product-name	6
-# 2026-10-15, the Cypher island's parity lanes (docs/CYPHER_STUDY_2026_10_15.md §12.2): the lane test names its database as the IQ lanes' do, pinned as measured.
-core/src/test/java/com/legend/integration/CypherParityTest.java	jdbc-url	1
-# 2026-10-15, the Cypher island's parity lanes (docs/CYPHER_STUDY_2026_10_15.md §12.2): the lane test names its database as the IQ lanes' do, pinned as measured.
-core/src/test/java/com/legend/integration/CypherParityTest.java	product-name	4
-# 2026-10-16, the IQ island's corpus lane (IqCorpusTest, 2026-10-15; its manual target): the DuckDB it runs the island on and the input language's name, as IqParityTest's, pinned as measured.
-core/src/test/java/com/legend/integration/IqCorpusTest.java	jdbc-url	1
-# 2026-10-16, the IQ island's corpus lane (IqCorpusTest, 2026-10-15; its manual target): the DuckDB it runs the island on and the input language's name, as IqParityTest's, pinned as measured.
-core/src/test/java/com/legend/integration/IqCorpusTest.java	product-name	8
-# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
-core/src/test/java/com/legend/integration/IqParityTest.java	jdbc-url	1
-# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
-core/src/test/java/com/legend/integration/IqParityTest.java	product-name	4
-core/src/test/java/com/legend/integration/SqlIslandIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/SqlIslandIntegrationTest.java	product-name	9
-core/src/test/java/com/legend/integration/SqlParityTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/SqlParityTest.java	product-name	6
-core/src/test/java/com/legend/lowering/CorrelatedComputedColumnTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/CorrelatedComputedColumnTest.java	product-name	11
-# 2026-10-15, the compiler line's scale-costs landing: ScaleCostsTest judges the island against DuckDB as the oracle (as CorrelatedComputedColumnTest) and renders with DuckDb's dialect to count a render's reads, so it names DuckDB, its dialect class and its JDBC URL
-core/src/test/java/com/legend/lowering/ScaleCostsTest.java	dialect-class	2
-core/src/test/java/com/legend/lowering/ScaleCostsTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/ScaleCostsTest.java	product-name	12
-core/src/test/java/com/legend/lowering/LowerRelationTest.java	dialect-class	13
-core/src/test/java/com/legend/lowering/LowerRelationTest.java	jdbc-url	1
-core/src/test/java/com/legend/lowering/LowerRelationTest.java	product-name	13
+# 2026-10-17, the #SQL{} island's regression-suite corpus lane (PgRegressCorpusTest; its manual target, the corpus program's first corpus): the embedded Postgres it replays the PostgreSQL regression suite on, pinned as measured.
+core/src/test/java/com/legend/integration/PgRegressCorpusTest.java	product-name	2
 core/src/test/java/com/legend/protocol/sql/SqlParserTest.java	product-name	3
 core/src/test/java/com/legend/protocol/sql/SqlToPureTest.java	product-name	10
-# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
-core/src/test/java/com/legend/testcases/IqParity.java	product-name	4
-core/src/test/java/com/legend/testcases/SqlIslandCases.java	product-name	3
-core/src/test/java/com/legend/testcases/SqlParity.java	product-name	7
-# 2026-10-15, the merge of neema2/legend-lite#39 into the #SQL stress branch (neema2/legend-lite#41): the stress corpus's hand runner (core/src/test/resources/sql-stress/run.sh) compares the island with the Postgres 16 that answers each query and runs the DuckDB lane in memory, as SqlParityTest does: its two connection URLs (the answering server's default, overridable by -Dstress.pg.url, and DuckDB's in-memory jdbc:duckdb:) are pinned as measured. Its other five lines were moved: the host and port read through java.net.URI, the helper renamed.
-core/src/test/java/com/legend/testcases/SqlStress.java	jdbc-url	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/harness/PlanReplay.java	product-name	9
-spec/src/test/java/com/legend/harness/ReplayReferee.java	driver	1
-spec/src/test/java/com/legend/harness/ReplayReferee.java	jdbc-url	1
-spec/src/test/java/com/legend/harness/ReplayReferee.java	product-call	1
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/harness/ReplayReferee.java	product-name	61
-spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	driver	1
-spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	jdbc-url	2
-spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	product-name	2
-spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	database-type	3
-spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	jdbc-url	2
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	product-name	22
-# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java	product-name	51
-spec/src/test/java/com/legend/rcorpus/ServerWorkspaces.java	product-name	2
 warehouse/src/test/java/com/legend/warehouse/TestServer.java	product-name	4
 warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java	jdbc-url	2
 warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java	product-call	1

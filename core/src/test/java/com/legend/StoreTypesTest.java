@@ -149,24 +149,45 @@ class StoreTypesTest {
 
     /** {@code CAST(<qualified ref to col> AS VARCHAR)}, however the dialect quotes the reference. */
     static String textRead(String col) {
+        return textRead(col, "VARCHAR");
+    }
+
+    /** {@code CAST(<qualified ref to col> AS <text>)}, however the dialect quotes the reference. */
+    static String textRead(String col, String text) {
         // the column as the dialect spells it: Postgres folds a store's bare name to lower case (Postgres.physicalName)
-        return "CAST\\(\"?\\w+\"?\\.\"?(?i:" + col + ")\"?\\s+AS VARCHAR\\)";
+        return "CAST\\([\"`]?\\w+[\"`]?\\.[\"`]?(?i:" + col + ")[\"`]?\\s+AS " + java.util.regex.Pattern.quote(text)
+                + "\\)";
+    }
+
+    /** The type {@code dialect} casts a column to when a Pure String is asked of it: its own spelling of text, from a
+     *  cast it renders alone (not the stored read under test, which must arrive at the same type). */
+    static String textType(com.legend.sql.dialect.SqlDialect dialect) {
+        String sql = dialect.render(new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(
+                new com.legend.sql.SqlExpr.Cast(com.legend.sql.SqlExpr.Column.physical("t", "c"),
+                        com.legend.sql.SqlType.Scalar.VARCHAR), "x", null)), false,
+                new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of()));
+        var m = java.util.regex.Pattern.compile("CAST\\([^)]*\\bc[\"`]?\\s+AS ([^)]+)\\)").matcher(sql);
+        assertTrue(m.find(), sql);
+        return m.group(1);
     }
 
     static String sql(String model, String query) {
         return Compiler.query(Compiler.compileModel(model), query).plan("s::RT").sql();
     }
 
-    static String on(String type) {
-        return type.equals("H2") ? MODEL.replace("type: DuckDB;\n  specification: DuckDB { }; auth: Test;",
-                "type: H2;\n  specification: LocalH2 { }; auth: DefaultH2;") : MODEL.replace("type: DuckDB;", "type: " + type + ";");
+    /** {@link #MODEL} with its connection declaring {@code type}: planned, never run (the specification is not read). */
+    static String on(com.legend.model.ConnectionDefinition.DatabaseType type) {
+        return MODEL.replace("type: DuckDB;", "type: " + type.name() + ";");
     }
 
     @Test
     void anOtherColumnIsReadAsTextOnEveryDialect() {
-        for (String type : List.of("DuckDB", "H2", "Postgres")) {
+        // every database the platform executes on (the dialect program's Phase 6, 2026-10-17: it was DuckDB, H2 and
+        // Postgres), each read as its dialect spells text
+        for (var type : com.legend.database.Databases.implemented()) {
             String q = sql(on(type), "#>{s::DB.HOSTS}#->select(~[ID, ADDR])");
-            assertTrue(java.util.regex.Pattern.compile(textRead("ADDR")).matcher(q).find(), type + ": " + q);
+            String text = textType(com.legend.database.Databases.dialect(type));
+            assertTrue(java.util.regex.Pattern.compile(textRead("ADDR", text)).matcher(q).find(), type + ": " + q);
         }
     }
 

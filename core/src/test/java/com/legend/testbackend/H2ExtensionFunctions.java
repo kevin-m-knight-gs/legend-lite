@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.harness;
+package com.legend.testbackend;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;

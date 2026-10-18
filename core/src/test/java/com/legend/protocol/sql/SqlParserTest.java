@@ -325,14 +325,113 @@ class SqlParserTest {
     }
 
     @Test
+    void escapeAndUnicodeStringsReadTheirEscapes() {
+        // 2026-10-17, the regression suite: E'...' with its backslash escapes, U&'...' with its code points
+        assertEquals("a\nb\t'c\\A\u00e9\ud83d\ude00",
+                ((SqlAst.StringLit) item("E'a\\nb\\t\\'c\\\\\\101\\u00e9\\U0001F600'")).value());
+        assertEquals("d\u0061t\u0061", ((SqlAst.StringLit) item("U&'d\\0061t\\+000061'")).value());
+        assertEquals("d!at", ((SqlAst.StringLit) item("U&'d!!a!0074' UESCAPE '!'")).value());
+        // and the review's of 2026-10-17: a code point past an int, a pair's low half not hex, a doubled escape
+        // character for one, a sign, an escape character of two bytes
+        for (String bad : List.of("E'\\x00'", "E'\\uD83D'", "U&'\\00'", "E'\\xE9'", "1 AS U&\"\"",
+                "E'\\UFFFFFFFF'", "E'\\uD800\\UFFFFDC00'", "U&'\\D800\\zzzz'", "U&'\\D800\\\\abcd'",
+                "U&'\\D800\\+-02400'", "U&'\u00e90041' UESCAPE '\u00e9'")) {
+            assertThrows(SqlSyntaxException.class, () -> item(bad), bad);
+        }
+        assertEquals("A", ((SqlAst.StringLit) item("U&'!0041' UESCAPE E'!'")).value());
+        // U&"..." is a quoted identifier of code points, not folded
+        SqlAst.SelectExpr named = (SqlAst.SelectExpr) ((SqlAst.Select) SqlParser.parse(
+                "select 1 AS U&\"D\\0061t\\+000061\", 2 AS U&\"d*0061t\\+000061\" UESCAPE '*'")).items().get(1);
+        assertEquals("dat\\+000061", java.util.Objects.requireNonNull(named.alias()).text());
+        assertEquals("Data", java.util.Objects.requireNonNull(((SqlAst.SelectExpr) ((SqlAst.Select) SqlParser.parse(
+                "select 1 AS U&\"D\\0061t\\+000061\"")).items().get(0)).alias()).text());
+    }
+
+    @Test
+    void aValuesListIsAUnionAllOfOneRowSelects() {
+        // Postgres's definition (2026-10-17): VALUES (1, 'a'), (2, 'b') is SELECT 1 AS column1, 'a' AS column2 UNION
+        // ALL SELECT 2, 'b'
+        SqlAst.SetOperation u = (SqlAst.SetOperation) SqlParser.parse("values (1, 'a'), (2, 'b') order by 1");
+        assertEquals(SqlAst.SetOp.UNION, u.op());
+        assertTrue(u.all());
+        assertEquals(1, u.orderBy().size());
+        // marked as a VALUES list's, the sort attached too; a written UNION ALL is not
+        assertTrue(u.values());
+        assertFalse(((SqlAst.SetOperation) SqlParser.parse("select 1 union all select 2")).values());
+        SqlAst.Select first = (SqlAst.Select) u.left();
+        assertTrue(first.from().isEmpty());
+        assertEquals(List.of("column1", "column2"), first.items().stream()
+                .map(i -> java.util.Objects.requireNonNull(((SqlAst.SelectExpr) i).alias()).text()).toList());
+        assertEquals("VALUES lists must all be the same length",
+                assertThrows(SqlSyntaxException.class, () -> SqlParser.parse("values (1, 2), (3)")).getMessage());
+        // a row is no select list: a set-returning function in one is Postgres's error, not more rows
+        assertEquals("set-returning functions are not allowed in VALUES", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("values (1, generate_series(1, 2))")).getMessage());
+        // nor an aggregate or a window function (the review of 2026-10-17); in a subquery they read its rows
+        assertEquals("aggregate functions are not allowed in VALUES", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("select * from (values (count(*))) v")).getMessage());
+        assertEquals("window functions are not allowed in VALUES", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("values (row_number() over ())")).getMessage());
+        SqlParser.parse("values ((select count(*) from t))");
+        // a column of NULLs alone is text, as Postgres types one; beside a value a NULL stays untyped
+        SqlAst.SetOperation nulls = (SqlAst.SetOperation) SqlParser.parse("values (null, 1), (null, null)");
+        List<SqlAst.SelectItem> row = ((SqlAst.Select) nulls.left()).items();
+        assertInstanceOf(SqlAst.Cast.class, ((SqlAst.SelectExpr) row.get(0)).expr());
+        assertInstanceOf(SqlAst.NullLit.class, ((SqlAst.SelectExpr) ((SqlAst.Select) nulls.right()).items().get(1))
+                .expr());
+        // a long list is a balanced tree: no recursion per row downstream
+        StringBuilder many = new StringBuilder("values (0)");
+        for (int i = 1; i < 1024; i++) {
+            many.append(", (").append(i).append(')');
+        }
+        assertEquals(10, depth(SqlParser.parse(many.toString())));
+    }
+
+    private static int depth(SqlAst.Statement s) {
+        return s instanceof SqlAst.SetOperation o ? 1 + Math.max(depth(o.left()), depth(o.right())) : 0;
+    }
+
+    @Test
+    void tableNameIsSelectStarFromIt() {
+        // 2026-10-17: TABLE t is SELECT * FROM t, the name a table's or the island's source function
+        SqlAst.Select s = (SqlAst.Select) SqlParser.parse("table s.t");
+        assertInstanceOf(SqlAst.AllColumns.class, s.items().get(0));
+        assertEquals(List.of("s", "t"), ((SqlAst.TableName) s.from().get(0)).name().stream()
+                .map(SqlAst.Ident::text).toList());
+        assertInstanceOf(SqlAst.TableFunction.class,
+                ((SqlAst.Select) SqlParser.parse("TABLE tb('pkg::Db.t')")).from().get(0));
+        SqlAst.SetOperation u = (SqlAst.SetOperation) SqlParser.parse("select 1 union all table t*");
+        assertInstanceOf(SqlAst.TableName.class, ((SqlAst.Select) u.right()).from().get(0));
+        assertEquals("syntax error at or near \"(\"", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("table generate_series(1, 2)")).getMessage());
+        assertEquals("TABLE ONLY is not supported yet", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("table only t")).getMessage());
+    }
+
+    @Test
+    void aTableNamesStarIsTheTable() {
+        // FROM t* reads t and its descendants, which a table read includes anyway
+        SqlAst.Select s = (SqlAst.Select) SqlParser.parse("select * from a* x, b* where x.k = 1");
+        assertEquals(2, s.from().size());
+        SqlAst.TableName a = (SqlAst.TableName) s.from().get(0);
+        assertEquals("x", java.util.Objects.requireNonNull(a.alias()).text());
+        assertNull(((SqlAst.TableName) s.from().get(1)).alias());
+    }
+
+    @Test
     void notYetSupportedFormsAreRefusedByName() {
         List<String> forms = List.of(
                 "select a from unnest(x) with ordinality", "WITH ORDINALITY is not supported yet",
-                "values (1)", "VALUES lists are not supported yet",
                 "select a = any(array[1]) from t", "ANY, SOME and ALL over an array are not supported yet",
-                "select E'x'", "escape string constants (E'...') are not supported yet",
+                "select B'101'", "bit-string constants (B'...') are not supported yet",
                 "select a[1:2] from t", "array slices are not supported yet",
-                "select a from t group by rollup (a)", "ROLLUP, CUBE and GROUPING SETS are not supported yet");
+                "select a from t group by rollup (a)", "ROLLUP, CUBE and GROUPING SETS are not supported yet",
+                "select make_interval(years := 2)", "named arguments to scalar functions are not supported yet",
+                "select concat_ws(',', variadic array[1])", "VARIADIC arguments are not supported yet",
+                "select session_user, current_user", "SESSION_USER is not supported yet",
+                "select current_schema", "CURRENT_SCHEMA is not supported yet",
+                "select id from t AS x tablesample system (50)", "TABLESAMPLE is not supported yet",
+                "select id from tb('d.t') x tablesample bernoulli (5)", "TABLESAMPLE is not supported yet");
         for (int i = 0; i < forms.size(); i += 2) {
             String sql = forms.get(i);
             SqlSyntaxException e = assertThrows(SqlSyntaxException.class, () -> SqlParser.parse(sql), sql);

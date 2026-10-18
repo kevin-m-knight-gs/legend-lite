@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.integration;
 
+import com.legend.resolver.ResolvedSql;
 import com.legend.testbackend.TestBackends;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -99,12 +100,7 @@ class UnionTargetLeanJoinTest {
     }
 
     private static String sqlOf(String query) {
-        var ctx = com.legend.Compiler.compileModel(MODEL);
-        var specs = new com.legend.compiler.spec.SpecCompiler(ctx);
-        var body = specs.typeQueryBody(com.legend.compiler.NameResolver.resolveQuery(
-                com.legend.testing.Own.spec(query + "->from(ul::m, ul::rt)")));
-        var resolved = new com.legend.resolver.StoreResolver(ctx, specs).resolve(body, null);
-        return TestBackends.platform().dialect().render(new com.legend.lowering.Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
+        return ResolvedSql.of(MODEL, query + "->from(ul::m, ul::rt)");
     }
 
     /**
