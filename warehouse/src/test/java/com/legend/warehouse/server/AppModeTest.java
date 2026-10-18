@@ -24,69 +24,24 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The warehouse as the single-user DataCube app (docs/DATACUBE_APP_PLAN_2026_10_02.md, A1): Postgres URLs
- * as catalogs, the launch key, the site and its {@code /config.json}. Postgres itself is not needed: the
- * live attach is WarehousePostgresLiveTest's.
+ * The warehouse as the single-user DataCube app (docs/DATACUBE_APP_PLAN_2026_10_02.md, A1): the launch key, the site
+ * and its {@code /config.json}. A catalog attached on its command line is PostgresCatalogTest's and PostgresUrlTest's
+ * (the dialect program's Phase 7, 2026-10-18), and the live attach WarehousePostgresLiveTest's.
  */
 class AppModeTest {
 
     private static final HttpClient HTTP = HttpClient.newHttpClient();
-
-    // -- Postgres URLs ---------------------------------------------------------------------------
-
-    @Test
-    void aPostgresUrlIsACatalogNamedAfterItsDatabase() {
-        PostgresUrl u = PostgresUrl.parse("postgresql://bob@db.internal:5433/shop");
-        assertEquals("shop", u.catalog());
-        assertEquals("host='db.internal' port='5433' dbname='shop' user='bob' options='-c statement_timeout=60000'",
-                u.dsn());
-        // no host: libpq's own default (the local socket); parameters as given
-        assertEquals("dbname='shop' sslmode='require' options='-c statement_timeout=60000'",
-                PostgresUrl.parse("postgres:///shop?sslmode=require").dsn());
-        // a percent-encoded user and password, decoded and quoted
-        assertEquals("host='db' dbname='shop' user='bo b' password='p@ss:w\\'d' options='-c statement_timeout=60000'",
-                PostgresUrl.parse("postgresql://bo%20b:p%40ss%3Aw'd@db/shop").dsn());
-        // the URL's own options replace the default timeout
-        assertEquals("host='db' dbname='shop' options='-c statement_timeout=5000'",
-                PostgresUrl.parse("postgresql://db/shop?options=-c%20statement_timeout%3D5000").dsn());
-        assertEquals("host='::1' dbname='shop' options='-c statement_timeout=60000'",
-                PostgresUrl.parse("postgresql://[::1]/shop").dsn());
-    }
-
-    @Test
-    void aPostgresUrlThatCannotBeACatalogIsRefusedByName() {
-        for (String bad : List.of(
-                "postgresql://db",                  // no database
-                "postgresql://db/",
-                "postgresql://db/Shop",             // not a catalog name: --postgres NAME=DSN
-                "postgresql://db/shop/extra",
-                "postgresql://h1,h2/shop",          // several hosts
-                "postgresql://db/shop?sslmode",     // not key=value
-                "postgresql://db/shop?dbname=x")) { // given twice
-            assertThrows(IllegalArgumentException.class, () -> PostgresUrl.parse(bad), bad);
-        }
-    }
-
-    @Test
-    void anAskedPasswordIsQuotedIntoTheConnectionString() {
-        assertEquals("host='db' dbname='shop' password='it\\'s \\\\ fine'",
-                PostgresUrl.withPassword("host='db' dbname='shop'", "it's \\ fine".toCharArray()));
-    }
 
     // -- the command line ------------------------------------------------------------------------
 
     @Test
     void theAppsCommandLine(@TempDir Path dir) throws Exception {
         WarehouseServer.CommandLine c = WarehouseServer.commandLine(new String[] {
-            "postgresql://bob@db/shop", "--site", "/srv/cube", "--single-user", "--open", "--table", "sales.orders",
-            "--duckdb-extensions", "/opt/ext"});
-        assertEquals(Map.of("shop", "host='db' dbname='shop' user='bob' options='-c statement_timeout=60000'"),
-                c.config().postgres());
+            "--site", "/srv/cube", "--single-user", "--open", "--table", "sales.orders"});
         assertEquals(Path.of("/srv/cube"), c.config().site());
         assertEquals(System.getProperty("user.name"), c.config().singleUser());
         assertTrue(c.open());
@@ -123,9 +78,8 @@ class AppModeTest {
                 new String[] {"--open", "--site", "/srv/cube"},                     // --open needs --single-user
                 new String[] {"--open", "--single-user"},                           // and --site
                 new String[] {"--single-user", "--table", "sales.orders"},          // --table needs a page
-                new String[] {"--site", "/s", "--single-user", "--open", "--table", "orders"},     // schema.name
-                new String[] {"postgresql://db/shop", "postgresql://other/shop", "--duckdb-extensions", "/x"},
-                new String[] {"postgresql://db/shop", "--postgres", "shop=host=db", "--duckdb-extensions", "/x"})) {
+                // schema.name
+                new String[] {"--site", "/s", "--single-user", "--open", "--table", "orders"})) {
             assertThrows(IllegalArgumentException.class, () -> WarehouseServer.commandLine(args), String.join(" ", args));
         }
     }

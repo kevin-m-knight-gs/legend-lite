@@ -38,7 +38,7 @@ public final class Catalogs implements AutoCloseable {
     }
 
     /** An attached catalog's kind and the connection string it attaches with. */
-    record Attach(Attachment kind, String dsn) {
+    public record Attach(Attachment kind, String connection) {
     }
 
     /**
@@ -57,7 +57,7 @@ public final class Catalogs implements AutoCloseable {
                     throw new IllegalArgumentException("an attached catalog needs --duckdb-extensions DIR"
                             + " (the directory holding " + e.getValue().kind().extensionFile + ")");
                 }
-                openAttached(e.getKey(), e.getValue().kind(), e.getValue().dsn(), extensions);
+                openAttached(e.getKey(), e.getValue().kind(), e.getValue().connection(), extensions);
             }
         } catch (IOException | DuckException | RuntimeException e) {
             close();
@@ -95,16 +95,13 @@ public final class Catalogs implements AutoCloseable {
             db.close();
             // the DSN may carry a password: name the catalog, never echo the connection string
             String why = String.valueOf(e.getMessage()).replace(connection, "<dsn>").replace(dsn, "<dsn>");
-            throw new AttachFailed(name, kind, why, why.contains(NO_PASSWORD));
+            throw new AttachFailed(name, kind, why, kind.missingPassword(why));
         }
         databases.put(name, db);
         attached.put(name, kind);
     }
 
-    /** libpq's words when it found no password to send (fe-auth.c); a caller with a terminal can ask for one. */
-    private static final String NO_PASSWORD = "no password supplied";
-
-    /** An attached catalog that could not be attached, by name; whether libpq lacked a password. */
+    /** An attached catalog that could not be attached, by name; whether it lacked a password a terminal could give. */
     public static final class AttachFailed extends IOException {
         public final String catalog;
         final Attachment kind;

@@ -3,6 +3,7 @@ package com.legend.warehouse;
 import com.legend.testing.Runfile;
 
 import com.legend.base.Nullable;
+import com.legend.warehouse.server.Catalogs;
 import com.legend.warehouse.server.Statements;
 import com.legend.warehouse.server.WarehouseServer;
 import java.io.BufferedReader;
@@ -60,16 +61,17 @@ final class TestServer implements AutoCloseable {
     }
 
     /**
-     * With Postgres catalogs ({@code postgres}: name to DSN) beside {@code main}; {@code extensions} is where
-     * DuckDB's postgres extension is ({@code --duckdb-extensions}).
+     * With attached catalogs ({@code attached}: name to kind and connection string) beside {@code main};
+     * {@code extensions} is where the DuckDB extension each kind loads is ({@code --duckdb-extensions}).
      */
     static TestServer start(Path data, List<String[]> users, List<String> owners, Statements.Limits limits,
-            List<String> allowedOrigins, Map<String, String> postgres, @Nullable Path extensions) throws Exception {
+            List<String> allowedOrigins, Map<String, Catalogs.Attach> attached, @Nullable Path extensions)
+            throws Exception {
         String binary = System.getenv("WAREHOUSE_BINARY");
         if (binary == null) {
             WarehouseServer s = new WarehouseServer(new WarehouseServer.Config(0, data, List.of("main"), users, null,
                     Duration.ofMinutes(5), limits).withOwners(owners).withAllowedOrigins(allowedOrigins)
-                    .withPostgres(postgres, extensions)
+                    .withAttached(attached, extensions)
                     // the library, never extracted from DuckDB's jar (Bazel workplan P1-16)
                     .withDuckdbLibrary(Runfile.property("warehouse.duckdb.library")));
             return new TestServer(s, null, s.port());
@@ -90,9 +92,9 @@ final class TestServer implements AutoCloseable {
             cmd.add("--allow-origin");
             cmd.add(o);
         }
-        for (Map.Entry<String, String> e : postgres.entrySet()) {
-            cmd.add("--postgres");
-            cmd.add(e.getKey() + "=" + e.getValue());
+        for (Map.Entry<String, Catalogs.Attach> e : attached.entrySet()) {
+            cmd.add(e.getValue().kind().flag);
+            cmd.add(e.getKey() + "=" + e.getValue().connection());
         }
         if (extensions != null) {
             cmd.add("--duckdb-extensions");

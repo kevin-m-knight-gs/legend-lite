@@ -37,6 +37,17 @@ final class Postgres {
     private Postgres() {
     }
 
+    /** libpq's words when it found no password to send (fe-auth.c); a caller with a terminal can ask for one. */
+    private static final String NO_PASSWORD = "no password supplied";
+
+    /** Whether an attach failed, saying {@code why}, because libpq found no password to send. */
+    static boolean missingPassword(String why) {
+        return why.contains(NO_PASSWORD);
+    }
+
+    /** Where libpq looks for a password when there is no terminal to ask on. */
+    static final String PASSWORD_HELP = "put the password in ~/.pgpass or PGPASSWORD, or start it from a terminal";
+
     /** The oldest Postgres the dialect is written for (docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md, Q7). */
     static final int MIN_SERVER_VERSION_NUM = 160000;
 

@@ -34,14 +34,27 @@ class PostgresCatalogTest {
             "--postgres", "hr=postgresql://reader@db/hr?options=-c%20statement_timeout%3D60000",
             "--duckdb-extensions", "/opt/ext"});
         assertEquals(List.of("lake"), c.catalogs());
-        assertEquals(Map.of("sales", "host=db port=5432 dbname=sales user=reader",
-                "hr", "postgresql://reader@db/hr?options=-c%20statement_timeout%3D60000"), c.postgres());
+        assertEquals(Map.of("sales", postgres("host=db port=5432 dbname=sales user=reader"),
+                "hr", postgres("postgresql://reader@db/hr?options=-c%20statement_timeout%3D60000")), c.attached());
         assertEquals(Path.of("/opt/ext"), c.duckdbExtensions());
         // without --catalog, main is still made: grants are managed from a DuckDB catalog
         WarehouseServer.Config d = WarehouseServer.parse(new String[] {
             "--postgres", "sales=host=db", "--duckdb-extensions", "/opt/ext"});
         assertEquals(List.of("main"), d.catalogs());
-        assertTrue(WarehouseServer.parse(new String[] {}).postgres().isEmpty());
+        assertTrue(WarehouseServer.parse(new String[] {}).attached().isEmpty());
+    }
+
+    /** A URL alone is a catalog named after its database (the app's command line, A1; from AppModeTest, 2026-10-18). */
+    @Test
+    void aPostgresUrlIsACatalogNamedAfterItsDatabase() throws Exception {
+        WarehouseServer.CommandLine c = WarehouseServer.commandLine(new String[] {
+            "postgresql://bob@db/shop", "--site", "/srv/cube", "--single-user", "--duckdb-extensions", "/opt/ext"});
+        assertEquals(Map.of("shop", postgres("host='db' dbname='shop' user='bob' options='-c statement_timeout=60000'")),
+                c.config().attached());
+    }
+
+    private static Catalogs.Attach postgres(String connection) {
+        return new Catalogs.Attach(Attachment.POSTGRES, connection);
     }
 
     @Test
@@ -54,7 +67,10 @@ class PostgresCatalogTest {
                 new String[] {"--catalog", "a", "--postgres", "a=host=db", "--duckdb-extensions", "/x"},
                 new String[] {"--postgres", "main=host=db", "--duckdb-extensions", "/x"},  // main is made
                 new String[] {"--postgres", "a=host=db"},   // on the JVM the extension's directory is required
-                new String[] {"--postgres"})) {
+                new String[] {"--postgres"},
+                // a catalog named twice: by two URLs, or by a URL and the option
+                new String[] {"postgresql://db/shop", "postgresql://other/shop", "--duckdb-extensions", "/x"},
+                new String[] {"postgresql://db/shop", "--postgres", "shop=host=db", "--duckdb-extensions", "/x"})) {
             assertThrows(IllegalArgumentException.class, () -> WarehouseServer.parse(args), String.join(" ", args));
         }
     }
