@@ -5611,3 +5611,28 @@ values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every dat
 - **Pinned.** `lite/exprtail.yaml`'s `float_remainders_exact` (eight pairs of the extremes, a remainder of a
   remainder), `float_remainders_by_zero` and `a_float_remainder_by_an_integer_zero_of_the_row`, each judged by Neo4j;
   Precedence2/[2] #3 passes on Postgres.
+
+### 12.91 Nanosecond values as their parts, leg 6: relationships, and the epoch carriage retired (W13, 2026-10-18)
+
+- **A relationship's temporal values are a node's.** An edge class's property holding a duration, a zoned value or a
+  value of nanosecond precision is an embedded instance of its value class (§12.59, §12.65, §12.89), as a node's is:
+  the harness declares the embedded block on the edge class (one shared reading of an embedded value's columns, its
+  mapping and its cells for node and edge tables), and finds a zoned value's precision and a named zone over the
+  relationships too, so one class per kind serves the graph. Its refusal of "a duration or a zoned value on a
+  relationship" goes, with the `TIMESTAMP_NS` column it gave a relationship's nanosecond value and that column's 1678
+  to 2261.
+- **Carried as a node's.** A relationship carried through WITH writes a nanosecond property as its parts' columns and
+  a zoned one's zone beside it (`carryRel`, as `carry`); carried again it keeps the parts' mark and its date and zone
+  columns; read back, a carried property (of a node or a relationship, alone or spelled in the value) is its parts or
+  its zone's columns (`carriedProp`, now the one reading).
+- **A model's marked column read into the parts.** A `TIMESTAMP_NS` column under the profile's marks (§12.64, lite's
+  grammar extension, S64) is read at the property into the parts: the database's date of it and its nanoseconds since
+  midnight (`dateDiff` in nanoseconds from the date, DuckDB's), a zoned value class's marked instant its UTC parts;
+  a class lacking it the parts' nulls. So nothing past the read holds §12.12's epoch carriage (a temporal value marked
+  of nanosecond precision without its parts): every place that minted it is now a check that fails loudly, and the
+  chain ran with them green on both lanes. A text printed from a nanosecond value and a duration of nanosecond
+  precision keep their marks (neither is a temporal held whole). The unit tests over a marked model
+  (CypherToPureTest) pin the parts' spelling.
+- **Pinned.** `lite/edgevalues.yaml`'s 6 cases, each judged by Neo4j: a relationship's nanosecond local values over
+  the years 1 and 2015, zoned values of an offset and a region, a duration, through two WITHs, an OPTIONAL MATCH and a
+  variable-length pattern.

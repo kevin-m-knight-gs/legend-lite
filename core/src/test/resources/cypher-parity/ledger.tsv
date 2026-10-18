@@ -4088,6 +4088,12 @@ lite/edges/an_unnamed_property_map_over_a_type_of_several_pairs	PASS	PASS
 lite/edges/a_nodes_property_map_in_an_arm_whose_class_lacks_it	PASS	PASS
 lite/edges/a_where_over_an_edge_property_one_arm_lacks	PASS	PASS
 lite/edges/an_edge_property_one_arm_lacks_read_after_the_union	PASS	PASS
+lite/edgevalues/nanosecond_values_on_a_relationship	PASS	PASS
+lite/edgevalues/zoned_values_and_a_duration_on_a_relationship	PASS	PASS
+lite/edgevalues/a_nanosecond_zoned_value_of_a_region_on_a_relationship	PASS	PASS
+lite/edgevalues/carried_through_two_withs	PASS	PASS
+lite/edgevalues/through_an_optional_match	PASS	PASS
+lite/edgevalues/along_a_variable_length_pattern	PASS	PASS
 lite/empty/empty_match_count	PASS	PASS
 lite/empty/empty_match_rows	PASS	PASS
 lite/empty/empty_match_property	PASS	PASS

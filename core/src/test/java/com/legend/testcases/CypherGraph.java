@@ -162,16 +162,20 @@ public final class CypherGraph {
         }
         // a property name's precision is the finest the graph holds under it (the study's §12.64): a time of day or
         // date-time with sub-microsecond digits on any node or relationship makes every class's property of that
-        // name a nanosecond one (a TIMESTAMP_NS column under the profile's marks), so a label-less read unites them
+        // name a nanosecond one (an embedded value of its parts, the plan's W13 legs 5 and 6), so a label-less read
+        // unites them
         Set<String> nanoNames = new HashSet<>();
-        // (a zoned value class's instant slot is marked nanoseconds when any zoned value of the graph is sub-
-        // microsecond: one class per kind, the study's §12.65)
+        // (a zoned value class holds the instant's parts in the instant's stead when any zoned value of its kind in
+        // the graph, on a node or a relationship, is sub-microsecond: one class per kind, the study's §12.65)
         boolean[] zonedNanos = new boolean[2];
         // (the zoned date-time class declares the region slot when a stored date-time of the graph is of a named
         // zone: the study's §12.75)
         boolean zonedRegion = false;
-        for (CypherAnswers.GraphNode n : g.nodes()) {
-            for (Map.Entry<String, String> p : n.props().entrySet()) {
+        List<Map<String, String>> propertySets = new ArrayList<>();
+        g.nodes().forEach(n -> propertySets.add(n.props()));
+        g.rels().forEach(r -> propertySets.add(r.props()));
+        for (Map<String, String> props : propertySets) {
+            for (Map.Entry<String, String> p : props.entrySet()) {
                 if (subMicro(p.getValue())) {
                     nanoNames.add(p.getKey());
                 }
@@ -184,13 +188,6 @@ public final class CypherGraph {
                 if (v instanceof CypherValues.Opaque o && CypherValues.zonedParts(o.text()) != null
                         && java.util.Objects.requireNonNull(CypherValues.zonedParts(o.text())).region() != null) {
                     zonedRegion = true;
-                }
-            }
-        }
-        for (CypherAnswers.GraphRel r : g.rels()) {
-            for (Map.Entry<String, String> p : r.props().entrySet()) {
-                if (subMicro(p.getValue())) {
-                    nanoNames.add(p.getKey());
                 }
             }
         }
@@ -221,7 +218,7 @@ public final class CypherGraph {
                 if (!IDENTIFIER.matcher(p.getKey()).matches()) {
                     throw new Unsupported("harness: the property " + p.getKey() + " is not a Pure identifier");
                 }
-                String type = typeOf(p.getValue(), p.getKey(), nanoNames.contains(p.getKey()), true);
+                String type = typeOf(p.getValue(), p.getKey(), nanoNames.contains(p.getKey()));
                 c.propertyTypes.put(p.getKey(), merged(c.propertyTypes.get(p.getKey()), type, c.name + "."
                         + p.getKey()));
             }
@@ -270,11 +267,9 @@ public final class CypherGraph {
                     throw new Unsupported("harness: the relationship property " + p.getKey() + " is named as the"
                             + " edge class's end or type");
                 }
-                String type = typeOf(p.getValue(), p.getKey(), nanoNames.contains(p.getKey()), false);
-                if (type.equals(DURATION) || type.equals(ZONED_TIME) || type.equals(ZONED_DATETIME)) {
-                    throw new Unsupported("harness: the relationship property " + p.getKey() + " holds a duration or a zoned"
-                            + " value (an embedded value: on a node only)");
-                }
+                // (a duration, a zoned value, a nanosecond one: an embedded value of the edge class, as a node's,
+                // the plan's W13 leg 6)
+                String type = typeOf(p.getValue(), p.getKey(), nanoNames.contains(p.getKey()));
                 t.propertyTypes.put(p.getKey(), merged(t.propertyTypes.get(p.getKey()), type, r.type() + "."
                         + p.getKey()));
             }
@@ -331,6 +326,8 @@ public final class CypherGraph {
         List<String> scope = new ArrayList<>();
         StringBuilder edgeMappings = new StringBuilder();
         List<SqlParity.Table> junctions = new ArrayList<>();
+        // (an edge class's table's DDL, by its name)
+        Map<String, String> edgeDdl = new HashMap<>();
         List<String> edgeTypes = new ArrayList<>();
         for (RelType t : types.values()) {
             Cls src = java.util.Objects.requireNonNull(t.src);
@@ -359,24 +356,37 @@ public final class CypherGraph {
                 columns.add(new SqlParity.Column("src_id", "BIGINT"));
                 columns.add(new SqlParity.Column("dst_id", "BIGINT"));
                 List<String> propertyMappings = new ArrayList<>();
+                StringBuilder ddl = new StringBuilder("    Table " + t.table()
+                        + " (id BIGINT PRIMARY KEY, src_id BIGINT, dst_id BIGINT");
                 for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
                     String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
-                    edgeClasses.append("    ").append(marks(p.getValue())).append(p.getKey()).append(": ")
-                            .append(declaredType(p.getValue())).append("[0..1];\n");
+                    edgeClasses.append("    ").append(p.getKey()).append(": ").append(p.getValue())
+                            .append("[0..1];\n");
+                    if (embeddedValue(p.getValue())) {
+                        propertyMappings.add(embeddedColumns(p.getKey(), column, p.getValue(), t.table(), zonedNanos,
+                                zonedRegion, columns, ddl));
+                        continue;
+                    }
                     columns.add(new SqlParity.Column(column, sqlType(p.getValue())));
+                    ddl.append(", ").append(column).append(' ').append(relationalType(p.getValue()));
                     propertyMappings.add("        " + p.getKey() + ": [g::DB] " + t.table() + "." + column);
                 }
                 edgeClasses.append("}\n");
+                edgeDdl.put(t.table(), ddl.append(")\n").toString());
                 List<List<Object>> rows = new ArrayList<>();
                 for (CypherAnswers.GraphRel r : t.rels) {
                     List<Object> row = new ArrayList<>();
                     row.add((long) r.id());
                     row.add((long) r.start());
                     row.add((long) r.end());
-                    for (String key : t.propertyTypes.keySet()) {
-                        String text = r.props().get(key);
-                        row.add(text == null ? null : t.propertyTypes.get(key).equals(VARIANT)
-                                ? jsonOf(CypherValues.parse(text), key, text) : cell(text, t.propertyTypes.get(key)));
+                    for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
+                        String text = r.props().get(p.getKey());
+                        if (embeddedValue(p.getValue())) {
+                            embeddedCells(text, p.getValue(), zonedNanos, zonedRegion, row);
+                            continue;
+                        }
+                        row.add(text == null ? null : p.getValue().equals(VARIANT)
+                                ? jsonOf(CypherValues.parse(text), p.getKey(), text) : cell(text));
                     }
                     rows.add(row);
                 }
@@ -531,29 +541,10 @@ public final class CypherGraph {
             List<String> propertyMappings = new ArrayList<>();
             for (Map.Entry<String, String> p : c.propertyTypes.entrySet()) {
                 String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
-                pure.append("    ").append(marks(p.getValue())).append(p.getKey()).append(": ")
-                        .append(declaredType(p.getValue())).append("[0..1];\n");
-                boolean zoned = p.getValue().equals(ZONED_TIME) || p.getValue().equals(ZONED_DATETIME);
-                boolean parts = p.getValue().equals(LOCAL_DATETIME_PARTS) || p.getValue().equals(LOCAL_TIME_PARTS);
-                if (p.getValue().equals(DURATION) || zoned || parts) {
-                    // an embedded instance: one column per slot (a duration's four BIGINTs; a zoned value's instant
-                    // and its offset, or of nanosecond precision the instant's parts; a local nanosecond value's
-                    // parts), the property mapping's embedded block
-                    List<String> slots = new ArrayList<>();
-                    List<String> slotNames = new ArrayList<>(slotsOf(p.getValue(), zonedNanos));
-                    if (p.getValue().equals(ZONED_DATETIME) && zonedRegion) {
-                        slotNames.add(ZONE_SLOT);
-                    }
-                    for (String slot : slotNames) {
-                        String slotColumn = column + "_" + slot.toLowerCase(Locale.ROOT);
-                        String type = slot.equals(ZONE_SLOT) ? "VARCHAR(4000)" : slot.equals("date") ? "DATE"
-                                : slot.equals("instant") ? "TIMESTAMP" : "BIGINT";
-                        columns.add(new SqlParity.Column(slotColumn, type));
-                        ddl.append(", ").append(slotColumn).append(' ').append(type);
-                        slots.add("            " + slot + ": [g::DB] " + c.table + "." + slotColumn);
-                    }
-                    propertyMappings.add("        " + p.getKey() + "\n        (\n" + String.join(",\n", slots)
-                            + "\n        )");
+                pure.append("    ").append(p.getKey()).append(": ").append(p.getValue()).append("[0..1];\n");
+                if (embeddedValue(p.getValue())) {
+                    propertyMappings.add(embeddedColumns(p.getKey(), column, p.getValue(), c.table, zonedNanos,
+                            zonedRegion, columns, ddl));
                     continue;
                 }
                 columns.add(new SqlParity.Column(column, sqlType(p.getValue())));
@@ -588,56 +579,13 @@ public final class CypherGraph {
                 row.add((long) n.id());
                 for (Map.Entry<String, String> p : c.propertyTypes.entrySet()) {
                     String text = n.props().get(p.getKey());
-                    if (p.getValue().equals(DURATION)) {
-                        long[] slots = text == null ? null : CypherValues.durationSlots(
-                                CypherValues.parse(text) instanceof CypherValues.Opaque o ? o.text() : text);
-                        for (int i = 0; i < DURATION_SLOTS.size(); i++) {
-                            row.add(slots == null ? null : slots[i]);
-                        }
-                        continue;
-                    }
-                    if (p.getValue().equals(LOCAL_DATETIME_PARTS) || p.getValue().equals(LOCAL_TIME_PARTS)) {
-                        // a local nanosecond value's parts: its date as written, its nanoseconds since midnight
-                        boolean time = p.getValue().equals(LOCAL_TIME_PARTS);
-                        java.util.regex.Matcher m = text == null ? null : (time ? LOCAL_TIME : LOCAL_DATE_TIME).matcher(
-                                ((CypherValues.Opaque) CypherValues.parse(text)).text());
-                        boolean found = m != null && m.matches();
-                        if (!time) {
-                            row.add(found ? m.group(1).substring(0, 10) : null);
-                        }
-                        row.add(found ? nanosOfDay(time ? m.group(1) : m.group(1).substring(11), m.group(2)) : null);
-                        continue;
-                    }
-                    if (p.getValue().equals(ZONED_TIME) || p.getValue().equals(ZONED_DATETIME)) {
-                        CypherValues.ZonedParts parts = text == null ? null : CypherValues.zonedParts(
-                                ((CypherValues.Opaque) CypherValues.parse(text)).text());
-                        boolean time = p.getValue().equals(ZONED_TIME);
-                        if (zonedNanos[time ? 0 : 1]) {
-                            // of nanosecond precision, the instant's parts: a date-time's UTC date and nanoseconds
-                            // since midnight, a time's nanoseconds from the epoch day's midnight
-                            String instant = parts == null ? null : parts.instant();
-                            Long nanos = instant == null ? null : nanosOfDay(instant.substring(11, 19),
-                                    instant.substring(20));
-                            if (!time) {
-                                row.add(instant == null ? null : instant.substring(0, 10));
-                                row.add(nanos);
-                            } else {
-                                row.add(instant == null ? null : java.time.LocalDate.parse(instant.substring(0, 10))
-                                        .toEpochDay() * 86_400_000_000_000L + java.util.Objects.requireNonNull(nanos));
-                            }
-                        } else {
-                            // (a TIMESTAMP column binds the text to the microsecond)
-                            row.add(parts == null ? null : parts.instant().substring(0, 26));
-                        }
-                        row.add(parts == null ? null : parts.offsetSeconds());
-                        if (p.getValue().equals(ZONED_DATETIME) && zonedRegion) {
-                            row.add(parts == null ? null : parts.region());
-                        }
+                    if (embeddedValue(p.getValue())) {
+                        embeddedCells(text, p.getValue(), zonedNanos, zonedRegion, row);
                         continue;
                     }
                     // (a Variant column, a list property's or a property typed two ways: the value's JSON)
                     row.add(text == null ? null : p.getValue().equals(VARIANT)
-                            ? jsonOf(CypherValues.parse(text), p.getKey(), text) : cell(text, p.getValue()));
+                            ? jsonOf(CypherValues.parse(text), p.getKey(), text) : cell(text));
                 }
                 Map<String, Long> fk = fks.getOrDefault(n.id(), Map.of());
                 for (String column : c.fkColumns.values()) {
@@ -652,14 +600,7 @@ public final class CypherGraph {
                 tablesDdl.append("    Table ").append(j.name()).append(" (src_id BIGINT, dst_id BIGINT)\n");
             } else {
                 // a bridge table: its id the relationship's identity, its ends, its properties
-                StringBuilder ddl = new StringBuilder("    Table " + j.name()
-                        + " (id BIGINT PRIMARY KEY, src_id BIGINT, dst_id BIGINT");
-                RelType t = types.values().stream().filter(x -> x.table().equals(j.name())).findFirst().orElseThrow();
-                for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
-                    ddl.append(", p_").append(p.getKey().toLowerCase(Locale.ROOT)).append(' ')
-                            .append(relationalType(p.getValue()));
-                }
-                tablesDdl.append(ddl).append(")\n");
+                tablesDdl.append(java.util.Objects.requireNonNull(edgeDdl.get(j.name())));
             }
             tables.add(j);
         }
@@ -744,24 +685,9 @@ public final class CypherGraph {
         return fraction.length() > 6 && !fraction.substring(6).matches("0+");
     }
 
-    /** The Pure type a harness type token names: a nanosecond time of day or date-time is a DateTime under the
-     *  profile's marks ({@link #marks}). */
-    private static String declaredType(String type) {
-        return type.equals(NANOS_TIME) || type.equals(NANOS_DATETIME) ? "DateTime" : type;
-    }
-
-    /** The profile's marks a harness type token carries, spelled before the property: {@code <<graph::graph
-     *  .timeOfDay, graph::graph.nanoseconds>>} for a nanosecond time of day, {@code <<graph::graph.nanoseconds>>}
-     *  for a nanosecond date-time (the study's §12.64); nothing otherwise. */
-    private static String marks(String type) {
-        return type.equals(NANOS_TIME) ? "<<graph::graph.timeOfDay, graph::graph.nanoseconds>> "
-                : type.equals(NANOS_DATETIME) ? "<<graph::graph.nanoseconds>> " : "";
-    }
-
-    /** The harness's type of a property's value: a Pure type's name, the Variant, a value class, or a token for a
-     *  nanosecond time of day or date-time ({@code nanos}: the property name's precision across the graph;
-     *  {@code embedded}: a node's property, which an embedded value class may hold). */
-    private static String typeOf(String valueText, String key, boolean nanos, boolean embedded) throws Unsupported {
+    /** The harness's type of a property's value: a Pure type's name, the Variant, or a value class
+     *  ({@code nanos}: the property name's precision across the graph). */
+    private static String typeOf(String valueText, String key, boolean nanos) throws Unsupported {
         CypherValues.Value v = CypherValues.parse(valueText);
         return switch (v) {
             case CypherValues.Int i -> "Integer";
@@ -775,24 +701,14 @@ public final class CypherGraph {
                 jsonOf(l, key, valueText);
                 yield VARIANT;
             }
-            // a nanosecond date-time: on a node, an embedded instance of the value class of its parts (its date and
-            // its nanoseconds since midnight, the plan's W13 leg 5: every database holds them, over every year its
-            // DATE does); on a relationship (no embedded value there), a TIMESTAMP_NS column under the profile's
-            // nanoseconds mark (the study's §12.64), which holds the years 1678 to 2261 (DuckDB's, measured)
+            // a date-time: of nanosecond precision, an embedded instance of the value class of its parts (its date
+            // and its nanoseconds since midnight, the plan's W13 legs 5 and 6: every database holds them, over every
+            // year its DATE does), on a node or a relationship
             case CypherValues.Opaque o when LOCAL_DATE_TIME.matcher(o.text()).matches() -> {
                 java.util.regex.Matcher m = LOCAL_DATE_TIME.matcher(o.text());
                 m.matches();
-                if (nanos && embedded) {
-                    yield LOCAL_DATETIME_PARTS;
-                }
                 if (nanos) {
-                    int year = Integer.parseInt(m.group(1).substring(0, 4));
-                    if (year < 1678 || year > 2261) {
-                        throw new Unsupported("harness: the property " + key + " holds a nanosecond date-time of the"
-                                + " year " + year + " (" + valueText + "; the database's nanosecond timestamps hold"
-                                + " 1678 to 2261)");
-                    }
-                    yield NANOS_DATETIME;
+                    yield LOCAL_DATETIME_PARTS;
                 }
                 String fraction = m.group(2);
                 if (fraction.length() > 6 && !fraction.substring(6).matches("0+")) {
@@ -803,12 +719,10 @@ public final class CypherGraph {
             // a time of day: lite's TIME store column (the relational grammar's extension, docs/SEMANTICS_REGISTER.md
             // S64 revised 2026-10-17), the property a StrictTime; its offset, where it has one, is a column beside
             // it (a zoned time: not yet)
-            // (a nanosecond time of day, the study's §12.64: a TIMESTAMP_NS column holding the date-time at it on
-            // the epoch day, under the profile's timeOfDay and nanoseconds marks)
+            // (of nanosecond precision, the value class of its nanoseconds since midnight, W13 legs 5 and 6)
             case CypherValues.Opaque o when LOCAL_TIME.matcher(o.text()).matches() -> {
                 if (nanos) {
-                    // (on a node, the value class of its nanoseconds since midnight, W13 leg 5)
-                    yield embedded ? LOCAL_TIME_PARTS : NANOS_TIME;
+                    yield LOCAL_TIME_PARTS;
                 }
                 String fraction = LOCAL_TIME.matcher(o.text()).replaceAll("$2");
                 if (fraction.length() > 6 && !fraction.substring(6).matches("0+")) {
@@ -909,6 +823,85 @@ public final class CypherGraph {
         };
     }
 
+    /** Whether a harness type is a value class a property holds as an embedded instance (a duration, a zoned
+     *  value, a nanosecond value's parts): one column per slot, the property mapping's embedded block. */
+    private static boolean embeddedValue(String type) {
+        return type.equals(DURATION) || type.equals(ZONED_TIME) || type.equals(ZONED_DATETIME)
+                || type.equals(LOCAL_DATETIME_PARTS) || type.equals(LOCAL_TIME_PARTS);
+    }
+
+    /** The columns of {@code property}'s embedded instance of {@code type} in {@code table}, one per slot (a
+     *  duration's four BIGINTs; a zoned value's instant and offset, or of nanosecond precision the instant's parts,
+     *  and a date-time's region where the graph names one; a local nanosecond value's parts), added to
+     *  {@code columns} and {@code ddl}; the property mapping's embedded block. */
+    private static String embeddedColumns(String property, String column, String type, String table,
+            boolean[] zonedNanos, boolean zonedRegion, List<SqlParity.Column> columns, StringBuilder ddl) {
+        List<String> slots = new ArrayList<>();
+        List<String> slotNames = new ArrayList<>(slotsOf(type, zonedNanos));
+        if (type.equals(ZONED_DATETIME) && zonedRegion) {
+            slotNames.add(ZONE_SLOT);
+        }
+        for (String slot : slotNames) {
+            String slotColumn = column + "_" + slot.toLowerCase(Locale.ROOT);
+            String sql = slot.equals(ZONE_SLOT) ? "VARCHAR(4000)" : slot.equals("date") ? "DATE"
+                    : slot.equals("instant") ? "TIMESTAMP" : "BIGINT";
+            columns.add(new SqlParity.Column(slotColumn, sql));
+            ddl.append(", ").append(slotColumn).append(' ').append(sql);
+            slots.add("            " + slot + ": [g::DB] " + table + "." + slotColumn);
+        }
+        return "        " + property + "\n        (\n" + String.join(",\n", slots) + "\n        )";
+    }
+
+    /** The cells of an embedded instance of {@code type} the scenario's {@code text} spells (nulls for none), in
+     *  {@link #embeddedColumns}' order: the seed's own reading of the scenario's text, the data the lane is seeded
+     *  with. */
+    private static void embeddedCells(@com.legend.base.Nullable String text, String type, boolean[] zonedNanos,
+            boolean zonedRegion, List<Object> row) {
+        if (type.equals(DURATION)) {
+            long[] slots = text == null ? null : CypherValues.durationSlots(
+                    CypherValues.parse(text) instanceof CypherValues.Opaque o ? o.text() : text);
+            for (int i = 0; i < DURATION_SLOTS.size(); i++) {
+                row.add(slots == null ? null : slots[i]);
+            }
+            return;
+        }
+        if (type.equals(LOCAL_DATETIME_PARTS) || type.equals(LOCAL_TIME_PARTS)) {
+            // a local nanosecond value's parts: its date as written, its nanoseconds since midnight
+            boolean time = type.equals(LOCAL_TIME_PARTS);
+            java.util.regex.Matcher m = text == null ? null : (time ? LOCAL_TIME : LOCAL_DATE_TIME).matcher(
+                    ((CypherValues.Opaque) CypherValues.parse(text)).text());
+            boolean found = m != null && m.matches();
+            if (!time) {
+                row.add(found ? m.group(1).substring(0, 10) : null);
+            }
+            row.add(found ? nanosOfDay(time ? m.group(1) : m.group(1).substring(11), m.group(2)) : null);
+            return;
+        }
+        CypherValues.ZonedParts parts = text == null ? null : CypherValues.zonedParts(
+                ((CypherValues.Opaque) CypherValues.parse(text)).text());
+        boolean time = type.equals(ZONED_TIME);
+        if (zonedNanos[time ? 0 : 1]) {
+            // of nanosecond precision, the instant's parts: a date-time's UTC date and nanoseconds since midnight, a
+            // time's nanoseconds from the epoch day's midnight
+            String instant = parts == null ? null : parts.instant();
+            Long nanos = instant == null ? null : nanosOfDay(instant.substring(11, 19), instant.substring(20));
+            if (!time) {
+                row.add(instant == null ? null : instant.substring(0, 10));
+                row.add(nanos);
+            } else {
+                row.add(instant == null ? null : java.time.LocalDate.parse(instant.substring(0, 10)).toEpochDay()
+                        * 86_400_000_000_000L + java.util.Objects.requireNonNull(nanos));
+            }
+        } else {
+            // (a TIMESTAMP column binds the text to the microsecond)
+            row.add(parts == null ? null : parts.instant().substring(0, 26));
+        }
+        row.add(parts == null ? null : parts.offsetSeconds());
+        if (type.equals(ZONED_DATETIME) && zonedRegion) {
+            row.add(parts == null ? null : parts.region());
+        }
+    }
+
     /** The nanoseconds since midnight a clock {@code HH:mm:ss} and its fraction's digits spell (the seed's own
      *  arithmetic over the scenario's text: the data the lane is seeded with, not a value of the query's). */
     private static long nanosOfDay(String clock, String fraction) {
@@ -929,11 +922,6 @@ public final class CypherGraph {
             "Time\\('(\\d\\d:\\d\\d:\\d\\d)\\.(\\d+)'\\)");
 
     private static final String VARIANT = "meta::pure::metamodel::variant::Variant";
-    /** The harness's tokens for a nanosecond time of day and date-time (the study's §12.64): a DateTime property
-     *  under the profile's marks over a TIMESTAMP_NS column; never a Variant's kind. */
-    private static final String NANOS_TIME = "DateTime<timeOfDay>";
-    private static final String NANOS_DATETIME = "DateTime<nanoseconds>";
-
     /** The types a Variant column holds as JSON (an integer, a float, a string, a boolean, a list). */
     private static final Set<String> VARIANT_SPELLED = Set.of("Integer", "Float", "String", "Boolean", VARIANT);
 
@@ -969,17 +957,9 @@ public final class CypherGraph {
     private static final java.util.regex.Pattern LOCAL_DATE_TIME = java.util.regex.Pattern.compile(
             "DateTime\\('(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})\\.(\\d{1,9})'\\)");
 
-    /** A stored value as the seed binds it; a nanosecond time of day or date-time as its full text (a time on the
-     *  epoch day), which the seed casts to the TIMESTAMP_NS column (the driver's timestamp keeps microseconds). */
-    private static Object cell(String text, String type) {
+    /** A stored value as the seed binds it (a value class's cells are {@link #embeddedCells}'). */
+    private static Object cell(String text) {
         CypherValues.Value v = CypherValues.parse(text);
-        if (type.equals(NANOS_TIME) || type.equals(NANOS_DATETIME)) {
-            java.util.regex.Matcher m = (type.equals(NANOS_TIME) ? LOCAL_TIME : LOCAL_DATE_TIME)
-                    .matcher(((CypherValues.Opaque) v).text());
-            m.matches();
-            return (type.equals(NANOS_TIME) ? "1970-01-01 " + m.group(1) : m.group(1).replace('T', ' ')) + "."
-                    + m.group(2);
-        }
         return switch (v) {
             case CypherValues.Int i -> i.value().longValueExact();
             case CypherValues.Flt f -> f.value();
@@ -1023,8 +1003,6 @@ public final class CypherGraph {
             case "DateTime" -> "TIMESTAMP";
             case "StrictTime" -> "TIME";
             case VARIANT -> "JSONB";
-            // (the lane's column; a microsecond engine's seed refuses it by name, as its DDL does)
-            case NANOS_TIME, NANOS_DATETIME -> "TIMESTAMP_NS";
             default -> throw new IllegalStateException(pureType);
         };
     }
@@ -1039,7 +1017,6 @@ public final class CypherGraph {
             case "DateTime" -> "TIMESTAMP";
             case "StrictTime" -> "TIME";
             case VARIANT -> "SEMISTRUCTURED";
-            case NANOS_TIME, NANOS_DATETIME -> "TIMESTAMP_NS";
             default -> throw new IllegalStateException(pureType);
         };
     }

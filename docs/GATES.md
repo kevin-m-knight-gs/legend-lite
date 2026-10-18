@@ -11899,3 +11899,15 @@ same census on both (PASS 3970 / REFUSED 259 / BOTH_ERROR 770 / SKIP 36, of 5035
 3597, Postgres 3596 → 3597 (Precedence2/[2] #3); the oracle check 0 problems; the chain's 40 guard targets green.
 What the TCK holds outside the write clauses (and the control queries of their scenarios) on either lane: the 2
 signed years past every database's dates and 3 setups Neo4j refuses.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-ninth landing — nanosecond values as their parts, leg 6: relationships
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.91, the plan's W13 leg 6. A relationship's
+duration, zoned value and nanosecond value are embedded instances of their value classes, as a node's (the harness's
+edge classes declare them; its refusal of such a value on a relationship and its `TIMESTAMP_NS` edge column go);
+carried through WITH as a node's (parts and zone columns, kept when carried again). A model's `TIMESTAMP_NS` column
+under the profile's marks is read into the parts at the property, so nothing past the read holds §12.12's epoch
+carriage: each place that minted it is a check that fails loudly, green on both lanes. `lite/edgevalues.yaml` (6
+cases); CypherToPureTest's marked-model pins re-spelled over the parts. Both lanes in update mode, FAIL/BUG/ERROR at
+zero, the same census on both (PASS 3976 / REFUSED 259 / BOTH_ERROR 770 / SKIP 36, of 5041 cases); TCK agreement
+3597 on both, unchanged; the oracle check 0 problems; the chain's 40 guard targets green.

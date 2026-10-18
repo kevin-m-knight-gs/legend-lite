@@ -516,6 +516,12 @@ rows (S71's 372 at render, 38 at seeding, 7 by year); not the 2 signed years (be
   the write clauses is refused for a nanosecond value on either lane. Next, leg 6: a relationship's stored nanosecond
   value (an edge class's `TIMESTAMP_NS` column, which no TCK row needs) onto the parts, the island's
   `TIMESTAMP_NS` carriage and the profile's marks retired, S71 revised in full.
+- Leg 6 LANDED 2026-10-18 (the study's §12.91, GATES' eighty-ninth landing; TCK agreement 3597 on both lanes,
+  unchanged; PASS 3976 on both): a relationship's temporal values as a node's (embedded value classes, carried as
+  parts and zones); a model's marked `TIMESTAMP_NS` column read into the parts at the property, so the epoch carriage
+  is minted nowhere (each former mint a loud check, green on both lanes). The profile's marks stay: a model's own
+  `TIMESTAMP_NS` column is read through them (S64). Left: deleting the carriage's now-unreachable branches (the
+  operations spelled over the nanosecond epoch), a cleanup with no behavior.
 
 ## 3. Decisions asked of the user
 
