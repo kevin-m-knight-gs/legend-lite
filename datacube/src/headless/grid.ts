@@ -15,9 +15,9 @@ import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { nameProblem } from '../calc.ts';
 import { chartFrom, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
-import { draftCandidate, draftColumn, draftStage, newDraft } from '../column-draft.ts';
+import { draftCandidate, draftStage, newDraft } from '../column-draft.ts';
 import { CubeController, type CubeView } from '../cube.ts';
-import { fold, type CubeState } from '../cube-state.ts';
+import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
   cubeToJson, frameSource, gridCapped, openCube, readCube, rebuilt, writeCube,
   type OpenedCube,
@@ -32,7 +32,7 @@ import {
 import { FormatterCache } from '../format.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import {
-  APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, applyToSnapshot, fromSnapshot, withConfiguration, type CubeConfiguration,
+  APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, applyToSnapshot, withConfiguration, type CubeConfiguration,
   type Patch,
 } from '../config.ts';
 import {
@@ -94,10 +94,9 @@ async function opened(spec: GridSpec): Promise<Opened> {
   const { planner, relation, columns } = await typed(spec);
   try {
     const was = openCube(readCube(fromJson(spec.cube)), { query: relation }, columns);
-    // the configuration the screen opens on: the saved one, with what the query carries read back (app.ts's
-    // constructor) -- a column's kind or Aggregation the document holds only in its query is kept, not folded away
-    const cube = { ...was, configuration: fromSnapshot(was.snapshot, was.configuration) };
-    return { planner, cube, state: fold({ snapshot: cube.snapshot, configuration: cube.configuration, tree: cube.tree }) };
+    // the cube as the screen opens it (cube-state.ts openedState): what the query carries read back, then folded
+    const state = openedState(was.snapshot, was.configuration, was.tree);
+    return { planner, cube: { ...was, configuration: state.configuration }, state };
   } catch (e) {
     planner.dispose();
     throw e;
@@ -127,14 +126,13 @@ export async function gridCube(spec: FrameSpec, saved: string | null, name: stri
   try {
     const was = saved === null ? undefined : readCube(fromJson(saved));
     const made = rebuilt(was, relation, columns, label, gridCapped(gridsOnPage));
-    // written as the screen writes a grid's state: its configuration folded into its query (cube-state.ts fold), as
-    // the screen's state owner holds every state -- a new grid's raw rows written unfolded were another document than
-    // the screen's for the same grid (parity.json's "a new grid")
-    const tree = made.tree ?? TreeState.empty();
-    const { snapshot } = fold({ snapshot: made.snapshot, configuration: made.configuration, tree });
+    // written as the screen holds the grid it opens (cube-state.ts openedState): what the query carries read back, then
+    // folded -- a new grid's raw rows written unfolded were another document than the screen's (parity.json's "a new
+    // grid"), and a saved cube folded without the read-back lost what only its query carried
+    const state = openedState(made.snapshot, made.configuration, made.tree ?? TreeState.empty());
     const cube = writeCube({
-      name, source: frameSource(spec.frame, columns), snapshot, configuration: made.configuration,
-      tree, ...(was?.unknown ? { unknown: was.unknown } : {}),
+      name, source: frameSource(spec.frame, columns), snapshot: state.snapshot, configuration: state.configuration,
+      tree: state.tree, ...(was?.unknown ? { unknown: was.unknown } : {}),
     });
     return JSON.stringify({ cube: cubeToJson(cube), notes: made.notes, changed: made.changed });
   } finally {
@@ -185,13 +183,15 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
  * editor starts one (newDraft) -- named as calc.ts nameProblem allows, its expression (the whole lambda,
  * `x|$x.qty * 2`) parsed by the planner, the cube with it (draftCandidate) compiled as a refresh would send it
  * (CubeController.compile: its columns typed, then every query, window and child columns too) -- so Python checks no
- * calculated column by rules of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). JSON: `{derived}`, the column
- * as the cube document holds it (its text: its lambda's numbers exact), or `{problems}`, why it was refused, in
- * DataCube's words.
+ * calculated column by rules of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). JSON: `{cube, notes}`, the
+ * cube document with it as the screen writes the editor's Apply (app.ts #setCalc: the editor's two lists set, the
+ * columns typed as the run that lands types them, the state folded), and what opening it over its source changed; or
+ * `{problems}`, why it was refused, in DataCube's words. Python keeps the document, never a column it adds itself
+ * (parity.json's "a calculated column": the column Python appended was untyped, and its query had no group list).
  */
 export async function gridCalculate(spec: GridSpec, name: string, expression: string,
   kind: ColumnKind | null): Promise<string> {
-  return using(spec, async ({ planner, state }) => {
+  return using(spec, async ({ planner, cube, state }) => {
     if (kind !== null && !COLUMN_KINDS.includes(kind)) {
       const kinds = COLUMN_KINDS.map((k) => `'${k}'`).join(' or ');
       return JSON.stringify({ problems: [`a column's kind is ${kinds}, not '${String(kind)}'`] });
@@ -211,7 +211,14 @@ export async function gridCalculate(spec: GridSpec, name: string, expression: st
     const snapshot = draftCandidate(state.snapshot, undefined, draft, lambda);
     const outcome = await compiled(planner, { snapshot, tree: state.tree });
     if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
-    return JSON.stringify({ derived: toJson(draftColumn(draft, lambda)) });
+    // as the screen's state lands after Apply: its columns typed by the run (the controller's step 0), folded
+    const landed = fold({ snapshot: await typedColumns(planner, snapshot), configuration: state.configuration, tree: state.tree });
+    const doc = readCube(fromJson(spec.cube));
+    const written = writeCube({
+      name: doc.name, source: doc.source, snapshot: landed.snapshot, configuration: landed.configuration, tree: landed.tree,
+      ...(doc.unknown ? { unknown: doc.unknown } : {}),
+    });
+    return JSON.stringify({ cube: cubeToJson(written), notes: cube.notes });
   });
 }
 

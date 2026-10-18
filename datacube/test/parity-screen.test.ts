@@ -12,8 +12,7 @@
 // (the paths without their leading slash, as runfiles take them) -- and the diff read before it is committed.
 
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
@@ -40,16 +39,22 @@ type Action =
   | { readonly do: 'kind'; readonly column: string; readonly kind: 'dimension' | 'measure' }
   | { readonly do: 'heatmap'; readonly column: string; readonly from: string; readonly to: string }
   | { readonly do: 'hide'; readonly column: string }
-  | { readonly do: 'filter'; readonly column: string; readonly operator: 'equal'; readonly value: string };
+  | { readonly do: 'filter'; readonly column: string; readonly operator: 'equal'; readonly value: string | number; readonly cell?: string }
+  | { readonly do: 'wavg'; readonly column: string; readonly weight: string }
+  | { readonly do: 'calculate'; readonly name: string; readonly expression: string };
 
 interface Case {
   readonly name: string;
+  /** A page's second grid: capped at the row limit, as the page caps a grid that is not its only one. */
+  readonly capped?: boolean;
   readonly actions: readonly Action[];
   cube: unknown;
 }
 
 interface Fixture {
   readonly about: string;
+  /** The columns whose values are dates, as ISO text. */
+  readonly dates: readonly string[];
   readonly page: string;
   readonly frame: string;
   readonly columns: readonly string[];
@@ -69,6 +74,7 @@ before(async () => {
   // the frame's rows, read into the tab's DuckDB as a picked file is (upload.ts): its model legend-lite's writer's
   const db = await openDatabase();
   engine = new DuckDbEngine(db.connection);
+  // a date as ISO text, which the file's reader types as a date (as Python's frame types a datetime.date)
   const csv = [fixture.columns.join(','), ...fixture.rows.map((r) => r.join(','))].join('\n');
   const r = await ingestFile(engine, db.files, new File([csv], `${fixture.frame}.csv`), plannerFor('', 'local::RT'));
   planner = plannerFor(r.model, r.runtime);
@@ -90,7 +96,7 @@ class Screen {
   readonly statuses: [string, string][] = [];
   readonly app: CubeApp;
 
-  constructor() {
+  constructor(capped: boolean) {
     (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = (fn: () => void) => {
       fn();
       return 0;
@@ -99,7 +105,7 @@ class Screen {
     Object.defineProperty(this.dom.window.HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 400 });
     const root = this.dom.window.document.getElementById('r') as HTMLElement;
     // a new grid over the frame, as sources.ts makes one (cube-document.ts rebuilt) and Python's gridCube makes one
-    const made = rebuilt(undefined, source, columns, fixture.frame, false);
+    const made = rebuilt(undefined, source, columns, fixture.frame, capped);
     this.app = new CubeApp(root, made.snapshot, {
       engine,
       planner,
@@ -143,21 +149,31 @@ class Screen {
     await this.idle();
   }
 
-  /** Column Properties on `column`'s header, a field set to `value`, then OK. */
-  async properties(column: string, field: string, value: string): Promise<void> {
+  /** Column Properties on `column`'s header, each field set in turn (`[label, value]`), then OK. */
+  async properties(column: string, ...fields: readonly (readonly [string, string])[]): Promise<void> {
     await this.menu(this.header(column), 'Properties...');
     const win = this.dom.window.document.querySelector<HTMLElement>('[data-window="Properties"]');
     assert.ok(win, 'the Properties window');
-    const select = [...win.querySelectorAll('.dc-field')]
-      .find((f) => f.querySelector('.dc-field-label')?.textContent === field)?.querySelector('select');
-    assert.ok(select, `Column Properties has "${field}"`);
-    select.value = value;
-    assert.equal(select.value, value, `"${field}" offers ${value}`);
-    select.dispatchEvent(new this.dom.window.Event('change'));
+    for (const [field, value] of fields) {
+      // the panel draws again after a change (a weight column is offered once the Aggregation takes one)
+      const select: HTMLSelectElement | null | undefined = [...win.querySelectorAll('.dc-field')]
+        .find((f) => f.querySelector('.dc-field-label')?.textContent === field)?.querySelector('select');
+      assert.ok(select, `Column Properties has "${field}"`);
+      select.value = value;
+      assert.equal(select.value, value, `"${field}" offers ${value}`);
+      select.dispatchEvent(new this.dom.window.Event('change'));
+      await new Promise((r) => setTimeout(r, 0));
+    }
     const ok = [...win.querySelectorAll<HTMLButtonElement>('.dc-editor-footer button')].find((b) => b.textContent === 'OK');
     assert.ok(ok, 'the window has OK');
     ok.click();
     await this.idle();
+  }
+
+  /** Until `ready` holds: the editor checks a column live, a moment after the typing stops. */
+  async until(ready: () => boolean, what: string): Promise<void> {
+    for (let i = 0; i < 500 && !ready(); i += 1) await new Promise((r) => setTimeout(r, 20));
+    assert.ok(ready(), what);
   }
 
   async act(a: Action): Promise<void> {
@@ -181,9 +197,30 @@ class Screen {
         assert.deepEqual(this.app.snapshot.sorts.find((s) => s.column === a.column)?.direction, a.direction);
         return;
       case 'aggregate':
-        return this.properties(a.column, 'Aggregation:', a.fn);
+        return this.properties(a.column, ['Aggregation:', a.fn]);
       case 'kind':
-        return this.properties(a.column, 'Column Kind:', a.kind);
+        return this.properties(a.column, ['Column Kind:', a.kind]);
+      case 'wavg':
+        return this.properties(a.column, ['Aggregation:', 'wavg'], ['Weight column:', a.weight]);
+      case 'calculate': {
+        // Extended Columns > Add New Column..., its name and expression typed, OK once the compiler's check passes
+        await this.menu(this.header(columns[0]!.name), 'Add New Column...');
+        const doc = this.dom.window.document;
+        const type = (selector: string, text: string): void => {
+          const input = doc.querySelector<HTMLInputElement>(selector);
+          assert.ok(input, `the column editor has ${selector}`);
+          input.value = text;
+          input.dispatchEvent(new this.dom.window.Event('input'));
+        };
+        type('.dc-calc-input-name', a.name);
+        type('.dc-calc-input-expr', a.expression);
+        const ok = (): HTMLButtonElement | null => doc.querySelector<HTMLButtonElement>('.dc-calc-ok');
+        await this.until(() => ok()?.disabled === false,
+          `the editor's check passes: ${doc.querySelector('.dc-calc-check')?.textContent ?? ''}`);
+        ok()!.click();
+        await this.until(() => !this.app.busy && this.app.snapshot.derived.some((d) => d.name === a.name), 'the column is added');
+        return this.idle();
+      }
       case 'heatmap':
         await this.menu(this.header(a.column), `Add Heatmap to ${columnLabel(a.column)}`);
         // the colours the menu sets are the ones the case gives Python's call
@@ -192,11 +229,18 @@ class Screen {
       case 'hide':
         return this.menu(this.header(a.column), `Hide ${columnLabel(a.column)}`);
       case 'filter': {
+        // the screen's one-click filter is "=" on the cell's own value
+        assert.equal(a.operator, 'equal', "a cell's menu filters with = alone");
+        const shown = a.cell ?? String(a.value);
         const cell = [...this.dom.window.document.querySelectorAll<HTMLElement>('.dc-cell')]
-          .find((c) => c.textContent === a.value);
-        assert.ok(cell, `the grid shows a cell of ${a.value}`);
-        return this.menu(cell, `Add Filter: ${a.column} = ${valueLabel(a.value)}`);
+          .find((c) => c.textContent === shown);
+        assert.ok(cell, `the grid shows a cell of ${shown}`);
+        await this.menu(cell, `Add Filter: ${a.column} = ${typeof a.value === 'number' ? String(a.value) : valueLabel(a.value)}`);
+        return;
       }
+      default:
+        // an action this driver does not do fails here, never passes as no edit (PARITY_UPDATE would keep it so)
+        throw new Error(`parity.json names an action the screen does not do: ${JSON.stringify(a satisfies never)}`);
     }
   }
 
@@ -209,7 +253,7 @@ class Screen {
 describe('the screen writes the cube document Python writes, case by case (parity.json)', () => {
   for (const c of fixture.cases) {
     it(c.name, async () => {
-      const screen = new Screen();
+      const screen = new Screen(c.capped === true);
       try {
         await screen.app.open();
         await screen.idle();

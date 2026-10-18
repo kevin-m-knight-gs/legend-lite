@@ -1,10 +1,11 @@
 {
-  "about": "Screen and Python parity (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 1): each case is a new grid over the frame below, then its actions -- done by a person on the screen (test/parity-screen.test.ts) and by Python's Page and Grid (python/tests/test_headless.py) -- and `cube` is the cube document both must write. The actions are the coming command program's commands, named as a person names them. Regenerate the documents with the screen test's PARITY_UPDATE (its header says how); never by hand.",
+  "about": "Screen and Python parity (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 1): each case is a new grid over the frame below, then its actions -- done by a person on the screen (test/parity-screen.test.ts) and by Python's Page and Grid (python/tests/test_headless.py) -- and `cube` is the cube document both must write. A case `capped` is a page's second grid (capped at the row limit, as the page caps one). A filter's `cell` is the text the screen shows for its value. The actions are the coming command program's commands, named as a person names them. Regenerate the documents with the screen test's PARITY_UPDATE (its header says how); never by hand.",
   "page": "parity",
   "frame": "trades",
   "columns": [
     "region",
     "desk",
+    "traded",
     "notional",
     "qty"
   ],
@@ -12,30 +13,35 @@
     [
       "EMEA",
       "Rates",
+      "2024-01-02",
       1200.5,
       10
     ],
     [
       "EMEA",
       "FX",
+      "2024-01-15",
       300.25,
       3
     ],
     [
       "AMER",
       "Rates",
+      "2024-02-03",
       800.5,
       8
     ],
     [
       "AMER",
       "FX",
+      "2024-02-20",
       150.75,
       2
     ],
     [
       "APAC",
       "Rates",
+      "2024-03-04",
       410.5,
       4
     ]
@@ -60,6 +66,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -90,6 +100,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -137,6 +151,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -167,6 +185,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -215,6 +237,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -246,6 +272,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -299,6 +329,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -331,6 +365,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -383,6 +421,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -418,6 +460,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -470,6 +516,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -505,6 +555,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -562,6 +616,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "aggregate": "average",
               "name": "notional",
               "type": "Float"
@@ -593,6 +651,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -652,6 +714,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -685,6 +751,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -746,6 +816,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -776,6 +850,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -832,6 +910,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -862,6 +944,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -929,6 +1015,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -961,6 +1051,10 @@
             {
               "name": "desk",
               "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
             },
             {
               "name": "notional",
@@ -1008,6 +1102,10 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -1044,6 +1142,1832 @@
               "type": "String"
             },
             {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a page's second grid, capped",
+      "capped": true,
+      "actions": [],
+      "cube": {
+        "configuration": {
+          "maxRows": 1000,
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "leafCount": false,
+          "maxRows": 1000,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a date filter from a cell",
+      "actions": [
+        {
+          "do": "filter",
+          "column": "traded",
+          "operator": "equal",
+          "value": "2024-01-02",
+          "cell": "Jan 02, 2024"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "filter": {
+            "column": "traded",
+            "kind": "condition",
+            "operator": "equal",
+            "value": "2024-01-02"
+          },
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a number filter from a cell",
+      "actions": [
+        {
+          "do": "filter",
+          "column": "qty",
+          "operator": "equal",
+          "value": 10,
+          "cell": "10"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "filter": {
+            "column": "qty",
+            "kind": "condition",
+            "operator": "equal",
+            "value": 10
+          },
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "two filters from cells",
+      "actions": [
+        {
+          "do": "filter",
+          "column": "region",
+          "operator": "equal",
+          "value": "EMEA"
+        },
+        {
+          "do": "filter",
+          "column": "desk",
+          "operator": "equal",
+          "value": "Rates"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "filter": {
+            "children": [
+              {
+                "column": "region",
+                "kind": "condition",
+                "operator": "equal",
+                "value": "EMEA"
+              },
+              {
+                "column": "desk",
+                "kind": "condition",
+                "operator": "equal",
+                "value": "Rates"
+              }
+            ],
+            "kind": "and"
+          },
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a filter, then grouped",
+      "actions": [
+        {
+          "do": "filter",
+          "column": "region",
+          "operator": "equal",
+          "value": "EMEA"
+        },
+        {
+          "do": "group",
+          "rows": [
+            "desk"
+          ]
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "filter": {
+            "column": "region",
+            "kind": "condition",
+            "operator": "equal",
+            "value": "EMEA"
+          },
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "desk"
+          ],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a sort chain from the menu",
+      "actions": [
+        {
+          "do": "group",
+          "rows": [
+            "region"
+          ]
+        },
+        {
+          "do": "addSort",
+          "column": "notional",
+          "direction": "desc"
+        },
+        {
+          "do": "addSort",
+          "column": "qty",
+          "direction": "asc"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "region"
+          ],
+          "sorts": [
+            {
+              "column": "notional",
+              "direction": "desc"
+            },
+            {
+              "column": "qty",
+              "direction": "asc"
+            }
+          ],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "one column sorted again from the menu",
+      "actions": [
+        {
+          "do": "group",
+          "rows": [
+            "region"
+          ]
+        },
+        {
+          "do": "addSort",
+          "column": "notional",
+          "direction": "desc"
+        },
+        {
+          "do": "addSort",
+          "column": "qty",
+          "direction": "asc"
+        },
+        {
+          "do": "addSort",
+          "column": "notional",
+          "direction": "asc"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "region"
+          ],
+          "sorts": [
+            {
+              "column": "qty",
+              "direction": "asc"
+            },
+            {
+              "column": "notional",
+              "direction": "asc"
+            }
+          ],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "regrouped after a sort",
+      "actions": [
+        {
+          "do": "group",
+          "rows": [
+            "region"
+          ]
+        },
+        {
+          "do": "addSort",
+          "column": "notional",
+          "direction": "desc"
+        },
+        {
+          "do": "group",
+          "rows": [
+            "desk"
+          ]
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "desk"
+          ],
+          "sorts": [
+            {
+              "column": "notional",
+              "direction": "desc"
+            }
+          ],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a pivot total sorted by a header click",
+      "actions": [
+        {
+          "do": "group",
+          "rows": [
+            "region"
+          ]
+        },
+        {
+          "do": "pivot",
+          "columns": [
+            "desk"
+          ]
+        },
+        {
+          "do": "headerSort",
+          "column": "__pivot_total____|__notional",
+          "direction": "desc"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "leafCount": false,
+          "pivotOn": [
+            "desk"
+          ],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "region"
+          ],
+          "sorts": [
+            {
+              "column": "__pivot_total____|__notional",
+              "direction": "desc"
+            }
+          ],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "an Aggregation, then pivoted",
+      "actions": [
+        {
+          "do": "aggregate",
+          "column": "notional",
+          "fn": "average"
+        },
+        {
+          "do": "group",
+          "rows": [
+            "region"
+          ]
+        },
+        {
+          "do": "pivot",
+          "columns": [
+            "desk"
+          ]
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "columns": {
+            "notional": {
+              "aggregateFn": "average"
+            }
+          },
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "aggregate": "average",
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "leafCount": false,
+          "pivotOn": [
+            "desk"
+          ],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "region"
+          ],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a dimension pivoted",
+      "actions": [
+        {
+          "do": "kind",
+          "column": "qty",
+          "kind": "dimension"
+        },
+        {
+          "do": "group",
+          "rows": [
+            "region"
+          ]
+        },
+        {
+          "do": "pivot",
+          "columns": [
+            "qty"
+          ]
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "columns": {
+            "qty": {
+              "excludedFromPivot": true,
+              "kind": "dimension"
+            }
+          },
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "excludedFromPivot": true,
+              "kind": "dimension",
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "leafCount": false,
+          "pivotOn": [
+            "qty"
+          ],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "region"
+          ],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "grouped by a date",
+      "actions": [
+        {
+          "do": "group",
+          "rows": [
+            "region",
+            "traded"
+          ]
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "region",
+            "traded"
+          ],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a column hidden and another heat-mapped",
+      "actions": [
+        {
+          "do": "group",
+          "rows": [
+            "region"
+          ]
+        },
+        {
+          "do": "hide",
+          "column": "desk"
+        },
+        {
+          "do": "heatmap",
+          "column": "qty",
+          "from": "#ffffff",
+          "to": "#ff8a65"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "columns": {
+            "desk": {
+              "hidden": true
+            },
+            "qty": {
+              "heatmap": {
+                "from": "#ffffff",
+                "to": "#ff8a65"
+              }
+            }
+          },
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "region"
+          ],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a weighted average set in Column Properties",
+      "actions": [
+        {
+          "do": "group",
+          "rows": [
+            "region"
+          ]
+        },
+        {
+          "do": "wavg",
+          "column": "notional",
+          "weight": "qty"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "columns": {
+            "notional": {
+              "aggregateFn": "wavg",
+              "aggregationParameters": [
+                "qty"
+              ]
+            }
+          },
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "aggregate": "wavg",
+              "aggregateWeight": "qty",
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [],
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "region"
+          ],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a calculated column",
+      "actions": [
+        {
+          "do": "calculate",
+          "name": "double",
+          "expression": "x|$x.qty->toOne() * 2"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [
+            {
+              "kind": "measure",
+              "lambda": {
+                "_type": "lambda",
+                "body": [
+                  {
+                    "_type": "func",
+                    "function": "times",
+                    "parameters": [
+                      {
+                        "_type": "collection",
+                        "multiplicity": {
+                          "lowerBound": 2,
+                          "upperBound": 2
+                        },
+                        "values": [
+                          {
+                            "_type": "func",
+                            "function": "toOne",
+                            "parameters": [
+                              {
+                                "_type": "property",
+                                "parameters": [
+                                  {
+                                    "_type": "var",
+                                    "name": "x"
+                                  }
+                                ],
+                                "property": "qty"
+                              }
+                            ]
+                          },
+                          {
+                            "_type": "integer",
+                            "value": 2
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "parameters": [
+                  {
+                    "_type": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              "name": "double",
+              "type": "Integer"
+            }
+          ],
+          "groupDerived": [],
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a calculated column, grouped and aggregated",
+      "actions": [
+        {
+          "do": "calculate",
+          "name": "double",
+          "expression": "x|$x.qty->toOne() * 2"
+        },
+        {
+          "do": "group",
+          "rows": [
+            "region"
+          ]
+        },
+        {
+          "do": "aggregate",
+          "column": "double",
+          "fn": "max"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "columns": {
+            "double": {
+              "aggregateFn": "max"
+            }
+          },
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [
+            {
+              "aggregate": "max",
+              "kind": "measure",
+              "lambda": {
+                "_type": "lambda",
+                "body": [
+                  {
+                    "_type": "func",
+                    "function": "times",
+                    "parameters": [
+                      {
+                        "_type": "collection",
+                        "multiplicity": {
+                          "lowerBound": 2,
+                          "upperBound": 2
+                        },
+                        "values": [
+                          {
+                            "_type": "func",
+                            "function": "toOne",
+                            "parameters": [
+                              {
+                                "_type": "property",
+                                "parameters": [
+                                  {
+                                    "_type": "var",
+                                    "name": "x"
+                                  }
+                                ],
+                                "property": "qty"
+                              }
+                            ]
+                          },
+                          {
+                            "_type": "integer",
+                            "value": 2
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "parameters": [
+                  {
+                    "_type": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              "name": "double",
+              "type": "Integer"
+            }
+          ],
+          "groupDerived": [],
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [
+            "region"
+          ],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "name": "trades"
+        },
+        "tree": {
+          "open": [],
+          "showTotals": false
+        },
+        "version": 2
+      }
+    },
+    {
+      "name": "a calculated text column",
+      "actions": [
+        {
+          "do": "calculate",
+          "name": "label",
+          "expression": "x|$x.region->toOne() + '-' + $x.desk->toOne()"
+        }
+      ],
+      "cube": {
+        "configuration": {
+          "reportTitle": "trades"
+        },
+        "kind": "datacube.cube",
+        "name": "parity",
+        "query": {
+          "childCount": true,
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
+              "name": "notional",
+              "type": "Float"
+            },
+            {
+              "name": "qty",
+              "type": "Integer"
+            }
+          ],
+          "derived": [
+            {
+              "kind": "measure",
+              "lambda": {
+                "_type": "lambda",
+                "body": [
+                  {
+                    "_type": "func",
+                    "function": "plus",
+                    "parameters": [
+                      {
+                        "_type": "collection",
+                        "multiplicity": {
+                          "lowerBound": 3,
+                          "upperBound": 3
+                        },
+                        "values": [
+                          {
+                            "_type": "func",
+                            "function": "toOne",
+                            "parameters": [
+                              {
+                                "_type": "property",
+                                "parameters": [
+                                  {
+                                    "_type": "var",
+                                    "name": "x"
+                                  }
+                                ],
+                                "property": "region"
+                              }
+                            ]
+                          },
+                          {
+                            "_type": "string",
+                            "value": "-"
+                          },
+                          {
+                            "_type": "func",
+                            "function": "toOne",
+                            "parameters": [
+                              {
+                                "_type": "property",
+                                "parameters": [
+                                  {
+                                    "_type": "var",
+                                    "name": "x"
+                                  }
+                                ],
+                                "property": "desk"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "parameters": [
+                  {
+                    "_type": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              "name": "label",
+              "type": "String"
+            }
+          ],
+          "groupDerived": [],
+          "leafCount": false,
+          "pivotOn": [],
+          "pivotTotal": {
+            "placement": "right"
+          },
+          "rows": [],
+          "sorts": [],
+          "treeColumnSort": "asc"
+        },
+        "source": {
+          "_type": "frame",
+          "columns": [
+            {
+              "name": "region",
+              "type": "String"
+            },
+            {
+              "name": "desk",
+              "type": "String"
+            },
+            {
+              "name": "traded",
+              "type": "StrictDate"
+            },
+            {
               "name": "notional",
               "type": "Float"
             },
@@ -1061,5 +2985,8 @@
         "version": 2
       }
     }
+  ],
+  "dates": [
+    "traded"
   ]
 }

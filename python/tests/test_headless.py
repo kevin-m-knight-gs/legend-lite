@@ -4,6 +4,7 @@ Pure, as Create a Class makes them; ``grid.to_pandas()``, every one of those row
 checked against pandas computing the same, in the same cell, with no browser."""
 
 import base64
+import datetime
 import json
 import os
 import unittest
@@ -601,23 +602,32 @@ class Remote(unittest.TestCase):
             self.assertEqual(self.mount(f'{self.base}/trades.parquet', 'remote_none').status, 404)
 
 
-if __name__ == '__main__':
-    unittest.main()
 
-
-def _act(grid, action):
+def _act(grid, action, filters):
     """One action of DataCube's parity.json, through Python's Page and Grid: the call a program makes for what a
-    person does on the screen (datacube/test/parity-screen.test.ts names the screen's)."""
+    person does on the screen (datacube/test/parity-screen.test.ts names the screen's). ``filters``: the conditions set
+    so far -- a cell's filter on the screen adds one to the grid's, and Python's filter() sets them all."""
     do = action['do']
     if do == 'group':
         grid.group(*action['rows'])
     elif do == 'pivot':
         grid.pivot(*action['columns'])
-    elif do in ('addSort', 'headerSort'):
-        # a header click sorts the column alone, in its first direction; with no sort before it, as sort() adds one
+    elif do == 'addSort':
+        grid.sort(action['column'], action['direction'])
+    elif do == 'headerSort':
+        # a header click sorts the column alone, in its first direction; Python has no such call, so a case clicks a
+        # header only on a grid with no sort, where sort() adding one is the same edit
+        if grid._query.get('sorts'):
+            raise AssertionError('parity.json clicks a header of a sorted grid: Python has no call that sorts alone')
         grid.sort(action['column'], action['direction'])
     elif do == 'aggregate':
         grid.column(action['column'], aggregate=action['fn'])
+    elif do == 'wavg':
+        grid.column(action['column'], aggregate='wavg', weight=action['weight'])
+    elif do == 'calculate':
+        # the expression as Python takes one: over the row $x, without the lambda's head
+        assert action['expression'].startswith('x|'), action['expression']
+        grid.calculate(action['name'], action['expression'][len('x|'):])
     elif do == 'kind':
         grid.column(action['column'], kind=action['kind'])
     elif do == 'heatmap':
@@ -625,7 +635,8 @@ def _act(grid, action):
     elif do == 'hide':
         grid.configure({'columns': {action['column']: {'hidden': True}}})
     elif do == 'filter':
-        grid.filter((action['column'], action['operator'], action['value']))
+        filters.append((action['column'], action['operator'], action['value']))
+        grid.filter(filters if len(filters) > 1 else filters[0])
     else:
         raise AssertionError(f'parity.json names an action Python does not do: {do!r}')
 
@@ -640,16 +651,26 @@ class ParityWithTheScreen(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.fixture = json.loads(Path(os.environ['LEGEND_LITE_PARITY']).read_text('utf-8'))
-        # one frame for every case: a name served again serves the same frame (Page.grid)
-        cls.frame = pd.DataFrame(cls.fixture['rows'], columns=cls.fixture['columns'])
+        # one frame for every case (a name served again serves the same frame: Page.grid), its dates as dates
+        dates = {cls.fixture['columns'].index(c) for c in cls.fixture['dates']}
+        rows = [[datetime.date.fromisoformat(v) if i in dates else v for i, v in enumerate(r)] for r in cls.fixture['rows']]
+        cls.frame = pd.DataFrame(rows, columns=cls.fixture['columns'])
+        # a page's first grid, for a case of its second
+        cls.first = pd.DataFrame({'a': ['x'], 'b': [1]})
 
     def test_each_case_writes_the_screens_document(self):
-        self.assertGreater(len(self.fixture['cases']), 10)
+        self.assertGreater(len(self.fixture['cases']), 25)
         for case in self.fixture['cases']:
             with self.subTest(case['name']):
                 page = ll.Page(self.fixture['page'])
+                if case.get('capped'):
+                    page.grid(self.first, name='first')
                 grid = page.grid(self.frame, name=self.fixture['frame'])
+                filters = []
                 for action in case['actions']:
-                    _act(grid, action)
-                written = json.loads(page.to_json())['cubes'][0]['cube']
+                    _act(grid, action, filters)
+                written = json.loads(page.to_json())['cubes'][-1]['cube']
                 self.assertEqual(written, case['cube'])
+
+if __name__ == '__main__':
+    unittest.main()

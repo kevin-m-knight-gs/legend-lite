@@ -261,12 +261,16 @@ class Grid(Tile):
             said = json.loads(engine.call('gridEdit', self._spec(frames), _json.dumps(given)))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
+        return self._kept(said, 4)
+
+    def _kept(self, said: dict[str, Any], stacklevel: int) -> Grid:
+        """The cube document DataCube wrote for an edit, kept whole -- never a part of it Python sets itself -- and what
+        opening it over its frame changed, said in DataCube's words, as a load says it."""
         cube = self._cube
         cube.clear()
         cube.update(_plain(_json.loads(said['cube'])))
-        # what opening it over its frame changed, written with the edit: said, in DataCube's words, as a load says it
         for note in said['notes']:
-            warnings.warn(f"{self.frame}: {note}", stacklevel=3)
+            warnings.warn(f"{self.frame}: {note}", stacklevel=stacklevel)
         self._page._changed()
         return self
 
@@ -448,7 +452,8 @@ class Grid(Tile):
             said = json.loads(engine.call('gridCalculate', self._spec(frames), name, f'x|{expression}', kind))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
-        return self._set('derived', [*self._query.get('derived', []), _plain(_json.loads(said['derived']))])
+        # the cube with it, as DataCube writes the editor's Apply: the column typed, the state folded
+        return self._kept(said, 3)
 
     def configure(self, settings: Mapping[str, Any]) -> Grid:
         """Any of the grid's configuration (its Properties), in its saved document's own keys (``reportTitle``,

@@ -1091,20 +1091,43 @@ class CorpusPage(unittest.TestCase):
         else:
             os.environ['LEGEND_LITE_SITE'] = self._site
 
-    def test_the_frame_page_loads_with_nothing_to_say_and_is_written_as_it_was(self):
-        saved = json.loads(Path(os.environ['LEGEND_LITE_CORPUS_PAGE']).read_text('utf-8'))
-        # the frame the page was made over, typed as its cubes record it: text, a date, a float and an integer
-        frame = pd.DataFrame({
+    @staticmethod
+    def frame():
+        """The frame the page was made over, typed as its cubes record it: text, a date, a float and an integer."""
+        return pd.DataFrame({
             'region': ['EMEA', 'EMEA', 'AMER', 'APAC'],
             'desk': ['Rates', 'FX', 'Rates', 'FX'],
             'traded': [datetime.date(2024, 1, 2), datetime.date(2024, 2, 3), datetime.date(2024, 3, 4), datetime.date(2024, 4, 5)],
             'notional': [100.5, 20.25, 300.75, 4.5],
             'qty': [1, 2, 3, 4],
         })
+
+    def test_the_frame_page_loads_with_nothing_to_say_and_is_written_as_it_was(self):
+        saved = json.loads(Path(os.environ['LEGEND_LITE_CORPUS_PAGE']).read_text('utf-8'))
         with warnings.catch_warnings(record=True) as said:
             warnings.simplefilter('always')
-            page = ll.Page.load(saved, frames={'trades': frame})
+            page = ll.Page.load(saved, frames={'trades': self.frame()})
         self.assertEqual([str(w.message) for w in said], [], 'DataCube opens each cube with nothing to say')
         self.assertEqual(page.to_dict(), saved)
         self.assertEqual([g.title for g in page.grids], ['Positions', 'By desk'])
         self.assertEqual(len(page.charts), 2)
+
+    def test_a_cube_reopened_over_a_changed_frame_keeps_what_only_its_query_carries(self):
+        # the frame has a column more, so each cube is rebuilt over it (headless gridCube) -- and a column's Aggregation
+        # the saved cube holds only in its query (a document written before its configuration said it) is kept, as the
+        # screen keeps it (cube-state.ts openedState), not folded away with a configuration that does not name it
+        saved = json.loads(Path(os.environ['LEGEND_LITE_CORPUS_PAGE']).read_text('utf-8'))
+        positions = saved['cubes'][0]['cube']
+        del positions['configuration']['columns']['qty']['aggregateFn']
+        frame = self.frame().assign(book=['B1', 'B2', 'B1', 'B2'])
+        with warnings.catch_warnings(record=True) as said:
+            warnings.simplefilter('always')
+            page = ll.Page.load(saved, frames={'trades': frame})
+        self.assertTrue(said and all('new column' in str(w.message) and 'book' in str(w.message) for w in said),
+                        [str(w.message) for w in said])
+        written = page.to_dict()['cubes'][0]['cube']
+        qty = next(c for c in written['query']['columns'] if c['name'] == 'qty')
+        self.assertEqual(qty.get('aggregate'), 'average', 'the Aggregation the query carried is kept')
+        self.assertEqual(written['configuration']['columns']['qty'].get('aggregateFn'), 'average',
+                         'and read back into the configuration, as the screen reads it')
+        self.assertTrue(written['configuration']['columns']['book']['hidden'], 'the new column is hidden')

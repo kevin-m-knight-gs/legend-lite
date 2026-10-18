@@ -18,7 +18,7 @@ import { element } from '../../../../pure-protocol/src/index.ts';
 import { defaultChart } from '../../../src/chart-spec.ts';
 import { DEFAULT_CONFIGURATION, withConfiguration, type CubeConfiguration } from '../../../src/config.ts';
 import { frameSource, rawRows, writeCube } from '../../../src/cube-document.ts';
-import { fold } from '../../../src/cube-state.ts';
+import { openedState } from '../../../src/cube-state.ts';
 import { chartsDashboardPage } from '../../../src/examples/charts-dashboard.ts';
 import { chartsKindsPage } from '../../../src/examples/charts-kinds.ts';
 import { clickSort, setColumn, setGrouping, setPivot, type GridDraft } from '../../../src/grid-edits.ts';
@@ -36,11 +36,11 @@ export const TRADES_COLUMNS: CubeSnapshot['columns'] = [
   { name: 'qty', type: 'Integer' },
 ];
 
-/** A cube of the frame as a page holds one: its state folded as the screen's state owner holds every state. */
+/** A cube of the frame as a page holds one: as the screen holds a cube it opens (cube-state.ts openedState). */
 function cubeOf(d: GridDraft) {
-  const tree = TreeState.empty();
-  const { snapshot } = fold({ snapshot: d.snapshot, configuration: d.config, tree });
-  return writeCube({ name: 'trades', source: frameSource('trades', TRADES_COLUMNS), snapshot, configuration: d.config, tree });
+  const s = openedState(d.snapshot, d.config, TreeState.empty());
+  return writeCube({ name: 'trades', source: frameSource('trades', TRADES_COLUMNS), snapshot: s.snapshot,
+    configuration: s.configuration, tree: s.tree });
 }
 
 const patched = (d: GridDraft, patch: Parameters<typeof withConfiguration>[1]): GridDraft =>
@@ -73,7 +73,7 @@ function tradesPage(): PageDocument {
   const views: PageView[] = [
     { id: 'grid', kind: 'grid', cube: 'grid', title: 'Positions' },
     { id: 'grid-2', kind: 'grid', cube: 'grid-2', title: 'By desk' },
-    { id: 'chart', kind: 'chart', cube: 'grid', title: 'Notional by region', spec: live },
+    { id: 'chart', kind: 'chart', cube: 'grid', title: 'Average qty by region', spec: live },
     { id: 'chart-2', kind: 'chart', cube: 'grid-2', title: 'By desk, frozen', spec: { ...frozen, frozen: true } },
   ];
   // the first sheet: the grid and its chart side by side, the frozen chart stacked behind the live one
