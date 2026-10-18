@@ -98,6 +98,7 @@ legend_java_library(
         "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_standard_pure",
         "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_relation_pure",
         "//core",
+        "//core:test_backends",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_upstream//:junit_junit",

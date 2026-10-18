@@ -3,6 +3,7 @@
 
 package com.legend.resolver;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
@@ -11,7 +12,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -64,7 +64,7 @@ class ResolveDerivedLeafProbeTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE ProductTable (id INTEGER, name VARCHAR(200),"
                     + " type VARCHAR(200), from_z DATE, thru_z DATE)");

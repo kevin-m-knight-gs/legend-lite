@@ -954,36 +954,36 @@ class MappingNormalizerTest {
         assertEquals("tableReference", fn(tableRef));
 
         // Hop 1: alias Person_Firm, target T_FIRM, cond $s.FIRM_ID = $t.ID
-        com.legend.protocol.spec.ColSpec h1Spec =
+        com.legend.protocol.spec.ColSpec hop1Spec =
                 (com.legend.protocol.spec.ColSpec) innerJoin.parameters().get(1);
-        assertEquals("Person_Firm", h1Spec.name());
-        AppliedFunction h1Target = (AppliedFunction) sole(h1Spec.function1().body());
+        assertEquals("Person_Firm", hop1Spec.name());
+        AppliedFunction hop1Target = (AppliedFunction) sole(hop1Spec.function1().body());
         assertEquals(new com.legend.protocol.spec.CString("T_FIRM"),
-                h1Target.parameters().get(1));
+                hop1Target.parameters().get(1));
 
         // Hop 2: alias Person_Firm__Firm_Org, target T_ORG
-        com.legend.protocol.spec.ColSpec h2Spec =
+        com.legend.protocol.spec.ColSpec hop2Spec =
                 (com.legend.protocol.spec.ColSpec) outerJoin.parameters().get(1);
-        assertEquals("Person_Firm__Firm_Org", h2Spec.name());
-        AppliedFunction h2Target = (AppliedFunction) sole(h2Spec.function1().body());
+        assertEquals("Person_Firm__Firm_Org", hop2Spec.name());
+        AppliedFunction hop2Target = (AppliedFunction) sole(hop2Spec.function1().body());
         assertEquals(new com.legend.protocol.spec.CString("T_ORG"),
-                h2Target.parameters().get(1));
+                hop2Target.parameters().get(1));
 
         // Hop 2 condition: $s.Person_Firm.ORG_ID == $t.ID
         // This is the key multi-hop invariant: the source at hop 2 sees
         // hop 1's target as a sub-row reached through the hop 1 alias.
-        LambdaFunction h2Cond = (LambdaFunction) outerJoin.parameters().get(2);
-        AppliedFunction h2Eq = (AppliedFunction) sole(h2Cond.body());
-        assertEquals("equal", fn(h2Eq));
+        LambdaFunction hop2Cond = (LambdaFunction) outerJoin.parameters().get(2);
+        AppliedFunction hop2Eq = (AppliedFunction) sole(hop2Cond.body());
+        assertEquals("equal", fn(hop2Eq));
         // Left: $s.Person_Firm.ORG_ID
-        AppliedProperty left = (AppliedProperty) h2Eq.parameters().get(0);
+        AppliedProperty left = (AppliedProperty) hop2Eq.parameters().get(0);
         assertEquals("ORG_ID", left.property());
         AppliedProperty leftSub = (AppliedProperty) left.receiver();
         assertEquals("Person_Firm", leftSub.property(),
                 "Hop 2 cond's left side reaches T_FIRM via $s.Person_Firm");
         assertEquals(new Variable("s"), leftSub.receiver());
         // Right: $t.ID
-        AppliedProperty right = (AppliedProperty) h2Eq.parameters().get(1);
+        AppliedProperty right = (AppliedProperty) hop2Eq.parameters().get(1);
         assertEquals("ID", right.property());
         assertEquals(new Variable("t"), right.receiver());
 
@@ -2042,34 +2042,34 @@ class MappingNormalizerTest {
         // Outer-most call is map; underneath are three joins nested in
         // emission order (hop1 innermost, hop3 outermost).
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
-        AppliedFunction h3Join = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN_SLOT, h3Join.function());
-        AppliedFunction h2Join = (AppliedFunction) h3Join.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN_SLOT, h2Join.function());
-        AppliedFunction h1Join = (AppliedFunction) h2Join.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN_SLOT, h1Join.function());
+        AppliedFunction hop3Join = (AppliedFunction) mapCall.parameters().get(0);
+        assertEquals(Pure.Lite.JOIN_SLOT, hop3Join.function());
+        AppliedFunction hop2Join = (AppliedFunction) hop3Join.parameters().get(0);
+        assertEquals(Pure.Lite.JOIN_SLOT, hop2Join.function());
+        AppliedFunction hop1Join = (AppliedFunction) hop2Join.parameters().get(0);
+        assertEquals(Pure.Lite.JOIN_SLOT, hop1Join.function());
 
         // Aliases: hop1, hop1__hop2, hop1__hop2__hop3 (join-name concatenation)
         assertEquals("Person_Firm",
-                ((com.legend.protocol.spec.ColSpec) h1Join.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) hop1Join.parameters().get(1)).name());
         assertEquals("Person_Firm__Firm_Org",
-                ((com.legend.protocol.spec.ColSpec) h2Join.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) hop2Join.parameters().get(1)).name());
         assertEquals("Person_Firm__Firm_Org__Org_Country",
-                ((com.legend.protocol.spec.ColSpec) h3Join.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) hop3Join.parameters().get(1)).name());
 
         // Hop 3 condition: $s.Person_Firm__Firm_Org.COUNTRY_ID == $t.ID
         // This is the load-bearing claim of the multi-hop algorithm: at
         // hop N, the source side reaches hop (N-1)'s target through that
         // hop's alias, NOT through the original mainTable scope.
-        LambdaFunction h3Cond = (LambdaFunction) h3Join.parameters().get(2);
-        AppliedFunction h3Eq = (AppliedFunction) sole(h3Cond.body());
-        AppliedProperty left = (AppliedProperty) h3Eq.parameters().get(0);
+        LambdaFunction hop3Cond = (LambdaFunction) hop3Join.parameters().get(2);
+        AppliedFunction hop3Eq = (AppliedFunction) sole(hop3Cond.body());
+        AppliedProperty left = (AppliedProperty) hop3Eq.parameters().get(0);
         assertEquals("COUNTRY_ID", left.property());
         AppliedProperty leftSub = (AppliedProperty) left.receiver();
         assertEquals("Person_Firm__Firm_Org", leftSub.property(),
                 "Hop 3 must reach T_ORG (hop 2 target) via the hop-2 alias");
         assertEquals(new Variable("s"), leftSub.receiver());
-        AppliedProperty right = (AppliedProperty) h3Eq.parameters().get(1);
+        AppliedProperty right = (AppliedProperty) hop3Eq.parameters().get(1);
         assertEquals("ID", right.property());
         assertEquals(new Variable("t"), right.receiver());
 
@@ -3313,8 +3313,8 @@ class MappingNormalizerTest {
                 "final-hop slot is the PM property name");
 
         // Upstream of legacyNavigate is the intermediate Person_Firm join.
-        AppliedFunction h1Join = (AppliedFunction) nav.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN_SLOT, h1Join.function(),
+        AppliedFunction hop1Join = (AppliedFunction) nav.parameters().get(0);
+        assertEquals(Pure.Lite.JOIN_SLOT, hop1Join.function(),
                 "intermediate hop is a clean join step");
 
         // Condition: {s, t | $s.Person_Firm.ORG_ID == $t.ID}.
@@ -3431,10 +3431,10 @@ class MappingNormalizerTest {
         // own upstream is the bare tableReference. This proves the
         // prelude chains the intermediate hop before the navigate.
         AppliedFunction nav = navStep(personFn);
-        AppliedFunction h1Join = (AppliedFunction) nav.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN_SLOT, h1Join.function(),
+        AppliedFunction hop1Join = (AppliedFunction) nav.parameters().get(0);
+        assertEquals(Pure.Lite.JOIN_SLOT, hop1Join.function(),
                 "intermediate hop is present as a join beneath the legacyNavigate");
-        AppliedFunction base = (AppliedFunction) h1Join.parameters().get(0);
+        AppliedFunction base = (AppliedFunction) hop1Join.parameters().get(0);
         assertEquals("tableReference", fn(base),
                 "the intermediate join's upstream is the main tableReference");
     }
@@ -3789,22 +3789,22 @@ class MappingNormalizerTest {
 
         // Pipeline shape: map(join(join(tableRef, ~Person_Firm), ~Person_Firm__Firm_Org), ...)
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
-        AppliedFunction h2Join = (AppliedFunction) mapCall.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN_SLOT, h2Join.function());
+        AppliedFunction hop2Join = (AppliedFunction) mapCall.parameters().get(0);
+        assertEquals(Pure.Lite.JOIN_SLOT, hop2Join.function());
         assertEquals("Person_Firm__Firm_Org",
-                ((com.legend.protocol.spec.ColSpec) h2Join.parameters().get(1)).name(),
+                ((com.legend.protocol.spec.ColSpec) hop2Join.parameters().get(1)).name(),
                 "Hop 2 alias = join-name concatenation");
-        AppliedFunction h1Join = (AppliedFunction) h2Join.parameters().get(0);
-        assertEquals(Pure.Lite.JOIN_SLOT, h1Join.function());
+        AppliedFunction hop1Join = (AppliedFunction) hop2Join.parameters().get(0);
+        assertEquals(Pure.Lite.JOIN_SLOT, hop1Join.function());
         assertEquals("Person_Firm",
-                ((com.legend.protocol.spec.ColSpec) h1Join.parameters().get(1)).name());
-        AppliedFunction tableRef = (AppliedFunction) h1Join.parameters().get(0);
+                ((com.legend.protocol.spec.ColSpec) hop1Join.parameters().get(1)).name());
+        AppliedFunction tableRef = (AppliedFunction) hop1Join.parameters().get(0);
         assertEquals("tableReference", fn(tableRef));
 
         // Hop 2's condition must reach T_FIRM (hop-1 target) through
         // $s.Person_Firm — the chained-source-path invariant.
-        LambdaFunction h2Cond = (LambdaFunction) h2Join.parameters().get(2);
-        AppliedFunction eq = (AppliedFunction) sole(h2Cond.body());
+        LambdaFunction hop2Cond = (LambdaFunction) hop2Join.parameters().get(2);
+        AppliedFunction eq = (AppliedFunction) sole(hop2Cond.body());
         AppliedProperty leftCol = (AppliedProperty) eq.parameters().get(0);
         assertEquals("ORG_ID", leftCol.property());
         AppliedProperty leftSub = (AppliedProperty) leftCol.receiver();

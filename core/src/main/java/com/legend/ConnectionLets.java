@@ -40,7 +40,7 @@ public final class ConnectionLets {
                     && !(l.value() instanceof TypedVariable)) {
                 // a NAVIGATION over connection-only roots joins the set;
                 // a BARE rebind (let n = $rs) is a host-side result read
-                // and keeps the wall (ExecuteInDbTest pin)
+                // and keeps the wall (ExecuteInDbDuckDbTest pin)
                 connNames.add(l.name());
                 continue;
             }

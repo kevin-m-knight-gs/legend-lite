@@ -3,6 +3,7 @@
 
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
@@ -11,7 +12,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -53,7 +53,7 @@ class PivotJoinColumnTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection("jdbc:duckdb:");
+        connection = TestBackends.platform().open();
         try (var st = connection.createStatement()) {
             st.execute("CREATE TABLE T (region VARCHAR, desk VARCHAR, amt DOUBLE)");
             st.execute("INSERT INTO T VALUES ('EMEA','FX',10), ('EMEA','Rates',5),"

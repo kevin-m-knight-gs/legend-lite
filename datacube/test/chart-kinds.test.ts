@@ -43,7 +43,6 @@ const CUBE: CubeSnapshot = {
   derived: [],
   rows: ['region', 'channel'],
   pivotOn: [],
-  measures: [{ name: 'revenue', column: 'revenue', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };

@@ -26,15 +26,10 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
 
     private final QueryService qs = new QueryService();
 
-    @Override
-    protected String getDatabaseType() { return "DuckDB"; }
-
-    @Override
-    protected String getJdbcUrl() { return "jdbc:duckdb:"; }
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
     }
 
     @AfterEach

@@ -43,7 +43,7 @@ public final class StampCensus {
             System.getenv("LL_STAMP_COUNT") != null;
 
     /** The test/query currently compiling — set by harness runners so a
-     * census line names its witness (the H2Verify.CURRENT_TEST pattern;
+     * census line names its witness (the RefereeVerify.CURRENT_TEST pattern;
      * main-scope holder because the lowering cannot see test classes). */
     public static final ThreadLocal<String> CONTEXT =
             ThreadLocal.withInitial(() -> "<unattributed>");

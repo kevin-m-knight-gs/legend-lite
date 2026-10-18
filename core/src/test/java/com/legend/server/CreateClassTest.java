@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,7 +16,6 @@ import com.legend.test.ServiceTestRunner;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,29 @@ import java.util.Map;
  */
 @DisplayName("createClass -- a relation made a class, with everything it needs to run")
 class CreateClassTest {
+
+    /**
+     * The path the project's connection names for an in-memory database is its declared database's (the dialect
+     * program's Phase 7, 2026-10-18): the platform's own names one where legend-engine needs it; a specification that
+     * names a path, a server's coordinates, or a database the platform does not run on is written as it is.
+     */
+    @Test
+    void anInMemoryDatabaseIsWrittenWithItsDatabasesPath() {
+        String platform = Databases.PLATFORM.name();
+        assertEquals(Databases.dialect(Databases.PLATFORM).inMemoryPath(), CreateClass.inMemoryPath(connection(platform,
+                "{\"_type\":\"duckDB\"}")));
+        assertEquals(null, CreateClass.inMemoryPath(connection(platform, "{\"_type\":\"duckDB\",\"path\":\"/d.db\"}")));
+        for (String server : List.of("Postgres", "SqlServer", "Oracle")) {
+            assertEquals(null, CreateClass.inMemoryPath(connection(server,
+                    "{\"_type\":\"static\",\"host\":\"db\",\"port\":5432,\"databaseName\":\"d\"}")), server);
+        }
+        assertEquals(null, CreateClass.inMemoryPath((Json.Obj) Json.parse("{\"databaseType\":\"" + platform + "\"}")));
+    }
+
+    private static Json.Obj connection(String databaseType, String specification) {
+        return (Json.Obj) Json.parse("{\"_type\":\"RelationalDatabaseConnection\",\"databaseType\":\"" + databaseType
+                + "\",\"type\":\"" + databaseType + "\",\"datasourceSpecification\":" + specification + "}");
+    }
 
     /** A source as the tab's table model writes it: a Database, its connection, a runtime. */
     private static final String TAB = """
@@ -264,8 +288,8 @@ class CreateClassTest {
                 .filter(e -> e instanceof ServiceDefinition s && s.qualifiedName().equals("trades::Check"))
                 .map(e -> (ServiceDefinition) e).findFirst().orElseThrow();
         List<ServiceTestRunner.Result> results = new ServiceTestRunner(com.legend.Compiler.compileModel(model),
-                () -> DriverManager.getConnection("jdbc:duckdb:"), ServiceTestRunner.Sessions.FRESH_PER_TEST,
-                ConnectionDefinition.DatabaseType.DuckDB).run(service);
+                () -> TestBackends.platform().open(), ServiceTestRunner.Sessions.FRESH_PER_TEST,
+                Databases.PLATFORM).run(service);
         assertEquals(1, results.size(), results.toString());
         assertTrue(results.get(0).pass(), results.toString());
     }

@@ -4,13 +4,11 @@
 // time). The code under test is the same in both: LitePlanner and DuckDbEngine
 // (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §6).
 
-import path from 'node:path';
-
 import type { ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
-import { engineClientRequire } from '../../../engine-client/src/node-require.ts';
+import { startNodeDuckDb } from '../../../engine-client/src/node-require.ts';
 import type { LitePlannerOptions } from '../../src/lite-planner.ts';
 import type { DuckDbFiles } from '../../src/upload.ts';
-import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
+import { runfileDirUrl, runfilesFromEnv } from '../../../tools/js/runfiles.mts';
 
 /** A test's database: its connection, and the files it can read by name, as DataCube's page registers them. */
 export interface TestDatabase {
@@ -28,17 +26,12 @@ export function plannerOptions(): Pick<LitePlannerOptions, 'assetBaseUrl' | 'wor
 
 /** A database of its own: DuckDB-WASM's blocking build, from engine-client's package. */
 export async function openDatabase(): Promise<TestDatabase> {
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB(
-    {
-      mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-      eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-    },
-    new duckdb.VoidLogger(),
-    duckdb.NODE_RUNTIME,
-  );
-  await db.instantiate();
+  // node_test names the pinned extensions for a test that takes DuckDB-WASM: one of datacube/BUILD.bazel's _DUCKDB_USERS
+  if (!process.env['DUCKDB_EXTENSIONS']) {
+    throw new Error('DUCKDB_EXTENSIONS is not set: add this test to _DUCKDB_USERS in datacube/BUILD.bazel (it then takes '
+      + 'DuckDB-WASM, and node_test gives it the pinned extensions)');
+  }
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   return {
     connection: db.connect() as ArrowishConnection,
     // the blocking bindings register at once; DataCube's page takes the async form

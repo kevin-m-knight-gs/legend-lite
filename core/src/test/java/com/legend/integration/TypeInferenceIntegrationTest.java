@@ -6,7 +6,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -23,19 +22,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
-        @Override
-        protected String getDatabaseType() {
-                return "DuckDB";
-        }
-
-        @Override
-        protected String getJdbcUrl() {
-                return "jdbc:duckdb:";
-        }
-
         @BeforeEach
         void setUp() throws SQLException {
-                connection = DriverManager.getConnection(getJdbcUrl());
+                connection = backend().open();
                 // Set UTC timezone so TIMESTAMPTZ values are returned in UTC
                 try (var stmt = connection.createStatement()) {
                         stmt.execute("SET timezone='UTC'");

@@ -3,11 +3,11 @@
 
 package com.legend;
 
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.List;
 
@@ -43,7 +43,7 @@ class TabularFunctionTest {
             """;
 
     private static List<String> run(String query) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE MACRO FN() AS TABLE SELECT * FROM (VALUES ('EMEA', 1.5), ('EMEA', 2.0),"
                         + " ('APAC', 4.0)) v(a, n)");

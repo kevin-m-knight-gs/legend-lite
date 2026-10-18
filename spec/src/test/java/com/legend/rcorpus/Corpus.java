@@ -26,9 +26,6 @@ import java.util.regex.Pattern;
  */
 public final class Corpus {
 
-    /** The wire dialect for raw corpus SQL — ONE implementation (core DuckDb). */
-    static final com.legend.sql.dialect.DuckDb DIALECT = new com.legend.sql.dialect.DuckDb();
-
     /**
      * Root of the local legend-engine checkout (the corpus is read in place).
      *

@@ -1,15 +1,14 @@
 package com.legend.lowering;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
 import com.legend.sql.SqlQuery;
-import com.legend.sql.dialect.DuckDb;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -49,7 +48,7 @@ class JoinTortureTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE T_PERSON (NAME VARCHAR NOT NULL, AGE INTEGER NOT NULL,"
                     + " FIRM VARCHAR)");
@@ -73,7 +72,7 @@ class JoinTortureTest {
 
     private String sqlOf(String query) {
         SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(MODEL), query).expression());
-        return new DuckDb().render(q);
+        return TestBackends.platform().dialect().render(q);
     }
 
     private List<String> exec(String sql) throws SQLException {

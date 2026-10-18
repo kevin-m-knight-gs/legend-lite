@@ -22,11 +22,11 @@ import {
   type PivotFacts,
 } from '../src/query.ts';
 import { isPivotTotalColumn, pivotTotalColumn } from '../src/snapshot.ts';
-import type { CubeSnapshot } from '../src/snapshot.ts';
+import type { QuerySnapshot } from '../src/snapshot.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
 import { printLevel } from './lite-compiler.ts';
 
-const CUBE: CubeSnapshot = {
+const CUBE: QuerySnapshot = {
   source: { query: accessor('db', 'trades') },
   columns: [
     { name: 'region', type: 'String', kind: 'dimension' },
@@ -151,7 +151,7 @@ describe('measures a pivot does not spread', () => {
   // `price` kept OUT of the pivot: a column of the level's query on its
   // own aggregate, beside the cells -- never spread, never summed over a
   // finer intermediate.
-  const EXCLUDED: CubeSnapshot = {
+  const EXCLUDED: QuerySnapshot = {
     ...CUBE,
     columns: CUBE.columns.map((c) => (c.name === 'price'
       ? { ...c, excludedFromPivot: true } : c)),

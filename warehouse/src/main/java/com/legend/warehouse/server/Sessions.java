@@ -41,9 +41,11 @@ public final class Sessions implements AutoCloseable {
             this.lastUsed = now;
         }
 
-        /** The session as the API reports it: its engine is DuckDB, at the library's own version. */
+        /** The session as the API reports it: its engine is the warehouse's own DuckDB, at the library's version. A
+         *  session is only ever on a native catalog: one attached to another database is refused one
+         *  ({@code WarehouseServer.openSession}; the dialect program's defects 7 and 8). */
         public SqlApi.Session api() {
-            return new SqlApi.Session(id, catalog, "DuckDB", DuckLibrary.version());
+            return new SqlApi.Session(id, catalog, DuckLibrary.NAME, DuckLibrary.version());
         }
 
         public String id() {

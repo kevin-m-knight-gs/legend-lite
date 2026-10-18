@@ -100,8 +100,25 @@ legend_java_library(
 java_run(
     name = "lite_facts",
     outs = ["generated/lite-facts.gen.ts"],
-    arguments = ["{OUT}"],
+    arguments = [
+        "ts",
+        "{OUT}",
+    ],
     main_class = "typefacts.TypeFacts",
+    deps = [":type_facts_main"],
+)
+
+# the same table for Python's reading of a column's type (python/legend_lite/_types.py,
+# docs/PYTHON_ASKS_DATACUBE_2026_10_15.md item 4): committed and diff-tested by //python:update_generated
+java_run(
+    name = "lite_facts_py",
+    outs = ["generated/type_facts.gen.py"],
+    arguments = [
+        "py",
+        "{OUT}",
+    ],
+    main_class = "typefacts.TypeFacts",
+    visibility = ["//python:__pkg__"],
     deps = [":type_facts_main"],
 )
 
@@ -139,6 +156,18 @@ node_test(
         ":node_modules/@duckdb/duckdb-wasm",
     ],
     entry_point = "test/arrow-ipc.test.ts",
+)
+
+# DuckDB in a Node test (src/node-require.ts startNodeDuckDb): the pinned extensions only, none fetched (node_test gives
+# a test that takes DuckDB-WASM the pinned files)
+node_test(
+    name = "node_duckdb_test",
+    size = "small",
+    data = [
+        ":engine_client",
+        ":node_modules/@duckdb/duckdb-wasm",
+    ],
+    entry_point = "test/node-duckdb.test.ts",
 )
 
 # Snap's engine half (plan A6, moved from DataCube): freezing rows into the tab's DuckDB, the stamp, the refusals
@@ -217,6 +246,7 @@ test_suite(
     tests = [
         ":arrow_ipc_test",
         ":model_data_test",
+        ":node_duckdb_test",
         ":snap_test",
         ":update_generated_test",
         ":warehouse_corpus_test",

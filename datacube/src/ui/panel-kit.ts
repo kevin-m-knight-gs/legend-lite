@@ -6,11 +6,8 @@
 // in one module makes the import graph depend on evaluation order.
 
 import type { Dimension } from '../dimensions.ts';
-import {
-  columnConfig,
-  type CubeConfiguration,
-} from '../config.ts';
-import { rowColumns, type CubeSnapshot, type SortDirection } from '../snapshot.ts';
+import type { CubeConfiguration } from '../config.ts';
+import { SORT_DIRECTIONS, type CubeSnapshot, type SortDirection } from '../snapshot.ts';
 import { ColumnsSelector, type SelectorColumn } from './columns-selector.ts';
 
 /** Everything the editor edits, as one value. */
@@ -50,13 +47,9 @@ export interface PanelContext {
 
 export type PanelBuilder = (ctx: PanelContext) => HTMLElement;
 
-export const SORT_DIRECTIONS: readonly {
-  value: SortDirection;
-  label: string;
-}[] = [
-  { value: 'asc', label: 'Ascending' },
-  { value: 'desc', label: 'Descending' },
-];
+const DIRECTION_LABELS: Readonly<Record<SortDirection, string>> = { asc: 'Ascending', desc: 'Descending' };
+export const SORT_DIRECTION_OPTIONS: readonly { value: SortDirection; label: string }[] =
+  SORT_DIRECTIONS.map((value) => ({ value, label: DIRECTION_LABELS[value] }));
 
 export function panelShell(
   doc: Document,
@@ -72,38 +65,10 @@ export function panelShell(
   return root;
 }
 
-/** Every column the cube knows, including the derived ones. */
-export function allColumns(draft: CubeDraft): SelectorColumn[] {
-  const s = draft.snapshot;
-  return [
-    ...s.columns.map((c) => ({ name: c.name })),
-    ...s.derived.map((d) => ({ name: d.name })),
-    ...(s.groupDerived ?? []).map((d) => ({ name: d.name })),
-  ];
-}
-
-/**
- * Columns a pivot or a row grouping may use.
- *
- * Measures are excluded, matching DataCube's `enableRowGroup: kind
- * === DIMENSION`. Grouping by a notional produces one group per
- * distinct amount, which is never what anyone meant and is expensive
- * to discover.
- */
-export function groupableColumns(draft: CubeDraft): SelectorColumn[] {
-  const out: SelectorColumn[] = [];
-  // Row-stage calculated dimensions are groupable like any other. Their
-  // kind is the one declared in the calculated-column editor; the
-  // configuration's override applies to source columns only.
-  for (const c of rowColumns(draft.snapshot)) {
-    const kind = c.derived
-      ? c.kind
-      : columnConfig(draft.config, c.name).kind ?? c.kind;
-    if (kind === 'dimension') {
-      out.push({ name: c.name });
-    }
-  }
-  return out;
+/** Columns, as a selector lists them: the offers themselves are grid-edits.ts's (allColumns, groupableColumns), the
+ *  one home of what a grid may be grouped, pivoted and sorted by -- for the screen's panels and Python's calls alike. */
+export function selectable(names: readonly string[]): SelectorColumn[] {
+  return names.map((name) => ({ name }));
 }
 
 /** A selector filling a panel's body. */

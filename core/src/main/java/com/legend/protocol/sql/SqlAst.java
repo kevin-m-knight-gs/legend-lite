@@ -60,10 +60,17 @@ public final class SqlAst {
 
     /** {@code left op [ALL] right [ORDER BY] [LIMIT] [OFFSET]}: the sort and the slice are the whole result's. */
     public record SetOperation(SetOp op, boolean all, Statement left, Statement right, List<SortItem> orderBy,
-            @com.legend.base.Nullable Expr limit, @com.legend.base.Nullable Expr offset, Pos pos)
+            @com.legend.base.Nullable Expr limit, @com.legend.base.Nullable Expr offset, Pos pos, boolean values)
             implements Statement {
         public SetOperation {
             orderBy = List.copyOf(orderBy);
+        }
+
+        /** A set operation as written; {@code values} marks the UNION ALL a VALUES list is read as (2026-10-17: its
+         *  rows are typed together, where a written UNION ALL's are typed a pair at a time). */
+        public SetOperation(SetOp op, boolean all, Statement left, Statement right, List<SortItem> orderBy,
+                @com.legend.base.Nullable Expr limit, @com.legend.base.Nullable Expr offset, Pos pos) {
+            this(op, all, left, right, orderBy, limit, offset, pos, false);
         }
     }
 

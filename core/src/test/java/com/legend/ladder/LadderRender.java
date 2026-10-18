@@ -3,6 +3,7 @@
 
 package com.legend.ladder;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.test.PureTestRunner;
@@ -14,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -193,7 +193,7 @@ public final class LadderRender {
 
     private static Connection freshDuck() {
         try {
-            Connection c = DriverManager.getConnection("jdbc:duckdb:");
+            Connection c = TestBackends.platform().open();
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), AMOUNT DOUBLE)");
                 st.execute("INSERT INTO T VALUES (1, 'a', 0.5), (2, 'b', 1.5), (3, 'c', 2.5)");

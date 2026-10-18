@@ -27,7 +27,7 @@ PCT, the stress corpus, parser equivalence, Channel B, the native image's tests)
 | `pct_channel_b` | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites, one target per class (`//pct:pct_channel_b_<suite>`; P3-09) |
 | (heavy) | 9 | `//pct:pct_channel_b_<lane>` | Channel B on each other database (h2, postgres, sqlite, mariadb, mysql, databricks, snowflake, bigquery, trino, clickhouse), judged against that lane's own channel A ledger (2026-10-11, `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §16); manual, in `//gates:heavy` |
 | `parser_equivalence` | 8 | `//parser-equivalence:parser_parity`, `//parser-equivalence:round_trip_proof`, `//wasm:round_trip_test` | byte parity with legend-engine's parser; text to JSON to text to JSON over the corpus, lite's projects and the upstream showcase projects, in the JVM and in the tab (the WebAssembly build held to the JVM's answers; the protocol program's leg 5) |
-| `stress` | 10 | `//core:stress_suites`, `//core:stress_suites_h2` | the stress corpus, on DuckDB (shared sessions, MIN_PASS) and on H2 (a fresh session per test, the engine's shape, MIN_PASS_H2; enforced since 2026-10-05, Bazel workplan P3-12); its measuring knobs are `bazel run //core:stress_tool` |
+| `stress` | 10 | `//core:stress_suites`, `//core:stress_suites_h2` | the stress corpus, on DuckDB (shared sessions, MIN_PASS) and on H2 (a fresh session per test, the engine's shape, `StressServiceSuitesH2Test.MIN_PASS`, `StressServiceSuitesTest.MIN_PASS_H2` until 2026-10-16; enforced since 2026-10-05, Bazel workplan P3-12); its measuring knobs are `bazel run //core:stress_tool` |
 | `warehouse` (also Linux arm64) | — | `//warehouse:tests`, `//warehouse:sqlapi_wasm_build_test`, `//warehouse:tests_native`, `//warehouse:postgres_live`, `//warehouse:postgres_live_native` | the warehouse's suite on the JVM, and its SQL API compiled to WebAssembly (P3-24); the suite against the native binary, on Linux, macOS and Windows x64 (since 2026-10-02) and Linux arm64 (since 2026-10-04, P1-13), linked on Linux by the hermetic LLVM toolchain (P1-09); the launchers and their test went with the build rebuild's L1c (2026-10-07: the server runs as built, nothing of Bazel in it; the app as a plain folder is `//datacube:verify_app_test`'s, in `datacube`); the two tests against a live Postgres, in a lane for the first time on 2026-10-07. On Windows the lane runs in Eastern time, not the runners' UTC, so a test that reads the machine's zone shows (since 2026-10-03; the warehouse's reference session) |
 | `datacube` | — | `//datacube:tests`, `//datacube:verify_app_test`, `//datacube:package_test`, `//datacube:verify_smoke_test`, `//wasm:differential_test`, `//wasm:zone_test` | DataCube's suite and typecheck, with every cube case live on the native warehouse and snapped into DuckDB-WASM, the answers compared (`live_snap_test`, plus receipts, sign-in again, token refresh); the single-user app against Postgres 16 in the pinned Chromium, on every platform (`verify_app_test`, since 2026-10-04, Bazel workplan P1-14b: its own Postgres from the pinned binaries, no psql); the smoke harness as a test on the pinned Chromium (since 2026-10-04, P1-14); the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database. The other harnesses (features, page, charts, cubes, real data, upload, remote, wasm-browser, stress) join as tests in the next landing (L1b); until then the transitional `browser` suite and the workflow's `bazel run` loop run them, Linux only |
 | `ui` | — | `//studio:tests`, `//query:tests`, `//query-store:wasm_test`, `//query-store:share_test`, `//query-store:lite_test` | Studio's and Query's suites and typechecks; the saved-query store's one suite against the page's own store and against legend-lite's server (started by the test), and a saved query's share link round trip. Their browser harnesses (`//studio:verify_test`, `//query:verify`, `//site:verify`) join in L1b |
@@ -55,11 +55,13 @@ Claude Code cloud container). Three things differ from CI, and each has its own 
    `$HOME/.pki/nssdb`, and a test's `HOME` is its `TEST_TMPDIR`, which has none. Pass the bundle and a home whose NSS
    store trusts the proxy's CA (made once with `certutil -A -t "C,," ...` as that user):
    `--test_env=NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt --test_env=HOME=/home/ubuntu`. With these, 11 of the 13
-   passed.
+   passed. **Since 2026-10-17 neither flag is needed:** a Node test starts DuckDB with engine-client's
+   `startNodeDuckDb`, which answers its extension requests from the pinned files `node_test` gives it, so no test asks
+   the network (docs/CLOUD_SESSIONS.md); the full local set passed in the container without them (the Postgres tests
+   as `ubuntu`, item 1).
 3. *Two tests write into their working directory*, the runfiles tree, which root owns: `//datacube:upload_test` and
    `//engine-client:model_data_test` (DuckDB-WASM's `COPY ... TO 'nested.json'`, `'tmp_made.parquet'`). As `ubuntu`
-   they fail with `EACCES`. Run those two as root, without `--run_under`, with item 2's
-   `NODE_EXTRA_CA_CERTS`: both passed.
+   they fail with `EACCES`. Run those two as root, without `--run_under`: both passed.
 
 So all 347 tests passed in this container. The two hazards are the tests' own: an extension fetched from the
 network at run time, and a scratch file written outside `TEST_TMPDIR`. CI doesn't see them because it has direct
@@ -11925,3 +11927,399 @@ the island stands. Both lanes in update mode, FAIL/BUG/ERROR at zero, the same c
 259 / BOTH_ERROR 770 / SKIP 33, of 5041 cases); TCK agreement 3597 → 3600 on both; the oracle check 0 problems; the
 chain's 40 guard targets green. What the TCK holds outside the write clauses (and the control queries of their
 scenarios) on either lane: the 2 signed years past every database's dates.
+
+## 2026-10-17 — The dialect program's Phase 6, part 1: the tests' databases are test backends (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main 6f2a0f8 (#51); PR neema2/legend-lite#52. Commits:
+- 29acb386, the backends and core's tests;
+- 53cebdfc, PCT's census ceilings per lane and the record;
+- e6800ae0, the independent review's findings;
+- c5c73749, the layering guard's line;
+- the ceilings measured, below.
+
+The record: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 6, "Done in two parts"). Test code only, plus
+`Databases.implemented()` in main. No product behaviour change is intended, and none was measured.
+- **What moved:**
+  - Each database is a test backend (`core/src/test/java/com/legend/testbackend`, `//core:test_backends`), and
+    `TestBackends` is the registry.
+  - PCT's lanes look up their backend by name. `CloudLane` is gone, and a cloud backend holds one session per cloud.
+  - Core's tests open the platform's backend, every in-process backend, or the database they are about. One
+    database's assertions moved into a test named for it.
+  - `AbstractDatabaseTest` takes a `backend()`, which fixes the plan's defect 6.
+  - The stress harness takes a backend. H2's floor is `StressServiceSuitesH2Test.MIN_PASS`, the same 4676.
+  - The dialect-leak ledger loses about 440 test rows. Core's test rows left are in files open in #43 and #50
+    (part 2).
+- **Found on the way (defect 11):** `PlanMakerTest` now runs on SQLite too, and SQLite's plan path answers
+  differently from today's path in 31 cases.
+  - 24 cases: a list parameter's plan is refused by name ("binds no array").
+  - 7 cases: a Decimal comes back `2.500000000000000000` in CSV and `"2.50"` in JSON, and a Date or DateTime with
+    nine fraction digits.
+  - No lane runs SQLite's plans. Each case is pinned exactly in `plan-maker/differences.tsv`, at most 31 rows.
+- **Guards:**
+  - DatabaseOwners NAMED_TEST: a test source named for a database owns it, held to it in its code and its strings.
+    Four crossings are registered, each with its reason.
+  - The vocabulary's own tests are vocabulary owners, and `ArchitectureTest` is a guard owner.
+  - `PctCensusGate` holds a per-lane table and refuses a lane with none. Each lane's ceilings are now what it
+    measured: duckdb's int-null-empty 20/20/4 and postgres's diverge 14/6, as before; every other lane's are zero,
+    where seven lanes had carried the platform lane's numbers.
+  - `//core:test_backends` is named among core's non-layers.
+  - parser-equivalence `own_corpus.matched` went 2862 → 2847: four literal test models became
+    backend-parameterised.
+- **The independent review of 53cebdfc**, by an agent that wrote none of it. Its findings were fixed in e6800ae0.
+  - Blocking: `PlanOnJavaBase` had lost Postgres's checks; every dialect is now held to its own read of the table
+    and its QUALIFY. A test named for a database had not been held in its strings.
+  - Should-fix:
+    - two output file names a rename changed;
+    - the SQLite register matched a substring, and now matches the exact answer, with a ceiling;
+    - the shared cloud session;
+    - a loop that could check nothing;
+    - LocalH2's runner coverage;
+    - the record's omissions.
+- **Proof:**
+  - `bazel test //core:all //spec:corpus_h2 //spec:corpus_duckdb` (root container): 84 of 84 on 53cebdfc.
+  - `bazel build //...` (`--jobs=2`): green on 53cebdfc.
+  - `bazel test //gates:local`, less the four targets the container cannot run: 369 of 369 on c5c73749.
+- **The measurement round, 6f2a0f8 (main) against e6800ae0, every target with `dump-sql`:** nothing moved on any
+  database, and the baseline equals Phase 5's 01cf198 on every lane.
+  - Snowflake, Databricks and BigQuery (10 targets each): all pass on both commits. Digests, census lines and
+    channel B are byte-identical, and the sessions open through `CloudBackend` from the same properties file.
+  - DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres (60 lanes): all pass, and the 60 digests, the census
+    lines and the 25 channel B lines are identical. Every one of the 60 test logs is line-for-line identical after
+    normalization, so the server lanes' session URLs, storeless runtimes, system connections and raise texts are
+    unchanged.
+  - Trino, H2 and the corpus (12 + 12): all pass with identical digests and channel B. The rosters and registers
+    are byte-identical, and the judge logs' failures agree test by test (host H2 359, host DuckDB 108, database H2
+    353, database DuckDB 108).
+  - Stress: `//core:stress_suites` 4705 and `//core:stress_suites_h2` 4676 on both commits, with identical fail
+    buckets and the same ledger names.
+  - Each lane's per-suite census counts on the head are the ceilings above.
+
+## 2026-10-17 — `#SQL{...}#`: the corpus program's first corpus, the PostgreSQL regression suite, and its wrong answers (the seventh line)
+
+Announced in `docs/IN_FLIGHT.md` (86bbe71eb, the corpus program: the compatibility and real-world corpora, SELECTs
+only). Branch `claude/loving-euler-gjta59`; the record is `docs/LEGEND_SQL_STUDY_2026_10_11.md` §9.5.
+
+1. **The harness.** `//core:pg_regress_corpus_test` (manual, in `//gates:heavy`, outside `core_tests_integration`;
+   `PgRegressCorpusTest`) replays the PostgreSQL repository's `src/test/regress` (github.com/postgres/postgres,
+   REL_16_STABLE at 8e928803020e; its `sql/`, `data/` and `parallel_schedule`; PostgreSQL License, kept outside this
+   repository, `-Dsql.corpus.regress`) on the embedded Postgres 16. It runs its schedule's files in order, each on a fresh session,
+   through `Psql`, a script reader with psql's statement splitting, variables and meta-commands. Each read-only
+   statement is judged live, before the script sends it as written:
+   - Postgres's answer, twice, under Postgres's default DateStyle (the island's);
+   - the tables the statement names, declared as a `###Relational` database from the catalog;
+   - the statement as `#SQL{...}#` on the same session, and `SqlParity`'s verdict.
+
+   Statuses beyond SqlParity's: NAMES, UNMODELED, CATALOG, REGISTERED (register row S49's ruled difference), KNOWN
+   (the harness's named ledger: four rows, each with its status, a mark of its detail and its reason),
+   NONDETERMINISTIC and HARNESS. What writes outside the transaction (`nextval`, advisory locks) is not judged. The
+   report (`-Dsql.corpus.report`) ranks each status's reasons and carries legend-lite's SQL for a wrong answer.
+2. **The first run's wrong answers** (FAIL 41, BUG 48, NAMES 86), each traced and fixed:
+   - The reference's reads (`SqlParity.grid`): a Postgres date or timestamp is read as java.time, not java.sql's (a
+     BC year lost its era, and `infinity` was the year 292278994). The snapped `postgres-answers.jsonl` moved for its
+     three BC and infinity cases alone.
+   - `Executor.fetch`: a DATE cell is re-fetched as `LocalDate`, as timestamps were; a BC date had answered its AD
+     twin. It uses the same dialect hook, `SqlDialect.refetchesTimestampAsJavaTime`, so Databricks and Snowflake keep
+     theirs, and `PostgresArmTest` pins it.
+   - Constant integer arithmetic is held to its Postgres type (int2/int4/int8), where the planner's fold had answered
+     past it. A step that may pass its type part-way is refused by name. `StaticFold`'s long sum and difference wrapped
+     and now decline past a long (`StaticFoldTest`); the lowering's negation of the least long wrapped to itself and
+     is now exact (`Scalars`).
+   - The island: a float8 constant past a double's range, two WINDOW definitions of one name (Postgres's error; SQL
+     Anywhere's island keeps the first), `char(n)` to text, a string read with a `real` (refused by name, through
+     `InputDialect.padded`/`singlePrecision`), and FigureColname's naming strengths.
+3. **The independent review** (an agent that wrote none of it) found and the branch fixed:
+   - a unary plus whose operand went untested;
+   - an unsound bound (a product with 0, a divisor's subtree);
+   - NAMES and REGISTERED decided from truncated details;
+   - `count(*)` taken for a select-list star;
+   - a failing judge that left its savepoint open;
+   - KNOWN matched by text alone;
+   - side-effecting statements re-run by the judge;
+   - `SET LOCAL datestyle` sent as a session setting;
+   - the real refusal's other paths (IN, CASE, COALESCE, ANY, lag's default).
+
+   Left as found, recorded:
+   - nested casts of constant arithmetic still write their tests per level (constants only);
+   - a quoted `"char"` is named `bpchar`;
+   - a `(SELECT * ...)` is named `?column?`;
+   - the DATE re-fetch on the cloud drivers is first measured in their lanes.
+4. **The guards it met, dated.** The dialect-leak ledger gets `PgRegressCorpusTest product-name 2` (the embedded
+   Postgres it runs on); SqlToPure's pin is unchanged at 47. Nine lite parity cases were snapped from Postgres and
+   added to both lanes' ledgers, each PASS or BOTH_ERROR on both.
+5. **The run after** (15,493 statements judged, 231 s): PASS 2,637 (from 2,509), FAIL 0, BUG 0, NAMES 0, KNOWN 4,
+   REGISTERED 6, REFUSED 7,219, ERROR 510, UNMODELED 1,452, CATALOG 1,237, BOTH_ERROR 2,259, NONDETERMINISTIC 160,
+   SKIP 7, HARNESS 2.
+6. **The first easy refusal families** (713f7a711, f297bcc17):
+   - A typed constant (`int2 '7'`, `bool 't'`, `float8 '1.5'`) is its string cast to the type. A typed integer
+     constant takes its width in the constant-arithmetic rule.
+   - `E'...'` strings read Postgres's escapes, and `U&'...'` its code points and `UESCAPE`. A byte past ASCII is
+     refused by name; a zero byte and a lone surrogate are Postgres's errors.
+   - Integer arithmetic of a smallint constant beside a value that is not a constant is refused by name. Postgres
+     computes a smallint there; the run after typed constants found `i.f1 * int2 '2'` answering where Postgres raises.
+   - `VALUES (...), (...)` is what Postgres defines it as: a `UNION ALL` of one-row SELECTs naming `column1..N`,
+     built as a balanced tree. There is no new AST node. Rows of different lengths, `DEFAULT` and a set-returning
+     function in a row are Postgres's errors.
+   - Postgres's UNION resolution in `PostgresDialect`'s set-operation hooks:
+     - an untyped NULL takes the other side's type (a UNION's only);
+     - an integer or a numeric beside a double precision becomes a double precision;
+     - an integer beside a numeric, and a NULL beside a numeric, stay refused by name. The typer unites no two
+       Decimal precisions, and a cast to Decimal is the database's DECIMAL (measured: DuckDB rounded 2.5 to 3).
+   - The harness:
+     - a temporary table and public's of the same name are two relations (the 41 "duplicate column" errors);
+     - a statement ordered only inside a subquery is compared unordered;
+     - LIMIT with no ORDER BY joins the KNOWN ledger, now five rows.
+
+   Upstream's parity cases `union_with_agg` and `union_dedup_null` went REFUSED to PASS on both lanes. Six lite VALUES
+   cases were added and snapped. The run after: PASS 2,823 (from 2,637), FAIL 0, BUG 0, NAMES 0, KNOWN 5,
+   REGISTERED 6, REFUSED 7,024, ERROR 518, the rest unchanged. Of the 10,376 statements the island is judged on, 27.2%
+   answer Postgres's rows and none answers wrong.
+7. **The second round, and the review's findings** (60d604f33, 4a3ab1218, d6c7f11b6):
+   - A subquery without FROM (IN, EXISTS, scalar; correlated or not) is no longer refused. It was refused on
+     2026-10-12, when the lowering could not read an enclosing row there.
+   - Read now:
+     - `TABLE name` (or `TABLE tb('...')`);
+     - a table name's `*` (its descendants, which a table read includes anyway);
+     - `U&"..."` identifiers.
+   - Refused by name where the parser had raised a syntax error:
+     - `:=` named arguments;
+     - VARIADIC in a later argument;
+     - TABLESAMPLE after an alias;
+     - CURRENT_USER and the session's other identity values.
+   - The harness:
+     - `SqlParity.rewrite` reads a parenthesized join's tables, TABLE's name and a table's star;
+     - `PgRegressCorpusTest` models another schema's tables;
+     - the judge runs Postgres's reference under `standard_conforming_strings` on, as the island reads strings
+       (`strings.sql` turns it off; the round's two BUGs were that).
+   - The independent review of 713f7a711 and f297bcc17 found 11 wrong answers and 9 crashes on its 108 probes;
+     after the fixes it finds 0 and 0:
+     - **A smallint's width**, lost through abs, coalesce, CASE, min/max, a subquery or a VALUES column.
+       `InputDialect.narrowInteger` marks such a value's column. Integer arithmetic, a negation or abs that the
+       database would compute as a smallint is refused by name.
+     - **VALUES rows.** An aggregate or a window function in a VALUES row is now Postgres's error.
+     - **NULL typing.** An untyped NULL takes a set operation's type only as a bare NULL in a plain SELECT branch.
+       A NULL Postgres had already typed as text now reads as text: a subquery's, a nested set operation's, a
+       DISTINCT's, a VALUES column of NULLs alone (`untypedNullIsText`).
+     - **Escapes.** Malformed ones are rejected: a code point past an int, a surrogate's low half, a UESCAPE
+       character of two bytes.
+     - **Crashes.** A NULL beside a boolean in a set operation, and raw Java exceptions from the lexer.
+
+     The first NULL fix refused 11 statements the corpus had passed. Postgres types a VALUES list's rows together,
+     so the parser now marks a VALUES list's set operations (`SqlAst.SetOperation#values`), and a pair of NULL rows
+     is no branch of its own.
+   - Left as found, recorded:
+     - decimals of two scales in one column fail in the typer, not refused by name (`VALUES (1.5), (2.25)`);
+     - a set operation's column of a smallint and an integer is refused, though Postgres's is an integer.
+   - Parity: 14 lite cases snapped and added to both lanes. Upstream's two `crcs_g5` nested-join cases went
+     REFUSED to PASS. The ClickHouse pin: `testAdjustByDaysBigNumber`'s pinned text keeps the BC era now
+     (`%-1474327-10-18`). The dialect program's siblings 1a and 1b found the lane red on f297bcc17 for it.
+   - The run after (15,493 judged): PASS 2,905, FAIL 0, BUG 0, NAMES 0, KNOWN 5, REGISTERED 6, REFUSED 7,038,
+     ERROR 420. Of the 10,374 statements the island is judged on, 28.0% answer Postgres's rows; none answers wrong.
+8. **Proof.** In the root container (`tools/postgres/as_unprivileged.sh`):
+   - `//gates:core //gates:checks //gates:stress` on 303caa078: 180 of 187 pass. The 6 that failed are the breaks
+     above (the integration shard, the IQ window, the snapped dates, census, guardrails), and
+     `//tools/guards:classpath_test` was skipped (arm64 only).
+   - On 71dd0b482, every target the fixes touch is green: `core_tests_protocol`, `core_tests_compiler`,
+     `core_tests_integration`, `postgres_arm_test`, `sql_parity_test`, `sql_parity_postgres_test`,
+     `sql_island_postgres_test`, `iq_parity_test`, `iq_parity_postgres_test`, `census`, `guardrails`. So are
+     `//gates:stress` and `//core:core_tests` (27 of 27).
+   - Not run here, so CI's: the relational corpus, PCT, warehouse, DataCube, UI and SDLC lanes. The planner change
+     (`StaticFold`, `Scalars`) and the DATE re-fetch reach them.
+   - On f297bcc17, the same eleven targets: ten pass. `census` failed on the dialect-leak pin
+     (`SqlParserTest product-name 3 -> 4`), a test method named for the product. The next commit renames it, and
+     `census` and `core_tests_protocol` pass.
+   - The cloud lanes (`//gates:heavy`, not CI's): the dialect program's sibling sessions measured base 86bbe71eb
+     against f297bcc17 lane by lane. They compared pass/fail, SQL digests, census and channel B lines, and whole test
+     logs with only durations masked. BigQuery's 10 targets: all pass on both, every SQL digest the same, census and
+     channel B identical. Three log lines differ: two are an unordered result's row order, one is generated UUIDs. No
+     DATE cell's text changed, though the re-fetch is exercised (`wire-delivered[BigQuery] TIMESTAMP <- DATE`).
+   - Siblings 1b and 1a measured the rest of the heavy lanes:
+     - 60 targets for DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres, channels A and B;
+     - 32 for Trino, H2, ClickHouse and Postgres;
+     - `//spec:corpus_duckdb` and `//spec:corpus_h2`.
+
+     Every SQL digest was the same. Census and channel B lines were identical. The whole logs were the same, but for
+     run ids. The relational corpora's rosters and registers were byte-identical. One red: `pct_clickhouse_essential`,
+     whose `testAdjustByDaysBigNumber` pin expected the era-less text. The pin moved in 4a3ab1218. On 4f704880e,
+     sibling 1a re-ran the lane: 345 of 345, the SQL digest and the census lines as base's, and the whole log the
+     same line for line.
+   - On the second round's last commit, the eleven targets above, all green:
+     - `core_tests_protocol`, `core_tests_compiler`, `core_tests_integration`, `guardrails`;
+     - `postgres_arm_test`, `sql_island_postgres_test`;
+     - `sql_parity_test`, `sql_parity_postgres_test`, `iq_parity_test`, `iq_parity_postgres_test`, `census`.
+
+     Before that commit, three were red. Census read a product-named call (`SqlToPure product-name 47 -> 48`), now
+     the set it reads. The two IQ lanes flagged nine IQ cases the IQ line had pinned REFUSED, which now PASS on
+     both lanes: the FROM-less subqueries this round reads, in an IN list, EXISTS or a count (`lite/m1a`,
+     `lite/m1gaps`, their ids still saying "refused"). Their ledger rows moved.
+9. **Next.** The refusals, ranked:
+   - functions in FROM, 635 (mostly functions the suite defines);
+   - jsonpath, about 450;
+   - text search, about 500;
+   - duplicate output names, 160;
+   - ROW constructors, 180;
+   - ranges, about 260;
+   - arrays, 190;
+   - the island's syntax errors, 350.
+
+   Then the corpus program's step 2, sqllogictest.
+
+## 2026-10-17 — The dialect program's Phase 6, part 2: the corpus's databases and the islands' tests are test backends (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main 86bbe71e (after #52), 12 commits, 86cae665 to d12474f5. The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 6, "Part 2"). Test code, test data and docs only. No
+product behaviour change was intended, and none was measured.
+- **What moved:**
+  - The relational corpus's harness takes its lane's backend: workspaces, fixture asides, the referee (`RefereeBackend`),
+    `readerOn`, and the warehouse lane as a backend of its own. `DuckWorkspaces` and `ServerWorkspaces` are deleted;
+    `H2Verify` is `RefereeVerify`.
+  - The SQL, IQ and Cypher islands' tests and the lowering tests run on the platform's backend or, where they pin
+    DuckDB's own rendering, on DuckDB's by name (`LowerRelationDuckDbTest`, `ScaleCostsDuckDbTest`). The parity lanes'
+    tables are made by the lane's dialect; Postgres keeps upstream's fixture (`PostgresSeed`).
+  - The resolver tests' 29 `sqlOf` copies are one harness (`resolver/ResolvedSql`).
+  - Defect 4: `CorpusDifferentialTest` runs each service on its runtime's database, seeded from neutral data
+    (`differential.py`'s `seed.json`) through that database's dialect. Verdict unchanged: 178 agree, 1 known
+    divergence, 0 unexpected, 179 services.
+  - Defect 5, for a fixture's unqualified names: Postgres's on-demand fixtures run in a schema aside, on a session of
+    their own, so a failed body's rollback cannot take the aside away.
+  - The server backends' sessions (Postgres, MariaDB, MySQL) open at the URL the product's connector makes from their
+    declared coordinates. `StoreTypesTest` reads `OTHER` on every implemented database. `PostgresArmTest` runs on
+    Postgres's backend.
+- **Guards:** the dialect-leak ledger loses 37 rows (19 files, 271 lines): 11 rows and 267 lines are left, of which 13
+  lines are in core's tests (the SQL translator's two tests, D11) and 24 in the warehouse's (Phase 7). parser-equivalence's
+  `own_corpus.matched` 2882 -> 2875 (seven elements of test models now take the backend's connection).
+  `HarnessDisciplineTest` scans the test backends. New: `//core:fixture_aside_postgres_test`, in `//gates:local`.
+- **The independent review of 0f4685e8**, by an agent that wrote none of it: nothing blocking. Its findings, each
+  checked against the code, were fixed in d69878bb and d12474f5:
+  - Postgres's fixture aside did not survive a failed body's rollback (Postgres's DDL and `SET` are transactional).
+    The new test fails on 0f4685e8's aside (`relation "u" does not exist`) and passes on d12474f5.
+  - `StoreTypesTest` compared each dialect with itself; the differential read a non-text cell as NULL and skipped
+    any undeclared table; four failure paths leaked a connection; the record overstated defect 5 and the referee's
+    routing.
+  - Not changed, with the reason in the record: the parser-equivalence ratchet's reason stays in its commit
+    (`ratchets.tsv` is generated); the product runner's unisolated fallback is main code's.
+- **Proof:**
+  - `bazel test //core:all` 73 of 73, `//spec:corpus_h2` 6 of 6, `//spec:corpus_duckdb` 6 of 6 (root container),
+    on d12474f5.
+  - `bazel build //...` (`--jobs=2`): green on d12474f5.
+  - `bazel test //gates:local`, less the four targets the container cannot run: 371 of 371 on d12474f5, with
+    `//datacube:verify_layout_test` passing on its one re-run (a drag's task took 115 ms against a 100 ms budget on
+    the first; this branch touches no DataCube code).
+  - The Postgres corpus lane (`bazel run //spec:corpus_on_postgres`) on its one on-demand fixture's test: the
+    fixture runs in `aside_0`, and the test passes.
+- **The measurement round, main 86bbe71e against d12474f5, every target with `dump-sql`:**
+  - Snowflake, Databricks and BigQuery (10 targets each): all pass on both commits, every digest the same, census and
+    channel B lines identical; sessions open through `CloudBackend` from the same properties file. BigQuery's only
+    differing log lines are the container's proxy port, one unordered result's row order and fresh UUIDs.
+    (Snowflake's and Databricks' essential and relation digests moved between e6800ae0 and 86bbe71e on main itself:
+    a nested `CASE` in an `ELSE` is now one `CASE`, six equivalent statements.)
+  - DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres (60 lanes): 60 of 60 pass on both commits, the 60 digests,
+    the census lines and the 25 channel B lines identical. Every test log, normalised for time, heap, UUIDs, array hashes
+    and DuckDB's row order, differs only in the JVM's proxy-port banner: every statement, error, raise text and result
+    on the Postgres, MariaDB and MySQL lanes, whose sessions now open at the connector's URL, is the same. The logs print
+    no session URL, so the URL itself is checked through that effect.
+  - Stress: `//core:stress_suites` pass=4705 fail=15 and `//core:stress_suites_h2` pass=4676 fail=44 (of 4736) on both
+    commits, every fail bucket and exclusion identical.
+  - The Postgres corpus lane, every test (`bazel run //spec:corpus_on_postgres`): pass=1883 fail=716 skipped=14 of 2613
+    on both commits, every FAIL, SKIP, referee, origin and census line identical. The head sets one fixture aside
+    (`testGroupByWithWindowSubset`, `aside_0`); main ran it over the workspace. Its verdict, a pass, is the same.
+  - Trino and H2 (12 targets): all pass on both commits, digests, census, channel B and test counts identical; every
+    test log, normalised, identical line for line.
+  - The corpus (`//spec:corpus_h2`, `//spec:corpus_duckdb`, 12 targets): all pass on both; the ten roster tests re-ran
+    on the head (the harness changed) and the rosters and registers are byte-identical to the committed ones. The
+    judge logs' failures agree test by test: host H2 359, host DuckDB 108, database H2 353, database DuckDB 108.
+  - The warehouse lane (`//spec:corpus_warehouse`, manual, its native server built): passes on both commits, with
+    `-Drcorpus.backend=warehouse` and `legend.warehouse.*` on the head. Host pass 2471/108/14, database pass
+    2473/108/14 of 2613 on both, the failures identical between the commits and equal to the DuckDB lane's, test by
+    test.
+
+## 2026-10-18 — The dialect program's Phase 7: the warehouse, the model writer, the planner boundary and the dead code (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main c607cf61 (after #54), with main's #53 merged in (7a7a0096). The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 7, "Done, 2026-10-18"; §3 defects 7 and 8; §6 D4 and D6).
+- **What moved:**
+  - The warehouse's Postgres knowledge is behind `Attachment`: its command line (`--postgres`, a `postgresql://` URL),
+    the password prompt and libpq's words. `WarehouseServer.Config` carries attached catalogs of any kind. DuckDB's
+    error kinds and engine name are the DuckDB binding's (`duck/`). Behaviour is unchanged but for two command-line
+    refusals' wording (`NAME=CONNECTION`; "an attached catalog needs --duckdb-extensions").
+  - Defects 7 and 8 were never reachable: a session, and so a JDBC connection, exists only on a native catalog.
+    `WarehousePostgresLiveTest.aJdbcConnectionToTheAttachedCatalogIsRefusedByName` pins the refusal.
+  - `server/CreateClass` asks the declared database's dialect for the path an in-memory specification is written with
+    (`SqlDialect.inMemoryPath`); `//core:pure_v1` reaches `//core:database` (`tools/deps/core-layers.txt`).
+  - The planner boundary (`wasm` `Boundary`, the tab's and Python's) seeds the tab with the platform's dialect and asks
+    the catalog question of it (`SqlDialect.catalogColumnsQuery`), its signatures unchanged.
+  - D6: 39 dead files deleted (18,499 lines); the rest of D6's list is left for the build program's script review,
+    whose old D3 decided to repair or wire it (the record).
+  - D10, taken over from the parked compiler line (the user's): `builtin/DynaFn.java` names no database; the engine's
+    dialect-by-dialect table is generated reference data, `docs/engine-dynafunctions.tsv`, which no build reads. The
+    232 names and every decision are unchanged; the refusal of an UNSUPPORTED name points at the table. The ledger
+    after it: 6 rows, 70 lines, all D11's (the SQL translator's Postgres rules, scheduled with the SQL line).
+- **Guards:** the warehouse is a host owner (`DatabaseOwners`' HOST kind); the leak ratchet and the owner guard read
+  the warehouse's main code, wasm's planner, native and testing; `Attachment` names an attached database only in its
+  rows and one-line arms (a new pin); `EmbeddedMySql`'s MariaDB driver is a registered crossing; the warehouse's two
+  crossings are gone. The ledger loses the warehouse's 5 rows (24 lines) and gains #53's `PgRegressCorpusTest` (2): 7
+  rows, 245 lines, all D10's or D11's.
+- **The independent review of the branch**, by an agent that wrote none of it, against the code, without Bazel:
+  - Blocking: the layering policy did not allow `pure_v1` to reach `database` (`//tools/deps:core_layering_test`,
+    which the first local gate run failed on, 370 of 371). Fixed.
+  - Fixed as well: `CreateClass` would have thrown for a declared database with no dialect (now written as it is,
+    pinned by a test); the password prompt asked before learning that a URL cannot carry the password (now refused
+    first, as on main); `Attachment` was a registry no guard read (now pinned); the D6 record misstated which
+    deletions the script review had kept as history; three files only the deleted ones used; stale `join.py` pointers.
+  - Checked and found equal to main: the command line's parsing and duplicate rules, `AttachFailed`, the error
+    classification (`DuckException.parse`/`bind`, read from its kind or its message's lead), the catalog question's
+    text, `testDataSql`'s output, the guards' counts (a Python replica: 7 rows, 245 lines; 4 crossings).
+- **Proof:**
+  - `bazel test //gates:local //warehouse:postgres_live`, less the four targets the container cannot run: 372 of 372 on
+    the final tree (from a clean build: `bazel clean` freed the disk first).
+  - D10: `//core:census` (6 rows, 70 lines), `//core:core_tests_normalizer`, `//core:core_tests_builtin`,
+    `//core:core_tests_root`, `//spec:spec_tests`, `//core:update_generated_tests` (`DynaFn.java` regenerated) and
+    `//docs:update_generated_tests` (the new table): all pass.
+  - Not re-measured locally: the PCT, corpus and stress lanes. No SQL any of them renders or reads changed (the two
+    new `SqlDialect` methods render no statement a lane runs); the branch's CI runs every lane.
+
+## 2026-10-18 — The dialect program's D11 and the absolute ban: the SQL translator names no database (the ninth line)
+
+The same branch (neema2/legend-lite#56), at the seventh line's quiet point after #53. The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 7, "D11 and the absolute ban"; status DONE).
+- **What moved, no rule rewritten:** Postgres's rules leave `SqlToPure` (7,961 lines to 4,852) for six Postgres files in
+  `protocol/sql/`: `PostgresOperators`, `PostgresCasts`, `PostgresFunctions`, `PostgresDates`, `PostgresJsonb` and
+  `PostgresAggregates`. An instance method became a static one taking the translator first; the text is otherwise the
+  same. `AGGREGATES` and `SMALL_INTEGERS` stay in `SqlToPure`, which shared code reads (`SqlParser`'s VALUES check, the
+  `narrowInteger`-gated smallint check).
+- **The seam:** `InputDialect` loses the defaults that called Postgres's rules (`unary`, `between`, `inList`,
+  `isDistinct`, `quantifiedTest`, `isAggregate`) and the aggregate fallback (`aggregate` is abstract). It gains
+  `readString`, `typeName`, `operator` and `subscript`. IQ refuses `readString` by name (a simple CASE comparing a
+  string with a non-string, read by Postgres's rules until now; no IQ test reached it). `InputLanguages` maps an
+  island's language to its dialect; `SqlToPure.translate(sql, sources)` is gone.
+- **Named, not moved:** the translator's window functions and FROM set-returning functions stay its own reading.
+- **Tests:** `PostgresToPureTest`, `PostgresParserTest` and `PostgresRegressCorpusTest` (renamed, for the language they
+  test; the corpus target is still `//core:pg_regress_corpus_test`).
+- **Guards:** `DatabaseOwners` lists the six files as Postgres's input language and `InputLanguages` among the
+  registries. `DialectLeakRatchetTest` is a ban (`noDatabaseIsNamedOutsideItsOwners`), and
+  `dialect-leaks/ledger.tsv` is deleted (6 rows, 70 lines before D11, none after).
+- **Proof:**
+  - A dump of every translation the tests make (the statement, its dialect, the Pure or the refusal), taken through a
+    hook that was never committed. It covered `//core:core_tests`, the SQL, IQ and Cypher parity lanes on DuckDB and
+    Postgres, `//core:iq_syntax_cases_test`, `//core:sql_island_postgres_test`, `//core:postgres_arm_test` and
+    `//core:pg_regress_corpus_test`, before the move and after each of its two steps: 37,378 translations, all 35
+    targets passing each time. The IQ corpus lane (`//core:iq_corpus_test`, manual) was not run: its corpora are not in
+    the container, and a simple CASE comparing a string constant with a number or a date there is refused by name now
+    where it was read by Postgres's rules. The dumps are identical apart from two kinds of input:
+    - the statements the regression suite writes from live values (OIDs, timestamps);
+    - one IQ test that calls the translator once or twice by a `Set.of` order.
+  - The regression corpus (PostgreSQL REL_16_STABLE 8e928803020e under `tools/postgres/as_unprivileged.sh`), row by
+    row, status and message: identical, but for five statements whose text carries a live timestamp. Its counts,
+    before and after: PASS 2,905, REFUSED 7,038, BOTH_ERROR 2,260, UNMODELED 1,453, CATALOG 1,237, ERROR 420,
+    NONDETERMINISTIC 160, SKIP 7, REGISTERED 6, KNOWN 5, HARNESS 2. These are the seventh line's numbers for main
+    after #53.
+  - `//core:census` (the ban, the owner guard), the protocol, compiler and architecture tests.
+  - `bazel test //gates:local //warehouse:postgres_live`, less the four targets the container cannot run: 373 of 373
+    on the D11 commit.
+  - An independent review, by an agent that wrote none of it, against the code: no drift found (the aggregates' side
+    effects in order, the operator and subscript refusals word for word, `readString` and `typeName` equal to the old
+    helpers for Postgres, no static-initialisation cycle, no overload rebound by the static imports). Fixed from it:
+    - `dateArithmetic` and `numberConstant` moved to `PostgresDates` and `PostgresFunctions`;
+    - nine members made private again;
+    - stale comments;
+    - the ban fails when a root it reads yields no source;
+    - the records' wording.

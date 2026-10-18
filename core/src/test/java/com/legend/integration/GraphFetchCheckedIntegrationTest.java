@@ -3,6 +3,7 @@
 
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
@@ -10,7 +11,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -38,7 +38,7 @@ class GraphFetchCheckedIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement s = conn.createStatement()) {
             s.execute("CREATE TABLE T_EDGE (ID INTEGER PRIMARY KEY,"
                     + " S_STRING VARCHAR(100), S_INT INTEGER)");

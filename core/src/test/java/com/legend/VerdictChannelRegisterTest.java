@@ -45,7 +45,7 @@ class VerdictChannelRegisterTest {
             // rule is the judge's own — its 2-ULP pairing of leftover rows
             // calls the one home (the ten-digit normalization it replaced
             // was a second definition of "equal float"; deleted)
-            "spec/src/test/java/com/legend/harness/H2Verify.java",
+            "spec/src/test/java/com/legend/harness/RefereeVerify.java",
             "core/src/test/java/com/legend/exec/EqualityJsonUnorderedRootTest.java",
             "core/src/test/java/com/legend/exec/EqualityWorldsConformanceTest.java",
             "core/src/test/java/com/legend/exec/PureAssertsTest.java");

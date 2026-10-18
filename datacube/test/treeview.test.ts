@@ -5,7 +5,7 @@ import { openDatabase } from '#test-host';
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { RawTable } from '../../engine-client/src/engine.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import { LEAF_COUNT_COLUMN, type CubeSnapshot } from '../src/snapshot.ts';
+import { LEAF_COUNT_COLUMN, type QuerySnapshot } from '../src/snapshot.ts';
 import { TreeState, flattenTree, requestKey } from '../src/tree.ts';
 import type { LevelData } from '../src/treeview.ts';
 import {
@@ -22,7 +22,7 @@ import {
 import { element } from '../../pure-protocol/src/index.ts';
 import { printLevel } from './lite-compiler.ts';
 
-const SNAPSHOT: CubeSnapshot = {
+const SNAPSHOT: QuerySnapshot = {
   source: { query: element('trades') },
   columns: [],
   derived: [],
@@ -447,7 +447,7 @@ describe('Show leaf count', () => {
   // configuration and read by nothing (the no-reader guardrail found
   // it). Upstream's group queries carry a count and the group cell
   // shows it beside the label.
-  const FLAT: CubeSnapshot = {
+  const FLAT: QuerySnapshot = {
     source: { query: element('trades') },
     columns: [
       { name: 'region', type: 'String' },
@@ -495,7 +495,7 @@ describe('Show leaf count', () => {
 describe('the count, next level (the default)', () => {
   // An OPENED group shows how many rows sit directly beneath it, read
   // off the rows opening it fetched; a closed one shows nothing.
-  const CUBE: CubeSnapshot = {
+  const CUBE: QuerySnapshot = {
     source: { query: element('trades') },
     columns: [
       { name: 'region', type: 'String' },
@@ -550,7 +550,7 @@ describe('detail rows under the deepest group', () => {
   // Upstream: "when maximum level of drilldown is reached, we simply
   // just need to filter the data to match drilldown values, no
   // groupBy() is needed."
-  const CUBE: CubeSnapshot = {
+  const CUBE: QuerySnapshot = {
     source: { query: element('trades') },
     columns: [
       { name: 'region', type: 'String' },
@@ -615,7 +615,7 @@ describe('opening a group under a column pivot', () => {
   // group holds only some of those values -- a customer with no EMEA
   // orders -- and a query cast to `EMEA__|__total` that its pivot did
   // not make is a binder error: the group could not be opened.
-  const PIVOTED: CubeSnapshot = {
+  const PIVOTED: QuerySnapshot = {
     source: { query: element('orders') },
     columns: [
       { name: 'segment', type: 'String' },

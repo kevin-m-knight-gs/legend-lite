@@ -375,6 +375,10 @@ final class Scalars {
                                                     SqlExpr.Column.param("_mb", list)))));
                 }
                 return switch (args.get(0)) {
+                    // the least long's negation is no long: exact, as a decimal (it wrapped to itself: 2026-10-17,
+                    // the #SQL{} island's regression-suite corpus, -('-9223372036854775808'::int8))
+                    case SqlExpr.IntLit i when i.value() == Long.MIN_VALUE ->
+                            new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(i.value()).negate());
                     case SqlExpr.IntLit i -> new SqlExpr.IntLit(-i.value());
                     case SqlExpr.FloatLit fl -> new SqlExpr.FloatLit(-fl.value());
                     case SqlExpr.DecimalLit d -> new SqlExpr.DecimalLit(d.value().negate());

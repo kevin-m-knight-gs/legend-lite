@@ -5,6 +5,8 @@ package com.legend.integration;
 
 import com.legend.protocol.sql.iq.IqProfile;
 import com.legend.server.QueryService;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import com.legend.testcases.IqAnswers;
 import com.legend.testcases.IqParity;
 import com.legend.testcases.SqlParity;
@@ -14,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +44,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class IqParityTest {
 
+    /** The platform's own engine: the island's session, its tables and the connection its model declares. */
+    private static final TestBackend PLATFORM = TestBackends.platform();
+
     /** The showcase's query: {@code lite/showcase.yaml}'s main case, judged by SQL Anywhere above like every case. */
     private static final String SHOWCASE = "lite/showcase/showcase_main@iq16-default";
 
@@ -56,17 +60,17 @@ class IqParityTest {
     };
 
     @Test
-    void everyIqCaseHasItsLedgerStatusOnDuckDB() throws Exception {
+    void everyIqCaseHasItsLedgerStatusOnThePlatform() throws Exception {
         Path schemaFile = Runfile.property("iq.parity.schema");
         List<IqParity.Run> runs = IqParity.runs(IqParity.cases(Runfile.property("iq.parity.lite").getParent()));
         List<SqlParity.Table> tables = IqParity.schema(schemaFile);
         Set<String> names = IqParity.tableNames(tables);
         Map<String, IqAnswers.Snap> answers = IqAnswers.read(Runfile.property("iq.parity.answers"));
         List<String> problems = new ArrayList<>(IqAnswers.guards(runs, answers, Files.readAllBytes(schemaFile)));
-        String model = IqParity.model(tables, "type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;");
+        String model = IqParity.model(tables, PLATFORM.connectionBody());
         Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
-        try (Connection duckdb = DriverManager.getConnection("jdbc:duckdb:")) {
-            IqParity.seed(duckdb, tables, false);
+        try (Connection session = PLATFORM.open()) {
+            IqParity.seed(PLATFORM, session, tables);
             QueryService service = new QueryService();
             for (IqParity.Run r : runs) {
                 String mismatch = IqParity.engineMismatch(r, names);
@@ -82,7 +86,7 @@ class IqParityTest {
                     problems.add(order);
                 }
                 SqlParity.Outcome outcome = IqParity.outcome(r, answers.get(r.key()), tables, names,
-                        island -> service.execute(model, island, IqParity.RUNTIME, duckdb));
+                        island -> service.execute(model, island, IqParity.RUNTIME, session));
                 outcomes.put(r.key(), outcome);
                 // IQ island, 2026-10-14 (review 7, the user's ruling on B1): no case pins one plan's choice
                 String nondeterministic = IqParity.determinism(r, tables, outcome.status());

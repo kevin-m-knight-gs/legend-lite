@@ -372,16 +372,11 @@ public final class CypherParity {
             try {
                 lane.seed(inf.tables());
             } catch (Exception seeding) {
-                // the graph's tables could not be made: every case over it is an error of the harness, named; a
-                // dialect's refusal of a column by name (a TIMESTAMP_NS column on a microsecond engine, the study's
-                // §12.64) is the lane's refusal, as its DDL's would be
-                boolean refusal = false;
-                for (Throwable x = seeding; x != null; x = x.getCause()) {
-                    refusal |= x instanceof com.legend.sql.dialect.DialectCapability;
-                }
+                // the graph's tables could not be made: every case over it is an error of the harness, named (the
+                // harness's last column a dialect refused, TIMESTAMP_NS on a microsecond engine, went with W13 leg 6)
                 for (Case c : e.getValue()) {
-                    outcomes.put(c.key(), new SqlParity.Outcome(refusal ? SqlParity.Status.REFUSED
-                            : SqlParity.Status.ERROR, "seeding: " + oneLine(seeding)));
+                    outcomes.put(c.key(), new SqlParity.Outcome(SqlParity.Status.ERROR, "seeding: "
+                            + oneLine(seeding)));
                 }
                 continue;
             }

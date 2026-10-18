@@ -3,13 +3,13 @@
 
 package com.legend.resolver;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Execution;
 import com.legend.exec.Column;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.List;
 
@@ -39,7 +39,7 @@ class PivotOverClassQueryTest {
     @Test
     @DisplayName("project -> pivot over a mapped class: one column per year, totals per region")
     void pivotOverProjection() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE SALES (ID INTEGER, REGION VARCHAR, YR INTEGER, AMOUNT INTEGER)");
                 st.execute("INSERT INTO SALES VALUES (1,'EU',2023,10), (2,'EU',2023,5), (3,'EU',2024,7),"

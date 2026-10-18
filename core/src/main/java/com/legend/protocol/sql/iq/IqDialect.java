@@ -3999,6 +3999,13 @@ public final class IqDialect implements InputDialect {
         };
     }
 
+    /** Two WINDOW definitions of one name: SQL Anywhere reads the first
+     *  (lite/windows/named_window_twice_the_first_counts, measured on IQ 17). */
+    @Override
+    public boolean oneWindowPerName() {
+        return false;
+    }
+
     /** {@code -x}, {@code +x}, {@code NOT c}: a minus before an integer constant is a constant typed by its value; one
      *  before any other integer negates it in its type (a BIT's is a SMALLINT), checked; a minus before a numeric
      *  constant negates it exactly; a plus changes no number. */
@@ -6105,6 +6112,23 @@ public final class IqDialect implements InputDialect {
         // IQ island, 2026-10-14 (M1d): and a BIGINT in lite's databases (range's), so computed in 64 bits already
         return new SqlToPure.Relation(relation, List.of(new SqlToPure.RelationColumn("row_num", Kind.INTEGER, true,
                 IqType.integer("INTEGER", lo, hi, true))));
+    }
+
+    /** IQ's wording of a kind in the translator's refusals that name a value's type (D11, 2026-10-18): its own
+     *  ({@link #kindName}). */
+    @Override
+    public String typeName(Kind kind) {
+        return kindName(kind);
+    }
+
+    /** A string constant the translator compares with a value of another kind (a simple CASE's operand, D11,
+     *  2026-10-18): refused by name. IQ converts the string by its own rules, which the island reads in its own
+     *  comparisons ({@link #binary}) but not in the translator's; until 2026-10-18 the translator read it by
+     *  Postgres's rules, which no IQ test reached. */
+    @Override
+    public Tx readString(SqlAst.StringLit s, Kind kind) {
+        throw SqlTranslationException.unsupported("comparing the string '" + s.value() + "' with " + kindName(kind)
+                + " in a simple CASE is not supported yet", s.pos());
     }
 
     private static String kindName(Kind k) {

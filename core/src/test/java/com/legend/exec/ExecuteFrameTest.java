@@ -3,6 +3,7 @@
 
 package com.legend.exec;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -10,7 +11,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -51,7 +51,7 @@ class ExecuteFrameTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE T (NAME VARCHAR, AGE INTEGER)");
             st.execute("INSERT INTO T VALUES ('Ann', 25), ('Bob', 35), ('Cat', 45)");

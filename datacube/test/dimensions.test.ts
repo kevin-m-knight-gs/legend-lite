@@ -31,7 +31,6 @@ const CUBE: CubeSnapshot = {
   derived: [],
   rows: [],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'amt', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };

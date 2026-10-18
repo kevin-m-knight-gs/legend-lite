@@ -39,6 +39,21 @@ class StaticFoldTest {
                 .mapToObj(v -> (ValueSpecification) new CInteger(v)).toList());
     }
 
+    private static final String PLUS = com.legend.builtin.Pure.PLUS__INTEGER_MANY.qualifiedName();
+    private static final String MINUS = com.legend.builtin.Pure.MINUS__INTEGER_MANY.qualifiedName();
+
+    @Test
+    void aSumOrADifferencePastALongIsNotStatic() {
+        // they wrapped (2026-10-17, the #SQL{} island's regression-suite corpus): the exact folds and the database
+        // answer them
+        assertEquals(new CInteger(3L), folder().foldToLiteral(new AppliedFunction(PLUS, List.of(ints(1, 2)))));
+        assertNull(folder().foldToLiteral(new AppliedFunction(PLUS, List.of(ints(Long.MAX_VALUE, 1)))));
+        assertNull(folder().foldToLiteral(new AppliedFunction(MINUS, List.of(ints(Long.MIN_VALUE)))));
+        assertNull(folder().foldToLiteral(new AppliedFunction(MINUS, List.of(ints(Long.MIN_VALUE, 1)))));
+        assertEquals(new CInteger(-Long.MAX_VALUE),
+                folder().foldToLiteral(new AppliedFunction(MINUS, List.of(ints(Long.MAX_VALUE)))));
+    }
+
     @Test
     void toOneOfASingletonFolds() {
         assertEquals(new CInteger(7L),

@@ -715,8 +715,8 @@ final class RelOpTranslator {
             case TRANSLATED -> throw new IllegalStateException("dynafunction '" + call.name()
                     + "' is declared TRANSLATED but no translator arm rewrote it");
             case UNSUPPORTED -> throw new com.legend.error.NotImplementedException(
-                    "engine dynafunction '" + call.name() + "' is not supported by this platform yet"
-                    + " (DynaFn." + d.name() + ", registered by " + d.dialects() + ")");
+                    "engine dynafunction '" + call.name() + "' is not supported by this platform yet (DynaFn."
+                    + d.name() + "; the engine's dialects that register it: docs/engine-dynafunctions.tsv)");
         };
     }
 

@@ -2,8 +2,8 @@
 // behaviour is what actually materialises.
 
 import assert from 'node:assert/strict';
-import { engineClientRequire } from '../src/node-require.ts';
-import path from 'node:path';
+import { startNodeDuckDb } from '../src/node-require.ts';
+import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { after, before, describe, it } from 'node:test';
 
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
@@ -26,23 +26,7 @@ let planner: WasmGrammar;
 
 before(async () => {
   planner = await loadPlanner();
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB(
-    {
-      mvp: {
-        mainModule: path.join(dist, 'duckdb-mvp.wasm'),
-        mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs'),
-      },
-      eh: {
-        mainModule: path.join(dist, 'duckdb-eh.wasm'),
-        mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs'),
-      },
-    },
-    new duckdb.VoidLogger(),
-    duckdb.NODE_RUNTIME,
-  );
-  await db.instantiate();
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   engine = new DuckDbEngine(db.connect() as ArrowishConnection);
   await engine.run(
     `CREATE TABLE trades AS

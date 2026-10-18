@@ -45,6 +45,10 @@ export class CubeRefusal extends Error {
 
 export type ColumnKind = 'dimension' | 'measure';
 
+/** Every column kind, each once: a Record over ColumnKind, so a kind added to it and not here does not compile. */
+const KINDS: { readonly [K in ColumnKind]: true } = { dimension: true, measure: true };
+export const COLUMN_KINDS = Object.keys(KINDS) as readonly ColumnKind[];
+
 /**
  * The leaf count's column in a group query's result ("Show leaf
  * count"). Internal, like the tree column's `__tree`: `assemble` folds
@@ -389,6 +393,10 @@ export interface DerivedColumn {
 
 export type SortDirection = 'asc' | 'desc';
 
+/** Every sort direction, once: exhaustive by construction (a Record over the union), as AGGREGATE_FNS is. */
+const EVERY_DIRECTION: Readonly<Record<SortDirection, true>> = { asc: true, desc: true };
+export const SORT_DIRECTIONS: readonly SortDirection[] = Object.keys(EVERY_DIRECTION) as SortDirection[];
+
 export interface SortSpec {
   readonly column: string;
   readonly direction: SortDirection;
@@ -604,7 +612,6 @@ export interface CubeSnapshot {
    * `leafCountMode`), the default.
    */
   readonly childCount?: boolean;
-  readonly measures: readonly Measure[];
   readonly sorts: readonly SortSpec[];
   readonly window?: RowWindow;
   /**
@@ -638,13 +645,39 @@ export interface CubeSnapshot {
 }
 
 /**
+ * WHAT THE QUERY BUILDER IS HANDED (query.ts): a grid's state, and the aggregates a query asks for when they are not
+ * the grid's own (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.1). No tile stores a list of aggregates: a grid's are
+ * its columns' Aggregation (Column Properties), worked out per level (query.ts groupedMeasures); a chart's are worked
+ * out for its query from its value pairs (chart-spec.ts chartSnapshot); a one-off count is its own. Absent, the grid's.
+ */
+export interface QuerySnapshot extends CubeSnapshot {
+  readonly measures?: readonly Measure[];
+}
+
+/** The aggregates a query asks for of its own: none for a grid's. */
+export function askedMeasures(s: QuerySnapshot): readonly Measure[] {
+  return s.measures ?? [];
+}
+
+/**
+ * A grid's snapshot as its controller receives it: no measures list -- a grid's aggregates are its columns'
+ * Aggregation. The type keeps TypeScript from writing one; a JavaScript host (CubeApp.change) is not held by it, so a
+ * grid that carries one is refused, never read.
+ */
+export function refuseMeasuresList(s: CubeSnapshot): void {
+  if ((s as QuerySnapshot).measures !== undefined) {
+    throw new CubeRefusal("a grid carries no measures list: its aggregates are its columns' Aggregation (Column Properties)");
+  }
+}
+
+/**
  * Columns a snapshot actually needs from the source, in emit order.
  *
  * `groupCols` defaults to every row dimension. Passing fewer is how a
  * subtotal is expressed: the same measures over a shorter grouping.
  */
 export function referencedColumns(
-  s: CubeSnapshot,
+  s: QuerySnapshot,
   groupCols: readonly string[] = s.rows,
 ): string[] {
   const out: string[] = [];
@@ -653,7 +686,7 @@ export function referencedColumns(
   };
   groupCols.forEach(push);
   s.pivotOn.forEach(push);
-  for (const m of s.measures) {
+  for (const m of askedMeasures(s)) {
     if (m.fn !== 'count') push(m.column);
     if (m.weight) push(m.weight);
   }
@@ -795,11 +828,6 @@ export function renameColumnReferences(
     rows: s.rows.map(one),
     pivotOn: s.pivotOn.map(one),
     sorts: s.sorts.map((x) => ({ ...x, column: one(x.column) })),
-    measures: s.measures.map((m) => ({
-      ...m,
-      column: one(m.column),
-      ...(m.weight !== undefined ? { weight: one(m.weight) } : {}),
-    })),
     ...(s.filter ? { filter: inFilter(s.filter) } : {}),
     // A window names its columns outright, so a rename reaches them.
     derived: s.derived.map((d) => renamedWindow(d, one)),

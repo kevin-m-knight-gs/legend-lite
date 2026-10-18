@@ -136,6 +136,48 @@ try {
     return `${frozen.title} updated to ${after.x}, no split; the cube's grid still ${rowsBefore.join(' > ')}`;
   });
 
+  await check('Column Properties > Aggregation: a following chart plots its column at it, a frozen one keeps its own; Open in grid and Update keep the frozen one\'s', async () => {
+    // a grid's aggregates are its columns' Aggregation (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.5)
+    const values = () => page.evaluate(() => window.__dataPage.views().views.filter((v) => v.kind === 'chart')
+      .map((v) => ({ id: v.id, title: v.title, pinned: v.spec.frozen === true, y: v.spec.y.map((m) => [m.column, m.fn]) })));
+    const before = await values();
+    const live = before.find((c) => !c.pinned);
+    const frozen = before.find((c) => c.pinned);
+    if (!live || !frozen) throw new Error(`want a following and a frozen chart: ${JSON.stringify(before)}`);
+    const [column, fn] = live.y[0];
+    const next = fn === 'max' ? 'min' : 'max';
+    // Properties > Column Properties > the column > Aggregation, Apply: as a person sets it
+    await page.locator(FIRST).locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Properties..."))').first().click();
+    await page.locator('.dc-editor-tab', { hasText: 'Column Properties' }).first().click();
+    await page.locator(`.dc-pe-col[data-column="${column}"]`).first().click();
+    await page.locator('.dc-field', { hasText: 'Aggregation:' }).first().locator('select').first().selectOption(next);
+    await page.locator('button', { hasText: 'Apply' }).first().click();
+    await settle();
+    await page.keyboard.press('Escape');
+    const after = await values();
+    const liveNow = after.find((c) => c.id === live.id);
+    const frozenNow = after.find((c) => c.id === frozen.id);
+    if (JSON.stringify(liveNow.y[0]) !== JSON.stringify([column, next])) {
+      throw new Error(`the following chart plots ${JSON.stringify(liveNow.y)}, not ${next} of ${column}`);
+    }
+    if (JSON.stringify(frozenNow.y) !== JSON.stringify(frozen.y)) {
+      throw new Error(`the frozen chart changed: ${JSON.stringify(frozen.y)} -> ${JSON.stringify(frozenNow.y)}`);
+    }
+    // Open in grid: the editing grid opens on the frozen chart's own values; an untouched Update keeps them
+    await chartMenu(frozen.id, 'Open in grid');
+    const editing = page.locator(`[data-tile="edit-${frozen.id}"]`);
+    await editing.locator('.dc-row').first().waitFor({ timeout: 20_000 });
+    await settle();
+    await button(`edit-${frozen.id}`, `Update ${frozen.title}`).click();
+    await settle();
+    const updated = (await values()).find((c) => c.id === frozen.id);
+    if (JSON.stringify(updated.y) !== JSON.stringify(frozen.y)) {
+      throw new Error(`Update changed the frozen chart's values: ${JSON.stringify(frozen.y)} -> ${JSON.stringify(updated.y)}`);
+    }
+    return `following: ${next} of ${column}; frozen kept ${JSON.stringify(frozen.y)}, through Open in grid and Update`;
+  });
+
   await check('Insert > Grid adds a grid tile of its own; its Insert > Chart charts it; removing it detaches a frozen chart', async () => {
     const tilesBefore = await page.locator('[data-tile^="chart-"]').count();
     await insert('Copy of Grid', FIRST);

@@ -153,11 +153,11 @@ public final class CypherGraph {
         // label's class, which then holds no node of its own (a marker every class of its sets extends: so an
         // association is always a leaf class's, never inherited)
         Set<String> labels = new HashSet<>();
-        Set<String> amongOthers = new HashSet<>();
+        Set<String> otherLabels = new HashSet<>();
         for (CypherAnswers.GraphNode n : g.nodes()) {
             labels.addAll(n.labels());
             if (n.labels().size() > 1) {
-                amongOthers.addAll(n.labels());
+                otherLabels.addAll(n.labels());
             }
         }
         // a property name's precision is the finest the graph holds under it (the study's §12.64): a time of day or
@@ -201,11 +201,11 @@ public final class CypherGraph {
                 if (!IDENTIFIER.matcher(label).matches()) {
                     throw new Unsupported("harness: the label " + label + " is not a Pure identifier");
                 }
-                if (amongOthers.contains(label)) {
+                if (otherLabels.contains(label)) {
                     declare(classes, tableOwner, label, false, List.of());
                 }
             }
-            boolean own = set.size() == 1 && !amongOthers.contains(set.get(0));
+            boolean own = set.size() == 1 && !otherLabels.contains(set.get(0));
             String name = set.isEmpty() ? UNLABELLED : own ? set.get(0) : "N_" + String.join("_", set);
             if (!own && labels.contains(name)) {
                 throw new Unsupported("harness: the label " + name + " is the class the model makes up for the label"

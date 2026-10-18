@@ -388,7 +388,7 @@ window.__readPythonPage = (text: string): string | null => {
  */
 window.__pythonPageDocument = async () => {
   const served = window.__pythonEngineServed!;
-  const cubeOf = async (frame: string, rows: readonly string[], measures: CubeSnapshot['measures']) => {
+  const cubeOf = async (frame: string, rows: readonly string[]) => {
     const said = await (await fetch(`cube.json?table=${frame}`, { headers: { Authorization: served.authorization } })).json() as
       { model: string; runtime: string; source: never };
     const run = new RemoteRun(new LegendEngineExecutor({
@@ -396,12 +396,13 @@ window.__pythonPageDocument = async () => {
       authorization: served.authorization,
     }));
     const columns = await sourceColumns(run, said.source);
-    const snapshot: CubeSnapshot = { source: { query: said.source }, columns, derived: [], rows, pivotOn: [], measures, sorts: [], epoch: 1 };
+    const snapshot: CubeSnapshot = { source: { query: said.source }, columns, derived: [], rows, pivotOn: [], sorts: [], epoch: 1 };
     const source: FrameSource = { _type: 'frame', name: frame, columns: columns.map((c) => ({ name: c.name, type: c.type })) };
     return { snapshot, cube: writeCube({ name: frame, source, snapshot, configuration: { ...DEFAULT_CONFIGURATION, reportTitle: frame }, tree: TreeState.empty() }) };
   };
-  const trades = await cubeOf('trades', ['region'], [{ name: 'notional', column: 'notional', fn: 'sum' }]);
-  const desks = await cubeOf('desks', [], []);
+  // grouped, its notional summed: a number's Aggregation by default
+  const trades = await cubeOf('trades', ['region']);
+  const desks = await cubeOf('desks', []);
   const doc = writePageOf({
     name: 'Q3 from Python',
     cubes: [{ id: 'grid-1', cube: trades.cube }, { id: 'grid-2', cube: desks.cube }],

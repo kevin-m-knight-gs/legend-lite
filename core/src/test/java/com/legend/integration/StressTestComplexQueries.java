@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -22,7 +23,7 @@ class StressTestComplexQueries {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
     }
 
     @AfterEach
@@ -240,7 +241,7 @@ class StressTestComplexQueries {
         long normMs = (System.nanoTime() - t2) / 1_000_000;
         System.out.println("Phase 2 (normalize " + N + " mappings): " + normMs + " ms");
 
-        var dialect = new com.legend.sql.dialect.DuckDb();
+        var dialect = TestBackends.platform().dialect();
 
         // ---- Complex Queries ----
         // Using hub 0 as base (H0). Its ring neighbor is H1, skip-links go to H2,H3,H5,...

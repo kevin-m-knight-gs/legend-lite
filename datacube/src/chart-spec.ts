@@ -12,7 +12,8 @@
 // a chart never depends on the drawing library's version, and it holds
 // no functions (a stored formatter would need eval to come back).
 
-import { levelLambda, type LevelScope } from './query.ts';
+import { allColumns, copiedColumn, measuresAsColumns, type GridDraft } from './grid-edits.ts';
+import { columnSpecs, defaultMeasure, levelLambda, type LevelScope } from './query.ts';
 import { binColumns, binName, grainColumn, grainEndColumn, grainName, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waterfallColumns } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import {
@@ -23,11 +24,12 @@ import {
   type DerivedColumn,
   type FilterNode,
   type Measure,
+  type QuerySnapshot,
   type RowColumn,
   type SortSpec,
 } from './snapshot.ts';
 import { defaultKind, isDay, isFractional, isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
-import { lambda, property, variable, type Lambda } from '../../pure-protocol/src/index.ts';
+import type { Lambda } from '../../pure-protocol/src/index.ts';
 
 export type ChartMark =
   | 'bar' | 'line' | 'area' | 'scatter' | 'pie' | 'heatmap' | 'treemap' | 'kpi'
@@ -85,8 +87,8 @@ const HOVER_EXTRAS: ReadonlySet<ChartMark> = new Set([
 ]);
 
 /**
- * The spec's version (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.1). 2: a slot per role -- every field it adds is
- * optional, so a version 1 spec IS a version 2 spec and is read unchanged but for its number. 1: x, y, split, options.
+ * The spec's version (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.1). 2: a slot per role. 1: x, y, split, options. Only
+ * 2 is read (the user, 2026-10-17: no older chart is read forward).
  */
 export const CHART_VERSION = 2;
 
@@ -256,8 +258,16 @@ export interface ChartOptions {
   readonly ring?: boolean;
 }
 
+/** The options that are flags, each true or false (a Record over them: an option flag added and not here fails the build). */
+type FlagKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends boolean ? K : never }[keyof T];
+const OPTION_FLAGS: Readonly<Record<FlagKeys<ChartOptions>, true>> = {
+  labels: true, smooth: true, step: true, logAxis: true, zoom: true, brush: true, decal: true, dim: true, toolbox: true,
+  half: true, ring: true,
+};
+
 // The words a saved spec may use, each list exhaustive by construction (a Record over its union): a page's reader
-// refuses a word it does not know, and Python's ll.Page writes these words and no others (python-vocabulary.test.ts).
+// refuses a word it does not know -- Python's ll.Page too, which keeps no list of them and asks this reader
+// (headless gridChart).
 const AGGREGATE_WORDS: Readonly<Record<string, true>> = Object.fromEntries([...AGGREGATE_FNS, 'value'].map((a) => [a, true]));
 const MEASURE_MARK_WORDS: Readonly<Record<MeasureMark, true>> = { bar: true, line: true, area: true };
 const AXIS_WORDS: Readonly<Record<MeasureAxis, true>> = { left: true, right: true };
@@ -334,8 +344,8 @@ function measureProblem(m: unknown, what: string): string | null {
  */
 export function specProblem(spec: unknown, marks: readonly string[]): string | null {
   if (!isRecord(spec)) return 'it is not a chart';
-  if (spec['version'] !== 1 && spec['version'] !== CHART_VERSION) {
-    return `its version ${JSON.stringify(spec['version'] ?? null)} is not one this DataCube reads (1 to ${CHART_VERSION})`;
+  if (spec['version'] !== CHART_VERSION) {
+    return `its version ${JSON.stringify(spec['version'] ?? null)} is not one this DataCube reads (${CHART_VERSION})`;
   }
   if (!marks.includes(spec['mark'] as string)) return `its kind ${JSON.stringify(spec['mark'] ?? null)} is not one this DataCube draws`;
   if (spec['y'] === undefined) return 'it plots nothing (no y)';
@@ -386,8 +396,20 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
     ?? word('legend', ['top', 'bottom', 'right', 'none']) ?? word('labelPosition', ['inside', 'outside'])
     ?? word('better', ['higher', 'lower']);
   if (optionProblem) return optionProblem;
-  for (const flag of ['half', 'ring'] as const) {
+  for (const flag of Object.keys(OPTION_FLAGS)) {
     if (o[flag] !== undefined && typeof o[flag] !== 'boolean') return `its ${flag} ${JSON.stringify(o[flag])} is not true or false`;
+  }
+  if (spec['frozen'] !== undefined && typeof spec['frozen'] !== 'boolean') {
+    return `its frozen ${JSON.stringify(spec['frozen'])} is not true or false`;
+  }
+  if (o['labelRotate'] !== undefined && typeof o['labelRotate'] !== 'number') {
+    return `its labelRotate ${JSON.stringify(o['labelRotate'])} is not a number`;
+  }
+  // the axis breaks: each a range of the value axis, left out
+  const breaks = o['breaks'];
+  if (breaks !== undefined && !(Array.isArray(breaks) && breaks.every((b) => isRecord(b) && typeof b['from'] === 'number'
+    && typeof b['to'] === 'number' && b['from'] < b['to'] && Object.keys(b).every((k) => k === 'from' || k === 'to')))) {
+    return `its breaks ${JSON.stringify(breaks)} are not a list of ranges (each a from below its to)`;
   }
   // how many it draws, a whole number; a target, a number
   if (o['limit'] !== undefined && !(Number.isInteger(o['limit']) && (o['limit'] as number) >= 1)) {
@@ -417,6 +439,9 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
       if (l['kind'] === 'stat' && !known(STAT_WORDS, l['stat'])) return `layer ${i + 1}'s statistic ${JSON.stringify(l['stat'] ?? null)} is not one of ${LAYER_STATS.join(', ')}`;
       const layerExtra = unknownKey(l, LAYER_KEYS[l['kind'] as ChartLayerKind], `layer ${i + 1} (a ${l['kind']})`);
       if (layerExtra) return layerExtra;
+      if (l['measure'] !== undefined && !(Number.isInteger(l['measure']) && (l['measure'] as number) >= 0)) {
+        return `layer ${i + 1}'s value ${JSON.stringify(l['measure'])} is not one of the chart's (a whole number, 0 its first)`;
+      }
       if ((l['kind'] === 'line' || l['kind'] === 'threshold') && typeof l['value'] !== 'number') return `layer ${i + 1} has no value`;
       if (l['kind'] === 'band' && (l['from'] === undefined || l['to'] === undefined || (l['axis'] !== 'x' && l['axis'] !== 'y'))) {
         return `layer ${i + 1} (a band) needs an axis, a from and a to`;
@@ -446,9 +471,8 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
 }
 
 /**
- * A saved chart as a page reads it (page-document.ts), or what stops it from being read, in words (specProblem). A
- * version 1 spec IS a version 2 spec (every field 2 adds is optional): only its number moves. An option it leaves out
- * is the chart's own default. Python's charts are read the same, headless (headless/grid.ts gridChart): one reader --
+ * A saved chart as a page reads it (page-document.ts), or what stops it from being read, in words (specProblem). An
+ * option it leaves out is the chart's own default. Python's charts are read the same, headless (headless/grid.ts gridChart): one reader --
  * as the Python pages design's §3 has it, Python adds no second set of rules.
  */
 export function readChart(spec: unknown): ChartSpec | string {
@@ -745,15 +769,105 @@ function chartRowCalcs(spec: ChartSpec | undefined): RowColumn[] {
   }));
 }
 
-/** The measure a new chart plots when it is not told one: the cube's own (a weighted average needs its weight, which
- *  a chart's value has not); else a column it treats as a measure, a fraction first (money, a quantity) -- every number
- *  is a measure by default (D3), and an id or a year summed is the worst first chart; else none. */
+/** The measure a new chart plots when it is not told one: a column it treats as a measure, a fraction first (money, a
+ *  quantity) -- every number is a measure by default (D3), and an id or a year summed is the worst first chart -- on
+ *  the grid's Aggregation of it (Column Properties), as the grid shows it; never one aggregated by a weighted average,
+ *  which needs a weight a chart's value has not; else none. */
 function firstMeasure(s: CubeSnapshot): ChartMeasure | undefined {
-  const configured = s.measures.find((m) => m.fn !== 'wavg');
-  if (configured) return { column: configured.column, fn: configured.fn };
-  const asMeasures = chartColumns(s).measures.filter((c) => c.kind === 'measure');
-  const measureKind = asMeasures.find((c) => isFractional(c.type)) ?? asMeasures[0];
-  return measureKind ? { column: measureKind.name, fn: 'sum' } : undefined;
+  const specOf = columnSpecs(s);
+  const plotted = chartColumns(s).measures.filter((c) => c.kind === 'measure')
+    .map((c) => ({ column: c, fn: defaultMeasure(c.name, specOf.get(c.name)).fn }))
+    .filter((m) => m.fn !== 'wavg');
+  const first = plotted.find((m) => isFractional(m.column.type)) ?? plotted[0];
+  return first ? { column: first.column.name, fn: first.fn } : undefined;
+}
+
+/**
+ * A CHART'S VALUES AS A GRID'S COLUMN PROPERTIES (Open in Grid): each (column, aggregate) pair once -- two values of
+ * one pair (a sum and its running total) carried by one column. A pair a column of the grid carries already (its own
+ * column at that Aggregation, or a copy of it: a converted measures list's, an earlier Open in Grid's) is that column's;
+ * any other is made by grid-edits.ts measuresAsColumns, the one rule: the first of a column its Aggregation, unless the
+ * column is the chart's across or split (a key the grid groups by) or carries another value already, and those a
+ * calculated column named for the value, apart from every name the grid has. `carriedBy` says which column carries
+ * each value, for Update (followCube); a value no column carries -- a group-level column plotted as it is, a pair
+ * left out -- has none, and Update leaves it as it is.
+ */
+export function chartValuesAsColumns<D extends GridDraft>(draft: D, y: readonly ChartMeasure[]): {
+  readonly draft: D;
+  readonly notes: readonly string[];
+  readonly carriedBy: (m: ChartMeasure) => string | undefined;
+} {
+  const pairKey = (m: { readonly column: string; readonly fn: string }): string => JSON.stringify([m.column, m.fn]);
+  const keys = new Set([...draft.snapshot.rows, ...draft.snapshot.pivotOn]);
+  const taken = new Set(allColumns(draft));
+  // the columns whose Aggregation carries a value: another value of the column is a calculated column
+  const claimed = new Set<string>();
+  const carrier = new Map<string, string>();
+  const asked: Measure[] = [];
+  for (const m of y) {
+    if (m.fn === 'value' || carrier.has(pairKey(m)) || asked.some((a) => pairKey(a) === pairKey(m))) continue;
+    const had = carryingColumn(m, draft.snapshot);
+    if (had !== undefined && !claimed.has(had)) {
+      carrier.set(pairKey(m), had);
+      claimed.add(had);
+      continue;
+    }
+    const own = !keys.has(m.column) && !claimed.has(m.column);
+    const name = own ? m.column : unusedName(m, taken);
+    claimed.add(name);
+    taken.add(name);
+    asked.push({ name, column: m.column, fn: m.fn });
+  }
+  const made = measuresAsColumns(draft, asked);
+  for (const x of made.made) carrier.set(pairKey(x.measure), x.column);
+  return { draft: made.draft, notes: made.notes, carriedBy: (m) => carrier.get(pairKey(m)) };
+}
+
+/** A name for a calculated column carrying `m` that the grid has not: the value's own (`max_notional`), else by its column. */
+function unusedName(m: ChartMeasure, taken: ReadonlySet<string>): string {
+  const base = baseName(m);
+  const named = taken.has(base) ? `${m.fn}_${m.column}` : base;
+  if (!taken.has(named)) return named;
+  let n = 2;
+  while (taken.has(`${named}_${n}`)) n += 1;
+  return `${named}_${n}`;
+}
+
+/**
+ * The grid's column that carries a chart's value as it is, if one does: its own column at that aggregate (not a key the
+ * grid groups by, which it does not aggregate), else a calculated column that copies it (grid-edits.ts copiedColumn,
+ * as a converted measures list or Open in Grid makes one) at that aggregate -- so a saved page's min and max of one
+ * column, converted into the column and a copy, stay two values.
+ */
+function carryingColumn(m: ChartMeasure, s: CubeSnapshot): string | undefined {
+  if (m.fn === 'value') return m.column;
+  const specs = columnSpecs(s);
+  const carries = (name: string): boolean => defaultMeasure(name, specs.get(name)).fn === m.fn;
+  if (!s.rows.includes(m.column) && !s.pivotOn.includes(m.column) && carries(m.column)) return m.column;
+  return s.derived.find((d) => copiedColumn(d) === m.column && carries(d.name))?.name;
+}
+
+/**
+ * A chart's value as a following chart plots it: its column at the grid's Aggregation of `column`, the grid column that
+ * carries it (carryingColumn; a following chart's value no column carries follows its own column's). A row's value,
+ * a value no column carries for Update, a value of a dimension (which the grid does not aggregate), one the grid
+ * aggregates by a weighted average (which needs a weight a chart's value has not), and one whose followed pair another
+ * of the chart's values plots already (the grid carries one of two values of a column: followed, the chart would plot
+ * it twice, and lose the other for good, as a following chart keeps what it follows) keep the chart's own.
+ */
+function followedValue(m: ChartMeasure, s: CubeSnapshot, column: string | undefined,
+  plotted: readonly ChartMeasure[]): ChartMeasure {
+  if (m.fn === 'value' || column === undefined) return m;
+  if (rowColumns(s).find((c) => c.name === column)?.kind !== 'measure') return m;
+  const fn = defaultMeasure(column, columnSpecs(s).get(column)).fn;
+  if (fn === 'wavg' || fn === m.fn) return m;
+  const next = { ...m, fn };
+  return plotted.some((o) => o !== m && sameValue(o, next)) ? m : next;
+}
+
+/** Whether two of a chart's values plot the same: one column, one aggregate, shown alike. */
+function sameValue(a: ChartMeasure, b: ChartMeasure): boolean {
+  return a.column === b.column && a.fn === b.fn && JSON.stringify(a.showAs ?? null) === JSON.stringify(b.showAs ?? null);
 }
 
 /** A new chart's options with `x` across: time runs left to right, and long; categories lead with the largest. */
@@ -769,14 +883,14 @@ function isTemporalAcross(x: string | undefined, s: CubeSnapshot): boolean {
 
 /**
  * A chart with another column across (or none), as the cube's grouping moves it (followCube) and as a hand moves it
- * (editChart) -- one rule: what was chosen for the old column, its grain or bins, goes with it; the order is the new
+ * (editChart) -- one rule: what was chosen for the old column, its grain or bins and a drill down it, goes with it; the order is the new
  * column's -- a Pareto's from the largest always (its cumulative share runs along that order), a date's in time,
  * another column's from the largest -- and so is how many it draws, unless the chart was told: a time series' points
  * for a date, a category's default for anything else. A chart of rows (a scatter's X) asks no order and no such limit
  * (chartQuery): its options stay as they are.
  */
 function acrossChanged(spec: ChartSpec, x: string | undefined, s: CubeSnapshot): ChartSpec {
-  const { x: _x, grain: _g, bins: _b, ...rest } = spec;
+  const { x: _x, grain: _g, bins: _b, drill: _d, ...rest } = spec;
   const across = { ...rest, ...(x !== undefined ? { x } : {}) };
   if (plotsRows(spec)) return across;
   const inTime = spec.mark !== 'pareto' && isTemporalAcross(x, s);
@@ -813,18 +927,20 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
 
 /**
  * A chart taking another kind, as the form's change of kind has always made it: a gauge and a scatter matrix drop the
- * column across, a gauge and a kind of one series the split, and a Pareto runs from the largest. Only those: every other
- * slot (a layer, a facet, a label, a size, a hover's measures, a grain, bins) stays, for the rules to judge on the new
- * kind -- refused by name where it has no place, never dropped without a word. Part of a change by hand (editChart).
+ * column across (and its grain or bins with it, as a change of the column across takes them), a gauge and a kind of one
+ * series the split, and a Pareto runs from the largest. Only those: every other slot (a layer, a facet, a label, a size,
+ * a hover's measures) stays, for the rules to judge on the new kind -- refused by name where it has no place, never
+ * dropped without a word. Part of a change by hand (editChart).
  */
 function asMark(spec: ChartSpec, mark: ChartMark): ChartSpec {
-  const { x, split, ...rest } = spec;
+  const { x, split, grain, bins, ...rest } = spec;
   const keepX = mark !== 'gauge' && mark !== 'matrix' && x !== undefined;
   const keepSplit = !UNSPLIT.has(mark) && split !== undefined;
   return {
     ...rest,
     mark,
-    ...(keepX ? { x } : {}),
+    // the column across's grain or bins go with it (acrossChanged's rule)
+    ...(keepX ? { x, ...(grain !== undefined ? { grain } : {}), ...(bins !== undefined ? { bins } : {}) } : {}),
     ...(keepSplit ? { split } : {}),
     ...(mark === 'pareto' ? { options: { ...rest.options, sort: { by: 'y', direction: 'desc' } } } : {}),
   };
@@ -930,19 +1046,22 @@ export function followRefusal(told: readonly string[], made: ChartSpec, followed
 
 /**
  * A live chart, regrouped the way the cube is now: its first row group across; its second row group -- else its first
- * column label -- as the split; the cube's own measure plotted, when it has one. The mark and the options are the
- * chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots values, not
- * groups), a chart of the grid as shown and a cube with nothing grouped are left as they are.
+ * column label -- as the split; each value on the grid's Aggregation of the column carrying it (followedValue:
+ * `carriedBy` -- Update's, from Open in Grid; else carryingColumn, a value the grid carries as it is keeping its
+ * aggregate, and one it does not following its own column's). The mark and the options are the chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots
+ * values, not groups), a chart of the grid as shown and a cube with nothing grouped are left as they are.
  */
-export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
+export function followCube(spec: ChartSpec, s: CubeSnapshot,
+  carriedBy: (m: ChartMeasure) => string | undefined = (m) => carryingColumn(m, s) ?? m.column): ChartSpec {
   // a drilled chart stays where it was taken until it is taken back up
   if (!live(spec) || (spec.drill?.path.length ?? 0) > 0) return spec;
-  // a KPI or a gauge follows the cube's measure; a KPI's trend's column is its own
+  // each value against the others as they are and as followed before it: none is followed onto another's pair
+  const followed = (y: readonly ChartMeasure[]): readonly ChartMeasure[] => y.reduce<ChartMeasure[]>(
+    (done, m, i) => [...done, followedValue(m, s, carriedBy(m), [...done, ...y.slice(i + 1)])], []);
+  // a KPI or a gauge follows the grid's Aggregation of its value; a KPI's trend's column is its own
   if (spec.mark === 'kpi' || spec.mark === 'gauge') {
-    const measure = s.measures.find((m) => m.fn !== 'wavg');
-    if (!measure) return spec;
-    const y = [{ column: measure.column, fn: measure.fn }];
-    return JSON.stringify(y) === JSON.stringify(spec.y) ? spec : { ...spec, y };
+    const y = followed(spec.y);
+    return same(y, spec.y) ? spec : { ...spec, y };
   }
   const x = s.rows[0] ?? s.pivotOn[0];
   if (x === undefined) return spec;
@@ -950,8 +1069,7 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
   // spokes) keeps its own, as the cube's one measure would leave it refused
   const split = UNSPLIT.has(spec.mark) ? undefined
     : s.rows[0] !== undefined ? (s.rows[1] ?? s.pivotOn[0]) : s.pivotOn[1];
-  const configured = s.measures.find((m) => m.fn !== 'wavg');
-  const y = configured && !SEVERAL_VALUES.has(spec.mark) ? [{ column: configured.column, fn: configured.fn }] : spec.y;
+  const y = SEVERAL_VALUES.has(spec.mark) ? spec.y : followed(spec.y);
   // a new column across takes its own order, and its grain or bins go with the old one (acrossChanged)
   const { split: _old, ...rest } = x === spec.x ? spec : acrossChanged(spec, x, s);
   const next: ChartSpec = { ...rest, y, ...(split !== undefined ? { split } : {}) };
@@ -1027,6 +1145,9 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     out.push(`'${spec.x}' is not a number: it has no bins.`);
   }
   if (spec.grain !== undefined && spec.bins !== undefined) out.push('A column across has a grain or bins, not both.');
+  if (spec.x === undefined && !gridKind && (spec.grain !== undefined || spec.bins !== undefined)) {
+    out.push(`No column is across: it has no ${spec.grain !== undefined ? 'grain' : 'bins'}.`);
+  }
   if (gridKind && (spec.grain !== undefined || spec.bins !== undefined)) {
     out.push(`${article} ${kind} draws the grid as shown: it has no ${spec.grain !== undefined ? 'grain' : 'bins'}.`);
   }
@@ -1108,7 +1229,7 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
  * reads are kept, so a grouped query does not carry every other column
  * along as a "unique value".
  */
-export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot {
+export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapshot {
   // drilled, the level after the path across and the path as the chart's own conditions
   const view = drilledView(drilled);
   const conditions = view.conditions;
@@ -1137,7 +1258,9 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
   // window a measure) and every measure of the cube's they read, under the names they read them by -- the expression
   // was written against those names.
   const groupLevel = new Map(groupLevelColumns(s, spec).map((d) => [d.name, d]));
-  const cubeMeasures = new Map(s.measures.map((m) => [m.name, m]));
+  // the grid's own aggregated columns, each on its Aggregation (Column Properties), as its group level writes them
+  const specOf = columnSpecs(s);
+  const gridColumns = new Set(rowColumns(s).map((c) => c.name));
   const keptGroup: DerivedColumn[] = [];
   const keptMeasures: Measure[] = [];
   const seen = new Set<string>(measures.map((m) => m.name));
@@ -1150,8 +1273,8 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
       keptGroup.push(d);
       return;
     }
-    const m = cubeMeasures.get(name);
-    if (m) keptMeasures.push(m);
+    // a column the chart groups by is a key of its rows, never aggregated (a window ordered by its column across)
+    if (gridColumns.has(name) && !keys.includes(name)) keptMeasures.push(defaultMeasure(name, specOf.get(name)));
   };
   if (!scatter) plotted.filter((m) => m.fn === 'value').forEach((m) => need(m.column));
   // A SHOW-AS: group-level columns over the chart's rows, after what they read -- along the axis, restarting per series
@@ -1221,24 +1344,14 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
   if (!scatter && rangesAcross(spec) && across !== undefined) {
     measures.push({ name: AXIS_UPPER, column: upperName(across), fn: 'max' });
   }
-  // THE GRID AGGREGATES A COLUMN ONCE (query.ts `groupedAggs` keys its measures by column): a second measure of the
-  // same column -- the chart's max beside the sum a margin reads -- reads a copy of it, `$x.<column>`, as a child
-  // aggregate does
-  const copies: DerivedColumn[] = [];
-  const used = new Set<string>();
-  const allMeasures = [...measures, ...keptMeasures].map((m): Measure => {
-    if (!used.has(m.column)) {
-      used.add(m.column);
-      return m;
-    }
-    const copy = `__chart_${m.name}`;
-    copies.push({ name: copy, lambda: lambda(['x'], property(variable('x'), m.column)), kind: 'measure' });
-    return { ...m, column: copy };
-  });
+  // every measure under its own name, two of one column too -- the chart's max beside the sum a margin reads: the
+  // grouped level keeps each (query.ts groupedMeasures; it kept a column's last alone, and a copy of the column,
+  // `__chart_<name>`, stood in for each other one until 2026-10-16)
+  const allMeasures = [...measures, ...keptMeasures];
   return {
     ...(rest as CubeSnapshot),
     columns: s.columns.filter((c) => reads.has(c.name)),
-    derived: [...s.derived, ...rowCalcs, ...copies],
+    derived: [...s.derived, ...rowCalcs],
     ...(filter ? { filter } : {}),
     rows: scatter ? [] : keys,
     pivotOn: [],
@@ -1297,7 +1410,7 @@ export function kpiQueries(s: CubeSnapshot, spec: ChartSpec): {
 }
 
 /** The chart's query and the scope it runs at. */
-export function chartQuery(s: CubeSnapshot, spec: ChartSpec): { query: Lambda; snapshot: CubeSnapshot; scope: LevelScope } {
+export function chartQuery(s: CubeSnapshot, spec: ChartSpec): { query: Lambda; snapshot: QuerySnapshot; scope: LevelScope } {
   const snapshot = chartSnapshot(s, spec);
   // small multiples ask for each panel's rows: the most per panel, times the most panels drawn
   const limit = plotsRows(spec) ? SCATTER_LIMIT : spec.options.limit * (spec.facet ? MAX_FACETS : 1);

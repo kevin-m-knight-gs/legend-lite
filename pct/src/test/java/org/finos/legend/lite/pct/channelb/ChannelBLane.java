@@ -133,9 +133,9 @@ final class ChannelBLane {
                     "Standard", new Pins(202, 0, 0),
                     "Unclassified", new Pins(93, 0, 0)));
 
-    /** Whether this JVM runs the reference lane, DuckDB, whose pins are each suite's own. */
+    /** Whether this JVM runs the reference lane, the platform's own engine, whose pins are each suite's own. */
     static boolean isReference() {
-        return PctBackend.isDuckDb();
+        return PctBackend.isReference();
     }
 
     /** Judge {@code suite}'s outcomes on this lane against its channel A ledger and engine manifest. */

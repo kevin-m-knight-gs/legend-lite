@@ -842,6 +842,106 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `query/demo/config*.json` and `datacube/demo/config.json` (one `vendor` key each); `MODULE.bazel` (the `wasm_mvp`
   extension pins removed; the lock unchanged) and `engine-client/BUILD.bazel`; `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`
   (that note).
+- **Python asks DataCube: the other twins (announced 2026-10-15, before the first edit; the program:
+  `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`, its order agreed with this line the same day).** Every place Python
+  repeats DataCube's logic moves behind a call to DataCube's own code (the headless bundle) or a generated artifact,
+  one commit per item, in one PR: 4 (type families), 10 (the planner protocol's side lists), 8 (the snap's limit), 3
+  (layout editing), 1 (reading and writing a page), 5 (a calculated column), 6 (a filter), 7 (a class's sample), then 2
+  (a new grid's defaults). Branch `claude/epic-rubin-ay7upl`, from main; this line reviews each commit that changes
+  behaviour before CI. Files: `engine-client/tools/typefacts/TypeFacts.java` and `engine-client/BUILD.bazel` (Python's
+  copy of the fact table, generated), `BUILD.bazel` (its diff test in `//:generated`), `python/BUILD.bazel`,
+  `python/legend_lite/` (`_type_facts.py` generated, `_types.py` new, `page.py`, `frames.py` typing only, `engine.py`'s
+  side lists only), `python/tests/`; `engine-client/src/legend/planner-protocol.ts` (the side lists, pinned by
+  DataCube's vocabulary test: the engine runs without V8, so Python cannot read them from the bundle); `datacube/src/`
+  `layout/bands.ts`, `page-document.ts`, `cube-document.ts`, `headless/` (new calls), `query.ts`, `calc.ts`, a pure
+  module each for a filter's operand check and a class's sample (out of `ui/filter-editor.ts` and `model-actions.ts`),
+  `app/sources.ts` (`rawRows` and `rebuilt` moved out, by agreement with D5b's owner, who rebases over it), their tests,
+  `datacube/test/python-vocabulary.test.ts` (it reads `engine.py` and `_planner.py` too), `datacube/BUILD.bazel` and
+  `test_imports.bzl`. The BUILD files go to the Compiler Rewrite line. Not touched: the rest of D5b's files, core, the
+  SQL relays this line's runner plan would rewrite (`engine.py` snap, `frames.py` loading, `projects.py`,
+  `upstream.py`, `_headless._query`) beyond item 4's typing and item 8's pin. Also touched, past this list (noted
+  2026-10-15): `docs/GENERATORS.md` (item 4's generator row), `datacube/src/snapshot.ts` (`COLUMN_KINDS`, item 5),
+  `python/legend_lite/_planner.py` (a comment, item 10), and `_headless._query`'s Arrow writer, factored out unchanged
+  as `arrow_text` so item 7 hands its rows to DataCube through it (this line's ask); `docs/PARKED_WORK_LEDGER.md`
+  (PARK-30's row names items 5's and 6's checks, text only: the audit's review).
+  **Expanded, 2026-10-15 (the user: no remote planner on Python, and every weak row done properly, in this PR; the
+  design agreed with this line the same day).** Python plans in process only: `planner=`, `server=`, `ll.planner()` and
+  `upstream.py` removed, with the server paths of `engine.py`, `frames.py`, `page.py`, `datacube.py` and the Python
+  host's branch of `datacube/src/services/python-host.ts` (the browser app's own server planner stays); PARK-30 and
+  PARK-31 closed by removal; the program doc's §1.1, §1.4 and §7 reworded. Then: a class's sample planned by DataCube
+  again; the column editor's and the filter editor's cores shared with headless (`datacube/src/ui/column-editor.ts`,
+  `ui/filter-editor.ts`, `filter-operators.ts`, a new DOM-free module); one default aggregate for a measure
+  (`datacube/src/query.ts`, its three copies); the cap rule in DataCube (`datacube/src/app/datacube-app.ts`,
+  `page-document.ts`); the page-on-Python tunnel (`planner.json`) retired for legend-engine's own routes and the host's
+  compute (`/plan.json`; `engine-client/src/legend/planner-protocol.ts` back to main's), the snap limit Python's own;
+  one name rule (`page-names.ts givenName`, new, `layout/band-board.ts`, `page/page-app.ts`, `page/cube-page.ts`). (The
+  generator and the two corpora first planned here were dropped with the user, 2026-10-15.) More files: their tests,
+  `docs/PARKED_WORK_LEDGER.md`, `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`, `test_upstream.py` and its lane (the BUILD
+  edits to the Compiler Rewrite line). Declared after the audit (2026-10-15): `core/BUILD.bazel` (`//core:server`'s
+  visibility for the removed `//python:upstream_test`, the one core edit); `datacube/src/cube.ts`
+  (`CubeController.compile` types the cube first; D5b touches only `run`); `datacube/src/planner.ts` (`readServerPlan`,
+  left with no caller, removed; comments) with `datacube/test/upstream-plans.test.ts` and its fixture;
+  `docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md` (§15.2 amended, §15.10 added); `datacube/demo/verify-cubes.mjs` (the
+  cap's case in the app); `engine.py`'s warehouse plan-and-run (its runtime rule asked of the table, `refused_runtime`,
+  which `/plan.json` asks too) and its docstrings' words. Still not touched: `engine.py`'s snap, frames and project-data
+  paths, `_headless._query` (but the `arrow_text` fold back), `warehouse.py`, the planner kinds that answer SQL -- the
+  SQL plan's ground -- but for one forced line in `_warehouse_snap` (`_on_planner_threads()`, the planner switch gone)
+  and one in `frames.py reading_file` (58e807c: a file's table named as `register` names a frame, so `True` is an
+  identifier; this line's OK).
+  **Round 2, 2026-10-16 (the user, reading what #47 left: "fix the bad stuff, that was the point of this PR"; "lets fix
+  datacube where we find bugs").** In this PR, each reviewed by this line before push (rewritten after the round's
+  audit to what landed):
+  - a grid's grouping, pivot, measures and sorts through DataCube's code (headless `gridQuery`), Python's own rules and
+    its `AGGREGATES`/`DIRECTIONS` gone: `datacube/src/headless/grid.ts`, `snapshot.ts`, `offers.ts` (one measure-offer
+    rule), `ui/panel-kit.ts` with `ui/editor.ts`, `ui/panel-column.ts`, `ui/panel-general.ts` (their sort options built
+    from `snapshot.ts`'s directions), `python/legend_lite/page.py`;
+  - DataCube's bugs found doing it, fixed: the grouped level's measures and sorts and the measure name rule
+    (`query.ts`, `calc.ts`), the charts' stand-in for the bug gone (`chart-spec.ts`); a saved cube reopened without a
+    measure that no longer fits, said, and Python taking the cube DataCube opens (`cube-document.ts`, `page.py`);
+  - a class's sample refusing a NaN or an infinity on every path (`sample-rows.ts`, `create-class.ts`); the empty page's
+    hint (`page-document.ts`, `headless/page.ts`); the engine making its own planner (`engine.py`'s constructor alone);
+  - Python repeats no DataCube list: a new page, a new sheet and the first tile laid out by DataCube's code
+    (`page-document.ts`, `layout/bands.ts`, `page/cube-page.ts`, `app.ts`, `app/datacube-app.ts`, `headless/layout.ts`,
+    `headless/entry.ts`), the export kinds DataCube's (`export-render.ts`); `datacube/test/python-vocabulary.test.ts`
+    retired with its wiring (`datacube/BUILD.bazel`, `python/BUILD.bazel`, `datacube/test_imports.bzl`: the Compiler
+    Rewrite line's OK); doc carries (`docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`, `docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md`);
+  - not done, by the user's ruling (2026-10-16): one planner dispatcher in the compiler. Built and measured, then
+    dropped: `planner-answer.ts`'s switch and `_planner.py`'s table are each host's binding to the same `Boundary`
+    functions -- glue, not a rule, held alike by the start-up check -- and one generic request cost every call a JSON
+    envelope around the model's text. Shrinking the protocol toward legend-engine's own `pure/v1` API is the follow-up.
+  Still not touched: the SQL plan's ground (`engine.py`'s snap, frames and project-data paths, `_headless._query`,
+  `warehouse.py`, `_warehouse_snap`).
+  **Round 3, 2026-10-17 (the user: one implementation of editing a grid, the screen's, in #47 before merge).** The
+  design is `docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md`: a grid's aggregates are its Column Properties, and the
+  screen and Python edit a grid through one module. Announced files: `datacube/src/grid-edits.ts` (new, no DOM),
+  `ui/editor.ts`, `ui/menu.ts`, `ui/panel-kit.ts`, `ui/panel-column.ts`, `ui/panel-dimensions.ts` (their offers moved,
+  not changed), `cube-document.ts` (saved measures converted on open; a grid with measures never written),
+  `page/cube-page.ts` (Open in Grid), `chart-spec.ts` (`firstMeasure`, `followCube`), `examples/charts-dashboard.ts`,
+  `offers.ts`, `headless/grid.ts` (`gridEdit` for `gridQuery`), `headless/entry.ts`, `python/legend_lite/page.py`,
+  their tests, `datacube/test_imports.bzl` (regenerated), `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`. Still not
+  touched: the SQL plan's ground, as above. Declared after it landed locally (2026-10-17), past that list: the grid's
+  type and the builder's own input (`snapshot.ts`, `query.ts`, `calc.ts`, `cube.ts`, `shown-columns.ts`, `adhoc/outline.ts`,
+  `adhoc/query.ts`); the screen's edit path and the host's configuration rule (`app.ts`, `config.ts withConfiguration`);
+  the demos and tools that build a grid (`demo/boot.ts`, `demo/stress.ts`, `tools/link-dictionary/make.ts`,
+  `tools/offer-facts/emit.ts`); `datacube/BUILD.bazel` (`grid-edits` in `_HEADLESS_TESTS`: the Compiler Rewrite
+  line's OK asked); `datacube/test/bundle-budget.test.ts` (281,000 -> 283,500, its dated note); and one line outside
+  DataCube, `query/src/app/cube.ts` (the Query app's grid wrote `measures: []`, which no longer type-checks). The
+  command-API homework that followed (four read-only surveys, the user's ask) is
+  `docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md`: the next program, after #47 merges (the user, 2026-10-17). Then
+  the browser harnesses that built a grid with a list (`demo/verify-cubes.mjs`, `demo/verify-calc-vocabulary.mjs`,
+  `demo/verify-wasm-browser.mjs`), and the round's audit fixes, in files already declared and `ui/menu.ts` (its Add
+  sort by `grid-edits.ts addSort`) and `cube.ts` (a grid's measures list refused). Then the tests' DuckDB (the user,
+  2026-10-17: every test runs in the container): `tools/js/defs.bzl` (a test that takes DuckDB-WASM takes the pinned
+  extensions too, named in `DUCKDB_EXTENSIONS`: the Compiler Rewrite line's OK asked), `engine-client/src/node-require.ts`
+  (`startNodeDuckDb`), `engine-client/BUILD.bazel` (`node_duckdb_test`), the engine-client tests that start DuckDB
+  (`arrow-ipc`, `model-data`, `snap`), `datacube/BUILD.bazel` (the two remote harnesses' `bazel run` targets), the
+  harnesses themselves (`demo/verify-remote.mjs`, `demo/verify-real-data.mjs`), and `docs/CLOUD_SESSIONS.md`, `docs/GATES.md`.
+  Then main merged in (137c702) and the clean audit (four auditors, the user's ask before the push): its fixes in files
+  already declared, and, by the user's ruling that no older document be read ("remove ALL backward compatibility";
+  "you can break saved links"), `page-document.ts` (a page before version 4 refused), `layout/bands.ts` (`fromCells`
+  gone), `chart-spec.ts` (a version 1 spec refused), `config.ts` (the settings' lists configure checks names against),
+  `tools/link-dictionary/make.ts` (the next dictionary's chart at CHART_VERSION), their tests, and
+  `docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` (a dated note).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
@@ -1158,6 +1258,24 @@ by target against main's run 38729604540. The review is right: #46's own run was
 the seventh line called it ready without comparing the lanes #44 had not measured. Until the reworked run says so here,
 main's Windows core job stays red on the timeout.
 
+**#46 closed unmerged, 2026-10-16 (04:34 UTC, by the user).** The per-target JIT choice is not on main: `junit_test`
+takes no `jit`, and CI's test JVMs keep C2. Its measurements stay on the closed PR's branch (`claude/loving-euler-gjta59`,
+GitHub's refs/pull/46/head): main's Windows `core_tests_integration` took 262.6 s against its 300 s limit on run
+38729604540 (C2) and 106.8 / 149.9 s on #46's two runs. Nothing of it is in flight now.
+
+**Announced 2026-10-17 -- the corpus program: `#SQL{}` over the compatibility and real-world corpora, SELECTs only**
+(the seventh line; the user: "we should try to do all the compatibility tests and real world tests we can"). One
+harness, the embedded Postgres 16 the oracle, live: each corpus's setup on Postgres, each read-only statement on Postgres
+and through `#SQL{}`, rows compared, wrong answers held at zero, refusals counted and ranked by reason. The order:
+(1) the PostgreSQL regression suite's read-only statements (REL_16_STABLE, 222 files, 15,963 of its 44,218
+statements; PostgreSQL License), the yardstick Postgres-compatible projects publish; (2) SQLite's sqllogictest;
+(3) TPC-H's 22 and TPC-DS's 99; (4) SQLStorm's PostgreSQL set (18,251) and BIRD Mini-Dev's PostgreSQL version (500),
+judged on samples of their data, the corpora and data outside this repository (MIT / CC BY-SA), as the IQ line's corpus
+lane keeps its own (`IqCorpusTest`, whose shape the runner follows); (5) JOB; (6) a SQLancer-style generator.
+Each step lands as its own PR, the first the harness with the regression suite. Files: a new runner beside
+`IqCorpusTest` in `core/src/test/java/com/legend/integration/`, its manual target in `core/BUILD.bazel`, the island's own
+files where a corpus finds a fault, and this line's GATES entries.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
@@ -1403,7 +1521,7 @@ pause for the user's review after Phase 1.
   and a vocabulary owner names no specific `DatabaseType`, dialect, driver or URL. The leak ratchet now counts only
   what no owner holds: 1,964 lines.
 - **For the compiler line (D10, the user's decision of 2026-10-15; `builtin/` is that line's, so this program does not
-  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 17
+  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 18
   databases (175 of the leak ratchet's lines). It splits in two:
   - the engine's table stays as reference data, generated from or verified against the engine's source (spec by
     verification, the reference-checkout tenet);
@@ -1411,6 +1529,14 @@ pause for the user's review after Phase 1.
     generated matrix), so the matrix and `DynaFn` cannot disagree.
 
   The compiler line schedules it. Until then `DynaFn`'s lines stay pinned in the ratchet.
+  - **Taken over, 2026-10-18 (the user: the compiler line is parked, and the absolute ban needs it).** This program
+    does it now, with Phase 7 (#56; done the same day). `DynaFn.java` keeps each name, its inference flag and the
+    platform's resolution (`DynaFnDecisions`, unchanged), and names no database. The engine's table, which engine
+    dialect extension registers each name, becomes a generated reference ledger, `docs/engine-dynafunctions.tsv`,
+    written by the same generator from the pinned engine tree and held by `//docs:update_generated`'s diff test. Its
+    one reader in the product, `RelOpTranslator`'s refusal of an UNSUPPORTED name, points at that table instead of
+    printing the engine's dialect list. No other behaviour changes. Files: `builtin/DynaFn.java` (generated),
+    `spec`'s `DynaFnGenerator` and BUILD, `docs/BUILD.bazel`, `normalizer/RelOpTranslator.java`.
 - **Announced 2026-10-15, Phases 2 and 4 (one PR, branch `claude/gracious-edison-jcsvzm`).**
   - The owner guard (`core/src/test/java/com/legend/DatabaseOwners.java`, `DialectOwnerExclusivityTest`), and the
     dialect package's foreign names removed:
@@ -1481,7 +1607,79 @@ pause for the user's review after Phase 1.
 
   A branch that calls `Sessions.openNamed`, `openKept` or `joinKept`, or that builds an `Opening`, now passes the
   opening. A branch that reads `H2Settings.SETTINGS` reads `H2Connector.SETTINGS`.
-- **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move after #43 and #48 land** (D11:
+- **Announced 2026-10-16, Phase 6 part 1: the tests' databases are test backends** (branch
+  `claude/gracious-edison-jcsvzm`, after Phase 5 landed as #51; the plan's Phase 6 and its record there). Test code only,
+  plus `Databases.implemented()` in main. No product behaviour changes.
+  - New: `core/src/test/java/com/legend/testbackend/` (`//core:test_backends`, one backend per database and the
+    `TestBackends` registry), and the tests named for a database that took one database's assertions out of a shared
+    test (`PlanMaker<Db>Test`, `PlanRunner<Db>Test`, `RowLoad<Db>Test`, `StoreTypes<Db>Test`,
+    `SqlCanonConformanceH2Test`, `ConnectionLeaseH2Test`, `model/ConnectionWireTest`).
+  - Renamed: `RowLoadTest` to `RowLoadDuckDbTest` (`//core:duckdb_load_test` selects it), `ExecuteInDbTest`,
+    `RawGridSchemaTest` (each to `...DuckDbTest`), `DynamicPivotKeyLiteralTest`, `DeclaredQuotedTableTest` (each to
+    `...H2Test`); `setup/SeedSpellingTest` moved to `sql/dialect/`.
+  - `pct/`: `PctBackend` reads its lane's backend; `CloudLane` is deleted; `PctCensusGate` is a per-lane table;
+    `ChannelBEssentialTest`'s engine exclusions renamed.
+  - About 150 of core's test files open the platform's or every in-process backend instead of a JDBC URL;
+    `AbstractDatabaseTest` and its 28 subclasses take a `backend()` in place of `getDatabaseType()`/`getJdbcUrl()`.
+  - `StressSuites.Config` takes a backend; `StressTool --backend` takes a backend's name. `tools/census/RenderCensus`
+    renders with every implemented database's dialect, each named by its declared type. One comment in main code
+    (`ConnectionLets.java`, a renamed test).
+  - Guards: `DatabaseOwners` (BACKEND and NAMED_TEST kinds; the vocabulary's tests), `DialectOwnerExclusivityTest`
+    (walks the tests), `DialectBoundaryTest`, the ledger; parser-equivalence's `ratchets.tsv` (own corpus 2862 ->
+    2847).
+
+  A branch that subclasses `AbstractDatabaseTest` overrides `backend()`, if anything. A branch that opens
+  `jdbc:duckdb:` in a new core test opens `TestBackends.platform()`. **Part 2** (the corpus harness:
+  `MinimalCorpus`, `MinimalCorpusTest`, `ReplayReferee`, `DuckWorkspaces`, `ServerWorkspaces`; and the SQL, IQ and Cypher
+  islands' tests) is next: #43 and #50, which it waited for, landed on 2026-10-17.
+- **Announced 2026-10-17, Phase 6 part 2: the corpus's databases, the islands' tests and what part 1 left are test
+  backends** (branch `claude/gracious-edison-jcsvzm`, after #52; the plan's Phase 6 and its record there). Test code
+  and test data only; no product behaviour changes.
+  - `core/src/test/java/com/legend/testbackend/`: `TestBackend` gains `openWorkspace()`, `setFixtureAside()` (a
+    `FixtureAside`) and `readerOn()`; new `RefereeBackend` (H2's), `DuckDbWorkspaces`, `DuckDbWarehouseBackend`
+    (the warehouse lane, `-Drcorpus.backend=warehouse`, `legend.warehouse.server/library/data`), `WorkspaceCensus`;
+    `H2ExtensionFunctions` moved in from spec. The server backends' sessions (Postgres, MariaDB, MySQL) open at the
+    URL the product's connector makes from their declared coordinates; Trino's and ClickHouse's keep their
+    launchers' (the product opens none on them).
+  - `spec/`: `H2Verify` is `RefereeVerify`, `H2VerifyNormTest` `RefereeVerifyNormTest`; `rcorpus/DuckWorkspaces` and
+    `ServerWorkspaces` are deleted; `MinimalCorpus`, `MinimalCorpusTest`, `ReplayReferee` and `CorpusOne` take the
+    lane's backend.
+  - `core/src/test/java/com/legend/testcases/`: `SqlParity.seed(backend, ...)` and `IqParity.seed(backend, ...)`
+    render the tables through the lane's dialect; new `PostgresSeed` (upstream's Postgres fixture, verbatim);
+    `SqlIslandCases.table(backend)` and `Case.plain()` (was `postgres()`); `SqlStress` is `SqlStressOnPostgres`, which
+    needs `-Dstress.pg.url` (`core/src/test/resources/sql-stress/run.sh` passes it).
+  - New `resolver/ResolvedSql` (the resolver tests' one `sqlOf`). `CorpusDifferentialTest` runs each service on its
+    runtime's database; `scripts/corpus/differential.py` writes `diff/seed.json` in place of `diff/seed.sql`.
+    `StoreTypesTest.on` takes a `DatabaseType`. `LowerRelationTest` and `ScaleCostsTest` are
+    `LowerRelationDuckDbTest` and `ScaleCostsDuckDbTest`; `SqlParity.fill` takes the table as the session spells it.
+
+  A branch that calls `SqlParity.seed` or `IqParity.seed` passes the backend; one that reads `diff/seed.sql` reads
+  `diff/seed.json`; one that runs the corpus on the warehouse passes `-Drcorpus.backend=warehouse`.
+- **Announced 2026-10-18, Phase 7: the warehouse, the model writer, the planner boundary and the dead code** (branch
+  `claude/gracious-edison-jcsvzm`, after Phase 6 landed as #54; the plan's Phase 7 and its record there). Files other
+  lines also edit:
+  - `warehouse/` (the second line's, which touches `WarehouseServer` and `Statements`): `Attachment` gains the command
+    line's option and URL, the password prompt and libpq's words (`Postgres`); `WarehouseServer.Config.postgres` and
+    `withPostgres` are `attached` and `withAttached` (a `Catalogs.Attach` per catalog: `Attachment.POSTGRES` and its
+    connection string); `Statements.classify` reads `DuckException.parse`/`bind`; `Sessions` names `DuckLibrary.NAME`.
+    Tests: `TestServer.start` takes attached catalogs; `PostgresUrlTest` (new) takes `AppModeTest`'s Postgres URL tests.
+    A branch that calls `withPostgres` or reads `config().postgres()` calls `withAttached` and reads `attached()`.
+  - `core/.../server/CreateClass.java` (the model writer) asks `SqlDialect.inMemoryPath`; `//core:pure_v1` gains
+    `:database`.
+  - `wasm/src/main/java/planner/Boundary.java` (the DataCube and Python lines' boundary): `testDataSql` and
+    `catalogColumnsSql` keep their signatures and ask the platform's dialect; `DuckDb.CATALOG_COLUMNS_SQL` is private,
+    `SqlDialect.catalogColumnsQuery` its reader. `warehouse/`, `native/` and `testing/` each gain a `main_java`
+    filegroup (wasm: `planner_java`) that the census reads; `tools/deps/core-layers.txt` lets `pure_v1` reach
+    `database`.
+  - Deleted (D6): `tools/spikes`, `tools/metamodel-census`, `tools/reference/{join,source_drift}.py`,
+    `scripts/corpus`'s codemods and `refdata`, `scripts/{census_gate,generate_pure_constants,outstanding,walldepth}.py`
+    and `docs/{corpus-coverage,census-baseline}.json` (39 files). **To the build rebuild's script review (End-1):** the
+    sheet's rows for these files are done; 26 of them were "keep as history", and D6 (the user's, 2026-10-13) deletes
+    them. PHASE_8's Short-22 cites `coverage.py`, `mutate.py` and `census_gate.py`, which are gone. `run.py` and the
+    probes, `scripts/projects`, `tools/{untangle,wrongrows}`, `tools/{native-axes,upstream-drift}.py` and
+    `scripts/parser` are not deleted: D6 and old D3 conflict on them. The user (2026-10-18): keep them for now, to be
+    gone through later.
+- **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move: #43 and #48 have landed** (D11:
   "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
   lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate
   fallback, dates, jsonb, and `postgresName`'s type names in messages). They move to Postgres-owned files in
@@ -1489,6 +1687,47 @@ pause for the user's review after Phase 1.
   defaults (each input language states its own: a message's type names become `InputDialect.typeName(Kind)`). This
   program does the move itself, on main after both PRs land, so neither has to rebase over it; until then a new input
   language (Cypher, #48) that extends `postgresName` or a Postgres default is extending what moves.
+- **To the seventh line and the corpus program, 2026-10-18: the D11 move is next, and we want to schedule it with
+  you.** #53 has landed, so both landings D11 waited on are in.
+  - **What moves:** every rule in `SqlToPure` that only Postgres's reading reaches (its operators and predicates,
+    cast, the function catalog, the aggregate fallback, dates, jsonb, `postgresName`'s type names in messages) goes
+    to Postgres-owned files in `protocol/sql/` (`PostgresDialect`, `PostgresDateTime`, new `Postgres*` classes).
+    The translator keeps the framework IQ and Cypher share. `InputDialect`'s Postgres defaults become
+    `PostgresDialect`'s: each input language states its own, and a message's type names come from
+    `InputDialect.typeName(Kind)`. The translator's tests (`SqlParserTest`, `SqlToPureTest`) name the language they
+    test, and `PgRegressCorpusTest` opens Postgres through `TestBackends` (or is named for it).
+  - **How:** one mechanical PR: moves and delegations, no rule rewritten. Every `#SQL{}`, `#IQ{}` and `#Cypher{}`
+    lane's SQL dump, the parity lanes and the regression corpus's verdicts must be byte-identical before and after.
+  - **When:** `SqlToPure` is 7,961 lines and changed eight times in the last two days, and we would rather not make
+    you rebase over a move that size. So tell us here when you reach a quiet point between your landings, and we do
+    it then and land it fast. If you would rather move it yourselves, say so, and we review.
+  - **Until then:** please put a new Postgres-only rule in `PostgresDialect` or `PostgresDateTime`, not in
+    `SqlToPure` or `InputDialect`. The leak ratchet already counts their lines (`SqlToPure` 47, `InputDialect` 6,
+    `SqlIslands` 2), and a new one fails it.
+  - **After it** the ledger is empty (D10, taken over by this program above, is done) and the leak ratchet becomes an
+    absolute ban.
+  - **Done, 2026-10-18 (#56)**, at the quiet point the seventh line named (after #53). The SQL front end now reads so:
+    - Postgres's rules are Postgres's files in `protocol/sql/`: `PostgresOperators`, `PostgresCasts`,
+      `PostgresFunctions`, `PostgresDates`, `PostgresJsonb` and `PostgresAggregates`, beside `PostgresDialect` and
+      `PostgresDateTime`. `SqlToPure` keeps the framework (4,852 lines, from 7,961). A new Postgres rule goes in one of
+      these files: the translator names no database, and a name there now fails `//core:census` (the ratchet is a
+      ban, its ledger deleted).
+    - `InputDialect`: `unary`, `between`, `inList`, `isDistinct`, `quantifiedTest`, `isAggregate` and `aggregate` are
+      abstract (the translator has no aggregate fallback); new `readString`, `typeName`, `operator` and `subscript`.
+      IQ refuses `readString` by name: a simple CASE comparing a string constant with a non-string value, which the
+      translator read by Postgres's rules until now (no IQ test reached it).
+    - `SqlToPure.translate(sql, sources)` is gone: pass `PostgresDialect.INSTANCE`. An island's language to its
+      dialect is `InputLanguages`.
+    - The tests: `PostgresToPureTest` (was `SqlToPureTest`), `PostgresParserTest` (`SqlParserTest`),
+      `PostgresRegressCorpusTest` (`PgRegressCorpusTest`; the target is still `//core:pg_regress_corpus_test`).
+    - Not moved: the translator's window functions and FROM set-returning functions stay its own reading.
+    - Proof: every translation the tests make, dumped before and after, identical but for the inputs the regression
+      suite writes from live values and one IQ test's `Set.of`-ordered second call; the regression corpus identical in
+      every row's status (the plan's Phase 7 record).
+    - **To the tenth line:** the IQ corpus lane (`//core:iq_corpus_test`) was not run here (its corpora are not in this
+      container). A simple CASE comparing a string constant with a number or a date, which the translator read by
+      Postgres's rules, is now `IqDialect.readString`'s refusal by name; IQ's own reading (`dateConstant`, the number
+      rules of its comparisons) can replace it when you want it.
 - **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
   platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
   `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),

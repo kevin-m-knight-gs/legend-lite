@@ -3,22 +3,15 @@
 
 package com.legend.resolver;
 
-import com.legend.Compiler;
+import com.legend.testbackend.TestBackends;
 import com.legend.Execution;
-import com.legend.compiler.NameResolver;
-import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
-import com.legend.sql.SqlQuery;
-import com.legend.sql.dialect.DuckDb;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -74,7 +67,7 @@ class ResolveDeepEmptinessProbeTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE F (ID INTEGER, LEGALNAME VARCHAR(200))");
             st.execute("CREATE TABLE P (ID INTEGER, NAME VARCHAR(200), AGE INTEGER, FIRMID INTEGER)");
@@ -93,13 +86,7 @@ class ResolveDeepEmptinessProbeTest {
     }
 
     private static String sqlOf(String query) {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        SqlQuery plan = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved);
-        return new DuckDb().render(plan);
+        return ResolvedSql.of(MODEL, query);
     }
 
     private List<String> exec(String sql) throws SQLException {

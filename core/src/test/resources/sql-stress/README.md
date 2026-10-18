@@ -10,7 +10,7 @@ measured, and, when the plan is sane, run and judged by the parity rules (`SqlPa
   EXISTS nested to 30; up to 50 scalar subqueries; CTE chains to 40 that reuse earlier CTEs; set-operation chains
   to 40; CASE, OR, `+` and parentheses 10 to 2,000 deep; select lists 500 wide; IN lists; 50 window functions over a
   join; monsters combining CTEs, a 8 to 16 table join, IN, EXISTS, a scalar subquery and a window.
-- `run.sh` runs them, one JVM per query (`com.legend.testcases.SqlStress`); its header says how.
+- `run.sh` runs them, one JVM per query (`com.legend.testcases.SqlStressOnPostgres`); its header says how.
 - `baseline.tsv` is the run on main 6c3a6c9 (2026-10-13), before any fix; `after.tsv` the run on this branch with its
   fixes (2026-10-14, over main with #37), with three more queries: nested casts 10, 30 and 100 deep.
 
