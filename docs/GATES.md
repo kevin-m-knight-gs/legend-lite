@@ -11947,6 +11947,32 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-18 — `#Cypher{...}#`: the ninety-second landing — writes, leg 1: the judge
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.94, the plan `docs/WRITES_DESIGN_2026_10_18.md`
+§6 and §8. Before any write runs, a write case is judged on four counts, so it cannot pass by doing nothing. The
+oracle (`tools/neo4j-oracle/snap.py`) commits each query's transaction (Neo4j checks a deleted node's relationships at
+commit), dumps the graph after a write (each element keeping its ordinal) and runs its control query; the side
+effects are the two dumps' diff, which agrees with all 248 TCK tables of counts and the 2935 "no side effects"
+(`snap.sh --check`: 0 problems over 5062 cases; `--write` keeps an answer that agrees with the live one). The 276
+writes carry their graph after, 31 their control answer; no other answer moved but for Neo4j's row order and
+ordinals. `CypherTck` reads control queries and side-effect tables, so the 33 SKIPs run: 31 REFUSED at their write
+clause, 2 BOTH_ERROR. `CypherParity` runs a write in a transaction the harness owns and rolls back, and passes it
+only on its rows, the graph it left (read back through the island by the oracle's own dump queries), lite's diff
+against Neo4j's, and its control query; the graph before each write is read back once and must be Neo4j's dump (a
+JUDGE problem fails the lane). That check found four island fixes: `elementId(x)` returned in a query (S76 amended),
+an absent relationship's identity null, a Variant property no relationship end (an untyped pattern over one raised
+where Neo4j answers no rows), and parallel association links numbered in the read-back. The write cases by what a
+domain-model graph needs: 111 inside the graph before's schema, 127 outside it, 26 label changes, 12 graphs the
+harness cannot model. Both lanes in update mode, FAIL/BUG/ERROR at zero, no JUDGE problem, the same census on both
+(PASS 3997 / REFUSED 291 / BOTH_ERROR 774 / SKIP 0, of 5062 cases); no case moved but the 33 former SKIPs, alike on
+both; TCK agreement 3600 → 3602 of 3880 on both (the 2 are write scenarios Neo4j raises on and lite refuses, agreement
+by refusal until leg 5); the oracle check 0 problems. The local gate (`--lockfile_mode=error //gates:local`, two tests
+at a time): 374 of 383 passed and 1 was skipped; the 8 that start an embedded Postgres refuse root and pass under
+`tools/postgres/as_unprivileged.sh` (`docs/CLOUD_SESSIONS.md`) — the Cypher Postgres lane alone, as the lane's
+connection was closed under it while another Postgres test ran beside it (the shared embedded server; it passes alone,
+measured twice).
+
 ## 2026-10-17 — The dialect program's Phase 6, part 1: the tests' databases are test backends (the ninth line)
 
 Branch `claude/gracious-edison-jcsvzm`, from main 6f2a0f8 (#51); PR neema2/legend-lite#52. Commits:

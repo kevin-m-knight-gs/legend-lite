@@ -5771,4 +5771,8 @@ values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every dat
   model at all.
 - **Moved to leg 5:** A's schema from the query's typed writes (§6). The parser refuses a write clause before it
   builds one, so there is nothing typed to infer from yet; it lands with the clauses.
-- **The lanes.** CENSUS
+- **The lanes.** Both in update mode: FAIL, BUG and ERROR at zero, no JUDGE problem, the same census on both (PASS
+  3997 / REFUSED 291 / BOTH_ERROR 774 / SKIP 0, of 5062 cases), and no case moved but the 33 former SKIPs (31
+  REFUSED, 2 BOTH_ERROR, the same on both). The TCK: 3602 of 3880 agree on both, the 2 new BOTH_ERROR being write
+  scenarios Neo4j raises on and lite refuses the clause of (§1 of the design: agreement by refusal, until leg 5). The
+  oracle check 0 problems over 5062 cases; the local gate below (GATES, the ninety-second landing).
