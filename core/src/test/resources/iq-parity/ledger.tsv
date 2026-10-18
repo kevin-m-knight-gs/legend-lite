@@ -1217,6 +1217,9 @@ lite/corpus_gaps/filter_after_a_call_inside_a_call@iq17-default	BOTH_ERROR	BOTH_
 lite/corpus_gaps/lag_default_of_a_count@iq17-default	PASS	PASS
 lite/corpus_gaps/lead_negative_default_of_a_count@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/coalesce_of_a_list@iq17-default	PASS	PASS
+lite/corpus_gaps/a_row_value_in_a_subquery@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_row_value_compared@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/a_parenthesized_value_in_a_subquery@iq17-default	PASS	PASS
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR

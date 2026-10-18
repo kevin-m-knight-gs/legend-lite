@@ -213,8 +213,8 @@ accept-with-option	rejected	1
 flag	parsed	81
 flag	refused	53
 reject	parsed	27
-reject	refused	744
-reject	rejected	1038
+reject	refused	741
+reject	rejected	1041
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609

@@ -2180,6 +2180,17 @@ tests:
     sql: "SELECT k, COALESCE(LIST(s ORDER BY s), 'none') || '!' AS l, LENGTH(COALESCE(LIST(s ORDER BY s), '')) AS n FROM g GROUP BY k ORDER BY k"
     profile: iq17-default
 
+  # ---- a row value (IQ island, 2026-10-17; the corpus lane's TPC-H and TPC-DS, measured on IQ 17.1): -131
+  - id: a_row_value_in_a_subquery
+    sql: "SELECT id FROM t WHERE (id, sm) IN (SELECT t_id, id FROM u)"
+    profile: iq17-default
+  - id: a_row_value_compared
+    sql: "SELECT id FROM t WHERE (id, sm) = (1, 2)"
+    profile: iq17-default
+  - id: a_parenthesized_value_in_a_subquery
+    sql: "SELECT id FROM t WHERE (id) IN (SELECT t_id FROM u) ORDER BY id"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where

@@ -2071,6 +2071,13 @@ public final class IqParser {
                     take();
                     try {
                         SqlAst.Expr inner = expression();
+                        if (peek().isOp(",") && !predicate(inner)) {
+                            // IQ island, 2026-10-17 (the corpus lane's TPC-H and TPC-DS: (a, b) IN (SELECT ...);
+                            // measured on IQ 17.1): a row value is no syntax of IQ's, its -131 at the comma (a
+                            // predicate's estimated selectivity, (c, 40) or (c, 'S:40'), it reads)
+                            throw new SqlSyntaxException("a row value, (a, b), is no syntax of IQ's"
+                                    + IqDialect.syntaxCode(), peek().pos());
+                        }
                         expectOp(")");
                         parens.merge(inner, 1, Integer::sum);
                         return inner;
@@ -2124,6 +2131,28 @@ public final class IqParser {
         String k = IqLexer.lower(t.text());
         return k.equals("current") ? "a special value" : k.equals("exists") ? "a subquery"
                 : "a function or special form";
+    }
+
+    /** Whether {@code e} is a predicate (a comparison, AND, OR, NOT, a truth test, BETWEEN, IN, LIKE, IS NULL,
+     *  EXISTS, a quantified comparison), not a value. */
+    private static boolean predicate(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.Binary b -> switch (b.op()) {
+                case EQ, NE, LT, LE, GT, GE, AND, OR -> true;
+                default -> false;
+            };
+            case SqlAst.Unary u -> u.op() == SqlAst.UnaryOp.NOT;
+            case SqlAst.Between b -> true;
+            case SqlAst.InList in -> true;
+            case SqlAst.InSubquery in -> true;
+            case SqlAst.Like l -> true;
+            case SqlAst.IsNull n -> true;
+            case SqlAst.IsTruth t -> true;
+            case SqlAst.IsDistinct d -> true;
+            case SqlAst.Exists x -> true;
+            case SqlAst.Quantified q -> true;
+            default -> false;
+        };
     }
 
     /** {@code IF condition THEN value [ELSE value] (ENDIF | END IF)} (the research's GRAMMAR E14), as the CASE it
