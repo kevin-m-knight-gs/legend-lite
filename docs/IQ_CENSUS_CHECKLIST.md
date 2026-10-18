@@ -588,6 +588,14 @@ The user asked for real queries that push the island hard. Their corpora, data a
       possible by the front end's NUMERIC unification, measured on SQL Anywhere 17 (D-N1 there: integers below a
       BIGINT are NUMERIC(10,0), a BIGINT NUMERIC(20,0)).
     - ROLLUP or CUBE beside a DISTINCT aggregate: -1001030, raised after the names' and the conversions' errors.
+    - From the benchmark coverage pass (45,647 queries, 618 refused): a function of no name of IQ's nested in an
+      unread derived column (COALESCE(STRING_AGG(...), ...)); a row value `(a, b) IN ...` is -131 (a predicate's
+      selectivity `(c, 40)` is read); FILTER inside a call is -131; LAG's default for a COUNT; a LIST beside strings;
+      a wide NUMERIC CAST to fewer places (placesExact).
+    - The SQL renderer for DuckDB: Pure's half-even round of a DECIMAL to a constant scale is now exact (ROUND_EVEN
+      of a DECIMAL is a DOUBLE there; a wide value came back wrong in its last digits).
+    - A regression of the `x + 0` fold, fixed: a zero written with a point folds only in a shown item's type
+      (`AVG(it + 0.0)` is of scale 21, `(it + 0.0) / (sm + 0.0)` a NUMERIC quotient).
   - IQ's own quirk, not copied: `ROW_NUMBER() OVER (ORDER BY bg - bg, id)` over BIGINT extremes does not honor the
     `id` tiebreak (RANK sees the rows equal).
   - Measured, not built: `1 + v = v + 1` is two-valued too (IQ reads the sum in either order), and lite keeps it
