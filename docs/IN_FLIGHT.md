@@ -1429,6 +1429,14 @@ pause for the user's review after Phase 1.
     generated matrix), so the matrix and `DynaFn` cannot disagree.
 
   The compiler line schedules it. Until then `DynaFn`'s lines stay pinned in the ratchet.
+  - **Taken over, 2026-10-18 (the user: the compiler line is parked, and the absolute ban needs it).** This program
+    does it now, in a PR of its own after Phase 7 (#56). `DynaFn.java` keeps each name, its inference flag and the
+    platform's resolution (`DynaFnDecisions`, unchanged), and names no database. The engine's table, which engine
+    dialect extension registers each name, becomes a generated reference ledger, `docs/engine-dynafunctions.tsv`,
+    written by the same generator from the pinned engine tree and held by `//docs:update_generated`'s diff test. Its
+    one reader in the product, `RelOpTranslator`'s refusal of an UNSUPPORTED name, points at the ledger instead of
+    printing the engine's dialect list. No other behaviour changes. Files: `builtin/DynaFn.java` (generated),
+    `spec`'s `DynaFnGenerator` and BUILD, `docs/BUILD.bazel`, `normalizer/RelOpTranslator.java`.
 - **Announced 2026-10-15, Phases 2 and 4 (one PR, branch `claude/gracious-edison-jcsvzm`).**
   - The owner guard (`core/src/test/java/com/legend/DatabaseOwners.java`, `DialectOwnerExclusivityTest`), and the
     dialect package's foreign names removed:
@@ -1569,7 +1577,8 @@ pause for the user's review after Phase 1.
     sheet's rows for these files are done; 26 of them were "keep as history", and D6 (the user's, 2026-10-13) deletes
     them. PHASE_8's Short-22 cites `coverage.py`, `mutate.py` and `census_gate.py`, which are gone. `run.py` and the
     probes, `scripts/projects`, `tools/{untangle,wrongrows}`, `tools/{native-axes,upstream-drift}.py` and
-    `scripts/parser` are not deleted: D6 and old D3 conflict on them, and the user decides.
+    `scripts/parser` are not deleted: D6 and old D3 conflict on them. The user (2026-10-18): keep them for now, to be
+    gone through later.
 - **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move: #43 and #48 have landed** (D11:
   "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
   lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate
@@ -1578,6 +1587,25 @@ pause for the user's review after Phase 1.
   defaults (each input language states its own: a message's type names become `InputDialect.typeName(Kind)`). This
   program does the move itself, on main after both PRs land, so neither has to rebase over it; until then a new input
   language (Cypher, #48) that extends `postgresName` or a Postgres default is extending what moves.
+- **To the seventh line and the corpus program, 2026-10-18: the D11 move is next, and we want to schedule it with
+  you.** #53 has landed, so both landings D11 waited on are in.
+  - **What moves:** every rule in `SqlToPure` that only Postgres's reading reaches (its operators and predicates,
+    cast, the function catalog, the aggregate fallback, dates, jsonb, `postgresName`'s type names in messages) goes
+    to Postgres-owned files in `protocol/sql/` (`PostgresDialect`, `PostgresDateTime`, new `Postgres*` classes).
+    The translator keeps the framework IQ and Cypher share. `InputDialect`'s Postgres defaults become
+    `PostgresDialect`'s: each input language states its own, and a message's type names come from
+    `InputDialect.typeName(Kind)`. The translator's tests (`SqlParserTest`, `SqlToPureTest`) name the language they
+    test, and `PgRegressCorpusTest` opens Postgres through `TestBackends` (or is named for it).
+  - **How:** one mechanical PR: moves and delegations, no rule rewritten. Every `#SQL{}`, `#IQ{}` and `#Cypher{}`
+    lane's SQL dump, the parity lanes and the regression corpus's verdicts must be byte-identical before and after.
+  - **When:** `SqlToPure` is 7,961 lines and changed eight times in the last two days, and we would rather not make
+    you rebase over a move that size. So tell us here when you reach a quiet point between your landings, and we do
+    it then and land it fast. If you would rather move it yourselves, say so, and we review.
+  - **Until then:** please put a new Postgres-only rule in `PostgresDialect` or `PostgresDateTime`, not in
+    `SqlToPure` or `InputDialect`. The leak ratchet already counts their lines (`SqlToPure` 47, `InputDialect` 6,
+    `SqlIslands` 2), and a new one fails it.
+  - **After it and D10** (taken over by this program, above), the ledger is empty and the leak ratchet becomes an
+    absolute ban.
 - **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
   platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
   `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),
