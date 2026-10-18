@@ -648,7 +648,7 @@ lite/corpus_gaps/a_computed_date_and_time_as_a_date@iq17-default	PASS	PASS
 lite/corpus_gaps/grouped_items_named_as_written_under_iqs_engine@iq17-default	PASS	PASS
 lite/corpus_gaps/grouped_qualified_items_named_as_written_under_iqs_engine@iq17-default	PASS	PASS
 lite/corpus_gaps/aggregates_named_as_written_under_iqs_engine@iq17-default	PASS	PASS
-lite/corpus_gaps/grouped_derived_items_named_as_written_under_iqs_engine@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/grouped_derived_items_named_as_written_under_iqs_engine@iq17-default	PASS	PASS
 lite/corpus_gaps/grouped_items_of_the_front_end_named_as_group_by_and_having_read_them@iq17-default	REFUSED	REFUSED
 lite/corpus_gaps/distinct_order_by_an_ambiguous_column_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/distinct_order_by_an_alias_of_an_ambiguous_name@iq17-default	PASS	PASS
@@ -2867,8 +2867,8 @@ lite/m1b/name_of_a_constant_scalar_subquery@iq16-default	PASS	PASS
 lite/m1b/name_of_a_constant_scalar_subquery@iq17-default	PASS	PASS
 lite/m1b/name_with_a_comment_is_refused@iq16-default	PASS	PASS
 lite/m1b/name_with_a_comment_is_refused@iq17-default	PASS	PASS
-lite/m1b/name_over_a_derived_column_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1b/name_over_a_derived_column_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1b/name_over_a_derived_column_is_refused@iq16-default	PASS	PASS
+lite/m1b/name_over_a_derived_column_is_refused@iq17-default	PASS	PASS
 lite/m1b/name_of_a_bare_derived_column@iq16-default	PASS	PASS
 lite/m1b/name_of_a_bare_derived_column@iq17-default	PASS	PASS
 lite/m1b/name_of_the_first_branch@iq16-default	PASS	PASS
