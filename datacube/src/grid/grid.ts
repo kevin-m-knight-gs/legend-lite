@@ -144,10 +144,11 @@ export interface GridOptions {
     value: Scalar,
   ) => string | null;
   /**
-   * A header was clicked: sort by it. Upstream sorts on a header click
-   * with multi-sort always on; the host decides what a click means.
+   * A header was clicked (or Enter pressed on it): sort by it, alone or
+   * `chained` after the other sorts (Ctrl, or Cmd on a Mac). The host
+   * decides the direction (grid-edits.ts clickSort).
    */
-  readonly onHeaderSort?: (column: string) => void;
+  readonly onHeaderSort?: (column: string, chained: boolean) => void;
   /** A column's right edge was dragged to a new width. */
   readonly onResizeColumn?: (column: string, width: number) => void;
   /**
@@ -239,6 +240,7 @@ export class DataGrid {
   #frame = 0;
   /** The sorts the header marks. */
   #sorts: readonly HeaderSort[] = [];
+  #treeSort: 'asc' | 'desc' | undefined;
   /** Live widths while a column edge is being dragged. */
   readonly #dragWidths = new Map<string, number>();
   /** Ends the resize drag in progress, if any: its column, where it started, where it got to. */
@@ -469,9 +471,13 @@ export class DataGrid {
   }
 
 
-  /** The sorts to mark on the header: an arrow, and a position when several. */
-  setSorts(sorts: readonly HeaderSort[]): void {
+  /**
+   * The sorts to mark on the header: an arrow, and a position when several. `tree` is the tree column's own direction:
+   * it orders the groups, always, so its header always shows it, with no position (it comes after every sort).
+   */
+  setSorts(sorts: readonly HeaderSort[], tree?: 'asc' | 'desc'): void {
     this.#sorts = sorts;
+    this.#treeSort = tree;
     this.#renderHeader();
   }
 
@@ -809,17 +815,17 @@ export class DataGrid {
   }
 
   /**
-   * A header click SELECTS the column and Alt+click sorts -- ag-grid's
-   * rule once column selection is on, as upstream turns it on
-   * (`cellSelection.enableColumnSelection`): "clicking a column header
-   * selects the column"; sorting "requires holding down the Alt key".
-   * Shift extends the selection to another column, Ctrl (Cmd) takes one
-   * off its edge. The header says how the column sorts: an arrow, and
-   * its place in the sort when there are several.
+   * A header click SORTS by the column (the user, 2026-10-18): alone, or chained after the other sorts with Ctrl (Cmd
+   * on a Mac, where Ctrl-click is a right click); Enter on a header does the same. Shift-click SELECTS the column, and a
+   * second Shift-click every column between. A click on the resize grip does neither, and a drag (reordering, or onto a
+   * drop zone) is no click. The header says how the column sorts: an arrow, and its place in the sort when there are
+   * several; the tree column's arrow is the groups' order, which every sort ends with.
    */
   #sortable(el: HTMLElement, leaf: LeafColumn, col: number): void {
     const at = this.#sorts.findIndex((x) => x.column === leaf.name);
-    const sort = this.#sorts[at];
+    const sort: HeaderSort | undefined = leaf.name === TREE_COLUMN && this.#treeSort !== undefined
+      ? { column: leaf.name, direction: this.#treeSort }
+      : this.#sorts[at];
     el.setAttribute('aria-sort', sort === undefined ? 'none'
       : sort.direction === 'asc' ? 'ascending' : 'descending');
     if (sort !== undefined) {
@@ -827,25 +833,33 @@ export class DataGrid {
       mark.className = 'dc-sort-mark';
       mark.setAttribute('aria-hidden', 'true');
       mark.textContent = (sort.direction === 'asc' ? '\u2191' : '\u2193')
-        + (this.#sorts.length > 1 ? String(at + 1) : '');
+        + (at >= 0 && this.#sorts.length > 1 ? String(at + 1) : '');
       el.append(mark);
     }
     const onSort = this.#options.onHeaderSort;
     el.classList.add('dc-sortable');
+    // focusable by a click, kept out of the Tab order (the body's cells are the grid's stops)
+    el.tabIndex = -1;
     el.addEventListener('click', (event) => {
       const target = event.target as { closest?: unknown } | null;
       if (target && typeof target.closest === 'function'
         && (target as Element).closest('.dc-col-resize')) return;
-      if (event.altKey) {
-        onSort?.(leaf.name);
+      if (event.shiftKey) {
+        this.#selectColumn(col);
         return;
       }
-      this.#selectColumn(col, event);
+      onSort?.(leaf.name, event.ctrlKey || event.metaKey);
+    });
+    el.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      event.stopPropagation();
+      onSort?.(leaf.name, event.ctrlKey || event.metaKey);
     });
   }
 
-  /** A header click on column `col`: select it, extend to it, or drop it. */
-  #selectColumn(col: number, event: MouseEvent): void {
+  /** A Shift-click on column `col`'s header: select it, or, with columns selected, every column from the first to it. */
+  #selectColumn(col: number): void {
     const last = this.#totalRows - 1;
     if (last < 0) return;
     const whole = (a: number, b: number): CellRange =>
@@ -853,21 +867,7 @@ export class DataGrid {
     const current = this.#selection;
     const b = current ? bounds(current) : null;
     const columns = b !== null && b.top === 0 && b.bottom === last;
-    if (event.shiftKey && current && columns) {
-      this.select(whole(current.anchor.col, col));
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && b !== null && columns
-      && col >= b.left && col <= b.right) {
-      // One rectangle: a column comes off an EDGE. Taking one from the
-      // middle would need two selections, which this grid does not
-      // hold, so that click does nothing rather than something else.
-      if (b.left === b.right) this.select(null);
-      else if (col === b.left) this.select(whole(b.left + 1, b.right));
-      else if (col === b.right) this.select(whole(b.left, b.right - 1));
-      return;
-    }
-    this.select(whole(col, col));
+    this.select(current && columns ? whole(current.anchor.col, col) : whole(col, col));
   }
 
   /** Headers of selected columns are highlighted (upstream's enableHeaderHighlight). */

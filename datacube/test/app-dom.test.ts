@@ -14,6 +14,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { pivotTotalColumn } from '../src/snapshot.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
+import { TREE_COLUMN } from '../src/treeview.ts';
 import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
@@ -632,6 +633,35 @@ describe('the app', () => {
       (root.querySelector('.dc-app-overlay') as HTMLElement).hidden,
       false,
     );
+  });
+
+  it('a header click sorts a number from the largest, then up, then off; Ctrl chains; the tree header orders the groups (2026-10-18)', async () => {
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    };
+    const head = (name: string): HTMLElement => root.querySelector(`.dc-th[data-column="${name}"]`) as HTMLElement;
+    const click = async (name: string, ctrlKey = false): Promise<void> => {
+      head(name).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, ctrlKey }));
+      await settle();
+    };
+    // the tree header says the groups' order, A first, with no place number
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u2191');
+    await click('notional');
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'desc' }]);
+    assert.equal(head('notional').querySelector('.dc-sort-mark')?.textContent, '\u2193');
+    await click('notional');
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'asc' }]);
+    await click('notional');
+    assert.deepEqual(app.snapshot.sorts, []);
+    // the groups turned by a click on the tree header; a chained one keeps a sort before it
+    await click('notional');
+    await click(TREE_COLUMN, true);
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'desc' }]);
+    assert.equal(app.configuration.treeColumnSort, 'desc');
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u2193');
+    // a plain click on the tree header: the groups alone are the sort
+    await click(TREE_COLUMN);
+    assert.deepEqual(app.snapshot.sorts, []);
   });
 
   it('adds and removes a heatmap from the menu', () => {

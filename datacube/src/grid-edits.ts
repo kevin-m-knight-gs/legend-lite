@@ -5,6 +5,7 @@
 // Python's calls may.
 
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
+import { isNumeric, isTemporal } from '../../engine-client/src/types.ts';
 import { lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import { nameProblem } from './calc.ts';
 import { draftColumn, newDraft } from './column-draft.ts';
@@ -126,6 +127,43 @@ export function addSort<D extends GridDraft>(draft: D, column: string, direction
   const sorts = draft.snapshot.sorts;
   if (sorts.some((x) => x.column === column && x.direction === direction)) return draft;
   return setSorts(draft, [...sorts.filter((x) => x.column !== column), { column, direction }]);
+}
+
+/**
+ * The direction a header click sorts a column in first (the user, 2026-10-18): a number or a date from the largest,
+ * the latest; anything else from A. `type` is the column's as the result reports it (a pivot's cell is its aggregate's).
+ */
+export function firstSortDirection(type: string | undefined): SortDirection {
+  return isNumeric(type) || isTemporal(type) ? 'desc' : 'asc';
+}
+
+/**
+ * A HEADER CLICK'S SORT (the user, 2026-10-18): the column's first direction, then the other, then none. A plain
+ * click sorts by the column alone, every other sort taken off; a chained click (Ctrl, or ⌘ on a Mac) keeps the others
+ * and the column's place among them, and puts a column with no sort last.
+ */
+export function clickSort<D extends GridDraft>(draft: D, column: string, first: SortDirection, chained: boolean): D {
+  const sorts = draft.snapshot.sorts;
+  const now = sorts.find((x) => x.column === column)?.direction;
+  const next = now === undefined ? first : now === first ? (first === 'asc' ? 'desc' : 'asc') : undefined;
+  if (!chained) return setSorts(draft, next === undefined ? [] : [{ column, direction: next }]);
+  if (next === undefined) return setSorts(draft, sorts.filter((x) => x.column !== column));
+  return setSorts(draft, now === undefined
+    ? [...sorts, { column, direction: next }]
+    : sorts.map((x) => (x.column === column ? { column, direction: next } : x)));
+}
+
+/**
+ * A click on the TREE column's header: it orders the groups, which are always ordered, so it has no "none" -- it
+ * starts from A and turns between the two (the configuration's treeColumnSort). A plain click sorts by the groups
+ * alone: the other sorts come off, and the direction turns only once the groups were already all the sort. A chained
+ * click turns it and keeps the other sorts, the groups' order then deciding only between rows they leave tied.
+ */
+export function clickTreeSort<D extends GridDraft>(draft: D, chained: boolean): D {
+  const turned = draft.config.treeColumnSort === 'asc' ? 'desc' : 'asc';
+  const alone = draft.snapshot.sorts.length === 0;
+  const sorted = chained ? draft : setSorts(draft, []);
+  return { ...sorted, config: { ...sorted.config, treeColumnSort: chained || alone ? turned : sorted.config.treeColumnSort } };
 }
 
 /** What Column Properties sets of a column through this module: its kind, its Aggregation, and a weighted average's

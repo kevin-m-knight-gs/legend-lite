@@ -4,8 +4,8 @@ import { describe, it } from 'node:test';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { DEFAULT_CONFIGURATION, columnConfig, withColumn } from '../src/config.ts';
 import {
-  addSort, allColumns, columnKind, copiedColumn, groupableColumns, measureAsColumn, measuresAsColumns, offeredAggregates,
-  setColumn, setGrouping, setPivot, setSorts, type GridDraft,
+  addSort, allColumns, clickSort, clickTreeSort, columnKind, copiedColumn, firstSortDirection, groupableColumns,
+  measureAsColumn, measuresAsColumns, offeredAggregates, setColumn, setGrouping, setPivot, setSorts, type GridDraft,
 } from '../src/grid-edits.ts';
 import {
   AGGREGATE_FNS, CubeRefusal, pivotTotalColumn, refuseMeasuresList, type CubeSnapshot, type QuerySnapshot,
@@ -149,6 +149,83 @@ describe('sorting', () => {
     const held = draft({ sorts: [{ column: `FX${PIVOT_SEPARATOR}notional`, direction: 'asc' }] });
     const flipped = setSorts(held, [{ column: `FX${PIVOT_SEPARATOR}notional`, direction: 'desc' }]);
     assert.deepEqual(flipped.snapshot.sorts, [{ column: `FX${PIVOT_SEPARATOR}notional`, direction: 'desc' }]);
+  });
+});
+
+describe('a header click (the user, 2026-10-18): first, the other way, none; alone, or chained with Ctrl or Cmd', () => {
+  const sorts = (d: GridDraft): string[] => d.snapshot.sorts.map((x) => `${x.column} ${x.direction}`);
+
+  it('sorts a number or a date from the largest, the latest, first; anything else from A', () => {
+    for (const t of ['Integer', 'Float', 'Decimal', 'Number', 'StrictDate', 'DateTime', 'Date']) {
+      assert.equal(firstSortDirection(t), 'desc', t);
+    }
+    for (const t of ['String', 'Boolean', 'Variant', undefined]) assert.equal(firstSortDirection(t), 'asc', String(t));
+  });
+
+  it('a plain click cycles its column -- first, the other way, none -- and sorts by it alone', () => {
+    let d = draft();
+    d = clickSort(d, 'notional', 'desc', false);
+    assert.deepEqual(sorts(d), ['notional desc']);
+    d = clickSort(d, 'notional', 'desc', false);
+    assert.deepEqual(sorts(d), ['notional asc']);
+    d = clickSort(d, 'notional', 'desc', false);
+    assert.deepEqual(sorts(d), []);
+    // text starts from A
+    d = clickSort(d, 'region', 'asc', false);
+    assert.deepEqual(sorts(d), ['region asc']);
+    d = clickSort(d, 'region', 'asc', false);
+    assert.deepEqual(sorts(d), ['region desc']);
+  });
+
+  it('a plain click on another column takes every other sort off; on a sorted one it turns that one, alone', () => {
+    const two = draft({ sorts: [{ column: 'region', direction: 'asc' }, { column: 'notional', direction: 'desc' }] });
+    assert.deepEqual(sorts(clickSort(two, 'qty', 'desc', false)), ['qty desc']);
+    assert.deepEqual(sorts(clickSort(two, 'notional', 'desc', false)), ['notional asc']);
+    // its other way clicked once more: no sort at all
+    const asc = draft({ sorts: [{ column: 'region', direction: 'asc' }, { column: 'notional', direction: 'asc' }] });
+    assert.deepEqual(sorts(clickSort(asc, 'notional', 'desc', false)), []);
+  });
+
+  it('a chained click adds its column last, then turns it in its place, then takes it off -- the others kept', () => {
+    let d = draft({ sorts: [{ column: 'region', direction: 'asc' }] });
+    d = clickSort(d, 'notional', 'desc', true);
+    assert.deepEqual(sorts(d), ['region asc', 'notional desc']);
+    d = clickSort(d, 'qty', 'desc', true);
+    assert.deepEqual(sorts(d), ['region asc', 'notional desc', 'qty desc']);
+    d = clickSort(d, 'notional', 'desc', true);
+    assert.deepEqual(sorts(d), ['region asc', 'notional asc', 'qty desc']);
+    d = clickSort(d, 'notional', 'desc', true);
+    assert.deepEqual(sorts(d), ['region asc', 'qty desc']);
+  });
+
+  it('a pivot total and a pivot header sort by a click as by the menu', () => {
+    const pivoted = draft({ pivotOn: ['year'] });
+    const total = pivotTotalColumn('notional');
+    assert.deepEqual(sorts(clickSort(pivoted, total, 'desc', false)), [`${total} desc`]);
+    const header = `2024${PIVOT_SEPARATOR}notional`;
+    assert.deepEqual(sorts(clickSort(pivoted, header, 'desc', true)), [`${header} desc`]);
+  });
+
+  it('a click on a column the grid does not have is refused, as every sort is', () => {
+    refused(() => clickSort(draft(), 'nope', 'asc', false), /the sort names 'nope'/);
+  });
+
+  it('the tree column orders the groups: it turns, never "none"; a plain click makes the groups the whole sort', () => {
+    const asc = draft();
+    assert.equal(asc.config.treeColumnSort, 'asc');
+    // the groups already the whole sort: a plain click turns them
+    const turned = clickTreeSort(asc, false);
+    assert.equal(turned.config.treeColumnSort, 'desc');
+    assert.equal(clickTreeSort(turned, false).config.treeColumnSort, 'asc');
+    // other sorts on: a plain click takes them off and keeps the groups' order, which is now the sort
+    const sorted = draft({ sorts: [{ column: 'notional', direction: 'desc' }] });
+    const alone = clickTreeSort(sorted, false);
+    assert.deepEqual(sorts(alone), []);
+    assert.equal(alone.config.treeColumnSort, 'asc');
+    // a chained click turns the groups and keeps the other sorts
+    const chained = clickTreeSort(sorted, true);
+    assert.deepEqual(sorts(chained), ['notional desc']);
+    assert.equal(chained.config.treeColumnSort, 'desc');
   });
 });
 
