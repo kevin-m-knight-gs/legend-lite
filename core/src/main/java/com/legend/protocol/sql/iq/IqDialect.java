@@ -8109,6 +8109,14 @@ public final class IqDialect implements InputDialect {
                     + " raise (a comparison, arithmetic, a call), or beside a NULL of another type, is not supported"
                     + " yet: write it without that WHEN", exprs.get(branches - 2).pos());
         }
+        if (engine != Engine.IQ) {
+            // IQ island, 2026-10-17 (the research's D-N1 in SQL Anywhere's front end, measured on SQL Anywhere 17):
+            // a NUMERIC beside another number unifies as under IQ's engine, an integer by numericType's widths
+            SqlToPure.Common numbers = iqNumericUnify(what, exprs, values, pos);
+            if (numbers != null) {
+                return numbers;
+            }
+        }
         if (engine == Engine.IQ) {
             SqlToPure.Common numbers = iqNumericUnify(what, exprs, values, pos);
             if (numbers != null) {
@@ -8249,7 +8257,8 @@ public final class IqDialect implements InputDialect {
 
     /**
      * IQ's engine's unification of numbers where one is a NUMERIC (IQ island, 2026-10-15; the research's D-N1, measured
-     * on IQ 17.1: COALESCE(nm, 0) is a NUMERIC(10,2) and its 0 is 0.00): with a DOUBLE a DOUBLE; else a NUMERIC whose
+     * on IQ 17.1: COALESCE(nm, 0) is a NUMERIC(10,2) and its 0 is 0.00), and SQL Anywhere's front end's (2026-10-17,
+     * measured on SQL Anywhere 17: its integers sized as {@link #numericType} sizes them, a COUNT and a REAL not read): with a DOUBLE a DOUBLE; else a NUMERIC whose
      * scale is the largest of the values' and whose digits before the point are the most of theirs (an integer's its
      * type's: SMALLINT 5, INTEGER 10, BIGINT 19, BIT 1; a literal's its own), each value converted to it. Null where no
      * value is a NUMERIC or another kind is among them (the general unification then refuses or reads it). Refused by
@@ -8280,6 +8289,10 @@ public final class IqDialect implements InputDialect {
             } else {
                 return null;
             }
+        }
+        if (engine != Engine.IQ && (counts || reals)) {
+            // in SQL Anywhere's front end a COUNT and a REAL beside other numbers are not measured
+            return null;
         }
         // IQ island, 2026-10-15 (the corpus lane: COALESCE(COUNT(...), 0) in 1,100 of SQLStorm's queries; measured on
         // IQ 17.1): COUNT's UNSIGNED BIGINT (a ranking's too) beside UNSIGNED BIGINTs alone is one; beside a signed
@@ -8350,7 +8363,9 @@ public final class IqDialect implements InputDialect {
             if (v.kind() == Kind.NULL) {
                 continue;
             }
-            int[] ps = iqNumericType(v, exprs.get(i));
+            // SQL Anywhere's front end (measured on SQL Anywhere 17, 2026-10-17): an integer below a BIGINT -- a BIT, a
+            // SMALLINT -- as a NUMERIC(10,0), a BIGINT a NUMERIC(20,0) (numericType), where IQ's engine sizes each
+            int[] ps = engine == Engine.IQ ? iqNumericType(v, exprs.get(i)) : numericType(v, exprs.get(i), what);
             whole = Math.max(whole, ps[0] - ps[1]);
             scale = Math.max(scale, ps[1]);
             held = Math.max(held, Math.min(ps[0] - ps[1], 38 - ps[1]));

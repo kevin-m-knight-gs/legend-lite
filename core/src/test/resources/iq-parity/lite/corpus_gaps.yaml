@@ -2111,6 +2111,21 @@ tests:
     sql: "SELECT k, COUNT(DISTINCT s) AS a, CAST('x' AS INTEGER) AS b FROM g GROUP BY ROLLUP(k)"
     profile: iq17-default
 
+  # ---- SQL Anywhere's unification of a NUMERIC with another number (IQ island, 2026-10-17; the research's D-N1 in the
+  # front end, measured on SQL Anywhere 17): COALESCE, CASE and GREATER of a NUMERIC beside integers, NUMERICs, a DOUBLE
+  - id: front_end_coalesce_of_a_numeric_and_integers
+    sql: "SELECT id, COALESCE(nm, sm) AS a, COALESCE(nm, it) AS b, COALESCE(nm, bg) AS c, COALESCE(nm, 0) AS d FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: front_end_coalesce_of_numerics
+    sql: "SELECT id, COALESCE(nm, 1.5) AS a, COALESCE(nm, 123.456) AS b, COALESCE(sm, 1.5) AS c, COALESCE(nm, dbl) AS d FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: front_end_coalesce_of_a_numeric_and_a_bit_or_a_literal
+    sql: "SELECT id, COALESCE(nm, bt) AS a, COALESCE(sm, 0.5) AS b, COALESCE(nm, 123456789012) AS c, COALESCE(nm, CAST(1 AS NUMERIC(30,10))) AS d, COALESCE(bt, 0.5) AS e FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: front_end_case_and_greater_of_a_numeric
+    sql: "SELECT id, CASE WHEN id > 1 THEN nm ELSE it END AS a, GREATER(nm, sm) AS b, LESSER(nm, 1) AS c FROM t ORDER BY id"
+    profile: sqla17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where
