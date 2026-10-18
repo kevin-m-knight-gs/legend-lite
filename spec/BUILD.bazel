@@ -414,6 +414,24 @@ java_run(
     deps = [":dynafn_generator"],
 )
 
+# docs/engine-dynafunctions.tsv: the engine's reference table, which engine dialect extensions register each
+# dynafunction (the dialect program's D10, 2026-10-18: DynaFn.java names no database). No build reads it.
+java_run(
+    name = "gen_engine_dynafunctions",
+    srcs = ENGINE_TREE,
+    outs = ["generated/engine-dynafunctions.tsv"],
+    arguments = [
+        "{ENGINE_ROOT}",
+        "{OUT}",
+        "--engine-table",
+    ],
+    main_class = "com.legend.generators.DynaFnGenerator",
+    mnemonic = "Generate",
+    roots = ENGINE_ROOT,
+    visibility = ["//docs:__pkg__"],
+    deps = [":dynafn_generator"],
+)
+
 # Pure.java's membership signatures: upstream's spelling of OUR membership rows.
 # Runs on core AS COMMITTED (its parser and resolver) — the first link of the chain.
 java_run(

@@ -11278,6 +11278,10 @@ Branch `claude/gracious-edison-jcsvzm`, from main c607cf61 (after #54), with mai
     the catalog question of it (`SqlDialect.catalogColumnsQuery`), its signatures unchanged.
   - D6: 39 dead files deleted (18,499 lines); the rest of D6's list is left for the build program's script review,
     whose old D3 decided to repair or wire it (the record).
+  - D10, taken over from the parked compiler line (the user's): `builtin/DynaFn.java` names no database; the engine's
+    dialect-by-dialect table is generated reference data, `docs/engine-dynafunctions.tsv`, which no build reads. The
+    232 names and every decision are unchanged; the refusal of an UNSUPPORTED name points at the table. The ledger
+    after it: 6 rows, 70 lines, all D11's (the SQL translator's Postgres rules, scheduled with the SQL line).
 - **Guards:** the warehouse is a host owner (`DatabaseOwners`' HOST kind); the leak ratchet and the owner guard read
   the warehouse's main code, wasm's planner, native and testing; `Attachment` names an attached database only in its
   rows and one-line arms (a new pin); `EmbeddedMySql`'s MariaDB driver is a registered crossing; the warehouse's two
@@ -11296,5 +11300,8 @@ Branch `claude/gracious-edison-jcsvzm`, from main c607cf61 (after #54), with mai
 - **Proof:**
   - `bazel test //gates:local //warehouse:postgres_live`, less the four targets the container cannot run: 372 of 372 on
     the final tree (from a clean build: `bazel clean` freed the disk first).
+  - D10: `//core:census` (6 rows, 70 lines), `//core:core_tests_normalizer`, `//core:core_tests_builtin`,
+    `//core:core_tests_root`, `//spec:spec_tests`, `//core:update_generated_tests` (`DynaFn.java` regenerated) and
+    `//docs:update_generated_tests` (the new table): all pass.
   - Not re-measured locally: the PCT, corpus and stress lanes. No SQL any of them renders or reads changed (the two
     new `SqlDialect` methods render no statement a lane runs); the branch's CI runs every lane.

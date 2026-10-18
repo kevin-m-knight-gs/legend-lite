@@ -7,10 +7,12 @@
 - Phase 5 landed as neema2/legend-lite#51 (6f2a0f8).
 - Phase 6 landed in two parts: part 1 as neema2/legend-lite#52 (da2dd23), part 2 as neema2/legend-lite#54 (c607cf6)
   (both records are under Phase 6).
-- Phase 7 is done on branch `claude/gracious-edison-jcsvzm` (its record is under Phase 7).
+- Phase 7 and D10 (taken over from the parked compiler line, the user's, 2026-10-18) are done on branch
+  `claude/gracious-edison-jcsvzm` (their records are under Phase 7).
 - Left:
-  - the absolute ratchet: the ledger's seven rows are the compiler line's `DynaFn` (D10), the SQL translator's
-    Postgres rules (D11, five files) and the island's regression corpus test (`PgRegressCorpusTest`, with D11);
+  - the absolute ratchet: the ledger's six rows (70 lines) are all D11's: the SQL translator's Postgres rules (five
+    files) and the island's regression corpus test (`PgRegressCorpusTest`). The move is scheduled with the SQL line
+    (`docs/IN_FLIGHT.md`, the ninth line);
   - defect 11 (SQLite's plan path), in a PR of its own.
 
 (The status of 2026-10-13, on `claude/great-wright-p6t5s1`: Phase 0 done (55569df); Phase 1's 1b steps 1 to 3
@@ -1230,7 +1232,16 @@ did, and where it departs from the list above:
   line's. The query demo's warehouse seed (`query/demo/models/trading-seed.sql`) still runs DuckDB text on the
   configured catalog: the Query line's.
 
-The ledger after Phase 7: 7 rows, 245 lines. `DynaFn` is D10's (the compiler line's). The SQL translator's five files
+**D10, 2026-10-18** (the same branch; the user had this program take it over from the parked compiler line):
+`builtin/DynaFn.java` names no database. Its generator writes each name, its inference flag and nothing else; the
+engine's table of which of its dialect extensions register each name is generated reference data,
+`docs/engine-dynafunctions.tsv` (`//spec:gen_engine_dynafunctions`, held by `//docs:update_generated`'s diff test),
+which no build reads. This platform's answer for each of its databases is that dialect's own
+(`docs/dialect-capability/`), so the two cannot disagree. The one product reader of the engine's dialect lists,
+`RelOpTranslator`'s refusal of an UNSUPPORTED name, points at the ledger instead of printing them. The 232 names and
+every decision (`DynaFnDecisions`) are unchanged. `DynaFn`'s row (175 lines) left the ledger.
+
+The ledger after Phase 7 (before D10): 7 rows, 245 lines. `DynaFn` is D10's (the compiler line's). The SQL translator's five files
 are D11's (task #85), and so is `PgRegressCorpusTest` (2 lines: the `#SQL{...}#` island's regression corpus, landed
 with neema2/legend-lite#53 the same day, which opens `EmbeddedPostgres` itself). The absolute ratchet, the pins and the
 ledger replaced by an assertion that nothing is counted, lands with them.
@@ -1264,7 +1275,7 @@ Decided by the user, 2026-10-13. The recommendation each row first carried is ke
 | **D8** | Which case does a store's bare name have on Postgres? The engine emits it unquoted, so Postgres folds it to lower case; the corpus's setup text assumes that. Main's `#SQL{...}#` Postgres fixture and DataCube's `infer.test.ts` assume the opposite: the name is kept as declared and quoted. Folding was tried and reverted on 2026-10-12 (neema2/legend-lite#30's CI). | **Decided: fold**, as legend-engine does (more correct for a drop-in replacement: most Postgres tables are created unquoted). Decide it once, as the dialect's own rule (P1). The two kinds of test then follow whichever rule is chosen. Folding matches the engine and the corpus; keeping case matches `#SQL{...}#`. If folding returns, the PR's independent review named two prerequisites: `CatalogModel.ident` must quote a mixed-case catalog name (or a Postgres table `"Orders"` is read as `orders`), and a star-expanded column's label must take the spelling its references take (`Stars.java:54`). |
 | **P1b** | The base renderer's shape. | **Decided: an exhaustive switch per concrete dialect, families included**, a base with no spellings, a guard that enforces it, and a capability matrix generated from the code (Phase 1b). |
 | **D9** | The connection grammar, the protocol and the model name every database (`type: Postgres;`, `PSnowflakeSpec`, the `DatabaseType` enum), because the user's model language does. Are they leaks? | **Decided (the user, 2026-10-15): they are vocabulary owners.** They may parse and carry a database's name and never decide anything by it. A guard holds both halves: their dependency allowlists already keep them from reaching a dialect, a connection or `Databases` (`ArchitectureTest`, invariants 6j and 7a to 7c); and in their code a database is named only as the vocabulary's own identifiers, never as a specific `DatabaseType` constant, a dialect class, a driver, a JDBC URL or a product-name call (`DialectOwnerExclusivityTest`). The alternative, each database's parsing in its own classes, would split the grammar across eleven places. |
-| **D10** | `builtin/DynaFn` (175 lines) is legend-engine's own table of which database supports which dynaFunction, across 17 databases, several of which this platform does not run. | **Decided (the user, 2026-10-15): split it.** The engine's table stays as reference data, generated from or verified against the engine source (spec by verification, the reference-checkout tenet). Our databases' answers come from each dialect's capability, so the capability matrix and `DynaFn` cannot disagree. `builtin/` is the compiler line's: this program does not edit it; the decision is posted to that line (`docs/IN_FLIGHT.md`, the ninth line) for it to schedule. **Taken over by this program (the user, 2026-10-18)**: the compiler line is parked, and the absolute ban needs it (the design: `docs/IN_FLIGHT.md`, the ninth line). |
+| **D10** | `builtin/DynaFn` (175 lines) is legend-engine's own table of which database supports which dynaFunction, across 17 databases, several of which this platform does not run. | **Decided (the user, 2026-10-15): split it.** The engine's table stays as reference data, generated from or verified against the engine source (spec by verification, the reference-checkout tenet). Our databases' answers come from each dialect's capability, so the capability matrix and `DynaFn` cannot disagree. `builtin/` is the compiler line's: this program does not edit it; the decision is posted to that line (`docs/IN_FLIGHT.md`, the ninth line) for it to schedule. **Taken over by this program (the user, 2026-10-18)**: the compiler line is parked, and the absolute ban needs it. **Done the same day** (Phase 7's record: `docs/engine-dynafunctions.tsv`). |
 | **D11** | The SQL input dialects (`protocol/sql/`: `#SQL{...}#`'s Postgres, `#IQ{...}#`'s IQ) name a database because they read its language. Owners? | **Decided (the user, 2026-10-15): yes, each the owner of its own input language, under the same exclusivity guard.** `PostgresDialect` and `PostgresDateTime` name only Postgres, the `iq` package only IQ. The translator they share (`SqlToPure`, `InputDialect`) is no owner: the Postgres rules still inside it (`postgresBinary`, `postgresName` and the rest, 47 lines) are counted by the leak ratchet, to move into `PostgresDialect` with the seventh and tenth lines, whose code it is. |
 
 

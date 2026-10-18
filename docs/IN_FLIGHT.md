@@ -1430,7 +1430,7 @@ pause for the user's review after Phase 1.
 
   The compiler line schedules it. Until then `DynaFn`'s lines stay pinned in the ratchet.
   - **Taken over, 2026-10-18 (the user: the compiler line is parked, and the absolute ban needs it).** This program
-    does it now, in a PR of its own after Phase 7 (#56). `DynaFn.java` keeps each name, its inference flag and the
+    does it now, with Phase 7 (#56; done the same day). `DynaFn.java` keeps each name, its inference flag and the
     platform's resolution (`DynaFnDecisions`, unchanged), and names no database. The engine's table, which engine
     dialect extension registers each name, becomes a generated reference ledger, `docs/engine-dynafunctions.tsv`,
     written by the same generator from the pinned engine tree and held by `//docs:update_generated`'s diff test. Its
@@ -1604,7 +1604,7 @@ pause for the user's review after Phase 1.
   - **Until then:** please put a new Postgres-only rule in `PostgresDialect` or `PostgresDateTime`, not in
     `SqlToPure` or `InputDialect`. The leak ratchet already counts their lines (`SqlToPure` 47, `InputDialect` 6,
     `SqlIslands` 2), and a new one fails it.
-  - **After it and D10** (taken over by this program, above), the ledger is empty and the leak ratchet becomes an
+  - **After it** the ledger is empty (D10, taken over by this program above, is done) and the leak ratchet becomes an
     absolute ban.
 - **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
   platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
