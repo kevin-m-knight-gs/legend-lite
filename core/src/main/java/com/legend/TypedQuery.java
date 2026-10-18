@@ -180,8 +180,10 @@ public final class TypedQuery {
      */
     public String wireSql(@com.legend.base.Nullable String runtime) {
         Compiler.LoweredQuery l = lower(runtime, false);
+        // the engine's API, hosted: the engine's text (WireRender.Spelling.ENGINE), as the server's execute answers
         return Compiler.dialectOf(ctx, runtime).render(com.legend.lowering.WireRender.wrap(l.plan(),
-                com.legend.lowering.WireRender.schema(l.root().info()), com.legend.lowering.WireRender.Format.JSON));
+                com.legend.lowering.WireRender.schema(l.root().info()), com.legend.lowering.WireRender.Format.JSON,
+                com.legend.lowering.WireRender.Spelling.ENGINE));
     }
 
     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {

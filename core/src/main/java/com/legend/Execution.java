@@ -169,9 +169,11 @@ public final class Execution {
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(l.ctx(), runtimeFqn, connection);
         com.legend.exec.SetupRunner.run(com.legend.setup.CsvSeed.declaredSteps(runtimeFqn, l.ctx(), dialect),
                 connection, dialect, null);
+        // the engine's API answers in the engine's text (WireRender.Spelling.ENGINE), over Pure's values
         out.write(com.legend.exec.Executor.wireText(dialect.render(com.legend.lowering.WireRender.wrap(
                 l.plan(), com.legend.lowering.WireRender.schema(l.root().info()),
-                com.legend.lowering.WireRender.Format.JSON)), connection));
+                com.legend.lowering.WireRender.Format.JSON, com.legend.lowering.WireRender.Spelling.ENGINE)),
+                connection));
         return new com.legend.plan.QueryPlan(dialect.render(l.plan()), l.root().info(), shape,
                 com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
     }

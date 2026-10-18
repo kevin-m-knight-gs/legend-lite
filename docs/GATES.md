@@ -10653,6 +10653,46 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 2, `pure/v1`'s text in the engine's conventions over Pure's values
+
+The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 2; the design `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md` §5
+step 5, decision 2 (`pure/v1`'s text is legend-engine's conventions; lite's own outputs Pure's). The line:
+`docs/IN_FLIGHT.md`, the thirteenth line. With this, the design's five steps are landed and PARK-24 is closed.
+
+What changed:
+1. **The JSON wire has a spelling** (`lowering/WireRender.Spelling`: `PURE` on lite's own outputs, `ENGINE` on the
+   engine's API), chosen at the two engine-API seams -- `Execution.executeWire` for `pure/v1` execute (E8) and
+   `TypedQuery.wireSql` for the hosted answer (`jsonPlan` / `jsonAnswer`, the tab's) -- and nowhere else: the plan
+   path's outputs, the product wire, the streaming rows and the CSV stay Pure's text.
+2. **Two more owners in `LiteralSpelling`**: `floatPrintJava`, Java's `Double.toString` layout over the database's
+   own shortest digits (plain with a fraction digit in [0.001, 1e7), computerized scientific notation outside:
+   `1.5E15`, `2.5E-7`, `1.0E7`, `1.23456785E7`), the database taking its own text apart into sign, significant
+   digits and the first digit's exponent and laying it out again; `dateTimeTextEngine`, nine fraction digits and
+   `+0000` (`DateFmt.JSON_DATETIME`, which had no writer). `Render.jsonCell` writes them on the engine's wire; an
+   abstract Date keeps the time-of-day rule; a text-carried date on the engine's wire is refused by name (the
+   engine's API answers no value root).
+3. **The values stay Pure's**: a Decimal keeps its scale (`2.50`, `5.00`, where the engine answers `2.5` and
+   `5.0000000000000000`: register S76, new) and `3 * 1.1` is `3.3` (the engine's `3.3000000000000003`: S77, new).
+4. `PureV1ApiTest.e8_execute_writesTheEnginesText_overPuresValues` (new): 21 cases on the engine's own H2 model --
+   the engine's recorded texts (`probes/engine-reference/results.txt` §2) and, for the Float layout beyond them,
+   `Double.toString` as the oracle (`12345678.5`, `1234567.0`, `1.0e7`, `0.001`, `1.0e-4`, `100.0`, `-2.5e-7`,
+   `0.0`); the two register rows pinned by name. A residue, measured and kept: the engine's recorded `sum` of a
+   DOUBLE column (`e8-groupby-sort.json`) reads `528`, its driver's integer-valued decimal, where the rule writes
+   `528.0`; the test compares that case's values, and the tab's client reads both as numbers.
+5. **A whole Float has its `.0` on every database** (`floatPrint`'s last arm): Postgres writes a whole double as
+   `3`, and an integer slot a Float declares writes `3`, where Pure's text is `3.0` (the design's §4 named it; the
+   matrix runs DuckDB and H2, where a double always carries its fraction). With it, `PlanCases`' Number parameter
+   case projects its value again (`$r.ID * $n`, compared on DuckDB, H2 and the Postgres arm), PARK-24's second
+   acceptance; **PARK-24 is closed**: its section deleted from `docs/PARKED_WORK_LEDGER.md` and its anchor from
+   `ParkedWorkLedgerTest`, in this commit, as the ledger's rule says.
+
+What judges it: `//core:core_tests_server` (the new test; `e8_execute_isTheEnginesResult_rowForRow` and
+`e8_jsonPlanThenJsonAnswer_isTheServersAnswerText` still byte for byte), `//core:core_tests_root`, `_exec`,
+`_integration`, `_lowering`, `_sql`, `//core:corpus_differential_test`, `//core:sql_parity_test`,
+`//core:mongodb_plan_test`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`; `//core:postgres_arm_test`
+(as an unprivileged user, docs/CLOUD_SESSIONS.md) for the Number case on Postgres. The PCT lanes do not run the JSON
+wire (channel A is the TDS text) and were not re-run.
+
 ## 2026-10-18 — The plan path program, step 2, the DateTime's text: one owner, the matrix's last 44 pins deleted
 
 The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 2; the design `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md` §5

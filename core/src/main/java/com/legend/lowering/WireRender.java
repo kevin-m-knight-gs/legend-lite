@@ -25,6 +25,12 @@ public final class WireRender {
     /** The product wire formats the plan can render. */
     public enum Format { CSV, JSON }
 
+    /** Whose text a JSON wire's values carry (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, decision 2, 2026-10-18):
+     *  {@code PURE}, interpreted Pure's own print forms, on lite's own outputs; {@code ENGINE}, legend-engine's
+     *  conventions -- a Float as Java prints a double, a DateTime with nine fraction digits -- on the engine's API
+     *  ({@code pure/v1} execute, served and hosted). The VALUES are Pure's either way. */
+    public enum Spelling { PURE, ENGINE }
+
     private WireRender() {
     }
 
@@ -43,9 +49,18 @@ public final class WireRender {
      * (F5.4), JSON rides the database's own {@code json_object} typing. */
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
             Format format) {
+        return wrap(plan, schema, format, Spelling.PURE);
+    }
+
+    /** {@link #wrap(SqlQuery, Type.RelationType, Format)} with the JSON wire's values in {@code spelling}'s text;
+     *  the CSV is lite's own and has one. */
+    public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema, Format format, Spelling spelling) {
         SqlSelect inner = asSelect(plan);
         if (format == Format.JSON) {
-            return Render.jsonWire(inner, typedOrNull(inner, schema), "_wire1");
+            return Render.jsonWire(inner, typedOrNull(inner, schema), "_wire1", spelling);
+        }
+        if (spelling != Spelling.PURE) {
+            throw new IllegalArgumentException("the CSV wire has one spelling, Pure's; the engine's is the JSON wire's");
         }
         Map<String, Type.Column> byName = new LinkedHashMap<>();
         for (Type.Column c : schema.columns()) {

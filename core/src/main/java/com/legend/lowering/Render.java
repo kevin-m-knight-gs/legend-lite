@@ -304,7 +304,8 @@ public final class Render {
      * one-element JSON array's text; a null cell is {@code null}. The keys are JSON strings the same way. A column
      * the typed schema does not name (a pivot's generated column) takes the database's token.
      */
-    private static SqlExpr jsonRow(String rowAlias, List<OutputCol> cols, List<Type.@com.legend.base.Nullable Column> relCols) {
+    private static SqlExpr jsonRow(String rowAlias, List<OutputCol> cols, List<Type.@com.legend.base.Nullable Column> relCols,
+            WireRender.Spelling spelling) {
         List<SqlExpr> parts = new ArrayList<>();
         parts.add(new SqlExpr.StringLit("{"));
         for (int i = 0; i < cols.size(); i++) {
@@ -315,23 +316,26 @@ public final class Render {
             parts.add(new SqlExpr.StringLit(":"));
             Type.Column typed = relCols.get(i);
             parts.add(jsonCell(SqlExpr.Column.of(rowAlias, cols.get(i)), typed == null ? null : typed.type(),
-                    cols.get(i).type()));
+                    cols.get(i).type(), spelling));
         }
         parts.add(new SqlExpr.StringLit("}"));
         return cat(parts.toArray(new SqlExpr[0]));
     }
 
-    /** A cell's JSON token by its Pure type: Pure's text for a Float, its own scale for a Decimal, a date kind's
-     *  Pure text as a JSON string (a StrictDate's day, a DateTime's {@link #dateTimeText}, a text-carried value's
-     *  own text; the one owner, 2026-10-18), the database's token otherwise; null as {@code null}. */
-    private static SqlExpr jsonCell(SqlExpr c, @com.legend.base.Nullable Type t, SqlType slot) {
+    /** A cell's JSON token by its Pure type: a Float's text (Pure's, or Java's on the engine's wire), its own scale
+     *  for a Decimal (on both: the value is Pure's, register S76), a date kind's text as a JSON string (a StrictDate's
+     *  day, a DateTime's {@link #dateTimeText} or the engine's nine digits, a text-carried value's own text; the one
+     *  owner, 2026-10-18), the database's token otherwise; null as {@code null}. */
+    private static SqlExpr jsonCell(SqlExpr c, @com.legend.base.Nullable Type t, SqlType slot,
+            WireRender.Spelling spelling) {
+        boolean engine = spelling == WireRender.Spelling.ENGINE;
         SqlExpr token;
         if (t == Type.Primitive.FLOAT) {
-            token = Scalars.pureToString(t, c);
+            token = engine ? LiteralSpelling.floatPrintJava(c) : Scalars.pureToString(t, c);
         } else if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
             token = new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
         } else if (t != null && dateKind(t)) {
-            token = jsonToken(dateText(c, t, slot));
+            token = jsonToken(engine ? engineDateText(c, t, slot) : dateText(c, t, slot));
         } else {
             token = jsonToken(c);
         }
@@ -350,7 +354,7 @@ public final class Render {
 
     static SqlSelect jsonWireRows(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias) {
         List<OutputCol> cols = inner.outputs();
-        SqlExpr obj = jsonRow(rowAlias, cols, relCols);
+        SqlExpr obj = jsonRow(rowAlias, cols, relCols, WireRender.Spelling.PURE);
         List<SqlSelect.SortKey> lifted = new ArrayList<>();
         for (SqlSelect.SortKey k : inner.orderBy()) {
             String out = k.outputName() != null ? k.outputName()
@@ -377,10 +381,11 @@ public final class Render {
      *  {@code [row,row,…]} text — {@code string_agg} over the per-row
      *  objects with hoisted order; ZERO rows are the empty array (the
      *  pinned {@code []} wire). */
-    static SqlSelect jsonWire(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias) {
+    static SqlSelect jsonWire(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias,
+            WireRender.Spelling spelling) {
         List<OutputCol> cols = inner.outputs();
         String aggAlias = rowAlias + "_a";
-        SqlExpr obj = jsonRow(rowAlias, cols, relCols);
+        SqlExpr obj = jsonRow(rowAlias, cols, relCols, spelling);
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         rowProjs.add(new SqlSelect.Projection(obj, "_wire_row",
                 new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false)));
@@ -653,6 +658,25 @@ public final class Render {
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed(c), dateTimeText(c))), strictDateText(c));
         }
         return dateTimeText(c);
+    }
+
+    /** A date kind's text as legend-engine's {@code pure/v1} execute writes it: a day for a DATE slot or a
+     *  StrictDate, nine fraction digits and {@code +0000} for a timestamp ({@link LiteralSpelling#dateTimeTextEngine}),
+     *  an abstract Date by its time of day as {@link #dateText}. A date carried as its own text is a value root's,
+     *  which the engine's API does not answer ({@code Execution.executeWire} refuses the shape): reaching here is a
+     *  planner defect, refused by name. */
+    private static SqlExpr engineDateText(SqlExpr c, Type t, SqlType slot) {
+        if (textSlot(slot)) {
+            throw new IllegalStateException("a date carried as its own text reached the engine's wire, which answers"
+                    + " no value root: the lowering's slot for a relation column is a DATE or a timestamp");
+        }
+        if (dateOnly(t, slot)) {
+            return strictDateText(c);
+        }
+        SqlExpr nine = LiteralSpelling.dateTimeTextEngine(c);
+        return t == Type.Primitive.DATE
+                ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed(c), nine)), strictDateText(c))
+                : nine;
     }
 
     /** Whether a timestamp's time of day is not midnight: the engine's {@code formatDateTime} rule for an ABSTRACT

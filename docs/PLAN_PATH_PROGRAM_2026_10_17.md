@@ -258,6 +258,11 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 - **2026-10-17** -- the program written (this document), the rulings R1 to R6 recorded, the representation decided
   (JSON stays, §2). Step 1 announced: types in the plan.
+- **2026-10-18, step 2, `pure/v1`'s text** (GATES "step 2, `pure/v1`'s text"): the JSON wire has a spelling
+  (`WireRender.Spelling`, `PURE` on lite's outputs, `ENGINE` at the two engine-API seams); two more owners,
+  `floatPrintJava` (Java's layout over the database's digits) and `dateTimeTextEngine` (nine digits, `+0000`); the
+  values Pure's (register S76, S77). The design's five steps are landed; PARK-24 closes. Step 2 is complete; step 3
+  (the text carrier) is next.
 - **2026-10-18, step 2, the DateTime's text** (GATES "step 2, the DateTime's text"): one owner,
   `LiteralSpelling.dateTimeText` (`T`, the fraction read at nine digits and trimmed of trailing zeros by the database,
   `+0000`), on the CSV, the JSON wires, Pure's TDS text and `toString`; a text-carried date value takes `+0000` when

@@ -584,11 +584,17 @@ public final class LiteralSpelling {
                         SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e-17)),
                 SqlExpr.Call.of(SqlFn.LESS,
                         SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(9.007199254740992e15)));
+        // a whole value the database writes without a fraction (Postgres's double 3, an integer slot a Float
+        // declares) takes Pure's .0: a Float's text always has a fraction (the output layer's step 5, 2026-10-18)
+        SqlExpr bare = SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, hasExp),
+                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, s, new SqlExpr.StringLit(".")),
+                        new SqlExpr.IntLit(0)));
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(
                         SqlExpr.Call.of(SqlFn.AND, hasExp, fractionFree), intPlain),
                 new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed)), s);
+                        SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed),
+                new SqlExpr.Case.When(bare, SqlExpr.Call.of(SqlFn.CONCAT, s, new SqlExpr.StringLit(".0")))), s);
     }
 
     /** Decimal PRINT form: the value's cast text with the {@code D}
@@ -696,5 +702,104 @@ public final class LiteralSpelling {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.LENGTH, text), new SqlExpr.IntLit(10)),
                 SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit("+0000")))), text);
+    }
+
+    // ==================================================================
+    // legend-engine's text (pure/v1 execute: docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, decision 2; step 5)
+    // ==================================================================
+
+    /** legend-engine's text of a DateTime on {@code pure/v1} execute (measured, 4.145.0): nine fraction digits and
+     *  {@code +0000}, whatever the value's precision. */
+    public static SqlExpr dateTimeTextEngine(SqlExpr x) {
+        return SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.JSON_DATETIME));
+    }
+
+    /**
+     * legend-engine's text of a Float on {@code pure/v1} execute: Java's {@code Double.toString} layout over the
+     * database's own shortest digits (the engine's serializer prints the double its driver read). Java prints plain
+     * digits with at least one fraction digit when the magnitude is in [0.001, 10000000) ({@code 3.0}, {@code 0.001},
+     * {@code 1234567.0}) and computerized scientific notation otherwise ({@code 1.0E7}, {@code 1.5E15},
+     * {@code 2.5E-7}). The database spells it: its own text of the value (shortest round-trip digits in its own
+     * layout: DuckDB's {@code 1.5e+15}, H2's {@code 1.5E15}, a decimal slot's {@code 2.50}) is taken apart into
+     * its sign, its significant digits and the exponent of the first one, and laid out again. A text that is not a
+     * number's ({@code nan}, {@code inf}) is passed as the database wrote it.
+     */
+    public static SqlExpr floatPrintJava(SqlExpr x) {
+        SqlExpr t = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+        SqlExpr body = SqlExpr.Call.of(SqlFn.LTRIM, t, text("-"));
+        SqlExpr sign = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)), text("-"))), text(""));
+        SqlExpr epos = SqlExpr.Call.of(SqlFn.STRPOS, SqlExpr.Call.of(SqlFn.LOWER, body), text("e"));
+        SqlExpr hasExp = SqlExpr.Call.of(SqlFn.GREATER, epos, new SqlExpr.IntLit(0));
+        SqlExpr mant = new SqlExpr.Case(List.of(new SqlExpr.Case.When(hasExp,
+                SqlExpr.Call.of(SqlFn.SUBSTRING, body, new SqlExpr.IntLit(1),
+                        SqlExpr.Call.of(SqlFn.MINUS, epos, new SqlExpr.IntLit(1))))), body);
+        SqlExpr exp = new SqlExpr.Case(List.of(new SqlExpr.Case.When(hasExp,
+                new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.LTRIM, SqlExpr.Call.of(SqlFn.SUBSTRING, body,
+                        SqlExpr.Call.of(SqlFn.PLUS, epos, new SqlExpr.IntLit(1)),
+                        SqlExpr.Call.of(SqlFn.LENGTH, body)), text("+")), SqlType.Scalar.INTEGER))),
+                new SqlExpr.IntLit(0));
+        SqlExpr dot = SqlExpr.Call.of(SqlFn.STRPOS, mant, text("."));
+        SqlExpr hasDot = SqlExpr.Call.of(SqlFn.GREATER, dot, new SqlExpr.IntLit(0));
+        SqlExpr intPart = new SqlExpr.Case(List.of(new SqlExpr.Case.When(hasDot,
+                SqlExpr.Call.of(SqlFn.SUBSTRING, mant, new SqlExpr.IntLit(1),
+                        SqlExpr.Call.of(SqlFn.MINUS, dot, new SqlExpr.IntLit(1))))), mant);
+        SqlExpr frac = new SqlExpr.Case(List.of(new SqlExpr.Case.When(hasDot,
+                SqlExpr.Call.of(SqlFn.SUBSTRING, mant, SqlExpr.Call.of(SqlFn.PLUS, dot, new SqlExpr.IntLit(1)),
+                        SqlExpr.Call.of(SqlFn.LENGTH, mant)))), text(""));
+        SqlExpr digits = SqlExpr.Call.of(SqlFn.CONCAT, intPart, frac);
+        SqlExpr noLead = SqlExpr.Call.of(SqlFn.LTRIM, digits, text("0"));
+        SqlExpr lead = SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, digits),
+                SqlExpr.Call.of(SqlFn.LENGTH, noLead));
+        SqlExpr sig = SqlExpr.Call.of(SqlFn.RTRIM, noLead, text("0"));
+        // the decimal exponent of the first significant digit
+        SqlExpr e10 = SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.PLUS, exp,
+                SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, intPart), new SqlExpr.IntLit(1))), lead);
+        SqlExpr first = SqlExpr.Call.of(SqlFn.SUBSTRING, sig, new SqlExpr.IntLit(1), new SqlExpr.IntLit(1));
+        SqlExpr rest = orZero(SqlExpr.Call.of(SqlFn.SUBSTRING, sig, new SqlExpr.IntLit(2),
+                SqlExpr.Call.of(SqlFn.LENGTH, sig)));
+        SqlExpr scientific = join(sign, first, text("."), rest, text("E"),
+                new SqlExpr.Cast(e10, SqlType.Scalar.VARCHAR));
+        SqlExpr intDigits = SqlExpr.Call.of(SqlFn.PLUS, e10, new SqlExpr.IntLit(1));
+        SqlExpr plainWhole = join(sign,
+                SqlExpr.Call.of(SqlFn.SUBSTRING, SqlExpr.Call.of(SqlFn.RPAD, sig, intDigits, text("0")),
+                        new SqlExpr.IntLit(1), intDigits),
+                text("."),
+                orZero(SqlExpr.Call.of(SqlFn.SUBSTRING, sig, SqlExpr.Call.of(SqlFn.PLUS, e10, new SqlExpr.IntLit(2)),
+                        SqlExpr.Call.of(SqlFn.LENGTH, sig))));
+        SqlExpr plainFraction = join(sign, text("0."),
+                SqlExpr.Call.of(SqlFn.RPAD, text(""), SqlExpr.Call.of(SqlFn.MINUS,
+                        SqlExpr.Call.of(SqlFn.NEGATE, e10), new SqlExpr.IntLit(1)), text("0")),
+                sig);
+        SqlExpr notANumber = SqlExpr.Call.of(SqlFn.GREATER,
+                SqlExpr.Call.of(SqlFn.STRPOS, SqlExpr.Call.of(SqlFn.LOWER, body), text("n")), new SqlExpr.IntLit(0));
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(notANumber, t),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, x, new SqlExpr.IntLit(0)), text("0.0")),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND,
+                        SqlExpr.Call.of(SqlFn.GREATER_EQUAL, e10, new SqlExpr.IntLit(-3)),
+                        SqlExpr.Call.of(SqlFn.LESS, e10, new SqlExpr.IntLit(7))),
+                        new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.GREATER_EQUAL, e10, new SqlExpr.IntLit(0)), plainWhole)),
+                                plainFraction))),
+                scientific);
+    }
+
+    private static SqlExpr text(String s) {
+        return new SqlExpr.StringLit(s);
+    }
+
+    /** {@code e}, or {@code 0} when it is empty (Java's layout always writes a fraction digit). */
+    private static SqlExpr orZero(SqlExpr e) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL, e, text("")), text("0"))), e);
+    }
+
+    private static SqlExpr join(SqlExpr... parts) {
+        SqlExpr out = parts[0];
+        for (int i = 1; i < parts.length; i++) {
+            out = SqlExpr.Call.of(SqlFn.CONCAT, out, parts[i]);
+        }
+        return out;
     }
 }

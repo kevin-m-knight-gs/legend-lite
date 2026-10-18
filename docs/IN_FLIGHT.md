@@ -114,7 +114,7 @@ with the compiler's plan/execution split**, in this order:
    run 38070603189): `exec.PlanRunner` runs a lite plan with no model, its values typed and checked in its own words,
    each placeholder bound as the plan says (type holes where the type is the value's: H2's, and a date-time's on every
    database; PARK-19 fixed), sessions shared by the target's content; measured against legend-engine 4.145.0 and Pure
-   itself (`probes/engine-reference/`). **Now: PARK-24, the output layer** (`docs/OUTPUT_LAYER_DESIGN_2026_10_10.md`; the user's ruling 2026-10-10: an answer
+   itself (`probes/engine-reference/`). **PARK-24, the output layer, closed 2026-10-18 by the thirteenth line** (the plan path program's step 2, GATES "step 2, `pure/v1`'s text"; what follows was this line's plan: `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md`; the user's ruling 2026-10-10: an answer
    is interpreted Pure's value, its text the served API's — a whole Float's `.0`, an extreme Float's plain digits, a
    decimal result's scale, a DateTime's text), then step 4 (the callers switch, the old paths deleted), both on branch
    `dbowner/output-layer`, landed together. Files: in `core/src/main/java/com/legend/` `lowering/` `Render.java`,
@@ -2055,5 +2055,6 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   2026-10-18** (GATES "The plan path program, step 2 begins"): 192 cells, 76 pinned. **The Float's text and the JSON
   wires from their cells landed 2026-10-18** (`8672529`; GATES "step 2, the Float's text"): 32 pins deleted. **The
   DateTime's text landed 2026-10-18** (GATES "step 2, the DateTime's text"): one owner in `LiteralSpelling`, the last
-  44 pins deleted, the matrix all Pure's text; `DateFmt.CSV_DATETIME` and `ISO_PURE_UTC` deleted. Next: the design's
-  step 5, `pure/v1`'s text in the engine's conventions (`server/PureV1Api.java`).
+  44 pins deleted, the matrix all Pure's text; `DateFmt.CSV_DATETIME` and `ISO_PURE_UTC` deleted. **`pure/v1`'s text landed 2026-10-18**
+  (GATES "step 2, `pure/v1`'s text"): `WireRender.Spelling` at the two engine-API seams, `floatPrintJava` and
+  `dateTimeTextEngine`, register S76 and S77; step 2 complete, PARK-24 closed. Next: step 3, the text carrier.
