@@ -226,8 +226,14 @@ class Grid(Tile):
         cube = self._cube
         cube.clear()
         cube.update(_plain(_json.loads(said['cube'])))
-        # the commands DataCube applied, as the screen would have built them: the page's record of its edits
-        self._page._commands.extend(_plain(c) for c in said['commands'])
+        # the commands DataCube applied, as the screen would have built them: the page's record of its edits, and what a
+        # page open on it applies to this grid (none: a change by no command, which it follows by opening the page again)
+        applied = [_plain(c) for c in said['commands']]
+        self._page._commands.extend(applied)
+        if applied:
+            self._page._note([{'grid': self._id, 'command': c} for c in applied])
+        else:
+            self._page._unnoted()
         for note in said['notes']:
             warnings.warn(f"{self.frame}: {note}", stacklevel=stacklevel)
         self._page._changed()
@@ -753,6 +759,10 @@ class Page:
         self._commands: list[dict[str, Any]] = []
         # every page command DataCube applied to this page, in order, as applied (page-commands.ts)
         self._page_commands: list[dict[str, Any]] = []
+        # what changed it since it was last served, as the commands it was (a page's, a grid's with its id) -- what a page
+        # open on it applies rather than opening it again (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md); None once it was
+        # changed by no command, which the open page follows by opening it again
+        self._unserved: list[dict[str, Any]] | None = []
         # each handle given, by its kind and id: the same object each time it is asked for
         self._handles: dict[tuple[type[Any], str], Any] = {}
         # every id the page has held: none is given out again, so no handle meets a new tile under its old one's id
@@ -793,6 +803,8 @@ class Page:
 
         def made(project_id: str) -> None:
             self._doc['model'] = {'project': project_id, 'workspace': at[1], 'package': at[2], 'tables': {}}
+            # the page's model is no page command's: a page open on it opens it again
+            self._unnoted()
             self._changed()
         return call(sdlc if sdlc is not None else models.local_sdlc(),
                     writer if writer is not None else models.local_writer(), at, made)
@@ -804,6 +816,7 @@ class Page:
         ref.setdefault('tables', {})[cube] = table
         if cls is not None:
             ref.setdefault('classes', {})[cube] = cls
+        self._unnoted()
         self._changed()
 
     def create_association(self, a: Any, b: Any, *, name: str | None = None, sdlc: Any = None,
@@ -952,7 +965,8 @@ class Page:
         else:
             served, new = session.register(frame, name, mode), True
         # the page as it was, to go back to when the grid is refused
-        was = (self._doc, set(self._ids), len(self._page_commands), len(self._commands))
+        was = (self._doc, set(self._ids), len(self._page_commands), len(self._commands),
+               None if self._unserved is None else list(self._unserved))
         id = None
         try:
             # its cube as DataCube makes a grid's over a frame: capped at the row limit when it is not the page's only grid
@@ -989,6 +1003,7 @@ class Page:
             self._doc, self._ids = was[0], was[1]
             del self._page_commands[was[2]:]
             del self._commands[was[3]:]
+            self._unserved = was[4]
             if id is not None:
                 self._forget({id})
             if new:
@@ -1127,6 +1142,8 @@ class Page:
             self._forget(_ids(self._doc) - _ids(doc))
             self._doc = doc
             self._ids |= _ids(doc)
+            # the page open is this one already: Python's next change is told as commands from it
+            self._unserved = []
         return self
 
     @property
@@ -1147,10 +1164,16 @@ class Page:
             raise ValueError(f'{refused} -- in Python, page.grid(frame) adds one') from None
 
     def _changed(self) -> None:
-        """Something on the page changed: where it is shown, it is served again (and opened again there)."""
-        if self._quiet or not self._shown:
+        """Something on the page changed: where it is shown, it is served again, with the commands that changed it --
+        which a page open on it applies -- or, changed by no command, opened again there."""
+        if self._quiet:
             return
-        version = self._session.engine().serve_page(self._key, self._doc)
+        if not self._shown:
+            # nothing open on it to move: the page it is first shown as is served whole
+            self._unserved = []
+            return
+        commands, self._unserved = self._unserved, []
+        version = self._session.engine().serve_page(self._key, self._doc, commands)
         for view in list(self._shown):
             view._page_moved(version)
 
@@ -1193,8 +1216,18 @@ class Page:
         self._ids = set(said['held'])
         applied = [_plain(c) for c in said['commands']]
         self._page_commands.extend(applied)
+        self._note([{'page': c} for c in applied])
         self._changed()
         return applied
+
+    def _note(self, commands: list[dict[str, Any]]) -> None:
+        """Commands that changed the page, for a page open on it to apply (``_changed`` serves them)."""
+        if self._unserved is not None:
+            self._unserved.extend(commands)
+
+    def _unnoted(self) -> None:
+        """The page changed by no command: a page open on it opens it again."""
+        self._unserved = None
 
     def _tiles(self, layout: dict[str, Any]) -> list[str]:
         """A sheet's tiles in reading order, a stack's in its tabs' order, as DataCube reads its layout (bands.ts tiles,
@@ -1256,6 +1289,8 @@ class Page:
         for note in notes:
             warnings.warn(f'{frame}: {note}', stacklevel=stacklevel)
         c['cube'] = cube
+        # a change by no command: a page open on it opens it again
+        self._unnoted()
         return True
 
     def _current(self, cube: str, stacklevel: int) -> None:

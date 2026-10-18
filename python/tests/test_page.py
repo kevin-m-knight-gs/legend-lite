@@ -1001,6 +1001,36 @@ class Live(Paged):
         tab.close()
         self.assertEqual(self.get(f'/page.json?page={page._key}')[0], 404)
 
+    def test_a_change_in_python_is_served_as_the_commands_it_was_which_a_page_open_on_it_applies(self):
+        # (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md) a page open at version v asks what moved it since: the page's and
+        # the grids' commands, in order, as DataCube's screen builds them -- a change by no command opens it again
+        page, grid, _ = self.built()
+        tab = ll.show(page, browser=False)
+        since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
+        self.assertEqual(since(1), {'version': 1, 'commands': []})
+        page.sheet('More')
+        grid.group('desk')
+        moved = since(1)
+        self.assertEqual(moved['version'], 3)
+        self.assertEqual(moved['commands'][0], {'page': {'kind': 'addSheet', 'id': page.sheets[1].id, 'name': 'More'}})
+        self.assertEqual(moved['commands'][1], {'grid': grid.id, 'command': {'kind': 'group', 'rows': ['desk']}})
+        # a grid added: its cube document in its addGrid, and the commands that set it after, as one serve
+        before = since(3)['version']
+        other = page.grid(trades(), name='orders', rows=['desk'])
+        moved = since(before)
+        self.assertEqual(moved['version'], before + 1, 'one serve')
+        added = moved['commands'][0]['page']
+        self.assertEqual((added['kind'], added['id'], added['document']['source']['name']), ('addGrid', other.id, 'orders'))
+        self.assertEqual(moved['commands'][1:], [{'grid': other.id, 'command': {'kind': 'group', 'rows': ['desk']}}])
+        # a refused change serves nothing
+        with self.assertRaises(ValueError):
+            page.name = '   '
+        self.assertEqual(since(before + 1), {'version': before + 1, 'commands': []})
+        # a frame whose columns changed reopens its cubes: no command, the page opened again
+        grid.update(trades().drop(columns=['pnl']))
+        self.assertIn('page', since(before + 1))
+        tab.close()
+
     def test_an_empty_page_is_not_shown(self):
         # DataCube opens no page without a grid: refused in its words, then Python's call that makes one, and never
         # written either

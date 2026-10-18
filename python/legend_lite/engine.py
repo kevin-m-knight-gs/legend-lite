@@ -68,6 +68,8 @@ _EXECUTE = _API + 'execution/execute'
 # a request body larger than this is refused: a query and its model are kilobytes, and a page's file comes a part at a
 # time (file-part.json: 4 MiB each, as base64 in JSON, datacube/src/upload.ts PART_BYTES), so no file is too big
 _MAX_BODY = 16 * 1024 * 1024
+# how many of a page's last versions keep the commands that moved it there: a page open at an older one opens it again
+_PAGE_STEPS_KEPT = 64
 # the calls that bring a page's data in and let it go (each changes the engine's data), and what Python's host offers
 # the page (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §3.4, §4.3): each the engine's own page's, so each carries the token
 _FILE_IN, _FILE_OUT, _REMOTE, _SERVICES = '/file.json', '/forget.json', '/remote.json', '/services.json'
@@ -429,6 +431,10 @@ class Engine:
         # each page's document as the open page says it is now (its changes made in DataCube included: page.read()).
         # Documents are kept as the compiler's exact JSON reads them (_json): a calculated column's numbers exact
         self._read: dict[str, dict[str, Any]] = {}
+        # what moved each page to each of its versions (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): the commands Python
+        # made, in order -- or None, a change by no command -- for its last few versions: what a page open at an earlier
+        # one applies, rather than opening the whole page again
+        self._page_steps: dict[str, dict[int, list[Any] | None]] = {}
 
     def answer(self, method: str, path: str, query: str, body: str | None) -> Answer:
         """One call: ``POST`` to the API, or ``GET`` of a frame's cube (``cube.json``), its version (``version.json``) or
@@ -1227,12 +1233,25 @@ class Engine:
 
     def _page(self, query: str) -> Answer:
         """A page it serves (``serve_page``) as it is open now (the open page's last word on it, at its version):
-        ``{"version": n, "page": <its document>}``, or 404."""
-        name = parse_qs(query).get('page', [''])[0]
+        ``{"version": n, "page": <its document>}``, or 404. Asked ``since=v`` by a page open at version ``v``: the
+        commands that moved it from there, ``{"version": n, "commands": [...]}``, when every version since was moved by
+        commands it keeps -- else the page, as asked without."""
+        asked = parse_qs(query)
+        name = asked.get('page', [''])[0]
+        since = asked.get('since', [''])[0]
+        if since and not since.isdigit():
+            return _said(400, 'a page asks what moved it since the version it opened (since=n)')
         with self._changes:
             served = self._pages.get(name)
+            steps = dict(self._page_steps.get(name, {}))
         if served is None:
             return _said(404, f'this engine serves no page named {name!r}')
+        if since:
+            moved = [steps.get(v) for v in range(int(since) + 1, served[0] + 1)]
+            if int(since) <= served[0] and all(m is not None for m in moved):
+                commands = [c for m in moved for c in m or []]
+                return Answer(200, 'application/json',
+                              _json.dumps({'version': served[0], 'commands': commands}).encode('utf-8'))
         return Answer(200, 'application/json', _json.dumps({'version': served[0], 'page': served[1]}).encode('utf-8'))
 
     def _page_said(self, query: str, body: str) -> Answer:
@@ -1268,14 +1287,25 @@ class Engine:
             said = self._read.get(name)
         return None if said is None else _json.loads(_json.dumps(said))
 
-    def serve_page(self, name: str, document: dict[str, Any]) -> int:
-        """Serves a copy of ``document`` -- DataCube's page document (version 3), each cube over one of this engine's
+    def serve_page(self, name: str, document: dict[str, Any], commands: list[Any] | None = None) -> int:
+        """Serves a copy of ``document`` -- DataCube's page document (version 4), each cube over one of this engine's
         frames (``{"_type": "frame", "name": ...}``) -- as the page ``name``; served again, its version moves, and a page
-        open on it opens it again. Returns its version."""
+        open on it follows it: by ``commands``, when they say what moved it from the version before (each
+        ``{"page": <a page command>}`` or ``{"grid": <its id>, "command": <a grid command>}``, in order), else by opening
+        it again. Returns its version."""
         kept = _json.loads(_json.dumps(document))
+        moved = None if commands is None else _json.loads(_json.dumps(commands))
         with self._changes:
             version = self._page_versions[name] = self._page_versions.get(name, 0) + 1
             self._pages[name] = (version, kept)
+            steps = self._page_steps.get(name)
+            if steps is None:
+                # served for the first time, or again after it was closed: no version before it it was moved from
+                steps = self._page_steps[name] = {}
+                moved = None
+            steps[version] = moved
+            for old in [v for v in steps if v <= version - _PAGE_STEPS_KEPT]:
+                del steps[old]
             # what the open page said is of the document before: it opens this one
             self._read.pop(name, None)
         return version
@@ -1285,6 +1315,7 @@ class Engine:
         with self._changes:
             self._pages.pop(name, None)
             self._read.pop(name, None)
+            self._page_steps.pop(name, None)
 
     def page_versions(self, name: str) -> dict[str, Any] | None:
         """A page's version, and each of its frames' (the frames its cubes read), or None when it serves no such page."""

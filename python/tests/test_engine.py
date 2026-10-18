@@ -998,6 +998,31 @@ class Page(Cube):
         self.server.engine.close_page('q3')
         self.assertEqual(self.get('/version.json?page=q3', auth)[0], 404)
 
+    def test_a_page_open_at_a_version_asks_what_moved_it_since_and_is_told_the_commands_or_the_page(self):
+        # (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md) each serve keeps the commands that moved the page from the version
+        # before; a page open at version v asks since=v: the commands while every version since has them, else the page
+        auth = {'Authorization': self.server.authorization}
+        engine = self.server.engine
+        asked = lambda since: json.loads(self.get(f'/page.json?page=q3&since={since}', auth)[2])
+        engine.serve_page('q3', self.DOC)
+        self.assertEqual(asked(1), {'version': 1, 'commands': []}, 'nothing moved it')
+        self.assertEqual(asked(0), {'version': 1, 'page': self.DOC}, 'first served: no version before it it was moved from')
+        sheet = {'page': {'kind': 'addSheet', 'id': 'sheet-2', 'name': None}}
+        group = {'grid': 'grid-1', 'command': {'kind': 'group', 'rows': ['desk']}}
+        engine.serve_page('q3', {**self.DOC, 'name': 'Q4'}, [sheet])
+        engine.serve_page('q3', {**self.DOC, 'name': 'Q5'}, [group])
+        self.assertEqual(asked(1), {'version': 3, 'commands': [sheet, group]}, "each version's commands, in order")
+        self.assertEqual(asked(2), {'version': 3, 'commands': [group]})
+        # a change by no command: a page open before it opens the page again
+        engine.serve_page('q3', {**self.DOC, 'name': 'Q6'})
+        self.assertEqual(asked(2)['page']['name'], 'Q6')
+        self.assertEqual(asked(4), {'version': 4, 'commands': []})
+        self.assertEqual(self.get('/page.json?page=q3&since=x', auth)[0], 400)
+        # closed and shown again: a tab still open on its earlier showing opens it again
+        engine.close_page('q3')
+        engine.serve_page('q3', self.DOC, [sheet])
+        self.assertEqual(asked(4), {'version': 5, 'page': self.DOC})
+
     def test_a_page_asked_with_the_token_only(self):
         self.server.engine.serve_page('q3', self.DOC)
         self.assertEqual(self.get('/page.json?page=q3')[0], 401)

@@ -276,6 +276,8 @@ class _Session:
             # a page open on it stays as it is
             if not page._shown:
                 self.engine().serve_page(page._key, page._doc)
+                # served whole: what changed it before is in it
+                page._unserved = []
             page._shown.append(view)
             self.pages.append(view)
             self._hook()
