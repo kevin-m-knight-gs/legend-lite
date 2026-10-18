@@ -22,6 +22,8 @@ core/src/main/java/com/legend/protocol/sql/InputDialect.java	product-name	6
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 # 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
 core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	47
+# 2026-10-17, the #SQL{} island's regression-suite corpus lane (PgRegressCorpusTest; its manual target, the corpus program's first corpus): the embedded Postgres it replays the PostgreSQL regression suite on, pinned as measured.
+core/src/test/java/com/legend/integration/PgRegressCorpusTest.java	product-name	2
 core/src/test/java/com/legend/protocol/sql/SqlParserTest.java	product-name	3
 core/src/test/java/com/legend/protocol/sql/SqlToPureTest.java	product-name	10
 warehouse/src/test/java/com/legend/warehouse/TestServer.java	product-name	4

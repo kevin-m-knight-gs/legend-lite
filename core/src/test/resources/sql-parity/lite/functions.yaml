@@ -325,3 +325,7 @@ tests:
     sql: "SELECT id, (CASE WHEN id > 5 THEN salary ELSE 1.5 END) || '' AS a FROM persons ORDER BY id"
   - id: coalesce_of_decimals_keeps_its_numbers
     sql: "SELECT id, coalesce(salary, 0) AS a, coalesce(salary, 0) + 1 AS b FROM persons ORDER BY id"
+  # an unnamed item's name, as Postgres's FigureColname gives it (2026-10-17, the regression-suite corpus): the outer
+  # of two casts, a typed constant's type, CASE's ELSE column, a scalar subquery's column
+  - id: unnamed_items_are_named_by_their_strongest_name
+    sql: "SELECT '1'::float8::int2, 7::integer, date '2024-01-31', CASE WHEN id > 3 THEN 'x' ELSE name END, (SELECT max(o.amount) FROM orders o WHERE o.person_id = p.id) FROM persons p ORDER BY id"
