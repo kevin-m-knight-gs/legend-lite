@@ -258,6 +258,18 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 - **2026-10-17** -- the program written (this document), the rulings R1 to R6 recorded, the representation decided
   (JSON stays, §2). Step 1 announced: types in the plan.
+- **2026-10-18, step 2, the matrix measured** (GATES "The plan path program, step 2 begins"): `OutputMatrixTest`, 192
+  cells on DuckDB and H2; 116 write Pure's text, 76 pinned by name (the JSON wires' native number tokens, H2's
+  exponent forms, every DateTime text but the TDS text's whole second and the TDS text's millisecond column, a
+  binder error on DuckDB's CSV wire for a value root's fractional date-time). The landings that follow delete pins:
+  the Float's text owner, the Decimal's, the DateTime's, then `pure/v1`'s text.
+- **2026-10-18, step 2 announced: the printed values** (PARK-24; `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md`, whose
+  five steps this step is): first the matrix, measured -- a test recording, for each kind (a whole, a fractional and
+  an extreme Float; a Decimal literal and after arithmetic; a DateTime with no, three and nine fraction digits; a
+  StrictDate) and each output (CSV, JSON, a stream of JSON rows, Pure's TDS text, `pure/v1` execute) on DuckDB and H2,
+  lite's text beside interpreted Pure's (`probes/engine-reference/pure-interpreted-results.txt`) and the engine's;
+  today's deviations pinned by name and shrink-only, so each later landing (the Float's text owner, the Decimal's, the
+  DateTime's, `pure/v1`'s) is judged by the pins it removes.
 - **2026-10-18, step 1 landed** (the three facts per column, the typed tree in the lite JSON, the round-trip gate;
   GATES "The plan path program, step 1"). The tree: `MirJson`, every MIR variant its own tag, written into the
   plan's `tree` and read back; the gate: `testcases/PlanRoundTrip`, every plan the plan maker's and the MongoDB tests

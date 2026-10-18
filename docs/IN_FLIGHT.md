@@ -2047,5 +2047,9 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   difference 2 closed), the round-trip gate (`testcases/PlanRoundTrip`, new) on every plan the plan maker's and the
   MongoDB tests make. Files touched beyond the announced list: `AGENTS.md` (the MIR table recounted),
   `server/PostgresArmTest.java` (a graph query's TDS text output skipped as its CSV is), `core/BUILD.bazel` (the
-  `plan` library depends on `execution_plan`; the MongoDB plan test on the shared test cases). Step 2 next: the
-  printed values (PARK-24).
+  `plan` library depends on `execution_plan`; the MongoDB plan test on the shared test cases). **Step 2 announced
+  2026-10-18: the printed values** (PARK-24; `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md`'s five steps): the output
+  matrix measured first (`OutputMatrixTest`, new, in `core/src/test/java/com/legend/`), then one text owner per kind
+  per API in `lowering/LiteralSpelling.java` and the wires (`lowering/Render.java`, `WireRender.java`), the `pure/v1`
+  text in `server/PureV1Api.java`; each landing judged by the matrix's pins it removes. **The matrix landed
+  2026-10-18** (GATES "The plan path program, step 2 begins"): 192 cells, 76 pinned.

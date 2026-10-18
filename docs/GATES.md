@@ -10653,6 +10653,28 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 2 begins: the output matrix, measured and pinned
+
+The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 2 and §9; the design `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md`
+(§5 step 1: the matrix first). The line: `docs/IN_FLIGHT.md`, the thirteenth line.
+
+What changed: `OutputMatrixTest` (new, `//core:core_tests_root`): for twelve kinds of value (a whole, a fractional, an
+arithmetic, a big and a small Float; a Decimal literal, after arithmetic and times a Decimal; a DateTime with no,
+three and nine fraction digits; a StrictDate), each as a value root and as a column, on each of lite's own outputs
+through the plan path (CSV, the JSON wire, a stream of JSON rows, Pure's TDS text) on DuckDB and H2 -- 192 cells --
+the text lite writes beside interpreted Pure's (the reference of 2026-10-10). 116 cells write Pure's text. 76 are
+PINNED by name with today's text, shrink-only: a pin that stops holding fails, a pinned cell that starts writing
+Pure's text fails until its pin is deleted. The pins, by gap: the JSON wires' number tokens are the database's own
+(DuckDB's small Float `2.5e-7`, its Decimals as doubles `2.5`, `5.0`, `3.75`); H2's Floats at an extreme magnitude in
+exponent form on every output (`1.5E15`, `2.5E-7`); a DateTime's text on the CSV wire (`2024-01-02 10:30:00`, the
+fraction dropped) and the JSON wires (DuckDB a space and no zone, H2 a `T` and no zone); a value root's DateTime with
+a fraction on the TDS text without its `+0000`, and on DuckDB's CSV wire a binder error (`strftime` over the text the
+value root carries); a column's DateTime on the TDS text with three digits always (`.000`, and nine cut to three).
+Every one is a row of the design's §3, now measured. The ledger: the test's rows (database-type 1, jdbc-url 2,
+product-name 5), dated.
+
+What judges it: `//core:core_tests_root`, `//core:census`, `//core:guardrails`.
+
 ## 2026-10-18 — The plan path program, step 1: every result column carries its three type facts; the typed SQL tree in the lite JSON
 
 The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §3 (the design), §9 (the record). The line: `docs/IN_FLIGHT.md`, the

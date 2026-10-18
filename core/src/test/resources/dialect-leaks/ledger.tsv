@@ -64,6 +64,10 @@ core/src/test/java/com/legend/ConstantPlanParityTest.java	jdbc-url	1
 core/src/test/java/com/legend/PipelineStageFailureTest.java	dialect-class	2
 core/src/test/java/com/legend/PipelineStageFailureTest.java	product-name	2
 # 2026-10-18, the plan path program's step 1 (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): the three-facts and the round-trip tests name DuckDB and H2 as the plan maker's other tests do (database-type 22 -> 27, product-name 35 -> 40).
+# 2026-10-18, the plan path program's step 2 (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §5 step 1): the output matrix test names DuckDB and H2, the two databases it measures lite's text on, and opens their in-memory connections.
+core/src/test/java/com/legend/OutputMatrixTest.java	database-type	1
+core/src/test/java/com/legend/OutputMatrixTest.java	jdbc-url	2
+core/src/test/java/com/legend/OutputMatrixTest.java	product-name	5
 core/src/test/java/com/legend/PlanMakerTest.java	database-type	27
 core/src/test/java/com/legend/PlanMakerTest.java	jdbc-url	4
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
